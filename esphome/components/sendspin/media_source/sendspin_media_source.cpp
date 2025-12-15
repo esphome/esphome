@@ -224,6 +224,7 @@ void SendspinMediaSource::loop() {
           xEventGroupClearBits(ctx.event_group, EventGroupBits::TASK_STARTING | EventGroupBits::TASK_RUNNING |
                                                     EventGroupBits::TASK_STOPPING | EventGroupBits::TASK_STOPPED |
                                                     EventGroupBits::COMMAND_STOP);
+          this->parent_->update_state(SendspinClientState::SYNCHRONIZED);
           if (ctx.sync_task_stack_buffer == nullptr) {
             if (this->task_stack_in_psram_) {
               RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
@@ -338,7 +339,8 @@ void SendspinMediaSource::handle_command(media_source::MediaSourceCommand comman
       if (!ctx.pending_start) {
         // TODO: This is a hack to stop us from disconnecting from the server because the media player asked us to stop
         // only for us to start again
-        this->parent_->disconnect_from_server(SendspinGoodbyeReason::ANOTHER_SERVER);
+        this->parent_->update_state(SendspinClientState::EXTERNAL_SOURCE);
+        // this->parent_->disconnect_from_server(SendspinGoodbyeReason::ANOTHER_SERVER);
       }
       break;
     }

@@ -46,16 +46,20 @@ inline std::optional<SendspinCodecFormat> codec_format_from_string(const std::st
   return std::nullopt;
 }
 
-enum class SendspinPlayerState {
+enum class SendspinClientState {
   SYNCHRONIZED,
   ERROR,
+  EXTERNAL_SOURCE,
 };
 
-inline const char *to_string(SendspinPlayerState state) {
+inline const char *to_string(SendspinClientState state) {
   switch (state) {
-    case SendspinPlayerState::SYNCHRONIZED:
+    case SendspinClientState::SYNCHRONIZED:
       return "synchronized";
-    case SendspinPlayerState::ERROR:
+    case SendspinClientState::EXTERNAL_SOURCE:
+      return "external_source";
+    case SendspinClientState::ERROR:
+      // Intentional fallthrough
     default:
       return "error";
   }
@@ -91,7 +95,6 @@ struct PlayerSupportObject {
 };
 
 struct ClientPlayerStateObject {
-  SendspinPlayerState state;
   uint8_t volume;
   bool muted;
 };
@@ -504,6 +507,7 @@ struct ClientHelloMessage {
 };
 
 struct ClientStateMessage {
+  SendspinClientState state;
 #ifdef USE_SENDSPIN_PLAYER
   std::optional<ClientPlayerStateObject> player;
 #endif
@@ -542,7 +546,6 @@ struct ServerHelloMessage {
 
 enum class SendspinPlaybackState {
   PLAYING,
-  PAUSED,
   STOPPED,
 };
 
@@ -550,8 +553,6 @@ inline const char *to_string(SendspinPlaybackState state) {
   switch (state) {
     case SendspinPlaybackState::PLAYING:
       return "playing";
-    case SendspinPlaybackState::PAUSED:
-      return "paused";
     case SendspinPlaybackState::STOPPED:
       return "stopped";
     default:
@@ -562,8 +563,6 @@ inline const char *to_string(SendspinPlaybackState state) {
 inline std::optional<SendspinPlaybackState> playback_state_from_string(const std::string &str) {
   if (str == "playing")
     return SendspinPlaybackState::PLAYING;
-  if (str == "paused")
-    return SendspinPlaybackState::PAUSED;
   if (str == "stopped")
     return SendspinPlaybackState::STOPPED;
   return std::nullopt;

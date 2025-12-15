@@ -24,9 +24,6 @@ void SendspinMediaPlayer::setup() {
         case SendspinPlaybackState::PLAYING:
           new_state = media_player::MEDIA_PLAYER_STATE_PLAYING;
           break;
-        case SendspinPlaybackState::PAUSED:
-          new_state = media_player::MEDIA_PLAYER_STATE_PAUSED;
-          break;
         case SendspinPlaybackState::STOPPED:
         default:
           new_state = media_player::MEDIA_PLAYER_STATE_IDLE;

@@ -112,7 +112,7 @@ class SendspinHub : public Component {
   bool get_muted() { return this->muted_; }
   void update_muted(bool is_muted);
   void update_volume(uint8_t volume);
-  void update_state(SendspinPlayerState state);
+  void update_state(SendspinClientState state);
   void publish_client_state();
 
   ServerPlayerStreamObject &get_current_stream_params() { return this->current_stream_params_; }
@@ -191,7 +191,7 @@ class SendspinHub : public Component {
 
   uint8_t volume_;
   bool muted_;
-  SendspinPlayerState state_{SendspinPlayerState::SYNCHRONIZED};
+  SendspinClientState state_{SendspinClientState::SYNCHRONIZED};
   ServerPlayerStreamObject current_stream_params_{};
 #endif
 

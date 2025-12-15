@@ -685,7 +685,7 @@ void SendspinHub::update_muted(bool is_muted) {
   this->muted_ = is_muted;
   this->publish_client_state();
 }
-void SendspinHub::update_state(SendspinPlayerState state) {
+void SendspinHub::update_state(SendspinClientState state) {
   this->state_ = state;
   this->publish_client_state();
 }
@@ -699,11 +699,12 @@ void SendspinHub::publish_client_state() {
     return;
   }
   ClientStateMessage state_msg;
+  state_msg.state = this->state_;
+
   ClientPlayerStateObject player_state;
-  player_state.state = this->state_;
   player_state.volume = this->volume_;
   player_state.muted = this->muted_;
-  state_msg.player = player_state;
+
   this->sendspin_websocket_->send_client_state_message(&state_msg);
 }
 
