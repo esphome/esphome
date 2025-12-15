@@ -113,7 +113,7 @@ template<typename... Ts> class EmonTxSendCommandAction : public Action<Ts...>, p
  public:
   TEMPLATABLE_VALUE(std::string, command)
 
-  void play(Ts... x) override { this->parent_->send_command(this->command_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->send_command(this->command_.value(x...)); }
 };
 
 }  // namespace emontx
