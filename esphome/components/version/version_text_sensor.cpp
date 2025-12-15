@@ -1,6 +1,6 @@
 #include "version_text_sensor.h"
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/log.h"
 #include "esphome/core/version.h"
 #include "esphome/core/helpers.h"
 
@@ -13,7 +13,9 @@ void VersionTextSensor::setup() {
   if (this->hide_timestamp_) {
     this->publish_state(ESPHOME_VERSION);
   } else {
-    this->publish_state(str_sprintf(ESPHOME_VERSION " %s", App.get_compilation_time_ref().c_str()));
+    char build_time_str[esphome::Application::BUILD_TIME_STR_SIZE];
+    App.get_build_time_string(build_time_str);
+    this->publish_state(str_sprintf(ESPHOME_VERSION " %s", build_time_str));
   }
 }
 float VersionTextSensor::get_setup_priority() const { return setup_priority::DATA; }
