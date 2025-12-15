@@ -50,7 +50,7 @@ void TemplateWaterHeater::loop() {
 }
 
 void TemplateWaterHeater::dump_config() {
-  LOG_WATER_HEATER(TAG, "Template Water Heater", this);
+  ESP_LOGCONFIG(TAG, "Template Water Heater");
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
   ESP_LOGCONFIG(TAG, "  Min Temperature: %.1f", this->min_temperature_);
   ESP_LOGCONFIG(TAG, "  Max Temperature: %.1f", this->max_temperature_);

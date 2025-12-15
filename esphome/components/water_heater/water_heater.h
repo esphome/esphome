@@ -17,8 +17,6 @@ class WaterHeater;
 void call_water_heater_update(WaterHeater *a);
 void register_water_heater(WaterHeater *a);
 
-#define LOG_WATER_HEATER(tag, message, ...) ESP_LOGCONFIG(tag, message, __VA_ARGS__)
-
 enum WaterHeaterMode : uint32_t {
   WATER_HEATER_MODE_OFF = 0,
   WATER_HEATER_MODE_ECO = 1,
