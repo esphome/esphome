@@ -9,6 +9,7 @@
 #include "light_output.h"
 #include "light_state.h"
 #include "light_transformer.h"
+#include "channel_map.h"
 
 #ifdef USE_POWER_SUPPLY
 #include "esphome/components/power_supply/power_supply.h"
