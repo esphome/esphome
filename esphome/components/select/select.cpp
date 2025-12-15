@@ -56,12 +56,10 @@ size_t Select::size() const {
   return options.size();
 }
 
-optional<size_t> Select::index_of(const std::string &option) const { return this->index_of(option.c_str()); }
-
-optional<size_t> Select::index_of(const char *option) const {
+optional<size_t> Select::index_of(const char *option, size_t len) const {
   const auto &options = traits.get_options();
   for (size_t i = 0; i < options.size(); i++) {
-    if (strcmp(options[i], option) == 0) {
+    if (strncmp(options[i], option, len) == 0 && options[i][len] == '\0') {
       return i;
     }
   }

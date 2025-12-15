@@ -256,6 +256,8 @@ class Application {
 
   /// Get the comment of this Application set by pre_setup().
   std::string get_comment() const { return this->comment_; }
+  /// Get the comment as StringRef (avoids allocation)
+  StringRef get_comment_ref() const { return StringRef(this->comment_); }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 

@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
 from esphome.components.time import RealTimeClock
@@ -311,19 +313,36 @@ def automation_schema(typ: LvType):
     }
 
 
-def base_update_schema(widget_type, parts):
+def _update_widget(widget_type: WidgetType) -> Callable[[dict], dict]:
     """
-    Create a schema for updating a widgets style properties, states and flags
+    During validation of update actions, create a map of action types to affected widgets
+    for use in final validation.
+    :param widget_type:
+    :return:
+    """
+
+    def validator(value: dict) -> dict:
+        df.get_data(df.KEY_UPDATED_WIDGETS).setdefault(widget_type, []).append(value)
+        return value
+
+    return validator
+
+
+def base_update_schema(widget_type: WidgetType | LvType, parts):
+    """
+    Create a schema for updating a widget's style properties, states and flags.
     :param widget_type: The type of the ID
     :param parts:  The allowable parts to specify
     :return:
     """
-    return part_schema(parts).extend(
+
+    w_type = widget_type.w_type if isinstance(widget_type, WidgetType) else widget_type
+    schema = part_schema(parts).extend(
         {
             cv.Required(CONF_ID): cv.ensure_list(
                 cv.maybe_simple_value(
                     {
-                        cv.Required(CONF_ID): cv.use_id(widget_type),
+                        cv.Required(CONF_ID): cv.use_id(w_type),
                     },
                     key=CONF_ID,
                 )
@@ -332,11 +351,9 @@ def base_update_schema(widget_type, parts):
         }
     )
 
-
-def create_modify_schema(widget_type):
-    return base_update_schema(widget_type.w_type, widget_type.parts).extend(
-        widget_type.modify_schema
-    )
+    if isinstance(widget_type, WidgetType):
+        schema.add_extra(_update_widget(widget_type))
+    return schema
 
 
 def obj_schema(widget_type: WidgetType):
