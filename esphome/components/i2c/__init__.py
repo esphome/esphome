@@ -2,6 +2,23 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components import esp32
+from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    get_esp32_variant,
+)
+from esphome.components.esp32.gpio_esp32_c5 import esp32_c5_validate_lp_i2c
+from esphome.components.esp32.gpio_esp32_c6 import esp32_c6_validate_lp_i2c
+from esphome.components.esp32.gpio_esp32_p4 import esp32_p4_validate_lp_i2c
 from esphome.components.zephyr import (
     zephyr_add_overlay,
     zephyr_add_prj_conf,
@@ -16,6 +33,7 @@ from esphome.const import (
     CONF_I2C,
     CONF_I2C_ID,
     CONF_ID,
+    CONF_LOW_POWER_MODE,
     CONF_SCAN,
     CONF_SCL,
     CONF_SDA,
@@ -40,6 +58,25 @@ IDFI2CBus = i2c_ns.class_("IDFI2CBus", InternalI2CBus, cg.Component)
 ZephyrI2CBus = i2c_ns.class_("ZephyrI2CBus", I2CBus, cg.Component)
 I2CDevice = i2c_ns.class_("I2CDevice")
 
+ESP32_I2C_CAPABILITIES = {
+    # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32/include/soc/soc_caps.h
+    VARIANT_ESP32: {"NUM": 2, "HP": 2},
+    VARIANT_ESP32C2: {"NUM": 1, "HP": 1},
+    VARIANT_ESP32C3: {"NUM": 1, "HP": 1},
+    VARIANT_ESP32C5: {"NUM": 2, "HP": 1, "LP": 1},
+    VARIANT_ESP32C6: {"NUM": 2, "HP": 1, "LP": 1},
+    VARIANT_ESP32C61: {"NUM": 1, "HP": 1},
+    VARIANT_ESP32H2: {"NUM": 2, "HP": 2},
+    VARIANT_ESP32P4: {"NUM": 3, "HP": 2, "LP": 1},
+    VARIANT_ESP32S2: {"NUM": 2, "HP": 2},
+    VARIANT_ESP32S3: {"NUM": 2, "HP": 2},
+}
+VALIDATE_LP_I2C = {
+    VARIANT_ESP32C5: esp32_c5_validate_lp_i2c,
+    VARIANT_ESP32C6: esp32_c6_validate_lp_i2c,
+    VARIANT_ESP32P4: esp32_p4_validate_lp_i2c,
+}
+LP_I2C_VARIANT = list(VALIDATE_LP_I2C.keys())
 
 CONF_SDA_PULLUP_ENABLED = "sda_pullup_enabled"
 CONF_SCL_PULLUP_ENABLED = "scl_pullup_enabled"
@@ -91,6 +128,13 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period,
             ),
             cv.Optional(CONF_SCAN, default=True): cv.boolean,
+            cv.Optional(CONF_LOW_POWER_MODE): cv.All(
+                cv.only_on_esp32,
+                esp32.only_on_variant(
+                    supported=LP_I2C_VARIANT, msg_prefix="Low power i2c"
+                ),
+                cv.boolean,
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_NRF52]),
@@ -102,6 +146,31 @@ def _final_validate(config):
     full_config = fv.full_config.get()[CONF_I2C]
     if CORE.using_zephyr and len(full_config) > 1:
         raise cv.Invalid("Second i2c is not implemented on Zephyr yet")
+    if CORE.using_esp_idf and get_esp32_variant() in ESP32_I2C_CAPABILITIES:
+        variant = get_esp32_variant()
+        max_num = ESP32_I2C_CAPABILITIES[variant]["NUM"]
+        if len(full_config) > max_num:
+            raise cv.Invalid(
+                f"The maximum number of i2c interfaces for {variant} is {max_num}"
+            )
+        if variant in LP_I2C_VARIANT:
+            max_lp_num = ESP32_I2C_CAPABILITIES[variant]["LP"]
+            max_hp_num = ESP32_I2C_CAPABILITIES[variant]["HP"]
+            lp_num = sum(
+                CONF_LOW_POWER_MODE in conf and conf[CONF_LOW_POWER_MODE]
+                for conf in full_config
+            )
+            hp_num = len(full_config) - lp_num
+            if CONF_LOW_POWER_MODE in config and config[CONF_LOW_POWER_MODE]:
+                VALIDATE_LP_I2C[variant](config)
+            if lp_num > max_lp_num:
+                raise cv.Invalid(
+                    f"The maximum number of low power i2c interfaces for {variant} is {max_lp_num}"
+                )
+            if hp_num > max_hp_num:
+                raise cv.Invalid(
+                    f"The maximum number of high power i2c interfaces for {variant} is {max_hp_num}"
+                )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -155,6 +224,8 @@ async def to_code(config):
         cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))
     if CORE.using_arduino and not CORE.is_esp32:
         cg.add_library("Wire", None)
+    if CONF_LOW_POWER_MODE in config:
+        cg.add(var.set_lp_mode(bool(config[CONF_LOW_POWER_MODE])))
 
 
 def i2c_device_schema(default_address):

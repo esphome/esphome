@@ -69,7 +69,17 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
   delay(10);
   return true;
 }
-bool WiFiComponent::wifi_apply_power_save_() { return WiFi.setSleep(this->power_save_ != WIFI_POWER_SAVE_NONE); }
+bool WiFiComponent::wifi_apply_power_save_() {
+  bool success = WiFi.setSleep(this->power_save_ != WIFI_POWER_SAVE_NONE);
+#ifdef USE_WIFI_LISTENERS
+  if (success) {
+    for (auto *listener : this->power_save_listeners_) {
+      listener->on_wifi_power_save(this->power_save_);
+    }
+  }
+#endif
+  return success;
+}
 bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
@@ -281,6 +291,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
     }
     case ESPHOME_EVENT_ID_WIFI_STA_STOP: {
       ESP_LOGV(TAG, "STA stop");
+      s_sta_connecting = false;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_CONNECTED: {
@@ -302,6 +313,23 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
+
+      // LibreTiny can send spurious disconnect events with empty ssid/bssid during connection.
+      // These are typically "Association Leave" events that don't indicate actual failures:
+      //   [W][wifi_lt]: Disconnected ssid='' bssid=00:00:00:00:00:00 reason='Association Leave'
+      //   [W][wifi_lt]: Disconnected ssid='' bssid=00:00:00:00:00:00 reason='Association Leave'
+      //   [V][wifi_lt]: Connected ssid='WIFI' bssid=... channel=3, authmode=WPA2 PSK
+      // Without this check, the spurious events set s_sta_connecting=false, causing
+      // wifi_sta_connect_status_() to return IDLE. The main loop then sees
+      // "Unknown connection status 0" (wifi_component.cpp check_connecting_finished)
+      // and calls retry_connect(), aborting a connection that may succeed moments later.
+      // Real connection failures will have ssid/bssid populated, or we'll hit the connection timeout.
+      if (it.ssid_len == 0 && s_sta_connecting) {
+        ESP_LOGV(TAG, "Ignoring disconnect event with empty ssid while connecting (reason=%s)",
+                 get_disconnect_reason_str(it.reason));
+        break;
+      }
+
       if (it.reason == WIFI_REASON_NO_AP_FOUND) {
         ESP_LOGW(TAG, "Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
       } else {
@@ -435,6 +463,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 }
 void WiFiComponent::wifi_scan_done_callback_() {
   this->scan_result_.clear();
+  this->scan_done_ = true;
 
   int16_t num = WiFi.scanComplete();
   if (num < 0)
@@ -453,7 +482,6 @@ void WiFiComponent::wifi_scan_done_callback_() {
                                     ssid.length() == 0);
   }
   WiFi.scanDelete();
-  this->scan_done_ = true;
 #ifdef USE_WIFI_LISTENERS
   for (auto *listener : this->scan_results_listeners_) {
     listener->on_wifi_scan_results(this->scan_result_);
@@ -500,7 +528,12 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; }
 #endif  // USE_WIFI_AP
 
-bool WiFiComponent::wifi_disconnect_() { return WiFi.disconnect(); }
+bool WiFiComponent::wifi_disconnect_() {
+  // Clear connecting flag first so disconnect events aren't ignored
+  // and wifi_sta_connect_status_() returns IDLE instead of CONNECTING
+  s_sta_connecting = false;
+  return WiFi.disconnect();
+}
 
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};
