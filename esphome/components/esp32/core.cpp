@@ -4,25 +4,20 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
+#include <esp_clk_tree.h>
+#include <esp_cpu.h>
 #include <esp_idf_version.h>
 #include <esp_ota_ops.h>
 #include <esp_task_wdt.h>
 #include <esp_timer.h>
-#include <soc/rtc.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
-#include <hal/cpu_hal.h>
+void setup();  // NOLINT(readability-redundant-declaration)
+void loop();   // NOLINT(readability-redundant-declaration)
 
-#ifdef USE_ARDUINO
-#include <Esp.h>
-#else
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
-#include <esp_clk_tree.h>
-#endif
-void setup();
-void loop();
-#endif
+// Weak stub for initArduino - overridden when the Arduino component is present
+extern "C" __attribute__((weak)) void initArduino() {}
 
 namespace esphome {
 
@@ -41,19 +36,7 @@ void arch_restart() {
 
 void arch_init() {
   // Enable the task watchdog only on the loop task (from which we're currently running)
-#if defined(USE_ESP_IDF)
   esp_task_wdt_add(nullptr);
-  // Idle task watchdog is disabled on ESP-IDF
-#elif defined(USE_ARDUINO)
-  enableLoopWDT();
-  // Disable idle task watchdog on the core we're using (Arduino pins the task to a core)
-#if defined(CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0) && CONFIG_ARDUINO_RUNNING_CORE == 0
-  disableCore0WDT();
-#endif
-#if defined(CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1) && CONFIG_ARDUINO_RUNNING_CORE == 1
-  disableCore1WDT();
-#endif
-#endif
 
   // If the bootloader was compiled with CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE the current
   // partition will get rolled back unless it is marked as valid.
@@ -71,21 +54,10 @@ uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
 uint32_t arch_get_cpu_cycle_count() { return esp_cpu_get_cycle_count(); }
 uint32_t arch_get_cpu_freq_hz() {
   uint32_t freq = 0;
-#ifdef USE_ESP_IDF
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
   esp_clk_tree_src_get_freq_hz(SOC_MOD_CLK_CPU, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &freq);
-#else
-  rtc_cpu_freq_config_t config;
-  rtc_clk_cpu_freq_get_config(&config);
-  freq = config.freq_mhz * 1000000U;
-#endif
-#elif defined(USE_ARDUINO)
-  freq = ESP.getCpuFreqMHz() * 1000000;
-#endif
   return freq;
 }
 
-#ifdef USE_ESP_IDF
 TaskHandle_t loop_task_handle = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void loop_task(void *pv_params) {
@@ -96,6 +68,7 @@ void loop_task(void *pv_params) {
 }
 
 extern "C" void app_main() {
+  initArduino();
   esp32::setup_preferences();
 #if CONFIG_FREERTOS_UNICORE
   xTaskCreate(loop_task, "loopTask", ESPHOME_LOOP_TASK_STACK_SIZE, nullptr, 1, &loop_task_handle);
@@ -103,11 +76,6 @@ extern "C" void app_main() {
   xTaskCreatePinnedToCore(loop_task, "loopTask", ESPHOME_LOOP_TASK_STACK_SIZE, nullptr, 1, &loop_task_handle, 1);
 #endif
 }
-#endif  // USE_ESP_IDF
-
-#ifdef USE_ARDUINO
-extern "C" void init() { esp32::setup_preferences(); }
-#endif  // USE_ARDUINO
 
 }  // namespace esphome
 
