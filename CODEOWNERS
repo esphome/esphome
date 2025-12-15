@@ -558,7 +558,6 @@ esphome/components/wl_134/* @hobbypunk90
 esphome/components/wts01/* @alepee
 esphome/components/x9c/* @EtienneMD
 esphome/components/xensiv_dps3xx_base/* @ederjc @jaenrig-ifx @michal-gora
-esphome/components/xensiv_dps3xx_i2c/* @ederjc @jaenrig-ifx @michal-gora
 esphome/components/xgzp68xx/* @gcormier
 esphome/components/xiaomi_hhccjcy10/* @fariouche
 esphome/components/xiaomi_lywsd02mmc/* @juanluss31
