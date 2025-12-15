@@ -19,22 +19,28 @@ const LogString *fan_direction_to_string(FanDirection direction) {
   }
 }
 
-FanCall &FanCall::set_preset_mode(const std::string &preset_mode) { return this->set_preset_mode(preset_mode.c_str()); }
+FanCall &FanCall::set_preset_mode(const std::string &preset_mode) {
+  return this->set_preset_mode(preset_mode.data(), preset_mode.size());
+}
 
 FanCall &FanCall::set_preset_mode(const char *preset_mode) {
-  if (preset_mode == nullptr || strlen(preset_mode) == 0) {
+  return this->set_preset_mode(preset_mode, preset_mode ? strlen(preset_mode) : 0);
+}
+
+FanCall &FanCall::set_preset_mode(const char *preset_mode, size_t len) {
+  if (preset_mode == nullptr || len == 0) {
     this->preset_mode_ = nullptr;
     return *this;
   }
 
   // Find and validate pointer from traits immediately
   auto traits = this->parent_.get_traits();
-  const char *validated_mode = traits.find_preset_mode(preset_mode);
+  const char *validated_mode = traits.find_preset_mode(preset_mode, len);
   if (validated_mode != nullptr) {
     this->preset_mode_ = validated_mode;  // Store pointer from traits
   } else {
     // Preset mode not found in traits - log warning and don't set
-    ESP_LOGW(TAG, "%s: Preset mode '%s' not supported", this->parent_.get_name().c_str(), preset_mode);
+    ESP_LOGW(TAG, "%s: Preset mode '%.*s' not supported", this->parent_.get_name().c_str(), (int) len, preset_mode);
     this->preset_mode_ = nullptr;
   }
   return *this;
@@ -140,7 +146,13 @@ FanCall Fan::turn_off() { return this->make_call().set_state(false); }
 FanCall Fan::toggle() { return this->make_call().set_state(!this->state); }
 FanCall Fan::make_call() { return FanCall(*this); }
 
-const char *Fan::find_preset_mode_(const char *preset_mode) { return this->get_traits().find_preset_mode(preset_mode); }
+const char *Fan::find_preset_mode_(const char *preset_mode) {
+  return this->find_preset_mode_(preset_mode, preset_mode ? strlen(preset_mode) : 0);
+}
+
+const char *Fan::find_preset_mode_(const char *preset_mode, size_t len) {
+  return this->get_traits().find_preset_mode(preset_mode, len);
+}
 
 bool Fan::set_preset_mode_(const char *preset_mode) {
   if (preset_mode == nullptr) {

@@ -78,6 +78,8 @@ class ClimateCall {
   ClimateCall &set_fan_mode(optional<std::string> fan_mode);
   /// Set the custom fan mode of the climate device.
   ClimateCall &set_fan_mode(const char *custom_fan_mode);
+  /// Set the custom fan mode of the climate device (zero-copy API path).
+  ClimateCall &set_fan_mode(const char *custom_fan_mode, size_t len);
   /// Set the swing mode of the climate device.
   ClimateCall &set_swing_mode(ClimateSwingMode swing_mode);
   /// Set the swing mode of the climate device.
@@ -94,6 +96,8 @@ class ClimateCall {
   ClimateCall &set_preset(optional<std::string> preset);
   /// Set the custom preset of the climate device.
   ClimateCall &set_preset(const char *custom_preset);
+  /// Set the custom preset of the climate device (zero-copy API path).
+  ClimateCall &set_preset(const char *custom_preset, size_t len);
 
   void perform();
 
@@ -290,9 +294,11 @@ class Climate : public EntityBase {
 
   /// Find and return the matching custom fan mode pointer from traits, or nullptr if not found.
   const char *find_custom_fan_mode_(const char *custom_fan_mode);
+  const char *find_custom_fan_mode_(const char *custom_fan_mode, size_t len);
 
   /// Find and return the matching custom preset pointer from traits, or nullptr if not found.
   const char *find_custom_preset_(const char *custom_preset);
+  const char *find_custom_preset_(const char *custom_preset, size_t len);
 
   /** Get the default traits of this climate device.
    *
