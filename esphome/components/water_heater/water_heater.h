@@ -1,12 +1,23 @@
 #pragma once
 
+#include <set>
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
 
 namespace esphome {
+
 namespace water_heater {
+
+struct WaterHeaterCallInternal;
+
+class WaterHeater;
+void call_water_heater_update(WaterHeater *a);
+void register_water_heater(WaterHeater *a);
+
+#define LOG_WATER_HEATER(tag, message, ...) ESP_LOGCONFIG(tag, message, __VA_ARGS__)
 
 enum WaterHeaterMode : uint32_t {
   WATER_HEATER_MODE_OFF = 0,
@@ -18,10 +29,15 @@ enum WaterHeaterMode : uint32_t {
   WATER_HEATER_MODE_GAS = 6,
 };
 
-class WaterHeater;
+struct SavedWaterHeaterState {
+  WaterHeaterMode mode;
+  float target_temperature;
+} __attribute__((packed));
 
 class WaterHeaterCall {
  public:
+  WaterHeaterCall() : parent_(nullptr) {}
+
   WaterHeaterCall(WaterHeater *parent);
 
   WaterHeaterCall &set_mode(WaterHeaterMode mode);
@@ -30,15 +46,28 @@ class WaterHeaterCall {
 
   void perform();
 
-  const optional<WaterHeaterMode> &get_mode() const;
-  const optional<float> &get_target_temperature() const;
+  void apply(WaterHeater *water_heater);
+  WaterHeaterCall &to_call(WaterHeater *water_heater);
+
+  optional<WaterHeaterMode> mode_;
+  optional<float> target_temperature_;
+
+  const optional<WaterHeaterMode> &get_mode() const { return this->mode_; }
+  const optional<float> &get_target_temperature() const { return this->target_temperature_; }
 
  protected:
   void validate_();
-
   WaterHeater *parent_;
-  optional<WaterHeaterMode> mode_;
-  optional<float> target_temperature_;
+};
+
+struct WaterHeaterCallInternal : public WaterHeaterCall {
+  WaterHeaterCallInternal(WaterHeater *parent) : WaterHeaterCall(parent) {}
+
+  WaterHeaterCallInternal &set_from_restore(const WaterHeaterCall &restore) {
+    this->mode_ = restore.mode_;
+    this->target_temperature_ = restore.target_temperature_;
+    return *this;
+  }
 };
 
 class WaterHeaterTraits {
@@ -69,18 +98,17 @@ class WaterHeater : public EntityBase, public Component {
   float current_temperature{NAN};
   float target_temperature{0.0f};
 
-  void publish_state();
+  virtual void publish_state();
+  virtual WaterHeaterTraits get_traits();
+  virtual WaterHeaterCallInternal make_call() = 0;
 
-  WaterHeaterTraits get_traits();
-
-  WaterHeaterCall make_call();
-
+  virtual void set_visual_min_temperature_override(float min_temperature_override);
+  virtual void set_visual_max_temperature_override(float max_temperature_override);
   virtual void control(const WaterHeaterCall &call) = 0;
 
-  void set_visual_min_temperature_override(float min_temperature_override);
-  void set_visual_max_temperature_override(float max_temperature_override);
-
   void setup() override;
+
+  optional<WaterHeaterCall> restore_state();
 
  protected:
   virtual WaterHeaterTraits traits() = 0;
@@ -88,6 +116,7 @@ class WaterHeater : public EntityBase, public Component {
   optional<float> visual_min_temperature_override_{};
   optional<float> visual_max_temperature_override_{};
 
+  uint32_t restore_storage_key_;
   ESPPreferenceObject pref_;
 };
 

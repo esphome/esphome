@@ -335,7 +335,7 @@ API_DISPATCH_UPDATE(valve::Valve, valve)
 API_DISPATCH_UPDATE(media_player::MediaPlayer, media_player)
 #endif
 
-#ifdef USE_MEDIA_PLAYER
+#ifdef USE_WATER_HEATER
 API_DISPATCH_UPDATE(water_heater::WaterHeater, water_heater)
 #endif
 

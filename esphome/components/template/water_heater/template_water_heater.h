@@ -14,7 +14,7 @@ enum TemplateWaterHeaterRestoreMode {
   WATER_HEATER_RESTORE_AND_CALL,
 };
 
-class TemplateWaterHeater : public water_heater::WaterHeater, public Component {
+class TemplateWaterHeater : public water_heater::WaterHeater {
  public:
   TemplateWaterHeater();
 
@@ -24,6 +24,8 @@ class TemplateWaterHeater : public water_heater::WaterHeater, public Component {
   template<typename F> void set_mode_lambda(F &&f) { this->mode_f_.set(std::forward<F>(f)); }
 
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
+  void set_min_temperature(float min_temperature) { this->min_temperature_ = min_temperature; }
+  void set_max_temperature(float max_temperature) { this->max_temperature_ = max_temperature; }
   void set_restore_mode(TemplateWaterHeaterRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 
   Trigger<> *get_set_trigger() const { return this->set_trigger_; }
@@ -37,7 +39,11 @@ class TemplateWaterHeater : public water_heater::WaterHeater, public Component {
   void control(const water_heater::WaterHeaterCall &call) override;
   water_heater::WaterHeaterTraits traits() override;
 
+  water_heater::WaterHeaterCallInternal make_call() override;
+
   bool optimistic_{true};
+  float min_temperature_{10.0f};
+  float max_temperature_{60.0f};
   TemplateWaterHeaterRestoreMode restore_mode_{WATER_HEATER_NO_RESTORE};
 
   Trigger<> *set_trigger_ = new Trigger<>();

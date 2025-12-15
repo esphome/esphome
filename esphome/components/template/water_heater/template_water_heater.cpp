@@ -1,5 +1,8 @@
 #include "template_water_heater.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
+
+#include <set>
 
 namespace esphome {
 namespace template_ {
@@ -9,21 +12,16 @@ static const char *const TAG = "template.water_heater";
 TemplateWaterHeater::TemplateWaterHeater() {}
 
 void TemplateWaterHeater::setup() {
-  switch (this->restore_mode_) {
-    case WATER_HEATER_NO_RESTORE:
-      break;
-    case WATER_HEATER_RESTORE: {
-      auto restore = this->restore_state_();
-      if (restore.has_value())
+  if (this->restore_mode_ == TemplateWaterHeaterRestoreMode::WATER_HEATER_RESTORE ||
+      this->restore_mode_ == TemplateWaterHeaterRestoreMode::WATER_HEATER_RESTORE_AND_CALL) {
+    auto restore = this->restore_state();
+
+    if (restore.has_value()) {
+      if (this->restore_mode_ == TemplateWaterHeaterRestoreMode::WATER_HEATER_RESTORE) {
         restore->apply(this);
-      break;
-    }
-    case WATER_HEATER_RESTORE_AND_CALL: {
-      auto restore = this->restore_state_();
-      if (restore.has_value()) {
+      } else {
         restore->to_call(this).perform();
       }
-      break;
     }
   }
 }
@@ -53,17 +51,23 @@ void TemplateWaterHeater::loop() {
 }
 
 void TemplateWaterHeater::dump_config() {
-  LOG_WATER_HEATER("", "Template Water Heater", this);
+  LOG_WATER_HEATER(TAG, "Template Water Heater", this);
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
+  ESP_LOGCONFIG(TAG, "  Min Temperature: %.1f", this->min_temperature_);
+  ESP_LOGCONFIG(TAG, "  Max Temperature: %.1f", this->max_temperature_);
 }
 
 float TemplateWaterHeater::get_setup_priority() const { return setup_priority::HARDWARE; }
 
+water_heater::WaterHeaterCallInternal TemplateWaterHeater::make_call() {
+  return water_heater::WaterHeaterCallInternal(this);
+}
+
 water_heater::WaterHeaterTraits TemplateWaterHeater::traits() {
   auto traits = water_heater::WaterHeaterTraits();
   traits.set_supports_current_temperature(true);
-  traits.set_min_temperature(10.0);
-  traits.set_max_temperature(90.0);
+  traits.set_min_temperature(this->min_temperature_);
+  traits.set_max_temperature(this->max_temperature_);
 
   traits.set_supported_modes({water_heater::WATER_HEATER_MODE_OFF, water_heater::WATER_HEATER_MODE_ECO,
                               water_heater::WATER_HEATER_MODE_ELECTRIC, water_heater::WATER_HEATER_MODE_PERFORMANCE,

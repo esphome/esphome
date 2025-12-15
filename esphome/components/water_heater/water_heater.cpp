@@ -3,6 +3,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/controller_registry.h"
 
+#include <set>
+#include <utility>
+
 namespace esphome {
 namespace water_heater {
 
@@ -41,6 +44,13 @@ WaterHeaterCall &WaterHeaterCall::set_target_temperature(float temperature) {
   return *this;
 }
 
+void WaterHeaterCall::apply(WaterHeater *water_heater) { *this = water_heater->make_call(); }
+
+WaterHeaterCall &WaterHeaterCall::to_call(WaterHeater *water_heater) {
+  water_heater->make_call().set_from_restore(*this).perform();
+  return *this;
+}
+
 void WaterHeaterCall::perform() {
   this->validate_();
   this->parent_->control(*this);
@@ -68,9 +78,6 @@ void WaterHeaterCall::validate_() {
   }
 }
 
-const optional<WaterHeaterMode> &WaterHeaterCall::get_mode() const { return this->mode_; }
-const optional<float> &WaterHeaterCall::get_target_temperature() const { return this->target_temperature_; }
-
 void WaterHeaterTraits::set_supports_current_temperature(bool supports_current_temperature) {
   this->supports_current_temperature_ = supports_current_temperature;
 }
@@ -88,9 +95,31 @@ void WaterHeaterTraits::set_supported_modes(std::set<WaterHeaterMode> modes) {
 const std::set<WaterHeaterMode> &WaterHeaterTraits::get_supported_modes() const { return this->supported_modes_; }
 bool WaterHeaterTraits::supports_mode(WaterHeaterMode mode) const { return this->supported_modes_.count(mode); }
 
-void WaterHeater::setup() { this->pref_ = global_preferences->make_preference<uint8_t>(this->get_object_id_hash()); }
+void WaterHeater::setup() {
+  this->pref_ = global_preferences->make_preference<SavedWaterHeaterState>(this->get_object_id_hash());
+}
 
-void WaterHeater::publish_state() { ControllerRegistry::notify_water_heater_update(this); }
+void WaterHeater::publish_state() {
+#if defined(USE_WATER_HEATER) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_water_heater_update(this);
+#endif
+
+  SavedWaterHeaterState saved{};
+  saved.mode = this->mode;
+  saved.target_temperature = this->target_temperature;
+  this->pref_.save(&saved);
+}
+
+optional<WaterHeaterCall> WaterHeater::restore_state() {
+  SavedWaterHeaterState recovered{};
+  if (!this->pref_.load(&recovered))
+    return {};
+
+  auto call = this->make_call();
+  call.set_mode(recovered.mode);
+  call.set_target_temperature(recovered.target_temperature);
+  return call;
+}
 
 WaterHeaterTraits WaterHeater::get_traits() {
   auto traits = this->traits();
@@ -102,8 +131,6 @@ WaterHeaterTraits WaterHeater::get_traits() {
   }
   return traits;
 }
-
-WaterHeaterCall WaterHeater::make_call() { return WaterHeaterCall(this); }
 
 void WaterHeater::set_visual_min_temperature_override(float min_temperature_override) {
   this->visual_min_temperature_override_ = min_temperature_override;

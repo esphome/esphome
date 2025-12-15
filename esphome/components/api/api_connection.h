@@ -178,7 +178,7 @@ class APIConnection final : public APIServerConnection {
 
 #ifdef USE_WATER_HEATER
   bool send_water_heater_state(water_heater::WaterHeater *water_heater);
-  void water_heater_command(const WaterHeaterCommandRequest &msg) override;
+  void on_water_heater_command_request(const WaterHeaterCommandRequest &msg) override;
 #endif
 
 #ifdef USE_EVENT

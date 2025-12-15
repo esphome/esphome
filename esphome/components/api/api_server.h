@@ -134,7 +134,7 @@ class APIServer : public Component,
   void on_media_player_update(media_player::MediaPlayer *obj) override;
 #endif
 #ifdef USE_WATER_HEATER
-  void water_heater_command(water_heater::WaterHeater *obj) override;
+  void on_water_heater_update(water_heater::WaterHeater *obj) override;
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void send_homeassistant_action(const HomeassistantActionRequest &call);

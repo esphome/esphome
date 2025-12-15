@@ -9,6 +9,8 @@ from esphome.const import (
     CONF_RESTORE_MODE,
     CONF_SET_ACTION,
     CONF_TARGET_TEMPERATURE,
+    CONF_MIN_TEMPERATURE,
+    CONF_MAX_TEMPERATURE,
 )
 
 from .. import template_ns
@@ -42,6 +44,9 @@ CONFIG_SCHEMA = water_heater.WATER_HEATER_SCHEMA.extend(
         ),
         cv.Optional(CONF_CURRENT_TEMPERATURE): cv.templatable(cv.temperature),
         cv.Optional(CONF_MODE): cv.templatable(water_heater.validate_water_heater_mode),
+        # Hier voegen we de min/max opties toe die in je vorige error ontbraken
+        cv.Optional(CONF_MIN_TEMPERATURE, default=10.0): cv.temperature,
+        cv.Optional(CONF_MAX_TEMPERATURE, default=60.0): cv.temperature,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -51,6 +56,8 @@ async def to_code(config):
     await water_heater.register_water_heater(var, config)
 
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+    cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
+    cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))
 
     if CONF_SET_ACTION in config:
         await automation.build_automation(
@@ -74,7 +81,8 @@ async def to_code(config):
     if CONF_MODE in config:
         conf = config[CONF_MODE]
         if not isinstance(conf, cv.Lambda):
-            conf = cv.Lambda(f"return {conf};")
+            enum_value_str = str(conf).split("::")[-1]
+            conf = cv.Lambda(f"return water_heater::{enum_value_str};")
 
         template_ = await cg.process_lambda(
             conf,
