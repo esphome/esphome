@@ -1,0 +1,38 @@
+esphome:
+  on_boot:
+    - lambda: |-
+        // Test FNV-1 hash functionality
+        using esphome::fnv1_hash;
+        using esphome::fnv1_hash_extend;
+
+        // Test basic fnv1_hash
+        uint32_t hash1 = fnv1_hash("test");
+        ESP_LOGD("FNV1", "fnv1_hash('test') = 0x%08x", hash1);
+
+        // Test fnv1_hash_extend
+        uint32_t hash2 = fnv1_hash("hello");
+        hash2 = fnv1_hash_extend(hash2, "world");
+        ESP_LOGD("FNV1", "fnv1_hash('hello') + extend('world') = 0x%08x", hash2);
+
+        // Verify it matches hashing the concatenated string
+        uint32_t hash3 = fnv1_hash("helloworld");
+        ESP_LOGD("FNV1", "fnv1_hash('helloworld') = 0x%08x", hash3);
+
+        if (hash2 == hash3) {
+          ESP_LOGI("FNV1", "fnv1_hash_extend test PASSED");
+        } else {
+          ESP_LOGE("FNV1", "fnv1_hash_extend test FAILED: 0x%08x != 0x%08x", hash2, hash3);
+        }
+
+        // Test with std::string
+        std::string str1 = "foo";
+        std::string str2 = "bar";
+        uint32_t hash4 = fnv1_hash(str1);
+        hash4 = fnv1_hash_extend(hash4, str2);
+        uint32_t hash5 = fnv1_hash("foobar");
+
+        if (hash4 == hash5) {
+          ESP_LOGI("FNV1", "fnv1_hash_extend std::string test PASSED");
+        } else {
+          ESP_LOGE("FNV1", "fnv1_hash_extend std::string test FAILED: 0x%08x != 0x%08x", hash4, hash5);
+        }
