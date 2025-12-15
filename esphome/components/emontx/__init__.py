@@ -68,6 +68,12 @@ CONFIG_SCHEMA = (
 
 
 def final_validate(config):
+    # Validate that on_line requires web_config
+    if CONF_ON_LINE in config and not config.get(CONF_WEB_CONFIG, False):
+        raise cv.Invalid(
+            f"'{CONF_ON_LINE}' trigger requires '{CONF_WEB_CONFIG}: true' to be set"
+        )
+
     # TX is required when web_config is enabled (for sending commands)
     require_tx = config.get(CONF_WEB_CONFIG, False)
     schema = uart.final_validate_device_schema(
