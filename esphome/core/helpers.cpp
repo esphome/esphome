@@ -155,17 +155,6 @@ uint32_t fnv1_hash(const char *str) {
   return hash;
 }
 
-// FNV-1a hash - preferred for new code
-uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
-  if (str) {
-    while (*str) {
-      hash ^= *str++;
-      hash *= FNV1_PRIME;
-    }
-  }
-  return hash;
-}
-
 float random_float() { return static_cast<float>(random_uint32()) / static_cast<float>(UINT32_MAX); }
 
 // Strings

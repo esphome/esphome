@@ -6,6 +6,7 @@
 #include <span>
 #include <string>
 #include <vector>
+#include "esphome/core/build_info_data.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -13,6 +14,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/scheduler.h"
 #include "esphome/core/string_ref.h"
+#include "esphome/core/version.h"
 
 #ifdef USE_DEVICES
 #include "esphome/core/device.h"
@@ -266,10 +268,13 @@ class Application {
   static constexpr size_t BUILD_TIME_STR_SIZE = 26;
 
   /// Get the config hash as a 32-bit integer
-  uint32_t get_config_hash();
+  constexpr uint32_t get_config_hash() { return ESPHOME_CONFIG_HASH; }
+
+  /// Get the config hash extended with ESPHome version
+  constexpr uint32_t get_config_version_hash() { return fnv1a_hash_extend(ESPHOME_CONFIG_HASH, ESPHOME_VERSION); }
 
   /// Get the build time as a Unix timestamp
-  time_t get_build_time();
+  constexpr time_t get_build_time() { return ESPHOME_BUILD_TIME; }
 
   /// Copy the build time string into the provided buffer
   /// Buffer must be BUILD_TIME_STR_SIZE bytes (compile-time enforced)

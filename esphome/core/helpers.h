@@ -388,12 +388,20 @@ constexpr uint32_t FNV1_OFFSET_BASIS = 2166136261UL;
 constexpr uint32_t FNV1_PRIME = 16777619UL;
 
 /// Extend a FNV-1a hash with additional string data.
-uint32_t fnv1a_hash_extend(uint32_t hash, const char *str);
+constexpr uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
+  if (str) {
+    while (*str) {
+      hash ^= *str++;
+      hash *= FNV1_PRIME;
+    }
+  }
+  return hash;
+}
 inline uint32_t fnv1a_hash_extend(uint32_t hash, const std::string &str) {
   return fnv1a_hash_extend(hash, str.c_str());
 }
 /// Calculate a FNV-1a hash of \p str.
-inline uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
+constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
 inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }
 
 /// Return a random 32-bit unsigned integer.

@@ -719,10 +719,6 @@ void Application::wake_loop_threadsafe() {
 }
 #endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 
-uint32_t Application::get_config_hash() { return ESPHOME_CONFIG_HASH; }
-
-time_t Application::get_build_time() { return ESPHOME_BUILD_TIME; }
-
 void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer) {
 #ifdef USE_ESP8266
   strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());

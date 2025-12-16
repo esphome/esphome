@@ -28,7 +28,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
-#include "esphome/core/version.h"
 
 #ifdef USE_CAPTIVE_PORTAL
 #include "esphome/components/captive_portal/captive_portal.h"
@@ -376,7 +375,7 @@ void WiFiComponent::start() {
                 get_mac_address_pretty_into_buffer(mac_s));
   this->last_connected_ = millis();
 
-  uint32_t hash = this->has_sta() ? fnv1a_hash_extend(App.get_config_hash(), ESPHOME_VERSION) : 88491487UL;
+  uint32_t hash = this->has_sta() ? App.get_config_version_hash() : 88491487UL;
 
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 #ifdef USE_WIFI_FAST_CONNECT

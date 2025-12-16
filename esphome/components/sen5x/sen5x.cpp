@@ -3,7 +3,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/version.h"
 #include <cinttypes>
 
 namespace esphome {
@@ -159,8 +158,7 @@ void SEN5XComponent::setup() {
         // Hash with config hash, version, and serial number
         // This ensures the baseline storage is cleared after OTA
         // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
-        uint32_t hash = fnv1a_hash_extend(App.get_config_hash(), ESPHOME_VERSION);
-        hash = fnv1a_hash_extend(hash, std::to_string(combined_serial));
+        uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), std::to_string(combined_serial));
         this->pref_ = global_preferences->make_preference<Sen5xBaselines>(hash, true);
 
         if (this->pref_.load(&this->voc_baselines_storage_)) {
