@@ -36,8 +36,6 @@ DriverChip(
     ],
 )
 
-
-# fmt: off
 DriverChip(
     "JC4880P443C",
     width=480,
@@ -96,4 +94,4 @@ DriverChip(
         (0x29,),
     ],
 )
-# fmt: on
+
