@@ -103,7 +103,7 @@ async def to_code(config):
             await automation.build_automation(
                 trigger,
                 [
-                    (cg.std_string, "line"),
+                    (cg.std_string, "data"),
                 ],
                 conf,
             )
