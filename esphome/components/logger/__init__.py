@@ -174,7 +174,7 @@ def uart_selection(value):
     if CORE.is_nrf52:
         return cv.one_of(*UART_SELECTION_NRF52, upper=True)(value)
     if CORE.target_platform == "stm32":
-        return None
+        raise cv.Invalid("Uart selection not valid for stm32 platform")
     raise NotImplementedError
 
 
