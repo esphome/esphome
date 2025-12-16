@@ -23,10 +23,11 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
+from .const import PLATFORM_STM32
+
 # force import gpio to register pin schema
 from .gpio import stm32_pin_to_code  # noqa
 
-PLATFORM_STM32 = "stm32"  # TODO: move to esphome.consts
 CODEOWNERS = ["@mrk-its"]
 AUTO_LOAD = ["zephyr"]
 IS_TARGET_PLATFORM = True
