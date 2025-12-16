@@ -51,8 +51,8 @@ micronova:
 - **enable_rx_pin** (**Required**, [Pin](/guides/configuration-types#pin)): Output pin to be used to switch the line between RX and TX.
 
 > [!NOTE]
-> For all text sensors, sensors, numbers, buttons and switches hereafter most of the the default **memory_location** and **memory_address** parameters will work so you should
-> not specify them. However your Micronova boad may require you to specify alternate values. So every text sensor, button,
+> For all text sensors, sensors, numbers, buttons and switches hereafter most of the default **memory_location** and **memory_address** parameters will work so you should
+> not specify them. However your Micronova board may require you to specify alternate values. So every text sensor, button,
 > switch or number accepts these parameters:
 >
 > - **memory_location** (*Optional*): The memory location for the parameter (0x00 for RAM, 0x20 for EPROM on most stoves).
@@ -148,7 +148,7 @@ number:
 ### Configuration variables
 
 - **thermostat_temperature** (*Optional*): Number that holds the current stove thermostat value.
-  - **step** (*Optional*): Temperature step. This value is used to multiply/devide the raw value when setting/reading the **thermostat_temperature**
+  - **step** (*Optional*): Temperature step. This value is used to multiply/divide the raw value when setting/reading the **thermostat_temperature**
   - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
   - All other options from [Number](/components/number#config-number).
 - **power_level** (*Optional*): Number that sets/reads the requested stove power.

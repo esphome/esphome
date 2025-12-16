@@ -41,7 +41,7 @@ sensor:
 
 binary_sensor:
   # If the Bayesian probability is greater than 0.6,
-  # then predict the event is occuring
+  # then predict the event is occurring
   - platform: analog_threshold
     name: "Bayesian Event Predicted State"
     sensor_id: bayesian_prob

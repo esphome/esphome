@@ -61,7 +61,7 @@ The properties below are common to all widgets.
 
 {{< anchor "lvgl-widgetproperty-state" >}}
 
-- **state** (*Optional*, dict): Widgets or their (sub)parts can have have states, which support separate styling. These state styles inherit from the theme, but can be locally set or overridden within style definitions. Can be one of:
+- **state** (*Optional*, dict): Widgets or their (sub)parts can have states, which support separate styling. These state styles inherit from the theme, but can be locally set or overridden within style definitions. Can be one of:
   - **checked** (*Optional*, boolean): Toggled or checked state.
   - **disabled** (*Optional*, boolean): Disabled state (also usable with [shorthand](#lvgl-automation-shorthands) actions `lvgl.widget.enable` and `lvgl.widget.disable`  ).
   - **edited** (*Optional*, boolean): Edit by an encoder.
@@ -1085,7 +1085,7 @@ A label is the basic widget type that is used to display text.
   - `CLIP`  : Simply clip the parts of the text outside the label.
 - **recolor** (*Optional*, boolean): Enable recoloring of button text with `#`. This makes it possible to set the color of characters in the text individually by prefixing the text to be re-colored with a `#RRGGBB` hexadecimal color code followed by a *space*, and finally closed with a single hash `#` tag. For example: `Write a #FF0000 red# word`.
 - **scrollbar** (*Optional*, list): Settings for the indicator *part* to show the value. Supports a list of [styles](/components/lvgl#lvgl-styling) and state-based styles to customize. The scroll bar that is shown when the text is larger than the widget's size.
-- **selected** (*Optional*, list): Settings for the the style of the selected text. Only `text_color` and `bg_color` style properties can be used.
+- **selected** (*Optional*, list): Settings for the style of the selected text. Only `text_color` and `bg_color` style properties can be used.
 - **text_align** (*Optional*, enum): Alignment of the text in the widget - it doesn't align the object itself, only the lines inside the object. One of `LEFT`, `CENTER`, `RIGHT`, `AUTO`. Inherited from parent. Defaults to `AUTO`, which detects the text base direction and uses left or right alignment accordingly.
 - **text_color** (*Optional*, [color](/components/lvgl#lvgl-color)): Color to render the text in. Inherited from parent. Defaults to `0` (black).
 - **text_decor** (*Optional*, list): Choose decorations for the text: `NONE`, `UNDERLINE`, `STRIKETHROUGH` (multiple can be specified as YAML list). Inherited from parent. Defaults to `NONE`.

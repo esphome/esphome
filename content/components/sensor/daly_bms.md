@@ -80,7 +80,7 @@ sensor:
 - **voltage** (*Optional*): Voltage of the battery pack connected to Daly BMS.
   All options from [Sensor](/components/sensor).
 
-- **current** (*Optional*): Current flowing trough the BMS (input or output from batttery).
+- **current** (*Optional*): Current flowing through the BMS (input or output from battery).
   All options from [Sensor](/components/sensor).
 
 - **battery_level** (*Optional*): Battery level in % (SoC).
@@ -164,9 +164,9 @@ binary_sensor:
 
 ## Control BMS
 
-At this moment Daly sensor platform don't suppport controlling you BMS, but you can make some stuff using uart.write
+At this moment Daly sensor platform doesn't support controlling your BMS, but you can make some stuff using uart.write
 
-First you need to setup binary sensors for charging and disharging MOS
+First you need to setup binary sensors for charging and discharging MOS
 
 ```yaml
 binary_sensor:

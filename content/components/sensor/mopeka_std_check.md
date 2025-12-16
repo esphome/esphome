@@ -119,7 +119,7 @@ mopeka_ble:
 ```
 
 After uploading, the ESP32 will immediately try to scan for BLE devices. For Mopeka Standard devices you must press and hold the green sync button for it to be identified.
-Or alternativly set the configuration flag `show_sensors_without_sync: true` to see all devices.
+Or alternatively set the configuration flag `show_sensors_without_sync: true` to see all devices.
 For all sensors found the `mopeka_ble` component will print a message like this one:
 
 ```log
