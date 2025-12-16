@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome {
 namespace version {
@@ -11,26 +12,24 @@ static const char *const TAG = "version.text_sensor";
 
 void VersionTextSensor::setup() {
   static const char PREFIX[] PROGMEM = ESPHOME_VERSION " (config hash 0x";
-  char version_str[128];
+  static const char BUILT_STR[] PROGMEM = ", built ";
+  // Buffer size: PREFIX + 8 hex chars + BUILT_STR + BUILD_TIME_STR_SIZE + ")" + null
+  constexpr size_t BUF_SIZE = sizeof(PREFIX) + 8 + sizeof(BUILT_STR) + esphome::Application::BUILD_TIME_STR_SIZE + 2;
+  char version_str[BUF_SIZE];
 
-#ifdef USE_ESP8266
-  strcpy_P(version_str, PREFIX);
-#else
-  strcpy(version_str, PREFIX);
-#endif
+  ESPHOME_strncpy_P(version_str, PREFIX, sizeof(version_str));
 
-  char hash_str[9];
-  snprintf(hash_str, sizeof(hash_str), "%08" PRIx32, App.get_config_hash());
-  strcat(version_str, hash_str);
+  size_t len = strlen(version_str);
+  snprintf(version_str + len, sizeof(version_str) - len, "%08" PRIx32, App.get_config_hash());
 
   if (!this->hide_timestamp_) {
-    strcat(version_str, ", built: ");
-    char build_time_str[esphome::Application::BUILD_TIME_STR_SIZE];
-    App.get_build_time_string(build_time_str);
-    strcat(version_str, build_time_str);
+    size_t len = strlen(version_str);
+    ESPHOME_strncat_P(version_str, BUILT_STR, sizeof(version_str) - len - 1);
+    ESPHOME_strncat_P(version_str, ESPHOME_BUILD_TIME_STR, sizeof(version_str) - strlen(version_str) - 1);
   }
 
-  strcat(version_str, ")");
+  strncat(version_str, ")", sizeof(version_str) - strlen(version_str) - 1);
+  version_str[sizeof(version_str) - 1] = '\0';
   this->publish_state(version_str);
 }
 float VersionTextSensor::get_setup_priority() const { return setup_priority::DATA; }
