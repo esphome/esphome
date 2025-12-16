@@ -46,7 +46,7 @@ class ZephyrPreferenceBackend : public ESPPreferenceBackend {
 class ZephyrPreferences : public ESPPreferences {
  public:
   void open() {
-#if !defined(USE_STM32)
+#if defined(CONFIG_SETTINGS)
     int err = settings_subsys_init();
     if (err) {
       ESP_LOGE(TAG, "Failed to initialize settings subsystem, err: %d", err);
@@ -92,17 +92,15 @@ class ZephyrPreferences : public ESPPreferences {
   }
 
   bool sync() override {
-#if !defined(USE_STM32)
+#if defined(CONFIG_SETTINGS)
     ESP_LOGD(TAG, "Save settings");
     int err = settings_save();
     if (err) {
       ESP_LOGE(TAG, "Cannot save settings, err: %d", err);
       return false;
     }
-    return true;
-#else
-    return false;
 #endif
+    return true;
   }
 
   bool reset() override {
@@ -119,7 +117,7 @@ class ZephyrPreferences : public ESPPreferences {
   std::vector<ZephyrPreferenceBackend *> backends_;
 
   static int load_setting(const char *name, size_t len, settings_read_cb read_cb, void *cb_arg) {
-#if !defined(USE_STM32)
+#if defined(CONFIG_SETTINGS)
     auto type = parse_hex<uint32_t>(name);
     if (!type.has_value()) {
       std::string full_name(ESPHOME_SETTINGS_KEY);
