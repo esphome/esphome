@@ -150,9 +150,6 @@ number:
 - **thermostat_temperature** (*Optional*): Number that holds the current stove thermostat value.
   - **step** (*Optional*): Temperature step. This value is used to multiply/divide the raw value when setting/reading the **thermostat_temperature**
   - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
-=======
-  - **step** (*Optional*): Temperature step. This value is used to multiply/divide the raw value when setting/reading the **thermostat_temperature**
->>>>>>> 0ddd7992 (Fix typos throughout documentation (#5790))
   - All other options from [Number](/components/number#config-number).
 - **power_level** (*Optional*): Number that sets/reads the requested stove power.
   - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
