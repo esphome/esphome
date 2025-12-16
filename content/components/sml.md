@@ -153,7 +153,7 @@ text_sensor:
     format: uint
 ```
 
-The `format` parameter is optional. If ommited, the SML component will try to guess the correct datatype
+The `format` parameter is optional. If omitted, the SML component will try to guess the correct datatype
 from the received SML message.
 
 And in HomeAssistant:

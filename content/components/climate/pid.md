@@ -258,7 +258,7 @@ To autotune the control parameters:
 
 1. Set an appropriate setpoint (see note above) and turn on the climate controller (Heat, Cool or Auto).
 
-1. Click the *PID Climate Autotune* button and look at the the logs of the device.
+1. Click the *PID Climate Autotune* button and look at the logs of the device.
 
     You should see output like
 
@@ -298,7 +298,7 @@ To autotune the control parameters:
       Please copy these values into your YAML configuration! They will reset on the next reboot.
     ```
 
-    As soon as the the autotune procedure finishes, the climate starts to work with the calculated parameters
+    As soon as the autotune procedure finishes, the climate starts to work with the calculated parameters
     so that expected operation can be immediately verified.
 
     If satisfied, copy the values in `control_parameters` into your configuration:

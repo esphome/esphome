@@ -158,7 +158,7 @@ captive_portal:
 
 ## Advanced usage
 
-The following assume copies of the files with local paths - which are config dependant.
+The following assume copies of the files with local paths - which are config dependent.
 
 Example `web_server` version 1 configuration with CSS and JS included from esphome-docs.
 CSS and JS URL's are set to empty value, so no internet access is needed for this device to show it's web interface.

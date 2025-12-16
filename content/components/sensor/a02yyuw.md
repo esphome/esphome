@@ -10,7 +10,7 @@ params:
 This sensor allows you to use A02YYUW waterproof ultrasonic sensor by DFRobot
 ([datasheet](https://wiki.dfrobot.com/_A02YYUW_Waterproof_Ultrasonic_Sensor_SKU_SEN0311))
 with ESPHome to measure distances. This sensor can measure
-ranges between 3 centimeters and 450 centimeters with a resolution of 1 milimeter.
+ranges between 3 centimeters and 450 centimeters with a resolution of 1 millimeter.
 
 Since this sensor reads multiple times per second, [Sensor Filters](/components/sensor#sensor-filters) are highly recommended.
 

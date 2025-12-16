@@ -140,9 +140,9 @@ switch:
 - **type** (**Required**): One of:
 
   - `presence_via_uart`  : when enabled, the module sends presence information via both the serial connection and
-    GPIO pin; when disabled, presense is indicated only via the GPIO pin.
+    GPIO pin; when disabled, presence is indicated only via the GPIO pin.
 
-  - `sensor_active`  : when enabled, presence detection is reported; when disabled, presense will not be reported.
+  - `sensor_active`  : when enabled, presence detection is reported; when disabled, presence will not be reported.
   - `start_after_boot`  : when enabled, the sensor will start immediately after power-on; when disabled, the sensor
     must be manually started.
 

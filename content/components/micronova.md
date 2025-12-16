@@ -51,8 +51,8 @@ micronova:
 - **enable_rx_pin** (**Required**, [Pin](/guides/configuration-types#pin)): Output pin to be used to switch the line between RX and TX.
 
 > [!NOTE]
-> For all text sensors, sensors, numbers, buttons and switches hereafter most of the the default **memory_location** and **memory_address** parameters will work so you should
-> not specify them. However your Micronova boad may require you to specify alternate values. So every text sensor, button,
+> For all text sensors, sensors, numbers, buttons and switches hereafter most of the default **memory_location** and **memory_address** parameters will work so you should
+> not specify them. However your Micronova board may require you to specify alternate values. So every text sensor, button,
 > switch or number accepts these parameters:
 >
 > - **memory_location** (*Optional*): The memory location for the parameter (0x00 for RAM, 0x20 for EPROM on most stoves).
@@ -117,21 +117,31 @@ sensor:
   - **fan_rpm_offset** (*Optional*, integer): Offset the reported RPM value. Must be between 0 and 255. Defaults to 0.
   - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
   - All other options from [Sensor](/components/sensor).
+<<<<<<< HEAD
 
 - **water_temperature** (*Optional*): Internal boiler water temperature.
   - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
   - All options from [Sensor](/components/sensor).
+=======
+- **water_temperature** (*Optional*): Internal boiler water temperature.
+  All options from [Sensor](/components/sensor).
+>>>>>>> 0ddd7992 (Fix typos throughout documentation (#5790))
 
 - **water_pressure** (*Optional*): Internal boiler water pressure.
   - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
   - All options from [Sensor](/components/sensor).
 
 - **memory_address_sensor** (*Optional*): Can be any **memory_location** / **memory_address** you want to track. Useful
+<<<<<<< HEAD
   when you don't know where the parameter for your stove is.
   - **memory_location** (**Required**): The memory location for the parameter (0x00 for RAM, 0x20 for EPROM on most stoves).
   - **memory_address** (**Required**): The address where the parameter is stored.
   - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
   - All options from [Sensor](/components/sensor).
+=======
+  when you don't know where the parameter is for your stove is.
+  All options from [Sensor](/components/sensor).
+>>>>>>> 0ddd7992 (Fix typos throughout documentation (#5790))
 
 ## Numbers
 
@@ -148,8 +158,12 @@ number:
 ### Configuration variables
 
 - **thermostat_temperature** (*Optional*): Number that holds the current stove thermostat value.
+<<<<<<< HEAD
   - **step** (*Optional*): Temperature step. This value is used to multiply/devide the raw value when setting/reading the **thermostat_temperature**
   - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.
+=======
+  - **step** (*Optional*): Temperature step. This value is used to multiply/divide the raw value when setting/reading the **thermostat_temperature**
+>>>>>>> 0ddd7992 (Fix typos throughout documentation (#5790))
   - All other options from [Number](/components/number#config-number).
 - **power_level** (*Optional*): Number that sets/reads the requested stove power.
   - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval that the sensors should be checked. Defaults to 60 seconds.

@@ -146,7 +146,7 @@ Each entry represents a single-byte command followed by zero or more data bytes.
 
 ### CUSTOM model
 
-The `CUSTOM` model selection is provided for otherwise unsupported displays, and requires both `dimensions:` and `init_sequence:` to be specfied. There is no pre-defined init sequence.
+The `CUSTOM` model selection is provided for otherwise unsupported displays, and requires both `dimensions:` and `init_sequence:` to be specified. There is no pre-defined init sequence.
 
 ### Configuration examples
 
