@@ -18,19 +18,19 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
-    PLATFORM_STM32,
     ThreadModel,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
 # force import gpio to register pin schema
 from .gpio import stm32_pin_to_code  # noqa
 
+PLATFORM_STM32 = "stm32"  # TODO: move to esphome.consts
 CODEOWNERS = ["@mrk-its"]
 AUTO_LOAD = ["zephyr"]
 IS_TARGET_PLATFORM = True
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -90,11 +90,6 @@ def copy_files() -> None:
     zephyr_copy_files()
 
 
-def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
-    """Get the download types for the firmware."""
-    return []
-
-
 def _upload_using_platformio(
     config: ConfigType, port: str, upload_args: list[str]
 ) -> int | str:
@@ -108,20 +103,3 @@ def _upload_using_platformio(
 def upload_program(config: ConfigType, args, host: str) -> bool:
     _upload_using_platformio(config, host, ["-t", "upload"])
     return True
-
-
-# def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
-#     address = devices[0]
-#     from .ble_logger import is_mac_address, logger_connect, logger_scan
-#
-#     if devices[0] == "BLE":
-#         ble_device = asyncio.run(logger_scan(CORE.config["esphome"]["name"]))
-#         if ble_device:
-#             address = ble_device.address
-#         else:
-#             return True
-#
-#     if is_mac_address(address):
-#         asyncio.run(logger_connect(address))
-#         return True
-#     return False

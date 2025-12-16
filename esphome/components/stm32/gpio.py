@@ -2,14 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components.zephyr.const import zephyr_ns
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ANALOG,
-    CONF_ID,
-    CONF_INVERTED,
-    CONF_MODE,
-    CONF_NUMBER,
-    PLATFORM_STM32,
-)
+from esphome.const import CONF_ANALOG, CONF_ID, CONF_INVERTED, CONF_MODE, CONF_NUMBER
 
 ZephyrGPIOPin = zephyr_ns.class_("ZephyrGPIOPin", cg.InternalGPIOPin)
 
@@ -60,7 +53,7 @@ STM32_PIN_SCHEMA = cv.All(
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register(PLATFORM_STM32, STM32_PIN_SCHEMA)
+@pins.PIN_SCHEMA_REGISTRY.register("stm32", STM32_PIN_SCHEMA)
 async def stm32_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
