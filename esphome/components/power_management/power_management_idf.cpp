@@ -82,10 +82,10 @@ void PowerManagement::dump_config() {
 #if CONFIG_IEEE802154_SLEEP_ENABLE
   ESP_LOGCONFIG(TAG, "  ieee802154 Sleep Enabled");
 #endif
-#if CONF_PM_PROFILING
+#if CONFIG_PM_PROFILING
   ESP_LOGCONFIG(TAG, "  PM Profiling Enabled");
 #endif
-#if CONF_PM_TRACE
+#if CONFIG_PM_TRACE
   ESP_LOGCONFIG(TAG, "  PM Trace Enabled");
 #endif
 #endif
