@@ -1235,10 +1235,10 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     // Construct a date time object
     ESPTime date_time = obj->state_as_esptime();
     // Set these to valid value for  recalc_timestamp_utc - it's not used for calculation
-    date_time.day_of_week = 1;
-    date_time.day_of_year = 1;
-    // date_time.recalc_timestamp_utc(false);
-    date_time.recalc_timestamp_local();
+    // date_time.day_of_week = 1;
+    // date_time.day_of_year = 1;
+    // // date_time.recalc_timestamp_utc(false);
+    // date_time.recalc_timestamp_local();
     stream->print(static_cast<int64_t>(date_time.timestamp));
     //    // Construct a date time object manually to ensure UTC interpretation
     //    ESPTime date_time_utc = {};
