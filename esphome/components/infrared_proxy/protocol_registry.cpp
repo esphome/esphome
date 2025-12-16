@@ -829,8 +829,10 @@ bool encode_from_json(const std::string &protocol_json, remote_base::RemoteTrans
     }
 
     // Protocol not found
-    ESP_LOGE(TAG, "Unknown protocol: %s", protocol);
-    ESP_LOGE(TAG, "Supported protocols:");
+    ESP_LOGE(TAG,
+             "Unknown protocol: %s\n"
+             "Supported protocols:",
+             protocol);
     // This will generate a lot of logging calls but saves us from having to
     //  maintain a separate list of protocol names, reducing binary size.
     for (size_t i = 0; i < PROTOCOL_COUNT; i++) {
