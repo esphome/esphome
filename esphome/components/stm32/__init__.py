@@ -76,7 +76,10 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("UART_CONSOLE", True, False)
     zephyr_add_prj_conf("CONSOLE", True, False)
 
-    # zephyr_add_prj_conf("CONFIG_LOG_PRINTK", False)
+    zephyr_add_prj_conf("SETTINGS", False, False)
+    zephyr_add_prj_conf("NVS", False, False)
+    zephyr_add_prj_conf("FLASH_MAP", False, False)
+    zephyr_add_prj_conf("CONFIG_FLASH", False, False)
 
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_platformio_option("monitor_speed", "115200")

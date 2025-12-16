@@ -130,10 +130,10 @@ def zephyr_to_code(config):
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
     zephyr_add_prj_conf("STD_CPP20", True)
     # preferences
-    # zephyr_add_prj_conf("SETTINGS", True)
-    # zephyr_add_prj_conf("NVS", True)
-    # zephyr_add_prj_conf("FLASH_MAP", True)
-    # zephyr_add_prj_conf("CONFIG_FLASH", True)
+    zephyr_add_prj_conf("SETTINGS", True, False)
+    zephyr_add_prj_conf("NVS", True, False)
+    zephyr_add_prj_conf("FLASH_MAP", True, False)
+    zephyr_add_prj_conf("CONFIG_FLASH", True, False)
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True, False)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False, False)
