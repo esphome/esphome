@@ -10,8 +10,10 @@
 
 namespace esphome {
 
+#if defined(CONFIG_WATCHDOG)
 static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-// static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
+static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
+#endif
 
 void yield() { ::k_yield(); }
 uint32_t millis() { return k_ticks_to_ms_floor32(k_uptime_ticks()); }
@@ -20,28 +22,32 @@ void delayMicroseconds(uint32_t us) { ::k_usleep(us); }
 void delay(uint32_t ms) { ::k_msleep(ms); }
 
 void arch_init() {
-  //   if (device_is_ready(WDT)) {
-  //     static wdt_timeout_cfg wdt_config{};
-  //     wdt_config.flags = WDT_FLAG_RESET_SOC;
-  //     wdt_config.window.max = 2000;
-  //     wdt_channel_id = wdt_install_timeout(WDT, &wdt_config);
-  //     if (wdt_channel_id >= 0) {
-  //       uint8_t options = 0;
-  // #ifdef USE_DEBUG
-  //       options |= WDT_OPT_PAUSE_HALTED_BY_DBG;
-  // #endif
-  // #ifdef USE_DEEP_SLEEP
-  //       options |= WDT_OPT_PAUSE_IN_SLEEP;
-  // #endif
-  //       wdt_setup(WDT, options);
-  //     }
-  //   }
+#if defined(CONFIG_WATCHDOG)
+  if (device_is_ready(WDT)) {
+    static wdt_timeout_cfg wdt_config{};
+    wdt_config.flags = WDT_FLAG_RESET_SOC;
+    wdt_config.window.max = 2000;
+    wdt_channel_id = wdt_install_timeout(WDT, &wdt_config);
+    if (wdt_channel_id >= 0) {
+      uint8_t options = 0;
+#ifdef USE_DEBUG
+      options |= WDT_OPT_PAUSE_HALTED_BY_DBG;
+#endif
+#ifdef USE_DEEP_SLEEP
+      options |= WDT_OPT_PAUSE_IN_SLEEP;
+#endif
+      wdt_setup(WDT, options);
+    }
+  }
+#endif
 }
 
 void arch_feed_wdt() {
-  // if (wdt_channel_id >= 0) {
-  //   wdt_feed(WDT, wdt_channel_id);
-  // }
+#if defined(CONFIG_WATCHDOG)
+  if (wdt_channel_id >= 0) {
+    wdt_feed(WDT, wdt_channel_id);
+  }
+#endif
 }
 
 void arch_restart() { sys_reboot(SYS_REBOOT_COLD); }
