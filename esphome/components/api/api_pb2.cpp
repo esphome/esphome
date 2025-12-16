@@ -3434,7 +3434,7 @@ bool InfraredProxyTimingParams::decode_varint(uint32_t field_id, ProtoVarInt val
   }
   return true;
 }
-bool InfraredProxyTransmitRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+bool InfraredProxyTransmitPulseWidthRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2:
       value.decode_to_message(this->timing);
@@ -3449,7 +3449,27 @@ bool InfraredProxyTransmitRequest::decode_length(uint32_t field_id, ProtoLengthD
   }
   return true;
 }
-bool InfraredProxyTransmitRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+bool InfraredProxyTransmitPulseWidthRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1:
+      this->key = value.as_fixed32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool InfraredProxyTransmitProtocolRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2:
+      this->protocol_json = value.as_string();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool InfraredProxyTransmitProtocolRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1:
       this->key = value.as_fixed32();

@@ -1,4 +1,5 @@
 #include "infrared_proxy.h"
+#include "protocol_registry.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_API
@@ -70,7 +71,7 @@ uint32_t InfraredProxyComponent::get_capability_flags() const {
   return flags;
 }
 
-void InfraredProxyComponent::transmit(const api::InfraredProxyTransmitRequest &msg) {
+void InfraredProxyComponent::transmit_pulse_width(const api::InfraredProxyTransmitPulseWidthRequest &msg) {
   if (this->transmitter_ == nullptr) {
     ESP_LOGW(TAG, "Cannot transmit: no transmitter configured");
     return;
@@ -94,6 +95,49 @@ void InfraredProxyComponent::transmit(const api::InfraredProxyTransmitRequest &m
 
   // Transmit the encoded data
   call.perform();
+}
+
+void InfraredProxyComponent::transmit_protocol(const api::InfraredProxyTransmitProtocolRequest &msg) {
+  if (this->transmitter_ == nullptr) {
+    ESP_LOGW(TAG, "Cannot transmit: no transmitter configured");
+    return;
+  }
+
+  if (msg.protocol_json.empty()) {
+    ESP_LOGE(TAG, "Cannot transmit: protocol_json is empty");
+    return;
+  }
+
+  ESP_LOGD(TAG, "Transmitting using protocol JSON: %s", msg.protocol_json.c_str());
+
+  // Create transmit data object
+  auto call = this->transmitter_->transmit();
+  auto *transmit_data = call.get_data();
+
+  // Decode JSON and encode to IR/RF timings using protocol registry
+  if (!encode_from_json(msg.protocol_json, transmit_data)) {
+    ESP_LOGE(TAG, "Failed to encode protocol JSON");
+    return;
+  }
+
+  // Transmit the encoded data
+  call.perform();
+}
+
+bool InfraredProxyComponent::on_receive(remote_base::RemoteReceiveData data) {
+  if (this->receiver_ == nullptr) {
+    return false;  // Not interested in receive data if no receiver configured
+  }
+
+  // Get the raw timings
+  const auto &raw_data = data.get_raw_data();
+
+  ESP_LOGD(TAG, "Measured %u timings", raw_data.size());
+
+  // Send the raw timings to the API
+  api::global_api_server->send_infrared_proxy_receive_event(this->get_object_id_hash(), raw_data);
+
+  return false;  // Return false to allow other listeners to process the data
 }
 
 void InfraredProxyComponent::encode_data_(const api::InfraredProxyTimingParams &timing,
@@ -192,22 +236,6 @@ void InfraredProxyComponent::encode_data_(const api::InfraredProxyTimingParams &
       }
     }
   }
-}
-
-bool InfraredProxyComponent::on_receive(remote_base::RemoteReceiveData data) {
-  if (this->receiver_ == nullptr) {
-    return false;  // Not interested in receive data if no receiver configured
-  }
-
-  // Get the raw timings
-  const auto &raw_data = data.get_raw_data();
-
-  ESP_LOGD(TAG, "Measured %u timings", raw_data.size());
-
-  // Send the raw timings to the API
-  api::global_api_server->send_infrared_proxy_receive_event(this->get_object_id_hash(), raw_data);
-
-  return false;  // Return false to allow other listeners to process the data
 }
 
 #endif  // USE_API

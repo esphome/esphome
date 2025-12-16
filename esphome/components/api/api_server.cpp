@@ -675,14 +675,24 @@ void APIServer::register_infrared_proxy(infrared_proxy::InfraredProxyComponent *
   this->infrared_proxies_.push_back(infrared_proxy);
 }
 
-void APIServer::on_infrared_proxy_transmit_request(const InfraredProxyTransmitRequest &msg) {
+void APIServer::on_infrared_proxy_transmit_pulse_width_request(const InfraredProxyTransmitPulseWidthRequest &msg) {
   for (auto *infrared_proxy : this->infrared_proxies_) {
     if (infrared_proxy->get_object_id_hash() == msg.key) {
-      infrared_proxy->transmit(msg);
+      infrared_proxy->transmit_pulse_width(msg);
       return;
     }
   }
-  ESP_LOGW(TAG, "Infrared proxy transmit request for unknown key: %u", msg.key);
+  ESP_LOGW(TAG, "Infrared proxy pulse width transmit request for unknown key: %u", msg.key);
+}
+
+void APIServer::on_infrared_proxy_transmit_protocol_request(const InfraredProxyTransmitProtocolRequest &msg) {
+  for (auto *infrared_proxy : this->infrared_proxies_) {
+    if (infrared_proxy->get_object_id_hash() == msg.key) {
+      infrared_proxy->transmit_protocol(msg);
+      return;
+    }
+  }
+  ESP_LOGW(TAG, "Infrared proxy protocol transmit request for unknown key: %u", msg.key);
 }
 
 void APIServer::send_infrared_proxy_receive_event(uint32_t key, const remote_base::RawTimings &timings) {

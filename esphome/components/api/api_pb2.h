@@ -3164,12 +3164,12 @@ class InfraredProxyTimingParams final : public ProtoDecodableMessage {
  protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class InfraredProxyTransmitRequest final : public ProtoDecodableMessage {
+class InfraredProxyTransmitPulseWidthRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 133;
   static constexpr uint8_t ESTIMATED_SIZE = 41;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "infrared_proxy_transmit_request"; }
+  const char *message_name() const override { return "infrared_proxy_transmit_pulse_width_request"; }
 #endif
   uint32_t key{0};
   InfraredProxyTimingParams timing{};
@@ -3183,9 +3183,26 @@ class InfraredProxyTransmitRequest final : public ProtoDecodableMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
-class InfraredProxyReceiveEvent final : public ProtoMessage {
+class InfraredProxyTransmitProtocolRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 134;
+  static constexpr uint8_t ESTIMATED_SIZE = 14;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "infrared_proxy_transmit_protocol_request"; }
+#endif
+  uint32_t key{0};
+  std::string protocol_json{};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class InfraredProxyReceiveEvent final : public ProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 135;
   static constexpr uint8_t ESTIMATED_SIZE = 13;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "infrared_proxy_receive_event"; }

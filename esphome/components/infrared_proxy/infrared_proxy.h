@@ -65,8 +65,11 @@ class InfraredProxyComponent : public Component, public EntityBase, public remot
   /// Get capability flags for this infrared proxy instance
   uint32_t get_capability_flags() const;
 
-  /// Transmit IR data based on timing parameters and data bytes
-  void transmit(const api::InfraredProxyTransmitRequest &msg);
+  /// Transmit IR/RF data using pulse width encoding parameters
+  void transmit_pulse_width(const api::InfraredProxyTransmitPulseWidthRequest &msg);
+
+  /// Transmit IR/RF data using JSON protocol specification
+  void transmit_protocol(const api::InfraredProxyTransmitProtocolRequest &msg);
 
   /// Called when IR data is received - implements RemoteReceiverListener interface
   bool on_receive(remote_base::RemoteReceiveData data) override;

@@ -2084,8 +2084,12 @@ void APIConnection::process_state_subscriptions_() {
 #endif  // USE_API_HOMEASSISTANT_STATES
 
 #ifdef USE_INFRARED_PROXY
-void APIConnection::infrared_proxy_transmit(const InfraredProxyTransmitRequest &msg) {
-  this->parent_->on_infrared_proxy_transmit_request(msg);
+void APIConnection::infrared_proxy_transmit_pulse_width(const InfraredProxyTransmitPulseWidthRequest &msg) {
+  this->parent_->on_infrared_proxy_transmit_pulse_width_request(msg);
+}
+
+void APIConnection::infrared_proxy_transmit_protocol(const InfraredProxyTransmitProtocolRequest &msg) {
+  this->parent_->on_infrared_proxy_transmit_protocol_request(msg);
 }
 
 void APIConnection::send_list_entities_infrared_proxy_response(const ListEntitiesInfraredProxyResponse &msg) {

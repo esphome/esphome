@@ -67,7 +67,8 @@ service APIConnection {
   rpc zwave_proxy_frame(ZWaveProxyFrame) returns (void) {}
   rpc zwave_proxy_request(ZWaveProxyRequest) returns (void) {}
 
-  rpc infrared_proxy_transmit(InfraredProxyTransmitRequest) returns (void) {}
+  rpc infrared_proxy_transmit_pulse_width(InfraredProxyTransmitPulseWidthRequest) returns (void) {}
+  rpc infrared_proxy_transmit_protocol(InfraredProxyTransmitProtocolRequest) returns (void) {}
 }
 
 
@@ -2483,7 +2484,7 @@ message InfraredProxyTimingParams {
 }
 
 // Command to transmit infrared data
-message InfraredProxyTransmitRequest {
+message InfraredProxyTransmitPulseWidthRequest {
   option (id) = 133;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_INFRARED_PROXY";
@@ -2493,9 +2494,19 @@ message InfraredProxyTransmitRequest {
   bytes data = 3 [(pointer_to_buffer) = true]; // Data bytes to encode and transmit
 }
 
+// Command to transmit infrared/RF data using protocol-based JSON encoding
+message InfraredProxyTransmitProtocolRequest {
+  option (id) = 134;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_INFRARED_PROXY";
+
+  fixed32 key = 1;           // Key identifying the transmitter instance
+  string protocol_json = 2;  // JSON string containing protocol name and parameters
+}
+
 // Event message for received infrared data
 message InfraredProxyReceiveEvent {
-  option (id) = 134;
+  option (id) = 135;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_INFRARED_PROXY";
   option (no_delay) = true;

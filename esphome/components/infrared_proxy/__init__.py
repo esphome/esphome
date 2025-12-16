@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core.entity_helpers import setup_entity
 
+AUTO_LOAD = ["json"]
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["api"]
 MULTI_CONF = True
