@@ -1233,13 +1233,13 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} "));
     // Construct a date time object
-    ESPTime date_time = obj->state_as_esptime();
+    // ESPTime date_time = obj->state_as_esptime();
     // Set these to valid value for  recalc_timestamp_utc - it's not used for calculation
     // date_time.day_of_week = 1;
     // date_time.day_of_year = 1;
     // // date_time.recalc_timestamp_utc(false);
     // date_time.recalc_timestamp_local();
-    stream->print(static_cast<int64_t>(date_time.timestamp));
+    // stream->print(static_cast<int64_t>(date_time.timestamp));
     //    // Construct a date time object manually to ensure UTC interpretation
     //    ESPTime date_time_utc = {};
     //    date_time_utc.year = obj->year;
@@ -1256,6 +1256,10 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     //    // Convert local to UTC by adding the current timezone offset
     //    time_t utc_timestamp = date_time_utc.timestamp + ESPTime::timezone_offset();
     //    stream->print(static_cast<int64_t>(utc_timestamp));
+    // Construct a date time object
+    ESPTime date_time = obj->state_as_esptime();
+    time_t final_timestamp = date_time.timestamp + ESPTime::timezone_offset();
+    stream->print(static_cast<int64_t>(final_timestamp));
     stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
