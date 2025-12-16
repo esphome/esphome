@@ -55,12 +55,6 @@ void UARTTransport::loop() {
   }
 }
 
-void UARTTransport::update() {
-  this->updated_ = true;
-  this->resend_data_ = true;
-  PacketTransport::update();
-}
-
 /**
  * Write a byte to the UART bus. If the byte is a flag or control byte, it will be escaped.
  * @param byte The byte to write.
