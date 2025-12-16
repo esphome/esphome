@@ -10,13 +10,13 @@ namespace version {
 static const char *const TAG = "version.text_sensor";
 
 void VersionTextSensor::setup() {
-  static const char prefix[] PROGMEM = ESPHOME_VERSION " (config hash 0x";
+  static const char PREFIX[] PROGMEM = ESPHOME_VERSION " (config hash 0x";
   char version_str[128];
 
 #ifdef USE_ESP8266
-  strcpy_P(version_str, prefix);
+  strcpy_P(version_str, PREFIX);
 #else
-  strcpy(version_str, prefix);
+  strcpy(version_str, PREFIX);
 #endif
 
   char hash_str[9];
