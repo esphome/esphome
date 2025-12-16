@@ -33,7 +33,7 @@ output lines. This is required only for use with certain components.
 > [!NOTE]
 >
 > - Software mode supports only single-bit SPI.
-> - Quad mode SPI is available only on on ESP32 devices (all variants).
+> - Quad mode SPI is available only on ESP32 devices (all variants).
 > - Octal mode is available only on ESP32-S3, -S2 and -P4 variants.
 
 To set up SPI devices in ESPHome, you first need to place a top-level SPI component which defines the pins to

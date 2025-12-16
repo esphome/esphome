@@ -76,7 +76,7 @@ Automations:
 
 ### `on_datapoint_update`
 
-This automation will be triggered when a a Tuya datapoint update is received.
+This automation will be triggered when a Tuya datapoint update is received.
 A variable `x` is passed to the automation for use in lambdas.
 The type of `x` variable is depending on `datapoint_type` configuration variable:
 

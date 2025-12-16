@@ -55,7 +55,7 @@ Possible return values for the optional lambda:
   be performed when the remote requests the cover to be stopped.
 
 - **toggle_action** (*Optional*, [Action](/automations/actions#all-actions)): The action that should
-  be performed when the remote requests to toggle the the cover.
+  be performed when the remote requests to toggle the cover.
 
 - **optimistic** (*Optional*, boolean): Whether to operate in optimistic mode - when in this mode,
   any command sent to the template cover will immediately update the reported state/position and no lambda

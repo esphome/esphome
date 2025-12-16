@@ -17,7 +17,7 @@ MUST have `EVEN` parity.
 
 The sensor itself will push values every second. You may wish to [filter](/components/sensor#sensor-filters) this value to reduce the amount of data you are ingesting.
 The sensor will internally track changes to the Laser Diode and Photo Diode over time to adjust and ensure accuracy.
-Based on continous runtime, the sensor is rated to last at least 5 years.
+Based on continuous runtime, the sensor is rated to last at least 5 years.
 
 ```yaml
 # Example configuration entry

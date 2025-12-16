@@ -84,7 +84,7 @@ control panel is armed, a fault on this type of zone will cause the alarm to go 
 The `instant_always` trigger mode is typically used for tamper inputs. Irrespective of whether the alarm control panel
 is armed, a fault will always cause the alarm to go directly to the `triggered` state.
 
-The `delayed_follower` trigger mode is typically specifed for interior passive infared (PIR) or microwave sensors. One
+The `delayed_follower` trigger mode is typically specified for interior passive infrared (PIR) or microwave sensors. One
 of two things happen when a `delayed_follower` zone is faulted:
 
 1. When the alarm panel is in the armed state, a fault on a zone with `delayed_follower` specified will cause the alarm
@@ -95,7 +95,7 @@ of two things happen when a `delayed_follower` zone is faulted:
 
 The `delayed_follower` trigger mode offers better protection if someone enters a premises via an unprotected window
 or door. If there is a PIR guarding the main hallway, it will cause an instant trigger of the alarm panel as someone
-entered the premises in a unusual manner. Likewise, if someone enters the premises though a door set to the `delayed`
+entered the premises in an unusual manner. Likewise, if someone enters the premises through a door set to the `delayed`
 trigger mode, and then triggers the PIR, the alarm will stay in the `pending` state until either they disarm the alarm,
 or the pending timer expires.
 

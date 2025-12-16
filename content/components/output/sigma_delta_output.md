@@ -58,8 +58,8 @@ Configuration variables:
 
 > [!NOTE]
 >
-> - If `pin` is defined, the GPIO pin state is writen before any action is executed.
-> - `state_change_action` and `turn_on_action`  /`turn_off_action` can be used togther. `state_change_action` is called before `turn_on_action`  /`turn_off_action`. It's recommended to use either `state_change_action` or `turn_on_action`  /`turn_off_action` to change the state of an output. Using both automations together is only recommended for monitoring.
+> - If `pin` is defined, the GPIO pin state is written before any action is executed.
+> - `state_change_action` and `turn_on_action`  /`turn_off_action` can be used together. `state_change_action` is called before `turn_on_action`  /`turn_off_action`. It's recommended to use either `state_change_action` or `turn_on_action`  /`turn_off_action` to change the state of an output. Using both automations together is only recommended for monitoring.
 
 > [!NOTE]
 > If the output must not be active for more than some fixed time before it has

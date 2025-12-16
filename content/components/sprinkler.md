@@ -1144,7 +1144,7 @@ on [cppreference.com](https://en.cppreference.com/w/cpp/utility/optional), but w
 - The `optional` type can contain a value of any C++ type (`bool`, `int`, `float`, etc.) (In C++ terms, it is a
   template.)
 
-The examples that follow illustrate use of the the sprinkler controller's methods within a
+The examples that follow illustrate use of the sprinkler controller's methods within a
 {{< docref "/components/display/index" "display" >}} lambda. The examples are intended to illustrate a pattern and (for sake of
 brevity) *are not complete*; at very least you'll need to fill out the {{< docref "/components/display/index" "display" >}}
 component's specific configuration details before you can use them.
