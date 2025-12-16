@@ -1,6 +1,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/build_info_data.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <cstring>
 
 #ifdef USE_ESP8266
@@ -720,11 +721,7 @@ void Application::wake_loop_threadsafe() {
 #endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 
 void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer) {
-#ifdef USE_ESP8266
-  strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());
-#else
-  strncpy(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());
-#endif
+  ESPHOME_strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());
   buffer[buffer.size() - 1] = '\0';
 }
 
