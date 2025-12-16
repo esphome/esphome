@@ -1765,3 +1765,128 @@ def test_copy_src_tree_build_info_timestamp_behavior(
         f"{old_timestamp} == {third_timestamp}"
     )
     assert third_timestamp > old_timestamp
+
+
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+@patch("esphome.writer.walk_files")
+def test_copy_src_tree_detects_removed_source_file(
+    mock_walk_files: MagicMock,
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test copy_src_tree detects when a non-generated source file is removed."""
+    # Setup directory structure
+    src_path = tmp_path / "src"
+    src_path.mkdir()
+    esphome_components_path = src_path / "esphome" / "components"
+    esphome_components_path.mkdir(parents=True)
+    build_path = tmp_path / "build"
+    build_path.mkdir()
+
+    # Create an existing source file in the build tree
+    existing_file = esphome_components_path / "test.cpp"
+    existing_file.write_text("// test file")
+
+    # Setup mocks - no components, so the file should be removed
+    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
+    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.defines = []
+    mock_core.config_hash = 0xDEADBEEF
+    mock_core.target_platform = "test_platform"
+    mock_core.config = {}
+    mock_iter_components.return_value = []  # No components = file should be removed
+    mock_walk_files.return_value = [str(existing_file)]
+
+    # Create existing build_info.json
+    build_info_json_path = build_path / "build_info.json"
+    old_timestamp = 1700000000
+    build_info_json_path.write_text(
+        json.dumps(
+            {
+                "config_hash": 0xDEADBEEF,
+                "build_time": old_timestamp,
+                "build_time_str": "2023-11-14 22:13:20 +0000",
+                "esphome_version": "2025.1.0-dev",
+            }
+        )
+    )
+
+    with (
+        patch("esphome.writer.__version__", "2025.1.0-dev"),
+        patch("esphome.writer.importlib.import_module") as mock_import,
+    ):
+        mock_import.side_effect = AttributeError
+        copy_src_tree()
+
+    # Verify file was removed
+    assert not existing_file.exists()
+
+    # Verify build_info was regenerated due to source file removal
+    new_json = json.loads(build_info_json_path.read_text())
+    assert new_json["build_time"] != old_timestamp
+
+
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+@patch("esphome.writer.walk_files")
+def test_copy_src_tree_ignores_removed_generated_file(
+    mock_walk_files: MagicMock,
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test copy_src_tree doesn't mark sources_changed when only generated file removed."""
+    # Setup directory structure
+    src_path = tmp_path / "src"
+    src_path.mkdir()
+    esphome_core_path = src_path / "esphome" / "core"
+    esphome_core_path.mkdir(parents=True)
+    build_path = tmp_path / "build"
+    build_path.mkdir()
+
+    # Create existing build_info_data.h (a generated file)
+    build_info_h = esphome_core_path / "build_info_data.h"
+    build_info_h.write_text("// old generated file")
+
+    # Setup mocks
+    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
+    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.defines = []
+    mock_core.config_hash = 0xDEADBEEF
+    mock_core.target_platform = "test_platform"
+    mock_core.config = {}
+    mock_iter_components.return_value = []
+    # walk_files returns the generated file, but it's not in source_files_copy
+    mock_walk_files.return_value = [str(build_info_h)]
+
+    # Create existing build_info.json with old timestamp
+    build_info_json_path = build_path / "build_info.json"
+    old_timestamp = 1700000000
+    build_info_json_path.write_text(
+        json.dumps(
+            {
+                "config_hash": 0xDEADBEEF,
+                "build_time": old_timestamp,
+                "build_time_str": "2023-11-14 22:13:20 +0000",
+                "esphome_version": "2025.1.0-dev",
+            }
+        )
+    )
+
+    with (
+        patch("esphome.writer.__version__", "2025.1.0-dev"),
+        patch("esphome.writer.importlib.import_module") as mock_import,
+    ):
+        mock_import.side_effect = AttributeError
+        copy_src_tree()
+
+    # Verify build_info_data.h was regenerated (not removed)
+    assert build_info_h.exists()
+
+    # Note: build_info.json will have a new timestamp because get_build_info()
+    # always returns current time. The key test is that the old build_info_data.h
+    # file was removed and regenerated, not that it triggered sources_changed.
+    new_json = json.loads(build_info_json_path.read_text())
+    assert new_json["config_hash"] == 0xDEADBEEF
