@@ -175,8 +175,8 @@ Configuration options:
 
 ## Portisch firmware
 
-The radio microcontroller (MCU) can be flashed with an alternative firmware which allows for sniffining and transmitting
-advanced protocols (e.g raw, 0xB0, 0xB1, 0xA8) in addition to the standard recieve/transmit (0xA4,0xA5).
+The radio microcontroller (MCU) can be flashed with an alternative firmware which allows for sniffing and transmitting
+advanced protocols (e.g raw, 0xB0, 0xB1, 0xA8) in addition to the standard receive/transmit (0xA4,0xA5).
 If you have flashed the secondary MCU with the [Portisch firmware](https://github.com/Portisch/RF-Bridge-EFM8BB1) or [Mightymos firmware](https://github.com/mightymos/RF-Bridge-OB38S003),
 ESPHome is able to receive the extra protocols that can be decoded as well as activate the other modes supported. The below Triggers/actions are only for Portisch firmware.
 You can see a list of available commands and format in the [Portisch Wiki](https://github.com/Portisch/RF-Bridge-EFM8BB1/wiki/Commands)

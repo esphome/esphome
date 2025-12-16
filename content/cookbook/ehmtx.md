@@ -17,7 +17,7 @@ with sensors etc.
 Based a on a 8x32 RGB flexible matrix it displays a clock, the date and up to 16 other screens provided by home assistant.
 Each screen (value/text) can be associated with a 8x8 bit RGB icon or gif animation (see installation).
 The values/text can be updated or deleted from the display queue. Each screen has a lifetime, if not refreshed in its
-lifetime it will disapear.
+lifetime it will disappear.
 
 ## ESPHome Configuration
 

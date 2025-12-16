@@ -186,7 +186,7 @@ If converting from other code, make sure the length byte, if present, is not cop
 
 ## CUSTOM model
 
-The `CUSTOM` model selection is provided for otherwise unsupported displays, and requires both `dimensions:` and `init_sequence:` to be specfied. There is no pre-defined init sequence.
+The `CUSTOM` model selection is provided for otherwise unsupported displays, and requires both `dimensions:` and `init_sequence:` to be specified. There is no pre-defined init sequence.
 
 ## Using the `transform` options
 

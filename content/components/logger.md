@@ -96,7 +96,7 @@ so if you use any other configuration you will not get log messages over the on-
 | ESP32-S3 | TX: 43, RX: 44 | N/A | TX: 17, RX: 18 | Undefined | 19/20 | 19/20 |
 | NRF52    | pins varies by board | N/A | pins varies by board | Undefined | D+/D- | N/A |
 
-*Undefined* means that the logger component cannot use this harware UART at this time.
+*Undefined* means that the logger component cannot use this hardware UART at this time.
 
 {{< anchor "logger-default_hardware_interfaces" >}}
 
