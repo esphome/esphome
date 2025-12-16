@@ -5,6 +5,7 @@ import logging
 import esphome.codegen as cg
 from esphome.components.zephyr import (
     copy_files as zephyr_copy_files,
+    zephyr_add_prj_conf,
     zephyr_set_core_data,
     zephyr_to_code,
 )
@@ -69,7 +70,15 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 @coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
+    zephyr_add_prj_conf("WATCHDOG", False, False)
+    zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", True)
+    zephyr_add_prj_conf("CONFIG_SERIAL", True, False)
+    zephyr_add_prj_conf("UART_CONSOLE", True, False)
+    zephyr_add_prj_conf("CONSOLE", True, False)
+
     cg.add_platformio_option("board", config[CONF_BOARD])
+    cg.add_platformio_option("monitor_speed", "115200")
+    cg.add_platformio_option("upload_protocol", "stlink")
     cg.add_build_flag("-DUSE_STM32")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "STM52")
