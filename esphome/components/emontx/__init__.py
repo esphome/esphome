@@ -16,9 +16,9 @@ EmonTxJsonTrigger = emontx_ns.class_(
     "EmonTxJsonTrigger", automation.Trigger.template(cg.JsonObject)
 )
 
-# Add trigger class for on_line (available when web_config is enabled)
-EmonTxLineTrigger = emontx_ns.class_(
-    "EmonTxLineTrigger", automation.Trigger.template(cg.std_string)
+# Add trigger class for on_data (fires for every serial line - raw data)
+EmonTxDataTrigger = emontx_ns.class_(
+    "EmonTxDataTrigger", automation.Trigger.template(cg.std_string)
 )
 
 # Action to send command to emonTx
@@ -27,7 +27,7 @@ EmonTxSendCommandAction = emontx_ns.class_("EmonTxSendCommandAction", automation
 CONF_EMONTX_ID = "emontx_id"
 CONF_TAG_NAME = "tag_name"
 CONF_ON_JSON = "on_json"
-CONF_ON_LINE = "on_line"
+CONF_ON_DATA = "on_data"
 
 EMONTX_LISTENER_SCHEMA = cv.Schema(
     {
@@ -48,10 +48,10 @@ CONFIG_SCHEMA = (
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(EmonTxJsonTrigger),
                 }
             ),
-            # Add on_line trigger for handling all serial lines (plain text + JSON)
-            cv.Optional(CONF_ON_LINE): automation.validate_automation(
+            # Add on_data trigger for handling all serial lines (plain text + JSON)
+            cv.Optional(CONF_ON_DATA): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(EmonTxLineTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(EmonTxDataTrigger),
                 }
             ),
         }
@@ -96,9 +96,9 @@ async def to_code(config):
                 conf,
             )
 
-    # Process on_line triggers
-    if CONF_ON_LINE in config:
-        for conf in config[CONF_ON_LINE]:
+    # Process on_data triggers
+    if CONF_ON_DATA in config:
+        for conf in config[CONF_ON_DATA]:
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
             await automation.build_automation(
                 trigger,

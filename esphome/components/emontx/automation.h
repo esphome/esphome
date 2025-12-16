@@ -16,12 +16,12 @@ class EmonTxJsonTrigger : public Trigger<JsonObject, std::string> {
   }
 };
 
-class EmonTxLineTrigger : public Trigger<std::string> {
+class EmonTxDataTrigger : public Trigger<std::string> {
  public:
-  explicit EmonTxLineTrigger(EmonTx *parent) {
-    parent->add_on_line_callback([this](const std::string &line) {
-      // Trigger with the received line (plain text or JSON)
-      this->trigger(line);
+  explicit EmonTxDataTrigger(EmonTx *parent) {
+    parent->add_on_data_callback([this](const std::string &data) {
+      // Trigger with the received data (plain text or JSON)
+      this->trigger(data);
     });
   }
 };

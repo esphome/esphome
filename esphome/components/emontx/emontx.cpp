@@ -171,8 +171,8 @@ void EmonTx::loop() {
         ESP_LOGD(TAG, "Received line: %s", line.c_str());
 
         // Fire line callbacks for ALL received lines (config responses)
-        if (!this->line_callbacks_.empty()) {
-          for (const auto &callback : this->line_callbacks_) {
+        if (!this->data_callbacks_.empty()) {
+          for (const auto &callback : this->data_callbacks_) {
             callback(line);
           }
         }
@@ -252,14 +252,14 @@ void EmonTx::parse_json_(const std::string &data) {
     // Fire Home Assistant event with the received data
     if (api::global_api_server != nullptr && api::global_api_server->is_connected()) {
       api::HomeassistantActionRequest resp;
-      resp.set_service(StringRef("esphome.emontx_data"));
+      resp.set_service(StringRef("esphome.emontx_json"));
       resp.is_event = true;
       resp.data.init(1);
       auto &kv = resp.data.emplace_back();
       kv.set_key(StringRef("data"));
       kv.value = data;
       api::global_api_server->send_homeassistant_action(resp);
-      ESP_LOGV(TAG, "Fired esphome.emontx_data event");
+      ESP_LOGV(TAG, "Fired esphome.emontx_json event");
     }
 #endif
 

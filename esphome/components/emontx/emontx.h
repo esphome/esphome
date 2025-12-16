@@ -68,9 +68,9 @@ class EmonTx : public PollingComponent, public uart::UARTDevice {
   // Add method to register JSON callbacks
   void add_on_json_callback(const EmonTxJsonCallback &callback) { this->json_callbacks_.push_back(callback); }
 
-  // Add method to register line callbacks (for config responses)
-  using EmonTxLineCallback = std::function<void(const std::string &)>;
-  void add_on_line_callback(const EmonTxLineCallback &callback) { this->line_callbacks_.push_back(callback); }
+  // Add method to register data callbacks (for all serial data)
+  using EmonTxDataCallback = std::function<void(const std::string &)>;
+  void add_on_data_callback(const EmonTxDataCallback &callback) { this->data_callbacks_.push_back(callback); }
 
   // Add method to get the current buffer
   std::string get_buffer() const { return this->last_valid_json_; }
@@ -105,7 +105,7 @@ class EmonTx : public PollingComponent, public uart::UARTDevice {
   std::vector<EmonTxJsonCallback> json_callbacks_{};
 
   // Add storage for line callbacks (raw serial data)
-  std::vector<EmonTxLineCallback> line_callbacks_{};
+  std::vector<EmonTxDataCallback> data_callbacks_{};
 };
 
 // Action to send command to emonTx

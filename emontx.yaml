@@ -1,0 +1,118 @@
+esphome:
+  name: emontx-config
+  friendly_name: emonTx Configuration
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+  level: DEBUG
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_encryption_key
+  services:
+    - service: send_command
+      variables:
+        command: string
+      then:
+        - emontx.send_command:
+            id: emontx_device
+            command: !lambda 'return command;'
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot in case wifi connection fails
+  ap:
+    ssid: "emonTx-Config Fallback"
+    password: !secret fallback_password
+
+captive_portal:
+
+# Restart button for Home Assistant
+button:
+  - platform: restart
+    name: "Restart"
+
+# Web server for the config interface
+web_server:
+  port: 80
+
+# UART connection to emonTx
+uart:
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 115200
+  id: uart_emontx
+
+# emonTx component
+emontx:
+  id: emontx_device
+  uart_id: uart_emontx
+  on_json:
+    then:
+      - homeassistant.event:
+          event: esphome.emontx_data
+          data:
+            payload: !lambda 'return raw_json;'
+
+# Power and energy sensors published to Home Assistant
+sensor:
+  - platform: emontx
+    emontx_id: emontx_device
+    tag_name: P1
+    name: "Power 1"
+  - platform: emontx
+    emontx_id: emontx_device
+    tag_name: P2
+    name: "Power 2"
+  - platform: emontx
+    emontx_id: emontx_device
+    tag_name: P3
+    name: "Power 3"
+  - platform: emontx
+    emontx_id: emontx_device
+    tag_name: P4
+    name: "Power 4"
+  - platform: emontx
+    emontx_id: emontx_device
+    tag_name: P5
+    name: "Power 5"
+  - platform: emontx
+    emontx_id: emontx_device
+    tag_name: P6
+    name: "Power 6"
+  - platform: emontx
+    emontx_id: emontx_device
+    tag_name: E1
+    name: "Energy 1"
+  - platform: emontx
+    emontx_id: emontx_device
+    tag_name: E2
+    name: "Energy 2"
+  - platform: emontx
+    emontx_id: emontx_device
+    tag_name: E3
+    name: "Energy 3"
+  - platform: emontx
+    emontx_id: emontx_device
+    tag_name: E4
+    name: "Energy 4"
+  - platform: emontx
+    emontx_id: emontx_device
+    tag_name: E5
+    name: "Energy 5"
+  - platform: emontx
+    emontx_id: emontx_device
+    tag_name: E6
+    name: "Energy 6"
