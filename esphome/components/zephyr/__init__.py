@@ -22,7 +22,7 @@ from .const import (
 )
 
 CODEOWNERS = ["@tomaszduda23"]
-# AUTO_LOAD = ["preferences"]
+AUTO_LOAD = ["preferences"]
 
 PrjConfValueType = bool | str | int
 
