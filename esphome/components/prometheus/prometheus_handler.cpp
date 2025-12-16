@@ -1259,8 +1259,8 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     // Construct a date time object
     // ESPTime date_time = obj->state_as_esptime();
     // time_t final_timestamp = date_time.timestamp - ESPTime::timezone_offset();
-    date_time.recalc_timestamp_utc(false);
-    stream->print(static_cast<int64_t>(date_time.timestamp));
+    date_time_utc.recalc_timestamp_utc(false);
+    stream->print(static_cast<int64_t>(date_time_utc.timestamp));
     stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
