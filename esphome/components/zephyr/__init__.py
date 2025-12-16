@@ -136,6 +136,7 @@ def zephyr_to_code(config):
     # zephyr_add_prj_conf("CONFIG_FLASH", True)
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True, False)
+    zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False, False)
     # disable console
     zephyr_add_prj_conf("UART_CONSOLE", False, False)
     zephyr_add_prj_conf("CONSOLE", False, False)
@@ -145,10 +146,7 @@ def zephyr_to_code(config):
 
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
-    # zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096)
-    # zephyr_add_prj_conf("CONFIG_LOG", True)
-    # zephyr_add_prj_conf("CONFIG_LOG_MODE_IMMEDIATE", True)
-    zephyr_add_prj_conf("CONFIG_LOG_PRINTK", False)
+    zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048)
 
     add_extra_script(
         "pre",
