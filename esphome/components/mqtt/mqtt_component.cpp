@@ -68,8 +68,7 @@ bool MQTTComponent::send_discovery_() {
     return global_mqtt_client->publish(this->get_discovery_topic_(discovery_info), "", 0, this->qos_, true);
   }
 
-  ESP_LOGI(TAG, "'%s': Sending discovery to %s", this->friendly_name_().c_str(),
-           this->get_discovery_topic_(discovery_info));
+  ESP_LOGV(TAG, "'%s': Sending discovery", this->friendly_name_().c_str());
 
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return global_mqtt_client->publish_json(
