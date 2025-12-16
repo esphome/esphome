@@ -139,7 +139,7 @@ lvgl:
         text: Distance is ${math.sqrt(x*x+y*y)}.
 ```
 
-To see what mathematical functions ara available,
+To see what mathematical functions are available,
 refer to [Python math library](https://docs.python.org/3/library/math.html) documentation.
 
 ### Built-in functions
