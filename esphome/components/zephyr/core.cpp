@@ -10,7 +10,7 @@
 
 namespace esphome {
 
-#if defined(CONFIG_WATCHDOG)
+#ifdef CONFIG_WATCHDOG
 static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 #endif
@@ -22,7 +22,7 @@ void delayMicroseconds(uint32_t us) { ::k_usleep(us); }
 void delay(uint32_t ms) { ::k_msleep(ms); }
 
 void arch_init() {
-#if defined(CONFIG_WATCHDOG)
+#ifdef CONFIG_WATCHDOG
   if (device_is_ready(WDT)) {
     static wdt_timeout_cfg wdt_config{};
     wdt_config.flags = WDT_FLAG_RESET_SOC;
@@ -43,7 +43,7 @@ void arch_init() {
 }
 
 void arch_feed_wdt() {
-#if defined(CONFIG_WATCHDOG)
+#ifdef CONFIG_WATCHDOG
   if (wdt_channel_id >= 0) {
     wdt_feed(WDT, wdt_channel_id);
   }
@@ -78,7 +78,7 @@ bool random_bytes(uint8_t *data, size_t len) {
   return true;
 }
 
-#if defined(USE_NRF52)
+#ifdef USE_NRF52
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
   mac[0] = ((NRF_FICR->DEVICEADDR[1] & 0xFFFF) >> 8) | 0xC0;
   mac[1] = NRF_FICR->DEVICEADDR[1] & 0xFFFF;
