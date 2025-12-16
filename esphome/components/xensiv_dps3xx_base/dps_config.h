@@ -129,6 +129,9 @@ const RegMask_t config_registers[NUM_OF_COMMON_REGMASKS] = {
 
 namespace dps3xx {
 
+// Coefficient register block (18 bytes starting at 0x10)
+const RegBlock_t coeffBlock = {0x10, 18};
+
 enum Registers_e {
   PROD_ID = 0,
   REV_ID,
