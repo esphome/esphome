@@ -210,13 +210,13 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   if (use_hmac) {
     hmac_md5_receive.calculate();
     hmac_md5_receive.get_hex(hmac_md5_receive_str.get());
+    hmac_md5_receive_str.get()[32] = 0;
     this->hmac_md5_computed_ = hmac_md5_receive_str.get();
     if (strncmp(this->hmac_md5_computed_.c_str(), this->hmac_md5_expected_.c_str(), MD5_SIZE) != 0) {
       ESP_LOGE(TAG, "HMAC-MD5 computed: %s - Aborting due to HMAC-MD5 mismatch", this->hmac_md5_computed_.c_str());
       this->cleanup_(std::move(backend), container);
       return ota::OTA_RESPONSE_ERROR_MD5_MISMATCH;
     }
-    backend->set_update_md5(hmac_md5_receive_str.get());
   } else {
     md5_receive.calculate();
     md5_receive.get_hex(md5_receive_str.get());
