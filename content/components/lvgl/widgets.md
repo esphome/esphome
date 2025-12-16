@@ -38,7 +38,12 @@ The properties below are common to all widgets.
   - `"ON"`  : Always show the scroll bars (use the double quotes!).
   - `"ACTIVE"`  : Show scroll bars while a widget is being scrolled.
   - `"AUTO"`  : Show scroll bars when the content is large enough to be scrolled (default).
-
+- **scroll_dir** (*Optional*, string): Sets the permissible scroll directions for an object - one of `LEFT`, `RIGHT`,
+  `BOTTOM`, `TOP`, `HOR`, `VER`, `ALL` (default).
+- **scroll_snap_x** (*Optional*, string): For a child of a scrollable object, this property defines the snap position
+  of the child in the X direction. One of `NONE` (default), `START`, `END`, `CENTER`.
+- **scroll_snap_y** (*Optional*, string): For a child of a scrollable object, this property defines the snap position
+  of the child in the Y direction. One of `NONE` (default), `START`, `END`, `CENTER`.
 - **align** (*Optional*, enum): Alignment of the widget relative to the parent. A child widget is clipped to its parent boundaries. One of the values *not* starting with `OUT_` (see picture below).
 - **align_to** (*Optional*, list): Alignment of the widget relative to another widget on the same level:
   - **id** (**Required**): The ID of a widget *to* which you want to align.
@@ -282,16 +287,16 @@ The arc consists of a background and a foreground arc. The indicator foreground 
 - **arc_opa** (*Optional*, [opacity](/components/lvgl#lvgl-opacity)): Opacity of the arc.
 - **arc_rounded** (*Optional*, boolean): Make the end points of the arcs rounded. `true` rounded, `false` perpendicular line ending.
 - **arc_width** (*Optional*, int16): Set the width of the arcs in pixels.
-- **change_rate** (*Optional*, int8): If the arc is pressed the current value will set with a limited speed according to the set change rate. The change rate is defined in degree/second. Defaults to `720`.
+- **change_rate** (*Optional*, uint16): Limits the speed at which the arc value changes when touched or dragged. The change rate is defined in degree/second. Defaults to `720`.
 - **end_angle** (*Optional*, 0-360): end angle of the arc background (see note). Defaults to `45`.
 - **indicator** (*Optional*, list): Settings for the indicator *part* to show the value. Supports a list of [styles](/components/lvgl#lvgl-styling) and state-based styles to customize. Draws *another arc using the arc style* properties. Its padding values are interpreted relative to the background arc.
 - **knob** (*Optional*, list): Settings for the knob *part* to control the value. Supports a list of [styles](/components/lvgl#lvgl-styling) and state-based styles to customize. Draws a handle on the end of the indicator using all background properties and padding values. With zero padding the knob size is the same as the indicator's width. Larger padding makes it larger, smaller padding makes it smaller.
-- **max_value** (*Optional*, int8): Maximum value of the indicator. Defaults to `100`.
-- **min_value** (*Optional*, int8): Minimum value of the indicator. Defaults to `0`.
+- **max_value** (*Optional*, int16): Maximum value of the indicator. Defaults to `100`.
+- **min_value** (*Optional*, int16): Minimum value of the indicator. Defaults to `0`.
 - **mode** (*Optional*, string): `NORMAL`  : the indicator is drawn from the minimum value to the current. `REVERSE`  : the indicator is drawn counter-clockwise from the maximum value to the current. `SYMMETRICAL`  : the indicator is drawn from the middle point to the current value. Defaults to `NORMAL`.
 - **rotation** (*Optional*, 0-360): Offset to the 0 degree position. Defaults to `0.0`.
 - **start_angle** (*Optional*, 0-360): start angle of the arc background (see note). Defaults to `135`.
-- **value** (*Optional*, int8): Actual value of the indicator at start, in `0`  -`100` range. Defaults to `0`.
+- **value** (*Optional*, int16): Actual value of the indicator at start, in `0`  -`100` range. Defaults to `0`.
 - Any [Styling](/components/lvgl#lvgl-styling) and state-based option to override styles inherited from parent. The arc's size and position will respect the padding style properties.
 
 If the `adv_hittest` [flag](#lvgl-widget-flags) is enabled the arc can be clicked through in the middle. Clicks are recognized only on the ring of the background arc.
@@ -303,7 +308,14 @@ If the `adv_hittest` [flag](#lvgl-widget-flags) is enabled the arc can be clicke
 
 - `lvgl.arc.update` [action](/automations/actions#actions-action) updates the widget styles and properties from the specific options above, just like the [lvgl.widget.update](#lvgl-automation-actions) action is used for the common styles, states or flags.
   - **id** (**Required**): The ID or a list of IDs of arc widgets to be updated.
-  - **value** (*Optional*, int8): New value of the indicator.
+  - **change_rate** (*Optional*, uint16): New change rate in degree/second.
+  - **end_angle** (*Optional*, 0-360): New end angle of the arc background.
+  - **max_value** (*Optional*, int16): New maximum value of the indicator.
+  - **min_value** (*Optional*, int16): New minimum value of the indicator.
+  - **mode** (*Optional*, string): New indicator mode.
+  - **rotation** (*Optional*, 0-360): New offset to the 0 degree position.
+  - **start_angle** (*Optional*, 0-360): New start angle of the arc background.
+  - **value** (*Optional*, int16): New value of the indicator.
   - Any [Styling](/components/lvgl#lvgl-styling) and state-based option to override styles inherited from parent. The arc's size and position will respect the padding style properties.
 
 **Triggers:**
@@ -417,9 +429,17 @@ Simple push (momentary) or toggle (two-states) button.
 
 {{< img src="lvgl_button.png" alt="Image" class="align-center" >}}
 
+A button has no inherent content so requires child widgets to be added. As a shorthand for a button with a single text label,
+the `text:` option may be used to add a single `label` child, otherwise the `widgets:` key must be used to add other
+widgets inside the button.
+
+A button is momentary by default, which has a `pressed` state. If the `checkable` flag is set, it becomes a toggle button, which also has a `checked` state.
+
 **Configuration variables:**
 
-- **checkable** (*Optional*, boolean): A significant [flag](#lvgl-widget-flags) to make a toggle button (which remains pressed in `checked` state). Defaults to `false`.
+- **checkable** (*Optional*, boolean): A significant [flag](#lvgl-widget-flags) to make a toggle button (which reports its `checked` state). Defaults to `false`.
+- **text** (*Optional*, string): Text to be displayed on the button. This will create and add a single label widget to the button. May not be used
+  with the `widgets:` key.
 - Style options from [Style properties](/components/lvgl#lvgl-styling) for the background of the button. Uses the typical background style properties.
 
 A notable state is `checked` (boolean) which can have different styles applied.
@@ -433,30 +453,22 @@ A notable state is `checked` (boolean) which can have different styles applied.
 **Example:**
 
 ```yaml
-# Example widget:
+# Example widget with text:
 - button:
-    x: 10
-    y: 10
-    width: 50
-    height: 30
     id: btn_id
+    text: "Click me!"
 ```
 
-To have a button with a text label on it, add a child [`label`](#lvgl-widget-label) widget to it:
+To create an image button, add a child [`image`](#lvgl-widget-image) widget to it:
 
 ```yaml
-# Example toggle button with text:
+# Example toggle button with image:
 - button:
-    x: 10
-    y: 10
-    width: 70
-    height: 30
     id: btn_id
     checkable: true
     widgets:
-      - label:
-          align: center
-          text: "Light"
+      - image:
+          src: my_image_id
 
 # Example trigger:
 - button:
@@ -466,11 +478,36 @@ To have a button with a text label on it, add a child [`label`](#lvgl-widget-lab
         - logger.log:
             format: "Button checked state: %d"
             args: [ x ]
+
 ```
 
 The `button` can be also integrated as a {{< docref "/components/binary_sensor/lvgl" "Binary Sensor" >}} or as a {{< docref "/components/switch/lvgl" "Switch" >}} component.
+> [!NOTE]
+> A binary sensor linked to a button reports its `pressed` state, while a switch linked to a button reports its `checked` state.
 
 See [Remote light button](/cookbook/lvgl#lvgl-cookbook-binent) for an example which demonstrates how to use a checkable button to act on a Home Assistant service.
+
+**Actions:**
+
+- `lvgl.button.update` [action](/automations/actions#actions-action) may be used to update the button styles at runtime. If
+  the button has a `text:` option then it may also be updated with this action.
+  - **id** (**Required**): The ID or a list of IDs of button widgets to be updated.
+  - **text** (*Optional*, string): Update the button's text (only if the button was configured with the `text:` option).
+  - Style options from [Style properties](/components/lvgl#lvgl-styling) for the background of the button.
+
+  > [!NOTE]
+  > Where other widgets are added as children, they must be updated directly.
+
+```yaml
+# Text update example
+- button:
+    id: btn_id
+    text: "Click me!"
+    on_click:
+      lvgl.button.update:
+        id: btn_id
+        text: "Clicked"
+```
 
 {{< anchor "lvgl-widget-buttonmatrix" >}}
 

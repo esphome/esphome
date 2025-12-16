@@ -23,9 +23,11 @@ merged by concatenation. All other configuration values are replaced with the la
 
 ESPHome uses `!include` to "bring in" packages from other files; this feature is described in [!include](/guides/yaml#yaml-include).
 
-The `packages:` key may have a value that is a list of valid package references, or a mapping of keys to package references.
-When a mapping is used, the keys are for reference only and have no significance in themselves.
-Where only a single package reference is required, it may be used directly rather than in a list.
+The `packages:` key may have a value that is:
+
+- A list of valid package references
+- A mapping of keys to package references. When a mapping is used, the keys are for reference only and have no significance in themselves.
+
 Examples of all formats are shown below.
 
 ## Local Packages
@@ -166,6 +168,29 @@ switch:
     # ...
 ```
 
+## Conditionally including a package
+
+You can include a package based on a condition, or choose a package dinamically by loading your package with
+`!include` into a substitution variable instead of under `packages`:
+
+```yaml
+# In config.yaml
+substitutions:
+  left_garage_door: !include
+    file: garage-door.yaml
+    vars:
+      door_name: Left
+
+  enable_extra_door: true
+
+packages:
+  extra_door: ${ left_garage_door if enable_extra_door else {} }
+```
+
+The above utilizes a [Jinja expression](/components/substitutions#jinja-expressions) to determine whether
+`left_garage_door` package is actually included. `enable_extra_door` can be set from the
+[command line](/components/substitutions#command-line-substitutions) as well.
+
 {{< anchor "config-packages_extend" >}}
 
 ## Extend
@@ -186,12 +211,38 @@ sensor:
 ```
 
 ```yaml
-# only one package is included here, no need for a list
-packages: !include common.yaml
+packages:
+  - !include common.yaml
 
 sensor:
   - id: !extend uptime_sensor
     update_interval: 10s
+```
+
+LVGL-style configuration hierarchies are also supported:
+
+```yaml
+# In interface.yaml
+lvgl:
+  pages:
+    - id: main_page
+      widgets:
+        - label:
+            id: title_label
+            text: "Main Page"
+```
+
+```yaml
+packages:
+  - !include interface.yaml
+lvgl:
+  pages:
+    - id: !extend main_page
+      widgets:
+        - label:
+            id: !extend title_label
+            text: "New Title"
+            text_color: red
 ```
 
 `!extend` also works with substitutions and jinja:
@@ -229,16 +280,31 @@ the ID of the entry to modify.
 For example, to remove a common uptime sensor that is shared between configurations:
 
 ```yaml
-packages: !include common.yaml  # see above
+packages:
+  - !include common.yaml  # see above
 
 sensor:
   - id: !remove uptime_sensor
 ```
 
+Remove an item in a LVGL-style configuration:
+
+```yaml
+packages:
+  - !include interface.yaml # see above
+lvgl:
+  pages:
+    - id: !extend main_page
+      widgets:
+        - label:
+            id: !remove title_label
+```
+
 To remove captive portal for a specific device:
 
 ```yaml
-packages: !include common.yaml  # see above
+packages:
+  - !include common.yaml  # see above
 
 captive_portal: !remove
 ```

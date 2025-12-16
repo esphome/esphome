@@ -51,6 +51,7 @@ remote_transmitter:
 | ESP32-C3      | 96 symbols       | 48 symbols |
 | ESP32-C5 | 96 symbols | 48 symbols |
 | ESP32-C6 | 96 symbols | 48 symbols |
+| ESP32-C61 | 96 symbols | 48 symbols |
 | ESP32-H2 | 96 symbols | 48 symbols |
 | ESP32-P4 | 192 symbols | 48 symbols |
 | ESP32-S2 | 256 symbols | 64 symbols |

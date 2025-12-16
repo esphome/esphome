@@ -59,6 +59,7 @@ ethernet:
   - `W5500` (SPI)
   - `OPENETH` (QEMU, ESP-IDF only)
   - `DM9051` (SPI, ESP-IDF only)
+  - `LAN8670` (RMII)
 
 ### RMII configuration variables
 
@@ -268,7 +269,7 @@ ethernet:
   power_pin: GPIO5
 ```
 
-**wESP32**:
+**Silicognition wESP32**:
 
 ```yaml
 # for board up to rev.5
@@ -298,6 +299,30 @@ ethernet:
 
 > [!NOTE]
 > Revision 5 and below of the wESP32 board use the LAN8720 Ethernet PHY. Revision 7 and newer of it use the RTL8201 Ethernet PHY.
+
+**Silicognition ManT1S**:
+
+```yaml
+ethernet:
+  type: LAN8670
+  mdc_pin:
+    number: GPIO8
+    ignore_pin_validation_error: true
+  mdio_pin:
+    number: GPIO7
+    ignore_pin_validation_error: true
+  clk:
+    pin:
+      number: GPIO0
+      ignore_strapping_warning: true
+    mode: CLK_EXT_IN
+  phy_addr: 0
+```
+
+> [!NOTE]
+> The `ignore_pin_validation_error` options are required for the MDC and MDIO pins, since the pin
+> validator assumes these pins are used for flash.  However, this board uses the ESP32-PICO-V3-02
+> module, which has these pins available for other uses, so this check needs to be disabled.
 
 **OpenHacks LAN8720**:
 

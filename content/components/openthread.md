@@ -18,7 +18,7 @@ This component allows ESPHome nodes to communicate with Home Assistant over a Th
 
 ## Usage
 
-This component requires an ESP32 (ESP32-C6 or ESP32-H2 because they have Thread radio chip) and the use of
+This component requires an ESP32 (ESP32-C5, ESP32-C6, or ESP32-H2 because they have Thread radio chip) and the use of
 ESP-IDF.
 
 ```yaml

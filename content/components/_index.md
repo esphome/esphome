@@ -169,6 +169,7 @@ Create update entities simplifying management of OTA updates.
 "SPI Bus","components/spi","spi.svg",""
 "TinyUSB","components/tinyusb","usb.svg","dark-invert"
 "UART","components/uart","uart.svg",""
+"USB CDC-ACM","components/usb_cdc_acm","usb.svg","dark-invert"
 "USB Host","components/usb_host","usb.svg","dark-invert"
 "USB UART","components/usb_uart","usb.svg","dark-invert"
 {{< /imgtable >}}
@@ -240,6 +241,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "GCJA5","components/sensor/gcja5","gcja5.svg","Particulate","",""
 "GP2Y1010AU0F","components/sensor/gp2y1010au0f","gp2y1010au0f.png","Particulate","",""
 "Grove Multichannel Gas V2","components/sensor/grove_gas_mc_v2","grove-gas-mc-v2.png","NO₂ & CO & Ethanol & Volatile organics","",""
+"HC8","components/sensor/hc8","hc8.png","CO₂","",""
 "HM3301","components/sensor/hm3301","hm3301.jpg","Particulate","",""
 "iAQ-Core","components/sensor/iaqcore","iaqcore.jpg","eCO₂ & Volatile organics","",""
 "MH-Z19","components/sensor/mhz19","mhz19.jpg","CO₂ & Temperature","",""
@@ -291,6 +293,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "Mopeka Pro Check LP","components/sensor/mopeka_pro_check","mopeka_pro_check.jpg","Tank level"
 "Mopeka Standard Check LP","components/sensor/mopeka_std_check","mopeka_std_check.jpg","Tank level"
 "RuuviTag","components/sensor/ruuvitag","ruuvitag.jpg","Temperature & Humidity & Accelerometer"
+"ThermoPro BLE","components/sensor/thermopro_ble","thermopro_tp357.jpg","Temperature & Humidity"
 "Xiaomi BLE","components/sensor/xiaomi_ble","xiaomi_mijia_logo.jpg","Various"
 {{< /imgtable >}}
 
@@ -335,6 +338,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "Daly BMS","components/sensor/daly_bms","daly_bms.jpg","Voltage & Current & Power"
 "DSMR","components/sensor/dsmr","dsmr.svg","Electrical counter"
 "HLW8012","components/sensor/hlw8012","hlw8012.svg","Voltage & Current & Power"
+"HLW8032","components/sensor/hlw8032","hlw8032.png","Voltage & Current & Power"
 "INA219","components/sensor/ina219","ina219.jpg","DC Current"
 "INA226","components/sensor/ina226","ina226.jpg","DC Current & Power"
 "INA228","components/sensor/ina2xx","ina228.jpg","DC Voltage & Current & Power & Charge"
@@ -380,6 +384,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "EMC2101","components/emc2101","emc2101.jpg","Temperature",""
 "ENS160","components/sensor/ens160","ens160.jpg","eCO₂ & Air Quality",""
 "ENS210","components/sensor/ens210","ens210.jpg","Temperature & Humidity",""
+"HC8","components/sensor/hc8","hc8.png","CO₂",""
 "HDC1080","components/sensor/hdc1080","hdc1080.jpg","Temperature & Humidity",""
 "HDC2010","components/sensor/hdc2010","hdc2010.png","Temperature & Humidity",""
 "HHCCJCY10 (MiFlora Pink)","components/sensor/xiaomi_hhccjcy10","xiaomi_hhccjcy10.jpg","Soil moisture & Temperature & Light",""
@@ -416,6 +421,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "SHTCx","components/sensor/shtcx","shtc3.jpg","Temperature & Humidity",""
 "SMT100","components/sensor/smt100","smt100.jpg","Moisture & Temperature",""
 "STS3X","components/sensor/sts3x","sts3x.jpg","Temperature",""
+"STTS22H","components/sensor/stts22h","stts22h.jpg","Temperature",""
 "TC74","components/sensor/tc74","tc74.jpg","Temperature",""
 "TEE501","components/sensor/tee501","TEE501.png","Temperature",""
 "TE-M3200","components/sensor/tem3200","tem3200.jpg","Temperature & Pressure",""
@@ -739,6 +745,7 @@ Often known as "tag" or "card" readers within the community.
 "ILI9486","components/display/ili9xxx","ili9341.jpg"
 "ILI9488","components/display/ili9xxx","ili9488.svg"
 "WSPICOLCD","components/display/ili9xxx","ili9488.svg"
+"HUB75 LED Matrix","components/display/hub75","hub75.svg"
 "Inkplate","components/display/inkplate","inkplate6.jpg"
 "LCD Display","components/display/lcd_display","lcd.jpg"
 "MAX7219 Dot Matrix","components/display/max7219digit","max7219digit.jpg"
@@ -999,6 +1006,7 @@ at the {{< docref "light/fastled" "FastLED Light" >}}.
 
 {{< imgtable >}}
 "Time Core","components/time/index","clock-outline.svg","dark-invert"
+"BM8563 RTC","components/time/bm8563","bm8563.svg",""
 "DS1307 RTC","components/time/ds1307","clock-outline.svg","dark-invert"
 "RX8130 RTC","components/time/rx8130","clock-outline.svg","dark-invert"
 "GPS Time","components/time/gps","crosshairs-gps.svg","dark-invert"
@@ -1037,6 +1045,7 @@ Used for creating infrared (IR) or radio frequency (RF) remote control transmitt
 ESPHome to cellular networks. **Does not encompass Wi-Fi.**
 
 {{< imgtable >}}
+"CC1101","components/cc1101","cc1101.webp",""
 "IR Remote Climate","components/climate/climate_ir","air-conditioner-ir.svg","dark-invert"
 "Remote Receiver","components/remote_receiver","remote.svg","dark-invert"
 "Remote Transmitter","components/remote_transmitter","remote.svg","dark-invert"

@@ -131,6 +131,11 @@ The following configuration variables apply to the main `lvgl` component, in ord
 > - If you press the encoder on a complex object (like a list, message box, etc.) the object will go to edit mode whereby you can adjust the value of the object by turning the encoder.
 > - To leave edit mode, long press the button.
 
+- **update_when_display_idle** (*Optional*, boolean): When using the {{< docref "/components/display/epaper_spi" >}}
+  or other displays with long update times, setting this option
+  to `true` will cause the display to only be updated if the display is idle. During the update LVGL will pause.
+  The display `update_interval` should be set to `never` when this is used, as the display will be updated automatically
+  by LVGL.
 - **resume_on_input** (*Optional*, boolean): If LVGL is paused and the user interacts with the screen, resume the activity of LVGL. Defaults to `true`. "Interacts" means to release a touch or button, or rotate an encoder.
 - **color_depth** (*Optional*, string): The color depth at which the contents are generated. Currently only `16` is supported (RGB565, 2 bytes/pixel), which is the default value.
 - **buffer_size** (*Optional*, percentage): The percentage of screen size to allocate buffer memory. If unconfigured, the default is `100%` with runtime fallback to `12%` if a full size buffer allocation fails. For devices without PSRAM, the recommended value is `25%`.
