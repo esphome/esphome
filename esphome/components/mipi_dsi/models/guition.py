@@ -37,17 +37,9 @@ DriverChip(
 )
 
 
-# JC4880P443 Driver Configuration (ST7701)
-# Using parameters from esp_lcd_st7701.h and the working full init sequence
-# ----------------------------------------------------------------------------------------------------------------------
-# * Resolution: 480x800
-# * PCLK Frequency: 34 MHz
-# * DSI Lane Bit Rate: 500 Mbps (using 2-Lane DSI configuration)
-# * Horizontal Timing (hsync_pulse_width=12, hsync_back_porch=42, hsync_front_porch=42)
-# * Vertical Timing (vsync_pulse_width=2, vsync_back_porch=8, vsync_front_porch=166)
-# ----------------------------------------------------------------------------------------------------------------------
+# fmt: off
 DriverChip(
-    "JC4880P443",
+    "JC4880P443C",
     width=480,
     height=800,
     hsync_back_porch=42,
@@ -99,6 +91,9 @@ DriverChip(
         (0xED, 0xB0, 0x2B, 0x98, 0xA4, 0x56, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xF7, 0x65, 0x4A, 0x89, 0xB2, 0x0B),
         (0xEF, 0x08, 0x08, 0x08, 0x45, 0x3F, 0x54),
         (0xFF, 0x77, 0x01, 0x00, 0x00, 0x00),
-    ]
+        (0x3A, 0x55),
+        (0x11,),
+        (0x29,),
+    ],
 )
 # fmt: on
