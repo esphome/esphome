@@ -42,6 +42,18 @@ button:
             md5: 0123456789abcdef0123456789abcdef
             url: http://my.ha.net:8123/local/esphome/firmware.bin
 
+        - ota.http_request.flash:
+            id: http_request_ota
+            hmac_md5_url: http://my.ha.net:8123/local/esphome/firmware.hmac
+            hmac_key: test_key_123
+            url: http://my.ha.net:8123/local/esphome/firmware.bin
+
+        - ota.http_request.flash:
+            id: http_request_ota
+            hmac_md5: 0123456789abcdef0123456789abcdef
+            hmac_key: test_key_123
+            url: http://my.ha.net:8123/local/esphome/firmware.bin
+
         - logger.log: "This message should be not displayed (reboot)"
 
 update:
