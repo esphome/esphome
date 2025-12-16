@@ -1,3 +1,7 @@
+import os
+from pathlib import Path
+from unittest.mock import patch
+
 from hypothesis import given
 import pytest
 from strategies import mac_addr_strings
@@ -533,8 +537,8 @@ class TestEsphomeCore:
     @pytest.fixture
     def target(self, fixture_path):
         target = core.EsphomeCore()
-        target.build_path = "foo/build"
-        target.config_path = "foo/config"
+        target.build_path = Path("foo/build")
+        target.config_path = Path("foo/config")
         return target
 
     def test_reset(self, target):
@@ -566,6 +570,15 @@ class TestEsphomeCore:
 
         assert target.address == "4.3.2.1"
 
+    def test_address__openthread(self, target):
+        target.config = {}
+        target.config[const.CONF_OPENTHREAD] = {
+            const.CONF_USE_ADDRESS: "test-device.local"
+        }
+        target.name = "test-device"
+
+        assert target.address == "test-device.local"
+
     def test_is_esp32(self, target):
         target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
 
@@ -577,3 +590,131 @@ class TestEsphomeCore:
 
         assert target.is_esp32 is False
         assert target.is_esp8266 is True
+
+    @pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
+    def test_data_dir_default_unix(self, target):
+        """Test data_dir returns .esphome in config directory by default on Unix."""
+        target.config_path = Path("/home/user/config.yaml")
+        assert target.data_dir == Path("/home/user/.esphome")
+
+    @pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
+    def test_data_dir_default_windows(self, target):
+        """Test data_dir returns .esphome in config directory by default on Windows."""
+        target.config_path = Path("D:\\home\\user\\config.yaml")
+        assert target.data_dir == Path("D:\\home\\user\\.esphome")
+
+    def test_data_dir_ha_addon(self, target):
+        """Test data_dir returns /data when running as Home Assistant addon."""
+        target.config_path = Path("/config/test.yaml")
+
+        with patch.dict(os.environ, {"ESPHOME_IS_HA_ADDON": "true"}):
+            assert target.data_dir == Path("/data")
+
+    def test_data_dir_env_override(self, target):
+        """Test data_dir uses ESPHOME_DATA_DIR environment variable when set."""
+        target.config_path = Path("/home/user/config.yaml")
+
+        with patch.dict(os.environ, {"ESPHOME_DATA_DIR": "/custom/data/path"}):
+            assert target.data_dir == Path("/custom/data/path")
+
+    @pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
+    def test_data_dir_priority_unix(self, target):
+        """Test data_dir priority on Unix: HA addon > env var > default."""
+        target.config_path = Path("/config/test.yaml")
+        expected_default = "/config/.esphome"
+
+        # Test HA addon takes priority over env var
+        with patch.dict(
+            os.environ,
+            {"ESPHOME_IS_HA_ADDON": "true", "ESPHOME_DATA_DIR": "/custom/path"},
+        ):
+            assert target.data_dir == Path("/data")
+
+        # Test env var is used when not HA addon
+        with patch.dict(
+            os.environ,
+            {"ESPHOME_IS_HA_ADDON": "false", "ESPHOME_DATA_DIR": "/custom/path"},
+        ):
+            assert target.data_dir == Path("/custom/path")
+
+        # Test default when neither is set
+        with patch.dict(os.environ, {}, clear=True):
+            # Ensure these env vars are not set
+            os.environ.pop("ESPHOME_IS_HA_ADDON", None)
+            os.environ.pop("ESPHOME_DATA_DIR", None)
+            assert target.data_dir == Path(expected_default)
+
+    @pytest.mark.skipif(os.name != "nt", reason="Windows-specific test")
+    def test_data_dir_priority_windows(self, target):
+        """Test data_dir priority on Windows: HA addon > env var > default."""
+        target.config_path = Path("D:\\config\\test.yaml")
+        expected_default = "D:\\config\\.esphome"
+
+        # Test HA addon takes priority over env var
+        with patch.dict(
+            os.environ,
+            {"ESPHOME_IS_HA_ADDON": "true", "ESPHOME_DATA_DIR": "/custom/path"},
+        ):
+            assert target.data_dir == Path("/data")
+
+        # Test env var is used when not HA addon
+        with patch.dict(
+            os.environ,
+            {"ESPHOME_IS_HA_ADDON": "false", "ESPHOME_DATA_DIR": "/custom/path"},
+        ):
+            assert target.data_dir == Path("/custom/path")
+
+        # Test default when neither is set
+        with patch.dict(os.environ, {}, clear=True):
+            # Ensure these env vars are not set
+            os.environ.pop("ESPHOME_IS_HA_ADDON", None)
+            os.environ.pop("ESPHOME_DATA_DIR", None)
+            assert target.data_dir == Path(expected_default)
+
+    def test_web_port__none(self, target):
+        """Test web_port returns None when web_server is not configured."""
+        target.config = {}
+        assert target.web_port is None
+
+    def test_web_port__explicit_web_server_default_port(self, target):
+        """Test web_port returns 80 when web_server is explicitly configured without port."""
+        target.config = {const.CONF_WEB_SERVER: {}}
+        assert target.web_port == 80
+
+    def test_web_port__explicit_web_server_custom_port(self, target):
+        """Test web_port returns custom port when web_server is configured with port."""
+        target.config = {const.CONF_WEB_SERVER: {const.CONF_PORT: 8080}}
+        assert target.web_port == 8080
+
+    def test_web_port__ota_web_server_platform_only(self, target):
+        """
+        Test web_port returns None when ota.web_server platform is explicitly configured.
+
+        This is a critical test for Dashboard Issue #766:
+        https://github.com/esphome/dashboard/issues/766
+
+        When ota: platform: web_server is explicitly configured (or auto-loaded by captive_portal):
+        - "web_server" appears in loaded_integrations (platform name added to integrations)
+        - "ota/web_server" appears in loaded_platforms
+        - But CONF_WEB_SERVER is NOT in config (only the platform is loaded, not the component)
+        - web_port MUST return None (no web UI available)
+        - Dashboard should NOT show VISIT button
+
+        This test ensures web_port only checks CONF_WEB_SERVER in config, not loaded_integrations.
+        """
+        # Simulate config with ota.web_server platform but no web_server component
+        # This happens when:
+        # 1. User explicitly configures: ota: - platform: web_server
+        # 2. OR captive_portal auto-loads ota.web_server
+        target.config = {
+            const.CONF_OTA: [
+                {
+                    "platform": "web_server",
+                    # OTA web_server platform config would be here
+                }
+            ],
+            # Note: CONF_WEB_SERVER is NOT in config - only the OTA platform
+        }
+        # Even though "web_server" is in loaded_integrations due to the platform,
+        # web_port must return None because the full web_server component is not configured
+        assert target.web_port is None

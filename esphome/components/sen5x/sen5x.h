@@ -9,7 +9,7 @@
 namespace esphome {
 namespace sen5x {
 
-enum ERRORCODE {
+enum ERRORCODE : uint8_t {
   COMMUNICATION_FAILED,
   SERIAL_NUMBER_IDENTIFICATION_FAILED,
   MEASUREMENT_INIT_FAILED,
@@ -18,18 +18,16 @@ enum ERRORCODE {
   UNKNOWN
 };
 
-// Shortest time interval of 3H for storing baseline values.
-// Prevents wear of the flash because of too many write operations
-const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 10800;
-// Store anyway if the baseline difference exceeds the max storage diff value
-const uint32_t MAXIMUM_STORAGE_DIFF = 50;
+enum RhtAccelerationMode : uint16_t {
+  LOW_ACCELERATION = 0,
+  MEDIUM_ACCELERATION = 1,
+  HIGH_ACCELERATION = 2,
+};
 
 struct Sen5xBaselines {
   int32_t state0;
   int32_t state1;
 } PACKED;  // NOLINT
-
-enum RhtAccelerationMode : uint16_t { LOW_ACCELERATION = 0, MEDIUM_ACCELERATION = 1, HIGH_ACCELERATION = 2 };
 
 struct GasTuning {
   uint16_t index_offset;
@@ -45,6 +43,12 @@ struct TemperatureCompensation {
   int16_t normalized_offset_slope;
   uint16_t time_constant;
 };
+
+// Shortest time interval of 3H for storing baseline values.
+// Prevents wear of the flash because of too many write operations
+static const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 10800;
+// Store anyway if the baseline difference exceeds the max storage diff value
+static const uint32_t MAXIMUM_STORAGE_DIFF = 50;
 
 class SEN5XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
@@ -102,8 +106,14 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
  protected:
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
+
+  uint32_t seconds_since_last_store_;
+  uint16_t firmware_version_;
   ERRORCODE error_code_;
+  uint8_t serial_number_[4];
   bool initialized_{false};
+  bool store_baseline_;
+
   sensor::Sensor *pm_1_0_sensor_{nullptr};
   sensor::Sensor *pm_2_5_sensor_{nullptr};
   sensor::Sensor *pm_4_0_sensor_{nullptr};
@@ -115,18 +125,14 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   // SEN55 only
   sensor::Sensor *nox_sensor_{nullptr};
 
-  std::string product_name_;
-  uint8_t serial_number_[4];
-  uint16_t firmware_version_;
-  Sen5xBaselines voc_baselines_storage_;
-  bool store_baseline_;
-  uint32_t seconds_since_last_store_;
-  ESPPreferenceObject pref_;
   optional<RhtAccelerationMode> acceleration_mode_;
   optional<uint32_t> auto_cleaning_interval_;
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureCompensation> temperature_compensation_;
+  ESPPreferenceObject pref_;
+  std::string product_name_;
+  Sen5xBaselines voc_baselines_storage_;
 };
 
 }  // namespace sen5x

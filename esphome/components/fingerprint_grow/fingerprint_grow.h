@@ -6,6 +6,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/uart/uart.h"
 
+#include <limits>
 #include <vector>
 
 namespace esphome {
@@ -177,7 +178,7 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   uint8_t address_[4] = {0xFF, 0xFF, 0xFF, 0xFF};
   uint16_t capacity_ = 64;
   uint32_t password_ = 0x0;
-  uint32_t new_password_ = -1;
+  uint32_t new_password_ = std::numeric_limits<uint32_t>::max();
   GPIOPin *sensing_pin_{nullptr};
   GPIOPin *sensor_power_pin_{nullptr};
   uint8_t enrollment_image_ = 0;
@@ -272,7 +273,7 @@ template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public P
   TEMPLATABLE_VALUE(uint16_t, finger_id)
   TEMPLATABLE_VALUE(uint8_t, num_scans)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto finger_id = this->finger_id_.value(x...);
     auto num_scans = this->num_scans_.value(x...);
     if (num_scans) {
@@ -286,14 +287,14 @@ template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public P
 template<typename... Ts>
 class CancelEnrollmentAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
-  void play(Ts... x) override { this->parent_->finish_enrollment(1); }
+  void play(const Ts &...x) override { this->parent_->finish_enrollment(1); }
 };
 
 template<typename... Ts> class DeleteAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(uint16_t, finger_id)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto finger_id = this->finger_id_.value(x...);
     this->parent_->delete_fingerprint(finger_id);
   }
@@ -301,14 +302,14 @@ template<typename... Ts> class DeleteAction : public Action<Ts...>, public Paren
 
 template<typename... Ts> class DeleteAllAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
-  void play(Ts... x) override { this->parent_->delete_all_fingerprints(); }
+  void play(const Ts &...x) override { this->parent_->delete_all_fingerprints(); }
 };
 
 template<typename... Ts> class LEDControlAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(bool, state)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto state = this->state_.value(x...);
     this->parent_->led_control(state);
   }
@@ -321,7 +322,7 @@ template<typename... Ts> class AuraLEDControlAction : public Action<Ts...>, publ
   TEMPLATABLE_VALUE(uint8_t, color)
   TEMPLATABLE_VALUE(uint8_t, count)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto state = this->state_.value(x...);
     auto speed = this->speed_.value(x...);
     auto color = this->color_.value(x...);

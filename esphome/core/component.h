@@ -5,9 +5,14 @@
 #include <functional>
 #include <string>
 
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 
 namespace esphome {
+
+// Forward declaration for LogString
+struct LogString;
 
 /** Default setup priorities for components of different types.
  *
@@ -44,14 +49,13 @@ extern const float LATE;
 
 static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 
-#define LOG_UPDATE_INTERVAL(this) \
-  if (this->get_update_interval() == SCHEDULER_DONT_RUN) { \
-    ESP_LOGCONFIG(TAG, "  Update Interval: never"); \
-  } else if (this->get_update_interval() < 100) { \
-    ESP_LOGCONFIG(TAG, "  Update Interval: %.3fs", this->get_update_interval() / 1000.0f); \
-  } else { \
-    ESP_LOGCONFIG(TAG, "  Update Interval: %.1fs", this->get_update_interval() / 1000.0f); \
-  }
+// Forward declaration
+class PollingComponent;
+
+// Function declaration for LOG_UPDATE_INTERVAL
+void log_update_interval(const char *tag, PollingComponent *component);
+
+#define LOG_UPDATE_INTERVAL(this) log_update_interval(TAG, this)
 
 extern const uint8_t COMPONENT_STATE_MASK;
 extern const uint8_t COMPONENT_STATE_CONSTRUCTION;
@@ -138,6 +142,14 @@ class Component {
    */
   bool is_in_loop_state() const;
 
+  /** Check if this component is idle.
+   * Being idle means being in LOOP_DONE state.
+   * This means the component has completed setup, is not failed, but its loop is currently disabled.
+   *
+   * @return True if the component is idle
+   */
+  bool is_idle() const;
+
   /** Mark this component as failed. Any future timeouts/intervals/setup/loop will no longer be called.
    *
    * This might be useful if a component wants to indicate that a connection to its peripheral failed.
@@ -146,7 +158,19 @@ class Component {
    */
   virtual void mark_failed();
 
+  // Remove before 2026.6.0
+  ESPDEPRECATED("Use mark_failed(LOG_STR(\"static string literal\")) instead. Do NOT use .c_str() from temporary "
+                "strings. Will stop working in 2026.6.0",
+                "2025.12.0")
   void mark_failed(const char *message) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    this->status_set_error(message);
+#pragma GCC diagnostic pop
+    this->mark_failed();
+  }
+
+  void mark_failed(const LogString *message) {
     this->status_set_error(message);
     this->mark_failed();
   }
@@ -203,16 +227,37 @@ class Component {
   bool status_has_error() const;
 
   void status_set_warning(const char *message = nullptr);
+  void status_set_warning(const LogString *message);
 
-  void status_set_error(const char *message = nullptr);
+  void status_set_error();  // Set error flag without message
+  // Remove before 2026.6.0
+  ESPDEPRECATED("Use status_set_error(LOG_STR(\"static string literal\")) instead. Do NOT use .c_str() from temporary "
+                "strings. Will stop working in 2026.6.0",
+                "2025.12.0")
+  void status_set_error(const char *message);
+  void status_set_error(const LogString *message);
 
   void status_clear_warning();
 
   void status_clear_error();
 
-  void status_momentary_warning(const std::string &name, uint32_t length = 5000);
+  /** Set warning status flag and automatically clear it after a timeout.
+   *
+   * @param name Identifier for the timeout (used to cancel/replace existing timeouts with the same name).
+   *             Must be a static string literal (stored in flash/rodata), not a temporary or dynamic string.
+   *             This is NOT a message to display - use status_set_warning() with a message if logging is needed.
+   * @param length Duration in milliseconds before the warning is automatically cleared.
+   */
+  void status_momentary_warning(const char *name, uint32_t length = 5000);
 
-  void status_momentary_error(const std::string &name, uint32_t length = 5000);
+  /** Set error status flag and automatically clear it after a timeout.
+   *
+   * @param name Identifier for the timeout (used to cancel/replace existing timeouts with the same name).
+   *             Must be a static string literal (stored in flash/rodata), not a temporary or dynamic string.
+   *             This is NOT a message to display - use status_set_error() with a message if logging is needed.
+   * @param length Duration in milliseconds before the error is automatically cleared.
+   */
+  void status_momentary_error(const char *name, uint32_t length = 5000);
 
   bool has_overridden_loop() const;
 
@@ -220,12 +265,12 @@ class Component {
    *
    * This is set by the ESPHome core, and should not be called manually.
    */
-  void set_component_source(const char *source) { component_source_ = source; }
-  /** Get the integration where this component was declared as a string.
+  void set_component_source(const LogString *source) { component_source_ = source; }
+  /** Get the integration where this component was declared as a LogString for logging.
    *
-   * Returns "<unknown>" if source not set
+   * Returns LOG_STR("<unknown>") if source not set
    */
-  const char *get_component_source() const;
+  const LogString *get_component_log_str() const;
 
   bool should_warn_of_blocking(uint32_t blocking_time);
 
@@ -322,6 +367,9 @@ class Component {
   void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,       // NOLINT
                  std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
 
+  void set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,              // NOLINT
+                 std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
+
   void set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> &&f,  // NOLINT
                  float backoff_increase_factor = 1.0f);                                                      // NOLINT
 
@@ -331,6 +379,7 @@ class Component {
    * @return Whether a retry function was deleted.
    */
   bool cancel_retry(const std::string &name);  // NOLINT
+  bool cancel_retry(const char *name);         // NOLINT
 
   /** Set a timeout function with a unique name.
    *
@@ -405,7 +454,7 @@ class Component {
   bool cancel_defer(const std::string &name);  // NOLINT
 
   // Ordered for optimal packing on 32-bit systems
-  const char *component_source_{nullptr};
+  const LogString *component_source_{nullptr};
   uint16_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_MS};  ///< Warn if blocked for this many ms (max 65.5s)
   /// State of this component - each bit has a purpose:
   /// Bits 0-2: Component state (0x00=CONSTRUCTION, 0x01=SETUP, 0x02=LOOP, 0x03=FAILED, 0x04=LOOP_DONE)

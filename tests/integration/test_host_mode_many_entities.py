@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 
 from aioesphomeapi import (
+    ClimateFanMode,
+    ClimateFeature,
     ClimateInfo,
+    ClimateMode,
     DateInfo,
     DateState,
     DateTimeInfo,
@@ -121,6 +124,46 @@ async def test_host_mode_many_entities(
         assert len(climate_infos) >= 1, "Expected at least 1 climate entity"
 
         climate_info = climate_infos[0]
+
+        # Verify feature flags set as expected
+        assert climate_info.feature_flags == (
+            ClimateFeature.SUPPORTS_ACTION
+            | ClimateFeature.SUPPORTS_CURRENT_HUMIDITY
+            | ClimateFeature.SUPPORTS_CURRENT_TEMPERATURE
+            | ClimateFeature.SUPPORTS_TWO_POINT_TARGET_TEMPERATURE
+            | ClimateFeature.SUPPORTS_TARGET_HUMIDITY
+        )
+
+        # Verify modes
+        assert climate_info.supported_modes == [
+            ClimateMode.OFF,
+            ClimateMode.COOL,
+            ClimateMode.HEAT,
+        ], f"Expected modes [OFF, COOL, HEAT], got {climate_info.supported_modes}"
+
+        # Verify visual parameters
+        assert climate_info.visual_min_temperature == 15.0, (
+            f"Expected min_temperature=15.0, got {climate_info.visual_min_temperature}"
+        )
+        assert climate_info.visual_max_temperature == 32.0, (
+            f"Expected max_temperature=32.0, got {climate_info.visual_max_temperature}"
+        )
+        assert climate_info.visual_target_temperature_step == 0.1, (
+            f"Expected temperature_step=0.1, got {climate_info.visual_target_temperature_step}"
+        )
+        assert climate_info.visual_min_humidity == 20.0, (
+            f"Expected min_humidity=20.0, got {climate_info.visual_min_humidity}"
+        )
+        assert climate_info.visual_max_humidity == 70.0, (
+            f"Expected max_humidity=70.0, got {climate_info.visual_max_humidity}"
+        )
+
+        # Verify fan modes
+        assert climate_info.supported_fan_modes == [
+            ClimateFanMode.ON,
+            ClimateFanMode.AUTO,
+        ], f"Expected fan modes [ON, AUTO], got {climate_info.supported_fan_modes}"
+
         # Verify the thermostat has presets
         assert len(climate_info.supported_presets) > 0, (
             "Expected climate to have presets"

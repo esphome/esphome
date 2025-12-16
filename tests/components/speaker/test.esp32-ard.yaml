@@ -1,9 +1,10 @@
 substitutions:
-  scl_pin: GPIO16
-  sda_pin: GPIO17
   i2s_bclk_pin: GPIO27
   i2s_lrclk_pin: GPIO26
   i2s_mclk_pin: GPIO25
-  i2s_dout_pin: GPIO23
+  i2s_dout_pin: GPIO4
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-ard.yaml
 
 <<: !include common.yaml

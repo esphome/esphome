@@ -54,3 +54,17 @@ class APIClientConnectedFactory(Protocol):
         client_info: str = "integration-test",
         timeout: float = 30,
     ) -> AbstractAsyncContextManager[APIClient]: ...
+
+
+class APIClientConnectedWithDisconnectFactory(Protocol):
+    """Protocol for connected API client factory that returns disconnect event."""
+
+    def __call__(  # noqa: E704
+        self,
+        address: str = "localhost",
+        port: int | None = None,
+        password: str = "",
+        noise_psk: str | None = None,
+        client_info: str = "integration-test",
+        timeout: float = 30,
+    ) -> AbstractAsyncContextManager[tuple[APIClient, asyncio.Event]]: ...

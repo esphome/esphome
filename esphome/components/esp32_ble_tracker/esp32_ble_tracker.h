@@ -141,12 +141,10 @@ class ESPBTDeviceListener {
 struct ClientStateCounts {
   uint8_t connecting = 0;
   uint8_t discovered = 0;
-  uint8_t searching = 0;
   uint8_t disconnecting = 0;
 
   bool operator==(const ClientStateCounts &other) const {
-    return connecting == other.connecting && discovered == other.discovered && searching == other.searching &&
-           disconnecting == other.disconnecting;
+    return connecting == other.connecting && discovered == other.discovered && disconnecting == other.disconnecting;
   }
 
   bool operator!=(const ClientStateCounts &other) const { return !(*this == other); }
@@ -159,12 +157,8 @@ enum class ClientState : uint8_t {
   DISCONNECTING,
   // Connection is idle, no device detected.
   IDLE,
-  // Searching for device.
-  SEARCHING,
   // Device advertisement found.
   DISCOVERED,
-  // Device is discovered and the scanner is stopped
-  READY_TO_CONNECT,
   // Connection in progress.
   CONNECTING,
   // Initial connection established.
@@ -184,6 +178,16 @@ enum class ScannerState {
   FAILED,
   // Scanner is stopping
   STOPPING,
+};
+
+/** Listener interface for BLE scanner state changes.
+ *
+ * Components can implement this interface to receive scanner state updates
+ * without the overhead of std::function callbacks.
+ */
+class BLEScannerStateListener {
+ public:
+  virtual void on_scanner_state(ScannerState state) = 0;
 };
 
 // Helper function to convert ClientState to string
@@ -270,8 +274,9 @@ class ESP32BLETracker : public Component,
   void gap_scan_event_handler(const BLEScanResult &scan_result) override;
   void ble_before_disabled_event_handler() override;
 
-  void add_scanner_state_callback(std::function<void(ScannerState)> &&callback) {
-    this->scanner_state_callbacks_.add(std::move(callback));
+  /// Add a listener for scanner state changes
+  void add_scanner_state_listener(BLEScannerStateListener *listener) {
+    this->scanner_state_listeners_.push_back(listener);
   }
   ScannerState get_scanner_state() const { return this->scanner_state_; }
 
@@ -292,12 +297,7 @@ class ESP32BLETracker : public Component,
   /// Common cleanup logic when transitioning scanner to IDLE state
   void cleanup_scan_state_(bool is_stop_complete);
   /// Process a single scan result immediately
-  /// Returns true if a discovered client needs promotion to READY_TO_CONNECT
-  bool process_scan_result_(const BLEScanResult &scan_result);
-#ifdef USE_ESP32_BLE_DEVICE
-  /// Check if any clients are in connecting or ready to connect state
-  bool has_connecting_clients_() const;
-#endif
+  void process_scan_result_(const BLEScanResult &scan_result);
   /// Handle scanner failure states
   void handle_scanner_failure_();
   /// Try to promote discovered clients to ready to connect
@@ -313,6 +313,7 @@ class ESP32BLETracker : public Component,
   /// Count clients in each state
   ClientStateCounts count_client_states_() const {
     ClientStateCounts counts;
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
     for (auto *client : this->clients_) {
       switch (client->state()) {
         case ClientState::DISCONNECTING:
@@ -321,24 +322,25 @@ class ESP32BLETracker : public Component,
         case ClientState::DISCOVERED:
           counts.discovered++;
           break;
-        case ClientState::SEARCHING:
-          counts.searching++;
-          break;
         case ClientState::CONNECTING:
-        case ClientState::READY_TO_CONNECT:
           counts.connecting++;
           break;
         default:
           break;
       }
     }
+#endif
     return counts;
   }
 
-  // Group 1: Large objects (12+ bytes) - vectors and callback manager
-  std::vector<ESPBTDeviceListener *> listeners_;
-  std::vector<ESPBTClient *> clients_;
-  CallbackManager<void(ScannerState)> scanner_state_callbacks_;
+  // Group 1: Large objects (12+ bytes) - vectors
+#ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
+  StaticVector<ESPBTDeviceListener *, ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT> listeners_;
+#endif
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+  StaticVector<ESPBTClient *, ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT> clients_;
+#endif
+  std::vector<BLEScannerStateListener *> scanner_state_listeners_;
 #ifdef USE_ESP32_BLE_DEVICE
   /// Vector of addresses that have already been printed in print_bt_device_info
   std::vector<uint64_t> already_discovered_;

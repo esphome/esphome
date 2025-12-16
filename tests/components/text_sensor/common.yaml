@@ -1,0 +1,66 @@
+text_sensor:
+  - platform: template
+    name: "Test Substitute Single"
+    id: test_substitute_single
+    filters:
+      - substitute:
+          - ERROR -> Error
+
+  - platform: template
+    name: "Test Substitute Multiple"
+    id: test_substitute_multiple
+    filters:
+      - substitute:
+          - ERROR -> Error
+          - WARN -> Warning
+          - INFO -> Information
+          - DEBUG -> Debug
+
+  - platform: template
+    name: "Test Substitute Chained"
+    id: test_substitute_chained
+    filters:
+      - substitute:
+          - foo -> bar
+      - to_upper
+      - substitute:
+          - BAR -> baz
+
+  - platform: template
+    name: "Test Map Single"
+    id: test_map_single
+    filters:
+      - map:
+          - ON -> Active
+
+  - platform: template
+    name: "Test Map Multiple"
+    id: test_map_multiple
+    filters:
+      - map:
+          - ON -> Active
+          - OFF -> Inactive
+          - UNKNOWN -> Error
+          - IDLE -> Standby
+
+  - platform: template
+    name: "Test Map Passthrough"
+    id: test_map_passthrough
+    filters:
+      - map:
+          - Good -> Excellent
+          - Bad -> Poor
+
+  - platform: template
+    name: "Test All Filters"
+    id: test_all_filters
+    filters:
+      - to_upper
+      - to_lower
+      - append: " suffix"
+      - prepend: "prefix "
+      - substitute:
+          - prefix -> PREFIX
+          - suffix -> SUFFIX
+      - map:
+          - PREFIX text SUFFIX -> mapped

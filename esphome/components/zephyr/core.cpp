@@ -3,9 +3,10 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/sys/reboot.h>
-#include <zephyr/random/rand32.h>
+#include <zephyr/random/random.h>
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/defines.h"
 
 namespace esphome {
 
@@ -25,7 +26,14 @@ void arch_init() {
     wdt_config.window.max = 2000;
     wdt_channel_id = wdt_install_timeout(WDT, &wdt_config);
     if (wdt_channel_id >= 0) {
-      wdt_setup(WDT, WDT_OPT_PAUSE_HALTED_BY_DBG | WDT_OPT_PAUSE_IN_SLEEP);
+      uint8_t options = 0;
+#ifdef USE_DEBUG
+      options |= WDT_OPT_PAUSE_HALTED_BY_DBG;
+#endif
+#ifdef USE_DEEP_SLEEP
+      options |= WDT_OPT_PAUSE_IN_SLEEP;
+#endif
+      wdt_setup(WDT, options);
     }
   }
 }
