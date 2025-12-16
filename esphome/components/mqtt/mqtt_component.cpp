@@ -154,8 +154,9 @@ bool MQTTComponent::send_discovery_() {
         device_info[MQTT_DEVICE_MANUFACTURER] =
             model == nullptr ? ESPHOME_PROJECT_NAME : std::string(ESPHOME_PROJECT_NAME, model - ESPHOME_PROJECT_NAME);
 #else
-        device_info[MQTT_DEVICE_SW_VERSION] =
-            str_sprintf(ESPHOME_VERSION " (config hash 0x%08" PRIx32 ")", App.get_config_hash());
+        char sw_version[64];
+        snprintf_P(sw_version, sizeof(sw_version), PSTR(ESPHOME_VERSION " (%08" PRIx32 ")"), App.get_config_hash());
+        device_info[MQTT_DEVICE_SW_VERSION] = sw_version;
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
 #if defined(USE_ESP8266) || defined(USE_ESP32)
         device_info[MQTT_DEVICE_MANUFACTURER] = "Espressif";
