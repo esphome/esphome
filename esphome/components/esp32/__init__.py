@@ -982,15 +982,6 @@ async def to_code(config):
         cg.add_platformio_option("framework", "arduino, espidf")
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
-        cg.add_platformio_option(
-            "board_build.embed_txtfiles",
-            [
-                "managed_components/espressif__esp_insights/server_certs/https_server.crt",
-                "managed_components/espressif__esp_rainmaker/server_certs/rmaker_mqtt_server.crt",
-                "managed_components/espressif__esp_rainmaker/server_certs/rmaker_claim_service_server.crt",
-                "managed_components/espressif__esp_rainmaker/server_certs/rmaker_ota_server.crt",
-            ],
-        )
         cg.add_define(
             "USE_ARDUINO_VERSION_CODE",
             cg.RawExpression(
