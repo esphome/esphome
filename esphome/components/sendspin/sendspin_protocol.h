@@ -46,25 +46,6 @@ inline std::optional<SendspinCodecFormat> codec_format_from_string(const std::st
   return std::nullopt;
 }
 
-enum class SendspinClientState {
-  SYNCHRONIZED,
-  ERROR,
-  EXTERNAL_SOURCE,
-};
-
-inline const char *to_string(SendspinClientState state) {
-  switch (state) {
-    case SendspinClientState::SYNCHRONIZED:
-      return "synchronized";
-    case SendspinClientState::EXTERNAL_SOURCE:
-      return "external_source";
-    case SendspinClientState::ERROR:
-      // Intentional fallthrough
-    default:
-      return "error";
-  }
-}
-
 struct AudioSupportedFormatObject {
   SendspinCodecFormat codec;
   uint8_t channels;
@@ -357,6 +338,25 @@ struct ServerMetadataStateObject {
   std::optional<bool> shuffle;
 };
 #endif  // USE_SENDSPIN_METADATA
+
+enum class SendspinClientState {
+  SYNCHRONIZED,
+  ERROR,
+  EXTERNAL_SOURCE,
+};
+
+inline const char *to_string(SendspinClientState state) {
+  switch (state) {
+    case SendspinClientState::SYNCHRONIZED:
+      return "synchronized";
+    case SendspinClientState::EXTERNAL_SOURCE:
+      return "external_source";
+    case SendspinClientState::ERROR:
+      // Intentional fallthrough
+    default:
+      return "error";
+  }
+}
 
 // Binary message ID structure:
 // Typically bits 7-2 for role type, bits 1-0 for message slot (4 IDs per role)
