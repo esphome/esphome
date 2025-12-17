@@ -9,6 +9,7 @@
 #include "esphome/core/gpio.h"
 #include "driver/gpio.h"
 #include "soc/gpio_num.h"
+#include "soc/uart_pins.h"
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -139,6 +140,22 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
+  int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
+  int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
+  int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
+
+  // Workaround for ESP-IDF issue: https://github.com/espressif/esp-idf/issues/17459
+  // Commit 9ed617fb17 removed gpio_func_sel() calls from uart_set_pin(), which breaks
+  // UART on default UART0 pins that may have residual state from boot console.
+  // Reset these pins before configuring UART to ensure they're in a clean state.
+  if (tx == U0TXD_GPIO_NUM || tx == U0RXD_GPIO_NUM) {
+    gpio_reset_pin(static_cast<gpio_num_t>(tx));
+  }
+  if (rx == U0TXD_GPIO_NUM || rx == U0RXD_GPIO_NUM) {
+    gpio_reset_pin(static_cast<gpio_num_t>(rx));
+  }
+
+  // Setup pins after reset to preserve open drain/pullup/pulldown flags
   auto setup_pin_if_needed = [](InternalGPIOPin *pin) {
     if (!pin) {
       return;
@@ -153,10 +170,6 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   if (this->rx_pin_ != this->tx_pin_) {
     setup_pin_if_needed(this->tx_pin_);
   }
-
-  int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
-  int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
-  int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
 
   uint32_t invert = 0;
   if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
