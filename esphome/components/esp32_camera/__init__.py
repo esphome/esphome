@@ -352,7 +352,6 @@ async def to_code(config):
     cg.add_define("USE_CAMERA")
 
     add_idf_component(name="espressif/esp32-camera", ref="2.1.1")
-    # Use new SCCB I2C driver to avoid conflicts with other I2C components
     add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_NEW", True)
     add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_LEGACY", False)
 
