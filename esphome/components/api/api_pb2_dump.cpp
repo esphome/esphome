@@ -66,7 +66,7 @@ static void dump_field(std::string &out, const char *field_name, float value, in
 static void dump_field(std::string &out, const char *field_name, uint64_t value, int indent = 2) {
   char buffer[64];
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%llu", value);
+  snprintf(buffer, 64, "%" PRIu64, value);
   append_with_newline(out, buffer);
 }
 
@@ -179,6 +179,8 @@ template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::Sens
       return "STATE_CLASS_TOTAL_INCREASING";
     case enums::STATE_CLASS_TOTAL:
       return "STATE_CLASS_TOTAL";
+    case enums::STATE_CLASS_MEASUREMENT_ANGLE:
+      return "STATE_CLASS_MEASUREMENT_ANGLE";
     default:
       return "UNKNOWN";
   }
@@ -206,7 +208,7 @@ template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel val
       return "UNKNOWN";
   }
 }
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 template<> const char *proto_enum_to_string<enums::ServiceArgType>(enums::ServiceArgType value) {
   switch (value) {
     case enums::SERVICE_ARG_TYPE_BOOL:
@@ -225,6 +227,20 @@ template<> const char *proto_enum_to_string<enums::ServiceArgType>(enums::Servic
       return "SERVICE_ARG_TYPE_FLOAT_ARRAY";
     case enums::SERVICE_ARG_TYPE_STRING_ARRAY:
       return "SERVICE_ARG_TYPE_STRING_ARRAY";
+    default:
+      return "UNKNOWN";
+  }
+}
+template<> const char *proto_enum_to_string<enums::SupportsResponseType>(enums::SupportsResponseType value) {
+  switch (value) {
+    case enums::SUPPORTS_RESPONSE_NONE:
+      return "SUPPORTS_RESPONSE_NONE";
+    case enums::SUPPORTS_RESPONSE_OPTIONAL:
+      return "SUPPORTS_RESPONSE_OPTIONAL";
+    case enums::SUPPORTS_RESPONSE_ONLY:
+      return "SUPPORTS_RESPONSE_ONLY";
+    case enums::SUPPORTS_RESPONSE_STATUS:
+      return "SUPPORTS_RESPONSE_STATUS";
     default:
       return "UNKNOWN";
   }
@@ -924,7 +940,7 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
   }
   dump_field(out, "min_mireds", this->min_mireds);
   dump_field(out, "max_mireds", this->max_mireds);
-  for (const auto &it : this->effects) {
+  for (const auto &it : *this->effects) {
     dump_field(out, "effects", it, 4);
   }
   dump_field(out, "disabled_by_default", this->disabled_by_default);
@@ -983,7 +999,9 @@ void LightCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "has_flash_length", this->has_flash_length);
   dump_field(out, "flash_length", this->flash_length);
   dump_field(out, "has_effect", this->has_effect);
-  dump_field(out, "effect", this->effect);
+  out.append("  effect: ");
+  out.append(format_hex_pretty(this->effect, this->effect_len));
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1177,7 +1195,7 @@ void GetTimeResponse::dump_to(std::string &out) const {
   out.append(format_hex_pretty(this->timezone, this->timezone_len));
   out.append("\n");
 }
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 void ListEntitiesServicesArgument::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesServicesArgument");
   dump_field(out, "name", this->name_ref_);
@@ -1192,6 +1210,7 @@ void ListEntitiesServicesResponse::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+  dump_field(out, "supports_response", static_cast<enums::SupportsResponseType>(this->supports_response));
 }
 void ExecuteServiceArgument::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ExecuteServiceArgument");
@@ -1221,6 +1240,25 @@ void ExecuteServiceRequest::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  dump_field(out, "call_id", this->call_id);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  dump_field(out, "return_response", this->return_response);
+#endif
+}
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+void ExecuteServiceResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ExecuteServiceResponse");
+  dump_field(out, "call_id", this->call_id);
+  dump_field(out, "success", this->success);
+  dump_field(out, "error_message", this->error_message_ref_);
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  out.append("  response_data: ");
+  out.append(format_hex_pretty(this->response_data, this->response_data_len));
+  out.append("\n");
+#endif
 }
 #endif
 #ifdef USE_CAMERA
@@ -1417,7 +1455,9 @@ void SelectStateResponse::dump_to(std::string &out) const {
 void SelectCommandRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "SelectCommandRequest");
   dump_field(out, "key", this->key);
-  dump_field(out, "state", this->state);
+  out.append("  state: ");
+  out.append(format_hex_pretty(this->state, this->state_len));
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif

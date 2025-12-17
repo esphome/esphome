@@ -171,7 +171,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * This will change the image of the component `pic` to the image with ID `4`.
    */
-  void set_component_picture(const char *component, uint8_t picture_id);
+  void set_component_picture(const char *component, uint8_t picture_id) { set_component_picc(component, picture_id); };
 
   /**
    * Set the background color of a component.
@@ -374,7 +374,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * This will change the picture id of the component `textview`.
    */
-  void set_component_pic(const char *component, uint8_t pic_id);
+  void set_component_pic(const char *component, uint16_t pic_id);
 
   /**
    * Set the background picture id of component.
@@ -388,7 +388,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * This will change the background picture id of the component `textview`.
    */
-  void set_component_picc(const char *component, uint8_t pic_id);
+  void set_component_picc(const char *component, uint16_t pic_id);
 
   /**
    * Set the font color of a component.
@@ -910,7 +910,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Draws a QR code with a Wi-Fi network credentials starting at the given coordinates (25,25).
    */
   void qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size = 200, uint16_t background_color = 65535,
-              uint16_t foreground_color = 0, uint8_t logo_pic = -1, uint8_t border_width = 8);
+              uint16_t foreground_color = 0, int32_t logo_pic = -1, uint8_t border_width = 8);
 
   /**
    * Draws a QR code in the screen
@@ -935,7 +935,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   void qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size,
               Color background_color = Color(255, 255, 255), Color foreground_color = Color(0, 0, 0),
-              uint8_t logo_pic = -1, uint8_t border_width = 8);
+              int32_t logo_pic = -1, uint8_t border_width = 8);
 
   /** Set the brightness of the backlight.
    *

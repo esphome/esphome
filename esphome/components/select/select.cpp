@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <cstring>
 
-namespace esphome {
-namespace select {
+namespace esphome::select {
 
 static const char *const TAG = "select";
 
@@ -57,12 +56,10 @@ size_t Select::size() const {
   return options.size();
 }
 
-optional<size_t> Select::index_of(const std::string &option) const { return this->index_of(option.c_str()); }
-
-optional<size_t> Select::index_of(const char *option) const {
+optional<size_t> Select::index_of(const char *option, size_t len) const {
   const auto &options = traits.get_options();
   for (size_t i = 0; i < options.size(); i++) {
-    if (strcmp(options[i], option) == 0) {
+    if (strncmp(options[i], option, len) == 0 && options[i][len] == '\0') {
       return i;
     }
   }
@@ -86,5 +83,4 @@ optional<std::string> Select::at(size_t index) const {
 
 const char *Select::option_at(size_t index) const { return traits.get_options().at(index); }
 
-}  // namespace select
-}  // namespace esphome
+}  // namespace esphome::select

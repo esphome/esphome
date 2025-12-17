@@ -278,7 +278,7 @@ void NAU7802Sensor::loop() {
       this->set_calibration_failure_(true);
       this->state_ = CalibrationState::INACTIVE;
       ESP_LOGE(TAG, "Failed to calibrate sensor");
-      this->status_set_error("Calibration Failed");
+      this->status_set_error(LOG_STR("Calibration Failed"));
       return;
     }
 

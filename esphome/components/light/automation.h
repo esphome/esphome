@@ -4,8 +4,7 @@
 #include "light_state.h"
 #include "addressable_light.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 enum class LimitMode { CLAMP, DO_NOTHING };
 
@@ -121,46 +120,54 @@ template<typename... Ts> class LightIsOffCondition : public Condition<Ts...> {
   LightState *state_;
 };
 
-class LightTurnOnTrigger : public Trigger<> {
+class LightTurnOnTrigger : public Trigger<>, public LightRemoteValuesListener {
  public:
-  LightTurnOnTrigger(LightState *a_light) {
-    a_light->add_new_remote_values_callback([this, a_light]() {
-      // using the remote value because of transitions we need to trigger as early as possible
-      auto is_on = a_light->remote_values.is_on();
-      // only trigger when going from off to on
-      auto should_trigger = is_on && !this->last_on_;
-      // Set new state immediately so that trigger() doesn't devolve
-      // into infinite loop
-      this->last_on_ = is_on;
-      if (should_trigger) {
-        this->trigger();
-      }
-    });
+  explicit LightTurnOnTrigger(LightState *a_light) : light_(a_light) {
+    a_light->add_remote_values_listener(this);
     this->last_on_ = a_light->current_values.is_on();
   }
 
+  void on_light_remote_values_update() override {
+    // using the remote value because of transitions we need to trigger as early as possible
+    auto is_on = this->light_->remote_values.is_on();
+    // only trigger when going from off to on
+    auto should_trigger = is_on && !this->last_on_;
+    // Set new state immediately so that trigger() doesn't devolve
+    // into infinite loop
+    this->last_on_ = is_on;
+    if (should_trigger) {
+      this->trigger();
+    }
+  }
+
  protected:
+  LightState *light_;
   bool last_on_;
 };
 
-class LightTurnOffTrigger : public Trigger<> {
+class LightTurnOffTrigger : public Trigger<>, public LightTargetStateReachedListener {
  public:
-  LightTurnOffTrigger(LightState *a_light) {
-    a_light->add_new_target_state_reached_callback([this, a_light]() {
-      auto is_on = a_light->current_values.is_on();
-      // only trigger when going from on to off
-      if (!is_on) {
-        this->trigger();
-      }
-    });
+  explicit LightTurnOffTrigger(LightState *a_light) : light_(a_light) {
+    a_light->add_target_state_reached_listener(this);
   }
+
+  void on_light_target_state_reached() override {
+    auto is_on = this->light_->current_values.is_on();
+    // only trigger when going from on to off
+    if (!is_on) {
+      this->trigger();
+    }
+  }
+
+ protected:
+  LightState *light_;
 };
 
-class LightStateTrigger : public Trigger<> {
+class LightStateTrigger : public Trigger<>, public LightRemoteValuesListener {
  public:
-  LightStateTrigger(LightState *a_light) {
-    a_light->add_new_remote_values_callback([this]() { this->trigger(); });
-  }
+  explicit LightStateTrigger(LightState *a_light) { a_light->add_remote_values_listener(this); }
+
+  void on_light_remote_values_update() override { this->trigger(); }
 };
 
 // This is slightly ugly, but we can't log in headers, and can't make this a static method on AddressableSet
@@ -216,5 +223,4 @@ template<typename... Ts> class AddressableSet : public Action<Ts...> {
   }
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

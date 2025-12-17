@@ -3,16 +3,18 @@ from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.esp32 import only_on_variant
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     KEY_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    only_on_variant,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -128,7 +130,9 @@ def get_hw_interface_list():
         if get_target_variant() in [
             VARIANT_ESP32C2,
             VARIANT_ESP32C3,
+            VARIANT_ESP32C5,
             VARIANT_ESP32C6,
+            VARIANT_ESP32C61,
             VARIANT_ESP32H2,
         ]:
             return [["spi", "spi2"]]
@@ -268,10 +272,11 @@ def validate_spi_config(config):
 
 # Given an SPI index, convert to a string that represents the C++ object for it.
 def get_spi_interface(index):
-    if CORE.using_esp_idf:
+    platform = get_target_platform()
+    if platform == PLATFORM_ESP32:
+        # ESP32 uses ESP-IDF SPI driver for both Arduino and IDF frameworks
         return ["SPI2_HOST", "SPI3_HOST"][index]
     # Arduino code follows
-    platform = get_target_platform()
     if platform == PLATFORM_RP2040:
         return ["&SPI", "&SPI1"][index]
     if index == 0:
@@ -310,7 +315,7 @@ def spi_mode_schema(mode):
     if pin_count == 8:
         onlys.append(
             only_on_variant(
-                supported=[VARIANT_ESP32S3, VARIANT_ESP32S2, VARIANT_ESP32P4]
+                supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3]
             )
         )
     return cv.All(
@@ -352,7 +357,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(configs):
     cg.add_define("USE_SPI")
     cg.add_global(spi_ns.using)
-    if CORE.using_arduino:
+    if CORE.using_arduino and not CORE.is_esp32:
         cg.add_library("SPI", None)
     for spi in configs:
         var = cg.new_Pvariable(spi[CONF_ID])
@@ -443,13 +448,15 @@ def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso:
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "spi_arduino.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP8266_ARDUINO,
             PlatformFramework.RP2040_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
-        "spi_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "spi_esp_idf.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
     }
 )
