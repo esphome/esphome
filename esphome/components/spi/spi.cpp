@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace spi {
+namespace esphome::spi {
 
 const char *const TAG = "spi";
 
@@ -119,5 +118,4 @@ uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
   return out_data;
 }
 
-}  // namespace spi
-}  // namespace esphome
+}  // namespace esphome::spi
