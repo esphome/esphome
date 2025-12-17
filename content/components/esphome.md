@@ -396,6 +396,12 @@ This allows YAML files to specify the minimum version of ESPHome required to com
 This is useful in the case of packages where a published package might use features only
 available in a newer version of ESPHome. This allows for a more friendly error message.
 
+```yaml
+# Example configuration
+esphome:
+  min_version: 2025.11.0
+```
+
 {{< anchor "esphome-area" >}}
 
 ## Area Configuration
