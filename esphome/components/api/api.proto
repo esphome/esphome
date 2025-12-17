@@ -518,7 +518,7 @@ message ListEntitiesLightResponse {
   bool legacy_supports_color_temperature = 8 [deprecated=true];
   float min_mireds = 9;
   float max_mireds = 10;
-  repeated string effects = 11;
+  repeated string effects = 11 [(container_pointer_no_template) = "FixedVector<const char *>"];
   bool disabled_by_default = 13;
   string icon = 14 [(field_ifdef) = "USE_ENTITY_ICON"];
   EntityCategory entity_category = 15;
@@ -579,7 +579,7 @@ message LightCommandRequest {
   bool has_flash_length = 16;
   uint32 flash_length = 17;
   bool has_effect = 18;
-  string effect = 19;
+  string effect = 19 [(pointer_to_buffer) = true];
   uint32 device_id = 28 [(field_ifdef) = "USE_DEVICES"];
 }
 
@@ -589,6 +589,7 @@ enum SensorStateClass {
   STATE_CLASS_MEASUREMENT = 1;
   STATE_CLASS_TOTAL_INCREASING = 2;
   STATE_CLASS_TOTAL = 3;
+  STATE_CLASS_MEASUREMENT_ANGLE = 4;
 }
 
 // Deprecated in API version 1.5
@@ -854,22 +855,31 @@ enum ServiceArgType {
   SERVICE_ARG_TYPE_FLOAT_ARRAY = 6;
   SERVICE_ARG_TYPE_STRING_ARRAY = 7;
 }
+enum SupportsResponseType {
+  SUPPORTS_RESPONSE_NONE = 0;
+  SUPPORTS_RESPONSE_OPTIONAL = 1;
+  SUPPORTS_RESPONSE_ONLY = 2;
+  // Status-only response - reports success/error without data payload
+  // Value is higher to avoid conflicts with future Home Assistant values
+  SUPPORTS_RESPONSE_STATUS = 100;
+}
 message ListEntitiesServicesArgument {
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
   string name = 1;
   ServiceArgType type = 2;
 }
 message ListEntitiesServicesResponse {
   option (id) = 41;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
 
   string name = 1;
   fixed32 key = 2;
   repeated ListEntitiesServicesArgument args = 3 [(fixed_vector) = true];
+  SupportsResponseType supports_response = 4;
 }
 message ExecuteServiceArgument {
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
   bool bool_ = 1;
   int32 legacy_int = 2;
   float float_ = 3;
@@ -885,10 +895,25 @@ message ExecuteServiceRequest {
   option (id) = 42;
   option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
 
   fixed32 key = 1;
   repeated ExecuteServiceArgument args = 2 [(fixed_vector) = true];
+  uint32 call_id = 3 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_RESPONSES"];
+  bool return_response = 4 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_RESPONSES"];
+}
+
+// Message sent by ESPHome to Home Assistant with service execution response data
+message ExecuteServiceResponse {
+  option (id) = 131;
+  option (source) = SOURCE_SERVER;
+  option (no_delay) = true;
+  option (ifdef) = "USE_API_USER_DEFINED_ACTION_RESPONSES";
+
+  uint32 call_id = 1; // Matches the call_id from ExecuteServiceRequest
+  bool success = 2; // Whether the service execution succeeded
+  string error_message = 3; // Error message if success = false
+  bytes response_data = 4 [(pointer_to_buffer) = true, (field_ifdef) = "USE_API_USER_DEFINED_ACTION_RESPONSES_JSON"];
 }
 
 // ==================== CAMERA ====================
@@ -1170,7 +1195,7 @@ message SelectCommandRequest {
   option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
-  string state = 2;
+  string state = 2 [(pointer_to_buffer) = true];
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
 }
 

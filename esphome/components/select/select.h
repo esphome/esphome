@@ -6,8 +6,7 @@
 #include "select_call.h"
 #include "select_traits.h"
 
-namespace esphome {
-namespace select {
+namespace esphome::select {
 
 #define LOG_SELECT(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -63,8 +62,9 @@ class Select : public EntityBase {
   size_t size() const;
 
   /// Find the (optional) index offset of the provided option value.
-  optional<size_t> index_of(const std::string &option) const;
-  optional<size_t> index_of(const char *option) const;
+  optional<size_t> index_of(const char *option, size_t len) const;
+  optional<size_t> index_of(const std::string &option) const { return this->index_of(option.data(), option.size()); }
+  optional<size_t> index_of(const char *option) const { return this->index_of(option, strlen(option)); }
 
   /// Return the (optional) index offset of the currently active option.
   optional<size_t> active_index() const;
@@ -114,5 +114,4 @@ class Select : public EntityBase {
   CallbackManager<void(std::string, size_t)> state_callback_;
 };
 
-}  // namespace select
-}  // namespace esphome
+}  // namespace esphome::select

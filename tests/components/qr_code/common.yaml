@@ -16,4 +16,4 @@ display:
 
 qr_code:
   - id: qr_code_homepage_qr
-    value: https://esphome.io/index.html
+    value: https://esphome.io/
