@@ -154,7 +154,7 @@ spi_device:
 
 - **bit_order** (*Optional*): Set the bit order - choose one of `msb_first` (default) or `lsb_first`.
 - **cs_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The CS pin.
-- **release_device** (*Optional*, boolean): For ESP-IDF, release the bus device between transactions. The default is
+- **release_device** (*Optional*, boolean): For ESP32, release the bus device between transactions. The default is
   `False`. Setting this to `True` will enable more than 6 devices to be connected to hardware SPI buses.
 
 - **interface** (*Optional*): Controls which hardware or software SPI implementation should be used.
@@ -173,9 +173,9 @@ of the specific peripheral chip.
 | 2    | high                | leading     | /CS activation and rising CLK  | falling CLK     |
 | 3    | high                | trailing    | falling CLK                    | rising CLK      |
 
-## ESP-IDF limit on bus devices
+## ESP32 limit on bus devices
 
-ESP-IDF has a software limit of 6 devices to be connected to hardware SPI buses. This limit can't be readily
+ESP32 has a software limit of 6 devices to be connected to hardware SPI buses. This limit can't be readily
 changed but can be worked around by releasing the bus device between transactions, so that no more than 6 devices
 are configured at one time. The `release_device` option can be used to enable this on a per-device basis. It will
 add additional time to an SPI transaction, so should be used only with devices that don't require frequent
