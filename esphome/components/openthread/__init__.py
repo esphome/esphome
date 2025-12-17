@@ -1,3 +1,4 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import (
     VARIANT_ESP32C5,
@@ -18,6 +19,7 @@ from .const import (
     CONF_DEVICE_TYPE,
     CONF_EXT_PAN_ID,
     CONF_FORCE_DATASET,
+    CONF_KEEP_RADIO_ON,
     CONF_MDNS_ID,
     CONF_MESH_LOCAL_PREFIX,
     CONF_NETWORK_KEY,
@@ -192,3 +194,27 @@ async def to_code(config):
     await cg.register_component(srp, config)
 
     set_sdkconfig_options(config)
+
+
+OpenThreadComponentRadioAction = openthread_ns.class_(
+    "OpenThreadComponentRadioAction", automation.Action
+)
+
+RADIO_ACTION_SCHEMA = automation.maybe_conf(
+    CONF_KEEP_RADIO_ON,
+    cv.Schema(
+        {
+            cv.Optional(CONF_KEEP_RADIO_ON): cv.boolean,
+        }
+    ),
+)
+
+
+@automation.register_action(
+    "openthread.radio", OpenThreadComponentRadioAction, RADIO_ACTION_SCHEMA
+)
+async def openthread_radio_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    if (keep_radio_on := config.get(CONF_KEEP_RADIO_ON)) is not None:
+        cg.add(var.set_keep_radio_on(keep_radio_on))
+    return var

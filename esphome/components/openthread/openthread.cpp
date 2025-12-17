@@ -277,7 +277,7 @@ void OpenThreadComponent::set_link_mode(otInstance *instance, bool keep_radio_on
   link_mode_config.mNetworkData = true;
 #elif CONFIG_OPENTHREAD_MTD
 #ifdef USE_OPENTHREAD_POLL_PERIOD
-  if (otLinkSetPollPeriod(esp_openthread_get_instance(), this->poll_period_) != OT_ERROR_NONE) {
+  if (!keep_radio_on && otLinkSetPollPeriod(esp_openthread_get_instance(), this->poll_period_) != OT_ERROR_NONE) {
     ESP_LOGE(TAG, "Failed to set OpenThread pollperiod.");
   }
   uint32_t link_polling_period = otLinkGetPollPeriod(esp_openthread_get_instance());
