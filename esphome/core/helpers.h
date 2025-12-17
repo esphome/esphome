@@ -378,8 +378,23 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc = 0, uint16_t p
                  bool refout = false);
 
 /// Calculate a FNV-1 hash of \p str.
+/// Note: FNV-1a (fnv1a_hash) is preferred for new code due to better avalanche characteristics.
 uint32_t fnv1_hash(const char *str);
 inline uint32_t fnv1_hash(const std::string &str) { return fnv1_hash(str.c_str()); }
+
+/// FNV-1 32-bit offset basis
+constexpr uint32_t FNV1_OFFSET_BASIS = 2166136261UL;
+/// FNV-1 32-bit prime
+constexpr uint32_t FNV1_PRIME = 16777619UL;
+
+/// Extend a FNV-1a hash with additional string data.
+uint32_t fnv1a_hash_extend(uint32_t hash, const char *str);
+inline uint32_t fnv1a_hash_extend(uint32_t hash, const std::string &str) {
+  return fnv1a_hash_extend(hash, str.c_str());
+}
+/// Calculate a FNV-1a hash of \p str.
+inline uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
+inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }
 
 /// Return a random 32-bit unsigned integer.
 uint32_t random_uint32();

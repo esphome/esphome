@@ -1,13 +1,26 @@
 cc1101:
   id: transceiver
   cs_pin: ${cs_pin}
+  gdo0_pin: ${gdo0_pin}
   frequency: 433.92MHz
   if_frequency: 153kHz
   filter_bandwidth: 203kHz
   channel: 0
   channel_spacing: 200kHz
-  symbol_rate: 5000
-  modulation_type: ASK/OOK
+  symbol_rate: 4800
+  modulation_type: GFSK
+  packet_mode: true
+  packet_length: 8
+  crc_enable: true
+  whitening: false
+  sync_mode: "16/16"
+  sync0: 0x91
+  sync1: 0xD3
+  num_preamble: 2
+  on_packet:
+    then:
+      - lambda: |-
+          ESP_LOGD("cc1101", "packet %s rssi %.1f dBm lqi %u", format_hex(x).c_str(), rssi, lqi);
 
 button:
   - platform: template
@@ -18,3 +31,7 @@ button:
         - cc1101.begin_rx: transceiver
         - cc1101.set_idle: transceiver
         - cc1101.reset: transceiver
+        - cc1101.send_packet:
+            data: [0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef]
+        - cc1101.send_packet: !lambda |-
+            return {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
