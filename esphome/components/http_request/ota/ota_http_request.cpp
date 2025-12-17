@@ -7,7 +7,6 @@
 #include "esphome/components/md5/md5.h"
 #include "esphome/components/watchdog/watchdog.h"
 #include "esphome/components/ota/ota_backend.h"
-#include "esphome/components/ota/ota_backend_arduino_esp32.h"
 #include "esphome/components/ota/ota_backend_arduino_esp8266.h"
 #include "esphome/components/ota/ota_backend_arduino_rp2040.h"
 #include "esphome/components/ota/ota_backend_esp_idf.h"
@@ -133,11 +132,18 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
     App.feed_wdt();
     yield();
 
-    if (bufsize < 0) {
-      ESP_LOGE(TAG, "Stream closed");
-      this->cleanup_(std::move(backend), container);
-      return OTA_CONNECTION_ERROR;
-    } else if (bufsize > 0 && bufsize <= OtaHttpRequestComponent::HTTP_RECV_BUFFER) {
+    // Exit loop if no data available (stream closed or end of data)
+    if (bufsize <= 0) {
+      if (bufsize < 0) {
+        ESP_LOGE(TAG, "Stream closed with error");
+        this->cleanup_(std::move(backend), container);
+        return OTA_CONNECTION_ERROR;
+      }
+      // bufsize == 0: no more data available, exit loop
+      break;
+    }
+
+    if (bufsize <= OtaHttpRequestComponent::HTTP_RECV_BUFFER) {
       // add read bytes to MD5
       md5_receive.add(buf, bufsize);
 
@@ -248,6 +254,9 @@ bool OtaHttpRequestComponent::http_get_md5_() {
   int read_len = 0;
   while (container->get_bytes_read() < MD5_SIZE) {
     read_len = container->read((uint8_t *) this->md5_expected_.data(), MD5_SIZE);
+    if (read_len <= 0) {
+      break;
+    }
     App.feed_wdt();
     yield();
   }

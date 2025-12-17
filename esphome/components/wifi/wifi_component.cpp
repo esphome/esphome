@@ -205,6 +205,21 @@ static constexpr uint32_t WIFI_COOLDOWN_DURATION_MS = 500;
 /// While connecting, WiFi can't beacon the AP properly, so needs longer cooldown
 static constexpr uint32_t WIFI_COOLDOWN_WITH_AP_ACTIVE_MS = 30000;
 
+/// Timeout for WiFi scan operations
+/// This is a fallback in case we don't receive a scan done callback from the WiFi driver.
+/// Normal scans complete via callback; this only triggers if something goes wrong.
+static constexpr uint32_t WIFI_SCAN_TIMEOUT_MS = 31000;
+
+/// Timeout for WiFi connection attempts
+/// This is a fallback in case we don't receive connection success/failure callbacks.
+/// Some platforms (especially LibreTiny/Beken) can take 30-60 seconds to connect,
+/// particularly with fast_connect enabled where no prior scan provides channel info.
+/// Do not lower this value - connection failures are detected via callbacks, not timeout.
+/// If this timeout fires prematurely while a connection is still in progress, it causes
+/// cascading failures: the subsequent scan will also fail because the WiFi driver is
+/// still busy with the previous connection attempt.
+static constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 46000;
+
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
     case WiFiRetryPhase::INITIAL_CONNECT:
@@ -360,7 +375,7 @@ void WiFiComponent::start() {
                 get_mac_address_pretty_into_buffer(mac_s));
   this->last_connected_ = millis();
 
-  uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time()) : 88491487UL;
+  uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time_ref().c_str()) : 88491487UL;
 
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 #ifdef USE_WIFI_FAST_CONNECT
@@ -580,7 +595,7 @@ void WiFiComponent::loop() {
 WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 
 bool WiFiComponent::has_ap() const { return this->has_ap_; }
-bool WiFiComponent::is_ap_active() const { return this->state_ == WIFI_COMPONENT_STATE_AP; }
+bool WiFiComponent::is_ap_active() const { return this->ap_started_; }
 bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
 #ifdef USE_WIFI_11KV_SUPPORT
 void WiFiComponent::set_btm(bool btm) { this->btm_ = btm; }
@@ -1035,7 +1050,7 @@ __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res)
 
 void WiFiComponent::check_scanning_finished() {
   if (!this->scan_done_) {
-    if (millis() - this->action_started_ > 30000) {
+    if (millis() - this->action_started_ > WIFI_SCAN_TIMEOUT_MS) {
       ESP_LOGE(TAG, "Scan timeout");
       this->retry_connect();
     }
@@ -1184,8 +1199,9 @@ void WiFiComponent::check_connecting_finished() {
   }
 
   uint32_t now = millis();
-  if (now - this->action_started_ > 30000) {
-    ESP_LOGW(TAG, "Connection timeout");
+  if (now - this->action_started_ > WIFI_CONNECT_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "Connection timeout, aborting connection attempt");
+    this->wifi_disconnect_();
     this->retry_connect();
     return;
   }
@@ -1264,8 +1280,8 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
     }
 
     case WiFiRetryPhase::SCAN_CONNECTING:
-      // If scan found no matching networks, skip to hidden network mode
-      if (!this->scan_result_.empty() && !this->scan_result_[0].get_matches()) {
+      // If scan found no networks or no matching networks, skip to hidden network mode
+      if (this->scan_result_.empty() || !this->scan_result_[0].get_matches()) {
         return WiFiRetryPhase::RETRY_HIDDEN;
       }
 
@@ -1405,6 +1421,10 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       // without disrupting the captive portal/improv connection
       if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_()) {
         this->restart_adapter();
+      } else {
+        // Even when skipping full restart, disconnect to clear driver state
+        // Without this, platforms like LibreTiny may think we're still connecting
+        this->wifi_disconnect_();
       }
       // Clear scan flag - we're starting a new retry cycle
       this->did_scan_this_cycle_ = false;
@@ -1611,6 +1631,20 @@ void WiFiComponent::retry_connect() {
     this->start_connecting(params);
   }
 }
+
+#ifdef USE_RP2040
+// RP2040's mDNS library (LEAmDNS) relies on LwipIntf::stateUpCB() to restart
+// mDNS when the network interface reconnects. However, this callback is disabled
+// in the arduino-pico framework. As a workaround, we block component setup until
+// WiFi is connected, ensuring mDNS.begin() is called with an active connection.
+
+bool WiFiComponent::can_proceed() {
+  if (!this->has_sta() || this->state_ == WIFI_COMPONENT_STATE_DISABLED || this->ap_setup_) {
+    return true;
+  }
+  return this->is_connected();
+}
+#endif
 
 void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 bool WiFiComponent::is_connected() {
