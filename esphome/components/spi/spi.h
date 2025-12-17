@@ -1,5 +1,4 @@
 #pragma once
-#ifndef USE_ZEPHYR
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -23,6 +22,10 @@ using SPIInterface = SPIClassRP2040 *;
 #else
 using SPIInterface = SPIClass *;
 #endif
+
+#elif defined(CLANG_TIDY)
+
+using SPIInterface = void *;  // Stub for platforms without SPI (e.g., Zephyr)
 
 #endif  // USE_ESP32 / USE_ARDUINO
 
@@ -503,4 +506,3 @@ class SPIDevice : public SPIClient {
 };
 
 }  // namespace esphome::spi
-#endif  // USE_ZEPHYR
