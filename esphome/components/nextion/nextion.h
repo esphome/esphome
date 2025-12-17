@@ -13,17 +13,12 @@
 #include "esphome/components/display/display_color_utils.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
-#ifdef USE_ARDUINO
 #ifdef USE_ESP32
-#include <HTTPClient.h>
-#endif  // USE_ESP32
-#ifdef USE_ESP8266
+#include <esp_http_client.h>
+#elif defined(USE_ESP8266)
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
-#endif  // USE_ESP8266
-#elif defined(USE_ESP_IDF)
-#include <esp_http_client.h>
-#endif  // ARDUINO vs USE_ESP_IDF
+#endif  // USE_ESP32 vs USE_ESP8266
 #endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome {
@@ -1078,7 +1073,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef USE_NEXTION_TFT_UPLOAD
   /**
-   * Set the tft file URL. https seems problematic with Arduino..
+   * Set the tft file URL.
    */
   void set_tft_url(const std::string &tft_url) { this->tft_url_ = tft_url; }
 
@@ -1422,16 +1417,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   uint32_t original_baud_rate_ = 0;
   bool upload_first_chunk_sent_ = false;
 
-#ifdef USE_ARDUINO
-  /**
-   * will request chunk_size chunks from the web server
-   * and send each to the nextion
-   * @param HTTPClient http_client HTTP client handler.
-   * @param int range_start Position of next byte to transfer.
-   * @return position of last byte transferred, -1 for failure.
-   */
-  int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
-#elif defined(USE_ESP_IDF)
+#ifdef USE_ESP32
   /**
    * will request 4096 bytes chunks from the web server
    * and send each to Nextion
@@ -1440,7 +1426,16 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start);
-#endif  // USE_ARDUINO vs USE_ESP_IDF
+#else
+  /**
+   * will request chunk_size chunks from the web server
+   * and send each to the nextion
+   * @param HTTPClient http_client HTTP client handler.
+   * @param int range_start Position of next byte to transfer.
+   * @return position of last byte transferred, -1 for failure.
+   */
+  int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
+#endif  // USE_ESP32 vs others
 
   /**
    * Ends the upload process, restart Nextion and, if successful,
@@ -1449,12 +1444,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
   bool upload_end_(bool successful);
-
-  /**
-   * Returns the ESP Free Heap memory. This is framework independent.
-   * @return Free Heap in bytes.
-   */
-  uint32_t get_free_heap_();
 
 #endif  // USE_NEXTION_TFT_UPLOAD
 
