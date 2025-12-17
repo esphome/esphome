@@ -330,21 +330,5 @@ esp_err_t OpenThreadComponent::keep_radio_on_during_idle(bool keep_radio_on) {
 }
 #endif
 
-#ifdef USE_OPENTHREAD_POLL_PERIOD
-esp_err_t OpenThreadComponent::keep_radio_on_during_idle(bool keep_radio_on) {
-  auto lock = InstanceLock::try_acquire(100);
-  if (!lock) {
-    ESP_LOGW(TAG, "Failed to acquire OpenThread lock in is_connected");
-    return ESP_FAIL;
-  }
-  otInstance *instance = lock->get_instance();
-  if (instance == nullptr) {
-    return ESP_FAIL;
-  }
-  this->set_link_mode(instance, keep_radio_on, true);
-  return ESP_OK;
-}
-#endif
-
 }  // namespace esphome::openthread
 #endif
