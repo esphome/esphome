@@ -56,20 +56,20 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   void dump_config() override;
   void update() override;
 
-  enum Sen6xType { SEN60, SEN64, SEN65, UNKNOWN };
+  enum Sen6xType { SEN62, SEN63C, SEN65, SEN66, SEN68, SEN69C, UNKNOWN };
 
   void set_pm_1_0_sensor(sensor::Sensor *pm_1_0) { pm_1_0_sensor_ = pm_1_0; }
   void set_pm_2_5_sensor(sensor::Sensor *pm_2_5) { pm_2_5_sensor_ = pm_2_5; }
   void set_pm_4_0_sensor(sensor::Sensor *pm_4_0) { pm_4_0_sensor_ = pm_4_0; }
   void set_pm_10_0_sensor(sensor::Sensor *pm_10_0) { pm_10_0_sensor_ = pm_10_0; }
-
   void set_voc_sensor(sensor::Sensor *voc_sensor) { voc_sensor_ = voc_sensor; }
   void set_nox_sensor(sensor::Sensor *nox_sensor) { nox_sensor_ = nox_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
+  void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
+  void set_hcho_sensor(sensor::Sensor *hcho_sensor) { hcho_sensor_ = hcho_sensor; }
   void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
   void set_acceleration_mode(RhtAccelerationMode mode) { acceleration_mode_ = mode; }
-  void set_auto_cleaning_interval(uint32_t auto_cleaning_interval) { auto_cleaning_interval_ = auto_cleaning_interval; }
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
                                 uint16_t std_initial, uint16_t gain_factor) {
@@ -101,16 +101,39 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
     temp_comp.time_constant = time_constant;
     temperature_compensation_ = temp_comp;
   }
+  void set_type(std::string type) {
+    if (type == "SEN62")
+      this->sen6x_type_ = SEN62;
+    else if (type == "SEN63C")
+      this->sen6x_type_ = SEN63C;
+    else if (type == "SEN65")
+      this->sen6x_type_ = SEN65;
+    else if (type == "SEN66")
+      this->sen6x_type_ = SEN66;
+    else if (type == "SEN68")
+      this->sen6x_type_ = SEN68;
+    else if (type == "SEN69C")
+      this->sen6x_type_ = SEN69C;
+    else
+      this->sen6x_type_ = UNKNOWN;
+  }
   bool start_fan_cleaning();
 
  protected:
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
 
+  template<size_t N> void unpackUint16ToChar_(uint16_t (&src)[N], std::array<char, N * 2> &dest) {
+    for (size_t i = 0; i < N; ++i) {
+      dest[i * 2] = static_cast<char>((src[i] >> 8) & 0xFF);  // high byte
+      dest[i * 2 + 1] = static_cast<char>(src[i] & 0xFF);     // low byte
+    }
+  }
+
   uint32_t seconds_since_last_store_;
-  uint16_t firmware_version_;
+  std::array<char, 2> firmware_version_;
   ERRORCODE error_code_;
-  uint8_t serial_number_[4];
+  std::array<char, 32> serial_number_;
   bool initialized_{false};
   bool store_baseline_;
 
@@ -118,20 +141,20 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *pm_2_5_sensor_{nullptr};
   sensor::Sensor *pm_4_0_sensor_{nullptr};
   sensor::Sensor *pm_10_0_sensor_{nullptr};
-  // SEN64 and SEN65 only
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
-  sensor::Sensor *voc_sensor_{nullptr};
-  // SEN65 only
-  sensor::Sensor *nox_sensor_{nullptr};
+  sensor::Sensor *voc_sensor_{nullptr};   // not available on all sensors
+  sensor::Sensor *nox_sensor_{nullptr};   // not available on all sensors
+  sensor::Sensor *co2_sensor_{nullptr};   // not available on all sensors
+  sensor::Sensor *hcho_sensor_{nullptr};  // not available on all sensors
 
   optional<RhtAccelerationMode> acceleration_mode_;
-  optional<uint32_t> auto_cleaning_interval_;
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureCompensation> temperature_compensation_;
   ESPPreferenceObject pref_;
-  std::string product_name_;
+  std::array<char, 32> product_name_;
+  Sen6xType sen6x_type_{UNKNOWN};
   Sen6xBaselines voc_baselines_storage_;
 };
 

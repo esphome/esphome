@@ -4,6 +4,8 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CO2,
+    CONF_FORMALDEHYDE,
     CONF_GAIN_FACTOR,
     CONF_HUMIDITY,
     CONF_ID,
@@ -16,6 +18,8 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_COMPENSATION,
     DEVICE_CLASS_AQI,
+    DEVICE_CLASS_CARBON_DIOXIDE,
+    DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
@@ -28,10 +32,12 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_PARTS_PER_BILLION,
+    UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
 
-CODEOWNERS = ["@martgras"]
+CODEOWNERS = ["@martgras", "@mebner86"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
 
@@ -41,7 +47,6 @@ SEN6XComponent = sen6x_ns.class_(
 )
 RhtAccelerationMode = sen6x_ns.enum("RhtAccelerationMode")
 
-CONF_ACCELERATION_MODE = "acceleration_mode"
 CONF_ALGORITHM_TUNING = "algorithm_tuning"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
 CONF_GATING_MAX_DURATION_MINUTES = "gating_max_duration_minutes"
@@ -58,12 +63,6 @@ CONF_VOC_BASELINE = "voc_baseline"
 
 # Actions
 StartFanAction = sen6x_ns.class_("StartFanAction", automation.Action)
-
-ACCELERATION_MODES = {
-    "low": RhtAccelerationMode.LOW_ACCELERATION,
-    "medium": RhtAccelerationMode.MEDIUM_ACCELERATION,
-    "high": RhtAccelerationMode.HIGH_ACCELERATION,
-}
 
 
 def _gas_sensor(
@@ -120,6 +119,9 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SEN6XComponent),
+            cv.Required("type"): cv.one_of(
+                "SEN62", "SEN63C", "SEN65", "SEN66", "SEN68", "SEN69C", upper=True
+            ),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_CHEMICAL_WEAPON,
@@ -145,6 +147,20 @@ CONFIG_SCHEMA = (
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_PM10,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_CO2): sensor.sensor_schema(
+                unit_of_measurement=UNIT_PARTS_PER_MILLION,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_FORMALDEHYDE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_PARTS_PER_BILLION,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_GAS,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval,
@@ -189,11 +205,10 @@ CONFIG_SCHEMA = (
                     cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_,
                 }
             ),
-            cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES),
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x69))
+    .extend(i2c.i2c_device_schema(0x6B))
 )
 
 SENSOR_MAP = {
@@ -201,15 +216,16 @@ SENSOR_MAP = {
     CONF_PM_2_5: "set_pm_2_5_sensor",
     CONF_PM_4_0: "set_pm_4_0_sensor",
     CONF_PM_10_0: "set_pm_10_0_sensor",
-    CONF_VOC: "set_voc_sensor",
-    CONF_NOX: "set_nox_sensor",
     CONF_TEMPERATURE: "set_temperature_sensor",
     CONF_HUMIDITY: "set_humidity_sensor",
+    CONF_VOC: "set_voc_sensor",
+    CONF_NOX: "set_nox_sensor",
+    CONF_CO2: "set_co2_sensor",
+    CONF_FORMALDEHYDE: "set_hcho_sensor",
 }
 
 SETTING_MAP = {
     CONF_AUTO_CLEANING_INTERVAL: "set_auto_cleaning_interval",
-    CONF_ACCELERATION_MODE: "set_acceleration_mode",
 }
 
 
@@ -217,6 +233,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+
+    cg.add(var.set_type(config["type"]))
 
     for key, funcName in SETTING_MAP.items():
         if cfg := config.get(key):
