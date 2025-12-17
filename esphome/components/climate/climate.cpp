@@ -473,26 +473,28 @@ void Climate::publish_state() {
 
 ClimateTraits Climate::get_traits() {
   auto traits = this->traits();
-  if (this->visual_min_temperature_override_.has_value()) {
-    traits.set_visual_min_temperature(*this->visual_min_temperature_override_);
+#ifdef USE_CLIMATE_VISUAL_OVERRIDES
+  if (!std::isnan(this->visual_min_temperature_override_)) {
+    traits.set_visual_min_temperature(this->visual_min_temperature_override_);
   }
-  if (this->visual_max_temperature_override_.has_value()) {
-    traits.set_visual_max_temperature(*this->visual_max_temperature_override_);
+  if (!std::isnan(this->visual_max_temperature_override_)) {
+    traits.set_visual_max_temperature(this->visual_max_temperature_override_);
   }
-  if (this->visual_target_temperature_step_override_.has_value()) {
-    traits.set_visual_target_temperature_step(*this->visual_target_temperature_step_override_);
-    traits.set_visual_current_temperature_step(*this->visual_current_temperature_step_override_);
+  if (!std::isnan(this->visual_target_temperature_step_override_)) {
+    traits.set_visual_target_temperature_step(this->visual_target_temperature_step_override_);
+    traits.set_visual_current_temperature_step(this->visual_current_temperature_step_override_);
   }
-  if (this->visual_min_humidity_override_.has_value()) {
-    traits.set_visual_min_humidity(*this->visual_min_humidity_override_);
+  if (!std::isnan(this->visual_min_humidity_override_)) {
+    traits.set_visual_min_humidity(this->visual_min_humidity_override_);
   }
-  if (this->visual_max_humidity_override_.has_value()) {
-    traits.set_visual_max_humidity(*this->visual_max_humidity_override_);
+  if (!std::isnan(this->visual_max_humidity_override_)) {
+    traits.set_visual_max_humidity(this->visual_max_humidity_override_);
   }
-
+#endif
   return traits;
 }
 
+#ifdef USE_CLIMATE_VISUAL_OVERRIDES
 void Climate::set_visual_min_temperature_override(float visual_min_temperature_override) {
   this->visual_min_temperature_override_ = visual_min_temperature_override;
 }
@@ -513,6 +515,7 @@ void Climate::set_visual_min_humidity_override(float visual_min_humidity_overrid
 void Climate::set_visual_max_humidity_override(float visual_max_humidity_override) {
   this->visual_max_humidity_override_ = visual_max_humidity_override;
 }
+#endif
 
 ClimateCall Climate::make_call() { return ClimateCall(this); }
 

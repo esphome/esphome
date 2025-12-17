@@ -36,6 +36,10 @@ void HttpRequestUpdate::on_ota_state(ota::OTAState state, float progress, uint8_
 }
 
 void HttpRequestUpdate::update() {
+  if (!network::is_connected()) {
+    ESP_LOGD(TAG, "Network not connected, skipping update check");
+    return;
+  }
 #ifdef USE_ESP32
   xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, (void *) this, 1, &this->update_task_handle_);
 #else
@@ -71,6 +75,11 @@ void HttpRequestUpdate::update_task(void *params) {
     int read_bytes = container->read(data + read_index, MAX_READ_SIZE);
 
     yield();
+
+    if (read_bytes <= 0) {
+      // Network error or connection closed - break to avoid infinite loop
+      break;
+    }
 
     read_index += read_bytes;
   }
