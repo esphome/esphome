@@ -41,7 +41,7 @@ void ModbusClientHub::loop() {
              this->waiting_for_response_.value().frame[0], this->last_receive_check_ - this->last_send_);
     if (this->waiting_for_response_.value().device)
       this->waiting_for_response_.value().device->on_modbus_no_response();
-    this->waiting_for_response_.reset();
+    this->clear_waiting_for_response_();
   }
 
   //  If there's no response pending and there's commands in the buffer
@@ -264,7 +264,6 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
       if (wfr.device)
         wfr.device->on_modbus_no_response();
       wfr.interrupted = true;
-      wfr.device = nullptr;
       return;
     }
 
@@ -280,7 +279,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
       return;
     } else {  // We have a valid device waiting for this response
 
-      this->waiting_for_response_.reset();
+      this->clear_waiting_for_response_();
       // Is it an error response?
       if (is_function_code_exception(function_code)) {
         uint8_t exception = data[0];
@@ -390,9 +389,11 @@ void ModbusClientHub::send_next_frame_() {
 
   ModbusDeviceCommand command = this->tx_buffer_.front();
 
-  if (!this->send_frame_(command.frame)) {
+  if (this->send_frame_(command.frame)) {
     if (command.device)
-      command.device->on_modbus_not_sent();
+      command.device->on_modbus_sent();
+  } else if (command.device) {
+    command.device->on_modbus_not_sent();
   }
 
   this->waiting_for_response_ = std::move(command);
@@ -402,6 +403,20 @@ void ModbusClientHub::send_next_frame_() {
   if (!this->tx_buffer_.empty()) {
     ESP_LOGV(TAG, "Write queue contains %d items.", this->tx_buffer_.size());
   }
+}
+
+void ModbusClientHub::clear_waiting_for_response_() {
+  ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
+
+  // We requeue the frame if resend_when_complete is true
+  if (wfr.resend_when_complete) {
+    wfr.resend_when_complete = false;
+    wfr.interrupted = false;
+    ESP_LOGV(TAG, "Adding frame to tx queue (resend): %s", format_hex_pretty(wfr.frame).c_str());
+    this->tx_buffer_.push_back(wfr);
+  }
+
+  this->waiting_for_response_.reset();
 }
 
 void ModbusClientHub::dump_config() {
@@ -430,13 +445,13 @@ float Modbus::get_setup_priority() const {
 }
 
 void ModbusClientHub::send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-                           ModbusClientDevice *device, bool allow_duplicates) {
+                           ModbusClientDevice *device) {
   ESP_LOGVV(TAG, "ModbusClient::send address=%d function_code=0x%X start_address=%d number_of_entities=%d ", address,
             function_code, start_address, number_of_entities);
   std::vector<uint8_t> data;
   data.push_back(address);
   create_client_pdu(data, (ModbusFunctionCode) function_code, start_address, number_of_entities);
-  this->send_raw(data, device, allow_duplicates);
+  this->send_raw(data, device);
 }
 
 void ModbusServerHub::send_response_(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload) {
@@ -455,7 +470,7 @@ void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, Mo
 
 // Helper function for lambdas
 // Send raw command for client pushes to queue. Except CRC everything must be contained in payload
-void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device, bool allow_duplicates) {
+void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device) {
   if (payload.empty()) {
     if (device)
       device->on_modbus_not_sent();
@@ -471,14 +486,16 @@ void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClient
     //  return;
   }
 
-  if (!allow_duplicates) {
-    for (const auto &item : this->tx_buffer_) {
-      if (item.frame == frame && item.device == device) {
-        ESP_LOGW(TAG, "Frame already in tx queue, dropping: %s", format_hex_pretty(frame).c_str());
+  for (auto &item : this->tx_buffer_) {
+    if (item.frame == frame && item.device == device) {
+      if (item.resend_when_complete) {
+        ESP_LOGD(TAG, "Frame already in tx queue, and scheduled for resend: %s", format_hex_pretty(frame).c_str());
         if (device)
           device->on_modbus_not_sent();
-        return;
+      } else {
+        item.resend_when_complete = true;
       }
+      return;
     }
   }
 

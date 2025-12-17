@@ -61,6 +61,7 @@ struct ModbusDeviceCommand {
   ModbusClientDevice *device;
   std::vector<uint8_t> frame;
   bool interrupted{false};
+  bool resend_when_complete{false};
 };
 
 class ModbusClientHub : public Modbus {
@@ -73,9 +74,8 @@ class ModbusClientHub : public Modbus {
   bool tx_buffer_empty();
   bool tx_blocked() override;
   void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-            ModbusClientDevice *device = nullptr, bool allow_duplicates = false);
-  void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr,
-                bool allow_duplicates = false);
+            ModbusClientDevice *device = nullptr);
+  void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 
@@ -84,6 +84,7 @@ class ModbusClientHub : public Modbus {
   void parse_modbus_frames() override;
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
   void send_next_frame_();
+  void clear_waiting_for_response_();
 
   uint16_t send_wait_time_{2000};
   std::optional<ModbusDeviceCommand> waiting_for_response_;
@@ -121,6 +122,7 @@ class ModbusClientDevice {
   void set_address(uint8_t address) { address_ = address; }
   virtual void on_modbus_data(const std::vector<uint8_t> &data) {}
   virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
+  virtual void on_modbus_sent() {}
   virtual void on_modbus_not_sent() {}
   virtual void on_modbus_no_response() {}
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities) {
