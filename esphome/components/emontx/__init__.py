@@ -1,10 +1,10 @@
-from esphome import automation
+from esphome import automation, final_validate as fv
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TRIGGER_ID
 
-AUTO_LOAD = ["json", "api"]
+AUTO_LOAD = ["json"]
 CODEOWNERS = ["@FredM67", "@TrystanLea", "@glynhudson"]
 DEPENDENCIES = ["uart"]
 
@@ -61,12 +61,34 @@ CONFIG_SCHEMA = (
 )
 
 
+def _search_send_command_action(config):
+    """Recursively search for emontx.send_command action in the config."""
+    if isinstance(config, dict):
+        # Check if this is the send_command action
+        if "emontx.send_command" in config:
+            return True
+        # Recursively search in all values
+        for value in config.values():
+            if _search_send_command_action(value):
+                return True
+    elif isinstance(config, list):
+        # Recursively search in all list items
+        for item in config:
+            if _search_send_command_action(item):
+                return True
+    return False
+
+
 def final_validate(config):
+    # Check if send_command action is used anywhere in the config
+    full_config = fv.full_config.get()
+    uses_send_command = _search_send_command_action(full_config)
+
     # Validate UART settings
     schema = uart.final_validate_device_schema(
         "emontx",
         baud_rate=115200,
-        require_tx=False,  # TX is optional (only needed if user wants to send commands)
+        require_tx=uses_send_command,  # TX is required if send_command is used
         require_rx=True,
         data_bits=8,
         parity=None,

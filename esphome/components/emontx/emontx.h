@@ -51,7 +51,7 @@ enum class MqttPublishMode { JSON, INDIVIDUAL };
  * @class EmonTx
  * @brief Main class for the EmonTx component.
  *
- * The EmonTx processes incoming data frames via UART, validates their CRC,
+ * The EmonTx processes incoming data frames via UART,
  * extracts tags and values, and publishes them to registered listeners.
  */
 class EmonTx : public PollingComponent, public uart::UARTDevice {
