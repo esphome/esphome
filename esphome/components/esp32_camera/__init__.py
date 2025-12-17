@@ -186,7 +186,7 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.Required(CONF_PIN): pins.internal_gpio_input_pin_number,
                     cv.Optional(CONF_FREQUENCY, default="20MHz"): cv.All(
-                        cv.frequency, cv.Range(min=8e6, max=20e6)
+                        cv.frequency, cv.float_range(min=8e6, max=20e6)
                     ),
                 }
             ),
