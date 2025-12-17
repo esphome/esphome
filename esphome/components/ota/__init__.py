@@ -17,9 +17,10 @@ CODEOWNERS = ["@esphome/core"]
 
 
 def AUTO_LOAD():
-    if CORE.using_zephyr:
-        return []
-    return ["md5", "safe_mode"]
+    components = ["safe_mode"]
+    if not CORE.using_zephyr:
+        components.extend(["md5"])
+    return components
 
 
 IS_PLATFORM_COMPONENT = True
