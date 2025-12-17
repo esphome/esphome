@@ -1,4 +1,5 @@
 #pragma once
+#ifndef USE_ZEPHYR
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -7,7 +8,13 @@
 #include <utility>
 #include <vector>
 
-#ifdef USE_ARDUINO
+#ifdef USE_ESP32
+
+#include "driver/spi_master.h"
+
+using SPIInterface = spi_host_device_t;
+
+#elif defined(USE_ARDUINO)
 
 #include <SPI.h>
 
@@ -17,26 +24,12 @@ using SPIInterface = SPIClassRP2040 *;
 using SPIInterface = SPIClass *;
 #endif
 
-#endif
-
-#ifdef USE_ESP_IDF
-
-#include "driver/spi_master.h"
-
-using SPIInterface = spi_host_device_t;
-
-#endif  // USE_ESP_IDF
-
-#ifdef USE_ZEPHYR
-// TODO supprse clang-tidy. Remove after SPI driver for nrf52 is added.
-using SPIInterface = void *;
-#endif
+#endif  // USE_ESP32 / USE_ARDUINO
 
 /**
  * Implementation of SPI Controller mode.
  */
-namespace esphome {
-namespace spi {
+namespace esphome::spi {
 
 /// The bit-order for SPI devices. This defines how the data read from and written to the device is interpreted.
 enum SPIBitOrder {
@@ -509,5 +502,5 @@ class SPIDevice : public SPIClient {
   template<size_t N> void transfer_array(std::array<uint8_t, N> &data) { this->transfer_array(data.data(), N); }
 };
 
-}  // namespace spi
-}  // namespace esphome
+}  // namespace esphome::spi
+#endif  // USE_ZEPHYR
