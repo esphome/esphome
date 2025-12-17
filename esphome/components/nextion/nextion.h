@@ -1426,7 +1426,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start);
-#else
+#elif defined(USE_ARDUINO)
   /**
    * will request chunk_size chunks from the web server
    * and send each to the nextion
@@ -1435,7 +1435,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
-#endif  // USE_ESP32 vs others
+#endif  // USE_ESP32 vs USE_ARDUINO
 
   /**
    * Ends the upload process, restart Nextion and, if successful,
