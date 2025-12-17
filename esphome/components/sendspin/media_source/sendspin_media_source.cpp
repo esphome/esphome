@@ -29,7 +29,7 @@ namespace sendspin {
  */
 
 // TODO: Remove this. Take out unnecessary logs and change useful ones to be VERBOSE level
-#define SENDSPIN_MEDIA_SOURCE_DEBUG
+// #define SENDSPIN_MEDIA_SOURCE_DEBUG
 
 // TODO: Determine a default value - try seeing how many chunks of FLAC the server can send at the start
 static const uint32_t ENCODED_CHUNK_QUEUE_SIZE = 100;
