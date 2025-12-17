@@ -92,6 +92,11 @@ async def to_code(config):
     # Set config_panel option
     cg.add(var.set_config_panel(config[CONF_CONFIG_PANEL]))
 
+    # Enable HomeAssistant services feature when config_panel is enabled
+    # This defines USE_API_HOMEASSISTANT_SERVICES which enables the event firing code
+    if config[CONF_CONFIG_PANEL]:
+        cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
+
     # Process on_json triggers
     if CONF_ON_JSON in config:
         for conf in config[CONF_ON_JSON]:
