@@ -35,8 +35,6 @@ which chooses adjacent channels with shared timers. See
 - **phase_angle** (*Optional*, float): Set a phase angle to the other channel of this timer.
   Range 0-360°, defaults to 0°
 
-Note: this variable is only available for the esp-idf framework
-
 ### Example Usage For a Light
 
 ```yaml

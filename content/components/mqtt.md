@@ -97,18 +97,18 @@ mqtt:
   for verifying SSL connections. See [SSL Fingerprints](#mqtt-ssl_fingerprints).
   for more information.
 
-- **certificate_authority** (*Optional*, string): Only with `esp-idf`. CA certificate in PEM format. See
-  [TLS with esp-idf (esp32)](#mqtt-tls-idf) for more information.
+- **certificate_authority** (*Optional*, string): Only on ESP32. CA certificate in PEM format. See
+  [TLS (ESP32)](#mqtt-tls-idf) for more information.
 
 > [!TIP]
 > For MQTT security recommendations including TLS configuration, see the [Security Best Practices](/guides/security_best_practices#mqtt) guide.
 
 - **client_certificate** (*Optional*, string): Only on `esp32`. Client certificate in PEM format.
 - **client_certificate_key** (*Optional*, string): Only on `esp32`. Client private key in PEM format.
-- **skip_cert_cn_check** (*Optional*, bool): Only with `esp-idf`. Don't verify if the common name in the server
+- **skip_cert_cn_check** (*Optional*, bool): Only on ESP32. Don't verify if the common name in the server
   certificate matches the value of `broker`.
 
-- **idf_send_async** (*Optional*, bool): Only with `esp-idf`. If true publishing the message happens from a separate mqtt task.
+- **idf_send_async** (*Optional*, bool): Only on ESP32. If true publishing the message happens from a separate mqtt task.
   The client only enqueues the message. Defaults to `false`.
   The advantage of asynchronous publishing is that it doesn't block the esphome main thread for potentially tens of seconds.
   The disadvantage is additional memory usage for the thread.
@@ -387,10 +387,10 @@ mqtt:
 
 {{< anchor "mqtt-tls-idf" >}}
 
-## TLS with esp-idf (esp32)
+## TLS (ESP32)
 
-If used with the esp-idf framework a TLS connection to a MQTT broker can be established.
-The servers CA certificate is required to validate the connection.
+On ESP32, a TLS connection to an MQTT broker can be established.
+The server's CA certificate is required to validate the connection.
 
 You have to download the server CA certificate in PEM format and add it to `certificate_authority`.
 Usually these are .crt files and you can open them with any text editor.
