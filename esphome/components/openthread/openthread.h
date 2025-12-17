@@ -13,8 +13,7 @@
 #include <optional>
 #include <vector>
 
-namespace esphome {
-namespace openthread {
+namespace esphome::openthread {
 
 class InstanceLock;
 
@@ -93,6 +92,5 @@ class InstanceLock {
   InstanceLock() {}
 };
 
-}  // namespace openthread
-}  // namespace esphome
+}  // namespace esphome::openthread
 #endif
