@@ -78,6 +78,9 @@ class EmonTx : public PollingComponent, public uart::UARTDevice {
   // Send command to emonTx via UART
   void send_command(const std::string &command);
 
+  // Enable/disable config panel (auto-fires esphome.emontx_raw events)
+  void set_config_panel(bool enabled) { this->config_panel_ = enabled; }
+
 #ifdef USE_SENSOR
   void register_sensor(const std::string &tag_name, sensor::Sensor *sensor);
 #endif
@@ -106,6 +109,9 @@ class EmonTx : public PollingComponent, public uart::UARTDevice {
 
   // Add storage for line callbacks (raw serial data)
   std::vector<EmonTxDataCallback> data_callbacks_{};
+
+  // Config panel enabled flag
+  bool config_panel_{false};
 };
 
 // Action to send command to emonTx

@@ -1,5 +1,6 @@
 #include "emontx.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include "esphome/components/json/json_util.h"
 
 #ifdef USE_API
@@ -170,7 +171,25 @@ void EmonTx::loop() {
 
         ESP_LOGD(TAG, "Received line: %s", line.c_str());
 
-        // Fire line callbacks for ALL received lines (config responses)
+#ifdef USE_API
+        // Fire esphome.emontx_raw event for config panel
+        if (this->config_panel_ && api::global_api_server != nullptr && api::global_api_server->is_connected()) {
+          api::HomeassistantActionRequest resp;
+          resp.set_service(StringRef("esphome.emontx_raw"));
+          resp.is_event = true;
+          resp.data.init(2);
+          auto &kv1 = resp.data.emplace_back();
+          kv1.set_key(StringRef("device_id"));
+          kv1.value = App.get_name();
+          auto &kv2 = resp.data.emplace_back();
+          kv2.set_key(StringRef("line"));
+          kv2.value = line;
+          api::global_api_server->send_homeassistant_action(resp);
+          ESP_LOGV(TAG, "Fired esphome.emontx_raw event");
+        }
+#endif
+
+        // Fire data callbacks for ALL received lines (config responses)
         if (!this->data_callbacks_.empty()) {
           for (const auto &callback : this->data_callbacks_) {
             callback(line);
@@ -294,6 +313,7 @@ void EmonTx::parse_json_(const std::string &data) {
  */
 void EmonTx::dump_config() {
   ESP_LOGCONFIG(TAG, "EmonTx:");
+  ESP_LOGCONFIG(TAG, "  Config panel: %s", this->config_panel_ ? "ENABLED" : "DISABLED");
 
 #ifdef USE_SENSOR
   ESP_LOGCONFIG(TAG, "  Registered sensors: %u", this->sensors_.size());

@@ -1,4 +1,4 @@
-from esphome import automation, final_validate as fv
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
@@ -28,6 +28,7 @@ CONF_EMONTX_ID = "emontx_id"
 CONF_TAG_NAME = "tag_name"
 CONF_ON_JSON = "on_json"
 CONF_ON_DATA = "on_data"
+CONF_CONFIG_PANEL = "config_panel"
 
 EMONTX_LISTENER_SCHEMA = cv.Schema(
     {
@@ -42,6 +43,8 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(EmonTx),
+            # Enable config panel - automatically fires esphome.emontx_raw events
+            cv.Optional(CONF_CONFIG_PANEL, default=False): cv.boolean,
             # Add on_json trigger for handling JSON data
             cv.Optional(CONF_ON_JSON): automation.validate_automation(
                 {
@@ -61,34 +64,15 @@ CONFIG_SCHEMA = (
 )
 
 
-def _search_send_command_action(config):
-    """Recursively search for emontx.send_command action in the config."""
-    if isinstance(config, dict):
-        # Check if this is the send_command action
-        if "emontx.send_command" in config:
-            return True
-        # Recursively search in all values
-        for value in config.values():
-            if _search_send_command_action(value):
-                return True
-    elif isinstance(config, list):
-        # Recursively search in all list items
-        for item in config:
-            if _search_send_command_action(item):
-                return True
-    return False
-
-
 def final_validate(config):
-    # Check if send_command action is used anywhere in the config
-    full_config = fv.full_config.get()
-    uses_send_command = _search_send_command_action(full_config)
+    # TX is required if config_panel is enabled
+    require_tx = config.get(CONF_CONFIG_PANEL, False)
 
     # Validate UART settings
     schema = uart.final_validate_device_schema(
         "emontx",
         baud_rate=115200,
-        require_tx=uses_send_command,  # TX is required if send_command is used
+        require_tx=require_tx,
         require_rx=True,
         data_bits=8,
         parity=None,
@@ -104,6 +88,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+
+    # Set config_panel option
+    cg.add(var.set_config_panel(config[CONF_CONFIG_PANEL]))
 
     # Process on_json triggers
     if CONF_ON_JSON in config:
