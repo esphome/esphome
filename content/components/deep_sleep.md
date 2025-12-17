@@ -10,7 +10,7 @@ params:
 {{< anchor "deep_sleep-component" >}}
 
 The `deep_sleep` component can be used to automatically enter a deep sleep mode on the
-ESP8266/ESP32 after a certain amount of time. This is especially useful with nodes that operate
+ESP8266/ESP32/BK72xx after a certain amount of time. This is especially useful with nodes that operate
 on batteries and therefore need to conserve as much energy as possible.
 
 To use `deep_sleep` first specify how long the node should be active, i.e. how long it should
@@ -20,7 +20,7 @@ Next, tell the node how it should wakeup. On the ESP8266, you can only put the n
 for a duration using `sleep_duration`, note that on the ESP8266 `GPIO16` must be connected to
 the `RST` pin so that it will wake up again. On the ESP32, you additionally have the option
 to wake up on any RTC pin (`GPIO0`, `GPIO2`, `GPIO4`, `GPIO12`, `GPIO13`, `GPIO14`,
-`GPIO15`, `GPIO25`, `GPIO26`, `GPIO27`, `GPIO32`, `GPIO39`).
+`GPIO15`, `GPIO25`, `GPIO26`, `GPIO27`, `GPIO32`, `GPIO39`). BK72xx can be woken-up using timer (with the maximum value of 36 hours) and/or with one or more non-strapping pins.
 
 While in deep sleep mode, the node will not do any work and not respond to any network traffic,
 even Over The Air updates. If the device's entities are appearing as **Unavailable** while your device is actively
@@ -47,17 +47,18 @@ deep_sleep:
   - **gpio_wakeup_reason** (*Optional*, [Time](/guides/configuration-types#time)): run duration if woken up by GPIO.
   - **touch_wakeup_reason** (*Optional*, [Time](/guides/configuration-types#time)): run duration if woken up by touch.
 
-- **sleep_duration** (*Optional*, [Time](/guides/configuration-types#time)): The time duration to stay in deep sleep mode.
+- **sleep_duration** (*Optional*, [Time](/guides/configuration-types#time)): The time duration to stay in deep sleep mode. On BK72xx, the maximum is 36 hours.
 - **touch_wakeup** (*Optional*, boolean): Only on ESP32. Use a touch event to wakeup from deep sleep. To be able
   to wakeup from a touch event, [Binary Sensor](/components/binary_sensor/esp32_touch#esp32-touch-binary-sensor) must be configured properly.
 
-- **wakeup_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): Only on ESP32. A pin to wake up to once
+- **wakeup_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema) / list): Only on ESP32/BK72xx. A single pin to wake up to once
   in deep sleep mode. Use the inverted property to wake up to LOW signals.
-
-- **wakeup_pin_mode** (*Optional*): Only on ESP32. Specify how to handle waking up from a `wakeup_pin` if
+  If you want to specify multiple wake-up pins (BK72xx only) specify them under `wakeup_pin` using a list of entries consisting of:
+  - **pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema))
+  - **wakeup_pin_mode** (*Optional*) see below
+- **wakeup_pin_mode** (*Optional*): Only on ESP32/BK72xx. Specify how to handle waking up from a `wakeup_pin` if
   the wakeup pin is already in the state with which it would wake up when attempting to enter deep sleep.
-  See [ESP32 Wakeup Pin Mode](#deep_sleep-esp32_wakeup_pin_mode). Defaults to `IGNORE`
-
+  See [Wakeup Pin Mode](#deep_sleep-esp32_wakeup_pin_mode). Defaults to `IGNORE`
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 
 Advanced features:
@@ -76,9 +77,9 @@ Advanced features:
 
 {{< anchor "deep_sleep-esp32_wakeup_pin_mode" >}}
 
-## ESP32 Wakeup Pin Mode
+## ESP32/BK72xx Wakeup Pin Mode
 
-On the ESP32, you have the option of waking up on any RTC pin. However, there's one scenario that you need
+On the ESP32 (and BK72xx), you have the option of waking up on any RTC pin. However, there's one scenario that you need
 to tell ESPHome how to handle: What if the wakeup pin is already in the state with which it would wake up
 when the deep sleep should start? There are three ways of handling this using the `wakeup_pin_mode` option:
 
@@ -91,6 +92,25 @@ when the deep sleep should start? There are three ways of handling this using th
 - `INVERT_WAKEUP`  : When deep sleep was set up to wake up on a HIGH signal, but the wakeup pin is already HIGH,
   then re-configure deep sleep to wake up on a LOW signal and vice versa. Useful in situations when you want to
   use observe the state changes of a pin using deep sleep and the ON/OFF values last longer.
+
+```yaml
+# Example configuration with single pin wakeup on BK72xx
+deep_sleep:
+  wakeup_pin: P8  # will wakeup when P8 is high
+  wakeup_pin_mode: IGNORE # state of P8 at the moment of going to sleep does not influence the wakeup scenario
+```
+
+```yaml
+# Example configuration with multi-pin wakeup on BK72xx
+deep_sleep:
+  wakeup_pin:
+    - pin:
+        number: P8
+        inverted: True  # will wake up when P8 is low
+      wakeup_pin_mode: KEEP_AWAKE # will prevent sleep as long as P8 is low
+    - pin: P24 # will wake up when P24 goes high
+      wakeup_pin_mode: INVERT_WAKEUP # flips the trigger level after each wake
+```
 
 ## ESP32 Wakeup Cause
 
