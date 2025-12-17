@@ -118,8 +118,8 @@ ARDUINO_ALLOWED_VARIANTS = [
 ]
 
 
-def get_cpu_frequencies(*frequencies):
-    return [str(x) + "MHZ" for x in frequencies]
+def get_cpu_frequencies(*frequencies: int) -> list[str]:
+    return [f"{frequency}MHZ" for frequency in frequencies]
 
 
 CPU_FREQUENCIES = {
@@ -136,7 +136,7 @@ CPU_FREQUENCIES = {
 }
 
 # Make sure not missed here if a new variant added.
-assert all(v in CPU_FREQUENCIES for v in VARIANTS)
+assert all(variant in CPU_FREQUENCIES for variant in VARIANTS)
 
 FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values()))
 
@@ -250,10 +250,10 @@ def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
 def add_idf_component(
     *,
     name: str,
-    repo: str = None,
-    ref: str = None,
-    path: str = None,
-    refresh: TimePeriod = None,
+    repo: str | None = None,
+    ref: str | None = None,
+    path: str | None = None,
+    refresh: TimePeriod | None = None,
     components: list[str] | None = None,
     submodules: list[str] | None = None,
 ):
@@ -334,7 +334,7 @@ def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
     return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}/esp-idf-v{str(ver)}.{ext}"
 
 
-def _is_framework_url(source: str) -> str:
+def _is_framework_url(source: str) -> bool:
     # platformio accepts many URL schemes for framework repositories and archives including http, https, git, file, and symlink
     import urllib.parse
 
@@ -1193,7 +1193,7 @@ APP_PARTITION_SIZES = {
 }
 
 
-def get_arduino_partition_csv(flash_size):
+def get_arduino_partition_csv(flash_size: str):
     app_partition_size = APP_PARTITION_SIZES[flash_size]
     eeprom_partition_size = 0x1000  # 4 KB
     spiffs_partition_size = 0xF000  # 60 KB
@@ -1213,7 +1213,7 @@ spiffs,   data, spiffs,  0x{spiffs_partition_start:X}, 0x{spiffs_partition_size:
 """
 
 
-def get_idf_partition_csv(flash_size):
+def get_idf_partition_csv(flash_size: str):
     app_partition_size = APP_PARTITION_SIZES[flash_size]
 
     return f"""\

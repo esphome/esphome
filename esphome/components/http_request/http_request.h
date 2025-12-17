@@ -15,8 +15,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 struct Header {
   std::string name;
@@ -305,5 +304,4 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   size_t max_response_buffer_size_{SIZE_MAX};
 };
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request
