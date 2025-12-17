@@ -35,6 +35,14 @@ void EmonTx::setup() {
 
   ESP_LOGCONFIG(TAG, "Setting up EmonTx component");
 
+#ifdef USE_API
+  // Auto-register send_command service when config_panel is enabled
+  if (this->config_panel_) {
+    this->register_service(&EmonTx::send_command, "send_command", {"command"});
+    ESP_LOGCONFIG(TAG, "Registered send_command service");
+  }
+#endif
+
 #ifdef USE_SENSOR
   // Log sensors at setup time
   ESP_LOGCONFIG(TAG, "Currently registered sensors: %u", this->sensors_.size());

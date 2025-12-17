@@ -54,7 +54,13 @@ enum class MqttPublishMode { JSON, INDIVIDUAL };
  * The EmonTx processes incoming data frames via UART,
  * extracts tags and values, and publishes them to registered listeners.
  */
-class EmonTx : public PollingComponent, public uart::UARTDevice {
+class EmonTx : public PollingComponent,
+               public uart::UARTDevice
+#ifdef USE_API
+    ,
+               public api::CustomAPIDevice
+#endif
+{
  public:
   EmonTx() = default;
 
