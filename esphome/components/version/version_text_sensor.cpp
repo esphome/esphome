@@ -14,8 +14,8 @@ void VersionTextSensor::setup() {
   static const char PREFIX[] PROGMEM = ESPHOME_VERSION " (config hash 0x";
   static const char BUILT_STR[] PROGMEM = ", built ";
   // Buffer size: PREFIX + 8 hex chars + BUILT_STR + BUILD_TIME_STR_SIZE + ")" + null
-  constexpr size_t BUF_SIZE = sizeof(PREFIX) + 8 + sizeof(BUILT_STR) + esphome::Application::BUILD_TIME_STR_SIZE + 2;
-  char version_str[BUF_SIZE];
+  constexpr size_t buf_size = sizeof(PREFIX) + 8 + sizeof(BUILT_STR) + esphome::Application::BUILD_TIME_STR_SIZE + 2;
+  char version_str[buf_size];
 
   ESPHOME_strncpy_P(version_str, PREFIX, sizeof(version_str));
 
