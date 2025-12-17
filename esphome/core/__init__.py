@@ -608,6 +608,8 @@ class EsphomeCore:
         self.current_component: str | None = None
         # Address cache for DNS and mDNS lookups from command line arguments
         self.address_cache: AddressCache | None = None
+        # Cached config hash (computed lazily)
+        self._config_hash: int | None = None
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -636,6 +638,7 @@ class EsphomeCore:
         self.unique_ids = {}
         self.current_component = None
         self.address_cache = None
+        self._config_hash = None
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
@@ -684,6 +687,21 @@ class EsphomeCore:
             return self.config[CONF_ESPHOME][CONF_COMMENT]
 
         return None
+
+    @property
+    def config_hash(self) -> int:
+        """Get the FNV-1a 32-bit hash of the config.
+
+        The hash is computed lazily and cached for performance.
+        Uses sort_keys=True to ensure deterministic ordering.
+        """
+        if self._config_hash is None:
+            from esphome import yaml_util
+            from esphome.helpers import fnv1a_32bit_hash
+
+            config_str = yaml_util.dump(self.config, show_secrets=True, sort_keys=True)
+            self._config_hash = fnv1a_32bit_hash(config_str)
+        return self._config_hash
 
     @property
     def config_dir(self) -> Path:

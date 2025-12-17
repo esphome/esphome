@@ -170,6 +170,7 @@
 // ESP32-specific feature flags
 #ifdef USE_ESP32
 #define USE_ESPHOME_TASK_LOG_BUFFER
+#define USE_OTA_ROLLBACK
 
 #define USE_BLUETOOTH_PROXY
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 3

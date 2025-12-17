@@ -1,6 +1,6 @@
 from typing import Any
 
-from esphome import pins
+from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import display
 from esphome.components.esp32 import add_idf_component
@@ -17,6 +17,8 @@ from esphome.const import (
     CONF_OE_PIN,
     CONF_UPDATE_INTERVAL,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -135,6 +137,7 @@ CLOCK_SPEEDS = {
 HUB75Display = hub75_ns.class_("HUB75Display", cg.PollingComponent, display.Display)
 Hub75Config = cg.global_ns.struct("Hub75Config")
 Hub75Pins = cg.global_ns.struct("Hub75Pins")
+SetBrightnessAction = hub75_ns.class_("SetBrightnessAction", automation.Action)
 
 
 def _merge_board_pins(config: ConfigType) -> ConfigType:
@@ -576,3 +579,27 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
+
+
+@automation.register_action(
+    "hub75.set_brightness",
+    SetBrightnessAction,
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(HUB75Display),
+            cv.Required(CONF_BRIGHTNESS): cv.templatable(cv.int_range(min=0, max=255)),
+        },
+        key=CONF_BRIGHTNESS,
+    ),
+)
+async def hub75_set_brightness_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, cg.uint8)
+    cg.add(var.set_brightness(template_))
+    return var
