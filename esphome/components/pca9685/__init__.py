@@ -38,7 +38,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(PCA9685Output),
             cv.Optional(CONF_FREQUENCY): cv.All(
-                cv.frequency, cv.Range(min=23.84, max=1525.88)
+                cv.frequency, cv.float_range(min=23.84, max=1525.88)
             ),
             cv.Optional(CONF_EXTERNAL_CLOCK_INPUT, default=False): cv.boolean,
             cv.Optional(CONF_PHASE_BALANCER, default="linear"): cv.enum(
