@@ -9,18 +9,22 @@ namespace sen6x {
 
 static const char *const TAG = "sen6x";
 
-static const uint16_t SEN6X_CMD_AUTO_CLEANING_INTERVAL = 0x8004;
 static const uint16_t SEN6X_CMD_GET_DATA_READY_STATUS = 0x0202;
 static const uint16_t SEN6X_CMD_GET_FIRMWARE_VERSION = 0xD100;
 static const uint16_t SEN6X_CMD_GET_PRODUCT_NAME = 0xD014;
 static const uint16_t SEN6X_CMD_GET_SERIAL_NUMBER = 0xD033;
 static const uint16_t SEN6X_CMD_NOX_ALGORITHM_TUNING = 0x60E1;
-static const uint16_t SEN6X_CMD_READ_MEASUREMENT = 0x03C4;
-static const uint16_t SEN6X_CMD_RHT_ACCELERATION_MODE = 0x60F7;
+
+static const uint16_t SEN62_CMD_READ_MEASUREMENT = 0x04A3;   // SEN62, returns 6 words
+static const uint16_t SEN63C_CMD_READ_MEASUREMENT = 0x0471;  // SEN63C, returns 7 words
+static const uint16_t SEN65_CMD_READ_MEASUREMENT = 0x0446;   // SEN65, returns 8 words
+static const uint16_t SEN66_CMD_READ_MEASUREMENT = 0x0300;   // SEN66, returns 9 words
+static const uint16_t SEN68_CMD_READ_MEASUREMENT = 0x0467;   // SEN68, returns 9 words
+static const uint16_t SEN69C_CMD_READ_MEASUREMENT = 0x04B5;  // SEN69C, returns 10 words
+
 static const uint16_t SEN6X_CMD_START_CLEANING_FAN = 0x5607;
 static const uint16_t SEN6X_CMD_START_MEASUREMENTS = 0x0021;
-static const uint16_t SEN6X_CMD_START_MEASUREMENTS_RHT_ONLY = 0x0037;
-static const uint16_t SEN6X_CMD_STOP_MEASUREMENTS = 0x3f86;
+static const uint16_t SEN6X_CMD_STOP_MEASUREMENTS = 0x0104;
 static const uint16_t SEN6X_CMD_TEMPERATURE_COMPENSATION = 0x60B2;
 static const uint16_t SEN6X_CMD_VOC_ALGORITHM_STATE = 0x6181;
 static const uint16_t SEN6X_CMD_VOC_ALGORITHM_TUNING = 0x60D0;
@@ -28,19 +32,6 @@ static const uint16_t SEN6X_CMD_VOC_ALGORITHM_TUNING = 0x60D0;
 static const int8_t SEN6X_INDEX_SCALE_FACTOR = 10;                            // used for VOC and NOx index values
 static const int8_t SEN6X_MIN_INDEX_VALUE = 1 * SEN6X_INDEX_SCALE_FACTOR;     // must be adjusted by the scale factor
 static const int16_t SEN6X_MAX_INDEX_VALUE = 500 * SEN6X_INDEX_SCALE_FACTOR;  // must be adjusted by the scale factor
-
-static const LogString *rht_accel_mode_to_string(RhtAccelerationMode mode) {
-  switch (mode) {
-    case LOW_ACCELERATION:
-      return LOG_STR("LOW");
-    case MEDIUM_ACCELERATION:
-      return LOG_STR("MEDIUM");
-    case HIGH_ACCELERATION:
-      return LOG_STR("HIGH");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-}
 
 void SEN6XComponent::setup() {
   // the sensor needs 1000 ms to enter the idle state
@@ -69,87 +60,74 @@ void SEN6XComponent::setup() {
         this->mark_failed();
         return;
       }
-      // According to the SEN6x datasheet the sensor will only respond to other commands after waiting 200 ms after
+      // According to the sen6x datasheet the sensor will only respond to other commands after waiting 1400 ms after
       // issuing the stop_periodic_measurement command
-      stop_measurement_delay = 200;
+      stop_measurement_delay = 1400;
     }
     this->set_timeout(stop_measurement_delay, [this]() {
-      uint16_t raw_serial_number[3];
-      if (!this->get_register(SEN6X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 20)) {
+      uint16_t raw_serial_number[16];  // 16 words pack 32 ASCII characters
+      if (!this->get_register(SEN6X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 16, 20)) {
         ESP_LOGE(TAG, "Failed to read serial number");
         this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
         this->mark_failed();
         return;
       }
-      this->serial_number_[0] = static_cast<bool>(uint16_t(raw_serial_number[0]) & 0xFF);
-      this->serial_number_[1] = static_cast<uint16_t>(raw_serial_number[0] & 0xFF);
-      this->serial_number_[2] = static_cast<uint16_t>(raw_serial_number[1] >> 8);
-      ESP_LOGV(TAG, "Serial number %02d.%02d.%02d", this->serial_number_[0], this->serial_number_[1],
-               this->serial_number_[2]);
+      this->unpackUint16ToChar_(raw_serial_number, this->serial_number_);
+      ESP_LOGV(TAG, "Serial number %.*s", (int) this->serial_number_.size(), this->serial_number_.data());
 
-      uint16_t raw_product_name[16];
+      uint16_t raw_product_name[16];  // 16 words pack 32 ASCII characters
       if (!this->get_register(SEN6X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
         ESP_LOGE(TAG, "Failed to read product name");
         this->error_code_ = PRODUCT_NAME_FAILED;
         this->mark_failed();
         return;
       }
-      // 2 ASCII bytes are encoded in an int
-      const uint16_t *current_int = raw_product_name;
-      char current_char;
-      uint8_t max = 16;
-      do {
-        // first char
-        current_char = *current_int >> 8;
-        if (current_char) {
-          this->product_name_.push_back(current_char);
-          // second char
-          current_char = *current_int & 0xFF;
-          if (current_char) {
-            this->product_name_.push_back(current_char);
-          }
-        }
-        current_int++;
-      } while (current_char && --max);
+      this->unpackUint16ToChar_(raw_product_name, this->product_name_);
+      ESP_LOGV(TAG, "Product name %.*s", (int) this->product_name_.size(), this->product_name_.data());
 
-      Sen6xType sen6x_type = UNKNOWN;
-      if (this->product_name_ == "SEN60") {
-        sen6x_type = SEN60;
-      } else {
-        if (this->product_name_ == "SEN64") {
-          sen6x_type = SEN64;
-        } else {
-          if (this->product_name_ == "SEN65") {
-            sen6x_type = SEN65;
-          }
-        }
-        ESP_LOGD(TAG, "Product name: %s", this->product_name_.c_str());
-      }
-      if (this->humidity_sensor_ && sen6x_type == SEN60) {
-        ESP_LOGE(TAG, "Relative humidity requires a SEN64 or SEN65");
-        this->humidity_sensor_ = nullptr;  // mark as not used
-      }
-      if (this->temperature_sensor_ && sen6x_type == SEN60) {
-        ESP_LOGE(TAG, "Temperature requires a SEN64 or SEN65");
-        this->temperature_sensor_ = nullptr;  // mark as not used
-      }
-      if (this->voc_sensor_ && sen6x_type == SEN60) {
-        ESP_LOGE(TAG, "VOC requires a SEN64 or SEN65");
+      // Determine sensor type from product name
+      // NOTE: this is done via type parameter in YAML now, so this code is commented out
+      // if (std::string_view(this->product_name_.data()) == "SEN62")
+      //   this->sen6x_type_ = SEN62;
+      // else if (std::string_view(this->product_name_.data()) == "SEN63C")
+      //   this->sen6x_type_ = SEN63C;
+      // else if (std::string_view(this->product_name_.data()) == "SEN65")
+      //   this->sen6x_type_ = SEN65;
+      // else if (std::string_view(this->product_name_.data()) == "SEN66")
+      //   this->sen6x_type_ = SEN66;
+      // else if (std::string_view(this->product_name_.data()) == "SEN68")
+      //   this->sen6x_type_ = SEN68;
+      // else if (std::string_view(this->product_name_.data()) == "SEN69C")
+      //   this->sen6x_type_ = SEN69C;
+      // ESP_LOGD(TAG, "Product name: %s", this->product_name_.data());
+
+      if (this->voc_sensor_ && (this->sen6x_type_ == SEN62 || this->sen6x_type_ == SEN63C)) {
+        ESP_LOGE(TAG, "VOC is not available on SEN62 and SEN63C");
         this->voc_sensor_ = nullptr;  // mark as not used
       }
-      if (this->nox_sensor_ && sen6x_type != SEN65) {
-        ESP_LOGE(TAG, "NOx requires a SEN65");
+      if (this->nox_sensor_ && (this->sen6x_type_ == SEN62 || this->sen6x_type_ == SEN63C)) {
+        ESP_LOGE(TAG, "NOx is not available on SEN62 and SEN63C");
         this->nox_sensor_ = nullptr;  // mark as not used
       }
+      if (this->co2_sensor_ && this->sen6x_type_ != SEN63C && this->sen6x_type_ != SEN66 &&
+          this->sen6x_type_ != SEN69C) {
+        ESP_LOGE(TAG, "CO2 requires SEN63C, SEN66 or SEN69C");
+        this->co2_sensor_ = nullptr;  // mark as not used
+      }
+      if (this->hcho_sensor_ && this->sen6x_type_ != SEN68 && this->sen6x_type_ != SEN69C) {
+        ESP_LOGE(TAG, "HCHO requires SEN68 or SEN69C");
+        this->hcho_sensor_ = nullptr;  // mark as not used
+      }
 
-      if (!this->get_register(SEN6X_CMD_GET_FIRMWARE_VERSION, this->firmware_version_, 20)) {
+      uint16_t raw_firmware_version[1];
+      if (!this->get_register(SEN6X_CMD_GET_FIRMWARE_VERSION, raw_firmware_version, 1, 20)) {
         ESP_LOGE(TAG, "Failed to read firmware version");
         this->error_code_ = FIRMWARE_FAILED;
         this->mark_failed();
         return;
       }
-      this->firmware_version_ >>= 8;
-      ESP_LOGV(TAG, "Firmware version %d", this->firmware_version_);
+      this->unpackUint16ToChar_(raw_firmware_version, this->firmware_version_);
+      ESP_LOGV(TAG, "Firmware version %d.%d", this->firmware_version_[1], this->firmware_version_[0]);
 
       if (this->voc_sensor_ && this->store_baseline_) {
         uint32_t combined_serial =
@@ -184,39 +162,6 @@ void SEN6XComponent::setup() {
         }
       }
       bool result;
-      if (this->auto_cleaning_interval_.has_value()) {
-        // override default value
-        result = write_command(SEN6X_CMD_AUTO_CLEANING_INTERVAL, this->auto_cleaning_interval_.value());
-      } else {
-        result = write_command(SEN6X_CMD_AUTO_CLEANING_INTERVAL);
-      }
-      if (result) {
-        delay(20);
-        uint16_t secs[2];
-        if (this->read_data(secs, 2)) {
-          this->auto_cleaning_interval_ = secs[0] << 16 | secs[1];
-        }
-      }
-      if (this->acceleration_mode_.has_value()) {
-        result = this->write_command(SEN6X_CMD_RHT_ACCELERATION_MODE, this->acceleration_mode_.value());
-      } else {
-        result = this->write_command(SEN6X_CMD_RHT_ACCELERATION_MODE);
-      }
-      if (!result) {
-        ESP_LOGE(TAG, "Failed to set rh/t acceleration mode");
-        this->error_code_ = COMMUNICATION_FAILED;
-        this->mark_failed();
-        return;
-      }
-      delay(20);
-      if (!this->acceleration_mode_.has_value()) {
-        uint16_t mode;
-        if (this->read_data(mode)) {
-          this->acceleration_mode_ = RhtAccelerationMode(mode);
-        } else {
-          ESP_LOGE(TAG, "Failed to read RHT Acceleration mode");
-        }
-      }
       if (this->voc_tuning_params_.has_value()) {
         this->write_tuning_parameters_(SEN6X_CMD_VOC_ALGORITHM_TUNING, this->voc_tuning_params_.value());
         delay(20);
@@ -232,11 +177,7 @@ void SEN6XComponent::setup() {
       }
 
       // Finally start sensor measurements
-      auto cmd = SEN6X_CMD_START_MEASUREMENTS_RHT_ONLY;
-      if (this->pm_1_0_sensor_ || this->pm_2_5_sensor_ || this->pm_4_0_sensor_ || this->pm_10_0_sensor_) {
-        // if any of the gas sensors are active we need a full measurement
-        cmd = SEN6X_CMD_START_MEASUREMENTS;
-      }
+      auto cmd = SEN6X_CMD_START_MEASUREMENTS;
 
       if (!this->write_command(cmd)) {
         ESP_LOGE(TAG, "Error starting continuous measurements");
@@ -276,17 +217,10 @@ void SEN6XComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG,
                 "  Product name: %s\n"
-                "  Firmware version: %d\n"
-                "  Serial number %02d.%02d.%02d",
-                this->product_name_.c_str(), this->firmware_version_, this->serial_number_[0], this->serial_number_[1],
-                this->serial_number_[2]);
-  if (this->auto_cleaning_interval_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Auto cleaning interval: %" PRId32 "s", this->auto_cleaning_interval_.value());
-  }
-  if (this->acceleration_mode_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  RH/T acceleration mode: %s",
-                  LOG_STR_ARG(rht_accel_mode_to_string(this->acceleration_mode_.value())));
-  }
+                "  Firmware version: %d.%d\n"
+                "  Serial number %s",
+                this->product_name_.data(), this->firmware_version_[1], this->firmware_version_[0],
+                this->serial_number_.data());
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
@@ -294,8 +228,10 @@ void SEN6XComponent::dump_config() {
   LOG_SENSOR("  ", "PM 10.0", this->pm_10_0_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  LOG_SENSOR("  ", "VOC", this->voc_sensor_);  // SEN64 and SEN65 only
-  LOG_SENSOR("  ", "NOx", this->nox_sensor_);  // SEN65 only
+  LOG_SENSOR("  ", "VOC", this->voc_sensor_);    // SEN65, SEN66, SEN68 and SEN69C only
+  LOG_SENSOR("  ", "NOx", this->nox_sensor_);    // SEN65, SEN66, SEN68 and SEN69C only
+  LOG_SENSOR("  ", "CO2", this->co2_sensor_);    // SEN63C, SEN66 and SEN69C only
+  LOG_SENSOR("  ", "HCHO", this->hcho_sensor_);  // SEN68 and SEN69C only
 }
 
 void SEN6XComponent::update() {
@@ -303,45 +239,96 @@ void SEN6XComponent::update() {
     return;
   }
 
-  // Store baselines after defined interval or if the difference between current and stored baseline becomes too
-  // much
-  if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
-    if (this->write_command(SEN6X_CMD_VOC_ALGORITHM_STATE)) {
-      // run it a bit later to avoid adding a delay here
-      this->set_timeout(550, [this]() {
-        uint16_t states[4];
-        if (this->read_data(states, 4)) {
-          uint32_t state0 = states[0] << 16 | states[1];
-          uint32_t state1 = states[2] << 16 | states[3];
-          if ((uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state0 - state0)) >
-                  MAXIMUM_STORAGE_DIFF ||
-              (uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state1 - state1)) >
-                  MAXIMUM_STORAGE_DIFF) {
-            this->seconds_since_last_store_ = 0;
-            this->voc_baselines_storage_.state0 = state0;
-            this->voc_baselines_storage_.state1 = state1;
+  if (this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN68 ||
+      this->sen6x_type_ == SEN69C) {
+    // Store baselines after defined interval or if the difference between current and stored baseline becomes too
+    // much
+    if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
+      if (this->write_command(SEN6X_CMD_VOC_ALGORITHM_STATE)) {
+        // run it a bit later to avoid adding a delay here
+        this->set_timeout(550, [this]() {
+          uint16_t states[4];
+          if (this->read_data(states, 4)) {
+            uint32_t state0 = states[0] << 16 | states[1];
+            uint32_t state1 = states[2] << 16 | states[3];
+            if ((uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state0 - state0)) >
+                    MAXIMUM_STORAGE_DIFF ||
+                (uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state1 - state1)) >
+                    MAXIMUM_STORAGE_DIFF) {
+              this->seconds_since_last_store_ = 0;
+              this->voc_baselines_storage_.state0 = state0;
+              this->voc_baselines_storage_.state1 = state1;
 
-            if (this->pref_.save(&this->voc_baselines_storage_)) {
-              ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
-                       this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
-            } else {
-              ESP_LOGW(TAG, "Could not store VOC baselines");
+              if (this->pref_.save(&this->voc_baselines_storage_)) {
+                ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
+                         this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
+              } else {
+                ESP_LOGW(TAG, "Could not store VOC baselines");
+              }
             }
           }
-        }
-      });
+        });
+      }
     }
   }
 
-  if (!this->write_command(SEN6X_CMD_READ_MEASUREMENT)) {
+  uint16_t cmd;
+  switch (this->sen6x_type_) {
+    case SEN62:
+      cmd = SEN62_CMD_READ_MEASUREMENT;
+      break;
+    case SEN63C:
+      cmd = SEN63C_CMD_READ_MEASUREMENT;
+      break;
+    case SEN65:
+      cmd = SEN65_CMD_READ_MEASUREMENT;
+      break;
+    case SEN66:
+      cmd = SEN66_CMD_READ_MEASUREMENT;
+      break;
+    case SEN68:
+      cmd = SEN68_CMD_READ_MEASUREMENT;
+      break;
+    case SEN69C:
+      cmd = SEN69C_CMD_READ_MEASUREMENT;
+      break;
+    default:
+      ESP_LOGE(TAG, "Unknown SEN6X type");
+      return;
+  }
+  if (!this->write_command(cmd)) {
     this->status_set_warning();
     ESP_LOGD(TAG, "Write error: read measurement (%d)", this->last_error_);
     return;
   }
   this->set_timeout(20, [this]() {
-    uint16_t measurements[8];
+    uint16_t measurements[10];  // max size for SEN69C
+    uint16_t num_measurements;
+    switch (this->sen6x_type_) {
+      case SEN62:
+        num_measurements = 6;
+        break;
+      case SEN63C:
+        num_measurements = 7;
+        break;
+      case SEN65:
+        num_measurements = 8;
+        break;
+      case SEN66:
+        num_measurements = 9;
+        break;
+      case SEN68:
+        num_measurements = 9;
+        break;
+      case SEN69C:
+        num_measurements = 10;
+        break;
+      default:
+        ESP_LOGE(TAG, "Unknown SEN6X type");
+        return;
+    }
 
-    if (!this->read_data(measurements, 8)) {
+    if (!this->read_data(measurements, num_measurements)) {
       this->status_set_warning();
       ESP_LOGD(TAG, "Read data error (%d)", this->last_error_);
       return;
@@ -365,17 +352,43 @@ void SEN6XComponent::update() {
     ESP_LOGVV(TAG, "temperature = 0x%.4x", measurements[5]);
     float temperature = measurements[5] == INT16_MAX ? NAN : static_cast<int16_t>(measurements[5]) / 200.0f;
 
-    ESP_LOGVV(TAG, "voc = 0x%.4x", measurements[6]);
-    int16_t voc_idx = static_cast<int16_t>(measurements[6]);
-    float voc = (voc_idx < SEN6X_MIN_INDEX_VALUE || voc_idx > SEN6X_MAX_INDEX_VALUE)
-                    ? NAN
-                    : static_cast<float>(voc_idx) / 10.0f;
+    float co2{NAN};
+    float voc{NAN};
+    float nox{NAN};
+    float hcho{NAN};
 
-    ESP_LOGVV(TAG, "nox = 0x%.4x", measurements[7]);
-    int16_t nox_idx = static_cast<int16_t>(measurements[7]);
-    float nox = (nox_idx < SEN6X_MIN_INDEX_VALUE || nox_idx > SEN6X_MAX_INDEX_VALUE)
-                    ? NAN
-                    : static_cast<float>(nox_idx) / 10.0f;
+    if (this->sen6x_type_ == SEN63C) {
+      ESP_LOGVV(TAG, "co2 = 0x%.4x", measurements[6]);
+      co2 = measurements[6] == UINT16_MAX ? NAN : measurements[6];
+    }
+
+    if (this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN68 ||
+        this->sen6x_type_ == SEN69C) {
+      ESP_LOGVV(TAG, "voc = 0x%.4x", measurements[6]);
+      int16_t voc_idx = static_cast<int16_t>(measurements[6]);
+      voc = (voc_idx < SEN6X_MIN_INDEX_VALUE || voc_idx > SEN6X_MAX_INDEX_VALUE) ? NAN
+                                                                                 : static_cast<float>(voc_idx) / 10.0f;
+
+      ESP_LOGVV(TAG, "nox = 0x%.4x", measurements[7]);
+      int16_t nox_idx = static_cast<int16_t>(measurements[7]);
+      nox = (nox_idx < SEN6X_MIN_INDEX_VALUE || nox_idx > SEN6X_MAX_INDEX_VALUE) ? NAN
+                                                                                 : static_cast<float>(nox_idx) / 10.0f;
+    }
+
+    if (this->sen6x_type_ == SEN66) {
+      ESP_LOGVV(TAG, "co2 = 0x%.4x", measurements[8]);
+      co2 = measurements[8] == UINT16_MAX ? NAN : measurements[8];
+    }
+
+    if (this->sen6x_type_ == SEN68 || this->sen6x_type_ == SEN69C) {
+      ESP_LOGVV(TAG, "hcho = 0x%.4x", measurements[8]);
+      hcho = measurements[8] == UINT16_MAX ? NAN : measurements[8] / 10.0f;
+    }
+
+    if (this->sen6x_type_ == SEN69C) {
+      ESP_LOGVV(TAG, "co2 = 0x%.4x", measurements[9]);
+      co2 = measurements[9] == UINT16_MAX ? NAN : measurements[9];
+    }
 
     if (this->pm_1_0_sensor_ != nullptr) {
       this->pm_1_0_sensor_->publish_state(pm_1_0);
@@ -400,6 +413,12 @@ void SEN6XComponent::update() {
     }
     if (this->nox_sensor_ != nullptr) {
       this->nox_sensor_->publish_state(nox);
+    }
+    if (this->co2_sensor_ != nullptr) {
+      this->co2_sensor_->publish_state(co2);
+    }
+    if (this->hcho_sensor_ != nullptr) {
+      this->hcho_sensor_->publish_state(hcho);
     }
     this->status_clear_warning();
   });
