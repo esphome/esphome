@@ -82,7 +82,7 @@ class EmonTx : public PollingComponent,
   std::string get_buffer() const { return this->last_valid_json_; }
 
   // Send command to emonTx via UART
-  void send_command(const std::string &command);
+  void send_command(std::string command);
 
   // Enable/disable config panel (auto-fires esphome.emontx_raw events)
   void set_config_panel(bool enabled) { this->config_panel_ = enabled; }

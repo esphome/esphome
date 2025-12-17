@@ -367,11 +367,11 @@ void EmonTx::publish_value_(const std::string &tag, const std::string &val) {
  * @param listener Pointer to the listener object to register. The listener must have a 'tag'
  *                 property that identifies which JSON key it's interested in.
  */
-void EmonTx::send_command(const std::string &command) {
+void EmonTx::send_command(std::string command) {
   ESP_LOGD(TAG, "Sending command to emonTx: %s", command.c_str());
   // Append CR+LF as required by emonTx firmware
-  std::string cmd = command + "\r\n";
-  this->write_str(cmd.c_str());
+  command += "\r\n";
+  this->write_str(command.c_str());
 }
 
 #ifdef USE_SENSOR
