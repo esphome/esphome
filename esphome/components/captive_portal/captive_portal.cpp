@@ -65,12 +65,6 @@ void CaptivePortal::start() {
   this->base_->init();
   if (!this->initialized_) {
     this->base_->add_handler(this);
-#ifdef USE_ESP32
-    // Enable LRU socket purging to handle captive portal detection probe bursts
-    // OS captive portal detection makes many simultaneous HTTP requests which can
-    // exhaust sockets. LRU purging automatically closes oldest idle connections.
-    this->base_->get_server()->set_lru_purge_enable(true);
-#endif
   }
 
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
