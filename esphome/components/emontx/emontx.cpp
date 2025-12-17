@@ -179,7 +179,7 @@ void EmonTx::loop() {
 
         ESP_LOGD(TAG, "Received line: %s", line.c_str());
 
-#ifdef USE_API_HOMEASSISTANT_SERVICES
+#ifdef USE_API
         // Fire esphome.emontx_raw event for config panel
         if (this->config_panel_) {
           if (api::global_api_server == nullptr) {
@@ -281,7 +281,7 @@ void EmonTx::parse_json_(const std::string &data) {
     // Save the valid JSON data for callbacks
     this->last_valid_json_ = data;
 
-#ifdef USE_API_HOMEASSISTANT_SERVICES
+#ifdef USE_API
     // Fire Home Assistant event with the received data
     if (api::global_api_server != nullptr && api::global_api_server->is_connected()) {
       api::HomeassistantActionRequest resp;
