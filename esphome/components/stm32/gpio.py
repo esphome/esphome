@@ -1,3 +1,5 @@
+import re
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.zephyr.const import zephyr_ns
@@ -5,6 +7,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ANALOG, CONF_ID, CONF_INVERTED, CONF_MODE, CONF_NUMBER
 
 ZephyrGPIOPin = zephyr_ns.class_("ZephyrGPIOPin", cg.InternalGPIOPin)
+PIN_RE = re.compile("^P([A-P])(0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15)$", re.IGNORECASE)
 
 
 def _translate_pin(value):
@@ -19,19 +22,18 @@ def _translate_pin(value):
         return int(value)
     except ValueError:
         pass
-    # e.g. P0.27
-    if len(value) >= len("P0.0") and value[0] == "P" and value[2] == ".":
-        return cv.int_(value[len("P")].strip()) * 32 + cv.int_(
-            value[len("P0.") :].strip()
-        )
+
+    parsed = PIN_RE.match(value)
+    if parsed:
+        port_nr = ord(parsed[1]) - ord("A")
+        pin = int(parsed[2])
+        return port_nr * 16 + pin
+
     raise cv.Invalid(f"Invalid pin: {value}")
 
 
 def validate_gpio_pin(value):
-    value = _translate_pin(value)
-    if value < 0 or value > (32 + 16):
-        raise cv.Invalid(f"NRF52: Invalid pin number: {value}")
-    return value
+    return _translate_pin(value)
 
 
 def validate_supports(value):
