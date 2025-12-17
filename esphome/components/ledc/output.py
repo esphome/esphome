@@ -48,7 +48,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
         cv.Optional(CONF_FREQUENCY, default="1kHz"): cv.frequency,
         cv.Optional(CONF_CHANNEL): cv.int_range(min=0, max=15),
         cv.Optional(CONF_PHASE_ANGLE): cv.All(
-            cv.only_with_esp_idf, cv.angle, cv.float_range(min=0.0, max=360.0)
+            cv.angle, cv.float_range(min=0.0, max=360.0)
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
