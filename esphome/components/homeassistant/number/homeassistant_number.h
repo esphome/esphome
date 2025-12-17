@@ -11,7 +11,7 @@ namespace homeassistant {
 
 class HomeassistantNumber : public number::Number, public Component {
  public:
-  void set_entity_id(const std::string &entity_id) { this->entity_id_ = entity_id; }
+  void set_entity_id(const char *entity_id) { this->entity_id_ = entity_id; }
 
   void setup() override;
   void dump_config() override;
@@ -25,7 +25,7 @@ class HomeassistantNumber : public number::Number, public Component {
 
   void control(float value) override;
 
-  std::string entity_id_;
+  const char *entity_id_{nullptr};
 };
 }  // namespace homeassistant
 }  // namespace esphome
