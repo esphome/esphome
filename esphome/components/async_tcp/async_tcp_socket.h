@@ -10,8 +10,7 @@
 #include <string>
 #include <utility>
 
-namespace esphome {
-namespace async_tcp {
+namespace esphome::async_tcp {
 
 // Provide AsyncClient API for ESP-IDF and host platforms using sockets
 class AsyncClient {
@@ -63,7 +62,9 @@ class AsyncClient {
   void *error_arg_{nullptr};
 };
 
-}  // namespace async_tcp
-}  // namespace esphome
+}  // namespace esphome::async_tcp
 
+// Expose AsyncClient in global namespace to match library behavior
+using esphome::async_tcp::AsyncClient;  // NOLINT(google-global-names-in-headers)
+#define ESPHOME_ASYNC_TCP_SOCKET_IMPL
 #endif  // defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
