@@ -181,19 +181,25 @@ void EmonTx::loop() {
 
 #ifdef USE_API_HOMEASSISTANT_SERVICES
         // Fire esphome.emontx_raw event for config panel
-        if (this->config_panel_ && api::global_api_server != nullptr && api::global_api_server->is_connected()) {
-          api::HomeassistantActionRequest resp;
-          resp.set_service(StringRef("esphome.emontx_raw"));
-          resp.is_event = true;
-          resp.data.init(2);
-          auto &kv1 = resp.data.emplace_back();
-          kv1.set_key(StringRef("device_id"));
-          kv1.value = App.get_name();
-          auto &kv2 = resp.data.emplace_back();
-          kv2.set_key(StringRef("line"));
-          kv2.value = line;
-          api::global_api_server->send_homeassistant_action(resp);
-          ESP_LOGV(TAG, "Fired esphome.emontx_raw event");
+        if (this->config_panel_) {
+          if (api::global_api_server == nullptr) {
+            ESP_LOGW(TAG, "Cannot fire event: api_server is null");
+          } else if (!api::global_api_server->is_connected()) {
+            ESP_LOGV(TAG, "Cannot fire event: api_server not connected");
+          } else {
+            api::HomeassistantActionRequest resp;
+            resp.set_service(StringRef("esphome.emontx_raw"));
+            resp.is_event = true;
+            resp.data.init(2);
+            auto &kv1 = resp.data.emplace_back();
+            kv1.set_key(StringRef("device_id"));
+            kv1.value = App.get_name();
+            auto &kv2 = resp.data.emplace_back();
+            kv2.set_key(StringRef("line"));
+            kv2.value = line;
+            api::global_api_server->send_homeassistant_action(resp);
+            ESP_LOGV(TAG, "Fired esphome.emontx_raw event");
+          }
         }
 #endif
 
