@@ -76,6 +76,11 @@ void HttpRequestUpdate::update_task(void *params) {
 
     yield();
 
+    if (read_bytes <= 0) {
+      // Network error or connection closed - break to avoid infinite loop
+      break;
+    }
+
     read_index += read_bytes;
   }
 
