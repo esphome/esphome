@@ -152,6 +152,16 @@ esp32:
   errors (e.g., with complex code or deep recursion). Higher values reduce heap availability. Valid range is 8192-32768
   bytes. Defaults to 8192 bytes.
 
+- **enable_ota_rollback** (*Optional*, boolean): Enable OTA rollback support. When enabled, the bootloader will
+  automatically roll back to the previous firmware if the device crashes or resets before the boot is marked as
+  successful. This works in conjunction with the [safe_mode](/components/safe_mode) component - after the
+  `boot_is_good_after` time (default 60s), the firmware is marked as valid. If the device crashes before that,
+  it will roll back to the previous working firmware. Defaults to `true`.
+
+> [!NOTE]
+> OTA rollback requires the bootloader to be compiled with rollback support. Existing devices may need to be
+> reflashed via serial to update the bootloader - OTA updates do not update the bootloader.
+
 **LWIP Optimization Options (ESP-IDF only):**
 
 The following options are available under the `advanced` section when using the ESP-IDF framework to optimize
