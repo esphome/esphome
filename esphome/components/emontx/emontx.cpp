@@ -171,7 +171,7 @@ void EmonTx::loop() {
 
         ESP_LOGD(TAG, "Received line: %s", line.c_str());
 
-#ifdef USE_API
+#ifdef USE_API_HOMEASSISTANT_SERVICES
         // Fire esphome.emontx_raw event for config panel
         if (this->config_panel_ && api::global_api_server != nullptr && api::global_api_server->is_connected()) {
           api::HomeassistantActionRequest resp;
