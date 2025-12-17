@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
     CONF_COMPONENTS,
+    CONF_DISABLED,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
     CONF_IGNORE_EFUSE_CUSTOM_MAC,
@@ -24,6 +25,7 @@ from esphome.const import (
     CONF_PLATFORMIO_OPTIONS,
     CONF_REF,
     CONF_REFRESH,
+    CONF_SAFE_MODE,
     CONF_SOURCE,
     CONF_TYPE,
     CONF_VARIANT,
@@ -81,6 +83,7 @@ CONF_ASSERTION_LEVEL = "assertion_level"
 CONF_COMPILER_OPTIMIZATION = "compiler_optimization"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
+CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_RELEASE = "release"
 
@@ -571,6 +574,13 @@ def final_validate(config):
                 path=[CONF_FLASH_SIZE],
             )
         )
+    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+        safe_mode_config = full_config.get(CONF_SAFE_MODE)
+        if safe_mode_config is None or safe_mode_config.get(CONF_DISABLED, False):
+            _LOGGER.warning(
+                "OTA rollback requires safe_mode, disabling rollback support"
+            )
+            advanced[CONF_ENABLE_OTA_ROLLBACK] = False
     if errs:
         raise cv.MultipleInvalid(errs)
 
@@ -691,6 +701,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
                     min=8192, max=32768
                 ),
+                cv.Optional(CONF_ENABLE_OTA_ROLLBACK, default=True): cv.boolean,
             }
         ),
         cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
@@ -986,14 +997,8 @@ async def to_code(config):
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
         )
-        add_idf_sdkconfig_option(
-            "CONFIG_ARDUINO_LOOP_STACK_SIZE",
-            conf[CONF_ADVANCED][CONF_LOOP_TASK_STACK_SIZE],
-        )
-        add_idf_sdkconfig_option("CONFIG_AUTOSTART_ARDUINO", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
-        add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
         # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
         if get_esp32_variant() == VARIANT_ESP32S2:
@@ -1163,6 +1168,11 @@ async def to_code(config):
             add_idf_sdkconfig_option(
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH", True
             )
+
+    # Enable OTA rollback support
+    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+        add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
+        cg.add_define("USE_OTA_ROLLBACK")
 
     cg.add_define("ESPHOME_LOOP_TASK_STACK_SIZE", advanced[CONF_LOOP_TASK_STACK_SIZE])
 
