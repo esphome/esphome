@@ -1440,6 +1440,8 @@ void WaterHeaterStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
   dump_field(out, "state", this->state);
+  dump_field(out, "target_temperature_low", this->target_temperature_low);
+  dump_field(out, "target_temperature_high", this->target_temperature_high);
 }
 void WaterHeaterCommandRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "WaterHeaterCommandRequest");
@@ -1453,6 +1455,10 @@ void WaterHeaterCommandRequest::dump_to(std::string &out) const {
 #endif
   dump_field(out, "has_state", this->has_state);
   dump_field(out, "state", this->state);
+  dump_field(out, "has_target_temperature_low", this->has_target_temperature_low);
+  dump_field(out, "target_temperature_low", this->target_temperature_low);
+  dump_field(out, "has_target_temperature_high", this->has_target_temperature_high);
+  dump_field(out, "target_temperature_high", this->target_temperature_high);
 }
 #endif
 #ifdef USE_NUMBER

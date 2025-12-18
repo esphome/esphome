@@ -1478,6 +1478,8 @@ void WaterHeaterStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(5, this->device_id);
 #endif
   buffer.encode_uint32(6, this->state);
+  buffer.encode_float(7, this->target_temperature_low);
+  buffer.encode_float(8, this->target_temperature_high);
 }
 void WaterHeaterStateResponse::calculate_size(ProtoSize &size) const {
   size.add_fixed32(1, this->key);
@@ -1488,6 +1490,8 @@ void WaterHeaterStateResponse::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, this->device_id);
 #endif
   size.add_uint32(1, this->state);
+  size.add_float(1, this->target_temperature_low);
+  size.add_float(1, this->target_temperature_high);
 }
 bool WaterHeaterCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
@@ -1511,6 +1515,12 @@ bool WaterHeaterCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt val
     case 8:
       this->state = value.as_uint32();
       break;
+    case 9:
+      this->has_target_temperature_low = value.as_bool();
+      break;
+    case 11:
+      this->has_target_temperature_high = value.as_bool();
+      break;
     default:
       return false;
   }
@@ -1523,6 +1533,12 @@ bool WaterHeaterCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value
       break;
     case 5:
       this->target_temperature = value.as_float();
+      break;
+    case 10:
+      this->target_temperature_low = value.as_float();
+      break;
+    case 12:
+      this->target_temperature_high = value.as_float();
       break;
     default:
       return false;

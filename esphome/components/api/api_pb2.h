@@ -1544,7 +1544,7 @@ class ListEntitiesWaterHeaterResponse final : public InfoResponseProtoMessage {
 class WaterHeaterStateResponse final : public StateResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 133;
-  static constexpr uint8_t ESTIMATED_SIZE = 25;
+  static constexpr uint8_t ESTIMATED_SIZE = 35;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "water_heater_state_response"; }
 #endif
@@ -1552,6 +1552,8 @@ class WaterHeaterStateResponse final : public StateResponseProtoMessage {
   float target_temperature{0.0f};
   enums::WaterHeaterMode mode{};
   uint32_t state{0};
+  float target_temperature_low{0.0f};
+  float target_temperature_high{0.0f};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1563,7 +1565,7 @@ class WaterHeaterStateResponse final : public StateResponseProtoMessage {
 class WaterHeaterCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 134;
-  static constexpr uint8_t ESTIMATED_SIZE = 26;
+  static constexpr uint8_t ESTIMATED_SIZE = 40;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "water_heater_command_request"; }
 #endif
@@ -1573,6 +1575,10 @@ class WaterHeaterCommandRequest final : public CommandProtoMessage {
   float target_temperature{0.0f};
   bool has_state{false};
   uint32_t state{0};
+  bool has_target_temperature_low{false};
+  float target_temperature_low{0.0f};
+  bool has_target_temperature_high{false};
+  float target_temperature_high{0.0f};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif

@@ -42,17 +42,27 @@ enum WaterHeaterFeature : uint32_t {
   WATER_HEATER_SUPPORTS_AWAY_MODE = 1 << 3,
   /// The water heater can be turned on/off.
   WATER_HEATER_SUPPORTS_ON_OFF = 1 << 4,
+  /// The water heater supports two-point target temperature (low/high range).
+  WATER_HEATER_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE = 1 << 5,
 };
 
 /// State flags for water heater current state (bitmask)
 enum WaterHeaterStateFlag : uint32_t {
   /// Away/vacation mode is currently active
   WATER_HEATER_STATE_AWAY = 1 << 0,
+  /// Water heater is on (not in standby)
+  WATER_HEATER_STATE_ON = 1 << 1,
 };
 
 struct SavedWaterHeaterState {
   WaterHeaterMode mode;
-  float target_temperature;
+  union {
+    float target_temperature;
+    struct {
+      float target_temperature_low;
+      float target_temperature_high;
+    };
+  } __attribute__((packed));
   uint32_t state;
 } __attribute__((packed));
 
@@ -67,12 +77,17 @@ class WaterHeaterCall {
   WaterHeaterCall &set_mode(WaterHeaterMode mode);
   WaterHeaterCall &set_mode(const std::string &mode);
   WaterHeaterCall &set_target_temperature(float temperature);
+  WaterHeaterCall &set_target_temperature_low(float temperature);
+  WaterHeaterCall &set_target_temperature_high(float temperature);
   WaterHeaterCall &set_away(bool away);
+  WaterHeaterCall &set_on(bool on);
 
   void perform();
 
   const optional<WaterHeaterMode> &get_mode() const { return this->mode_; }
   float get_target_temperature() const { return this->target_temperature_; }
+  float get_target_temperature_low() const { return this->target_temperature_low_; }
+  float get_target_temperature_high() const { return this->target_temperature_high_; }
   /// Get state flags value
   uint32_t get_state() const { return this->state_; }
 
@@ -81,6 +96,8 @@ class WaterHeaterCall {
   WaterHeater *parent_;
   optional<WaterHeaterMode> mode_;
   float target_temperature_{NAN};
+  float target_temperature_low_{NAN};
+  float target_temperature_high_{NAN};
   uint32_t state_{0};
 };
 
@@ -90,6 +107,8 @@ struct WaterHeaterCallInternal : public WaterHeaterCall {
   WaterHeaterCallInternal &set_from_restore(const WaterHeaterCall &restore) {
     this->mode_ = restore.mode_;
     this->target_temperature_ = restore.target_temperature_;
+    this->target_temperature_low_ = restore.target_temperature_low_;
+    this->target_temperature_high_ = restore.target_temperature_high_;
     this->state_ = restore.state_;
     return *this;
   }
@@ -123,6 +142,17 @@ class WaterHeaterTraits {
     }
   }
 
+  bool get_supports_two_point_target_temperature() const {
+    return this->has_feature_flags(WATER_HEATER_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
+  }
+  void set_supports_two_point_target_temperature(bool supports) {
+    if (supports) {
+      this->add_feature_flags(WATER_HEATER_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
+    } else {
+      this->clear_feature_flags(WATER_HEATER_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
+    }
+  }
+
   void set_min_temperature(float min_temperature) { this->min_temperature_ = min_temperature; }
   float get_min_temperature() const { return this->min_temperature_; }
 
@@ -152,10 +182,14 @@ class WaterHeater : public EntityBase, public Component {
   WaterHeaterMode get_mode() const { return this->mode_; }
   float get_current_temperature() const { return this->current_temperature_; }
   float get_target_temperature() const { return this->target_temperature_; }
+  float get_target_temperature_low() const { return this->target_temperature_low_; }
+  float get_target_temperature_high() const { return this->target_temperature_high_; }
   /// Get the current state flags bitmask
   uint32_t get_state() const { return this->state_; }
   /// Check if away mode is currently active
   bool is_away() const { return (this->state_ & WATER_HEATER_STATE_AWAY) != 0; }
+  /// Check if the water heater is on
+  bool is_on() const { return (this->state_ & WATER_HEATER_STATE_ON) != 0; }
 
   void set_current_temperature(float current_temperature) { this->current_temperature_ = current_temperature; }
 
@@ -184,6 +218,14 @@ class WaterHeater : public EntityBase, public Component {
   void set_mode_(WaterHeaterMode mode) { this->mode_ = mode; }
   /// Set the target temperature of the water heater. Should only be called from control().
   void set_target_temperature_(float target_temperature) { this->target_temperature_ = target_temperature; }
+  /// Set the low target temperature (for two-point control). Should only be called from control().
+  void set_target_temperature_low_(float target_temperature_low) {
+    this->target_temperature_low_ = target_temperature_low;
+  }
+  /// Set the high target temperature (for two-point control). Should only be called from control().
+  void set_target_temperature_high_(float target_temperature_high) {
+    this->target_temperature_high_ = target_temperature_high;
+  }
   /// Set the state flags. Should only be called from control().
   void set_state_(uint32_t state) { this->state_ = state; }
   /// Set or clear a state flag. Should only be called from control().
@@ -198,6 +240,8 @@ class WaterHeater : public EntityBase, public Component {
   WaterHeaterMode mode_{WATER_HEATER_MODE_OFF};
   float current_temperature_{NAN};
   float target_temperature_{NAN};
+  float target_temperature_low_{NAN};
+  float target_temperature_high_{NAN};
   uint32_t state_{0};  // Bitmask of WaterHeaterStateFlag
 
 #ifdef USE_WATER_HEATER_VISUAL_OVERRIDES
