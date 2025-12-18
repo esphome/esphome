@@ -1339,23 +1339,11 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
 }
 
 void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequest &msg) {
-#ifdef USE_DEVICES
-  water_heater::WaterHeater *water_heater = App.get_water_heater_by_key(msg.key, 0);
-#else
-  water_heater::WaterHeater *water_heater = App.get_water_heater_by_key(msg.key);
-#endif
-
-  if (water_heater == nullptr)
-    return;
-
-  auto call = water_heater->make_call();
-
-  if (msg.has_mode) {
+  ENTITY_COMMAND_MAKE_CALL(water_heater::WaterHeater, water_heater, water_heater)
+  if (msg.has_mode)
     call.set_mode(static_cast<water_heater::WaterHeaterMode>(msg.mode));
-  }
-  if (msg.has_target_temperature) {
+  if (msg.has_target_temperature)
     call.set_target_temperature(msg.target_temperature);
-  }
   call.perform();
 }
 #endif
