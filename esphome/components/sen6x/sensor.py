@@ -51,7 +51,7 @@ SEN6XComponent = sen6x_ns.class_(
     "SEN6XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
 
-CONF_ALGORITHM_TUNING = "algorithm_tuning"  # DEBUG
+CONF_ALGORITHM_TUNING = "algorithm_tuning"
 CONF_INDEX_OFFSET = "index_offset"
 CONF_LEARNING_TIME_OFFSET_HOURS = "learning_time_offset_hours"
 CONF_LEARNING_TIME_GAIN_HOURS = "learning_time_gain_hours"
@@ -66,8 +66,8 @@ CONF_SLOT = "slot"
 
 CONF_VOC_BASELINE = "voc_baseline"  # VOC state
 
-CONF_NOX = "nox"  # DEBUG
-CONF_VOC = "voc"  # DEBUG
+CONF_NOX = "nox"
+CONF_VOC = "voc"
 
 
 # Actions
