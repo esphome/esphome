@@ -9,7 +9,7 @@ from esphome.const import (
     CONF_VISUAL,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import setup_entity
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
 
@@ -49,6 +49,8 @@ _WATER_HEATER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+_WATER_HEATER_SCHEMA.add_extra(entity_duplicate_validator("water_heater"))
 
 
 def water_heater_schema(
