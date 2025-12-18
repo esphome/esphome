@@ -1134,25 +1134,31 @@ message ListEntitiesWaterHeaterResponse {
 
 message WaterHeaterStateResponse {
   option (id) = 133;
+  option (base_class) = "StateResponseProtoMessage";
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_WATER_HEATER";
+  option (no_delay) = true;
 
   fixed32 key = 1;
   float current_temperature = 2;
   float target_temperature = 3;
   WaterHeaterMode mode = 4;
+  uint32 device_id = 5 [(field_ifdef) = "USE_DEVICES"];
 }
 
 message WaterHeaterCommandRequest {
   option (id) = 134;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_WATER_HEATER";
+  option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
   bool has_mode = 2;
   WaterHeaterMode mode = 3;
   bool has_target_temperature = 4;
   float target_temperature = 5;
+  uint32 device_id = 6 [(field_ifdef) = "USE_DEVICES"];
 }
 
 // ==================== NUMBER ====================

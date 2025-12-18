@@ -1539,14 +1539,13 @@ class ListEntitiesWaterHeaterResponse final : public InfoResponseProtoMessage {
 
  protected:
 };
-class WaterHeaterStateResponse final : public ProtoMessage {
+class WaterHeaterStateResponse final : public StateResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 133;
-  static constexpr uint8_t ESTIMATED_SIZE = 17;
+  static constexpr uint8_t ESTIMATED_SIZE = 21;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "water_heater_state_response"; }
 #endif
-  uint32_t key{0};
   float current_temperature{0.0f};
   float target_temperature{0.0f};
   enums::WaterHeaterMode mode{};
@@ -1558,14 +1557,13 @@ class WaterHeaterStateResponse final : public ProtoMessage {
 
  protected:
 };
-class WaterHeaterCommandRequest final : public ProtoDecodableMessage {
+class WaterHeaterCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 134;
-  static constexpr uint8_t ESTIMATED_SIZE = 16;
+  static constexpr uint8_t ESTIMATED_SIZE = 20;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "water_heater_command_request"; }
 #endif
-  uint32_t key{0};
   bool has_mode{false};
   enums::WaterHeaterMode mode{};
   bool has_target_temperature{false};
