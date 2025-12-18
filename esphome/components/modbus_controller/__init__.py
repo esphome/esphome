@@ -18,6 +18,7 @@ from esphome.cpp_helpers import logging
 from .const import (
     CONF_BITMASK,
     CONF_BYTE_OFFSET,
+    CONF_CONTINUOUS_READ,
     CONF_CUSTOM_COMMAND,
     CONF_FORCE_NEW_RANGE,
     CONF_MAX_CMD_RETRIES,
@@ -66,6 +67,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ModbusController),
             cv.Optional(CONF_MAX_CMD_RETRIES, default=4): cv.positive_int,
             cv.Optional(CONF_OFFLINE_SKIP_UPDATES, default=0): cv.positive_int,
+            cv.Optional(CONF_CONTINUOUS_READ, default=False): cv.boolean,
             cv.Optional(CONF_ON_COMMAND_SENT): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -196,6 +198,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
+    cg.add(var.set_continuous_read(config[CONF_CONTINUOUS_READ]))
     await register_modbus_device(var, config)
     for conf in config.get(CONF_ON_COMMAND_SENT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

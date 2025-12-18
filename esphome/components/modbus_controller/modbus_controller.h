@@ -135,6 +135,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
       on_data_func;
   /// the modbus client pdu
   std::vector<uint8_t> payload = {};
+  bool continuous_read{false};
   bool raw_payload{false};
   void send();
 
@@ -242,6 +243,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   void add_sensor_item(SensorItem *item) { sensorset_.insert(item); }
   /// called by esphome generated code to set the offline_skip_updates
   void set_offline_skip_updates(uint16_t offline_skip_updates) { this->offline_skip_updates_ = offline_skip_updates; }
+  /// called by esphome generated code to set the continuous_read mode
+  void set_continuous_read(bool continuous) { this->continuous_read_ = continuous; }
   /// get if the module is offline, didn't respond the last command
   bool get_module_offline() { return module_offline_; }
   /// Set callback for commands
@@ -273,11 +276,6 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
  protected:
   /// parse sensormap_ and create range of sequential addresses
   size_t create_register_ranges_();
-  /// create a command from a range and add it to the polling queue
-  void create_polling_command_(RegisterRange &&range = {}) {
-    ModbusCommandItem cmd(*this, this->parent_, this->address_, std::move(range));
-    this->polling_command_items_.push_back(std::move(cmd));
-  };
   /// submit the read command for the address range to the send queue
   void update_range_(ModbusCommandItem &cmd);
   /// dump the parsed sensormap for diagnostics
@@ -294,6 +292,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   uint16_t module_offline_at_{0};
   /// if module didn't respond the last command
   bool module_offline_{false};
+  /// if we should continuously queue read commands
+  bool continuous_read_{false};
   /// how many updates to skip if module is offline
   uint16_t offline_skip_updates_{0};
   /// How many times we will retry commands if we get no response

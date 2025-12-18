@@ -243,12 +243,16 @@ size_t ModbusController::create_register_ranges_() {
   }
 
   for (auto &r : register_ranges) {
-    this->create_polling_command_(std::move(r));
+    ModbusCommandItem cmd(*this, this->parent_, this->address_, std::move(r));
+    cmd.continuous_read = this->continuous_read_;
+    this->polling_command_items_.push_back(std::move(cmd));
   }
 
   for (auto &sensor : this->sensorset_) {
     if (sensor->register_type == ModbusRegisterType::CUSTOM) {
-      this->polling_command_items_.push_back(ModbusCommandItem::create_custom_command(this, sensor->custom_data));
+      ModbusCommandItem cmd = ModbusCommandItem::create_custom_command(this, sensor->custom_data);
+      cmd.continuous_read = this->continuous_read_;
+      this->polling_command_items_.push_back(std::move(cmd));
     }
   }
 
@@ -359,9 +363,9 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
 
 void ModbusCommandItem::send() {
   if (this->raw_payload) {
-    this->send_raw(this->payload);
+    this->send_raw(this->payload, this->continuous_read);
   } else {
-    this->send_pdu(this->payload);
+    this->send_pdu(this->payload, this->continuous_read);
   }
   this->controller_->command_sent((int) this->function_code(), this->register_address());
   ESP_LOGV(TAG, "Command sent %d 0x%X %d", uint8_t(this->function_code()), this->register_address(),
