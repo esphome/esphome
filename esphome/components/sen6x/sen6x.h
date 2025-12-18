@@ -119,9 +119,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
 
  protected:
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
-  bool
-
-  perature_compensation_(const TemperatureCompensation &compensation);
+  bool write_temperature_compensation_(const TemperatureCompensation &compensation);
   bool write_pressure_compensation_(const uint16_t pressure);
   bool write_altitude_compensation_(const uint16_t altitude);
 
