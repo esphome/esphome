@@ -38,6 +38,8 @@ struct SavedWaterHeaterState {
 } __attribute__((packed));
 
 class WaterHeaterCall {
+  friend struct WaterHeaterCallInternal;
+
  public:
   WaterHeaterCall() : parent_(nullptr) {}
 
@@ -52,15 +54,14 @@ class WaterHeaterCall {
   void apply(WaterHeater *water_heater);
   WaterHeaterCall &to_call(WaterHeater *water_heater);
 
-  optional<WaterHeaterMode> mode_;
-  optional<float> target_temperature_;
-
   const optional<WaterHeaterMode> &get_mode() const { return this->mode_; }
-  const optional<float> &get_target_temperature() const { return this->target_temperature_; }
+  float get_target_temperature() const { return this->target_temperature_; }
 
  protected:
   void validate_();
   WaterHeater *parent_;
+  optional<WaterHeaterMode> mode_;
+  float target_temperature_{NAN};
 };
 
 struct WaterHeaterCallInternal : public WaterHeaterCall {

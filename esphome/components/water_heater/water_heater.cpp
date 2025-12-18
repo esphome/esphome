@@ -3,6 +3,8 @@
 #include "esphome/core/application.h"
 #include "esphome/core/controller_registry.h"
 
+#include <cmath>
+
 namespace esphome {
 namespace water_heater {
 
@@ -61,16 +63,16 @@ void WaterHeaterCall::validate_() {
       this->mode_.reset();
     }
   }
-  if (this->target_temperature_.has_value()) {
-    if (*this->target_temperature_ < traits.get_min_temperature() ||
-        *this->target_temperature_ > traits.get_max_temperature()) {
+  if (!std::isnan(this->target_temperature_)) {
+    if (this->target_temperature_ < traits.get_min_temperature() ||
+        this->target_temperature_ > traits.get_max_temperature()) {
       ESP_LOGW(TAG, "'%s' - Target temperature %.1f is out of range [%.1f - %.1f]", this->parent_->get_name().c_str(),
-               *this->target_temperature_, traits.get_min_temperature(), traits.get_max_temperature());
+               this->target_temperature_, traits.get_min_temperature(), traits.get_max_temperature());
 
-      if (*this->target_temperature_ < traits.get_min_temperature())
-        *this->target_temperature_ = traits.get_min_temperature();
-      if (*this->target_temperature_ > traits.get_max_temperature())
-        *this->target_temperature_ = traits.get_max_temperature();
+      if (this->target_temperature_ < traits.get_min_temperature())
+        this->target_temperature_ = traits.get_min_temperature();
+      if (this->target_temperature_ > traits.get_max_temperature())
+        this->target_temperature_ = traits.get_max_temperature();
     }
   }
 }
