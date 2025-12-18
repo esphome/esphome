@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import aqi, sensor, uart
+from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FORMALDEHYDE,
