@@ -4,6 +4,9 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ALTITUDE,
+    CONF_ALTITUDE_COMPENSATION,
+    CONF_AMBIENT_PRESSURE_COMPENSATION,
     CONF_CO2,
     CONF_FORMALDEHYDE,
     CONF_GAIN_FACTOR,
@@ -14,6 +17,7 @@ from esphome.const import (
     CONF_PM_2_5,
     CONF_PM_4_0,
     CONF_PM_10_0,
+    CONF_PRESSURE,
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_COMPENSATION,
@@ -26,6 +30,7 @@ from esphome.const import (
     DEVICE_CLASS_PM25,
     DEVICE_CLASS_TEMPERATURE,
     ICON_CHEMICAL_WEAPON,
+    ICON_MOLECULE_CO2,
     ICON_RADIATOR,
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
@@ -45,20 +50,24 @@ sen6x_ns = cg.esphome_ns.namespace("sen6x")
 SEN6XComponent = sen6x_ns.class_(
     "SEN6XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
-RhtAccelerationMode = sen6x_ns.enum("RhtAccelerationMode")
 
-CONF_ALGORITHM_TUNING = "algorithm_tuning"
-CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
-CONF_GATING_MAX_DURATION_MINUTES = "gating_max_duration_minutes"
+CONF_ALGORITHM_TUNING = "algorithm_tuning"  # DEBUG
 CONF_INDEX_OFFSET = "index_offset"
-CONF_LEARNING_TIME_GAIN_HOURS = "learning_time_gain_hours"
 CONF_LEARNING_TIME_OFFSET_HOURS = "learning_time_offset_hours"
-CONF_NORMALIZED_OFFSET_SLOPE = "normalized_offset_slope"
-CONF_NOX = "nox"
+CONF_LEARNING_TIME_GAIN_HOURS = "learning_time_gain_hours"
+CONF_GATING_MAX_DURATION_MINUTES = "gating_max_duration_minutes"
 CONF_STD_INITIAL = "std_initial"
+# CONF_GAIN_FACTOR is imported from esphome.const
+
+# CONF_OFFSET is imported from esphome.const
+CONF_NORMALIZED_OFFSET_SLOPE = "normalized_offset_slope"
 CONF_TIME_CONSTANT = "time_constant"
-CONF_VOC = "voc"
-CONF_VOC_BASELINE = "voc_baseline"
+CONF_SLOT = "slot"
+
+CONF_VOC_BASELINE = "voc_baseline"  # VOC state
+
+CONF_NOX = "nox"  # DEBUG
+CONF_VOC = "voc"  # DEBUG
 
 
 # Actions
@@ -151,10 +160,27 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_CHEMICAL_WEAPON,
+                icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                {
+                    cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.Schema(
+                        {
+                            cv.Optional(CONF_PRESSURE, default=1013): cv.int_range(
+                                700, 1200
+                            ),
+                        }
+                    ),
+                    cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.Schema(
+                        {
+                            cv.Optional(CONF_ALTITUDE, default=0): cv.int_range(
+                                0, 3000
+                            ),
+                        }
+                    ),
+                }
             ),
             cv.Optional(CONF_FORMALDEHYDE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
@@ -163,7 +189,6 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_GAS,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval,
             cv.Optional(CONF_VOC): _gas_sensor(
                 index_offset=100,
                 learning_time_offset=12,
@@ -203,6 +228,7 @@ CONFIG_SCHEMA = (
                         float_previously_pct, cv.float_
                     ),
                     cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_,
+                    cv.Optional(CONF_SLOT, default=0): cv.int_range(0, 4),
                 }
             ),
         }
@@ -224,9 +250,7 @@ SENSOR_MAP = {
     CONF_FORMALDEHYDE: "set_hcho_sensor",
 }
 
-SETTING_MAP = {
-    CONF_AUTO_CLEANING_INTERVAL: "set_auto_cleaning_interval",
-}
+SETTING_MAP = {}
 
 
 async def to_code(config):
@@ -272,6 +296,19 @@ async def to_code(config):
                 cfg[CONF_OFFSET],
                 cfg[CONF_NORMALIZED_OFFSET_SLOPE],
                 cfg[CONF_TIME_CONSTANT],
+                cfg[CONF_SLOT],
+            )
+        )
+    if cfg := config.get(CONF_CO2, {}).get(CONF_AMBIENT_PRESSURE_COMPENSATION):
+        cg.add(
+            var.set_pressure_compensation(
+                cfg[CONF_PRESSURE],
+            )
+        )
+    if cfg := config.get(CONF_CO2, {}).get(CONF_ALTITUDE_COMPENSATION):
+        cg.add(
+            var.set_altitude_compensation(
+                cfg[CONF_ALTITUDE],
             )
         )
 

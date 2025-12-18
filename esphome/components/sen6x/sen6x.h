@@ -18,12 +18,6 @@ enum ERRORCODE : uint8_t {
   UNKNOWN
 };
 
-enum RhtAccelerationMode : uint16_t {
-  LOW_ACCELERATION = 0,
-  MEDIUM_ACCELERATION = 1,
-  HIGH_ACCELERATION = 2,
-};
-
 struct Sen6xBaselines {
   int32_t state0;
   int32_t state1;
@@ -42,6 +36,7 @@ struct TemperatureCompensation {
   int16_t offset;
   int16_t normalized_offset_slope;
   uint16_t time_constant;
+  uint16_t slot;
 };
 
 // Shortest time interval of 3H for storing baseline values.
@@ -69,7 +64,6 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
   void set_hcho_sensor(sensor::Sensor *hcho_sensor) { hcho_sensor_ = hcho_sensor; }
   void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
-  void set_acceleration_mode(RhtAccelerationMode mode) { acceleration_mode_ = mode; }
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
                                 uint16_t std_initial, uint16_t gain_factor) {
@@ -94,13 +88,17 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
     tuning_params.gain_factor = gain_factor;
     nox_tuning_params_ = tuning_params;
   }
-  void set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant) {
+  void set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant,
+                                    uint16_t slot) {
     TemperatureCompensation temp_comp;
     temp_comp.offset = offset * 200;
     temp_comp.normalized_offset_slope = normalized_offset_slope * 10000;
     temp_comp.time_constant = time_constant;
+    temp_comp.slot = slot;
     temperature_compensation_ = temp_comp;
   }
+  void set_pressure_compensation(uint16_t pressure) { pressure_compensation_ = pressure; }
+  void set_altitude_compensation(uint16_t altitude) { altitude_compensation_ = altitude; }
   void set_type(std::string type) {
     if (type == "SEN62")
       this->sen6x_type_ = SEN62;
@@ -121,7 +119,11 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
 
  protected:
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
-  bool write_temperature_compensation_(const TemperatureCompensation &compensation);
+  bool
+
+  perature_compensation_(const TemperatureCompensation &compensation);
+  bool write_pressure_compensation_(const uint16_t pressure);
+  bool write_altitude_compensation_(const uint16_t altitude);
 
   template<size_t N> void unpackUint16ToChar_(uint16_t (&src)[N], std::array<char, N * 2> &dest) {
     for (size_t i = 0; i < N; ++i) {
@@ -148,7 +150,6 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *co2_sensor_{nullptr};   // not available on all sensors
   sensor::Sensor *hcho_sensor_{nullptr};  // not available on all sensors
 
-  optional<RhtAccelerationMode> acceleration_mode_;
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureCompensation> temperature_compensation_;
@@ -156,6 +157,8 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   std::array<char, 32> product_name_;
   Sen6xType sen6x_type_{UNKNOWN};
   Sen6xBaselines voc_baselines_storage_;
+  optional<uint16_t> pressure_compensation_;
+  optional<uint16_t> altitude_compensation_;
 };
 
 }  // namespace sen6x
