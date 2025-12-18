@@ -406,18 +406,25 @@ void ModbusClientHub::send_next_frame_() {
 }
 
 void ModbusClientHub::clear_waiting_for_response_() {
+  if (!this->waiting_for_response_.has_value())
+    return;
   ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
 
-  // We requeue the frame if resend_when_complete is true
+  // We requeue the frame if priority is ReadAgain
   switch (wfr.priority) {
     case ModbusDeviceCommandPriority::ReadAgain:
       wfr.priority = ModbusDeviceCommandPriority::ReadOnce;
       // Fallthrough
-    case ModbusDeviceCommandPriority::ReadContinuous:
+    case ModbusDeviceCommandPriority::ReadContinuous: {
       wfr.interrupted = false;
       ESP_LOGV(TAG, "Adding frame to tx queue (resend): %s", format_hex_pretty(wfr.frame).c_str());
-      this->tx_buffer_.push_back(wfr);
+      // Find location of first frame with lower priority
+      const auto it = std::find_if(this->tx_buffer_.begin(), this->tx_buffer_.end(),
+                                   [&wfr](const ModbusDeviceCommand &cmd) { return cmd.priority < wfr.priority; });
+      // Insert in front of the lower priority frame
+      this->tx_buffer_.insert(it, wfr);
       break;
+    }
     case ModbusDeviceCommandPriority::ReadOnce:
     case ModbusDeviceCommandPriority::Write:
     default:
@@ -529,8 +536,9 @@ void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClient
     } else if (continuous) {
       priority = ModbusDeviceCommandPriority::ReadContinuous;
     }
-
-    this->tx_buffer_.push_back({device, frame, priority});
+    const auto it = std::find_if(this->tx_buffer_.begin(), this->tx_buffer_.end(),
+                                 [priority](const ModbusDeviceCommand &cmd) { return cmd.priority < priority; });
+    this->tx_buffer_.insert(it, {device, frame, priority});
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
     if (this->tx_buffer_.size() == 1) {
       App.wake_loop_threadsafe();

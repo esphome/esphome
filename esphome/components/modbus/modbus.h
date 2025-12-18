@@ -57,13 +57,14 @@ class Modbus : public uart::UARTDevice, public Component {
 class ModbusClientDevice;
 class ModbusServerDevice;
 
-enum class ModbusDeviceCommandPriority : uint8_t { ReadContinuous, ReadAgain, ReadOnce, Write };
+enum class ModbusDeviceCommandPriority : uint8_t { ReadContinuous, ReadOnce, ReadAgain, Write };
 
 struct ModbusDeviceCommand {
   ModbusClientDevice *device;
   std::vector<uint8_t> frame;
   ModbusDeviceCommandPriority priority;
   bool interrupted{false};
+  bool operator<(const ModbusDeviceCommand &rhs) { return this->priority < rhs.priority; }
 };
 
 class ModbusClientHub : public Modbus {
@@ -91,7 +92,7 @@ class ModbusClientHub : public Modbus {
   uint16_t send_wait_time_{2000};
   std::optional<ModbusDeviceCommand> waiting_for_response_;
 
-  // std::queue is appropriate here since we need a FIFO buffer, and we can't know ahead of time how many
+  // std::deque is appropriate here since we need a FIFO buffer, and we can't know ahead of time how many
   // requests will be queued. Each modbus component may queue multiple requests, and the sequence of scheduling
   // may change at run time.
   std::deque<ModbusDeviceCommand> tx_buffer_;
