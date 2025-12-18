@@ -382,10 +382,15 @@ def include_file(path: Path, basename: Path, is_c_header: bool = False):
 
 
 ARDUINO_GLUE_CODE = """\
+#undef yield
 #define yield() esphome::yield()
+#undef millis
 #define millis() esphome::millis()
+#undef micros
 #define micros() esphome::micros()
+#undef delay
 #define delay(x) esphome::delay(x)
+#undef delayMicroseconds
 #define delayMicroseconds(x) esphome::delayMicroseconds(x)
 """
 
@@ -536,7 +541,7 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_DEBUG_SCHEDULER]:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
 
-    if CORE.using_arduino and not CORE.is_bk72xx:
+    if CORE.using_arduino:
         CORE.add_job(add_arduino_global_workaround)
 
     if config[CONF_INCLUDES]:
