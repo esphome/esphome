@@ -257,10 +257,10 @@ class Application {
   }
 
   /// Copy the comment string into the provided buffer
-  /// Buffer must be ESPHOME_COMMENT_SIZE bytes
-  void get_comment_string(char *buffer, size_t size) {
-    ESPHOME_strncpy_P(buffer, ESPHOME_COMMENT_STR, size);
-    buffer[size - 1] = '\0';
+  /// Buffer must be ESPHOME_COMMENT_SIZE bytes (compile-time enforced)
+  void get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE> buffer) {
+    ESPHOME_strncpy_P(buffer.data(), ESPHOME_COMMENT_STR, buffer.size());
+    buffer[buffer.size() - 1] = '\0';
   }
 
   /// Get the comment of this Application (deprecated, use get_comment_string() instead)
@@ -268,7 +268,7 @@ class Application {
   ESPDEPRECATED("Use get_comment_string() instead. Removed in 2026.7.0", "2026.1.0")
   std::string get_comment() {
     char buffer[ESPHOME_COMMENT_SIZE];
-    this->get_comment_string(buffer, sizeof(buffer));
+    this->get_comment_string(buffer);
     return std::string(buffer);
   }
 
