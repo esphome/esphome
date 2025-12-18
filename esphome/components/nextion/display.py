@@ -9,7 +9,7 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_ON_TOUCH,
     CONF_TRIGGER_ID,
-    PlatformFramework
+    PlatformFramework,
 )
 from esphome.core import CORE, TimePeriod
 
