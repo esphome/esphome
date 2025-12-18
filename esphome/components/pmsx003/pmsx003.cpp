@@ -18,15 +18,7 @@ static const uint16_t PMS_CMD_MEASUREMENT_MODE_ACTIVE = 0x0001;  // automaticall
 static const uint16_t PMS_CMD_SLEEP_MODE_SLEEP = 0x0000;         // go to sleep mode
 static const uint16_t PMS_CMD_SLEEP_MODE_WAKEUP = 0x0001;        // wake up from sleep mode
 
-void PMSX003Component::setup() {
-  // When update_interval is small or 0, leave sensor in default active mode (don't send commands)
-  // The sensor powers on in active mode by default
-  if (this->update_interval_ <= PMS_STABILISING_MS) {
-    ESP_LOGCONFIG(TAG, "Using active continuous mode (sensor default)");
-  } else {
-    ESP_LOGCONFIG(TAG, "Will use passive mode with sleep/wake cycles");
-  }
-}
+void PMSX003Component::setup() {}
 
 void PMSX003Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PMSX003:");
@@ -49,6 +41,13 @@ void PMSX003Component::dump_config() {
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+
+  if (this->update_interval_ <= PMS_STABILISING_MS) {
+    ESP_LOGCONFIG(TAG, "  Mode: active continuous (sensor default)");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Mode: passive with sleep/wake cycles");
+  }
+
   this->check_uart_settings(9600);
 }
 
