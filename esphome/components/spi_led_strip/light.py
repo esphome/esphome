@@ -45,6 +45,7 @@ def check_deprecated_settings(config):
             CONF_PROTOCOL,
         )
         config[CONF_PROTOCOL] = "DOTSTAR"
+
     if CONF_CHANNEL_MAP not in config:
         _LOGGER.warning(
             "Not setting a channel map via '%s' will be deprecated in a future version.",
@@ -58,11 +59,11 @@ CONFIG_SCHEMA = cv.All(
     light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         {
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(SpiLedStrip),
-            cv.Optional(CONF_NUM_LEDS, default=1): cv.positive_not_null_int,
             cv.Optional(CONF_PROTOCOL): cv.enum(PROTOCOLS, upper=True),
             cv.Optional(CONF_CHANNEL_MAP): validate_channel_map,
             cv.Optional(CONF_MIN_MIREDS, default=154.0): cv.positive_float,
             cv.Optional(CONF_MAX_MIREDS, default=500.0): cv.positive_float,
+            cv.Optional(CONF_NUM_LEDS, default=1): cv.positive_not_null_int,
         }
     ).extend(spi.spi_device_schema(False, "1MHz")),
     check_deprecated_settings,
@@ -70,10 +71,12 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
-    cg.add(var.set_num_leds(config[CONF_NUM_LEDS]))
-    cg.add(var.set_protocol(PROTOCOLS[config[CONF_PROTOCOL]]))
-    cg.add(var.set_channel_map(config[CONF_CHANNEL_MAP]))
+    var = cg.new_Pvariable(
+        config[CONF_OUTPUT_ID],
+        PROTOCOLS[config[CONF_PROTOCOL]],
+        config[CONF_CHANNEL_MAP],
+        config[CONF_NUM_LEDS],
+    )
     cg.add(var.set_min_mireds(config[CONF_MIN_MIREDS]))
     cg.add(var.set_max_mireds(config[CONF_MAX_MIREDS]))
     await light.register_light(var, config)

@@ -3,11 +3,18 @@
 namespace esphome {
 namespace spi_led_strip {
 
-void SpiLedStrip::setup() {
+SpiLedStrip::SpiLedStrip(Protocol protocol, std::string channel_map, uint16_t num_leds) {
+  this->protocol_ = protocol;
+  this->channel_map_.from_string(channel_map);
+  this->num_leds_ = num_leds;
+
+  this->buffer_size_ = this->num_leds_ * ((this->protocol_ == DOTSTAR) ? 4 : this->channel_map_.get_channel_count()) +
+                       ((this->protocol_ == DOTSTAR) ? 8 : 0);
+
   RAMAllocator<uint8_t> allocator;
-  this->buf_ = allocator.allocate(this->get_buffer_size());
+  this->buf_ = allocator.allocate(this->buffer_size_);
   if (this->buf_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate buffer of size %u", this->get_buffer_size());
+    ESP_LOGE(TAG, "Failed to allocate buffer of size %u", this->buffer_size_);
     return;
   }
 
@@ -17,14 +24,29 @@ void SpiLedStrip::setup() {
     return;
   }
 
-  if (this->protocol_ == Protocol::DOTSTAR) {
-    memset(this->buf_, 0xFF, this->get_buffer_size());
-    memset(this->buf_, 0x00, 4);
-  } else {
-    memset(this->buf_, 0x00, this->get_buffer_size());
-  }
+  this->base_ = this->buf_;
+  this->address_multiplier_ = this->channel_map_.get_channel_count();
 
-  if (this->effect_data_ == nullptr || this->buf_ == nullptr) {
+  switch (this->protocol_) {
+    case Protocol::DOTSTAR: {
+      memset(this->buf_, 0xFF, this->buffer_size_);
+      memset(this->buf_, 0x00, 4);     // Start bytes
+      this->base_ += 5;                // Skip brightness and start bytes
+      this->address_multiplier_ += 1;  // Extra brightness byte
+      break;
+    }
+    case Protocol::RAW: {
+      memset(this->buf_, 0x00, this->buffer_size_);
+      break;
+    }
+    default: {
+      ESP_LOGE(TAG, "Unknown protocol %u", this->num_leds_);
+      return;
+    }
+  }
+}
+void SpiLedStrip::setup(void) {
+  if (this->buf_ == nullptr || this->effect_data_ == nullptr) {
     this->mark_failed();
     return;
   }
@@ -44,17 +66,18 @@ light::LightTraits SpiLedStrip::get_traits() {
   return traits;
 }
 void SpiLedStrip::dump_config() {
-  esph_log_config(TAG, "SPI LED Strip:");
-  esph_log_config(TAG, "  LEDs: %d", this->num_leds_);
-  esph_log_config(TAG, "  Protocol: %s",
-                  this->protocol_ == DOTSTAR ? "DOTSTAR"
-                  : this->protocol_ == RAW   ? "RAW"
-                                             : "Unknown");
-  esph_log_config(TAG, "  Channel Map: %s", this->channel_map_.to_string().c_str());
+  ESP_LOGCONFIG(TAG, "SPI LED Strip:");
+  ESP_LOGCONFIG(TAG, "  LEDs: %d", this->num_leds_);
+  ESP_LOGCONFIG(TAG, "  Protocol: %s",
+                this->protocol_ == DOTSTAR ? "DOTSTAR"
+                : this->protocol_ == RAW   ? "RAW"
+                                           : "Unknown");
+  ESP_LOGCONFIG(TAG, "  Channel Map: %s (%u channels)", this->channel_map_.to_string().c_str(),
+                this->channel_map_.get_channel_count());
   if (this->data_rate_ >= spi::DATA_RATE_1MHZ) {
-    esph_log_config(TAG, "  Data rate: %uMHz", (unsigned) (this->data_rate_ / 1000000));
+    ESP_LOGCONFIG(TAG, "  Data rate: %uMHz", (unsigned) (this->data_rate_ / 1000000));
   } else {
-    esph_log_config(TAG, "  Data rate: %ukHz", (unsigned) (this->data_rate_ / 1000));
+    ESP_LOGCONFIG(TAG, "  Data rate: %ukHz", (unsigned) (this->data_rate_ / 1000));
   }
 }
 void SpiLedStrip::write_state(light::LightState *state) {
@@ -62,32 +85,29 @@ void SpiLedStrip::write_state(light::LightState *state) {
     return;
   if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE) {
     char strbuf[49];
-    size_t len = std::min(this->get_buffer_size(), (size_t) (sizeof(strbuf) - 1) / 3);
+    size_t len = std::min(this->buffer_size_, (size_t) (sizeof(strbuf) - 1) / 3);
     memset(strbuf, 0, sizeof(strbuf));
     for (size_t i = 0; i != len; i++) {
       sprintf(strbuf + i * 3, "%02X ", this->buf_[i]);
     }
-    esph_log_v(TAG, "write_state: buf = %s", strbuf);
+    ESP_LOGV(TAG, "write_state: buf = %s", strbuf);
   }
   this->enable();
-  this->write_array(this->buf_, this->get_buffer_size());
+  this->write_array(this->buf_, this->buffer_size_);
   this->disable();
 }
 light::ESPColorView SpiLedStrip::get_view_internal(int32_t index) const {
-  uint8_t multiplier = this->channel_map_.get_channel_count();
-  if (this->protocol_ == DOTSTAR) {
-    multiplier = 4;  // BGR + extra byte for brightness
-  }
-  uint8_t *base = this->buf_ + (index * multiplier);
-  if (this->protocol_ == DOTSTAR) {
-    base += 5;  // skip brightness and start bytes
-  }
+  uint8_t *led_base = this->base_ + (index * this->address_multiplier_);
 
-  uint8_t *r_ptr = this->channel_map_.get_pointer_position(base, "R");
-  uint8_t *g_ptr = this->channel_map_.get_pointer_position(base, "G");
-  uint8_t *b_ptr = this->channel_map_.get_pointer_position(base, "B");
-  uint8_t *w_ptr = this->channel_map_.get_pointer_position(base, "W");
+  uint8_t *r_ptr = this->channel_map_.get_address_by_channel_name(led_base, light::ChannelMap::ChannelName::R);
+  uint8_t *g_ptr = this->channel_map_.get_address_by_channel_name(led_base, light::ChannelMap::ChannelName::G);
+  uint8_t *b_ptr = this->channel_map_.get_address_by_channel_name(led_base, light::ChannelMap::ChannelName::B);
+  uint8_t *w_ptr = this->channel_map_.get_address_by_channel_name(led_base, light::ChannelMap::ChannelName::W);
 
+  if (index == 0) {
+    ESP_LOGD(TAG, ">   %#X %#X %#X %#X\n", led_base, this->base_, index, this->address_multiplier_);
+    ESP_LOGD(TAG, ">>  %#X %#X %#X %#X\n", r_ptr, g_ptr, b_ptr, w_ptr);
+  }
   return {r_ptr, g_ptr, b_ptr, w_ptr, &this->effect_data_[index], &this->correction_};
 }
 }  // namespace spi_led_strip
