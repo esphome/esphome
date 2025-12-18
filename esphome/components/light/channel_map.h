@@ -19,15 +19,15 @@ struct ChannelMap {
   };
 
   // Create all channels
-  Channel R_{ChannelName::R, "R", false, 0};
-  Channel G_{ChannelName::G, "G", false, 0};
-  Channel B_{ChannelName::B, "B", false, 0};
-  Channel W_{ChannelName::W, "W", false, 0};
-  Channel CW_{ChannelName::CW, "CW", false, 0};
-  Channel WW_{ChannelName::WW, "WW", false, 0};
+  Channel r_{ChannelName::R, "R", false, 0};
+  Channel g_{ChannelName::G, "G", false, 0};
+  Channel b_{ChannelName::B, "B", false, 0};
+  Channel w_{ChannelName::W, "W", false, 0};
+  Channel cw_{ChannelName::CW, "CW", false, 0};
+  Channel ww_{ChannelName::WW, "WW", false, 0};
 
   // Allows iterating over all channels
-  std::vector<Channel> channels_ = {this->R_, this->G_, this->B_, this->W_, this->CW_, this->WW_};
+  std::vector<Channel> channels_ = {this->r_, this->g_, this->b_, this->w_, this->cw_, this->ww_};
 
   // Store the number of exsiting channels for faster proccesing. This is not this->channels_.size() but the number of
   // existent channels within this->channels_.
@@ -46,18 +46,18 @@ struct ChannelMap {
 
  public:
   bool is_rgb() const {
-    return this->R_.exists_ && this->G_.exists_ && this->B_.exists_ && !this->W_.exists_ && !this->CW_.exists_ &&
-           !this->WW_.exists_;
+    return this->r_.exists_ && this->g_.exists_ && this->b_.exists_ && !this->w_.exists_ && !this->cw_.exists_ &&
+           !this->ww_.exists_;
   }
 
   bool is_rgbw() const {
-    return this->R_.exists_ && this->G_.exists_ && this->B_.exists_ && this->W_.exists_ && !this->CW_.exists_ &&
-           !this->WW_.exists_;
+    return this->r_.exists_ && this->g_.exists_ && this->b_.exists_ && this->w_.exists_ && !this->cw_.exists_ &&
+           !this->ww_.exists_;
   }
 
   bool is_rgbcct() const {
-    return this->R_.exists_ && this->G_.exists_ && this->B_.exists_ && !this->W_.exists_ && this->CW_.exists_ &&
-           this->WW_.exists_;
+    return this->r_.exists_ && this->g_.exists_ && this->b_.exists_ && !this->w_.exists_ && this->cw_.exists_ &&
+           this->ww_.exists_;
   }
 
   uint8_t get_channel_count() const { return this->channel_count_; }

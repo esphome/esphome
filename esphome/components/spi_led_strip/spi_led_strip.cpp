@@ -3,7 +3,7 @@
 namespace esphome {
 namespace spi_led_strip {
 
-SpiLedStrip::SpiLedStrip(Protocol protocol, std::string channel_map, uint16_t num_leds) {
+SpiLedStrip::SpiLedStrip(Protocol protocol, const std::string &channel_map, uint16_t num_leds) {
   this->protocol_ = protocol;
   this->channel_map_.from_string(channel_map);
   this->num_leds_ = num_leds;
@@ -45,7 +45,7 @@ SpiLedStrip::SpiLedStrip(Protocol protocol, std::string channel_map, uint16_t nu
     }
   }
 }
-void SpiLedStrip::setup(void) {
+void SpiLedStrip::setup() {
   if (this->buf_ == nullptr || this->effect_data_ == nullptr) {
     this->mark_failed();
     return;

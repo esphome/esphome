@@ -18,9 +18,9 @@ class SpiLedStrip : public light::AddressableLight,
                     public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
                                           spi::DATA_RATE_1MHZ> {
  public:
-  SpiLedStrip(Protocol protocol, std::string channel_map, uint16_t num_leds);
-  ~SpiLedStrip(void) = default;
-  void setup(void) override;
+  SpiLedStrip(Protocol protocol, const std::string &channel_map, uint16_t num_leds);
+  ~SpiLedStrip() = default;
+  void setup() override;
 
   void set_min_mireds(float min_reds) { this->min_mireds_ = min_reds; }
   void set_max_mireds(float max_mireds) { this->max_mireds_ = max_mireds; }
