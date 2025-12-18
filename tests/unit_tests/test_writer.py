@@ -1404,18 +1404,24 @@ def test_generate_build_info_data_h_hash_formatting() -> None:
 
 
 def test_generate_build_info_data_h_comment_escaping() -> None:
-    """Test generate_build_info_data_h properly escapes special characters in comment."""
-    # Test backslash escaping
+    r"""Test generate_build_info_data_h properly escapes special characters in comment.
+
+    Uses cpp_string_escape which outputs octal escapes for special characters:
+    - backslash (ASCII 92) -> \134
+    - double quote (ASCII 34) -> \042
+    - newline (ASCII 10) -> \012
+    """
+    # Test backslash escaping (ASCII 92 = octal 134)
     result = generate_build_info_data_h(0, 0, "test", "backslash\\here")
-    assert 'ESPHOME_COMMENT_STR[] = "backslash\\\\here"' in result
+    assert 'ESPHOME_COMMENT_STR[] = "backslash\\134here"' in result
 
-    # Test quote escaping
+    # Test quote escaping (ASCII 34 = octal 042)
     result = generate_build_info_data_h(0, 0, "test", 'has "quotes"')
-    assert 'ESPHOME_COMMENT_STR[] = "has \\"quotes\\""' in result
+    assert 'ESPHOME_COMMENT_STR[] = "has \\042quotes\\042"' in result
 
-    # Test newline escaping
+    # Test newline escaping (ASCII 10 = octal 012)
     result = generate_build_info_data_h(0, 0, "test", "line1\nline2")
-    assert 'ESPHOME_COMMENT_STR[] = "line1\\nline2"' in result
+    assert 'ESPHOME_COMMENT_STR[] = "line1\\012line2"' in result
 
 
 def test_generate_build_info_data_h_empty_comment() -> None:
