@@ -41,14 +41,14 @@ static constexpr uint16_t SEESAW_MOIST_REG =
 static constexpr uint8_t SEESAW_STARTUP_RETRIES = 10;
 static constexpr uint8_t SEESAW_READ_RETRIES = 10;
 
-enum class SEESAW_HW_ID : uint8_t {
-  SEESAW_HW_ID_CODE_SAMD09 = 0x55,    ///< seesaw HW ID code for SAMD09
-  SEESAW_HW_ID_CODE_TINY806 = 0x84,   ///< seesaw HW ID code for ATtiny806
-  SEESAW_HW_ID_CODE_TINY807 = 0x85,   ///< seesaw HW ID code for ATtiny807
-  SEESAW_HW_ID_CODE_TINY816 = 0x86,   ///< seesaw HW ID code for ATtiny816
-  SEESAW_HW_ID_CODE_TINY817 = 0x87,   ///< seesaw HW ID code for ATtiny817
-  SEESAW_HW_ID_CODE_TINY1616 = 0x88,  ///< seesaw HW ID code for ATtiny1616
-  SEESAW_HW_ID_CODE_TINY1617 = 0x89   ///< seesaw HW ID code for ATtiny1617
+enum class SeesawHwId : uint8_t {
+  CODE_SAMD09 = 0x55,    ///< seesaw HW ID code for SAMD09
+  CODE_TINY806 = 0x84,   ///< seesaw HW ID code for ATtiny806
+  CODE_TINY807 = 0x85,   ///< seesaw HW ID code for ATtiny807
+  CODE_TINY816 = 0x86,   ///< seesaw HW ID code for ATtiny816
+  CODE_TINY817 = 0x87,   ///< seesaw HW ID code for ATtiny817
+  CODE_TINY1616 = 0x88,  ///< seesaw HW ID code for ATtiny1616
+  CODE_TINY1617 = 0x89   ///< seesaw HW ID code for ATtiny1617
 };
 
 void AdafruitSeesawSoil::setup() {
@@ -68,6 +68,21 @@ void AdafruitSeesawSoil::setup() {
     ESP_LOGE(TAG, "Initialization failed to detect HW ID");
     this->mark_failed();
     return;
+  } else {
+    switch (static_cast<SeesawHwId>(hardware_type_)) {
+      case SeesawHwId::CODE_SAMD09:
+      case SeesawHwId::CODE_TINY806:
+      case SeesawHwId::CODE_TINY807:
+      case SeesawHwId::CODE_TINY816:
+      case SeesawHwId::CODE_TINY817:
+      case SeesawHwId::CODE_TINY1616:
+      case SeesawHwId::CODE_TINY1617:
+        break;  // no-op valid code
+      default:
+        ESP_LOGE(TAG, "Initialization detected invalid HW ID %u", hardware_type_);
+        this->mark_failed();
+        return;
+    }
   }
   version_ = get_version();
   if (version_.has_value()) {
