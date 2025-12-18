@@ -75,7 +75,7 @@ class Select : public EntityBase {
   /// Return the option value at the provided index offset (as const char* from flash).
   const char *option_at(size_t index) const;
 
-  void add_on_state_callback(std::function<void(std::string, size_t)> &&callback);
+  void add_on_state_callback(std::function<void(size_t)> &&callback);
 
  protected:
   friend class SelectCall;
@@ -111,7 +111,7 @@ class Select : public EntityBase {
     }
   }
 
-  CallbackManager<void(std::string, size_t)> state_callback_;
+  CallbackManager<void(size_t)> state_callback_;
 };
 
 }  // namespace esphome::select
