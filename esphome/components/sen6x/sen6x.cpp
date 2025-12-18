@@ -326,8 +326,6 @@ void SEN6XComponent::update() {
         num_measurements = 8;
         break;
       case SEN66:
-        num_measurements = 9;
-        break;
       case SEN68:
         num_measurements = 9;
         break;
