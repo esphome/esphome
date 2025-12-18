@@ -3,11 +3,7 @@ from string import ascii_letters, digits
 import esphome.codegen as cg
 from esphome.components import color
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BACKGROUND_COLOR,
-    CONF_FOREGROUND_COLOR,
-    CONF_VISIBLE,
-)
+from esphome.const import CONF_BACKGROUND_COLOR, CONF_FOREGROUND_COLOR, CONF_VISIBLE
 
 from . import CONF_NEXTION_ID, Nextion
 
