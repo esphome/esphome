@@ -500,7 +500,7 @@ void DFRobotC4001Hub::loop() {
     if (!this->is_setup_) {
       this->is_setup_ = true;
       if (this->ts_cmd_error_cnt_ > 3) {
-        this->mark_failed("Too many errors");
+        this->mark_failed(LOG_STR("Too many errors"));
       }
     }
     // Read sensor state
