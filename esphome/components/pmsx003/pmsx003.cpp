@@ -267,7 +267,7 @@ void PMSX003Component::parse_data_() {
     this->pm_particles_25um_sensor_->publish_state(pm_particles_25um);
 
   // Calculate and publish AQI if sensor is configured
-  if (this->aqi_sensor_ != nullptr && this->pm_2_5_sensor_ != nullptr && this->pm_10_0_sensor_ != nullptr) {
+  if (this->aqi_sensor_ != nullptr) {
     aqi::AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
     int32_t aqi_value = calculator->get_aqi(pm_2_5_concentration, pm_10_0_concentration);
     this->aqi_sensor_->publish_state(aqi_value);
