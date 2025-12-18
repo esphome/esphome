@@ -45,7 +45,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
         cv.Required(CONF_ID): cv.declare_id(LEDCOutput),
         cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Optional(CONF_FREQUENCY, default="1kHz"): cv.frequency,
+        cv.Optional(CONF_FREQUENCY, default="1kHz"): cv.All(
+            cv.frequency, cv.float_range(min=0, min_included=False)
+        ),
         cv.Optional(CONF_CHANNEL): cv.int_range(min=0, max=15),
         cv.Optional(CONF_PHASE_ANGLE): cv.All(
             cv.angle, cv.float_range(min=0.0, max=360.0)

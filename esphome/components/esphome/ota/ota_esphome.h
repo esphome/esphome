@@ -80,6 +80,7 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
 
 #ifdef USE_OTA_PASSWORD
   std::string password_;
+  std::unique_ptr<uint8_t[]> auth_buf_;
 #endif  // USE_OTA_PASSWORD
 
   std::unique_ptr<socket::Socket> server_;
@@ -93,7 +94,6 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   uint8_t handshake_buf_pos_{0};
   uint8_t ota_features_{0};
 #ifdef USE_OTA_PASSWORD
-  std::unique_ptr<uint8_t[]> auth_buf_;
   uint8_t auth_buf_pos_{0};
   uint8_t auth_type_{0};  // Store auth type to know which hasher to use
 #endif                    // USE_OTA_PASSWORD

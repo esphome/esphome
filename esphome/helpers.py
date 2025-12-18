@@ -424,9 +424,13 @@ def write_file_if_changed(path: Path, text: str) -> bool:
     return True
 
 
-def copy_file_if_changed(src: Path, dst: Path) -> None:
+def copy_file_if_changed(src: Path, dst: Path) -> bool:
+    """Copy file from src to dst if contents differ.
+
+    Returns True if file was copied, False if files already matched.
+    """
     if file_compare(src, dst):
-        return
+        return False
     dst.parent.mkdir(parents=True, exist_ok=True)
     try:
         shutil.copyfile(src, dst)
@@ -441,11 +445,12 @@ def copy_file_if_changed(src: Path, dst: Path) -> None:
             with suppress(OSError):
                 os.unlink(dst)
                 shutil.copyfile(src, dst)
-                return
+                return True
 
         from esphome.core import EsphomeError
 
         raise EsphomeError(f"Error copying file {src} to {dst}: {err}") from err
+    return True
 
 
 def list_starts_with(list_, sub):
