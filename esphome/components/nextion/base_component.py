@@ -3,12 +3,10 @@ from string import ascii_letters, digits
 import esphome.codegen as cg
 from esphome.components import color
 import esphome.config_validation as cv
-from esphome.config_helpers import filter_source_files_from_platform
 from esphome.const import (
     CONF_BACKGROUND_COLOR,
     CONF_FOREGROUND_COLOR,
     CONF_VISIBLE,
-    PlatformFramework,
 )
 
 from . import CONF_NEXTION_ID, Nextion
@@ -134,20 +132,3 @@ async def setup_component_core_(var, config, arg):
 
     if CONF_VISIBLE in config:
         cg.add(var.set_visible(config[CONF_VISIBLE]))
-
-
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
-    {
-        "nextion_upload_arduino.cpp": {
-            PlatformFramework.ESP8266_ARDUINO,
-            PlatformFramework.RP2040_ARDUINO,
-            PlatformFramework.BK72XX_ARDUINO,
-            PlatformFramework.RTL87XX_ARDUINO,
-            PlatformFramework.LN882X_ARDUINO,
-        },
-        "nextion_upload_esp32.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-        },
-    }
-)
