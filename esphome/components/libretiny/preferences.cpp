@@ -120,10 +120,10 @@ class LibreTinyPreferences : public ESPPreferences {
     // go through vector from back to front (makes erase easier/more efficient)
     for (ssize_t i = s_pending_save.size() - 1; i >= 0; i--) {
       const auto &save = s_pending_save[i];
-      ESP_LOGVV(TAG, "Checking if FDB data %" PRIu32 " has changed", save.key);
-      if (this->is_changed(&this->db, save)) {
-        char key_str[KEY_BUFFER_SIZE];
-        snprintf(key_str, sizeof(key_str), "%" PRIu32, save.key);
+      char key_str[KEY_BUFFER_SIZE];
+      snprintf(key_str, sizeof(key_str), "%" PRIu32, save.key);
+      ESP_LOGVV(TAG, "Checking if FDB data %s has changed", key_str);
+      if (this->is_changed_(&this->db, save, key_str)) {
         ESP_LOGV(TAG, "sync: key: %s, len: %zu", key_str, save.len);
         fdb_blob_make(&this->blob, save.data.get(), save.len);
         fdb_err_t err = fdb_kv_set_blob(&this->db, key_str, &this->blob);
@@ -150,10 +150,8 @@ class LibreTinyPreferences : public ESPPreferences {
     return failed == 0;
   }
 
-  bool is_changed(const fdb_kvdb_t db, const NVSData &to_save) {
-    char key_str[KEY_BUFFER_SIZE];
-    snprintf(key_str, sizeof(key_str), "%" PRIu32, to_save.key);
-
+ protected:
+  bool is_changed_(fdb_kvdb_t db, const NVSData &to_save, const char *key_str) {
     struct fdb_kv kv;
     fdb_kv_t kvp = fdb_kv_get_obj(db, key_str, &kv);
     if (kvp == nullptr) {
