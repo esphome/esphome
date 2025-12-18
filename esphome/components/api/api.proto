@@ -1121,7 +1121,6 @@ message ListEntitiesWaterHeaterResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  reserved 4;  // unique_id is in InfoResponseProtoMessage base class
 
   float min_temperature = 5;
   float max_temperature = 6;
