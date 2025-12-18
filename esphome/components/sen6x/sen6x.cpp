@@ -165,7 +165,6 @@ void SEN6XComponent::setup() {
           }
         }
       }
-      bool result;
       if (this->voc_tuning_params_.has_value()) {
         this->write_tuning_parameters_(SEN6X_CMD_VOC_ALGORITHM_TUNING, this->voc_tuning_params_.value());
         delay(20);
