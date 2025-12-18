@@ -1333,28 +1333,9 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
   auto traits = wh->get_traits();
   msg.min_temperature = traits.get_min_temperature();
   msg.max_temperature = traits.get_max_temperature();
-
-  msg.key = wh->get_object_id_hash();
-  StringRef static_ref = wh->get_object_id_ref_for_api_();
-  std::string object_id;
-  if (!static_ref.empty()) {
-    msg.set_object_id(static_ref);
-  } else {
-    object_id = wh->get_object_id();
-    msg.set_object_id(StringRef(object_id));
-  }
-
-  if (wh->has_own_name()) {
-    msg.set_name(wh->get_name());
-  }
-
-#ifdef USE_ENTITY_ICON
-  msg.set_icon(wh->get_icon_ref());
-#endif
-  msg.disabled_by_default = wh->is_disabled_by_default();
-  msg.entity_category = static_cast<enums::EntityCategory>(wh->get_entity_category());
-
-  return encode_message_to_buffer(msg, ListEntitiesWaterHeaterResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
+  msg.supported_modes = &traits.get_supported_modes();
+  return fill_and_encode_entity_info(wh, msg, ListEntitiesWaterHeaterResponse::MESSAGE_TYPE, conn, remaining_size,
+                                     is_single);
 }
 
 void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequest &msg) {

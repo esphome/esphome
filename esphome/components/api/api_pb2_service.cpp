@@ -622,6 +622,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
+#ifdef USE_WATER_HEATER
     case WaterHeaterCommandRequest::MESSAGE_TYPE: {
       WaterHeaterCommandRequest msg;
       msg.decode(msg_data, msg_size);
@@ -631,6 +632,7 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_water_heater_command_request(msg);
       break;
     }
+#endif
     default:
       break;
   }

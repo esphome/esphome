@@ -1426,27 +1426,44 @@ bool ClimateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   return true;
 }
 #endif
+#ifdef USE_WATER_HEATER
 void ListEntitiesWaterHeaterResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->object_id_ref_);
   buffer.encode_fixed32(2, this->key);
   buffer.encode_string(3, this->name_ref_);
-  buffer.encode_string(4, this->unique_id_ref_);
   buffer.encode_float(5, this->min_temperature);
   buffer.encode_float(6, this->max_temperature);
+#ifdef USE_ENTITY_ICON
   buffer.encode_string(7, this->icon_ref_);
+#endif
   buffer.encode_bool(8, this->disabled_by_default);
   buffer.encode_uint32(9, static_cast<uint32_t>(this->entity_category));
+#ifdef USE_DEVICES
+  buffer.encode_uint32(10, this->device_id);
+#endif
+  for (const auto &it : *this->supported_modes) {
+    buffer.encode_uint32(11, static_cast<uint32_t>(it), true);
+  }
 }
 void ListEntitiesWaterHeaterResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->object_id_ref_.size());
   size.add_fixed32(1, this->key);
   size.add_length(1, this->name_ref_.size());
-  size.add_length(1, this->unique_id_ref_.size());
   size.add_float(1, this->min_temperature);
   size.add_float(1, this->max_temperature);
+#ifdef USE_ENTITY_ICON
   size.add_length(1, this->icon_ref_.size());
+#endif
   size.add_bool(1, this->disabled_by_default);
   size.add_uint32(1, static_cast<uint32_t>(this->entity_category));
+#ifdef USE_DEVICES
+  size.add_uint32(1, this->device_id);
+#endif
+  if (!this->supported_modes->empty()) {
+    for (const auto &it : *this->supported_modes) {
+      size.add_uint32_force(1, static_cast<uint32_t>(it));
+    }
+  }
 }
 void WaterHeaterStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
@@ -1489,6 +1506,7 @@ bool WaterHeaterCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value
   }
   return true;
 }
+#endif
 #ifdef USE_NUMBER
 void ListEntitiesNumberResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->object_id_ref_);

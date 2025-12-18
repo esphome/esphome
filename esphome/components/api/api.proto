@@ -1114,21 +1114,29 @@ enum WaterHeaterMode {
 
 message ListEntitiesWaterHeaterResponse {
   option (id) = 132;
+  option (base_class) = "InfoResponseProtoMessage";
   option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_WATER_HEATER";
+
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-  string unique_id = 4;
+  reserved 4;  // unique_id is in InfoResponseProtoMessage base class
+
   float min_temperature = 5;
   float max_temperature = 6;
-  string icon = 7;
+  string icon = 7 [(field_ifdef) = "USE_ENTITY_ICON"];
   bool disabled_by_default = 8;
   EntityCategory entity_category = 9;
+  uint32 device_id = 10 [(field_ifdef) = "USE_DEVICES"];
+  repeated WaterHeaterMode supported_modes = 11 [(container_pointer_no_template) = "water_heater::WaterHeaterModeMask"];
 }
 
 message WaterHeaterStateResponse {
   option (id) = 133;
   option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_WATER_HEATER";
+
   fixed32 key = 1;
   float current_temperature = 2;
   float target_temperature = 3;
@@ -1138,6 +1146,8 @@ message WaterHeaterStateResponse {
 message WaterHeaterCommandRequest {
   option (id) = 134;
   option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_WATER_HEATER";
+
   fixed32 key = 1;
   bool has_mode = 2;
   WaterHeaterMode mode = 3;

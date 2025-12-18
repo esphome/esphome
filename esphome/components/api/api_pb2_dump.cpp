@@ -348,6 +348,7 @@ template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::Climate
   }
 }
 #endif
+#ifdef USE_WATER_HEATER
 template<> const char *proto_enum_to_string<enums::WaterHeaterMode>(enums::WaterHeaterMode value) {
   switch (value) {
     case enums::WATER_HEATER_MODE_OFF:
@@ -368,6 +369,7 @@ template<> const char *proto_enum_to_string<enums::WaterHeaterMode>(enums::Water
       return "UNKNOWN";
   }
 }
+#endif
 #ifdef USE_NUMBER
 template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode value) {
   switch (value) {
@@ -1406,17 +1408,25 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
 #endif
 }
 #endif
+#ifdef USE_WATER_HEATER
 void ListEntitiesWaterHeaterResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesWaterHeaterResponse");
   dump_field(out, "object_id", this->object_id_ref_);
   dump_field(out, "key", this->key);
   dump_field(out, "name", this->name_ref_);
-  dump_field(out, "unique_id", this->unique_id_ref_);
   dump_field(out, "min_temperature", this->min_temperature);
   dump_field(out, "max_temperature", this->max_temperature);
+#ifdef USE_ENTITY_ICON
   dump_field(out, "icon", this->icon_ref_);
+#endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+  for (const auto &it : *this->supported_modes) {
+    dump_field(out, "supported_modes", static_cast<enums::WaterHeaterMode>(it), 4);
+  }
 }
 void WaterHeaterStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "WaterHeaterStateResponse");
@@ -1433,6 +1443,7 @@ void WaterHeaterCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "has_target_temperature", this->has_target_temperature);
   dump_field(out, "target_temperature", this->target_temperature);
 }
+#endif
 #ifdef USE_NUMBER
 void ListEntitiesNumberResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesNumberResponse");

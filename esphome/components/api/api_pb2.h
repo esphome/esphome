@@ -129,6 +129,7 @@ enum ClimatePreset : uint32_t {
   CLIMATE_PRESET_ACTIVITY = 7,
 };
 #endif
+#ifdef USE_WATER_HEATER
 enum WaterHeaterMode : uint32_t {
   WATER_HEATER_MODE_OFF = 0,
   WATER_HEATER_MODE_ECO = 1,
@@ -138,6 +139,7 @@ enum WaterHeaterMode : uint32_t {
   WATER_HEATER_MODE_HEAT_PUMP = 5,
   WATER_HEATER_MODE_GAS = 6,
 };
+#endif
 #ifdef USE_NUMBER
 enum NumberMode : uint32_t {
   NUMBER_MODE_AUTO = 0,
@@ -1518,26 +1520,17 @@ class ClimateCommandRequest final : public CommandProtoMessage {
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif
-class ListEntitiesWaterHeaterResponse final : public ProtoMessage {
+#ifdef USE_WATER_HEATER
+class ListEntitiesWaterHeaterResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 132;
-  static constexpr uint8_t ESTIMATED_SIZE = 55;
+  static constexpr uint8_t ESTIMATED_SIZE = 54;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_water_heater_response"; }
 #endif
-  StringRef object_id_ref_{};
-  void set_object_id(const StringRef &ref) { this->object_id_ref_ = ref; }
-  uint32_t key{0};
-  StringRef name_ref_{};
-  void set_name(const StringRef &ref) { this->name_ref_ = ref; }
-  StringRef unique_id_ref_{};
-  void set_unique_id(const StringRef &ref) { this->unique_id_ref_ = ref; }
   float min_temperature{0.0f};
   float max_temperature{0.0f};
-  StringRef icon_ref_{};
-  void set_icon(const StringRef &ref) { this->icon_ref_ = ref; }
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
+  const water_heater::WaterHeaterModeMask *supported_modes{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1585,6 +1578,7 @@ class WaterHeaterCommandRequest final : public ProtoDecodableMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
+#endif
 #ifdef USE_NUMBER
 class ListEntitiesNumberResponse final : public InfoResponseProtoMessage {
  public:
