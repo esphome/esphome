@@ -21,8 +21,7 @@
 
 static const char *const TAG = "openthread";
 
-namespace esphome {
-namespace openthread {
+namespace esphome::openthread {
 
 OpenThreadComponent *global_openthread_component =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     nullptr;                                        // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -275,7 +274,5 @@ const char *OpenThreadComponent::get_use_address() const { return this->use_addr
 
 void OpenThreadComponent::set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
-}  // namespace openthread
-}  // namespace esphome
-
+}  // namespace esphome::openthread
 #endif
