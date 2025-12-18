@@ -1186,8 +1186,9 @@ def test_get_build_info_new_build(
     build_info_path = tmp_path / "build_info.json"
     mock_core.relative_build_path.return_value = build_info_path
     mock_core.config_hash = 0x12345678
+    mock_core.comment = "Test comment"
 
-    config_hash, build_time, build_time_str = get_build_info()
+    config_hash, build_time, build_time_str, comment = get_build_info()
 
     assert config_hash == 0x12345678
     assert isinstance(build_time, int)
@@ -1195,6 +1196,7 @@ def test_get_build_info_new_build(
     assert isinstance(build_time_str, str)
     # Verify build_time_str format matches expected pattern
     assert len(build_time_str) >= 19  # e.g., "2025-12-15 16:27:44 +0000"
+    assert comment == "Test comment"
 
 
 @patch("esphome.writer.CORE")
@@ -1206,6 +1208,7 @@ def test_get_build_info_always_returns_current_time(
     build_info_path = tmp_path / "build_info.json"
     mock_core.relative_build_path.return_value = build_info_path
     mock_core.config_hash = 0x12345678
+    mock_core.comment = ""
 
     # Create existing build_info.json with matching config_hash and version
     existing_build_time = 1700000000
@@ -1222,7 +1225,7 @@ def test_get_build_info_always_returns_current_time(
     )
 
     with patch("esphome.writer.__version__", "2025.1.0-dev"):
-        config_hash, build_time, build_time_str = get_build_info()
+        config_hash, build_time, build_time_str, comment = get_build_info()
 
     assert config_hash == 0x12345678
     # get_build_info now always returns current time
@@ -1240,6 +1243,7 @@ def test_get_build_info_config_changed(
     build_info_path = tmp_path / "build_info.json"
     mock_core.relative_build_path.return_value = build_info_path
     mock_core.config_hash = 0xABCDEF00  # Different from existing
+    mock_core.comment = ""
 
     # Create existing build_info.json with different config_hash
     existing_build_time = 1700000000
@@ -1255,7 +1259,7 @@ def test_get_build_info_config_changed(
     )
 
     with patch("esphome.writer.__version__", "2025.1.0-dev"):
-        config_hash, build_time, build_time_str = get_build_info()
+        config_hash, build_time, build_time_str, comment = get_build_info()
 
     assert config_hash == 0xABCDEF00
     assert build_time != existing_build_time  # New time generated
@@ -1271,6 +1275,7 @@ def test_get_build_info_version_changed(
     build_info_path = tmp_path / "build_info.json"
     mock_core.relative_build_path.return_value = build_info_path
     mock_core.config_hash = 0x12345678
+    mock_core.comment = ""
 
     # Create existing build_info.json with different version
     existing_build_time = 1700000000
@@ -1286,7 +1291,7 @@ def test_get_build_info_version_changed(
     )
 
     with patch("esphome.writer.__version__", "2025.1.0-dev"):  # New version
-        config_hash, build_time, build_time_str = get_build_info()
+        config_hash, build_time, build_time_str, comment = get_build_info()
 
     assert config_hash == 0x12345678
     assert build_time != existing_build_time  # New time generated
@@ -1302,11 +1307,12 @@ def test_get_build_info_invalid_json(
     build_info_path = tmp_path / "build_info.json"
     mock_core.relative_build_path.return_value = build_info_path
     mock_core.config_hash = 0x12345678
+    mock_core.comment = ""
 
     # Create invalid JSON file
     build_info_path.write_text("not valid json {{{")
 
-    config_hash, build_time, build_time_str = get_build_info()
+    config_hash, build_time, build_time_str, comment = get_build_info()
 
     assert config_hash == 0x12345678
     assert isinstance(build_time, int)
@@ -1322,12 +1328,13 @@ def test_get_build_info_missing_keys(
     build_info_path = tmp_path / "build_info.json"
     mock_core.relative_build_path.return_value = build_info_path
     mock_core.config_hash = 0x12345678
+    mock_core.comment = ""
 
     # Create JSON with missing keys
     build_info_path.write_text(json.dumps({"config_hash": 0x12345678}))
 
     with patch("esphome.writer.__version__", "2025.1.0-dev"):
-        config_hash, build_time, build_time_str = get_build_info()
+        config_hash, build_time, build_time_str, comment = get_build_info()
 
     assert config_hash == 0x12345678
     assert isinstance(build_time, int)
@@ -1343,8 +1350,9 @@ def test_get_build_info_build_time_str_format(
     build_info_path = tmp_path / "build_info.json"
     mock_core.relative_build_path.return_value = build_info_path
     mock_core.config_hash = 0x12345678
+    mock_core.comment = ""
 
-    config_hash, build_time, build_time_str = get_build_info()
+    config_hash, build_time, build_time_str, comment = get_build_info()
 
     # Verify the format matches "%Y-%m-%d %H:%M:%S %z"
     # e.g., "2025-12-15 16:27:44 +0000"
