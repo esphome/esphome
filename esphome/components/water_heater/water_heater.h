@@ -1,8 +1,8 @@
 #pragma once
 
-#include <set>
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/finite_set_mask.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
@@ -26,6 +26,11 @@ enum WaterHeaterMode : uint32_t {
   WATER_HEATER_MODE_HEAT_PUMP = 5,
   WATER_HEATER_MODE_GAS = 6,
 };
+
+// Type alias for water heater mode bitmask
+// Replaces std::set<WaterHeaterMode> to eliminate red-black tree overhead
+using WaterHeaterModeMask =
+    FiniteSetMask<WaterHeaterMode, DefaultBitPolicy<WaterHeaterMode, WATER_HEATER_MODE_GAS + 1>>;
 
 struct SavedWaterHeaterState {
   WaterHeaterMode mode;
@@ -79,15 +84,15 @@ class WaterHeaterTraits {
   void set_max_temperature(float max_temperature);
   float get_max_temperature() const;
 
-  void set_supported_modes(std::set<WaterHeaterMode> modes);
-  const std::set<WaterHeaterMode> &get_supported_modes() const;
-  bool supports_mode(WaterHeaterMode mode) const;
+  void set_supported_modes(WaterHeaterModeMask modes) { this->supported_modes_ = modes; }
+  const WaterHeaterModeMask &get_supported_modes() const { return this->supported_modes_; }
+  bool supports_mode(WaterHeaterMode mode) const { return this->supported_modes_.count(mode); }
 
  protected:
   bool supports_current_temperature_{false};
   float min_temperature_{0.0f};
   float max_temperature_{0.0f};
-  std::set<WaterHeaterMode> supported_modes_;
+  WaterHeaterModeMask supported_modes_;
 };
 
 class WaterHeater : public EntityBase, public Component {
