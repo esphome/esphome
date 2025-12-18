@@ -170,7 +170,7 @@ switch:
 
 ## Conditionally including a package
 
-You can include a package based on a condition, or choose a package dinamically by loading your package with
+You can include a package based on a condition, or choose a package dynamically by loading your package with
 `!include` into a substitution variable instead of under `packages`:
 
 ```yaml
