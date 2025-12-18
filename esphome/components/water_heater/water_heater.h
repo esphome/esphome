@@ -7,9 +7,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-
-namespace water_heater {
+namespace esphome::water_heater {
 
 struct WaterHeaterCallInternal;
 
@@ -124,5 +122,4 @@ class WaterHeater : public EntityBase, public Component {
   ESPPreferenceObject pref_;
 };
 
-}  // namespace water_heater
-}  // namespace esphome
+}  // namespace esphome::water_heater

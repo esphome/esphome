@@ -5,8 +5,7 @@
 
 #include <cmath>
 
-namespace esphome {
-namespace water_heater {
+namespace esphome::water_heater {
 
 static const char *const TAG = "water_heater";
 
@@ -132,5 +131,4 @@ void WaterHeater::set_visual_max_temperature_override(float max_temperature_over
   this->visual_max_temperature_override_ = max_temperature_override;
 }
 
-}  // namespace water_heater
-}  // namespace esphome
+}  // namespace esphome::water_heater
