@@ -271,7 +271,7 @@ def copy_src_tree():
         "esphome", "core", "build_info_data.h"
     )
     build_info_json_path = CORE.relative_build_path("build_info.json")
-    config_hash, build_time, build_time_str = get_build_info()
+    config_hash, build_time, build_time_str, comment = get_build_info()
 
     # Defensively force a rebuild if the build_info files don't exist, or if
     # there was a config change which didn't actually cause a source change
@@ -292,7 +292,9 @@ def copy_src_tree():
     if sources_changed:
         write_file(
             build_info_data_h_path,
-            generate_build_info_data_h(config_hash, build_time, build_time_str),
+            generate_build_info_data_h(
+                config_hash, build_time, build_time_str, comment
+            ),
         )
         write_file(
             build_info_json_path,
@@ -332,31 +334,43 @@ def generate_version_h():
     )
 
 
-def get_build_info() -> tuple[int, int, str]:
+def get_build_info() -> tuple[int, int, str, str]:
     """Calculate build_info values from current config.
 
     Returns:
-        Tuple of (config_hash, build_time, build_time_str)
+        Tuple of (config_hash, build_time, build_time_str, comment)
     """
     config_hash = CORE.config_hash
     build_time = int(time.time())
     build_time_str = time.strftime("%Y-%m-%d %H:%M:%S %z", time.localtime(build_time))
-    return config_hash, build_time, build_time_str
+    comment = CORE.comment or ""
+    return config_hash, build_time, build_time_str, comment
+
+
+def _escape_c_string(s: str) -> str:
+    """Escape a string for use in a C string literal."""
+    return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
 
 def generate_build_info_data_h(
-    config_hash: int, build_time: int, build_time_str: str
+    config_hash: int, build_time: int, build_time_str: str, comment: str
 ) -> str:
-    """Generate build_info_data.h header with config hash and build time."""
+    """Generate build_info_data.h header with config hash, build time, and comment."""
+    escaped_comment = _escape_c_string(comment)
+    # +1 for null terminator
+    comment_size = len(comment) + 1
     return f"""#pragma once
 // Auto-generated build_info data
 #define ESPHOME_CONFIG_HASH 0x{config_hash:08x}U  // NOLINT
 #define ESPHOME_BUILD_TIME {build_time}  // NOLINT
+#define ESPHOME_COMMENT_SIZE {comment_size}  // NOLINT
 #ifdef USE_ESP8266
 #include <pgmspace.h>
 static const char ESPHOME_BUILD_TIME_STR[] PROGMEM = "{build_time_str}";
+static const char ESPHOME_COMMENT_STR[] PROGMEM = "{escaped_comment}";
 #else
 static const char ESPHOME_BUILD_TIME_STR[] = "{build_time_str}";
+static const char ESPHOME_COMMENT_STR[] = "{escaped_comment}";
 #endif
 """
 
