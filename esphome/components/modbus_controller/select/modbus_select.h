@@ -43,6 +43,7 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
  protected:
   std::vector<int64_t> mapping_{};
   ModbusController *parent_{nullptr};
+  ModbusCommandItem write_cmd_;
   bool use_write_multiple_{false};
   bool optimistic_{false};
   optional<transform_func_t> transform_func_{nullopt};

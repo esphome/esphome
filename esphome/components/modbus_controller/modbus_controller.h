@@ -271,10 +271,6 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
     return cmd;
   };
 
-  // Queue a one-shot command (will not be polled)
-  void queue_command(const ModbusCommandItem &command);
-  void unqueue_command(const ModbusCommandItem *command);
-
  protected:
   /// parse sensormap_ and create range of sequential addresses
   size_t create_register_ranges_();
@@ -286,8 +282,6 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   SensorSet sensorset_;
   /// Continuous range of modbus registers
   std::vector<ModbusCommandItem> polling_command_items_{};
-  /// One-shot command items
-  std::list<std::unique_ptr<ModbusCommandItem>> one_shot_command_items_;
   /// count updates to enable skipping
   uint16_t update_counter_{0};
   /// count updates to enable skipping

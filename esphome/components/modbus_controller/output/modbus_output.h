@@ -38,6 +38,7 @@ class ModbusFloatOutput : public output::FloatOutput, public Component, public S
   optional<write_transform_func_t> write_transform_func_{nullopt};
 
   ModbusController *parent_{nullptr};
+  ModbusCommandItem write_cmd_;
   float multiply_by_{1.0};
   bool use_write_multiple_{false};
 };
@@ -69,6 +70,7 @@ class ModbusBinaryOutput : public output::BinaryOutput, public Component, public
   optional<write_transform_func_t> write_transform_func_{nullopt};
 
   ModbusController *parent_{nullptr};
+  ModbusCommandItem write_cmd_;
   bool use_write_multiple_{false};
 };
 

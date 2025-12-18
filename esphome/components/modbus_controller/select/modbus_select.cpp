@@ -72,15 +72,14 @@ void ModbusSelect::control(size_t index) {
   }
 
   const uint16_t write_address = this->start_address + this->offset / 2;
-  ModbusCommandItem write_cmd;
+
   if ((this->register_count == 1) && (!this->use_write_multiple_)) {
-    write_cmd = ModbusCommandItem::create_write_single_command(this->parent_, write_address, data[0]);
+    this->write_cmd_ = ModbusCommandItem::create_write_single_command(this->parent_, write_address, data[0]);
   } else {
-    write_cmd =
+    this->write_cmd_ =
         ModbusCommandItem::create_write_multiple_command(this->parent_, write_address, this->register_count, data);
   }
-
-  this->parent_->queue_command(write_cmd);
+  this->write_cmd_.send();
 
   if (this->optimistic_)
     this->publish_state(index);

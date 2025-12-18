@@ -52,15 +52,12 @@ void ModbusCommandItem::on_modbus_data(const std::vector<uint8_t> &data) {
       sensor->parse_and_publish(data);
     }
   }
-  if (this->controller_)
-    this->controller_->unqueue_command(this);
 }
 
 // Modbus error message is a legit response from the device. Consider the device online.
 void ModbusCommandItem::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
   if (this->controller_) {
     this->controller_->set_online(true, function_code, this->register_address());
-    this->controller_->unqueue_command(this);
   }
 }
 
@@ -72,11 +69,7 @@ void ModbusCommandItem::on_modbus_sent() {
 }
 
 // Command not being sent doesn't tell us whether device is online or offline
-// So we just unqueue it.
-void ModbusCommandItem::on_modbus_not_sent() {
-  if (this->controller_)
-    this->controller_->unqueue_command(this);
-}
+void ModbusCommandItem::on_modbus_not_sent() {}
 
 void ModbusCommandItem::on_modbus_no_response() {
   if (this->controller_) {
@@ -85,7 +78,6 @@ void ModbusCommandItem::on_modbus_no_response() {
       this->send();
     } else {
       this->controller_->set_online(false, (int) this->function_code(), this->register_address());
-      this->controller_->unqueue_command(this);
     }
   }
 }
@@ -122,20 +114,6 @@ void ModbusController::update() {
   }
 
   this->update_counter_++;
-}
-
-void ModbusController::queue_command(const ModbusCommandItem &command) {
-  this->one_shot_command_items_.push_back(make_unique<ModbusCommandItem>(command));
-  this->one_shot_command_items_.back()->send();
-  ESP_LOGV(TAG, "Added item to one shot commands. %d items total", this->one_shot_command_items_.size());
-}
-
-void ModbusController::unqueue_command(const ModbusCommandItem *command) {
-  auto erased = std::erase_if(this->one_shot_command_items_, [command](const std::unique_ptr<ModbusCommandItem> &item) {
-    return command == item.get();
-  });
-  ESP_LOGV(TAG, "Erased %d items from one shot commands. %d items remaining", erased,
-           this->one_shot_command_items_.size());
 }
 
 // walk through the sensors and determine the register ranges to read
@@ -255,6 +233,7 @@ size_t ModbusController::create_register_ranges_() {
     this->polling_command_items_.push_back(std::move(cmd));
   }
 
+  // TODO: Make this continuous if requested.
   for (auto &sensor : this->sensorset_) {
     if (sensor->register_type == ModbusRegisterType::CUSTOM) {
       ModbusCommandItem cmd = ModbusCommandItem::create_custom_command(this, sensor->custom_data);

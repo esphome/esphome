@@ -43,6 +43,7 @@ class ModbusSwitch : public Component, public switch_::Switch, public SensorItem
  protected:
   bool assumed_state() override;
   ModbusController *parent_{nullptr};
+  ModbusCommandItem write_cmd_;
   bool use_write_multiple_{false};
   optional<transform_func_t> publish_transform_func_{nullopt};
   optional<write_transform_func_t> write_transform_func_{nullopt};

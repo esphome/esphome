@@ -42,6 +42,7 @@ class ModbusNumber : public number::Number, public Component, public SensorItem 
   optional<transform_func_t> transform_func_{nullopt};
   optional<write_transform_func_t> write_transform_func_{nullopt};
   ModbusController *parent_{nullptr};
+  ModbusCommandItem write_cmd_;
   float multiply_by_{1.0};
   bool use_write_multiple_{false};
 };

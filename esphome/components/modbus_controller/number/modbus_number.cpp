@@ -26,7 +26,6 @@ void ModbusNumber::parse_and_publish(const std::vector<uint8_t> &data) {
 }
 
 void ModbusNumber::control(float value) {
-  ModbusCommandItem write_cmd;
   std::vector<uint16_t> data;
   float write_value = value;
   // Is there are lambda configured?
@@ -48,7 +47,7 @@ void ModbusNumber::control(float value) {
 
   if (!data.empty()) {
     ESP_LOGV(TAG, "Modbus Number write raw: %s", format_hex_pretty(data).c_str());
-    write_cmd = ModbusCommandItem::create_custom_command(this->parent_, data);
+    this->write_cmd_ = ModbusCommandItem::create_custom_command(this->parent_, data);
   } else {
     data = float_to_payload(write_value, this->sensor_value_type);
 
@@ -59,20 +58,14 @@ void ModbusNumber::control(float value) {
     // Create and send the write command
     if (this->register_count == 1 && !this->use_write_multiple_) {
       // since offset is in bytes and a register is 16 bits we get the start by adding offset/2
-      write_cmd = ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset / 2,
-                                                                 data[0]);
+      this->write_cmd_ = ModbusCommandItem::create_write_single_command(
+          this->parent_, this->start_address + this->offset / 2, data[0]);
     } else {
-      write_cmd = ModbusCommandItem::create_write_multiple_command(
+      this->write_cmd_ = ModbusCommandItem::create_write_multiple_command(
           this->parent_, this->start_address + this->offset / 2, this->register_count, data);
     }
-    // publish new value
-    write_cmd.on_data_func = [this, write_cmd, value](ModbusRegisterType register_type, uint16_t start_address,
-                                                      const std::vector<uint8_t> &data) {
-      // Republish in case there was a read command in queue before this write
-      this->publish_state(value);
-    };
   }
-  this->parent_->queue_command(write_cmd);
+  this->write_cmd_.send();
   this->publish_state(value);
 }
 void ModbusNumber::dump_config() { LOG_NUMBER(TAG, "Modbus Number", this); }

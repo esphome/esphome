@@ -38,15 +38,14 @@ void ModbusFloatOutput::write_state(float value) {
            this->start_address, this->register_count, value, original_value);
 
   // Create and send the write command
-  ModbusCommandItem write_cmd;
   if (this->register_count == 1 && !this->use_write_multiple_) {
-    write_cmd =
+    this->write_cmd_ =
         ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset, data[0]);
   } else {
-    write_cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->start_address + this->offset,
-                                                                 this->register_count, data);
+    this->write_cmd_ = ModbusCommandItem::create_write_multiple_command(
+        this->parent_, this->start_address + this->offset, this->register_count, data);
   }
-  this->parent_->queue_command(write_cmd);
+  this->write_cmd_.send();
 }
 
 void ModbusFloatOutput::dump_config() {
@@ -62,7 +61,6 @@ void ModbusFloatOutput::dump_config() {
 // ModbusBinaryOutput
 void ModbusBinaryOutput::write_state(bool state) {
   // This will be called every time the user requests a state change.
-  ModbusCommandItem cmd;
   std::vector<uint8_t> data;
 
   // Is there are lambda configured?
@@ -81,7 +79,7 @@ void ModbusBinaryOutput::write_state(bool state) {
   }
   if (!data.empty()) {
     ESP_LOGV(TAG, "Modbus binary output write raw: %s", format_hex_pretty(data).c_str());
-    cmd = ModbusCommandItem::create_custom_command(this->parent_, data);
+    this->write_cmd_ = ModbusCommandItem::create_custom_command(this->parent_, data);
   } else {
     ESP_LOGV(TAG, "Write new state: value is %s, type is %d address = %X, offset = %x", ONOFF(state),
              (int) this->register_type, this->start_address, this->offset);
@@ -89,12 +87,14 @@ void ModbusBinaryOutput::write_state(bool state) {
     // offset for coil and discrete inputs is the coil/register number not bytes
     if (this->use_write_multiple_) {
       std::vector<bool> states{state};
-      cmd = ModbusCommandItem::create_write_multiple_coils(this->parent_, this->start_address + this->offset, states);
+      this->write_cmd_ =
+          ModbusCommandItem::create_write_multiple_coils(this->parent_, this->start_address + this->offset, states);
     } else {
-      cmd = ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state);
+      this->write_cmd_ =
+          ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state);
     }
   }
-  this->parent_->queue_command(cmd);
+  this->write_cmd_.send();
 }
 
 void ModbusBinaryOutput::dump_config() {
