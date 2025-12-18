@@ -183,6 +183,9 @@ class WaterHeater : public EntityBase, public Component {
  protected:
   virtual WaterHeaterTraits traits() = 0;
 
+  /// Log the traits of this water heater for dump_config().
+  void dump_traits_(const char *tag);
+
   /// Set the mode of the water heater. Should only be called from control().
   void set_mode_(WaterHeaterMode mode) { this->mode_ = mode; }
   /// Set the target temperature of the water heater. Should only be called from control().

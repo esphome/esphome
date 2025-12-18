@@ -65,7 +65,17 @@ WaterHeaterCall &WaterHeaterCall::to_call(WaterHeater *water_heater) {
 }
 
 void WaterHeaterCall::perform() {
+  ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   this->validate_();
+  if (this->mode_.has_value()) {
+    ESP_LOGD(TAG, "  Mode: %s", LOG_STR_ARG(water_heater_mode_to_string(*this->mode_)));
+  }
+  if (!std::isnan(this->target_temperature_)) {
+    ESP_LOGD(TAG, "  Target Temperature: %.2f", this->target_temperature_);
+  }
+  if (this->state_ & WATER_HEATER_STATE_AWAY) {
+    ESP_LOGD(TAG, "  Away: YES");
+  }
   this->parent_->control(*this);
 }
 
@@ -96,6 +106,18 @@ void WaterHeater::setup() {
 }
 
 void WaterHeater::publish_state() {
+  ESP_LOGD(TAG, "'%s' - Sending state:", this->name_.c_str());
+  ESP_LOGD(TAG, "  Mode: %s", LOG_STR_ARG(water_heater_mode_to_string(this->mode_)));
+  if (!std::isnan(this->current_temperature_)) {
+    ESP_LOGD(TAG, "  Current Temperature: %.2f°C", this->current_temperature_);
+  }
+  if (!std::isnan(this->target_temperature_)) {
+    ESP_LOGD(TAG, "  Target Temperature: %.2f°C", this->target_temperature_);
+  }
+  if (this->state_ & WATER_HEATER_STATE_AWAY) {
+    ESP_LOGD(TAG, "  Away: YES");
+  }
+
 #if defined(USE_WATER_HEATER) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_water_heater_update(this);
 #endif
@@ -165,6 +187,24 @@ const LogString *water_heater_mode_to_string(WaterHeaterMode mode) {
       return LOG_STR("GAS");
     default:
       return LOG_STR("UNKNOWN");
+  }
+}
+
+void WaterHeater::dump_traits_(const char *tag) {
+  auto traits = this->get_traits();
+  ESP_LOGCONFIG(tag,
+                "  Min Temperature: %.1f°C\n"
+                "  Max Temperature: %.1f°C\n"
+                "  Temperature Step: %.1f",
+                traits.get_min_temperature(), traits.get_max_temperature(), traits.get_target_temperature_step());
+  if (traits.get_supports_away_mode()) {
+    ESP_LOGCONFIG(tag, "  Supports Away Mode: YES");
+  }
+  if (!traits.get_supported_modes().empty()) {
+    ESP_LOGCONFIG(tag, "  Supported Modes:");
+    for (WaterHeaterMode m : traits.get_supported_modes()) {
+      ESP_LOGCONFIG(tag, "    - %s", LOG_STR_ARG(water_heater_mode_to_string(m)));
+    }
   }
 }
 
