@@ -26,8 +26,12 @@ static const uint16_t SEN6X_CMD_START_CLEANING_FAN = 0x5607;
 static const uint16_t SEN6X_CMD_START_MEASUREMENTS = 0x0021;
 static const uint16_t SEN6X_CMD_STOP_MEASUREMENTS = 0x0104;
 static const uint16_t SEN6X_CMD_TEMPERATURE_COMPENSATION = 0x60B2;
+static const uint16_t SEN6X_CMD_PRESSURE_COMPENSATION = 0x6720;
+static const uint16_t SEN6X_CMD_ALTITUDE_COMPENSATION = 0x6736;
 static const uint16_t SEN6X_CMD_VOC_ALGORITHM_STATE = 0x6181;
 static const uint16_t SEN6X_CMD_VOC_ALGORITHM_TUNING = 0x60D0;
+
+static const uint16_t SEN6X_CMD_PERFORM_FORCED_CO2_CALIBRATION = 0x0607;
 
 static const int8_t SEN6X_INDEX_SCALE_FACTOR = 10;                            // used for VOC and NOx index values
 static const int8_t SEN6X_MIN_INDEX_VALUE = 1 * SEN6X_INDEX_SCALE_FACTOR;     // must be adjusted by the scale factor
@@ -170,9 +174,16 @@ void SEN6XComponent::setup() {
         this->write_tuning_parameters_(SEN6X_CMD_NOX_ALGORITHM_TUNING, this->nox_tuning_params_.value());
         delay(20);
       }
-
       if (this->temperature_compensation_.has_value()) {
         this->write_temperature_compensation_(this->temperature_compensation_.value());
+        delay(20);
+      }
+      if (this->pressure_compensation_.has_value()) {
+        this->write_pressure_compensation_(this->pressure_compensation_.value());
+        delay(20);
+      }
+      if (this->altitude_compensation_.has_value()) {
+        this->write_altitude_compensation_(this->altitude_compensation_.value());
         delay(20);
       }
 
@@ -440,12 +451,33 @@ bool SEN6XComponent::write_tuning_parameters_(uint16_t i2c_command, const GasTun
 }
 
 bool SEN6XComponent::write_temperature_compensation_(const TemperatureCompensation &compensation) {
-  uint16_t params[3];
+  uint16_t params[4];
   params[0] = compensation.offset;
   params[1] = compensation.normalized_offset_slope;
   params[2] = compensation.time_constant;
-  if (!write_command(SEN6X_CMD_TEMPERATURE_COMPENSATION, params, 3)) {
+  params[3] = compensation.slot;
+  if (!write_command(SEN6X_CMD_TEMPERATURE_COMPENSATION, params, 4)) {
     ESP_LOGE(TAG, "Set temperature_compensation failed (%d)", this->last_error_);
+    return false;
+  }
+  return true;
+}
+
+bool SEN6XComponent::write_pressure_compensation_(const uint16_t pressure) {
+  uint16_t params[1];
+  params[0] = pressure;
+  if (!write_command(SEN6X_CMD_PRESSURE_COMPENSATION, params, 1)) {
+    ESP_LOGE(TAG, "Set pressure_compensation failed (%d)", this->last_error_);
+    return false;
+  }
+  return true;
+}
+
+bool SEN6XComponent::write_altitude_compensation_(const uint16_t altitude) {
+  uint16_t params[1];
+  params[0] = altitude;
+  if (!write_command(SEN6X_CMD_ALTITUDE_COMPENSATION, params, 1)) {
+    ESP_LOGE(TAG, "Set altitude_compensation failed (%d)", this->last_error_);
     return false;
   }
   return true;
