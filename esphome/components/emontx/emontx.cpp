@@ -38,7 +38,7 @@ void EmonTx::setup() {
 #ifdef USE_API
   // Auto-register send_command service when config_panel is enabled
   if (this->config_panel_) {
-    this->register_service(&EmonTx::send_command, "send_command", {"command"});
+    this->register_service(&EmonTx::send_command_service, "send_command", {"command"});
     ESP_LOGCONFIG(TAG, "Registered send_command service");
   }
 #endif

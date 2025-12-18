@@ -84,6 +84,9 @@ class EmonTx : public PollingComponent,
   // Send command to emonTx via UART
   void send_command(std::string command);
 
+  // Wrapper for service registration (uses const char* for compatibility)
+  void send_command_service(const char *command) { this->send_command(std::string(command)); }
+
   // Enable/disable config panel (auto-fires esphome.emontx_raw events)
   void set_config_panel(bool enabled) { this->config_panel_ = enabled; }
 
