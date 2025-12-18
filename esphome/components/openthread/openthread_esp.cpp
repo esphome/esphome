@@ -104,7 +104,7 @@ void OpenThreadComponent::ot_main() {
   esp_cli_custom_command_init();
 #endif  // CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
 
-  this->set_link_mode(esp_openthread_get_instance(), false, false);
+  this->set_link_mode(esp_openthread_get_instance(), false, false, true);
 
   // Run the main loop
 #if CONFIG_OPENTHREAD_CLI

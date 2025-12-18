@@ -268,7 +268,8 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
   ESP_LOGD(TAG, "Waiting on Confirmation Removal SRP Host and Services");
 }
 
-void OpenThreadComponent::set_link_mode(otInstance *instance, bool keep_radio_on, bool wait_for_role) {
+void OpenThreadComponent::set_link_mode(otInstance *instance, bool keep_radio_on, bool wait_for_role,
+                                        bool set_poll_period) {
   otLinkModeConfig link_mode_config = {0};
 #if CONFIG_OPENTHREAD_FTD
   link_mode_config.mRxOnWhenIdle = true;
@@ -276,7 +277,7 @@ void OpenThreadComponent::set_link_mode(otInstance *instance, bool keep_radio_on
   link_mode_config.mNetworkData = true;
 #elif CONFIG_OPENTHREAD_MTD
 #ifdef USE_OPENTHREAD_POLL_PERIOD
-  if (!keep_radio_on && otLinkSetPollPeriod(esp_openthread_get_instance(), this->poll_period_) != OT_ERROR_NONE) {
+  if (set_poll_period && otLinkSetPollPeriod(esp_openthread_get_instance(), this->poll_period_) != OT_ERROR_NONE) {
     ESP_LOGE(TAG, "Failed to set OpenThread pollperiod.");
   }
   uint32_t link_polling_period = otLinkGetPollPeriod(esp_openthread_get_instance());
@@ -325,7 +326,7 @@ esp_err_t OpenThreadComponent::keep_radio_on_during_idle(bool keep_radio_on) {
   if (instance == nullptr) {
     return ESP_FAIL;
   }
-  this->set_link_mode(instance, keep_radio_on, true);
+  this->set_link_mode(instance, keep_radio_on, true, false);
   return ESP_OK;
 }
 #endif

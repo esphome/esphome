@@ -39,7 +39,7 @@ class OpenThreadComponent : public Component {
   void set_poll_period(uint32_t poll_period) { this->poll_period_ = poll_period; }
   esp_err_t keep_radio_on_during_idle(bool keep_radio_on);
 #endif
-  void set_link_mode(otInstance *instance, bool keep_radio_on, bool wait_for_role);
+  void set_link_mode(otInstance *instance, bool keep_radio_on, bool wait_for_role, bool set_poll_period);
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
