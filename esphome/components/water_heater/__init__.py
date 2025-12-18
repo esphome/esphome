@@ -23,7 +23,6 @@ WaterHeaterCall = water_heater_ns.class_("WaterHeaterCall")
 WaterHeaterTraits = water_heater_ns.class_("WaterHeaterTraits")
 
 CONF_TARGET_TEMPERATURE_STEP = "target_temperature_step"
-CONF_CURRENT_TEMPERATURE_STEP = "current_temperature_step"
 
 WaterHeaterMode = water_heater_ns.enum("WaterHeaterMode")
 WATER_HEATER_MODES = {
@@ -44,7 +43,6 @@ _WATER_HEATER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
                 cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
                 cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
                 cv.Optional(CONF_TARGET_TEMPERATURE_STEP): cv.float_,
-                cv.Optional(CONF_CURRENT_TEMPERATURE_STEP): cv.float_,
             }
         ),
     }
