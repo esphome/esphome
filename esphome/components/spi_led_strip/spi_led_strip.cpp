@@ -104,10 +104,6 @@ light::ESPColorView SpiLedStrip::get_view_internal(int32_t index) const {
   uint8_t *b_ptr = this->channel_map_.get_address_by_channel_name(led_base, light::ChannelMap::ChannelName::B);
   uint8_t *w_ptr = this->channel_map_.get_address_by_channel_name(led_base, light::ChannelMap::ChannelName::W);
 
-  if (index == 0) {
-    ESP_LOGD(TAG, ">   %#X %#X %#X %#X\n", led_base, this->base_, index, this->address_multiplier_);
-    ESP_LOGD(TAG, ">>  %#X %#X %#X %#X\n", r_ptr, g_ptr, b_ptr, w_ptr);
-  }
   return {r_ptr, g_ptr, b_ptr, w_ptr, &this->effect_data_[index], &this->correction_};
 }
 }  // namespace spi_led_strip
