@@ -7,13 +7,12 @@ from esphome.components.esp32 import (
     CONF_CPU_FREQUENCY,
     CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES,
     VARIANT_ESP32,
-    add_idf_sdkconfig_option,
-    get_esp32_variant,
-)
-from esphome.components.esp32.const import (
+    VARIANT_ESP32C5,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    add_idf_sdkconfig_option,
+    get_esp32_variant,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -53,6 +52,7 @@ CONF_ENABLE_ECC = "enable_ecc"
 
 SPIRAM_MODES = {
     VARIANT_ESP32: (TYPE_QUAD,),
+    VARIANT_ESP32C5: (TYPE_QUAD,),
     VARIANT_ESP32S2: (TYPE_QUAD,),
     VARIANT_ESP32S3: (TYPE_QUAD, TYPE_OCTAL),
     VARIANT_ESP32P4: (TYPE_HEX,),
@@ -61,6 +61,7 @@ SPIRAM_MODES = {
 
 SPIRAM_SPEEDS = {
     VARIANT_ESP32: (40, 80, 120),
+    VARIANT_ESP32C5: (40, 80, 120),
     VARIANT_ESP32S2: (40, 80, 120),
     VARIANT_ESP32S3: (40, 80, 120),
     VARIANT_ESP32P4: (20, 100, 200),
@@ -196,7 +197,6 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_SPIRAM_SPEED", speed)
     if config[CONF_MODE] == TYPE_OCTAL and speed == 120:
         add_idf_sdkconfig_option("CONFIG_ESPTOOLPY_FLASHFREQ_120M", True)
-        add_idf_sdkconfig_option("CONFIG_BOOTLOADER_FLASH_DC_AWARE", True)
         if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(5, 4, 0):
             add_idf_sdkconfig_option(
                 "CONFIG_SPIRAM_TIMING_TUNING_POINT_VIA_TEMPERATURE_SENSOR", True

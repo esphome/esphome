@@ -143,11 +143,12 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly,
   return refout ? (crc ^ 0xffff) : crc;
 }
 
+// FNV-1 hash - deprecated, use fnv1a_hash() for new code
 uint32_t fnv1_hash(const char *str) {
-  uint32_t hash = 2166136261UL;
+  uint32_t hash = FNV1_OFFSET_BASIS;
   if (str) {
     while (*str) {
-      hash *= 16777619UL;
+      hash *= FNV1_PRIME;
       hash ^= *str++;
     }
   }
@@ -188,22 +189,27 @@ template<int (*fn)(int)> std::string str_ctype_transform(const std::string &str)
 }
 std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
 std::string str_upper_case(const std::string &str) { return str_ctype_transform<std::toupper>(str); }
+// Convert char to snake_case: lowercase and spaces to underscores
+static constexpr char to_snake_case_char(char c) {
+  return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c;
+}
+// Sanitize char: keep alphanumerics, dashes, underscores; replace others with underscore
+static constexpr char to_sanitized_char(char c) {
+  return (c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) ? c : '_';
+}
 std::string str_snake_case(const std::string &str) {
-  std::string result;
-  result.resize(str.length());
-  std::transform(str.begin(), str.end(), result.begin(), ::tolower);
-  std::replace(result.begin(), result.end(), ' ', '_');
+  std::string result = str;
+  for (char &c : result) {
+    c = to_snake_case_char(c);
+  }
   return result;
 }
 std::string str_sanitize(const std::string &str) {
-  std::string out = str;
-  std::replace_if(
-      out.begin(), out.end(),
-      [](const char &c) {
-        return c != '-' && c != '_' && (c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z');
-      },
-      '_');
-  return out;
+  std::string result = str;
+  for (char &c : result) {
+    c = to_sanitized_char(c);
+  }
+  return result;
 }
 std::string str_snprintf(const char *fmt, size_t len, ...) {
   std::string str;
@@ -238,9 +244,9 @@ std::string str_sprintf(const char *fmt, ...) {
 // Maximum size for name with suffix: 120 (max friendly name) + 1 (separator) + 6 (MAC suffix) + 1 (null term)
 static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
 
-std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len) {
+std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
+                                  size_t suffix_len) {
   char buffer[MAX_NAME_WITH_SUFFIX_SIZE];
-  size_t name_len = name.size();
   size_t total_len = name_len + 1 + suffix_len;
 
   // Silently truncate if needed: prioritize keeping the full suffix
@@ -252,29 +258,26 @@ std::string make_name_with_suffix(const std::string &name, char sep, const char 
     total_len = name_len + 1 + suffix_len;
   }
 
-  memcpy(buffer, name.c_str(), name_len);
+  memcpy(buffer, name, name_len);
   buffer[name_len] = sep;
   memcpy(buffer + name_len + 1, suffix_ptr, suffix_len);
   buffer[total_len] = '\0';
   return std::string(buffer, total_len);
 }
 
+std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len) {
+  return make_name_with_suffix(name.c_str(), name.size(), sep, suffix_ptr, suffix_len);
+}
+
 // Parsing & formatting
 
 size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
-  uint8_t val;
   size_t chars = std::min(length, 2 * count);
   for (size_t i = 2 * count - chars; i < 2 * count; i++, str++) {
-    if (*str >= '0' && *str <= '9') {
-      val = *str - '0';
-    } else if (*str >= 'A' && *str <= 'F') {
-      val = 10 + (*str - 'A');
-    } else if (*str >= 'a' && *str <= 'f') {
-      val = 10 + (*str - 'a');
-    } else {
+    uint8_t val = parse_hex_char(*str);
+    if (val > 15)
       return 0;
-    }
-    data[i >> 1] = !(i & 1) ? val << 4 : data[i >> 1] | val;
+    data[i >> 1] = (i & 1) ? data[i >> 1] | val : val << 4;
   }
   return chars;
 }
@@ -476,22 +479,13 @@ std::string base64_encode(const uint8_t *buf, size_t buf_len) {
 }
 
 size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf_len) {
-  std::vector<uint8_t> decoded = base64_decode(encoded_string);
-  if (decoded.size() > buf_len) {
-    ESP_LOGW(TAG, "Base64 decode: buffer too small, truncating");
-    decoded.resize(buf_len);
-  }
-  memcpy(buf, decoded.data(), decoded.size());
-  return decoded.size();
-}
-
-std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
   int in_len = encoded_string.size();
   int i = 0;
   int j = 0;
   int in = 0;
+  size_t out = 0;
   uint8_t char_array_4[4], char_array_3[3];
-  std::vector<uint8_t> ret;
+  bool truncated = false;
 
   // SAFETY: The loop condition checks is_base64() before processing each character.
   // This ensures base64_find_char() is only called on valid base64 characters,
@@ -507,8 +501,13 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
       char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
       char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
 
-      for (i = 0; (i < 3); i++)
-        ret.push_back(char_array_3[i]);
+      for (i = 0; i < 3; i++) {
+        if (out < buf_len) {
+          buf[out++] = char_array_3[i];
+        } else {
+          truncated = true;
+        }
+      }
       i = 0;
     }
   }
@@ -524,10 +523,28 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
     char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
     char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
 
-    for (j = 0; (j < i - 1); j++)
-      ret.push_back(char_array_3[j]);
+    for (j = 0; j < i - 1; j++) {
+      if (out < buf_len) {
+        buf[out++] = char_array_3[j];
+      } else {
+        truncated = true;
+      }
+    }
   }
 
+  if (truncated) {
+    ESP_LOGW(TAG, "Base64 decode: buffer too small, truncating");
+  }
+
+  return out;
+}
+
+std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
+  // Calculate maximum decoded size: every 4 base64 chars = 3 bytes
+  size_t max_len = ((encoded_string.size() + 3) / 4) * 3;
+  std::vector<uint8_t> ret(max_len);
+  size_t actual_len = base64_decode(encoded_string, ret.data(), max_len);
+  ret.resize(actual_len);
   return ret;
 }
 
@@ -638,15 +655,21 @@ std::string get_mac_address() {
 }
 
 std::string get_mac_address_pretty() {
-  uint8_t mac[6];
-  get_mac_address_raw(mac);
-  return format_mac_address_pretty(mac);
+  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  return std::string(get_mac_address_pretty_into_buffer(buf));
 }
 
-void get_mac_address_into_buffer(std::span<char, 13> buf) {
+void get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_BUFFER_SIZE> buf) {
   uint8_t mac[6];
   get_mac_address_raw(mac);
   format_mac_addr_lower_no_sep(mac, buf.data());
+}
+
+const char *get_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
+  uint8_t mac[6];
+  get_mac_address_raw(mac);
+  format_mac_addr_upper(mac, buf.data());
+  return buf.data();
 }
 
 #ifndef USE_ESP32

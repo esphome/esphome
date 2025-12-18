@@ -1,8 +1,7 @@
 #include "template_valve.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 using namespace esphome::valve;
 
@@ -127,5 +126,4 @@ void TemplateValve::stop_prev_trigger_() {
   }
 }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

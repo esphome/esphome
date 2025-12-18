@@ -81,7 +81,14 @@ async def test_api_homeassistant(
         "input_number.set_value": loop.create_future(),  # ha_number_service_call
         "switch.turn_on": loop.create_future(),  # ha_switch_on_service_call
         "switch.turn_off": loop.create_future(),  # ha_switch_off_service_call
+        "nonexistent.action_for_error_test": loop.create_future(),  # error_test_call
     }
+
+    # Future for error message test
+    action_error_received_future = loop.create_future()
+
+    # Store client reference for use in callback
+    client_ref: list = []  # Use list to allow modification in nested function
 
     def on_service_call(service_call: HomeassistantServiceCall) -> None:
         """Capture HomeAssistant service calls."""
@@ -92,6 +99,17 @@ async def test_api_homeassistant(
             future = service_call_futures[service_call.service]
             if not future.done():
                 future.set_result(service_call)
+
+        # Immediately respond to the error test call so the test can proceed
+        # This needs to happen synchronously so ESPHome receives the response
+        # before logging "=== All tests completed ==="
+        if service_call.service == "nonexistent.action_for_error_test" and client_ref:
+            test_error_message = "Test error: action not found"
+            client_ref[0].send_homeassistant_action_response(
+                call_id=service_call.call_id,
+                success=False,
+                error_message=test_error_message,
+            )
 
     def check_output(line: str) -> None:
         """Check log output for expected messages."""
@@ -131,7 +149,12 @@ async def test_api_homeassistant(
             if match:
                 ha_number_future.set_result(match.group(1))
 
-        elif not tests_complete_future.done() and tests_complete_pattern.search(line):
+        # Check for action error message (tests StringRef -> std::string conversion)
+        # Use separate if (not elif) since this can come after tests_complete
+        if not action_error_received_future.done() and "Action error received:" in line:
+            action_error_received_future.set_result(line)
+
+        if not tests_complete_future.done() and tests_complete_pattern.search(line):
             tests_complete_future.set_result(True)
 
     # Run with log monitoring
@@ -143,6 +166,9 @@ async def test_api_homeassistant(
         device_info = await client.device_info()
         assert device_info is not None
         assert device_info.name == "test-ha-api"
+
+        # Store client reference for use in service call callback
+        client_ref.append(client)
 
         # Subscribe to HomeAssistant service calls
         client.subscribe_service_calls(on_service_call)
@@ -163,7 +189,7 @@ async def test_api_homeassistant(
         assert trigger_service is not None, "trigger_all_tests service not found"
 
         # Execute all tests
-        client.execute_service(trigger_service, {})
+        await client.execute_service(trigger_service, {})
 
         # Wait for all tests to complete with appropriate timeouts
         try:
@@ -291,6 +317,17 @@ async def test_api_homeassistant(
             )
             assert switch_off_call.service == "switch.turn_off"
             assert switch_off_call.data["entity_id"] == "switch.test_switch"
+
+            # 9. Action response error test (tests StringRef error message)
+            # The error response is sent automatically in on_service_call callback
+            # Wait for the error to be logged (proves StringRef -> std::string works)
+            error_log_line = await asyncio.wait_for(
+                action_error_received_future, timeout=2.0
+            )
+            test_error_message = "Test error: action not found"
+            assert test_error_message in error_log_line, (
+                f"Expected error message '{test_error_message}' not found in: {error_log_line}"
+            )
 
         except TimeoutError as e:
             # Show recent log lines for debugging

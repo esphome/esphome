@@ -44,7 +44,7 @@ CONFIG_SCHEMA = (
             cv.Optional(ble_client.CONF_BLE_CLIENT_ID): cv.invalid(
                 "The 'ble_client_id' option has been removed. Please migrate "
                 "to the new `bedjet_id` option in the `bedjet` component.\n"
-                "See https://esphome.io/components/climate/bedjet.html"
+                "See https://esphome.io/components/climate/bedjet/"
             ),
             cv.Optional(CONF_TIME_ID): cv.invalid(
                 "The 'time_id' option has been moved to the `bedjet` component."

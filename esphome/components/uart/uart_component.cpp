@@ -1,7 +1,6 @@
 #include "uart_component.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 static const char *const TAG = "uart";
 
@@ -28,5 +27,4 @@ void UARTComponent::set_rx_full_threshold_ms(uint8_t time) {
   this->set_rx_full_threshold(val);
 }
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart
