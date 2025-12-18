@@ -100,28 +100,29 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_pressure_compensation(uint16_t pressure) { pressure_compensation_ = pressure; }
   void set_altitude_compensation(uint16_t altitude) { altitude_compensation_ = altitude; }
   void set_type(std::string type) {
-    if (type == "SEN62")
+    if (type == "SEN62") {
       this->sen6x_type_ = SEN62;
-    else if (type == "SEN63C")
+    } else if (type == "SEN63C") {
       this->sen6x_type_ = SEN63C;
-    else if (type == "SEN65")
+    } else if (type == "SEN65") {
       this->sen6x_type_ = SEN65;
-    else if (type == "SEN66")
+    } else if (type == "SEN66") {
       this->sen6x_type_ = SEN66;
-    else if (type == "SEN68")
+    } else if (type == "SEN68") {
       this->sen6x_type_ = SEN68;
-    else if (type == "SEN69C")
+    } else if (type == "SEN69C") {
       this->sen6x_type_ = SEN69C;
-    else
+    } else {
       this->sen6x_type_ = UNKNOWN;
+    }
   }
   bool start_fan_cleaning();
 
  protected:
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
-  bool write_pressure_compensation_(const uint16_t pressure);
-  bool write_altitude_compensation_(const uint16_t altitude);
+  bool write_pressure_compensation_(uint16_t pressure);
+  bool write_altitude_compensation_(uint16_t altitude);
 
   template<size_t N> void unpackUint16ToChar_(uint16_t (&src)[N], std::array<char, N * 2> &dest) {
     for (size_t i = 0; i < N; ++i) {
