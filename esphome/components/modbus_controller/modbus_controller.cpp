@@ -64,6 +64,13 @@ void ModbusCommandItem::on_modbus_error(uint8_t function_code, uint8_t exception
   }
 }
 
+void ModbusCommandItem::on_modbus_sent() {
+  if (this->controller_)
+    this->controller_->command_sent((int) this->function_code(), this->register_address());
+  ESP_LOGV(TAG, "Command sent %d 0x%X %d", uint8_t(this->function_code()), this->register_address(),
+           this->register_count());
+}
+
 // Command not being sent doesn't tell us whether device is online or offline
 // So we just unqueue it.
 void ModbusCommandItem::on_modbus_not_sent() {
@@ -367,9 +374,6 @@ void ModbusCommandItem::send() {
   } else {
     this->send_pdu(this->payload, this->continuous_read);
   }
-  this->controller_->command_sent((int) this->function_code(), this->register_address());
-  ESP_LOGV(TAG, "Command sent %d 0x%X %d", uint8_t(this->function_code()), this->register_address(),
-           this->register_count());
 }
 
 void ModbusController::command_sent(int function_code, int register_address) {

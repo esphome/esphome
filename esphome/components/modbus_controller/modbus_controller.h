@@ -112,6 +112,8 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   void on_modbus_data(const std::vector<uint8_t> &data) override;
   /// called when a modbus error response was received
   void on_modbus_error(uint8_t function_code, uint8_t exception_code) override;
+  /// called when modbus command is actually sent
+  void on_modbus_sent() override;
   /// called when modbus can't send for any reason
   void on_modbus_not_sent() override;
   /// called when a modbus timeout occurred
