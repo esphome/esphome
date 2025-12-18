@@ -22,8 +22,12 @@ class SpiLedStrip : public light::AddressableLight,
   ~SpiLedStrip() = default;
   void setup() override;
 
-  void set_min_mireds(float min_reds) { this->min_mireds_ = min_reds; }
-  void set_max_mireds(float max_mireds) { this->max_mireds_ = max_mireds; }
+  void set_cold_white_color_temperature(uint16_t cold_white_color_temperature) {
+    this->cold_white_color_temperature_ = cold_white_color_temperature;
+  }
+  void set_warm_white_color_temperature(uint16_t warm_white_color_temperature) {
+    this->warm_white_color_temperature_ = warm_white_color_temperature;
+  }
 
   float get_setup_priority() const override { return setup_priority::IO; }
 
@@ -48,8 +52,8 @@ class SpiLedStrip : public light::AddressableLight,
   uint8_t *base_{nullptr};  // Raw SPI frame with offset to start of color data
   uint8_t address_multiplier_{};
   uint8_t *effect_data_{nullptr};
-  float min_mireds_{};
-  float max_mireds_{};
+  uint16_t cold_white_color_temperature_{};
+  uint16_t warm_white_color_temperature_{};
 };
 
 }  // namespace spi_led_strip

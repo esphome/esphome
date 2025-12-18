@@ -56,8 +56,8 @@ light::LightTraits SpiLedStrip::get_traits() {
   auto traits = light::LightTraits();
   if (this->channel_map_.is_rgbcct()) {
     traits.set_supported_color_modes({light::ColorMode::RGB_COLD_WARM_WHITE});
-    traits.set_min_mireds(this->min_mireds_);
-    traits.set_max_mireds(this->max_mireds_);
+    traits.set_min_mireds(1'000'000. / this->cold_white_color_temperature_);
+    traits.set_max_mireds(1'000'000. / this->warm_white_color_temperature_);
   } else if (this->channel_map_.is_rgbw()) {
     traits.set_supported_color_modes({light::ColorMode::RGB_WHITE});
   } else {
@@ -74,6 +74,10 @@ void SpiLedStrip::dump_config() {
                                            : "Unknown");
   ESP_LOGCONFIG(TAG, "  Channel Map: %s (%u channels)", this->channel_map_.to_string().c_str(),
                 this->channel_map_.get_channel_count());
+  ESP_LOGCONFIG(TAG, "  Color mode: %s",
+                this->channel_map_.is_rgbcct() ? "RGBCCT"
+                : this->channel_map_.is_rgbw() ? "RGBW"
+                                               : "RGB");
   if (this->data_rate_ >= spi::DATA_RATE_1MHZ) {
     ESP_LOGCONFIG(TAG, "  Data rate: %uMHz", (unsigned) (this->data_rate_ / 1000000));
   } else {
