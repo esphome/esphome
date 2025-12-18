@@ -112,7 +112,7 @@ void ModemComponent::setup() {
   }
   if (this->modem_handler->uart_port_num == UART_NUM_MAX) {
     ESP_LOGE(TAG, "No free UART port for modem");
-    this->mark_failed("No free UART port for modem");
+    this->mark_failed(LOG_STR("No free UART port for modem"));
     return;
   }
 
