@@ -29,13 +29,17 @@ void HttpRequestUpdate::setup() {
       this->publish_state();
     } else if (state == ota::OTAState::OTA_ABORT || state == ota::OTAState::OTA_ERROR) {
       this->state_ = update::UPDATE_STATE_AVAILABLE;
-      this->status_set_error("Failed to install firmware");
+      this->status_set_error(LOG_STR("Failed to install firmware"));
       this->publish_state();
     }
   });
 }
 
 void HttpRequestUpdate::update() {
+  if (!network::is_connected()) {
+    ESP_LOGD(TAG, "Network not connected, skipping update check");
+    return;
+  }
 #ifdef USE_ESP32
   xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, (void *) this, 1, &this->update_task_handle_);
 #else
@@ -49,18 +53,19 @@ void HttpRequestUpdate::update_task(void *params) {
   auto container = this_update->request_parent_->get(this_update->source_url_);
 
   if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
-    std::string msg = str_sprintf("Failed to fetch manifest from %s", this_update->source_url_.c_str());
+    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this_update->source_url_.c_str());
     // Defer to main loop to avoid race condition on component_state_ read-modify-write
-    this_update->defer([this_update, msg]() { this_update->status_set_error(msg.c_str()); });
+    this_update->defer([this_update]() { this_update->status_set_error(LOG_STR("Failed to fetch manifest")); });
     UPDATE_RETURN;
   }
 
   RAMAllocator<uint8_t> allocator;
   uint8_t *data = allocator.allocate(container->content_length);
   if (data == nullptr) {
-    std::string msg = str_sprintf("Failed to allocate %zu bytes for manifest", container->content_length);
+    ESP_LOGE(TAG, "Failed to allocate %zu bytes for manifest", container->content_length);
     // Defer to main loop to avoid race condition on component_state_ read-modify-write
-    this_update->defer([this_update, msg]() { this_update->status_set_error(msg.c_str()); });
+    this_update->defer(
+        [this_update]() { this_update->status_set_error(LOG_STR("Failed to allocate memory for manifest")); });
     container->end();
     UPDATE_RETURN;
   }
@@ -70,6 +75,11 @@ void HttpRequestUpdate::update_task(void *params) {
     int read_bytes = container->read(data + read_index, MAX_READ_SIZE);
 
     yield();
+
+    if (read_bytes <= 0) {
+      // Network error or connection closed - break to avoid infinite loop
+      break;
+    }
 
     read_index += read_bytes;
   }
@@ -121,9 +131,9 @@ void HttpRequestUpdate::update_task(void *params) {
   }
 
   if (!valid) {
-    std::string msg = str_sprintf("Failed to parse JSON from %s", this_update->source_url_.c_str());
+    ESP_LOGE(TAG, "Failed to parse JSON from %s", this_update->source_url_.c_str());
     // Defer to main loop to avoid race condition on component_state_ read-modify-write
-    this_update->defer([this_update, msg]() { this_update->status_set_error(msg.c_str()); });
+    this_update->defer([this_update]() { this_update->status_set_error(LOG_STR("Failed to parse manifest JSON")); });
     UPDATE_RETURN;
   }
 

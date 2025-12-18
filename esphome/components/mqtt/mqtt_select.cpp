@@ -21,8 +21,7 @@ void MQTTSelectComponent::setup() {
     call.set_option(state);
     call.perform();
   });
-  this->select_->add_on_state_callback(
-      [this](const std::string &state, size_t index) { this->publish_state(this->select_->option_at(index)); });
+  this->select_->add_on_state_callback([this](size_t index) { this->publish_state(this->select_->option_at(index)); });
 }
 
 void MQTTSelectComponent::dump_config() {
