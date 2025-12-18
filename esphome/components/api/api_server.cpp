@@ -733,6 +733,7 @@ void APIServer::list_infrared_proxy_entities(APIConnection *conn) {
 #endif
 
     msg.capabilities = infrared_proxy->get_capability_flags();
+    msg.frequency = infrared_proxy->get_frequency();
 
     conn->send_list_entities_infrared_proxy_response(msg);
   }

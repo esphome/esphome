@@ -20,31 +20,21 @@ void InfraredProxyComponent::setup() {
 }
 
 void InfraredProxyComponent::dump_config() {
-  const char *hardware_type_str;
-  switch (this->hardware_type_) {
-    case HARDWARE_TYPE_INFRARED:
-      hardware_type_str = "Infrared";
-      break;
-    case HARDWARE_TYPE_RF_433:
-      hardware_type_str = "RF 433 MHz";
-      break;
-    case HARDWARE_TYPE_RF_900:
-      hardware_type_str = "RF 900 MHz";
-      break;
-    default:
-      hardware_type_str = "Unknown";
-      break;
-  }
-
   ESP_LOGCONFIG(TAG,
                 "Infrared Proxy:\n"
-                "  Hardware Type: %s\n"
                 "  Has Transmitter: %s\n"
                 "  Has Receiver: %s",
-                hardware_type_str, YESNO(this->has_transmitter()), YESNO(this->has_receiver()));
+                YESNO(this->has_transmitter()), YESNO(this->has_receiver()));
+  if (this->is_rf()) {
+    ESP_LOGCONFIG(TAG, "  Hardware Type: RF (%.3f MHz)", this->frequency_ / 1e3f);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Hardware Type: Infrared");
+  }
 }
 
 #ifdef USE_API
+
+void get_infrared_proxy_supported_protocols(std::string &out) { write_supported_protocols_json(out); }
 
 uint32_t InfraredProxyComponent::get_capability_flags() const {
   uint32_t flags = 0;
@@ -55,32 +45,19 @@ uint32_t InfraredProxyComponent::get_capability_flags() const {
   if (this->has_receiver())
     flags |= InfraredProxyCapability::CAPABILITY_RECEIVER;
 
-  // Add hardware type capability
-  switch (this->hardware_type_) {
-    case HARDWARE_TYPE_INFRARED:
-      flags |= InfraredProxyCapability::CAPABILITY_INFRARED;
-      break;
-    case HARDWARE_TYPE_RF_433:
-      flags |= InfraredProxyCapability::CAPABILITY_RF_433;
-      break;
-    case HARDWARE_TYPE_RF_900:
-      flags |= InfraredProxyCapability::CAPABILITY_RF_900;
-      break;
-  }
-
   return flags;
 }
 
 void InfraredProxyComponent::transmit_pulse_width(const api::InfraredProxyTransmitPulseWidthRequest &msg) {
   if (this->transmitter_ == nullptr) {
-    ESP_LOGW(TAG, "Cannot transmit: no transmitter configured");
+    ESP_LOGW(TAG, "No transmitter configured");
     return;
   }
 
   // Convert protobuf data pointer to vector
   std::vector<uint8_t> data_vec(msg.data, msg.data + msg.data_len);
 
-  ESP_LOGD(TAG, "Transmitting IR data: key=%u, frequency=%u, bits=%u, data_size=%u", msg.key, msg.timing.frequency,
+  ESP_LOGD(TAG, "Transmitting: key=%u, frequency=%u, bits=%u, data_size=%u", msg.key, msg.timing.frequency,
            msg.timing.length_in_bits, data_vec.size());
 
   // Create transmit data object
@@ -99,12 +76,12 @@ void InfraredProxyComponent::transmit_pulse_width(const api::InfraredProxyTransm
 
 void InfraredProxyComponent::transmit_protocol(const api::InfraredProxyTransmitProtocolRequest &msg) {
   if (this->transmitter_ == nullptr) {
-    ESP_LOGW(TAG, "Cannot transmit: no transmitter configured");
+    ESP_LOGW(TAG, "No transmitter configured");
     return;
   }
 
   if (msg.protocol_json.empty()) {
-    ESP_LOGE(TAG, "Cannot transmit: protocol_json is empty");
+    ESP_LOGE(TAG, "JSON empty");
     return;
   }
 

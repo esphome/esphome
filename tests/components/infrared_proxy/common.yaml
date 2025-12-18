@@ -18,23 +18,21 @@ infrared_proxy:
   # Infrared transmitter
   - id: ir_tx
     name: "IR Transmitter"
-    hardware_type: infrared
     remote_transmitter_id: ir_transmitter
 
   # Infrared receiver
   - id: ir_rx
     name: "IR Receiver"
-    hardware_type: infrared
     remote_receiver_id: ir_receiver
 
   # RF 433MHz transmitter
   - id: rf_433_tx
     name: "RF 433 Transmitter"
-    hardware_type: rf_433
+    frequency: 433 MHz
     remote_transmitter_id: ir_transmitter
 
   # RF 900MHz receiver
   - id: rf_900_rx
     name: "RF 900 Receiver"
-    hardware_type: rf_900
+    frequency: 900 MHz
     remote_receiver_id: ir_receiver

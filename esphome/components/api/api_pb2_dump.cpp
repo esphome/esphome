@@ -832,6 +832,9 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 #ifdef USE_INFRARED_PROXY
   dump_field(out, "infrared_proxy_feature_flags", this->infrared_proxy_feature_flags);
 #endif
+#ifdef USE_INFRARED_PROXY
+  dump_field(out, "infrared_proxy_supported_protocols", this->infrared_proxy_supported_protocols_ref_);
+#endif
 }
 void ListEntitiesRequest::dump_to(std::string &out) const { out.append("ListEntitiesRequest {}"); }
 void ListEntitiesDoneResponse::dump_to(std::string &out) const { out.append("ListEntitiesDoneResponse {}"); }
@@ -2376,6 +2379,7 @@ void ListEntitiesInfraredProxyResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
   dump_field(out, "capabilities", this->capabilities);
+  dump_field(out, "frequency", this->frequency);
 }
 void InfraredProxyTimingParams::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "InfraredProxyTimingParams");
@@ -2408,7 +2412,9 @@ void InfraredProxyTransmitPulseWidthRequest::dump_to(std::string &out) const {
 void InfraredProxyTransmitProtocolRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "InfraredProxyTransmitProtocolRequest");
   dump_field(out, "key", this->key);
-  dump_field(out, "protocol_json", this->protocol_json);
+  out.append("  protocol_json: ");
+  out.append("'").append(this->protocol_json.c_str(), this->protocol_json.size()).append("'");
+  out.append("\n");
 }
 void InfraredProxyReceiveEvent::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "InfraredProxyReceiveEvent");

@@ -1648,6 +1648,10 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #ifdef USE_INFRARED_PROXY
   // Get global feature flags for the infrared_proxy component
   resp.infrared_proxy_feature_flags = infrared_proxy::get_infrared_proxy_feature_flags();
+  // Get supported protocols as JSON - write directly to local string to avoid intermediate allocations
+  std::string supported_protocols;
+  infrared_proxy::get_infrared_proxy_supported_protocols(supported_protocols);
+  resp.set_infrared_proxy_supported_protocols(StringRef(supported_protocols));
 #endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;

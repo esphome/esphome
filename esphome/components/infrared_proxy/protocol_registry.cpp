@@ -844,4 +844,20 @@ bool encode_from_json(const std::string &protocol_json, remote_base::RemoteTrans
   return success;
 }
 
+void write_supported_protocols_json(std::string &out) {
+  // Build JSON array of protocol names directly into output string
+  out.clear();
+  out.reserve(512);  // Pre-allocate reasonable capacity to avoid reallocation during construction
+  out += "[";
+  for (size_t i = 0; i < PROTOCOL_COUNT; i++) {
+    if (i > 0) {
+      out += ",";
+    }
+    out += "\"";
+    out += PROTOCOL_PARSERS[i].name;
+    out += "\"";
+  }
+  out += "]";
+}
+
 }  // namespace esphome::infrared_proxy

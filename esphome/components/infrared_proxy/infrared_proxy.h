@@ -15,32 +15,28 @@
 
 namespace esphome::infrared_proxy {
 
-/// Hardware type enumeration for infrared proxy instances
-enum HardwareType : uint8_t {
-  HARDWARE_TYPE_INFRARED = 0,  // Infrared hardware
-  HARDWARE_TYPE_RF_433 = 1,    // RF hardware @ ~433 MHz
-  HARDWARE_TYPE_RF_900 = 2,    // RF hardware @ ~900 MHz
-};
-
 /// Feature flags for infrared proxy component availability
 enum InfraredProxyFeature : uint32_t {
   FEATURE_INFRARED_PROXY_ENABLED = 1 << 0,
+  FEATURE_INFRARED_PROXY_SUPPORTS_GENERIC_PULSE_WIDTH = 1 << 1,
 };
 
 /// Capability flags for individual infrared proxy instances
 enum InfraredProxyCapability : uint32_t {
   CAPABILITY_TRANSMITTER = 1 << 0,  // Can transmit signals
   CAPABILITY_RECEIVER = 1 << 1,     // Can receive signals
-  CAPABILITY_INFRARED = 1 << 2,     // Supports infrared (IR) if set
-  CAPABILITY_RF_433 = 1 << 3,       // Supports RF @ ~433 MHz if set
-  CAPABILITY_RF_900 = 1 << 4,       // Supports RF @ ~900 MHz if set
 };
 
 #ifdef USE_API
 /// Get global feature flags for infrared proxy component (not instance-specific)
-inline static uint32_t get_infrared_proxy_feature_flags() {
-  return InfraredProxyFeature::FEATURE_INFRARED_PROXY_ENABLED;
+inline uint32_t get_infrared_proxy_feature_flags() {
+  return InfraredProxyFeature::FEATURE_INFRARED_PROXY_ENABLED |
+         InfraredProxyFeature::FEATURE_INFRARED_PROXY_SUPPORTS_GENERIC_PULSE_WIDTH;
 }
+
+/// Write JSON-formatted list of all supported infrared/RF protocols to output string
+/// @param out Output string to write JSON array to (avoids intermediate allocations)
+void get_infrared_proxy_supported_protocols(std::string &out);
 #endif
 
 class InfraredProxyComponent : public Component, public EntityBase, public remote_base::RemoteReceiverListener {
@@ -51,13 +47,15 @@ class InfraredProxyComponent : public Component, public EntityBase, public remot
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
-  void set_hardware_type(HardwareType hardware_type) { this->hardware_type_ = hardware_type; }
+  void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
   void set_receiver(remote_receiver::RemoteReceiverComponent *receiver) { this->receiver_ = receiver; }
   void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
     this->transmitter_ = transmitter;
   }
 
-  HardwareType get_hardware_type() const { return this->hardware_type_; }
+  /// Returns frequency in kHz (Hz / 1000), or 0 for infrared
+  uint32_t get_frequency() const { return this->frequency_; }
+  bool is_rf() const { return this->frequency_ > 0; }
   bool has_transmitter() const { return this->transmitter_ != nullptr; }
   bool has_receiver() const { return this->receiver_ != nullptr; }
 
@@ -82,11 +80,11 @@ class InfraredProxyComponent : public Component, public EntityBase, public remot
                     remote_base::RemoteTransmitData *transmit_data);
 #endif
 
+  // Targeted RF frequency in kHz (Hz / 1000); 0 = infrared, non-zero = RF
+  uint32_t frequency_{0};
   // Underlying hardware components
   remote_receiver::RemoteReceiverComponent *receiver_{nullptr};
   remote_transmitter::RemoteTransmitterComponent *transmitter_{nullptr};
-  // Configured hardware type (for reporting to API/HA)
-  HardwareType hardware_type_{HARDWARE_TYPE_INFRARED};
 };
 
 }  // namespace esphome::infrared_proxy
