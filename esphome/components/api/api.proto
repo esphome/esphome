@@ -1151,6 +1151,16 @@ message WaterHeaterStateResponse {
   float target_temperature_high = 8;
 }
 
+// Bitmask for WaterHeaterCommandRequest.has_fields
+enum WaterHeaterCommandHasField {
+  WATER_HEATER_COMMAND_HAS_NONE = 0;
+  WATER_HEATER_COMMAND_HAS_MODE = 1;
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE = 2;
+  WATER_HEATER_COMMAND_HAS_STATE = 4;
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW = 8;
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH = 16;
+}
+
 message WaterHeaterCommandRequest {
   option (id) = 134;
   option (source) = SOURCE_CLIENT;
@@ -1159,18 +1169,15 @@ message WaterHeaterCommandRequest {
   option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
-  bool has_mode = 2;
+  // Bitmask of which fields are set (see WaterHeaterCommandHasField)
+  uint32 has_fields = 2;
   WaterHeaterMode mode = 3;
-  bool has_target_temperature = 4;
-  float target_temperature = 5;
-  uint32 device_id = 6 [(field_ifdef) = "USE_DEVICES"];
-  bool has_state = 7;
+  float target_temperature = 4;
+  uint32 device_id = 5 [(field_ifdef) = "USE_DEVICES"];
   // State flags bitmask (bit 0 = away, bit 1 = on)
-  uint32 state = 8;
-  bool has_target_temperature_low = 9;
-  float target_temperature_low = 10;
-  bool has_target_temperature_high = 11;
-  float target_temperature_high = 12;
+  uint32 state = 6;
+  float target_temperature_low = 7;
+  float target_temperature_high = 8;
 }
 
 // ==================== NUMBER ====================

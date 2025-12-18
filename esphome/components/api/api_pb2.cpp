@@ -1496,30 +1496,18 @@ void WaterHeaterStateResponse::calculate_size(ProtoSize &size) const {
 bool WaterHeaterCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2:
-      this->has_mode = value.as_bool();
+      this->has_fields = value.as_uint32();
       break;
     case 3:
       this->mode = static_cast<enums::WaterHeaterMode>(value.as_uint32());
       break;
-    case 4:
-      this->has_target_temperature = value.as_bool();
-      break;
 #ifdef USE_DEVICES
-    case 6:
+    case 5:
       this->device_id = value.as_uint32();
       break;
 #endif
-    case 7:
-      this->has_state = value.as_bool();
-      break;
-    case 8:
+    case 6:
       this->state = value.as_uint32();
-      break;
-    case 9:
-      this->has_target_temperature_low = value.as_bool();
-      break;
-    case 11:
-      this->has_target_temperature_high = value.as_bool();
       break;
     default:
       return false;
@@ -1531,13 +1519,13 @@ bool WaterHeaterCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value
     case 1:
       this->key = value.as_fixed32();
       break;
-    case 5:
+    case 4:
       this->target_temperature = value.as_float();
       break;
-    case 10:
+    case 7:
       this->target_temperature_low = value.as_float();
       break;
-    case 12:
+    case 8:
       this->target_temperature_high = value.as_float();
       break;
     default:

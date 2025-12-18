@@ -140,6 +140,14 @@ enum WaterHeaterMode : uint32_t {
   WATER_HEATER_MODE_GAS = 6,
 };
 #endif
+enum WaterHeaterCommandHasField : uint32_t {
+  WATER_HEATER_COMMAND_HAS_NONE = 0,
+  WATER_HEATER_COMMAND_HAS_MODE = 1,
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE = 2,
+  WATER_HEATER_COMMAND_HAS_STATE = 4,
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW = 8,
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH = 16,
+};
 #ifdef USE_NUMBER
 enum NumberMode : uint32_t {
   NUMBER_MODE_AUTO = 0,
@@ -1565,19 +1573,15 @@ class WaterHeaterStateResponse final : public StateResponseProtoMessage {
 class WaterHeaterCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 134;
-  static constexpr uint8_t ESTIMATED_SIZE = 40;
+  static constexpr uint8_t ESTIMATED_SIZE = 34;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "water_heater_command_request"; }
 #endif
-  bool has_mode{false};
+  uint32_t has_fields{0};
   enums::WaterHeaterMode mode{};
-  bool has_target_temperature{false};
   float target_temperature{0.0f};
-  bool has_state{false};
   uint32_t state{0};
-  bool has_target_temperature_low{false};
   float target_temperature_low{0.0f};
-  bool has_target_temperature_high{false};
   float target_temperature_high{0.0f};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

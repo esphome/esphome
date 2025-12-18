@@ -1321,6 +1321,8 @@ uint16_t APIConnection::try_send_water_heater_state(EntityBase *entity, APIConne
   resp.mode = static_cast<enums::WaterHeaterMode>(wh->get_mode());
   resp.current_temperature = wh->get_current_temperature();
   resp.target_temperature = wh->get_target_temperature();
+  resp.target_temperature_low = wh->get_target_temperature_low();
+  resp.target_temperature_high = wh->get_target_temperature_high();
   resp.state = wh->get_state();
   resp.key = wh->get_object_id_hash();
 
@@ -1342,12 +1344,18 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
 
 void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(water_heater::WaterHeater, water_heater, water_heater)
-  if (msg.has_mode)
+  if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_MODE)
     call.set_mode(static_cast<water_heater::WaterHeaterMode>(msg.mode));
-  if (msg.has_target_temperature)
+  if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE)
     call.set_target_temperature(msg.target_temperature);
-  if (msg.has_state)
+  if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW)
+    call.set_target_temperature_low(msg.target_temperature_low);
+  if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH)
+    call.set_target_temperature_high(msg.target_temperature_high);
+  if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_STATE) {
     call.set_away((msg.state & water_heater::WATER_HEATER_STATE_AWAY) != 0);
+    call.set_on((msg.state & water_heater::WATER_HEATER_STATE_ON) != 0);
+  }
   call.perform();
 }
 #endif

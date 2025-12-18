@@ -370,6 +370,25 @@ template<> const char *proto_enum_to_string<enums::WaterHeaterMode>(enums::Water
   }
 }
 #endif
+template<>
+const char *proto_enum_to_string<enums::WaterHeaterCommandHasField>(enums::WaterHeaterCommandHasField value) {
+  switch (value) {
+    case enums::WATER_HEATER_COMMAND_HAS_NONE:
+      return "WATER_HEATER_COMMAND_HAS_NONE";
+    case enums::WATER_HEATER_COMMAND_HAS_MODE:
+      return "WATER_HEATER_COMMAND_HAS_MODE";
+    case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE:
+      return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE";
+    case enums::WATER_HEATER_COMMAND_HAS_STATE:
+      return "WATER_HEATER_COMMAND_HAS_STATE";
+    case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW:
+      return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW";
+    case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH:
+      return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH";
+    default:
+      return "UNKNOWN";
+  }
+}
 #ifdef USE_NUMBER
 template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode value) {
   switch (value) {
@@ -1446,18 +1465,14 @@ void WaterHeaterStateResponse::dump_to(std::string &out) const {
 void WaterHeaterCommandRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "WaterHeaterCommandRequest");
   dump_field(out, "key", this->key);
-  dump_field(out, "has_mode", this->has_mode);
+  dump_field(out, "has_fields", this->has_fields);
   dump_field(out, "mode", static_cast<enums::WaterHeaterMode>(this->mode));
-  dump_field(out, "has_target_temperature", this->has_target_temperature);
   dump_field(out, "target_temperature", this->target_temperature);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
-  dump_field(out, "has_state", this->has_state);
   dump_field(out, "state", this->state);
-  dump_field(out, "has_target_temperature_low", this->has_target_temperature_low);
   dump_field(out, "target_temperature_low", this->target_temperature_low);
-  dump_field(out, "has_target_temperature_high", this->has_target_temperature_high);
   dump_field(out, "target_temperature_high", this->target_temperature_high);
 }
 #endif
