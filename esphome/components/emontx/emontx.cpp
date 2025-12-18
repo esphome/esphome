@@ -35,8 +35,9 @@ void EmonTx::setup() {
 
   ESP_LOGCONFIG(TAG, "Setting up EmonTx component");
 
-#ifdef USE_API
+#if defined(USE_API) && defined(USE_ESP_IDF)
   // Auto-register send_command service when config_panel is enabled
+  // Note: Only works with ESP-IDF framework, not Arduino framework
   if (this->config_panel_) {
     this->register_service(&EmonTx::send_command_service, "send_command", {"command"});
     ESP_LOGCONFIG(TAG, "Registered send_command service");
