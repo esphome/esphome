@@ -9,14 +9,12 @@
 
 namespace esphome::water_heater {
 
-#define LOG_WATER_HEATER(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-  }
-
+class WaterHeater;
 struct WaterHeaterCallInternal;
 
-class WaterHeater;
+void log_water_heater(const char *tag, const char *prefix, const char *type, WaterHeater *obj);
+#define LOG_WATER_HEATER(prefix, type, obj) log_water_heater(TAG, prefix, LOG_STR_LITERAL(type), obj)
+
 void call_water_heater_update(WaterHeater *a);
 void register_water_heater(WaterHeater *a);
 
@@ -93,24 +91,29 @@ class WaterHeaterTraits {
   bool supports_mode(WaterHeaterMode mode) const { return this->supported_modes_.count(mode); }
 
  protected:
-  bool supports_current_temperature_{false};
+  // Ordered to minimize padding: 4-byte members first, then 1-byte bool
   float min_temperature_{0.0f};
   float max_temperature_{0.0f};
   WaterHeaterModeMask supported_modes_;
+  bool supports_current_temperature_{false};
 };
 
 class WaterHeater : public EntityBase, public Component {
  public:
-  WaterHeaterMode mode{WATER_HEATER_MODE_OFF};
-  float current_temperature{NAN};
-  float target_temperature{0.0f};
+  WaterHeaterMode get_mode() const { return this->mode_; }
+  float get_current_temperature() const { return this->current_temperature_; }
+  float get_target_temperature() const { return this->target_temperature_; }
+
+  void set_current_temperature(float current_temperature) { this->current_temperature_ = current_temperature; }
 
   virtual void publish_state();
   virtual WaterHeaterTraits get_traits();
   virtual WaterHeaterCallInternal make_call() = 0;
 
-  virtual void set_visual_min_temperature_override(float min_temperature_override);
-  virtual void set_visual_max_temperature_override(float max_temperature_override);
+#ifdef USE_WATER_HEATER_VISUAL_OVERRIDES
+  void set_visual_min_temperature_override(float min_temperature_override);
+  void set_visual_max_temperature_override(float max_temperature_override);
+#endif
   virtual void control(const WaterHeaterCall &call) = 0;
 
   void setup() override;
@@ -120,11 +123,25 @@ class WaterHeater : public EntityBase, public Component {
  protected:
   virtual WaterHeaterTraits traits() = 0;
 
-  optional<float> visual_min_temperature_override_{};
-  optional<float> visual_max_temperature_override_{};
+  /// Set the mode of the water heater. Should only be called from control().
+  void set_mode_(WaterHeaterMode mode) { this->mode_ = mode; }
+  /// Set the target temperature of the water heater. Should only be called from control().
+  void set_target_temperature_(float target_temperature) { this->target_temperature_ = target_temperature; }
+
+  WaterHeaterMode mode_{WATER_HEATER_MODE_OFF};
+  float current_temperature_{NAN};
+  float target_temperature_{NAN};
+
+#ifdef USE_WATER_HEATER_VISUAL_OVERRIDES
+  float visual_min_temperature_override_{NAN};
+  float visual_max_temperature_override_{NAN};
+#endif
 
   uint32_t restore_storage_key_;
   ESPPreferenceObject pref_;
 };
+
+/// Convert the given WaterHeaterMode to a human-readable string for logging.
+const LogString *water_heater_mode_to_string(WaterHeaterMode mode);
 
 }  // namespace esphome::water_heater

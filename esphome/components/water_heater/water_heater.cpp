@@ -9,6 +9,12 @@ namespace esphome::water_heater {
 
 static const char *const TAG = "water_heater";
 
+void log_water_heater(const char *tag, const char *prefix, const char *type, WaterHeater *obj) {
+  if (obj != nullptr) {
+    ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
+  }
+}
+
 WaterHeaterCall::WaterHeaterCall(WaterHeater *parent) : parent_(parent) {}
 
 WaterHeaterCall &WaterHeaterCall::set_mode(WaterHeaterMode mode) {
@@ -97,8 +103,8 @@ void WaterHeater::publish_state() {
 #endif
 
   SavedWaterHeaterState saved{};
-  saved.mode = this->mode;
-  saved.target_temperature = this->target_temperature;
+  saved.mode = this->mode_;
+  saved.target_temperature = this->target_temperature_;
   this->pref_.save(&saved);
 }
 
@@ -115,20 +121,45 @@ optional<WaterHeaterCall> WaterHeater::restore_state() {
 
 WaterHeaterTraits WaterHeater::get_traits() {
   auto traits = this->traits();
-  if (this->visual_min_temperature_override_.has_value()) {
-    traits.set_min_temperature(*this->visual_min_temperature_override_);
+#ifdef USE_WATER_HEATER_VISUAL_OVERRIDES
+  if (!std::isnan(this->visual_min_temperature_override_)) {
+    traits.set_min_temperature(this->visual_min_temperature_override_);
   }
-  if (this->visual_max_temperature_override_.has_value()) {
-    traits.set_max_temperature(*this->visual_max_temperature_override_);
+  if (!std::isnan(this->visual_max_temperature_override_)) {
+    traits.set_max_temperature(this->visual_max_temperature_override_);
   }
+#endif
   return traits;
 }
 
+#ifdef USE_WATER_HEATER_VISUAL_OVERRIDES
 void WaterHeater::set_visual_min_temperature_override(float min_temperature_override) {
   this->visual_min_temperature_override_ = min_temperature_override;
 }
 void WaterHeater::set_visual_max_temperature_override(float max_temperature_override) {
   this->visual_max_temperature_override_ = max_temperature_override;
+}
+#endif
+
+const LogString *water_heater_mode_to_string(WaterHeaterMode mode) {
+  switch (mode) {
+    case WATER_HEATER_MODE_OFF:
+      return LOG_STR("OFF");
+    case WATER_HEATER_MODE_ECO:
+      return LOG_STR("ECO");
+    case WATER_HEATER_MODE_ELECTRIC:
+      return LOG_STR("ELECTRIC");
+    case WATER_HEATER_MODE_PERFORMANCE:
+      return LOG_STR("PERFORMANCE");
+    case WATER_HEATER_MODE_HIGH_DEMAND:
+      return LOG_STR("HIGH_DEMAND");
+    case WATER_HEATER_MODE_HEAT_PUMP:
+      return LOG_STR("HEAT_PUMP");
+    case WATER_HEATER_MODE_GAS:
+      return LOG_STR("GAS");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
 }
 
 }  // namespace esphome::water_heater

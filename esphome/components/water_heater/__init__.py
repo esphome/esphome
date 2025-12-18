@@ -51,8 +51,10 @@ async def setup_water_heater_core_(var, config):
     """Setup the core water heater properties in C++."""
     visual = config[CONF_VISUAL]
     if (min_temp := visual.get(CONF_MIN_TEMPERATURE)) is not None:
+        cg.add_define("USE_WATER_HEATER_VISUAL_OVERRIDES")
         cg.add(var.set_visual_min_temperature_override(min_temp))
     if (max_temp := visual.get(CONF_MAX_TEMPERATURE)) is not None:
+        cg.add_define("USE_WATER_HEATER_VISUAL_OVERRIDES")
         cg.add(var.set_visual_max_temperature_override(max_temp))
 
 
