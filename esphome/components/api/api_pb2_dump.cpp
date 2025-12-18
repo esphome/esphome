@@ -1427,6 +1427,8 @@ void ListEntitiesWaterHeaterResponse::dump_to(std::string &out) const {
   for (const auto &it : *this->supported_modes) {
     dump_field(out, "supported_modes", static_cast<enums::WaterHeaterMode>(it), 4);
   }
+  dump_field(out, "target_temperature_step", this->target_temperature_step);
+  dump_field(out, "supported_features", this->supported_features);
 }
 void WaterHeaterStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "WaterHeaterStateResponse");
@@ -1437,6 +1439,7 @@ void WaterHeaterStateResponse::dump_to(std::string &out) const {
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
+  dump_field(out, "state", this->state);
 }
 void WaterHeaterCommandRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "WaterHeaterCommandRequest");
@@ -1448,6 +1451,8 @@ void WaterHeaterCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
+  dump_field(out, "has_state", this->has_state);
+  dump_field(out, "state", this->state);
 }
 #endif
 #ifdef USE_NUMBER

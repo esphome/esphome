@@ -82,6 +82,9 @@ async def setup_water_heater_core_(var: cg.Pvariable, config: ConfigType) -> Non
     if (max_temp := visual.get(CONF_MAX_TEMPERATURE)) is not None:
         cg.add_define("USE_WATER_HEATER_VISUAL_OVERRIDES")
         cg.add(var.set_visual_max_temperature_override(max_temp))
+    if (temp_step := visual.get(CONF_TARGET_TEMPERATURE_STEP)) is not None:
+        cg.add_define("USE_WATER_HEATER_VISUAL_OVERRIDES")
+        cg.add(var.set_visual_target_temperature_step_override(temp_step))
 
 
 async def register_water_heater(var: cg.Pvariable, config: ConfigType) -> cg.Pvariable:

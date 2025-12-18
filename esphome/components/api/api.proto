@@ -1130,6 +1130,9 @@ message ListEntitiesWaterHeaterResponse {
   EntityCategory entity_category = 9;
   uint32 device_id = 10 [(field_ifdef) = "USE_DEVICES"];
   repeated WaterHeaterMode supported_modes = 11 [(container_pointer_no_template) = "water_heater::WaterHeaterModeMask"];
+  float target_temperature_step = 12;
+  // Bitmask of WaterHeaterFeature flags
+  uint32 supported_features = 13;
 }
 
 message WaterHeaterStateResponse {
@@ -1144,6 +1147,8 @@ message WaterHeaterStateResponse {
   float target_temperature = 3;
   WaterHeaterMode mode = 4;
   uint32 device_id = 5 [(field_ifdef) = "USE_DEVICES"];
+  // Bitmask of current state flags (bit 0 = away mode active)
+  uint32 state = 6;
 }
 
 message WaterHeaterCommandRequest {
@@ -1159,6 +1164,9 @@ message WaterHeaterCommandRequest {
   bool has_target_temperature = 4;
   float target_temperature = 5;
   uint32 device_id = 6 [(field_ifdef) = "USE_DEVICES"];
+  bool has_state = 7;
+  // State flags bitmask (bit 0 = away mode active)
+  uint32 state = 8;
 }
 
 // ==================== NUMBER ====================

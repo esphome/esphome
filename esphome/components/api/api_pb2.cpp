@@ -1444,6 +1444,8 @@ void ListEntitiesWaterHeaterResponse::encode(ProtoWriteBuffer buffer) const {
   for (const auto &it : *this->supported_modes) {
     buffer.encode_uint32(11, static_cast<uint32_t>(it), true);
   }
+  buffer.encode_float(12, this->target_temperature_step);
+  buffer.encode_uint32(13, this->supported_features);
 }
 void ListEntitiesWaterHeaterResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->object_id_ref_.size());
@@ -1464,6 +1466,8 @@ void ListEntitiesWaterHeaterResponse::calculate_size(ProtoSize &size) const {
       size.add_uint32_force(1, static_cast<uint32_t>(it));
     }
   }
+  size.add_float(1, this->target_temperature_step);
+  size.add_uint32(1, this->supported_features);
 }
 void WaterHeaterStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
@@ -1473,6 +1477,7 @@ void WaterHeaterStateResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_DEVICES
   buffer.encode_uint32(5, this->device_id);
 #endif
+  buffer.encode_uint32(6, this->state);
 }
 void WaterHeaterStateResponse::calculate_size(ProtoSize &size) const {
   size.add_fixed32(1, this->key);
@@ -1482,6 +1487,7 @@ void WaterHeaterStateResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_DEVICES
   size.add_uint32(1, this->device_id);
 #endif
+  size.add_uint32(1, this->state);
 }
 bool WaterHeaterCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
@@ -1499,6 +1505,12 @@ bool WaterHeaterCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt val
       this->device_id = value.as_uint32();
       break;
 #endif
+    case 7:
+      this->has_state = value.as_bool();
+      break;
+    case 8:
+      this->state = value.as_uint32();
+      break;
     default:
       return false;
   }

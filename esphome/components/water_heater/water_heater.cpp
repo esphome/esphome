@@ -48,6 +48,15 @@ WaterHeaterCall &WaterHeaterCall::set_target_temperature(float temperature) {
   return *this;
 }
 
+WaterHeaterCall &WaterHeaterCall::set_away(bool away) {
+  if (away) {
+    this->state_ |= WATER_HEATER_STATE_AWAY;
+  } else {
+    this->state_ &= ~WATER_HEATER_STATE_AWAY;
+  }
+  return *this;
+}
+
 void WaterHeaterCall::apply(WaterHeater *water_heater) { *this = water_heater->make_call(); }
 
 WaterHeaterCall &WaterHeaterCall::to_call(WaterHeater *water_heater) {
@@ -81,17 +90,6 @@ void WaterHeaterCall::validate_() {
     }
   }
 }
-
-void WaterHeaterTraits::set_supports_current_temperature(bool supports_current_temperature) {
-  this->supports_current_temperature_ = supports_current_temperature;
-}
-bool WaterHeaterTraits::get_supports_current_temperature() const { return this->supports_current_temperature_; }
-
-void WaterHeaterTraits::set_min_temperature(float min_temperature) { this->min_temperature_ = min_temperature; }
-float WaterHeaterTraits::get_min_temperature() const { return this->min_temperature_; }
-
-void WaterHeaterTraits::set_max_temperature(float max_temperature) { this->max_temperature_ = max_temperature; }
-float WaterHeaterTraits::get_max_temperature() const { return this->max_temperature_; }
 
 void WaterHeater::setup() {
   this->pref_ = global_preferences->make_preference<SavedWaterHeaterState>(this->get_object_id_hash());
@@ -128,6 +126,9 @@ WaterHeaterTraits WaterHeater::get_traits() {
   if (!std::isnan(this->visual_max_temperature_override_)) {
     traits.set_max_temperature(this->visual_max_temperature_override_);
   }
+  if (!std::isnan(this->visual_target_temperature_step_override_)) {
+    traits.set_target_temperature_step(this->visual_target_temperature_step_override_);
+  }
 #endif
   return traits;
 }
@@ -138,6 +139,9 @@ void WaterHeater::set_visual_min_temperature_override(float min_temperature_over
 }
 void WaterHeater::set_visual_max_temperature_override(float max_temperature_override) {
   this->visual_max_temperature_override_ = max_temperature_override;
+}
+void WaterHeater::set_visual_target_temperature_step_override(float visual_target_temperature_step_override) {
+  this->visual_target_temperature_step_override_ = visual_target_temperature_step_override;
 }
 #endif
 

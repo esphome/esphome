@@ -1318,10 +1318,10 @@ uint16_t APIConnection::try_send_water_heater_state(EntityBase *entity, APIConne
                                                     bool is_single) {
   auto *wh = static_cast<water_heater::WaterHeater *>(entity);
   WaterHeaterStateResponse resp;
-  resp.mode = static_cast<enums::WaterHeaterMode>(wh->mode);
-  resp.current_temperature = wh->current_temperature;
-  resp.target_temperature = wh->target_temperature;
-
+  resp.mode = static_cast<enums::WaterHeaterMode>(wh->get_mode());
+  resp.current_temperature = wh->get_current_temperature();
+  resp.target_temperature = wh->get_target_temperature();
+  resp.state = wh->get_state();
   resp.key = wh->get_object_id_hash();
 
   return encode_message_to_buffer(resp, WaterHeaterStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
@@ -1333,7 +1333,9 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
   auto traits = wh->get_traits();
   msg.min_temperature = traits.get_min_temperature();
   msg.max_temperature = traits.get_max_temperature();
+  msg.target_temperature_step = traits.get_target_temperature_step();
   msg.supported_modes = &traits.get_supported_modes();
+  msg.supported_features = traits.get_feature_flags();
   return fill_and_encode_entity_info(wh, msg, ListEntitiesWaterHeaterResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
 }
@@ -1344,6 +1346,8 @@ void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequ
     call.set_mode(static_cast<water_heater::WaterHeaterMode>(msg.mode));
   if (msg.has_target_temperature)
     call.set_target_temperature(msg.target_temperature);
+  if (msg.has_state)
+    call.set_away((msg.state & water_heater::WATER_HEATER_STATE_AWAY) != 0);
   call.perform();
 }
 #endif

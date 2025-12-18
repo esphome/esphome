@@ -1524,13 +1524,15 @@ class ClimateCommandRequest final : public CommandProtoMessage {
 class ListEntitiesWaterHeaterResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 132;
-  static constexpr uint8_t ESTIMATED_SIZE = 54;
+  static constexpr uint8_t ESTIMATED_SIZE = 63;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_water_heater_response"; }
 #endif
   float min_temperature{0.0f};
   float max_temperature{0.0f};
   const water_heater::WaterHeaterModeMask *supported_modes{};
+  float target_temperature_step{0.0f};
+  uint32_t supported_features{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1542,13 +1544,14 @@ class ListEntitiesWaterHeaterResponse final : public InfoResponseProtoMessage {
 class WaterHeaterStateResponse final : public StateResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 133;
-  static constexpr uint8_t ESTIMATED_SIZE = 21;
+  static constexpr uint8_t ESTIMATED_SIZE = 25;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "water_heater_state_response"; }
 #endif
   float current_temperature{0.0f};
   float target_temperature{0.0f};
   enums::WaterHeaterMode mode{};
+  uint32_t state{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1560,7 +1563,7 @@ class WaterHeaterStateResponse final : public StateResponseProtoMessage {
 class WaterHeaterCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 134;
-  static constexpr uint8_t ESTIMATED_SIZE = 20;
+  static constexpr uint8_t ESTIMATED_SIZE = 26;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "water_heater_command_request"; }
 #endif
@@ -1568,6 +1571,8 @@ class WaterHeaterCommandRequest final : public CommandProtoMessage {
   enums::WaterHeaterMode mode{};
   bool has_target_temperature{false};
   float target_temperature{0.0f};
+  bool has_state{false};
+  uint32_t state{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
