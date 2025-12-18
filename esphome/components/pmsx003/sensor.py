@@ -200,7 +200,6 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AQI): sensor.sensor_schema(
-                unit_of_measurement=UNIT_INDEX,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_AQI,
