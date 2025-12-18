@@ -99,11 +99,11 @@ CC1101Component::CC1101Component() {
   this->state_.FS_AUTOCAL = 1;
 
   // Default Settings
-  this->set_frequency(433920);
-  this->set_if_frequency(153);
-  this->set_filter_bandwidth(203);
+  this->set_frequency(433920000);
+  this->set_if_frequency(153000);
+  this->set_filter_bandwidth(203000);
   this->set_channel(0);
-  this->set_channel_spacing(200);
+  this->set_channel_spacing(200000);
   this->set_symbol_rate(5000);
   this->set_sync_mode(SyncMode::SYNC_MODE_NONE);
   this->set_carrier_sense_above_threshold(true);

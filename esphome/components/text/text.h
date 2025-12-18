@@ -31,7 +31,7 @@ class Text : public EntityBase {
   /// Instantiate a TextCall object to modify this text component's state.
   TextCall make_call() { return TextCall(this); }
 
-  void add_on_state_callback(std::function<void(std::string)> &&callback);
+  void add_on_state_callback(std::function<void(const std::string &)> &&callback);
 
  protected:
   friend class TextCall;
@@ -44,7 +44,7 @@ class Text : public EntityBase {
    */
   virtual void control(const std::string &value) = 0;
 
-  CallbackManager<void(std::string)> state_callback_;
+  CallbackManager<void(const std::string &)> state_callback_;
 };
 
 }  // namespace text
