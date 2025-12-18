@@ -209,7 +209,6 @@ class WaterHeater : public EntityBase, public Component {
   float visual_target_temperature_step_override_{NAN};
 #endif
 
-  uint32_t restore_storage_key_;
   ESPPreferenceObject pref_;
 };
 

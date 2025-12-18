@@ -92,7 +92,7 @@ void WaterHeaterCall::validate_() {
 }
 
 void WaterHeater::setup() {
-  this->pref_ = global_preferences->make_preference<SavedWaterHeaterState>(this->get_object_id_hash());
+  this->pref_ = global_preferences->make_preference<SavedWaterHeaterState>(this->get_preference_hash());
 }
 
 void WaterHeater::publish_state() {
