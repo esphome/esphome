@@ -121,7 +121,7 @@ CONFIG_SCHEMA = cv.All(
                 nrf52="100kHz",
             ): cv.All(
                 cv.frequency,
-                cv.Range(min=0, min_included=False),
+                cv.float_range(min=0, min_included=False),
             ),
             cv.Optional(CONF_TIMEOUT): cv.All(
                 cv.only_with_framework(["arduino", "esp-idf"]),
