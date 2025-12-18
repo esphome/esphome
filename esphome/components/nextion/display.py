@@ -1,8 +1,8 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import display, esp32, uart
-from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
+from esphome.config_helpers import filter_source_files_from_platform
 from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_ID,
@@ -225,16 +225,16 @@ async def to_code(config):
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        "nextion_upload_esp32.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-        },
         "nextion_upload_arduino.cpp": {
             PlatformFramework.ESP8266_ARDUINO,
             PlatformFramework.RP2040_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
+        },
+        "nextion_upload_esp32.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
         },
     }
 )
