@@ -17,8 +17,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace time {
+namespace esphome::time {
 
 static const char *const TAG = "time";
 
@@ -78,5 +77,4 @@ void RealTimeClock::apply_timezone_() {
 }
 #endif
 
-}  // namespace time
-}  // namespace esphome
+}  // namespace esphome::time
