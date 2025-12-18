@@ -18,8 +18,7 @@
 #include <coredecls.h>  // For esp_schedule()
 #endif
 
-namespace esphome {
-namespace socket {
+namespace esphome::socket {
 
 #ifdef USE_ESP8266
 // Flag to signal socket activity - checked by socket_delay() to exit early
@@ -711,7 +710,6 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
   return socket(domain, type, protocol);
 }
 
-}  // namespace socket
-}  // namespace esphome
+}  // namespace esphome::socket
 
 #endif  // USE_SOCKET_IMPL_LWIP_TCP
