@@ -21,6 +21,7 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
     copy_file_if_changed,
+    cpp_string_escape,
     get_str_env,
     is_ha_addon,
     read_file,
@@ -347,16 +348,12 @@ def get_build_info() -> tuple[int, int, str, str]:
     return config_hash, build_time, build_time_str, comment
 
 
-def _escape_c_string(s: str) -> str:
-    """Escape a string for use in a C string literal."""
-    return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-
-
 def generate_build_info_data_h(
     config_hash: int, build_time: int, build_time_str: str, comment: str
 ) -> str:
     """Generate build_info_data.h header with config hash, build time, and comment."""
-    escaped_comment = _escape_c_string(comment)
+    # cpp_string_escape returns '"escaped"', slice off the quotes since template has them
+    escaped_comment = cpp_string_escape(comment)[1:-1]
     # +1 for null terminator
     comment_size = len(comment) + 1
     return f"""#pragma once
