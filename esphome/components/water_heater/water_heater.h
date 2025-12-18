@@ -9,6 +9,11 @@
 
 namespace esphome::water_heater {
 
+#define LOG_WATER_HEATER(prefix, type, obj) \
+  if ((obj) != nullptr) { \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+  }
+
 struct WaterHeaterCallInternal;
 
 class WaterHeater;
