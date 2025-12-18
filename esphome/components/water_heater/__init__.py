@@ -1,12 +1,17 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
     CONF_VISUAL,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import setup_entity
+from esphome.cpp_generator import MockObjClass
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@dhoeben"]
 
@@ -32,9 +37,8 @@ WATER_HEATER_MODES = {
 }
 validate_water_heater_mode = cv.enum(WATER_HEATER_MODES, upper=True)
 
-WATER_HEATER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
+_WATER_HEATER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     {
-        cv.GenerateID(): cv.declare_id(WaterHeater),
         cv.Optional(CONF_VISUAL, default={}): cv.Schema(
             {
                 cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
@@ -47,8 +51,28 @@ WATER_HEATER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def setup_water_heater_core_(var, config):
-    """Setup the core water heater properties in C++."""
+def water_heater_schema(
+    class_: MockObjClass,
+    *,
+    icon: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {cv.GenerateID(): cv.declare_id(class_)}
+
+    for key, default, validator in [
+        (CONF_ICON, icon, cv.icon),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _WATER_HEATER_SCHEMA.extend(schema)
+
+
+async def setup_water_heater_core_(var: cg.Pvariable, config: ConfigType) -> None:
+    """Set up the core water heater properties in C++."""
+    await setup_entity(var, config, "water_heater")
+
     visual = config[CONF_VISUAL]
     if (min_temp := visual.get(CONF_MIN_TEMPERATURE)) is not None:
         cg.add_define("USE_WATER_HEATER_VISUAL_OVERRIDES")
@@ -58,7 +82,7 @@ async def setup_water_heater_core_(var, config):
         cg.add(var.set_visual_max_temperature_override(max_temp))
 
 
-async def register_water_heater(var, config):
+async def register_water_heater(var: cg.Pvariable, config: ConfigType) -> cg.Pvariable:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
 
@@ -70,8 +94,15 @@ async def register_water_heater(var, config):
 
     CORE.register_platform_component("water_heater", var)
     await setup_water_heater_core_(var, config)
+    return var
+
+
+async def new_water_heater(config: ConfigType, *args) -> cg.Pvariable:
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await register_water_heater(var, config)
+    return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(water_heater_ns.using)
