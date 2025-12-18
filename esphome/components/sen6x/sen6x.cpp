@@ -76,7 +76,7 @@ void SEN6XComponent::setup() {
         this->mark_failed();
         return;
       }
-      this->unpackUint16ToChar_(raw_serial_number, this->serial_number_);
+      this->unpack_uint16_to_char_(raw_serial_number, this->serial_number_);
       ESP_LOGV(TAG, "Serial number %.*s", (int) this->serial_number_.size(), this->serial_number_.data());
 
       uint16_t raw_product_name[16];  // 16 words pack 32 ASCII characters
@@ -86,7 +86,7 @@ void SEN6XComponent::setup() {
         this->mark_failed();
         return;
       }
-      this->unpackUint16ToChar_(raw_product_name, this->product_name_);
+      this->unpack_uint16_to_char_(raw_product_name, this->product_name_);
       ESP_LOGV(TAG, "Product name %.*s", (int) this->product_name_.size(), this->product_name_.data());
 
       // Determine sensor type from product name
@@ -130,7 +130,7 @@ void SEN6XComponent::setup() {
         this->mark_failed();
         return;
       }
-      this->unpackUint16ToChar_(raw_firmware_version, this->firmware_version_);
+      this->unpack_uint16_to_char_(raw_firmware_version, this->firmware_version_);
       ESP_LOGV(TAG, "Firmware version %d.%d", this->firmware_version_[1], this->firmware_version_[0]);
 
       if (this->voc_sensor_ && this->store_baseline_) {

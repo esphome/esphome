@@ -99,7 +99,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   }
   void set_pressure_compensation(uint16_t pressure) { pressure_compensation_ = pressure; }
   void set_altitude_compensation(uint16_t altitude) { altitude_compensation_ = altitude; }
-  void set_type(std::string type) {
+  void set_type(const std::string &type) {
     if (type == "SEN62") {
       this->sen6x_type_ = SEN62;
     } else if (type == "SEN63C") {
@@ -124,7 +124,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool write_pressure_compensation_(uint16_t pressure);
   bool write_altitude_compensation_(uint16_t altitude);
 
-  template<size_t N> void unpackUint16ToChar_(uint16_t (&src)[N], std::array<char, N * 2> &dest) {
+  template<size_t N> void unpack_uint16_to_char_(uint16_t (&src)[N], std::array<char, N * 2> &dest) {
     for (size_t i = 0; i < N; ++i) {
       dest[i * 2] = static_cast<char>((src[i] >> 8) & 0xFF);  // high byte
       dest[i * 2 + 1] = static_cast<char>(src[i] & 0xFF);     // low byte
