@@ -2,6 +2,6 @@ substitutions:
   enable_rx_pin: GPIO3
 
 packages:
-  uart: !include ../../test_build_components/common/uart_1200_none_2stopbits/rp2040-ard.yaml
+  uart_1200_none_2stopbits: !include ../../test_build_components/common/uart_1200_none_2stopbits/rp2040-ard.yaml
 
 <<: !include common.yaml

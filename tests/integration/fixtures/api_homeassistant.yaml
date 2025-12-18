@@ -17,6 +17,7 @@ api:
         - button.press: test_all_empty_service
         - button.press: test_rapid_service_calls
         - button.press: test_read_ha_states
+        - button.press: test_action_response_error
         - number.set:
             id: ha_number
             value: 42.5
@@ -309,3 +310,24 @@ button:
           } else {
             ESP_LOGI("test", "HA Empty State has no value (expected)");
           }
+
+  # Test 9: Action response error handling (tests StringRef error message)
+  - platform: template
+    name: "Test Action Response Error"
+    id: test_action_response_error
+    on_press:
+      - logger.log: "Testing action response error handling"
+      - homeassistant.action:
+          action: nonexistent.action_for_error_test
+          data:
+            test_field: "test_value"
+          on_error:
+            - lambda: |-
+                // This tests that StringRef error message works correctly
+                // The error variable is std::string (converted from StringRef)
+                ESP_LOGI("test", "Action error received: %s", error.c_str());
+            - logger.log:
+                format: "Action failed with error message length: %d"
+                args: ['error.size()']
+          on_success:
+            - logger.log: "Action succeeded unexpectedly"
