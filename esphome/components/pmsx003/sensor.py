@@ -42,12 +42,7 @@ pmsx003_ns = cg.esphome_ns.namespace("pmsx003")
 PMSX003Component = pmsx003_ns.class_("PMSX003Component", uart.UARTDevice, cg.Component)
 PMSX003Sensor = pmsx003_ns.class_("PMSX003Sensor", sensor.Sensor)
 
-CONF_AQI = aqi.CONF_AQI
-CONF_CALCULATION_TYPE = aqi.CONF_CALCULATION_TYPE
 UNIT_INDEX = "index"
-
-AQI_CALCULATION_TYPE = aqi.AQI_CALCULATION_TYPE
-
 TYPE_PMSX003 = "PMSX003"
 TYPE_PMS5003T = "PMS5003T"
 TYPE_PMS5003ST = "PMS5003ST"
