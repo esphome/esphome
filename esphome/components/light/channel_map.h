@@ -27,17 +27,17 @@ struct ChannelMap {
   Channel ww_{ChannelName::WW, "WW", false, 0};
 
   // Allows iterating over all channels
-  std::vector<Channel> channels_ = {this->r_, this->g_, this->b_, this->w_, this->cw_, this->ww_};
+  std::vector<Channel *> channels_ = {&this->r_, &this->g_, &this->b_, &this->w_, &this->cw_, &this->ww_};
 
   // Store the number of exsiting channels for faster proccesing. This is not this->channels_.size() but the number of
   // existent channels within this->channels_.
   uint8_t channel_count_ = 0;
 
   bool set_channel_by_friendly_name_(const std::string &channel_friendly_name, uint8_t index) {
-    for (Channel &channel : this->channels_) {
-      if (channel.friendly_name == channel_friendly_name) {
-        channel.exists_ = true;
-        channel.index_ = index;
+    for (Channel *const channel : this->channels_) {
+      if (channel->friendly_name == channel_friendly_name) {
+        channel->exists_ = true;
+        channel->index_ = index;
         return true;
       }
     }
@@ -62,10 +62,10 @@ struct ChannelMap {
 
   uint8_t get_channel_count() const { return this->channel_count_; }
 
-  uint8_t *get_address_by_channel_name(const uint8_t *base_ptr, const ChannelName &channel_name) const {
-    for (const Channel &channel : this->channels_) {
-      if ((channel.name == channel_name) && channel.exists_) {
-        return const_cast<uint8_t *>(base_ptr) + channel.index_;
+  uint8_t *get_address_by_channel_name(const uint8_t *base_ptr, const ChannelName channel_name) const {
+    for (const Channel *const channel : this->channels_) {
+      if ((channel->name == channel_name) && channel->exists_) {
+        return const_cast<uint8_t *>(base_ptr) + channel->index_;
       }
     }
     return nullptr;  // Channel does not exist
@@ -76,8 +76,8 @@ struct ChannelMap {
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::toupper(c); });
 
     // Reset channels if from_string() gets called multiple times
-    for (Channel &channel : this->channels_) {
-      channel.exists_ = false;
+    for (Channel *const channel : this->channels_) {
+      channel->exists_ = false;
     }
 
     size_t start = 0, pos = 0;
@@ -96,9 +96,9 @@ struct ChannelMap {
 
   std::string to_string() const {
     std::vector<std::string> tokens(this->channels_.size(), "");
-    for (const Channel &channel : this->channels_) {
-      if (channel.exists_) {
-        tokens[channel.index_] = channel.friendly_name;
+    for (const Channel *const channel : this->channels_) {
+      if (channel->exists_) {
+        tokens[channel->index_] = channel->friendly_name;
       }
     }
     std::string result;
