@@ -287,7 +287,9 @@ std::string WebServer::get_config_json() {
   JsonObject root = builder.root();
 
   root[ESPHOME_F("title")] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
-  root[ESPHOME_F("comment")] = App.get_comment_ref();
+  char comment_buffer[ESPHOME_COMMENT_SIZE];
+  App.get_comment_string(comment_buffer);
+  root[ESPHOME_F("comment")] = comment_buffer;
 #if defined(USE_WEBSERVER_OTA_DISABLED) || !defined(USE_WEBSERVER_OTA)
   root[ESPHOME_F("ota")] = false;  // Note: USE_WEBSERVER_OTA_DISABLED only affects web_server, not captive_portal
 #else

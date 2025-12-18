@@ -209,7 +209,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NAME): cv.valid_name,
             cv.Optional(CONF_FRIENDLY_NAME, ""): cv.All(cv.string, cv.Length(max=120)),
             cv.Optional(CONF_AREA): validate_area_config,
-            cv.Optional(CONF_COMMENT): cv.string,
+            cv.Optional(CONF_COMMENT): cv.All(cv.string, cv.Length(max=255)),
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
                 {
@@ -382,10 +382,15 @@ def include_file(path: Path, basename: Path, is_c_header: bool = False):
 
 
 ARDUINO_GLUE_CODE = """\
+#undef yield
 #define yield() esphome::yield()
+#undef millis
 #define millis() esphome::millis()
+#undef micros
 #define micros() esphome::micros()
+#undef delay
 #define delay(x) esphome::delay(x)
+#undef delayMicroseconds
 #define delayMicroseconds(x) esphome::delayMicroseconds(x)
 """
 
@@ -500,7 +505,6 @@ async def to_code(config: ConfigType) -> None:
         cg.App.pre_setup(
             config[CONF_NAME],
             config[CONF_FRIENDLY_NAME],
-            config.get(CONF_COMMENT, ""),
             config[CONF_NAME_ADD_MAC_SUFFIX],
         )
     )
