@@ -1431,28 +1431,26 @@ void ListEntitiesWaterHeaterResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->object_id_ref_);
   buffer.encode_fixed32(2, this->key);
   buffer.encode_string(3, this->name_ref_);
-  buffer.encode_float(5, this->min_temperature);
-  buffer.encode_float(6, this->max_temperature);
 #ifdef USE_ENTITY_ICON
-  buffer.encode_string(7, this->icon_ref_);
+  buffer.encode_string(4, this->icon_ref_);
 #endif
-  buffer.encode_bool(8, this->disabled_by_default);
-  buffer.encode_uint32(9, static_cast<uint32_t>(this->entity_category));
+  buffer.encode_bool(5, this->disabled_by_default);
+  buffer.encode_uint32(6, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
-  buffer.encode_uint32(10, this->device_id);
+  buffer.encode_uint32(7, this->device_id);
 #endif
+  buffer.encode_float(8, this->min_temperature);
+  buffer.encode_float(9, this->max_temperature);
+  buffer.encode_float(10, this->target_temperature_step);
   for (const auto &it : *this->supported_modes) {
     buffer.encode_uint32(11, static_cast<uint32_t>(it), true);
   }
-  buffer.encode_float(12, this->target_temperature_step);
-  buffer.encode_uint32(13, this->supported_features);
+  buffer.encode_uint32(12, this->supported_features);
 }
 void ListEntitiesWaterHeaterResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->object_id_ref_.size());
   size.add_fixed32(1, this->key);
   size.add_length(1, this->name_ref_.size());
-  size.add_float(1, this->min_temperature);
-  size.add_float(1, this->max_temperature);
 #ifdef USE_ENTITY_ICON
   size.add_length(1, this->icon_ref_.size());
 #endif
@@ -1461,12 +1459,14 @@ void ListEntitiesWaterHeaterResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_DEVICES
   size.add_uint32(1, this->device_id);
 #endif
+  size.add_float(1, this->min_temperature);
+  size.add_float(1, this->max_temperature);
+  size.add_float(1, this->target_temperature_step);
   if (!this->supported_modes->empty()) {
     for (const auto &it : *this->supported_modes) {
       size.add_uint32_force(1, static_cast<uint32_t>(it));
     }
   }
-  size.add_float(1, this->target_temperature_step);
   size.add_uint32(1, this->supported_features);
 }
 void WaterHeaterStateResponse::encode(ProtoWriteBuffer buffer) const {

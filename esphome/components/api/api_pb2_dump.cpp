@@ -1414,8 +1414,6 @@ void ListEntitiesWaterHeaterResponse::dump_to(std::string &out) const {
   dump_field(out, "object_id", this->object_id_ref_);
   dump_field(out, "key", this->key);
   dump_field(out, "name", this->name_ref_);
-  dump_field(out, "min_temperature", this->min_temperature);
-  dump_field(out, "max_temperature", this->max_temperature);
 #ifdef USE_ENTITY_ICON
   dump_field(out, "icon", this->icon_ref_);
 #endif
@@ -1424,10 +1422,12 @@ void ListEntitiesWaterHeaterResponse::dump_to(std::string &out) const {
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
+  dump_field(out, "min_temperature", this->min_temperature);
+  dump_field(out, "max_temperature", this->max_temperature);
+  dump_field(out, "target_temperature_step", this->target_temperature_step);
   for (const auto &it : *this->supported_modes) {
     dump_field(out, "supported_modes", static_cast<enums::WaterHeaterMode>(it), 4);
   }
-  dump_field(out, "target_temperature_step", this->target_temperature_step);
   dump_field(out, "supported_features", this->supported_features);
 }
 void WaterHeaterStateResponse::dump_to(std::string &out) const {

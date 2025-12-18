@@ -1121,17 +1121,16 @@ message ListEntitiesWaterHeaterResponse {
   string object_id = 1;
   fixed32 key = 2;
   string name = 3;
-
-  float min_temperature = 5;
-  float max_temperature = 6;
-  string icon = 7 [(field_ifdef) = "USE_ENTITY_ICON"];
-  bool disabled_by_default = 8;
-  EntityCategory entity_category = 9;
-  uint32 device_id = 10 [(field_ifdef) = "USE_DEVICES"];
+  string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON"];
+  bool disabled_by_default = 5;
+  EntityCategory entity_category = 6;
+  uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];
+  float min_temperature = 8;
+  float max_temperature = 9;
+  float target_temperature_step = 10;
   repeated WaterHeaterMode supported_modes = 11 [(container_pointer_no_template) = "water_heater::WaterHeaterModeMask"];
-  float target_temperature_step = 12;
   // Bitmask of WaterHeaterFeature flags
-  uint32 supported_features = 13;
+  uint32 supported_features = 12;
 }
 
 message WaterHeaterStateResponse {

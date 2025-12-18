@@ -1530,8 +1530,8 @@ class ListEntitiesWaterHeaterResponse final : public InfoResponseProtoMessage {
 #endif
   float min_temperature{0.0f};
   float max_temperature{0.0f};
-  const water_heater::WaterHeaterModeMask *supported_modes{};
   float target_temperature_step{0.0f};
+  const water_heater::WaterHeaterModeMask *supported_modes{};
   uint32_t supported_features{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
