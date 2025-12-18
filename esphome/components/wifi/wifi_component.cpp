@@ -1031,22 +1031,29 @@ template<typename VectorType> static void insertion_sort_scan_results(VectorType
   }
 }
 
-// Helper function to log scan results - marked noinline to prevent re-inlining into loop
+// Helper function to log matching scan results - marked noinline to prevent re-inlining into loop
 __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res) {
   char bssid_s[18];
   auto bssid = res.get_bssid();
   format_mac_addr_upper(bssid.data(), bssid_s);
 
-  if (res.get_matches()) {
-    ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
-             res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
-             LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-    ESP_LOGD(TAG, "  Channel: %2u, RSSI: %3d dB, Priority: %4d", res.get_channel(), res.get_rssi(), res.get_priority());
-  } else {
-    ESP_LOGD(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
-             LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-  }
+  ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
+           res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
+           LOG_STR_ARG(get_signal_bars(res.get_rssi())));
+  ESP_LOGD(TAG, "  Channel: %2u, RSSI: %3d dB, Priority: %4d", res.get_channel(), res.get_rssi(), res.get_priority());
 }
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+// Helper function to log non-matching scan results at verbose level
+__attribute__((noinline)) static void log_scan_result_non_matching(const WiFiScanResult &res) {
+  char bssid_s[18];
+  auto bssid = res.get_bssid();
+  format_mac_addr_upper(bssid.data(), bssid_s);
+
+  ESP_LOGV(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
+           LOG_STR_ARG(get_signal_bars(res.get_rssi())));
+}
+#endif
 
 void WiFiComponent::check_scanning_finished() {
   if (!this->scan_done_) {
@@ -1084,8 +1091,20 @@ void WiFiComponent::check_scanning_finished() {
   // Sort scan results using insertion sort for better memory efficiency
   insertion_sort_scan_results(this->scan_result_);
 
+  size_t non_matching_count = 0;
   for (auto &res : this->scan_result_) {
-    log_scan_result(res);
+    if (res.get_matches()) {
+      log_scan_result(res);
+    } else {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      log_scan_result_non_matching(res);
+#else
+      non_matching_count++;
+#endif
+    }
+  }
+  if (non_matching_count > 0) {
+    ESP_LOGD(TAG, "- %zu non-matching (VERBOSE to show)", non_matching_count);
   }
 
   // SYNCHRONIZATION POINT: Establish link between scan_result_[0] and selected_sta_index_
