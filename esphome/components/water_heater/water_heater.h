@@ -56,6 +56,7 @@ enum WaterHeaterStateFlag : uint32_t {
 struct SavedWaterHeaterState {
   WaterHeaterMode mode;
   float target_temperature;
+  uint32_t state;
 } __attribute__((packed));
 
 class WaterHeaterCall {

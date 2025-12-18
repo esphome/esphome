@@ -103,6 +103,7 @@ void WaterHeater::publish_state() {
   SavedWaterHeaterState saved{};
   saved.mode = this->mode_;
   saved.target_temperature = this->target_temperature_;
+  saved.state = this->state_;
   this->pref_.save(&saved);
 }
 
@@ -114,6 +115,7 @@ optional<WaterHeaterCall> WaterHeater::restore_state() {
   auto call = this->make_call();
   call.set_mode(recovered.mode);
   call.set_target_temperature(recovered.target_temperature);
+  call.set_away((recovered.state & WATER_HEATER_STATE_AWAY) != 0);
   return call;
 }
 
