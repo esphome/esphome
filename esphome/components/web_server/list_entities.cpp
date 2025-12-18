@@ -137,7 +137,7 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
 
 #ifdef USE_WATER_HEATER
 bool ListEntitiesIterator::on_water_heater(water_heater::WaterHeater *obj) {
-  // TODO: Implement water_heater web_server support
+  // Water heater web_server support not yet implemented - this stub acknowledges the entity
   return true;
 }
 #endif

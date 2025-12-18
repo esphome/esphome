@@ -15,9 +15,6 @@ struct WaterHeaterCallInternal;
 void log_water_heater(const char *tag, const char *prefix, const char *type, WaterHeater *obj);
 #define LOG_WATER_HEATER(prefix, type, obj) log_water_heater(TAG, prefix, LOG_STR_LITERAL(type), obj)
 
-void call_water_heater_update(WaterHeater *a);
-void register_water_heater(WaterHeater *a);
-
 enum WaterHeaterMode : uint32_t {
   WATER_HEATER_MODE_OFF = 0,
   WATER_HEATER_MODE_ECO = 1,
@@ -73,9 +70,6 @@ class WaterHeaterCall {
   WaterHeaterCall &set_away(bool away);
 
   void perform();
-
-  void apply(WaterHeater *water_heater);
-  WaterHeaterCall &to_call(WaterHeater *water_heater);
 
   const optional<WaterHeaterMode> &get_mode() const { return this->mode_; }
   float get_target_temperature() const { return this->target_temperature_; }

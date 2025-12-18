@@ -57,13 +57,6 @@ WaterHeaterCall &WaterHeaterCall::set_away(bool away) {
   return *this;
 }
 
-void WaterHeaterCall::apply(WaterHeater *water_heater) { *this = water_heater->make_call(); }
-
-WaterHeaterCall &WaterHeaterCall::to_call(WaterHeater *water_heater) {
-  water_heater->make_call().set_from_restore(*this).perform();
-  return *this;
-}
-
 void WaterHeaterCall::perform() {
   ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   this->validate_();
@@ -98,6 +91,10 @@ void WaterHeaterCall::validate_() {
       if (this->target_temperature_ > traits.get_max_temperature())
         this->target_temperature_ = traits.get_max_temperature();
     }
+  }
+  if ((this->state_ & WATER_HEATER_STATE_AWAY) && !traits.get_supports_away_mode()) {
+    ESP_LOGW(TAG, "'%s' - Away mode not supported", this->parent_->get_name().c_str());
+    this->state_ &= ~WATER_HEATER_STATE_AWAY;
   }
 }
 
