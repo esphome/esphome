@@ -21,8 +21,9 @@ class ChannelMap {
   // existent channels within this->channels_.
   uint8_t channel_count_ = 0;
 
-  // Save as char array for logging purposes
-  std::shared_ptr<char[]> channel_map_str_ = nullptr;
+  // Save as string for logging purposes. Don't use *_ptr<char[]> because it is incompatible with the embedded gcc
+  // toolchain.
+  std::vector<char> channel_map_str_ = {};
 
   // Save color mode pre-computed by python to free up runtime resources
   ColorMode color_mode_ = ColorMode::UNKNOWN;
@@ -35,16 +36,20 @@ class ChannelMap {
     }
     this->channel_count_ = ordered_channel_names.size();
 
+    // Copy channel map string if provided, otherwise set as "undefined"
     if (channel_map_str) {
-      this->channel_map_str_ = std::make_shared<char[]>(strlen(channel_map_str) + 1);
-      memcpy(this->channel_map_str_.get(), channel_map_str, strlen(channel_map_str) + 1);
+      this->channel_map_str_.resize(strlen(channel_map_str) + 1);
+      memcpy(this->channel_map_str_.data(), channel_map_str, strlen(channel_map_str) + 1);
+    } else {
+      constexpr const char *undefined_str = "undefined";
+      this->channel_map_str_.assign(undefined_str, undefined_str + strlen(undefined_str) + 1);
     }
 
     this->color_mode_ = color_mode;
   }
 
   uint8_t get_channel_count() const { return this->channel_count_; }
-  const char *get_str() const { return this->channel_map_str_ ? this->channel_map_str_.get() : "undefined"; }
+  const char *get_str() const { return this->channel_map_str_.data(); }
   ColorMode get_color_mode() const { return this->color_mode_; }
 
   uint8_t *get_address_by_channel_name(const uint8_t *base_ptr, const ChannelName channel_name) const {
