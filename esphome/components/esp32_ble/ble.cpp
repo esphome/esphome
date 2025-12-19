@@ -308,13 +308,21 @@ bool ESP32BLE::ble_setup_() {
 bool ESP32BLE::ble_dismantle_() {
   esp_err_t err = esp_bluedroid_disable();
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_bluedroid_disable failed: %d", err);
-    return false;
+    // ESP_ERR_INVALID_STATE means Bluedroid is already disabled, which is fine
+    if (err != ESP_ERR_INVALID_STATE) {
+      ESP_LOGE(TAG, "esp_bluedroid_disable failed: %d", err);
+      return false;
+    }
+    ESP_LOGD(TAG, "Already disabled");
   }
   err = esp_bluedroid_deinit();
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_bluedroid_deinit failed: %d", err);
-    return false;
+    // ESP_ERR_INVALID_STATE means Bluedroid is already deinitialized, which is fine
+    if (err != ESP_ERR_INVALID_STATE) {
+      ESP_LOGE(TAG, "esp_bluedroid_deinit failed: %d", err);
+      return false;
+    }
+    ESP_LOGD(TAG, "Already deinitialized");
   }
 
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
