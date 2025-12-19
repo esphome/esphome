@@ -1,4 +1,5 @@
 #ifdef USE_ZEPHYR
+#ifdef CONFIG_SETTINGS
 
 #include <zephyr/kernel.h>
 #include "esphome/core/preferences.h"
@@ -46,7 +47,6 @@ class ZephyrPreferenceBackend : public ESPPreferenceBackend {
 class ZephyrPreferences : public ESPPreferences {
  public:
   void open() {
-#ifdef CONFIG_SETTINGS
     int err = settings_subsys_init();
     if (err) {
       ESP_LOGE(TAG, "Failed to initialize settings subsystem, err: %d", err);
@@ -71,7 +71,6 @@ class ZephyrPreferences : public ESPPreferences {
       return;
     }
     ESP_LOGD(TAG, "Loaded %u settings.", this->backends_.size());
-#endif
   }
 
   ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) override {
@@ -92,14 +91,12 @@ class ZephyrPreferences : public ESPPreferences {
   }
 
   bool sync() override {
-#ifdef CONFIG_SETTINGS
     ESP_LOGD(TAG, "Save settings");
     int err = settings_save();
     if (err) {
       ESP_LOGE(TAG, "Cannot save settings, err: %d", err);
       return false;
     }
-#endif
     return true;
   }
 
@@ -117,7 +114,6 @@ class ZephyrPreferences : public ESPPreferences {
   std::vector<ZephyrPreferenceBackend *> backends_;
 
   static int load_setting(const char *name, size_t len, settings_read_cb read_cb, void *cb_arg) {
-#ifdef CONFIG_SETTINGS
     auto type = parse_hex<uint32_t>(name);
     if (!type.has_value()) {
       std::string full_name(ESPHOME_SETTINGS_KEY);
@@ -133,7 +129,6 @@ class ZephyrPreferences : public ESPPreferences {
     ESP_LOGD(TAG, "load setting, name: %s(%u), len %u, err %u", name, *type, len, err);
     auto *pref = new ZephyrPreferenceBackend(*type, std::move(data));  // NOLINT(cppcoreguidelines-owning-memory)
     static_cast<ZephyrPreferences *>(global_preferences)->backends_.push_back(pref);
-#endif
     return 0;
   }
 
@@ -158,5 +153,5 @@ void setup_preferences() {
 ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome
-
+#endif
 #endif

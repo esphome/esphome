@@ -12,6 +12,7 @@ from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_data,
     zephyr_set_core_data,
+    zephyr_setup_preferences,
     zephyr_to_code,
 )
 from esphome.components.zephyr.const import (
@@ -194,6 +195,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_platformio_option("board_upload.require_upload_port", "true")
         cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
 
+    zephyr_setup_preferences()
     zephyr_to_code(config)
 
     if dfu_config := config.get(CONF_DFU):
@@ -206,11 +208,6 @@ async def to_code(config: ConfigType) -> None:
         if reg0_config[CONF_UICR_ERASE]:
             cg.add_define("USE_NRF52_UICR_ERASE")
 
-    # preferences
-    zephyr_add_prj_conf("SETTINGS", True)
-    zephyr_add_prj_conf("NVS", True)
-    zephyr_add_prj_conf("FLASH_MAP", True)
-    zephyr_add_prj_conf("CONFIG_FLASH", True)
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)

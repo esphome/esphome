@@ -111,7 +111,6 @@ def add_extra_script(stage: str, filename: str, path: Path) -> None:
 
 
 def zephyr_to_code(config):
-    cg.add(zephyr_ns.setup_preferences())
     cg.add_build_flag("-DUSE_ZEPHYR")
     cg.set_cpp_standard("gnu++20")
     # build is done by west so bypass board checking in platformio
@@ -140,6 +139,14 @@ def zephyr_to_code(config):
         "pre_build.py",
         Path(__file__).parent / "pre_build.py.script",
     )
+
+
+def zephyr_setup_preferences():
+    cg.add(zephyr_ns.setup_preferences())
+    zephyr_add_prj_conf("SETTINGS", True)
+    zephyr_add_prj_conf("NVS", True)
+    zephyr_add_prj_conf("FLASH_MAP", True)
+    zephyr_add_prj_conf("CONFIG_FLASH", True)
 
 
 def _format_prj_conf_val(value: PrjConfValueType) -> str:
