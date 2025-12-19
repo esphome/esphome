@@ -70,16 +70,9 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 @coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
-    zephyr_add_prj_conf("WATCHDOG", False, False)
-    zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", True, False)
-    zephyr_add_prj_conf("CONFIG_SERIAL", True, False)
-    zephyr_add_prj_conf("UART_CONSOLE", True, False)
-    zephyr_add_prj_conf("CONSOLE", True, False)
-
-    zephyr_add_prj_conf("SETTINGS", False, False)
-    zephyr_add_prj_conf("NVS", False, False)
-    zephyr_add_prj_conf("FLASH_MAP", False, False)
-    zephyr_add_prj_conf("CONFIG_FLASH", False, False)
+    zephyr_add_prj_conf("CONFIG_SERIAL", True)
+    zephyr_add_prj_conf("UART_CONSOLE", True)
+    zephyr_add_prj_conf("CONSOLE", True)
 
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_platformio_option("monitor_speed", "115200")

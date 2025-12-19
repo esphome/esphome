@@ -22,7 +22,6 @@ from .const import (
 )
 
 CODEOWNERS = ["@tomaszduda23"]
-AUTO_LOAD = ["preferences"]
 
 PrjConfValueType = bool | str | int
 
@@ -129,17 +128,6 @@ def zephyr_to_code(config):
         zephyr_add_prj_conf("CPP", True)
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
     zephyr_add_prj_conf("STD_CPP20", True)
-    # preferences
-    zephyr_add_prj_conf("SETTINGS", True, False)
-    zephyr_add_prj_conf("NVS", True, False)
-    zephyr_add_prj_conf("FLASH_MAP", True, False)
-    zephyr_add_prj_conf("CONFIG_FLASH", True, False)
-    # watchdog
-    zephyr_add_prj_conf("WATCHDOG", True, False)
-    zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False, False)
-    # disable console
-    zephyr_add_prj_conf("UART_CONSOLE", False, False)
-    zephyr_add_prj_conf("CONSOLE", False, False)
     # use NFC pins as GPIO
     # zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
 

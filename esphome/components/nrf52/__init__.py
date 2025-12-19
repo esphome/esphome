@@ -49,7 +49,7 @@ from .const import (
 from .gpio import nrf52_pin_to_code  # noqa
 
 CODEOWNERS = ["@tomaszduda23"]
-AUTO_LOAD = ["zephyr"]
+AUTO_LOAD = ["zephyr", "preferences"]
 IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
 
@@ -205,6 +205,18 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_NRF52_REG0_VOUT", value)
         if reg0_config[CONF_UICR_ERASE]:
             cg.add_define("USE_NRF52_UICR_ERASE")
+
+    # preferences
+    zephyr_add_prj_conf("SETTINGS", True)
+    zephyr_add_prj_conf("NVS", True)
+    zephyr_add_prj_conf("FLASH_MAP", True)
+    zephyr_add_prj_conf("CONFIG_FLASH", True)
+    # watchdog
+    zephyr_add_prj_conf("WATCHDOG", True)
+    zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
+    # disable console
+    zephyr_add_prj_conf("UART_CONSOLE", False)
+    zephyr_add_prj_conf("CONSOLE", False)
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
