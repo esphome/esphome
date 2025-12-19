@@ -5,7 +5,6 @@ coap_client:
   ack_timeout: 2sec
   max_block_size: 512b
   max_retransmit: 4
-  request_timeout: 2sec
 
 button:
   - platform: template
