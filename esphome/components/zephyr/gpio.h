@@ -8,6 +8,10 @@ namespace zephyr {
 
 class ZephyrGPIOPin : public InternalGPIOPin {
  public:
+  ZephyrGPIOPin(const device *gpio, int size) {
+    this->gpio_ = gpio;
+    this->gpio_size = size;
+  }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { this->flags_ = flags; }
@@ -29,6 +33,7 @@ class ZephyrGPIOPin : public InternalGPIOPin {
   bool inverted_{};
   gpio::Flags flags_{};
   const device *gpio_{nullptr};
+  uint8_t gpio_size_{};
   bool value_{false};
 };
 

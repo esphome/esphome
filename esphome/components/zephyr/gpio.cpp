@@ -50,32 +50,7 @@ void ZephyrGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::Inte
 }
 
 void ZephyrGPIOPin::setup() {
-  const struct device *gpio = nullptr;
-  if (this->pin_ < 16) {
-#define GPIO DT_NODELABEL(gpioa)
-#if DT_NODE_HAS_STATUS(GPIO, okay)
-    gpio = DEVICE_DT_GET(GPIO);
-#else
-#error "gpioa is disabled"
-#endif
-  } else if (this->pin_ < 32) {
-#define GPIO DT_NODELABEL(gpiob)
-#if DT_NODE_HAS_STATUS(GPIO, okay)
-    gpio = DEVICE_DT_GET(GPIO);
-#else
-#error "gpiob is disabled"
-#endif
-  } else if (this->pin_ < 48) {
-#define GPIO DT_NODELABEL(gpioc)
-#if DT_NODE_HAS_STATUS(GPIO, okay)
-    gpio = DEVICE_DT_GET(GPIO);
-#else
-#error "gpioc is disabled"
-#endif
-  }
-  if (device_is_ready(gpio)) {
-    this->gpio_ = gpio;
-  } else {
+  if (!device_is_ready(this->gpio_)) {
     ESP_LOGE(TAG, "gpio %u is not ready.", this->pin_);
     return;
   }
@@ -94,7 +69,7 @@ void ZephyrGPIOPin::pin_mode(gpio::Flags flags) {
 
 std::string ZephyrGPIOPin::dump_summary() const {
   char buffer[32];
-  snprintf(buffer, sizeof(buffer), "GPIO%u, P%u.%u", this->pin_, this->pin_ / 32, this->pin_ % 32);
+  snprintf(buffer, sizeof(buffer), "%s.%u", this->gpio_->name, this->pin_, this->pin_ % this->gpio_size_);
   return buffer;
 }
 
