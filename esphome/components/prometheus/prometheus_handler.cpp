@@ -1159,7 +1159,7 @@ void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEnt
     val.is_dst = false;
     val.recalc_timestamp_utc(false);
     int64_t ts = (int64_t) val.timestamp;
-    int64_t offset = (int64_t) timezone_offset();
+    int64_t offset = (int64_t) ESPTime::timezone_offset();
     int64_t adjusted_ts = ts - offset;
     stream->printf("%" PRId64 "\n", adjusted_ts);
     stream->print(ESPHOME_F("\n"));
@@ -1237,7 +1237,7 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     val.is_dst = false;
     val.recalc_timestamp_utc(false);
     int64_t ts = (int64_t) val.timestamp;
-    int64_t offset = (int64_t) timezone_offset();
+    int64_t offset = (int64_t) ESPTime::timezone_offset();
     int64_t adjusted_ts = ts - offset;
     stream->printf("%" PRId64 "\n", adjusted_ts);
     stream->print(ESPHOME_F("\n"));
