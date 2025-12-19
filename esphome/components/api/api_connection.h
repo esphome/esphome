@@ -227,6 +227,9 @@ class APIConnection final : public APIServerConnection {
 #ifdef USE_API_NOISE
   bool send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyRequest &msg) override;
 #endif
+#ifdef USE_DYNAMIC_NAME
+  bool send_device_name_response(const DeviceNameRequest &msg) override;
+#endif
 
   bool is_authenticated() override {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::AUTHENTICATED;

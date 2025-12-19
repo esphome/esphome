@@ -1507,6 +1507,9 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;
 #endif
+#ifdef USE_DYNAMIC_NAME
+  resp.dynamic_name_enabled = App.is_dynamic_name_enabled();
+#endif
 #ifdef USE_DEVICES
   size_t device_index = 0;
   for (auto const &device : App.get_devices()) {
@@ -1589,6 +1592,54 @@ bool APIConnection::send_noise_encryption_set_key_response(const NoiseEncryption
   }
 
   return this->send_message(resp, NoiseEncryptionSetKeyResponse::MESSAGE_TYPE);
+}
+#endif
+#ifdef USE_DYNAMIC_NAME
+bool APIConnection::send_device_name_response(const DeviceNameRequest &msg) {
+  DeviceNameResponse resp;
+  resp.success = false;
+
+  // Validate name if provided
+  if (!msg.name.empty()) {
+    if (msg.name.length() > 31) {
+      ESP_LOGW(TAG, "Device name too long (max 31 chars)");
+      return this->send_message(resp, DeviceNameResponse::MESSAGE_TYPE);
+    }
+    // Validate name contains only allowed characters (lowercase alphanumeric, dash, underscore)
+    for (char c : msg.name) {
+      if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_')) {
+        ESP_LOGW(TAG, "Invalid characters in device name");
+        return this->send_message(resp, DeviceNameResponse::MESSAGE_TYPE);
+      }
+    }
+  }
+
+  // Validate friendly_name if provided
+  if (!msg.friendly_name.empty() && msg.friendly_name.length() > 63) {
+    ESP_LOGW(TAG, "Friendly name too long (max 63 chars)");
+    return this->send_message(resp, DeviceNameResponse::MESSAGE_TYPE);
+  }
+
+  // Build response with effective values - use request value if provided, otherwise current device value
+  resp.success = true;
+  resp.name = msg.name.empty() ? App.get_name() : msg.name;
+  resp.friendly_name = msg.friendly_name.empty() ? App.get_friendly_name() : msg.friendly_name;
+
+  // If both are empty, this is a GET request - just return current values
+  if (msg.name.empty() && msg.friendly_name.empty()) {
+    return this->send_message(resp, DeviceNameResponse::MESSAGE_TYPE);
+  }
+
+  // At least one value provided - save and schedule reboot
+  bool send_result = this->send_message(resp, DeviceNameResponse::MESSAGE_TYPE);
+
+  // Schedule reboot with delay to allow response transmission
+  App.scheduler.set_timeout(this->parent_, "api-set-name-reboot", 500,
+                            [name = msg.name, friendly_name = msg.friendly_name]() {
+                              App.set_name_and_reboot(name, friendly_name);
+                            });
+
+  return send_result;
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES

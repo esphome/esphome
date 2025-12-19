@@ -633,6 +633,81 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 #endif
 }
 
+#ifdef USE_DYNAMIC_NAME
+void Application::set_name_and_reboot(const std::string &name, const std::string &friendly_name, bool skip_reboot) {
+  if (!this->dynamic_name_enabled_) {
+    ESP_LOGW(TAG, "Dynamic naming not enabled, cannot set name");
+    return;
+  }
+
+  // At least one of name or friendly_name must be provided
+  if (name.empty() && friendly_name.empty()) {
+    ESP_LOGW(TAG, "Both name and friendly_name are empty, nothing to change");
+    return;
+  }
+
+  // Validate name if provided
+  if (!name.empty()) {
+    if (name.length() >= sizeof(SavedDeviceName::name)) {
+      ESP_LOGW(TAG, "Name too long (max %zu chars)", sizeof(SavedDeviceName::name) - 1);
+      return;
+    }
+    // Validate name contains only allowed characters (lowercase alphanumeric, dash, underscore)
+    for (char c : name) {
+      if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_')) {
+        ESP_LOGW(TAG, "Invalid character in name: '%c'. Only lowercase letters, numbers, dash and underscore allowed.",
+                 c);
+        return;
+      }
+    }
+  }
+
+  // Validate friendly_name if provided
+  if (!friendly_name.empty()) {
+    if (friendly_name.length() >= sizeof(SavedDeviceName::friendly_name)) {
+      ESP_LOGW(TAG, "Friendly name too long (max %zu chars)", sizeof(SavedDeviceName::friendly_name) - 1);
+      return;
+    }
+  }
+
+  // Load existing preferences first to preserve unchanged values
+  SavedDeviceName save{};
+  this->name_pref_.load(&save);
+
+  // Update name if provided
+  if (!name.empty()) {
+    strncpy(save.name, name.c_str(), sizeof(save.name) - 1);
+    save.name[sizeof(save.name) - 1] = '\0';
+  }
+
+  // Update friendly_name if provided
+  if (!friendly_name.empty()) {
+    strncpy(save.friendly_name, friendly_name.c_str(), sizeof(save.friendly_name) - 1);
+    save.friendly_name[sizeof(save.friendly_name) - 1] = '\0';
+  }
+
+  if (!this->name_pref_.save(&save)) {
+    ESP_LOGW(TAG, "Failed to save device name to preferences");
+    return;
+  }
+  global_preferences->sync();
+
+  if (!name.empty() && !friendly_name.empty()) {
+    ESP_LOGI(TAG, "Device name set to '%s', friendly name to '%s'%s", name.c_str(), friendly_name.c_str(),
+             skip_reboot ? "" : ", rebooting...");
+  } else if (!name.empty()) {
+    ESP_LOGI(TAG, "Device name set to '%s'%s", name.c_str(), skip_reboot ? "" : ", rebooting...");
+  } else {
+    ESP_LOGI(TAG, "Friendly name set to '%s'%s", friendly_name.c_str(), skip_reboot ? "" : ", rebooting...");
+  }
+
+  if (!skip_reboot) {
+    // Reboot to apply the new name
+    this->safe_reboot();
+  }
+}
+#endif
+
 Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)

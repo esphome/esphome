@@ -78,6 +78,10 @@ void ESP32ImprovComponent::setup_characteristics() {
   if (this->status_indicator_ != nullptr)
     capabilities |= improv::CAPABILITY_IDENTIFY;
 #endif
+#ifdef USE_DYNAMIC_NAME
+    capabilities |= improv::CAPABILITY_HOSTNAME;
+    capabilities |= improv::CAPABILITY_DEVICE_NAME;
+#endif
   this->capabilities_->set_value(ByteBuffer::wrap(capabilities));
   this->setup_complete_ = true;
 }
@@ -314,6 +318,142 @@ void ESP32ImprovComponent::process_incoming_data_() {
   uint8_t length = this->incoming_data_[1];
 
   ESP_LOGV(TAG, "Processing bytes - %s", format_hex_pretty(this->incoming_data_).c_str());
+
+#ifdef USE_DYNAMIC_NAME
+  // Handle Improv v2.3 HOSTNAME command (0x05)
+  // GET format: [0x05][0x00][checksum] - returns current hostname
+  // SET format: [0x05][length][hostname_string][checksum] - sets new hostname
+  if (!this->incoming_data_.empty() && this->incoming_data_[0] == improv::HOSTNAME) {
+    if (this->incoming_data_.size() >= 3 && this->incoming_data_.size() - 3 == length) {
+      // Verify checksum (simple sum of all bytes except checksum should equal checksum)
+      uint8_t checksum = 0;
+      for (size_t i = 0; i < this->incoming_data_.size() - 1; i++) {
+        checksum += this->incoming_data_[i];
+      }
+      if (checksum != this->incoming_data_.back()) {
+        ESP_LOGW(TAG, "Invalid checksum for SET_HOSTNAME command");
+        this->set_error_(improv::ERROR_INVALID_RPC);
+        this->incoming_data_.clear();
+        return;
+      }
+
+      // Check authorization
+      if (this->state_ != improv::STATE_AUTHORIZED) {
+        ESP_LOGW(TAG, "Hostname command received, but not authorized");
+        this->set_error_(improv::ERROR_NOT_AUTHORIZED);
+        this->incoming_data_.clear();
+        return;
+      }
+
+      if (length == 0) {
+        // GET hostname - return current hostname
+        this->incoming_data_.clear();
+        this->send_response_(improv::build_rpc_response(improv::HOSTNAME, {App.get_name()}));
+        return;
+      }
+
+      // SET hostname - extract and validate hostname
+      std::string hostname(this->incoming_data_.begin() + 2, this->incoming_data_.begin() + 2 + length);
+      this->incoming_data_.clear();
+
+      // Validate hostname per RFC 1123: lowercase letters, numbers, hyphens only, max 31 chars for ESPHome
+      bool valid = !hostname.empty() && hostname.length() <= 31;
+      if (valid) {
+        for (char c : hostname) {
+          if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-')) {
+            valid = false;
+            break;
+          }
+        }
+      }
+
+      if (!valid) {
+        ESP_LOGW(TAG, "Invalid hostname: %s", hostname.c_str());
+        this->set_error_(improv::ERROR_BAD_HOSTNAME);  // Error code 0x05 per spec
+        return;
+      }
+
+      // Send response with new hostname
+      this->send_response_(improv::build_rpc_response(improv::HOSTNAME, {hostname}));
+
+      ESP_LOGI(TAG, "Setting hostname to '%s'", hostname.c_str());
+
+      // Save hostname but skip reboot - device will reboot after WiFi credentials are set
+      App.set_name_and_reboot(hostname, "", true);
+      return;
+    } else if (this->incoming_data_.size() - 2 > length) {
+      ESP_LOGV(TAG, "Too much data received for HOSTNAME; resetting buffer");
+      this->incoming_data_.clear();
+      return;
+    } else {
+      ESP_LOGV(TAG, "Waiting for split data packets (HOSTNAME)");
+      return;
+    }
+  }
+
+  // Handle Improv v2.4 DEVICE_NAME command (0x06)
+  // GET format: [0x06][0x00][checksum] - returns current device name (friendly name)
+  // SET format: [0x06][length][device_name_string][checksum] - sets new device name
+  if (!this->incoming_data_.empty() && this->incoming_data_[0] == improv::DEVICE_NAME) {
+    if (this->incoming_data_.size() >= 3 && this->incoming_data_.size() - 3 == length) {
+      // Verify checksum (simple sum of all bytes except checksum should equal checksum)
+      uint8_t checksum = 0;
+      for (size_t i = 0; i < this->incoming_data_.size() - 1; i++) {
+        checksum += this->incoming_data_[i];
+      }
+      if (checksum != this->incoming_data_.back()) {
+        ESP_LOGW(TAG, "Invalid checksum for DEVICE_NAME command");
+        this->set_error_(improv::ERROR_INVALID_RPC);
+        this->incoming_data_.clear();
+        return;
+      }
+
+      // Check authorization
+      if (this->state_ != improv::STATE_AUTHORIZED) {
+        ESP_LOGW(TAG, "Device name command received, but not authorized");
+        this->set_error_(improv::ERROR_NOT_AUTHORIZED);
+        this->incoming_data_.clear();
+        return;
+      }
+
+      if (length == 0) {
+        // GET device name - return current friendly name
+        this->incoming_data_.clear();
+        this->send_response_(improv::build_rpc_response(improv::DEVICE_NAME, {App.get_friendly_name()}));
+        return;
+      }
+
+      // SET device name - extract and validate
+      std::string device_name(this->incoming_data_.begin() + 2, this->incoming_data_.begin() + 2 + length);
+      this->incoming_data_.clear();
+
+      // Validate device name: any characters allowed, max 63 chars for ESPHome
+      if (device_name.empty() || device_name.length() > 63) {
+        ESP_LOGW(TAG, "Invalid device name length: %zu", device_name.length());
+        this->set_error_(improv::ERROR_UNKNOWN);
+        return;
+      }
+
+      // Send response with new device name
+      this->send_response_(improv::build_rpc_response(improv::DEVICE_NAME, {device_name}));
+
+      ESP_LOGI(TAG, "Setting device name to '%s'", device_name.c_str());
+
+      // Save device name but skip reboot - device will reboot after WiFi credentials are set
+      // Pass empty string for hostname to only change the friendly name
+      App.set_name_and_reboot("", device_name, true);
+      return;
+    } else if (this->incoming_data_.size() - 2 > length) {
+      ESP_LOGV(TAG, "Too much data received for SET_DEVICE_NAME; resetting buffer");
+      this->incoming_data_.clear();
+      return;
+    } else {
+      ESP_LOGV(TAG, "Waiting for split data packets (SET_DEVICE_NAME)");
+      return;
+    }
+  }
+#endif
+
   if (this->incoming_data_.size() - 3 == length) {
     this->set_error_(improv::ERROR_NONE);
     improv::ImprovCommand command = improv::parse_improv_data(this->incoming_data_);
@@ -430,7 +570,10 @@ void ESP32ImprovComponent::advertise_service_data_() {
   if (this->status_indicator_ != nullptr)
     capabilities |= improv::CAPABILITY_IDENTIFY;
 #endif
-
+#ifdef USE_DYNAMIC_NAME
+    capabilities |= improv::CAPABILITY_HOSTNAME;
+    capabilities |= improv::CAPABILITY_DEVICE_NAME;
+#endif
   service_data[3] = capabilities;
   // service_data[4-7] are already 0 (Reserved)
 

@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_DEBUG_SCHEDULER,
     CONF_DEVICES,
+    CONF_DYNAMIC_NAME,
     CONF_ENVIRONMENT_VARIABLES,
     CONF_ESPHOME,
     CONF_FRIENDLY_NAME,
@@ -242,6 +243,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INCLUDES_C, default=[]): cv.ensure_list(valid_include),
             cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
+            cv.Optional(CONF_DYNAMIC_NAME, default=False): cv.boolean,
             cv.Optional(CONF_DEBUG_SCHEDULER, default=False): cv.boolean,
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {
@@ -503,8 +505,11 @@ async def to_code(config: ConfigType) -> None:
             config.get(CONF_COMMENT, ""),
             cg.RawExpression('__DATE__ ", " __TIME__'),
             config[CONF_NAME_ADD_MAC_SUFFIX],
+            config[CONF_DYNAMIC_NAME],
         )
     )
+    if config[CONF_DYNAMIC_NAME]:
+        cg.add_define("USE_DYNAMIC_NAME")
     # Define component count for static allocation
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
 

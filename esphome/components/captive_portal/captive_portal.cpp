@@ -13,14 +13,25 @@ static const char *const TAG = "captive_portal";
 void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("application/json"));
   stream->addHeader(ESPHOME_F("cache-control"), ESPHOME_F("public, max-age=0, must-revalidate"));
+#ifdef USE_DYNAMIC_NAME
+  bool dynamic_name = App.is_dynamic_name_enabled();
+#else
+  bool dynamic_name = false;
+#endif
 #ifdef USE_ESP8266
   stream->print(ESPHOME_F("{\"mac\":\""));
   stream->print(get_mac_address_pretty().c_str());
   stream->print(ESPHOME_F("\",\"name\":\""));
   stream->print(App.get_name().c_str());
-  stream->print(ESPHOME_F("\",\"aps\":[{}"));
+  stream->print(ESPHOME_F("\",\"friendly_name\":\""));
+  stream->print(App.get_friendly_name().c_str());
+  stream->print(ESPHOME_F("\",\"dynamic_name\":"));
+  stream->print(dynamic_name ? "true" : "false");
+  stream->print(ESPHOME_F(",\"aps\":[{}"));
 #else
-  stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", get_mac_address_pretty().c_str(), App.get_name().c_str());
+  stream->printf(R"({"mac":"%s","name":"%s","friendly_name":"%s","dynamic_name":%s,"aps":[{})",
+                 get_mac_address_pretty().c_str(), App.get_name().c_str(), App.get_friendly_name().c_str(),
+                 dynamic_name ? "true" : "false");
 #endif
 
   for (auto &scan : wifi::global_wifi_component->get_scan_result()) {
@@ -50,6 +61,55 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   ESP_LOGI(TAG, "Requested WiFi Settings Change:");
   ESP_LOGI(TAG, "  SSID='%s'", ssid.c_str());
   ESP_LOGI(TAG, "  Password=" LOG_SECRET("'%s'"), psk.c_str());
+
+#ifdef USE_DYNAMIC_NAME
+  if (App.is_dynamic_name_enabled()) {
+    std::string name = request->arg("name").c_str();                  // NOLINT(readability-redundant-string-cstr)
+    std::string friendly_name = request->arg("friendly_name").c_str();  // NOLINT(readability-redundant-string-cstr)
+
+    // Determine which names actually changed
+    std::string name_to_save;
+    std::string friendly_name_to_save;
+
+    // Only save name if it's different from current
+    if (!name.empty() && name != App.get_name()) {
+      // Validate name
+      if (name.length() > 31) {
+        ESP_LOGW(TAG, "Name too long (max 31 chars)");
+        request->redirect(ESPHOME_F("/?error=name_toolong"));
+        return;
+      }
+      // Validate characters (lowercase alphanumeric, dash, underscore)
+      for (char c : name) {
+        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_')) {
+          ESP_LOGW(TAG, "Invalid character in name: '%c'", c);
+          request->redirect(ESPHOME_F("/?error=name_invalid"));
+          return;
+        }
+      }
+      name_to_save = name;
+      ESP_LOGI(TAG, "  Name='%s'", name.c_str());
+    }
+
+    // Only save friendly_name if it's different from current
+    if (!friendly_name.empty() && friendly_name != App.get_friendly_name()) {
+      // Validate friendly_name
+      if (friendly_name.length() > 63) {
+        ESP_LOGW(TAG, "Friendly name too long (max 63 chars)");
+        request->redirect(ESPHOME_F("/?error=friendly_name_toolong"));
+        return;
+      }
+      friendly_name_to_save = friendly_name;
+      ESP_LOGI(TAG, "  Friendly Name='%s'", friendly_name.c_str());
+    }
+
+    // Save names if any changed (skip_reboot=true since WiFi change will cause reconnect)
+    if (!name_to_save.empty() || !friendly_name_to_save.empty()) {
+      App.set_name_and_reboot(name_to_save, friendly_name_to_save, true);
+    }
+  }
+#endif
+
   wifi::global_wifi_component->save_wifi_sta(ssid, psk);
   wifi::global_wifi_component->start_scanning();
   request->redirect(ESPHOME_F("/?save"));

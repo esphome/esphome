@@ -578,6 +578,17 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
+#ifdef USE_DYNAMIC_NAME
+    case DeviceNameRequest::MESSAGE_TYPE: {
+      DeviceNameRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_set_device_name_request: %s", msg.dump().c_str());
+#endif
+      this->on_set_device_name_request(msg);
+      break;
+    }
+#endif
 #ifdef USE_BLUETOOTH_PROXY
     case BluetoothScannerSetModeRequest::MESSAGE_TYPE: {
       BluetoothScannerSetModeRequest msg;
@@ -676,6 +687,13 @@ void APIServerConnection::on_execute_service_request(const ExecuteServiceRequest
 #ifdef USE_API_NOISE
 void APIServerConnection::on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg) {
   if (!this->send_noise_encryption_set_key_response(msg)) {
+    this->on_fatal_error();
+  }
+}
+#endif
+#ifdef USE_DYNAMIC_NAME
+void APIServerConnection::on_set_device_name_request(const DeviceNameRequest &msg) {
+  if (!this->send_set_device_name_response(msg)) {
     this->on_fatal_error();
   }
 }

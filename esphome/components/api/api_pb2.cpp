@@ -141,6 +141,9 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_ZWAVE_PROXY
   buffer.encode_uint32(24, this->zwave_home_id);
 #endif
+#ifdef USE_DYNAMIC_NAME
+  buffer.encode_bool(25, this->dynamic_name_enabled);
+#endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_API_PASSWORD
@@ -198,6 +201,9 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #endif
 #ifdef USE_ZWAVE_PROXY
   size.add_uint32(2, this->zwave_home_id);
+#endif
+#ifdef USE_DYNAMIC_NAME
+  size.add_bool(2, this->dynamic_name_enabled);
 #endif
 }
 #ifdef USE_BINARY_SENSOR
@@ -3201,6 +3207,31 @@ void ZWaveProxyRequest::encode(ProtoWriteBuffer buffer) const {
 void ZWaveProxyRequest::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, static_cast<uint32_t>(this->type));
   size.add_length(2, this->data_len);
+}
+#endif
+#ifdef USE_DYNAMIC_NAME
+bool DeviceNameRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1:
+      this->name = value.as_string();
+      break;
+    case 2:
+      this->friendly_name = value.as_string();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+void DeviceNameResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_bool(1, this->success);
+  buffer.encode_string(2, this->name);
+  buffer.encode_string(3, this->friendly_name);
+}
+void DeviceNameResponse::calculate_size(ProtoSize &size) const {
+  size.add_bool(1, this->success);
+  size.add_string(2, this->name);
+  size.add_string(3, this->friendly_name);
 }
 #endif
 

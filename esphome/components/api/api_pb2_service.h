@@ -62,6 +62,10 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &value){};
 #endif
 
+#ifdef USE_DYNAMIC_NAME
+  virtual void on_device_name_request(const DeviceNameRequest &value){};
+#endif
+
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   virtual void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &value){};
 #endif
@@ -245,6 +249,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_API_NOISE
   virtual bool send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyRequest &msg) = 0;
 #endif
+#ifdef USE_DYNAMIC_NAME
+  virtual bool send_set_device_name_response(const DeviceNameRequest &msg) = 0;
+#endif
 #ifdef USE_BUTTON
   virtual void button_command(const ButtonCommandRequest &msg) = 0;
 #endif
@@ -373,6 +380,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_API_NOISE
   void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg) override;
+#endif
+#ifdef USE_DYNAMIC_NAME
+  void on_set_device_name_request(const DeviceNameRequest &msg) override;
 #endif
 #ifdef USE_BUTTON
   void on_button_command_request(const ButtonCommandRequest &msg) override;

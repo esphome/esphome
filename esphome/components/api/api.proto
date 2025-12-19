@@ -69,6 +69,8 @@ service APIConnection {
 
   rpc zwave_proxy_frame(ZWaveProxyFrame) returns (void) {}
   rpc zwave_proxy_request(ZWaveProxyRequest) returns (void) {}
+
+  rpc device_name (DeviceNameRequest) returns (DeviceNameResponse) {}
 }
 
 
@@ -261,6 +263,9 @@ message DeviceInfoResponse {
   // Indicates if Z-Wave proxy support is available and features supported
   uint32 zwave_proxy_feature_flags = 23 [(field_ifdef) = "USE_ZWAVE_PROXY"];
   uint32 zwave_home_id = 24 [(field_ifdef) = "USE_ZWAVE_PROXY"];
+
+  // Indicates if the device supports dynamic name changes at runtime i.e. the DeviceNameRequest
+  bool dynamic_name_enabled = 25 [(field_ifdef) = "USE_DYNAMIC_NAME"];
 }
 
 message ListEntitiesRequest {
@@ -2336,4 +2341,32 @@ message ZWaveProxyRequest {
 
   ZWaveProxyRequestType type = 1;
   bytes data = 2 [(pointer_to_buffer) = true];
+}
+
+// ==================== DEVICE NAME ====================
+
+message DeviceNameRequest {
+  option (id) = 131;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_DYNAMIC_NAME";
+
+  // The new device name (hostname). Must be lowercase alphanumeric with hyphens/underscores only.
+  // Empty string means "don't change".
+  string name = 1;
+  // The new friendly name (display name). Can contain any characters.
+  // Empty string means "don't change".
+  string friendly_name = 2;
+}
+
+message DeviceNameResponse {
+  option (id) = 132;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_DYNAMIC_NAME";
+
+  // Whether the name change was successful
+  bool success = 1;
+  // The updated name of the device
+  string name = 2;
+  // The updated friendly name (display name) of the device
+  string friendly_name = 3;
 }

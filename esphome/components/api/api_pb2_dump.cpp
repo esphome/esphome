@@ -787,6 +787,9 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 #ifdef USE_ZWAVE_PROXY
   dump_field(out, "zwave_home_id", this->zwave_home_id);
 #endif
+#ifdef USE_DYNAMIC_NAME
+  dump_field(out, "dynamic_name_enabled", this->dynamic_name_enabled);
+#endif
 }
 void ListEntitiesRequest::dump_to(std::string &out) const { out.append("ListEntitiesRequest {}"); }
 void ListEntitiesDoneResponse::dump_to(std::string &out) const { out.append("ListEntitiesDoneResponse {}"); }
@@ -2195,6 +2198,19 @@ void ZWaveProxyRequest::dump_to(std::string &out) const {
   out.append("  data: ");
   out.append(format_hex_pretty(this->data, this->data_len));
   out.append("\n");
+}
+#endif
+#ifdef USE_DYNAMIC_NAME
+void DeviceNameRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "DeviceNameRequest");
+  dump_field(out, "name", this->name);
+  dump_field(out, "friendly_name", this->friendly_name);
+}
+void DeviceNameResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "DeviceNameResponse");
+  dump_field(out, "success", this->success);
+  dump_field(out, "name", this->name);
+  dump_field(out, "friendly_name", this->friendly_name);
 }
 #endif
 

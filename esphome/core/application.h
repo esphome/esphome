@@ -92,6 +92,14 @@
 
 namespace esphome {
 
+#ifdef USE_DYNAMIC_NAME
+/// Structure for storing device name in flash preferences
+struct SavedDeviceName {
+  char name[32];           // Hostname (max 31 chars + null terminator)
+  char friendly_name[64];  // Display name (max 63 chars + null terminator)
+} PACKED;                  // NOLINT
+#endif
+
 // Teardown timeout constant (in milliseconds)
 // For reboots, it's more important to shut down quickly than disconnect cleanly
 // since we're not entering deep sleep. The only consequence of not shutting down
@@ -101,22 +109,71 @@ static const uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick 
 class Application {
  public:
   void pre_setup(const std::string &name, const std::string &friendly_name, const char *comment,
-                 const char *compilation_time, bool name_add_mac_suffix) {
+                 const char *compilation_time, bool name_add_mac_suffix, bool dynamic_name = false) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
-    if (name_add_mac_suffix) {
+
+    // Start with compile-time defaults
+    std::string effective_name = name;
+    std::string effective_friendly_name = friendly_name;
+    // Track whether names came from saved preferences (don't append MAC suffix to saved names)
+    bool name_from_saved = false;
+    bool friendly_name_from_saved = false;
+
+#ifdef USE_DYNAMIC_NAME
+    this->dynamic_name_enabled_ = dynamic_name;
+    if (dynamic_name && global_preferences != nullptr) {
+      // Use a fixed hash for the device name preference to ensure it persists across firmware updates
+      // This hash is intentionally different from compilation-time-based hashes used by other preferences
+      static constexpr uint32_t DEVICE_NAME_PREF_HASH = 0x44594E4D;  // "DYNM" in ASCII
+      this->name_pref_ = global_preferences->make_preference<SavedDeviceName>(DEVICE_NAME_PREF_HASH, true);
+
+      SavedDeviceName saved{};
+      if (this->name_pref_.load(&saved)) {
+        // Validate and use saved name if present and valid
+        // Check that the name field has content (first char != 0) and is properly null-terminated
+        if (saved.name[0] != '\0' && saved.name[sizeof(saved.name) - 1] == '\0') {
+          effective_name = saved.name;
+          name_from_saved = true;
+        }
+        // Check that the friendly_name field is properly null-terminated (can be empty)
+        if (saved.friendly_name[sizeof(saved.friendly_name) - 1] == '\0' && saved.friendly_name[0] != '\0') {
+          effective_friendly_name = saved.friendly_name;
+          friendly_name_from_saved = true;
+        }
+      }
+    }
+#else
+    (void) dynamic_name;  // Suppress unused parameter warning
+#endif
+
+    // Only append MAC suffix to compile-time default names, not to user-provided saved names
+    if (name_add_mac_suffix && (!name_from_saved || !friendly_name_from_saved)) {
       // MAC address suffix length (last 6 characters of 12-char MAC address string)
       constexpr size_t mac_address_suffix_len = 6;
       const std::string mac_addr = get_mac_address();
       // Use pointer + offset to avoid substr() allocation
       const char *mac_suffix_ptr = mac_addr.c_str() + mac_address_suffix_len;
-      this->name_ = make_name_with_suffix(name, '-', mac_suffix_ptr, mac_address_suffix_len);
-      if (!friendly_name.empty()) {
-        this->friendly_name_ = make_name_with_suffix(friendly_name, ' ', mac_suffix_ptr, mac_address_suffix_len);
+
+      // Append MAC suffix only if name came from compile-time default
+      if (!name_from_saved) {
+        this->name_ = make_name_with_suffix(effective_name, '-', mac_suffix_ptr, mac_address_suffix_len);
+      } else {
+        this->name_ = effective_name;
+      }
+
+      // Append MAC suffix to friendly_name only if it came from compile-time default
+      if (!effective_friendly_name.empty()) {
+        if (!friendly_name_from_saved) {
+          this->friendly_name_ =
+              make_name_with_suffix(effective_friendly_name, ' ', mac_suffix_ptr, mac_address_suffix_len);
+        } else {
+          this->friendly_name_ = effective_friendly_name;
+        }
       }
     } else {
-      this->name_ = name;
-      this->friendly_name_ = friendly_name;
+      this->name_ = effective_name;
+      this->friendly_name_ = effective_friendly_name;
     }
     this->comment_ = comment;
     this->compilation_time_ = compilation_time;
@@ -256,6 +313,18 @@ class Application {
   std::string get_comment() const { return this->comment_; }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
+
+#ifdef USE_DYNAMIC_NAME
+  /// Check if dynamic naming is enabled for this device
+  bool is_dynamic_name_enabled() const { return this->dynamic_name_enabled_; }
+
+  /// Set the device name and/or friendly name at runtime and save to flash.
+  /// The new names will be only used after the device reboots.
+  /// @param name The new device name (hostname, max 31 chars). Empty string to keep current.
+  /// @param friendly_name The new friendly/display name (max 63 chars). Empty string to keep current.
+  /// @param skip_reboot If true, save the names but don't reboot the device.
+  void set_name_and_reboot(const std::string &name, const std::string &friendly_name = "", bool skip_reboot = false);
+#endif
 
   std::string get_compilation_time() const { return this->compilation_time_; }
   /// Get the compilation time as StringRef (for API usage)
@@ -529,6 +598,11 @@ class Application {
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
   bool socket_fds_changed_{false};  // Flag to rebuild base_read_fds_ when socket_fds_ changes
+#endif
+
+#ifdef USE_DYNAMIC_NAME
+  bool dynamic_name_enabled_{false};  // Whether dynamic naming is enabled
+  ESPPreferenceObject name_pref_{};   // Preference object for storing device name
 #endif
 
 #ifdef USE_SOCKET_SELECT_SUPPORT

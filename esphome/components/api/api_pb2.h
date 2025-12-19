@@ -568,6 +568,9 @@ class DeviceInfoResponse final : public ProtoMessage {
 #ifdef USE_ZWAVE_PROXY
   uint32_t zwave_home_id{0};
 #endif
+#ifdef USE_DYNAMIC_NAME
+  bool dynamic_name_enabled{false};
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -3024,6 +3027,42 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+#endif
+#ifdef USE_DYNAMIC_NAME
+class DeviceNameRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 131;
+  static constexpr uint8_t ESTIMATED_SIZE = 100;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "set_device_name_request"; }
+#endif
+  std::string name{};
+  std::string friendly_name{};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class DeviceNameResponse final : public ProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 132;
+  static constexpr uint8_t ESTIMATED_SIZE = 100;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "device_name_response"; }
+#endif
+  bool success{false};
+  std::string name{};
+  std::string friendly_name{};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
 };
 #endif
 
