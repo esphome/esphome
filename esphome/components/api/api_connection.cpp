@@ -447,7 +447,7 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
   if (msg.has_direction)
     call.set_direction(static_cast<fan::FanDirection>(msg.direction));
   if (msg.has_preset_mode)
-    call.set_preset_mode(msg.preset_mode);
+    call.set_preset_mode(reinterpret_cast<const char *>(msg.preset_mode), msg.preset_mode_len);
   call.perform();
 }
 #endif
@@ -712,11 +712,11 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
   if (msg.has_fan_mode)
     call.set_fan_mode(static_cast<climate::ClimateFanMode>(msg.fan_mode));
   if (msg.has_custom_fan_mode)
-    call.set_fan_mode(msg.custom_fan_mode);
+    call.set_fan_mode(reinterpret_cast<const char *>(msg.custom_fan_mode), msg.custom_fan_mode_len);
   if (msg.has_preset)
     call.set_preset(static_cast<climate::ClimatePreset>(msg.preset));
   if (msg.has_custom_preset)
-    call.set_preset(msg.custom_preset);
+    call.set_preset(reinterpret_cast<const char *>(msg.custom_preset), msg.custom_preset_len);
   if (msg.has_swing_mode)
     call.set_swing_mode(static_cast<climate::ClimateSwingMode>(msg.swing_mode));
   call.perform();
@@ -1472,7 +1472,10 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 
   resp.set_esphome_version(ESPHOME_VERSION_REF);
 
-  resp.set_compilation_time(App.get_compilation_time_ref());
+  // Stack buffer for build time string
+  char build_time_str[Application::BUILD_TIME_STR_SIZE];
+  App.get_build_time_string(build_time_str);
+  resp.set_compilation_time(StringRef(build_time_str));
 
   // Manufacturer string - define once, handle ESP8266 PROGMEM separately
 #if defined(USE_ESP8266) || defined(USE_ESP32)

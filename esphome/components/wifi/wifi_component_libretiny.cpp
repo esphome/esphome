@@ -139,8 +139,8 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   s_sta_connecting = true;
 
   WiFiStatus status = WiFi.begin(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
-                                 ap.get_channel().has_value() ? *ap.get_channel() : 0,
-                                 ap.get_bssid().has_value() ? ap.get_bssid()->data() : NULL);
+                                 ap.get_channel(),  // 0 = auto
+                                 ap.has_bssid() ? ap.get_bssid().data() : NULL);
   if (status != WL_CONNECTED) {
     ESP_LOGW(TAG, "esp_wifi_connect failed: %d", status);
     return false;
@@ -291,6 +291,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
     }
     case ESPHOME_EVENT_ID_WIFI_STA_STOP: {
       ESP_LOGV(TAG, "STA stop");
+      s_sta_connecting = false;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_CONNECTED: {
@@ -322,7 +323,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       // wifi_sta_connect_status_() to return IDLE. The main loop then sees
       // "Unknown connection status 0" (wifi_component.cpp check_connecting_finished)
       // and calls retry_connect(), aborting a connection that may succeed moments later.
-      // Real connection failures will have ssid/bssid populated, or we'll hit the 30s timeout.
+      // Real connection failures will have ssid/bssid populated, or we'll hit the connection timeout.
       if (it.ssid_len == 0 && s_sta_connecting) {
         ESP_LOGV(TAG, "Ignoring disconnect event with empty ssid while connecting (reason=%s)",
                  get_disconnect_reason_str(it.reason));
@@ -521,13 +522,18 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   yield();
 
   return WiFi.softAP(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
-                     ap.get_channel().value_or(1), ap.get_hidden());
+                     ap.has_channel() ? ap.get_channel() : 1, ap.get_hidden());
 }
 
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; }
 #endif  // USE_WIFI_AP
 
-bool WiFiComponent::wifi_disconnect_() { return WiFi.disconnect(); }
+bool WiFiComponent::wifi_disconnect_() {
+  // Clear connecting flag first so disconnect events aren't ignored
+  // and wifi_sta_connect_status_() returns IDLE instead of CONNECTING
+  s_sta_connecting = false;
+  return WiFi.disconnect();
+}
 
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};

@@ -339,14 +339,14 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   conf.sta.rm_enabled = this->rrm_;
 #endif
 
-  if (ap.get_bssid().has_value()) {
+  if (ap.has_bssid()) {
     conf.sta.bssid_set = true;
-    memcpy(conf.sta.bssid, ap.get_bssid()->data(), 6);
+    memcpy(conf.sta.bssid, ap.get_bssid().data(), 6);
   } else {
     conf.sta.bssid_set = false;
   }
-  if (ap.get_channel().has_value()) {
-    conf.sta.channel = *ap.get_channel();
+  if (ap.has_channel()) {
+    conf.sta.channel = ap.get_channel();
     conf.sta.scan_method = WIFI_FAST_SCAN;
   } else {
     conf.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
@@ -720,6 +720,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_STOP) {
     ESP_LOGV(TAG, "STA stop");
     s_sta_started = false;
+    s_sta_connecting = false;
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_AUTHMODE_CHANGE) {
     const auto &it = data->data.sta_authmode_change;
@@ -1002,7 +1003,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     return false;
   }
   memcpy(reinterpret_cast<char *>(conf.ap.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
-  conf.ap.channel = ap.get_channel().value_or(1);
+  conf.ap.channel = ap.has_channel() ? ap.get_channel() : 1;
   conf.ap.ssid_hidden = ap.get_ssid().size();
   conf.ap.max_connection = 5;
   conf.ap.beacon_interval = 100;

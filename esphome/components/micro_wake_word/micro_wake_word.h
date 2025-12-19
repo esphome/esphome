@@ -9,7 +9,12 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/ring_buffer.h"
+
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
 
 #include <freertos/event_groups.h>
 
@@ -26,12 +31,21 @@ enum State {
   STOPPED,
 };
 
-class MicroWakeWord : public Component {
+class MicroWakeWord : public Component
+#ifdef USE_OTA_STATE_LISTENER
+    ,
+                      public ota::OTAGlobalStateListener
+#endif
+{
  public:
   void setup() override;
   void loop() override;
   float get_setup_priority() const override;
   void dump_config() override;
+
+#ifdef USE_OTA_STATE_LISTENER
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
+#endif
 
   void start();
   void stop();
