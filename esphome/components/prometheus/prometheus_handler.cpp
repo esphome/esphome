@@ -1262,7 +1262,7 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     ESPTime val{};
     val.year = obj->year;
     val.month = obj->month;
-    val.day_of_month = obj->day_of_month;
+    val.day_of_month = obj->day;
     val.hour = obj->hour;
     val.minute = obj->minute;
     val.second = obj->second;
