@@ -1247,15 +1247,17 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     // date_time_utc.recalc_timestamp_utc(false);
     ESPTime date_time = obj->state_as_esptime();
     // Set time to midnight UTC for date
-    date_time.hour = obj->hour;
-    date_time.minute = obj->minute;
-    date_time.second = obj->second;
+    date_time.hour = 0;
+    date_time.minute = 0;
+    date_time.second = 0;
     // Set these to valid value for  recalc_timestamp_utc - it's not used for calculation
     date_time.day_of_week = 1;
     date_time.day_of_year = 1;
     // date_time.recalc_timestamp_utc(false);
     date_time.recalc_timestamp_local();
-    stream->print(static_cast<int64_t>(date_time.timestamp));
+    uint32_t seconds_since_midnight = obj->hour * 3600 + obj->minute * 60 + obj->second;
+    auto final_timestamp = date_time.timestamp + seconds_since_midnight;
+    stream->print(static_cast<int64_t>(final_timestamp));
     stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
