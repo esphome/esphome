@@ -92,8 +92,9 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     delayMicroseconds(800);
   }
 
+#ifdef USE_ESP32
   this->pin_->digital_write(true);
-#ifndef USE_ESP32
+#else
   this->pin_->pin_mode(this->pin_->get_flags());
 #endif
 
