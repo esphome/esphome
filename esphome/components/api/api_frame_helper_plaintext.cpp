@@ -18,8 +18,16 @@ namespace esphome::api {
 
 static const char *const TAG = "api.plaintext";
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
 #define HELPER_LOG(msg, ...) \
-  ESP_LOGVV(TAG, "%s (%s): " msg, this->client_info_->name.c_str(), this->client_info_->peername.c_str(), ##__VA_ARGS__)
+  do { \
+    char peername__[socket::PEERNAME_MAX_LEN]; \
+    this->socket_->getpeername_to(peername__); \
+    ESP_LOGVV(TAG, "%s (%s): " msg, this->client_info_->name.c_str(), peername__, ##__VA_ARGS__); \
+  } while (0)
+#else
+#define HELPER_LOG(msg, ...) ((void) 0)
+#endif
 
 #ifdef HELPER_LOG_PACKETS
 #define LOG_PACKET_RECEIVED(buffer) ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(buffer).c_str())

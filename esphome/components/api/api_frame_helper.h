@@ -91,6 +91,7 @@ class APIFrameHelper {
   bool can_write_without_blocking() { return this->state_ == State::DATA && this->tx_buf_count_ == 0; }
   std::string getpeername() { return socket_->getpeername(); }
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) { return socket_->getpeername(addr, addrlen); }
+  size_t getpeername_to(std::span<char, socket::PEERNAME_MAX_LEN> buf) { return socket_->getpeername_to(buf); }
   APIError close() {
     state_ = State::CLOSED;
     int err = this->socket_->close();

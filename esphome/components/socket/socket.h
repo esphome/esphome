@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <span>
 #include <string>
 
 #include "esphome/core/optional.h"
@@ -7,6 +8,15 @@
 
 #if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
 namespace esphome::socket {
+
+// Maximum length for peer name string (IP address without port)
+// IPv4: "255.255.255.255" = 15 chars + null = 16
+// IPv6: full address = 45 chars + null = 46
+#if LWIP_IPV6
+static constexpr size_t PEERNAME_MAX_LEN = 46;  // INET6_ADDRSTRLEN
+#else
+static constexpr size_t PEERNAME_MAX_LEN = 16;  // INET_ADDRSTRLEN
+#endif
 
 class Socket {
  public:
@@ -32,6 +42,9 @@ class Socket {
 
   virtual int getpeername(struct sockaddr *addr, socklen_t *addrlen) = 0;
   virtual std::string getpeername() = 0;
+  /// Format peer address into a fixed-size buffer (no heap allocation)
+  /// Returns number of characters written (excluding null terminator), or 0 on error
+  virtual size_t getpeername_to(std::span<char, PEERNAME_MAX_LEN> buf) = 0;
   virtual int getsockname(struct sockaddr *addr, socklen_t *addrlen) = 0;
   virtual std::string getsockname() = 0;
   virtual int getsockopt(int level, int optname, void *optval, socklen_t *optlen) = 0;

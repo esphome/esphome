@@ -17,8 +17,9 @@ namespace esphome::api {
 
 // Client information structure
 struct ClientInfo {
-  std::string name;      // Client name from Hello message
-  std::string peername;  // IP:port from socket
+  std::string name;  // Client name from Hello message
+  // Note: peername (IP address) is not stored here to save memory.
+  // Use helper_->getpeername_to() or helper_->getpeername() when needed.
 };
 
 // Keepalive timeout in milliseconds
@@ -285,7 +286,12 @@ class APIConnection final : public APIServerConnection {
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
   const std::string &get_name() const { return this->client_info_.name; }
-  const std::string &get_peername() const { return this->client_info_.peername; }
+  /// Get peer name (IP address) into a stack buffer - avoids heap allocation
+  size_t get_peername_to(std::span<char, socket::PEERNAME_MAX_LEN> buf) const {
+    return this->helper_->getpeername_to(buf);
+  }
+  /// Get peer name as std::string - use sparingly, allocates on heap
+  std::string get_peername() const { return this->helper_->getpeername(); }
 
  protected:
   // Helper function to handle authentication completion
@@ -744,6 +750,8 @@ class APIConnection final : public APIServerConnection {
     return this->schedule_batch_();
   }
 
+  // Helper function to log client messages with name and peername
+  void log_client_(int level, const LogString *message);
   // Helper function to log API errors with errno
   void log_warning_(const LogString *message, APIError err);
   // Helper to handle fatal errors with logging
