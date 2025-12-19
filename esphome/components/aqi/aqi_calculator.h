@@ -29,6 +29,9 @@ class AQICalculator : public AbstractAQICalculator {
 
   int calculate_index_(uint16_t value, int array[AMOUNT_OF_LEVELS][2]) {
     int grid_index = get_grid_index_(value, array);
+    if (grid_index == -1) {
+      return -1;
+    }
     int aqi_lo = index_grid_[grid_index][0];
     int aqi_hi = index_grid_[grid_index][1];
     int conc_lo = array[grid_index][0];
