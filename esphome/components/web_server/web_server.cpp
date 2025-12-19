@@ -434,7 +434,10 @@ static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const c
   root[ESPHOME_F("state")] = state;
 }
 
-// Macros for stack-based value formatting (avoid heap allocation)
+// Macros for stack-based value formatting (avoid heap allocation).
+// Usage: Declare VALUE_BUF once per scope, then use VALUE_OR_NA/VALUE_UOM_OR_NA.
+// Safe because ArduinoJson copies the string immediately on assignment.
+// Note: Do NOT use multiple macros in the same expression - use separate statements.
 #define VALUE_BUF char _vbuf_[VALUE_ACCURACY_MAX_LEN]
 #define VALUE_OR_NA(value, decimals) \
   (std::isnan(value) ? "NA" : (value_accuracy_to_buf(_vbuf_, value, decimals), _vbuf_))
