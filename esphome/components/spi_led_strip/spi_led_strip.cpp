@@ -4,7 +4,7 @@ namespace esphome {
 namespace spi_led_strip {
 
 SpiLedStrip::SpiLedStrip(Protocol protocol, light::ChannelMap channel_map, uint16_t num_leds)
-    : protocol_(protocol), channel_map_(channel_map), num_leds_(num_leds) {
+    : protocol_(protocol), channel_map_(std::move(channel_map)), num_leds_(num_leds) {
   this->buffer_size_ = this->num_leds_ * ((this->protocol_ == DOTSTAR) ? 4 : this->channel_map_.get_channel_count()) +
                        ((this->protocol_ == DOTSTAR) ? 8 : 0);
 
