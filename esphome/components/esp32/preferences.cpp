@@ -130,10 +130,10 @@ class ESP32Preferences : public ESPPreferences {
     // go through vector from back to front (makes erase easier/more efficient)
     for (ssize_t i = s_pending_save.size() - 1; i >= 0; i--) {
       const auto &save = s_pending_save[i];
-      ESP_LOGVV(TAG, "Checking if NVS data %" PRIu32 " has changed", save.key);
-      if (this->is_changed(this->nvs_handle, save)) {
-        char key_str[KEY_BUFFER_SIZE];
-        snprintf(key_str, sizeof(key_str), "%" PRIu32, save.key);
+      char key_str[KEY_BUFFER_SIZE];
+      snprintf(key_str, sizeof(key_str), "%" PRIu32, save.key);
+      ESP_LOGVV(TAG, "Checking if NVS data %s has changed", key_str);
+      if (this->is_changed_(this->nvs_handle, save, key_str)) {
         esp_err_t err = nvs_set_blob(this->nvs_handle, key_str, save.data.get(), save.len);
         ESP_LOGV(TAG, "sync: key: %s, len: %zu", key_str, save.len);
         if (err != 0) {
@@ -166,10 +166,9 @@ class ESP32Preferences : public ESPPreferences {
 
     return failed == 0;
   }
-  bool is_changed(const uint32_t nvs_handle, const NVSData &to_save) {
-    char key_str[KEY_BUFFER_SIZE];
-    snprintf(key_str, sizeof(key_str), "%" PRIu32, to_save.key);
 
+ protected:
+  bool is_changed_(uint32_t nvs_handle, const NVSData &to_save, const char *key_str) {
     size_t actual_len;
     esp_err_t err = nvs_get_blob(nvs_handle, key_str, nullptr, &actual_len);
     if (err != 0) {
