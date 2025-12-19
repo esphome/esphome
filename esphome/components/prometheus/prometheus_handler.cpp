@@ -103,19 +103,19 @@ void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
 #endif
 
 #ifdef USE_DATETIME_DATE
-  this->date_type_(stream);
+  this->handle_metric_type_(stream, "date");
   for (auto *obj : App.get_dates())
     this->date_row_(stream, obj, area, node, friendly_name);
 #endif
 
 #ifdef USE_DATETIME_TIME
-  this->time_type_(stream);
+  this->handle_metric_type_(stream, "time");
   for (auto *obj : App.get_times())
     this->time_row_(stream, obj, area, node, friendly_name);
 #endif
 
 #ifdef USE_DATETIME_DATETIME
-  this->datetime_type_(stream);
+  this->handle_metric_type_(stream, "datetime");
   for (auto *obj : App.get_datetimes())
     this->datetime_row_(stream, obj, area, node, friendly_name);
 #endif
@@ -175,6 +175,15 @@ void PrometheusHandler::handle_failed_metric_(AsyncResponseStream *stream, const
   stream->print(ESPHOME_F("\"} "));
   stream->print(value.c_str());
   stream->print(ESPHOME_F("\n"));
+}
+
+void PrometheusHandler::handle_metric_type_(AsyncResponseStream *stream, const std::string &component_name) {
+  stream->print(ESPHOME_F("#TYPE esphome_"));
+  stream->print(component_name.c_str());
+  stream->print(ESPHOME_F("_value gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_"));
+  stream->print(component_name.c_str());
+  stream->print(ESPHOME_F("_failed gauge\n"));
 }
 
 #ifdef USE_ESP8266
@@ -1125,10 +1134,6 @@ void PrometheusHandler::climate_row_(AsyncResponseStream *stream, climate::Clima
 #endif
 
 #ifdef USE_DATETIME_DATE
-void PrometheusHandler::date_type_(AsyncResponseStream *stream) {
-  stream->print(ESPHOME_F("#TYPE esphome_date_value gauge\n"));
-  stream->print(ESPHOME_F("#TYPE esphome_date_failed gauge\n"));
-}
 void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEntity *obj, std::string &area,
                                   std::string &node, std::string &friendly_name) {
   if (obj->is_internal() && !this->include_internal_)
@@ -1170,10 +1175,6 @@ void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEnt
 #endif
 
 #ifdef USE_DATETIME_TIME
-void PrometheusHandler::time_type_(AsyncResponseStream *stream) {
-  stream->print(ESPHOME_F("#TYPE esphome_time_value gauge\n"));
-  stream->print(ESPHOME_F("#TYPE esphome_time_failed gauge\n"));
-}
 void PrometheusHandler::time_row_(AsyncResponseStream *stream, datetime::TimeEntity *obj, std::string &area,
                                   std::string &node, std::string &friendly_name) {
   if (obj->is_internal() && !this->include_internal_)
@@ -1201,10 +1202,6 @@ void PrometheusHandler::time_row_(AsyncResponseStream *stream, datetime::TimeEnt
 #endif
 
 #ifdef USE_DATETIME_DATETIME
-void PrometheusHandler::datetime_type_(AsyncResponseStream *stream) {
-  stream->print(ESPHOME_F("#TYPE esphome_datetime_value gauge\n"));
-  stream->print(ESPHOME_F("#TYPE esphome_datetime_failed gauge\n"));
-}
 void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::DateTimeEntity *obj, std::string &area,
                                       std::string &node, std::string &friendly_name) {
   if (obj->is_internal() && !this->include_internal_)
