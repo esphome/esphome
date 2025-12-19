@@ -203,10 +203,14 @@ class APIConnection final : public APIServerConnection {
   bool send_disconnect_response(const DisconnectRequest &msg) override;
   bool send_ping_response(const PingRequest &msg) override;
   bool send_device_info_response(const DeviceInfoRequest &msg) override;
-  void list_entities(const ListEntitiesRequest &msg) override { this->list_entities_iterator_.begin(); }
+  void list_entities(const ListEntitiesRequest &msg) override { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
   void subscribe_states(const SubscribeStatesRequest &msg) override {
     this->flags_.state_subscription = true;
-    this->initial_state_iterator_.begin();
+    // Start initial state iterator only if no iterator is active
+    // If list_entities is running, we'll start initial_state when it completes
+    if (this->active_iterator_ == ActiveIterator::NONE) {
+      this->begin_iterator_(ActiveIterator::INITIAL_STATE);
+    }
   }
   void subscribe_logs(const SubscribeLogsRequest &msg) override {
     this->flags_.log_subscription = msg.level;
@@ -490,10 +494,22 @@ class APIConnection final : public APIServerConnection {
   std::unique_ptr<APIFrameHelper> helper_;
   APIServer *parent_;
 
-  // Group 2: Larger objects (must be 4-byte aligned)
-  // These contain vectors/pointers internally, so putting them early ensures good alignment
-  InitialStateIterator initial_state_iterator_;
-  ListEntitiesIterator list_entities_iterator_;
+  // Group 2: Iterator union (saves ~16 bytes vs separate iterators)
+  // These iterators are never active simultaneously - list_entities runs to completion
+  // before initial_state begins, so we use a union with explicit construction/destruction.
+  enum class ActiveIterator : uint8_t { NONE, LIST_ENTITIES, INITIAL_STATE };
+
+  union IteratorUnion {
+    ListEntitiesIterator list_entities;
+    InitialStateIterator initial_state;
+    // Constructor/destructor do nothing - use placement new/explicit destructor
+    IteratorUnion() {}
+    ~IteratorUnion() {}
+  } iterator_storage_;
+
+  // Helper methods for iterator lifecycle management
+  void destroy_active_iterator_();
+  void begin_iterator_(ActiveIterator type);
 #ifdef USE_CAMERA
   std::unique_ptr<camera::CameraImageReader> image_reader_;
 #endif
@@ -608,7 +624,9 @@ class APIConnection final : public APIServerConnection {
   // 2-byte types immediately after flags_ (no padding between them)
   uint16_t client_api_version_major_{0};
   uint16_t client_api_version_minor_{0};
-  // Total: 2 (flags) + 2 + 2 = 6 bytes, then 2 bytes padding to next 4-byte boundary
+  // 1-byte type to fill padding
+  ActiveIterator active_iterator_{ActiveIterator::NONE};
+  // Total: 2 (flags) + 2 + 2 + 1 = 7 bytes, then 1 byte padding to next 4-byte boundary
 
   uint32_t get_batch_delay_ms_() const;
   // Message will use 8 more bytes than the minimum size, and typical
