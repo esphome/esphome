@@ -1,5 +1,5 @@
-#include <inttypes.h>
 #include "prometheus_handler.h"
+#include <cinttypes>
 #ifdef USE_NETWORK
 #include "esphome/core/application.h"
 
@@ -161,7 +161,7 @@ void PrometheusHandler::add_friendly_name_label_(AsyncResponseStream *stream, st
 }
 
 void PrometheusHandler::handle_failed_metric_(AsyncResponseStream *stream, const std::string &component_name,
-                                              const std::string value, EntityBase *obj, std::string &area,
+                                              const std::string &value, EntityBase *obj, std::string &area,
                                               std::string &node, std::string &friendly_name) {
   stream->print(ESPHOME_F("esphome_"));
   stream->print(component_name.c_str());
