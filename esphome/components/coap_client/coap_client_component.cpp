@@ -88,15 +88,15 @@ void CoapClientComponent::setup() {
   coap_set_log_level((coap_log_t) CONFIG_LOG_DEFAULT_LEVEL);
 #endif
 
-  xTaskCreate(
-      [](void *arg) {
-        CoapClientComponent *obj = (CoapClientComponent *) arg;
-        obj->main_();
-        coap_cleanup();
-        vTaskDelete(nullptr);
-        obj->torndown_ = true;
-      },
-      "CoapClientMain", 8 * 1024, this, 5, nullptr);
+  this->ctx_ = coap_new_context(NULL);
+  if (!this->ctx_) {
+    ESP_LOGE(TAG, "coap_new_context() failed");
+    this->mark_failed();
+    return;
+  }
+  coap_context_set_block_mode(this->ctx_, COAP_BLOCK_USE_LIBCOAP);
+  coap_register_response_handler(this->ctx_, CoapClientComponent::response_handler);
+  coap_context_set_max_block_size(this->ctx_, this->max_block_size_);
 }
 
 bool CoapClientComponent::teardown() {
@@ -111,18 +111,8 @@ bool CoapClientComponent::teardown() {
       xQueueSend(this->request_queue_, (void *) &ptr->create_timestamp, pdMS_TO_TICKS(1000));
     }
   }
-  // make sure we really send
-  for (uint8_t cnt = 0; cnt < 100; cnt++) {
-    for (const auto &ptr : this->tx_requests_) {
-      if (!ptr->sent) {
-        delay(pdMS_TO_TICKS(this->request_timeout_));
-      }
-    }
-  }
   this->tx_requests_.clear();
-
   this->main_coap_loop_ = false;
-  xTaskAbortDelay(this->main_task_handle_);
   return this->torndown_;
 }
 
@@ -130,10 +120,9 @@ void CoapClientComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "CoAP Client:\n"
                 "  Max Block Size: %d\n"
-                "  Request Timeout: %ums\n"
                 "  Ack Timeout: %ums\n"
                 "  Max Retransmit: %d",
-                this->max_block_size_, this->request_timeout_, this->ack_timeout_, this->max_retransmit_);
+                this->max_block_size_, this->ack_timeout_, this->max_retransmit_);
 }
 
 // static
@@ -191,7 +180,6 @@ coap_response_t CoapClientComponent::process_response(coap_session_t *session, c
       this->tx_requests_.erase(this->tx_requests_.begin() + tx_i);
     }
   }
-  this->inner_coap_loop_ = false;
   return COAP_RESPONSE_OK;
 }
 
@@ -220,6 +208,7 @@ bool CoapClientComponent::process_request(std::unique_ptr<CoapClientRequestData>
       return true;
     }
   }
+
   ESP_LOGD(TAG, "%s %s", coap_method_to_string(tx_request->method), tx_request->uri.c_str());
   uint32_t dtime = micros();
   tx_request->keep = !tx_request->name.empty();
@@ -281,64 +270,37 @@ bool CoapClientComponent::remove_request(std::string const &name) {
   return false;
 }
 
-void CoapClientComponent::main_() {
-  this->main_task_handle_ = xTaskGetCurrentTaskHandle();
-  coap_context_t *ctx = nullptr;
-  coap_address_t dst_addr;
-  coap_addr_info_t *info_list = nullptr;
-  coap_optlist_t *opt_list = nullptr;
-  coap_proto_t proto;
-  coap_pdu_t *request = nullptr;
-  coap_session_t *session = nullptr;
-  coap_uri_t uri;
-
-  CoapClientRequestData *tx_request = nullptr;
-  uint32_t dtime;
-  BaseType_t receive_status;
-  unsigned char token[8];
-  size_t token_length;
-  unsigned char uri_path[this->uri_path_buffer_size_];
-
-  auto cleanup = [](coap_optlist_t *&opt_list) {
-    // ESP_LOGV(TAG, "Coap cleanup");
-    if (opt_list) {
-      coap_delete_optlist(opt_list);
-      opt_list = nullptr;
-    }
-  };
-
-  // New CoAP Context
-  ctx = coap_new_context(NULL);
-  if (!ctx) {
-    ESP_LOGE(TAG, "coap_new_context() failed");
-  } else {
-    coap_context_set_block_mode(ctx, COAP_BLOCK_USE_LIBCOAP);
-    coap_register_response_handler(ctx, CoapClientComponent::response_handler);
-    coap_context_set_max_block_size(ctx, this->max_block_size_);
-
-    // ESP_LOGV(TAG, "Begin coap main loop");
-    for (; this->main_coap_loop_; cleanup(opt_list)) {
-      tx_request = nullptr;
-      this->inner_coap_loop_ = true;
-      receive_status = xQueueReceive(this->request_queue_, &dtime, 0);
-      ESP_LOGV(TAG, "recieve_status: %d", receive_status);
-      // Request recieved from Queue
-      if (receive_status == pdPASS) {
-        std::lock_guard<std::mutex> lock(this->mutex_lock_);
-        for (const auto &ptr : this->tx_requests_) {
-          if (dtime == ptr->create_timestamp) {
-            tx_request = ptr.get();
-          }
-        };
-        if (!tx_request) {
-          ESP_LOGE(TAG, "unable to find queued request");
-          continue;
+void CoapClientComponent::loop() {
+  if (this->main_coap_loop_) {
+    uint32_t dtime;
+    BaseType_t receive_status = xQueueReceive(this->request_queue_, &dtime, 0);
+    ESP_LOGV(TAG, "recieve_status: %d", receive_status);
+    // Request recieved from Queue
+    if (receive_status == pdPASS) {
+      std::lock_guard<std::mutex> lock(this->mutex_lock_);
+      CoapClientRequestData *tx_request = nullptr;
+      for (const auto &ptr : this->tx_requests_) {
+        if (dtime == ptr->create_timestamp) {
+          tx_request = ptr.get();
         }
+      }
+      if (tx_request) {
+        coap_address_t dst_addr;
+        coap_addr_info_t *info_list = nullptr;
+        coap_optlist_t *opt_list = nullptr;
+        coap_proto_t proto;
+        coap_pdu_t *request = nullptr;
+        coap_session_t *session = nullptr;
+        coap_uri_t uri;
+
+        unsigned char token[8];
+        size_t token_length;
+        unsigned char uri_path[this->uri_path_buffer_size_];
         // Parse uri
         tx_request->sent = false;
         if (coap_split_uri((const uint8_t *) tx_request->uri.c_str(), tx_request->uri.length(), &uri) == -1) {
           ESP_LOGE(TAG, "Error coap_split_uri %s", tx_request->uri.c_str());
-          continue;
+          return;
         }
 
         // Get info_list (addr is destination, proto(col) is UDP, DTLS, TCP, TLS)
@@ -346,7 +308,7 @@ void CoapClientComponent::main_() {
                                               COAP_RESOLVE_TYPE_REMOTE);
         if (info_list == NULL) {
           ESP_LOGE(TAG, "Error coap_resolve_address_info %s", tx_request->uri.c_str());
-          continue;
+          return;
         }
         // Copy out proto(col) and destination
         proto = info_list->proto;
@@ -356,17 +318,17 @@ void CoapClientComponent::main_() {
         // Build CoAP Options (header)
         if (coap_uri_into_options(&uri, &dst_addr, &opt_list, 1, uri_path, sizeof(uri_path)) < 0) {
           ESP_LOGE(TAG, "Failed to create options for URI %s", tx_request->uri.c_str());
-          continue;
+          return;
         }
         // Create CoAP Session
         if (tx_request->session) {
           ESP_LOGD(TAG, "Reusing session from %s", tx_request->name.c_str());
           session = tx_request->session;
         } else {
-          session = this->get_session_(ctx, &dst_addr, &uri, proto);
+          session = this->get_session_(this->ctx_, &dst_addr, &uri, proto);
           if (!session) {
             ESP_LOGE(TAG, "create coap session failed");
-            continue;
+            return;
           }
           coap_encode_var_safe8(token, 4, dtime);
           coap_session_init_token(session, 4, token);
@@ -378,7 +340,7 @@ void CoapClientComponent::main_() {
                                (coap_pdu_code_t) tx_request->method, session);
         if (!request) {
           ESP_LOGE(TAG, "coap_new_pdu() failed");
-          continue;
+          return;
         }
 
         // Create CoAP token
@@ -429,37 +391,20 @@ void CoapClientComponent::main_() {
 
         // Add option list to CoAP request (it is added as part of header)
         coap_add_optlist_pdu(request, &opt_list);
+        coap_delete_optlist(opt_list);
+        opt_list = nullptr;
 
         // Send CoAP request
         coap_send(session, request);
         tx_request->sent = true;
       }
-      // coap_io_process returns -1 on error.
-      // coap_io_pending returns 1 if there's ongoing I/O (transfer in process), 0 if done.
-      int result = 0;
-      uint32_t wait_ms = this->request_timeout_;
-      while (this->inner_coap_loop_) {
-        // Wait for up to request_timeout_ milliseconds for I/O to happen.
-        // The return value is the time spent in the function in milliseconds.
-        result = coap_io_process(ctx, wait_ms);
-        if (result < 0) {
-          ESP_LOGE(TAG, "CoAP I/O error! Exiting Inner Loop.");
-          break;
-        }
-        if ((uint32_t) result >= wait_ms) {
-          ESP_LOGV(TAG, "No Processing Occurred Exiting Inner Loop");
-          break;
-        } else {
-          // sample code did a speed up here
-        }
-      }
-      yield();
-      ESP_LOGV(TAG, "CoAP Request Processed");
-      this->housekeeping_();
     }
-    if (ctx) {
-      coap_free_context(ctx);
-    }
+    coap_io_process(this->ctx_, COAP_IO_NO_WAIT);
+    this->housekeeping_();
+  } else {
+    coap_free_context(this->ctx_);
+    coap_cleanup();
+    this->torndown_ = true;
   }
 }
 

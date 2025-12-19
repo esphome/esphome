@@ -92,6 +92,7 @@ class CoapClientComponent : public Component {
   void setup() override;
   bool teardown() override;
   void dump_config() override;
+  void loop() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   static coap_response_t response_handler(coap_session_t *session, const coap_pdu_t *sent, const coap_pdu_t *received,
                                           coap_mid_t mid);
@@ -103,27 +104,20 @@ class CoapClientComponent : public Component {
   bool remove_request(std::string const &name);
   void set_max_block_size(size_t block_size) { this->max_block_size_ = block_size; }
   void set_uri_path_buffer_size(uint8_t max) { this->uri_path_buffer_size_ = max; }
-  void set_request_timeout(uint32_t timeout) { this->request_timeout_ = timeout; }
   void set_ack_timeout(uint32_t timeout) { this->ack_timeout_ = timeout; }
   void set_max_retransmit(uint8_t max) { this->max_retransmit_ = max; }
 
  protected:
   void housekeeping_();
-  bool is_process_requests_{true};
+  coap_session_t *get_session_(coap_context_t *ctx, coap_address_t *dst_addr, coap_uri_t *uri, coap_proto_t proto);
+  coap_context_t *ctx_{nullptr};
   std::vector<std::unique_ptr<CoapClientRequestData>> tx_requests_;
   std::mutex mutex_lock_;
-  std::map<uint32_t, CoapClientRequestData> tx_request_storage_;
-  void main_();
-  coap_session_t *get_session_(coap_context_t *ctx, coap_address_t *dst_addr, coap_uri_t *uri, coap_proto_t proto);
-
   bool main_coap_loop_{true};
-  bool inner_coap_loop_{true};
   bool torndown_{false};
   QueueHandle_t request_queue_{nullptr};
-  TaskHandle_t main_task_handle_{nullptr};
   size_t max_block_size_{512};
   uint8_t uri_path_buffer_size_{100};
-  uint32_t request_timeout_{COAP_RESOURCE_CHECK_TIME * 1000};
   uint32_t ack_timeout_{2000};
   uint8_t max_retransmit_{4};
 };
