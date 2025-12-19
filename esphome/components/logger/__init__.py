@@ -386,7 +386,7 @@ async def to_code(config):
     except cv.Invalid:
         pass
 
-    if CORE.using_zephyr:
+    if CORE.using_zephyr and CONF_HARDWARE_UART in config:
         if config[CONF_HARDWARE_UART] == UART0:
             zephyr_add_overlay("""&uart0 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == UART1:
