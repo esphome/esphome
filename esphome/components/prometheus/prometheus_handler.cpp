@@ -1191,9 +1191,8 @@ void PrometheusHandler::time_row_(AsyncResponseStream *stream, datetime::TimeEnt
     stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\"} "));
     // Data itself - convert to seconds since midnight
-    uint32_t seconds_since_midnight = obj->hour * 3600 + obj->minute * 60 + obj->second;
-    stream->print(static_cast<int64_t>(seconds_since_midnight));
-    stream->print(ESPHOME_F("\n"));
+    int64_t seconds_since_midnight = (int64_t) obj->hour * 3600 + (int64_t) obj->minute * 60 + (int64_t) obj->second;
+    stream->printf("%" PRId64 "\n", seconds_since_midnight);
   } else {
     // Invalid state
     handle_failed_metric_(stream, component, "1", obj, area, node, friendly_name);
