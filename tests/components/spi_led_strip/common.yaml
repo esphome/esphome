@@ -8,7 +8,7 @@ light:
   - platform: spi_led_strip
     num_leds: 100
     protocol: RAW
-    channel_map: "G,B,R"
+    channel_map: [G, B, R]
     id: rgb_led_classic
     name: RGB LED Raw
     data_rate: 2MHz
