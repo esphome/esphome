@@ -125,18 +125,17 @@ void APIServer::loop() {
       if (!sock)
         break;
 
+      char peername[socket::PEERNAME_MAX_LEN];
+      sock->getpeername_to(peername);
+
       // Check if we're at the connection limit
       if (this->clients_.size() >= this->max_connections_) {
-        char peername[socket::PEERNAME_MAX_LEN];
-        sock->getpeername_to(peername);
         ESP_LOGW(TAG, "Max connections (%d), rejecting %s", this->max_connections_, peername);
         // Immediately close - socket destructor will handle cleanup
         sock.reset();
         continue;
       }
 
-      char peername[socket::PEERNAME_MAX_LEN];
-      sock->getpeername_to(peername);
       ESP_LOGD(TAG, "Accept %s", peername);
 
       auto *conn = new APIConnection(std::move(sock), this);
