@@ -58,8 +58,14 @@ STM32_PIN_SCHEMA = cv.All(
 @pins.PIN_SCHEMA_REGISTRY.register("stm32", STM32_PIN_SCHEMA)
 async def stm32_pin_to_code(config):
     num = config[CONF_NUMBER]
-    port = chr(ord('a') + (num >> 4))
-    var = cg.new_Pvariable(config[CONF_ID], cg.RawExpression(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL(gpio{port}))"), 16)
+    port = chr(ord("a") + (num >> 4))
+    pin_name_prefix = f"p{port}".upper()
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        cg.RawExpression(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL(gpio{port}))"),
+        16,
+        pin_name_prefix,
+    )
     cg.add(var.set_pin(num))
     # Only set if true to avoid bloating setup() function
     # (inverted bit in pin_flags_ bitfield is zero-initialized to false)

@@ -73,7 +73,13 @@ NRF52_PIN_SCHEMA = cv.All(
 async def nrf52_pin_to_code(config):
     num = config[CONF_NUMBER]
     port = num >> 5
-    var = cg.new_Pvariable(classonfig[CONF_ID], cg.RawExpression(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL(gpio{port}))"), 32)
+    pin_name_prefix = f"P{port}."
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        cg.RawExpression(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL(gpio{port}))"),
+        32,
+        pin_name_prefix,
+    )
     cg.add(var.set_pin(num))
     # Only set if true to avoid bloating setup() function
     # (inverted bit in pin_flags_ bitfield is zero-initialized to false)
