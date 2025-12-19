@@ -1,5 +1,11 @@
 # local cvs
 CONF_ACK_TIMEOUT = "ack_timeout"
+CONF_JSON = "json"
 CONF_MAX_BLOCK_SIZE = "max_block_size"
+CONF_MAX_RESPONSE_BUFFER_SIZE = "max_response_buffer_size"
 CONF_MAX_RETRANSMIT = "max_retransmit"
-CONF_REQUEST_TIMEOUT = "request_timeout"
+CONF_MEDIA_TYPE = "media_type"
+CONF_OBSERVE = "observe"
+CONF_PAUSE = "pause"
+CONF_REQUEST_NAME = "request_name"
+CONF_RESPONSE_TIMEOUT = "response_timeout"
