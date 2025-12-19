@@ -56,7 +56,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_FIELD_STRENGTH_Y): field_strength_schema,
             cv.Optional(CONF_FIELD_STRENGTH_Z): field_strength_schema,
             cv.Optional(CONF_HEADING): heading_schema,
-            cv.Optional(CONF_AUTO_SET_RESET): cv.boolean,
+            cv.Optional(CONF_AUTO_SET_RESET, default=True): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))

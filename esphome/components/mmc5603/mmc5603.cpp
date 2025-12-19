@@ -83,7 +83,7 @@ void MMC5603Component::dump_config() {
     ESP_LOGE(TAG, "The ID registers don't match - Is this really an MMC5603?");
   }
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Auto set/reset: %s", this->auto_set_reset_ ? "ENABLED" : "DISABLED");
+  ESP_LOGCONFIG(TAG, "  Auto set/reset: %s", ONOFF(this->auto_set_reset_));
 
   LOG_SENSOR("  ", "X Axis", this->x_sensor_);
   LOG_SENSOR("  ", "Y Axis", this->y_sensor_);
