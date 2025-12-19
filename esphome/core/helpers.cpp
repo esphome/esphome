@@ -392,8 +392,12 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
 
 size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value, int8_t accuracy_decimals) {
   normalize_accuracy_decimals(value, accuracy_decimals);
+  // snprintf returns chars that would be written (excluding null), or negative on error
   int len = snprintf(buf.data(), buf.size(), "%.*f", accuracy_decimals, value);
-  return len > 0 ? std::min(static_cast<size_t>(len), buf.size() - 1) : 0;
+  if (len < 0)
+    return 0;  // encoding error
+  // On truncation, snprintf returns would-be length; actual written is buf.size() - 1
+  return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
 }
 
 size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value,
@@ -402,8 +406,12 @@ size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> bu
     return value_accuracy_to_buf(buf, value, accuracy_decimals);
   }
   normalize_accuracy_decimals(value, accuracy_decimals);
+  // snprintf returns chars that would be written (excluding null), or negative on error
   int len = snprintf(buf.data(), buf.size(), "%.*f %s", accuracy_decimals, value, unit_of_measurement.c_str());
-  return len > 0 ? std::min(static_cast<size_t>(len), buf.size() - 1) : 0;
+  if (len < 0)
+    return 0;  // encoding error
+  // On truncation, snprintf returns would-be length; actual written is buf.size() - 1
+  return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
 }
 
 int8_t step_to_accuracy_decimals(float step) {
