@@ -1158,7 +1158,10 @@ void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEnt
     val.day_of_year = 1;
     val.is_dst = false;
     val.recalc_timestamp_utc(false);
-    stream->printf("%" PRId64 "\n", val.timestamp);
+    int64_t ts = (int64_t) val.timestamp;
+    int64_t offset = (int64_t) timezone_offset();
+    int64_t adjusted_ts = ts - offset;
+    stream->printf("%" PRId64 "\n", adjusted_ts);
     stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
@@ -1233,7 +1236,10 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     val.day_of_year = 1;
     val.is_dst = false;
     val.recalc_timestamp_utc(false);
-    stream->printf("%" PRId64 "\n", val.timestamp);
+    int64_t ts = (int64_t) val.timestamp;
+    int64_t offset = (int64_t) timezone_offset();
+    int64_t adjusted_ts = ts - offset;
+    stream->printf("%" PRId64 "\n", adjusted_ts);
     stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
