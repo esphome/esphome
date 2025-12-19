@@ -192,7 +192,7 @@ def get_esphome_device_ip(
 
             data = json.loads(payload)
             if "name" not in data or data["name"] != dev_name:
-                _LOGGER.Warn("Wrong device answer")
+                _LOGGER.warning("Wrong device answer")
                 return
 
             dev_ip = []

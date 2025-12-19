@@ -205,6 +205,21 @@ static constexpr uint32_t WIFI_COOLDOWN_DURATION_MS = 500;
 /// While connecting, WiFi can't beacon the AP properly, so needs longer cooldown
 static constexpr uint32_t WIFI_COOLDOWN_WITH_AP_ACTIVE_MS = 30000;
 
+/// Timeout for WiFi scan operations
+/// This is a fallback in case we don't receive a scan done callback from the WiFi driver.
+/// Normal scans complete via callback; this only triggers if something goes wrong.
+static constexpr uint32_t WIFI_SCAN_TIMEOUT_MS = 31000;
+
+/// Timeout for WiFi connection attempts
+/// This is a fallback in case we don't receive connection success/failure callbacks.
+/// Some platforms (especially LibreTiny/Beken) can take 30-60 seconds to connect,
+/// particularly with fast_connect enabled where no prior scan provides channel info.
+/// Do not lower this value - connection failures are detected via callbacks, not timeout.
+/// If this timeout fires prematurely while a connection is still in progress, it causes
+/// cascading failures: the subsequent scan will also fail because the WiFi driver is
+/// still busy with the previous connection attempt.
+static constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 46000;
+
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
     case WiFiRetryPhase::INITIAL_CONNECT:
@@ -360,7 +375,7 @@ void WiFiComponent::start() {
                 get_mac_address_pretty_into_buffer(mac_s));
   this->last_connected_ = millis();
 
-  uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time()) : 88491487UL;
+  uint32_t hash = this->has_sta() ? App.get_config_version_hash() : 88491487UL;
 
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 #ifdef USE_WIFI_FAST_CONNECT
@@ -1016,26 +1031,33 @@ template<typename VectorType> static void insertion_sort_scan_results(VectorType
   }
 }
 
-// Helper function to log scan results - marked noinline to prevent re-inlining into loop
+// Helper function to log matching scan results - marked noinline to prevent re-inlining into loop
 __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res) {
   char bssid_s[18];
   auto bssid = res.get_bssid();
   format_mac_addr_upper(bssid.data(), bssid_s);
 
-  if (res.get_matches()) {
-    ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
-             res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
-             LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-    ESP_LOGD(TAG, "  Channel: %2u, RSSI: %3d dB, Priority: %4d", res.get_channel(), res.get_rssi(), res.get_priority());
-  } else {
-    ESP_LOGD(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
-             LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-  }
+  ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
+           res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
+           LOG_STR_ARG(get_signal_bars(res.get_rssi())));
+  ESP_LOGD(TAG, "  Channel: %2u, RSSI: %3d dB, Priority: %4d", res.get_channel(), res.get_rssi(), res.get_priority());
 }
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+// Helper function to log non-matching scan results at verbose level
+__attribute__((noinline)) static void log_scan_result_non_matching(const WiFiScanResult &res) {
+  char bssid_s[18];
+  auto bssid = res.get_bssid();
+  format_mac_addr_upper(bssid.data(), bssid_s);
+
+  ESP_LOGV(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
+           LOG_STR_ARG(get_signal_bars(res.get_rssi())));
+}
+#endif
 
 void WiFiComponent::check_scanning_finished() {
   if (!this->scan_done_) {
-    if (millis() - this->action_started_ > 30000) {
+    if (millis() - this->action_started_ > WIFI_SCAN_TIMEOUT_MS) {
       ESP_LOGE(TAG, "Scan timeout");
       this->retry_connect();
     }
@@ -1069,8 +1091,20 @@ void WiFiComponent::check_scanning_finished() {
   // Sort scan results using insertion sort for better memory efficiency
   insertion_sort_scan_results(this->scan_result_);
 
+  size_t non_matching_count = 0;
   for (auto &res : this->scan_result_) {
-    log_scan_result(res);
+    if (res.get_matches()) {
+      log_scan_result(res);
+    } else {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      log_scan_result_non_matching(res);
+#else
+      non_matching_count++;
+#endif
+    }
+  }
+  if (non_matching_count > 0) {
+    ESP_LOGD(TAG, "- %zu non-matching (VERBOSE to show)", non_matching_count);
   }
 
   // SYNCHRONIZATION POINT: Establish link between scan_result_[0] and selected_sta_index_
@@ -1184,8 +1218,9 @@ void WiFiComponent::check_connecting_finished() {
   }
 
   uint32_t now = millis();
-  if (now - this->action_started_ > 30000) {
-    ESP_LOGW(TAG, "Connection timeout");
+  if (now - this->action_started_ > WIFI_CONNECT_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "Connection timeout, aborting connection attempt");
+    this->wifi_disconnect_();
     this->retry_connect();
     return;
   }
@@ -1264,8 +1299,8 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
     }
 
     case WiFiRetryPhase::SCAN_CONNECTING:
-      // If scan found no matching networks, skip to hidden network mode
-      if (!this->scan_result_.empty() && !this->scan_result_[0].get_matches()) {
+      // If scan found no networks or no matching networks, skip to hidden network mode
+      if (this->scan_result_.empty() || !this->scan_result_[0].get_matches()) {
         return WiFiRetryPhase::RETRY_HIDDEN;
       }
 
@@ -1405,6 +1440,10 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       // without disrupting the captive portal/improv connection
       if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_()) {
         this->restart_adapter();
+      } else {
+        // Even when skipping full restart, disconnect to clear driver state
+        // Without this, platforms like LibreTiny may think we're still connecting
+        this->wifi_disconnect_();
       }
       // Clear scan flag - we're starting a new retry cycle
       this->did_scan_this_cycle_ = false;

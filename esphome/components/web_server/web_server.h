@@ -171,7 +171,7 @@ class DeferredUpdateEventSourceList : public std::list<DeferredUpdateEventSource
  * by esphome.io by default), an event source under '/events' that automatically sends
  * all state updates in real time + the debug log. Lastly, there's an REST API available
  * under the '/light/...', '/sensor/...', ... URLs. A full documentation for this API
- * can be found under https://esphome.io/web-api/index.html.
+ * can be found under https://esphome.io/web-api/.
  */
 class WebServer : public Controller,
                   public Component,
