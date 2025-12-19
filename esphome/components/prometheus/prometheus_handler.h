@@ -66,6 +66,8 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   void add_area_label_(AsyncResponseStream *stream, std::string &area);
   void add_node_label_(AsyncResponseStream *stream, std::string &node);
   void add_friendly_name_label_(AsyncResponseStream *stream, std::string &friendly_name);
+  void handle_failed_metric_(AsyncResponseStream *stream, std::string &component_name, std::string value,
+                             EntityBase *obj, std::string &area, std::string &node, std::string &friendly_name);
   /// Print metric name and common labels (id, area, node, friendly_name, name)
 #ifdef USE_ESP8266
   void print_metric_labels_(AsyncResponseStream *stream, const __FlashStringHelper *metric_name, EntityBase *obj,

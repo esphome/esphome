@@ -159,6 +159,23 @@ void PrometheusHandler::add_friendly_name_label_(AsyncResponseStream *stream, st
   }
 }
 
+void PrometheusHandler::handle_failed_metric_(AsyncResponseStream *stream, std::string &component_name,
+                                              std::string value, EntityBase *obj, std::string &area, std::string &node,
+                                              std::string &friendly_name) {
+  stream->print(ESPHOME_F("esphome_"));
+  stream->print(component_name.c_str());
+  stream->print(ESPHOME_F("_failed{id=\""));
+  stream->print(relabel_id_(obj).c_str());
+  add_area_label_(stream, area);
+  add_node_label_(stream, node);
+  add_friendly_name_label_(stream, friendly_name);
+  stream->print(ESPHOME_F("\",name=\""));
+  stream->print(relabel_name_(obj).c_str());
+  stream->print(ESPHOME_F("\"} "));
+  stream->print(value.c_str());
+  stream->print(ESPHOME_F("\n"));
+}
+
 #ifdef USE_ESP8266
 void PrometheusHandler::print_metric_labels_(AsyncResponseStream *stream, const __FlashStringHelper *metric_name,
                                              EntityBase *obj, std::string &area, std::string &node,
@@ -1117,14 +1134,7 @@ void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEnt
     return;
   if (obj->has_state()) {
     // We have a valid value, output this value
-    stream->print(ESPHOME_F("esphome_date_failed{id=\""));
-    stream->print(relabel_id_(obj).c_str());
-    add_area_label_(stream, area);
-    add_node_label_(stream, node);
-    add_friendly_name_label_(stream, friendly_name);
-    stream->print(ESPHOME_F("\",name=\""));
-    stream->print(relabel_name_(obj).c_str());
-    stream->print(ESPHOME_F("\"} 0\n"));
+    handle_failed_metric_(stream, "date", "0", obj, area, node, friendly_name);
     stream->print(ESPHOME_F("esphome_date_value{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
@@ -1148,14 +1158,7 @@ void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEnt
     stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
-    stream->print(ESPHOME_F("esphome_date_failed{id=\""));
-    stream->print(relabel_id_(obj).c_str());
-    add_area_label_(stream, area);
-    add_node_label_(stream, node);
-    add_friendly_name_label_(stream, friendly_name);
-    stream->print(ESPHOME_F("\",name=\""));
-    stream->print(relabel_name_(obj).c_str());
-    stream->print(ESPHOME_F("\"} 1\n"));
+    handle_failed_metric_(stream, "date", "1", obj, area, node, friendly_name);
   }
 }
 #endif
@@ -1171,14 +1174,7 @@ void PrometheusHandler::time_row_(AsyncResponseStream *stream, datetime::TimeEnt
     return;
   if (obj->has_state()) {
     // We have a valid value, output this value
-    stream->print(ESPHOME_F("esphome_time_failed{id=\""));
-    stream->print(relabel_id_(obj).c_str());
-    add_area_label_(stream, area);
-    add_node_label_(stream, node);
-    add_friendly_name_label_(stream, friendly_name);
-    stream->print(ESPHOME_F("\",name=\""));
-    stream->print(relabel_name_(obj).c_str());
-    stream->print(ESPHOME_F("\"} 0\n"));
+    handle_failed_metric_(stream, "time", "0", obj, area, node, friendly_name);
     stream->print(ESPHOME_F("esphome_time_value{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
@@ -1193,14 +1189,7 @@ void PrometheusHandler::time_row_(AsyncResponseStream *stream, datetime::TimeEnt
     stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
-    stream->print(ESPHOME_F("esphome_time_failed{id=\""));
-    stream->print(relabel_id_(obj).c_str());
-    add_area_label_(stream, area);
-    add_node_label_(stream, node);
-    add_friendly_name_label_(stream, friendly_name);
-    stream->print(ESPHOME_F("\",name=\""));
-    stream->print(relabel_name_(obj).c_str());
-    stream->print(ESPHOME_F("\"} 1\n"));
+    handle_failed_metric_(stream, "time", "1", obj, area, node, friendly_name);
   }
 }
 #endif
@@ -1216,14 +1205,7 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     return;
   if (obj->has_state()) {
     // We have a valid value, output this value
-    stream->print(ESPHOME_F("esphome_datetime_failed{id=\""));
-    stream->print(relabel_id_(obj).c_str());
-    add_area_label_(stream, area);
-    add_node_label_(stream, node);
-    add_friendly_name_label_(stream, friendly_name);
-    stream->print(ESPHOME_F("\",name=\""));
-    stream->print(relabel_name_(obj).c_str());
-    stream->print(ESPHOME_F("\"} 0\n"));
+    handle_failed_metric_(stream, "datetime", "0", obj, area, node, friendly_name);
     stream->print(ESPHOME_F("esphome_datetime_value{id=\""));
     stream->print(relabel_id_(obj).c_str());
     add_area_label_(stream, area);
@@ -1264,14 +1246,7 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
-    stream->print(ESPHOME_F("esphome_datetime_failed{id=\""));
-    stream->print(relabel_id_(obj).c_str());
-    add_area_label_(stream, area);
-    add_node_label_(stream, node);
-    add_friendly_name_label_(stream, friendly_name);
-    stream->print(ESPHOME_F("\",name=\""));
-    stream->print(relabel_name_(obj).c_str());
-    stream->print(ESPHOME_F("\"} 1\n"));
+    handle_failed_metric_(stream, "datetime", "1", obj, area, node, friendly_name);
   }
 }
 #endif
