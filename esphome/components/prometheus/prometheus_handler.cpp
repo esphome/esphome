@@ -1258,7 +1258,7 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     // uint32_t seconds_since_midnight = obj->hour * 3600 + obj->minute * 60 + obj->second;
     // auto final_timestamp = date_time.timestamp + seconds_since_midnight;
     // stream->print(static_cast<int64_t>(final_timestamp));
-    stream->print(static_cast<int64_t>(datetime.timestamp));
+    stream->print(static_cast<int64_t>(date_time.timestamp));
     stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
