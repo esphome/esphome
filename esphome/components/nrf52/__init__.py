@@ -214,6 +214,8 @@ async def to_code(config: ConfigType) -> None:
     # disable console
     zephyr_add_prj_conf("UART_CONSOLE", False)
     zephyr_add_prj_conf("CONSOLE", False)
+    # use NFC pins as GPIO
+    zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
