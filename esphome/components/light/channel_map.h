@@ -36,8 +36,8 @@ class ChannelMap {
     this->channel_count_ = ordered_channel_names.size();
 
     if (channel_map_str) {
-      this->channel_map_str_ = std::make_shared<char[]>(strlen(channel_map_str) + 1, 0);
-      memcpy(this->channel_map_str_.get(), channel_map_str, strlen(channel_map_str));
+      this->channel_map_str_ = std::make_shared<char[]>(strlen(channel_map_str) + 1);
+      memcpy(this->channel_map_str_.get(), channel_map_str, strlen(channel_map_str) + 1);
     }
 
     this->color_mode_ = color_mode;
