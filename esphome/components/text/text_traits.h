@@ -1,8 +1,7 @@
 #pragma once
 
-#include <utility>
+#include <string>
 
-#include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome {
@@ -22,8 +21,9 @@ class TextTraits {
   int get_max_length() const { return this->max_length_; }
 
   // Set/get the pattern.
-  void set_pattern(std::string pattern) { this->pattern_ = std::move(pattern); }
-  std::string get_pattern() const { return this->pattern_; }
+  void set_pattern(const char *pattern) { this->pattern_ = pattern; }
+  std::string get_pattern() const { return std::string(this->pattern_); }
+  const char *get_pattern_c_str() const { return this->pattern_; }
   StringRef get_pattern_ref() const { return StringRef(this->pattern_); }
 
   // Set/get the frontend mode.
@@ -33,7 +33,7 @@ class TextTraits {
  protected:
   int min_length_;
   int max_length_;
-  std::string pattern_;
+  const char *pattern_{""};
   TextMode mode_{TEXT_MODE_TEXT};
 };
 

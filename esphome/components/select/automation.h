@@ -8,9 +8,13 @@ namespace esphome::select {
 
 class SelectStateTrigger : public Trigger<std::string, size_t> {
  public:
-  explicit SelectStateTrigger(Select *parent) {
-    parent->add_on_state_callback([this](const std::string &value, size_t index) { this->trigger(value, index); });
+  explicit SelectStateTrigger(Select *parent) : parent_(parent) {
+    parent->add_on_state_callback(
+        [this](size_t index) { this->trigger(std::string(this->parent_->option_at(index)), index); });
   }
+
+ protected:
+  Select *parent_;
 };
 
 template<typename... Ts> class SelectSetAction : public Action<Ts...> {
