@@ -12,7 +12,6 @@ class OTAComponent : public ota::OTAComponent {
  public:
   OTAComponent();
   void setup() override;
-  void loop() override;
   void dump_config() override;
   void update_chunk(const img_mgmt_upload_check &upload);
   void update_started();
@@ -23,7 +22,6 @@ class OTAComponent : public ota::OTAComponent {
  protected:
   uint32_t last_progress_ = 0;
   float percentage_ = 0;
-  bool is_confirmed_ = false;
   mgmt_callback img_mgmt_callback_;
   bool cdc_uart_ = false;
 };

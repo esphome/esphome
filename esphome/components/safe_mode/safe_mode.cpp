@@ -10,7 +10,9 @@
 #include <cstdio>
 
 #ifdef USE_OTA_ROLLBACK
+#ifndef USE_ZEPHYR
 #include <esp_ota_ops.h>
+#endif
 #endif
 
 namespace esphome {
@@ -38,11 +40,13 @@ void SafeModeComponent::dump_config() {
   }
 
 #ifdef USE_OTA_ROLLBACK
+#ifndef USE_ZEPHYR
   const esp_partition_t *last_invalid = esp_ota_get_last_invalid_partition();
   if (last_invalid != nullptr) {
     ESP_LOGW(TAG, "OTA rollback detected! Rolled back from partition '%s'", last_invalid->label);
     ESP_LOGW(TAG, "The device reset before the boot was marked successful");
   }
+#endif
 #endif
 }
 
@@ -55,8 +59,14 @@ void SafeModeComponent::loop() {
     this->clean_rtc();
     this->boot_successful_ = true;
 #ifdef USE_OTA_ROLLBACK
-    // Mark OTA partition as valid to prevent rollback
+// Mark OTA partition as valid to prevent rollback
+#ifdef USE_ZEPHYR
+    if (boot_is_img_confirmed()) {
+      boot_write_img_confirmed();
+    }
+#else
     esp_ota_mark_app_valid_cancel_rollback();
+#endif
 #endif
     // Disable loop since we no longer need to check
     this->disable_loop();

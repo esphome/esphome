@@ -3,7 +3,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <zephyr/sys/math_extras.h>
-#include <zephyr/dfu/mcuboot.h>
 #include <zephyr/usb/usb_device.h>
 
 // It should be from below header but there is problem with internal includes.
@@ -58,18 +57,13 @@ void OTAComponent::setup() {
   if (cdc_uart_) {
     usb_enable(NULL);
   }
-}
-
-void OTAComponent::loop() {
-  if (!is_confirmed_) {
-    is_confirmed_ = boot_is_img_confirmed();
-    if (!is_confirmed_) {
-      if (boot_write_img_confirmed()) {
-        ESP_LOGD(TAG, "Unable to confirm image");
-        this->mark_failed();
-      }
-    }
+// Handle OTA rollback: mark partition valid immediately unless USE_OTA_ROLLBACK is enabled,
+// in which case safe_mode will mark it valid after confirming successful boot.
+#ifndef USE_OTA_ROLLBACK
+  if (boot_is_img_confirmed()) {
+    boot_write_img_confirmed();
   }
+#endif
 }
 
 static const char *swap_type_str(uint8_t type) {
