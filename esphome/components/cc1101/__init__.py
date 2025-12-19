@@ -165,7 +165,7 @@ CONFIG_MAP = {
     CONF_OUTPUT_POWER: cv.float_range(min=-30.0, max=11.0),
     CONF_RX_ATTENUATION: cv.enum(RX_ATTENUATION, upper=False),
     CONF_DC_BLOCKING_FILTER: cv.boolean,
-    CONF_FREQUENCY: cv.All(cv.frequency, cv.float_range(min=300000000, max=928000000)),
+    CONF_FREQUENCY: cv.All(cv.frequency, cv.float_range(min=300.0e6, max=928.0e6)),
     CONF_IF_FREQUENCY: cv.All(cv.frequency, cv.float_range(min=25000, max=788000)),
     CONF_FILTER_BANDWIDTH: cv.All(cv.frequency, cv.float_range(min=58000, max=812000)),
     CONF_CHANNEL: cv.uint8_t,
