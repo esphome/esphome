@@ -153,5 +153,6 @@ void setup_preferences() {
 ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome
+
 #endif
 #endif
