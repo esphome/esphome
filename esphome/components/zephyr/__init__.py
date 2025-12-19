@@ -127,8 +127,6 @@ def zephyr_to_code(config):
         zephyr_add_prj_conf("CPP", True)
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
     zephyr_add_prj_conf("STD_CPP20", True)
-    # use NFC pins as GPIO
-    zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
 
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
