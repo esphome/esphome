@@ -1,5 +1,6 @@
 import esphome.codegen as cg
-from esphome.components import aqi, i2c, sensor
+from esphome.components import i2c, sensor
+from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -24,11 +25,7 @@ HM3301Component = hm3301_ns.class_(
     "HM3301Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-CONF_AQI = aqi.CONF_AQI
-CONF_CALCULATION_TYPE = aqi.CONF_CALCULATION_TYPE
 UNIT_INDEX = "index"
-
-AQI_CALCULATION_TYPE = aqi.AQI_CALCULATION_TYPE
 
 
 def _validate(config):
