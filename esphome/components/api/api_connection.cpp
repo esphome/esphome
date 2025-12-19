@@ -13,6 +13,7 @@
 #include <cinttypes>
 #include <functional>
 #include <limits>
+#include <new>
 #include <utility>
 #ifdef USE_ESP8266
 #include <pgmspace.h>
@@ -93,8 +94,7 @@ static const int CAMERA_STOP_STREAM = 5000;
     return;
 #endif  // USE_DEVICES
 
-APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
-    : parent_(parent), initial_state_iterator_(this), list_entities_iterator_(this) {
+APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent) : parent_(parent) {
 #if defined(USE_API_PLAINTEXT) && defined(USE_API_NOISE)
   auto &noise_ctx = parent->get_noise_ctx();
   if (noise_ctx.has_psk()) {
@@ -133,6 +133,7 @@ void APIConnection::start() {
 }
 
 APIConnection::~APIConnection() {
+  this->destroy_active_iterator_();
 #ifdef USE_BLUETOOTH_PROXY
   if (bluetooth_proxy::global_bluetooth_proxy->get_api_connection() == this) {
     bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
@@ -143,6 +144,32 @@ APIConnection::~APIConnection() {
     voice_assistant::global_voice_assistant->client_subscription(this, false);
   }
 #endif
+}
+
+void APIConnection::destroy_active_iterator_() {
+  switch (this->active_iterator_) {
+    case ActiveIterator::LIST_ENTITIES:
+      this->iterator_storage_.list_entities.~ListEntitiesIterator();
+      break;
+    case ActiveIterator::INITIAL_STATE:
+      this->iterator_storage_.initial_state.~InitialStateIterator();
+      break;
+    case ActiveIterator::NONE:
+      break;
+  }
+  this->active_iterator_ = ActiveIterator::NONE;
+}
+
+void APIConnection::begin_iterator_(ActiveIterator type) {
+  this->destroy_active_iterator_();
+  this->active_iterator_ = type;
+  if (type == ActiveIterator::LIST_ENTITIES) {
+    new (&this->iterator_storage_.list_entities) ListEntitiesIterator(this);
+    this->iterator_storage_.list_entities.begin();
+  } else {
+    new (&this->iterator_storage_.initial_state) InitialStateIterator(this);
+    this->iterator_storage_.initial_state.begin();
+  }
 }
 
 void APIConnection::loop() {
@@ -187,13 +214,22 @@ void APIConnection::loop() {
     this->process_batch_();
   }
 
-  if (!this->list_entities_iterator_.completed()) {
-    this->process_iterator_batch_(this->list_entities_iterator_);
-  } else if (!this->initial_state_iterator_.completed()) {
-    this->process_iterator_batch_(this->initial_state_iterator_);
-
-    // If we've completed initial states, process any remaining and clear the flag
-    if (this->initial_state_iterator_.completed()) {
+  if (this->active_iterator_ == ActiveIterator::LIST_ENTITIES) {
+    if (!this->iterator_storage_.list_entities.completed()) {
+      this->process_iterator_batch_(this->iterator_storage_.list_entities);
+    } else {
+      // List entities completed, check if we need to start initial state
+      this->destroy_active_iterator_();
+      if (this->flags_.state_subscription) {
+        this->begin_iterator_(ActiveIterator::INITIAL_STATE);
+      }
+    }
+  } else if (this->active_iterator_ == ActiveIterator::INITIAL_STATE) {
+    if (!this->iterator_storage_.initial_state.completed()) {
+      this->process_iterator_batch_(this->iterator_storage_.initial_state);
+    } else {
+      // Initial state completed
+      this->destroy_active_iterator_();
       // Process any remaining batched messages immediately
       if (!this->deferred_batch_.empty()) {
         this->process_batch_();
