@@ -1,117 +1,58 @@
 #pragma once
 
-#include <string>
 #include <vector>
 #include <algorithm>
+#include <map>
+#include <memory>
 
 namespace esphome::light {
-struct ChannelMap {
+class ChannelMap {
  public:
   enum class ChannelName : uint8_t { R, G, B, W, CW, WW };
 
  private:
-  struct Channel {
-   public:
-    ChannelName name{};
-    std::string friendly_name{};
-    bool exists_{};
-    uint8_t index_{};
+  // Create all channels and initialize them with the sentinel value
+  std::map<ChannelName, int8_t> channels_ = {
+      {ChannelName::R, -1}, {ChannelName::G, -1},  {ChannelName::B, -1},
+      {ChannelName::W, -1}, {ChannelName::CW, -1}, {ChannelName::WW, -1},
   };
 
-  // Create all channels
-  Channel r_{ChannelName::R, "R", false, 0};
-  Channel g_{ChannelName::G, "G", false, 0};
-  Channel b_{ChannelName::B, "B", false, 0};
-  Channel w_{ChannelName::W, "W", false, 0};
-  Channel cw_{ChannelName::CW, "CW", false, 0};
-  Channel ww_{ChannelName::WW, "WW", false, 0};
-
-  // Allows iterating over all channels
-  std::vector<Channel *> channels_ = {&this->r_, &this->g_, &this->b_, &this->w_, &this->cw_, &this->ww_};
-
-  // Store the number of exsiting channels for faster proccesing. This is not this->channels_.size() but the number of
+  // Store the number of existing channels for faster processing. This is not this->channels_.size() but the number of
   // existent channels within this->channels_.
   uint8_t channel_count_ = 0;
 
-  bool set_channel_by_friendly_name_(const std::string &channel_friendly_name, uint8_t index) {
-    for (Channel *const channel : this->channels_) {
-      if (channel->friendly_name == channel_friendly_name) {
-        channel->exists_ = true;
-        channel->index_ = index;
-        return true;
-      }
-    }
-    return false;  // Channel not found
-  }
+  // Save as char array for logging purposes
+  std::shared_ptr<char[]> channel_map_str_ = nullptr;
+
+  // Save color mode pre-computed by python to free up runtime resources
+  ColorMode color_mode_ = ColorMode::UNKNOWN;
 
  public:
-  bool is_rgb() const {
-    return this->r_.exists_ && this->g_.exists_ && this->b_.exists_ && !this->w_.exists_ && !this->cw_.exists_ &&
-           !this->ww_.exists_;
-  }
+  // Create a ChannelMap from a list of channel names ordered by their index.
+  ChannelMap(const std::vector<ChannelName> &ordered_channel_names, const char *channel_map_str, ColorMode color_mode) {
+    for (int8_t channel_index = 0; channel_index < ordered_channel_names.size(); ++channel_index) {
+      this->channels_.at(ordered_channel_names[channel_index]) = channel_index;
+    }
+    this->channel_count_ = ordered_channel_names.size();
 
-  bool is_rgbw() const {
-    return this->r_.exists_ && this->g_.exists_ && this->b_.exists_ && this->w_.exists_ && !this->cw_.exists_ &&
-           !this->ww_.exists_;
-  }
+    if (channel_map_str) {
+      this->channel_map_str_ = std::make_shared<char[]>(strlen(channel_map_str) + 1);
+      strcpy(this->channel_map_str_.get(), channel_map_str);
+    }
 
-  bool is_rgbcct() const {
-    return this->r_.exists_ && this->g_.exists_ && this->b_.exists_ && !this->w_.exists_ && this->cw_.exists_ &&
-           this->ww_.exists_;
+    this->color_mode_ = color_mode;
   }
 
   uint8_t get_channel_count() const { return this->channel_count_; }
+  const char *get_str() const { return this->channel_map_str_ ? this->channel_map_str_.get() : "undefined"; }
+  ColorMode get_color_mode() const { return this->color_mode_; }
 
   uint8_t *get_address_by_channel_name(const uint8_t *base_ptr, const ChannelName channel_name) const {
-    for (const Channel *const channel : this->channels_) {
-      if ((channel->name == channel_name) && channel->exists_) {
-        return const_cast<uint8_t *>(base_ptr) + channel->index_;
-      }
+    int8_t index = this->channels_.at(channel_name);
+    if (index != -1) {
+      return const_cast<uint8_t *>(base_ptr) + index;
     }
     return nullptr;  // Channel does not exist
-  }
-
-  void from_string(const std::string &map) {
-    std::string s = map;
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::toupper(c); });
-
-    // Reset channels if from_string() gets called multiple times
-    for (Channel *const channel : this->channels_) {
-      channel->exists_ = false;
-    }
-
-    size_t start = 0, pos = 0;
-    uint8_t index = 0;
-    while ((pos = s.find(',', start)) != std::string::npos) {
-      this->set_channel_by_friendly_name_(s.substr(start, pos - start), index);
-      start = pos + 1;
-      index++;
-    }
-    if (this->set_channel_by_friendly_name_(s.substr(start), index)) {  // Last channel
-      index++;  // Only increment when a valid channel was found and a channel was actually set
-    }
-
-    this->channel_count_ = index;
-  }
-
-  std::string to_string() const {
-    std::vector<std::string> tokens(this->channels_.size(), "");
-    for (const Channel *const channel : this->channels_) {
-      if (channel->exists_) {
-        tokens[channel->index_] = channel->friendly_name;
-      }
-    }
-    std::string result;
-    for (const auto &t : tokens) {
-      if (t.empty()) {
-        continue;
-      }
-      if (!result.empty()) {
-        result += ",";
-      }
-      result += t;
-    }
-    return result;
   }
 };
 }  // namespace esphome::light

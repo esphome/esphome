@@ -3,11 +3,8 @@
 namespace esphome {
 namespace spi_led_strip {
 
-SpiLedStrip::SpiLedStrip(Protocol protocol, const std::string &channel_map, uint16_t num_leds) {
-  this->protocol_ = protocol;
-  this->channel_map_.from_string(channel_map);
-  this->num_leds_ = num_leds;
-
+SpiLedStrip::SpiLedStrip(Protocol protocol, light::ChannelMap channel_map, uint16_t num_leds)
+    : protocol_(protocol), channel_map_(channel_map), num_leds_(num_leds) {
   this->buffer_size_ = this->num_leds_ * ((this->protocol_ == DOTSTAR) ? 4 : this->channel_map_.get_channel_count()) +
                        ((this->protocol_ == DOTSTAR) ? 8 : 0);
 
@@ -54,14 +51,10 @@ void SpiLedStrip::setup() {
 }
 light::LightTraits SpiLedStrip::get_traits() {
   auto traits = light::LightTraits();
-  if (this->channel_map_.is_rgbcct()) {
-    traits.set_supported_color_modes({light::ColorMode::RGB_COLD_WARM_WHITE});
+  traits.set_supported_color_modes({this->channel_map_.get_color_mode()});
+  if (this->channel_map_.get_color_mode() == light::ColorMode::RGB_COLD_WARM_WHITE) {
     traits.set_min_mireds(1'000'000. / this->cold_white_color_temperature_);
     traits.set_max_mireds(1'000'000. / this->warm_white_color_temperature_);
-  } else if (this->channel_map_.is_rgbw()) {
-    traits.set_supported_color_modes({light::ColorMode::RGB_WHITE});
-  } else {
-    traits.set_supported_color_modes({light::ColorMode::RGB});
   }
   return traits;
 }
@@ -72,12 +65,12 @@ void SpiLedStrip::dump_config() {
                 this->protocol_ == DOTSTAR ? "DOTSTAR"
                 : this->protocol_ == RAW   ? "RAW"
                                            : "Unknown");
-  ESP_LOGCONFIG(TAG, "  Channel Map: %s (%u channels)", this->channel_map_.to_string().c_str(),
+  ESP_LOGCONFIG(TAG, "  Channel Map: %s (%u channels)", this->channel_map_.get_str(),
                 this->channel_map_.get_channel_count());
   ESP_LOGCONFIG(TAG, "  Color mode: %s",
-                this->channel_map_.is_rgbcct() ? "RGBCCT"
-                : this->channel_map_.is_rgbw() ? "RGBW"
-                                               : "RGB");
+                (this->channel_map_.get_color_mode() == light::ColorMode::RGB_COLD_WARM_WHITE) ? "RGBCCT"
+                : (this->channel_map_.get_color_mode() == light::ColorMode::RGB_WHITE)         ? "RGBW"
+                                                                                               : "RGB");
   if (this->data_rate_ >= spi::DATA_RATE_1MHZ) {
     ESP_LOGCONFIG(TAG, "  Data rate: %uMHz", (unsigned) (this->data_rate_ / 1000000));
   } else {

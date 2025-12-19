@@ -14,6 +14,18 @@ LightColorValues = light_ns.class_("LightColorValues")
 
 LightStateRTCState = light_ns.struct("LightStateRTCState")
 
+# Channel map
+ChannelMap = light_ns.class_("ChannelMap")
+ChannelName = light_ns.namespace("ChannelMap").enum("ChannelName", is_class=True)
+CHANNEL_NAME = {
+    "R": ChannelName.R,
+    "G": ChannelName.G,
+    "B": ChannelName.B,
+    "W": ChannelName.W,
+    "CW": ChannelName.CW,
+    "WW": ChannelName.WW,
+}
+
 # Color modes
 ColorMode = light_ns.enum("ColorMode", is_class=True)
 COLOR_MODES = {

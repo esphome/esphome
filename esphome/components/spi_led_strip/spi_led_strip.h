@@ -18,7 +18,7 @@ class SpiLedStrip : public light::AddressableLight,
                     public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
                                           spi::DATA_RATE_1MHZ> {
  public:
-  SpiLedStrip(Protocol protocol, const std::string &channel_map, uint16_t num_leds);
+  SpiLedStrip(Protocol protocol, light::ChannelMap channel_map, uint16_t num_leds);
   ~SpiLedStrip() = default;
   void setup() override;
 
@@ -45,7 +45,7 @@ class SpiLedStrip : public light::AddressableLight,
   light::ESPColorView get_view_internal(int32_t index) const override;
 
   Protocol protocol_{};
-  light::ChannelMap channel_map_{};
+  light::ChannelMap channel_map_;
   uint16_t num_leds_{};
   size_t buffer_size_{};
   uint8_t *buf_{nullptr};   // Raw SPI frame

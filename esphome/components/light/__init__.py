@@ -53,6 +53,8 @@ from .effects import (
 from .types import (  # noqa
     AddressableLight,
     AddressableLightState,
+    ChannelMap,
+    ChannelName,
     ColorMode,
     LightOutput,
     LightState,
