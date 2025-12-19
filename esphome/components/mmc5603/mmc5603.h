@@ -33,7 +33,7 @@ class MMC5603Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *y_sensor_{nullptr};
   sensor::Sensor *z_sensor_{nullptr};
   sensor::Sensor *heading_sensor_{nullptr};
-  bool auto_set_reset_;
+  bool auto_set_reset_{true};
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,
