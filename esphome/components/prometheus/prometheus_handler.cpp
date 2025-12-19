@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include "prometheus_handler.h"
 #ifdef USE_NETWORK
 #include "esphome/core/application.h"
@@ -1271,7 +1272,8 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     val.day_of_year = 1;
     val.is_dst = false;
     val.recalc_timestamp_utc(false);
-    stream->print(val.timestamp);
+    // stream->print(val.timestamp);
+    stream->printf("%" PRId64 "\n", val.timestamp);
     stream->print(ESPHOME_F("\n"));
   } else {
     // Invalid state
