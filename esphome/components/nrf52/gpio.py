@@ -72,7 +72,7 @@ NRF52_PIN_SCHEMA = cv.All(
 @pins.PIN_SCHEMA_REGISTRY.register(PLATFORM_NRF52, NRF52_PIN_SCHEMA)
 async def nrf52_pin_to_code(config):
     num = config[CONF_NUMBER]
-    port = num >> 5
+    port = num // 32
     pin_name_prefix = f"P{port}."
     var = cg.new_Pvariable(
         config[CONF_ID],
