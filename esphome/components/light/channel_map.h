@@ -30,14 +30,14 @@ class ChannelMap {
  public:
   // Create a ChannelMap from a list of channel names ordered by their index.
   ChannelMap(const std::vector<ChannelName> &ordered_channel_names, const char *channel_map_str, ColorMode color_mode) {
-    for (int8_t channel_index = 0; channel_index < ordered_channel_names.size(); ++channel_index) {
+    for (int8_t channel_index = 0; channel_index < static_cast<int8_t>(ordered_channel_names.size()); ++channel_index) {
       this->channels_.at(ordered_channel_names[channel_index]) = channel_index;
     }
     this->channel_count_ = ordered_channel_names.size();
 
     if (channel_map_str) {
-      this->channel_map_str_ = std::make_shared<char[]>(strlen(channel_map_str) + 1);
-      strcpy(this->channel_map_str_.get(), channel_map_str);
+      this->channel_map_str_ = std::make_shared<char[]>(strlen(channel_map_str) + 1, 0);
+      memcpy(this->channel_map_str_.get(), channel_map_str, strlen(channel_map_str));
     }
 
     this->color_mode_ = color_mode;
