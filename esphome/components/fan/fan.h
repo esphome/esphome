@@ -72,6 +72,7 @@ class FanCall {
   optional<FanDirection> get_direction() const { return this->direction_; }
   FanCall &set_preset_mode(const std::string &preset_mode);
   FanCall &set_preset_mode(const char *preset_mode);
+  FanCall &set_preset_mode(const char *preset_mode, size_t len);
   const char *get_preset_mode() const { return this->preset_mode_; }
   bool has_preset_mode() const { return this->preset_mode_ != nullptr; }
 
@@ -152,6 +153,7 @@ class Fan : public EntityBase {
   void clear_preset_mode_();
   /// Find and return the matching preset mode pointer from traits, or nullptr if not found.
   const char *find_preset_mode_(const char *preset_mode);
+  const char *find_preset_mode_(const char *preset_mode, size_t len);
 
   CallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;
