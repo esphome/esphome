@@ -12,8 +12,7 @@
 #include <lwip/sockets.h>
 #endif
 
-namespace esphome {
-namespace socket {
+namespace esphome::socket {
 
 std::string format_sockaddr(const struct sockaddr_storage &storage) {
   if (storage.ss_family == AF_INET) {
@@ -44,11 +43,11 @@ class BSDSocketImpl : public Socket {
   BSDSocketImpl(int fd, bool monitor_loop = false) : fd_(fd) {
 #ifdef USE_SOCKET_SELECT_SUPPORT
     // Register new socket with the application for select() if monitoring requested
-    if (monitor_loop && fd_ >= 0) {
+    if (monitor_loop && this->fd_ >= 0) {
       // Only set loop_monitored_ to true if registration succeeds
-      loop_monitored_ = App.register_socket_fd(fd_);
+      this->loop_monitored_ = App.register_socket_fd(this->fd_);
     } else {
-      loop_monitored_ = false;
+      this->loop_monitored_ = false;
     }
 #else
     // Without select support, ignore monitor_loop parameter
@@ -56,70 +55,69 @@ class BSDSocketImpl : public Socket {
 #endif
   }
   ~BSDSocketImpl() override {
-    if (!closed_) {
-      close();  // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
+    if (!this->closed_) {
+      this->close();  // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
     }
   }
-  int connect(const struct sockaddr *addr, socklen_t addrlen) override { return ::connect(fd_, addr, addrlen); }
+  int connect(const struct sockaddr *addr, socklen_t addrlen) override { return ::connect(this->fd_, addr, addrlen); }
   std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) override {
-    return accept_impl_(addr, addrlen, false);
-  }
-  std::unique_ptr<Socket> accept_loop_monitored(struct sockaddr *addr, socklen_t *addrlen) override {
-    return accept_impl_(addr, addrlen, true);
-  }
-
- private:
-  std::unique_ptr<Socket> accept_impl_(struct sockaddr *addr, socklen_t *addrlen, bool loop_monitored) {
-    int fd = ::accept(fd_, addr, addrlen);
+    int fd = ::accept(this->fd_, addr, addrlen);
     if (fd == -1)
       return {};
-    return make_unique<BSDSocketImpl>(fd, loop_monitored);
+    return make_unique<BSDSocketImpl>(fd, false);
+  }
+  std::unique_ptr<Socket> accept_loop_monitored(struct sockaddr *addr, socklen_t *addrlen) override {
+    int fd = ::accept(this->fd_, addr, addrlen);
+    if (fd == -1)
+      return {};
+    return make_unique<BSDSocketImpl>(fd, true);
   }
 
- public:
-  int bind(const struct sockaddr *addr, socklen_t addrlen) override { return ::bind(fd_, addr, addrlen); }
+  int bind(const struct sockaddr *addr, socklen_t addrlen) override { return ::bind(this->fd_, addr, addrlen); }
   int close() override {
-    if (!closed_) {
+    if (!this->closed_) {
 #ifdef USE_SOCKET_SELECT_SUPPORT
       // Unregister from select() before closing if monitored
-      if (loop_monitored_) {
-        App.unregister_socket_fd(fd_);
+      if (this->loop_monitored_) {
+        App.unregister_socket_fd(this->fd_);
       }
 #endif
-      int ret = ::close(fd_);
-      closed_ = true;
+      int ret = ::close(this->fd_);
+      this->closed_ = true;
       return ret;
     }
     return 0;
   }
-  int shutdown(int how) override { return ::shutdown(fd_, how); }
+  int shutdown(int how) override { return ::shutdown(this->fd_, how); }
 
-  int getpeername(struct sockaddr *addr, socklen_t *addrlen) override { return ::getpeername(fd_, addr, addrlen); }
+  int getpeername(struct sockaddr *addr, socklen_t *addrlen) override {
+    return ::getpeername(this->fd_, addr, addrlen);
+  }
   std::string getpeername() override {
     struct sockaddr_storage storage;
     socklen_t len = sizeof(storage);
-    int err = this->getpeername((struct sockaddr *) &storage, &len);
-    if (err != 0)
+    if (::getpeername(this->fd_, (struct sockaddr *) &storage, &len) != 0)
       return {};
     return format_sockaddr(storage);
   }
-  int getsockname(struct sockaddr *addr, socklen_t *addrlen) override { return ::getsockname(fd_, addr, addrlen); }
+  int getsockname(struct sockaddr *addr, socklen_t *addrlen) override {
+    return ::getsockname(this->fd_, addr, addrlen);
+  }
   std::string getsockname() override {
     struct sockaddr_storage storage;
     socklen_t len = sizeof(storage);
-    int err = this->getsockname((struct sockaddr *) &storage, &len);
-    if (err != 0)
+    if (::getsockname(this->fd_, (struct sockaddr *) &storage, &len) != 0)
       return {};
     return format_sockaddr(storage);
   }
   int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override {
-    return ::getsockopt(fd_, level, optname, optval, optlen);
+    return ::getsockopt(this->fd_, level, optname, optval, optlen);
   }
   int setsockopt(int level, int optname, const void *optval, socklen_t optlen) override {
-    return ::setsockopt(fd_, level, optname, optval, optlen);
+    return ::setsockopt(this->fd_, level, optname, optval, optlen);
   }
-  int listen(int backlog) override { return ::listen(fd_, backlog); }
-  ssize_t read(void *buf, size_t len) override { return ::read(fd_, buf, len); }
+  int listen(int backlog) override { return ::listen(this->fd_, backlog); }
+  ssize_t read(void *buf, size_t len) override { return ::read(this->fd_, buf, len); }
   ssize_t recvfrom(void *buf, size_t len, sockaddr *addr, socklen_t *addr_len) override {
 #if defined(USE_ESP32) || defined(USE_HOST)
     return ::recvfrom(this->fd_, buf, len, 0, addr, addr_len);
@@ -129,41 +127,52 @@ class BSDSocketImpl : public Socket {
   }
   ssize_t readv(const struct iovec *iov, int iovcnt) override {
 #if defined(USE_ESP32)
-    return ::lwip_readv(fd_, iov, iovcnt);
+    return ::lwip_readv(this->fd_, iov, iovcnt);
 #else
-    return ::readv(fd_, iov, iovcnt);
+    return ::readv(this->fd_, iov, iovcnt);
 #endif
   }
-  ssize_t write(const void *buf, size_t len) override { return ::write(fd_, buf, len); }
-  ssize_t send(void *buf, size_t len, int flags) { return ::send(fd_, buf, len, flags); }
+  ssize_t write(const void *buf, size_t len) override { return ::write(this->fd_, buf, len); }
+  ssize_t send(void *buf, size_t len, int flags) { return ::send(this->fd_, buf, len, flags); }
   ssize_t writev(const struct iovec *iov, int iovcnt) override {
 #if defined(USE_ESP32)
-    return ::lwip_writev(fd_, iov, iovcnt);
+    return ::lwip_writev(this->fd_, iov, iovcnt);
 #else
-    return ::writev(fd_, iov, iovcnt);
+    return ::writev(this->fd_, iov, iovcnt);
 #endif
   }
 
   ssize_t sendto(const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen) override {
-    return ::sendto(fd_, buf, len, flags, to, tolen);  // NOLINT(readability-suspicious-call-argument)
+    return ::sendto(this->fd_, buf, len, flags, to, tolen);  // NOLINT(readability-suspicious-call-argument)
   }
 
   int setblocking(bool blocking) override {
-    int fl = ::fcntl(fd_, F_GETFL, 0);
+    int fl = ::fcntl(this->fd_, F_GETFL, 0);
     if (blocking) {
       fl &= ~O_NONBLOCK;
     } else {
       fl |= O_NONBLOCK;
     }
-    ::fcntl(fd_, F_SETFL, fl);
+    ::fcntl(this->fd_, F_SETFL, fl);
     return 0;
   }
 
-  int get_fd() const override { return fd_; }
+  int get_fd() const override { return this->fd_; }
+
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  bool ready() const override {
+    if (!this->loop_monitored_)
+      return true;
+    return App.is_socket_ready(this->fd_);
+  }
+#endif
 
  protected:
   int fd_;
-  bool closed_ = false;
+  bool closed_{false};
+#ifdef USE_SOCKET_SELECT_SUPPORT
+  bool loop_monitored_{false};
+#endif
 };
 
 // Helper to create a socket with optional monitoring
@@ -182,7 +191,6 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
   return create_socket(domain, type, protocol, true);
 }
 
-}  // namespace socket
-}  // namespace esphome
+}  // namespace esphome::socket
 
 #endif  // USE_SOCKET_IMPL_BSD_SOCKETS
