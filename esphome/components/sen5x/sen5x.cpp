@@ -711,6 +711,23 @@ bool SEN5XComponent::write_temperature_compensation_() {
   return true;
 }
 
+bool SEN5XComponent::write_acceleration_parameters_() {
+  uint16_t params[4];
+  if (this->acceleration_parameters_.has_value()) {
+    auto accel_param = this->acceleration_parameters_.value();
+    params[0] = accel_param.k;
+    params[1] = accel_param.p;
+    params[2] = accel_param.t1;
+    params[3] = accel_param.t2;
+    auto result = this->write_command(SEN6X_CMD_TEMPERATURE_ACCEL_PARAMETERS, params, 4);
+    if (!result) {
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+      return false;
+    }
+  }
+  return true;
+}
+
 bool SEN5XComponent::update_co2_ambient_pressure_compensation_(uint16_t pressure_in_hpa) {
   auto result =
       this->write_command(SEN6X_CMD_CO2_SENSOR_AUTO_SELF_CAL, this->co2_auto_calibrate_.value() ? 0x01 : 0x00);

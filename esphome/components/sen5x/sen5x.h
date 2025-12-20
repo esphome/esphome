@@ -56,6 +56,13 @@ struct GasTuning {
 };
 
 struct TemperatureCompensation {
+  uint16_t k;
+  uint16_t p;
+  uint16_t t1;
+  uint16_t t2;
+};
+
+struct TemperatureCompensation {
   int16_t offset;
   int16_t normalized_offset_slope;
   uint16_t time_constant;
@@ -122,6 +129,14 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
     temp_comp.time_constant = time_constant;
     this->temperature_compensation_[slot] = temp_comp;
   }
+  void set_acceleration_parameters(float k, float p, float t1, float t2) {
+    AccelerationParameters accel_param;
+    accel_param.k = k * 10;
+    accel_param.p = p * 10;
+    accel_param.t1 = t1 * 10;
+    accel_param.t2 = t2 * 10;
+    this->acceleration_parameters_ = accel_param;
+  }
   void set_co2_auto_calibrate(bool value) { this->co2_auto_calibrate_ = value; }
   void set_co2_altitude_compensation(uint16_t altitude) { this->co2_altitude_compensation_ = altitude; }
   void set_ambient_pressure_source(sensor::Sensor *pressure) { this->co2_ambient_pressure_source_ = pressure; }
@@ -137,6 +152,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool stop_measurements_();
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_();
+  bool write_acceleration_parameters_();
   bool update_co2_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
 
   uint32_t seconds_since_last_store_;
