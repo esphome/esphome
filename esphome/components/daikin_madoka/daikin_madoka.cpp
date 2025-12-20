@@ -288,8 +288,8 @@ void DaikinMadoka::query_(uint16_t cmd, std::vector<uint8_t> args, int t_d) {
       if (!status) {
         break;
       }
-      ESP_LOGD(TAG, "[%s] esp_ble_gattc_write_char failed (%d of %d), status=%d", addr,
-               j + 1, BLE_SEND_MAX_RETRIES, status);
+      ESP_LOGD(TAG, "[%s] esp_ble_gattc_write_char failed (%d of %d), status=%d", addr, j + 1, BLE_SEND_MAX_RETRIES,
+               status);
     }
     if (status) {
       ESP_LOGE(TAG, "[%s] Command could not be sent, last status=%d", addr, status);
