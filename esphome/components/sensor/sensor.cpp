@@ -87,9 +87,7 @@ void Sensor::publish_state(float state) {
   }
 }
 
-void Sensor::add_on_state_callback(std::function<void(float)> &&callback) {
-  this->callback_.add(std::move(callback));
-}
+void Sensor::add_on_state_callback(std::function<void(float)> &&callback) { this->callback_.add(std::move(callback)); }
 
 void Sensor::add_on_raw_state_callback(std::function<void(float)> &&callback) {
   this->raw_callback_.add(std::move(callback));
