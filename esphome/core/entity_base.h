@@ -47,6 +47,10 @@ class EntityBase {
   /// For dynamic case: formats into buffer and returns StringRef to buffer
   StringRef get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) const;
 
+  /// Write object_id directly to buffer, returns length written (excluding null)
+  /// Useful for building compound strings without intermediate buffer
+  size_t write_object_id_to(char *buf, size_t buf_size) const;
+
   // Get/set whether this Entity should be hidden outside ESPHome
   bool is_internal() const { return this->flags_.internal; }
   void set_internal(bool internal) { this->flags_.internal = internal; }

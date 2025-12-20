@@ -78,18 +78,34 @@ void EntityBase::calc_object_id_() {
   this->object_id_hash_ = fnv1_hash(object_id.c_str());
 }
 
+size_t EntityBase::write_object_id_to(char *buf, size_t buf_size) const {
+  if (!this->is_object_id_dynamic_()) {
+    // Static case: copy from stored c_str
+    const char *src = this->object_id_c_str_ == nullptr ? "" : this->object_id_c_str_;
+    size_t len = strlen(src);
+    if (len >= buf_size)
+      len = buf_size - 1;
+    memcpy(buf, src, len);
+    buf[len] = '\0';
+    return len;
+  }
+  // Dynamic case: format into buffer
+  const std::string &name = App.get_friendly_name();
+  size_t len = std::min(name.size(), buf_size - 1);
+  for (size_t i = 0; i < len; i++) {
+    buf[i] = to_sanitized_char(to_snake_case_char(name[i]));
+  }
+  buf[len] = '\0';
+  return len;
+}
+
 StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) const {
   if (!this->is_object_id_dynamic_()) {
     // Static case: return direct reference, buffer unused
     return this->object_id_c_str_ == nullptr ? StringRef() : StringRef(this->object_id_c_str_);
   }
-  // Dynamic case: format into buffer
-  const std::string &name = App.get_friendly_name();
-  size_t len = std::min(name.size(), buf.size() - 1);
-  for (size_t i = 0; i < len; i++) {
-    buf[i] = to_sanitized_char(to_snake_case_char(name[i]));
-  }
-  buf[len] = '\0';
+  // Dynamic case: write to buffer and return StringRef
+  size_t len = this->write_object_id_to(buf.data(), buf.size());
   return StringRef(buf.data(), len);
 }
 
