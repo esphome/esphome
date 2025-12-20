@@ -1044,7 +1044,11 @@ std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_con
 
   // Format: YYYY-MM-DD (max 10 chars + null)
   char value[12];
+#ifdef USE_ESP8266
+  snprintf_P(value, sizeof(value), PSTR("%d-%02d-%02d"), obj->year, obj->month, obj->day);
+#else
   snprintf(value, sizeof(value), "%d-%02d-%02d", obj->year, obj->month, obj->day);
+#endif
   set_json_icon_state_value(root, obj, "date", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1102,7 +1106,11 @@ std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_con
 
   // Format: HH:MM:SS (8 chars + null)
   char value[12];
+#ifdef USE_ESP8266
+  snprintf_P(value, sizeof(value), PSTR("%02d:%02d:%02d"), obj->hour, obj->minute, obj->second);
+#else
   snprintf(value, sizeof(value), "%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
+#endif
   set_json_icon_state_value(root, obj, "time", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1160,8 +1168,13 @@ std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail s
 
   // Format: YYYY-MM-DD HH:MM:SS (max 19 chars + null)
   char value[24];
+#ifdef USE_ESP8266
+  snprintf_P(value, sizeof(value), PSTR("%d-%02d-%02d %02d:%02d:%02d"), obj->year, obj->month, obj->day, obj->hour,
+             obj->minute, obj->second);
+#else
   snprintf(value, sizeof(value), "%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour, obj->minute,
            obj->second);
+#endif
   set_json_icon_state_value(root, obj, "datetime", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
