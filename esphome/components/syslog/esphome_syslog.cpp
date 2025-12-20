@@ -47,19 +47,26 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
   size_t offset = 0;
   size_t remaining = sizeof(packet);
 
-  // Write PRI
+  // Write PRI - abort if this fails as packet would be malformed
   int ret = snprintf(packet, remaining, "<%d>", pri);
-  if (ret > 0 && static_cast<size_t>(ret) < remaining) {
-    offset = ret;
-    remaining -= ret;
+  if (ret <= 0 || static_cast<size_t>(ret) >= remaining) {
+    return;
   }
+  offset = ret;
+  remaining -= ret;
 
   // Write timestamp directly into packet (RFC 5424: use "-" if time not valid)
   auto now = this->time_->now();
   if (now.is_valid()) {
     size_t written = now.strftime(packet + offset, remaining, "%b %e %H:%M:%S");
-    offset += written;
-    remaining -= written;
+    if (written > 0) {
+      offset += written;
+      remaining -= written;
+    } else if (remaining > 0) {
+      // strftime failed; write NILVALUE as fallback
+      packet[offset++] = '-';
+      remaining--;
+    }
   } else if (remaining > 0) {
     packet[offset++] = '-';
     remaining--;
