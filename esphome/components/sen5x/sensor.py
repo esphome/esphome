@@ -4,35 +4,35 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    # CONF_ALGORITHM_TUNING,  # add in upcoming PR#12567 still in dev
+    CONF_ALGORITHM_TUNING,
     CONF_ALTITUDE_COMPENSATION,
     CONF_AMBIENT_PRESSURE_COMPENSATION,
     CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
     CONF_AUTOMATIC_SELF_CALIBRATION,
     CONF_CO2,
     CONF_GAIN_FACTOR,
-    # CONF_GATING_MAX_DURATION_MINUTES,  # add in upcoming PR#12567 still in dev
+    CONF_GATING_MAX_DURATION_MINUTES,
     CONF_HUMIDITY,
     CONF_ID,
-    # CONF_INDEX_OFFSET,  # add in upcoming PR#12567 still in dev
-    # CONF_LEARNING_TIME_GAIN_HOURS,  # add in upcoming PR#12567 still in dev
-    # CONF_LEARNING_TIME_OFFSET_HOURS,  # add in upcoming PR#12567 still in dev
-    # CONF_NORMALIZED_OFFSET_SLOPE,  # add in upcoming PR#12567 still in dev
+    CONF_INDEX_OFFSET,
+    CONF_LEARNING_TIME_GAIN_HOURS,
+    CONF_LEARNING_TIME_OFFSET_HOURS,
     CONF_MODEL,
-    # CONF_NOX,  # add in upcoming PR#12567 still in dev
+    CONF_NORMALIZED_OFFSET_SLOPE,
+    CONF_NOX,
     CONF_OFFSET,
     CONF_PM_1_0,
     CONF_PM_2_5,
     CONF_PM_4_0,
     CONF_PM_10_0,
-    # CONF_STD_INITIAL,  # add in upcoming PR#12567 still in dev
+    CONF_STD_INITIAL,
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_COMPENSATION,
-    # CONF_TIME_CONSTANT,  # add in upcoming PR#12567 still in dev
+    CONF_TIME_CONSTANT,
     CONF_VALUE,
-    # CONF_VOC,  # add in upcoming PR#12567 still in dev
-    # CONF_VOC_BASELINE,  # add in upcoming PR#12567 still in dev
+    CONF_VOC,
+    CONF_VOC_BASELINE,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
@@ -67,25 +67,7 @@ RhtAccelerationMode = sen5x_ns.enum("RhtAccelerationMode")
 
 CONF_ACCELERATION_MODE = "acceleration_mode"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
-CONF_GATING_MAX_DURATION_MINUTES = (
-    "gating_max_duration_minutes"  # remove in upcoming PR#12567 still in dev
-)
 CONF_HCHO = "hcho"
-CONF_INDEX_OFFSET = "index_offset"  # remove in upcoming PR#12567 still in dev
-CONF_LEARNING_TIME_GAIN_HOURS = (
-    "learning_time_gain_hours"  # remove in upcoming PR#12567 still in dev
-)
-CONF_LEARNING_TIME_OFFSET_HOURS = (
-    "learning_time_offset_hours"  # remove in upcoming PR#12567 still in dev
-)
-CONF_NORMALIZED_OFFSET_SLOPE = (
-    "normalized_offset_slope"  # remove in upcoming PR#12567 still in dev
-)
-CONF_NOX = "nox"  # remove in upcoming PR#12567 still in dev
-CONF_STD_INITIAL = "std_initial"  # remove in upcoming PR#12567 still in dev
-CONF_TIME_CONSTANT = "time_constant"  # remove in upcoming PR#12567 still in dev
-CONF_VOC = "voc"
-CONF_VOC_BASELINE = "voc_baseline"
 ICON_MOLECULE = "mdi:molecule"
 
 # Actions
@@ -197,6 +179,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES),
             cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval,
             cv.Optional(CONF_STORE_BASELINE): cv.boolean,
+            # CONF_VOC_BASELINE defined in config but never used in original sen5x component
+            cv.Optional(CONF_VOC_BASELINE): cv.hex_uint16_t,
             cv.Optional(CONF_TEMPERATURE_COMPENSATION): cv.Schema(
                 {
                     cv.Optional(CONF_OFFSET, default=0): cv.float_,
