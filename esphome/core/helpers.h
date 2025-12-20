@@ -516,9 +516,16 @@ std::string str_until(const std::string &str, char ch);
 std::string str_lower_case(const std::string &str);
 /// Convert the string to upper case.
 std::string str_upper_case(const std::string &str);
+
+/// Convert a single char to snake_case: lowercase and space to underscore.
+constexpr char to_snake_case_char(char c) { return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c; }
 /// Convert the string to snake case (lowercase with underscores).
 std::string str_snake_case(const std::string &str);
 
+/// Sanitize a single char: keep alphanumerics, dashes, underscores; replace others with underscore.
+constexpr char to_sanitized_char(char c) {
+  return (c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) ? c : '_';
+}
 /// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
 std::string str_sanitize(const std::string &str);
 
