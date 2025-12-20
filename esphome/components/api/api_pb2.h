@@ -1203,13 +1203,16 @@ class SubscribeHomeAssistantStateResponse final : public ProtoMessage {
 class HomeAssistantStateResponse final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 40;
-  static constexpr uint8_t ESTIMATED_SIZE = 27;
+  static constexpr uint8_t ESTIMATED_SIZE = 57;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "home_assistant_state_response"; }
 #endif
-  std::string entity_id{};
-  std::string state{};
-  std::string attribute{};
+  const uint8_t *entity_id{nullptr};
+  uint16_t entity_id_len{0};
+  const uint8_t *state{nullptr};
+  uint16_t state_len{0};
+  const uint8_t *attribute{nullptr};
+  uint16_t attribute_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
