@@ -41,31 +41,39 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
     len -= 11;
   }
 
-  // Build syslog packet on stack - 508 is max UDP packet size
+  // Build syslog packet on stack (508 bytes chosen as practical limit for syslog over UDP)
   char packet[508];
   size_t offset = 0;
+  size_t remaining = sizeof(packet);
 
-  // Write PRI
-  int ret = snprintf(packet, sizeof(packet), "<%d>", pri);
-  if (ret > 0)
-    offset = ret;
+  // Write PRI - abort if this fails as packet would be malformed
+  int ret = snprintf(packet, remaining, "<%d>", pri);
+  if (ret <= 0 || static_cast<size_t>(ret) >= remaining) {
+    return;
+  }
+  offset = ret;
+  remaining -= ret;
 
-  // Write timestamp directly into packet (RFC 5424: use "-" if time not valid)
+  // Write timestamp directly into packet (RFC 5424: use "-" if time not valid or strftime fails)
   auto now = this->time_->now();
-  if (now.is_valid()) {
-    offset += now.strftime(packet + offset, sizeof(packet) - offset, "%b %e %H:%M:%S");
-  } else {
+  size_t ts_written = now.is_valid() ? now.strftime(packet + offset, remaining, "%b %e %H:%M:%S") : 0;
+  if (ts_written > 0) {
+    offset += ts_written;
+    remaining -= ts_written;
+  } else if (remaining > 0) {
     packet[offset++] = '-';
+    remaining--;
   }
 
   // Write hostname, tag, and message
-  ret = snprintf(packet + offset, sizeof(packet) - offset, " %s %s: %.*s", App.get_name().c_str(), tag, (int) len,
-                 message);
-  if (ret > 0)
-    offset += ret;
+  ret = snprintf(packet + offset, remaining, " %s %s: %.*s", App.get_name().c_str(), tag, (int) len, message);
+  if (ret > 0) {
+    // snprintf returns chars that would be written; clamp to actual buffer space
+    offset += std::min(static_cast<size_t>(ret), remaining > 0 ? remaining - 1 : 0);
+  }
 
   if (offset > 0) {
-    this->parent_->send_packet(reinterpret_cast<const uint8_t *>(packet), std::min(offset, sizeof(packet) - 1));
+    this->parent_->send_packet(reinterpret_cast<const uint8_t *>(packet), offset);
   }
 }
 
