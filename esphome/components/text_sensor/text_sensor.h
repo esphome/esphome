@@ -66,7 +66,7 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
 
  protected:
   LazyCallbackManager<void(std::string)> raw_callback_;  ///< Storage for raw state callbacks.
-  LazyCallbackManager<void(std::string)> callback_;      ///< Storage for filtered state callbacks.
+  LazyCallbackManager<void(const std::string &)> callback_;      ///< Storage for filtered state callbacks.
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 
