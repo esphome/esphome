@@ -36,12 +36,13 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
   int pri = this->facility_ * 8 + severity;
   auto now = this->time_->now();
   std::string timestamp;
-  if (now.is_valid())
+  if (now.is_valid()) {
     timestamp = now.strftime("%b %e %H:%M:%S");
-  else
+  } else {
     // RFC 5424: A syslog application MUST use the NILVALUE as TIMESTAMP if the syslog application is incapable of
     //           obtaining system time.
     timestamp = "-";
+  }
   size_t len = message_len;
   // remove color formatting
   if (this->strip_ && message[0] == 0x1B && len > 11) {
