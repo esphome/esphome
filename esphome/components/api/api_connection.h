@@ -320,17 +320,10 @@ class APIConnection final : public APIServerConnection {
                                               APIConnection *conn, uint32_t remaining_size, bool is_single) {
     // Set common fields that are shared by all entity types
     msg.key = entity->get_object_id_hash();
-    // Try to use static reference first to avoid allocation
-    StringRef static_ref = entity->get_object_id_ref_for_api_();
-    // Store dynamic string outside the if-else to maintain lifetime
-    std::string object_id;
-    if (!static_ref.empty()) {
-      msg.set_object_id(static_ref);
-    } else {
-      // Dynamic case - need to allocate
-      object_id = entity->get_object_id();
-      msg.set_object_id(StringRef(object_id));
-    }
+    // Get object_id with zero heap allocation
+    // Static case returns direct reference, dynamic case uses buffer
+    char object_id_buf[OBJECT_ID_MAX_LEN];
+    msg.set_object_id(entity->get_object_id_to(object_id_buf));
 
     if (entity->has_own_name()) {
       msg.set_name(entity->get_name());

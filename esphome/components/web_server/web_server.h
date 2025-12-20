@@ -52,14 +52,10 @@ struct UrlMatch {
   }
 
   bool id_equals_entity(EntityBase *entity) const {
-    // Zero-copy comparison using StringRef
-    StringRef static_ref = entity->get_object_id_ref_for_api_();
-    if (!static_ref.empty()) {
-      return id && id_len == static_ref.size() && memcmp(id, static_ref.c_str(), id_len) == 0;
-    }
-    // Fallback to allocation (rare)
-    const auto &obj_id = entity->get_object_id();
-    return id && id_len == obj_id.length() && memcmp(id, obj_id.c_str(), id_len) == 0;
+    // Get object_id with zero heap allocation
+    char object_id_buf[OBJECT_ID_MAX_LEN];
+    StringRef object_id = entity->get_object_id_to(object_id_buf);
+    return id && id_len == object_id.size() && memcmp(id, object_id.c_str(), id_len) == 0;
   }
 
   bool method_equals(const char *str) const {

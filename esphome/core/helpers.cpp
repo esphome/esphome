@@ -189,14 +189,6 @@ template<int (*fn)(int)> std::string str_ctype_transform(const std::string &str)
 }
 std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
 std::string str_upper_case(const std::string &str) { return str_ctype_transform<std::toupper>(str); }
-// Convert char to snake_case: lowercase and spaces to underscores
-static constexpr char to_snake_case_char(char c) {
-  return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c;
-}
-// Sanitize char: keep alphanumerics, dashes, underscores; replace others with underscore
-static constexpr char to_sanitized_char(char c) {
-  return (c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) ? c : '_';
-}
 std::string str_snake_case(const std::string &str) {
   std::string result = str;
   for (char &c : result) {
