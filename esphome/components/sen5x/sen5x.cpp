@@ -546,7 +546,7 @@ void SEN5XComponent::update() {
     return;
   }
   this->set_timeout(20, [this, length]() {
-    uint16_t measurements[9];
+    uint16_t measurements[10];
     if (!this->read_data(measurements, length)) {
       ESP_LOGV(TAG, ESP_LOG_MSG_COMM_FAIL);
       this->status_set_warning();
