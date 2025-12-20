@@ -1056,8 +1056,10 @@ std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_con
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  std::string value = str_sprintf("%d-%02d-%02d", obj->year, obj->month, obj->day);
-  set_json_icon_state_value(root, obj, "date", value.c_str(), value.c_str(), start_config);
+  // Format: YYYY-MM-DD (max 10 chars + null)
+  char value[12];
+  snprintf(value, sizeof(value), "%d-%02d-%02d", obj->year, obj->month, obj->day);
+  set_json_icon_state_value(root, obj, "date", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1112,8 +1114,10 @@ std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_con
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  std::string value = str_sprintf("%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
-  set_json_icon_state_value(root, obj, "time", value.c_str(), value.c_str(), start_config);
+  // Format: HH:MM:SS (8 chars + null)
+  char value[12];
+  snprintf(value, sizeof(value), "%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
+  set_json_icon_state_value(root, obj, "time", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1168,9 +1172,11 @@ std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail s
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  std::string value =
-      str_sprintf("%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour, obj->minute, obj->second);
-  set_json_icon_state_value(root, obj, "datetime", value.c_str(), value.c_str(), start_config);
+  // Format: YYYY-MM-DD HH:MM:SS (max 19 chars + null)
+  char value[24];
+  snprintf(value, sizeof(value), "%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour, obj->minute,
+           obj->second);
+  set_json_icon_state_value(root, obj, "datetime", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
