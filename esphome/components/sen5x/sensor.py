@@ -66,7 +66,6 @@ RhtAccelerationMode = sen5x_ns.enum("RhtAccelerationMode")
 
 
 CONF_ACCELERATION_MODE = "acceleration_mode"
-CONF_ACCELERATION_PARAMETERS = "acceleration_parameters"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
 CONF_K = "k"
 CONF_HCHO = "hcho"
@@ -74,6 +73,7 @@ ICON_MOLECULE = "mdi:molecule"
 CONF_P = "p"
 CONF_T1 = "t1"
 CONF_T2 = "t2"
+CONF_TEMPERATURE_ACCELERATION = "temperature_acceleration"
 
 # Actions
 StartFanAction = sen5x_ns.class_("StartFanAction", automation.Action)
@@ -200,7 +200,7 @@ CONFIG_SCHEMA = (
                 ),
                 cv.Length(max=5),
             ),
-            cv.Optional(CONF_ACCELERATION_PARAMETERS): cv.Schema(
+            cv.Optional(CONF_TEMPERATURE_ACCELERATION): cv.Schema(
                 {
                     cv.Required(CONF_K): cv.float_,
                     cv.Required(CONF_P): cv.float_,
@@ -343,13 +343,13 @@ def final_validate(config):
         raise cv.Invalid(
             f"Model {model} does not support '{CONF_TEMPERATURE_COMPENSATION}'."
         )
-    if CONF_ACCELERATION_PARAMETERS in config and model in {
+    if CONF_TEMPERATURE_ACCELERATION in config and model in {
         MODEL_SEN50,
         MODEL_SEN54,
         MODEL_SEN55,
     }:
         raise cv.Invalid(
-            f"Model {model} does not support '{CONF_ACCELERATION_PARAMETERS}'."
+            f"Model {model} does not support '{CONF_TEMPERATURE_ACCELERATION}'."
         )
     if CONF_VOC in config and model in {MODEL_SEN50, MODEL_SEN62, MODEL_SEN63C}:
         raise cv.Invalid(f"Model {model} does not support '{CONF_VOC}'.")
@@ -436,9 +436,9 @@ async def to_code(config):
                 )
             )
             slot += 1
-    if cfg := config.get(CONF_ACCELERATION_PARAMETERS):
+    if cfg := config.get(CONF_TEMPERATURE_ACCELERATION):
         cg.add(
-            var.set_acceleration_parameters(
+            var.set_temperature_acceleration(
                 cfg[CONF_K],
                 cfg[CONF_P],
                 cfg[CONF_T1],

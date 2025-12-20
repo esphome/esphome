@@ -123,6 +123,7 @@ static inline std::string convert_to_string(uint16_t array[], uint8_t length) {
 void SEN5XComponent::setup() { this->internal_setup_(SM_START); }
 
 void SEN5XComponent::internal_setup_(SetupStates state) {
+  static uint8_t slot = 0;
   uint16_t string_number[16] = {0};
   switch (state) {
     case SM_START:
@@ -280,14 +281,22 @@ void SEN5XComponent::internal_setup_(SetupStates state) {
           this->mark_failed();
           return;
         }
-        this->set_timeout(20, [this]() { this->internal_setup_(SM_SET_RHTAM); });
+        this->set_timeout(20, [this]() { this->internal_setup_(SM_SET_ACCEL); });
       } else {
-        this->internal_setup_(SM_SET_RHTAM);
+        this->internal_setup_(SM_SET_ACCEL);
       }
       break;
-    case SM_SET_RHTAM:
+    case SM_SET_ACCEL:
       if (this->acceleration_mode_.has_value()) {
         if (!this->write_command(SEN5X_CMD_RHT_ACCELERATION_MODE, this->acceleration_mode_.value())) {
+          ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+          this->error_code_ = COMMUNICATION_FAILED;
+          this->mark_failed();
+          return;
+        }
+        this->set_timeout(20, [this]() { this->internal_setup_(SM_SET_VOCT); });
+      } else if (this->temperature_acceleration_.has_value()) {
+        if (!this->write_temperature_acceleration_()) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
           this->error_code_ = COMMUNICATION_FAILED;
           this->mark_failed();
@@ -326,13 +335,17 @@ void SEN5XComponent::internal_setup_(SetupStates state) {
       break;
     case SM_SET_TP:
       if (this->temperature_compensation_[0].has_value()) {
-        if (!this->write_temperature_compensation_()) {
-          ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-          this->error_code_ = COMMUNICATION_FAILED;
-          this->mark_failed();
-          return;
+        if (slot < 5 and this->temperature_compensation_[slot].has_value()) {
+          if (!this->write_temperature_compensation_(slot++)) {
+            ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+            this->error_code_ = COMMUNICATION_FAILED;
+            this->mark_failed();
+            return;
+          }
+          this->set_timeout(20, [this]() { this->internal_setup_(SM_SET_TP); });
+        } else {
+          this->set_timeout(20, [this]() { this->internal_setup_(SM_SET_CO2ASC); });
         }
-        this->set_timeout(20, [this]() { this->internal_setup_(SM_SET_CO2ASC); });
       } else {
         this->internal_setup_(SM_SET_CO2ASC);
       }
@@ -688,33 +701,31 @@ bool SEN5XComponent::write_tuning_parameters_(uint16_t i2c_command, const GasTun
   return result;
 }
 
-bool SEN5XComponent::write_temperature_compensation_() {
+bool SEN5XComponent::write_temperature_compensation_(uint8_t slot) {
   uint16_t params[4];
-  for (uint8_t slot = 0; slot < SEN6X_MAX_SLOTS; slot++) {
-    if (this->temperature_compensation_[slot].has_value()) {
-      auto compensation = this->temperature_compensation_[slot].value();
-      params[0] = compensation.offset;
-      params[1] = compensation.normalized_offset_slope;
-      params[2] = compensation.time_constant;
-      params[3] = slot;
-      uint8_t write_cnt = 3;
-      if (this->is_sen6x_()) {
-        write_cnt = 4;
-      }
-      auto result = this->write_command(CMD_TEMPERATURE_COMPENSATION, params, write_cnt);
-      if (!result) {
-        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        return false;
-      }
+  if (this->temperature_compensation_[slot].has_value()) {
+    auto compensation = this->temperature_compensation_[slot].value();
+    params[0] = compensation.offset;
+    params[1] = compensation.normalized_offset_slope;
+    params[2] = compensation.time_constant;
+    params[3] = slot;
+    uint8_t write_cnt = 3;
+    if (this->is_sen6x_()) {
+      write_cnt = 4;
+    }
+    auto result = this->write_command(CMD_TEMPERATURE_COMPENSATION, params, write_cnt);
+    if (!result) {
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+      return false;
     }
   }
   return true;
 }
 
-bool SEN5XComponent::write_acceleration_parameters_() {
+bool SEN5XComponent::write_temperature_acceleration_() {
   uint16_t params[4];
-  if (this->acceleration_parameters_.has_value()) {
-    auto accel_param = this->acceleration_parameters_.value();
+  if (this->temperature_acceleration_.has_value()) {
+    auto accel_param = this->temperature_acceleration_.value();
     params[0] = accel_param.k;
     params[1] = accel_param.p;
     params[2] = accel_param.t1;

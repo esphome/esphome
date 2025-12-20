@@ -30,7 +30,7 @@ enum SetupStates {
   SM_GET_FW,
   SM_SET_VOCB,
   SM_SET_ACI,
-  SM_SET_RHTAM,
+  SM_SET_ACCEL,
   SM_SET_VOCT,
   SM_SET_NOXT,
   SM_SET_TP,
@@ -56,17 +56,17 @@ struct GasTuning {
 };
 
 struct TemperatureCompensation {
-  uint16_t k;
-  uint16_t p;
-  uint16_t t1;
-  uint16_t t2;
-};
-
-struct TemperatureCompensation {
   int16_t offset;
   int16_t normalized_offset_slope;
   uint16_t time_constant;
   uint8_t slot;
+};
+
+struct AccelerationParameters {
+  uint16_t k;
+  uint16_t p;
+  uint16_t t1;
+  uint16_t t2;
 };
 
 // Shortest time interval of 3H for storing baseline values.
@@ -129,13 +129,13 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
     temp_comp.time_constant = time_constant;
     this->temperature_compensation_[slot] = temp_comp;
   }
-  void set_acceleration_parameters(float k, float p, float t1, float t2) {
+  void set_temperature_acceleration(float k, float p, float t1, float t2) {
     AccelerationParameters accel_param;
     accel_param.k = k * 10;
     accel_param.p = p * 10;
     accel_param.t1 = t1 * 10;
     accel_param.t2 = t2 * 10;
-    this->acceleration_parameters_ = accel_param;
+    this->temperature_acceleration_ = accel_param;
   }
   void set_co2_auto_calibrate(bool value) { this->co2_auto_calibrate_ = value; }
   void set_co2_altitude_compensation(uint16_t altitude) { this->co2_altitude_compensation_ = altitude; }
@@ -151,8 +151,8 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool start_measurements_();
   bool stop_measurements_();
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
-  bool write_temperature_compensation_();
-  bool write_acceleration_parameters_();
+  bool write_temperature_compensation_(uint8_t slot);
+  bool write_temperature_acceleration_();
   bool update_co2_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
 
   uint32_t seconds_since_last_store_;
@@ -178,6 +178,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
 
   optional<Sen5xType> model_;
   optional<RhtAccelerationMode> acceleration_mode_;
+  optional<AccelerationParameters> temperature_acceleration_;
   optional<uint32_t> auto_cleaning_interval_;
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
