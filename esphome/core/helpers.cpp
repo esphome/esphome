@@ -155,17 +155,6 @@ uint32_t fnv1_hash(const char *str) {
   return hash;
 }
 
-// FNV-1a hash - preferred for new code
-uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
-  if (str) {
-    while (*str) {
-      hash ^= *str++;
-      hash *= FNV1_PRIME;
-    }
-  }
-  return hash;
-}
-
 float random_float() { return static_cast<float>(random_uint32()) / static_cast<float>(UINT32_MAX); }
 
 // Strings
@@ -200,22 +189,27 @@ template<int (*fn)(int)> std::string str_ctype_transform(const std::string &str)
 }
 std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
 std::string str_upper_case(const std::string &str) { return str_ctype_transform<std::toupper>(str); }
+// Convert char to snake_case: lowercase and spaces to underscores
+static constexpr char to_snake_case_char(char c) {
+  return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c;
+}
+// Sanitize char: keep alphanumerics, dashes, underscores; replace others with underscore
+static constexpr char to_sanitized_char(char c) {
+  return (c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) ? c : '_';
+}
 std::string str_snake_case(const std::string &str) {
-  std::string result;
-  result.resize(str.length());
-  std::transform(str.begin(), str.end(), result.begin(), ::tolower);
-  std::replace(result.begin(), result.end(), ' ', '_');
+  std::string result = str;
+  for (char &c : result) {
+    c = to_snake_case_char(c);
+  }
   return result;
 }
 std::string str_sanitize(const std::string &str) {
-  std::string out = str;
-  std::replace_if(
-      out.begin(), out.end(),
-      [](const char &c) {
-        return c != '-' && c != '_' && (c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z');
-      },
-      '_');
-  return out;
+  std::string result = str;
+  for (char &c : result) {
+    c = to_sanitized_char(c);
+  }
+  return result;
 }
 std::string str_snprintf(const char *fmt, size_t len, ...) {
   std::string str;
@@ -485,10 +479,14 @@ std::string base64_encode(const uint8_t *buf, size_t buf_len) {
 }
 
 size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf_len) {
-  int in_len = encoded_string.size();
+  return base64_decode(reinterpret_cast<const uint8_t *>(encoded_string.data()), encoded_string.size(), buf, buf_len);
+}
+
+size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len) {
+  size_t in_len = encoded_len;
   int i = 0;
   int j = 0;
-  int in = 0;
+  size_t in = 0;
   size_t out = 0;
   uint8_t char_array_4[4], char_array_3[3];
   bool truncated = false;
@@ -496,8 +494,8 @@ size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf
   // SAFETY: The loop condition checks is_base64() before processing each character.
   // This ensures base64_find_char() is only called on valid base64 characters,
   // preventing the edge case where invalid chars would return 0 (same as 'A').
-  while (in_len-- && (encoded_string[in] != '=') && is_base64(encoded_string[in])) {
-    char_array_4[i++] = encoded_string[in];
+  while (in_len-- && (encoded_data[in] != '=') && is_base64(encoded_data[in])) {
+    char_array_4[i++] = encoded_data[in];
     in++;
     if (i == 4) {
       for (i = 0; i < 4; i++)
