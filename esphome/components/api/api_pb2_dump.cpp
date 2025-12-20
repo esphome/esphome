@@ -923,7 +923,9 @@ void FanCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "has_speed_level", this->has_speed_level);
   dump_field(out, "speed_level", this->speed_level);
   dump_field(out, "has_preset_mode", this->has_preset_mode);
-  dump_field(out, "preset_mode", this->preset_mode);
+  out.append("  preset_mode: ");
+  out.append(format_hex_pretty(this->preset_mode, this->preset_mode_len));
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1374,11 +1376,15 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "has_swing_mode", this->has_swing_mode);
   dump_field(out, "swing_mode", static_cast<enums::ClimateSwingMode>(this->swing_mode));
   dump_field(out, "has_custom_fan_mode", this->has_custom_fan_mode);
-  dump_field(out, "custom_fan_mode", this->custom_fan_mode);
+  out.append("  custom_fan_mode: ");
+  out.append(format_hex_pretty(this->custom_fan_mode, this->custom_fan_mode_len));
+  out.append("\n");
   dump_field(out, "has_preset", this->has_preset);
   dump_field(out, "preset", static_cast<enums::ClimatePreset>(this->preset));
   dump_field(out, "has_custom_preset", this->has_custom_preset);
-  dump_field(out, "custom_preset", this->custom_preset);
+  out.append("  custom_preset: ");
+  out.append(format_hex_pretty(this->custom_preset, this->custom_preset_len));
+  out.append("\n");
   dump_field(out, "has_target_humidity", this->has_target_humidity);
   dump_field(out, "target_humidity", this->target_humidity);
 #ifdef USE_DEVICES
