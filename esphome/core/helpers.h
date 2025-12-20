@@ -549,6 +549,18 @@ std::string make_name_with_suffix(const std::string &name, char sep, const char 
 std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
                                   size_t suffix_len);
 
+/// Zero-allocation version: format name + separator + suffix directly into buffer.
+/// @param buffer Output buffer (must have space for result + null terminator)
+/// @param buffer_size Size of the output buffer
+/// @param name The base name string
+/// @param name_len Length of the name
+/// @param sep Single character separator
+/// @param suffix_ptr Pointer to the suffix characters
+/// @param suffix_len Length of the suffix
+/// @return Length written (excluding null terminator)
+size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
+                                const char *suffix_ptr, size_t suffix_len);
+
 ///@}
 
 /// @name Parsing & formatting
