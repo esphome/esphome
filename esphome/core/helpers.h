@@ -878,6 +878,7 @@ std::string base64_encode(const std::vector<uint8_t> &buf);
 
 std::vector<uint8_t> base64_decode(const std::string &encoded_string);
 size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
+size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len);
 
 ///@}
 

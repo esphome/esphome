@@ -1054,11 +1054,12 @@ class SubscribeLogsResponse final : public ProtoMessage {
 class NoiseEncryptionSetKeyRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 124;
-  static constexpr uint8_t ESTIMATED_SIZE = 9;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "noise_encryption_set_key_request"; }
 #endif
-  std::string key{};
+  const uint8_t *key{nullptr};
+  uint16_t key_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif

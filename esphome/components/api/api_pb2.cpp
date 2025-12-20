@@ -858,9 +858,12 @@ void SubscribeLogsResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_API_NOISE
 bool NoiseEncryptionSetKeyRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->key = value.as_string();
+    case 1: {
+      // Use raw data directly to avoid allocation
+      this->key = value.data();
+      this->key_len = value.size();
       break;
+    }
     default:
       return false;
   }
