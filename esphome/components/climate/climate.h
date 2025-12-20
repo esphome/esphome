@@ -326,8 +326,8 @@ class Climate : public EntityBase {
 
   void dump_traits_(const char *tag);
 
-  CallbackManager<void(Climate &)> state_callback_{};
-  CallbackManager<void(ClimateCall &)> control_callback_{};
+  LazyCallbackManager<void(Climate &)> state_callback_{};
+  LazyCallbackManager<void(ClimateCall &)> control_callback_{};
   ESPPreferenceObject rtc_;
 #ifdef USE_CLIMATE_VISUAL_OVERRIDES
   float visual_min_temperature_override_{NAN};
