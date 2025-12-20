@@ -747,7 +747,7 @@ message NoiseEncryptionSetKeyRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_API_NOISE";
 
-  bytes key = 1;
+  bytes key = 1 [(pointer_to_buffer) = true];
 }
 
 message NoiseEncryptionSetKeyResponse {
