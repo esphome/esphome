@@ -1,5 +1,8 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_API
+
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/core/component.h"
@@ -8,8 +11,7 @@
 
 #include <array>
 
-namespace esphome {
-namespace zwave_proxy {
+namespace esphome::zwave_proxy {
 
 static constexpr size_t MAX_ZWAVE_FRAME_SIZE = 257;  // Maximum Z-Wave frame size
 
@@ -89,5 +91,6 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
 
 extern ZWaveProxy *global_zwave_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace zwave_proxy
-}  // namespace esphome
+}  // namespace esphome::zwave_proxy
+
+#endif  // USE_API

@@ -82,7 +82,10 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
 
   if (!ret) {
     ESP_LOGW(TAG, "Set mode failed");
+    return false;
   }
+
+  this->ap_started_ = target_ap;
 
   return ret;
 }
@@ -101,7 +104,15 @@ bool WiFiComponent::wifi_apply_power_save_() {
       break;
   }
   wifi_fpm_auto_sleep_set_in_null_mode(1);
-  return wifi_set_sleep_type(power_save);
+  bool success = wifi_set_sleep_type(power_save);
+#ifdef USE_WIFI_LISTENERS
+  if (success) {
+    for (auto *listener : this->power_save_listeners_) {
+      listener->on_wifi_power_save(this->power_save_);
+    }
+  }
+#endif
+  return success;
 }
 
 #if LWIP_VERSION_MAJOR != 1
@@ -246,9 +257,9 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
   memcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), ap.get_password().size());
 
-  if (ap.get_bssid().has_value()) {
+  if (ap.has_bssid()) {
     conf.bssid_set = 1;
-    memcpy(conf.bssid, ap.get_bssid()->data(), 6);
+    memcpy(conf.bssid, ap.get_bssid().data(), 6);
   } else {
     conf.bssid_set = 0;
   }
@@ -370,8 +381,8 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 #endif /* USE_NETWORK_IPV6 */
 
-  if (ap.get_channel().has_value()) {
-    ret = wifi_set_channel(*ap.get_channel());
+  if (ap.has_channel()) {
+    ret = wifi_set_channel(ap.get_channel());
     if (!ret) {
       ESP_LOGV(TAG, "wifi_set_channel failed");
       return false;
@@ -513,9 +524,20 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       ESP_LOGV(TAG, "Connected ssid='%s' bssid=%s channel=%u", buf, format_mac_address_pretty(it.bssid).c_str(),
                it.channel);
       s_sta_connected = true;
-#ifdef USE_WIFI_CALLBACKS
-      global_wifi_component->wifi_connect_state_callback_.call(global_wifi_component->wifi_ssid(),
-                                                               global_wifi_component->wifi_bssid());
+#ifdef USE_WIFI_LISTENERS
+      for (auto *listener : global_wifi_component->connect_state_listeners_) {
+        listener->on_wifi_connect_state(global_wifi_component->wifi_ssid(), global_wifi_component->wifi_bssid());
+      }
+      // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
+#ifdef USE_WIFI_MANUAL_IP
+      if (const WiFiAP *config = global_wifi_component->get_selected_sta_();
+          config && config->get_manual_ip().has_value()) {
+        for (auto *listener : global_wifi_component->ip_state_listeners_) {
+          listener->on_ip_state(global_wifi_component->wifi_sta_ip_addresses(),
+                                global_wifi_component->get_dns_address(0), global_wifi_component->get_dns_address(1));
+        }
+      }
+#endif
 #endif
       break;
     }
@@ -536,8 +558,10 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       }
       s_sta_connected = false;
       s_sta_connecting = false;
-#ifdef USE_WIFI_CALLBACKS
-      global_wifi_component->wifi_connect_state_callback_.call("", bssid_t({0, 0, 0, 0, 0, 0}));
+#ifdef USE_WIFI_LISTENERS
+      for (auto *listener : global_wifi_component->connect_state_listeners_) {
+        listener->on_wifi_connect_state("", bssid_t({0, 0, 0, 0, 0, 0}));
+      }
 #endif
       break;
     }
@@ -561,10 +585,11 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       ESP_LOGV(TAG, "static_ip=%s gateway=%s netmask=%s", format_ip_addr(it.ip).c_str(), format_ip_addr(it.gw).c_str(),
                format_ip_addr(it.mask).c_str());
       s_sta_got_ip = true;
-#ifdef USE_WIFI_CALLBACKS
-      global_wifi_component->ip_state_callback_.call(global_wifi_component->wifi_sta_ip_addresses(),
-                                                     global_wifi_component->get_dns_address(0),
-                                                     global_wifi_component->get_dns_address(1));
+#ifdef USE_WIFI_LISTENERS
+      for (auto *listener : global_wifi_component->ip_state_listeners_) {
+        listener->on_ip_state(global_wifi_component->wifi_sta_ip_addresses(), global_wifi_component->get_dns_address(0),
+                              global_wifi_component->get_dns_address(1));
+      }
 #endif
       break;
     }
@@ -740,8 +765,10 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
         it->is_hidden != 0);
   }
   this->scan_done_ = true;
-#ifdef USE_WIFI_CALLBACKS
-  global_wifi_component->wifi_scan_state_callback_.call(global_wifi_component->scan_result_);
+#ifdef USE_WIFI_LISTENERS
+  for (auto *listener : global_wifi_component->scan_results_listeners_) {
+    listener->on_wifi_scan_results(global_wifi_component->scan_result_);
+  }
 #endif
 }
 
@@ -828,7 +855,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   }
   memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
   conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
-  conf.channel = ap.get_channel().value_or(1);
+  conf.channel = ap.has_channel() ? ap.get_channel() : 1;
   conf.ssid_hidden = ap.get_hidden();
   conf.max_connection = 5;
   conf.beacon_interval = 100;
@@ -878,10 +905,9 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
 
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};
-  uint8_t *raw_bssid = WiFi.BSSID();
-  if (raw_bssid != nullptr) {
-    for (size_t i = 0; i < bssid.size(); i++)
-      bssid[i] = raw_bssid[i];
+  struct station_config conf {};
+  if (wifi_station_get_config(&conf)) {
+    std::copy_n(conf.bssid, bssid.size(), bssid.begin());
   }
   return bssid;
 }

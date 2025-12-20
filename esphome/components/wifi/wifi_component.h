@@ -151,25 +151,28 @@ template<typename T> using wifi_scan_vector_t = FixedVector<T>;
 class WiFiAP {
  public:
   void set_ssid(const std::string &ssid);
-  void set_bssid(bssid_t bssid);
-  void set_bssid(optional<bssid_t> bssid);
+  void set_bssid(const bssid_t &bssid);
+  void clear_bssid();
   void set_password(const std::string &password);
 #ifdef USE_WIFI_WPA2_EAP
   void set_eap(optional<EAPAuth> eap_auth);
 #endif  // USE_WIFI_WPA2_EAP
-  void set_channel(optional<uint8_t> channel);
+  void set_channel(uint8_t channel);
+  void clear_channel();
   void set_priority(int8_t priority) { priority_ = priority; }
 #ifdef USE_WIFI_MANUAL_IP
   void set_manual_ip(optional<ManualIP> manual_ip);
 #endif
   void set_hidden(bool hidden);
   const std::string &get_ssid() const;
-  const optional<bssid_t> &get_bssid() const;
+  const bssid_t &get_bssid() const;
+  bool has_bssid() const;
   const std::string &get_password() const;
 #ifdef USE_WIFI_WPA2_EAP
   const optional<EAPAuth> &get_eap() const;
 #endif  // USE_WIFI_WPA2_EAP
-  const optional<uint8_t> &get_channel() const;
+  uint8_t get_channel() const;
+  bool has_channel() const;
   int8_t get_priority() const { return priority_; }
 #ifdef USE_WIFI_MANUAL_IP
   const optional<ManualIP> &get_manual_ip() const;
@@ -179,16 +182,17 @@ class WiFiAP {
  protected:
   std::string ssid_;
   std::string password_;
-  optional<bssid_t> bssid_;
 #ifdef USE_WIFI_WPA2_EAP
   optional<EAPAuth> eap_;
 #endif  // USE_WIFI_WPA2_EAP
 #ifdef USE_WIFI_MANUAL_IP
   optional<ManualIP> manual_ip_;
 #endif
-  optional<uint8_t> channel_;
-  int8_t priority_{0};
-  bool hidden_{false};
+  // Group small types together to minimize padding
+  bssid_t bssid_{};     // 6 bytes, all zeros = any/not set
+  uint8_t channel_{0};  // 1 byte, 0 = auto/not set
+  int8_t priority_{0};  // 1 byte
+  bool hidden_{false};  // 1 byte (+ 3 bytes end padding to 4-byte align)
 };
 
 class WiFiScanResult {
@@ -242,6 +246,47 @@ enum WifiMinAuthMode : uint8_t {
 struct IDFWiFiEvent;
 #endif
 
+/** Listener interface for WiFi IP state changes.
+ *
+ * Components can implement this interface to receive IP address updates
+ * without the overhead of std::function callbacks.
+ */
+class WiFiIPStateListener {
+ public:
+  virtual void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
+                           const network::IPAddress &dns2) = 0;
+};
+
+/** Listener interface for WiFi scan results.
+ *
+ * Components can implement this interface to receive scan results
+ * without the overhead of std::function callbacks.
+ */
+class WiFiScanResultsListener {
+ public:
+  virtual void on_wifi_scan_results(const wifi_scan_vector_t<WiFiScanResult> &results) = 0;
+};
+
+/** Listener interface for WiFi connection state changes.
+ *
+ * Components can implement this interface to receive connection updates
+ * without the overhead of std::function callbacks.
+ */
+class WiFiConnectStateListener {
+ public:
+  virtual void on_wifi_connect_state(const std::string &ssid, const bssid_t &bssid) = 0;
+};
+
+/** Listener interface for WiFi power save mode changes.
+ *
+ * Components can implement this interface to receive power save mode updates
+ * without the overhead of std::function callbacks.
+ */
+class WiFiPowerSaveListener {
+ public:
+  virtual void on_wifi_power_save(WiFiPowerSaveMode mode) = 0;
+};
+
 /// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent : public Component {
  public:
@@ -283,6 +328,10 @@ class WiFiComponent : public Component {
   void check_connecting_finished();
 
   void retry_connect();
+
+#ifdef USE_RP2040
+  bool can_proceed() override;
+#endif
 
   void set_reboot_timeout(uint32_t reboot_timeout);
 
@@ -369,26 +418,26 @@ class WiFiComponent : public Component {
 
   int32_t get_wifi_channel();
 
-#ifdef USE_WIFI_CALLBACKS
-  /// Add a callback that will be called on configuration changes (IP change, SSID change, etc.)
-  /// @param callback The callback to be called; template arguments are:
-  /// - IP addresses
-  /// - DNS address 1
-  /// - DNS address 2
-  void add_on_ip_state_callback(
-      std::function<void(network::IPAddresses, network::IPAddress, network::IPAddress)> &&callback) {
-    this->ip_state_callback_.add(std::move(callback));
+#ifdef USE_WIFI_LISTENERS
+  /** Add a listener for IP state changes.
+   * Listener receives: IP addresses, DNS address 1, DNS address 2
+   */
+  void add_ip_state_listener(WiFiIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
+  /// Add a listener for WiFi scan results
+  void add_scan_results_listener(WiFiScanResultsListener *listener) {
+    this->scan_results_listeners_.push_back(listener);
   }
-  /// - Wi-Fi scan results
-  void add_on_wifi_scan_state_callback(std::function<void(wifi_scan_vector_t<WiFiScanResult> &)> &&callback) {
-    this->wifi_scan_state_callback_.add(std::move(callback));
+  /** Add a listener for WiFi connection state changes.
+   * Listener receives: SSID, BSSID
+   */
+  void add_connect_state_listener(WiFiConnectStateListener *listener) {
+    this->connect_state_listeners_.push_back(listener);
   }
-  /// - Wi-Fi SSID
-  /// - Wi-Fi BSSID
-  void add_on_wifi_connect_state_callback(std::function<void(std::string, wifi::bssid_t)> &&callback) {
-    this->wifi_connect_state_callback_.add(std::move(callback));
-  }
-#endif  // USE_WIFI_CALLBACKS
+  /** Add a listener for WiFi power save mode changes.
+   * Listener receives: WiFiPowerSaveMode
+   */
+  void add_power_save_listener(WiFiPowerSaveListener *listener) { this->power_save_listeners_.push_back(listener); }
+#endif  // USE_WIFI_LISTENERS
 
 #ifdef USE_WIFI_RUNTIME_POWER_SAVE
   /** Request high-performance mode (no power saving) for improved WiFi latency.
@@ -545,12 +594,13 @@ class WiFiComponent : public Component {
 #ifdef USE_WIFI_AP
   WiFiAP ap_;
 #endif
-  optional<float> output_power_;
-#ifdef USE_WIFI_CALLBACKS
-  CallbackManager<void(network::IPAddresses, network::IPAddress, network::IPAddress)> ip_state_callback_;
-  CallbackManager<void(wifi_scan_vector_t<WiFiScanResult> &)> wifi_scan_state_callback_;
-  CallbackManager<void(std::string, wifi::bssid_t)> wifi_connect_state_callback_;
-#endif  // USE_WIFI_CALLBACKS
+  float output_power_{NAN};
+#ifdef USE_WIFI_LISTENERS
+  std::vector<WiFiIPStateListener *> ip_state_listeners_;
+  std::vector<WiFiScanResultsListener *> scan_results_listeners_;
+  std::vector<WiFiConnectStateListener *> connect_state_listeners_;
+  std::vector<WiFiPowerSaveListener *> power_save_listeners_;
+#endif  // USE_WIFI_LISTENERS
   ESPPreferenceObject pref_;
 #ifdef USE_WIFI_FAST_CONNECT
   ESPPreferenceObject fast_connect_pref_;
@@ -585,6 +635,7 @@ class WiFiComponent : public Component {
   bool error_from_callback_{false};
   bool scan_done_{false};
   bool ap_setup_{false};
+  bool ap_started_{false};
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT

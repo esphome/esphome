@@ -179,6 +179,8 @@ template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::Sens
       return "STATE_CLASS_TOTAL_INCREASING";
     case enums::STATE_CLASS_TOTAL:
       return "STATE_CLASS_TOTAL";
+    case enums::STATE_CLASS_MEASUREMENT_ANGLE:
+      return "STATE_CLASS_MEASUREMENT_ANGLE";
     default:
       return "UNKNOWN";
   }
@@ -225,6 +227,20 @@ template<> const char *proto_enum_to_string<enums::ServiceArgType>(enums::Servic
       return "SERVICE_ARG_TYPE_FLOAT_ARRAY";
     case enums::SERVICE_ARG_TYPE_STRING_ARRAY:
       return "SERVICE_ARG_TYPE_STRING_ARRAY";
+    default:
+      return "UNKNOWN";
+  }
+}
+template<> const char *proto_enum_to_string<enums::SupportsResponseType>(enums::SupportsResponseType value) {
+  switch (value) {
+    case enums::SUPPORTS_RESPONSE_NONE:
+      return "SUPPORTS_RESPONSE_NONE";
+    case enums::SUPPORTS_RESPONSE_OPTIONAL:
+      return "SUPPORTS_RESPONSE_OPTIONAL";
+    case enums::SUPPORTS_RESPONSE_ONLY:
+      return "SUPPORTS_RESPONSE_ONLY";
+    case enums::SUPPORTS_RESPONSE_STATUS:
+      return "SUPPORTS_RESPONSE_STATUS";
     default:
       return "UNKNOWN";
   }
@@ -907,7 +923,9 @@ void FanCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "has_speed_level", this->has_speed_level);
   dump_field(out, "speed_level", this->speed_level);
   dump_field(out, "has_preset_mode", this->has_preset_mode);
-  dump_field(out, "preset_mode", this->preset_mode);
+  out.append("  preset_mode: ");
+  out.append(format_hex_pretty(this->preset_mode, this->preset_mode_len));
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -983,7 +1001,9 @@ void LightCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "has_flash_length", this->has_flash_length);
   dump_field(out, "flash_length", this->flash_length);
   dump_field(out, "has_effect", this->has_effect);
-  dump_field(out, "effect", this->effect);
+  out.append("  effect: ");
+  out.append(format_hex_pretty(this->effect, this->effect_len));
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1095,7 +1115,7 @@ void SubscribeLogsResponse::dump_to(std::string &out) const {
 void NoiseEncryptionSetKeyRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "NoiseEncryptionSetKeyRequest");
   out.append("  key: ");
-  out.append(format_hex_pretty(reinterpret_cast<const uint8_t *>(this->key.data()), this->key.size()));
+  out.append(format_hex_pretty(this->key, this->key_len));
   out.append("\n");
 }
 void NoiseEncryptionSetKeyResponse::dump_to(std::string &out) const { dump_field(out, "success", this->success); }
@@ -1192,6 +1212,7 @@ void ListEntitiesServicesResponse::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+  dump_field(out, "supports_response", static_cast<enums::SupportsResponseType>(this->supports_response));
 }
 void ExecuteServiceArgument::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ExecuteServiceArgument");
@@ -1221,6 +1242,25 @@ void ExecuteServiceRequest::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  dump_field(out, "call_id", this->call_id);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  dump_field(out, "return_response", this->return_response);
+#endif
+}
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+void ExecuteServiceResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ExecuteServiceResponse");
+  dump_field(out, "call_id", this->call_id);
+  dump_field(out, "success", this->success);
+  dump_field(out, "error_message", this->error_message_ref_);
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  out.append("  response_data: ");
+  out.append(format_hex_pretty(this->response_data, this->response_data_len));
+  out.append("\n");
+#endif
 }
 #endif
 #ifdef USE_CAMERA
@@ -1336,11 +1376,15 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "has_swing_mode", this->has_swing_mode);
   dump_field(out, "swing_mode", static_cast<enums::ClimateSwingMode>(this->swing_mode));
   dump_field(out, "has_custom_fan_mode", this->has_custom_fan_mode);
-  dump_field(out, "custom_fan_mode", this->custom_fan_mode);
+  out.append("  custom_fan_mode: ");
+  out.append(format_hex_pretty(this->custom_fan_mode, this->custom_fan_mode_len));
+  out.append("\n");
   dump_field(out, "has_preset", this->has_preset);
   dump_field(out, "preset", static_cast<enums::ClimatePreset>(this->preset));
   dump_field(out, "has_custom_preset", this->has_custom_preset);
-  dump_field(out, "custom_preset", this->custom_preset);
+  out.append("  custom_preset: ");
+  out.append(format_hex_pretty(this->custom_preset, this->custom_preset_len));
+  out.append("\n");
   dump_field(out, "has_target_humidity", this->has_target_humidity);
   dump_field(out, "target_humidity", this->target_humidity);
 #ifdef USE_DEVICES
@@ -1417,7 +1461,9 @@ void SelectStateResponse::dump_to(std::string &out) const {
 void SelectCommandRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "SelectCommandRequest");
   dump_field(out, "key", this->key);
-  dump_field(out, "state", this->state);
+  out.append("  state: ");
+  out.append(format_hex_pretty(this->state, this->state_len));
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif

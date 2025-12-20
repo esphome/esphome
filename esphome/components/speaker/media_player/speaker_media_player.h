@@ -5,13 +5,17 @@
 #include "audio_pipeline.h"
 
 #include "esphome/components/audio/audio.h"
-
 #include "esphome/components/media_player/media_player.h"
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/preferences.h"
+
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
 
 #include <deque>
 #include <freertos/FreeRTOS.h>
@@ -39,11 +43,21 @@ struct VolumeRestoreState {
   bool is_muted;
 };
 
-class SpeakerMediaPlayer : public Component, public media_player::MediaPlayer {
+class SpeakerMediaPlayer : public Component,
+                           public media_player::MediaPlayer
+#ifdef USE_OTA_STATE_LISTENER
+    ,
+                           public ota::OTAGlobalStateListener
+#endif
+{
  public:
   float get_setup_priority() const override { return esphome::setup_priority::PROCESSOR; }
   void setup() override;
   void loop() override;
+
+#ifdef USE_OTA_STATE_LISTENER
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
+#endif
 
   // MediaPlayer implementations
   media_player::MediaPlayerTraits get_traits() override;

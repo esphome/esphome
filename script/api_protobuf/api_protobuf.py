@@ -1215,6 +1215,9 @@ class FixedArrayRepeatedType(TypeInfo):
         """Helper to generate encode statement for a single element."""
         if isinstance(self._ti, EnumType):
             return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
+        # MessageType.encode_message doesn't have a force parameter
+        if isinstance(self._ti, MessageType):
+            return f"buffer.{self._ti.encode_func}({self.number}, {element});"
         return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
 
     @property
@@ -1536,6 +1539,15 @@ class RepeatedTypeInfo(TypeInfo):
         # std::vector is specialized for bool, reference does not work
         return isinstance(self._ti, BoolType)
 
+    def _encode_element_call(self, element: str) -> str:
+        """Helper to generate encode call for a single element."""
+        if isinstance(self._ti, EnumType):
+            return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
+        # MessageType.encode_message doesn't have a force parameter
+        if isinstance(self._ti, MessageType):
+            return f"buffer.{self._ti.encode_func}({self.number}, {element});"
+        return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
+
     @property
     def encode_content(self) -> str:
         if self._use_pointer:
@@ -1546,17 +1558,11 @@ class RepeatedTypeInfo(TypeInfo):
                 o += f"  buffer.{self._ti.encode_func}({self.number}, it, strlen(it), true);\n"
             else:
                 o = f"for (const auto &it : *this->{self.field_name}) {{\n"
-                if isinstance(self._ti, EnumType):
-                    o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
-                else:
-                    o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
+                o += f"  {self._encode_element_call('it')}\n"
             o += "}"
             return o
         o = f"for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
-        if isinstance(self._ti, EnumType):
-            o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
-        else:
-            o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
+        o += f"  {self._encode_element_call('it')}\n"
         o += "}"
         return o
 
@@ -2769,8 +2775,8 @@ static const char *const TAG = "api.service";
     cases = list(RECEIVE_CASES.items())
     cases.sort()
     hpp += " protected:\n"
-    hpp += "  void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;\n"
-    out = f"void {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {{\n"
+    hpp += "  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;\n"
+    out = f"void {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {{\n"
     out += "  switch (msg_type) {\n"
     for i, (case, ifdef, message_name) in cases:
         if ifdef is not None:
@@ -2878,9 +2884,9 @@ static const char *const TAG = "api.service";
                     result += "#endif\n"
             return result
 
-        hpp_protected += "  void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;\n"
+        hpp_protected += "  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;\n"
 
-        cpp += f"\nvoid {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {{\n"
+        cpp += f"\nvoid {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {{\n"
         cpp += "  // Check authentication/connection requirements for messages\n"
         cpp += "  switch (msg_type) {\n"
 

@@ -28,11 +28,15 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_STA, true, CYW43_COUNTRY_WORLDWIDE);
     }
   }
+
+  bool ap_state = false;
   if (ap.has_value()) {
     if (ap.value()) {
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, true, CYW43_COUNTRY_WORLDWIDE);
+      ap_state = true;
     }
   }
+  this->ap_started_ = ap_state;
   return true;
 }
 
@@ -50,7 +54,15 @@ bool WiFiComponent::wifi_apply_power_save_() {
       break;
   }
   int ret = cyw43_wifi_pm(&cyw43_state, pm);
-  return ret == 0;
+  bool success = ret == 0;
+#ifdef USE_WIFI_LISTENERS
+  if (success) {
+    for (auto *listener : this->power_save_listeners_) {
+      listener->on_wifi_power_save(this->power_save_);
+    }
+  }
+#endif
+  return success;
 }
 
 // TODO: The driver doesn't seem to have an API for this
@@ -180,7 +192,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   }
 #endif
 
-  WiFi.beginAP(ap.get_ssid().c_str(), ap.get_password().c_str(), ap.get_channel().value_or(1));
+  WiFi.beginAP(ap.get_ssid().c_str(), ap.get_password().c_str(), ap.has_channel() ? ap.get_channel() : 1);
 
   return true;
 }
@@ -225,8 +237,10 @@ void WiFiComponent::wifi_loop_() {
   if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !cyw43_wifi_scan_active(&cyw43_state)) {
     this->scan_done_ = true;
     ESP_LOGV(TAG, "Scan done");
-#ifdef USE_WIFI_CALLBACKS
-    this->wifi_scan_state_callback_.call(this->scan_result_);
+#ifdef USE_WIFI_LISTENERS
+    for (auto *listener : this->scan_results_listeners_) {
+      listener->on_wifi_scan_results(this->scan_result_);
+    }
 #endif
   }
 
@@ -241,16 +255,29 @@ void WiFiComponent::wifi_loop_() {
     // Just connected
     s_sta_was_connected = true;
     ESP_LOGV(TAG, "Connected");
-#ifdef USE_WIFI_CALLBACKS
-    this->wifi_connect_state_callback_.call(this->wifi_ssid(), this->wifi_bssid());
+#ifdef USE_WIFI_LISTENERS
+    for (auto *listener : this->connect_state_listeners_) {
+      listener->on_wifi_connect_state(this->wifi_ssid(), this->wifi_bssid());
+    }
+    // For static IP configurations, notify IP listeners immediately as the IP is already configured
+#ifdef USE_WIFI_MANUAL_IP
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+      s_sta_had_ip = true;
+      for (auto *listener : this->ip_state_listeners_) {
+        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+      }
+    }
+#endif
 #endif
   } else if (!is_connected && s_sta_was_connected) {
     // Just disconnected
     s_sta_was_connected = false;
     s_sta_had_ip = false;
     ESP_LOGV(TAG, "Disconnected");
-#ifdef USE_WIFI_CALLBACKS
-    this->wifi_connect_state_callback_.call("", bssid_t({0, 0, 0, 0, 0, 0}));
+#ifdef USE_WIFI_LISTENERS
+    for (auto *listener : this->connect_state_listeners_) {
+      listener->on_wifi_connect_state("", bssid_t({0, 0, 0, 0, 0, 0}));
+    }
 #endif
   }
 
@@ -267,8 +294,10 @@ void WiFiComponent::wifi_loop_() {
       // Just got IP address
       s_sta_had_ip = true;
       ESP_LOGV(TAG, "Got IP address");
-#ifdef USE_WIFI_CALLBACKS
-      this->ip_state_callback_.call(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+#ifdef USE_WIFI_LISTENERS
+      for (auto *listener : this->ip_state_listeners_) {
+        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+      }
 #endif
     }
   }
