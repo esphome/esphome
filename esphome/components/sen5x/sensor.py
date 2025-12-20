@@ -425,17 +425,15 @@ async def to_code(config):
             )
         )
     if cfg := config.get(CONF_TEMPERATURE_COMPENSATION):
-        slot = 0
-        for slot in range(0, len(cfg)):
+        for slot, num in enumerate(cfg):
             cg.add(
                 var.set_temperature_compensation(
-                    slot,
-                    cfg[slot][CONF_OFFSET],
-                    cfg[slot][CONF_NORMALIZED_OFFSET_SLOPE],
-                    cfg[slot][CONF_TIME_CONSTANT],
+                    num,
+                    slot[CONF_OFFSET],
+                    slot[CONF_NORMALIZED_OFFSET_SLOPE],
+                    slot[CONF_TIME_CONSTANT],
                 )
             )
-            slot += 1
     if cfg := config.get(CONF_TEMPERATURE_ACCELERATION):
         cg.add(
             var.set_temperature_acceleration(
