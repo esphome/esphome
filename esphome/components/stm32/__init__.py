@@ -70,6 +70,10 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 @coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
+
+    zephyr_add_prj_conf("CPP", True)
+    zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+
     zephyr_add_prj_conf("CONFIG_SERIAL", True)
     zephyr_add_prj_conf("UART_CONSOLE", True)
     zephyr_add_prj_conf("CONSOLE", True)
