@@ -1,4 +1,7 @@
 #include "zwave_proxy.h"
+
+#ifdef USE_API
+
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -344,3 +347,5 @@ bool ZWaveProxy::response_handler_() {
 ZWaveProxy *global_zwave_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::zwave_proxy
+
+#endif  // USE_API
