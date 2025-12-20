@@ -124,12 +124,12 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #endif
 #ifdef USE_DEVICES
   for (const auto &it : this->devices) {
-    buffer.encode_message(20, it, true);
+    buffer.encode_message(20, it);
   }
 #endif
 #ifdef USE_AREAS
   for (const auto &it : this->areas) {
-    buffer.encode_message(21, it, true);
+    buffer.encode_message(21, it);
   }
 #endif
 #ifdef USE_AREAS
@@ -447,9 +447,12 @@ bool FanCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool FanCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 13:
-      this->preset_mode = value.as_string();
+    case 13: {
+      // Use raw data directly to avoid allocation
+      this->preset_mode = value.data();
+      this->preset_mode_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -878,13 +881,13 @@ void HomeassistantServiceMap::calculate_size(ProtoSize &size) const {
 void HomeassistantActionRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->service_ref_);
   for (auto &it : this->data) {
-    buffer.encode_message(2, it, true);
+    buffer.encode_message(2, it);
   }
   for (auto &it : this->data_template) {
-    buffer.encode_message(3, it, true);
+    buffer.encode_message(3, it);
   }
   for (auto &it : this->variables) {
-    buffer.encode_message(4, it, true);
+    buffer.encode_message(4, it);
   }
   buffer.encode_bool(5, this->is_event);
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -1011,7 +1014,7 @@ void ListEntitiesServicesResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->name_ref_);
   buffer.encode_fixed32(2, this->key);
   for (auto &it : this->args) {
-    buffer.encode_message(3, it, true);
+    buffer.encode_message(3, it);
   }
   buffer.encode_uint32(4, static_cast<uint32_t>(this->supports_response));
 }
@@ -1392,12 +1395,18 @@ bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
 }
 bool ClimateCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 17:
-      this->custom_fan_mode = value.as_string();
+    case 17: {
+      // Use raw data directly to avoid allocation
+      this->custom_fan_mode = value.data();
+      this->custom_fan_mode_len = value.size();
       break;
-    case 21:
-      this->custom_preset = value.as_string();
+    }
+    case 21: {
+      // Use raw data directly to avoid allocation
+      this->custom_preset = value.data();
+      this->custom_preset_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -1867,7 +1876,7 @@ void ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
   buffer.encode_bool(8, this->supports_pause);
   for (auto &it : this->supported_formats) {
-    buffer.encode_message(9, it, true);
+    buffer.encode_message(9, it);
   }
 #ifdef USE_DEVICES
   buffer.encode_uint32(10, this->device_id);
@@ -1987,7 +1996,7 @@ void BluetoothLERawAdvertisement::calculate_size(ProtoSize &size) const {
 }
 void BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer buffer) const {
   for (uint16_t i = 0; i < this->advertisements_len; i++) {
-    buffer.encode_message(1, this->advertisements[i], true);
+    buffer.encode_message(1, this->advertisements[i]);
   }
 }
 void BluetoothLERawAdvertisementsResponse::calculate_size(ProtoSize &size) const {
@@ -2060,7 +2069,7 @@ void BluetoothGATTCharacteristic::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(2, this->handle);
   buffer.encode_uint32(3, this->properties);
   for (auto &it : this->descriptors) {
-    buffer.encode_message(4, it, true);
+    buffer.encode_message(4, it);
   }
   buffer.encode_uint32(5, this->short_uuid);
 }
@@ -2081,7 +2090,7 @@ void BluetoothGATTService::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_uint32(2, this->handle);
   for (auto &it : this->characteristics) {
-    buffer.encode_message(3, it, true);
+    buffer.encode_message(3, it);
   }
   buffer.encode_uint32(4, this->short_uuid);
 }
@@ -2097,7 +2106,7 @@ void BluetoothGATTService::calculate_size(ProtoSize &size) const {
 void BluetoothGATTGetServicesResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint64(1, this->address);
   for (auto &it : this->services) {
-    buffer.encode_message(2, it, true);
+    buffer.encode_message(2, it);
   }
 }
 void BluetoothGATTGetServicesResponse::calculate_size(ProtoSize &size) const {
@@ -2557,7 +2566,7 @@ bool VoiceAssistantConfigurationRequest::decode_length(uint32_t field_id, ProtoL
 }
 void VoiceAssistantConfigurationResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->available_wake_words) {
-    buffer.encode_message(1, it, true);
+    buffer.encode_message(1, it);
   }
   for (const auto &it : *this->active_wake_words) {
     buffer.encode_string(2, it, true);
