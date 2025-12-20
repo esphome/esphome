@@ -279,14 +279,30 @@ async def test_alarm_control_panel_state_transitions(
         except TimeoutError:
             pytest.fail(f"on_chime callback not fired. Log lines: {log_lines[-20:]}")
 
-        # Close the chime sensor
+        # Close the chime sensor and wait for alarm to become ready again
+        # We need to wait for this transition before testing door sensor,
+        # otherwise there's a race where the door sensor state change could
+        # arrive before the chime sensor state change, leaving the alarm in
+        # a continuous "not ready" state with no on_ready callback fired.
+        ready_after_chime_close: asyncio.Future[bool] = loop.create_future()
+        ready_futures.append(ready_after_chime_close)
+
         client.switch_command(chime_switch_info.key, False)
 
-        # ===== Test ready state changes =====
-        # Opening/closing sensors while disarmed affects ready state
-        # The on_ready callback fires when sensors_ready changes
+        # Wait for alarm to become ready again (chime sensor closed)
+        try:
+            await asyncio.wait_for(ready_after_chime_close, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"on_ready callback not fired when chime sensor closed. "
+                f"Log lines: {log_lines[-20:]}"
+            )
 
-        # Set up futures for ready state changes
+        # ===== Test ready state changes =====
+        # Now the alarm is confirmed ready. Opening/closing door sensor
+        # should trigger on_ready callbacks.
+
+        # Set up futures for door sensor state changes
         ready_future_1: asyncio.Future[bool] = loop.create_future()
         ready_future_2: asyncio.Future[bool] = loop.create_future()
         ready_futures.extend([ready_future_1, ready_future_2])
