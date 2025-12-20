@@ -210,6 +210,10 @@ void ESP32Camera::loop() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGV(TAG, "Got Image: len=%u", fb->len);
 #else
+  // Initialize log time on first frame to ensure accurate interval measurement
+  if (this->frame_count_ == 0) {
+    this->last_log_time_ = now;
+  }
   this->frame_count_++;
   if (now - this->last_log_time_ >= FRAME_LOG_INTERVAL_MS) {
     ESP_LOGD(TAG, "Received %u images in last 60s", this->frame_count_);
