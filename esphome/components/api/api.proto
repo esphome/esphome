@@ -824,9 +824,9 @@ message HomeAssistantStateResponse {
   option (no_delay) = true;
   option (ifdef) = "USE_API_HOMEASSISTANT_STATES";
 
-  string entity_id = 1;
-  string state = 2;
-  string attribute = 3;
+  string entity_id = 1 [(pointer_to_buffer) = true];
+  string state = 2 [(pointer_to_buffer) = true];
+  string attribute = 3 [(pointer_to_buffer) = true];
 }
 
 // ==================== IMPORT TIME ====================
