@@ -65,7 +65,7 @@ CONFIG_SCHEMA = (
 
 
 def final_validate(config):
-    # TX is required if config_panel is enabled
+    # TX is required if config_panel is enabled (send_command action requires config_panel)
     require_tx = config.get(CONF_CONFIG_PANEL, False)
 
     # Validate UART settings

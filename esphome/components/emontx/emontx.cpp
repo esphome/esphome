@@ -30,7 +30,9 @@ void EmonTx::setup() {
   state_ = OFF;
 
   // Pre-allocate buffer to maximum size to prevent reallocation overhead
-  // during JSON message collection
+  // during JSON message collection.
+  // 198 bytes should be enough to contain a full session in historical mode with
+  // three phases. But go with 1024 just to be sure.
   this->buffer_.reserve(1024);
 
   ESP_LOGCONFIG(TAG, "Setting up EmonTx component");
@@ -77,69 +79,6 @@ void EmonTx::update() {
   } else {
     ESP_LOGV(TAG, "EmonTx already active (state: %d)", state_);
   }
-}
-
-/**
- * @brief Reads characters from UART until a specific target character is found.
- *
- * @details This method is used by the JSON parsing state machine to extract complete JSON objects.
- * It operates in two modes controlled by the drop parameter:
- * - When drop=true: Discards all characters except the target (used to find the opening brace)
- * - When drop=false: Collects all characters until the target is found (used to collect JSON content)
- *
- * The method enforces the EmonTx protocol requirement that JSON messages must not contain
- * newline characters within the message body. The EmonTx device sends compact JSON without
- * newlines, so any newline encountered indicates a protocol error or message boundary.
- * It processes up to 512 bytes per loop() iteration to maintain system responsiveness.
- *
- * @param drop If true, discard all characters except the target character.
- * @param c The target character to look for.
- * @return true If the target character was found.
- * @return false If an error occurred (newline in JSON, buffer overflow) or target not found yet.
- */
-bool EmonTx::read_chars_until_(bool drop, uint8_t c) {
-  uint8_t received;
-  uint16_t bytes_read = 0;
-
-  // Process up to 512 bytes per iteration to maintain system responsiveness
-  // while allowing large JSON messages to be collected across multiple loop() calls
-  while (available() > 0 && bytes_read < 512) {
-    bytes_read++;
-    received = read();
-
-    if (drop && received != c)
-      continue;
-
-    // If we're collecting JSON data (not dropping) and receive a newline,
-    // this indicates a protocol error or message boundary - discard the buffer
-    if (!drop && (received == '\r' || received == '\n')) {
-      ESP_LOGW(TAG, "Newline found within JSON data, discarding buffer");
-      buffer_.clear();
-      state_ = WAITING_FOR_START;
-      return false;
-    }
-
-    // Prevent buffer overflow
-    if (buffer_.length() >= 1024) {
-      ESP_LOGW(TAG, "Buffer overflow (>1024 bytes), discarding buffer");
-      buffer_.clear();
-      state_ = WAITING_FOR_START;
-      return false;
-    }
-
-    buffer_ += received;
-
-    if (received == c) {
-      return true;
-    }
-  }
-
-  // Log if we hit the per-iteration limit with more data available
-  if (bytes_read >= 512 && available() > 0) {
-    ESP_LOGV(TAG, "Reached per-iteration read limit (512 bytes), will continue in next loop()");
-  }
-
-  return false;
 }
 
 /**

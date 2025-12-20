@@ -27,10 +27,6 @@ using EmonTxJsonCallback = std::function<void(JsonObject, const std::string &)>;
 // Forward declaration
 class EmonTx;
 
-/*
- * 198 bytes should be enough to contain a full session in historical mode with
- * three phases. But go with 1024 just to be sure.
- */
 /**
  * @class EmonTxListener
  * @brief Listener interface for receiving updates from the EmonTx.
@@ -96,12 +92,8 @@ class EmonTx : public PollingComponent,
 
   enum ParseState {
     OFF,
-    WAITING_FOR_START,  // Waiting for '{' character
-    COLLECTING_JSON,    // Collecting characters until '}'
-    JSON_COLLECTED,     // Waiting for '\r' or '\n' after JSON
+    WAITING_FOR_START,
   } state_{OFF};
-
-  bool read_chars_until_(bool drop, uint8_t c);
 
   void parse_json_(const std::string &data);
   void publish_value_(const std::string &tag, const std::string &val);
