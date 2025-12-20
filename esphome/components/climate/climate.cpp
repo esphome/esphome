@@ -2,6 +2,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/macros.h"
+#include <strings.h>
 
 namespace esphome::climate {
 
@@ -190,23 +191,29 @@ ClimateCall &ClimateCall::set_fan_mode(ClimateFanMode fan_mode) {
 }
 
 ClimateCall &ClimateCall::set_fan_mode(const char *custom_fan_mode) {
+  return this->set_fan_mode(custom_fan_mode, strlen(custom_fan_mode));
+}
+
+ClimateCall &ClimateCall::set_fan_mode(const std::string &fan_mode) {
+  return this->set_fan_mode(fan_mode.data(), fan_mode.size());
+}
+
+ClimateCall &ClimateCall::set_fan_mode(const char *custom_fan_mode, size_t len) {
   // Check if it's a standard enum mode first
   for (const auto &mode_entry : CLIMATE_FAN_MODES_BY_STR) {
-    if (str_equals_case_insensitive(custom_fan_mode, mode_entry.str)) {
+    if (strncasecmp(custom_fan_mode, mode_entry.str, len) == 0 && mode_entry.str[len] == '\0') {
       return this->set_fan_mode(static_cast<ClimateFanMode>(mode_entry.value));
     }
   }
   // Find the matching pointer from parent climate device
-  if (const char *mode_ptr = this->parent_->find_custom_fan_mode_(custom_fan_mode)) {
+  if (const char *mode_ptr = this->parent_->find_custom_fan_mode_(custom_fan_mode, len)) {
     this->custom_fan_mode_ = mode_ptr;
     this->fan_mode_.reset();
     return *this;
   }
-  ESP_LOGW(TAG, "'%s' - Unrecognized fan mode %s", this->parent_->get_name().c_str(), custom_fan_mode);
+  ESP_LOGW(TAG, "'%s' - Unrecognized fan mode %.*s", this->parent_->get_name().c_str(), (int) len, custom_fan_mode);
   return *this;
 }
-
-ClimateCall &ClimateCall::set_fan_mode(const std::string &fan_mode) { return this->set_fan_mode(fan_mode.c_str()); }
 
 ClimateCall &ClimateCall::set_fan_mode(optional<std::string> fan_mode) {
   if (fan_mode.has_value()) {
@@ -222,23 +229,29 @@ ClimateCall &ClimateCall::set_preset(ClimatePreset preset) {
 }
 
 ClimateCall &ClimateCall::set_preset(const char *custom_preset) {
+  return this->set_preset(custom_preset, strlen(custom_preset));
+}
+
+ClimateCall &ClimateCall::set_preset(const std::string &preset) {
+  return this->set_preset(preset.data(), preset.size());
+}
+
+ClimateCall &ClimateCall::set_preset(const char *custom_preset, size_t len) {
   // Check if it's a standard enum preset first
   for (const auto &preset_entry : CLIMATE_PRESETS_BY_STR) {
-    if (str_equals_case_insensitive(custom_preset, preset_entry.str)) {
+    if (strncasecmp(custom_preset, preset_entry.str, len) == 0 && preset_entry.str[len] == '\0') {
       return this->set_preset(static_cast<ClimatePreset>(preset_entry.value));
     }
   }
   // Find the matching pointer from parent climate device
-  if (const char *preset_ptr = this->parent_->find_custom_preset_(custom_preset)) {
+  if (const char *preset_ptr = this->parent_->find_custom_preset_(custom_preset, len)) {
     this->custom_preset_ = preset_ptr;
     this->preset_.reset();
     return *this;
   }
-  ESP_LOGW(TAG, "'%s' - Unrecognized preset %s", this->parent_->get_name().c_str(), custom_preset);
+  ESP_LOGW(TAG, "'%s' - Unrecognized preset %.*s", this->parent_->get_name().c_str(), (int) len, custom_preset);
   return *this;
 }
-
-ClimateCall &ClimateCall::set_preset(const std::string &preset) { return this->set_preset(preset.c_str()); }
 
 ClimateCall &ClimateCall::set_preset(optional<std::string> preset) {
   if (preset.has_value()) {
@@ -688,11 +701,19 @@ bool Climate::set_custom_preset_(const char *preset) {
 void Climate::clear_custom_preset_() { this->custom_preset_ = nullptr; }
 
 const char *Climate::find_custom_fan_mode_(const char *custom_fan_mode) {
-  return this->get_traits().find_custom_fan_mode_(custom_fan_mode);
+  return this->find_custom_fan_mode_(custom_fan_mode, strlen(custom_fan_mode));
+}
+
+const char *Climate::find_custom_fan_mode_(const char *custom_fan_mode, size_t len) {
+  return this->get_traits().find_custom_fan_mode_(custom_fan_mode, len);
 }
 
 const char *Climate::find_custom_preset_(const char *custom_preset) {
-  return this->get_traits().find_custom_preset_(custom_preset);
+  return this->find_custom_preset_(custom_preset, strlen(custom_preset));
+}
+
+const char *Climate::find_custom_preset_(const char *custom_preset, size_t len) {
+  return this->get_traits().find_custom_preset_(custom_preset, len);
 }
 
 void Climate::dump_traits_(const char *tag) {

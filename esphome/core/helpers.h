@@ -388,12 +388,20 @@ constexpr uint32_t FNV1_OFFSET_BASIS = 2166136261UL;
 constexpr uint32_t FNV1_PRIME = 16777619UL;
 
 /// Extend a FNV-1a hash with additional string data.
-uint32_t fnv1a_hash_extend(uint32_t hash, const char *str);
+constexpr uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
+  if (str) {
+    while (*str) {
+      hash ^= *str++;
+      hash *= FNV1_PRIME;
+    }
+  }
+  return hash;
+}
 inline uint32_t fnv1a_hash_extend(uint32_t hash, const std::string &str) {
   return fnv1a_hash_extend(hash, str.c_str());
 }
 /// Calculate a FNV-1a hash of \p str.
-inline uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
+constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
 inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }
 
 /// Return a random 32-bit unsigned integer.
@@ -924,6 +932,50 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
 
  protected:
   std::vector<std::function<void(Ts...)>> callbacks_;
+};
+
+template<typename... X> class LazyCallbackManager;
+
+/** Lazy-allocating callback manager that only allocates memory when callbacks are registered.
+ *
+ * This is a drop-in replacement for CallbackManager that saves memory when no callbacks
+ * are registered (common case after the Controller Registry eliminated per-entity callbacks
+ * from API and web_server components).
+ *
+ * Memory overhead comparison (32-bit systems):
+ * - CallbackManager: 12 bytes (empty std::vector)
+ * - LazyCallbackManager: 4 bytes (nullptr unique_ptr)
+ *
+ * @tparam Ts The arguments for the callbacks, wrapped in void().
+ */
+template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
+ public:
+  /// Add a callback to the list. Allocates the underlying CallbackManager on first use.
+  void add(std::function<void(Ts...)> &&callback) {
+    if (!this->callbacks_) {
+      this->callbacks_ = make_unique<CallbackManager<void(Ts...)>>();
+    }
+    this->callbacks_->add(std::move(callback));
+  }
+
+  /// Call all callbacks in this manager. No-op if no callbacks registered.
+  void call(Ts... args) {
+    if (this->callbacks_) {
+      this->callbacks_->call(args...);
+    }
+  }
+
+  /// Return the number of registered callbacks.
+  size_t size() const { return this->callbacks_ ? this->callbacks_->size() : 0; }
+
+  /// Check if any callbacks are registered.
+  bool empty() const { return !this->callbacks_ || this->callbacks_->size() == 0; }
+
+  /// Call all callbacks in this manager.
+  void operator()(Ts... args) { this->call(args...); }
+
+ protected:
+  std::unique_ptr<CallbackManager<void(Ts...)>> callbacks_;
 };
 
 /// Helper class to deduplicate items in a series of values.
