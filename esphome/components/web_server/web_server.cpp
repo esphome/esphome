@@ -406,7 +406,7 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, JsonDetail start_config) {
   char id_buf[160];  // prefix + dash + object_id (up to 128) + null
   size_t len = strlen(prefix);
-  memcpy(id_buf, prefix, len);
+  memcpy(id_buf, prefix, len);  // NOLINT(bugprone-not-null-terminated-result) - null added by write_object_id_to
   id_buf[len++] = '-';
   obj->write_object_id_to(id_buf + len, sizeof(id_buf) - len);
   root[ESPHOME_F("id")] = id_buf;
