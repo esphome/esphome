@@ -50,7 +50,7 @@ class Event : public EntityBase, public EntityBase_DeviceClass {
   void add_on_event_callback(std::function<void(const std::string &event_type)> &&callback);
 
  protected:
-  CallbackManager<void(const std::string &event_type)> event_callback_;
+  LazyCallbackManager<void(const std::string &event_type)> event_callback_;
   FixedVector<const char *> types_;
 
  private:
