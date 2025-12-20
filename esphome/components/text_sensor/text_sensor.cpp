@@ -30,9 +30,7 @@ void TextSensor::publish_state(const std::string &state) {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   this->raw_state = state;
 #pragma GCC diagnostic pop
-
-  // Call raw callbacks (before filters)
-  this->callbacks_.call_first(this->raw_count_, state);
+  this->raw_callback_.call(state);
 
   ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), state.c_str());
 
@@ -74,11 +72,10 @@ void TextSensor::clear_filters() {
 }
 
 void TextSensor::add_on_state_callback(std::function<void(const std::string &)> callback) {
-  this->callbacks_.add_second(std::move(callback));
+  this->callback_.add(std::move(callback));
 }
-
 void TextSensor::add_on_raw_state_callback(std::function<void(const std::string &)> callback) {
-  this->callbacks_.add_first(std::move(callback), &this->raw_count_);
+  this->raw_callback_.add(std::move(callback));
 }
 
 std::string TextSensor::get_state() const { return this->state; }
@@ -93,10 +90,7 @@ void TextSensor::internal_send_state_to_frontend(const std::string &state) {
   this->state = state;
   this->set_has_state(true);
   ESP_LOGD(TAG, "'%s': Sending state '%s'", this->name_.c_str(), state.c_str());
-
-  // Call filtered callbacks (after filters)
-  this->callbacks_.call_second(this->raw_count_, state);
-
+  this->callback_.call(state);
 #if defined(USE_TEXT_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_text_sensor_update(this);
 #endif
