@@ -784,7 +784,7 @@ class FanStateResponse final : public StateResponseProtoMessage {
 class FanCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 31;
-  static constexpr uint8_t ESTIMATED_SIZE = 38;
+  static constexpr uint8_t ESTIMATED_SIZE = 48;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "fan_command_request"; }
 #endif
@@ -797,7 +797,8 @@ class FanCommandRequest final : public CommandProtoMessage {
   bool has_speed_level{false};
   int32_t speed_level{0};
   bool has_preset_mode{false};
-  std::string preset_mode{};
+  const uint8_t *preset_mode{nullptr};
+  uint16_t preset_mode_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1072,11 +1073,12 @@ class SubscribeLogsResponse final : public ProtoMessage {
 class NoiseEncryptionSetKeyRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 124;
-  static constexpr uint8_t ESTIMATED_SIZE = 9;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "noise_encryption_set_key_request"; }
 #endif
-  std::string key{};
+  const uint8_t *key{nullptr};
+  uint16_t key_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1494,7 +1496,7 @@ class ClimateStateResponse final : public StateResponseProtoMessage {
 class ClimateCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 48;
-  static constexpr uint8_t ESTIMATED_SIZE = 84;
+  static constexpr uint8_t ESTIMATED_SIZE = 104;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "climate_command_request"; }
 #endif
@@ -1511,11 +1513,13 @@ class ClimateCommandRequest final : public CommandProtoMessage {
   bool has_swing_mode{false};
   enums::ClimateSwingMode swing_mode{};
   bool has_custom_fan_mode{false};
-  std::string custom_fan_mode{};
+  const uint8_t *custom_fan_mode{nullptr};
+  uint16_t custom_fan_mode_len{0};
   bool has_preset{false};
   enums::ClimatePreset preset{};
   bool has_custom_preset{false};
-  std::string custom_preset{};
+  const uint8_t *custom_preset{nullptr};
+  uint16_t custom_preset_len{0};
   bool has_target_humidity{false};
   float target_humidity{0.0f};
 #ifdef HAS_PROTO_MESSAGE_DUMP

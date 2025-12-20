@@ -447,9 +447,12 @@ bool FanCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool FanCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 13:
-      this->preset_mode = value.as_string();
+    case 13: {
+      // Use raw data directly to avoid allocation
+      this->preset_mode = value.data();
+      this->preset_mode_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -855,9 +858,12 @@ void SubscribeLogsResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_API_NOISE
 bool NoiseEncryptionSetKeyRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->key = value.as_string();
+    case 1: {
+      // Use raw data directly to avoid allocation
+      this->key = value.data();
+      this->key_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -1392,12 +1398,18 @@ bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
 }
 bool ClimateCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 17:
-      this->custom_fan_mode = value.as_string();
+    case 17: {
+      // Use raw data directly to avoid allocation
+      this->custom_fan_mode = value.data();
+      this->custom_fan_mode_len = value.size();
       break;
-    case 21:
-      this->custom_preset = value.as_string();
+    }
+    case 21: {
+      // Use raw data directly to avoid allocation
+      this->custom_preset = value.data();
+      this->custom_preset_len = value.size();
       break;
+    }
     default:
       return false;
   }
