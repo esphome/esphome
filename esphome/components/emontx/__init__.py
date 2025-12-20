@@ -30,14 +30,6 @@ CONF_ON_JSON = "on_json"
 CONF_ON_DATA = "on_data"
 CONF_CONFIG_PANEL = "config_panel"
 
-EMONTX_LISTENER_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(CONF_EMONTX_ID): cv.use_id(EmonTx),
-        cv.Required(CONF_TAG_NAME): cv.string,
-    }
-)
-
-
 # Main configuration schema
 CONFIG_SCHEMA = (
     cv.Schema(
