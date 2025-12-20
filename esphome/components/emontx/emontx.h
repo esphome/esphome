@@ -15,7 +15,6 @@
 #include "esphome/components/sensor/sensor.h"
 #endif
 
-#include <map>
 #include <vector>
 
 namespace esphome {
@@ -24,28 +23,12 @@ namespace emontx {
 // Add callback type definition for JSON callbacks
 using EmonTxJsonCallback = std::function<void(JsonObject, const std::string &)>;
 
-// Forward declaration
-class EmonTx;
-
-/**
- * @class EmonTxListener
- * @brief Listener interface for receiving updates from the EmonTx.
- *
- * This class allows other components to register as listeners to receive updates
- * for specific tags published by the EmonTx.
- */
-class EmonTxListener {
- public:
-  std::string tag;
-  virtual void publish_val(const std::string &val){};
-};
-
 /**
  * @class EmonTx
  * @brief Main class for the EmonTx component.
  *
  * The EmonTx processes incoming data frames via UART,
- * extracts tags and values, and publishes them to registered listeners.
+ * extracts tags and values, and publishes them to registered sensors.
  */
 class EmonTx : public PollingComponent,
                public uart::UARTDevice
@@ -57,12 +40,10 @@ class EmonTx : public PollingComponent,
  public:
   EmonTx() = default;
 
-  void register_emontx_listener(EmonTxListener *listener);
   void loop() override;
   void setup() override;
   void update() override;
   void dump_config() override;
-  std::vector<EmonTxListener *> emontx_listeners_{};
 
   // Add method to register JSON callbacks
   void add_on_json_callback(const EmonTxJsonCallback &callback) { this->json_callbacks_.push_back(callback); }
@@ -73,9 +54,6 @@ class EmonTx : public PollingComponent,
 
   // Send command to emonTx via UART
   void send_command(std::string command);
-
-  // Wrapper for service registration (uses std::string by value, not reference!)
-  void send_command_service(std::string command) { this->send_command(command); }
 
   // Enable/disable config panel (auto-fires esphome.emontx_raw events)
   void set_config_panel(bool enabled) { this->config_panel_ = enabled; }
@@ -90,13 +68,13 @@ class EmonTx : public PollingComponent,
 #endif
   std::string buffer_;
 
-  enum ParseState {
+  enum class ParseState {
     OFF,
     WAITING_FOR_START,
-  } state_{OFF};
+  };
+  ParseState state_{ParseState::OFF};
 
   void parse_json_(const std::string &data);
-  void publish_value_(const std::string &tag, const std::string &val);
 
   // Add storage for JSON callbacks
   std::vector<EmonTxJsonCallback> json_callbacks_{};

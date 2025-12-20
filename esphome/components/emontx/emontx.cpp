@@ -27,7 +27,7 @@ static const char *const TAG = "emontx";
  * process any incoming data.
  */
 void EmonTx::setup() {
-  state_ = OFF;
+  state_ = ParseState::OFF;
 
   // Pre-allocate buffer to maximum size to prevent reallocation overhead
   // during JSON message collection.
@@ -40,7 +40,7 @@ void EmonTx::setup() {
 #ifdef USE_API
   // Auto-register send_command service when config_panel is enabled
   if (this->config_panel_) {
-    this->register_service(&EmonTx::send_command_service, "send_command", {"command"});
+    this->register_service(&EmonTx::send_command, "send_command", {"command"});
     ESP_LOGCONFIG(TAG, "Registered send_command service");
   }
 #endif
@@ -72,12 +72,12 @@ void EmonTx::setup() {
 void EmonTx::update() {
   ESP_LOGD(TAG, "Updating EmonTx state...");
 
-  if (state_ == OFF) {
+  if (state_ == ParseState::OFF) {
     buffer_.clear();  // Clear the buffer for new data
-    state_ = WAITING_FOR_START;
+    state_ = ParseState::WAITING_FOR_START;
     ESP_LOGD(TAG, "EmonTx activated and ready to receive data.");
   } else {
-    ESP_LOGV(TAG, "EmonTx already active (state: %d)", state_);
+    ESP_LOGV(TAG, "EmonTx already active (state: %d)", static_cast<int>(state_));
   }
 }
 
@@ -97,7 +97,7 @@ void EmonTx::update() {
  * arrive in quick succession between polling intervals.
  */
 void EmonTx::loop() {
-  if (state_ == OFF) {
+  if (state_ == ParseState::OFF) {
     return;
   }
 
@@ -171,14 +171,13 @@ void EmonTx::loop() {
 }
 
 /**
- * @brief Parses a JSON string and updates associated sensors and listeners.
+ * @brief Parses a JSON string and updates associated sensors.
  *
  * @details This method takes a string containing JSON data and attempts to parse it.
  * If parsing is successful, it performs the following operations:
  * 1. Updates all registered sensors that have matching keys in the JSON
- * 2. Updates all registered listeners with their corresponding values
- * 3. Stores the successfully parsed JSON string for use in callbacks
- * 4. Executes all registered JSON callbacks, passing the parsed JsonObject
+ * 2. Fires Home Assistant events with the received data (when enabled)
+ * 3. Executes all registered JSON callbacks, passing the parsed JsonObject
  *
  * The method handles both sensor updates and general-purpose callbacks, allowing
  * the component to integrate with multiple parts of the ESPHome system.
@@ -187,7 +186,6 @@ void EmonTx::loop() {
  */
 void EmonTx::parse_json_(const std::string &data) {
   ESP_LOGV(TAG, "Parsing JSON: %s", data.c_str());
-  ESP_LOGV(TAG, "Listener list contains '%d' items", (int) this->emontx_listeners_.size());
 
   bool success = json::parse_json(data, [this, &data](JsonObject root) {
 #ifdef USE_SENSOR
@@ -203,18 +201,6 @@ void EmonTx::parse_json_(const std::string &data) {
       }
     }
 #endif
-
-    // Also update all listeners
-    ESP_LOGV(TAG, "Listener list contains '%d' items", (int) this->emontx_listeners_.size());
-    for (auto *listener : this->emontx_listeners_) {
-      if (root[listener->tag].is<JsonVariant>()) {
-        const auto value = root[listener->tag].as<std::string>();
-
-        ESP_LOGD(TAG, "  Publish to listener '%s' with value '%s'", listener->tag.c_str(), value.c_str());
-
-        listener->publish_val(value);
-      }
-    }
 
 #ifdef USE_API_HOMEASSISTANT_SERVICES
     // Fire Home Assistant event with the received data
@@ -277,36 +263,9 @@ void EmonTx::dump_config() {
 }
 
 /**
- * @brief Publishes a value to all registered listeners that match the given tag.
+ * @brief Sends a command string to the emonTx device via UART.
  *
- * @details This method iterates through all registered EmonTx listeners and forwards
- * the provided value to any listener whose tag matches the specified tag parameter.
- * This internal helper method is used to distribute received data to the appropriate
- * components within the ESPHome system.
- *
- * @param tag The tag identifier to match against registered listeners.
- * @param val The string value to publish to matching listeners.
- */
-void EmonTx::publish_value_(const std::string &tag, const std::string &val) {
-  for (auto *element : emontx_listeners_) {
-    if (tag != element->tag)
-      continue;
-    element->publish_val(val);
-  }
-}
-
-/**
- * @brief Registers a listener to receive updates for specific JSON data tags.
- *
- * @details This method adds the provided listener to the internal list of EmonTx listeners.
- * When JSON data is received and successfully parsed, any listener whose tag matches
- * a key in the JSON will receive the corresponding value through its publish_val() method.
- *
- * This registration mechanism allows other ESPHome components to subscribe to specific
- * data points from the EmonTx JSON stream without having to implement their own parsing logic.
- *
- * @param listener Pointer to the listener object to register. The listener must have a 'tag'
- *                 property that identifies which JSON key it's interested in.
+ * @param command The command string to send (CR+LF will be appended automatically).
  */
 void EmonTx::send_command(std::string command) {
   ESP_LOGD(TAG, "Sending command to emonTx: %s", command.c_str());
@@ -316,8 +275,12 @@ void EmonTx::send_command(std::string command) {
 }
 
 #ifdef USE_SENSOR
-void EmonTx::register_emontx_listener(EmonTxListener *listener) { emontx_listeners_.push_back(listener); }
-
+/**
+ * @brief Registers a sensor to receive updates for a specific JSON tag.
+ *
+ * @param tag_name The JSON key to monitor for this sensor.
+ * @param sensor Pointer to the sensor that will receive value updates.
+ */
 void EmonTx::register_sensor(const std::string &tag_name, sensor::Sensor *sensor) {
   ESP_LOGCONFIG(TAG, "Registering sensor for tag: %s", tag_name.c_str());
   this->sensors_.emplace_back(tag_name, sensor);
