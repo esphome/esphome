@@ -4,6 +4,7 @@
 #include "esphome/core/hal.h"
 #include <zephyr/sys/math_extras.h>
 #include <zephyr/usb/usb_device.h>
+#include <zephyr/dfu/mcuboot.h>
 
 // It should be from below header but there is problem with internal includes.
 // #include <zephyr/mgmt/mcumgr/grp/img_mgmt/img_mgmt.h>
@@ -54,18 +55,21 @@ void OTAComponent::setup() {
   img_mgmt_callback_.callback = mcumgr_img_mgmt_cb;
   img_mgmt_callback_.event_id = MGMT_EVT_OP_IMG_MGMT_ALL;
   mgmt_callback_register(&img_mgmt_callback_);
+#ifdef COFNIG_USB_DEVICE_STACK
   if (cdc_uart_) {
     usb_enable(NULL);
   }
+#endif
 // Handle OTA rollback: mark partition valid immediately unless USE_OTA_ROLLBACK is enabled,
 // in which case safe_mode will mark it valid after confirming successful boot.
 #ifndef USE_OTA_ROLLBACK
-  if (boot_is_img_confirmed()) {
+  if (!boot_is_img_confirmed()) {
     boot_write_img_confirmed();
   }
 #endif
 }
 
+#ifdef ESPHOME_LOG_HAS_CONFIG
 static const char *swap_type_str(uint8_t type) {
   switch (type) {
     case BOOT_SWAP_TYPE_NONE:
@@ -82,6 +86,7 @@ static const char *swap_type_str(uint8_t type) {
 
   return "unknown";
 }
+#endif
 
 void OTAComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Over-The-Air Updates:");

@@ -10,7 +10,9 @@
 #include <cstdio>
 
 #ifdef USE_OTA_ROLLBACK
-#ifndef USE_ZEPHYR
+#ifdef USE_ZEPHYR
+#include <zephyr/dfu/mcuboot.h>
+#else
 #include <esp_ota_ops.h>
 #endif
 #endif
@@ -61,7 +63,7 @@ void SafeModeComponent::loop() {
 #ifdef USE_OTA_ROLLBACK
 // Mark OTA partition as valid to prevent rollback
 #ifdef USE_ZEPHYR
-    if (boot_is_img_confirmed()) {
+    if (!boot_is_img_confirmed()) {
       boot_write_img_confirmed();
     }
 #else

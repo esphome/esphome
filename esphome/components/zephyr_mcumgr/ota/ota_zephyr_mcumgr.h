@@ -17,13 +17,17 @@ class OTAComponent : public ota::OTAComponent {
   void update_started();
   void update_chunk_wrote();
   void update_pending();
+#ifdef COFNIG_USB_DEVICE_STACK
   void set_cdc_uart() { cdc_uart_ = true; };
+#endif
 
  protected:
   uint32_t last_progress_ = 0;
   float percentage_ = 0;
   mgmt_callback img_mgmt_callback_;
+#ifdef COFNIG_USB_DEVICE_STACK
   bool cdc_uart_ = false;
+#endif
 };
 
 }  // namespace esphome::zephyr_mcumgr

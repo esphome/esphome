@@ -21,10 +21,14 @@ from esphome.components.zephyr.const import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADVANCED,
     CONF_BOARD,
+    CONF_DISABLED,
+    CONF_ENABLE_OTA_ROLLBACK,
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_RESET_PIN,
+    CONF_SAFE_MODE,
     CONF_VOLTAGE,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
@@ -34,6 +38,7 @@ from esphome.const import (
     ThreadModel,
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+import esphome.final_validate as fv
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -109,6 +114,24 @@ CONF_UICR_ERASE = "uicr_erase"
 
 VOLTAGE_LEVELS = [1.8, 2.1, 2.4, 2.7, 3.0, 3.3]
 
+
+def _set_default_framework(config):
+    config = config.copy()
+    if CONF_FRAMEWORK not in config:
+        config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA({})
+    return config
+
+
+FRAMEWORK_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+            {
+                cv.Optional(CONF_ENABLE_OTA_ROLLBACK, default=True): cv.boolean,
+            }
+        ),
+    }
+)
+
 CONFIG_SCHEMA = cv.All(
     _detect_bootloader,
     set_core_data,
@@ -132,8 +155,10 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_UICR_ERASE, default=False): cv.boolean,
                 }
             ),
+            cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
         }
     ),
+    _set_default_framework,
 )
 
 
@@ -150,6 +175,16 @@ def _final_validate(config):
         _LOGGER.warning(
             "Selected generic Adafruit bootloader. The board might crash. Consider settings `bootloader:`"
         )
+    full_config = fv.full_config.get()
+    conf = config[CONF_FRAMEWORK]
+    advanced = conf[CONF_ADVANCED]
+    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+        safe_mode_config = full_config.get(CONF_SAFE_MODE)
+        if safe_mode_config is None or safe_mode_config.get(CONF_DISABLED, False):
+            _LOGGER.warning(
+                "OTA rollback requires safe_mode, disabling rollback support"
+            )
+            advanced[CONF_ENABLE_OTA_ROLLBACK] = False
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -205,6 +240,12 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_NRF52_REG0_VOUT", value)
         if reg0_config[CONF_UICR_ERASE]:
             cg.add_define("USE_NRF52_UICR_ERASE")
+
+    conf = config[CONF_FRAMEWORK]
+    advanced = conf[CONF_ADVANCED]
+    # Enable OTA rollback support
+    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+        cg.add_define("USE_OTA_ROLLBACK")
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
