@@ -208,6 +208,9 @@ async def to_code(config: ConfigType) -> None:
         if reg0_config[CONF_UICR_ERASE]:
             cg.add_define("USE_NRF52_UICR_ERASE")
 
+    # c++ support
+    zephyr_add_prj_conf("CPLUSPLUS", True)
+    zephyr_add_prj_conf("LIB_CPLUSPLUS", True)
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
