@@ -3,6 +3,7 @@
 #include "helpers.h"
 #include "esphome/core/log.h"
 #include <cstring>
+#include <ctime>
 #include <algorithm>
 
 namespace esphome {
