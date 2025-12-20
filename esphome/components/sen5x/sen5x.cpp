@@ -11,18 +11,12 @@ namespace sen5x {
 static const char *const TAG = "sen5x";
 
 static const uint16_t SEN5X_CMD_READ_MEASUREMENT = 0x03C4;
-static const uint16_t SEN60_CMD_READ_MEASUREMENT = 0xEC05;
+static const uint16_t SEN62_CMD_READ_MEASUREMENT = 0x04A3;
 static const uint16_t SEN63_CMD_READ_MEASUREMENT = 0x0471;
 static const uint16_t SEN65_CMD_READ_MEASUREMENT = 0x0446;
 static const uint16_t SEN66_CMD_READ_MEASUREMENT = 0x0300;
 static const uint16_t SEN68_CMD_READ_MEASUREMENT = 0x0467;
-static const uint16_t SEN60_CMD_RESET = 0x3F8D;
-static const uint16_t SEN60_CMD_START_MEASUREMENTS = 0x2152;
-static const uint16_t SEN60_CMD_STOP_MEASUREMENTS = 0x3F86;
-static const uint16_t SEN60_CMD_GET_DATA_READY_STATUS = 0xE4B8;
-static const uint16_t SEN60_CMD_START_CLEANING_FAN = 0x3730;
-static const uint16_t SEN60_CMD_GET_SERIAL_NUMBER = 0x3682;
-static const uint16_t SEN60_CMD_READ_DEVICE_STATUS = 0xD206;
+static const uint16_t SEN69C_CMD_READ_MEASUREMENT = 0x04B5;
 
 static const uint16_t SEN6X_CMD_TEMPERATURE_ACCEL_PARAMETERS = 0x6100;
 static const uint16_t SEN6X_CMD_PERFORM_FORCED_CO2_RECAL = 0x6707;
@@ -62,8 +56,8 @@ static inline const char *model_to_str(Sen5xType model) {
       return "SEN54";
     case SEN55:
       return "SEN55";
-    case SEN60:
-      return "SEN60";
+    case SEN62:
+      return "SEN62";
     case SEN63C:
       return "SEN63C";
     case SEN65:
@@ -72,6 +66,8 @@ static inline const char *model_to_str(Sen5xType model) {
       return "SEN66";
     case SEN68:
       return "SEN68";
+    case SEN69C:
+      return "SEN69CW";
     default:
       return "UNKNOWN MODEL";
   }
@@ -84,8 +80,8 @@ static inline Sen5xType str_to_model(const std::string &product_name) {
     return SEN54;
   } else if (product_name == "SEN55") {
     return SEN55;
-  } else if (product_name == "SEN60") {
-    return SEN60;
+  } else if (product_name == "SEN62") {
+    return SEN62;
   } else if (product_name == "SEN63C") {
     return SEN63C;
   } else if (product_name == "SEN65") {
@@ -94,6 +90,8 @@ static inline Sen5xType str_to_model(const std::string &product_name) {
     return SEN66;
   } else if (product_name == "SEN68") {
     return SEN68;
+  } else if (product_name == "SEN69C") {
+    return SEN69C;
   } else {
     return UNKNOWN_MODEL;
   }
@@ -241,9 +239,10 @@ void SEN5XComponent::internal_setup_(SetupStates state) {
       break;
     case SM_SET_VOCB:
       if (this->voc_sensor_ && this->store_baseline_) {
-        // Hash with compilation time and serial number, this ensures the baseline storage is cleared after OTA
+        // Hash with config hash, version, and serial number
+        // This ensures the baseline storage is cleared after OTA
         // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
-        uint32_t hash = fnv1_hash(App.get_compilation_time() + this->serial_number_);
+        uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), this->serial_number_);
         this->pref_ = global_preferences->make_preference<Sen5xBaselines>(hash, true);
 
         if (this->pref_.load(&this->voc_baselines_storage_)) {
@@ -512,9 +511,9 @@ void SEN5XComponent::update() {
       cmd = SEN5X_CMD_READ_MEASUREMENT;
       length = 8;
       break;
-    case SEN60:
-      cmd = SEN60_CMD_READ_MEASUREMENT;
-      length = 4;
+    case SEN62:
+      cmd = SEN62_CMD_READ_MEASUREMENT;
+      length = 6;
       break;
     case SEN63C:
       cmd = SEN63_CMD_READ_MEASUREMENT;
@@ -532,73 +531,62 @@ void SEN5XComponent::update() {
       cmd = SEN68_CMD_READ_MEASUREMENT;
       length = 9;
       break;
+    case SEN69C:
+      cmd = SEN69C_CMD_READ_MEASUREMENT;
+      length = 10;
+      break;
     default:
       ESP_LOGE(TAG, "Unsupported model");
       this->status_set_warning();
       return;
   }
-
   if (!this->write_command(cmd)) {
     this->status_set_warning();
     ESP_LOGD(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
-
   this->set_timeout(20, [this, length]() {
     uint16_t measurements[9];
-
     if (!this->read_data(measurements, length)) {
       ESP_LOGV(TAG, ESP_LOG_MSG_COMM_FAIL);
       this->status_set_warning();
       return;
     }
-
-    // supported by all
     if (this->pm_1_0_sensor_ != nullptr) {
       ESP_LOGV(TAG, "pm_1_0 = 0x%.4x", measurements[0]);
       float pm_1_0 = measurements[0] == UINT16_MAX ? NAN : measurements[0] / 10.0f;
       this->pm_1_0_sensor_->publish_state(pm_1_0);
     }
-
-    // supported by all
     if (this->pm_2_5_sensor_ != nullptr) {
       ESP_LOGV(TAG, "pm_2_5 = 0x%.4x", measurements[1]);
       float pm_2_5 = measurements[1] == UINT16_MAX ? NAN : measurements[1] / 10.0f;
       this->pm_2_5_sensor_->publish_state(pm_2_5);
     }
-
-    // supported by all
     if (this->pm_4_0_sensor_ != nullptr) {
       ESP_LOGV(TAG, "pm_4_0 = 0x%.4x", measurements[2]);
       float pm_4_0 = measurements[2] == UINT16_MAX ? NAN : measurements[2] / 10.0f;
       this->pm_4_0_sensor_->publish_state(pm_4_0);
     }
-
-    // supported by all
     if (this->pm_10_0_sensor_ != nullptr) {
       ESP_LOGV(TAG, "pm_10_0 = 0x%.4x", measurements[3]);
       float pm_10_0 = measurements[3] == UINT16_MAX ? NAN : measurements[3] / 10.0f;
       this->pm_10_0_sensor_->publish_state(pm_10_0);
     }
-
-    if (this->model_.value() == SEN54 || this->model_.value() == SEN55 || this->model_.value() == SEN63C ||
-        this->model_.value() == SEN65 || this->model_.value() == SEN66 || this->model_.value() == SEN68) {
+    if (this->model_.value() != SEN50) {
       if (this->humidity_sensor_ != nullptr) {
         ESP_LOGV(TAG, "humidity = 0x%.4x", measurements[4]);
         float humidity = measurements[4] == INT16_MAX ? NAN : static_cast<int16_t>(measurements[4]) / 100.0f;
         this->humidity_sensor_->publish_state(humidity);
       }
-
       if (this->temperature_sensor_ != nullptr) {
         ESP_LOGV(TAG, "temperature = 0x%.4x", measurements[5]);
         float temperature = measurements[5] == INT16_MAX ? NAN : static_cast<int16_t>(measurements[5]) / 200.0f;
         this->temperature_sensor_->publish_state(temperature);
       }
     }
-
-    if (this->model_.value() == SEN54 || this->model_.value() == SEN55 || this->model_.value() == SEN65 ||
-        this->model_.value() == SEN66 || this->model_.value() == SEN68) {
-      if (this->voc_sensor_ != nullptr) {
+    if (this->voc_sensor_ != nullptr) {
+      if (this->model_.value() == SEN54 || this->model_.value() == SEN55 || this->model_.value() == SEN65 ||
+          this->model_.value() == SEN66 || this->model_.value() == SEN68 || this->model_.value() == SEN69C) {
         ESP_LOGV(TAG, "voc = 0x%.4x", measurements[6]);
         int16_t voc_idx = static_cast<int16_t>(measurements[6]);
         float voc = (voc_idx < SEN5X_MIN_INDEX_VALUE || voc_idx > SEN5X_MAX_INDEX_VALUE)
@@ -607,10 +595,9 @@ void SEN5XComponent::update() {
         this->voc_sensor_->publish_state(voc);
       }
     }
-
-    if (this->model_.value() == SEN55 || this->model_.value() == SEN65 || this->model_.value() == SEN66 ||
-        this->model_.value() == SEN68) {
-      if (this->nox_sensor_ != nullptr) {
+    if (this->nox_sensor_ != nullptr) {
+      if (this->model_.value() == SEN55 || this->model_.value() == SEN65 || this->model_.value() == SEN66 ||
+          this->model_.value() == SEN68 || this->model_.value() == SEN69C) {
         ESP_LOGV(TAG, "nox = 0x%.4x", measurements[7]);
         int16_t nox_idx = static_cast<int16_t>(measurements[7]);
         float nox = (nox_idx < SEN5X_MIN_INDEX_VALUE || nox_idx > SEN5X_MAX_INDEX_VALUE)
@@ -619,34 +606,31 @@ void SEN5XComponent::update() {
         this->nox_sensor_->publish_state(nox);
       }
     }
-
-    if (this->model_.value() == SEN63C || this->model_.value() == SEN66) {
-      if (this->co2_sensor_ != nullptr) {
+    if (this->co2_sensor_ != nullptr) {
+      if (this->model_.value() == SEN63C || this->model_.value() == SEN66 || this->model_.value() == SEN69C) {
         uint16_t measurement = measurements[6];
-        if (this->model_.value() == SEN66) {
+        if (this->model_.value() == SEN66)
           measurement = measurements[8];
-        }
+        if (this->model_.value() == SEN69C)
+          measurement = measurements[9];
         ESP_LOGV(TAG, "co2 = 0x%.4x", measurement);
         float co2 = measurement == INT16_MAX ? NAN : measurement / 1.0f;
         this->co2_sensor_->publish_state(co2);
       }
     }
-
-    if (this->model_.value() == SEN68) {
-      if (this->hcho_sensor_ != nullptr) {
+    if (this->hcho_sensor_ != nullptr) {
+      if (this->model_.value() == SEN68 || this->model_.value() == SEN69C) {
         ESP_LOGV(TAG, "HCHO = 0x%.4x", measurements[8]);
         float hcho = measurements[8] == UINT16_MAX ? NAN : measurements[8] / 10.0f;
         this->hcho_sensor_->publish_state(hcho);
       }
     }
-
     if (this->co2_ambient_pressure_source_ != nullptr) {
       float pressure = this->co2_ambient_pressure_source_->state;
       if (!std::isnan(pressure)) {
         set_ambient_pressure_compensation(pressure);
       }
     }
-
     this->status_clear_warning();
   });
 }
@@ -663,14 +647,8 @@ bool SEN5XComponent::start_measurements_() {
         cmd = CMD_START_MEASUREMENTS;
       }
       break;
-    case SEN63C:
-    case SEN65:
-    case SEN66:
-    case SEN68:
-      cmd = CMD_START_MEASUREMENTS;
-      break;
     default:
-      cmd = SEN60_CMD_START_MEASUREMENTS;
+      cmd = CMD_START_MEASUREMENTS;
       break;
   }
 
@@ -684,13 +662,7 @@ bool SEN5XComponent::start_measurements_() {
 }
 
 bool SEN5XComponent::stop_measurements_() {
-  uint16_t cmd;
-  if (this->model_.value() == SEN60) {
-    cmd = SEN60_CMD_STOP_MEASUREMENTS;
-  } else {
-    cmd = CMD_STOP_MEASUREMENTS;
-  }
-  auto result = this->write_command(cmd);
+  auto result = this->write_command(CMD_STOP_MEASUREMENTS);
   if (!result) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   } else {
@@ -757,11 +729,12 @@ bool SEN5XComponent::set_ambient_pressure_compensation(float pressure_in_hpa) {
 
 bool SEN5XComponent::is_sen6x_() {
   switch (this->model_.value()) {
-    case SEN60:
+    case SEN62:
     case SEN63C:
     case SEN65:
     case SEN66:
     case SEN68:
+    case SEN69C:
       return true;
     default:
       return false;
@@ -778,13 +751,7 @@ bool SEN5XComponent::start_fan_cleaning() {
     return false;
   }
   this->set_timeout(1000, [this]() {
-    uint16_t cmd;
-    if (this->model_.value() == SEN60) {
-      cmd = SEN60_CMD_START_CLEANING_FAN;
-    } else {
-      cmd = CMD_START_CLEANING_FAN;
-    }
-    if (!this->write_command(cmd)) {
+    if (!this->write_command(CMD_START_CLEANING_FAN)) {
       ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       if (!this->running_) {
         this->start_measurements_();
@@ -809,12 +776,11 @@ bool SEN5XComponent::start_fan_cleaning() {
 }
 
 bool SEN5XComponent::activate_heater() {
-  if (this->model_.value() == SEN63C || this->model_.value() == SEN65 || this->model_.value() == SEN66 ||
-      this->model_.value() == SEN68) {
+  if (this->is_sen6x_()) {
     ESP_LOGD(TAG, "Activate heater started");
     this->initialized_ = false;  // prevent update from trying to read the sensors
-    // measurements must be stopped first for certain devices
-    if (this->is_sen6x_() && !this->stop_measurements_()) {
+    // measurements must be stopped first
+    if (!this->stop_measurements_()) {
       ESP_LOGE(TAG, "Activate heater failed");
       this->initialized_ = true;
       return false;
@@ -846,7 +812,7 @@ bool SEN5XComponent::activate_heater() {
 }
 
 bool SEN5XComponent::perform_forced_co2_calibration(uint16_t co2) {
-  if (this->model_.value() == SEN63C || this->model_.value() == SEN66) {
+  if (this->model_.value() == SEN63C || this->model_.value() == SEN66 || this->model_.value() == SEN69C) {
     ESP_LOGD(TAG, "Perform forced CO₂ calibration started, target co2=%d", co2);
     this->initialized_ = false;  // prevent update from trying to read the sensors
     // measurements must be stopped first

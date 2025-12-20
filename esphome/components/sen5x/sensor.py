@@ -81,21 +81,23 @@ SetAmbientPressurehPa = sen5x_ns.class_("SetAmbientPressurehPa", automation.Acti
 MODEL_SEN50 = "SEN50"
 MODEL_SEN54 = "SEN54"
 MODEL_SEN55 = "SEN55"
-MODEL_SEN60 = "SEN60"
+MODEL_SEN62 = "SEN62"
 MODEL_SEN63C = "SEN63C"
 MODEL_SEN65 = "SEN65"
 MODEL_SEN66 = "SEN66"
 MODEL_SEN68 = "SEN68"
+MODEL_SEN69C = "SEN69C"
 
 SEN5X_MODELS = {
     MODEL_SEN50: Sen5xModel.SEN50,
     MODEL_SEN54: Sen5xModel.SEN54,
     MODEL_SEN55: Sen5xModel.SEN55,
-    MODEL_SEN60: Sen5xModel.SEN60,
+    MODEL_SEN62: Sen5xModel.SEN62,
     MODEL_SEN63C: Sen5xModel.SEN63C,
     MODEL_SEN65: Sen5xModel.SEN65,
     MODEL_SEN66: Sen5xModel.SEN66,
     MODEL_SEN68: Sen5xModel.SEN68,
+    MODEL_SEN69C: Sen5xModel.SEN69C,
 }
 
 ACCELERATION_MODES = {
@@ -292,46 +294,49 @@ def final_validate(config):
     model = config[CONF_MODEL]
     if CONF_ACCELERATION_MODE in config and model in {
         MODEL_SEN50,
-        MODEL_SEN60,
+        MODEL_SEN62,
         MODEL_SEN63C,
         MODEL_SEN65,
         MODEL_SEN66,
         MODEL_SEN68,
+        MODEL_SEN69C,
     }:
         raise cv.Invalid(f"Model {model} does not support '{CONF_ACCELERATION_MODE}'.")
     if CONF_AUTO_CLEANING_INTERVAL in config and model in {
-        MODEL_SEN60,
+        MODEL_SEN62,
         MODEL_SEN63C,
         MODEL_SEN65,
         MODEL_SEN66,
         MODEL_SEN68,
+        MODEL_SEN69C,
     }:
         raise cv.Invalid(
             f"'Model' {model} does not support '{CONF_AUTO_CLEANING_INTERVAL}'."
         )
     if CONF_STORE_BASELINE in config and model in {
         MODEL_SEN50,
-        MODEL_SEN60,
+        MODEL_SEN62,
         MODEL_SEN63C,
     }:
         raise cv.Invalid(f"Model {model} does not support '{CONF_STORE_BASELINE}'.")
     if CONF_TEMPERATURE_COMPENSATION in config and model in {
         MODEL_SEN50,
-        MODEL_SEN60,
+        MODEL_SEN62,
         MODEL_SEN63C,
         MODEL_SEN65,
         MODEL_SEN66,
         MODEL_SEN68,
+        MODEL_SEN69C,
     }:
         raise cv.Invalid(
             f"Model {model} does not support '{CONF_TEMPERATURE_COMPENSATION}'."
         )
-    if CONF_VOC in config and model in {MODEL_SEN50, MODEL_SEN60, MODEL_SEN63C}:
+    if CONF_VOC in config and model in {MODEL_SEN50, MODEL_SEN62, MODEL_SEN63C}:
         raise cv.Invalid(f"Model {model} does not support '{CONF_VOC}'.")
     if CONF_NOX in config and model in {
         MODEL_SEN50,
         MODEL_SEN54,
-        MODEL_SEN60,
+        MODEL_SEN62,
         MODEL_SEN63C,
     }:
         raise cv.Invalid(f"Model {model} does not support '{CONF_NOX}'.")
@@ -339,7 +344,7 @@ def final_validate(config):
         MODEL_SEN50,
         MODEL_SEN54,
         MODEL_SEN55,
-        MODEL_SEN60,
+        MODEL_SEN62,
         MODEL_SEN65,
         MODEL_SEN68,
     }:
@@ -348,15 +353,15 @@ def final_validate(config):
         MODEL_SEN50,
         MODEL_SEN54,
         MODEL_SEN55,
-        MODEL_SEN60,
+        MODEL_SEN62,
         MODEL_SEN63C,
         MODEL_SEN65,
         MODEL_SEN66,
     }:
         raise cv.Invalid(f"Model {model} does not support '{CONF_HCHO}'.")
-    if CONF_TEMPERATURE in config and model in {MODEL_SEN50, MODEL_SEN60}:
+    if CONF_TEMPERATURE in config and model in {MODEL_SEN50}:
         raise cv.Invalid(f"Model {model} does not support '{CONF_TEMPERATURE}'.")
-    if CONF_HUMIDITY in config and model in {MODEL_SEN50, MODEL_SEN60}:
+    if CONF_HUMIDITY in config and model in {MODEL_SEN50}:
         raise cv.Invalid(f"Model {model} does not support '{CONF_HUMIDITY}'.")
     i2c.final_validate_device_schema("sen5x", max_frequency="100kHz")(config)
 
