@@ -48,6 +48,8 @@ static const int8_t SEN5X_INDEX_SCALE_FACTOR = 10;                            //
 static const int8_t SEN5X_MIN_INDEX_VALUE = 1 * SEN5X_INDEX_SCALE_FACTOR;     // must be adjusted by the scale factor
 static const int16_t SEN5X_MAX_INDEX_VALUE = 500 * SEN5X_INDEX_SCALE_FACTOR;  // must be adjusted by the scale factor
 
+static const uint8_t SEN6X_MAX_SLOTS = 5;  // must be adjusted by the scale factor
+
 static inline const char *model_to_str(Sen5xType model) {
   switch (model) {
     case SEN50:
@@ -323,8 +325,8 @@ void SEN5XComponent::internal_setup_(SetupStates state) {
       }
       break;
     case SM_SET_TP:
-      if (this->temperature_compensation_.has_value()) {
-        if (!this->write_temperature_compensation_(this->temperature_compensation_.value())) {
+      if (this->temperature_compensation_[0].has_value()) {
+        if (!this->write_temperature_compensation_()) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
           this->error_code_ = COMMUNICATION_FAILED;
           this->mark_failed();
@@ -686,16 +688,27 @@ bool SEN5XComponent::write_tuning_parameters_(uint16_t i2c_command, const GasTun
   return result;
 }
 
-bool SEN5XComponent::write_temperature_compensation_(const TemperatureCompensation &compensation) {
-  uint16_t params[3];
-  params[0] = compensation.offset;
-  params[1] = compensation.normalized_offset_slope;
-  params[2] = compensation.time_constant;
-  auto result = this->write_command(CMD_TEMPERATURE_COMPENSATION, params, 3);
-  if (!result) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+bool SEN5XComponent::write_temperature_compensation_() {
+  uint16_t params[4];
+  for (uint8_t slot = 0; slot < SEN6X_MAX_SLOTS; slot++) {
+    if (this->temperature_compensation_[slot].has_value()) {
+      auto compensation = this->temperature_compensation_[slot].value();
+      params[0] = compensation.offset;
+      params[1] = compensation.normalized_offset_slope;
+      params[2] = compensation.time_constant;
+      params[3] = slot;
+      uint8_t write_cnt = 3;
+      if (this->is_sen6x_()) {
+        write_cnt = 4;
+      }
+      auto result = this->write_command(CMD_TEMPERATURE_COMPENSATION, params, write_cnt);
+      if (!result) {
+        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+        return false;
+      }
+    }
   }
-  return result;
+  return true;
 }
 
 bool SEN5XComponent::update_co2_ambient_pressure_compensation_(uint16_t pressure_in_hpa) {

@@ -66,9 +66,14 @@ RhtAccelerationMode = sen5x_ns.enum("RhtAccelerationMode")
 
 
 CONF_ACCELERATION_MODE = "acceleration_mode"
+CONF_ACCELERATION_PARAMETERS = "acceleration_parameters"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
+CONF_K = "k"
 CONF_HCHO = "hcho"
 ICON_MOLECULE = "mdi:molecule"
+CONF_P = "p"
+CONF_T1 = "t1"
+CONF_T2 = "t2"
 
 # Actions
 StartFanAction = sen5x_ns.class_("StartFanAction", automation.Action)
@@ -181,13 +186,26 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_STORE_BASELINE): cv.boolean,
             # CONF_VOC_BASELINE defined in config but never used in original sen5x component
             cv.Optional(CONF_VOC_BASELINE): cv.hex_uint16_t,
-            cv.Optional(CONF_TEMPERATURE_COMPENSATION): cv.Schema(
-                {
-                    cv.Optional(CONF_OFFSET, default=0): cv.float_,
-                    cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0): cv.All(
-                        float_previously_pct, cv.float_
+            cv.Optional(CONF_TEMPERATURE_COMPENSATION): cv.All(
+                cv.ensure_list(
+                    cv.Schema(
+                        {
+                            cv.Optional(CONF_OFFSET, default=0): cv.float_,
+                            cv.Optional(
+                                CONF_NORMALIZED_OFFSET_SLOPE, default=0
+                            ): cv.All(float_previously_pct, cv.float_),
+                            cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_,
+                        }
                     ),
-                    cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_,
+                ),
+                cv.Length(max=5),
+            ),
+            cv.Optional(CONF_ACCELERATION_PARAMETERS): cv.Schema(
+                {
+                    cv.Required(CONF_K): cv.float_,
+                    cv.Required(CONF_P): cv.float_,
+                    cv.Required(CONF_T1): cv.float_,
+                    cv.Required(CONF_T2): cv.float_,
                 }
             ),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
@@ -321,17 +339,17 @@ def final_validate(config):
         MODEL_SEN63C,
     }:
         raise cv.Invalid(f"Model {model} does not support '{CONF_STORE_BASELINE}'.")
-    if CONF_TEMPERATURE_COMPENSATION in config and model in {
-        MODEL_SEN50,
-        MODEL_SEN62,
-        MODEL_SEN63C,
-        MODEL_SEN65,
-        MODEL_SEN66,
-        MODEL_SEN68,
-        MODEL_SEN69C,
-    }:
+    if CONF_TEMPERATURE_COMPENSATION in config and model in {MODEL_SEN50}:
         raise cv.Invalid(
             f"Model {model} does not support '{CONF_TEMPERATURE_COMPENSATION}'."
+        )
+    if CONF_ACCELERATION_PARAMETERS in config and model in {
+        MODEL_SEN50,
+        MODEL_SEN54,
+        MODEL_SEN55,
+    }:
+        raise cv.Invalid(
+            f"Model {model} does not support '{CONF_ACCELERATION_PARAMETERS}'."
         )
     if CONF_VOC in config and model in {MODEL_SEN50, MODEL_SEN62, MODEL_SEN63C}:
         raise cv.Invalid(f"Model {model} does not support '{CONF_VOC}'.")
@@ -407,11 +425,24 @@ async def to_code(config):
             )
         )
     if cfg := config.get(CONF_TEMPERATURE_COMPENSATION):
+        slot = 0
+        for slot in range(0, len(cfg)):
+            cg.add(
+                var.set_temperature_compensation(
+                    slot,
+                    cfg[slot][CONF_OFFSET],
+                    cfg[slot][CONF_NORMALIZED_OFFSET_SLOPE],
+                    cfg[slot][CONF_TIME_CONSTANT],
+                )
+            )
+            slot += 1
+    if cfg := config.get(CONF_ACCELERATION_PARAMETERS):
         cg.add(
-            var.set_temperature_compensation(
-                cfg[CONF_OFFSET],
-                cfg[CONF_NORMALIZED_OFFSET_SLOPE],
-                cfg[CONF_TIME_CONSTANT],
+            var.set_acceleration_parameters(
+                cfg[CONF_K],
+                cfg[CONF_P],
+                cfg[CONF_T1],
+                cfg[CONF_T2],
             )
         )
     if CONF_CO2 in config:

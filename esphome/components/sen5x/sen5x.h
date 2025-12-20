@@ -59,6 +59,7 @@ struct TemperatureCompensation {
   int16_t offset;
   int16_t normalized_offset_slope;
   uint16_t time_constant;
+  uint8_t slot;
 };
 
 // Shortest time interval of 3H for storing baseline values.
@@ -114,12 +115,12 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
     tuning_params.gain_factor = gain_factor;
     this->nox_tuning_params_ = tuning_params;
   }
-  void set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant) {
+  void set_temperature_compensation(uint8_t slot, float offset, float normalized_offset_slope, uint16_t time_constant) {
     TemperatureCompensation temp_comp;
     temp_comp.offset = offset * 200;
     temp_comp.normalized_offset_slope = normalized_offset_slope * 10000;
     temp_comp.time_constant = time_constant;
-    this->temperature_compensation_ = temp_comp;
+    this->temperature_compensation_[slot] = temp_comp;
   }
   void set_co2_auto_calibrate(bool value) { this->co2_auto_calibrate_ = value; }
   void set_co2_altitude_compensation(uint16_t altitude) { this->co2_altitude_compensation_ = altitude; }
@@ -135,7 +136,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool start_measurements_();
   bool stop_measurements_();
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
-  bool write_temperature_compensation_(const TemperatureCompensation &compensation);
+  bool write_temperature_compensation_();
   bool update_co2_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
 
   uint32_t seconds_since_last_store_;
@@ -164,7 +165,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<uint32_t> auto_cleaning_interval_;
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
-  optional<TemperatureCompensation> temperature_compensation_;
+  optional<TemperatureCompensation> temperature_compensation_[5];
   optional<bool> co2_auto_calibrate_;
   optional<uint16_t> co2_altitude_compensation_;
 
