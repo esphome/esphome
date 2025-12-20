@@ -305,6 +305,14 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       for (auto *listener : this->connect_state_listeners_) {
         listener->on_wifi_connect_state(this->wifi_ssid(), this->wifi_bssid());
       }
+      // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
+#ifdef USE_WIFI_MANUAL_IP
+      if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+        for (auto *listener : this->ip_state_listeners_) {
+          listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+        }
+      }
+#endif
 #endif
       break;
     }
