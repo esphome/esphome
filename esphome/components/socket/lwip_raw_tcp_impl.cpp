@@ -18,8 +18,7 @@
 #include <coredecls.h>  // For esp_schedule()
 #endif
 
-namespace esphome {
-namespace socket {
+namespace esphome::socket {
 
 #ifdef USE_ESP8266
 // Flag to signal socket activity - checked by socket_delay() to exit early
@@ -188,7 +187,7 @@ class LWIPRawImpl : public Socket {
       errno = EINVAL;
       return -1;
     }
-    return this->ip2sockaddr_(&pcb_->local_ip, pcb_->local_port, name, addrlen);
+    return this->ip2sockaddr_(&pcb_->remote_ip, pcb_->remote_port, name, addrlen);
   }
   std::string getpeername() override {
     if (pcb_ == nullptr) {
@@ -711,7 +710,6 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
   return socket(domain, type, protocol);
 }
 
-}  // namespace socket
-}  // namespace esphome
+}  // namespace esphome::socket
 
 #endif  // USE_SOCKET_IMPL_LWIP_TCP
