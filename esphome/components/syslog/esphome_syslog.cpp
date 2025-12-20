@@ -4,8 +4,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/time.h"
 
-namespace esphome {
-namespace syslog {
+namespace esphome::syslog {
 
 // Map log levels to syslog severity using an array, indexed by ESPHome log level (1-7)
 constexpr int LOG_LEVEL_TO_SYSLOG_SEVERITY[] = {
@@ -70,5 +69,4 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
   }
 }
 
-}  // namespace syslog
-}  // namespace esphome
+}  // namespace esphome::syslog
