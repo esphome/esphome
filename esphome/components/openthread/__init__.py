@@ -183,8 +183,9 @@ async def to_code(config):
     ot = cg.new_Pvariable(config[CONF_ID])
     cg.add(ot.set_use_address(config[CONF_USE_ADDRESS]))
     await cg.register_component(ot, config)
-    if ((poll_period := config.get(CONF_POLL_PERIOD)) is not None
-      and poll_period > TimePeriodMilliseconds(milliseconds=0)):
+    if (
+        poll_period := config.get(CONF_POLL_PERIOD)
+    ) is not None and poll_period > TimePeriodMilliseconds(milliseconds=0):
         # So we can compile in code based on poll_period
         cg.add_define("USE_OPENTHREAD_POLL_PERIOD")
         cg.add(ot.set_poll_period(poll_period))
