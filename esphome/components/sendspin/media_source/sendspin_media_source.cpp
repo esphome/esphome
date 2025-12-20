@@ -32,7 +32,7 @@ namespace sendspin {
 // #define SENDSPIN_MEDIA_SOURCE_DEBUG
 
 // TODO: Determine a default value - try seeing how many chunks of FLAC the server can send at the start
-static const uint32_t ENCODED_CHUNK_QUEUE_SIZE = 100;
+static const uint32_t ENCODED_CHUNK_QUEUE_LENGTH = 100;
 
 static const uint32_t READ_WRITE_TIMEOUT_MS = 20;
 
@@ -87,8 +87,9 @@ void SendspinMediaSource::init_pipelines(size_t pipeline_count) {
     }
 
     // TODO: Get max buffer size from hub
-    // (initial queue size, buffer size, dynamic growth enabled, max queue length)
-    ctx.encoded_chunk_queue = audio::AudioChunkQueue::create(ENCODED_CHUNK_QUEUE_SIZE, 0, true, 0);
+    // (initial queue length, buffer size, dynamic growth enabled, max queue length)
+    ctx.encoded_chunk_queue =
+        audio::AudioChunkQueue::create(ENCODED_CHUNK_QUEUE_LENGTH, this->parent_->get_buffer_size(), true, 0);
     if (ctx.encoded_chunk_queue == nullptr) {
       // TODO: Need to actually make this function failable
       ESP_LOGE(TAG, "Couldn't create chunk queue.");

@@ -61,7 +61,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_KALMAN_PROCESS_ERROR, default=0.01): cv.float_,
             cv.Optional(CONF_KALMAN_FORGET_FACTOR, default=1.001): cv.float_,
-            cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(min=25000),
+            cv.Optional(CONF_BUFFER_SIZE): cv.invalid(
+                f"The {CONF_BUFFER_SIZE} option is now set as an option in the Sendspin media_source configuration"
+            ),
         }
     ),
     cv.only_on([PLATFORM_ESP32]),
@@ -94,7 +96,6 @@ async def to_code(config):
 
     cg.add(var.set_kalman_process_error(config[CONF_KALMAN_PROCESS_ERROR]))
     cg.add(var.set_kalman_forget_factor(config[CONF_KALMAN_FORGET_FACTOR]))
-    cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
 
     if task_stack_in_psram := config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(task_stack_in_psram))

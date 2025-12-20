@@ -100,6 +100,7 @@ class SendspinHub : public Component {
 
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
   void set_buffer_size(size_t buffer_size) { this->buffer_size_ = buffer_size; }
+  size_t get_buffer_size() const { return this->buffer_size_; }
 
 #ifdef USE_SENDSPIN_PLAYER
   // Simple audio chunk callback registration
