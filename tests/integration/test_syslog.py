@@ -33,7 +33,7 @@ class ParsedSyslogMessage(TypedDict):
 # Example: <134>Dec 20 14:30:45 syslog-test app: [D][app:029]: Running...
 SYSLOG_PATTERN = re.compile(
     r"<(\d+)>"  # PRI (priority = facility * 8 + severity)
-    r"(\S+ +\d+ \d+:\d+:\d+|-)"  # TIMESTAMP (BSD format or NILVALUE "-")
+    r"(\S+ +\d+ \d+:\d+:\d+|-)"  # TIMESTAMP (BSD-style "%b %e %H:%M:%S", e.g. "Dec 20 14:30:45", or NILVALUE "-")
     r" (\S+)"  # HOSTNAME
     r" (\S+):"  # TAG
     r" (.*)"  # MESSAGE
