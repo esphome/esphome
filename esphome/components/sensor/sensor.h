@@ -141,8 +141,6 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
     uint8_t force_update : 1;
     uint8_t reserved : 5;  // Reserved for future use
   } sensor_flags_{};
-
-  uint8_t raw_count_{0};  ///< Number of raw callbacks (partition point in callbacks_ vector)
 };
 
 }  // namespace sensor
