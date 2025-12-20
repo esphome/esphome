@@ -1115,7 +1115,7 @@ void SubscribeLogsResponse::dump_to(std::string &out) const {
 void NoiseEncryptionSetKeyRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "NoiseEncryptionSetKeyRequest");
   out.append("  key: ");
-  out.append(format_hex_pretty(reinterpret_cast<const uint8_t *>(this->key.data()), this->key.size()));
+  out.append(format_hex_pretty(this->key, this->key_len));
   out.append("\n");
 }
 void NoiseEncryptionSetKeyResponse::dump_to(std::string &out) const { dump_field(out, "success", this->success); }
