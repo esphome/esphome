@@ -82,17 +82,16 @@ void EmonTx::update() {
 }
 
 /**
- * @brief Implements the main state machine for parsing data from the serial port.
+ * @brief Implements the main loop for parsing data from the serial port.
  *
- * @details The state machine continuously processes incoming UART data through these states:
- * - OFF: Initial state, waiting for update() to activate the component.
- * - WAITING_FOR_START: Looks for the opening brace '{' of a JSON object OR collects
- *   characters for plain text lines (when web_config is enabled).
- * - COLLECTING_JSON: Collects characters until the closing brace '}' is found.
- * - JSON_COLLECTED: Processes the complete JSON object or plain text line.
+ * @details The loop continuously processes incoming UART data line-by-line:
+ * - OFF: Component is inactive, waiting for update() to activate it.
+ * - WAITING_FOR_START: Component is active, reading and processing serial lines.
  *
- * When web_config is enabled, all received lines are captured and forwarded via
- * line callbacks. JSON lines are additionally parsed for sensor updates.
+ * Each line received is processed as follows:
+ * 1. Fire esphome.emontx_raw event (when config_panel is enabled)
+ * 2. Fire on_data callbacks for all received lines
+ * 3. If line starts with '{', parse as JSON and update sensors/listeners
  *
  * This continuous processing ensures no data is lost when multiple messages
  * arrive in quick succession between polling intervals.
