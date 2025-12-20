@@ -258,3 +258,27 @@ async def test_syslog(
             assert "|END" not in trunc_msg, (
                 "Message should be truncated before END marker"
             )
+
+            # Test short message - should arrive complete (not truncated)
+            short_service = next(
+                (s for s in services if s.name == "log_short_message"), None
+            )
+            assert short_service is not None, "log_short_message service not found"
+
+            await client.execute_service(short_service, {})
+
+            try:
+                short_msg = await receiver.wait_for_pattern(r"shorttest.*BEGIN\|")
+            except TimeoutError:
+                pytest.fail(
+                    f"Short test message not received. Got: {receiver.messages[-10:]}"
+                )
+
+            # Verify short message arrived complete with both markers
+            assert "BEGIN|" in short_msg, "Short message missing BEGIN marker"
+            assert "|FINISH" in short_msg, (
+                f"Short message truncated unexpectedly: {short_msg}"
+            )
+            assert "SHORT_MESSAGE_CONTENT" in short_msg, (
+                f"Short message content missing: {short_msg}"
+            )

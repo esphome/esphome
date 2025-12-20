@@ -55,18 +55,12 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
   offset = ret;
   remaining -= ret;
 
-  // Write timestamp directly into packet (RFC 5424: use "-" if time not valid)
+  // Write timestamp directly into packet (RFC 5424: use "-" if time not valid or strftime fails)
   auto now = this->time_->now();
-  if (now.is_valid()) {
-    size_t written = now.strftime(packet + offset, remaining, "%b %e %H:%M:%S");
-    if (written > 0) {
-      offset += written;
-      remaining -= written;
-    } else if (remaining > 0) {
-      // strftime failed; write NILVALUE as fallback
-      packet[offset++] = '-';
-      remaining--;
-    }
+  size_t ts_written = now.is_valid() ? now.strftime(packet + offset, remaining, "%b %e %H:%M:%S") : 0;
+  if (ts_written > 0) {
+    offset += ts_written;
+    remaining -= ts_written;
   } else if (remaining > 0) {
     packet[offset++] = '-';
     remaining--;
