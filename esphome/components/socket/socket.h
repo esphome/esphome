@@ -6,8 +6,7 @@
 #include "headers.h"
 
 #if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
-namespace esphome {
-namespace socket {
+namespace esphome::socket {
 
 class Socket {
  public:
@@ -54,12 +53,7 @@ class Socket {
   /// Check if socket has data ready to read
   /// For loop-monitored sockets, checks with the Application's select() results
   /// For non-monitored sockets, always returns true (assumes data may be available)
-  bool ready() const;
-
- protected:
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  bool loop_monitored_{false};  ///< Whether this socket is monitored by the event loop
-#endif
+  virtual bool ready() const { return true; }
 };
 
 /// Create a socket of the given domain, type and protocol.
@@ -91,6 +85,5 @@ void socket_delay(uint32_t ms);
 void socket_wake();
 #endif
 
-}  // namespace socket
-}  // namespace esphome
+}  // namespace esphome::socket
 #endif
