@@ -411,12 +411,15 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         this->update_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
       } else if (this->connection_type_ != espbt::ConnectionType::V3_WITH_CACHE) {
 #ifdef USE_ESP32_BLE_DEVICE
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
         for (auto &svc : this->services_) {
-          ESP_LOGV(TAG, "[%d] [%s] Service UUID: %s", this->connection_index_, this->address_str_,
-                   svc->uuid.to_string().c_str());
+          char uuid_buf[espbt::UUID_STR_LEN];
+          svc->uuid.to_str(uuid_buf);
+          ESP_LOGV(TAG, "[%d] [%s] Service UUID: %s", this->connection_index_, this->address_str_, uuid_buf);
           ESP_LOGV(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_, this->address_str_,
                    svc->start_handle, svc->end_handle);
         }
+#endif
 #endif
       }
       ESP_LOGI(TAG, "[%d] [%s] Service discovery complete", this->connection_index_, this->address_str_);

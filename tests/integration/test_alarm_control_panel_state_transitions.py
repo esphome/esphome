@@ -237,13 +237,13 @@ async def test_alarm_control_panel_state_transitions(
         # Should go to PENDING (delayed sensor)
         await wait_for_state(AlarmControlPanelState.PENDING)
 
-        # Should go to TRIGGERED after pending_time (100ms)
+        # Should go to TRIGGERED after pending_time (50ms)
         await wait_for_state(AlarmControlPanelState.TRIGGERED)
 
         # Close the sensor
         client.switch_command(door_switch_info.key, False)
 
-        # Wait for trigger_time to expire and auto-reset (500ms)
+        # Wait for trigger_time to expire and auto-reset (100ms)
         # The alarm should go back to ARMED_AWAY after trigger_time
         # This transition FROM TRIGGERED fires on_cleared
         await wait_for_state(AlarmControlPanelState.ARMED_AWAY, timeout=2.0)
