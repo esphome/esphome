@@ -67,12 +67,20 @@ RhtAccelerationMode = sen5x_ns.enum("RhtAccelerationMode")
 
 CONF_ACCELERATION_MODE = "acceleration_mode"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
-CONF_GATING_MAX_DURATION_MINUTES = "gating_max_duration_minutes"  # remove in upcoming PR#12567 still in dev
+CONF_GATING_MAX_DURATION_MINUTES = (
+    "gating_max_duration_minutes"  # remove in upcoming PR#12567 still in dev
+)
 CONF_HCHO = "hcho"
 CONF_INDEX_OFFSET = "index_offset"  # remove in upcoming PR#12567 still in dev
-CONF_LEARNING_TIME_GAIN_HOURS = "learning_time_gain_hours"  # remove in upcoming PR#12567 still in dev
-CONF_LEARNING_TIME_OFFSET_HOURS = "learning_time_offset_hours"  # remove in upcoming PR#12567 still in dev
-CONF_NORMALIZED_OFFSET_SLOPE = "normalized_offset_slope"  # remove in upcoming PR#12567 still in dev
+CONF_LEARNING_TIME_GAIN_HOURS = (
+    "learning_time_gain_hours"  # remove in upcoming PR#12567 still in dev
+)
+CONF_LEARNING_TIME_OFFSET_HOURS = (
+    "learning_time_offset_hours"  # remove in upcoming PR#12567 still in dev
+)
+CONF_NORMALIZED_OFFSET_SLOPE = (
+    "normalized_offset_slope"  # remove in upcoming PR#12567 still in dev
+)
 CONF_NOX = "nox"  # remove in upcoming PR#12567 still in dev
 CONF_STD_INITIAL = "std_initial"  # remove in upcoming PR#12567 still in dev
 CONF_TIME_CONSTANT = "time_constant"  # remove in upcoming PR#12567 still in dev
