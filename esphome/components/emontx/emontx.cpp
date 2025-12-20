@@ -278,9 +278,6 @@ void EmonTx::parse_json_(const std::string &data) {
       }
     }
 
-    // Save the valid JSON data for callbacks
-    this->last_valid_json_ = data;
-
 #ifdef USE_API_HOMEASSISTANT_SERVICES
     // Fire Home Assistant event with the received data
     if (api::global_api_server != nullptr && api::global_api_server->is_connected()) {
@@ -300,7 +297,7 @@ void EmonTx::parse_json_(const std::string &data) {
     if (!this->json_callbacks_.empty()) {
       ESP_LOGV(TAG, "Executing %d JSON callbacks", (int) this->json_callbacks_.size());
       for (const auto &callback : this->json_callbacks_) {
-        callback(root);
+        callback(root, data);  // Pass both JsonObject and raw JSON string
       }
     }
 

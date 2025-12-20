@@ -22,7 +22,7 @@ namespace esphome {
 namespace emontx {
 
 // Add callback type definition for JSON callbacks
-using EmonTxJsonCallback = std::function<void(JsonObject)>;
+using EmonTxJsonCallback = std::function<void(JsonObject, const std::string &)>;
 
 // Forward declaration
 class EmonTx;
@@ -43,9 +43,6 @@ class EmonTxListener {
   std::string tag;
   virtual void publish_val(const std::string &val){};
 };
-
-// Define the enum for publish modes
-enum class MqttPublishMode { JSON, INDIVIDUAL };
 
 /**
  * @class EmonTx
@@ -78,9 +75,6 @@ class EmonTx : public PollingComponent,
   using EmonTxDataCallback = std::function<void(const std::string &)>;
   void add_on_data_callback(const EmonTxDataCallback &callback) { this->data_callbacks_.push_back(callback); }
 
-  // Add method to get the current buffer
-  std::string get_buffer() const { return this->last_valid_json_; }
-
   // Send command to emonTx via UART
   void send_command(std::string command);
 
@@ -99,7 +93,6 @@ class EmonTx : public PollingComponent,
   std::vector<std::pair<std::string, sensor::Sensor *>> sensors_{};
 #endif
   std::string buffer_;
-  std::string last_valid_json_;
 
   enum ParseState {
     OFF,
