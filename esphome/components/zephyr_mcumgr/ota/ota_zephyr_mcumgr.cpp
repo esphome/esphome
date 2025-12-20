@@ -55,7 +55,7 @@ void OTAComponent::setup() {
   img_mgmt_callback_.callback = mcumgr_img_mgmt_cb;
   img_mgmt_callback_.event_id = MGMT_EVT_OP_IMG_MGMT_ALL;
   mgmt_callback_register(&img_mgmt_callback_);
-#ifdef COFNIG_USB_DEVICE_STACK
+#ifdef CONFIG_USB_DEVICE_STACK
   if (cdc_uart_) {
     usb_enable(NULL);
   }
