@@ -34,15 +34,7 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
     severity = LOG_LEVEL_TO_SYSLOG_SEVERITY[level];
   }
   int pri = this->facility_ * 8 + severity;
-  auto now = this->time_->now();
-  std::string timestamp;
-  if (now.is_valid()) {
-    timestamp = now.strftime("%b %e %H:%M:%S");
-  } else {
-    // RFC 5424: A syslog application MUST use the NILVALUE as TIMESTAMP if the syslog application is incapable of
-    //           obtaining system time.
-    timestamp = "-";
-  }
+
   size_t len = message_len;
   // remove color formatting
   if (this->strip_ && message[0] == 0x1B && len > 11) {
@@ -50,8 +42,32 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
     len -= 11;
   }
 
-  auto data = str_sprintf("<%d>%s %s %s: %.*s", pri, timestamp.c_str(), App.get_name().c_str(), tag, len, message);
-  this->parent_->send_packet((const uint8_t *) data.data(), data.size());
+  // Build syslog packet on stack - 508 is max UDP packet size
+  char packet[508];
+  size_t offset = 0;
+
+  // Write PRI
+  int ret = snprintf(packet, sizeof(packet), "<%d>", pri);
+  if (ret > 0)
+    offset = ret;
+
+  // Write timestamp directly into packet (RFC 5424: use "-" if time not valid)
+  auto now = this->time_->now();
+  if (now.is_valid()) {
+    offset += now.strftime(packet + offset, sizeof(packet) - offset, "%b %e %H:%M:%S");
+  } else {
+    packet[offset++] = '-';
+  }
+
+  // Write hostname, tag, and message
+  ret = snprintf(packet + offset, sizeof(packet) - offset, " %s %s: %.*s", App.get_name().c_str(), tag, (int) len,
+                 message);
+  if (ret > 0)
+    offset += ret;
+
+  if (offset > 0) {
+    this->parent_->send_packet(reinterpret_cast<const uint8_t *>(packet), std::min(offset, sizeof(packet) - 1));
+  }
 }
 
 }  // namespace syslog
