@@ -65,7 +65,8 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   void internal_send_state_to_frontend(const std::string &state);
 
  protected:
-  PartitionedCallbackManager<void(const std::string &)> callbacks_;
+  LazyCallbackManager<void(std::string)> raw_callback_;  ///< Storage for raw state callbacks.
+  LazyCallbackManager<void(std::string)> callback_;      ///< Storage for filtered state callbacks.
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 

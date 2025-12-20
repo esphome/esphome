@@ -30,9 +30,7 @@ void TextSensor::publish_state(const std::string &state) {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   this->raw_state = state;
 #pragma GCC diagnostic pop
-
-  // Call raw callbacks (before filters)
-  this->callbacks_.call_first(this->raw_count_, state);
+  this->raw_callback_.call(state);
 
   ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), state.c_str());
 
@@ -76,9 +74,8 @@ void TextSensor::clear_filters() {
 void TextSensor::add_on_state_callback(std::function<void(const std::string &)> callback) {
   this->callbacks_.add_second(std::move(callback));
 }
-
-void TextSensor::add_on_raw_state_callback(std::function<void(const std::string &)> callback) {
-  this->callbacks_.add_first(std::move(callback), &this->raw_count_);
+void TextSensor::add_on_raw_state_callback(std::function<void(std::string)> callback) {
+  this->raw_callback_.add(std::move(callback));
 }
 
 std::string TextSensor::get_state() const { return this->state; }

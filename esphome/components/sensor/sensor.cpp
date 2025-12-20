@@ -76,9 +76,7 @@ StateClass Sensor::get_state_class() {
 
 void Sensor::publish_state(float state) {
   this->raw_state = state;
-
-  // Call raw callbacks (before filters)
-  this->callbacks_.call_first(this->raw_count_, state);
+  this->raw_callback_.call(state);
 
   ESP_LOGV(TAG, "'%s': Received new state %f", this->name_.c_str(), state);
 
@@ -94,7 +92,7 @@ void Sensor::add_on_state_callback(std::function<void(float)> &&callback) {
 }
 
 void Sensor::add_on_raw_state_callback(std::function<void(float)> &&callback) {
-  this->callbacks_.add_first(std::move(callback), &this->raw_count_);
+  this->raw_callback_.add(std::move(callback));
 }
 
 void Sensor::add_filter(Filter *filter) {

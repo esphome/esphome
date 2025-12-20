@@ -388,12 +388,20 @@ constexpr uint32_t FNV1_OFFSET_BASIS = 2166136261UL;
 constexpr uint32_t FNV1_PRIME = 16777619UL;
 
 /// Extend a FNV-1a hash with additional string data.
-uint32_t fnv1a_hash_extend(uint32_t hash, const char *str);
+constexpr uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
+  if (str) {
+    while (*str) {
+      hash ^= *str++;
+      hash *= FNV1_PRIME;
+    }
+  }
+  return hash;
+}
 inline uint32_t fnv1a_hash_extend(uint32_t hash, const std::string &str) {
   return fnv1a_hash_extend(hash, str.c_str());
 }
 /// Calculate a FNV-1a hash of \p str.
-inline uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
+constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
 inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }
 
 /// Return a random 32-bit unsigned integer.
@@ -926,71 +934,48 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   std::vector<std::function<void(Ts...)>> callbacks_;
 };
 
-template<typename... X> class PartitionedCallbackManager;
+template<typename... X> class LazyCallbackManager;
 
-/** Helper class for callbacks partitioned into two sections.
+/** Lazy-allocating callback manager that only allocates memory when callbacks are registered.
  *
- * Uses a single vector partitioned into two sections: [first_0, ..., first_m-1, second_0, ..., second_n-1]
- * The partition point is tracked externally by the caller (typically stored in the entity class for optimal alignment).
+ * This is a drop-in replacement for CallbackManager that saves memory when no callbacks
+ * are registered (common case after the Controller Registry eliminated per-entity callbacks
+ * from API and web_server components).
  *
- * Memory efficient: Only stores a single pointer (4 bytes on 32-bit platforms, 8 bytes on 64-bit platforms).
- * The partition count lives in the entity class where it can be packed with other small fields to avoid padding waste.
- *
- * Design rationale: The asymmetric API (add_first takes first_count*, while call_first/call_second take it by value)
- * is intentional - add_first must increment the count, while call methods only read it. This avoids storing first_count
- * internally, saving memory per instance.
+ * Memory overhead comparison (32-bit systems):
+ * - CallbackManager: 12 bytes (empty std::vector)
+ * - LazyCallbackManager: 4 bytes (nullptr unique_ptr)
  *
  * @tparam Ts The arguments for the callbacks, wrapped in void().
  */
-template<typename... Ts> class PartitionedCallbackManager<void(Ts...)> {
+template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
  public:
-  /// Add a callback to the first partition.
-  void add_first(std::function<void(Ts...)> &&callback, uint8_t *first_count) {
+  /// Add a callback to the list. Allocates the underlying CallbackManager on first use.
+  void add(std::function<void(Ts...)> &&callback) {
     if (!this->callbacks_) {
-      this->callbacks_ = make_unique<std::vector<std::function<void(Ts...)>>>();
+      this->callbacks_ = make_unique<CallbackManager<void(Ts...)>>();
     }
-
-    // Add to first partition: append then rotate into position
-    this->callbacks_->push_back(std::move(callback));
-    // Avoid potential underflow: rewrite comparison to not subtract from size()
-    if (*first_count + 1 < this->callbacks_->size()) {
-      // Use std::rotate to maintain registration order in second partition
-      std::rotate(this->callbacks_->begin() + *first_count, this->callbacks_->end() - 1, this->callbacks_->end());
-    }
-    (*first_count)++;
+    this->callbacks_->add(std::move(callback));
   }
 
-  /// Add a callback to the second partition.
-  void add_second(std::function<void(Ts...)> &&callback) {
-    if (!this->callbacks_) {
-      this->callbacks_ = make_unique<std::vector<std::function<void(Ts...)>>>();
-    }
-
-    // Add to second partition: just append (already at end after first partition)
-    this->callbacks_->push_back(std::move(callback));
-  }
-
-  /// Call all callbacks in the first partition.
-  void call_first(uint8_t first_count, Ts... args) {
+  /// Call all callbacks in this manager. No-op if no callbacks registered.
+  void call(Ts... args) {
     if (this->callbacks_) {
-      for (size_t i = 0; i < first_count; i++) {
-        (*this->callbacks_)[i](args...);
-      }
+      this->callbacks_->call(args...);
     }
   }
 
-  /// Call all callbacks in the second partition.
-  void call_second(uint8_t first_count, Ts... args) {
-    if (this->callbacks_) {
-      for (size_t i = first_count; i < this->callbacks_->size(); i++) {
-        (*this->callbacks_)[i](args...);
-      }
-    }
-  }
+  /// Return the number of registered callbacks.
+  size_t size() const { return this->callbacks_ ? this->callbacks_->size() : 0; }
+
+  /// Check if any callbacks are registered.
+  bool empty() const { return !this->callbacks_ || this->callbacks_->size() == 0; }
+
+  /// Call all callbacks in this manager.
+  void operator()(Ts... args) { this->call(args...); }
 
  protected:
-  /// Partitioned callback storage: [first_0, ..., first_m-1, second_0, ..., second_n-1]
-  std::unique_ptr<std::vector<std::function<void(Ts...)>>> callbacks_;
+  std::unique_ptr<CallbackManager<void(Ts...)>> callbacks_;
 };
 
 /// Helper class to deduplicate items in a series of values.
