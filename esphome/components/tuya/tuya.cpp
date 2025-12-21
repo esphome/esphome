@@ -800,19 +800,19 @@ std::string Tuya::process_get_module_information_(const uint8_t *buffer, size_t 
   std::string module_info_str = "{";
 
   if (want_ssid) {
-    module_info_str += "\"ap:\":\"smartlife\"";
+    module_info_str += R"("ap:":"smartlife")";
   }
   if (want_country_code) {
     if (module_info_str.length() > 1) {
       module_info_str.push_back(',');
     }
-    module_info_str += "\"cc\":\"0\"";  // 0 means China
+    module_info_str += R"("cc":"0")";  // 0 means China
   }
   if (want_sn) {
     if (module_info_str.length() > 1) {
       module_info_str.push_back(',');
     }
-    module_info_str += "\"sn\":\"1234567890\"";
+    module_info_str += R"("sn":"1234567890")";
   }
 
   module_info_str.push_back('}');
