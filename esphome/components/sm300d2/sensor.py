@@ -1,5 +1,6 @@
 import esphome.codegen as cg
-from esphome.components import aqi, sensor, uart
+from esphome.components import sensor, uart
+from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CO2,
@@ -10,6 +11,7 @@ from esphome.const import (
     CONF_PM_10_0,
     CONF_TEMPERATURE,
     CONF_TVOC,
+    DEVICE_CLASS_AQI,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PM10,
@@ -30,9 +32,7 @@ from esphome.const import (
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["aqi"]
 
-CONF_AQI = aqi.CONF_AQI
-CONF_CALCULATION_TYPE = aqi.CONF_CALCULATION_TYPE
-AQI_CALCULATION_TYPE = aqi.AQI_CALCULATION_TYPE
+UNIT_INDEX = "index"
 
 sm300d2_ns = cg.esphome_ns.namespace("sm300d2")
 SM300D2Sensor = sm300d2_ns.class_("SM300D2Sensor", cg.PollingComponent, uart.UARTDevice)
@@ -88,8 +88,10 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AQI): sensor.sensor_schema(
+                unit_of_measurement=UNIT_INDEX,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_AQI,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {

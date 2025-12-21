@@ -1,5 +1,6 @@
 import esphome.codegen as cg
-from esphome.components import aqi, sensor, uart
+from esphome.components import sensor, uart
+from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -10,6 +11,7 @@ from esphome.const import (
     CONF_PMC_1_0,
     CONF_PMC_2_5,
     CONF_PMC_10_0,
+    DEVICE_CLASS_AQI,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
@@ -23,9 +25,7 @@ CODEOWNERS = ["@gcormier"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["aqi"]
 
-CONF_AQI = aqi.CONF_AQI
-CONF_CALCULATION_TYPE = aqi.CONF_CALCULATION_TYPE
-AQI_CALCULATION_TYPE = aqi.AQI_CALCULATION_TYPE
+UNIT_INDEX = "index"
 
 gcja5_ns = cg.esphome_ns.namespace("gcja5")
 
@@ -95,8 +95,10 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_AQI): sensor.sensor_schema(
+            unit_of_measurement=UNIT_INDEX,
             icon=ICON_CHEMICAL_WEAPON,
             accuracy_decimals=0,
+            device_class=DEVICE_CLASS_AQI,
             state_class=STATE_CLASS_MEASUREMENT,
         ).extend(
             {

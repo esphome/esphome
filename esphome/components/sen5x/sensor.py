@@ -1,7 +1,8 @@
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import aqi, i2c, sensirion_common, sensor
+from esphome.components import i2c, sensirion_common, sensor
+from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALGORITHM_TUNING,
@@ -46,9 +47,7 @@ CODEOWNERS = ["@martgras"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["aqi", "sensirion_common"]
 
-CONF_AQI = aqi.CONF_AQI
-CONF_CALCULATION_TYPE = aqi.CONF_CALCULATION_TYPE
-AQI_CALCULATION_TYPE = aqi.AQI_CALCULATION_TYPE
+UNIT_INDEX = "index"
 
 sen5x_ns = cg.esphome_ns.namespace("sen5x")
 SEN5XComponent = sen5x_ns.class_(
@@ -195,8 +194,10 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES),
             cv.Optional(CONF_AQI): sensor.sensor_schema(
+                unit_of_measurement=UNIT_INDEX,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_AQI,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {

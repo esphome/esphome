@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor, uart
+from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -7,6 +8,7 @@ from esphome.const import (
     CONF_PM_10_0,
     CONF_RX_ONLY,
     CONF_UPDATE_INTERVAL,
+    DEVICE_CLASS_AQI,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
     ICON_CHEMICAL_WEAPON,
@@ -15,6 +17,9 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["uart"]
+AUTO_LOAD = ["aqi"]
+
+UNIT_INDEX = "index"
 
 sds011_ns = cg.esphome_ns.namespace("sds011")
 SDS011Component = sds011_ns.class_("SDS011Component", uart.UARTDevice, cg.Component)
@@ -53,6 +58,19 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_PM10,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_AQI): sensor.sensor_schema(
+                unit_of_measurement=UNIT_INDEX,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_AQI,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                {
+                    cv.Required(CONF_CALCULATION_TYPE): cv.enum(
+                        AQI_CALCULATION_TYPE, upper=True
+                    ),
+                }
+            ),
             cv.Optional(CONF_RX_ONLY, default=False): cv.boolean,
             cv.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_minutes,
         }
@@ -61,6 +79,17 @@ CONFIG_SCHEMA = cv.All(
     .extend(uart.UART_DEVICE_SCHEMA),
     validate_sds011_rx_mode,
 )
+
+
+def validate_aqi_requires_pm(config):
+    if CONF_AQI in config and (CONF_PM_2_5 not in config or CONF_PM_10_0 not in config):
+        raise cv.Invalid(
+            f"AQI sensor requires both '{CONF_PM_2_5}' and '{CONF_PM_10_0}' sensors to be configured"
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = validate_aqi_requires_pm
 
 
 async def to_code(config):
@@ -79,3 +108,8 @@ async def to_code(config):
     if CONF_PM_10_0 in config:
         sens = await sensor.new_sensor(config[CONF_PM_10_0])
         cg.add(var.set_pm_10_0_sensor(sens))
+
+    if CONF_AQI in config:
+        sens = await sensor.new_sensor(config[CONF_AQI])
+        cg.add(var.set_aqi_sensor(sens))
+        cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))

@@ -1,7 +1,8 @@
 """PM2005/2105 Sensor component for ESPHome."""
 
 import esphome.codegen as cg
-from esphome.components import aqi, i2c, sensor
+from esphome.components import i2c, sensor
+from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -9,6 +10,7 @@ from esphome.const import (
     CONF_PM_2_5,
     CONF_PM_10_0,
     CONF_TYPE,
+    DEVICE_CLASS_AQI,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
@@ -21,9 +23,7 @@ DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["aqi"]
 CODEOWNERS = ["@andrewjswan"]
 
-CONF_AQI = aqi.CONF_AQI
-CONF_CALCULATION_TYPE = aqi.CONF_CALCULATION_TYPE
-AQI_CALCULATION_TYPE = aqi.AQI_CALCULATION_TYPE
+UNIT_INDEX = "index"
 
 pm2005_ns = cg.esphome_ns.namespace("pm2005")
 PM2005Component = pm2005_ns.class_(
@@ -64,8 +64,10 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AQI): sensor.sensor_schema(
+                unit_of_measurement=UNIT_INDEX,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_AQI,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
