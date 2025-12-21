@@ -1438,8 +1438,8 @@ void Sprinkler::start_valve_(SprinklerValveRunRequest *req) {
     if (vo.state() == IDLE) {
       auto run_duration = req->run_duration() ? req->run_duration() : this->valve_run_duration_adjusted(req->valve());
       ESP_LOGD(TAG, "%s is starting valve %zu for %" PRIu32 " seconds, cycle %" PRIu32 " of %" PRIu32,
-               this->req_as_str_(req->request_is_from()), req->valve(), run_duration, this->repeat_count_ + 1,
-               this->repeat().value_or(0) + 1);
+               LOG_STR_ARG(this->req_as_str_(req->request_is_from())), req->valve(), run_duration,
+               this->repeat_count_ + 1, this->repeat().value_or(0) + 1);
       req->set_valve_operator(&vo);
       vo.set_controller(this);
       vo.set_valve(&this->valve_[req->valve()]);
@@ -1500,7 +1500,7 @@ void Sprinkler::fsm_kick_() {
 }
 
 void Sprinkler::fsm_transition_() {
-  ESP_LOGVV(TAG, "fsm_transition_ called; state is %s", this->state_as_str_(this->state_));
+  ESP_LOGVV(TAG, "fsm_transition_ called; state is %s", LOG_STR_ARG(this->state_as_str_(this->state_)));
   switch (this->state_) {
     case IDLE:  // the system was off -> start it up
       // advances to ACTIVE
@@ -1546,7 +1546,7 @@ void Sprinkler::fsm_transition_() {
     this->set_timer_duration_(sprinkler::TIMER_SM, this->manual_selection_delay_.value_or(1));
     this->start_timer_(sprinkler::TIMER_SM);
   }
-  ESP_LOGVV(TAG, "fsm_transition_ complete; new state is %s", this->state_as_str_(this->state_));
+  ESP_LOGVV(TAG, "fsm_transition_ complete; new state is %s", LOG_STR_ARG(this->state_as_str_(this->state_)));
 }
 
 void Sprinkler::fsm_transition_from_shutdown_() {
@@ -1635,41 +1635,41 @@ void Sprinkler::log_multiplier_zero_warning_(const LogString *method_name) {
   ESP_LOGW(TAG, "%s called but multiplier is set to zero; no action taken", LOG_STR_ARG(method_name));
 }
 
-const char *Sprinkler::req_as_str_(SprinklerValveRunRequestOrigin origin) {
+const LogString *Sprinkler::req_as_str_(SprinklerValveRunRequestOrigin origin) {
   switch (origin) {
     case USER:
-      return "USER";
+      return LOG_STR("USER");
 
     case CYCLE:
-      return "CYCLE";
+      return LOG_STR("CYCLE");
 
     case QUEUE:
-      return "QUEUE";
+      return LOG_STR("QUEUE");
 
     default:
-      return "UNKNOWN";
+      return LOG_STR("UNKNOWN");
   }
 }
 
-const char *Sprinkler::state_as_str_(SprinklerState state) {
+const LogString *Sprinkler::state_as_str_(SprinklerState state) {
   switch (state) {
     case IDLE:
-      return "IDLE";
+      return LOG_STR("IDLE");
 
     case STARTING:
-      return "STARTING";
+      return LOG_STR("STARTING");
 
     case ACTIVE:
-      return "ACTIVE";
+      return LOG_STR("ACTIVE");
 
     case STOPPING:
-      return "STOPPING";
+      return LOG_STR("STOPPING");
 
     case BYPASS:
-      return "BYPASS";
+      return LOG_STR("BYPASS");
 
     default:
-      return "UNKNOWN";
+      return LOG_STR("UNKNOWN");
   }
 }
 
