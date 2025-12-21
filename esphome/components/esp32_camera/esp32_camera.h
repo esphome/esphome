@@ -213,6 +213,10 @@ class ESP32Camera : public camera::Camera {
 
   uint32_t last_idle_request_{0};
   uint32_t last_update_{0};
+#if ESPHOME_LOG_LEVEL < ESPHOME_LOG_LEVEL_VERBOSE
+  uint32_t last_log_time_{0};
+  uint16_t frame_count_{0};
+#endif
 #ifdef USE_I2C
   i2c::InternalI2CBus *i2c_bus_{nullptr};
 #endif  // USE_I2C

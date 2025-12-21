@@ -966,15 +966,24 @@ void SubscribeHomeAssistantStateResponse::calculate_size(ProtoSize &size) const 
 }
 bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->entity_id = value.as_string();
+    case 1: {
+      // Use raw data directly to avoid allocation
+      this->entity_id = value.data();
+      this->entity_id_len = value.size();
       break;
-    case 2:
-      this->state = value.as_string();
+    }
+    case 2: {
+      // Use raw data directly to avoid allocation
+      this->state = value.data();
+      this->state_len = value.size();
       break;
-    case 3:
-      this->attribute = value.as_string();
+    }
+    case 3: {
+      // Use raw data directly to avoid allocation
+      this->attribute = value.data();
+      this->attribute_len = value.size();
       break;
+    }
     default:
       return false;
   }
