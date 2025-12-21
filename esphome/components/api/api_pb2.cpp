@@ -1447,6 +1447,114 @@ bool ClimateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   return true;
 }
 #endif
+#ifdef USE_WATER_HEATER
+void ListEntitiesWaterHeaterResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id_ref_);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name_ref_);
+#ifdef USE_ENTITY_ICON
+  buffer.encode_string(4, this->icon_ref_);
+#endif
+  buffer.encode_bool(5, this->disabled_by_default);
+  buffer.encode_uint32(6, static_cast<uint32_t>(this->entity_category));
+#ifdef USE_DEVICES
+  buffer.encode_uint32(7, this->device_id);
+#endif
+  buffer.encode_float(8, this->min_temperature);
+  buffer.encode_float(9, this->max_temperature);
+  buffer.encode_float(10, this->target_temperature_step);
+  for (const auto &it : *this->supported_modes) {
+    buffer.encode_uint32(11, static_cast<uint32_t>(it), true);
+  }
+  buffer.encode_uint32(12, this->supported_features);
+}
+void ListEntitiesWaterHeaterResponse::calculate_size(ProtoSize &size) const {
+  size.add_length(1, this->object_id_ref_.size());
+  size.add_fixed32(1, this->key);
+  size.add_length(1, this->name_ref_.size());
+#ifdef USE_ENTITY_ICON
+  size.add_length(1, this->icon_ref_.size());
+#endif
+  size.add_bool(1, this->disabled_by_default);
+  size.add_uint32(1, static_cast<uint32_t>(this->entity_category));
+#ifdef USE_DEVICES
+  size.add_uint32(1, this->device_id);
+#endif
+  size.add_float(1, this->min_temperature);
+  size.add_float(1, this->max_temperature);
+  size.add_float(1, this->target_temperature_step);
+  if (!this->supported_modes->empty()) {
+    for (const auto &it : *this->supported_modes) {
+      size.add_uint32_force(1, static_cast<uint32_t>(it));
+    }
+  }
+  size.add_uint32(1, this->supported_features);
+}
+void WaterHeaterStateResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_float(2, this->current_temperature);
+  buffer.encode_float(3, this->target_temperature);
+  buffer.encode_uint32(4, static_cast<uint32_t>(this->mode));
+#ifdef USE_DEVICES
+  buffer.encode_uint32(5, this->device_id);
+#endif
+  buffer.encode_uint32(6, this->state);
+  buffer.encode_float(7, this->target_temperature_low);
+  buffer.encode_float(8, this->target_temperature_high);
+}
+void WaterHeaterStateResponse::calculate_size(ProtoSize &size) const {
+  size.add_fixed32(1, this->key);
+  size.add_float(1, this->current_temperature);
+  size.add_float(1, this->target_temperature);
+  size.add_uint32(1, static_cast<uint32_t>(this->mode));
+#ifdef USE_DEVICES
+  size.add_uint32(1, this->device_id);
+#endif
+  size.add_uint32(1, this->state);
+  size.add_float(1, this->target_temperature_low);
+  size.add_float(1, this->target_temperature_high);
+}
+bool WaterHeaterCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2:
+      this->has_fields = value.as_uint32();
+      break;
+    case 3:
+      this->mode = static_cast<enums::WaterHeaterMode>(value.as_uint32());
+      break;
+#ifdef USE_DEVICES
+    case 5:
+      this->device_id = value.as_uint32();
+      break;
+#endif
+    case 6:
+      this->state = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool WaterHeaterCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1:
+      this->key = value.as_fixed32();
+      break;
+    case 4:
+      this->target_temperature = value.as_float();
+      break;
+    case 7:
+      this->target_temperature_low = value.as_float();
+      break;
+    case 8:
+      this->target_temperature_high = value.as_float();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+#endif
 #ifdef USE_NUMBER
 void ListEntitiesNumberResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->object_id_ref_);

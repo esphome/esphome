@@ -129,6 +129,25 @@ enum ClimatePreset : uint32_t {
   CLIMATE_PRESET_ACTIVITY = 7,
 };
 #endif
+#ifdef USE_WATER_HEATER
+enum WaterHeaterMode : uint32_t {
+  WATER_HEATER_MODE_OFF = 0,
+  WATER_HEATER_MODE_ECO = 1,
+  WATER_HEATER_MODE_ELECTRIC = 2,
+  WATER_HEATER_MODE_PERFORMANCE = 3,
+  WATER_HEATER_MODE_HIGH_DEMAND = 4,
+  WATER_HEATER_MODE_HEAT_PUMP = 5,
+  WATER_HEATER_MODE_GAS = 6,
+};
+#endif
+enum WaterHeaterCommandHasField : uint32_t {
+  WATER_HEATER_COMMAND_HAS_NONE = 0,
+  WATER_HEATER_COMMAND_HAS_MODE = 1,
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE = 2,
+  WATER_HEATER_COMMAND_HAS_STATE = 4,
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW = 8,
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH = 16,
+};
 #ifdef USE_NUMBER
 enum NumberMode : uint32_t {
   NUMBER_MODE_AUTO = 0,
@@ -1513,6 +1532,70 @@ class ClimateCommandRequest final : public CommandProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+#endif
+#ifdef USE_WATER_HEATER
+class ListEntitiesWaterHeaterResponse final : public InfoResponseProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 132;
+  static constexpr uint8_t ESTIMATED_SIZE = 63;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "list_entities_water_heater_response"; }
+#endif
+  float min_temperature{0.0f};
+  float max_temperature{0.0f};
+  float target_temperature_step{0.0f};
+  const water_heater::WaterHeaterModeMask *supported_modes{};
+  uint32_t supported_features{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
+class WaterHeaterStateResponse final : public StateResponseProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 133;
+  static constexpr uint8_t ESTIMATED_SIZE = 35;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "water_heater_state_response"; }
+#endif
+  float current_temperature{0.0f};
+  float target_temperature{0.0f};
+  enums::WaterHeaterMode mode{};
+  uint32_t state{0};
+  float target_temperature_low{0.0f};
+  float target_temperature_high{0.0f};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
+class WaterHeaterCommandRequest final : public CommandProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 134;
+  static constexpr uint8_t ESTIMATED_SIZE = 34;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "water_heater_command_request"; }
+#endif
+  uint32_t has_fields{0};
+  enums::WaterHeaterMode mode{};
+  float target_temperature{0.0f};
+  uint32_t state{0};
+  float target_temperature_low{0.0f};
+  float target_temperature_high{0.0f};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif
