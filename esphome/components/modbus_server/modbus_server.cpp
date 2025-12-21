@@ -148,9 +148,7 @@ modbus::ModbusServerResponse ModbusServer::on_modbus_write_registers(uint8_t fun
   }
 
   std::vector<uint8_t> response;
-  response.reserve(6);
-  response.push_back(this->address_);
-  response.push_back(function_code);
+  response.reserve(4);
   response.insert(response.end(), data.begin(), data.begin() + 4);
   return {.payload = std::move(response)};
 }
