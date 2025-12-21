@@ -55,9 +55,9 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   /// Clear the entire filter chain.
   void clear_filters();
 
-  void add_on_state_callback(std::function<void(std::string)> callback);
+  void add_on_state_callback(std::function<void(const std::string &)> callback);
   /// Add a callback that will be called every time the sensor sends a raw value.
-  void add_on_raw_state_callback(std::function<void(std::string)> callback);
+  void add_on_raw_state_callback(std::function<void(const std::string &)> callback);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -65,8 +65,8 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   void internal_send_state_to_frontend(const std::string &state);
 
  protected:
-  LazyCallbackManager<void(std::string)> raw_callback_;  ///< Storage for raw state callbacks.
-  LazyCallbackManager<void(std::string)> callback_;      ///< Storage for filtered state callbacks.
+  LazyCallbackManager<void(const std::string &)> raw_callback_;  ///< Storage for raw state callbacks.
+  LazyCallbackManager<void(const std::string &)> callback_;      ///< Storage for filtered state callbacks.
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 };
