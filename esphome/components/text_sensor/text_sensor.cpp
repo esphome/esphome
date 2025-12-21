@@ -71,10 +71,10 @@ void TextSensor::clear_filters() {
   this->filter_list_ = nullptr;
 }
 
-void TextSensor::add_on_state_callback(std::function<void(std::string)> callback) {
+void TextSensor::add_on_state_callback(std::function<void(const std::string &)> callback) {
   this->callback_.add(std::move(callback));
 }
-void TextSensor::add_on_raw_state_callback(std::function<void(std::string)> callback) {
+void TextSensor::add_on_raw_state_callback(std::function<void(const std::string &)> callback) {
   this->raw_callback_.add(std::move(callback));
 }
 
