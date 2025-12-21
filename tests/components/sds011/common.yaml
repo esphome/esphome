@@ -4,5 +4,8 @@ sensor:
       name: SDS011 PM2.5
     pm_10_0:
       name: SDS011 PM10.0
+    aqi:
+      name: SDS011 AQI
+      calculation_type: AQI
     rx_only: false
     update_interval: 5min

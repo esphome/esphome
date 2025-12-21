@@ -21,3 +21,6 @@ sensor:
       name: PMSA003i PMC <10µm
     address: 0x12
     standard_units: true
+    aqi:
+      name: PMSA003i AQI
+      calculation_type: CAQI

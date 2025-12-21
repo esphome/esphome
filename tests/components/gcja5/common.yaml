@@ -17,3 +17,6 @@ sensor:
       name: "PMC 5.0"
     pmc_10_0:
       name: "PMC 10.0"
+    aqi:
+      name: "AQI"
+      calculation_type: AQI

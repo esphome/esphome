@@ -43,3 +43,6 @@ sensor:
     acceleration_mode: low
     store_baseline: true
     address: 0x69
+    aqi:
+      name: AQI
+      calculation_type: CAQI

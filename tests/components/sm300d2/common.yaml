@@ -14,4 +14,7 @@ sensor:
       name: SM300D2 Temperature Value
     humidity:
       name: SM300D2 Humidity Value
+    aqi:
+      name: SM300D2 AQI
+      calculation_type: CAQI
     update_interval: 60s
