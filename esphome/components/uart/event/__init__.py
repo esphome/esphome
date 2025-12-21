@@ -84,4 +84,8 @@ async def to_code(config: ConfigType) -> None:
         match_data_var_content = ", ".join(f"0x{b:02X}" for b in match_data)
         match_data_var = f"static const uint8_t {match_data_var_name}[] = {{{match_data_var_content}}};"
         cg.add(cg.RawStatement(match_data_var))
-        cg.add(var.add_event_matcher(event_name, cg.RawExpression(match_data_var_name), len(match_data)))
+        cg.add(
+            var.add_event_matcher(
+                event_name, cg.RawExpression(match_data_var_name), len(match_data)
+            )
+        )
