@@ -5,10 +5,7 @@
 #include "esphome/core/template_lambda.h"
 #include "esphome/components/water_heater/water_heater.h"
 
-#include <vector>
-
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 enum TemplateWaterHeaterRestoreMode {
   WATER_HEATER_NO_RESTORE,
@@ -27,7 +24,9 @@ class TemplateWaterHeater : public water_heater::WaterHeater {
 
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   void set_restore_mode(TemplateWaterHeaterRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
-  void set_supported_modes(const std::vector<water_heater::WaterHeaterMode> &modes);
+  void set_supported_modes(const std::initializer_list<water_heater::WaterHeaterMode> &modes) {
+    this->supported_modes_ = modes;
+  }
 
   Trigger<> *get_set_trigger() const { return this->set_trigger_; }
 
@@ -45,13 +44,12 @@ class TemplateWaterHeater : public water_heater::WaterHeater {
   bool optimistic_{true};
   TemplateWaterHeaterRestoreMode restore_mode_{WATER_HEATER_NO_RESTORE};
 
-  Trigger<> *set_trigger_ = new Trigger<>();
+  Trigger<> *set_trigger_;
 
   TemplateLambda<float> current_temperature_f_;
   TemplateLambda<water_heater::WaterHeaterMode> mode_f_;
 
-  std::vector<water_heater::WaterHeaterMode> supported_modes_;
+  water_heater::WaterHeaterModeMask supported_modes_;
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_
