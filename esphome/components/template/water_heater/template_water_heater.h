@@ -35,10 +35,10 @@ class TemplateWaterHeater : public water_heater::WaterHeater {
   void dump_config() override;
   float get_setup_priority() const override;
 
+  water_heater::WaterHeaterCallInternal make_call() override;
+
  protected:
   void control(const water_heater::WaterHeaterCall &call) override;
-
-  water_heater::WaterHeaterCallInternal make_call() override;
   water_heater::WaterHeaterTraits traits() override;
 
   // Ordered to minimize padding on 32-bit: 4-byte members first, then smaller
