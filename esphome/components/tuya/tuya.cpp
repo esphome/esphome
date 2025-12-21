@@ -303,11 +303,8 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     case TuyaCommandType::GET_MAC_ADDRESS: {
       std::vector<uint8_t> mac(6u);
       get_mac_address_raw(mac.data());
-      this->send_command_(
-          TuyaCommand{.cmd = TuyaCommandType::GET_MAC_ADDRESS,
-                      .payload = mac});
-      ESP_LOGV(TAG, "MAC address requested, reported as %s",
-                format_hex_pretty(mac).c_str());
+      this->send_command_(TuyaCommand{.cmd = TuyaCommandType::GET_MAC_ADDRESS, .payload = mac});
+      ESP_LOGV(TAG, "MAC address requested, reported as %s", format_hex_pretty(mac).c_str());
       break;
     }
     case TuyaCommandType::EXTENDED_SERVICES: {
@@ -332,28 +329,19 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         case TuyaExtendedServicesCommandType::GET_MODULE_INFORMATION: {
           std::vector<uint8_t> response_payload;
           std::string module_info_str;
-          response_payload.push_back(static_cast<uint8_t>(
-                      TuyaExtendedServicesCommandType::GET_MODULE_INFORMATION));
-          if (len >= 2)
-          {
+          response_payload.push_back(static_cast<uint8_t>(TuyaExtendedServicesCommandType::GET_MODULE_INFORMATION));
+          if (len >= 2) {
             module_info_str = process_get_module_information_(&buffer[1], len - 1);
           }
 
-          if (module_info_str.empty())
-          {
+          if (module_info_str.empty()) {
             response_payload.push_back(0x01);  // failure
-          }
-          else
-          {
+          } else {
             response_payload.push_back(0x00);  // success
-            response_payload.insert(response_payload.end(),
-                                    module_info_str.begin(),
-                                    module_info_str.end());
+            response_payload.insert(response_payload.end(), module_info_str.begin(), module_info_str.end());
           }
 
-          send_raw_command_(TuyaCommand{
-              .cmd = TuyaCommandType::EXTENDED_SERVICES,
-              .payload = response_payload});
+          send_raw_command_(TuyaCommand{.cmd = TuyaCommandType::EXTENDED_SERVICES, .payload = response_payload});
           break;
         }
         default:
@@ -772,30 +760,24 @@ void Tuya::register_listener(uint8_t datapoint_id, const std::function<void(Tuya
 
 TuyaInitState Tuya::get_init_state() { return this->init_state_; }
 
-std::string Tuya::process_get_module_information_(const uint8_t *buffer, size_t len)
-{
+std::string Tuya::process_get_module_information_(const uint8_t *buffer, size_t len) {
   // By default, we return an empty string indicating failure
   bool want_ssid = false;
   bool want_country_code = false;
   bool want_sn = false;
 
-  if (len == 0)
-  {
+  if (len == 0) {
     return {};
   }
 
-  if (buffer[0] == 0xFF) // special case: get all information
+  if (buffer[0] == 0xFF)  // special case: get all information
   {
     want_ssid = true;
     want_country_code = true;
     want_sn = true;
-  }
-  else
-  {
-    for (size_t i = 0; i < len; i++)
-    {
-      switch (buffer[i])
-      {
+  } else {
+    for (size_t i = 0; i < len; i++) {
+      switch (buffer[i]) {
         case 0x01:
           want_ssid = true;
           break;
@@ -806,35 +788,28 @@ std::string Tuya::process_get_module_information_(const uint8_t *buffer, size_t 
           want_sn = true;
           break;
         default:
-          ESP_LOGW(TAG, "Unknown GET_MODULE_INFORMATION request field 0x%02X",
-                   buffer[i]);
+          ESP_LOGW(TAG, "Unknown GET_MODULE_INFORMATION request field 0x%02X", buffer[i]);
       }
     }
   }
 
-  if (!want_ssid && !want_country_code && !want_sn)
-  {
+  if (!want_ssid && !want_country_code && !want_sn) {
     return {};
   }
 
   std::string module_info_str = "{";
 
-  if (want_ssid)
-  {
+  if (want_ssid) {
     module_info_str += "\"ap:\":\"smartlife\"";
   }
-  if (want_country_code)
-  {
-    if (module_info_str.length() > 1)
-    {
+  if (want_country_code) {
+    if (module_info_str.length() > 1) {
       module_info_str.push_back(',');
     }
     module_info_str += "\"cc\":\"0\"";  // 0 means China
   }
-  if (want_sn)
-  {
-    if (module_info_str.length() > 1)
-    {
+  if (want_sn) {
+    if (module_info_str.length() > 1) {
       module_info_str.push_back(',');
     }
     module_info_str += "\"sn\":\"1234567890\"";
