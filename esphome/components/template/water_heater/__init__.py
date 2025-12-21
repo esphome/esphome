@@ -14,6 +14,7 @@ from esphome.const import (
 from .. import template_ns
 
 CONF_CURRENT_TEMPERATURE = "current_temperature"
+CONF_SUPPORTED_MODES = "supported_modes"
 
 TemplateWaterHeater = template_ns.class_(
     "TemplateWaterHeater", water_heater.WaterHeater, cg.Component
@@ -42,6 +43,9 @@ CONFIG_SCHEMA = water_heater.WATER_HEATER_SCHEMA.extend(
         ),
         cv.Optional(CONF_CURRENT_TEMPERATURE): cv.templatable(cv.temperature),
         cv.Optional(CONF_MODE): cv.templatable(water_heater.validate_water_heater_mode),
+        cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(
+            water_heater.validate_water_heater_mode
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -83,6 +87,13 @@ async def to_code(config):
             return_type=cg.optional.template(water_heater.WaterHeaterMode),
         )
         cg.add(var.set_mode_lambda(template_))
+
+    if CONF_SUPPORTED_MODES in config:
+        modes = [
+            water_heater.WATER_HEATER_MODES[mode]
+            for mode in config[CONF_SUPPORTED_MODES]
+        ]
+        cg.add(var.set_supported_modes(modes))
 
 
 @automation.register_action(

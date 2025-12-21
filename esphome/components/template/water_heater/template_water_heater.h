@@ -5,6 +5,8 @@
 #include "esphome/core/template_lambda.h"
 #include "esphome/components/water_heater/water_heater.h"
 
+#include <vector>
+
 namespace esphome {
 namespace template_ {
 
@@ -25,6 +27,7 @@ class TemplateWaterHeater : public water_heater::WaterHeater {
 
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   void set_restore_mode(TemplateWaterHeaterRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
+  void set_supported_modes(const std::vector<water_heater::WaterHeaterMode> &modes);
 
   Trigger<> *get_set_trigger() const { return this->set_trigger_; }
 
@@ -37,6 +40,7 @@ class TemplateWaterHeater : public water_heater::WaterHeater {
   void control(const water_heater::WaterHeaterCall &call) override;
 
   water_heater::WaterHeaterCallInternal make_call() override;
+  water_heater::WaterHeaterTraits traits() override;
 
   bool optimistic_{true};
   TemplateWaterHeaterRestoreMode restore_mode_{WATER_HEATER_NO_RESTORE};
@@ -45,6 +49,8 @@ class TemplateWaterHeater : public water_heater::WaterHeater {
 
   TemplateLambda<float> current_temperature_f_;
   TemplateLambda<water_heater::WaterHeaterMode> mode_f_;
+
+  std::vector<water_heater::WaterHeaterMode> supported_modes_;
 };
 
 }  // namespace template_

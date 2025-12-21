@@ -10,6 +10,10 @@ static const char *const TAG = "template.water_heater";
 
 TemplateWaterHeater::TemplateWaterHeater() {}
 
+void TemplateWaterHeater::set_supported_modes(const std::vector<water_heater::WaterHeaterMode> &modes) {
+  this->supported_modes_ = modes;
+}
+
 void TemplateWaterHeater::setup() {
   if (this->restore_mode_ == TemplateWaterHeaterRestoreMode::WATER_HEATER_RESTORE ||
       this->restore_mode_ == TemplateWaterHeaterRestoreMode::WATER_HEATER_RESTORE_AND_CALL) {
@@ -23,6 +27,17 @@ void TemplateWaterHeater::setup() {
       }
     }
   }
+}
+
+water_heater::WaterHeaterTraits TemplateWaterHeater::traits() {
+  auto traits = water_heater::WaterHeater::get_traits();
+
+  if (!this->supported_modes_.empty()) {
+    traits.set_supported_modes(this->supported_modes_);
+  }
+
+  traits.set_supports_current_temperature(true);
+  return traits;
 }
 
 void TemplateWaterHeater::loop() {
