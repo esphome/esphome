@@ -69,6 +69,7 @@ from esphome.const import (
     CONF_SWING_VERTICAL_ACTION,
     CONF_TARGET_TEMPERATURE_CHANGE_ACTION,
     CONF_VISUAL,
+    CONF_USE_SINGLE_TEMPERATURE,
 )
 
 CONF_DEFAULT_PRESET = "default_preset"
@@ -348,6 +349,11 @@ def validate_thermostat(config):
                 preset_config, config, preset_config[CONF_NAME], requirements
             )
 
+    if config.get(CONF_USE_SINGLE_TEMPERATURE) and CONF_HEAT_COOL_MODE in config:
+        raise cv.Invalid(
+            f"{CONF_HEAT_COOL_MODE} cannot be used when {CONF_USE_SINGLE_TEMPERATURE} is enabled."
+        )
+
     # Warn about using the removed CONF_DEFAULT_MODE and advise users
     if CONF_DEFAULT_MODE in config and config[CONF_DEFAULT_MODE] is not None:
         raise cv.Invalid(
@@ -626,6 +632,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_SET_POINT_MINIMUM_DIFFERENTIAL, default=0.5
             ): cv.temperature_delta,
+            cv.Optional(CONF_USE_SINGLE_TEMPERATURE, default=False): cv.boolean,
             cv.Optional(CONF_COOL_DEADBAND, default=0.5): cv.temperature_delta,
             cv.Optional(CONF_COOL_OVERRUN, default=0.5): cv.temperature_delta,
             cv.Optional(CONF_HEAT_DEADBAND, default=0.5): cv.temperature_delta,
@@ -676,9 +683,13 @@ async def to_code(config):
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
 
-    two_points_available = CONF_HEAT_ACTION in config and (
-        CONF_COOL_ACTION in config
-        or (config[CONF_FAN_ONLY_COOLING] and CONF_FAN_ONLY_ACTION in config)
+    two_points_available = (
+        CONF_HEAT_ACTION in config
+        and (
+            CONF_COOL_ACTION in config
+            or (config[CONF_FAN_ONLY_COOLING] and CONF_FAN_ONLY_ACTION in config)
+        )
+        and not config[CONF_USE_SINGLE_TEMPERATURE]
     )
     if two_points_available:
         cg.add(var.set_supports_two_points(True))
@@ -689,6 +700,7 @@ async def to_code(config):
             config[CONF_SET_POINT_MINIMUM_DIFFERENTIAL]
         )
     )
+    cg.add(var.set_use_single_temperature(config[CONF_USE_SINGLE_TEMPERATURE]))
     cg.add(var.set_sensor(sens))
 
     if CONF_HUMIDITY_SENSOR in config:
@@ -827,7 +839,7 @@ async def to_code(config):
             var.get_heat_mode_trigger(), [], config[CONF_HEAT_MODE]
         )
         cg.add(var.set_supports_heat(True))
-    if CONF_HEAT_COOL_MODE in config:
+    if CONF_HEAT_COOL_MODE in config and not config[CONF_USE_SINGLE_TEMPERATURE]:
         await automation.build_automation(
             var.get_heat_cool_mode_trigger(), [], config[CONF_HEAT_COOL_MODE]
         )
