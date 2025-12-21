@@ -1040,26 +1040,32 @@ void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
 
 #ifdef USE_CAMERA
 void APIConnection::try_send_camera_image_() {
-  if (!this->image_reader_ || !this->image_reader_->available())
-    return;
-  if (!this->helper_->can_write_without_blocking())
+  if (!this->image_reader_)
     return;
 
-  uint32_t to_send = std::min((size_t) MAX_BATCH_PACKET_SIZE, this->image_reader_->available());
-  bool done = this->image_reader_->available() == to_send;
+  // Send as many chunks as possible without blocking
+  while (this->image_reader_->available()) {
+    if (!this->helper_->can_write_without_blocking())
+      return;
 
-  CameraImageResponse msg;
-  msg.key = camera::Camera::instance()->get_object_id_hash();
-  msg.set_data(this->image_reader_->peek_data_buffer(), to_send);
-  msg.done = done;
+    uint32_t to_send = std::min((size_t) MAX_BATCH_PACKET_SIZE, this->image_reader_->available());
+    bool done = this->image_reader_->available() == to_send;
+
+    CameraImageResponse msg;
+    msg.key = camera::Camera::instance()->get_object_id_hash();
+    msg.set_data(this->image_reader_->peek_data_buffer(), to_send);
+    msg.done = done;
 #ifdef USE_DEVICES
-  msg.device_id = camera::Camera::instance()->get_device_id();
+    msg.device_id = camera::Camera::instance()->get_device_id();
 #endif
 
-  if (this->send_message_(msg, CameraImageResponse::MESSAGE_TYPE)) {
+    if (!this->send_message_(msg, CameraImageResponse::MESSAGE_TYPE)) {
+      return;  // Send failed, try again later
+    }
     this->image_reader_->consume_data(to_send);
     if (done) {
       this->image_reader_->return_image();
+      return;
     }
   }
 }
