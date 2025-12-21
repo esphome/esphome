@@ -17,7 +17,7 @@ from .. import template_ns
 CONF_CURRENT_TEMPERATURE = "current_temperature"
 
 TemplateWaterHeater = template_ns.class_(
-    "TemplateWaterHeater", water_heater.WaterHeater, cg.Component
+    "TemplateWaterHeater", water_heater.WaterHeater
 )
 
 TemplateWaterHeaterPublishAction = template_ns.class_(
