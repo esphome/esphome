@@ -1,4 +1,5 @@
 from pathlib import Path
+import textwrap
 from typing import TypedDict
 
 import esphome.codegen as cg
@@ -90,7 +91,7 @@ def zephyr_add_prj_conf(
 
 
 def zephyr_add_overlay(content):
-    zephyr_data()[KEY_OVERLAY] += content
+    zephyr_data()[KEY_OVERLAY] += textwrap.dedent(content)
 
 
 def add_extra_build_file(filename: str, path: Path) -> bool:
@@ -234,6 +235,9 @@ def copy_files():
     "url": "https://esphome.io/",
     "vendor": "esphome",
     "build": {
+        "bsp": {
+            "name": "adafruit"
+        },
         "softdevice": {
             "sd_fwid": "0x00B6"
         }

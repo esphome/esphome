@@ -1,7 +1,0 @@
-substitutions:
-  irq_pin: GPIO9
-  cs_pin: GPIO8
-packages:
-  spi: !include ../../test_build_components/common/spi/esp32-c3-idf.yaml
-
-<<: !include common.yaml

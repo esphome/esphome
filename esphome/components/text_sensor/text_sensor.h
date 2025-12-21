@@ -5,7 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/text_sensor/filter.h"
 
-#include <vector>
+#include <initializer_list>
 #include <memory>
 
 namespace esphome {
@@ -24,7 +24,17 @@ void log_text_sensor(const char *tag, const char *prefix, const char *type, Text
 
 class TextSensor : public EntityBase, public EntityBase_DeviceClass {
  public:
+  std::string state;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  /// @deprecated Use get_raw_state() instead. This member will be removed in ESPHome 2026.6.0.
+  ESPDEPRECATED("Use get_raw_state() instead of .raw_state. Will be removed in 2026.6.0", "2025.12.0")
+  std::string raw_state;
+
   TextSensor() = default;
+  ~TextSensor() = default;
+#pragma GCC diagnostic pop
 
   /// Getter-syntax for .state.
   std::string get_state() const;
@@ -37,20 +47,17 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   void add_filter(Filter *filter);
 
   /// Add a list of vectors to the back of the filter chain.
-  void add_filters(const std::vector<Filter *> &filters);
+  void add_filters(std::initializer_list<Filter *> filters);
 
   /// Clear the filters and replace them by filters.
-  void set_filters(const std::vector<Filter *> &filters);
+  void set_filters(std::initializer_list<Filter *> filters);
 
   /// Clear the entire filter chain.
   void clear_filters();
 
-  void add_on_state_callback(std::function<void(std::string)> callback);
+  void add_on_state_callback(std::function<void(const std::string &)> callback);
   /// Add a callback that will be called every time the sensor sends a raw value.
-  void add_on_raw_state_callback(std::function<void(std::string)> callback);
-
-  std::string state;
-  std::string raw_state;
+  void add_on_raw_state_callback(std::function<void(const std::string &)> callback);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -58,9 +65,8 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   void internal_send_state_to_frontend(const std::string &state);
 
  protected:
-  std::unique_ptr<CallbackManager<void(std::string)>>
-      raw_callback_;                             ///< Storage for raw state callbacks (lazy allocated).
-  CallbackManager<void(std::string)> callback_;  ///< Storage for filtered state callbacks.
+  LazyCallbackManager<void(const std::string &)> raw_callback_;  ///< Storage for raw state callbacks.
+  LazyCallbackManager<void(const std::string &)> callback_;      ///< Storage for filtered state callbacks.
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 };

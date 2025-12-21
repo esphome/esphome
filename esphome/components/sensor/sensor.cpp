@@ -1,4 +1,6 @@
 #include "sensor.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -42,6 +44,8 @@ const LogString *state_class_to_string(StateClass state_class) {
       return LOG_STR("total_increasing");
     case STATE_CLASS_TOTAL:
       return LOG_STR("total");
+    case STATE_CLASS_MEASUREMENT_ANGLE:
+      return LOG_STR("measurement_angle");
     case STATE_CLASS_NONE:
     default:
       return LOG_STR("");
@@ -72,9 +76,7 @@ StateClass Sensor::get_state_class() {
 
 void Sensor::publish_state(float state) {
   this->raw_state = state;
-  if (this->raw_callback_) {
-    this->raw_callback_->call(state);
-  }
+  this->raw_callback_.call(state);
 
   ESP_LOGV(TAG, "'%s': Received new state %f", this->name_.c_str(), state);
 
@@ -87,10 +89,7 @@ void Sensor::publish_state(float state) {
 
 void Sensor::add_on_state_callback(std::function<void(float)> &&callback) { this->callback_.add(std::move(callback)); }
 void Sensor::add_on_raw_state_callback(std::function<void(float)> &&callback) {
-  if (!this->raw_callback_) {
-    this->raw_callback_ = make_unique<CallbackManager<void(float)>>();
-  }
-  this->raw_callback_->add(std::move(callback));
+  this->raw_callback_.add(std::move(callback));
 }
 
 void Sensor::add_filter(Filter *filter) {
@@ -107,12 +106,12 @@ void Sensor::add_filter(Filter *filter) {
   }
   filter->initialize(this, nullptr);
 }
-void Sensor::add_filters(const std::vector<Filter *> &filters) {
+void Sensor::add_filters(std::initializer_list<Filter *> filters) {
   for (Filter *filter : filters) {
     this->add_filter(filter);
   }
 }
-void Sensor::set_filters(const std::vector<Filter *> &filters) {
+void Sensor::set_filters(std::initializer_list<Filter *> filters) {
   this->clear_filters();
   this->add_filters(filters);
 }
@@ -131,6 +130,9 @@ void Sensor::internal_send_state_to_frontend(float state) {
   ESP_LOGD(TAG, "'%s': Sending state %.5f %s with %d decimals of accuracy", this->get_name().c_str(), state,
            this->get_unit_of_measurement_ref().c_str(), this->get_accuracy_decimals());
   this->callback_.call(state);
+#if defined(USE_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_sensor_update(this);
+#endif
 }
 
 }  // namespace sensor

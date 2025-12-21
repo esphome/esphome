@@ -189,10 +189,6 @@ def fan_schema(
     return _FAN_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-FAN_SCHEMA = fan_schema(Fan)
-FAN_SCHEMA.add_extra(cv.deprecated_schema_constant("fan"))
-
 _PRESET_MODES_SCHEMA = cv.All(
     cv.ensure_list(cv.string_strict),
     cv.Length(min=1),

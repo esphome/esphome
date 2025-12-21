@@ -14,6 +14,15 @@ inline static constexpr uint8_t esp_scale8(uint8_t i, uint8_t scale) {
   return (uint16_t(i) * (1 + uint16_t(scale))) / 256;
 }
 
+/// Scale an 8-bit value by two 8-bit scale factors with improved precision.
+/// This is more accurate than calling esp_scale8() twice because it delays
+/// truncation until after both multiplications, preserving intermediate precision.
+/// For example: esp_scale8_twice(value, max_brightness, local_brightness)
+/// gives better results than esp_scale8(esp_scale8(value, max_brightness), local_brightness)
+inline static constexpr uint8_t esp_scale8_twice(uint8_t i, uint8_t scale1, uint8_t scale2) {
+  return (uint32_t(i) * (1 + uint32_t(scale1)) * (1 + uint32_t(scale2))) >> 16;
+}
+
 struct Color {
   union {
     struct {
@@ -165,17 +174,9 @@ struct Color {
                  uint8_t((uint16_t(b) * 255U / max_rgb)), w);
   }
 
-  Color gradient(const Color &to_color, uint8_t amnt) {
-    Color new_color;
-    float amnt_f = float(amnt) / 255.0f;
-    new_color.r = amnt_f * (to_color.r - (*this).r) + (*this).r;
-    new_color.g = amnt_f * (to_color.g - (*this).g) + (*this).g;
-    new_color.b = amnt_f * (to_color.b - (*this).b) + (*this).b;
-    new_color.w = amnt_f * (to_color.w - (*this).w) + (*this).w;
-    return new_color;
-  }
-  Color fade_to_white(uint8_t amnt) { return (*this).gradient(Color::WHITE, amnt); }
-  Color fade_to_black(uint8_t amnt) { return (*this).gradient(Color::BLACK, amnt); }
+  Color gradient(const Color &to_color, uint8_t amnt);
+  Color fade_to_white(uint8_t amnt);
+  Color fade_to_black(uint8_t amnt);
 
   Color lighten(uint8_t delta) { return *this + delta; }
   Color darken(uint8_t delta) { return *this - delta; }

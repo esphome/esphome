@@ -19,11 +19,10 @@ constexpr int LOG_LEVEL_TO_SYSLOG_SEVERITY[] = {
     7   // VERY_VERBOSE
 };
 
-void Syslog::setup() {
-  logger::global_logger->add_on_log_callback(
-      [this](int level, const char *tag, const char *message, size_t message_len) {
-        this->log_(level, tag, message, message_len);
-      });
+void Syslog::setup() { logger::global_logger->add_log_listener(this); }
+
+void Syslog::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
+  this->log_(level, tag, message, message_len);
 }
 
 void Syslog::log_(const int level, const char *tag, const char *message, size_t message_len) const {
@@ -35,7 +34,15 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
     severity = LOG_LEVEL_TO_SYSLOG_SEVERITY[level];
   }
   int pri = this->facility_ * 8 + severity;
-  auto timestamp = this->time_->now().strftime("%b %e %H:%M:%S");
+  auto now = this->time_->now();
+  std::string timestamp;
+  if (now.is_valid()) {
+    timestamp = now.strftime("%b %e %H:%M:%S");
+  } else {
+    // RFC 5424: A syslog application MUST use the NILVALUE as TIMESTAMP if the syslog application is incapable of
+    //           obtaining system time.
+    timestamp = "-";
+  }
   size_t len = message_len;
   // remove color formatting
   if (this->strip_ && message[0] == 0x1B && len > 11) {

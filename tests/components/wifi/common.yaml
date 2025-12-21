@@ -10,7 +10,19 @@ esphome:
             - logger.log: "Connected to WiFi!"
           on_error:
             - logger.log: "Failed to connect to WiFi!"
+      - if:
+          condition: wifi.ap_active
+          then:
+            - logger.log: "WiFi AP is active!"
 
 wifi:
-  ssid: MySSID
-  password: password1
+  networks:
+    - ssid: MySSID
+      password: password1
+      priority: 10
+    - ssid: MySSID2
+      password: password2
+      priority: 5
+    - ssid: MySSID3
+      password: password3
+      priority: 0

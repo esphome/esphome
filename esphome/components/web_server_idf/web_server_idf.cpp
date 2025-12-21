@@ -4,6 +4,7 @@
 #include <memory>
 #include <cstring>
 #include <cctype>
+#include <cinttypes>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -86,6 +87,29 @@ int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_
 }
 }  // namespace
 
+void AsyncWebServer::safe_close_with_shutdown(httpd_handle_t hd, int sockfd) {
+  // CRITICAL: Shut down receive BEFORE closing to prevent lwIP race conditions
+  //
+  // The race condition occurs because close() initiates lwIP teardown while
+  // the TCP/IP thread can still receive packets, causing assertions when
+  // recv_tcp() sees partially-torn-down state.
+  //
+  // By shutting down receive first, we tell lwIP to stop accepting new data BEFORE
+  // the teardown begins, eliminating the race window. We only shutdown RD (not RDWR)
+  // to allow the FIN packet to be sent cleanly during close().
+  //
+  // Note: This function may be called with an already-closed socket if the network
+  // stack closed it. In that case, shutdown() will fail but close() is safe to call.
+  //
+  // See: https://github.com/esphome/esphome-webserver/issues/163
+
+  // Attempt shutdown - ignore errors as socket may already be closed
+  shutdown(sockfd, SHUT_RD);
+
+  // Always close - safe even if socket is already closed by network stack
+  close(sockfd);
+}
+
 void AsyncWebServer::end() {
   if (this->server_) {
     httpd_stop(this->server_);
@@ -100,6 +124,13 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
+  // Always enable LRU purging to handle socket exhaustion gracefully.
+  // When max sockets is reached, the oldest connection is closed to make room for new ones.
+  // This prevents "httpd_accept_conn: error in accept (23)" errors.
+  // See: https://github.com/esphome/esphome/issues/12464
+  config.lru_purge_enable = true;
+  // Use custom close function that shuts down before closing to prevent lwIP race conditions
+  config.close_fn = AsyncWebServer::safe_close_with_shutdown;
   if (httpd_start(&this->server_, &config) == ESP_OK) {
     const httpd_uri_t handler_get = {
         .uri = "",
@@ -241,12 +272,13 @@ void AsyncWebServerRequest::send(int code, const char *content_type, const char 
 void AsyncWebServerRequest::redirect(const std::string &url) {
   httpd_resp_set_status(*this, "302 Found");
   httpd_resp_set_hdr(*this, "Location", url.c_str());
+  httpd_resp_set_hdr(*this, "Connection", "close");
   httpd_resp_send(*this, nullptr, 0);
 }
 
 void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code, const char *content_type) {
-  // Set status code - use constants for common codes to avoid string allocation
-  const char *status = nullptr;
+  // Set status code - use constants for common codes, default to 500 for unknown codes
+  const char *status;
   switch (code) {
     case 200:
       status = HTTPD_200;
@@ -258,9 +290,10 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
       status = HTTPD_409;
       break;
     default:
+      status = HTTPD_500;
       break;
   }
-  httpd_resp_set_status(*this, status == nullptr ? to_string(code).c_str() : status);
+  httpd_resp_set_status(*this, status);
 
   if (content_type && *content_type) {
     httpd_resp_set_type(*this, content_type);
@@ -348,7 +381,13 @@ void AsyncWebServerResponse::addHeader(const char *name, const char *value) {
   httpd_resp_set_hdr(*this->req_, name, value);
 }
 
-void AsyncResponseStream::print(float value) { this->print(to_string(value)); }
+void AsyncResponseStream::print(float value) {
+  // Use stack buffer to avoid temporary string allocation
+  // Size: sign (1) + digits (10) + decimal (1) + precision (6) + exponent (5) + null (1) = 24, use 32 for safety
+  char buf[32];
+  int len = snprintf(buf, sizeof(buf), "%f", value);
+  this->content_.append(buf, len);
+}
 
 void AsyncResponseStream::printf(const char *fmt, ...) {
   va_list args;
@@ -481,10 +520,12 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 
 void AsyncEventSourceResponse::destroy(void *ptr) {
   auto *rsp = static_cast<AsyncEventSourceResponse *>(ptr);
-  ESP_LOGD(TAG, "Event source connection closed (fd: %d)", rsp->fd_.load());
-  // Mark as dead by setting fd to 0 - will be cleaned up in the main loop
-  rsp->fd_.store(0);
+  int fd = rsp->fd_.exchange(0);  // Atomically get and clear fd
+  ESP_LOGD(TAG, "Event source connection closed (fd: %d)", fd);
+  // Mark as dead - will be cleaned up in the main loop
   // Note: We don't delete or remove from set here to avoid race conditions
+  // httpd will call our custom close_fn (safe_close_with_shutdown) which handles
+  // shutdown() before close() to prevent lwIP race conditions
 }
 
 // helper for allowing only unique entries in the queue
@@ -494,8 +535,7 @@ void AsyncEventSourceResponse::deq_push_back_with_dedup_(void *source, message_g
   // Use range-based for loop instead of std::find_if to reduce template instantiation overhead and binary size
   for (auto &event : this->deferred_queue_) {
     if (event == item) {
-      event = item;
-      return;
+      return;  // Already in queue, no need to update since items are equal
     }
   }
   this->deferred_queue_.push_back(item);
@@ -594,16 +634,19 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
 
   event_buffer_.append(chunk_len_header);
 
+  // Use stack buffer for formatting numeric fields to avoid temporary string allocations
+  // Size: "retry: " (7) + max uint32 (10 digits) + CRLF (2) + null (1) = 20 bytes, use 32 for safety
+  constexpr size_t num_buf_size = 32;
+  char num_buf[num_buf_size];
+
   if (reconnect) {
-    event_buffer_.append("retry: ", sizeof("retry: ") - 1);
-    event_buffer_.append(to_string(reconnect));
-    event_buffer_.append(CRLF_STR, CRLF_LEN);
+    int len = snprintf(num_buf, num_buf_size, "retry: %" PRIu32 CRLF_STR, reconnect);
+    event_buffer_.append(num_buf, len);
   }
 
   if (id) {
-    event_buffer_.append("id: ", sizeof("id: ") - 1);
-    event_buffer_.append(to_string(id));
-    event_buffer_.append(CRLF_STR, CRLF_LEN);
+    int len = snprintf(num_buf, num_buf_size, "id: %" PRIu32 CRLF_STR, id);
+    event_buffer_.append(num_buf, len);
   }
 
   if (event && *event) {
@@ -612,17 +655,92 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
     event_buffer_.append(CRLF_STR, CRLF_LEN);
   }
 
-  if (message && *message) {
-    event_buffer_.append("data: ", sizeof("data: ") - 1);
-    event_buffer_.append(message);
-    event_buffer_.append(CRLF_STR, CRLF_LEN);
+  // Match ESPAsyncWebServer: null message means no data lines and no terminating blank line
+  if (message) {
+    // SSE spec requires each line of a multi-line message to have its own "data:" prefix
+    // Handle \n, \r, and \r\n line endings (matching ESPAsyncWebServer behavior)
+
+    // Fast path: check if message contains any newlines at all
+    // Most SSE messages (JSON state updates) have no newlines
+    const char *first_n = strchr(message, '\n');
+    const char *first_r = strchr(message, '\r');
+
+    if (first_n == nullptr && first_r == nullptr) {
+      // No newlines - fast path (most common case)
+      event_buffer_.append("data: ", sizeof("data: ") - 1);
+      event_buffer_.append(message);
+      event_buffer_.append(CRLF_STR CRLF_STR, CRLF_LEN * 2);  // data line + blank line terminator
+    } else {
+      // Has newlines - handle multi-line message
+      const char *line_start = message;
+      size_t msg_len = strlen(message);
+      const char *msg_end = message + msg_len;
+
+      // Reuse the first search results
+      const char *next_n = first_n;
+      const char *next_r = first_r;
+
+      while (line_start <= msg_end) {
+        const char *line_end;
+        const char *next_line;
+
+        if (next_n == nullptr && next_r == nullptr) {
+          // No more line breaks - output remaining text as final line
+          event_buffer_.append("data: ", sizeof("data: ") - 1);
+          event_buffer_.append(line_start);
+          event_buffer_.append(CRLF_STR, CRLF_LEN);
+          break;
+        }
+
+        // Determine line ending type and next line start
+        if (next_n != nullptr && next_r != nullptr) {
+          if (next_r + 1 == next_n) {
+            // \r\n sequence
+            line_end = next_r;
+            next_line = next_n + 1;
+          } else {
+            // Mixed \n and \r - use whichever comes first
+            line_end = (next_r < next_n) ? next_r : next_n;
+            next_line = line_end + 1;
+          }
+        } else if (next_n != nullptr) {
+          // Unix LF
+          line_end = next_n;
+          next_line = next_n + 1;
+        } else {
+          // Old Mac CR
+          line_end = next_r;
+          next_line = next_r + 1;
+        }
+
+        // Output this line
+        event_buffer_.append("data: ", sizeof("data: ") - 1);
+        event_buffer_.append(line_start, line_end - line_start);
+        event_buffer_.append(CRLF_STR, CRLF_LEN);
+
+        line_start = next_line;
+
+        // Check if we've consumed all content
+        if (line_start >= msg_end) {
+          break;
+        }
+
+        // Search for next newlines only in remaining string
+        next_n = strchr(line_start, '\n');
+        next_r = strchr(line_start, '\r');
+      }
+
+      // Terminate message with blank line
+      event_buffer_.append(CRLF_STR, CRLF_LEN);
+    }
   }
 
-  if (event_buffer_.empty()) {
+  if (event_buffer_.size() == static_cast<size_t>(chunk_len_header_len)) {
+    // Nothing was added, reset buffer
+    event_buffer_.resize(0);
     return true;
   }
 
-  event_buffer_.append(CRLF_STR, CRLF_LEN);
   event_buffer_.append(CRLF_STR, CRLF_LEN);
 
   // chunk length header itself and the final chunk terminating CRLF are not counted as part of the chunk

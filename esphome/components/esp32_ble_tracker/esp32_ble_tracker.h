@@ -22,6 +22,10 @@
 #include "esphome/components/esp32_ble/ble_uuid.h"
 #include "esphome/components/esp32_ble/ble_scan_result.h"
 
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
+
 namespace esphome::esp32_ble_tracker {
 
 using namespace esp32_ble;
@@ -180,6 +184,16 @@ enum class ScannerState {
   STOPPING,
 };
 
+/** Listener interface for BLE scanner state changes.
+ *
+ * Components can implement this interface to receive scanner state updates
+ * without the overhead of std::function callbacks.
+ */
+class BLEScannerStateListener {
+ public:
+  virtual void on_scanner_state(ScannerState state) = 0;
+};
+
 // Helper function to convert ClientState to string
 const char *client_state_to_string(ClientState state);
 
@@ -231,6 +245,9 @@ class ESP32BLETracker : public Component,
                         public GAPScanEventHandler,
                         public GATTcEventHandler,
                         public BLEStatusEventHandler,
+#ifdef USE_OTA_STATE_LISTENER
+                        public ota::OTAGlobalStateListener,
+#endif
                         public Parented<ESP32BLE> {
  public:
   void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }
@@ -264,8 +281,13 @@ class ESP32BLETracker : public Component,
   void gap_scan_event_handler(const BLEScanResult &scan_result) override;
   void ble_before_disabled_event_handler() override;
 
-  void add_scanner_state_callback(std::function<void(ScannerState)> &&callback) {
-    this->scanner_state_callbacks_.add(std::move(callback));
+#ifdef USE_OTA_STATE_LISTENER
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
+#endif
+
+  /// Add a listener for scanner state changes
+  void add_scanner_state_listener(BLEScannerStateListener *listener) {
+    this->scanner_state_listeners_.push_back(listener);
   }
   ScannerState get_scanner_state() const { return this->scanner_state_; }
 
@@ -322,14 +344,14 @@ class ESP32BLETracker : public Component,
     return counts;
   }
 
-  // Group 1: Large objects (12+ bytes) - vectors and callback manager
+  // Group 1: Large objects (12+ bytes) - vectors
 #ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
   StaticVector<ESPBTDeviceListener *, ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT> listeners_;
 #endif
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   StaticVector<ESPBTClient *, ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT> clients_;
 #endif
-  CallbackManager<void(ScannerState)> scanner_state_callbacks_;
+  std::vector<BLEScannerStateListener *> scanner_state_listeners_;
 #ifdef USE_ESP32_BLE_DEVICE
   /// Vector of addresses that have already been printed in print_bt_device_info
   std::vector<uint64_t> already_discovered_;

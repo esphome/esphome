@@ -13,6 +13,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, Lambda, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
@@ -46,6 +47,19 @@ SERVICE_SCHEMA = cv.Schema(
     }
 )
 
+
+def _consume_mdns_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for mDNS component."""
+    if config.get(CONF_DISABLED):
+        return config
+
+    from esphome.components import socket
+
+    # mDNS needs 2 sockets (IPv4 + IPv6 multicast)
+    socket.consume_sockets(2, "mdns")(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -55,6 +69,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     _remove_id_if_disabled,
+    _consume_mdns_sockets,
 )
 
 
@@ -150,7 +165,7 @@ async def to_code(config):
             cg.add_library("LEAmDNS", None)
 
     if CORE.using_esp_idf:
-        add_idf_component(name="espressif/mdns", ref="1.8.2")
+        add_idf_component(name="espressif/mdns", ref="1.9.1")
 
     cg.add_define("USE_MDNS")
 
@@ -169,10 +184,8 @@ async def to_code(config):
 
     # Calculate compile-time dynamic TXT value count
     # Dynamic values are those that cannot be stored in flash at compile time
+    # Note: MAC address is now stored in a fixed char[13] buffer, not dynamic storage
     dynamic_txt_count = 0
-    if "api" in CORE.config:
-        # Always: get_mac_address()
-        dynamic_txt_count += 1
     # User-provided templatable TXT values (only lambdas, not static strings)
     dynamic_txt_count += sum(
         1
@@ -181,8 +194,10 @@ async def to_code(config):
         if cg.is_template(txt_value)
     )
 
-    # Ensure at least 1 to avoid zero-size array
-    cg.add_define("MDNS_DYNAMIC_TXT_COUNT", max(1, dynamic_txt_count))
+    # Only add define if we actually need dynamic storage
+    if dynamic_txt_count > 0:
+        cg.add_define("USE_MDNS_DYNAMIC_TXT")
+        cg.add_define("MDNS_DYNAMIC_TXT_COUNT", dynamic_txt_count)
 
     # Enable storage if verbose logging is enabled (for dump_config)
     if get_logger_level() in ("VERBOSE", "VERY_VERBOSE"):
