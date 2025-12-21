@@ -52,27 +52,12 @@ void TemplateWaterHeater::loop() {
 void TemplateWaterHeater::dump_config() {
   ESP_LOGCONFIG(TAG, "Template Water Heater");
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
-  ESP_LOGCONFIG(TAG, "  Min Temperature: %.1f", this->min_temperature_);
-  ESP_LOGCONFIG(TAG, "  Max Temperature: %.1f", this->max_temperature_);
 }
 
 float TemplateWaterHeater::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 water_heater::WaterHeaterCallInternal TemplateWaterHeater::make_call() {
   return water_heater::WaterHeaterCallInternal(this);
-}
-
-water_heater::WaterHeaterTraits TemplateWaterHeater::traits() {
-  auto traits = water_heater::WaterHeaterTraits();
-  traits.set_supports_current_temperature(true);
-  traits.set_min_temperature(this->min_temperature_);
-  traits.set_max_temperature(this->max_temperature_);
-
-  traits.set_supported_modes({water_heater::WATER_HEATER_MODE_OFF, water_heater::WATER_HEATER_MODE_ECO,
-                              water_heater::WATER_HEATER_MODE_ELECTRIC, water_heater::WATER_HEATER_MODE_PERFORMANCE,
-                              water_heater::WATER_HEATER_MODE_HIGH_DEMAND, water_heater::WATER_HEATER_MODE_HEAT_PUMP,
-                              water_heater::WATER_HEATER_MODE_GAS});
-  return traits;
 }
 
 void TemplateWaterHeater::control(const water_heater::WaterHeaterCall &call) {

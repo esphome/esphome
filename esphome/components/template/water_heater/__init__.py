@@ -4,8 +4,6 @@ from esphome.components import water_heater
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
-    CONF_MAX_TEMPERATURE,
-    CONF_MIN_TEMPERATURE,
     CONF_MODE,
     CONF_OPTIMISTIC,
     CONF_RESTORE_MODE,
@@ -44,8 +42,6 @@ CONFIG_SCHEMA = water_heater.WATER_HEATER_SCHEMA.extend(
         ),
         cv.Optional(CONF_CURRENT_TEMPERATURE): cv.templatable(cv.temperature),
         cv.Optional(CONF_MODE): cv.templatable(water_heater.validate_water_heater_mode),
-        cv.Optional(CONF_MIN_TEMPERATURE, default=10.0): cv.temperature,
-        cv.Optional(CONF_MAX_TEMPERATURE, default=60.0): cv.temperature,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -55,8 +51,6 @@ async def to_code(config):
     await water_heater.register_water_heater(var, config)
 
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
-    cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
-    cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))
 
     if CONF_SET_ACTION in config:
         await automation.build_automation(
