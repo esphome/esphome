@@ -331,12 +331,14 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       } else {
         ESP_LOGW(TAG, "Unsupported function code %d", function_code);
         this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
+        return;
       }
       if (static_cast<uint8_t>(response.exception)) {
         this->send_exception_(address, function_code, response.exception);
       } else {
         this->send_response_(address, function_code, std::move(response.payload));
       }
+      return;
     }
   }
 
