@@ -214,7 +214,7 @@ CONFIG_MAP = {
     cv.Optional(CONF_WAIT_TIME, default="32"): cv.enum(WAIT_TIME, upper=False),
     cv.Optional(CONF_HYST_LEVEL): cv.enum(HYST_LEVEL, upper=False),
     cv.Optional(CONF_PACKET_MODE, default=False): cv.boolean,
-    cv.Optional(CONF_PACKET_LENGTH, default=0): cv.uint8_t,
+    cv.Optional(CONF_PACKET_LENGTH): cv.uint8_t,
     cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
     cv.Optional(CONF_WHITENING, default=False): cv.boolean,
 }
