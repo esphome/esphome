@@ -33,9 +33,8 @@ RESTORE_MODES = {
     "RESTORE_AND_CALL": TemplateWaterHeaterRestoreMode.WATER_HEATER_RESTORE_AND_CALL,
 }
 
-CONFIG_SCHEMA = water_heater.WATER_HEATER_SCHEMA.extend(
+CONFIG_SCHEMA = water_heater.water_heater_schema(TemplateWaterHeater).extend(
     {
-        cv.GenerateID(): cv.declare_id(TemplateWaterHeater),
         cv.Optional(CONF_OPTIMISTIC, default=True): cv.boolean,
         cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
         cv.Optional(CONF_RESTORE_MODE, default="NO_RESTORE"): cv.enum(
@@ -47,7 +46,7 @@ CONFIG_SCHEMA = water_heater.WATER_HEATER_SCHEMA.extend(
             water_heater.validate_water_heater_mode
         ),
     }
-).extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):
