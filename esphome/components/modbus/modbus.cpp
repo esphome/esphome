@@ -314,11 +314,8 @@ void ModbusServerHub::process_modbus_server_frame(uint8_t address, uint8_t funct
 
 void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code,
                                                    const std::vector<uint8_t> &data) {
-  bool found = false;
-
   for (auto *device : this->devices_) {
-    if (!found && device->get_address() == address) {
-      found = true;
+    if (device->get_address() == address) {
       ModbusServerResponse response;
 
       if (function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
@@ -342,10 +339,9 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
     }
   }
 
-  if (!found) {
-    this->expecting_peer_response_ = address;
-    ESP_LOGV(TAG, "Request to peer %d received", address);
-  }
+  // No device found.
+  this->expecting_peer_response_ = address;
+  ESP_LOGV(TAG, "Request to peer %d received", address);
 }
 
 bool Modbus::send_frame_(const std::vector<uint8_t> &frame) {
