@@ -78,7 +78,6 @@ class APIConnection final : public APIServerConnection {
 #endif
 #ifdef USE_CAMERA
   void set_camera_state(std::shared_ptr<camera::CameraImage> image);
-  void try_send_camera_image_();
   void camera_image(const CameraImageRequest &msg) override;
 #endif
 #ifdef USE_CLIMATE
@@ -297,6 +296,10 @@ class APIConnection final : public APIServerConnection {
  protected:
   // Helper function to handle authentication completion
   void complete_authentication_();
+
+#ifdef USE_CAMERA
+  void try_send_camera_image_();
+#endif
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   void process_state_subscriptions_();
