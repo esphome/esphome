@@ -8,7 +8,7 @@ namespace esphome::mitsubishi {
 
 // Temperature
 const uint8_t MITSUBISHI_TEMP_MIN = 16;  // Celsius
-const uint8_t MITSUBISHI_TEMP_MAX = 31;  // Celsius
+const uint8_t MITSUBISHI_TEMP_MAX = 32;  // 88F gets sent to us as 31.11C
 
 // Fan mode
 enum SetFanMode {
@@ -53,6 +53,9 @@ class MitsubishiClimate final : public climate_ir::ClimateIR {
   void set_supports_dry(bool supports_dry) { this->supports_dry_ = supports_dry; }
   void set_supports_fan_only(bool supports_fan_only) { this->supports_fan_only_ = supports_fan_only; }
   void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
+  void set_fahrenheit_compatibility(bool fahrenheit_compatibility) {
+    this->fahrenheit_compatibility_ = fahrenheit_compatibility;
+  }
 
   void set_fan_mode(SetFanMode fan_mode) { this->fan_mode_ = fan_mode; }
 
@@ -69,8 +72,11 @@ class MitsubishiClimate final : public climate_ir::ClimateIR {
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(const uint8_t frame[]);
+  uint8_t reconvert_from_fahrenheit_(float c_temp);
+  float temp_code_to_celsius_(uint8_t code);
 
   SetFanMode fan_mode_;
+  bool fahrenheit_compatibility_;
 
   HorizontalDirection default_horizontal_direction_;
   VerticalDirection default_vertical_direction_;
