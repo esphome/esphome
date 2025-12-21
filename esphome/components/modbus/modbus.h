@@ -87,7 +87,7 @@ class ModbusClientHub : public Modbus {
   void parse_modbus_frames() override;
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
   void send_next_frame_();
-  void clear_waiting_for_response_();
+  void clear_waiting_for_response_(bool success);
 
   uint16_t send_wait_time_{2000};
   std::optional<ModbusDeviceCommand> waiting_for_response_;

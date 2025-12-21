@@ -41,7 +41,7 @@ void ModbusClientHub::loop() {
              this->waiting_for_response_.value().frame[0], this->last_receive_check_ - this->last_send_);
     if (this->waiting_for_response_.value().device)
       this->waiting_for_response_.value().device->on_modbus_no_response();
-    this->clear_waiting_for_response_();
+    this->clear_waiting_for_response_(false);
   }
 
   //  If there's no response pending and there's commands in the buffer
@@ -279,7 +279,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
       return;
     } else {  // We have a valid device waiting for this response
 
-      this->clear_waiting_for_response_();
+      this->clear_waiting_for_response_(true);
       // Is it an error response?
       if (is_function_code_exception(function_code)) {
         uint8_t exception = data[0];
@@ -387,7 +387,7 @@ void ModbusClientHub::send_next_frame_() {
     return;
   }
 
-  ModbusDeviceCommand command = this->tx_buffer_.front();
+  ModbusDeviceCommand &command = this->tx_buffer_.front();
 
   if (this->send_frame_(command.frame)) {
     if (command.device)
@@ -405,30 +405,25 @@ void ModbusClientHub::send_next_frame_() {
   }
 }
 
-void ModbusClientHub::clear_waiting_for_response_() {
+void ModbusClientHub::clear_waiting_for_response_(bool success) {
   if (!this->waiting_for_response_.has_value())
     return;
   ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
 
-  // We requeue the frame if priority is ReadAgain
-  switch (wfr.priority) {
-    case ModbusDeviceCommandPriority::ReadAgain:
-      wfr.priority = ModbusDeviceCommandPriority::ReadOnce;
-      // Fallthrough
-    case ModbusDeviceCommandPriority::ReadContinuous: {
-      wfr.interrupted = false;
-      ESP_LOGV(TAG, "Adding frame to tx queue (resend): %s", format_hex_pretty(wfr.frame).c_str());
-      // Find location of first frame with lower priority
-      const auto it = std::find_if(this->tx_buffer_.begin(), this->tx_buffer_.end(),
-                                   [&wfr](const ModbusDeviceCommand &cmd) { return cmd.priority < wfr.priority; });
-      // Insert in front of the lower priority frame
-      this->tx_buffer_.insert(it, wfr);
-      break;
-    }
-    case ModbusDeviceCommandPriority::ReadOnce:
-    case ModbusDeviceCommandPriority::Write:
-    default:
-      break;
+  // We requeue Continuous commands only on success
+  bool requeue = (wfr.priority == ModbusDeviceCommandPriority::ReadContinuous && success);
+  if (wfr.priority == ModbusDeviceCommandPriority::ReadAgain) {
+    wfr.priority = ModbusDeviceCommandPriority::ReadOnce;
+    requeue = true;  // We requeue ReadAgain commands even on failure - they were explicitly requested.
+  }
+  if (requeue) {
+    wfr.interrupted = false;
+    ESP_LOGV(TAG, "Adding frame to tx queue (resend): %s", format_hex_pretty(wfr.frame).c_str());
+    // Find location of first frame with lower priority
+    const auto it = std::find_if(this->tx_buffer_.begin(), this->tx_buffer_.end(),
+                                 [&wfr](const ModbusDeviceCommand &cmd) { return cmd.priority < wfr.priority; });
+    // Insert in front of the lower priority frame
+    this->tx_buffer_.insert(it, std::move(wfr));
   }
 
   this->waiting_for_response_.reset();
