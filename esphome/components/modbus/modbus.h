@@ -57,7 +57,7 @@ class Modbus : public uart::UARTDevice, public Component {
 class ModbusClientDevice;
 class ModbusServerDevice;
 
-enum class ModbusDeviceCommandPriority : uint8_t { ReadContinuous, ReadOnce, ReadAgain, Write };
+enum class ModbusDeviceCommandPriority : uint8_t { READ_CONTINUOUS, READ_ONCE, READ_AGAIN, WRITE };
 
 struct ModbusDeviceCommand {
   ModbusClientDevice *device;
