@@ -223,7 +223,7 @@ void ESP32Camera::loop() {
   }
   this->frame_count_++;
   if (now - this->last_log_time_ >= FRAME_LOG_INTERVAL_MS) {
-    ESP_LOGD(TAG, "Received %u images in last 60s", this->frame_count_);
+    ESP_LOGD(TAG, "Received %u images in last %us", this->frame_count_, FRAME_LOG_INTERVAL_MS / 1000);
     this->last_log_time_ = now;
     this->frame_count_ = 0;
   }
