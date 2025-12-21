@@ -141,7 +141,7 @@ canbus::CanEventFlags ESP32Can::get_events() {
         events |= canbus::CAN_EVENT_BUS_RECOVERED;
         events |= canbus::CAN_EVENT_ACTIVE;
       } else {
-        this->mark_failed("Restart after bus off failed");
+        this->mark_failed(LOG_STR("Restart after bus off failed"));
       }
     }
 
