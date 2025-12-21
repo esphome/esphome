@@ -11,6 +11,8 @@ from esphome.const import (
     CONF_SUPPORTED_MODES,
     CONF_TARGET_TEMPERATURE,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 from .. import template_ns
@@ -110,7 +112,12 @@ async def to_code(config: ConfigType) -> None:
         }
     ),
 )
-async def water_heater_template_publish_to_code(config, action_id, template_arg, args):
+async def water_heater_template_publish_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
