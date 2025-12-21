@@ -266,10 +266,6 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
           "Ignoring response from %d - transmission interrupted by previous unexpected response, %dms after last send",
           address, this->last_modbus_byte_ - this->last_send_);
       return;
-    } else if (wfr.device == nullptr) {
-      ESP_LOGV(TAG, "Ignoring response from %d - no callback device set, %dms after last send", address,
-               this->last_modbus_byte_ - this->last_send_);
-      return;
     } else {  // We have a valid device waiting for this response
 
       this->waiting_for_response_.reset();
@@ -278,10 +274,14 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
         uint8_t exception = data[0];
         ESP_LOGW(TAG, "Error function code: 0x%X exception: %d, address: %d, %dms after last send", function_code,
                  exception, address, this->last_modbus_byte_ - this->last_send_);
-        wfr.device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
+        if (wfr.device)
+          wfr.device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
 
-      } else {  // Not an error response
+      } else if (wfr.device) {  // Not an error response
         wfr.device->on_modbus_data(data);
+      } else {  // Not an error response, but no device to respond to
+        ESP_LOGV(TAG, "Ignoring response from %d - no callback device set, %dms after last send", address,
+                 this->last_modbus_byte_ - this->last_send_);
       }
     }
   }
