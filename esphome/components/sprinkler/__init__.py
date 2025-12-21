@@ -101,50 +101,7 @@ def validate_min_max(config):
 
 
 def validate_sprinkler(config):
-    # Configuration keys that have been removed
-    REMOVED_PUMP_KEYS = [
-        CONF_PUMP_OFF_SWITCH_ID,
-        CONF_PUMP_ON_SWITCH_ID,
-        CONF_PUMP_PULSE_DURATION,
-    ]
-    REMOVED_VALVE_KEYS = [
-        CONF_VALVE_PULSE_DURATION,
-        CONF_VALVE_OFF_SWITCH_ID,
-        CONF_VALVE_ON_SWITCH_ID,
-    ]
-
     for sprinkler_controller_index, sprinkler_controller in enumerate(config):
-        # Check for removed latching pump configuration keys
-        for key in REMOVED_PUMP_KEYS:
-            if key in sprinkler_controller:
-                raise cv.Invalid(
-                    f"'{key}' has been removed; for latching pumps, use {CONF_PUMP_SWITCH_ID} with an H-Bridge switch."
-                    f"See {docs_url('components/switch/h_bridge')} for more information"
-                )
-
-        # Check for removed latching valve configuration keys
-        for key in REMOVED_VALVE_KEYS:
-            if key in sprinkler_controller:
-                raise cv.Invalid(
-                    f"'{key}' has been removed; for latching valves, use {CONF_VALVE_SWITCH_ID} with an H-Bridge switch."
-                    f"See {docs_url('components/switch/h_bridge')} for more information"
-                )
-
-        # Check valves for removed latching configuration keys
-        for valve in sprinkler_controller[CONF_VALVES]:
-            for key in REMOVED_PUMP_KEYS:
-                if key in valve:
-                    raise cv.Invalid(
-                        f"'{key}' has been removed; for latching pumps, use {CONF_PUMP_SWITCH_ID} with an H-Bridge switch."
-                        f"See {docs_url('components/switch/h_bridge')} for more information"
-                    )
-            for key in REMOVED_VALVE_KEYS:
-                if key in valve:
-                    raise cv.Invalid(
-                        f"'{key}' has been removed; for latching valves, use {CONF_VALVE_SWITCH_ID} with an H-Bridge switch."
-                        f"See {docs_url('components/switch/h_bridge')} for more information"
-                    )
-
         if len(sprinkler_controller[CONF_VALVES]) <= 1:
             exclusions = [
                 CONF_VALVE_OPEN_DELAY,
@@ -288,6 +245,15 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
             ),
             key=CONF_NAME,
         ),
+        # Removed latching pump keys - accepted for validation error reporting
+        cv.Optional(CONF_PUMP_OFF_SWITCH_ID): cv.invalid(
+            f"This option has been removed; for latching pumps, use {CONF_PUMP_SWITCH_ID} with an H-Bridge switch. "
+            f"See {docs_url('components/switch/h_bridge')} for more information"
+        ),
+        cv.Optional(CONF_PUMP_ON_SWITCH_ID): cv.invalid(
+            f"This option has been removed; for latching pumps, use {CONF_PUMP_SWITCH_ID} with an H-Bridge switch. "
+            f"See {docs_url('components/switch/h_bridge')} for more information"
+        ),
         cv.Optional(CONF_PUMP_SWITCH_ID): cv.use_id(switch.Switch),
         cv.Optional(CONF_RUN_DURATION): cv.positive_time_period_seconds,
         cv.Optional(CONF_RUN_DURATION_NUMBER): cv.maybe_simple_value(
@@ -316,6 +282,15 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
         cv.Required(CONF_VALVE_SWITCH): cv.maybe_simple_value(
             switch.switch_schema(SprinklerControllerSwitch),
             key=CONF_NAME,
+        ),
+        # Removed latching valve keys - accepted for validation error reporting
+        cv.Optional(CONF_VALVE_OFF_SWITCH_ID): cv.invalid(
+            f"This option has been removed; for latching valves, use {CONF_VALVE_SWITCH_ID} with an H-Bridge switch. "
+            f"See {docs_url('components/switch/h_bridge')} for more information"
+        ),
+        cv.Optional(CONF_VALVE_ON_SWITCH_ID): cv.invalid(
+            f"This option has been removed; for latching valves, use {CONF_VALVE_SWITCH_ID} with an H-Bridge switch. "
+            f"See {docs_url('components/switch/h_bridge')} for more information"
         ),
         cv.Optional(CONF_VALVE_SWITCH_ID): cv.use_id(switch.Switch),
     }
@@ -403,6 +378,15 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
             .extend(cv.COMPONENT_SCHEMA),
             validate_min_max,
             key=CONF_NAME,
+        ),
+        # Removed latching valve keys - accepted for validation error reporting
+        cv.Optional(CONF_PUMP_PULSE_DURATION): cv.invalid(
+            f"This option has been removed; for latching pumps, use {CONF_PUMP_SWITCH_ID} with an H-Bridge switch. "
+            f"See {docs_url('components/switch/h_bridge')} for more information"
+        ),
+        cv.Optional(CONF_VALVE_PULSE_DURATION): cv.invalid(
+            f"This option has been removed; for latching valves, use {CONF_VALVE_SWITCH_ID} with an H-Bridge switch. "
+            f"See {docs_url('components/switch/h_bridge')} for more information"
         ),
         cv.Exclusive(
             CONF_PUMP_START_PUMP_DELAY, "pump_start_xxxx_delay"
