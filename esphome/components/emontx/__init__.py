@@ -2,7 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_COMMAND, CONF_ID, CONF_TRIGGER_ID
+from esphome.const import CONF_COMMAND, CONF_ID, CONF_ON_DATA, CONF_TRIGGER_ID
 
 AUTO_LOAD = ["json"]
 CODEOWNERS = ["@FredM67", "@TrystanLea", "@glynhudson"]
@@ -27,7 +27,6 @@ EmonTxSendCommandAction = emontx_ns.class_("EmonTxSendCommandAction", automation
 CONF_EMONTX_ID = "emontx_id"
 CONF_TAG_NAME = "tag_name"
 CONF_ON_JSON = "on_json"
-CONF_ON_RAW_DATA = "on_raw_data"
 CONF_CONFIG_PANEL = "config_panel"
 
 # Main configuration schema
@@ -44,7 +43,7 @@ CONFIG_SCHEMA = (
                 }
             ),
             # Add on_data trigger for handling all serial lines (plain text + JSON)
-            cv.Optional(CONF_ON_RAW_DATA): automation.validate_automation(
+            cv.Optional(CONF_ON_DATA): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(EmonTxDataTrigger),
                 }
@@ -103,8 +102,8 @@ async def to_code(config):
             )
 
     # Process on_data triggers
-    if CONF_ON_RAW_DATA in config:
-        for conf in config[CONF_ON_RAW_DATA]:
+    if CONF_ON_DATA in config:
+        for conf in config[CONF_ON_DATA]:
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
             await automation.build_automation(
                 trigger,
