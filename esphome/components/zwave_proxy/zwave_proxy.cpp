@@ -1,12 +1,14 @@
 #include "zwave_proxy.h"
+
+#ifdef USE_API
+
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace zwave_proxy {
+namespace esphome::zwave_proxy {
 
 static const char *const TAG = "zwave_proxy";
 
@@ -144,6 +146,7 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
       this->api_connection_ = api_connection;
       ESP_LOGV(TAG, "API connection is now subscribed");
       break;
+
     case api::enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
       if (this->api_connection_ != api_connection) {
         ESP_LOGV(TAG, "API connection is not subscribed");
@@ -151,6 +154,7 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
       }
       this->api_connection_ = nullptr;
       break;
+
     default:
       ESP_LOGW(TAG, "Unknown request type: %d", type);
       break;
@@ -342,5 +346,6 @@ bool ZWaveProxy::response_handler_() {
 
 ZWaveProxy *global_zwave_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace zwave_proxy
-}  // namespace esphome
+}  // namespace esphome::zwave_proxy
+
+#endif  // USE_API

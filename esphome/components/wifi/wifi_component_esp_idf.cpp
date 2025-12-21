@@ -41,8 +41,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace wifi {
+namespace esphome::wifi {
 
 static const char *const TAG = "wifi_esp32";
 
@@ -54,7 +53,6 @@ static esp_netif_t *s_ap_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-
 #endif                                        // USE_WIFI_AP
 static bool s_sta_started = false;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connected = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_ap_started = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connect_error = false;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connecting = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -282,7 +280,15 @@ bool WiFiComponent::wifi_apply_power_save_() {
       power_save = WIFI_PS_NONE;
       break;
   }
-  return esp_wifi_set_ps(power_save) == ESP_OK;
+  bool success = esp_wifi_set_ps(power_save) == ESP_OK;
+#ifdef USE_WIFI_LISTENERS
+  if (success) {
+    for (auto *listener : this->power_save_listeners_) {
+      listener->on_wifi_power_save(this->power_save_);
+    }
+  }
+#endif
+  return success;
 }
 
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
@@ -333,14 +339,14 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   conf.sta.rm_enabled = this->rrm_;
 #endif
 
-  if (ap.get_bssid().has_value()) {
+  if (ap.has_bssid()) {
     conf.sta.bssid_set = true;
-    memcpy(conf.sta.bssid, ap.get_bssid()->data(), 6);
+    memcpy(conf.sta.bssid, ap.get_bssid().data(), 6);
   } else {
     conf.sta.bssid_set = false;
   }
-  if (ap.get_channel().has_value()) {
-    conf.sta.channel = *ap.get_channel();
+  if (ap.has_channel()) {
+    conf.sta.channel = ap.get_channel();
     conf.sta.scan_method = WIFI_FAST_SCAN;
   } else {
     conf.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
@@ -603,10 +609,6 @@ const char *get_auth_mode_str(uint8_t mode) {
   }
 }
 
-std::string format_ip4_addr(const esp_ip4_addr_t &ip) { return str_snprintf(IPSTR, 15, IP2STR(&ip)); }
-#if LWIP_IPV6
-std::string format_ip6_addr(const esp_ip6_addr_t &ip) { return str_snprintf(IPV6STR, 39, IPV62STR(ip)); }
-#endif /* LWIP_IPV6 */
 const char *get_disconnect_reason_str(uint8_t reason) {
   switch (reason) {
     case WIFI_REASON_AUTH_EXPIRE:
@@ -718,6 +720,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_STOP) {
     ESP_LOGV(TAG, "STA stop");
     s_sta_started = false;
+    s_sta_connecting = false;
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_AUTHMODE_CHANGE) {
     const auto &it = data->data.sta_authmode_change;
@@ -732,6 +735,19 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ESP_LOGV(TAG, "Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
              format_mac_address_pretty(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
     s_sta_connected = true;
+#ifdef USE_WIFI_LISTENERS
+    for (auto *listener : this->connect_state_listeners_) {
+      listener->on_wifi_connect_state(this->wifi_ssid(), this->wifi_bssid());
+    }
+    // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
+#ifdef USE_WIFI_MANUAL_IP
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+      for (auto *listener : this->ip_state_listeners_) {
+        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+      }
+    }
+#endif
+#endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_DISCONNECTED) {
     const auto &it = data->data.sta_disconnected;
@@ -755,21 +771,35 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connected = false;
     s_sta_connecting = false;
     error_from_callback_ = true;
+#ifdef USE_WIFI_LISTENERS
+    for (auto *listener : this->connect_state_listeners_) {
+      listener->on_wifi_connect_state("", bssid_t({0, 0, 0, 0, 0, 0}));
+    }
+#endif
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
 #if USE_NETWORK_IPV6
     esp_netif_create_ip6_linklocal(s_sta_netif);
 #endif /* USE_NETWORK_IPV6 */
-    ESP_LOGV(TAG, "static_ip=%s gateway=%s", format_ip4_addr(it.ip_info.ip).c_str(),
-             format_ip4_addr(it.ip_info.gw).c_str());
+    ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
     this->got_ipv4_address_ = true;
+#ifdef USE_WIFI_LISTENERS
+    for (auto *listener : this->ip_state_listeners_) {
+      listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+    }
+#endif
 
 #if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
     const auto &it = data->data.ip_got_ip6;
-    ESP_LOGV(TAG, "IPv6 address=%s", format_ip6_addr(it.ip6_info.ip).c_str());
+    ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
     this->num_ipv6_addresses_++;
+#ifdef USE_WIFI_LISTENERS
+    for (auto *listener : this->ip_state_listeners_) {
+      listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+    }
+#endif
 #endif /* USE_NETWORK_IPV6 */
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_LOST_IP) {
@@ -809,14 +839,19 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       scan_result_.emplace_back(bssid, ssid, record.primary, record.rssi, record.authmode != WIFI_AUTH_OPEN,
                                 ssid.empty());
     }
+#ifdef USE_WIFI_LISTENERS
+    for (auto *listener : this->scan_results_listeners_) {
+      listener->on_wifi_scan_results(this->scan_result_);
+    }
+#endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_START) {
     ESP_LOGV(TAG, "AP start");
-    s_ap_started = true;
+    this->ap_started_ = true;
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_STOP) {
     ESP_LOGV(TAG, "AP stop");
-    s_ap_started = false;
+    this->ap_started_ = false;
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_PROBEREQRECVED) {
     const auto &it = data->data.ap_probe_req_rx;
@@ -832,7 +867,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_AP_STAIPASSIGNED) {
     const auto &it = data->data.ip_ap_staipassigned;
-    ESP_LOGV(TAG, "AP client assigned IP %s", format_ip4_addr(it.ip).c_str());
+    ESP_LOGV(TAG, "AP client assigned IP " IPSTR, IP2STR(&it.ip));
   }
 }
 
@@ -976,7 +1011,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     return false;
   }
   memcpy(reinterpret_cast<char *>(conf.ap.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
-  conf.ap.channel = ap.get_channel().value_or(1);
+  conf.ap.channel = ap.has_channel() ? ap.get_channel() : 1;
   conf.ap.ssid_hidden = ap.get_ssid().size();
   conf.ap.max_connection = 5;
   conf.ap.beacon_interval = 100;
@@ -1093,8 +1128,6 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   return network::IPAddress(dns_ip);
 }
 
-}  // namespace wifi
-}  // namespace esphome
-
+}  // namespace esphome::wifi
 #endif  // USE_ESP32
 #endif

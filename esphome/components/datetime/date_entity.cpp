@@ -5,8 +5,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace datetime {
+namespace esphome::datetime {
 
 static const char *const TAG = "datetime.date_entity";
 
@@ -129,7 +128,6 @@ void DateEntityRestoreState::apply(DateEntity *date) {
   date->publish_state();
 }
 
-}  // namespace datetime
-}  // namespace esphome
+}  // namespace esphome::datetime
 
 #endif  // USE_DATETIME_DATE

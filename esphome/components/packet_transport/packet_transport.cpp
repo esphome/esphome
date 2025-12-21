@@ -195,7 +195,7 @@ static void add(std::vector<uint8_t> &vec, const char *str) {
 void PacketTransport::setup() {
   this->name_ = App.get_name().c_str();
   if (strlen(this->name_) > 255) {
-    this->status_set_error("Device name exceeds 255 chars");
+    this->status_set_error(LOG_STR("Device name exceeds 255 chars"));
     this->mark_failed();
     return;
   }
@@ -263,6 +263,7 @@ void PacketTransport::flush_() {
     xxtea::encrypt((uint32_t *) (encode_buffer.data() + header_len), len / 4,
                    (uint32_t *) this->encryption_key_.data());
   }
+  ESP_LOGVV(TAG, "Sending packet %s", format_hex_pretty(encode_buffer.data(), encode_buffer.size()).c_str());
   this->send_packet(encode_buffer);
 }
 
@@ -316,6 +317,9 @@ void PacketTransport::send_data_(bool all) {
 }
 
 void PacketTransport::update() {
+  // resend all sensors if required
+  if (this->is_provider_)
+    this->send_data_(true);
   if (!this->ping_pong_enable_) {
     return;
   }
@@ -551,7 +555,7 @@ void PacketTransport::loop() {
   if (this->resend_ping_key_)
     this->send_ping_pong_request_();
   if (this->updated_) {
-    this->send_data_(this->resend_data_);
+    this->send_data_(false);
   }
 }
 

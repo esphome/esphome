@@ -25,10 +25,12 @@ void log_text_sensor(const char *tag, const char *prefix, const char *type, Text
 }
 
 void TextSensor::publish_state(const std::string &state) {
+// Suppress deprecation warning - we need to populate raw_state for backwards compatibility
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   this->raw_state = state;
-  if (this->raw_callback_) {
-    this->raw_callback_->call(state);
-  }
+#pragma GCC diagnostic pop
+  this->raw_callback_.call(state);
 
   ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), state.c_str());
 
@@ -69,18 +71,21 @@ void TextSensor::clear_filters() {
   this->filter_list_ = nullptr;
 }
 
-void TextSensor::add_on_state_callback(std::function<void(std::string)> callback) {
+void TextSensor::add_on_state_callback(std::function<void(const std::string &)> callback) {
   this->callback_.add(std::move(callback));
 }
-void TextSensor::add_on_raw_state_callback(std::function<void(std::string)> callback) {
-  if (!this->raw_callback_) {
-    this->raw_callback_ = make_unique<CallbackManager<void(std::string)>>();
-  }
-  this->raw_callback_->add(std::move(callback));
+void TextSensor::add_on_raw_state_callback(std::function<void(const std::string &)> callback) {
+  this->raw_callback_.add(std::move(callback));
 }
 
 std::string TextSensor::get_state() const { return this->state; }
-std::string TextSensor::get_raw_state() const { return this->raw_state; }
+std::string TextSensor::get_raw_state() const {
+// Suppress deprecation warning - get_raw_state() is the replacement API
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  return this->raw_state;
+#pragma GCC diagnostic pop
+}
 void TextSensor::internal_send_state_to_frontend(const std::string &state) {
   this->state = state;
   this->set_has_state(true);

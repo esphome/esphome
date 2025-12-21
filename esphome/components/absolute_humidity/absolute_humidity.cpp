@@ -87,7 +87,7 @@ void AbsoluteHumidityComponent::loop() {
       break;
     default:
       this->publish_state(NAN);
-      this->status_set_error("Invalid saturation vapor pressure equation selection!");
+      this->status_set_error(LOG_STR("Invalid saturation vapor pressure equation selection!"));
       return;
   }
   ESP_LOGD(TAG, "Saturation vapor pressure %f kPa", es);
@@ -163,7 +163,7 @@ float AbsoluteHumidityComponent::es_wobus(float t) {
 }
 
 // From https://www.environmentalbiophysics.org/chalk-talk-how-to-calculate-absolute-humidity/
-// H/T to https://esphome.io/cookbook/bme280_environment.html
+// H/T to https://esphome.io/cookbook/bme280_environment/
 // H/T to https://carnotcycle.wordpress.com/2012/08/04/how-to-convert-relative-humidity-to-absolute-humidity/
 float AbsoluteHumidityComponent::vapor_density(float es, float hr, float ta) {
   // es = saturated vapor pressure (kPa)
