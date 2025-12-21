@@ -228,14 +228,16 @@ void APIConnection::loop() {
     }
   }
 
-#ifdef USE_CAMERA
-  this->try_send_camera_image_();
-#endif
-
 #ifdef USE_API_HOMEASSISTANT_STATES
   if (state_subs_at_ >= 0) {
     this->process_state_subscriptions_();
   }
+#endif
+
+#ifdef USE_CAMERA
+  // Process camera last - state updates are higher priority
+  // (missing a frame is fine, missing a state update is not)
+  this->try_send_camera_image_();
 #endif
 }
 
