@@ -1,19 +1,22 @@
 import esphome.codegen as cg
+from esphome.core import ConfigType
 from esphome.components import event, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_EVENT_TYPES
 
+from .. import uart_ns
+
+CODEOWNERS = ["@eoasmxd"]
+
 DEPENDENCIES = ["uart"]
 
-uart_ns = cg.esphome_ns.namespace("esphome").namespace("uart")
 UARTEvent = uart_ns.class_("UARTEvent", event.Event, uart.UARTDevice, cg.Component)
-
 
 def validate_event_types(value):
     if not isinstance(value, list):
         raise cv.Invalid("Event type must be a list of key-value mappings.")
 
-    processed = []
+    processed: list[tuple[str, str | list[int]]] = []
     for item in value:
         if not isinstance(item, dict):
             raise cv.Invalid(f"Event type item must be a mapping (dictionary): {item}")
@@ -67,10 +70,13 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     event_names = [item[0] for item in config[CONF_EVENT_TYPES]]
     var = await event.new_event(config, event_types=event_names)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    for event_name, match_data in config[CONF_EVENT_TYPES]:
-        cg.add(var.add_event_matcher(event_name, match_data))
+    for i, (event_name, match_data) in enumerate(config[CONF_EVENT_TYPES]):
+        if isinstance(match_data, str):
+            match_data = [ord(c) for c in match_data]
+        arr = cg.progmem_array(config[CONF_ID], f"match_data_{i}", match_data)
+        cg.add(var.add_event_matcher(event_name, arr, len(match_data)))

@@ -5,32 +5,27 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/log.h"
 #include <vector>
-#include <string>
-#include <map>
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 class UARTEvent : public event::Event, public UARTDevice, public Component {
+ public:
+  void setup() override;
+  void loop() override;
+  void dump_config() override;
+
+  void add_event_matcher(const char *event_name, const uint8_t *match_data, size_t match_data_len);
  protected:
   struct EventMatcher {
-    std::string event_name;
-    std::vector<uint8_t> binary_data;
+    const char *event_name;
+    const uint8_t *data;
+    size_t data_len;
   };
 
   void read_data_();
   std::vector<EventMatcher> matchers_;
   std::vector<uint8_t> buffer_;
   size_t max_matcher_len_ = 0;
-
- public:
-  void setup() override;
-  void loop() override;
-  void dump_config() override;
-
-  void add_event_matcher(const std::string &event_name, const std::string &match_string);
-  void add_event_matcher(const std::string &event_name, const std::vector<uint8_t> &match_binary);
 };
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart
