@@ -464,6 +464,19 @@ class DeltaFilter : public Filter {
   bool percentage_mode_;
 };
 
+class MaxDeltaFilter : public Filter {
+ public:
+  explicit MaxDeltaFilter(float delta, bool percentage_mode);
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  float delta_;
+  float current_delta_;
+  float last_value_{NAN};
+  bool percentage_mode_;
+};
+
 class OrFilter : public Filter {
  public:
   explicit OrFilter(std::initializer_list<Filter *> filters);

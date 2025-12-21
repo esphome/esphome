@@ -277,6 +277,7 @@ TimeoutFilterConfigured = sensor_ns.class_("TimeoutFilterConfigured", TimeoutFil
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter, cg.Component)
 HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter, cg.Component)
 DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
+MaxDeltaFilter = sensor_ns.class_("MaxDeltaFilter", Filter)
 OrFilter = sensor_ns.class_("OrFilter", Filter)
 CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
 ToNTCResistanceFilter = sensor_ns.class_("ToNTCResistanceFilter", Filter)
@@ -597,6 +598,9 @@ def validate_delta(config):
 
 
 @FILTER_REGISTRY.register("delta", DeltaFilter, cv.Any(DELTA_SCHEMA, validate_delta))
+@FILTER_REGISTRY.register(
+    "max_delta", MaxDeltaFilter, cv.Any(DELTA_SCHEMA, validate_delta)
+)
 async def delta_filter_to_code(config, filter_id):
     percentage = config[CONF_TYPE] == "percentage"
     return cg.new_Pvariable(

@@ -312,6 +312,28 @@ optional<float> DeltaFilter::new_value(float value) {
   return {};
 }
 
+// MaxDeltaFilter
+MaxDeltaFilter::MaxDeltaFilter(float delta, bool percentage_mode)
+    : delta_(delta), current_delta_(delta), last_value_(NAN), percentage_mode_(percentage_mode) {}
+
+optional<float> MaxDeltaFilter::new_value(float value) {
+  if (std::isnan(value)) {
+    if (std::isnan(this->last_value_)) {
+      return {};
+    } else {
+      return this->last_value_ = value;
+    }
+  }
+  float diff = fabsf(value - this->last_value_);
+  if (std::isnan(this->last_value_) || (0.0f <= diff && diff < this->current_delta_)) {
+    if (this->percentage_mode_) {
+      this->current_delta_ = fabsf(value * this->delta_);
+    }
+    return this->last_value_ = value;
+  }
+  return {};
+}
+
 // OrFilter
 OrFilter::OrFilter(std::initializer_list<Filter *> filters) : filters_(filters), phi_(this) {}
 OrFilter::PhiNode::PhiNode(OrFilter *or_parent) : or_parent_(or_parent) {}

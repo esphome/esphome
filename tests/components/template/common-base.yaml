@@ -98,6 +98,7 @@ sensor:
           min_value: -10.0
       - debounce: 0.1s
       - delta: 5.0
+      - max_delta: 5.0
       - exponential_moving_average:
           alpha: 0.1
           send_every: 15
