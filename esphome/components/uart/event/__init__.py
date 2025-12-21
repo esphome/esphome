@@ -79,6 +79,8 @@ async def to_code(config: ConfigType) -> None:
     for i, (event_name, match_data) in enumerate(config[CONF_EVENT_TYPES]):
         if isinstance(match_data, str):
             match_data = [ord(c) for c in match_data]
-        var_name = f"match_data_{config[CONF_ID]}_{i}"
-        arr = cg.progmem_array(var_name, match_data)
-        cg.add(var.add_event_matcher(event_name, arr, len(match_data)))
+
+        match_data_var_name = f"match_data_{config[CONF_ID]}_{i}"
+        match_data_var_id = cg.ID(match_data_var_name, is_declaration=True, type=cg.uint8)
+        match_data_var = cg.progmem_array(match_data_var_id, match_data)
+        cg.add(var.add_event_matcher(event_name, match_data_var, len(match_data)))
