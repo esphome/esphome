@@ -8,8 +8,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace sprinkler {
+namespace esphome::sprinkler {
 
 const std::string MIN_STR = "min";
 
@@ -490,11 +489,17 @@ class Sprinkler : public Component {
   /// starts up the system from IDLE state
   void fsm_transition_to_shutdown_();
 
+  /// log error message when a method is called but standby is enabled
+  void log_standby_warning_(const LogString *method_name);
+
+  /// log error message when a method is called but multiplier is zero
+  void log_multiplier_zero_warning_(const LogString *method_name);
+
   /// return the specified SprinklerValveRunRequestOrigin as a string
-  std::string req_as_str_(SprinklerValveRunRequestOrigin origin);
+  const LogString *req_as_str_(SprinklerValveRunRequestOrigin origin);
 
   /// return the specified SprinklerState state as a string
-  std::string state_as_str_(SprinklerState state);
+  const LogString *state_as_str_(SprinklerState state);
 
   /// Start/cancel/get status of valve timers
   void start_timer_(SprinklerTimerIndex timer_index);
@@ -607,5 +612,4 @@ class Sprinkler : public Component {
   std::unique_ptr<Automation<>> sprinkler_standby_turn_on_automation_;
 };
 
-}  // namespace sprinkler
-}  // namespace esphome
+}  // namespace esphome::sprinkler

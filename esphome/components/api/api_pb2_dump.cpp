@@ -923,7 +923,9 @@ void FanCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "has_speed_level", this->has_speed_level);
   dump_field(out, "speed_level", this->speed_level);
   dump_field(out, "has_preset_mode", this->has_preset_mode);
-  dump_field(out, "preset_mode", this->preset_mode);
+  out.append("  preset_mode: ");
+  out.append(format_hex_pretty(this->preset_mode, this->preset_mode_len));
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1113,7 +1115,7 @@ void SubscribeLogsResponse::dump_to(std::string &out) const {
 void NoiseEncryptionSetKeyRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "NoiseEncryptionSetKeyRequest");
   out.append("  key: ");
-  out.append(format_hex_pretty(reinterpret_cast<const uint8_t *>(this->key.data()), this->key.size()));
+  out.append(format_hex_pretty(this->key, this->key_len));
   out.append("\n");
 }
 void NoiseEncryptionSetKeyResponse::dump_to(std::string &out) const { dump_field(out, "success", this->success); }
@@ -1182,9 +1184,15 @@ void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
 }
 void HomeAssistantStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HomeAssistantStateResponse");
-  dump_field(out, "entity_id", this->entity_id);
-  dump_field(out, "state", this->state);
-  dump_field(out, "attribute", this->attribute);
+  out.append("  entity_id: ");
+  out.append(format_hex_pretty(this->entity_id, this->entity_id_len));
+  out.append("\n");
+  out.append("  state: ");
+  out.append(format_hex_pretty(this->state, this->state_len));
+  out.append("\n");
+  out.append("  attribute: ");
+  out.append(format_hex_pretty(this->attribute, this->attribute_len));
+  out.append("\n");
 }
 #endif
 void GetTimeRequest::dump_to(std::string &out) const { out.append("GetTimeRequest {}"); }
@@ -1374,11 +1382,15 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "has_swing_mode", this->has_swing_mode);
   dump_field(out, "swing_mode", static_cast<enums::ClimateSwingMode>(this->swing_mode));
   dump_field(out, "has_custom_fan_mode", this->has_custom_fan_mode);
-  dump_field(out, "custom_fan_mode", this->custom_fan_mode);
+  out.append("  custom_fan_mode: ");
+  out.append(format_hex_pretty(this->custom_fan_mode, this->custom_fan_mode_len));
+  out.append("\n");
   dump_field(out, "has_preset", this->has_preset);
   dump_field(out, "preset", static_cast<enums::ClimatePreset>(this->preset));
   dump_field(out, "has_custom_preset", this->has_custom_preset);
-  dump_field(out, "custom_preset", this->custom_preset);
+  out.append("  custom_preset: ");
+  out.append(format_hex_pretty(this->custom_preset, this->custom_preset_len));
+  out.append("\n");
   dump_field(out, "has_target_humidity", this->has_target_humidity);
   dump_field(out, "target_humidity", this->target_humidity);
 #ifdef USE_DEVICES
