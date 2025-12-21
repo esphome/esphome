@@ -455,7 +455,7 @@ async def to_code(config):
             )
         )
     if cfg := config.get(CONF_TEMPERATURE_COMPENSATION):
-        for slot, num in enumerate(cfg):
+        for num, slot in enumerate(cfg):
             cg.add(
                 var.set_temperature_compensation(
                     num,
