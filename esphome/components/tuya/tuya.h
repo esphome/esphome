@@ -62,12 +62,14 @@ enum class TuyaCommandType : uint8_t {
   WIFI_RSSI = 0x24,
   VACUUM_MAP_UPLOAD = 0x28,
   GET_NETWORK_STATUS = 0x2B,
+  GET_MAC_ADDRESS = 0x2D,
   EXTENDED_SERVICES = 0x34,
 };
 
 enum class TuyaExtendedServicesCommandType : uint8_t {
   RESET_NOTIFICATION = 0x04,
   MODULE_RESET = 0x05,
+  GET_MODULE_INFORMATION = 0x07,
   UPDATE_IN_PROGRESS = 0x0A,
 };
 
@@ -136,6 +138,7 @@ class Tuya : public Component, public uart::UARTDevice {
   void send_wifi_status_();
   uint8_t get_wifi_status_code_();
   uint8_t get_wifi_rssi_();
+  std::string process_get_module_information_(const uint8_t *buffer, size_t len);
 
 #ifdef USE_TIME
   void send_local_time_();
