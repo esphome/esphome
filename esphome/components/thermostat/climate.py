@@ -69,9 +69,9 @@ from esphome.const import (
     CONF_SWING_VERTICAL_ACTION,
     CONF_TARGET_TEMPERATURE_CHANGE_ACTION,
     CONF_VISUAL,
-    CONF_USE_SINGLE_TEMPERATURE,
 )
 
+CONF_USE_SINGLE_TEMPERATURE = "use_single_temperature"
 CONF_DEFAULT_PRESET = "default_preset"
 CONF_HUMIDITY_CONTROL_DEHUMIDIFY_ACTION = "humidity_control_dehumidify_action"
 CONF_HUMIDITY_CONTROL_HUMIDIFY_ACTION = "humidity_control_humidify_action"
