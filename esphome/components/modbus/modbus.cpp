@@ -528,6 +528,34 @@ void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClient
     }
   }
 
+  if (this->waiting_for_response_.has_value()) {
+    ModbusDeviceCommand &item = this->waiting_for_response_.value();
+    if (item.frame == frame && item.device == device) {
+      bool dropped = false;
+      switch (item.priority) {
+        case ModbusDeviceCommandPriority::ReadOnce:
+          item.priority = ModbusDeviceCommandPriority::ReadContinuous;
+          ESP_LOGV(TAG, "Frame already in tx queue, scheduled for resend: %s", format_hex_pretty(frame).c_str());
+          break;
+        case ModbusDeviceCommandPriority::ReadContinuous:
+          ESP_LOGD(TAG, "Frame already in tx queue (continuous), dropped: %s", format_hex_pretty(frame).c_str());
+          dropped = true;
+          break;
+        case ModbusDeviceCommandPriority::ReadAgain:
+          ESP_LOGD(TAG, "Frame already in tx queue (resend), dropped: %s", format_hex_pretty(frame).c_str());
+          dropped = true;
+          break;
+        case ModbusDeviceCommandPriority::Write:
+          ESP_LOGD(TAG, "Frame already in tx queue (write), dropped: %s", format_hex_pretty(frame).c_str());
+          dropped = true;
+          break;
+      }
+      if (device && dropped)
+        device->on_modbus_not_sent();
+      return;
+    }
+  }
+
   if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
     ESP_LOGV(TAG, "Adding frame to tx queue: %s", format_hex_pretty(frame).c_str());
     ModbusDeviceCommandPriority priority = ModbusDeviceCommandPriority::ReadOnce;
