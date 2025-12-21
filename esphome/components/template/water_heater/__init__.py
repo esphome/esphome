@@ -8,13 +8,13 @@ from esphome.const import (
     CONF_OPTIMISTIC,
     CONF_RESTORE_MODE,
     CONF_SET_ACTION,
+    CONF_SUPPORTED_MODES,
     CONF_TARGET_TEMPERATURE,
 )
 
 from .. import template_ns
 
 CONF_CURRENT_TEMPERATURE = "current_temperature"
-CONF_SUPPORTED_MODES = "supported_modes"
 
 TemplateWaterHeater = template_ns.class_(
     "TemplateWaterHeater", water_heater.WaterHeater, cg.Component
