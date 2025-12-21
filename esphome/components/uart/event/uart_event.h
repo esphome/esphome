@@ -15,6 +15,7 @@ class UARTEvent : public event::Event, public UARTDevice, public Component {
   void dump_config() override;
 
   void add_event_matcher(const char *event_name, const uint8_t *match_data, size_t match_data_len);
+
  protected:
   struct EventMatcher {
     const char *event_name;
