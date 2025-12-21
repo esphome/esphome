@@ -23,7 +23,7 @@ void Text::publish_state(const std::string &state) {
 #endif
 }
 
-void Text::add_on_state_callback(std::function<void(std::string)> &&callback) {
+void Text::add_on_state_callback(std::function<void(const std::string &)> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 

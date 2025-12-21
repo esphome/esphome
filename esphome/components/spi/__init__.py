@@ -272,10 +272,11 @@ def validate_spi_config(config):
 
 # Given an SPI index, convert to a string that represents the C++ object for it.
 def get_spi_interface(index):
-    if CORE.using_esp_idf:
+    platform = get_target_platform()
+    if platform == PLATFORM_ESP32:
+        # ESP32 uses ESP-IDF SPI driver for both Arduino and IDF frameworks
         return ["SPI2_HOST", "SPI3_HOST"][index]
     # Arduino code follows
-    platform = get_target_platform()
     if platform == PLATFORM_RP2040:
         return ["&SPI", "&SPI1"][index]
     if index == 0:
@@ -356,7 +357,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(configs):
     cg.add_define("USE_SPI")
     cg.add_global(spi_ns.using)
-    if CORE.using_arduino:
+    if CORE.using_arduino and not CORE.is_esp32:
         cg.add_library("SPI", None)
     for spi in configs:
         var = cg.new_Pvariable(spi[CONF_ID])
@@ -447,13 +448,15 @@ def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso:
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "spi_arduino.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP8266_ARDUINO,
             PlatformFramework.RP2040_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
-        "spi_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "spi_esp_idf.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
     }
 )
