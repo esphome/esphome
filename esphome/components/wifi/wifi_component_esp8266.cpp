@@ -257,9 +257,9 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
   memcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str(), ap.get_password().size());
 
-  if (ap.get_bssid().has_value()) {
+  if (ap.has_bssid()) {
     conf.bssid_set = 1;
-    memcpy(conf.bssid, ap.get_bssid()->data(), 6);
+    memcpy(conf.bssid, ap.get_bssid().data(), 6);
   } else {
     conf.bssid_set = 0;
   }
@@ -381,8 +381,8 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 #endif /* USE_NETWORK_IPV6 */
 
-  if (ap.get_channel().has_value()) {
-    ret = wifi_set_channel(*ap.get_channel());
+  if (ap.has_channel()) {
+    ret = wifi_set_channel(ap.get_channel());
     if (!ret) {
       ESP_LOGV(TAG, "wifi_set_channel failed");
       return false;
@@ -528,6 +528,16 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       for (auto *listener : global_wifi_component->connect_state_listeners_) {
         listener->on_wifi_connect_state(global_wifi_component->wifi_ssid(), global_wifi_component->wifi_bssid());
       }
+      // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
+#ifdef USE_WIFI_MANUAL_IP
+      if (const WiFiAP *config = global_wifi_component->get_selected_sta_();
+          config && config->get_manual_ip().has_value()) {
+        for (auto *listener : global_wifi_component->ip_state_listeners_) {
+          listener->on_ip_state(global_wifi_component->wifi_sta_ip_addresses(),
+                                global_wifi_component->get_dns_address(0), global_wifi_component->get_dns_address(1));
+        }
+      }
+#endif
 #endif
       break;
     }
@@ -845,7 +855,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   }
   memcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
   conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
-  conf.channel = ap.get_channel().value_or(1);
+  conf.channel = ap.has_channel() ? ap.get_channel() : 1;
   conf.ssid_hidden = ap.get_hidden();
   conf.max_connection = 5;
   conf.beacon_interval = 100;
