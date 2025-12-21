@@ -1166,7 +1166,7 @@ void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEnt
     int64_t ts = (int64_t) val.timestamp;
     int64_t offset = (int64_t) ESPTime::timezone_offset();
     int64_t adjusted_ts = ts - offset;
-    stream->printf("%" PRId64 "\n", adjusted_ts);
+    stream->printf("%" PRId64 "\n", adjusted_ts * 1000);
   } else {
     // Invalid state
     handle_failed_metric_(stream, component, "1", obj, area, node, friendly_name);
@@ -1193,7 +1193,7 @@ void PrometheusHandler::time_row_(AsyncResponseStream *stream, datetime::TimeEnt
     stream->print(ESPHOME_F("\"} "));
     // Data itself - convert to seconds since midnight
     int64_t seconds_since_midnight = (int64_t) obj->hour * 3600 + (int64_t) obj->minute * 60 + (int64_t) obj->second;
-    stream->printf("%" PRId64 "\n", seconds_since_midnight);
+    stream->printf("%" PRId64 "\n", seconds_since_midnight * 1000);
   } else {
     // Invalid state
     handle_failed_metric_(stream, component, "1", obj, area, node, friendly_name);
@@ -1234,7 +1234,7 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     int64_t ts = (int64_t) val.timestamp;
     int64_t offset = (int64_t) ESPTime::timezone_offset();
     int64_t adjusted_ts = ts - offset;
-    stream->printf("%" PRId64 "\n", adjusted_ts);
+    stream->printf("%" PRId64 "\n", adjusted_ts * 1000);
   } else {
     // Invalid state
     handle_failed_metric_(stream, component, "1", obj, area, node, friendly_name);
