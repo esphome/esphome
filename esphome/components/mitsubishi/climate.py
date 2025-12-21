@@ -43,6 +43,8 @@ VERTICAL_DIRECTIONS = {
     "down": VerticalDirections.VERTICAL_DIRECTION_DOWN,
 }
 
+CONF_VERTICAL_VANES = "vertical_vanes"
+
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(MitsubishiClimate).extend(
     {
@@ -55,6 +57,7 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(MitsubishiClimate).ex
         cv.Optional(CONF_VERTICAL_DEFAULT, default="middle"): cv.enum(
             VERTICAL_DIRECTIONS
         ),
+        cv.Optional(CONF_VERTICAL_VANES, default=1): cv.int_range(1, 2),
     }
 )
 
@@ -67,3 +70,4 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_supports_fan_only(config[CONF_SUPPORTS_FAN_ONLY]))
     cg.add(var.set_horizontal_default(config[CONF_HORIZONTAL_DEFAULT]))
     cg.add(var.set_vertical_default(config[CONF_VERTICAL_DEFAULT]))
+    cg.add(var.set_vertical_vanes(config[CONF_VERTICAL_VANES]))
