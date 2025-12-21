@@ -242,6 +242,7 @@ void ESP32Camera::loop() {
       free(jpg_buf);  // NOLINT(cppcoreguidelines-no-malloc)
       return;
     }
+    memset(fb, 0, sizeof(camera_fb_t));
     fb->buf = jpg_buf;
     fb->len = jpg_buf_len;
     fb->width = width;
