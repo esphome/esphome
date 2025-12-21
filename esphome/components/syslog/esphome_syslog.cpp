@@ -33,15 +33,7 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
     severity = LOG_LEVEL_TO_SYSLOG_SEVERITY[level];
   }
   int pri = this->facility_ * 8 + severity;
-  auto now = this->time_->now();
-  std::string timestamp;
-  if (now.is_valid()) {
-    timestamp = now.strftime("%b %e %H:%M:%S");
-  } else {
-    // RFC 5424: A syslog application MUST use the NILVALUE as TIMESTAMP if the syslog application is incapable of
-    //           obtaining system time.
-    timestamp = "-";
-  }
+
   size_t len = message_len;
   // remove color formatting
   if (this->strip_ && message[0] == 0x1B && len > 11) {
@@ -49,8 +41,40 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
     len -= 11;
   }
 
-  auto data = str_sprintf("<%d>%s %s %s: %.*s", pri, timestamp.c_str(), App.get_name().c_str(), tag, len, message);
-  this->parent_->send_packet((const uint8_t *) data.data(), data.size());
+  // Build syslog packet on stack (508 bytes chosen as practical limit for syslog over UDP)
+  char packet[508];
+  size_t offset = 0;
+  size_t remaining = sizeof(packet);
+
+  // Write PRI - abort if this fails as packet would be malformed
+  int ret = snprintf(packet, remaining, "<%d>", pri);
+  if (ret <= 0 || static_cast<size_t>(ret) >= remaining) {
+    return;
+  }
+  offset = ret;
+  remaining -= ret;
+
+  // Write timestamp directly into packet (RFC 5424: use "-" if time not valid or strftime fails)
+  auto now = this->time_->now();
+  size_t ts_written = now.is_valid() ? now.strftime(packet + offset, remaining, "%b %e %H:%M:%S") : 0;
+  if (ts_written > 0) {
+    offset += ts_written;
+    remaining -= ts_written;
+  } else if (remaining > 0) {
+    packet[offset++] = '-';
+    remaining--;
+  }
+
+  // Write hostname, tag, and message
+  ret = snprintf(packet + offset, remaining, " %s %s: %.*s", App.get_name().c_str(), tag, (int) len, message);
+  if (ret > 0) {
+    // snprintf returns chars that would be written; clamp to actual buffer space
+    offset += std::min(static_cast<size_t>(ret), remaining > 0 ? remaining - 1 : 0);
+  }
+
+  if (offset > 0) {
+    this->parent_->send_packet(reinterpret_cast<const uint8_t *>(packet), offset);
+  }
 }
 
 }  // namespace esphome::syslog
