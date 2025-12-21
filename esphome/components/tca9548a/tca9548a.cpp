@@ -61,7 +61,7 @@ i2c::ErrorCode TCA9548AComponent::switch_to_channel(uint8_t channel) {
 
 void TCA9548AComponent::disable_all_channels() {
   if (this->write(&TCA9548A_DISABLE_CHANNELS_COMMAND, 1) != i2c::ERROR_OK) {
-    this->status_set_error("Failed to disable all channels.");
+    this->status_set_error(LOG_STR("Failed to disable all channels."));
   }
 }
 
