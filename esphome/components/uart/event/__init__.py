@@ -3,6 +3,7 @@ from esphome.components import event, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_EVENT_TYPES, CONF_ID
 from esphome.types import ConfigType
+from esphome.core import ID
 
 from .. import uart_ns
 
@@ -81,6 +82,6 @@ async def to_code(config: ConfigType) -> None:
             match_data = [ord(c) for c in match_data]
 
         match_data_var_name = f"match_data_{config[CONF_ID]}_{i}"
-        match_data_var_id = cg.ID(match_data_var_name, is_declaration=True, type=cg.uint8)
+        match_data_var_id = ID(match_data_var_name, is_declaration=True, type=cg.uint8)
         match_data_var = cg.progmem_array(match_data_var_id, match_data)
         cg.add(var.add_event_matcher(event_name, match_data_var, len(match_data)))
