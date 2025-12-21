@@ -198,6 +198,11 @@ esp_err_t AudioReader::start(const std::string &uri, AudioFileType &file_type) {
       file_type = AudioFileType::FLAC;
     }
 #endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+    else if (str_endswith_ignore_case(url, ".opus")) {
+      file_type = AudioFileType::OPUS;
+    }
+#endif
     else {
       file_type = AudioFileType::NONE;
       this->cleanup_connection_();

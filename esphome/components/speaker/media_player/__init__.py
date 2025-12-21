@@ -110,6 +110,8 @@ def _get_supported_format_struct(pipeline, type):
         args.append(("format", "flac"))
     elif pipeline[CONF_FORMAT] == "MP3":
         args.append(("format", "mp3"))
+    elif pipeline[CONF_FORMAT] == "OPUS":
+        args.append(("format", "opus"))
     elif pipeline[CONF_FORMAT] == "WAV":
         args.append(("format", "wav"))
 
@@ -173,6 +175,8 @@ def _read_audio_file_and_type(file_config):
         media_file_type = audio.AUDIO_FILE_TYPE_ENUM["MP3"]
     elif file_type in ("flac"):
         media_file_type = audio.AUDIO_FILE_TYPE_ENUM["FLAC"]
+    elif file_type in ("ogg") and b"OggS" in data[:40] and b"OpusHead" in data[:40]:
+        media_file_type = audio.AUDIO_FILE_TYPE_ENUM["OPUS"]
 
     return data, media_file_type
 
@@ -231,6 +235,11 @@ def _final_validate(config):
     conf_id = config[CONF_ID].id
     core_data = CORE.data.setdefault(DOMAIN, {conf_id: {}})
     core_data[conf_id][CONF_CODEC_SUPPORT_ENABLED] = use_codec
+
+    if use_codec:
+        audio.request_flac_support()
+        audio.request_mp3_support()
+        audio.request_opus_support()
 
     for file_config in config.get(CONF_FILES, []):
         _, media_file_type = _read_audio_file_and_type(file_config)
@@ -340,11 +349,6 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    if CORE.data[DOMAIN][config[CONF_ID].id][CONF_CODEC_SUPPORT_ENABLED]:
-        # Compile all supported audio codecs
-        cg.add_define("USE_AUDIO_FLAC_SUPPORT", True)
-        cg.add_define("USE_AUDIO_MP3_SUPPORT", True)
-
     var = await media_player.new_media_player(config)
     await cg.register_component(var, config)
 

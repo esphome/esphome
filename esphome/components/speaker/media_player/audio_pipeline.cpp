@@ -13,7 +13,7 @@ namespace speaker {
 static const uint32_t INITIAL_BUFFER_MS = 1000;  // Start playback after buffering this duration of the file
 
 static const uint32_t READ_TASK_STACK_SIZE = 5 * 1024;
-static const uint32_t DECODE_TASK_STACK_SIZE = 3 * 1024;
+static const uint32_t DECODE_TASK_STACK_SIZE = 5 * 1024;
 
 static const uint32_t INFO_ERROR_QUEUE_COUNT = 5;
 

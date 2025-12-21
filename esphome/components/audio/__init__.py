@@ -2,9 +2,11 @@ import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_component, include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import CONF_BITS_PER_SAMPLE, CONF_NUM_CHANNELS, CONF_SAMPLE_RATE
+from esphome.core import CORE
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@kahrendt"]
+DOMAIN = "audio"
 audio_ns = cg.esphome_ns.namespace("audio")
 
 AudioFile = audio_ns.struct("AudioFile")
@@ -14,7 +16,32 @@ AUDIO_FILE_TYPE_ENUM = {
     "WAV": AudioFileType.WAV,
     "MP3": AudioFileType.MP3,
     "FLAC": AudioFileType.FLAC,
+    "OPUS": AudioFileType.OPUS,
 }
+
+
+KEY_FLAC_SUPPORT = "flac_support"
+KEY_MP3_SUPPORT = "mp3_support"
+KEY_OPUS_SUPPORT = "opus_support"
+
+
+def _get_data() -> dict:
+    return CORE.data.setdefault(DOMAIN, {})
+
+
+def request_flac_support() -> None:
+    """Request FLAC codec support for audio decoding."""
+    _get_data()[KEY_FLAC_SUPPORT] = True
+
+
+def request_mp3_support() -> None:
+    """Request MP3 codec support for audio decoding."""
+    _get_data()[KEY_MP3_SUPPORT] = True
+
+
+def request_opus_support() -> None:
+    """Request Opus codec support for audio decoding."""
+    _get_data()[KEY_OPUS_SUPPORT] = True
 
 
 CONF_MIN_BITS_PER_SAMPLE = "min_bits_per_sample"
@@ -173,3 +200,12 @@ async def to_code(config):
         name="esphome/esp-audio-libs",
         ref="2.0.3",
     )
+
+    data = _get_data()
+    if data.get(KEY_FLAC_SUPPORT):
+        cg.add_define("USE_AUDIO_FLAC_SUPPORT")
+    if data.get(KEY_MP3_SUPPORT):
+        cg.add_define("USE_AUDIO_MP3_SUPPORT")
+    if data.get(KEY_OPUS_SUPPORT):
+        cg.add_define("USE_AUDIO_OPUS_SUPPORT")
+        add_idf_component(name="esphome/micro-opus", ref="0.3.3")

@@ -24,6 +24,11 @@
 #endif
 #include <wav_decoder.h>
 
+// micro-opus
+#ifdef USE_AUDIO_OPUS_SUPPORT
+#include <micro_opus/ogg_opus_decoder.h>
+#endif
+
 namespace esphome {
 namespace audio {
 
@@ -47,7 +52,7 @@ class AudioDecoder {
    * @brief Class that facilitates decoding an audio file.
    * The audio file is read from a ring buffer source, decoded, and sent to an audio sink (ring buffer or speaker
    * component).
-   * Supports wav, flac, and mp3 formats.
+   * Supports wav, flac, mp3, and ogg opus formats.
    */
  public:
   /// @brief Allocates the input and output transfer buffers
@@ -55,7 +60,7 @@ class AudioDecoder {
   /// @param output_buffer_size Size of the output transfer buffer in bytes.
   AudioDecoder(size_t input_buffer_size, size_t output_buffer_size);
 
-  /// @brief Deallocates the MP3 decoder (the flac and wav decoders are deallocated automatically)
+  /// @brief Deallocates the MP3 decoder (the flac, opus, and wav decoders are deallocated automatically)
   ~AudioDecoder();
 
   /// @brief Adds a source ring buffer for raw file data. Takes ownership of the ring buffer in a shared_ptr.
@@ -109,6 +114,10 @@ class AudioDecoder {
   FileDecoderState decode_mp3_();
   esp_audio_libs::helix_decoder::HMP3Decoder mp3_decoder_;
 #endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+  FileDecoderState decode_opus_();
+  std::unique_ptr<micro_opus::OggOpusDecoder> opus_decoder_;
+#endif
   FileDecoderState decode_wav_();
 
   std::unique_ptr<AudioSourceTransferBuffer> input_transfer_buffer_;
@@ -123,6 +132,8 @@ class AudioDecoder {
   uint32_t potentially_failed_count_{0};
   bool end_of_file_{false};
   bool wav_has_known_end_{false};
+
+  bool decoder_buffers_internally_{false};
 
   bool pause_output_{false};
 
