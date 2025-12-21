@@ -11,6 +11,7 @@ namespace esphome {
 namespace esp32_camera {
 
 static const char *const TAG = "esp32_camera";
+static constexpr size_t FRAMEBUFFER_TASK_STACK_SIZE = 1792;
 #if ESPHOME_LOG_LEVEL < ESPHOME_LOG_LEVEL_VERBOSE
 static constexpr uint32_t FRAME_LOG_INTERVAL_MS = 60000;
 #endif
@@ -42,12 +43,12 @@ void ESP32Camera::setup() {
   this->framebuffer_get_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
   this->framebuffer_return_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
   xTaskCreatePinnedToCore(&ESP32Camera::framebuffer_task,
-                          "framebuffer_task",  // name
-                          1024,                // stack size
-                          this,                // task pv params
-                          1,                   // priority
-                          nullptr,             // handle
-                          1                    // core
+                          "framebuffer_task",           // name
+                          FRAMEBUFFER_TASK_STACK_SIZE,  // stack size
+                          this,                         // task pv params
+                          1,                            // priority
+                          nullptr,                      // handle
+                          1                             // core
   );
 }
 
@@ -167,19 +168,25 @@ void ESP32Camera::dump_config() {
 }
 
 void ESP32Camera::loop() {
+  // Fast path: skip all work when truly idle
+  // (no current image, no pending requests, and not time for idle request yet)
+  const uint32_t now = App.get_loop_component_start_time();
+  if (!this->current_image_ && !this->has_requested_image_()) {
+    // Only check idle interval when we're otherwise idle
+    if (this->idle_update_interval_ != 0 && now - this->last_idle_request_ > this->idle_update_interval_) {
+      this->last_idle_request_ = now;
+      this->request_image(camera::IDLE);
+    } else {
+      return;
+    }
+  }
+
   // check if we can return the image
   if (this->can_return_image_()) {
     // return image
     auto *fb = this->current_image_->get_raw_buffer();
     xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
     this->current_image_.reset();
-  }
-
-  // request idle image every idle_update_interval
-  const uint32_t now = App.get_loop_component_start_time();
-  if (this->idle_update_interval_ != 0 && now - this->last_idle_request_ > this->idle_update_interval_) {
-    this->last_idle_request_ = now;
-    this->request_image(camera::IDLE);
   }
 
   // Check if we should fetch a new image
@@ -421,6 +428,10 @@ void ESP32Camera::framebuffer_task(void *pv) {
   while (true) {
     camera_fb_t *framebuffer = esp_camera_fb_get();
     xQueueSend(that->framebuffer_get_queue_, &framebuffer, portMAX_DELAY);
+    // Only wake the main loop if there's a pending request to consume the frame
+    if (that->has_requested_image_()) {
+      App.wake_loop_threadsafe();
+    }
     // return is no-op for config with 1 fb
     xQueueReceive(that->framebuffer_return_queue_, &framebuffer, portMAX_DELAY);
     esp_camera_fb_return(framebuffer);
