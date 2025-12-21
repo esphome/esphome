@@ -6,7 +6,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
-#include "esphome/core/automation.h"
 
 namespace esphome::water_heater {
 
@@ -199,8 +198,8 @@ class WaterHeater : public EntityBase, public Component {
   virtual WaterHeaterCallInternal make_call() = 0;
 
 #ifdef USE_WATER_HEATER_VISUAL_OVERRIDES
-  void set_visual_min_temperature_override(const esphome::TemplatableValue<float> &min_temperature_override);
-  void set_visual_max_temperature_override(const esphome::TemplatableValue<float> &max_temperature_override);
+  void set_visual_min_temperature_override(float min_temperature_override);
+  void set_visual_max_temperature_override(float max_temperature_override);
   void set_visual_target_temperature_step_override(float visual_target_temperature_step_override);
 #endif
   virtual void control(const WaterHeaterCall &call) = 0;
@@ -246,8 +245,8 @@ class WaterHeater : public EntityBase, public Component {
   uint32_t state_{0};  // Bitmask of WaterHeaterStateFlag
 
 #ifdef USE_WATER_HEATER_VISUAL_OVERRIDES
-  optional<esphome::TemplatableValue<float>> visual_min_temperature_override_;
-  optional<esphome::TemplatableValue<float>> visual_max_temperature_override_;
+  float visual_min_temperature_override_{NAN};
+  float visual_max_temperature_override_{NAN};
   float visual_target_temperature_step_override_{NAN};
 #endif
 

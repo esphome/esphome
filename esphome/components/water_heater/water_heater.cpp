@@ -208,12 +208,11 @@ optional<WaterHeaterCall> WaterHeater::restore_state() {
 WaterHeaterTraits WaterHeater::get_traits() {
   auto traits = this->traits();
 #ifdef USE_WATER_HEATER_VISUAL_OVERRIDES
-  if (this->visual_min_temperature_override_.has_value()) {
-    traits.set_min_temperature(this->visual_min_temperature_override_->value());
+  if (!std::isnan(this->visual_min_temperature_override_)) {
+    traits.set_min_temperature(this->visual_min_temperature_override_);
   }
-
-  if (this->visual_max_temperature_override_.has_value()) {
-    traits.set_max_temperature(this->visual_max_temperature_override_->value());
+  if (!std::isnan(this->visual_max_temperature_override_)) {
+    traits.set_max_temperature(this->visual_max_temperature_override_);
   }
   if (!std::isnan(this->visual_target_temperature_step_override_)) {
     traits.set_target_temperature_step(this->visual_target_temperature_step_override_);
@@ -223,12 +222,10 @@ WaterHeaterTraits WaterHeater::get_traits() {
 }
 
 #ifdef USE_WATER_HEATER_VISUAL_OVERRIDES
-void WaterHeater::set_visual_min_temperature_override(
-    const esphome::TemplatableValue<float> &min_temperature_override) {
+void WaterHeater::set_visual_min_temperature_override(float min_temperature_override) {
   this->visual_min_temperature_override_ = min_temperature_override;
 }
-void WaterHeater::set_visual_max_temperature_override(
-    const esphome::TemplatableValue<float> &max_temperature_override) {
+void WaterHeater::set_visual_max_temperature_override(float max_temperature_override) {
   this->visual_max_temperature_override_ = max_temperature_override;
 }
 void WaterHeater::set_visual_target_temperature_step_override(float visual_target_temperature_step_override) {

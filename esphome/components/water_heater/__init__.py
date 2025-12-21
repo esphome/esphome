@@ -40,8 +40,8 @@ _WATER_HEATER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     {
         cv.Optional(CONF_VISUAL, default={}): cv.Schema(
             {
-                cv.Optional(CONF_MIN_TEMPERATURE): cv.templatable(cv.temperature),
-                cv.Optional(CONF_MAX_TEMPERATURE): cv.templatable(cv.temperature),
+                cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
+                cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
                 cv.Optional(CONF_TARGET_TEMPERATURE_STEP): cv.float_,
             }
         ),
@@ -76,12 +76,10 @@ async def setup_water_heater_core_(var: cg.Pvariable, config: ConfigType) -> Non
     visual = config[CONF_VISUAL]
     if (min_temp := visual.get(CONF_MIN_TEMPERATURE)) is not None:
         cg.add_define("USE_WATER_HEATER_VISUAL_OVERRIDES")
-        min_temp_templ = await cg.templatable(min_temp, [], float)
-        cg.add(var.set_visual_min_temperature_override(min_temp_templ))
+        cg.add(var.set_visual_min_temperature_override(min_temp))
     if (max_temp := visual.get(CONF_MAX_TEMPERATURE)) is not None:
         cg.add_define("USE_WATER_HEATER_VISUAL_OVERRIDES")
-        max_temp_templ = await cg.templatable(max_temp, [], float)
-        cg.add(var.set_visual_max_temperature_override(max_temp_templ))
+        cg.add(var.set_visual_max_temperature_override(max_temp))
     if (temp_step := visual.get(CONF_TARGET_TEMPERATURE_STEP)) is not None:
         cg.add_define("USE_WATER_HEATER_VISUAL_OVERRIDES")
         cg.add(var.set_visual_target_temperature_step_override(temp_step))
