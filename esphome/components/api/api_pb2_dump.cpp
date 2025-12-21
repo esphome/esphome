@@ -1184,9 +1184,15 @@ void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
 }
 void HomeAssistantStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HomeAssistantStateResponse");
-  dump_field(out, "entity_id", this->entity_id);
-  dump_field(out, "state", this->state);
-  dump_field(out, "attribute", this->attribute);
+  out.append("  entity_id: ");
+  out.append(format_hex_pretty(this->entity_id, this->entity_id_len));
+  out.append("\n");
+  out.append("  state: ");
+  out.append(format_hex_pretty(this->state, this->state_len));
+  out.append("\n");
+  out.append("  attribute: ");
+  out.append(format_hex_pretty(this->attribute, this->attribute_len));
+  out.append("\n");
 }
 #endif
 void GetTimeRequest::dump_to(std::string &out) const { out.append("GetTimeRequest {}"); }

@@ -1582,15 +1582,29 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
-  for (auto &it : this->parent_->get_state_subs()) {
-    // Compare entity_id and attribute with message fields
-    bool entity_match = (strcmp(it.entity_id, msg.entity_id.c_str()) == 0);
-    bool attribute_match = (it.attribute != nullptr && strcmp(it.attribute, msg.attribute.c_str()) == 0) ||
-                           (it.attribute == nullptr && msg.attribute.empty());
+  // Skip if entity_id is empty (invalid message)
+  if (msg.entity_id_len == 0) {
+    return;
+  }
 
-    if (entity_match && attribute_match) {
-      it.callback(msg.state);
+  for (auto &it : this->parent_->get_state_subs()) {
+    // Compare entity_id: check length matches and content matches
+    size_t entity_id_len = strlen(it.entity_id);
+    if (entity_id_len != msg.entity_id_len || memcmp(it.entity_id, msg.entity_id, msg.entity_id_len) != 0) {
+      continue;
     }
+
+    // Compare attribute: either both have matching attribute, or both have none
+    size_t sub_attr_len = it.attribute != nullptr ? strlen(it.attribute) : 0;
+    if (sub_attr_len != msg.attribute_len ||
+        (sub_attr_len > 0 && memcmp(it.attribute, msg.attribute, sub_attr_len) != 0)) {
+      continue;
+    }
+
+    // Create temporary string for callback (callback takes const std::string &)
+    // Handle empty state (nullptr with len=0)
+    std::string state(msg.state_len > 0 ? reinterpret_cast<const char *>(msg.state) : "", msg.state_len);
+    it.callback(state);
   }
 }
 #endif
