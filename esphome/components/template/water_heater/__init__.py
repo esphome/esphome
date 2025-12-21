@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_SUPPORTED_MODES,
     CONF_TARGET_TEMPERATURE,
 )
+from esphome.types import ConfigType
 
 from .. import template_ns
 
@@ -49,7 +50,7 @@ CONFIG_SCHEMA = water_heater.water_heater_schema(TemplateWaterHeater).extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await water_heater.register_water_heater(var, config)
 
