@@ -247,7 +247,7 @@ void SEN5XComponent::internal_setup_(SetupStates state) {
         // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
         // uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), this->serial_number_);
         // TODO remove this line and enable above line when dev branch merges next
-        uint32_t hash = fnv1_hash(App.get_compilation_time_ref() + this->serial_number_);
+        uint32_t hash = fnv1_hash(App.get_compilation_time() + this->serial_number_);
         this->pref_ = global_preferences->make_preference<Sen5xBaselines>(hash, true);
 
         if (this->pref_.load(&this->voc_baselines_storage_)) {
