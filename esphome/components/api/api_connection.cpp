@@ -229,25 +229,7 @@ void APIConnection::loop() {
   }
 
 #ifdef USE_CAMERA
-  if (this->image_reader_ && this->image_reader_->available() && this->helper_->can_write_without_blocking()) {
-    uint32_t to_send = std::min((size_t) MAX_BATCH_PACKET_SIZE, this->image_reader_->available());
-    bool done = this->image_reader_->available() == to_send;
-
-    CameraImageResponse msg;
-    msg.key = camera::Camera::instance()->get_object_id_hash();
-    msg.set_data(this->image_reader_->peek_data_buffer(), to_send);
-    msg.done = done;
-#ifdef USE_DEVICES
-    msg.device_id = camera::Camera::instance()->get_device_id();
-#endif
-
-    if (this->send_message_(msg, CameraImageResponse::MESSAGE_TYPE)) {
-      this->image_reader_->consume_data(to_send);
-      if (done) {
-        this->image_reader_->return_image();
-      }
-    }
-  }
+  this->try_send_camera_image_();
 #endif
 
 #ifdef USE_API_HOMEASSISTANT_STATES
@@ -1057,6 +1039,30 @@ void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
 #endif
 
 #ifdef USE_CAMERA
+void APIConnection::try_send_camera_image_() {
+  if (!this->image_reader_ || !this->image_reader_->available())
+    return;
+  if (!this->helper_->can_write_without_blocking())
+    return;
+
+  uint32_t to_send = std::min((size_t) MAX_BATCH_PACKET_SIZE, this->image_reader_->available());
+  bool done = this->image_reader_->available() == to_send;
+
+  CameraImageResponse msg;
+  msg.key = camera::Camera::instance()->get_object_id_hash();
+  msg.set_data(this->image_reader_->peek_data_buffer(), to_send);
+  msg.done = done;
+#ifdef USE_DEVICES
+  msg.device_id = camera::Camera::instance()->get_device_id();
+#endif
+
+  if (this->send_message_(msg, CameraImageResponse::MESSAGE_TYPE)) {
+    this->image_reader_->consume_data(to_send);
+    if (done) {
+      this->image_reader_->return_image();
+    }
+  }
+}
 void APIConnection::set_camera_state(std::shared_ptr<camera::CameraImage> image) {
   if (!this->flags_.state_subscription)
     return;
@@ -1064,8 +1070,11 @@ void APIConnection::set_camera_state(std::shared_ptr<camera::CameraImage> image)
     return;
   if (this->image_reader_->available())
     return;
-  if (image->was_requested_by(esphome::camera::API_REQUESTER) || image->was_requested_by(esphome::camera::IDLE))
+  if (image->was_requested_by(esphome::camera::API_REQUESTER) || image->was_requested_by(esphome::camera::IDLE)) {
     this->image_reader_->set_image(std::move(image));
+    // Try to send immediately to reduce latency
+    this->try_send_camera_image_();
+  }
 }
 uint16_t APIConnection::try_send_camera_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                              bool is_single) {
