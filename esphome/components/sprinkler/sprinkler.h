@@ -490,10 +490,10 @@ class Sprinkler : public Component {
   void fsm_transition_to_shutdown_();
 
   /// log error message when a method is called but standby is enabled
-  void log_standby_warning_(const char *method_name);
+  void log_standby_warning_(const LogString *method_name);
 
   /// log error message when a method is called but multiplier is zero
-  void log_multiplier_zero_warning_(const char *method_name);
+  void log_multiplier_zero_warning_(const LogString *method_name);
 
   /// return the specified SprinklerValveRunRequestOrigin as a string
   const char *req_as_str_(SprinklerValveRunRequestOrigin origin);

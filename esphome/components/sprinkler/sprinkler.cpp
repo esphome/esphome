@@ -808,11 +808,11 @@ bool Sprinkler::standby() {
 
 void Sprinkler::start_from_queue() {
   if (this->standby()) {
-    this->log_standby_warning_("start_from_queue");
+    this->log_standby_warning_(LOG_STR("start_from_queue"));
     return;
   }
   if (this->multiplier() == 0) {
-    this->log_multiplier_zero_warning_("start_from_queue");
+    this->log_multiplier_zero_warning_(LOG_STR("start_from_queue"));
     return;
   }
   if (this->queued_valves_.empty()) {
@@ -832,11 +832,11 @@ void Sprinkler::start_from_queue() {
 
 void Sprinkler::start_full_cycle() {
   if (this->standby()) {
-    this->log_standby_warning_("start_full_cycle");
+    this->log_standby_warning_(LOG_STR("start_full_cycle"));
     return;
   }
   if (this->multiplier() == 0) {
-    this->log_multiplier_zero_warning_("start_full_cycle");
+    this->log_multiplier_zero_warning_(LOG_STR("start_full_cycle"));
     return;
   }
   if (this->auto_advance() && this->active_valve().has_value()) {
@@ -855,11 +855,11 @@ void Sprinkler::start_full_cycle() {
 
 void Sprinkler::start_single_valve(const optional<size_t> valve_number, optional<uint32_t> run_duration) {
   if (this->standby()) {
-    this->log_standby_warning_("start_single_valve");
+    this->log_standby_warning_(LOG_STR("start_single_valve"));
     return;
   }
   if (this->multiplier() == 0) {
-    this->log_multiplier_zero_warning_("start_single_valve");
+    this->log_multiplier_zero_warning_(LOG_STR("start_single_valve"));
     return;
   }
   if (!valve_number.has_value() || (valve_number == this->active_valve())) {
@@ -892,7 +892,7 @@ void Sprinkler::clear_queued_valves() {
 
 void Sprinkler::next_valve() {
   if (this->standby()) {
-    this->log_standby_warning_("next_valve");
+    this->log_standby_warning_(LOG_STR("next_valve"));
     return;
   }
 
@@ -920,7 +920,7 @@ void Sprinkler::next_valve() {
 
 void Sprinkler::previous_valve() {
   if (this->standby()) {
-    this->log_standby_warning_("previous_valve");
+    this->log_standby_warning_(LOG_STR("previous_valve"));
     return;
   }
 
@@ -974,7 +974,7 @@ void Sprinkler::pause() {
 
 void Sprinkler::resume() {
   if (this->standby()) {
-    this->log_standby_warning_("resume");
+    this->log_standby_warning_(LOG_STR("resume"));
     return;
   }
 
@@ -1627,12 +1627,12 @@ void Sprinkler::fsm_transition_to_shutdown_() {
   this->start_timer_(sprinkler::TIMER_SM);
 }
 
-void Sprinkler::log_standby_warning_(const char *method_name) {
-  ESP_LOGW(TAG, "%s called but standby is enabled; no action taken", method_name);
+void Sprinkler::log_standby_warning_(const LogString *method_name) {
+  ESP_LOGW(TAG, "%s called but standby is enabled; no action taken", LOG_STR_ARG(method_name));
 }
 
-void Sprinkler::log_multiplier_zero_warning_(const char *method_name) {
-  ESP_LOGW(TAG, "%s called but multiplier is set to zero; no action taken", method_name);
+void Sprinkler::log_multiplier_zero_warning_(const LogString *method_name) {
+  ESP_LOGW(TAG, "%s called but multiplier is set to zero; no action taken", LOG_STR_ARG(method_name));
 }
 
 const char *Sprinkler::req_as_str_(SprinklerValveRunRequestOrigin origin) {
