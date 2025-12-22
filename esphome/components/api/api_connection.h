@@ -176,6 +176,11 @@ class APIConnection final : public APIServerConnection {
   void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) override;
 #endif
 
+#ifdef USE_WATER_HEATER
+  bool send_water_heater_state(water_heater::WaterHeater *water_heater);
+  void on_water_heater_command_request(const WaterHeaterCommandRequest &msg) override;
+#endif
+
 #ifdef USE_EVENT
   void send_event(event::Event *event, const char *event_type);
 #endif
@@ -455,6 +460,12 @@ class APIConnection final : public APIServerConnection {
                                                      bool is_single);
   static uint16_t try_send_alarm_control_panel_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                                     bool is_single);
+#endif
+#ifdef USE_WATER_HEATER
+  static uint16_t try_send_water_heater_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                              bool is_single);
+  static uint16_t try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                             bool is_single);
 #endif
 #ifdef USE_EVENT
   static uint16_t try_send_event_response(event::Event *event, const char *event_type, APIConnection *conn,

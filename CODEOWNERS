@@ -537,6 +537,7 @@ esphome/components/version/* @esphome/core
 esphome/components/voice_assistant/* @jesserockz @kahrendt
 esphome/components/wake_on_lan/* @clydebarrow @willwill2will54
 esphome/components/watchdog/* @oarcher
+esphome/components/water_heater/* @dhoeben
 esphome/components/waveshare_epaper/* @clydebarrow
 esphome/components/web_server/ota/* @esphome/core
 esphome/components/web_server_base/* @esphome/core
