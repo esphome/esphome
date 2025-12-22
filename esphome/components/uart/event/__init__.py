@@ -81,6 +81,10 @@ async def to_code(config: ConfigType) -> None:
         if isinstance(match_data, str):
             match_data = [ord(c) for c in match_data]
 
-        match_data_var_id = ID(f"match_data_{config[CONF_ID]}_{i}", is_declaration=True, type=cg.uint8)
-        match_data_var = cg.static_const_array(match_data_var_id, cg.ArrayInitializer(*match_data))
+        match_data_var_id = ID(
+            f"match_data_{config[CONF_ID]}_{i}", is_declaration=True, type=cg.uint8
+        )
+        match_data_var = cg.static_const_array(
+            match_data_var_id, cg.ArrayInitializer(*match_data)
+        )
         cg.add(var.add_event_matcher(event_name, match_data_var, len(match_data)))

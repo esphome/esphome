@@ -6,7 +6,7 @@ namespace esphome::uart {
 
 static const char *const TAG = "uart.event";
 
-void UARTEvent::setup() { }
+void UARTEvent::setup() {}
 
 void UARTEvent::dump_config() { LOG_EVENT("", "UART Event", this); }
 
