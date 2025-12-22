@@ -247,11 +247,11 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
         ),
         # Removed latching pump keys - accepted for validation error reporting
         cv.Optional(CONF_PUMP_OFF_SWITCH_ID): cv.invalid(
-            f"This option has been removed; for latching pumps, use {CONF_PUMP_SWITCH_ID} with an H-Bridge switch. "
+            f"This option was removed in 2026.1.0; for latching pumps, use {CONF_PUMP_SWITCH_ID} with an H-Bridge switch. "
             f"See {docs_url('components/switch/h_bridge')} for more information"
         ),
         cv.Optional(CONF_PUMP_ON_SWITCH_ID): cv.invalid(
-            f"This option has been removed; for latching pumps, use {CONF_PUMP_SWITCH_ID} with an H-Bridge switch. "
+            f"This option was removed in 2026.1.0; for latching pumps, use {CONF_PUMP_SWITCH_ID} with an H-Bridge switch. "
             f"See {docs_url('components/switch/h_bridge')} for more information"
         ),
         cv.Optional(CONF_PUMP_SWITCH_ID): cv.use_id(switch.Switch),
@@ -285,11 +285,11 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
         ),
         # Removed latching valve keys - accepted for validation error reporting
         cv.Optional(CONF_VALVE_OFF_SWITCH_ID): cv.invalid(
-            f"This option has been removed; for latching valves, use {CONF_VALVE_SWITCH_ID} with an H-Bridge switch. "
+            f"This option was removed in 2026.1.0; for latching valves, use {CONF_VALVE_SWITCH_ID} with an H-Bridge switch. "
             f"See {docs_url('components/switch/h_bridge')} for more information"
         ),
         cv.Optional(CONF_VALVE_ON_SWITCH_ID): cv.invalid(
-            f"This option has been removed; for latching valves, use {CONF_VALVE_SWITCH_ID} with an H-Bridge switch. "
+            f"This option was removed in 2026.1.0; for latching valves, use {CONF_VALVE_SWITCH_ID} with an H-Bridge switch. "
             f"See {docs_url('components/switch/h_bridge')} for more information"
         ),
         cv.Optional(CONF_VALVE_SWITCH_ID): cv.use_id(switch.Switch),
@@ -381,11 +381,11 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
         ),
         # Removed latching valve keys - accepted for validation error reporting
         cv.Optional(CONF_PUMP_PULSE_DURATION): cv.invalid(
-            f"This option has been removed; for latching pumps, use {CONF_PUMP_SWITCH_ID} with an H-Bridge switch. "
+            f"This option was removed in 2026.1.0; for latching pumps, use {CONF_PUMP_SWITCH_ID} with an H-Bridge switch. "
             f"See {docs_url('components/switch/h_bridge')} for more information"
         ),
         cv.Optional(CONF_VALVE_PULSE_DURATION): cv.invalid(
-            f"This option has been removed; for latching valves, use {CONF_VALVE_SWITCH_ID} with an H-Bridge switch. "
+            f"This option was removed in 2026.1.0; for latching valves, use {CONF_VALVE_SWITCH_ID} with an H-Bridge switch. "
             f"See {docs_url('components/switch/h_bridge')} for more information"
         ),
         cv.Exclusive(
