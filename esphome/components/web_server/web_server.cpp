@@ -985,13 +985,10 @@ std::string WebServer::number_json_(number::Number *obj, float value, JsonDetail
       std::isnan(value) ? "NA" : (value_accuracy_with_uom_to_buf(state_buf, value, accuracy, uom_ref), state_buf);
   set_json_icon_state_value(root, obj, "number", state_str, val_str, start_config);
   if (start_config == DETAIL_ALL) {
-    // Reuse val_buf for these - ArduinoJson copies the string
-    value_accuracy_to_buf(val_buf, obj->traits.get_min_value(), accuracy);
-    root[ESPHOME_F("min_value")] = val_buf;
-    value_accuracy_to_buf(val_buf, obj->traits.get_max_value(), accuracy);
-    root[ESPHOME_F("max_value")] = val_buf;
-    value_accuracy_to_buf(val_buf, obj->traits.get_step(), accuracy);
-    root[ESPHOME_F("step")] = val_buf;
+    // ArduinoJson copies the string immediately, so we can reuse val_buf
+    root[ESPHOME_F("min_value")] = (value_accuracy_to_buf(val_buf, obj->traits.get_min_value(), accuracy), val_buf);
+    root[ESPHOME_F("max_value")] = (value_accuracy_to_buf(val_buf, obj->traits.get_max_value(), accuracy), val_buf);
+    root[ESPHOME_F("step")] = (value_accuracy_to_buf(val_buf, obj->traits.get_step(), accuracy), val_buf);
     root[ESPHOME_F("mode")] = (int) obj->traits.get_mode();
     if (!uom_ref.empty())
       root[ESPHOME_F("uom")] = uom_ref;
