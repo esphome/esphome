@@ -10,8 +10,7 @@
 #include <array>
 #include <cinttypes>
 
-namespace esphome {
-namespace thermostat {
+namespace esphome::thermostat {
 
 enum HumidificationAction : uint8_t {
   THERMOSTAT_HUMIDITY_CONTROL_ACTION_OFF = 0,
@@ -41,13 +40,11 @@ enum OnBootRestoreFrom : uint8_t {
 
 struct ThermostatClimateTimer {
   ThermostatClimateTimer() = default;
-  ThermostatClimateTimer(bool active, uint32_t time, uint32_t started, std::function<void()> func)
-      : active(active), time(time), started(started), func(std::move(func)) {}
+  ThermostatClimateTimer(bool active, uint32_t time, uint32_t started) : active(active), time(time), started(started) {}
 
   bool active;
   uint32_t time;
   uint32_t started;
-  std::function<void()> func;
 };
 
 struct ThermostatClimateTargetTempConfig {
@@ -266,7 +263,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool cancel_timer_(ThermostatClimateTimerIndex timer_index);
   bool timer_active_(ThermostatClimateTimerIndex timer_index);
   uint32_t timer_duration_(ThermostatClimateTimerIndex timer_index);
-  std::function<void()> timer_cbf_(ThermostatClimateTimerIndex timer_index);
+  /// Call the appropriate timer callback based on timer index
+  void call_timer_callback_(ThermostatClimateTimerIndex timer_index);
   /// Enhanced timer duration setter with running timer adjustment
   void set_timer_duration_in_sec_(ThermostatClimateTimerIndex timer_index, uint32_t time);
 
@@ -534,27 +532,16 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *prev_humidity_control_trigger_{nullptr};
 
   /// Climate action timers
-  std::array<ThermostatClimateTimer, THERMOSTAT_TIMER_COUNT> timer_{
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_max_run_time_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_off_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_on_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::fan_mode_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::fanning_off_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::fanning_on_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::heating_max_run_time_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::heating_off_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::heating_on_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::idle_on_timer_callback_, this)),
-  };
+  std::array<ThermostatClimateTimer, THERMOSTAT_TIMER_COUNT> timer_{};
 
   /// The set of standard preset configurations this thermostat supports (Eg. AWAY, ECO, etc)
   FixedVector<PresetEntry> preset_config_{};
   /// The set of custom preset configurations this thermostat supports (eg. "My Custom Preset")
   FixedVector<CustomPresetEntry> custom_preset_config_{};
-  /// Default custom preset to use on start up (pointer to entry in custom_preset_config_)
+
  private:
+  /// Default custom preset to use on start up (pointer to entry in custom_preset_config_)
   const char *default_custom_preset_{nullptr};
 };
 
-}  // namespace thermostat
-}  // namespace esphome
+}  // namespace esphome::thermostat
