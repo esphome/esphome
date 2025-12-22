@@ -55,8 +55,13 @@ void UltrasonicSensorComponent::loop() {
     return;
   }
 
-  if ((micros() - this->measurement_start_us_) >= this->timeout_us_) {
-    ESP_LOGD(TAG, "'%s' - Distance measurement timed out!", this->name_.c_str());
+  uint32_t elapsed = micros() - this->measurement_start_us_;
+  if (elapsed >= this->timeout_us_ + 1000) {
+    ESP_LOGD(TAG,
+             "'%s' - Timeout after %" PRIu32 "us (measurement_start=%" PRIu32 ", echo_start=%" PRIu32
+             ", echo_end=%" PRIu32 ")",
+             this->name_.c_str(), elapsed, this->measurement_start_us_, this->store_.echo_start_us,
+             this->store_.echo_end_us);
     this->publish_state(NAN);
     this->measurement_pending_ = false;
   }
