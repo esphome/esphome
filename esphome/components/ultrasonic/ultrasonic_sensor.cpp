@@ -29,16 +29,15 @@ void UltrasonicSensorComponent::update() {
     return;
   }
 
+  InterruptLock lock;
   this->store_.echo_start_us = 0;
   this->store_.echo_end_us = 0;
   this->store_.measurement_complete = false;
-  this->measurement_pending_ = true;
-  this->measurement_start_us_ = micros();
-
-  InterruptLock lock;
   this->trigger_pin_->digital_write(true);
   delayMicroseconds(this->pulse_time_us_);
   this->trigger_pin_->digital_write(false);
+  this->measurement_pending_ = true;
+  this->measurement_start_us_ = micros();
 }
 
 void UltrasonicSensorComponent::loop() {
