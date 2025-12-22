@@ -2,4 +2,3 @@ ds248x:
   id: my_ds248x
   address: 0x18
   channel_count: 8
-
