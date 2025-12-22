@@ -8,7 +8,6 @@
 
 namespace esphome::ultrasonic {
 
-/// Store for ISR-related data, kept separate to avoid IRAM_ATTR section conflicts
 struct UltrasonicSensorStore {
   static void gpio_intr(UltrasonicSensorStore *arg);
 
