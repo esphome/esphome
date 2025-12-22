@@ -51,15 +51,19 @@ class AssignmentExpression(Expression):
 
 
 class VariableDeclarationExpression(Expression):
-    __slots__ = ("type", "modifier", "name")
+    __slots__ = ("type", "modifier", "name", "static")
 
-    def __init__(self, type_, modifier, name):
+    def __init__(
+        self, type_: "MockObj", modifier: str, name: ID, *, static: bool = False
+    ) -> None:
         self.type = type_
         self.modifier = modifier
         self.name = name
+        self.static = static
 
-    def __str__(self):
-        return f"{self.type} {self.modifier}{self.name}"
+    def __str__(self) -> str:
+        prefix = "static " if self.static else ""
+        return f"{prefix}{self.type} {self.modifier}{self.name}"
 
 
 class ExpressionList(Expression):
@@ -522,7 +526,7 @@ def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj
     obj = MockObj(id_, ".")
     if type_ is not None:
         id_.type = type_
-    decl = VariableDeclarationExpression(id_.type, "", id_)
+    decl = VariableDeclarationExpression(id_.type, "", id_, static=True)
     CORE.add_global(decl)
     assignment = AssignmentExpression(None, "", id_, rhs)
     CORE.add(assignment)
@@ -544,7 +548,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     obj = MockObj(id_, "->")
     if type_ is not None:
         id_.type = type_
-    decl = VariableDeclarationExpression(id_.type, "*", id_)
+    decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
     CORE.add_global(decl)
     assignment = AssignmentExpression(None, None, id_, rhs)
     CORE.add(assignment)
