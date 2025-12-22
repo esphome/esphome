@@ -69,6 +69,7 @@ void SafeModeComponent::set_safe_mode_pending(const bool &pending) {
   if (pending && current_rtc != SafeModeComponent::ENTER_SAFE_MODE_MAGIC) {
     ESP_LOGI(TAG, "Device will enter on next boot");
     this->write_rtc_(SafeModeComponent::ENTER_SAFE_MODE_MAGIC);
+    global_preferences->sync();  // Must persist before potential reboot
   }
 
   if (!pending && current_rtc == SafeModeComponent::ENTER_SAFE_MODE_MAGIC) {
@@ -103,6 +104,7 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
   if (rtc_val < num_attempts && !is_manual) {
     // increment counter
     this->write_rtc_(rtc_val + 1);
+    global_preferences->sync();  // Must persist before potential crash
     return false;
   }
 
@@ -129,10 +131,7 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
   return true;
 }
 
-void SafeModeComponent::write_rtc_(uint32_t val) {
-  this->rtc_.save(&val);
-  global_preferences->sync();
-}
+void SafeModeComponent::write_rtc_(uint32_t val) { this->rtc_.save(&val); }
 
 uint32_t SafeModeComponent::read_rtc_() {
   uint32_t val;
