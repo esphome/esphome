@@ -133,7 +133,10 @@ esphome/components/dht/* @OttoWinter
 esphome/components/display_menu_base/* @numo68
 esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
+esphome/components/ds18x/* @tomwellnitz @vielleicht
+esphome/components/ds2438/* @tomwellnitz @vielleicht
 esphome/components/ds2484/* @mrk-its
+esphome/components/ds248x/* @tomwellnitz @vielleicht
 esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/duty_time/* @dudanov
 esphome/components/ee895/* @Stock-M

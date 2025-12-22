@@ -10,7 +10,7 @@ from esphome.const import (
     CONF_SLEEP_PIN,
 )
 
-CODEOWNERS = ["@vielleicht"]
+CODEOWNERS = ["@vielleicht", "@tomwellnitz"]
 MULTI_CONF = True
 AUTO_LOAD = ["sensor"]
 DEPENDENCIES = ["i2c"]
