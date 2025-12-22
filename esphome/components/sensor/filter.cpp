@@ -292,8 +292,14 @@ optional<float> ThrottleWithPriorityFilter::new_value(float value) {
 }
 
 // DeltaFilter
-DeltaFilter::DeltaFilter(float delta, bool percentage_mode)
-    : delta_(delta), current_delta_(delta), last_value_(NAN), percentage_mode_(percentage_mode) {}
+DeltaFilter::DeltaFilter(float min_delta, bool min_percentage_mode, float max_delta, bool max_percentage_mode)
+    : min_delta_(min_delta),
+      min_percentage_mode_(min_percentage_mode),
+      max_delta_(max_delta),
+      max_percentage_mode_(max_percentage_mode) {}
+
+void DeltaFilter::set_baseline(std::function<float(float)> fn) { this->baseline_ = fn; }
+
 optional<float> DeltaFilter::new_value(float value) {
   if (std::isnan(value)) {
     if (std::isnan(this->last_value_)) {
@@ -302,33 +308,17 @@ optional<float> DeltaFilter::new_value(float value) {
       return this->last_value_ = value;
     }
   }
-  float diff = fabsf(value - this->last_value_);
-  if (std::isnan(this->last_value_) || (diff > 0.0f && diff >= this->current_delta_)) {
-    if (this->percentage_mode_) {
-      this->current_delta_ = fabsf(value * this->delta_);
-    }
+
+  float min = this->min_percentage_mode_ ? fabsf(value * this->min_delta_) : this->min_delta_;
+  float max = this->min_percentage_mode_ ? fabsf(value * this->max_delta_) : this->max_delta_;
+  float ref = this->baseline_ ? this->baseline_.value()(value) : this->last_value_;
+  float delta = fabsf(value - ref);
+
+  if (std::isnan(ref)) {
     return this->last_value_ = value;
   }
-  return {};
-}
-
-// MaxDeltaFilter
-MaxDeltaFilter::MaxDeltaFilter(float delta, bool percentage_mode)
-    : delta_(delta), current_delta_(delta), last_value_(NAN), percentage_mode_(percentage_mode) {}
-
-optional<float> MaxDeltaFilter::new_value(float value) {
-  if (std::isnan(value)) {
-    if (std::isnan(this->last_value_)) {
-      return {};
-    } else {
-      return this->last_value_ = value;
-    }
-  }
-  float diff = fabsf(value - this->last_value_);
-  if (std::isnan(this->last_value_) || (0.0f <= diff && diff < this->current_delta_)) {
-    if (this->percentage_mode_) {
-      this->current_delta_ = fabsf(value * this->delta_);
-    }
+  // ESP_LOGD(TAG, "min=%f, max=%f, ref=%f", min, max, ref);
+  if ((std::isnan(min) || delta > min) && (std::isnan(max) || delta < max)) {
     return this->last_value_ = value;
   }
   return {};

@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ABOVE,
     CONF_ACCURACY_DECIMALS,
     CONF_ALPHA,
+    CONF_BASELINE,
     CONF_BELOW,
     CONF_CALIBRATION,
     CONF_DEVICE_CLASS,
@@ -277,7 +278,6 @@ TimeoutFilterConfigured = sensor_ns.class_("TimeoutFilterConfigured", TimeoutFil
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter, cg.Component)
 HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter, cg.Component)
 DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
-MaxDeltaFilter = sensor_ns.class_("MaxDeltaFilter", Filter)
 OrFilter = sensor_ns.class_("OrFilter", Filter)
 CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
 ToNTCResistanceFilter = sensor_ns.class_("ToNTCResistanceFilter", Filter)
@@ -573,7 +573,7 @@ async def lambda_filter_to_code(config, filter_id):
     return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
 
 
-DELTA_SCHEMA = cv.Schema(
+DELTA_VALUE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_VALUE): cv.positive_float,
         cv.Optional(CONF_TYPE, default="absolute"): cv.one_of(
@@ -583,31 +583,57 @@ DELTA_SCHEMA = cv.Schema(
 )
 
 
-def validate_delta(config):
+def validate_delta_value(config):
     try:
         value = cv.positive_float(config)
-        return DELTA_SCHEMA({CONF_VALUE: value, CONF_TYPE: "absolute"})
+        return DELTA_VALUE_SCHEMA({CONF_VALUE: value, CONF_TYPE: "absolute"})
     except cv.Invalid:
         pass
     try:
         value = cv.percentage(config)
-        return DELTA_SCHEMA({CONF_VALUE: value, CONF_TYPE: "percentage"})
+        return DELTA_VALUE_SCHEMA({CONF_VALUE: value, CONF_TYPE: "percentage"})
     except cv.Invalid:
         pass
-    raise cv.Invalid("Delta filter requires a positive number or percentage value.")
+    raise cv.Invalid(
+        "Delta filter min/max requires a positive number or percentage value."
+    )
 
 
-@FILTER_REGISTRY.register("delta", DeltaFilter, cv.Any(DELTA_SCHEMA, validate_delta))
+DELTA_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_MIN_VALUE): cv.Any(DELTA_VALUE_SCHEMA, validate_delta_value),
+        cv.Optional(CONF_MAX_VALUE): cv.Any(DELTA_VALUE_SCHEMA, validate_delta_value),
+        cv.Optional(CONF_BASELINE): cv.templatable(cv.float_),
+    }
+)
+
+
+# Old/default definition of the delta filter. Just a value that acts as the minimum.
+def validate_min_delta(config):
+    schema = cv.Any(DELTA_VALUE_SCHEMA, validate_delta_value)
+    return DELTA_SCHEMA({CONF_MIN_VALUE: schema(config)})
+
+
 @FILTER_REGISTRY.register(
-    "max_delta", MaxDeltaFilter, cv.Any(DELTA_SCHEMA, validate_delta)
+    "delta", DeltaFilter, cv.Any(DELTA_SCHEMA, validate_min_delta)
 )
 async def delta_filter_to_code(config, filter_id):
-    percentage = config[CONF_TYPE] == "percentage"
-    return cg.new_Pvariable(
+    if config.get(CONF_MIN_VALUE) is None and config.get(CONF_MAX_VALUE) is None:
+        raise cv.Invalid("Delta filter requires at least one of min or max values.")
+
+    var = cg.new_Pvariable(
         filter_id,
-        config[CONF_VALUE],
-        percentage,
+        config.get(CONF_MIN_VALUE, {}).get(CONF_VALUE, float("nan")),
+        config.get(CONF_MIN_VALUE, {}).get(CONF_TYPE) == "percentage",
+        config.get(CONF_MAX_VALUE, {}).get(CONF_VALUE, float("nan")),
+        config.get(CONF_MAX_VALUE, {}).get(CONF_TYPE) == "percentage",
     )
+    if baseline_lambda := config.get(CONF_BASELINE):
+        baseline = await cg.process_lambda(
+            baseline_lambda, [(float, "x")], return_type=float
+        )
+        cg.add(var.set_baseline(baseline))
+    return var
 
 
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)
