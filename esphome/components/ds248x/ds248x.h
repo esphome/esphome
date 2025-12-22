@@ -15,6 +15,7 @@ static const uint8_t DS248X_COMMAND_RESET = 0xF0;
 static const uint8_t DS248X_COMMAND_SETREADPTR = 0xE1;
 static const uint8_t DS248X_COMMAND_WRITECONFIG = 0xD2;
 static const uint8_t DS248X_COMMAND_CHANNELSELECT = 0xC3;
+static const uint8_t DS248X_COMMAND_DS2484_CONFIG = 0xC3;
 static const uint8_t DS248X_COMMAND_RESETWIRE = 0xB4;
 static const uint8_t DS248X_COMMAND_WRITEBYTE = 0xA5;
 static const uint8_t DS248X_COMMAND_READBYTE = 0x96;

@@ -81,6 +81,11 @@ void DS248xComponent::setup() {
       sensor->set_address(this->found_sensors_[*sensor->get_index()].address);
       sensor->set_channel(this->found_sensors_[*sensor->get_index()].channel);
     } else {
+      if (!sensor->get_address().has_value()) {
+        ESP_LOGE(TAG, "Sensor %s has no address and no index.", sensor->get_name().c_str());
+        sensor->ignore();
+        continue;
+      }
       bool sensor_found = false;
       for (auto fsensor : this->found_sensors_) {
         if (fsensor.address == *sensor->get_address()) {
@@ -153,7 +158,7 @@ void DS248xComponent::update() {
 
   read_idx_ = 0;
   /* this call triggers a cascade of async calls
-  - collect all conversion commands from the sensors to be send to this channel
+  - collect all conversion commands from the sensors to be sent to this channel
   - trigger conversion and wait for it: start_next_conversion uses set_interval
   - when all conversions were done
     - update each sensor on channel: update_channel_sensors uses set_interval
@@ -167,7 +172,8 @@ void DS248xComponent::update_channel_(uint8_t channel) {
 
   conv_cmds_.clear();
   for (auto *sensor : this->sensors_) {
-    if (*sensor->get_channel() != channel)
+    auto channel_opt = sensor->get_channel();
+    if (!channel_opt.has_value() || *channel_opt != channel)
       continue;
     sensor->add_conversion_commands(conv_cmds_);
   }
@@ -217,7 +223,7 @@ void DS248xComponent::start_next_conversion_() {
     uint8_t max_res = 9;
     bool force_max_delay = false;
     for (auto *sensor : this->sensors_) {
-      if (*sensor->get_channel() == selected_channel_ && !sensor->is_ignored()) {
+      if (sensor->get_channel().has_value() && *sensor->get_channel() == selected_channel_ && !sensor->is_ignored()) {
         max_res = std::max(max_res, sensor->get_resolution());
         if (sensor->get_address8()[0] == DALLAS_MODEL_DS18S20) {
           force_max_delay = true;
@@ -271,10 +277,17 @@ void DS248xComponent::update_channel_sensors_() {
       return;
     }
     DS248xSensor *sensor = sensors_[read_idx_];
-    if (*sensor->get_channel() != selected_channel_) {  // selected sensor is from different channel
+    auto channel = sensor->get_channel();
+    if (!channel.has_value()) {
+      ESP_LOGW(TAG, "Sensor at index %u has no channel assigned, skipping.", static_cast<unsigned>(read_idx_));
+      read_idx_++;
+      return;
+    }
+
+    if (*channel != selected_channel_) {  // selected sensor is from different channel
       // cancel this interval and continue with this sensor on the next channel
       this->cancel_interval(TAG);
-      update_channel_(*sensor->get_channel());
+      update_channel_(*channel);
       return;
     }
     read_idx_++;
@@ -376,7 +389,7 @@ bool DS248xComponent::select_channel_(uint8_t channel) {
     ESP_LOGE(TAG, "error writing CHANNELSELECT command to Master: %d", err);
   }
 
-  uint8_t selected;
+  uint8_t selected = 0;
   err = this->read(&selected, sizeof(selected));
   if (err != esphome::i2c::ERROR_OK) {
     ESP_LOGE(TAG, "error reading from Master: %d", err);
@@ -421,19 +434,19 @@ void DS248xComponent::reset_hub_() {
   // when using a single-channel device.
   if (this->channel_count_ == 1) {
     if (this->val_trstl_.has_value()) {
-      this->write_command_(0xC3, 0x00 | (*this->val_trstl_ & 0x0F));
+      this->write_command_(DS248X_COMMAND_DS2484_CONFIG, 0x00 | (*this->val_trstl_ & 0x0F));
     }
     if (this->val_tmsp_.has_value()) {
-      this->write_command_(0xC3, 0x10 | (*this->val_tmsp_ & 0x0F));
+      this->write_command_(DS248X_COMMAND_DS2484_CONFIG, 0x10 | (*this->val_tmsp_ & 0x0F));
     }
     if (this->val_tw0l_.has_value()) {
-      this->write_command_(0xC3, 0x20 | (*this->val_tw0l_ & 0x0F));
+      this->write_command_(DS248X_COMMAND_DS2484_CONFIG, 0x20 | (*this->val_tw0l_ & 0x0F));
     }
     if (this->val_trec0_.has_value()) {
-      this->write_command_(0xC3, 0x30 | (*this->val_trec0_ & 0x0F));
+      this->write_command_(DS248X_COMMAND_DS2484_CONFIG, 0x30 | (*this->val_trec0_ & 0x0F));
     }
     if (this->val_rwpu_.has_value()) {
-      this->write_command_(0xC3, 0x40 | (*this->val_rwpu_ & 0x0F));
+      this->write_command_(DS248X_COMMAND_DS2484_CONFIG, 0x40 | (*this->val_rwpu_ & 0x0F));
     }
   }
 
@@ -617,25 +630,51 @@ void DS248xSensor::set_address(uint64_t address) { this->address_ = address; }
 optional<uint64_t> DS248xSensor::get_address() { return address_; };
 optional<uint8_t> DS248xSensor::get_index() const { return this->index_; }
 void DS248xSensor::set_index(uint8_t index) { this->index_ = index; }
-uint8_t *DS248xSensor::get_address8() { return reinterpret_cast<uint8_t *>(&*this->address_); }
+uint8_t *DS248xSensor::get_address8() {
+  if (!this->address_.has_value())
+    return nullptr;
+  return reinterpret_cast<uint8_t *>(&*this->address_);
+}
 const std::string &DS248xSensor::get_address_name() {
-  if (this->address_name_.empty()) {
+  if (this->address_name_.empty() && this->address_.has_value()) {
     this->address_name_ = std::string("0x") + format_hex(*this->address_);
   }
 
   return this->address_name_;
 }
-std::string DS248xSensor::unique_id() { return "dallas-" + str_lower_case(format_hex(*this->address_)); }
+std::string DS248xSensor::unique_id() {
+  if (!this->address_.has_value()) {
+    ESP_LOGW(TAG, "DS248xSensor unique_id() called before address was set");
+    return {};
+  }
+  return "dallas-" + str_lower_case(format_hex(*this->address_));
+}
 void DS248xSensor::set_channel(uint8_t channel) { channel_ = channel; }
 optional<uint8_t> DS248xSensor::get_channel() { return channel_; }
 
 // proxies to friend class DS248xComponent
-void DS248xSensor::select_() { this->parent_->select_(*channel_, *address_); }
-void DS248xSensor::select_channel_() { this->parent_->select_channel_(*channel_); }
+void DS248xSensor::select_() {
+  if (!this->channel_.has_value() || !this->address_.has_value()) {
+    ESP_LOGW(TAG, "Cannot select sensor: channel or address not set");
+    return;
+  }
+  this->parent_->select_(*this->channel_, *this->address_);
+}
+void DS248xSensor::select_channel_() {
+  if (!this->channel_.has_value()) {
+    ESP_LOGW(TAG, "Cannot select channel: channel not set");
+    return;
+  }
+  this->parent_->select_channel_(*this->channel_);
+}
 void DS248xSensor::write_to_wire_(uint8_t data) { this->parent_->write_to_wire_(data); }
 bool DS248xSensor::reset_devices_() { return this->parent_->reset_devices_(); }
 
 bool DS248xSensor::read_scratch_pad(uint8_t page) {
+  if (!this->channel_.has_value() || !this->address_.has_value()) {
+    ESP_LOGW(TAG, "Cannot read scratch pad: channel or address not set");
+    return false;
+  }
   this->parent_->select_channel_(*this->channel_);
 
   bool result = this->parent_->reset_devices_();
@@ -659,6 +698,8 @@ bool DS248xSensor::read_scratch_pad(uint8_t page) {
 }
 
 bool DS248xSensor::write_scratch_pad() {
+  if (!this->channel_.has_value() || !this->address_.has_value())
+    return false;
   this->parent_->select_channel_(*this->channel_);
 
   bool result = this->parent_->reset_devices_();
@@ -678,10 +719,14 @@ bool DS248xSensor::write_scratch_pad() {
 }
 
 bool DS248xSensor::check_scratch_pad() {
+  uint8_t *addr = this->get_address8();
+  if (!addr)
+    return false;
+
   bool chksum_validity = (crc8(this->scratch_pad_, 8) == this->scratch_pad_[8]);
   bool config_validity = false;
 
-  switch (this->get_address8()[0]) {
+  switch (addr[0]) {
     case DALLAS_MODEL_DS18B20:
       config_validity = ((this->scratch_pad_[4] & 0x9F) == 0x1F);
       break;
@@ -715,7 +760,11 @@ bool DS248xSensor::setup_sensor() {
     return false;
   }
 
-  if (this->get_address8()[0] == DALLAS_MODEL_DS18B20 || this->get_address8()[0] == DALLAS_MODEL_DS1822) {
+  uint8_t *addr = this->get_address8();
+  if (!addr)
+    return false;
+
+  if (addr[0] == DALLAS_MODEL_DS18B20 || addr[0] == DALLAS_MODEL_DS1822) {
     uint8_t config_register = this->scratch_pad_[4];
     uint8_t current_resolution = ((config_register >> 5) & 0x03) + 9;
     if (current_resolution != this->resolution_) {
@@ -742,8 +791,12 @@ bool DS248xSensor::update() {
     return false;
   }
 
+  uint8_t *addr = this->get_address8();
+  if (!addr)
+    return false;
+
   int16_t temp_16 = (int16_t(this->scratch_pad_[1]) << 8) | this->scratch_pad_[0];
-  if (this->get_address8()[0] == DALLAS_MODEL_DS18S20) {
+  if (addr[0] == DALLAS_MODEL_DS18S20) {
     temp_16 = ((temp_16 & 0xFFFE) << 3) + 16 - this->scratch_pad_[6];
   }
 

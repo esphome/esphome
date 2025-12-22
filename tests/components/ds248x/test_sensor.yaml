@@ -8,3 +8,8 @@ sensor:
     name: "My Sensor"
     address: 0x1234567890123456
     resolution: 9
+  - platform: ds248x
+    name: "My Sensor Channel 1"
+    address: 0x1234567890123457
+    channel: 1
+    resolution: 12

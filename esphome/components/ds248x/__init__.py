@@ -145,4 +145,4 @@ def ds248x_sensor_schema():
         cv.Optional(CONF_RESOLUTION, default=12): cv.int_range(min=9, max=12),
     }
 
-    return cv.Schema(schema)
+    return cv.Schema(schema).extend(cv.has_at_least_one_key(CONF_ADDRESS, CONF_INDEX))
