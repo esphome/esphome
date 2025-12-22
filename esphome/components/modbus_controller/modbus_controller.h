@@ -119,26 +119,23 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   /// called when a modbus timeout occurred
   void on_modbus_no_response() override;
   /// extract the register address from payload (only used in log messages)
-  uint16_t register_address() { return get_data<uint16_t>(this->payload, this->raw_payload ? 2 : 1); };
+  uint16_t register_address() { return get_data<uint16_t>(this->payload, 1); };
   /// extract register count from payload (only used in log messages)
   uint16_t register_count() {
     if (is_register_type_binary(this->register_type())) {
       return 1;
     } else {
-      return get_data<uint16_t>(this->payload, this->raw_payload ? 4 : 3);
+      return get_data<uint16_t>(this->payload, 3);
     }
   }
   uint16_t skip_updates{0};
-  ModbusFunctionCode function_code() {
-    return static_cast<ModbusFunctionCode>(this->payload[this->raw_payload ? 1 : 0]);
-  };
+  ModbusFunctionCode function_code() { return static_cast<ModbusFunctionCode>(this->payload[0]); };
   ModbusRegisterType register_type() { return modbus_register_type(this->function_code()); };
   std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
       on_data_func;
   /// the modbus client pdu
   std::vector<uint8_t> payload = {};
   bool continuous_read{false};
-  bool raw_payload{false};
   void send();
 
   /// factory methods

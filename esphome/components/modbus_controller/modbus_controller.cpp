@@ -39,8 +39,6 @@ void ModbusCommandItem::on_modbus_data(const std::vector<uint8_t> &data) {
 
   if (this->on_data_func) {
     this->on_data_func(this->register_type(), this->register_address(), data);
-  } else if (this->raw_payload) {
-    ESP_LOGI(TAG, "Custom Command sent");
   } else if (is_function_code_write((u_int8_t(this->function_code())))) {
     // Write command response
     for (auto *sensor : this->sensors) {
@@ -318,13 +316,15 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusControlle
   return cmd;
 }
 
+/// Custom commands should _not_ include the device address - that's added automatically
+/// If this command uses a starndard function code, then the standard data handling will be used unless a custom handler
+/// is provided
 ModbusCommandItem ModbusCommandItem::create_custom_command(
     ModbusController *controller, const std::vector<uint8_t> &values,
     std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
         &&handler) {
   ModbusCommandItem cmd = controller->create_command();
   cmd.on_data_func = handler;
-  cmd.raw_payload = true;
 
   cmd.payload = values;
 
@@ -337,7 +337,6 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
         &&handler) {
   ModbusCommandItem cmd = controller->create_command();
   cmd.on_data_func = handler;
-  cmd.raw_payload = true;
 
   for (auto v : values) {
     cmd.payload.push_back((v >> 8) & 0xFF);
@@ -347,13 +346,7 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
   return cmd;
 }
 
-void ModbusCommandItem::send() {
-  if (this->raw_payload) {
-    this->send_raw(this->payload, this->continuous_read);
-  } else {
-    this->send_pdu(this->payload, this->continuous_read);
-  }
-}
+void ModbusCommandItem::send() { this->send_pdu(this->payload, this->continuous_read); }
 
 void ModbusController::command_sent(int function_code, int register_address) {
   this->command_sent_callback_.call(function_code, register_address);
