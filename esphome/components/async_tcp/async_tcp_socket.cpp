@@ -7,8 +7,7 @@
 #include <cerrno>
 #include <sys/select.h>
 
-namespace esphome {
-namespace async_tcp {
+namespace esphome::async_tcp {
 
 static const char *const TAG = "async_tcp";
 
@@ -144,7 +143,6 @@ void AsyncClient::loop() {
   }
 }
 
-}  // namespace async_tcp
-}  // namespace esphome
+}  // namespace esphome::async_tcp
 
 #endif  // defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
