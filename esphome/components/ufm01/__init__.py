@@ -1,13 +1,13 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, uart
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_FLOW,
     CONF_ID,
     CONF_TEMPERATURE,
     DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_WATER,
     DEVICE_CLASS_VOLUME_FLOW_RATE,
+    DEVICE_CLASS_WATER,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
@@ -24,8 +24,8 @@ AUTO_LOAD = ["sensor"]
 DEPENDENCIES = ["uart"]
 
 CONF_ACCUMULATED_FLOW = "accumulated_flow"
-ufm01_ns = cg.esphome_ns.namespace('ufm01')
-UFM01Component = ufm01_ns.class_('UFM01Component', uart.UARTDevice, cg.Component)
+ufm01_ns = cg.esphome_ns.namespace("ufm01")
+UFM01Component = ufm01_ns.class_("UFM01Component", uart.UARTDevice, cg.Component)
 
 CONF_UFM01_ID = "ufm01_id"
 

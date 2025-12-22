@@ -16,10 +16,9 @@ namespace esphome {
 namespace ufm01 {
 
 class UFM01Component : public uart::UARTDevice, public sensor::Sensor, public Component {
-
-SUB_SENSOR(volume)
-SUB_SENSOR(flow)
-SUB_SENSOR(temperature)
+  SUB_SENSOR(volume)
+  SUB_SENSOR(flow)
+  SUB_SENSOR(temperature)
 
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(ufp_chip_error)
@@ -29,7 +28,6 @@ SUB_SENSOR(temperature)
 #endif
 
  public:
-
   void setup() override;
 
   void loop() override;
@@ -37,13 +35,12 @@ SUB_SENSOR(temperature)
   float get_setup_priority() const override;
 
  protected:
-
   bool clear_accumulated_flow_();
   bool set_active_mode_();
   bool reset_device_();
 
  private:
-  bool send_command_(const std::vector<uint8_t>& command);
+  bool send_command_(const std::vector<uint8_t> &command);
 
   int read_index_ = 0;
   uint8_t data_[32];

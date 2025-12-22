@@ -15,8 +15,7 @@ CONF_FLOW_RATE_OUT_OF_RANGE = "flow_rate_out_of_range"
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_UFM01_ID): cv.use_id(UFM01Component),
     cv.Optional(CONF_UFP_CHIP_ERROR): binary_sensor.binary_sensor_schema(
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-        device_class=DEVICE_CLASS_PROBLEM
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC, device_class=DEVICE_CLASS_PROBLEM
     ),
     cv.Optional(CONF_FLOW_DIRECTION_WRONG): binary_sensor.binary_sensor_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
