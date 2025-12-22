@@ -3,20 +3,3 @@ ds248x:
   address: 0x18
   channel_count: 8
 
-sensor:
-  - platform: ds18x
-    ds248x_id: my_ds248x
-    address: 0x1234567890123456
-    channel: 0
-    name: "DS18x Sensor"
-
-  - platform: ds2438
-    ds248x_id: my_ds248x
-    address: 0x6543210987654321
-    channel: 1
-    temperature:
-      name: "DS2438 Temperature"
-    voltage:
-      name: "DS2438 Voltage"
-    current:
-      name: "DS2438 Current"
