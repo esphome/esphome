@@ -47,6 +47,13 @@ void DS248xComponent::setup() {
   }
 
   for (auto *sensor : this->sensors_) {
+    if (sensor->get_channel().has_value() && *sensor->get_channel() >= this->channel_count_) {
+      ESP_LOGE(TAG, "Sensor %s configured for channel %d but device only has %d channels.", sensor->get_name().c_str(),
+               *sensor->get_channel(), this->channel_count_);
+      this->status_set_error();
+      continue;
+    }
+
     if (sensor->get_address().has_value() && sensor->get_channel().has_value()) {
       // sensor was fully specified by config
     } else if (sensor->get_index().has_value()) {

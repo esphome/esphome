@@ -2,8 +2,10 @@ import esphome.codegen as cg
 from esphome.components import ds248x, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESS,
     CONF_CURRENT,
     CONF_ID,
+    CONF_INDEX,
     CONF_TEMPERATURE,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
@@ -50,6 +52,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(ds248x.ds248x_sensor_schema()),
     cv.has_at_least_one_key(CONF_TEMPERATURE, CONF_VOLTAGE, CONF_CURRENT),
+    cv.has_exactly_one_key(CONF_ADDRESS, CONF_INDEX),
 )
 
 

@@ -1,0 +1,11 @@
+esphome:
+  name: test-ds248x-rp2040
+
+rp2040:
+  board: rpipico
+
+i2c:
+  sda: 4
+  scl: 5
+
+<<: !include common.yaml

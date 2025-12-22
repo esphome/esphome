@@ -1,0 +1,14 @@
+esphome:
+  name: test-ds248x
+  min_version: 2023.12.0
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+i2c:
+  sda: 21
+  scl: 22
+
+<<: !include common.yaml

@@ -1,0 +1,11 @@
+esphome:
+  name: test-ds248x-esp8266
+
+esp8266:
+  board: nodemcuv2
+
+i2c:
+  sda: D2
+  scl: D1
+
+<<: !include common.yaml

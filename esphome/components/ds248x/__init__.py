@@ -76,6 +76,9 @@ async def register_ds248x_sensor(var, config):
     else:
         cg.add(var.set_index(config[CONF_INDEX]))
 
+    if CONF_CHANNEL in config:
+        cg.add(var.set_channel(config[CONF_CHANNEL]))
+
     cg.add(parent.register_sensor(var))
 
 
@@ -91,6 +94,4 @@ def ds248x_sensor_schema():
         cv.Optional(CONF_CHANNEL): cv.positive_int,
     }
 
-    # TODO check if channel lower then CONF[CHANNEL_COUNT]
-    # TODO cv.has_exactly_one_key(CONF_ADDRESS, CONF_INDEX)
     return cv.Schema(schema)

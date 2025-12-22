@@ -176,7 +176,7 @@ class DS248xSensor : public sensor::Sensor {
 
   bool check_scratch_pad();
 
-  std::string unique_id() override;
+  std::string unique_id();
 
  protected:
   DS248xComponent *parent_;
