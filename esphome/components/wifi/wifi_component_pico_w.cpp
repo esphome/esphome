@@ -259,6 +259,15 @@ void WiFiComponent::wifi_loop_() {
     for (auto *listener : this->connect_state_listeners_) {
       listener->on_wifi_connect_state(this->wifi_ssid(), this->wifi_bssid());
     }
+    // For static IP configurations, notify IP listeners immediately as the IP is already configured
+#ifdef USE_WIFI_MANUAL_IP
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+      s_sta_had_ip = true;
+      for (auto *listener : this->ip_state_listeners_) {
+        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+      }
+    }
+#endif
 #endif
   } else if (!is_connected && s_sta_was_connected) {
     // Just disconnected

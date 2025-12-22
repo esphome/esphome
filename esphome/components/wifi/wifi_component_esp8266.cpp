@@ -528,6 +528,16 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       for (auto *listener : global_wifi_component->connect_state_listeners_) {
         listener->on_wifi_connect_state(global_wifi_component->wifi_ssid(), global_wifi_component->wifi_bssid());
       }
+      // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
+#ifdef USE_WIFI_MANUAL_IP
+      if (const WiFiAP *config = global_wifi_component->get_selected_sta_();
+          config && config->get_manual_ip().has_value()) {
+        for (auto *listener : global_wifi_component->ip_state_listeners_) {
+          listener->on_ip_state(global_wifi_component->wifi_sta_ip_addresses(),
+                                global_wifi_component->get_dns_address(0), global_wifi_component->get_dns_address(1));
+        }
+      }
+#endif
 #endif
       break;
     }

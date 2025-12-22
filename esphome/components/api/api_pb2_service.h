@@ -91,6 +91,10 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_climate_command_request(const ClimateCommandRequest &value){};
 #endif
 
+#ifdef USE_WATER_HEATER
+  virtual void on_water_heater_command_request(const WaterHeaterCommandRequest &value){};
+#endif
+
 #ifdef USE_NUMBER
   virtual void on_number_command_request(const NumberCommandRequest &value){};
 #endif

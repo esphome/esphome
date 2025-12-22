@@ -1330,45 +1330,64 @@ void ThermostatClimate::set_heat_deadband(float deadband) { this->heating_deadba
 void ThermostatClimate::set_heat_overrun(float overrun) { this->heating_overrun_ = overrun; }
 void ThermostatClimate::set_supplemental_cool_delta(float delta) { this->supplemental_cool_delta_ = delta; }
 void ThermostatClimate::set_supplemental_heat_delta(float delta) { this->supplemental_heat_delta_ = delta; }
+
+void ThermostatClimate::set_timer_duration_in_sec_(ThermostatClimateTimerIndex timer_index, uint32_t time) {
+  uint32_t new_duration_ms = 1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+
+  if (this->timer_[timer_index].active) {
+    // Timer is running, calculate elapsed time and adjust if needed
+    uint32_t current_time = App.get_loop_component_start_time();
+    uint32_t elapsed = current_time - this->timer_[timer_index].started;
+
+    if (elapsed >= new_duration_ms) {
+      // Timer should complete immediately (including when new_duration_ms is 0)
+      ESP_LOGVV(TAG, "timer %d completing immediately (elapsed %d >= new %d)", timer_index, elapsed, new_duration_ms);
+      this->timer_[timer_index].active = false;
+      // Trigger the timer callback immediately
+      this->timer_[timer_index].func();
+      return;
+    } else {
+      // Adjust timer to run for remaining time - keep original start time
+      ESP_LOGVV(TAG, "timer %d adjusted: elapsed %d, new total %d, remaining %d", timer_index, elapsed, new_duration_ms,
+                new_duration_ms - elapsed);
+      this->timer_[timer_index].time = new_duration_ms;
+      return;
+    }
+  }
+
+  // Original logic for non-running timers
+  this->timer_[timer_index].time = new_duration_ms;
+}
+
 void ThermostatClimate::set_cooling_maximum_run_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME, time);
 }
 void ThermostatClimate::set_cooling_minimum_off_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_COOLING_OFF].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_COOLING_OFF, time);
 }
 void ThermostatClimate::set_cooling_minimum_run_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_COOLING_ON].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_COOLING_ON, time);
 }
 void ThermostatClimate::set_fan_mode_minimum_switching_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_FAN_MODE].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_FAN_MODE, time);
 }
 void ThermostatClimate::set_fanning_minimum_off_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_FANNING_OFF].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_FANNING_OFF, time);
 }
 void ThermostatClimate::set_fanning_minimum_run_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_FANNING_ON].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_FANNING_ON, time);
 }
 void ThermostatClimate::set_heating_maximum_run_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME, time);
 }
 void ThermostatClimate::set_heating_minimum_off_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_HEATING_OFF].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_HEATING_OFF, time);
 }
 void ThermostatClimate::set_heating_minimum_run_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_HEATING_ON].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_HEATING_ON, time);
 }
 void ThermostatClimate::set_idle_minimum_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_IDLE_ON].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_IDLE_ON, time);
 }
 void ThermostatClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
 void ThermostatClimate::set_humidity_sensor(sensor::Sensor *humidity_sensor) {
