@@ -561,7 +561,7 @@ void DS248xSensor::select_channel_() { this->parent_->select_channel_(*channel_)
 void DS248xSensor::write_to_wire_(uint8_t data) { this->parent_->write_to_wire_(data); }
 bool DS248xSensor::reset_devices_() { return this->parent_->reset_devices_(); }
 
-bool IRAM_ATTR DS248xSensor::read_scratch_pad(uint8_t page) {
+bool DS248xSensor::read_scratch_pad(uint8_t page) {
   this->parent_->select_channel_(*this->channel_);
 
   bool result = this->parent_->reset_devices_();
