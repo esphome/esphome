@@ -141,7 +141,12 @@ uint32_t SafeModeComponent::read_rtc_() {
   return val;
 }
 
-void SafeModeComponent::clean_rtc() { this->write_rtc_(0); }
+void SafeModeComponent::clean_rtc() {
+  // Save without sync - preferences will be written at shutdown or by IntervalSyncer
+  // This avoids blocking the loop for 50+ ms on flash write
+  uint32_t val = 0;
+  this->rtc_.save(&val);
+}
 
 void SafeModeComponent::on_safe_shutdown() {
   if (this->read_rtc_() != SafeModeComponent::ENTER_SAFE_MODE_MAGIC)
