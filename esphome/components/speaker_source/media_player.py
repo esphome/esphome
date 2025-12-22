@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import audio, media_player, media_source, speaker
+from esphome.components import audio, media_player, media_source, socket, speaker
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DELAY,
@@ -86,9 +86,12 @@ def _validate_pipeline(config):
     if CONF_ANNOUNCEMENT_SPEAKER in config:
         inherit_property_from(CONF_NUM_CHANNELS, CONF_ANNOUNCEMENT_SPEAKER)(config)
         inherit_property_from(CONF_SAMPLE_RATE, CONF_ANNOUNCEMENT_SPEAKER)(config)
+        # TODO: Probably should be handled by http_request media_source
+        socket.consume_sockets(1, "speaker_source_announcement")(config)
     elif CONF_MEDIA_SPEAKER in config:
         inherit_property_from(CONF_NUM_CHANNELS, CONF_MEDIA_SPEAKER)(config)
         inherit_property_from(CONF_SAMPLE_RATE, CONF_MEDIA_SPEAKER)(config)
+        socket.consume_sockets(1, "speaker_source_media")(config)
 
     # Validate the settings are compatible with the speakers
     if CONF_ANNOUNCEMENT_SPEAKER in config:
