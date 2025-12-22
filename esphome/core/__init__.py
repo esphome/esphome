@@ -807,7 +807,7 @@ class EsphomeCore:
 
     @property
     def using_esp_idf(self):
-        return self.target_framework == "esp-idf"
+        return self.target_platform == PLATFORM_ESP32
 
     @property
     def using_zephyr(self):
