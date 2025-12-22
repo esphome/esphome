@@ -438,16 +438,6 @@ static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const c
   root[ESPHOME_F("state")] = state;
 }
 
-// Macros for stack-based value formatting (avoid heap allocation).
-// Usage: Declare VALUE_BUF once per scope, then use VALUE_OR_NA/VALUE_UOM_OR_NA.
-// Safe because ArduinoJson copies the string immediately on assignment.
-// Note: Do NOT use multiple macros in the same expression - use separate statements.
-#define VALUE_BUF char _vbuf_[VALUE_ACCURACY_MAX_LEN]
-#define VALUE_OR_NA(value, decimals) \
-  (std::isnan(value) ? "NA" : (value_accuracy_to_buf(_vbuf_, value, decimals), _vbuf_))
-#define VALUE_UOM_OR_NA(value, decimals, uom) \
-  (std::isnan(value) ? "NA" : (value_accuracy_with_uom_to_buf(_vbuf_, value, decimals, uom), _vbuf_))
-
 // Helper to get request detail parameter
 static JsonDetail get_request_detail(AsyncWebServerRequest *request) {
   auto *param = request->getParam("detail");
@@ -485,10 +475,11 @@ std::string WebServer::sensor_json_(sensor::Sensor *obj, float value, JsonDetail
   JsonObject root = builder.root();
 
   const auto uom_ref = obj->get_unit_of_measurement_ref();
-
-  VALUE_BUF;
-  set_json_icon_state_value(root, obj, "sensor", VALUE_UOM_OR_NA(value, obj->get_accuracy_decimals(), uom_ref), value,
-                            start_config);
+  char buf[VALUE_ACCURACY_MAX_LEN];
+  const char *state = std::isnan(value)
+                          ? "NA"
+                          : (value_accuracy_with_uom_to_buf(buf, value, obj->get_accuracy_decimals(), uom_ref), buf);
+  set_json_icon_state_value(root, obj, "sensor", state, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
     if (!uom_ref.empty())
@@ -988,9 +979,11 @@ std::string WebServer::number_json_(number::Number *obj, float value, JsonDetail
 
   // Need two buffers: one for value, one for state with UOM
   char val_buf[VALUE_ACCURACY_MAX_LEN];
+  char state_buf[VALUE_ACCURACY_MAX_LEN];
   const char *val_str = std::isnan(value) ? "\"NaN\"" : (value_accuracy_to_buf(val_buf, value, accuracy), val_buf);
-  VALUE_BUF;
-  set_json_icon_state_value(root, obj, "number", VALUE_UOM_OR_NA(value, accuracy, uom_ref), val_str, start_config);
+  const char *state_str =
+      std::isnan(value) ? "NA" : (value_accuracy_with_uom_to_buf(state_buf, value, accuracy, uom_ref), state_buf);
+  set_json_icon_state_value(root, obj, "number", state_str, val_str, start_config);
   if (start_config == DETAIL_ALL) {
     // Reuse val_buf for these - ArduinoJson copies the string
     value_accuracy_to_buf(val_buf, obj->traits.get_min_value(), accuracy);
@@ -1369,7 +1362,7 @@ std::string WebServer::climate_json_(climate::Climate *obj, JsonDetail start_con
   int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
   char buf[PSTR_LOCAL_SIZE];
-  VALUE_BUF;  // For temperature formatting
+  char temp_buf[VALUE_ACCURACY_MAX_LEN];
 
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root[ESPHOME_F("modes")].to<JsonArray>();
@@ -1407,9 +1400,9 @@ std::string WebServer::climate_json_(climate::Climate *obj, JsonDetail start_con
   bool has_state = false;
   root[ESPHOME_F("mode")] = PSTR_LOCAL(climate_mode_to_string(obj->mode));
   root[ESPHOME_F("max_temp")] =
-      (value_accuracy_to_buf(_vbuf_, traits.get_visual_max_temperature(), target_accuracy), _vbuf_);
+      (value_accuracy_to_buf(temp_buf, traits.get_visual_max_temperature(), target_accuracy), temp_buf);
   root[ESPHOME_F("min_temp")] =
-      (value_accuracy_to_buf(_vbuf_, traits.get_visual_min_temperature(), target_accuracy), _vbuf_);
+      (value_accuracy_to_buf(temp_buf, traits.get_visual_min_temperature(), target_accuracy), temp_buf);
   root[ESPHOME_F("step")] = traits.get_visual_target_temperature_step();
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION)) {
     root[ESPHOME_F("action")] = PSTR_LOCAL(climate_action_to_string(obj->action));
@@ -1432,23 +1425,26 @@ std::string WebServer::climate_json_(climate::Climate *obj, JsonDetail start_con
     root[ESPHOME_F("swing_mode")] = PSTR_LOCAL(climate_swing_mode_to_string(obj->swing_mode));
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE)) {
-    root[ESPHOME_F("current_temperature")] = VALUE_OR_NA(obj->current_temperature, current_accuracy);
+    root[ESPHOME_F("current_temperature")] =
+        std::isnan(obj->current_temperature)
+            ? "NA"
+            : (value_accuracy_to_buf(temp_buf, obj->current_temperature, current_accuracy), temp_buf);
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     root[ESPHOME_F("target_temperature_low")] =
-        (value_accuracy_to_buf(_vbuf_, obj->target_temperature_low, target_accuracy), _vbuf_);
+        (value_accuracy_to_buf(temp_buf, obj->target_temperature_low, target_accuracy), temp_buf);
     root[ESPHOME_F("target_temperature_high")] =
-        (value_accuracy_to_buf(_vbuf_, obj->target_temperature_high, target_accuracy), _vbuf_);
+        (value_accuracy_to_buf(temp_buf, obj->target_temperature_high, target_accuracy), temp_buf);
     if (!has_state) {
       root[ESPHOME_F("state")] =
-          (value_accuracy_to_buf(_vbuf_, (obj->target_temperature_high + obj->target_temperature_low) / 2.0f,
+          (value_accuracy_to_buf(temp_buf, (obj->target_temperature_high + obj->target_temperature_low) / 2.0f,
                                  target_accuracy),
-           _vbuf_);
+           temp_buf);
     }
   } else {
     root[ESPHOME_F("target_temperature")] =
-        (value_accuracy_to_buf(_vbuf_, obj->target_temperature, target_accuracy), _vbuf_);
+        (value_accuracy_to_buf(temp_buf, obj->target_temperature, target_accuracy), temp_buf);
     if (!has_state)
       root[ESPHOME_F("state")] = root[ESPHOME_F("target_temperature")];
   }
