@@ -19,7 +19,7 @@ CODEOWNERS = ["@ljungqvist"]
 
 MULTI_CONF = True
 
-AUTO_LOAD = [ "sensor" ]
+AUTO_LOAD = ["sensor"]
 
 DEPENDENCIES = ["uart"]
 
@@ -27,7 +27,7 @@ CONF_ACCUMULATED_FLOW = "accumulated_flow"
 ufm01_ns = cg.esphome_ns.namespace('ufm01')
 UFM01Component = ufm01_ns.class_('UFM01Component', uart.UARTDevice, cg.Component)
 
-CONF_UFM01_ID = "mr60fda2_id"
+CONF_UFM01_ID = "ufm01_id"
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -87,4 +87,3 @@ async def to_code(config):
     if CONF_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
-    

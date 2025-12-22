@@ -10,6 +10,8 @@
 
 #include <vector>
 
+// component API deifinition at https://www.sciosense.com/wp-content/uploads/2025/06/UFM-01-Datasheet-1.pdf
+
 namespace esphome {
 namespace ufm01 {
 
@@ -25,27 +27,27 @@ SUB_SENSOR(temperature)
   SUB_BINARY_SENSOR(empty_tube)
   SUB_BINARY_SENSOR(flow_rate_out_of_range)
 #endif
-  
+
  public:
 
   void setup() override;
-  
+
   void loop() override;
 
   float get_setup_priority() const override;
 
  protected:
 
-  bool clear_accumulated_flow();
-  bool set_active_mode();
-  bool reset_device();
+  bool clear_accumulated_flow_();
+  bool set_active_mode_();
+  bool reset_device_();
 
  private:
-  bool send_command(std::vector<uint8_t> command);
-  
-  int read_index = 0;
-  uint8_t data[32];
-  void on_data(uint8_t data[32]);
+  bool send_command_(const std::vector<uint8_t>& command);
+
+  int read_index_ = 0;
+  uint8_t data_[32];
+  void on_data_(uint8_t data[32]);
 };
 
 }  // namespace ufm01
