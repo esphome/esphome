@@ -157,9 +157,7 @@ async def to_code(config):
         return
 
     if CORE.using_arduino:
-        if CORE.is_esp32:
-            cg.add_library("ESPmDNS", None)
-        elif CORE.is_esp8266:
+        if CORE.is_esp8266:
             cg.add_library("ESP8266mDNS", None)
         elif CORE.is_rp2040:
             cg.add_library("LEAmDNS", None)
