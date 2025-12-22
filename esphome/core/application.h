@@ -270,9 +270,7 @@ class Application {
     buffer[buffer.size() - 1] = '\0';
   }
 
-  /// Get the comment of this Application (deprecated, use get_comment_string() instead)
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use get_comment_string() instead. Removed in 2026.7.0", "2026.1.0")
+  /// Get the comment of this Application as a string
   std::string get_comment() {
     char buffer[ESPHOME_COMMENT_SIZE];
     this->get_comment_string(buffer);
