@@ -106,7 +106,7 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   uint8_t search_last_discrepancy_ = 0;
   bool last_device_found_ = false;
 
-  InternalGPIOPin *sleep_pin_;
+  InternalGPIOPin *sleep_pin_{nullptr};
 
   bool enable_bus_sleep_ = false;
   bool enable_hub_sleep_ = false;
