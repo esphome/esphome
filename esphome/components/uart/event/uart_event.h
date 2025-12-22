@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/components/event/event.h"
 #include "esphome/components/uart/uart.h"
-#include "esphome/core/log.h"
 #include <vector>
 
 namespace esphome::uart {

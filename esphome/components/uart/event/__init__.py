@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import event, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_EVENT_TYPES, CONF_ID
+from esphome.core import ID
 from esphome.types import ConfigType
 
 from .. import uart_ns
@@ -80,12 +81,6 @@ async def to_code(config: ConfigType) -> None:
         if isinstance(match_data, str):
             match_data = [ord(c) for c in match_data]
 
-        match_data_var_name = f"match_data_{config[CONF_ID]}_{i}"
-        match_data_var_content = ", ".join(f"0x{b:02X}" for b in match_data)
-        match_data_var = f"static const uint8_t {match_data_var_name}[] = {{{match_data_var_content}}};"
-        cg.add(cg.RawStatement(match_data_var))
-        cg.add(
-            var.add_event_matcher(
-                event_name, cg.RawExpression(match_data_var_name), len(match_data)
-            )
-        )
+        match_data_var_id = ID(f"match_data_{config[CONF_ID]}_{i}", is_declaration=True, type=cg.uint8)
+        match_data_var = cg.static_const_array(match_data_var_id, cg.ArrayInitializer(*match_data))
+        cg.add(var.add_event_matcher(event_name, match_data_var, len(match_data)))

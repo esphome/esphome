@@ -6,11 +6,11 @@ namespace esphome::uart {
 
 static const char *const TAG = "uart.event";
 
-void UARTEvent::setup() { this->buffer_.clear(); }
+void UARTEvent::setup() { }
 
 void UARTEvent::dump_config() { LOG_EVENT("", "UART Event", this); }
 
-void UARTEvent::loop() { read_data_(); }
+void UARTEvent::loop() { this->read_data_(); }
 
 void UARTEvent::add_event_matcher(const char *event_name, const uint8_t *match_data, size_t match_data_len) {
   this->matchers_.push_back({event_name, match_data, match_data_len});
