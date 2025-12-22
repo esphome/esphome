@@ -1,5 +1,6 @@
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
+
 from . import (
     CONF_DS248X_ID,
     DS248xComponent,
