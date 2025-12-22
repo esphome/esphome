@@ -6,7 +6,7 @@ namespace esphome::uart {
 
 static const char *const TAG = "uart.event";
 
-void UARTEvent::setup() { buffer_.clear(); }
+void UARTEvent::setup() { this->buffer_.clear(); }
 
 void UARTEvent::dump_config() { LOG_EVENT("", "UART Event", this); }
 
@@ -20,9 +20,9 @@ void UARTEvent::add_event_matcher(const char *event_name, const uint8_t *match_d
 }
 
 void UARTEvent::read_data_() {
-  while (available()) {
+  while (this->available()) {
     uint8_t data;
-    read_byte(&data);
+    this->read_byte(&data);
     this->buffer_.push_back(data);
 
     bool match_found = false;
