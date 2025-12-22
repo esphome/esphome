@@ -237,10 +237,6 @@ def i2c_device_schema(default_address):
     """
     schema = {
         cv.GenerateID(CONF_I2C_ID): cv.use_id(I2CBus),
-        cv.Optional("multiplexer"): cv.invalid(
-            "This option has been removed, please see "
-            "the tca9584a docs for the updated way to use multiplexers"
-        ),
     }
     if default_address is None:
         schema[cv.Required(CONF_ADDRESS)] = cv.i2c_address

@@ -348,10 +348,6 @@ CONFIG_SCHEMA = cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
-            cv.Optional("enable_mdns"): cv.invalid(
-                "This option has been removed. Please use the [disabled] option under the "
-                "new mdns component instead."
-            ),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
