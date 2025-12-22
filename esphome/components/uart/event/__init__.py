@@ -14,7 +14,7 @@ DEPENDENCIES = ["uart"]
 UARTEvent = uart_ns.class_("UARTEvent", event.Event, uart.UARTDevice, cg.Component)
 
 
-def validate_event_types(value):
+def validate_event_types(value) -> list[tuple[str, str | list[int]]]:
     if not isinstance(value, list):
         raise cv.Invalid("Event type must be a list of key-value mappings.")
 
