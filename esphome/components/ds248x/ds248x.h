@@ -6,6 +6,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include <vector>
 #include <set>
+#include <algorithm>
 
 namespace esphome {
 namespace ds248x {
@@ -148,6 +149,7 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   uint8_t read_from_wire_();
 
   bool search_(uint64_t *address);
+  bool check_parasitic_power_();
 
  private:
   void update_channel_(uint8_t channel);
@@ -175,18 +177,23 @@ class DS248xSensor : public sensor::Sensor {
   optional<uint8_t> get_index() const;
   /// Set the index of this sensor. If using index, address will be set after setup.
   void set_index(uint8_t index);
+  /// Set the resolution of this sensor.
+  void set_resolution(uint8_t resolution) { resolution_ = resolution; }
+  /// Get the resolution of this sensor.
+  uint8_t get_resolution() const { return resolution_; }
   /// Ignore this sensor during update. Maybe initialization failed or not found on bus.
   void ignore();
   /// should this sensor be ignored during update?
   bool is_ignored();
 
-  virtual bool setup_sensor() = 0;
+  bool setup_sensor();
 
-  virtual bool update() = 0;
+  bool update();
 
-  virtual void add_conversion_commands(std::set<uint8_t> &commands) = 0;
+  void add_conversion_commands(std::set<uint8_t> &commands);
 
   bool read_scratch_pad(uint8_t page = 255);
+  bool write_scratch_pad();
 
   bool check_scratch_pad();
 
@@ -197,6 +204,7 @@ class DS248xSensor : public sensor::Sensor {
   optional<uint8_t> channel_;
   optional<uint64_t> address_;
   optional<uint8_t> index_;
+  uint8_t resolution_{12};
   bool ignored_ = false;
 
   std::string address_name_;

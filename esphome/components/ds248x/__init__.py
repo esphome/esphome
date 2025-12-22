@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_DS248X_ID,
     CONF_ID,
     CONF_INDEX,
+    CONF_RESOLUTION,
     CONF_SLEEP_PIN,
 )
 
@@ -125,6 +126,9 @@ async def register_ds248x_sensor(var, config):
     if CONF_CHANNEL in config:
         cg.add(var.set_channel(config[CONF_CHANNEL]))
 
+    if CONF_RESOLUTION in config:
+        cg.add(var.set_resolution(config[CONF_RESOLUTION]))
+
     cg.add(parent.register_sensor(var))
 
 
@@ -138,6 +142,7 @@ def ds248x_sensor_schema():
         cv.Optional(CONF_ADDRESS): cv.hex_int,
         cv.Optional(CONF_INDEX): cv.positive_int,
         cv.Optional(CONF_CHANNEL): cv.positive_int,
+        cv.Optional(CONF_RESOLUTION, default=12): cv.int_range(min=9, max=12),
     }
 
     return cv.Schema(schema)

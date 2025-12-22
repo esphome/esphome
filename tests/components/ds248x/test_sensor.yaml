@@ -1,0 +1,10 @@
+ds248x:
+  id: my_ds248x
+  address: 0x18
+  channel_count: 8
+
+sensor:
+  - platform: ds248x
+    name: "My Sensor"
+    address: 0x1234567890123456
+    resolution: 9
