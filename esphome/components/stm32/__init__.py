@@ -49,14 +49,14 @@ stm32_ns = cg.esphome_ns.namespace("stm32")
 
 
 CONFIG_SCHEMA = cv.All(
-    set_core_data,
     cv.Schema(
         {
             cv.Required(CONF_BOARD): cv.string_strict,
-            cv.Optional(KEY_BOOTLOADER): cv.string_strict,
+            cv.Optional(KEY_BOOTLOADER, default=""): cv.string_strict,
             cv.Optional(CONF_PLATFORM, default="ststm32"): cv.string_strict,
         }
     ),
+    set_core_data,
 )
 
 
@@ -73,6 +73,8 @@ async def to_code(config: ConfigType) -> None:
 
     zephyr_add_prj_conf("CPP", True)
     zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+    zephyr_add_prj_conf("CONFIG_NEWLIB_LIBC_NANO", True)
+    zephyr_add_prj_conf("CONFIG_CBPRINTF_NANO", True)
 
     zephyr_add_prj_conf("CONFIG_SERIAL", True)
     zephyr_add_prj_conf("UART_CONSOLE", True)
