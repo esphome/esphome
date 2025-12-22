@@ -44,7 +44,7 @@ static const int64_t SOFT_SYNC_THRESHOLD_US = 100;
 static const uint32_t INITIAL_SYNC_ZEROS_DURATION_MS = 25;
 
 static const UBaseType_t SYNC_TASK_PRIORITY = 5;
-static const size_t SYNC_TASK_STACK_SIZE = 5632;  // Opus uses more stack than FLAC
+static const size_t SYNC_TASK_STACK_SIZE = 6192;  // Opus uses more stack than FLAC
 
 static const char *const TAG = "sendspin_media_source";
 
