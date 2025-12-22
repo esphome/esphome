@@ -1,7 +1,8 @@
 #pragma once
 
-#include <string>
 #include <cstdint>
+#include <span>
+#include <string>
 #include "string_ref.h"
 #include "helpers.h"
 #include "log.h"
@@ -12,14 +13,8 @@
 
 namespace esphome {
 
-// Forward declaration for friend access
-namespace api {
-class APIConnection;
-}  // namespace api
-
-namespace web_server {
-struct UrlMatch;
-}  // namespace web_server
+// Maximum size for object_id buffer (friendly_name max ~120 + margin)
+static constexpr size_t OBJECT_ID_MAX_LEN = 128;
 
 enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_NONE = 0,
@@ -46,6 +41,15 @@ class EntityBase {
 
   // Get the unique Object ID of this Entity
   uint32_t get_object_id_hash();
+
+  /// Get object_id with zero heap allocation
+  /// For static case: returns StringRef to internal storage (buffer unused)
+  /// For dynamic case: formats into buffer and returns StringRef to buffer
+  StringRef get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) const;
+
+  /// Write object_id directly to buffer, returns length written (excluding null)
+  /// Useful for building compound strings without intermediate buffer
+  size_t write_object_id_to(char *buf, size_t buf_size) const;
 
   // Get/set whether this Entity should be hidden outside ESPHome
   bool is_internal() const { return this->flags_.internal; }
@@ -125,13 +129,6 @@ class EntityBase {
   }
 
  protected:
-  friend class api::APIConnection;
-  friend struct web_server::UrlMatch;
-
-  // Get object_id as StringRef when it's static (for API usage)
-  // Returns empty StringRef if object_id is dynamic (needs allocation)
-  StringRef get_object_id_ref_for_api_() const;
-
   void calc_object_id_();
 
   /// Check if the object_id is dynamic (changes with MAC suffix)

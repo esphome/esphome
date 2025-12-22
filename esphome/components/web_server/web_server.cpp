@@ -404,9 +404,11 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 
 // Helper functions to reduce code size by avoiding macro expansion
 static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, JsonDetail start_config) {
-  char id_buf[160];  // object_id can be up to 128 chars + prefix + dash + null
-  const auto &object_id = obj->get_object_id();
-  snprintf(id_buf, sizeof(id_buf), "%s-%s", prefix, object_id.c_str());
+  char id_buf[160];  // prefix + dash + object_id (up to 128) + null
+  size_t len = strlen(prefix);
+  memcpy(id_buf, prefix, len);  // NOLINT(bugprone-not-null-terminated-result) - null added by write_object_id_to
+  id_buf[len++] = '-';
+  obj->write_object_id_to(id_buf + len, sizeof(id_buf) - len);
   root[ESPHOME_F("id")] = id_buf;
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("name")] = obj->get_name();
