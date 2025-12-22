@@ -798,6 +798,11 @@ class EsphomeCore:
 
     @property
     def using_esp_idf(self):
+        # Deprecated: use is_esp32 instead, as Arduino also builds ESP-IDF
+        logging.getLogger(__name__).warning(
+            "CORE.using_esp_idf is deprecated, use CORE.is_esp32 instead. "
+            "Arduino on ESP32 also uses ESP-IDF."
+        )
         return self.target_framework == "esp-idf"
 
     @property

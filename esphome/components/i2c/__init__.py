@@ -146,7 +146,7 @@ def _final_validate(config):
     full_config = fv.full_config.get()[CONF_I2C]
     if CORE.using_zephyr and len(full_config) > 1:
         raise cv.Invalid("Second i2c is not implemented on Zephyr yet")
-    if CORE.using_esp_idf and get_esp32_variant() in ESP32_I2C_CAPABILITIES:
+    if CORE.is_esp32 and get_esp32_variant() in ESP32_I2C_CAPABILITIES:
         variant = get_esp32_variant()
         max_num = ESP32_I2C_CAPABILITIES[variant]["NUM"]
         if len(full_config) > max_num:

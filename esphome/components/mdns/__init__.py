@@ -164,7 +164,7 @@ async def to_code(config):
         elif CORE.is_rp2040:
             cg.add_library("LEAmDNS", None)
 
-    if CORE.using_esp_idf:
+    if CORE.is_esp32:
         add_idf_component(name="espressif/mdns", ref="1.9.1")
 
     cg.add_define("USE_MDNS")
