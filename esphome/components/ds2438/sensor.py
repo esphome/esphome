@@ -2,7 +2,10 @@ import esphome.codegen as cg
 from esphome.components import ds248x, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CURRENT,
     CONF_ID,
+    CONF_TEMPERATURE,
+    CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
@@ -15,10 +18,6 @@ DEPENDENCIES = ["ds248x"]
 
 ds2438_ns = cg.esphome_ns.namespace("ds2438")
 DS2348BatterySensor = ds2438_ns.class_("DS2438BatterySensor", ds248x.DS248xSensor)
-
-CONF_TEMPERATURE = "temperature"
-CONF_VOLTAGE = "voltage"
-CONF_CURRENT = "current"
 
 temperature_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_CELSIUS,

@@ -4,6 +4,7 @@ from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_CHANNEL,
     CONF_DS248X_ID,
     CONF_ID,
     CONF_INDEX,
@@ -20,7 +21,6 @@ CONF_HUB_SLEEP = "hub_sleep"
 CONF_ACTIVE_PULLUP = "active_pullup"
 CONF_STRONG_PULLUP = "strong_pullup"
 CONF_CHANNEL_COUNT = "channel_count"
-CONF_CHANNEL = "channel"
 
 ds248x_ns = cg.esphome_ns.namespace("ds248x")
 DS248x1Wire = ds248x_ns.class_("DS248x1Wire")
