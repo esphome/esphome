@@ -11,6 +11,9 @@ namespace esphome {
 namespace esp32_camera {
 
 static const char *const TAG = "esp32_camera";
+#if ESPHOME_LOG_LEVEL < ESPHOME_LOG_LEVEL_VERBOSE
+static constexpr uint32_t FRAME_LOG_INTERVAL_MS = 60000;
+#endif
 
 /* ---------------- public API (derivated) ---------------- */
 void ESP32Camera::setup() {
@@ -204,7 +207,20 @@ void ESP32Camera::loop() {
   }
   this->current_image_ = std::make_shared<ESP32CameraImage>(fb, this->single_requesters_ | this->stream_requesters_);
 
-  ESP_LOGD(TAG, "Got Image: len=%u", fb->len);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  ESP_LOGV(TAG, "Got Image: len=%u", fb->len);
+#else
+  // Initialize log time on first frame to ensure accurate interval measurement
+  if (this->frame_count_ == 0) {
+    this->last_log_time_ = now;
+  }
+  this->frame_count_++;
+  if (now - this->last_log_time_ >= FRAME_LOG_INTERVAL_MS) {
+    ESP_LOGD(TAG, "Received %u images in last %us", this->frame_count_, FRAME_LOG_INTERVAL_MS / 1000);
+    this->last_log_time_ = now;
+    this->frame_count_ = 0;
+  }
+#endif
   for (auto *listener : this->listeners_) {
     listener->on_camera_image(this->current_image_);
   }

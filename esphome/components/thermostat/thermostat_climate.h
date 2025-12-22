@@ -267,6 +267,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool timer_active_(ThermostatClimateTimerIndex timer_index);
   uint32_t timer_duration_(ThermostatClimateTimerIndex timer_index);
   std::function<void()> timer_cbf_(ThermostatClimateTimerIndex timer_index);
+  /// Enhanced timer duration setter with running timer adjustment
+  void set_timer_duration_in_sec_(ThermostatClimateTimerIndex timer_index, uint32_t time);
 
   /// set_timeout() callbacks for various actions (see above)
   void cooling_max_run_time_timer_callback_();
