@@ -93,11 +93,11 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   void register_sensor(DS248xSensor *sensor);
 
  protected:
-  uint32_t readIdx;
-  uint8_t selectedChannel;
-  uint64_t searchAddress;
-  uint8_t searchLastDiscrepancy;
-  bool last_device_found;
+  uint32_t readIdx = 0;
+  uint8_t selectedChannel = 0;
+  uint64_t searchAddress = 0;
+  uint8_t searchLastDiscrepancy = 0;
+  bool last_device_found = false;
 
   InternalGPIOPin *sleep_pin_;
 
@@ -183,7 +183,7 @@ class DS248xSensor : public sensor::Sensor {
   optional<uint8_t> channel_;
   optional<uint64_t> address_;
   optional<uint8_t> index_;
-  bool ignored_;
+  bool ignored_ = false;
 
   std::string address_name_;
   uint8_t scratch_pad_[9] = {

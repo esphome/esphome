@@ -262,7 +262,7 @@ uint8_t DS248xComponent::is_busy() {
   cmd[1] = DS248X_POINTER_STATUS;
   auto err = this->write(cmd.data(), sizeof(cmd));
   if (err != esphome::i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "error writing SETREADPRT command to Master: %d", err);
+    ESP_LOGE(TAG, "error writing SETREADPTR command to Master: %d", err);
   }
 
   uint8_t status;
@@ -304,7 +304,8 @@ bool DS248xComponent::select_channel(uint8_t channel) {
 
   std::array<uint8_t, 2> cmd;
   cmd[0] = DS248X_COMMAND_CHANNELSELECT;
-  cmd[1] = DS248X_CODE_CHANNEL0 - (channel << 4) + channel;
+  uint8_t selection_code = DS248X_CODE_CHANNEL0 - (channel << 4) + channel;
+  cmd[1] = selection_code;
   ESP_LOGV(TAG, "select_channel command: %x", cmd[1]);
   auto err = this->write(cmd.data(), sizeof(cmd));
   if (err != esphome::i2c::ERROR_OK) {
