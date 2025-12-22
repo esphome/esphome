@@ -44,7 +44,7 @@ class Text : public EntityBase {
    */
   virtual void control(const std::string &value) = 0;
 
-  CallbackManager<void(const std::string &)> state_callback_;
+  LazyCallbackManager<void(const std::string &)> state_callback_;
 };
 
 }  // namespace text

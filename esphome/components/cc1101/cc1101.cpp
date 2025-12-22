@@ -98,25 +98,8 @@ CC1101Component::CC1101Component() {
   this->state_.LENGTH_CONFIG = 2;
   this->state_.FS_AUTOCAL = 1;
 
-  // Default Settings
-  this->set_frequency(433920000);
-  this->set_if_frequency(153000);
-  this->set_filter_bandwidth(203000);
-  this->set_channel(0);
-  this->set_channel_spacing(200000);
-  this->set_symbol_rate(5000);
-  this->set_sync_mode(SyncMode::SYNC_MODE_NONE);
-  this->set_carrier_sense_above_threshold(true);
-  this->set_modulation_type(Modulation::MODULATION_ASK_OOK);
-  this->set_magn_target(MagnTarget::MAGN_TARGET_42DB);
-  this->set_max_lna_gain(MaxLnaGain::MAX_LNA_GAIN_DEFAULT);
-  this->set_max_dvga_gain(MaxDvgaGain::MAX_DVGA_GAIN_MINUS_3);
-  this->set_lna_priority(false);
-  this->set_wait_time(WaitTime::WAIT_TIME_32_SAMPLES);
-
   // CRITICAL: Initialize PA Table to avoid transmitting 0 power (Silence)
   memset(this->pa_table_, 0, sizeof(this->pa_table_));
-  this->set_output_power(10.0f);
 }
 
 void CC1101Component::setup() {
