@@ -193,7 +193,7 @@ void DS248xComponent::start_next_conversion_() {
       return;
     }
     this->write_command_(DS248X_COMMAND_SINGLEBIT, 0x80);  // generates read bit
-    delay(1);                                             // wait for single bit command to complete
+    delay(1);                                              // wait for single bit command to complete
     uint8_t status = 0;
     this->read(&status, 1);
     ESP_LOGD(TAG, "conversion status: %02x", status);
