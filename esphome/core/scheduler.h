@@ -275,6 +275,7 @@ class Scheduler {
   // Helper to recycle a SchedulerItem back to the pool.
   // IMPORTANT: Only call from main loop context! Recycling clears the callback,
   // so calling from another thread while the callback is executing causes use-after-free.
+  // IMPORTANT: Caller must hold the scheduler lock before calling this function.
   void recycle_item_main_loop_(std::unique_ptr<SchedulerItem> item);
 
   // Helper to perform full cleanup when too many items are cancelled
@@ -331,7 +332,10 @@ class Scheduler {
         now = this->execute_item_(item.get(), now);
       }
       // Recycle the defer item after execution
-      this->recycle_item_main_loop_(std::move(item));
+      {
+        LockGuard lock(this->lock_);
+        this->recycle_item_main_loop_(std::move(item));
+      }
     }
 
     // If we've consumed all items up to the snapshot point, clean up the dead space
