@@ -4,12 +4,10 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/ds248x/ds248x.h"
 
-using namespace esphome::ds248x;
-
 namespace esphome {
 namespace ds18x {
 
-class DS18xTemperatureSensor : public DS248xSensor {
+class DS18xTemperatureSensor : public ds248x::DS248xSensor {
  public:
   /// Get the set resolution for this sensor.
   uint8_t get_resolution() const;
@@ -19,10 +17,10 @@ class DS18xTemperatureSensor : public DS248xSensor {
   float get_temp_c();
   float get_value();
 
-  bool setup_sensor();
+  bool setup_sensor() override;
 
-  bool update();
-  void add_conversion_commands(std::set<uint8_t> &commands);
+  bool update() override;
+  void add_conversion_commands(std::set<uint8_t> &commands) override;
 
  protected:
   uint8_t resolution_;

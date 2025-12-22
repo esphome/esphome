@@ -4,15 +4,16 @@
 
 static const char *const TAG = "ds2438";
 using namespace esphome::ds2438;
+using namespace esphome::ds248x;
 
 bool DS2438BatterySensor::setup_sensor() { return true; }
 
 bool DS2438BatterySensor::update() {
   // TX  Reset  Reset pulse
   // RX  Presence  Presence pulse
-  this->select_channel();
+  this->select_channel_();
 
-  bool result = this->reset_devices();
+  bool result = this->reset_devices_();
   if (!result) {
     this->parent_->status_set_warning();
     ESP_LOGE(TAG, "Reset failed");
@@ -21,9 +22,9 @@ bool DS2438BatterySensor::update() {
 
   // TX  CCh  Skip ROM
   // TX  B8h00h  Issue Recall Memory page 00h command
-  this->select();
-  this->write_to_wire(DALLAS_COMMAND_RECALL_MEMORY);
-  this->write_to_wire(0x00);  // select page
+  this->select_();
+  this->write_to_wire_(DALLAS_COMMAND_RECALL_MEMORY);
+  this->write_to_wire_(0x00);  // select page
 
   // TX  Reset  Reset pulse
   // RX  Presence  Presence pulse
@@ -57,28 +58,28 @@ bool DS2438BatterySensor::update() {
     return false;
   }
 
-  updateTemp();
-  updateVoltage();
-  updateCurrent();
+  update_temp_();
+  update_voltage_();
+  update_current_();
 
   return true;
 }
 
-void DS2438BatterySensor::updateTemp() {
+void DS2438BatterySensor::update_temp_() {
   if (!this->temperature_sensor_)
     return;
   float temp = ((int8_t) scratch_pad_[2]) + ((float) (scratch_pad_[1] >> 3) / 128.0f);
   this->temperature_sensor_->publish_state(temp);
 }
 
-void DS2438BatterySensor::updateVoltage() {
+void DS2438BatterySensor::update_voltage_() {
   if (!this->voltage_sensor_)
     return;
   float voltage = (((uint16_t) scratch_pad_[4] << 8) + scratch_pad_[3]) / 100.0f;
   this->voltage_sensor_->publish_state(voltage);
 }
 
-void DS2438BatterySensor::updateCurrent() {
+void DS2438BatterySensor::update_current_() {
   if (!this->current_sensor_)
     return;
   float current = (((int16_t) scratch_pad_[6] << 8) + (int16_t) scratch_pad_[5]) * 0.2441f / 1000.0f;

@@ -66,30 +66,30 @@ bool DS18xTemperatureSensor::setup_sensor() {
     return false;
   }
 
-  bool result = this->reset_devices();
+  bool result = this->reset_devices_();
   if (!result) {
     ESP_LOGE(TAG, "Reset failed");
     return false;
   }
 
-  this->select();
-  this->write_to_wire(DALLAS_COMMAND_WRITE_SCRATCH_PAD);
-  this->write_to_wire(this->scratch_pad_[2]);  // high alarm temp
-  this->write_to_wire(this->scratch_pad_[3]);  // low alarm temp
-  this->write_to_wire(this->scratch_pad_[4]);  // resolution
+  this->select_();
+  this->write_to_wire_(DALLAS_COMMAND_WRITE_SCRATCH_PAD);
+  this->write_to_wire_(this->scratch_pad_[2]);  // high alarm temp
+  this->write_to_wire_(this->scratch_pad_[3]);  // low alarm temp
+  this->write_to_wire_(this->scratch_pad_[4]);  // resolution
 
-  result = this->reset_devices();
+  result = this->reset_devices_();
   if (!result) {
     ESP_LOGE(TAG, "Reset failed");
     return false;
   }
 
-  this->select();
-  this->write_to_wire(DALLAS_COMMAND_SAVE_EEPROM);
+  this->select_();
+  this->write_to_wire_(DALLAS_COMMAND_SAVE_EEPROM);
 
   delay(20);  // allow it to finish operation
 
-  result = this->reset_devices();
+  result = this->reset_devices_();
   if (!result) {
     ESP_LOGE(TAG, "Reset failed");
     return false;

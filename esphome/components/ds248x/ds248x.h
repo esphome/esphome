@@ -68,10 +68,10 @@ static const uint8_t DALLAS_COMMAND_SAVE_EEPROM = 0x48;
 
 class DS248xSensor;
 
-typedef struct {
+struct FoundDevice {
   uint8_t channel = 0;
   uint64_t address = 0;
-} foundDevice_t;
+};
 
 class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   friend class DS248xSensor;
@@ -93,11 +93,11 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   void register_sensor(DS248xSensor *sensor);
 
  protected:
-  uint32_t readIdx = 0;
-  uint8_t selectedChannel = 0;
-  uint64_t searchAddress = 0;
-  uint8_t searchLastDiscrepancy = 0;
-  bool last_device_found = false;
+  uint32_t read_idx_ = 0;
+  uint8_t selected_channel_ = 0;
+  uint64_t search_address_ = 0;
+  uint8_t search_last_discrepancy_ = 0;
+  bool last_device_found_ = false;
 
   InternalGPIOPin *sleep_pin_;
 
@@ -107,38 +107,38 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   bool enable_strong_pullup_ = false;
   uint8_t channel_count_ = 1;
 
-  std::vector<foundDevice_t> found_sensors_;
+  std::vector<FoundDevice> found_sensors_;
 
   std::vector<DS248xSensor *> sensors_;
 
-  std::set<uint8_t> convCmds_;
-  std::set<uint8_t>::iterator convCmdsIter_;
+  std::set<uint8_t> conv_cmds_;
+  std::set<uint8_t>::iterator conv_cmds_iter_;
 
-  uint8_t read_config();
-  void write_config(uint8_t cfg);
+  uint8_t read_config_();
+  void write_config_(uint8_t cfg);
 
-  uint8_t is_busy();
-  uint8_t wait_while_busy();
+  uint8_t is_busy_();
+  uint8_t wait_while_busy_();
 
-  void reset_hub();
-  bool reset_devices();
+  void reset_hub_();
+  bool reset_devices_();
 
-  void write_command(uint8_t command, uint8_t data);
+  void write_command_(uint8_t command, uint8_t data);
 
-  bool select_channel(uint8_t channel);
+  bool select_channel_(uint8_t channel);
 
-  void select(uint8_t channel, uint64_t address);
+  void select_(uint8_t channel, uint64_t address);
 
-  void write_to_wire(uint8_t data);
+  void write_to_wire_(uint8_t data);
 
-  uint8_t read_from_wire();
+  uint8_t read_from_wire_();
 
-  bool search(uint64_t *address);
+  bool search_(uint64_t *address);
 
  private:
-  void updateChannel(uint8_t channel);
-  void start_next_conversion();
-  void update_channel_sensors();
+  void update_channel_(uint8_t channel);
+  void start_next_conversion_();
+  void update_channel_sensors_();
 };
 
 class DS248xSensor : public sensor::Sensor {
@@ -154,7 +154,7 @@ class DS248xSensor : public sensor::Sensor {
   // Get the 8-bit unsigned channel, the sensor is connected to.
   optional<uint8_t> get_channel();
   /// Set the 64-bit unsigned address for this sensor.
-  void set_address(uint64_t device);
+  void set_address(uint64_t address);
   /// Get the 64-bit unsigned address of the sensor.
   optional<uint64_t> get_address();
   /// Get the index of this sensor. (0 if using address.)
@@ -164,7 +164,7 @@ class DS248xSensor : public sensor::Sensor {
   /// Ignore this sensor during update. Maybe initialization failed or not found on bus.
   void ignore();
   /// should this sensor be ignored during update?
-  bool isIgnored();
+  bool is_ignored();
 
   virtual bool setup_sensor() = 0;
 
@@ -190,10 +190,10 @@ class DS248xSensor : public sensor::Sensor {
       0,
   };
 
-  void select();
-  void select_channel();
-  void write_to_wire(uint8_t data);
-  bool reset_devices();
+  void select_();
+  void select_channel_();
+  void write_to_wire_(uint8_t data);
+  bool reset_devices_();
 };
 
 }  // namespace ds248x
