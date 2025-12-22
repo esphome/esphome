@@ -30,11 +30,26 @@ CONF_DS2484_RECOVERY_TIME = "ds2484_recovery_time"
 CONF_DS2484_ACTIVE_PULLUP_RESISTANCE = "ds2484_active_pullup_resistance"
 
 ds248x_ns = cg.esphome_ns.namespace("ds248x")
-DS248x1Wire = ds248x_ns.class_("DS248x1Wire")
 DS248xComponent = ds248x_ns.class_(
-    "DS248xComponent", cg.PollingComponent, i2c.I2CDevice, DS248x1Wire
+    "DS248xComponent", cg.PollingComponent, i2c.I2CDevice
 )
 DS248xSensor = ds248x_ns.class_("DS248xSensor", sensor.Sensor)
+
+
+def validate_ds2484_config(config):
+    if config[CONF_CHANNEL_COUNT] != 1:
+        ds2484_keys = [
+            CONF_DS2484_RESET_LOW_TIME,
+            CONF_DS2484_MASTER_SAMPLE_TIME,
+            CONF_DS2484_WRITE_0_LOW_TIME,
+            CONF_DS2484_RECOVERY_TIME,
+            CONF_DS2484_ACTIVE_PULLUP_RESISTANCE,
+        ]
+        for key in ds2484_keys:
+            if key in config:
+                raise cv.Invalid(f"{key} is only available for single-channel devices (channel_count: 1)")
+    return config
+
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -46,7 +61,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ACTIVE_PULLUP, default=False): cv.boolean,
             cv.Optional(CONF_STRONG_PULLUP, default=False): cv.boolean,
             cv.Optional(CONF_OVERDRIVE_SPEED, default=False): cv.boolean,
-            cv.Optional(CONF_CHANNEL_COUNT, default=1): cv.uint8_t,
+            cv.Optional(CONF_CHANNEL_COUNT, default=1): cv.one_of(1, 8, int=True),
             cv.Optional(CONF_DS2484_RESET_LOW_TIME): cv.int_range(min=0, max=15),
             cv.Optional(CONF_DS2484_MASTER_SAMPLE_TIME): cv.int_range(min=0, max=15),
             cv.Optional(CONF_DS2484_WRITE_0_LOW_TIME): cv.int_range(min=0, max=15),
@@ -61,6 +76,7 @@ CONFIG_SCHEMA = (
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x18))
+    .add_extra(validate_ds2484_config)
 )
 
 
@@ -97,7 +113,7 @@ async def register_ds248x_sensor(var, config):
 
     Sets the ds248x to use and the address and index.
 
-    This is a coroutine, you need to await it with a 'yield' expression!
+    This is an async coroutine; you need to await it.
     """
     parent = await cg.get_variable(config[CONF_DS248X_ID])
     cg.add(var.set_parent(parent))
@@ -118,7 +134,7 @@ def ds248x_sensor_schema():
     :return: The ds248x device schema, `extend` this in your config schema.
     """
     schema = {
-        cv.GenerateID(CONF_DS248X_ID): cv.use_id(DS248x1Wire),
+        cv.GenerateID(CONF_DS248X_ID): cv.use_id(DS248xComponent),
         cv.Optional(CONF_ADDRESS): cv.hex_int,
         cv.Optional(CONF_INDEX): cv.positive_int,
         cv.Optional(CONF_CHANNEL): cv.positive_int,

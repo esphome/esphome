@@ -58,7 +58,7 @@ void DS248xComponent::setup() {
       // sensor was fully specified by config
     } else if (sensor->get_index().has_value()) {
       if (*sensor->get_index() >= this->found_sensors_.size()) {
-        ESP_LOGW(TAG, "specified sensor index (%d) bigger then found devices (%d): %s", *sensor->get_index(),
+        ESP_LOGW(TAG, "specified sensor index (%d) bigger than found devices (%d): %s", *sensor->get_index(),
                  (int) this->found_sensors_.size(), sensor->get_name().c_str());
         this->status_set_error();
         continue;
@@ -244,7 +244,7 @@ uint8_t DS248xComponent::read_config_() {
     ESP_LOGE(TAG, "error writing SETREADPTR command to Master: %d", err);
   }
 
-  uint8_t cfg_byte;
+  uint8_t cfg_byte = 0;
   err = this->read(&cfg_byte, sizeof(cfg_byte));
   if (err != esphome::i2c::ERROR_OK) {
     ESP_LOGE(TAG, "error reading from Master: %d", err);
@@ -272,7 +272,7 @@ uint8_t DS248xComponent::is_busy_() {
     ESP_LOGE(TAG, "error writing SETREADPTR command to Master: %d", err);
   }
 
-  uint8_t status;
+  uint8_t status = 0;
   err = this->read(&status, sizeof(status));
   if (err != esphome::i2c::ERROR_OK) {
     ESP_LOGE(TAG, "error reading SBR from Master: %d", err);
@@ -292,6 +292,7 @@ uint8_t DS248xComponent::wait_while_busy_() {
     auto err = this->read(&status, sizeof(status));
     if (err == esphome::i2c::ERROR_OK && !(status & DS248X_STATUS_BUSY))
       break;
+    delay(1);
   }
   return status;
 }
@@ -309,12 +310,12 @@ bool DS248xComponent::select_channel_(uint8_t channel) {
     return false;
   }
 
-  std::array<uint8_t, 2> cmd;
-  cmd[0] = DS248X_COMMAND_CHANNELSELECT;
+  std::array<uint8_t, 2> channel_code;
+  channel_code[0] = DS248X_COMMAND_CHANNELSELECT;
   uint8_t selection_code = DS248X_CODE_CHANNEL0 - (channel << 4) + channel;
-  cmd[1] = selection_code;
-  ESP_LOGV(TAG, "select_channel command: %x", cmd[1]);
-  auto err = this->write(cmd.data(), sizeof(cmd));
+  channel_code[1] = selection_code;
+  ESP_LOGV(TAG, "select_channel command: %x", channel_code[1]);
+  auto err = this->write(channel_code.data(), sizeof(channel_code));
   if (err != esphome::i2c::ERROR_OK) {
     ESP_LOGE(TAG, "error writing CHANNELSELECT command to Master: %d", err);
   }
@@ -324,8 +325,8 @@ bool DS248xComponent::select_channel_(uint8_t channel) {
   if (err != esphome::i2c::ERROR_OK) {
     ESP_LOGE(TAG, "error reading from Master: %d", err);
   }
-  if (selected != cmd[1]) {
-    ESP_LOGW(TAG, "select_channel failed: wrote %02xh read back %02xh", cmd[1], selected);
+  if (selected != channel_code[1]) {
+    ESP_LOGW(TAG, "select_channel failed: wrote %02xh read back %02xh", channel_code[1], selected);
     return false;
   }
 
@@ -336,6 +337,7 @@ bool DS248xComponent::select_channel_(uint8_t channel) {
 void DS248xComponent::reset_hub_() {
   if (this->sleep_pin_) {
     this->sleep_pin_->digital_write(true);
+    delay(1);
   }
 
   selected_channel_ = 0;
@@ -358,20 +360,25 @@ void DS248xComponent::reset_hub_() {
   }
 
   // DS2484 specific port configuration
-  if (this->val_trstl_.has_value()) {
-    this->write_command_(0xC3, 0x00 | (*this->val_trstl_ & 0x0F));
-  }
-  if (this->val_tmsp_.has_value()) {
-    this->write_command_(0xC3, 0x10 | (*this->val_tmsp_ & 0x0F));
-  }
-  if (this->val_tw0l_.has_value()) {
-    this->write_command_(0xC3, 0x20 | (*this->val_tw0l_ & 0x0F));
-  }
-  if (this->val_trec0_.has_value()) {
-    this->write_command_(0xC3, 0x30 | (*this->val_trec0_ & 0x0F));
-  }
-  if (this->val_rwpu_.has_value()) {
-    this->write_command_(0xC3, 0x40 | (*this->val_rwpu_ & 0x0F));
+  // These commands use opcode 0xC3, which conflicts with the channel select
+  // command on multi-channel devices (e.g., DS2482-800). Only execute them
+  // when using a single-channel device.
+  if (this->channel_count_ == 1) {
+    if (this->val_trstl_.has_value()) {
+      this->write_command_(0xC3, 0x00 | (*this->val_trstl_ & 0x0F));
+    }
+    if (this->val_tmsp_.has_value()) {
+      this->write_command_(0xC3, 0x10 | (*this->val_tmsp_ & 0x0F));
+    }
+    if (this->val_tw0l_.has_value()) {
+      this->write_command_(0xC3, 0x20 | (*this->val_tw0l_ & 0x0F));
+    }
+    if (this->val_trec0_.has_value()) {
+      this->write_command_(0xC3, 0x30 | (*this->val_trec0_ & 0x0F));
+    }
+    if (this->val_rwpu_.has_value()) {
+      this->write_command_(0xC3, 0x40 | (*this->val_rwpu_ & 0x0F));
+    }
   }
 
   last_device_found_ = false;
@@ -420,7 +427,7 @@ void DS248xComponent::write_command_(uint8_t command, uint8_t data) {
   cmd[1] = data;
   auto err = this->write(cmd.data(), sizeof(cmd));
   if (err != esphome::i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "error writing command to Master: %d", cmd[0]);
+    ESP_LOGE(TAG, "error writing command 0x%02X to Master: %d", cmd[0], err);
   }
 }
 
@@ -464,7 +471,7 @@ uint8_t DS248xComponent::read_from_wire_() {
     ESP_LOGE(TAG, "error writing SETREADPTR command to Master: %d", err);
   }
 
-  uint8_t data_byte;
+  uint8_t data_byte = 0;
   err = this->read(&data_byte, sizeof(data_byte));
   if (err != esphome::i2c::ERROR_OK) {
     ESP_LOGE(TAG, "error reading from Master: %d", err);
@@ -487,7 +494,7 @@ bool DS248xComponent::search_(uint64_t *address) {
   write_to_wire_(WIRE_COMMAND_SEARCH);
 
   uint8_t direction;
-  uint8_t last_zero = 0;
+  int last_zero = -1;
   for (uint8_t i = 0; i < 64; i++) {
     uint64_t search_bit = 1LL << i;
 
@@ -521,7 +528,7 @@ bool DS248xComponent::search_(uint64_t *address) {
 
   search_last_discrepancy_ = last_zero;
 
-  if (!last_zero) {
+  if (last_zero == -1) {
     last_device_found_ = true;
   }
 

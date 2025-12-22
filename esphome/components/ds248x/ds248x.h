@@ -193,7 +193,7 @@ class DS248xSensor : public sensor::Sensor {
   std::string unique_id();
 
  protected:
-  DS248xComponent *parent_;
+  DS248xComponent *parent_{nullptr};
   optional<uint8_t> channel_;
   optional<uint64_t> address_;
   optional<uint8_t> index_;
