@@ -6,7 +6,7 @@ from pathlib import Path
 
 from esphome import automation, external_files
 import esphome.codegen as cg
-from esphome.components import audio, esp32, media_player, network, psram, speaker
+from esphome.components import audio, esp32, media_player, network, ota, psram, speaker
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -342,7 +342,7 @@ async def to_code(config):
     var = await media_player.new_media_player(config)
     await cg.register_component(var, config)
 
-    cg.add_define("USE_OTA_STATE_CALLBACK")
+    ota.request_ota_state_listeners()
 
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
 
