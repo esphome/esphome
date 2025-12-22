@@ -42,6 +42,9 @@
 #ifdef USE_ZWAVE_PROXY
 #include "esphome/components/zwave_proxy/zwave_proxy.h"
 #endif
+#ifdef USE_WATER_HEATER
+#include "esphome/components/water_heater/water_heater.h"
+#endif
 
 namespace esphome::api {
 
@@ -1306,6 +1309,57 @@ void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRe
 }
 #endif
 
+#ifdef USE_WATER_HEATER
+bool APIConnection::send_water_heater_state(water_heater::WaterHeater *water_heater) {
+  return this->send_message_smart_(water_heater, &APIConnection::try_send_water_heater_state,
+                                   WaterHeaterStateResponse::MESSAGE_TYPE, WaterHeaterStateResponse::ESTIMATED_SIZE);
+}
+uint16_t APIConnection::try_send_water_heater_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                                    bool is_single) {
+  auto *wh = static_cast<water_heater::WaterHeater *>(entity);
+  WaterHeaterStateResponse resp;
+  resp.mode = static_cast<enums::WaterHeaterMode>(wh->get_mode());
+  resp.current_temperature = wh->get_current_temperature();
+  resp.target_temperature = wh->get_target_temperature();
+  resp.target_temperature_low = wh->get_target_temperature_low();
+  resp.target_temperature_high = wh->get_target_temperature_high();
+  resp.state = wh->get_state();
+  resp.key = wh->get_object_id_hash();
+
+  return encode_message_to_buffer(resp, WaterHeaterStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
+}
+uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                                   bool is_single) {
+  auto *wh = static_cast<water_heater::WaterHeater *>(entity);
+  ListEntitiesWaterHeaterResponse msg;
+  auto traits = wh->get_traits();
+  msg.min_temperature = traits.get_min_temperature();
+  msg.max_temperature = traits.get_max_temperature();
+  msg.target_temperature_step = traits.get_target_temperature_step();
+  msg.supported_modes = &traits.get_supported_modes();
+  msg.supported_features = traits.get_feature_flags();
+  return fill_and_encode_entity_info(wh, msg, ListEntitiesWaterHeaterResponse::MESSAGE_TYPE, conn, remaining_size,
+                                     is_single);
+}
+
+void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequest &msg) {
+  ENTITY_COMMAND_MAKE_CALL(water_heater::WaterHeater, water_heater, water_heater)
+  if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_MODE)
+    call.set_mode(static_cast<water_heater::WaterHeaterMode>(msg.mode));
+  if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE)
+    call.set_target_temperature(msg.target_temperature);
+  if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW)
+    call.set_target_temperature_low(msg.target_temperature_low);
+  if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH)
+    call.set_target_temperature_high(msg.target_temperature_high);
+  if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_STATE) {
+    call.set_away((msg.state & water_heater::WATER_HEATER_STATE_AWAY) != 0);
+    call.set_on((msg.state & water_heater::WATER_HEATER_STATE_ON) != 0);
+  }
+  call.perform();
+}
+#endif
+
 #ifdef USE_EVENT
 void APIConnection::send_event(event::Event *event, const char *event_type) {
   this->send_message_smart_(event, MessageCreator(event_type), EventResponse::MESSAGE_TYPE,
@@ -1582,15 +1636,29 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
-  for (auto &it : this->parent_->get_state_subs()) {
-    // Compare entity_id and attribute with message fields
-    bool entity_match = (strcmp(it.entity_id, msg.entity_id.c_str()) == 0);
-    bool attribute_match = (it.attribute != nullptr && strcmp(it.attribute, msg.attribute.c_str()) == 0) ||
-                           (it.attribute == nullptr && msg.attribute.empty());
+  // Skip if entity_id is empty (invalid message)
+  if (msg.entity_id_len == 0) {
+    return;
+  }
 
-    if (entity_match && attribute_match) {
-      it.callback(msg.state);
+  for (auto &it : this->parent_->get_state_subs()) {
+    // Compare entity_id: check length matches and content matches
+    size_t entity_id_len = strlen(it.entity_id);
+    if (entity_id_len != msg.entity_id_len || memcmp(it.entity_id, msg.entity_id, msg.entity_id_len) != 0) {
+      continue;
     }
+
+    // Compare attribute: either both have matching attribute, or both have none
+    size_t sub_attr_len = it.attribute != nullptr ? strlen(it.attribute) : 0;
+    if (sub_attr_len != msg.attribute_len ||
+        (sub_attr_len > 0 && memcmp(it.attribute, msg.attribute, sub_attr_len) != 0)) {
+      continue;
+    }
+
+    // Create temporary string for callback (callback takes const std::string &)
+    // Handle empty state (nullptr with len=0)
+    std::string state(msg.state_len > 0 ? reinterpret_cast<const char *>(msg.state) : "", msg.state_len);
+    it.callback(state);
   }
 }
 #endif

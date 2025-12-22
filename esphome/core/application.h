@@ -87,6 +87,9 @@
 #ifdef USE_ALARM_CONTROL_PANEL
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
 #endif
+#ifdef USE_WATER_HEATER
+#include "esphome/components/water_heater/water_heater.h"
+#endif
 #ifdef USE_EVENT
 #include "esphome/components/event/event.h"
 #endif
@@ -215,6 +218,10 @@ class Application {
   void register_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
     this->alarm_control_panels_.push_back(a_alarm_control_panel);
   }
+#endif
+
+#ifdef USE_WATER_HEATER
+  void register_water_heater(water_heater::WaterHeater *water_heater) { this->water_heaters_.push_back(water_heater); }
 #endif
 
 #ifdef USE_EVENT
@@ -437,6 +444,11 @@ class Application {
   GET_ENTITY_METHOD(alarm_control_panel::AlarmControlPanel, alarm_control_panel, alarm_control_panels)
 #endif
 
+#ifdef USE_WATER_HEATER
+  auto &get_water_heaters() const { return this->water_heaters_; }
+  GET_ENTITY_METHOD(water_heater::WaterHeater, water_heater, water_heaters)
+#endif
+
 #ifdef USE_EVENT
   auto &get_events() const { return this->events_; }
   GET_ENTITY_METHOD(event::Event, event, events)
@@ -633,6 +645,9 @@ class Application {
 #ifdef USE_ALARM_CONTROL_PANEL
   StaticVector<alarm_control_panel::AlarmControlPanel *, ESPHOME_ENTITY_ALARM_CONTROL_PANEL_COUNT>
       alarm_control_panels_{};
+#endif
+#ifdef USE_WATER_HEATER
+  StaticVector<water_heater::WaterHeater *, ESPHOME_ENTITY_WATER_HEATER_COUNT> water_heaters_{};
 #endif
 #ifdef USE_UPDATE
   StaticVector<update::UpdateEntity *, ESPHOME_ENTITY_UPDATE_COUNT> updates_{};
