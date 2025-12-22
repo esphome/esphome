@@ -803,6 +803,7 @@ Often known as "tag" or "card" readers within the community.
 {{< imgtable >}}
 "Event Core","components/event/index","folder-open.svg","dark-invert"
 "Template Event","components/event/template","description.svg","dark-invert"
+"UART Event","components/event/uart","uart.svg",""
 {{< /imgtable >}}
 
 ## Fan Components
