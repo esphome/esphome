@@ -88,7 +88,14 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   void set_hub_sleep(bool enabled) { enable_hub_sleep_ = enabled; }
   void set_active_pullup(bool enabled) { enable_active_pullup_ = enabled; }
   void set_strong_pullup(bool enabled) { enable_strong_pullup_ = enabled; }
+  void set_overdrive_speed(bool enabled) { enable_overdrive_speed_ = enabled; }
   void set_channel_count(uint8_t count) { channel_count_ = count; }
+
+  void set_val_trstl(uint8_t val) { val_trstl_ = val; }
+  void set_val_tmsp(uint8_t val) { val_tmsp_ = val; }
+  void set_val_tw0l(uint8_t val) { val_tw0l_ = val; }
+  void set_val_trec0(uint8_t val) { val_trec0_ = val; }
+  void set_val_rwpu(uint8_t val) { val_rwpu_ = val; }
 
   void register_sensor(DS248xSensor *sensor);
 
@@ -105,7 +112,14 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   bool enable_hub_sleep_ = false;
   bool enable_active_pullup_ = false;
   bool enable_strong_pullup_ = false;
+  bool enable_overdrive_speed_ = false;
   uint8_t channel_count_ = 1;
+
+  optional<uint8_t> val_trstl_;
+  optional<uint8_t> val_tmsp_;
+  optional<uint8_t> val_tw0l_;
+  optional<uint8_t> val_trec0_;
+  optional<uint8_t> val_rwpu_;
 
   std::vector<FoundDevice> found_sensors_;
 

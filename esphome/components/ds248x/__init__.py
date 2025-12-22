@@ -20,7 +20,14 @@ CONF_BUS_SLEEP = "bus_sleep"
 CONF_HUB_SLEEP = "hub_sleep"
 CONF_ACTIVE_PULLUP = "active_pullup"
 CONF_STRONG_PULLUP = "strong_pullup"
+CONF_OVERDRIVE_SPEED = "overdrive_speed"
 CONF_CHANNEL_COUNT = "channel_count"
+
+CONF_DS2484_RESET_LOW_TIME = "ds2484_reset_low_time"
+CONF_DS2484_MASTER_SAMPLE_TIME = "ds2484_master_sample_time"
+CONF_DS2484_WRITE_0_LOW_TIME = "ds2484_write_0_low_time"
+CONF_DS2484_RECOVERY_TIME = "ds2484_recovery_time"
+CONF_DS2484_ACTIVE_PULLUP_RESISTANCE = "ds2484_active_pullup_resistance"
 
 ds248x_ns = cg.esphome_ns.namespace("ds248x")
 DS248x1Wire = ds248x_ns.class_("DS248x1Wire")
@@ -38,7 +45,18 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_HUB_SLEEP, default=False): cv.boolean,
             cv.Optional(CONF_ACTIVE_PULLUP, default=False): cv.boolean,
             cv.Optional(CONF_STRONG_PULLUP, default=False): cv.boolean,
+            cv.Optional(CONF_OVERDRIVE_SPEED, default=False): cv.boolean,
             cv.Optional(CONF_CHANNEL_COUNT, default=1): cv.uint8_t,
+            cv.Optional(CONF_DS2484_RESET_LOW_TIME): cv.int_range(min=0, max=15),
+            cv.Optional(CONF_DS2484_MASTER_SAMPLE_TIME): cv.int_range(min=0, max=15),
+            cv.Optional(CONF_DS2484_WRITE_0_LOW_TIME): cv.int_range(min=0, max=15),
+            cv.Optional(CONF_DS2484_RECOVERY_TIME): cv.int_range(min=0, max=15),
+            cv.Optional(CONF_DS2484_ACTIVE_PULLUP_RESISTANCE): cv.enum(
+                {
+                    "1000ohm": 0,
+                    "500ohm": 1,
+                }
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -55,7 +73,19 @@ async def to_code(config):
     cg.add(var.set_hub_sleep(config[CONF_HUB_SLEEP]))
     cg.add(var.set_active_pullup(config[CONF_ACTIVE_PULLUP]))
     cg.add(var.set_strong_pullup(config[CONF_STRONG_PULLUP]))
+    cg.add(var.set_overdrive_speed(config[CONF_OVERDRIVE_SPEED]))
     cg.add(var.set_channel_count(config[CONF_CHANNEL_COUNT]))
+
+    if CONF_DS2484_RESET_LOW_TIME in config:
+        cg.add(var.set_val_trstl(config[CONF_DS2484_RESET_LOW_TIME]))
+    if CONF_DS2484_MASTER_SAMPLE_TIME in config:
+        cg.add(var.set_val_tmsp(config[CONF_DS2484_MASTER_SAMPLE_TIME]))
+    if CONF_DS2484_WRITE_0_LOW_TIME in config:
+        cg.add(var.set_val_tw0l(config[CONF_DS2484_WRITE_0_LOW_TIME]))
+    if CONF_DS2484_RECOVERY_TIME in config:
+        cg.add(var.set_val_trec0(config[CONF_DS2484_RECOVERY_TIME]))
+    if CONF_DS2484_ACTIVE_PULLUP_RESISTANCE in config:
+        cg.add(var.set_val_rwpu(config[CONF_DS2484_ACTIVE_PULLUP_RESISTANCE]))
 
     if CONF_SLEEP_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_SLEEP_PIN])

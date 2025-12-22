@@ -346,8 +346,32 @@ void DS248xComponent::reset_hub_() {
     ESP_LOGE(TAG, "error writing RESET command to Master: %d", err);
   }
 
+  uint8_t config = 0;
   if (this->enable_active_pullup_) {
-    this->write_config_(DS248X_CONFIG_ACTIVE_PULLUP);
+    config |= DS248X_CONFIG_ACTIVE_PULLUP;
+  }
+  if (this->enable_overdrive_speed_) {
+    config |= DS248X_CONFIG_1WIRE_SPEED;
+  }
+  if (config != 0) {
+    this->write_config_(config);
+  }
+
+  // DS2484 specific port configuration
+  if (this->val_trstl_.has_value()) {
+    this->write_command_(0xC3, 0x00 | (*this->val_trstl_ & 0x0F));
+  }
+  if (this->val_tmsp_.has_value()) {
+    this->write_command_(0xC3, 0x10 | (*this->val_tmsp_ & 0x0F));
+  }
+  if (this->val_tw0l_.has_value()) {
+    this->write_command_(0xC3, 0x20 | (*this->val_tw0l_ & 0x0F));
+  }
+  if (this->val_trec0_.has_value()) {
+    this->write_command_(0xC3, 0x30 | (*this->val_trec0_ & 0x0F));
+  }
+  if (this->val_rwpu_.has_value()) {
+    this->write_command_(0xC3, 0x40 | (*this->val_rwpu_ & 0x0F));
   }
 
   last_device_found_ = false;
