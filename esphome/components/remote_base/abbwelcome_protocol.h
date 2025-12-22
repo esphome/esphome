@@ -232,10 +232,10 @@ template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterAction
     data.set_message_id(this->message_id_.value(x...));
     data.auto_message_id = this->auto_message_id_.value(x...);
     std::vector<uint8_t> data_vec;
-    if (this->len_ >= 0) {
+    if (this->len_ > 0) {
       // Static mode: copy from flash to vector
       data_vec.assign(this->data_.data, this->data_.data + this->len_);
-    } else {
+    } else if (this->len_ < 0) {
       // Template mode: call function
       data_vec = this->data_.func(x...);
     }
@@ -245,7 +245,7 @@ template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterAction
   }
 
  protected:
-  ssize_t len_{-1};  // -1 = template mode, >=0 = static mode with length
+  ssize_t len_{0};  // <0 = template mode, >=0 = static mode with length
   union Data {
     std::vector<uint8_t> (*func)(Ts...);  // Function pointer (stateless lambdas)
     const uint8_t *data;                  // Pointer to static data in flash

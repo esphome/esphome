@@ -15,7 +15,8 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
   stream->print("\" id=\"");
   stream->print(klass.c_str());
   stream->print("-");
-  stream->print(obj->get_object_id().c_str());
+  char object_id_buf[OBJECT_ID_MAX_LEN];
+  stream->print(obj->get_object_id_to(object_id_buf).c_str());
   stream->print("\"><td>");
   stream->print(obj->get_name().c_str());
   stream->print("</td><td></td><td>");
