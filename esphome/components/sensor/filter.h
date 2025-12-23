@@ -453,15 +453,20 @@ class HeartbeatFilter : public Filter, public Component {
 
 class DeltaFilter : public Filter {
  public:
-  explicit DeltaFilter(float delta, bool percentage_mode);
+  explicit DeltaFilter(float min_delta, bool min_percentage_mode, float max_delta, bool max_percentage_mode);
+
+  void set_baseline(const std::function<float(float)> &fn);
 
   optional<float> new_value(float value) override;
 
  protected:
-  float delta_;
-  float current_delta_;
+  float min_delta_;
+  bool min_percentage_mode_;
+  float max_delta_;
+  bool max_percentage_mode_;
+  std::function<float(float)> baseline_;
+
   float last_value_{NAN};
-  bool percentage_mode_;
 };
 
 class OrFilter : public Filter {
