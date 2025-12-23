@@ -169,14 +169,16 @@ void CC1101Component::loop() {
   }
 
   // Read packet
-  uint8_t payload_length;
+  uint8_t payload_length, expected_rx;
   if (this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE)) {
     this->read_(Register::FIFO, &payload_length, 1);
+    expected_rx = payload_length + 1;
   } else {
     payload_length = this->state_.PKTLEN;
+    expected_rx = payload_length;
   }
-  if (payload_length == 0 || payload_length > 64) {
-    ESP_LOGW(TAG, "Invalid payload length: %u", payload_length);
+  if (payload_length == 0 || payload_length > 64 || rx_bytes != expected_rx) {
+    ESP_LOGW(TAG, "Invalid packet: rx_bytes %u, payload_length %u", rx_bytes, payload_length);
     this->enter_idle_();
     this->strobe_(Command::FRX);
     this->strobe_(Command::RX);
@@ -186,13 +188,12 @@ void CC1101Component::loop() {
   this->packet_.resize(payload_length);
   this->read_(Register::FIFO, this->packet_.data(), payload_length);
 
-  // Read status and trigger
-  uint8_t status[2];
-  this->read_(Register::FIFO, status, 2);
-  int8_t rssi_raw = static_cast<int8_t>(status[0]);
-  float rssi = (rssi_raw * RSSI_STEP) - RSSI_OFFSET;
-  bool crc_ok = (status[1] & STATUS_CRC_OK_MASK) != 0;
-  uint8_t lqi = status[1] & STATUS_LQI_MASK;
+  // Read status from registers (more reliable than FIFO status bytes due to timing issues)
+  this->read_(Register::RSSI);
+  this->read_(Register::LQI);
+  float rssi = (this->state_.RSSI * RSSI_STEP) - RSSI_OFFSET;
+  bool crc_ok = (this->state_.LQI & STATUS_CRC_OK_MASK) != 0;
+  uint8_t lqi = this->state_.LQI & STATUS_LQI_MASK;
   if (this->state_.CRC_EN == 0 || crc_ok) {
     this->packet_trigger_->trigger(this->packet_, rssi, lqi);
   }
@@ -616,12 +617,15 @@ void CC1101Component::set_packet_mode(bool value) {
     this->state_.GDO0_CFG = 0x01;
     // Set max RX FIFO threshold to ensure we only trigger on end-of-packet
     this->state_.FIFO_THR = 15;
+    // Don't append status bytes to FIFO - we read from registers instead
+    this->state_.APPEND_STATUS = 0;
   } else {
     // Configure GDO0 for serial data (async serial mode)
     this->state_.GDO0_CFG = 0x0D;
   }
   if (this->initialized_) {
     this->write_(Register::PKTCTRL0);
+    this->write_(Register::PKTCTRL1);
     this->write_(Register::IOCFG0);
     this->write_(Register::FIFOTHR);
   }
