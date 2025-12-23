@@ -56,7 +56,7 @@ CODEOWNERS = ["@sourabhjaiswal"]
 
 havells_solar_ns = cg.esphome_ns.namespace("havells_solar")
 HavellsSolar = havells_solar_ns.class_(
-    "HavellsSolar", cg.PollingComponent, modbus.ModbusDevice
+    "HavellsSolar", cg.PollingComponent, modbus.ModbusClientDevice
 )
 
 PHASE_SENSORS = {
@@ -203,6 +203,13 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("10s"))
     .extend(modbus.modbus_device_schema(0x01))
 )
+
+
+def _final_validate(config):
+    return modbus.final_validate_modbus_device("havells_solar", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):

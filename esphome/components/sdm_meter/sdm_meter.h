@@ -9,7 +9,7 @@
 namespace esphome {
 namespace sdm_meter {
 
-class SDMMeter : public PollingComponent, public modbus::ModbusDevice {
+class SDMMeter : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   void set_voltage_sensor(uint8_t phase, sensor::Sensor *voltage_sensor) {
     this->phases_[phase].setup = true;

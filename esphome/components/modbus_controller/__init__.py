@@ -42,7 +42,7 @@ MULTI_CONF = True
 
 modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
 ModbusController = modbus_controller_ns.class_(
-    "ModbusController", cg.PollingComponent, modbus.ModbusDevice
+    "ModbusController", cg.PollingComponent, modbus.ModbusClientDevice
 )
 
 SensorItem = modbus_controller_ns.struct("SensorItem")

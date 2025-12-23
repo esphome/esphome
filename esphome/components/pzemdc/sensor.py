@@ -24,7 +24,7 @@ from esphome.const import (
 AUTO_LOAD = ["modbus"]
 
 pzemdc_ns = cg.esphome_ns.namespace("pzemdc")
-PZEMDC = pzemdc_ns.class_("PZEMDC", cg.PollingComponent, modbus.ModbusDevice)
+PZEMDC = pzemdc_ns.class_("PZEMDC", cg.PollingComponent, modbus.ModbusClientDevice)
 
 # Actions
 ResetEnergyAction = pzemdc_ns.class_("ResetEnergyAction", automation.Action)
@@ -76,6 +76,13 @@ CONFIG_SCHEMA = (
 async def reset_energy_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+def _final_validate(config):
+    return modbus.final_validate_modbus_device("pzedmc", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):

@@ -43,7 +43,9 @@ AUTO_LOAD = ["modbus"]
 CODEOWNERS = ["@polyfaces", "@jesserockz"]
 
 sdm_meter_ns = cg.esphome_ns.namespace("sdm_meter")
-SDMMeter = sdm_meter_ns.class_("SDMMeter", cg.PollingComponent, modbus.ModbusDevice)
+SDMMeter = sdm_meter_ns.class_(
+    "SDMMeter", cg.PollingComponent, modbus.ModbusClientDevice
+)
 
 PHASE_SENSORS = {
     CONF_VOLTAGE: sensor.sensor_schema(
@@ -134,6 +136,13 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("10s"))
     .extend(modbus.modbus_device_schema(0x01))
 )
+
+
+def _final_validate(config):
+    return modbus.final_validate_modbus_device("sdm_meter", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
