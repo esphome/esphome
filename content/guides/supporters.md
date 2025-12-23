@@ -143,6 +143,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Vegetto (@angelnu)](https://github.com/angelnu)
 - [Sergey Anisimov (@anisimovsergey)](https://github.com/anisimovsergey)
 - [ankycooper (@ankycooper)](https://github.com/ankycooper)
+- [Anna Oake (@anna-oake)](https://github.com/anna-oake)
 - [Nikolay Vasilchuk (@Anonym-tsk)](https://github.com/Anonym-tsk)
 - [Anthony Keane (@anthonykeane)](https://github.com/anthonykeane)
 - [Anthony (@AnthonyMaiorani)](https://github.com/AnthonyMaiorani)
@@ -548,6 +549,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [dgtal1 (@dgtal1)](https://github.com/dgtal1)
 - [Dan Halbert (@dhalbert)](https://github.com/dhalbert)
 - [dhewg (@dhewg)](https://github.com/dhewg)
+- [Douwe (@dhoeben)](https://github.com/dhoeben)
 - [Dustin L. Howett (@DHowett)](https://github.com/DHowett)
 - [Lucio Tarantino (@dianlight)](https://github.com/dianlight)
 - [diesel437 (@diesel437)](https://github.com/diesel437)
@@ -958,6 +960,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [J0RD4N300 (@J0RD4N300)](https://github.com/J0RD4N300)
 - [Jeff Brown (@j9brown)](https://github.com/j9brown)
 - [Tonye Jack (@jackton1)](https://github.com/jackton1)
+- [Jack Wilsdon (@jackwilsdon)](https://github.com/jackwilsdon)
 - [Jacob Carrell (@JacobCarrell)](https://github.com/JacobCarrell)
 - [Tim Jacobs (@jacobstim)](https://github.com/jacobstim)
 - [jacobswe (@jacobswe)](https://github.com/jacobswe)
@@ -1410,6 +1413,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Midbin (@Midbin)](https://github.com/Midbin)
 - [Pauline Middelink (@middelink)](https://github.com/middelink)
 - [Joel Midstjärna (@midstar)](https://github.com/midstar)
+- [Kamil Breguła (@mik-laj)](https://github.com/mik-laj)
 - [Mikal Hart (@mikalhart)](https://github.com/mikalhart)
 - [Mikal Hart (@mikalhart-intel)](https://github.com/mikalhart-intel)
 - [Big Mike (@mikelawrence)](https://github.com/mikelawrence)
@@ -1774,6 +1778,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Robert Gabrielson (@rgabrielson11)](https://github.com/rgabrielson11)
 - [Rob Gray (@rgr4y)](https://github.com/rgr4y)
 - [Rafael Goes (@rgriffogoes)](https://github.com/rgriffogoes)
+- [Rene Guca (@rguca)](https://github.com/rguca)
 - [Ralf Habacker (@rhabacker)](https://github.com/rhabacker)
 - [rheinz (@rheinz)](https://github.com/rheinz)
 - [Rhys79 (@Rhys79)](https://github.com/Rhys79)
@@ -2302,4 +2307,4 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Christian Zufferey (@zuzu59)](https://github.com/zuzu59)
 - [Zynth-dev (@Zynth-dev)](https://github.com/Zynth-dev)
 
-*This page was last updated December 19, 2025.*
+*This page was last updated December 23, 2025.*
