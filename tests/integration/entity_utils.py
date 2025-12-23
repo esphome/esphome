@@ -25,15 +25,44 @@ def infer_name_add_mac_suffix(device_info: DeviceInfo) -> bool:
     return device_info.name.endswith(f"-{mac_suffix}")
 
 
+def _get_name_for_object_id(
+    entity: EntityInfo,
+    device_info: DeviceInfo,
+    device_id_to_name: dict[int, str],
+) -> str:
+    """Get the name used for object_id computation.
+
+    This is the algorithm that aioesphomeapi will use to determine which
+    name to use for computing object_id client-side from API data.
+
+    Args:
+        entity: The entity to get name for
+        device_info: Device info from the API
+        device_id_to_name: Mapping of device_id to device name for sub-devices
+
+    Returns:
+        The name to use for object_id computation
+    """
+    if entity.name:
+        # Named entity: use entity name
+        return entity.name
+    if entity.device_id != 0:
+        # Empty name on sub-device: use sub-device name
+        return device_id_to_name[entity.device_id]
+    if infer_name_add_mac_suffix(device_info) or device_info.friendly_name:
+        # Empty name on main device with MAC suffix or friendly_name: use friendly_name
+        # (even if empty - this is bug-for-bug compatibility for MAC suffix case)
+        return device_info.friendly_name
+    # Empty name on main device, no friendly_name: use device name
+    return device_info.name
+
+
 def compute_entity_object_id(
     entity: EntityInfo,
     device_info: DeviceInfo,
     device_id_to_name: dict[int, str],
 ) -> str:
-    """Compute expected object_id for an entity using the algorithm from PR summary.
-
-    This is the algorithm that aioesphomeapi will use to compute object_id
-    client-side from API data.
+    """Compute expected object_id for an entity.
 
     Args:
         entity: The entity to compute object_id for
@@ -43,25 +72,7 @@ def compute_entity_object_id(
     Returns:
         The computed object_id string
     """
-    name_add_mac_suffix = infer_name_add_mac_suffix(device_info)
-
-    if entity.name:
-        # Named entity: use entity name
-        name_for_id = entity.name
-    elif entity.device_id != 0:
-        # Empty name on sub-device: use sub-device name
-        name_for_id = device_id_to_name[entity.device_id]
-    elif name_add_mac_suffix:
-        # Empty name on main device with MAC suffix: use friendly_name directly
-        # (even if empty - this is bug-for-bug compatibility)
-        name_for_id = device_info.friendly_name
-    elif device_info.friendly_name:
-        # Empty name on main device with friendly_name set: use it
-        name_for_id = device_info.friendly_name
-    else:
-        # Empty name on main device, no friendly_name: use device name
-        name_for_id = device_info.name
-
+    name_for_id = _get_name_for_object_id(entity, device_info, device_id_to_name)
     return compute_object_id(name_for_id)
 
 
@@ -80,17 +91,7 @@ def compute_entity_hash(
     Returns:
         The computed FNV-1 hash
     """
-    name_add_mac_suffix = infer_name_add_mac_suffix(device_info)
-
-    if entity.name:
-        name_for_id = entity.name
-    elif entity.device_id != 0:
-        name_for_id = device_id_to_name[entity.device_id]
-    elif name_add_mac_suffix or device_info.friendly_name:
-        name_for_id = device_info.friendly_name
-    else:
-        name_for_id = device_info.name
-
+    name_for_id = _get_name_for_object_id(entity, device_info, device_id_to_name)
     return fnv1_hash_object_id(name_for_id)
 
 
