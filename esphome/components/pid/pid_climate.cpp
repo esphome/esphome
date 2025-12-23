@@ -162,7 +162,7 @@ void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
   float min_value = this->supports_cool_() ? -1.0f : 0.0f;
   float max_value = this->supports_heat_() ? 1.0f : 0.0f;
   this->autotuner_->config(min_value, max_value);
-  this->autotuner_->set_autotuner_id(this->get_name().str());
+  this->autotuner_->set_autotuner_id(this->get_name());
 
   ESP_LOGI(TAG,
            "%s: Autotune has started. This can take a long time depending on the "
