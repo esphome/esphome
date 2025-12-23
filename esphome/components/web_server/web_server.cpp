@@ -128,6 +128,10 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain)
   if (seg3_start < end) {
     match.method = seg3_start;
     match.method_len = end - seg3_start;
+  } else {
+    // No method segment - fields already zero-initialized by UrlMatch{}
+    match.method = nullptr;
+    match.method_len = 0;
   }
 #else
   // Without USE_DEVICES, treat extra segments as part of method (backward compat)
