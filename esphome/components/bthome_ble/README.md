@@ -14,13 +14,11 @@ logger:
 
 # Enable BLE tracking
 esp32_ble_tracker:
-  id: ble_tracker
 
 # BTHome BLE sensors
 sensor:
   - platform: bthome_ble
     mac_address: AA:BB:CC:DD:EE:FF
-    esp32_ble_id: ble_tracker
     temperature:
       name: "BTHome Temperature"
     humidity:
@@ -31,4 +29,4 @@ sensor:
       name: "BTHome RSSI"
 ```
 
-Replace the `mac_address` value with the address of your BTHome device. Configure the sensors you want to expose; any omitted sensors are simply not created. Setting an explicit `esp32_ble_id` on each platform entry ties the BTHome entities to the tracker declared above and avoids ID resolution errors during validation.
+Replace the `mac_address` value with the address of your BTHome device. Configure the sensors you want to expose; any omitted sensors are simply not created. With only a single BLE tracker allowed, BTHome BLE devices automatically bind to the tracker instance, so no explicit `esp32_ble_id` is required.

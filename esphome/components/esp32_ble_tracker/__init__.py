@@ -40,6 +40,7 @@ DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@bdraco"]
 
 CONF_ESP32_BLE_ID = "esp32_ble_id"
+DEFAULT_ESP32_BLE_ID = "esp32_ble_tracker_esp32bletracker_id"
 CONF_SCAN_PARAMETERS = "scan_parameters"
 CONF_WINDOW = "window"
 CONF_ON_SCAN_END = "on_scan_end"
@@ -243,7 +244,9 @@ FINAL_VALIDATE_SCHEMA = esp32_ble.validate_variant
 
 ESP_BLE_DEVICE_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_ESP32_BLE_ID): cv.use_id(ESP32BLETracker),
+        cv.Optional(CONF_ESP32_BLE_ID, default=DEFAULT_ESP32_BLE_ID): cv.use_id(
+            ESP32BLETracker
+        ),
     }
 )
 
