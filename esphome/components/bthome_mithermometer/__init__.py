@@ -7,13 +7,7 @@ CODEOWNERS = ["@nagyrobi"]
 DEPENDENCIES = ["esp32_ble_tracker"]
 AUTO_LOAD = ["esp32_ble_tracker"]
 
-BLE_DEVICE_SCHEMA = cv.Schema(
-    {
-        cv.Optional(esp32_ble_tracker.CONF_ESP32_BLE_ID): cv.use_id(
-            esp32_ble_tracker.ESP32BLETracker
-        ),
-    }
-)
+BLE_DEVICE_SCHEMA = esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA
 
 bthome_mithermometer_ns = cg.esphome_ns.namespace("bthome_mithermometer")
 BTHomeMiThermometer = bthome_mithermometer_ns.class_(
