@@ -84,19 +84,27 @@ async def setup_entity(var: MockObj, config: ConfigType, platform: str) -> None:
         device_name = device_id_obj.id
 
     # Set the entity name with pre-computed object_id hash
-    # We always pre-compute the hash using the same fallback logic as get_base_entity_object_id
-    # to ensure hash matches the object_id that would be generated
+    # Must match OLD behavior for bug-for-bug compatibility:
+    # - With MAC suffix: OLD code used App.get_friendly_name() directly (no fallback)
+    # - Without MAC suffix: OLD code used pre-computed object_id with fallback to device name
     entity_name = config[CONF_NAME]
     if entity_name:
         # Named entity - hash from entity name
         object_id_hash = fnv1_hash_object_id(entity_name)
     else:
-        # Empty name - use fallback logic: device_name -> friendly_name -> CORE.name
+        # Empty name - behavior depends on MAC suffix setting
         if device_name:
+            # Entity on sub-device - use device name
             base_name = device_name
+        elif CORE.config.get("name_add_mac_suffix", False):
+            # MAC suffix enabled - OLD behavior used friendly_name directly (even if empty)
+            # This is bug-for-bug compatibility
+            base_name = CORE.friendly_name or ""
         elif CORE.friendly_name:
+            # No MAC suffix, friendly_name set - use it
             base_name = CORE.friendly_name
         else:
+            # No MAC suffix, no friendly_name - fallback to device name
             base_name = CORE.name
         object_id_hash = fnv1_hash_object_id(base_name)
     add(var.set_name(entity_name, object_id_hash))

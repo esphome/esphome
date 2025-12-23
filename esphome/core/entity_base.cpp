@@ -19,9 +19,17 @@ void EntityBase::set_name(const char *name, uint32_t object_id_hash) {
     } else
 #endif
     {
-      // Use friendly_name if available, otherwise fall back to device name
+      // Bug-for-bug compatibility with OLD behavior:
+      // - With MAC suffix: OLD code used App.get_friendly_name() directly (no fallback)
+      // - Without MAC suffix: OLD code used pre-computed object_id with fallback to device name
       const std::string &friendly = App.get_friendly_name();
-      this->name_ = StringRef(!friendly.empty() ? friendly : App.get_name());
+      if (App.is_name_add_mac_suffix_enabled()) {
+        // MAC suffix enabled - use friendly_name directly (even if empty) for compatibility
+        this->name_ = StringRef(friendly);
+      } else {
+        // No MAC suffix - fallback to device name if friendly_name is empty
+        this->name_ = StringRef(!friendly.empty() ? friendly : App.get_name());
+      }
     }
     this->flags_.has_own_name = false;
     // Dynamic name - must calculate hash at runtime
