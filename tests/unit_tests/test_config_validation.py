@@ -502,3 +502,48 @@ def test_only_with_user_value_overrides_default() -> None:
 
     result = schema({"mqtt_id": "custom_id"})
     assert result.get("mqtt_id") == "custom_id"
+
+
+@pytest.mark.parametrize("value", ("hello", "Hello World", "test_name", "温度"))
+def test_string_no_slash__valid(value: str) -> None:
+    actual = config_validation.string_no_slash(value)
+    assert actual == value
+
+
+@pytest.mark.parametrize("value", ("has/slash", "a/b/c", "/leading", "trailing/"))
+def test_string_no_slash__slash_rejected(value: str) -> None:
+    with pytest.raises(Invalid, match="cannot contain '/' character"):
+        config_validation.string_no_slash(value)
+
+
+def test_string_no_slash__max_length() -> None:
+    # 120 chars should pass
+    assert config_validation.string_no_slash("x" * 120) == "x" * 120
+
+    # 121 chars should fail
+    with pytest.raises(Invalid, match="too long.*121 chars.*Maximum.*120"):
+        config_validation.string_no_slash("x" * 121)
+
+
+def test_string_no_slash__empty() -> None:
+    assert config_validation.string_no_slash("") == ""
+
+
+@pytest.mark.parametrize("value", ("Temperature", "Living Room Light", "温度传感器"))
+def test_validate_entity_name__valid(value: str) -> None:
+    actual = config_validation._validate_entity_name(value)
+    assert actual == value
+
+
+def test_validate_entity_name__slash_rejected() -> None:
+    with pytest.raises(Invalid, match="cannot contain '/' character"):
+        config_validation._validate_entity_name("has/slash")
+
+
+def test_validate_entity_name__max_length() -> None:
+    # 120 chars should pass
+    assert config_validation._validate_entity_name("x" * 120) == "x" * 120
+
+    # 121 chars should fail
+    with pytest.raises(Invalid, match="too long.*121 chars.*Maximum.*120"):
+        config_validation._validate_entity_name("x" * 121)
