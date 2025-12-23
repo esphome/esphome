@@ -146,11 +146,23 @@ bool UrlMatch::id_equals_entity(EntityBase *entity) const {
 
   if (matches && used_deprecated_format) {
     // Log deprecation warning when old object_id URL format is used
-    ESP_LOGW(TAG,
-             "Deprecated URL format: /%.*s/%.*s - use entity name '/%.*s/%s' instead. "
-             "Object ID URLs will be removed in 2026.7.0.",
-             this->domain_len, this->domain, this->id_len, this->id, this->domain_len, this->domain,
-             entity->get_name().c_str());
+#ifdef USE_DEVICES
+    Device *device = entity->get_device();
+    if (device != nullptr) {
+      ESP_LOGW(TAG,
+               "Deprecated URL format: /%.*s/%.*s/%.*s - use entity name '/%.*s/%s/%s' instead. "
+               "Object ID URLs will be removed in 2026.7.0.",
+               this->domain_len, this->domain, this->device_name_len, this->device_name, this->id_len, this->id,
+               this->domain_len, this->domain, device->get_name(), entity->get_name().c_str());
+    } else
+#endif
+    {
+      ESP_LOGW(TAG,
+               "Deprecated URL format: /%.*s/%.*s - use entity name '/%.*s/%s' instead. "
+               "Object ID URLs will be removed in 2026.7.0.",
+               this->domain_len, this->domain, this->id_len, this->id, this->domain_len, this->domain,
+               entity->get_name().c_str());
+    }
   }
 
   return matches;
