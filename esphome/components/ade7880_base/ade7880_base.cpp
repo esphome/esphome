@@ -7,14 +7,14 @@
 // Michaël Piron (@michaelpiron on GitHub)
 // Theo Arends (@arendst on GitHub)
 
-#include "ade7880.h"
+#include "ade7880_base.h"
 #include "ade7880_registers.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
 
 namespace esphome {
-namespace ade7880 {
+namespace ade7880_base {
 
 static const char *const TAG = "ade7880";
 
@@ -34,7 +34,7 @@ void ADE7880::setup() {
   // if IRQ1 is already asserted, the cause must be determined
   if (this->irq1_pin_->digital_read() == 0) {
     ESP_LOGD(TAG, "IRQ1 found asserted during setup()");
-    auto status1 = read_u32_register16_(STATUS1);
+    auto status1 = read_u32_register16(STATUS1);
     if ((status1 & ~STATUS1_RSTDONE) != 0) {
       // not safe to proceed, must initiate reset
       ESP_LOGD(TAG, "IRQ1 asserted for !RSTDONE, resetting device");
@@ -44,8 +44,8 @@ void ADE7880::setup() {
     if ((status1 & STATUS1_RSTDONE) == STATUS1_RSTDONE) {
       // safe to proceed, device has just completed reset cycle
       ESP_LOGD(TAG, "Acknowledging RSTDONE");
-      this->write_u32_register16_(STATUS0, 0xFFFF);
-      this->write_u32_register16_(STATUS1, 0xFFFF);
+      this->write_u32_register16(STATUS0, 0xFFFF);
+      this->write_u32_register16(STATUS1, 0xFFFF);
       this->init_device_();
       return;
     }
@@ -61,8 +61,8 @@ void ADE7880::loop() {
   }
 
   ESP_LOGD(TAG, "Acknowledging RSTDONE");
-  this->write_u32_register16_(STATUS0, 0xFFFF);
-  this->write_u32_register16_(STATUS1, 0xFFFF);
+  this->write_u32_register16(STATUS0, 0xFFFF);
+  this->write_u32_register16(STATUS1, 0xFFFF);
   this->init_device_();
   this->store_.reset_done = false;
   this->store_.reset_pending = false;
@@ -84,7 +84,7 @@ void ADE7880::update_sensor_from_s16_register16_(sensor::Sensor *sensor, uint16_
     return;
   }
 
-  float val = this->read_s16_register16_(a_register);
+  float val = this->read_s16_register16(a_register);
   sensor->publish_state(f(val));
 }
 
@@ -94,7 +94,7 @@ void ADE7880::update_sensor_from_s32_register16_(sensor::Sensor *sensor, uint16_
     return;
   }
 
-  float val = this->read_s32_register16_(a_register);
+  float val = this->read_s32_register16(a_register);
   sensor->publish_state(f(val));
 }
 
@@ -162,7 +162,6 @@ void ADE7880::update() {
 }
 
 void ADE7880::dump_config() {
-  ESP_LOGCONFIG(TAG, "ADE7880:");
   LOG_PIN("  IRQ0  Pin: ", this->irq0_pin_);
   LOG_PIN("  IRQ1  Pin: ", this->irq1_pin_);
   LOG_PIN("  RESET Pin: ", this->reset_pin_);
@@ -234,7 +233,6 @@ void ADE7880::dump_config() {
                   this->channel_n_->current_gain_calibration);
   }
 
-  LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -255,12 +253,12 @@ void ADE7880::calibrate_s24zpse_reading_(uint16_t a_register, int32_t calibratio
 }
 
 void ADE7880::init_device_() {
-  this->write_u8_register16_(CONFIG2, CONFIG2_I2C_LOCK);
+  this->write_u8_register16(CONFIG2, CONFIG2_I2C_LOCK);
 
-  this->write_u16_register16_(GAIN, 0);
+  this->write_u16_register16(GAIN, 0);
 
   if (this->frequency_ > 55) {
-    this->write_u16_register16_(COMPMODE, COMPMODE_DEFAULT | COMPMODE_SELFREQ);
+    this->write_u16_register16(COMPMODE, COMPMODE_DEFAULT | COMPMODE_SELFREQ);
   }
 
   if (this->channel_n_ != nullptr) {
@@ -289,13 +287,13 @@ void ADE7880::init_device_() {
   }
 
   // write three default values to data memory RAM to flush the I2C write queue
-  this->write_s32_register16_(VLEVEL, 0);
-  this->write_s32_register16_(VLEVEL, 0);
-  this->write_s32_register16_(VLEVEL, 0);
+  this->write_s32_register16(VLEVEL, 0);
+  this->write_s32_register16(VLEVEL, 0);
+  this->write_s32_register16(VLEVEL, 0);
 
-  this->write_u8_register16_(DSPWP_SEL, DSPWP_SEL_SET);
-  this->write_u8_register16_(DSPWP_SET, DSPWP_SET_RO);
-  this->write_u16_register16_(RUN, RUN_ENABLE);
+  this->write_u8_register16(DSPWP_SEL, DSPWP_SEL_SET);
+  this->write_u8_register16(DSPWP_SET, DSPWP_SET_RO);
+  this->write_u16_register16(RUN, RUN_ENABLE);
 }
 
 void ADE7880::reset_device_() {
@@ -306,10 +304,43 @@ void ADE7880::reset_device_() {
     this->reset_pin_->digital_write(true);
   } else {
     ESP_LOGD(TAG, "Reset device using SWRST command");
-    this->write_u16_register16_(CONFIG, CONFIG_SWRST);
+    this->write_u16_register16(CONFIG, CONFIG_SWRST);
   }
   this->store_.reset_pending = true;
 }
 
-}  // namespace ade7880
+// adapted from https://stackoverflow.com/a/55912127/1886371
+template<size_t Bits, typename T> inline T sign_extend(const T &v) noexcept {
+  using S = struct { signed Val : Bits; };
+  return reinterpret_cast<const S *>(&v)->Val;
+}
+
+// Register types
+// unsigned 8-bit (uint8_t)
+// signed 10-bit - 16-bit ZP on wire (int16_t, needs sign extension)
+// unsigned 16-bit (uint16_t)
+// unsigned 20-bit - 32-bit ZP on wire (uint32_t)
+// signed 24-bit - 32-bit ZPSE on wire (int32_t, needs sign extension)
+// signed 24-bit - 32-bit ZP on wire (int32_t, needs sign extension)
+// signed 24-bit - 32-bit SE on wire (int32_t)
+// signed 28-bit - 32-bit ZP on wire (int32_t, needs sign extension)
+// unsigned 32-bit (uint32_t)
+// signed 32-bit (int32_t)
+
+int32_t ADE7880::read_s24zp_register16_(uint16_t a_register) {
+  // s24zp means 24 bit signed value in the lower 24 bits of a 32-bit register
+  int32_t in = this->read_s32_register16(a_register);
+  return sign_extend<24>(in);
+}
+
+void ADE7880::write_s10zp_register16_(uint16_t a_register, int16_t value) {
+  this->write_s16_register16(a_register, value & 0x03FF);
+}
+
+void ADE7880::write_s24zpse_register16_(uint16_t a_register, int32_t value) {
+  // s24zpse means a 24-bit signed value, sign-extended to 28 bits, in the lower 28 bits of a 32-bit register
+  this->write_s32_register16(a_register, value & 0x0FFFFFFF);
+}
+
+}  // namespace ade7880_base
 }  // namespace esphome

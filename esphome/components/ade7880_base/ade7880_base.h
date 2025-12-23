@@ -11,13 +11,12 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
 
 #include "ade7880_registers.h"
 
 namespace esphome {
-namespace ade7880 {
+namespace ade7880_base {
 
 struct NeutralChannel {
   void set_current(sensor::Sensor *sens) { this->current = sens; }
@@ -66,7 +65,7 @@ struct ADE7880Store {
   static void gpio_intr(ADE7880Store *arg);
 };
 
-class ADE7880 : public i2c::I2CDevice, public PollingComponent {
+class ADE7880 : public PollingComponent {
  public:
   void set_irq0_pin(InternalGPIOPin *pin) { this->irq0_pin_ = pin; }
   void set_irq1_pin(InternalGPIOPin *pin) { this->irq1_pin_ = pin; }
@@ -110,20 +109,21 @@ class ADE7880 : public i2c::I2CDevice, public PollingComponent {
 
   void reset_device_();
 
-  uint8_t read_u8_register16_(uint16_t a_register);
-  int16_t read_s16_register16_(uint16_t a_register);
-  uint16_t read_u16_register16_(uint16_t a_register);
+  virtual uint8_t read_u8_register16(uint16_t a_register) = 0;
+  virtual int16_t read_s16_register16(uint16_t a_register) = 0;
+  virtual uint16_t read_u16_register16(uint16_t a_register) = 0;
   int32_t read_s24zp_register16_(uint16_t a_register);
-  int32_t read_s32_register16_(uint16_t a_register);
-  uint32_t read_u32_register16_(uint16_t a_register);
+  virtual int32_t read_s32_register16(uint16_t a_register) = 0;
+  virtual uint32_t read_u32_register16(uint16_t a_register) = 0;
 
-  void write_u8_register16_(uint16_t a_register, uint8_t value);
+  virtual void write_u8_register16(uint16_t a_register, uint8_t value) = 0;
   void write_s10zp_register16_(uint16_t a_register, int16_t value);
-  void write_u16_register16_(uint16_t a_register, uint16_t value);
+  virtual void write_s16_register16(uint16_t a_register, int16_t value) = 0;
+  virtual void write_u16_register16(uint16_t a_register, uint16_t value) = 0;
   void write_s24zpse_register16_(uint16_t a_register, int32_t value);
-  void write_s32_register16_(uint16_t a_register, int32_t value);
-  void write_u32_register16_(uint16_t a_register, uint32_t value);
+  virtual void write_s32_register16(uint16_t a_register, int32_t value) = 0;
+  virtual void write_u32_register16(uint16_t a_register, uint32_t value) = 0;
 };
 
-}  // namespace ade7880
+}  // namespace ade7880_base
 }  // namespace esphome

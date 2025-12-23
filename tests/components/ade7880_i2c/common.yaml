@@ -4,7 +4,7 @@ i2c:
     sda: ${sda_pin}
 
 sensor:
-  - platform: ade7880
+  - platform: ade7880_i2c
     i2c_id: i2c_ade7880
     irq0_pin: ${irq0_pin}
     irq1_pin: ${irq1_pin}

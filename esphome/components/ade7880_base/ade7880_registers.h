@@ -5,7 +5,7 @@
 // Source: https://www.analog.com/media/en/technical-documentation/application-notes/AN-1127.pdf
 
 namespace esphome {
-namespace ade7880 {
+namespace ade7880_base {
 
 // DSP Data Memory RAM registers
 constexpr uint16_t AIGAIN = 0x4380;
@@ -239,5 +239,5 @@ constexpr uint8_t DSPWP_SET_RO = (1 << 7);
 // DSPWP_SEL Register Bits
 constexpr uint8_t DSPWP_SEL_SET = 0xAD;
 
-}  // namespace ade7880
+}  // namespace ade7880_base
 }  // namespace esphome
