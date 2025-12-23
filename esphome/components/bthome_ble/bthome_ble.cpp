@@ -108,11 +108,7 @@ bool BTHomeBLE::handle_service_data_(const esp32_ble_tracker::ServiceData &servi
   while (offset < data.size()) {
     const uint8_t obj_type = data[offset++];
     size_t value_length = 0;
-    bool has_length_byte = false;
-
-    if (obj_type == 0x53) {
-      has_length_byte = true;
-    }
+    bool has_length_byte = obj_type == 0x53;  // text sensor includes explicit length
 
     if (has_length_byte) {
       if (offset >= data.size()) {
@@ -121,26 +117,33 @@ bool BTHomeBLE::handle_service_data_(const esp32_ble_tracker::ServiceData &servi
       value_length = data[offset++];
     } else {
       switch (obj_type) {
-        case 0x00:
-        case 0x01:
-        case 0x15:
+        case 0x00:  // packet id
+        case 0x01:  // battery percentage
           value_length = 1;
           break;
-        case 0x02:
-        case 0x03:
+        case 0x02:  // temperature
+        case 0x03:  // humidity
           value_length = 2;
           break;
-        case 0xF1:
+        case 0xF1:  // firmware version uint32
           value_length = 4;
           break;
-        case 0xF2:
+        case 0xF2:  // firmware version uint24
           value_length = 3;
           break;
         default:
-          // Unknown type, stop parsing to avoid misalignment
-          ESP_LOGVV(TAG, "Unknown BTHome object 0x%02X", obj_type);
-          return reported;
+          if (obj_type >= 0x0F && obj_type <= 0x2D) {
+            // All defined BTHome binary sensor object IDs are single-byte booleans.
+            value_length = 1;
+          } else {
+            ESP_LOGVV(TAG, "Unknown BTHome object 0x%02X", obj_type);
+            break;
+          }
       }
+    }
+
+    if (value_length == 0) {
+      break;
     }
 
     if (offset + value_length > data.size()) {
