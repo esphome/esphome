@@ -117,7 +117,7 @@ std::string PrometheusHandler::relabel_id_(EntityBase *obj) {
   }
   char object_id_buf[OBJECT_ID_MAX_LEN];
   StringRef object_id = obj->get_object_id_to(object_id_buf);
-  return std::string(object_id.c_str());
+  return object_id.str();
 }
 
 std::string PrometheusHandler::relabel_name_(EntityBase *obj) {
