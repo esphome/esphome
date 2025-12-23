@@ -70,6 +70,34 @@ def fnv1a_32bit_hash(string: str) -> int:
     return hash_value
 
 
+def fnv1_hash_object_id(name: str) -> int:
+    """Compute FNV-1 hash of name with snake_case + sanitize transformations.
+
+    IMPORTANT: This must match the C++ fnv1_hash_object_id() in esphome/core/helpers.h.
+    If you modify this function, update the C++ version and tests in both places.
+
+    Used for pre-computing entity object_id hashes at code generation time.
+    """
+    hash_value = 2166136261  # FNV1_OFFSET_BASIS
+    for char in name:
+        # Apply snake_case: space -> underscore, uppercase -> lowercase
+        if char == " ":
+            c = "_"
+        elif "A" <= char <= "Z":
+            c = chr(ord(char) + 32)  # lowercase
+        else:
+            c = char
+        # Apply sanitize: keep alphanumerics, dash, underscore; replace others with _
+        if not (
+            c in {"-", "_"} or "0" <= c <= "9" or "a" <= c <= "z" or "A" <= c <= "Z"
+        ):
+            c = "_"
+        # FNV-1: multiply then XOR
+        hash_value = (hash_value * 16777619) & 0xFFFFFFFF
+        hash_value ^= ord(c)
+    return hash_value
+
+
 def strip_accents(value: str) -> str:
     """Remove accents from a string."""
     import unicodedata
