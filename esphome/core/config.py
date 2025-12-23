@@ -209,7 +209,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NAME): cv.valid_name,
             cv.Optional(CONF_FRIENDLY_NAME, ""): cv.All(cv.string, cv.Length(max=120)),
             cv.Optional(CONF_AREA): validate_area_config,
-            cv.Optional(CONF_COMMENT): cv.string,
+            cv.Optional(CONF_COMMENT): cv.All(cv.string, cv.Length(max=255)),
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
                 {
@@ -505,7 +505,6 @@ async def to_code(config: ConfigType) -> None:
         cg.App.pre_setup(
             config[CONF_NAME],
             config[CONF_FRIENDLY_NAME],
-            config.get(CONF_COMMENT, ""),
             config[CONF_NAME_ADD_MAC_SUFFIX],
         )
     )
