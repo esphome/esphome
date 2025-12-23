@@ -276,12 +276,17 @@ def extract_object_id_from_expressions(expressions: list[str]) -> str | None:
 
     Since object_id is now computed from the name (via snake_case + sanitize),
     we extract the name from set_name() calls and compute the expected object_id.
+    For empty names, we fall back to CORE.friendly_name or CORE.name.
     """
     for expr in expressions:
         if match := SET_NAME_PATTERN.search(expr):
             name = match.group(1)
-            # Compute object_id the same way as get_base_entity_object_id
-            return sanitize(snake_case(name)) if name else None
+            if name:
+                return sanitize(snake_case(name))
+            # Empty name - fall back to friendly_name or device name
+            if CORE.friendly_name:
+                return sanitize(snake_case(CORE.friendly_name))
+            return sanitize(snake_case(CORE.name)) if CORE.name else None
     return None
 
 
