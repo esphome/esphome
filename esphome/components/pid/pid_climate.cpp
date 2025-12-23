@@ -165,7 +165,7 @@ void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
   this->autotuner_->config(min_value, max_value);
   char object_id_buf[OBJECT_ID_MAX_LEN];
   StringRef object_id = this->get_object_id_to(object_id_buf);
-  this->autotuner_->set_autotuner_id(std::string(object_id.c_str()));
+  this->autotuner_->set_autotuner_id(object_id.str());
 
   ESP_LOGI(TAG,
            "%s: Autotune has started. This can take a long time depending on the "
