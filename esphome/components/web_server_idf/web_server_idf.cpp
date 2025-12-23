@@ -256,8 +256,10 @@ std::string AsyncWebServerRequest::url() const {
   }
   // Decode URL-encoded characters in-place (e.g., %20 -> space)
   // This matches AsyncWebServer behavior on Arduino
-  size_t new_len = url_decode(&result[0]);
-  result.resize(new_len);
+  if (!result.empty()) {
+    size_t new_len = url_decode(&result[0]);
+    result.resize(new_len);
+  }
   return result;
 }
 
