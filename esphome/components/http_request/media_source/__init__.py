@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import media_source
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 from .. import CONF_HTTP_REQUEST_ID, HttpRequestComponent, http_request_ns
 
@@ -15,7 +16,17 @@ HTTPMediaSource = http_request_ns.class_(
 CONF_BUFFER_SIZE = "buffer_size"
 CONF_TASK_STACK_IN_PSRAM = "task_stack_in_psram"
 
-CONFIG_SCHEMA = (
+
+def _consume_http_source_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for http_request media_source component."""
+    from esphome.components import socket
+
+    # http_request media_source supports two simultaneous sockets
+    socket.consume_sockets(2, "http_request_media_source")(config)
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     media_source.media_source_schema(
         HTTPMediaSource,
         media_player=False,
@@ -29,7 +40,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.boolean,
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    _consume_http_source_sockets,
 )
 
 
