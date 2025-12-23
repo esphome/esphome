@@ -141,9 +141,6 @@ class ModbusClientDevice {
   uint8_t address_;
 };
 
-// This is for compatibility with external components using the former class name
-class ModbusDevice : public ModbusClientDevice {};
-
 struct ModbusServerResponse {
   ModbusExceptionCode exception;
   std::vector<uint8_t> payload;
