@@ -36,6 +36,12 @@ extern const size_t ESPHOME_WEBSERVER_JS_INCLUDE_SIZE;
 namespace esphome {
 namespace web_server {
 
+/// Result of matching a URL against an entity
+struct EntityMatchResult {
+  bool matched;          ///< True if entity matched the URL
+  bool action_is_empty;  ///< True if no action in URL (or action field was used as entity name for 2-seg subdevice)
+};
+
 /// Internal helper struct that is used to parse incoming URLs
 /// Note: Length fields use uint8_t, so NAME_MAX_LENGTH in config_validation.py must stay < 255
 struct UrlMatch {
@@ -50,7 +56,6 @@ struct UrlMatch {
   uint8_t method_len;  ///< Length of method string
 #ifdef USE_DEVICES
   uint8_t device_name_len;  ///< Length of device name string (NAME_MAX_LENGTH must be < 255)
-  mutable bool matched_as_two_segment_subdevice{false};  ///< Set when 2-segment URL matched as device/entity
 #endif
   bool valid;  ///< Whether this match is valid
 
@@ -62,76 +67,12 @@ struct UrlMatch {
   /// Check if URL id segment matches a string (by pointer and length)
   bool id_matches(const char *str, size_t len) const { return id && id_len == len && memcmp(id, str, len) == 0; }
 
-  /// Match entity by name first, then fall back to object_id for backward compatibility
-  /// Returns true if entity matches. Sets used_deprecated_format to true if matched via object_id.
-  bool matches_entity(EntityBase *entity, bool &used_deprecated_format) const {
-    used_deprecated_format = false;
-
-#ifdef USE_DEVICES
-    // Check device match
-    Device *entity_device = entity->get_device();
-    bool url_has_device = (device_name_len > 0);
-    bool entity_has_device = (entity_device != nullptr);
-
-    if (url_has_device) {
-      // URL has explicit device segment - must match
-      if (!entity_has_device) {
-        return false;  // URL has device but entity doesn't
-      }
-      const char *entity_device_name = entity_device->get_name();
-      if (device_name_len != strlen(entity_device_name) ||
-          memcmp(device_name, entity_device_name, device_name_len) != 0) {
-        return false;  // Device name doesn't match
-      }
-    } else if (entity_has_device && method_len > 0) {
-      // URL has 2 segments (id/method), entity has device
-      // Try interpreting as device/entity: id=device_name, method=entity_name
-      const char *entity_device_name = entity_device->get_name();
-      if (id_len == strlen(entity_device_name) && memcmp(id, entity_device_name, id_len) == 0) {
-        // Device name matches, check if method matches entity name
-        const StringRef &name_ref = entity->get_name();
-        if (method_len == name_ref.size() && memcmp(method, name_ref.c_str(), method_len) == 0) {
-          matched_as_two_segment_subdevice = true;  // Mark for method_empty() check
-          return true;                              // Matched as device/entity (2-segment sub-device URL)
-        }
-      }
-      return false;  // Entity has device but URL doesn't match as device/entity
-    } else if (entity_has_device) {
-      return false;  // Entity has device but URL has no device info
-    }
-#endif
-
-    // Try matching by entity name first (new format)
-    const StringRef &name_ref = entity->get_name();
-    if (id_matches(name_ref.c_str(), name_ref.size())) {
-      return true;
-    }
-
-    // Fall back to object_id (deprecated format)
-    char object_id_buf[OBJECT_ID_MAX_LEN];
-    StringRef object_id = entity->get_object_id_to(object_id_buf);
-    if (id_matches(object_id.c_str(), object_id.size())) {
-      used_deprecated_format = true;
-      return true;
-    }
-
-    return false;
-  }
-
   /// Match entity by name first, then fall back to object_id with deprecation warning
-  bool id_equals_entity(EntityBase *entity) const;
+  /// Returns EntityMatchResult with match status and whether method is effectively empty
+  EntityMatchResult match_entity(EntityBase *entity) const;
 
   bool method_equals(const char *str) const {
     return method && method_len == strlen(str) && memcmp(method, str, method_len) == 0;
-  }
-
-  bool method_empty() const {
-#ifdef USE_DEVICES
-    // For 2-segment sub-device URLs, method field contains entity name, not actual method
-    if (matched_as_two_segment_subdevice)
-      return true;
-#endif
-    return method_len == 0;
   }
 };
 
