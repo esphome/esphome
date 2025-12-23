@@ -108,10 +108,7 @@ struct UrlMatch {
     return method && method_len == strlen(str) && memcmp(method, str, method_len) == 0;
   }
 
-  /// Check if method is empty or "state" (for backward compatibility with old frontends)
-  /// Old frontends send /{domain}/{entity}/state for GET requests, so "state" is treated as no action.
-  /// This is safe because no ESPHome entity type has a "state" action - actions are like "turn_on", "toggle", etc.
-  bool method_empty() const { return method_len == 0 || this->method_equals("state"); }
+  bool method_empty() const { return method_len == 0; }
 };
 
 #ifdef USE_WEBSERVER_SORTING
