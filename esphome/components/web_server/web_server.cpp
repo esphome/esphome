@@ -148,7 +148,7 @@ bool UrlMatch::id_equals_entity(EntityBase *entity) const {
     // Log deprecation warning when old object_id URL format is used
     ESP_LOGW(TAG,
              "Deprecated URL format: /%.*s/%.*s - use entity name '/%.*s/%s' instead. "
-             "Object ID URLs will be removed in a future release.",
+             "Object ID URLs will be removed in 2026.7.0.",
              this->domain_len, this->domain, this->id_len, this->id, this->domain_len, this->domain,
              entity->get_name().c_str());
   }
