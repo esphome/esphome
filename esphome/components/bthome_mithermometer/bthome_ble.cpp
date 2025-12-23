@@ -149,9 +149,8 @@ bool BTHomeMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &dev
   return matched;
 }
 
-bool BTHomeMiThermometer::handle_service_data_(
-    const esp32_ble_tracker::ServiceData &service_data,
-    const esp32_ble_tracker::ESPBTDevice &device) {
+bool BTHomeMiThermometer::handle_service_data_(const esp32_ble_tracker::ServiceData &service_data,
+                                               const esp32_ble_tracker::ESPBTDevice &device) {
   if (!service_data.uuid.contains(0xD2, 0xFC)) {
     return false;
   }
@@ -287,8 +286,7 @@ bool BTHomeMiThermometer::handle_service_data_(
   }
 
   if (reported) {
-    ESP_LOGD(TAG, "BTHome data%sfrom %s", is_trigger_based ? " (triggered) " : " ",
-             device.address_str().c_str());
+    ESP_LOGD(TAG, "BTHome data%sfrom %s", is_trigger_based ? " (triggered) " : " ", device.address_str().c_str());
   }
 
   return reported;

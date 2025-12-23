@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import esp32_ble_tracker, sensor
+from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
@@ -21,7 +21,7 @@ from esphome.const import (
     UNIT_VOLT,
 )
 
-from . import BTHomeMiThermometer, bthome_mithermometer_base_schema, setup_bthome_mithermometer
+from . import bthome_mithermometer_base_schema, setup_bthome_mithermometer
 
 CODEOWNERS = ["@esphome/core"]
 

@@ -12,9 +12,7 @@ BLE_DEVICE_SCHEMA = cv.Schema(
     {
         cv.Optional(
             esp32_ble_tracker.CONF_ESP32_BLE_ID, default=DEFAULT_ESP32_BLE_ID
-        ): cv.use_id(
-            esp32_ble_tracker.ESP32BLETracker
-        ),
+        ): cv.use_id(esp32_ble_tracker.ESP32BLETracker),
     }
 )
 
@@ -43,8 +41,6 @@ def bthome_mithermometer_base_schema(extra_schema=None):
 async def setup_bthome_mithermometer(var, config):
     await cg.register_component(var, config)
     tracker_config = dict(config)
-    tracker_config.setdefault(
-        esp32_ble_tracker.CONF_ESP32_BLE_ID, DEFAULT_ESP32_BLE_ID
-    )
+    tracker_config.setdefault(esp32_ble_tracker.CONF_ESP32_BLE_ID, DEFAULT_ESP32_BLE_ID)
     await esp32_ble_tracker.register_ble_device(var, tracker_config)
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
