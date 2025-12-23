@@ -33,6 +33,15 @@ class EntityBase {
   bool has_own_name() const { return this->flags_.has_own_name; }
 
   // Get the sanitized name of this Entity as an ID.
+  // Deprecated: object_id mangles names and all object_id methods are planned for removal.
+  // See https://github.com/esphome/backlog/issues/76
+  // Now is the time to stop using object_id entirely. If you still need it temporarily,
+  // use get_object_id_to() which will remain available longer but will also eventually be removed.
+  ESPDEPRECATED("object_id mangles names and all object_id methods are planned for removal "
+                "(see https://github.com/esphome/backlog/issues/76). "
+                "Now is the time to stop using object_id. If still needed, use get_object_id_to() "
+                "which will remain available longer. get_object_id() will be removed in 2026.7.0",
+                "2025.12.0")
   std::string get_object_id() const;
   void set_object_id(const char *object_id);
 
