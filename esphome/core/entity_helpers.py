@@ -96,7 +96,7 @@ async def setup_entity(var: MockObj, config: ConfigType, platform: str) -> None:
         if device_name:
             # Entity on sub-device - use device name
             base_name = device_name
-        elif CORE.config.get("name_add_mac_suffix", False):
+        elif CORE.config and CORE.config.get("name_add_mac_suffix", False):
             # MAC suffix enabled - OLD behavior used friendly_name directly (even if empty)
             # This is bug-for-bug compatibility
             base_name = CORE.friendly_name or ""
