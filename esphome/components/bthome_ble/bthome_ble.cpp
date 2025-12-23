@@ -4,7 +4,6 @@
 #include "esphome/core/log.h"
 
 #include <array>
-#include <cstdio>
 
 #ifdef USE_ESP32
 
@@ -31,8 +30,6 @@ void BTHomeBLE::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
   LOG_SENSOR("  ", "Signal Strength", this->signal_strength_);
-  LOG_BINARY_SENSOR("  ", "Battery Low", this->battery_low_);
-  LOG_TEXT_SENSOR("  ", "Firmware", this->firmware_);
 }
 
 bool BTHomeBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -108,7 +105,7 @@ bool BTHomeBLE::handle_service_data_(const esp32_ble_tracker::ServiceData &servi
   while (offset < data.size()) {
     const uint8_t obj_type = data[offset++];
     size_t value_length = 0;
-    bool has_length_byte = obj_type == 0x53;  // text sensor includes explicit length
+    bool has_length_byte = obj_type == 0x53;  // text objects include explicit length
 
     if (has_length_byte) {
       if (offset >= data.size()) {
@@ -187,36 +184,6 @@ bool BTHomeBLE::handle_service_data_(const esp32_ble_tracker::ServiceData &servi
         if (this->humidity_ != nullptr) {
           const uint16_t raw = encode_uint16(value[1], value[0]);
           this->humidity_->publish_state(raw * 0.01f);
-          reported = true;
-        }
-        break;
-      }
-      case 0x15: {  // battery low binary sensor
-        if (this->battery_low_ != nullptr) {
-          this->battery_low_->publish_state(value[0] != 0);
-          reported = true;
-        }
-        break;
-      }
-      case 0x53: {  // text
-        if (this->firmware_ != nullptr) {
-          std::string text_value(reinterpret_cast<const char *>(value), value_length);
-          this->firmware_->publish_state(text_value);
-          reported = true;
-        }
-        break;
-      }
-      case 0xF1:
-      case 0xF2: {  // firmware version (custom)
-        if (this->firmware_ != nullptr && value_length >= 3 && value_length <= 4) {
-          const uint8_t major = value[value_length - 1];
-          const uint8_t minor = value[value_length - 2];
-          const uint8_t patch = value[0];
-          const uint8_t build = value_length == 4 ? value[1] : 0;
-
-          char buffer[16];
-          snprintf(buffer, sizeof(buffer), "%u.%u.%u.%u", major, minor, patch, build);
-          this->firmware_->publish_state(buffer);
           reported = true;
         }
         break;

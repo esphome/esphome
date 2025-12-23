@@ -2,8 +2,6 @@
 
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/component.h"
 
 #include <cstdint>
@@ -20,8 +18,6 @@ class BTHomeBLE : public esp32_ble_tracker::ESPBTDeviceListener, public Componen
   void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { this->humidity_ = humidity; }
   void set_battery_level(sensor::Sensor *battery_level) { this->battery_level_ = battery_level; }
-  void set_battery_low(binary_sensor::BinarySensor *battery_low) { this->battery_low_ = battery_low; }
-  void set_firmware(text_sensor::TextSensor *firmware) { this->firmware_ = firmware; }
   void set_signal_strength(sensor::Sensor *signal_strength) { this->signal_strength_ = signal_strength; }
 
   void dump_config() override;
@@ -38,8 +34,6 @@ class BTHomeBLE : public esp32_ble_tracker::ESPBTDeviceListener, public Componen
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
   sensor::Sensor *signal_strength_{nullptr};
-  binary_sensor::BinarySensor *battery_low_{nullptr};
-  text_sensor::TextSensor *firmware_{nullptr};
 };
 
 }  // namespace bthome_ble

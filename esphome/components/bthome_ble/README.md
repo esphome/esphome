@@ -29,20 +29,6 @@ sensor:
       name: "BTHome Battery"
     signal_strength:
       name: "BTHome RSSI"
-
-binary_sensor:
-  - platform: bthome_ble
-    mac_address: AA:BB:CC:DD:EE:FF
-    esp32_ble_id: ble_tracker
-    battery:
-      name: "BTHome Battery Low"
-
-text_sensor:
-  - platform: bthome_ble
-    mac_address: AA:BB:CC:DD:EE:FF
-    esp32_ble_id: ble_tracker
-    firmware_version:
-      name: "BTHome Firmware"
 ```
 
 Replace the `mac_address` value with the address of your BTHome device. Configure the sensors you want to expose; any omitted sensors are simply not created. Setting an explicit `esp32_ble_id` on each platform entry ties the BTHome entities to the tracker declared above and avoids ID resolution errors during validation.
