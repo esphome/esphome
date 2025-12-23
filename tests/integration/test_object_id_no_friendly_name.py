@@ -85,6 +85,35 @@ async def test_object_id_no_friendly_name_with_mac_suffix(
         assert len(named_entities) == 1
         assert named_entities[0].object_id == "temperature"
 
+        # Verify the full algorithm from PR summary works for ALL entities
+        # NOTE: `name_add_mac_suffix` needs to be added to DeviceInfoResponse.
+        # For now, we infer it from the device name ending with MAC suffix.
+        mac_suffix = device_info.mac_address.replace(":", "")[-6:].lower()
+        name_add_mac_suffix = device_info.name.endswith(f"-{mac_suffix}")
+
+        for entity in entities:
+            if entity.name:
+                name_for_id = entity.name
+            elif name_add_mac_suffix:
+                # MAC suffix enabled: use friendly_name directly (even if empty)
+                name_for_id = device_info.friendly_name
+            elif device_info.friendly_name:
+                name_for_id = device_info.friendly_name
+            else:
+                name_for_id = device_info.name
+
+            computed_object_id = compute_expected_object_id(name_for_id)
+            assert entity.object_id == computed_object_id, (
+                f"Algorithm failed for entity '{entity.name}': "
+                f"expected '{computed_object_id}', got '{entity.object_id}'"
+            )
+
+            computed_hash = fnv1_hash_object_id(name_for_id)
+            assert entity.key == computed_hash, (
+                f"Algorithm hash failed for entity '{entity.name}': "
+                f"expected {computed_hash:#x}, got {entity.key:#x}"
+            )
+
 
 @pytest.mark.asyncio
 async def test_object_id_no_friendly_name_no_mac_suffix(
@@ -136,3 +165,33 @@ async def test_object_id_no_friendly_name_no_mac_suffix(
         named_entities = [e for e in entities if e.name == "Temperature"]
         assert len(named_entities) == 1
         assert named_entities[0].object_id == "temperature"
+
+        # Verify the full algorithm from PR summary works for ALL entities
+        # NOTE: `name_add_mac_suffix` needs to be added to DeviceInfoResponse.
+        # For now, we infer it from the device name ending with MAC suffix.
+        mac_suffix = device_info.mac_address.replace(":", "")[-6:].lower()
+        name_add_mac_suffix = device_info.name.endswith(f"-{mac_suffix}")
+
+        for entity in entities:
+            if entity.name:
+                name_for_id = entity.name
+            elif name_add_mac_suffix:
+                # MAC suffix enabled: use friendly_name directly (even if empty)
+                name_for_id = device_info.friendly_name
+            elif device_info.friendly_name:
+                name_for_id = device_info.friendly_name
+            else:
+                # No MAC suffix, no friendly_name: use device name
+                name_for_id = device_info.name
+
+            computed_object_id = compute_expected_object_id(name_for_id)
+            assert entity.object_id == computed_object_id, (
+                f"Algorithm failed for entity '{entity.name}': "
+                f"expected '{computed_object_id}', got '{entity.object_id}'"
+            )
+
+            computed_hash = fnv1_hash_object_id(name_for_id)
+            assert entity.key == computed_hash, (
+                f"Algorithm hash failed for entity '{entity.name}': "
+                f"expected {computed_hash:#x}, got {entity.key:#x}"
+            )

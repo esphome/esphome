@@ -175,30 +175,42 @@ async def test_object_id_api_verification(
             )
 
         # === Test 3: Verify ALL entities can have object_id computed from API data ===
-        # This is the key property for removing object_id from the API protocol
+        # This uses the algorithm from the PR summary that aioesphomeapi will use.
+        # NOTE: `name_add_mac_suffix` needs to be added to DeviceInfoResponse.
+        # For now, we infer it from the device name ending with MAC suffix.
+        mac_suffix = device_info.mac_address.replace(":", "")[-6:].lower()
+        name_add_mac_suffix = device_info.name.endswith(f"-{mac_suffix}")
+
         for entity in entities:
             if entity.name:
-                # Named entity - use entity name
-                name_for_object_id = entity.name
-            elif entity.device_id == 0:
-                # Empty name on main device - use friendly_name
-                name_for_object_id = device_info.friendly_name
+                # Named entity: use entity name
+                name_for_id = entity.name
+            elif entity.device_id != 0:
+                # Empty name on sub-device: use sub-device name
+                name_for_id = device_id_to_name[entity.device_id]
+            elif name_add_mac_suffix:
+                # Empty name on main device with MAC suffix: use friendly_name directly
+                # (even if empty - this is bug-for-bug compatibility)
+                name_for_id = device_info.friendly_name
+            elif device_info.friendly_name:
+                # Empty name on main device with friendly_name set: use it
+                name_for_id = device_info.friendly_name
             else:
-                # Empty name on sub-device - use device name
-                name_for_object_id = device_id_to_name[entity.device_id]
+                # Empty name on main device, no friendly_name: use device name
+                name_for_id = device_info.name
 
             # Compute object_id from the appropriate name
-            computed_object_id = compute_expected_object_id(name_for_object_id)
+            computed_object_id = compute_expected_object_id(name_for_id)
 
             # Verify it matches what the API returned
             assert entity.object_id == computed_object_id, (
                 f"Entity (name='{entity.name}', device_id={entity.device_id}): "
                 f"object_id cannot be computed. "
-                f"API: '{entity.object_id}', Computed from '{name_for_object_id}': '{computed_object_id}'"
+                f"API: '{entity.object_id}', Computed from '{name_for_id}': '{computed_object_id}'"
             )
 
             # Verify hash can also be computed
-            computed_hash = fnv1_hash_object_id(name_for_object_id)
+            computed_hash = fnv1_hash_object_id(name_for_id)
             assert entity.key == computed_hash, (
                 f"Entity (name='{entity.name}', device_id={entity.device_id}): "
                 f"hash cannot be computed. "
