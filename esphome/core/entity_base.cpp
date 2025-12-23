@@ -78,11 +78,7 @@ size_t EntityBase::write_object_id_to(char *buf, size_t buf_size) const {
 }
 
 StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) const {
-  size_t len = std::min(this->name_.size(), buf.size() - 1);
-  for (size_t i = 0; i < len; i++) {
-    buf[i] = to_sanitized_char(to_snake_case_char(this->name_[i]));
-  }
-  buf[len] = '\0';
+  size_t len = this->write_object_id_to(buf.data(), buf.size());
   return StringRef(buf.data(), len);
 }
 
