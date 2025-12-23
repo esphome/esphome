@@ -117,17 +117,6 @@ static constexpr uint16_t MAX_HEADER_SIZE = 128;
 // "0x" + 2 hex digits per byte + '\0'
 static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
 
-// Platform-specific: does write_msg_ add its own newline?
-// false: Caller must add newline to buffer before calling write_msg_ (ESP32, ESP8266, RP2040, LibreTiny, Zephyr)
-//        Allows single write call with newline included for efficiency
-// true:  write_msg_ adds newline itself via puts()/println() (other platforms)
-//        Newline should NOT be added to buffer
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-static constexpr bool WRITE_MSG_ADDS_NEWLINE = false;
-#else
-static constexpr bool WRITE_MSG_ADDS_NEWLINE = true;
-#endif
-
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 /** Enum for logging UART selection
  *
@@ -259,22 +248,20 @@ class Logger : public Component {
     }
   }
 
-  // Helper to add newline to buffer for platforms that need it
+  // Helper to add newline to buffer before writing to console
   // Modifies buffer_at to include the newline
-  inline void HOT add_newline_to_buffer_if_needed_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
-    if constexpr (!WRITE_MSG_ADDS_NEWLINE) {
-      // Add newline - don't need to maintain null termination
-      // write_msg_ now always receives explicit length, so we can safely overwrite the null terminator
-      // This is safe because:
-      // 1. Callbacks already received the message (before we add newline)
-      // 2. write_msg_ receives the length explicitly (doesn't need null terminator)
-      if (*buffer_at < buffer_size) {
-        buffer[(*buffer_at)++] = '\n';
-      } else if (buffer_size > 0) {
-        // Buffer was full - replace last char with newline to ensure it's visible
-        buffer[buffer_size - 1] = '\n';
-        *buffer_at = buffer_size;
-      }
+  inline void HOT add_newline_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
+    // Add newline - don't need to maintain null termination
+    // write_msg_ receives explicit length, so we can safely overwrite the null terminator
+    // This is safe because:
+    // 1. Callbacks already received the message (before we add newline)
+    // 2. write_msg_ receives the length explicitly (doesn't need null terminator)
+    if (*buffer_at < buffer_size) {
+      buffer[(*buffer_at)++] = '\n';
+    } else if (buffer_size > 0) {
+      // Buffer was full - replace last char with newline to ensure it's visible
+      buffer[buffer_size - 1] = '\n';
+      *buffer_at = buffer_size;
     }
   }
 
@@ -283,7 +270,7 @@ class Logger : public Component {
   inline void HOT write_tx_buffer_to_console_(uint16_t offset = 0, uint16_t *length = nullptr) {
     if (this->baud_rate_ > 0) {
       uint16_t *len_ptr = length ? length : &this->tx_buffer_at_;
-      this->add_newline_to_buffer_if_needed_(this->tx_buffer_ + offset, len_ptr, this->tx_buffer_size_ - offset);
+      this->add_newline_to_buffer_(this->tx_buffer_ + offset, len_ptr, this->tx_buffer_size_ - offset);
       this->write_msg_(this->tx_buffer_ + offset, *len_ptr);
     }
   }
