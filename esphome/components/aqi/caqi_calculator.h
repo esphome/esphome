@@ -1,12 +1,11 @@
 #pragma once
-#include <climits>
+
+#include "esphome/core/log.h"
 #include "abstract_aqi_calculator.h"
-// https://document.airnow.gov/technical-assistance-document-for-the-reporting-of-daily-air-quailty.pdf
 
-namespace esphome {
-namespace hm3301 {
+namespace esphome::aqi {
 
-class AQICalculator : public AbstractAQICalculator {
+class CAQICalculator : public AbstractAQICalculator {
  public:
   uint16_t get_aqi(uint16_t pm2_5_value, uint16_t pm10_0_value) override {
     int pm2_5_index = calculate_index_(pm2_5_value, pm2_5_calculation_grid_);
@@ -16,18 +15,20 @@ class AQICalculator : public AbstractAQICalculator {
   }
 
  protected:
-  static const int AMOUNT_OF_LEVELS = 6;
+  static const int AMOUNT_OF_LEVELS = 5;
 
-  int index_grid_[AMOUNT_OF_LEVELS][2] = {{0, 50}, {51, 100}, {101, 150}, {151, 200}, {201, 300}, {301, 500}};
+  int index_grid_[AMOUNT_OF_LEVELS][2] = {{0, 25}, {26, 50}, {51, 75}, {76, 100}, {101, 400}};
 
-  int pm2_5_calculation_grid_[AMOUNT_OF_LEVELS][2] = {{0, 9},    {10, 35},   {36, 55},
-                                                      {56, 125}, {126, 225}, {226, INT_MAX}};
+  int pm2_5_calculation_grid_[AMOUNT_OF_LEVELS][2] = {{0, 15}, {16, 30}, {31, 55}, {56, 110}, {111, 400}};
 
-  int pm10_0_calculation_grid_[AMOUNT_OF_LEVELS][2] = {{0, 54},    {55, 154},  {155, 254},
-                                                       {255, 354}, {355, 424}, {425, INT_MAX}};
+  int pm10_0_calculation_grid_[AMOUNT_OF_LEVELS][2] = {{0, 25}, {26, 50}, {51, 90}, {91, 180}, {181, 400}};
 
   int calculate_index_(uint16_t value, int array[AMOUNT_OF_LEVELS][2]) {
     int grid_index = get_grid_index_(value, array);
+    if (grid_index == -1) {
+      return -1;
+    }
+
     int aqi_lo = index_grid_[grid_index][0];
     int aqi_hi = index_grid_[grid_index][1];
     int conc_lo = array[grid_index][0];
@@ -46,5 +47,4 @@ class AQICalculator : public AbstractAQICalculator {
   }
 };
 
-}  // namespace hm3301
-}  // namespace esphome
+}  // namespace esphome::aqi
