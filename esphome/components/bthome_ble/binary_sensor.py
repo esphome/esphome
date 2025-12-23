@@ -1,14 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor, esp32_ble_tracker
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BATTERY,
-    CONF_ID,
-    DEVICE_CLASS_BATTERY,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-)
+from esphome.const import CONF_ID, DEVICE_CLASS_BATTERY, ENTITY_CATEGORY_DIAGNOSTIC
 
 from . import BTHomeBLE, bthome_ble_base_schema, setup_bthome_ble
+
+CONF_BATTERY = "battery"
 
 CODEOWNERS = ["@esphome/core"]
 
