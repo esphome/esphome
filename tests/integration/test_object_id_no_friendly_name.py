@@ -17,8 +17,9 @@ from __future__ import annotations
 
 import pytest
 
-from esphome.helpers import fnv1_hash_object_id, sanitize, snake_case
+from esphome.helpers import fnv1_hash_object_id
 
+from .entity_utils import compute_object_id, verify_all_entities
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # Host platform default MAC: 98:35:69:ab:f6:79 -> suffix "abf679"
@@ -26,11 +27,6 @@ MAC_SUFFIX = "abf679"
 
 # FNV1 offset basis - hash of empty string
 FNV1_OFFSET_BASIS = 2166136261
-
-
-def compute_expected_object_id(name: str) -> str:
-    """Compute expected object_id from name using Python helpers."""
-    return sanitize(snake_case(name))
 
 
 @pytest.mark.asyncio
@@ -85,33 +81,8 @@ async def test_object_id_no_friendly_name_with_mac_suffix(
         assert len(named_entities) == 1
         assert named_entities[0].object_id == "temperature"
 
-        # Verify the full algorithm from PR summary works for ALL entities
-        # Infer name_add_mac_suffix from device name ending with MAC suffix.
-        mac_suffix = device_info.mac_address.replace(":", "")[-6:].lower()
-        name_add_mac_suffix = device_info.name.endswith(f"-{mac_suffix}")
-
-        for entity in entities:
-            if entity.name:
-                name_for_id = entity.name
-            elif name_add_mac_suffix:
-                # MAC suffix enabled: use friendly_name directly (even if empty)
-                name_for_id = device_info.friendly_name
-            elif device_info.friendly_name:
-                name_for_id = device_info.friendly_name
-            else:
-                name_for_id = device_info.name
-
-            computed_object_id = compute_expected_object_id(name_for_id)
-            assert entity.object_id == computed_object_id, (
-                f"Algorithm failed for entity '{entity.name}': "
-                f"expected '{computed_object_id}', got '{entity.object_id}'"
-            )
-
-            computed_hash = fnv1_hash_object_id(name_for_id)
-            assert entity.key == computed_hash, (
-                f"Algorithm hash failed for entity '{entity.name}': "
-                f"expected {computed_hash:#x}, got {entity.key:#x}"
-            )
+        # Verify the full algorithm from entity_utils works for ALL entities
+        verify_all_entities(entities, device_info)
 
 
 @pytest.mark.asyncio
@@ -148,7 +119,7 @@ async def test_object_id_no_friendly_name_no_mac_suffix(
         entity = empty_name_entities[0]
 
         # OLD behavior: object_id was computed from device name
-        expected_object_id = compute_expected_object_id("test-device")
+        expected_object_id = compute_object_id("test-device")
         assert entity.object_id == expected_object_id, (
             f"Expected object_id '{expected_object_id}' from device name, "
             f"got '{entity.object_id}'"
@@ -165,31 +136,5 @@ async def test_object_id_no_friendly_name_no_mac_suffix(
         assert len(named_entities) == 1
         assert named_entities[0].object_id == "temperature"
 
-        # Verify the full algorithm from PR summary works for ALL entities
-        # Infer name_add_mac_suffix from device name ending with MAC suffix.
-        mac_suffix = device_info.mac_address.replace(":", "")[-6:].lower()
-        name_add_mac_suffix = device_info.name.endswith(f"-{mac_suffix}")
-
-        for entity in entities:
-            if entity.name:
-                name_for_id = entity.name
-            elif name_add_mac_suffix:
-                # MAC suffix enabled: use friendly_name directly (even if empty)
-                name_for_id = device_info.friendly_name
-            elif device_info.friendly_name:
-                name_for_id = device_info.friendly_name
-            else:
-                # No MAC suffix, no friendly_name: use device name
-                name_for_id = device_info.name
-
-            computed_object_id = compute_expected_object_id(name_for_id)
-            assert entity.object_id == computed_object_id, (
-                f"Algorithm failed for entity '{entity.name}': "
-                f"expected '{computed_object_id}', got '{entity.object_id}'"
-            )
-
-            computed_hash = fnv1_hash_object_id(name_for_id)
-            assert entity.key == computed_hash, (
-                f"Algorithm hash failed for entity '{entity.name}': "
-                f"expected {computed_hash:#x}, got {entity.key:#x}"
-            )
+        # Verify the full algorithm from entity_utils works for ALL entities
+        verify_all_entities(entities, device_info)

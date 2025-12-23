@@ -25,8 +25,9 @@ from __future__ import annotations
 
 import pytest
 
-from esphome.helpers import fnv1_hash_object_id, sanitize, snake_case
+from esphome.helpers import fnv1_hash_object_id
 
+from .entity_utils import compute_object_id, verify_all_entities
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # Host platform default MAC: 98:35:69:ab:f6:79 -> suffix "abf679"
@@ -60,11 +61,6 @@ SUB_DEVICE_EMPTY_NAME_ENTITIES = [
     ("Sub Device One", "sub_device_one"),
     ("Sub Device Two", "sub_device_two"),
 ]
-
-
-def compute_expected_object_id(name: str) -> str:
-    """Compute expected object_id from name using Python helpers."""
-    return sanitize(snake_case(name))
 
 
 @pytest.mark.asyncio
@@ -120,7 +116,7 @@ async def test_object_id_api_verification(
             )
 
             # Verify Python computation matches
-            computed = compute_expected_object_id(entity_name)
+            computed = compute_object_id(entity_name)
             assert computed == expected_object_id, (
                 f"Entity '{entity_name}': Python computation mismatch. "
                 f"Computed '{computed}', expected '{expected_object_id}'"
@@ -160,7 +156,7 @@ async def test_object_id_api_verification(
                 )
                 expected_name = device_id_to_name[entity.device_id]
 
-            expected_object_id = compute_expected_object_id(expected_name)
+            expected_object_id = compute_object_id(expected_name)
             assert entity.object_id == expected_object_id, (
                 f"Empty-name entity (device_id={entity.device_id}): object_id mismatch. "
                 f"API: '{entity.object_id}', expected: '{expected_object_id}' "
@@ -174,44 +170,7 @@ async def test_object_id_api_verification(
                 f"API key: {entity.key:#x}, expected: {expected_hash:#x}"
             )
 
-        # === Test 3: Verify ALL entities can have object_id computed from API data ===
-        # This uses the algorithm from the PR summary that aioesphomeapi will use.
-        # Infer name_add_mac_suffix from device name ending with MAC suffix.
-        mac_suffix = device_info.mac_address.replace(":", "")[-6:].lower()
-        name_add_mac_suffix = device_info.name.endswith(f"-{mac_suffix}")
-
-        for entity in entities:
-            if entity.name:
-                # Named entity: use entity name
-                name_for_id = entity.name
-            elif entity.device_id != 0:
-                # Empty name on sub-device: use sub-device name
-                name_for_id = device_id_to_name[entity.device_id]
-            elif name_add_mac_suffix:
-                # Empty name on main device with MAC suffix: use friendly_name directly
-                # (even if empty - this is bug-for-bug compatibility)
-                name_for_id = device_info.friendly_name
-            elif device_info.friendly_name:
-                # Empty name on main device with friendly_name set: use it
-                name_for_id = device_info.friendly_name
-            else:
-                # Empty name on main device, no friendly_name: use device name
-                name_for_id = device_info.name
-
-            # Compute object_id from the appropriate name
-            computed_object_id = compute_expected_object_id(name_for_id)
-
-            # Verify it matches what the API returned
-            assert entity.object_id == computed_object_id, (
-                f"Entity (name='{entity.name}', device_id={entity.device_id}): "
-                f"object_id cannot be computed. "
-                f"API: '{entity.object_id}', Computed from '{name_for_id}': '{computed_object_id}'"
-            )
-
-            # Verify hash can also be computed
-            computed_hash = fnv1_hash_object_id(name_for_id)
-            assert entity.key == computed_hash, (
-                f"Entity (name='{entity.name}', device_id={entity.device_id}): "
-                f"hash cannot be computed. "
-                f"API key: {entity.key:#x}, Computed: {computed_hash:#x}"
-            )
+        # === Test 3: Verify ALL entities using the algorithm from entity_utils ===
+        # This uses the algorithm that aioesphomeapi will use to compute object_id
+        # client-side from API data.
+        verify_all_entities(entities, device_info)

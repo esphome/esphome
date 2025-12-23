@@ -11,14 +11,14 @@ from __future__ import annotations
 
 import pytest
 
-from esphome.helpers import fnv1_hash_object_id, sanitize, snake_case
+from esphome.helpers import fnv1_hash_object_id
 
+from .entity_utils import (
+    compute_object_id,
+    infer_name_add_mac_suffix,
+    verify_all_entities,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
-
-
-def compute_expected_object_id(name: str) -> str:
-    """Compute expected object_id from name using Python helpers."""
-    return sanitize(snake_case(name))
 
 
 @pytest.mark.asyncio
@@ -54,7 +54,7 @@ async def test_object_id_friendly_name_no_mac_suffix(
         entity = empty_name_entities[0]
 
         # Should use friendly_name for object_id (Branch 4)
-        expected_object_id = compute_expected_object_id("My Friendly Device")
+        expected_object_id = compute_object_id("My Friendly Device")
         assert expected_object_id == "my_friendly_device"  # Verify our expectation
         assert entity.object_id == expected_object_id, (
             f"Expected object_id '{expected_object_id}' from friendly_name, "
@@ -72,35 +72,10 @@ async def test_object_id_friendly_name_no_mac_suffix(
         assert len(named_entities) == 1
         assert named_entities[0].object_id == "temperature"
 
-        # Verify the full algorithm from PR summary works for ALL entities
-        # Infer name_add_mac_suffix from device name ending with MAC suffix.
-        mac_suffix = device_info.mac_address.replace(":", "")[-6:].lower()
-        name_add_mac_suffix = device_info.name.endswith(f"-{mac_suffix}")
-
         # Verify our inference: no MAC suffix in this test
-        assert not name_add_mac_suffix, "Device name should NOT have MAC suffix"
+        assert not infer_name_add_mac_suffix(device_info), (
+            "Device name should NOT have MAC suffix"
+        )
 
-        for entity in entities:
-            if entity.name:
-                name_for_id = entity.name
-            elif name_add_mac_suffix:
-                # MAC suffix enabled: use friendly_name directly (even if empty)
-                name_for_id = device_info.friendly_name
-            elif device_info.friendly_name:
-                # Branch 4: No MAC suffix, but friendly_name is set
-                name_for_id = device_info.friendly_name
-            else:
-                # No MAC suffix, no friendly_name: use device name
-                name_for_id = device_info.name
-
-            computed_object_id = compute_expected_object_id(name_for_id)
-            assert entity.object_id == computed_object_id, (
-                f"Algorithm failed for entity '{entity.name}': "
-                f"expected '{computed_object_id}', got '{entity.object_id}'"
-            )
-
-            computed_hash = fnv1_hash_object_id(name_for_id)
-            assert entity.key == computed_hash, (
-                f"Algorithm hash failed for entity '{entity.name}': "
-                f"expected {computed_hash:#x}, got {entity.key:#x}"
-            )
+        # Verify the full algorithm from entity_utils works for ALL entities
+        verify_all_entities(entities, device_info)
