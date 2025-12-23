@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_MAC_ADDRESS
 
 DEPENDENCIES = ["esp32_ble_tracker"]
+AUTO_LOAD = ["esp32_ble_tracker"]
 
 bthome_ble_ns = cg.esphome_ns.namespace("bthome_ble")
 BTHomeBLE = bthome_ble_ns.class_(
