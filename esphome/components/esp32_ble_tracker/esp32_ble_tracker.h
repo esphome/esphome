@@ -22,6 +22,10 @@
 #include "esphome/components/esp32_ble/ble_uuid.h"
 #include "esphome/components/esp32_ble/ble_scan_result.h"
 
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
+
 namespace esphome::esp32_ble_tracker {
 
 using namespace esp32_ble;
@@ -241,6 +245,9 @@ class ESP32BLETracker : public Component,
                         public GAPScanEventHandler,
                         public GATTcEventHandler,
                         public BLEStatusEventHandler,
+#ifdef USE_OTA_STATE_LISTENER
+                        public ota::OTAGlobalStateListener,
+#endif
                         public Parented<ESP32BLE> {
  public:
   void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }
@@ -273,6 +280,10 @@ class ESP32BLETracker : public Component,
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
   void gap_scan_event_handler(const BLEScanResult &scan_result) override;
   void ble_before_disabled_event_handler() override;
+
+#ifdef USE_OTA_STATE_LISTENER
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
+#endif
 
   /// Add a listener for scanner state changes
   void add_scanner_state_listener(BLEScannerStateListener *listener) {

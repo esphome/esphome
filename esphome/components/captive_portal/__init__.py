@@ -25,7 +25,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def AUTO_LOAD() -> list[str]:
     auto_load = ["web_server_base", "ota.web_server"]
-    if CORE.using_esp_idf:
+    if CORE.is_esp32:
         auto_load.append("socket")
     return auto_load
 
