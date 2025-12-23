@@ -18,19 +18,19 @@ BLE_DEVICE_SCHEMA = cv.Schema(
     }
 )
 
-bthome_ble_ns = cg.esphome_ns.namespace("bthome_ble")
-BTHomeBLE = bthome_ble_ns.class_(
-    "BTHomeBLE", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
+bthome_mithermometer_ns = cg.esphome_ns.namespace("bthome_mithermometer")
+BTHomeMiThermometer = bthome_mithermometer_ns.class_(
+    "BTHomeMiThermometer", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
 )
 
 
-def bthome_ble_base_schema(extra_schema=None):
+def bthome_mithermometer_base_schema(extra_schema=None):
     if extra_schema is None:
         extra_schema = {}
     return (
         cv.Schema(
             {
-                cv.GenerateID(CONF_ID): cv.declare_id(BTHomeBLE),
+                cv.GenerateID(CONF_ID): cv.declare_id(BTHomeMiThermometer),
                 cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             }
         )
@@ -40,7 +40,7 @@ def bthome_ble_base_schema(extra_schema=None):
     )
 
 
-async def setup_bthome_ble(var, config):
+async def setup_bthome_mithermometer(var, config):
     await cg.register_component(var, config)
     tracker_config = dict(config)
     tracker_config.setdefault(

@@ -8,9 +8,9 @@
 #ifdef USE_ESP32
 
 namespace esphome {
-namespace bthome_ble {
+namespace bthome_mithermometer {
 
-static const char *const TAG = "bthome_ble";
+static const char *const TAG = "bthome_mithermometer";
 
 static std::string format_mac_address(uint64_t address) {
   std::array<uint8_t, 6> mac{};
@@ -126,16 +126,17 @@ static bool get_bthome_value_length(uint8_t obj_type, size_t &value_length) {
   }
 }
 
-void BTHomeBLE::dump_config() {
-  ESP_LOGCONFIG(TAG, "BTHome BLE");
+void BTHomeMiThermometer::dump_config() {
+  ESP_LOGCONFIG(TAG, "BTHome MiThermometer");
   ESP_LOGCONFIG(TAG, "  MAC Address: %s", format_mac_address(this->address_).c_str());
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
+  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
   LOG_SENSOR("  ", "Signal Strength", this->signal_strength_);
 }
 
-bool BTHomeBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool BTHomeMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   bool matched = false;
   for (auto &service_data : device.get_service_datas()) {
     if (this->handle_service_data_(service_data, device)) {
@@ -148,8 +149,9 @@ bool BTHomeBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return matched;
 }
 
-bool BTHomeBLE::handle_service_data_(const esp32_ble_tracker::ServiceData &service_data,
-                                     const esp32_ble_tracker::ESPBTDevice &device) {
+bool BTHomeMiThermometer::handle_service_data_(
+    const esp32_ble_tracker::ServiceData &service_data,
+    const esp32_ble_tracker::ESPBTDevice &device) {
   if (!service_data.uuid.contains(0xD2, 0xFC)) {
     return false;
   }
@@ -292,7 +294,7 @@ bool BTHomeBLE::handle_service_data_(const esp32_ble_tracker::ServiceData &servi
   return reported;
 }
 
-}  // namespace bthome_ble
+}  // namespace bthome_mithermometer
 }  // namespace esphome
 
 #endif

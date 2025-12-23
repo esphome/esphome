@@ -1,4 +1,4 @@
-# BTHome BLE usage example
+# BTHome MiThermometer usage example
 
 ```yaml
 esphome:
@@ -15,9 +15,9 @@ logger:
 # Enable BLE tracking
 esp32_ble_tracker:
 
-# BTHome BLE sensors
+# BTHome MiThermometer sensors
 sensor:
-  - platform: bthome_ble
+  - platform: bthome_mithermometer
     mac_address: AA:BB:CC:DD:EE:FF
     temperature:
       name: "BTHome Temperature"
@@ -31,4 +31,4 @@ sensor:
       name: "BTHome RSSI"
 ```
 
-Replace the `mac_address` value with the address of your BTHome device. Configure the sensors you want to expose; any omitted sensors are simply not created. With only a single BLE tracker allowed, BTHome BLE devices automatically bind to the tracker instance, so no explicit `esp32_ble_id` is required.
+Replace the `mac_address` value with the address of your BTHome device. Configure the sensors you want to expose; any omitted sensors are simply not created. With only a single BLE tracker allowed, BTHome MiThermometer devices automatically bind to the tracker instance, so no explicit `esp32_ble_id` is required.

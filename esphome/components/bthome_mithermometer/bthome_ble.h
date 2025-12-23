@@ -9,9 +9,9 @@
 #ifdef USE_ESP32
 
 namespace esphome {
-namespace bthome_ble {
+namespace bthome_mithermometer {
 
-class BTHomeBLE : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
+class BTHomeMiThermometer : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
  public:
   void set_address(uint64_t address) { this->address_ = address; }
 
@@ -38,7 +38,7 @@ class BTHomeBLE : public esp32_ble_tracker::ESPBTDeviceListener, public Componen
   sensor::Sensor *signal_strength_{nullptr};
 };
 
-}  // namespace bthome_ble
+}  // namespace bthome_mithermometer
 }  // namespace esphome
 
 #endif

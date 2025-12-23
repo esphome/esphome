@@ -21,13 +21,13 @@ from esphome.const import (
     UNIT_VOLT,
 )
 
-from . import BTHomeBLE, bthome_ble_base_schema, setup_bthome_ble
+from . import BTHomeMiThermometer, bthome_mithermometer_base_schema, setup_bthome_mithermometer
 
 CODEOWNERS = ["@esphome/core"]
 
 DEPENDENCIES = ["esp32_ble_tracker"]
 
-CONFIG_SCHEMA = bthome_ble_base_schema(
+CONFIG_SCHEMA = bthome_mithermometer_base_schema(
     {
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
@@ -53,6 +53,7 @@ CONFIG_SCHEMA = bthome_ble_base_schema(
             accuracy_decimals=3,
             device_class=DEVICE_CLASS_VOLTAGE,
             state_class=STATE_CLASS_MEASUREMENT,
+            icon="mdi:battery-plus",
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_SIGNAL_STRENGTH): sensor.sensor_schema(
@@ -68,7 +69,7 @@ CONFIG_SCHEMA = bthome_ble_base_schema(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await setup_bthome_ble(var, config)
+    await setup_bthome_mithermometer(var, config)
 
     if CONF_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
