@@ -53,6 +53,13 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
   }
 #endif
   stream->print("\"><td>");
+#ifdef USE_DEVICES
+  if (device != nullptr) {
+    stream->print("[");
+    write_html_escaped(stream, device->get_name());
+    stream->print("] ");
+  }
+#endif
   write_html_escaped(stream, obj->get_name().c_str());
   stream->print("</td><td></td><td>");
   stream->print(action.c_str());
