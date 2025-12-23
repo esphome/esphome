@@ -3,6 +3,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cstdio>
+
 #ifdef USE_ESP32
 
 namespace esphome {
@@ -96,7 +98,7 @@ bool BTHomeBLE::handle_service_data_(const esp32_ble_tracker::ServiceData &servi
     size_t value_length = 0;
     bool has_length_byte = false;
 
-    if (obj_type == 0x53 || obj_type == 0xF1) {
+    if (obj_type == 0x53) {
       has_length_byte = true;
     }
 
@@ -115,6 +117,12 @@ bool BTHomeBLE::handle_service_data_(const esp32_ble_tracker::ServiceData &servi
         case 0x02:
         case 0x03:
           value_length = 2;
+          break;
+        case 0xF1:
+          value_length = 4;
+          break;
+        case 0xF2:
+          value_length = 3;
           break;
         default:
           // Unknown type, stop parsing to avoid misalignment
@@ -175,11 +183,25 @@ bool BTHomeBLE::handle_service_data_(const esp32_ble_tracker::ServiceData &servi
         }
         break;
       }
-      case 0x53:  // text
-      case 0xF1: {  // firmware version (custom)
+      case 0x53: {  // text
         if (this->firmware_ != nullptr) {
           std::string text_value(reinterpret_cast<const char *>(value), value_length);
           this->firmware_->publish_state(text_value);
+          reported = true;
+        }
+        break;
+      }
+      case 0xF1:
+      case 0xF2: {  // firmware version (custom)
+        if (this->firmware_ != nullptr && value_length >= 3 && value_length <= 4) {
+          const uint8_t major = value[value_length - 1];
+          const uint8_t minor = value[value_length - 2];
+          const uint8_t patch = value[0];
+          const uint8_t build = value_length == 4 ? value[1] : 0;
+
+          char buffer[16];
+          snprintf(buffer, sizeof(buffer), "%u.%u.%u.%u", major, minor, patch, build);
+          this->firmware_->publish_state(buffer);
           reported = true;
         }
         break;
