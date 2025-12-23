@@ -91,7 +91,7 @@ def set_sdkconfig_options(config):
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
 
-    # TODO: Add suport for synchronized sleepy end devices (SSED)
+    # TODO: Add support for synchronized sleepy end devices (SSED)
     add_idf_sdkconfig_option(f"CONFIG_OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
 
 
@@ -102,7 +102,7 @@ OpenThreadSrpComponent = openthread_ns.class_("OpenThreadSrpComponent", cg.Compo
 _CONNECTION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PAN_ID): cv.hex_int,
-        cv.Optional(CONF_CHANNEL): cv.int_,
+        cv.Optional(CONF_CHANNEL): cv.int_range(min=11, max=26),
         cv.Optional(CONF_NETWORK_KEY): cv.hex_int,
         cv.Optional(CONF_EXT_PAN_ID): cv.hex_int,
         cv.Optional(CONF_NETWORK_NAME): cv.string_strict,
