@@ -3,6 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <array>
 #include <cstdio>
 
 #ifdef USE_ESP32
@@ -12,9 +13,20 @@ namespace bthome_ble {
 
 static const char *const TAG = "bthome_ble";
 
+static std::string format_mac_address(uint64_t address) {
+  std::array<uint8_t, 6> mac{};
+  for (int i = 0; i < 6; i++) {
+    mac[i] = (address >> ((5 - i) * 8)) & 0xFF;
+  }
+
+  char buffer[18];
+  format_mac_addr_upper(mac.data(), buffer);
+  return buffer;
+}
+
 void BTHomeBLE::dump_config() {
   ESP_LOGCONFIG(TAG, "BTHome BLE");
-  ESP_LOGCONFIG(TAG, "  MAC Address: %s", format_mac(this->address_).c_str());
+  ESP_LOGCONFIG(TAG, "  MAC Address: %s", format_mac_address(this->address_).c_str());
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
@@ -80,7 +92,7 @@ bool BTHomeBLE::handle_service_data_(const esp32_ble_tracker::ServiceData &servi
   }
 
   if (source_address != this->address_) {
-    ESP_LOGVV(TAG, "BTHome frame from unexpected device %s", format_mac(source_address).c_str());
+    ESP_LOGVV(TAG, "BTHome frame from unexpected device %s", format_mac_address(source_address).c_str());
     return false;
   }
 
