@@ -176,8 +176,7 @@ async def test_object_id_api_verification(
 
         # === Test 3: Verify ALL entities can have object_id computed from API data ===
         # This uses the algorithm from the PR summary that aioesphomeapi will use.
-        # NOTE: `name_add_mac_suffix` needs to be added to DeviceInfoResponse.
-        # For now, we infer it from the device name ending with MAC suffix.
+        # Infer name_add_mac_suffix from device name ending with MAC suffix.
         mac_suffix = device_info.mac_address.replace(":", "")[-6:].lower()
         name_add_mac_suffix = device_info.name.endswith(f"-{mac_suffix}")
 

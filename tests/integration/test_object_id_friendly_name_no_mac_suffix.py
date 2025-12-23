@@ -73,8 +73,7 @@ async def test_object_id_friendly_name_no_mac_suffix(
         assert named_entities[0].object_id == "temperature"
 
         # Verify the full algorithm from PR summary works for ALL entities
-        # NOTE: `name_add_mac_suffix` needs to be added to DeviceInfoResponse.
-        # For now, we infer it from the device name ending with MAC suffix.
+        # Infer name_add_mac_suffix from device name ending with MAC suffix.
         mac_suffix = device_info.mac_address.replace(":", "")[-6:].lower()
         name_add_mac_suffix = device_info.name.endswith(f"-{mac_suffix}")
 
