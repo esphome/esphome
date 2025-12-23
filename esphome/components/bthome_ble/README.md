@@ -25,6 +25,8 @@ sensor:
       name: "BTHome Humidity"
     battery_level:
       name: "BTHome Battery"
+    battery_voltage:
+      name: "BTHome Battery Voltage"
     signal_strength:
       name: "BTHome RSSI"
 ```

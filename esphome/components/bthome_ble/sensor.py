@@ -3,6 +3,7 @@ from esphome.components import esp32_ble_tracker, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
+    CONF_BATTERY_VOLTAGE,
     CONF_HUMIDITY,
     CONF_ID,
     CONF_SIGNAL_STRENGTH,
@@ -11,11 +12,13 @@ from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_DECIBEL_MILLIWATT,
     UNIT_PERCENT,
+    UNIT_VOLT,
 )
 
 from . import BTHomeBLE, bthome_ble_base_schema, setup_bthome_ble
@@ -45,6 +48,13 @@ CONFIG_SCHEMA = bthome_ble_base_schema(
             state_class=STATE_CLASS_MEASUREMENT,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
+        cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_VOLT,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_VOLTAGE,
+            state_class=STATE_CLASS_MEASUREMENT,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
         cv.Optional(CONF_SIGNAL_STRENGTH): sensor.sensor_schema(
             unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
             accuracy_decimals=0,
@@ -69,6 +79,9 @@ async def to_code(config):
     if CONF_BATTERY_LEVEL in config:
         sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
         cg.add(var.set_battery_level(sens))
+    if CONF_BATTERY_VOLTAGE in config:
+        sens = await sensor.new_sensor(config[CONF_BATTERY_VOLTAGE])
+        cg.add(var.set_battery_voltage(sens))
     if CONF_SIGNAL_STRENGTH in config:
         sens = await sensor.new_sensor(config[CONF_SIGNAL_STRENGTH])
         cg.add(var.set_signal_strength(sens))

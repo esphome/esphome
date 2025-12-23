@@ -18,6 +18,7 @@ class BTHomeBLE : public esp32_ble_tracker::ESPBTDeviceListener, public Componen
   void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { this->humidity_ = humidity; }
   void set_battery_level(sensor::Sensor *battery_level) { this->battery_level_ = battery_level; }
+  void set_battery_voltage(sensor::Sensor *battery_voltage) { this->battery_voltage_ = battery_voltage; }
   void set_signal_strength(sensor::Sensor *signal_strength) { this->signal_strength_ = signal_strength; }
 
   void dump_config() override;
@@ -33,6 +34,7 @@ class BTHomeBLE : public esp32_ble_tracker::ESPBTDeviceListener, public Componen
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
+  sensor::Sensor *battery_voltage_{nullptr};
   sensor::Sensor *signal_strength_{nullptr};
 };
 

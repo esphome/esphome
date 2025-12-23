@@ -255,6 +255,14 @@ bool BTHomeBLE::handle_service_data_(const esp32_ble_tracker::ServiceData &servi
         }
         break;
       }
+      case 0x0C: {  // battery voltage (mV)
+        if (this->battery_voltage_ != nullptr) {
+          const uint16_t raw = encode_uint16(value[1], value[0]);
+          this->battery_voltage_->publish_state(raw * 0.001f);
+          reported = true;
+        }
+        break;
+      }
       case 0x02: {  // temperature
         if (this->temperature_ != nullptr) {
           const int16_t raw = encode_uint16(value[1], value[0]);
