@@ -19,7 +19,6 @@ from esphome.const import (
     CONF_DUMMY_RECEIVER_ID,
     CONF_FLOW_CONTROL_PIN,
     CONF_ID,
-    CONF_INVERT,
     CONF_LAMBDA,
     CONF_NUMBER,
     CONF_PORT,
@@ -303,9 +302,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
             cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
                 UART_PARITY_OPTIONS, upper=True
-            ),
-            cv.Optional(CONF_INVERT): cv.invalid(
-                "This option has been removed. Please instead use invert in the tx/rx pin schemas."
             ),
             cv.Optional(CONF_DEBUG): maybe_empty_debug,
         }

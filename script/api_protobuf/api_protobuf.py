@@ -1215,6 +1215,9 @@ class FixedArrayRepeatedType(TypeInfo):
         """Helper to generate encode statement for a single element."""
         if isinstance(self._ti, EnumType):
             return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
+        # MessageType.encode_message doesn't have a force parameter
+        if isinstance(self._ti, MessageType):
+            return f"buffer.{self._ti.encode_func}({self.number}, {element});"
         return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
 
     @property
@@ -1536,6 +1539,15 @@ class RepeatedTypeInfo(TypeInfo):
         # std::vector is specialized for bool, reference does not work
         return isinstance(self._ti, BoolType)
 
+    def _encode_element_call(self, element: str) -> str:
+        """Helper to generate encode call for a single element."""
+        if isinstance(self._ti, EnumType):
+            return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
+        # MessageType.encode_message doesn't have a force parameter
+        if isinstance(self._ti, MessageType):
+            return f"buffer.{self._ti.encode_func}({self.number}, {element});"
+        return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
+
     @property
     def encode_content(self) -> str:
         if self._use_pointer:
@@ -1546,17 +1558,11 @@ class RepeatedTypeInfo(TypeInfo):
                 o += f"  buffer.{self._ti.encode_func}({self.number}, it, strlen(it), true);\n"
             else:
                 o = f"for (const auto &it : *this->{self.field_name}) {{\n"
-                if isinstance(self._ti, EnumType):
-                    o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
-                else:
-                    o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
+                o += f"  {self._encode_element_call('it')}\n"
             o += "}"
             return o
         o = f"for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
-        if isinstance(self._ti, EnumType):
-            o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
-        else:
-            o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
+        o += f"  {self._encode_element_call('it')}\n"
         o += "}"
         return o
 
