@@ -40,9 +40,7 @@ display:
         - number: 17
       blue:
         - number: 47
-          allow_other_uses: true
-        - number: 41
-          allow_other_uses: true
+        - number: 1
         - number: 0
           ignore_strapping_warning: true
         - number: 42
@@ -53,7 +51,7 @@ display:
       number: 45
       ignore_strapping_warning: true
     hsync_pin:
-      number: 40
+      number: 38
     vsync_pin:
       number: 48
     data_rate: 1000000.0

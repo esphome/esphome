@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 static const char *const TAG = "light";
 
@@ -52,8 +51,10 @@ static void log_invalid_parameter(const char *name, const LogString *message) {
   }
 
 static const LogString *color_mode_to_human(ColorMode color_mode) {
-  if (color_mode == ColorMode::UNKNOWN)
-    return LOG_STR("Unknown");
+  if (color_mode == ColorMode::ON_OFF)
+    return LOG_STR("On/Off");
+  if (color_mode == ColorMode::BRIGHTNESS)
+    return LOG_STR("Brightness");
   if (color_mode == ColorMode::WHITE)
     return LOG_STR("White");
   if (color_mode == ColorMode::COLOR_TEMPERATURE)
@@ -68,16 +69,16 @@ static const LogString *color_mode_to_human(ColorMode color_mode) {
     return LOG_STR("RGB + cold/warm white");
   if (color_mode == ColorMode::RGB_COLOR_TEMPERATURE)
     return LOG_STR("RGB + color temperature");
-  return LOG_STR("");
+  return LOG_STR("Unknown");
 }
 
 // Helper to log percentage values
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-static void log_percent(const char *name, const char *param, float value) {
-  ESP_LOGD(TAG, "  %s: %.0f%%", param, value * 100.0f);
+static void log_percent(const LogString *param, float value) {
+  ESP_LOGD(TAG, "  %s: %.0f%%", LOG_STR_ARG(param), value * 100.0f);
 }
 #else
-#define log_percent(name, param, value)
+#define log_percent(param, value)
 #endif
 
 void LightCall::perform() {
@@ -103,11 +104,11 @@ void LightCall::perform() {
     }
 
     if (this->has_brightness()) {
-      log_percent(name, "Brightness", v.get_brightness());
+      log_percent(LOG_STR("Brightness"), v.get_brightness());
     }
 
     if (this->has_color_brightness()) {
-      log_percent(name, "Color brightness", v.get_color_brightness());
+      log_percent(LOG_STR("Color brightness"), v.get_color_brightness());
     }
     if (this->has_red() || this->has_green() || this->has_blue()) {
       ESP_LOGD(TAG, "  Red: %.0f%%, Green: %.0f%%, Blue: %.0f%%", v.get_red() * 100.0f, v.get_green() * 100.0f,
@@ -115,7 +116,7 @@ void LightCall::perform() {
     }
 
     if (this->has_white()) {
-      log_percent(name, "White", v.get_white());
+      log_percent(LOG_STR("White"), v.get_white());
     }
     if (this->has_color_temperature()) {
       ESP_LOGD(TAG, "  Color temperature: %.1f mireds", v.get_color_temperature());
@@ -156,7 +157,7 @@ void LightCall::perform() {
     if (this->effect_ == 0u) {
       effect_s = "None";
     } else {
-      effect_s = this->parent_->effects_[this->effect_ - 1]->get_name().c_str();
+      effect_s = this->parent_->effects_[this->effect_ - 1]->get_name();
     }
 
     if (publish) {
@@ -173,8 +174,10 @@ void LightCall::perform() {
     this->parent_->set_immediately_(v, publish);
   }
 
-  if (!this->has_transition_()) {
-    this->parent_->target_state_reached_callback_.call();
+  if (!this->has_transition_() && this->parent_->target_state_reached_listeners_) {
+    for (auto *listener : *this->parent_->target_state_reached_listeners_) {
+      listener->on_light_target_state_reached();
+    }
   }
   if (publish) {
     this->parent_->publish_state();
@@ -425,20 +428,19 @@ ColorMode LightCall::compute_color_mode_() {
   // If no color mode is specified, we try to guess the color mode. This is needed for backward compatibility to
   // pre-colormode clients and automations, but also for the MQTT API, where HA doesn't let us know which color mode
   // was used for some reason.
-  std::set<ColorMode> suitable_modes = this->get_suitable_color_modes_();
+  // Compute intersection of suitable and supported modes using bitwise AND
+  color_mode_bitmask_t intersection = this->get_suitable_color_modes_mask_() & supported_modes.get_mask();
 
-  // Don't change if the current mode is suitable.
-  if (suitable_modes.count(current_mode) > 0) {
+  // Don't change if the current mode is in the intersection (suitable AND supported)
+  if (ColorModeMask::mask_contains(intersection, current_mode)) {
     ESP_LOGI(TAG, "'%s': color mode not specified; retaining %s", this->parent_->get_name().c_str(),
              LOG_STR_ARG(color_mode_to_human(current_mode)));
     return current_mode;
   }
 
   // Use the preferred suitable mode.
-  for (auto mode : suitable_modes) {
-    if (supported_modes.count(mode) == 0)
-      continue;
-
+  if (intersection != 0) {
+    ColorMode mode = ColorModeMask::first_value_from_mask(intersection);
     ESP_LOGI(TAG, "'%s': color mode not specified; using %s", this->parent_->get_name().c_str(),
              LOG_STR_ARG(color_mode_to_human(mode)));
     return mode;
@@ -451,7 +453,7 @@ ColorMode LightCall::compute_color_mode_() {
            LOG_STR_ARG(color_mode_to_human(color_mode)));
   return color_mode;
 }
-std::set<ColorMode> LightCall::get_suitable_color_modes_() {
+color_mode_bitmask_t LightCall::get_suitable_color_modes_mask_() {
   bool has_white = this->has_white() && this->white_ > 0.0f;
   bool has_ct = this->has_color_temperature();
   bool has_cwww =
@@ -459,43 +461,51 @@ std::set<ColorMode> LightCall::get_suitable_color_modes_() {
   bool has_rgb = (this->has_color_brightness() && this->color_brightness_ > 0.0f) ||
                  (this->has_red() || this->has_green() || this->has_blue());
 
-// Build key from flags: [rgb][cwww][ct][white]
+  // Build key from flags: [rgb][cwww][ct][white]
 #define KEY(white, ct, cwww, rgb) ((white) << 0 | (ct) << 1 | (cwww) << 2 | (rgb) << 3)
 
   uint8_t key = KEY(has_white, has_ct, has_cwww, has_rgb);
 
   switch (key) {
     case KEY(true, false, false, false):  // white only
-      return {ColorMode::WHITE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
-              ColorMode::RGB_COLD_WARM_WHITE};
+      return ColorModeMask({ColorMode::WHITE, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE,
+                            ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE})
+          .get_mask();
     case KEY(false, true, false, false):  // ct only
-      return {ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
-              ColorMode::RGB_COLD_WARM_WHITE};
+      return ColorModeMask({ColorMode::COLOR_TEMPERATURE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE,
+                            ColorMode::RGB_COLD_WARM_WHITE})
+          .get_mask();
     case KEY(true, true, false, false):  // white + ct
-      return {ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
+      return ColorModeMask(
+                 {ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE})
+          .get_mask();
     case KEY(false, false, true, false):  // cwww only
-      return {ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE};
+      return ColorModeMask({ColorMode::COLD_WARM_WHITE, ColorMode::RGB_COLD_WARM_WHITE}).get_mask();
     case KEY(false, false, false, false):  // none
-      return {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE, ColorMode::RGB,
-              ColorMode::WHITE,     ColorMode::COLOR_TEMPERATURE,     ColorMode::COLD_WARM_WHITE};
+      return ColorModeMask({ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE,
+                            ColorMode::RGB, ColorMode::WHITE, ColorMode::COLOR_TEMPERATURE, ColorMode::COLD_WARM_WHITE})
+          .get_mask();
     case KEY(true, false, false, true):  // rgb + white
-      return {ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
+      return ColorModeMask({ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE})
+          .get_mask();
     case KEY(false, true, false, true):  // rgb + ct
     case KEY(true, true, false, true):   // rgb + white + ct
-      return {ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
+      return ColorModeMask({ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE}).get_mask();
     case KEY(false, false, true, true):  // rgb + cwww
-      return {ColorMode::RGB_COLD_WARM_WHITE};
+      return ColorModeMask({ColorMode::RGB_COLD_WARM_WHITE}).get_mask();
     case KEY(false, false, false, true):  // rgb only
-      return {ColorMode::RGB, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE, ColorMode::RGB_COLD_WARM_WHITE};
+      return ColorModeMask({ColorMode::RGB, ColorMode::RGB_WHITE, ColorMode::RGB_COLOR_TEMPERATURE,
+                            ColorMode::RGB_COLD_WARM_WHITE})
+          .get_mask();
     default:
-      return {};  // conflicting flags
+      return 0;  // conflicting flags
   }
 
 #undef KEY
 }
 
-LightCall &LightCall::set_effect(const std::string &effect) {
-  if (strcasecmp(effect.c_str(), "none") == 0) {
+LightCall &LightCall::set_effect(const char *effect, size_t len) {
+  if (len == 4 && strncasecmp(effect, "none", 4) == 0) {
     this->set_effect(0);
     return *this;
   }
@@ -503,15 +513,16 @@ LightCall &LightCall::set_effect(const std::string &effect) {
   bool found = false;
   for (uint32_t i = 0; i < this->parent_->effects_.size(); i++) {
     LightEffect *e = this->parent_->effects_[i];
+    const char *name = e->get_name();
 
-    if (strcasecmp(effect.c_str(), e->get_name().c_str()) == 0) {
+    if (strncasecmp(effect, name, len) == 0 && name[len] == '\0') {
       this->set_effect(i + 1);
       found = true;
       break;
     }
   }
   if (!found) {
-    ESP_LOGW(TAG, "'%s': no such effect '%s'", this->parent_->get_name().c_str(), effect.c_str());
+    ESP_LOGW(TAG, "'%s': no such effect '%.*s'", this->parent_->get_name().c_str(), (int) len, effect);
   }
   return *this;
 }
@@ -638,5 +649,4 @@ LightCall &LightCall::set_rgbw(float red, float green, float blue, float white) 
   return *this;
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

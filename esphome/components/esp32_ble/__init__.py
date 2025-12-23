@@ -1,4 +1,5 @@
 from collections.abc import Callable, MutableMapping
+from dataclasses import dataclass
 from enum import Enum
 import logging
 import re
@@ -6,6 +7,7 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components import socket
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
 import esphome.config_validation as cv
 from esphome.const import (
@@ -16,10 +18,11 @@ from esphome.const import (
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
 )
-from esphome.core import CORE, TimePeriod
+from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 import esphome.final_validate as fv
 
 DEPENDENCIES = ["esp32"]
+AUTO_LOAD = ["socket"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
 DOMAIN = "esp32_ble"
 
@@ -107,8 +110,65 @@ class BTLoggers(Enum):
     """ESP32 WiFi provisioning over Bluetooth"""
 
 
-# Set to track which loggers are needed by components
-_required_loggers: set[BTLoggers] = set()
+# Key for storing required loggers in CORE.data
+ESP32_BLE_REQUIRED_LOGGERS_KEY = "esp32_ble_required_loggers"
+
+
+def _get_required_loggers() -> set[BTLoggers]:
+    """Get the set of required Bluetooth loggers from CORE.data."""
+    return CORE.data.setdefault(ESP32_BLE_REQUIRED_LOGGERS_KEY, set())
+
+
+# Dataclass for handler registration counts
+@dataclass
+class HandlerCounts:
+    gap_event: int = 0
+    gap_scan_event: int = 0
+    gattc_event: int = 0
+    gatts_event: int = 0
+    ble_status_event: int = 0
+
+
+# Track handler registration counts for StaticVector sizing
+_handler_counts = HandlerCounts()
+
+
+def register_gap_event_handler(parent_var: cg.MockObj, handler_var: cg.MockObj) -> None:
+    """Register a GAP event handler and track the count."""
+    _handler_counts.gap_event += 1
+    cg.add(parent_var.register_gap_event_handler(handler_var))
+
+
+def register_gap_scan_event_handler(
+    parent_var: cg.MockObj, handler_var: cg.MockObj
+) -> None:
+    """Register a GAP scan event handler and track the count."""
+    _handler_counts.gap_scan_event += 1
+    cg.add(parent_var.register_gap_scan_event_handler(handler_var))
+
+
+def register_gattc_event_handler(
+    parent_var: cg.MockObj, handler_var: cg.MockObj
+) -> None:
+    """Register a GATTc event handler and track the count."""
+    _handler_counts.gattc_event += 1
+    cg.add(parent_var.register_gattc_event_handler(handler_var))
+
+
+def register_gatts_event_handler(
+    parent_var: cg.MockObj, handler_var: cg.MockObj
+) -> None:
+    """Register a GATTs event handler and track the count."""
+    _handler_counts.gatts_event += 1
+    cg.add(parent_var.register_gatts_event_handler(handler_var))
+
+
+def register_ble_status_event_handler(
+    parent_var: cg.MockObj, handler_var: cg.MockObj
+) -> None:
+    """Register a BLE status event handler and track the count."""
+    _handler_counts.ble_status_event += 1
+    cg.add(parent_var.register_ble_status_event_handler(handler_var))
 
 
 def register_bt_logger(*loggers: BTLoggers) -> None:
@@ -117,12 +177,13 @@ def register_bt_logger(*loggers: BTLoggers) -> None:
     Args:
         *loggers: One or more BTLoggers enum members
     """
+    required_loggers = _get_required_loggers()
     for logger in loggers:
         if not isinstance(logger, BTLoggers):
             raise TypeError(
                 f"Logger must be a BTLoggers enum member, got {type(logger)}"
             )
-        _required_loggers.add(logger)
+        required_loggers.add(logger)
 
 
 CONF_BLE_ID = "ble_id"
@@ -334,6 +395,15 @@ def final_validation(config):
     max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
     validate_connection_slots(max_connections)
 
+    # Check if hosted bluetooth is being used
+    if "esp32_hosted" in full_config:
+        add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", False)
+        add_idf_sdkconfig_option("CONFIG_BT_BLE_ENABLED", True)
+        add_idf_sdkconfig_option("CONFIG_BT_BLUEDROID_ENABLED", True)
+        add_idf_sdkconfig_option("CONFIG_BT_CONTROLLER_DISABLED", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
+
     # Check if BLE Server is needed
     has_ble_server = "esp32_ble_server" in full_config
 
@@ -374,6 +444,36 @@ def final_validation(config):
 FINAL_VALIDATE_SCHEMA = final_validation
 
 
+# This needs to be run as a job with CoroPriority.FINAL priority so that all components have
+# a chance to register their handlers before the counts are added to defines.
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_ble_handler_defines():
+    # Add defines for StaticVector sizing based on handler registration counts
+    # Only define if count > 0 to avoid allocating unnecessary memory
+    if _handler_counts.gap_event > 0:
+        cg.add_define(
+            "ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT", _handler_counts.gap_event
+        )
+    if _handler_counts.gap_scan_event > 0:
+        cg.add_define(
+            "ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT",
+            _handler_counts.gap_scan_event,
+        )
+    if _handler_counts.gattc_event > 0:
+        cg.add_define(
+            "ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT", _handler_counts.gattc_event
+        )
+    if _handler_counts.gatts_event > 0:
+        cg.add_define(
+            "ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT", _handler_counts.gatts_event
+        )
+    if _handler_counts.ble_status_event > 0:
+        cg.add_define(
+            "ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT",
+            _handler_counts.ble_status_event,
+        )
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
@@ -382,6 +482,11 @@ async def to_code(config):
     if (name := config.get(CONF_NAME)) is not None:
         cg.add(var.set_name(name))
     await cg.register_component(var, config)
+
+    # BLE uses the socket wake_loop_threadsafe() mechanism to wake the main loop from BLE tasks
+    # This enables low-latency (~12μs) BLE event processing instead of waiting for
+    # select() timeout (0-16ms). The wake socket is shared across all components.
+    socket.require_wake_loop_threadsafe()
 
     # Define max connections for use in C++ code (e.g., ble_server.h)
     max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
@@ -396,8 +501,9 @@ async def to_code(config):
     # Apply logger settings if log disabling is enabled
     if config.get(CONF_DISABLE_BT_LOGS, False):
         # Disable all Bluetooth loggers that are not required
+        required_loggers = _get_required_loggers()
         for logger in BTLoggers:
-            if logger not in _required_loggers:
+            if logger not in required_loggers:
                 add_idf_sdkconfig_option(f"{logger.value}_NONE", True)
 
     # Set BLE connection establishment timeout to match aioesphomeapi/bleak-retry-connector
@@ -427,6 +533,9 @@ async def to_code(config):
     if config[CONF_ADVERTISING]:
         cg.add_define("USE_ESP32_BLE_ADVERTISING")
         cg.add_define("USE_ESP32_BLE_UUID")
+
+    # Schedule the handler defines to be added after all components register
+    CORE.add_job(_add_ble_handler_defines)
 
 
 @automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))

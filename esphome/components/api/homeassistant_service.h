@@ -12,10 +12,17 @@
 #endif
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome::api {
 
 template<typename... X> class TemplatableStringValue : public TemplatableValue<std::string, X...> {
+  // Verify that const char* uses the base class STATIC_STRING optimization (no heap allocation)
+  // rather than being wrapped in a lambda. The base class constructor for const char* is more
+  // specialized than the templated constructor here, so it should be selected.
+  static_assert(std::is_constructible_v<TemplatableValue<std::string, X...>, const char *>,
+                "Base class must have const char* constructor for STATIC_STRING optimization");
+
  private:
   // Helper to convert value to string - handles the case where value is already a string
   template<typename T> static std::string value_to_string(T &&val) { return to_string(std::forward<T>(val)); }
@@ -41,24 +48,30 @@ template<typename... X> class TemplatableStringValue : public TemplatableValue<s
 
 template<typename... Ts> class TemplatableKeyValuePair {
  public:
+  // Default constructor needed for FixedVector::emplace_back()
+  TemplatableKeyValuePair() = default;
+
   // Keys are always string literals from YAML dictionary keys (e.g., "code", "event")
   // and never templatable values or lambdas. Only the value parameter can be a lambda/template.
-  // Using pass-by-value with std::move allows optimal performance for both lvalues and rvalues.
-  template<typename T> TemplatableKeyValuePair(std::string key, T value) : key(std::move(key)), value(value) {}
-  std::string key;
+  // Using const char* avoids std::string heap allocation - keys remain in flash.
+  template<typename T> TemplatableKeyValuePair(const char *key, T value) : key(key), value(value) {}
+
+  const char *key{nullptr};
   TemplatableStringValue<Ts...> value;
 };
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
 // Represents the response data from a Home Assistant action
+// Note: This class holds a StringRef to the error_message from the protobuf message.
+// The protobuf message must outlive the ActionResponse (which is guaranteed since
+// the callback is invoked synchronously while the message is on the stack).
 class ActionResponse {
  public:
-  ActionResponse(bool success, std::string error_message = "")
-      : success_(success), error_message_(std::move(error_message)) {}
+  ActionResponse(bool success, const std::string &error_message) : success_(success), error_message_(error_message) {}
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  ActionResponse(bool success, std::string error_message, const uint8_t *data, size_t data_len)
-      : success_(success), error_message_(std::move(error_message)) {
+  ActionResponse(bool success, const std::string &error_message, const uint8_t *data, size_t data_len)
+      : success_(success), error_message_(error_message) {
     if (data == nullptr || data_len == 0)
       return;
     this->json_document_ = json::parse_json(data, data_len);
@@ -66,7 +79,8 @@ class ActionResponse {
 #endif
 
   bool is_success() const { return this->success_; }
-  const std::string &get_error_message() const { return this->error_message_; }
+  // Returns reference to error message - can be implicitly converted to std::string if needed
+  const StringRef &get_error_message() const { return this->error_message_; }
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   // Get data as parsed JSON object (const version returns read-only view)
@@ -75,7 +89,7 @@ class ActionResponse {
 
  protected:
   bool success_;
-  std::string error_message_;
+  StringRef error_message_;
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   JsonDocument json_document_;
 #endif
@@ -93,15 +107,23 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 
   template<typename T> void set_service(T service) { this->service_ = service; }
 
+  // Initialize FixedVector members - called from Python codegen with compile-time known sizes.
+  // Must be called before any add_* methods; capacity must match the number of subsequent add_* calls.
+  void init_data(size_t count) { this->data_.init(count); }
+  void init_data_template(size_t count) { this->data_template_.init(count); }
+  void init_variables(size_t count) { this->variables_.init(count); }
+
   // Keys are always string literals from the Python code generation (e.g., cg.add(var.add_data("tag_id", templ))).
   // The value parameter can be a lambda/template, but keys are never templatable.
-  // Using pass-by-value allows the compiler to optimize for both lvalues and rvalues.
-  template<typename T> void add_data(std::string key, T value) { this->data_.emplace_back(std::move(key), value); }
-  template<typename T> void add_data_template(std::string key, T value) {
-    this->data_template_.emplace_back(std::move(key), value);
+  // Using const char* for keys avoids std::string heap allocation - keys remain in flash.
+  template<typename V> void add_data(const char *key, V &&value) {
+    this->add_kv_(this->data_, key, std::forward<V>(value));
   }
-  template<typename T> void add_variable(std::string key, T value) {
-    this->variables_.emplace_back(std::move(key), value);
+  template<typename V> void add_data_template(const char *key, V &&value) {
+    this->add_kv_(this->data_template_, key, std::forward<V>(value));
+  }
+  template<typename V> void add_variable(const char *key, V &&value) {
+    this->add_kv_(this->variables_, key, std::forward<V>(value));
   }
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -122,29 +144,14 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   Trigger<std::string, Ts...> *get_error_trigger() const { return this->error_trigger_; }
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     HomeassistantActionRequest resp;
     std::string service_value = this->service_.value(x...);
     resp.set_service(StringRef(service_value));
     resp.is_event = this->flags_.is_event;
-    for (auto &it : this->data_) {
-      resp.data.emplace_back();
-      auto &kv = resp.data.back();
-      kv.set_key(StringRef(it.key));
-      kv.value = it.value.value(x...);
-    }
-    for (auto &it : this->data_template_) {
-      resp.data_template.emplace_back();
-      auto &kv = resp.data_template.back();
-      kv.set_key(StringRef(it.key));
-      kv.value = it.value.value(x...);
-    }
-    for (auto &it : this->variables_) {
-      resp.variables.emplace_back();
-      auto &kv = resp.variables.back();
-      kv.set_key(StringRef(it.key));
-      kv.value = it.value.value(x...);
-    }
+    this->populate_service_map(resp.data, this->data_, x...);
+    this->populate_service_map(resp.data_template, this->data_template_, x...);
+    this->populate_service_map(resp.variables, this->variables_, x...);
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
     if (this->flags_.wants_status) {
@@ -189,11 +196,29 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   }
 
  protected:
+  // Helper to add key-value pairs to FixedVectors
+  // Keys are always string literals (const char*), values can be lambdas/templates
+  template<typename V> void add_kv_(FixedVector<TemplatableKeyValuePair<Ts...>> &vec, const char *key, V &&value) {
+    auto &kv = vec.emplace_back();
+    kv.key = key;
+    kv.value = std::forward<V>(value);
+  }
+
+  template<typename VectorType, typename SourceType>
+  static void populate_service_map(VectorType &dest, SourceType &source, Ts... x) {
+    dest.init(source.size());
+    for (auto &it : source) {
+      auto &kv = dest.emplace_back();
+      kv.set_key(StringRef(it.key));
+      kv.value = it.value.value(x...);
+    }
+  }
+
   APIServer *parent_;
   TemplatableStringValue<Ts...> service_{};
-  std::vector<TemplatableKeyValuePair<Ts...>> data_;
-  std::vector<TemplatableKeyValuePair<Ts...>> data_template_;
-  std::vector<TemplatableKeyValuePair<Ts...>> variables_;
+  FixedVector<TemplatableKeyValuePair<Ts...>> data_;
+  FixedVector<TemplatableKeyValuePair<Ts...>> data_template_;
+  FixedVector<TemplatableKeyValuePair<Ts...>> variables_;
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   TemplatableStringValue<Ts...> response_template_{""};

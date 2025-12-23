@@ -35,13 +35,18 @@ BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) 
 
 void BLECharacteristic::set_value(ByteBuffer buffer) { this->set_value(buffer.get_data()); }
 
-void BLECharacteristic::set_value(const std::vector<uint8_t> &buffer) {
+void BLECharacteristic::set_value(std::vector<uint8_t> &&buffer) {
   xSemaphoreTake(this->set_value_lock_, 0L);
-  this->value_ = buffer;
+  this->value_ = std::move(buffer);
   xSemaphoreGive(this->set_value_lock_);
 }
+
+void BLECharacteristic::set_value(std::initializer_list<uint8_t> data) {
+  this->set_value(std::vector<uint8_t>(data));  // Delegate to move overload
+}
+
 void BLECharacteristic::set_value(const std::string &buffer) {
-  this->set_value(std::vector<uint8_t>(buffer.begin(), buffer.end()));
+  this->set_value(std::vector<uint8_t>(buffer.begin(), buffer.end()));  // Delegate to move overload
 }
 
 void BLECharacteristic::notify() {
@@ -104,7 +109,11 @@ void BLECharacteristic::do_create(BLEService *service) {
   esp_attr_control_t control;
   control.auto_rsp = ESP_GATT_RSP_BY_APP;
 
-  ESP_LOGV(TAG, "Creating characteristic - %s", this->uuid_.to_string().c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char uuid_buf[esp32_ble::UUID_STR_LEN];
+  this->uuid_.to_str(uuid_buf);
+  ESP_LOGV(TAG, "Creating characteristic - %s", uuid_buf);
+#endif
 
   esp_bt_uuid_t uuid = this->uuid_.get_uuid();
   esp_err_t err = esp_ble_gatts_add_char(service->get_handle(), &uuid, static_cast<esp_gatt_perm_t>(this->permissions_),

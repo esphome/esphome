@@ -134,8 +134,8 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
   // Pointer first (4 bytes)
   ESPPreferenceObject rtc_;
 
-  // CallbackManager (12 bytes on 32-bit - contains vector)
-  CallbackManager<void(bool)> state_callback_{};
+  // LazyCallbackManager (4 bytes on 32-bit - nullptr when empty)
+  LazyCallbackManager<void(bool)> state_callback_{};
 
   // Small types grouped together
   Deduplicator<bool> publish_dedup_;  // 2 bytes (bool has_value_ + bool last_value_)

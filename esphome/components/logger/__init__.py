@@ -1,19 +1,21 @@
 import re
 
 from esphome import automation
-from esphome.automation import LambdaAction
+from esphome.automation import LambdaAction, StatelessLambdaAction
 import esphome.codegen as cg
-from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    add_idf_sdkconfig_option,
+    get_esp32_variant,
 )
 from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
 from esphome.components.libretiny.const import (
@@ -100,14 +102,15 @@ CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
 
 UART_SELECTION_ESP32 = {
     VARIANT_ESP32: [UART0, UART1, UART2],
-    VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
-    VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
-    VARIANT_ESP32C3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C2: [UART0, UART1],
+    VARIANT_ESP32C3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C5: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32C61: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32P4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
+    VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
 }
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
@@ -173,14 +176,34 @@ def uart_selection(value):
     raise NotImplementedError
 
 
-def validate_local_no_higher_than_global(value):
-    global_level = LOG_LEVEL_SEVERITY.index(value[CONF_LEVEL])
-    for tag, level in value.get(CONF_LOGS, {}).items():
-        if LOG_LEVEL_SEVERITY.index(level) > global_level:
-            raise cv.Invalid(
-                f"The configured log level for {tag} ({level}) must be no more severe than the global log level {value[CONF_LEVEL]}."
+def validate_local_no_higher_than_global(config):
+    global_level = config[CONF_LEVEL]
+    global_level_index = LOG_LEVEL_SEVERITY.index(global_level)
+    errs = []
+    for tag, level in config.get(CONF_LOGS, {}).items():
+        if LOG_LEVEL_SEVERITY.index(level) > global_level_index:
+            errs.append(
+                cv.Invalid(
+                    f"The configured log level for {tag} ({level}) must not be less severe than the global log level ({global_level})",
+                    [CONF_LOGS, tag],
+                )
             )
-    return value
+    if errs:
+        raise cv.MultipleInvalid(errs)
+    return config
+
+
+def validate_initial_no_higher_than_global(config):
+    if initial_level := config.get(CONF_INITIAL_LEVEL):
+        global_level = config[CONF_LEVEL]
+        if LOG_LEVEL_SEVERITY.index(initial_level) > LOG_LEVEL_SEVERITY.index(
+            global_level
+        ):
+            raise cv.Invalid(
+                f"The initial log level ({initial_level}) must not be less severe than the global log level ({global_level})",
+                [CONF_INITIAL_LEVEL],
+            )
+    return config
 
 
 Logger = logger_ns.class_("Logger", cg.Component)
@@ -218,12 +241,15 @@ CONFIG_SCHEMA = cv.All(
                 CONF_HARDWARE_UART,
                 esp8266=UART0,
                 esp32=UART0,
-                esp32_s2=USB_CDC,
-                esp32_s3=USB_SERIAL_JTAG,
+                esp32_c2=UART0,
                 esp32_c3=USB_SERIAL_JTAG,
                 esp32_c5=USB_SERIAL_JTAG,
                 esp32_c6=USB_SERIAL_JTAG,
+                esp32_c61=USB_SERIAL_JTAG,
+                esp32_h2=USB_SERIAL_JTAG,
                 esp32_p4=USB_SERIAL_JTAG,
+                esp32_s2=USB_CDC,
+                esp32_s3=USB_SERIAL_JTAG,
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
                 ln882x=DEFAULT,
@@ -263,6 +289,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate_local_no_higher_than_global,
+    validate_initial_no_higher_than_global,
 )
 
 
@@ -344,8 +371,10 @@ async def to_code(config):
     if CORE.is_esp32:
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
+            cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
+            cg.add_define("USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG")
     try:
         uart_selection(USB_SERIAL_JTAG)
         cg.add_define("USE_LOGGER_USB_SERIAL_JTAG")
@@ -382,6 +411,8 @@ async def to_code(config):
             ],
             conf,
         )
+
+    CORE.add_job(final_step)
 
 
 def validate_printf(value):
@@ -430,7 +461,9 @@ async def logger_log_action_to_code(config, action_id, template_arg, args):
     text = str(cg.statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args_)))
 
     lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    return cg.new_Pvariable(action_id, template_arg, lambda_)
+    return automation.new_lambda_pvariable(
+        action_id, lambda_, StatelessLambdaAction, template_arg
+    )
 
 
 @automation.register_action(
@@ -455,7 +488,9 @@ async def logger_set_level_to_code(config, action_id, template_arg, args):
         text = str(cg.statement(logger.set_log_level(level)))
 
     lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
-    return cg.new_Pvariable(action_id, template_arg, lambda_)
+    return automation.new_lambda_pvariable(
+        action_id, lambda_, StatelessLambdaAction, template_arg
+    )
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
@@ -479,3 +514,24 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
     }
 )
+
+# Keys for CORE.data storage
+DOMAIN = "logger"
+KEY_LEVEL_LISTENERS = "level_listeners"
+
+
+def request_logger_level_listeners() -> None:
+    """Request that logger level listeners be compiled in.
+
+    Components that need to be notified about log level changes should call this
+    function during their code generation. This enables the add_level_listener()
+    method and compiles in the listener vector.
+    """
+    CORE.data.setdefault(DOMAIN, {})[KEY_LEVEL_LISTENERS] = True
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure optional logger features."""
+    if CORE.data.get(DOMAIN, {}).get(KEY_LEVEL_LISTENERS, False):
+        cg.add_define("USE_LOGGER_LEVEL_LISTENERS")

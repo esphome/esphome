@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_COMMENT,
     CONF_ESPHOME,
     CONF_ETHERNET,
+    CONF_OPENTHREAD,
     CONF_PORT,
     CONF_USE_ADDRESS,
     CONF_WEB_SERVER,
@@ -46,6 +47,9 @@ if TYPE_CHECKING:
     from ..types import ConfigType, EntityMetadata
 
 _LOGGER = logging.getLogger(__name__)
+
+# Key for tracking controller count in CORE.data for ControllerRegistry StaticVector sizing
+KEY_CONTROLLER_REGISTRY_COUNT = "controller_registry_count"
 
 
 class EsphomeError(Exception):
@@ -537,8 +541,22 @@ class EsphomeCore:
         self.friendly_name: str | None = None
         # The area / zone of the node
         self.area: str | None = None
-        # Additional data components can store temporary data in
-        # The first key to this dict should always be the integration name
+        # Additional data components can store temporary data in.
+        # This dict is cleared between compilation runs.
+        #
+        # Usage pattern (use @dataclass for type safety):
+        #   DOMAIN = "my_component"
+        #
+        #   @dataclass
+        #   class MyComponentData:
+        #       feature_enabled: bool = False
+        #
+        #   def _get_data() -> MyComponentData:
+        #       if DOMAIN not in CORE.data:
+        #           CORE.data[DOMAIN] = MyComponentData()
+        #       return CORE.data[DOMAIN]
+        #
+        # The first key should always be the component domain name (DOMAIN constant).
         self.data = {}
         # The relative path to the configuration YAML
         self.config_path: Path | None = None
@@ -590,6 +608,8 @@ class EsphomeCore:
         self.current_component: str | None = None
         # Address cache for DNS and mDNS lookups from command line arguments
         self.address_cache: AddressCache | None = None
+        # Cached config hash (computed lazily)
+        self._config_hash: int | None = None
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -618,6 +638,7 @@ class EsphomeCore:
         self.unique_ids = {}
         self.current_component = None
         self.address_cache = None
+        self._config_hash = None
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
@@ -635,11 +656,12 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        if CONF_WIFI in self.config:
-            return self.config[CONF_WIFI][CONF_USE_ADDRESS]
+        for network_type in (CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD):
+            if network_type in self.config:
+                return self.config[network_type][CONF_USE_ADDRESS]
 
-        if CONF_ETHERNET in self.config:
-            return self.config[CONF_ETHERNET][CONF_USE_ADDRESS]
+        if CONF_OPENTHREAD in self.config:
+            return f"{self.name}.local"
 
         return None
 
@@ -665,6 +687,21 @@ class EsphomeCore:
             return self.config[CONF_ESPHOME][CONF_COMMENT]
 
         return None
+
+    @property
+    def config_hash(self) -> int:
+        """Get the FNV-1a 32-bit hash of the config.
+
+        The hash is computed lazily and cached for performance.
+        Uses sort_keys=True to ensure deterministic ordering.
+        """
+        if self._config_hash is None:
+            from esphome import yaml_util
+            from esphome.helpers import fnv1a_32bit_hash
+
+            config_str = yaml_util.dump(self.config, show_secrets=True, sort_keys=True)
+            self._config_hash = fnv1a_32bit_hash(config_str)
+        return self._config_hash
 
     @property
     def config_dir(self) -> Path:
@@ -761,6 +798,11 @@ class EsphomeCore:
 
     @property
     def using_esp_idf(self):
+        _LOGGER.warning(
+            "CORE.using_esp_idf was deprecated in 2026.1, will change behavior in 2026.6. "
+            "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
+            "Use CORE.is_esp32 and/or CORE.using_arduino instead."
+        )
         return self.target_framework == "esp-idf"
 
     @property
@@ -907,6 +949,11 @@ class EsphomeCore:
         :param var: The variable (component) being registered (currently unused but kept for future use)
         """
         self.platform_counts[platform_name] += 1
+
+    def register_controller(self) -> None:
+        """Track registration of a Controller for ControllerRegistry StaticVector sizing."""
+        controller_count = self.data.setdefault(KEY_CONTROLLER_REGISTRY_COUNT, 0)
+        self.data[KEY_CONTROLLER_REGISTRY_COUNT] = controller_count + 1
 
     @property
     def cpp_main_section(self):

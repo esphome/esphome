@@ -1,11 +1,11 @@
-#include "esphome/core/log.h"
-
-#include "light_output.h"
 #include "light_state.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
+#include "esphome/core/log.h"
+#include "light_output.h"
 #include "transformers.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 static const char *const TAG = "light";
 
@@ -22,6 +22,9 @@ void LightState::setup() {
   for (auto *effect : this->effects_) {
     effect->init_internal(this);
   }
+
+  // Start with loop disabled if idle - respects any effects/transitions set up during initialization
+  this->disable_loop_if_idle_();
 
   // When supported color temperature range is known, initialize color temperature setting within bounds.
   auto traits = this->get_traits();
@@ -124,7 +127,14 @@ void LightState::loop() {
       this->transformer_->stop();
       this->is_transformer_active_ = false;
       this->transformer_ = nullptr;
-      this->target_state_reached_callback_.call();
+      if (this->target_state_reached_listeners_) {
+        for (auto *listener : *this->target_state_reached_listeners_) {
+          listener->on_light_target_state_reached();
+        }
+      }
+
+      // Disable loop if idle (no transformer and no effect)
+      this->disable_loop_if_idle_();
     }
   }
 
@@ -132,12 +142,23 @@ void LightState::loop() {
   if (this->next_write_) {
     this->next_write_ = false;
     this->output_->write_state(this);
+    // Disable loop if idle (no transformer and no effect)
+    this->disable_loop_if_idle_();
   }
 }
 
 float LightState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 
-void LightState::publish_state() { this->remote_values_callback_.call(); }
+void LightState::publish_state() {
+  if (this->remote_values_listeners_) {
+    for (auto *listener : *this->remote_values_listeners_) {
+      listener->on_light_remote_values_update();
+    }
+  }
+#if defined(USE_LIGHT) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_light_update(this);
+#endif
+}
 
 LightOutput *LightState::get_output() const { return this->output_; }
 
@@ -158,11 +179,17 @@ StringRef LightState::get_effect_name_ref() {
   return EFFECT_NONE_REF;
 }
 
-void LightState::add_new_remote_values_callback(std::function<void()> &&send_callback) {
-  this->remote_values_callback_.add(std::move(send_callback));
+void LightState::add_remote_values_listener(LightRemoteValuesListener *listener) {
+  if (!this->remote_values_listeners_) {
+    this->remote_values_listeners_ = make_unique<std::vector<LightRemoteValuesListener *>>();
+  }
+  this->remote_values_listeners_->push_back(listener);
 }
-void LightState::add_new_target_state_reached_callback(std::function<void()> &&send_callback) {
-  this->target_state_reached_callback_.add(std::move(send_callback));
+void LightState::add_target_state_reached_listener(LightTargetStateReachedListener *listener) {
+  if (!this->target_state_reached_listeners_) {
+    this->target_state_reached_listeners_ = make_unique<std::vector<LightTargetStateReachedListener *>>();
+  }
+  this->target_state_reached_listeners_->push_back(listener);
 }
 
 void LightState::set_default_transition_length(uint32_t default_transition_length) {
@@ -177,12 +204,10 @@ void LightState::set_gamma_correct(float gamma_correct) { this->gamma_correct_ =
 void LightState::set_restore_mode(LightRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 void LightState::set_initial_state(const LightStateRTCState &initial_state) { this->initial_state_ = initial_state; }
 bool LightState::supports_effects() { return !this->effects_.empty(); }
-const std::vector<LightEffect *> &LightState::get_effects() const { return this->effects_; }
-void LightState::add_effects(const std::vector<LightEffect *> &effects) {
-  this->effects_.reserve(this->effects_.size() + effects.size());
-  for (auto *effect : effects) {
-    this->effects_.push_back(effect);
-  }
+const FixedVector<LightEffect *> &LightState::get_effects() const { return this->effects_; }
+void LightState::add_effects(const std::initializer_list<LightEffect *> &effects) {
+  // Called once from Python codegen during setup with all effects from YAML config
+  this->effects_ = effects;
 }
 
 void LightState::current_values_as_binary(bool *binary) { this->current_values.as_binary(binary); }
@@ -190,11 +215,9 @@ void LightState::current_values_as_brightness(float *brightness) {
   this->current_values.as_brightness(brightness, this->gamma_correct_);
 }
 void LightState::current_values_as_rgb(float *red, float *green, float *blue, bool color_interlock) {
-  auto traits = this->get_traits();
   this->current_values.as_rgb(red, green, blue, this->gamma_correct_, false);
 }
 void LightState::current_values_as_rgbw(float *red, float *green, float *blue, float *white, bool color_interlock) {
-  auto traits = this->get_traits();
   this->current_values.as_rgbw(red, green, blue, white, this->gamma_correct_, false);
 }
 void LightState::current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
@@ -208,7 +231,6 @@ void LightState::current_values_as_rgbct(float *red, float *green, float *blue, 
                                 white_brightness, this->gamma_correct_);
 }
 void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness) {
-  auto traits = this->get_traits();
   this->current_values.as_cwww(cold_white, warm_white, this->gamma_correct_, constant_brightness);
 }
 void LightState::current_values_as_ct(float *color_temperature, float *white_brightness) {
@@ -227,6 +249,8 @@ void LightState::start_effect_(uint32_t effect_index) {
   this->active_effect_index_ = effect_index;
   auto *effect = this->get_active_effect_();
   effect->start_internal();
+  // Enable loop while effect is active
+  this->enable_loop();
 }
 LightEffect *LightState::get_active_effect_() {
   if (this->active_effect_index_ == 0) {
@@ -241,6 +265,8 @@ void LightState::stop_effect_() {
     effect->stop();
   }
   this->active_effect_index_ = 0;
+  // Disable loop if idle (no effect and no transformer)
+  this->disable_loop_if_idle_();
 }
 
 void LightState::start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values) {
@@ -250,6 +276,8 @@ void LightState::start_transition_(const LightColorValues &target, uint32_t leng
   if (set_remote_values) {
     this->remote_values = target;
   }
+  // Enable loop while transition is active
+  this->enable_loop();
 }
 
 void LightState::start_flash_(const LightColorValues &target, uint32_t length, bool set_remote_values) {
@@ -265,6 +293,8 @@ void LightState::start_flash_(const LightColorValues &target, uint32_t length, b
   if (set_remote_values) {
     this->remote_values = target;
   };
+  // Enable loop while flash is active
+  this->enable_loop();
 }
 
 void LightState::set_immediately_(const LightColorValues &target, bool set_remote_values) {
@@ -275,7 +305,14 @@ void LightState::set_immediately_(const LightColorValues &target, bool set_remot
     this->remote_values = target;
   }
   this->output_->update_state(this);
-  this->next_write_ = true;
+  this->schedule_write_();
+}
+
+void LightState::disable_loop_if_idle_() {
+  // Only disable loop if both transformer and effect are inactive, and no pending writes
+  if (this->transformer_ == nullptr && this->get_active_effect_() == nullptr && !this->next_write_) {
+    this->disable_loop();
+  }
 }
 
 void LightState::save_remote_values_() {
@@ -303,5 +340,4 @@ void LightState::save_remote_values_() {
   this->rtc_.save(&saved);
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

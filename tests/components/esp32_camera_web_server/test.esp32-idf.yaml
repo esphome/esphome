@@ -1,4 +1,4 @@
 packages:
-  camera: !include ../../test_build_components/common/camera/esp32-idf.yaml
+  i2c_camera: !include ../../test_build_components/common/i2c_camera/esp32-idf.yaml
 
 <<: !include common.yaml

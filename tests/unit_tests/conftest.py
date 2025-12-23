@@ -58,6 +58,7 @@ def mock_write_file_if_changed() -> Generator[Mock, None, None]:
 def mock_copy_file_if_changed() -> Generator[Mock, None, None]:
     """Mock copy_file_if_changed for core.config."""
     with patch("esphome.core.config.copy_file_if_changed") as mock:
+        mock.return_value = True
         yield mock
 
 
@@ -93,6 +94,13 @@ def mock_run_external_command() -> Generator[Mock, None, None]:
 def mock_run_git_command() -> Generator[Mock, None, None]:
     """Mock run_git_command for git module."""
     with patch("esphome.git.run_git_command") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_subprocess_run() -> Generator[Mock, None, None]:
+    """Mock subprocess.run for testing."""
+    with patch("subprocess.run") as mock:
         yield mock
 
 

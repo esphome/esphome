@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_component
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import filter_source_files_from_platform, get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DISABLED,
@@ -13,6 +13,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, Lambda, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
@@ -46,6 +47,19 @@ SERVICE_SCHEMA = cv.Schema(
     }
 )
 
+
+def _consume_mdns_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for mDNS component."""
+    if config.get(CONF_DISABLED):
+        return config
+
+    from esphome.components import socket
+
+    # mDNS needs 2 sockets (IPv4 + IPv6 multicast)
+    socket.consume_sockets(2, "mdns")(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -55,6 +69,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     _remove_id_if_disabled,
+    _consume_mdns_sockets,
 )
 
 
@@ -125,21 +140,30 @@ def mdns_service(
     )
 
 
+def enable_mdns_storage():
+    """Enable persistent storage of mDNS services in the MDNSComponent.
+
+    Called by external components (like OpenThread) that need access to
+    services after setup() completes via get_services().
+
+    Public API for external components. Do not remove.
+    """
+    cg.add_define("USE_MDNS_STORE_SERVICES")
+
+
 @coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
 async def to_code(config):
     if config[CONF_DISABLED] is True:
         return
 
     if CORE.using_arduino:
-        if CORE.is_esp32:
-            cg.add_library("ESPmDNS", None)
-        elif CORE.is_esp8266:
+        if CORE.is_esp8266:
             cg.add_library("ESP8266mDNS", None)
         elif CORE.is_rp2040:
             cg.add_library("LEAmDNS", None)
 
-    if CORE.using_esp_idf:
-        add_idf_component(name="espressif/mdns", ref="1.8.2")
+    if CORE.is_esp32:
+        add_idf_component(name="espressif/mdns", ref="1.9.1")
 
     cg.add_define("USE_MDNS")
 
@@ -150,16 +174,16 @@ async def to_code(config):
 
     if config[CONF_SERVICES]:
         cg.add_define("USE_MDNS_EXTRA_SERVICES")
+        # Extra services need to be stored persistently
+        enable_mdns_storage()
 
     # Ensure at least 1 service (fallback service)
     cg.add_define("MDNS_SERVICE_COUNT", max(1, service_count))
 
     # Calculate compile-time dynamic TXT value count
     # Dynamic values are those that cannot be stored in flash at compile time
+    # Note: MAC address is now stored in a fixed char[13] buffer, not dynamic storage
     dynamic_txt_count = 0
-    if "api" in CORE.config:
-        # Always: get_mac_address()
-        dynamic_txt_count += 1
     # User-provided templatable TXT values (only lambdas, not static strings)
     dynamic_txt_count += sum(
         1
@@ -168,8 +192,14 @@ async def to_code(config):
         if cg.is_template(txt_value)
     )
 
-    # Ensure at least 1 to avoid zero-size array
-    cg.add_define("MDNS_DYNAMIC_TXT_COUNT", max(1, dynamic_txt_count))
+    # Only add define if we actually need dynamic storage
+    if dynamic_txt_count > 0:
+        cg.add_define("USE_MDNS_DYNAMIC_TXT")
+        cg.add_define("MDNS_DYNAMIC_TXT_COUNT", dynamic_txt_count)
+
+    # Enable storage if verbose logging is enabled (for dump_config)
+    if get_logger_level() in ("VERBOSE", "VERY_VERBOSE"):
+        enable_mdns_storage()
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

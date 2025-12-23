@@ -51,15 +51,19 @@ class AssignmentExpression(Expression):
 
 
 class VariableDeclarationExpression(Expression):
-    __slots__ = ("type", "modifier", "name")
+    __slots__ = ("type", "modifier", "name", "static")
 
-    def __init__(self, type_, modifier, name):
+    def __init__(
+        self, type_: "MockObj", modifier: str, name: ID, *, static: bool = False
+    ) -> None:
         self.type = type_
         self.modifier = modifier
         self.name = name
+        self.static = static
 
-    def __str__(self):
-        return f"{self.type} {self.modifier}{self.name}"
+    def __str__(self) -> str:
+        prefix = "static " if self.static else ""
+        return f"{prefix}{self.type} {self.modifier}{self.name}"
 
 
 class ExpressionList(Expression):
@@ -198,6 +202,8 @@ class LambdaExpression(Expression):
         self.return_type = safe_exp(return_type) if return_type is not None else None
 
     def __str__(self):
+        # Stateless lambdas (empty capture) implicitly convert to function pointers
+        # when assigned to function pointer types - no unary + needed
         cpp = f"[{self.capture}]({self.parameters})"
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
@@ -348,7 +354,7 @@ def safe_exp(obj: SafeExpType) -> Expression:
         return IntLiteral(int(obj.total_seconds))
     if isinstance(obj, TimePeriodMinutes):
         return IntLiteral(int(obj.total_minutes))
-    if isinstance(obj, tuple | list):
+    if isinstance(obj, (tuple, list)):
         return ArrayInitializer(*[safe_exp(o) for o in obj])
     if obj is bool:
         return bool_
@@ -505,13 +511,17 @@ def with_local_variable(id_: ID, rhs: SafeExpType, callback: Callable, *args) ->
     CORE.add(RawStatement("}"))  # output closing curly brace
 
 
-def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
+def new_variable(
+    id_: ID, rhs: SafeExpType, type_: "MockObj" = None, *, static: bool = True
+) -> "MockObj":
     """Declare and define a new variable, not pointer type, in the code generation.
 
     :param id_: The ID used to declare the variable.
     :param rhs: The expression to place on the right hand side of the assignment.
     :param type_: Manually define a type for the variable, only use this when it's not possible
       to do so during config validation phase (for example because of template arguments).
+    :param static: If True (default), declare with static storage class for optimization.
+      Set to False when the variable must have external linkage (e.g., to match library declarations).
 
     :return: The new variable as a MockObj.
     """
@@ -520,7 +530,7 @@ def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj
     obj = MockObj(id_, ".")
     if type_ is not None:
         id_.type = type_
-    decl = VariableDeclarationExpression(id_.type, "", id_)
+    decl = VariableDeclarationExpression(id_.type, "", id_, static=static)
     CORE.add_global(decl)
     assignment = AssignmentExpression(None, "", id_, rhs)
     CORE.add(assignment)
@@ -542,7 +552,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     obj = MockObj(id_, "->")
     if type_ is not None:
         id_.type = type_
-    decl = VariableDeclarationExpression(id_.type, "*", id_)
+    decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
     CORE.add_global(decl)
     assignment = AssignmentExpression(None, None, id_, rhs)
     CORE.add(assignment)
@@ -657,7 +667,7 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
 async def process_lambda(
     value: Lambda,
     parameters: TemplateArgsType,
-    capture: str = "=",
+    capture: str = "",
     return_type: SafeExpType = None,
 ) -> LambdaExpression | None:
     """Process the given lambda value into a LambdaExpression.

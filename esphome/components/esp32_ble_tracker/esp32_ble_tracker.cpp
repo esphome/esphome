@@ -7,7 +7,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
+#endif
 #include <esp_bt_defs.h>
 #include <esp_bt_main.h>
 #include <esp_gap_ble_api.h>
@@ -69,20 +71,23 @@ void ESP32BLETracker::setup() {
 
   global_esp32_ble_tracker = this;
 
-#ifdef USE_OTA
-  ota::get_global_ota_callback()->add_on_state_callback(
-      [this](ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
-        if (state == ota::OTA_STARTED) {
-          this->stop_scan();
-#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
-          for (auto *client : this->clients_) {
-            client->disconnect();
-          }
-#endif
-        }
-      });
+#ifdef USE_OTA_STATE_LISTENER
+  ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
 }
+
+#ifdef USE_OTA_STATE_LISTENER
+void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
+  if (state == ota::OTA_STARTED) {
+    this->stop_scan();
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+    for (auto *client : this->clients_) {
+      client->disconnect();
+    }
+#endif
+  }
+}
+#endif
 
 void ESP32BLETracker::loop() {
   if (!this->parent_->is_active()) {
@@ -183,7 +188,10 @@ void ESP32BLETracker::ble_before_disabled_event_handler() { this->stop_scan_(); 
 
 void ESP32BLETracker::stop_scan_() {
   if (this->scanner_state_ != ScannerState::RUNNING && this->scanner_state_ != ScannerState::FAILED) {
-    ESP_LOGE(TAG, "Cannot stop scan: %s", this->scanner_state_to_string_(this->scanner_state_));
+    // If scanner is already idle, there's nothing to stop - this is not an error
+    if (this->scanner_state_ != ScannerState::IDLE) {
+      ESP_LOGE(TAG, "Cannot stop scan: %s", this->scanner_state_to_string_(this->scanner_state_));
+    }
     return;
   }
   // Reset timeout state machine when stopping scan
@@ -371,7 +379,9 @@ void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
 
 void ESP32BLETracker::set_scanner_state_(ScannerState state) {
   this->scanner_state_ = state;
-  this->scanner_state_callbacks_.call(state);
+  for (auto *listener : this->scanner_state_listeners_) {
+    listener->on_scanner_state(state);
+  }
 }
 
 #ifdef USE_ESP32_BLE_DEVICE
@@ -431,24 +441,31 @@ void ESPBTDevice::parse_scan_rst(const BLEScanResult &scan_result) {
     ESP_LOGVV(TAG, "  Ad Flag: %u", *this->ad_flag_);
   }
   for (auto &uuid : this->service_uuids_) {
-    ESP_LOGVV(TAG, "  Service UUID: %s", uuid.to_string().c_str());
+    char uuid_buf[esp32_ble::UUID_STR_LEN];
+    uuid.to_str(uuid_buf);
+    ESP_LOGVV(TAG, "  Service UUID: %s", uuid_buf);
   }
   for (auto &data : this->manufacturer_datas_) {
     auto ibeacon = ESPBLEiBeacon::from_manufacturer_data(data);
     if (ibeacon.has_value()) {
       ESP_LOGVV(TAG, "  Manufacturer iBeacon:");
-      ESP_LOGVV(TAG, "    UUID: %s", ibeacon.value().get_uuid().to_string().c_str());
+      char uuid_buf[esp32_ble::UUID_STR_LEN];
+      ibeacon.value().get_uuid().to_str(uuid_buf);
+      ESP_LOGVV(TAG, "    UUID: %s", uuid_buf);
       ESP_LOGVV(TAG, "    Major: %u", ibeacon.value().get_major());
       ESP_LOGVV(TAG, "    Minor: %u", ibeacon.value().get_minor());
       ESP_LOGVV(TAG, "    TXPower: %d", ibeacon.value().get_signal_power());
     } else {
-      ESP_LOGVV(TAG, "  Manufacturer ID: %s, data: %s", data.uuid.to_string().c_str(),
-                format_hex_pretty(data.data).c_str());
+      char uuid_buf[esp32_ble::UUID_STR_LEN];
+      data.uuid.to_str(uuid_buf);
+      ESP_LOGVV(TAG, "  Manufacturer ID: %s, data: %s", uuid_buf, format_hex_pretty(data.data).c_str());
     }
   }
   for (auto &data : this->service_datas_) {
     ESP_LOGVV(TAG, "  Service data:");
-    ESP_LOGVV(TAG, "    UUID: %s", data.uuid.to_string().c_str());
+    char uuid_buf[esp32_ble::UUID_STR_LEN];
+    data.uuid.to_str(uuid_buf);
+    ESP_LOGVV(TAG, "    UUID: %s", uuid_buf);
     ESP_LOGVV(TAG, "    Data: %s", format_hex_pretty(data.data).c_str());
   }
 
@@ -845,6 +862,7 @@ void ESP32BLETracker::log_unexpected_state_(const char *operation, ScannerState 
 
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
 void ESP32BLETracker::update_coex_preference_(bool force_ble) {
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   if (force_ble && !this->coex_prefer_ble_) {
     ESP_LOGD(TAG, "Setting coexistence to Bluetooth to make connection.");
     this->coex_prefer_ble_ = true;
@@ -854,6 +872,7 @@ void ESP32BLETracker::update_coex_preference_(bool force_ble) {
     this->coex_prefer_ble_ = false;
     esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);  // Reset to default
   }
+#endif  // CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 }
 #endif
 

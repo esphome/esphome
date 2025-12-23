@@ -1,6 +1,6 @@
 #include "http_request_idf.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/components/network/util.h"
 #include "esphome/components/watchdog/watchdog.h"
@@ -14,8 +14,7 @@
 
 #include "esp_task_wdt.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 static const char *const TAG = "http_request.idf";
 
@@ -52,9 +51,10 @@ esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
   return ESP_OK;
 }
 
-std::shared_ptr<HttpContainer> HttpRequestIDF::perform(std::string url, std::string method, std::string body,
-                                                       std::list<Header> request_headers,
-                                                       std::set<std::string> collect_headers) {
+std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, const std::string &method,
+                                                       const std::string &body,
+                                                       const std::list<Header> &request_headers,
+                                                       const std::set<std::string> &collect_headers) {
   if (!network::is_connected()) {
     this->status_momentary_error("failed", 1000);
     ESP_LOGE(TAG, "HTTP Request failed; Not connected to network");
@@ -244,7 +244,6 @@ void HttpContainerIDF::feed_wdt() {
   }
 }
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

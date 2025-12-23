@@ -24,7 +24,7 @@ void MQTTLockComponent::setup() {
     } else if (strcasecmp(payload.c_str(), "OPEN") == 0) {
       this->lock_->open();
     } else {
-      ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name().c_str(), payload.c_str());
+      ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name_().c_str(), payload.c_str());
       this->status_momentary_warning("state", 5000);
     }
   });
@@ -48,8 +48,14 @@ void MQTTLockComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfi
 bool MQTTLockComponent::send_initial_state() { return this->publish_state(); }
 
 bool MQTTLockComponent::publish_state() {
-  std::string payload = lock_state_to_string(this->lock_->state);
-  return this->publish(this->get_state_topic_(), payload);
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+  char buf[LOCK_STATE_STR_SIZE];
+  strncpy_P(buf, (PGM_P) lock_state_to_string(this->lock_->state), sizeof(buf) - 1);
+  buf[sizeof(buf) - 1] = '\0';
+  return this->publish(this->get_state_topic_(), buf);
+#else
+  return this->publish(this->get_state_topic_(), LOG_STR_ARG(lock_state_to_string(this->lock_->state)));
+#endif
 }
 
 }  // namespace mqtt

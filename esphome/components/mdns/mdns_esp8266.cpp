@@ -4,19 +4,17 @@
 #include <ESP8266mDNS.h>
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
-void MDNSComponent::setup() {
-  this->compile_records_();
+static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
+  MDNS.begin(App.get_name().c_str());
 
-  MDNS.begin(this->hostname_.c_str());
-
-  for (const auto &service : this->services_) {
+  for (const auto &service : services) {
     // Strip the leading underscore from the proto and service_type. While it is
     // part of the wire protocol to have an underscore, and for example ESP-IDF
     // expects the underscore to be there, the ESP8266 implementation always adds
@@ -38,6 +36,8 @@ void MDNSComponent::setup() {
   }
 }
 
+void MDNSComponent::setup() { this->setup_buffers_and_register_(register_esp8266); }
+
 void MDNSComponent::loop() { MDNS.update(); }
 
 void MDNSComponent::on_shutdown() {
@@ -45,7 +45,6 @@ void MDNSComponent::on_shutdown() {
   delay(10);
 }
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 
 #endif
