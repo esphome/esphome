@@ -282,7 +282,7 @@ def test_sanitize(text, expected):
 @pytest.mark.parametrize(
     ("name", "expected_hash"),
     (
-        # Basic strings - hash of snake_case(sanitize(name))
+        # Basic strings - hash of sanitize(snake_case(name))
         ("foo", 0x408F5E13),
         ("Foo", 0x408F5E13),  # Same as "foo" (lowercase)
         ("FOO", 0x408F5E13),  # Same as "foo" (lowercase)
