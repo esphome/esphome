@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import sensor
 from esphome import pins
+import esphome.codegen as cg
+from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTIVE_POWER,
     CONF_APPARENT_POWER,
@@ -166,11 +166,18 @@ ADE7880_CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
+def _update_sensor_name(channel_name, config):
+    sensor_name = config.get(CONF_NAME)
+    if sensor_name and channel_name and not sensor_name.startswith(channel_name):
+        config[CONF_NAME] = f"{channel_name} {sensor_name}"
+
+
 async def neutral_channel(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
-    current = config[CONF_CURRENT]
-    sens = await sensor.new_sensor(current)
+    conf = config[CONF_CURRENT]
+    _update_sensor_name(config.get(CONF_NAME), conf)
+    sens = await sensor.new_sensor(conf)
     cg.add(var.set_current(sens))
 
     cg.add(
@@ -182,6 +189,7 @@ async def neutral_channel(config):
 
 async def power_channel(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    channel_name = config.get(CONF_NAME)
 
     for sensor_type in [
         CONF_CURRENT,
@@ -193,6 +201,8 @@ async def power_channel(config):
         CONF_REVERSE_ACTIVE_ENERGY,
     ]:
         if conf := config.get(sensor_type):
+            _update_sensor_name(channel_name, conf)
+
             sens = await sensor.new_sensor(conf)
             cg.add(getattr(var, f"set_{sensor_type}")(sens))
 
@@ -209,44 +219,6 @@ async def power_channel(config):
         )
 
     return var
-
-
-def final_validate(config):
-    for channel in [CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C]:
-        if channel := config.get(channel):
-            channel_name = channel.get(CONF_NAME)
-
-            for sensor_type in [
-                CONF_CURRENT,
-                CONF_VOLTAGE,
-                CONF_ACTIVE_POWER,
-                CONF_APPARENT_POWER,
-                CONF_POWER_FACTOR,
-                CONF_FORWARD_ACTIVE_ENERGY,
-                CONF_REVERSE_ACTIVE_ENERGY,
-            ]:
-                if conf := channel.get(sensor_type):
-                    sensor_name = conf.get(CONF_NAME)
-                    if (
-                        sensor_name
-                        and channel_name
-                        and not sensor_name.startswith(channel_name)
-                    ):
-                        conf[CONF_NAME] = f"{channel_name} {sensor_name}"
-
-    if channel := config.get(CONF_NEUTRAL):
-        channel_name = channel.get(CONF_NAME)
-        if conf := channel.get(CONF_CURRENT):
-            sensor_name = conf.get(CONF_NAME)
-            if (
-                sensor_name
-                and channel_name
-                and not sensor_name.startswith(channel_name)
-            ):
-                conf[CONF_NAME] = f"{channel_name} {sensor_name}"
-
-
-FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def register_ade7880(var, config):
