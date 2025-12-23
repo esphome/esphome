@@ -50,6 +50,11 @@ def iter_components(config):
 
 def iter_component_configs(config):
     for domain, conf in config.items():
+        if "." in domain:
+            parent_domain, platform = domain.split(".", 1)
+            component = get_platform(parent_domain, platform)
+            yield domain, component, conf
+            continue
         component = get_component(domain)
         if component.multi_conf:
             for conf_ in conf:

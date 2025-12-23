@@ -23,7 +23,6 @@ from . import BTHomeBLE, bthome_ble_base_schema, setup_bthome_ble
 CODEOWNERS = ["@esphome/core"]
 
 DEPENDENCIES = ["esp32_ble_tracker"]
-MULTI_CONF = True
 
 CONFIG_SCHEMA = bthome_ble_base_schema(
     {

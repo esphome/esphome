@@ -10,7 +10,6 @@ CONF_FIRMWARE_VERSION = "firmware_version"
 CODEOWNERS = ["@esphome/core"]
 
 DEPENDENCIES = ["esp32_ble_tracker"]
-MULTI_CONF = True
 
 CONFIG_SCHEMA = bthome_ble_base_schema(
     {
