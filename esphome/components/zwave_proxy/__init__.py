@@ -41,3 +41,6 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     cg.add_define("USE_ZWAVE_PROXY")
+
+    # Request UART to wake the main loop when data arrives for low-latency processing
+    uart.request_wake_loop_on_rx()

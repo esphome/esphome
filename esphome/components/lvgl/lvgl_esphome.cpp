@@ -106,6 +106,7 @@ void LvglComponent::dump_config() {
                 this->disp_drv_.hor_res, this->disp_drv_.ver_res, 100 / this->buffer_frac_, this->rotation,
                 (int) this->draw_rounding);
 }
+
 void LvglComponent::set_paused(bool paused, bool show_snow) {
   this->paused_ = paused;
   this->show_snow_ = show_snow;
@@ -124,32 +125,38 @@ void LvglComponent::esphome_lvgl_init() {
   lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
   lv_api_event = static_cast<lv_event_code_t>(lv_event_register_id());
 }
+
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
   lv_obj_add_event_cb(obj, callback, event, nullptr);
 }
+
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
                                  lv_event_code_t event2) {
   add_event_cb(obj, callback, event1);
   add_event_cb(obj, callback, event2);
 }
+
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
                                  lv_event_code_t event2, lv_event_code_t event3) {
   add_event_cb(obj, callback, event1);
   add_event_cb(obj, callback, event2);
   add_event_cb(obj, callback, event3);
 }
+
 void LvglComponent::add_page(LvPageType *page) {
   this->pages_.push_back(page);
   page->set_parent(this);
   lv_disp_set_default(this->disp_);
   page->setup(this->pages_.size() - 1);
 }
+
 void LvglComponent::show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time) {
   if (index >= this->pages_.size())
     return;
   this->current_page_ = index;
   lv_scr_load_anim(this->pages_[this->current_page_]->obj, anim, time, 0, false);
 }
+
 void LvglComponent::show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == this->pages_.size() - 1 && !this->page_wrap_))
     return;
@@ -158,6 +165,7 @@ void LvglComponent::show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
   } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
   this->show_page(this->current_page_, anim, time);
 }
+
 void LvglComponent::show_prev_page(lv_scr_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == 0 && !this->page_wrap_))
     return;
@@ -166,8 +174,10 @@ void LvglComponent::show_prev_page(lv_scr_load_anim_t anim, uint32_t time) {
   } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
   this->show_page(this->current_page_, anim, time);
 }
+
 size_t LvglComponent::get_current_page() const { return this->current_page_; }
 bool LvPageType::is_showing() const { return this->parent_->get_current_page() == this->index; }
+
 void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_t *ptr) {
   auto width = lv_area_get_width(area);
   auto height = lv_area_get_height(area);
@@ -222,7 +232,7 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_t *ptr) {
 }
 
 void LvglComponent::flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p) {
-  if (!this->paused_) {
+  if (!this->is_paused()) {
     auto now = millis();
     this->draw_buffer_(area, color_p);
     ESP_LOGVV(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", area->x1, area->y1, lv_area_get_width(area),
@@ -230,6 +240,7 @@ void LvglComponent::flush_cb_(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv
   }
   lv_disp_flush_ready(disp_drv);
 }
+
 IdleTrigger::IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeout) : timeout_(std::move(timeout)) {
   parent->add_on_idle_callback([this](uint32_t idle_time) {
     if (!this->is_idle_ && idle_time > this->timeout_.value()) {
@@ -377,6 +388,27 @@ void LvKeyboardType::set_obj(lv_obj_t *lv_obj) {
 }
 #endif  // USE_LVGL_KEYBOARD
 
+void LvglComponent::draw_end_() {
+  if (this->draw_end_callback_ != nullptr)
+    this->draw_end_callback_->trigger();
+  if (this->update_when_display_idle_) {
+    for (auto *disp : this->displays_)
+      disp->update();
+  }
+}
+
+bool LvglComponent::is_paused() const {
+  if (this->paused_)
+    return true;
+  if (this->update_when_display_idle_) {
+    for (auto *disp : this->displays_) {
+      if (!disp->is_idle())
+        return true;
+    }
+  }
+  return false;
+}
+
 void LvglComponent::write_random_() {
   int iterations = 6 - lv_disp_get_inactive_time(this->disp_) / 60000;
   if (iterations <= 0)
@@ -426,12 +458,13 @@ void LvglComponent::write_random_() {
  *                         presses a key or clicks on the screen.
  */
 LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh,
-                             int draw_rounding, bool resume_on_input)
+                             int draw_rounding, bool resume_on_input, bool update_when_display_idle)
     : draw_rounding(draw_rounding),
       displays_(std::move(displays)),
       buffer_frac_(buffer_frac),
       full_refresh_(full_refresh),
-      resume_on_input_(resume_on_input) {
+      resume_on_input_(resume_on_input),
+      update_when_display_idle_(update_when_display_idle) {
   lv_disp_draw_buf_init(&this->draw_buf_, nullptr, nullptr, 0);
   lv_disp_drv_init(&this->disp_drv_);
   this->disp_drv_.draw_buf = &this->draw_buf_;
@@ -465,12 +498,12 @@ void LvglComponent::setup() {
     buf_bytes /= MIN_BUFFER_FRAC;
     buffer = lv_custom_mem_alloc(buf_bytes);  // NOLINT
   }
+  this->buffer_frac_ = frac;
   if (buffer == nullptr) {
-    this->status_set_error("Memory allocation failure");
+    this->status_set_error(LOG_STR("Memory allocation failure"));
     this->mark_failed();
     return;
   }
-  this->buffer_frac_ = frac;
   lv_disp_draw_buf_init(&this->draw_buf_, buffer, nullptr, buffer_pixels);
   this->disp_drv_.hor_res = display->get_width();
   this->disp_drv_.ver_res = display->get_height();
@@ -479,7 +512,7 @@ void LvglComponent::setup() {
   if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
     this->rotate_buf_ = static_cast<lv_color_t *>(lv_custom_mem_alloc(buf_bytes));  // NOLINT
     if (this->rotate_buf_ == nullptr) {
-      this->status_set_error("Memory allocation failure");
+      this->status_set_error(LOG_STR("Memory allocation failure"));
       this->mark_failed();
       return;
     }
@@ -487,7 +520,7 @@ void LvglComponent::setup() {
   if (this->draw_start_callback_ != nullptr) {
     this->disp_drv_.render_start_cb = render_start_cb;
   }
-  if (this->draw_end_callback_ != nullptr) {
+  if (this->draw_end_callback_ != nullptr || this->update_when_display_idle_) {
     this->disp_drv_.monitor_cb = monitor_cb;
   }
 #if LV_USE_LOG
@@ -509,14 +542,15 @@ void LvglComponent::setup() {
 
 void LvglComponent::update() {
   // update indicators
-  if (this->paused_) {
+  if (this->is_paused()) {
     return;
   }
   this->idle_callbacks_.call(lv_disp_get_inactive_time(this->disp_));
 }
+
 void LvglComponent::loop() {
-  if (this->paused_) {
-    if (this->show_snow_)
+  if (this->is_paused()) {
+    if (this->paused_ && this->show_snow_)
       this->write_random_();
   } else {
     lv_timer_handler_run_in_period(5);

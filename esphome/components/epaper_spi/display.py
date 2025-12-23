@@ -4,8 +4,10 @@ import pkgutil
 from esphome import core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
+from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
 from esphome.components.mipi import flatten_sequence, map_sequence
 import esphome.config_validation as cv
+from esphome.config_validation import update_interval
 from esphome.const import (
     CONF_BUSY_PIN,
     CONF_CS_PIN,
@@ -13,15 +15,25 @@ from esphome.const import (
     CONF_DC_PIN,
     CONF_DIMENSIONS,
     CONF_ENABLE_PIN,
+    CONF_FULL_UPDATE_EVERY,
     CONF_HEIGHT,
     CONF_ID,
     CONF_INIT_SEQUENCE,
     CONF_LAMBDA,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
     CONF_MODEL,
+    CONF_PAGES,
     CONF_RESET_DURATION,
     CONF_RESET_PIN,
+    CONF_ROTATION,
+    CONF_SWAP_XY,
+    CONF_TRANSFORM,
+    CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
 )
+from esphome.cpp_generator import RawExpression
+from esphome.final_validate import full_config
 
 from . import models
 
@@ -29,11 +41,13 @@ AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
 
 CONF_INIT_SEQUENCE_ID = "init_sequence_id"
+CONF_MINIMUM_UPDATE_INTERVAL = "minimum_update_interval"
 
 epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
-    "EPaperBase", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
+    "EPaperBase", cg.PollingComponent, spi.SPIDevice, display.Display
 )
+Transform = epaper_spi_ns.enum("Transform")
 
 EPaperSpectraE6 = epaper_spi_ns.class_("EPaperSpectraE6", EPaperBase)
 EPaper7p3InSpectraE6 = epaper_spi_ns.class_("EPaper7p3InSpectraE6", EPaperSpectraE6)
@@ -52,10 +66,15 @@ DIMENSION_SCHEMA = cv.Schema(
     }
 )
 
+TRANSFORM_OPTIONS = {CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY}
+
 
 def model_schema(config):
     model = MODELS[config[CONF_MODEL]]
     class_name = epaper_spi_ns.class_(model.class_name, EPaperBase)
+    minimum_update_interval = update_interval(
+        model.get_default(CONF_MINIMUM_UPDATE_INTERVAL, "1s")
+    )
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
     return (
         display.FULL_DISPLAY_SCHEMA.extend(
@@ -73,7 +92,18 @@ def model_schema(config):
         )
         .extend(
             {
+                cv.Optional(CONF_ROTATION, default=0): validate_rotation,
                 cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
+                cv.Optional(CONF_UPDATE_INTERVAL, default=cv.UNDEFINED): cv.All(
+                    update_interval, cv.Range(min=minimum_update_interval)
+                ),
+                cv.Optional(CONF_TRANSFORM): cv.Schema(
+                    {
+                        cv.Required(CONF_MIRROR_X): cv.boolean,
+                        cv.Required(CONF_MIRROR_Y): cv.boolean,
+                    }
+                ),
+                cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
                 model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
                 cv.GenerateID(): cv.declare_id(class_name),
                 cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
@@ -111,9 +141,28 @@ def customise_schema(config):
 
 CONFIG_SCHEMA = customise_schema
 
-FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
-    "epaper_spi", require_miso=False, require_mosi=True
-)
+
+def _final_validate(config):
+    spi.final_validate_device_schema(
+        "epaper_spi", require_miso=False, require_mosi=True
+    )(config)
+
+    global_config = full_config.get()
+    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
+
+    if CONF_LAMBDA not in config and CONF_PAGES not in config:
+        if LVGL_DOMAIN in global_config:
+            if CONF_UPDATE_INTERVAL not in config:
+                config[CONF_UPDATE_INTERVAL] = update_interval("never")
+        else:
+            # If no drawing methods are configured, and LVGL is not enabled, show a test card
+            config[CONF_SHOW_TEST_CARD] = True
+    elif CONF_UPDATE_INTERVAL not in config:
+        config[CONF_UPDATE_INTERVAL] = update_interval("1min")
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
@@ -137,7 +186,9 @@ async def to_code(config):
         init_sequence_length,
     )
 
-    await display.register_display(var, config)
+    # Rotation is handled by setting the transform
+    display_config = {k: v for k, v in config.items() if k != CONF_ROTATION}
+    await display.register_display(var, display_config)
     await spi.register_spi_device(var, config)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
@@ -148,11 +199,35 @@ async def to_code(config):
             config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
-    if CONF_RESET_PIN in config:
-        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
+    if reset_pin := config.get(CONF_RESET_PIN):
+        reset = await cg.gpio_pin_expression(reset_pin)
         cg.add(var.set_reset_pin(reset))
-    if CONF_BUSY_PIN in config:
-        busy = await cg.gpio_pin_expression(config[CONF_BUSY_PIN])
+    if busy_pin := config.get(CONF_BUSY_PIN):
+        busy = await cg.gpio_pin_expression(busy_pin)
         cg.add(var.set_busy_pin(busy))
+    cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
+    if transform := config.get(CONF_TRANSFORM):
+        transform[CONF_SWAP_XY] = False
+    else:
+        transform = {x: model.get_default(x, False) for x in TRANSFORM_OPTIONS}
+    rotation = config[CONF_ROTATION]
+    if rotation == 180:
+        transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
+        transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
+    elif rotation == 90:
+        transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
+        transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
+    elif rotation == 270:
+        transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
+        transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
+    transform_str = "|".join(
+        {
+            str(getattr(Transform, x.upper()))
+            for x in TRANSFORM_OPTIONS
+            if transform.get(x)
+        }
+    )
+    if transform_str:
+        cg.add(var.set_transform(RawExpression(transform_str)))

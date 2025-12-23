@@ -9,13 +9,14 @@
 #include "esphome/core/gpio.h"
 #include "driver/gpio.h"
 #include "soc/gpio_num.h"
+#include "soc/uart_pins.h"
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
+
 static const char *const TAG = "uart.idf";
 
 uart_config_t IDFUARTComponent::get_config_() {
@@ -112,6 +113,12 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   esp_err_t err;
 
   if (uart_is_driver_installed(this->uart_num_)) {
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+    if (this->rx_event_task_handle_ != nullptr) {
+      vTaskDelete(this->rx_event_task_handle_);
+      this->rx_event_task_handle_ = nullptr;
+    }
+#endif
     err = uart_driver_delete(this->uart_num_);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "uart_driver_delete failed: %s", esp_err_to_name(err));
@@ -133,6 +140,22 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
+  int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
+  int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
+  int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
+
+  // Workaround for ESP-IDF issue: https://github.com/espressif/esp-idf/issues/17459
+  // Commit 9ed617fb17 removed gpio_func_sel() calls from uart_set_pin(), which breaks
+  // UART on default UART0 pins that may have residual state from boot console.
+  // Reset these pins before configuring UART to ensure they're in a clean state.
+  if (tx == U0TXD_GPIO_NUM || tx == U0RXD_GPIO_NUM) {
+    gpio_reset_pin(static_cast<gpio_num_t>(tx));
+  }
+  if (rx == U0TXD_GPIO_NUM || rx == U0RXD_GPIO_NUM) {
+    gpio_reset_pin(static_cast<gpio_num_t>(rx));
+  }
+
+  // Setup pins after reset to preserve open drain/pullup/pulldown flags
   auto setup_pin_if_needed = [](InternalGPIOPin *pin) {
     if (!pin) {
       return;
@@ -147,10 +170,6 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   if (this->rx_pin_ != this->tx_pin_) {
     setup_pin_if_needed(this->tx_pin_);
   }
-
-  int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
-  int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
-  int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
 
   uint32_t invert = 0;
   if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
@@ -204,6 +223,11 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+  // Start the RX event task to enable low-latency data notifications
+  this->start_rx_event_task_();
+#endif  // USE_UART_WAKE_LOOP_ON_RX
+
   if (dump_config) {
     ESP_LOGCONFIG(TAG, "Reloaded UART %u", this->uart_num_);
     this->dump_config();
@@ -226,7 +250,11 @@ void IDFUARTComponent::dump_config() {
                 "  Baud Rate: %" PRIu32 " baud\n"
                 "  Data Bits: %u\n"
                 "  Parity: %s\n"
-                "  Stop bits: %u",
+                "  Stop bits: %u"
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+                "\n  Wake on data RX: ENABLED"
+#endif
+                ,
                 this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
   this->check_logger_conflict();
 }
@@ -337,7 +365,58 @@ void IDFUARTComponent::flush() {
 
 void IDFUARTComponent::check_logger_conflict() {}
 
-}  // namespace uart
-}  // namespace esphome
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+void IDFUARTComponent::start_rx_event_task_() {
+  // Create FreeRTOS task to monitor UART events
+  BaseType_t result = xTaskCreate(rx_event_task_func,    // Task function
+                                  "uart_rx_evt",         // Task name (max 16 chars)
+                                  2240,                  // Stack size in bytes (~2.2KB); increase if needed for logging
+                                  this,                  // Task parameter (this pointer)
+                                  tskIDLE_PRIORITY + 1,  // Priority (low, just above idle)
+                                  &this->rx_event_task_handle_  // Task handle
+  );
 
+  if (result != pdPASS) {
+    ESP_LOGE(TAG, "Failed to create RX event task");
+    return;
+  }
+
+  ESP_LOGV(TAG, "RX event task started");
+}
+
+void IDFUARTComponent::rx_event_task_func(void *param) {
+  auto *self = static_cast<IDFUARTComponent *>(param);
+  uart_event_t event;
+
+  ESP_LOGV(TAG, "RX event task running");
+
+  // Run forever - task lifecycle matches component lifecycle
+  while (true) {
+    // Wait for UART events (blocks efficiently)
+    if (xQueueReceive(self->uart_event_queue_, &event, portMAX_DELAY) == pdTRUE) {
+      switch (event.type) {
+        case UART_DATA:
+          // Data available in UART RX buffer - wake the main loop
+          ESP_LOGVV(TAG, "Data event: %d bytes", event.size);
+          App.wake_loop_threadsafe();
+          break;
+
+        case UART_FIFO_OVF:
+        case UART_BUFFER_FULL:
+          ESP_LOGW(TAG, "FIFO overflow or ring buffer full - clearing");
+          uart_flush_input(self->uart_num_);
+          App.wake_loop_threadsafe();
+          break;
+
+        default:
+          // Ignore other event types
+          ESP_LOGVV(TAG, "Event type: %d", event.type);
+          break;
+      }
+    }
+  }
+}
+#endif  // USE_UART_WAKE_LOOP_ON_RX
+
+}  // namespace esphome::uart
 #endif  // USE_ESP32

@@ -143,9 +143,8 @@ bool ESPBTUUID::operator==(const ESPBTUUID &uuid) const {
   return this->as_128bit() == uuid.as_128bit();
 }
 esp_bt_uuid_t ESPBTUUID::get_uuid() const { return this->uuid_; }
-std::string ESPBTUUID::to_string() const {
-  char buf[40];  // Enough for 128-bit UUID with dashes
-  char *pos = buf;
+void ESPBTUUID::to_str(std::span<char, UUID_STR_LEN> output) const {
+  char *pos = output.data();
 
   switch (this->uuid_.len) {
     case ESP_UUID_LEN_16:
@@ -156,7 +155,7 @@ std::string ESPBTUUID::to_string() const {
       *pos++ = format_hex_pretty_char((this->uuid_.uuid.uuid16 >> 4) & 0x0F);
       *pos++ = format_hex_pretty_char(this->uuid_.uuid.uuid16 & 0x0F);
       *pos = '\0';
-      return std::string(buf);
+      return;
 
     case ESP_UUID_LEN_32:
       *pos++ = '0';
@@ -165,7 +164,7 @@ std::string ESPBTUUID::to_string() const {
         *pos++ = format_hex_pretty_char((this->uuid_.uuid.uuid32 >> shift) & 0x0F);
       }
       *pos = '\0';
-      return std::string(buf);
+      return;
 
     default:
     case ESP_UUID_LEN_128:
@@ -179,9 +178,13 @@ std::string ESPBTUUID::to_string() const {
         }
       }
       *pos = '\0';
-      return std::string(buf);
+      return;
   }
-  return "";
+}
+std::string ESPBTUUID::to_string() const {
+  char buf[UUID_STR_LEN];
+  this->to_str(buf);
+  return std::string(buf);
 }
 
 }  // namespace esphome::esp32_ble

@@ -25,8 +25,11 @@ void MQTTJSONLightComponent::setup() {
     call.perform();
   });
 
-  auto f = std::bind(&MQTTJSONLightComponent::publish_state_, this);
-  this->state_->add_new_remote_values_callback([this, f]() { this->defer("send", f); });
+  this->state_->add_remote_values_listener(this);
+}
+
+void MQTTJSONLightComponent::on_light_remote_values_update() {
+  this->defer("send", [this]() { this->publish_state_(); });
 }
 
 MQTTJSONLightComponent::MQTTJSONLightComponent(LightState *state) : state_(state) {}

@@ -256,29 +256,46 @@ bool ESP32BLE::ble_setup_() {
   }
 #endif
 
-  std::string name;
-  if (this->name_.has_value()) {
-    name = this->name_.value();
+  // BLE device names are limited to 20 characters
+  // Buffer: 20 chars + null terminator
+  constexpr size_t ble_name_max_len = 21;
+  char name_buffer[ble_name_max_len];
+  const char *device_name;
+
+  if (this->name_ != nullptr) {
     if (App.is_name_add_mac_suffix_enabled()) {
+      // MAC address length: 12 hex chars + null terminator
+      constexpr size_t mac_address_len = 13;
       // MAC address suffix length (last 6 characters of 12-char MAC address string)
       constexpr size_t mac_address_suffix_len = 6;
-      const std::string mac_addr = get_mac_address();
-      const char *mac_suffix_ptr = mac_addr.c_str() + mac_address_suffix_len;
-      name = make_name_with_suffix(name, '-', mac_suffix_ptr, mac_address_suffix_len);
+      char mac_addr[mac_address_len];
+      get_mac_address_into_buffer(mac_addr);
+      const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
+      make_name_with_suffix_to(name_buffer, sizeof(name_buffer), this->name_, strlen(this->name_), '-', mac_suffix_ptr,
+                               mac_address_suffix_len);
+      device_name = name_buffer;
+    } else {
+      device_name = this->name_;
     }
   } else {
-    name = App.get_name();
-    if (name.length() > 20) {
+    const std::string &app_name = App.get_name();
+    size_t name_len = app_name.length();
+    if (name_len > 20) {
       if (App.is_name_add_mac_suffix_enabled()) {
         // Keep first 13 chars and last 7 chars (MAC suffix), remove middle
-        name.erase(13, name.length() - 20);
+        memcpy(name_buffer, app_name.c_str(), 13);
+        memcpy(name_buffer + 13, app_name.c_str() + name_len - 7, 7);
       } else {
-        name.resize(20);
+        memcpy(name_buffer, app_name.c_str(), 20);
       }
+      name_buffer[20] = '\0';
+    } else {
+      memcpy(name_buffer, app_name.c_str(), name_len + 1);  // Include null terminator
     }
+    device_name = name_buffer;
   }
 
-  err = esp_ble_gap_set_device_name(name.c_str());
+  err = esp_ble_gap_set_device_name(device_name);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_device_name failed: %d", err);
     return false;
@@ -299,13 +316,21 @@ bool ESP32BLE::ble_setup_() {
 bool ESP32BLE::ble_dismantle_() {
   esp_err_t err = esp_bluedroid_disable();
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_bluedroid_disable failed: %d", err);
-    return false;
+    // ESP_ERR_INVALID_STATE means Bluedroid is already disabled, which is fine
+    if (err != ESP_ERR_INVALID_STATE) {
+      ESP_LOGE(TAG, "esp_bluedroid_disable failed: %d", err);
+      return false;
+    }
+    ESP_LOGD(TAG, "Already disabled");
   }
   err = esp_bluedroid_deinit();
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_bluedroid_deinit failed: %d", err);
-    return false;
+    // ESP_ERR_INVALID_STATE means Bluedroid is already deinitialized, which is fine
+    if (err != ESP_ERR_INVALID_STATE) {
+      ESP_LOGE(TAG, "esp_bluedroid_deinit failed: %d", err);
+      return false;
+    }
+    ESP_LOGD(TAG, "Already deinitialized");
   }
 
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
