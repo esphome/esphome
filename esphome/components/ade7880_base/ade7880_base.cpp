@@ -253,8 +253,7 @@ void ADE7880::calibrate_s24zpse_reading_(uint16_t a_register, int32_t calibratio
 }
 
 void ADE7880::init_device_() {
-  this->write_u8_register16(CONFIG2, CONFIG2_I2C_LOCK);
-
+  this->lock_communication_mode();
   this->write_u16_register16(GAIN, 0);
 
   if (this->frequency_ > 55) {

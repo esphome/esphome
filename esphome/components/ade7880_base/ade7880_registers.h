@@ -214,6 +214,10 @@ constexpr uint16_t VATHR = 0xEA04;
 constexpr uint16_t HX_REG = 0xEA08;
 constexpr uint16_t HY_REG = 0xEA09;
 constexpr uint16_t HZ_REG = 0xEA0A;
+
+// This address can be used in manipulating the SS/HSA pin when SPI is chosen as the active port.
+constexpr uint16_t RESERVED_EBFF = 0xEBFF;
+
 constexpr uint16_t LPOILVL = 0xEC00;
 constexpr uint16_t CONFIG2 = 0xEC01;
 
@@ -225,6 +229,7 @@ constexpr uint16_t CONFIG_SWRST = (1 << 7);
 
 // CONFIG2 Register Bits
 constexpr uint8_t CONFIG2_I2C_LOCK = (1 << 1);
+constexpr uint8_t CONFIG2_SPI_LOCK = (0 << 1);
 
 // COMPMODE Register Bits
 constexpr uint16_t COMPMODE_DEFAULT = 0x01FF;

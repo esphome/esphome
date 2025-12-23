@@ -99,6 +99,7 @@ class ADE7880 : public PollingComponent {
   void calibrate_s24zpse_reading_(uint16_t a_register, int32_t calibration);
 
   void init_device_();
+  virtual void lock_communication_mode() = 0;
 
   // each of these functions allow the caller to pass in a lambda (or any other callable)
   // which modifies the value read from the register before it is passed to the sensor

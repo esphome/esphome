@@ -21,6 +21,7 @@ esphome/components/addressable_light/* @justfalter
 esphome/components/ade7880/* @kpfleming
 esphome/components/ade7880_base/* @cyberhuman @kpfleming
 esphome/components/ade7880_i2c/* @kpfleming
+esphome/components/ade7880_spi/* @cyberhuman
 esphome/components/ade7953/* @angelnu
 esphome/components/ade7953_i2c/* @angelnu
 esphome/components/ade7953_spi/* @angelnu
