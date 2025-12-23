@@ -12,6 +12,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/scheduler.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/version.h"
@@ -107,8 +108,7 @@ static const uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick 
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const std::string &friendly_name, const char *comment,
-                 bool name_add_mac_suffix) {
+  void pre_setup(const std::string &name, const std::string &friendly_name, bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
@@ -127,7 +127,6 @@ class Application {
       this->name_ = name;
       this->friendly_name_ = friendly_name;
     }
-    this->comment_ = comment;
   }
 
 #ifdef USE_DEVICES
@@ -264,10 +263,19 @@ class Application {
     return "";
   }
 
-  /// Get the comment of this Application set by pre_setup().
-  std::string get_comment() const { return this->comment_; }
-  /// Get the comment as StringRef (avoids allocation)
-  StringRef get_comment_ref() const { return StringRef(this->comment_); }
+  /// Copy the comment string into the provided buffer
+  /// Buffer must be ESPHOME_COMMENT_SIZE bytes (compile-time enforced)
+  void get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE> buffer) {
+    ESPHOME_strncpy_P(buffer.data(), ESPHOME_COMMENT_STR, buffer.size());
+    buffer[buffer.size() - 1] = '\0';
+  }
+
+  /// Get the comment of this Application as a string
+  std::string get_comment() {
+    char buffer[ESPHOME_COMMENT_SIZE];
+    this->get_comment_string(buffer);
+    return std::string(buffer);
+  }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
@@ -513,7 +521,6 @@ class Application {
 
   // Pointer-sized members first
   Component *current_component_{nullptr};
-  const char *comment_{nullptr};
 
   // std::vector (3 pointers each: begin, end, capacity)
   // Partitioned vector design for looping components
