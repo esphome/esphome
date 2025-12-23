@@ -383,23 +383,33 @@ static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_de
 }
 
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
-  normalize_accuracy_decimals(value, accuracy_decimals);
-  char tmp[32];  // should be enough, but we should maybe improve this at some point.
-  snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
-  return std::string(tmp);
+  char buf[VALUE_ACCURACY_MAX_LEN];
+  value_accuracy_to_buf(buf, value, accuracy_decimals);
+  return std::string(buf);
 }
 
-std::string value_accuracy_with_uom_to_string(float value, int8_t accuracy_decimals, StringRef unit_of_measurement) {
+size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value, int8_t accuracy_decimals) {
   normalize_accuracy_decimals(value, accuracy_decimals);
-  // Buffer sized for float (up to ~15 chars) + space + typical UOM (usually <20 chars like "μS/cm")
-  // snprintf truncates safely if exceeded, though ESPHome UOMs are typically short
-  char tmp[64];
+  // snprintf returns chars that would be written (excluding null), or negative on error
+  int len = snprintf(buf.data(), buf.size(), "%.*f", accuracy_decimals, value);
+  if (len < 0)
+    return 0;  // encoding error
+  // On truncation, snprintf returns would-be length; actual written is buf.size() - 1
+  return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
+}
+
+size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value,
+                                      int8_t accuracy_decimals, StringRef unit_of_measurement) {
   if (unit_of_measurement.empty()) {
-    snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
-  } else {
-    snprintf(tmp, sizeof(tmp), "%.*f %s", accuracy_decimals, value, unit_of_measurement.c_str());
+    return value_accuracy_to_buf(buf, value, accuracy_decimals);
   }
-  return std::string(tmp);
+  normalize_accuracy_decimals(value, accuracy_decimals);
+  // snprintf returns chars that would be written (excluding null), or negative on error
+  int len = snprintf(buf.data(), buf.size(), "%.*f %s", accuracy_decimals, value, unit_of_measurement.c_str());
+  if (len < 0)
+    return 0;  // encoding error
+  // On truncation, snprintf returns would-be length; actual written is buf.size() - 1
+  return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
 }
 
 int8_t step_to_accuracy_decimals(float step) {

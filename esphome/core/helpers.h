@@ -886,8 +886,15 @@ ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const ch
 
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
-/// Create a string from a value, an accuracy in decimals, and a unit of measurement.
-std::string value_accuracy_with_uom_to_string(float value, int8_t accuracy_decimals, StringRef unit_of_measurement);
+
+/// Maximum buffer size for value_accuracy formatting (float ~15 chars + space + UOM ~40 chars + null)
+static constexpr size_t VALUE_ACCURACY_MAX_LEN = 64;
+
+/// Format value with accuracy to buffer, returns chars written (excluding null)
+size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value, int8_t accuracy_decimals);
+/// Format value with accuracy and UOM to buffer, returns chars written (excluding null)
+size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value,
+                                      int8_t accuracy_decimals, StringRef unit_of_measurement);
 
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
