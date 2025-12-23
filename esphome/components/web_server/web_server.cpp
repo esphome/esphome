@@ -467,8 +467,14 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
 
   // Build id into stack buffer - ArduinoJson copies the string
   // Format: {prefix}/{device?}/{name}
-  // Buffer size guaranteed by schema validation: domain(20) + "/" + device(120) + "/" + name(120) + null = 263
+  // Buffer size guaranteed by schema validation:
+  //   With devices: domain(20) + "/" + device(120) + "/" + name(120) + null = 263
+  //   Without devices: domain(20) + "/" + name(120) + null = 142
+#ifdef USE_DEVICES
   char id_buf[280];
+#else
+  char id_buf[150];
+#endif
   char *p = id_buf;
   memcpy(p, prefix, prefix_len);
   p += prefix_len;
