@@ -865,8 +865,58 @@ async def test_setup_entity_empty_name_with_mac_suffix_no_friendly_name(
     await setup_entity(var, config, "sensor")
 
     # Verify the hash was computed from empty string (bug-for-bug compat)
+    # FNV1 offset basis (hash of empty string) = 2166136261
     expected_hash = fnv1_hash_object_id("")
-    assert any(
-        "sensor1.set_name" in expr and str(expected_hash) in expr
-        for expr in added_expressions
-    ), f"Expected hash {expected_hash} not found in {added_expressions}"
+    assert expected_hash == 2166136261, (
+        "Hash of empty string should be FNV1 offset basis"
+    )
+
+    # Verify the exact expression: set_name("", 2166136261UL)
+    set_name_expr = next(
+        (expr for expr in added_expressions if "sensor1.set_name" in expr), None
+    )
+    assert set_name_expr is not None, "set_name call not found"
+    assert f'set_name("", {expected_hash}' in set_name_expr, (
+        f"Expected set_name with empty string and hash {expected_hash}, "
+        f"got: {set_name_expr}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_empty_name_no_mac_suffix_no_friendly_name(
+    setup_test_environment: list[str],
+) -> None:
+    """Test setup_entity with empty name, no MAC suffix, and no friendly_name.
+
+    This covers lines 107-108: when entity has empty name, no MAC suffix,
+    and no friendly_name, it should fall back to CORE.name (device name).
+    """
+    added_expressions = setup_test_environment
+
+    # No MAC suffix (either not set or False)
+    CORE.config = {}
+    # No friendly_name
+    CORE.friendly_name = ""
+    # Device name is set
+    CORE.name = "my-test-device"
+
+    var = MockObj("sensor1")
+
+    config = {
+        CONF_NAME: "",
+        CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await setup_entity(var, config, "sensor")
+
+    # Verify the hash was computed from CORE.name (device name fallback)
+    expected_hash = fnv1_hash_object_id("my-test-device")
+
+    set_name_expr = next(
+        (expr for expr in added_expressions if "sensor1.set_name" in expr), None
+    )
+    assert set_name_expr is not None, "set_name call not found"
+    assert f'set_name("", {expected_hash}' in set_name_expr, (
+        f"Expected set_name with empty string and hash {expected_hash} "
+        f"(from device name 'my-test-device'), got: {set_name_expr}"
+    )
