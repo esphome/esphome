@@ -516,13 +516,10 @@ def test_string_no_slash__slash_rejected(value: str) -> None:
         config_validation.string_no_slash(value)
 
 
-def test_string_no_slash__max_length() -> None:
-    # 120 chars should pass
-    assert config_validation.string_no_slash("x" * 120) == "x" * 120
-
-    # 121 chars should fail
-    with pytest.raises(Invalid, match="too long.*121 chars.*Maximum.*120"):
-        config_validation.string_no_slash("x" * 121)
+def test_string_no_slash__long_string_allowed() -> None:
+    # string_no_slash doesn't enforce length - use cv.Length() separately
+    long_value = "x" * 200
+    assert config_validation.string_no_slash(long_value) == long_value
 
 
 def test_string_no_slash__empty() -> None:

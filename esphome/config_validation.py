@@ -2017,14 +2017,9 @@ def string_no_slash(value):
     """Validate a string that cannot contain '/' characters.
 
     Used for device and area names where '/' is reserved as a URL path separator.
-    Also enforces maximum length for web server URL compatibility.
+    Use with cv.Length() to also enforce maximum length.
     """
     value = string(value)
-    if len(value) > NAME_MAX_LENGTH:
-        raise Invalid(
-            f"Name is too long ({len(value)} chars). "
-            f"Maximum length is {NAME_MAX_LENGTH} characters."
-        )
     return _validate_no_slash(value)
 
 

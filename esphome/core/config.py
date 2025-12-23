@@ -186,14 +186,14 @@ else:
 AREA_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Area),
-        cv.Required(CONF_NAME): cv.string_no_slash,
+        cv.Required(CONF_NAME): cv.All(cv.string_no_slash, cv.Length(max=120)),
     }
 )
 
 DEVICE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Device),
-        cv.Required(CONF_NAME): cv.string_no_slash,
+        cv.Required(CONF_NAME): cv.All(cv.string_no_slash, cv.Length(max=120)),
         cv.Optional(CONF_AREA_ID): cv.use_id(Area),
     }
 )
