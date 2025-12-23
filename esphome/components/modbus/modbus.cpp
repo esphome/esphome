@@ -454,14 +454,19 @@ float Modbus::get_setup_priority() const {
   return setup_priority::BUS - 1.0f;
 }
 
-void ModbusClientHub::send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-                           ModbusClientDevice *device, bool continuous) {
-  ESP_LOGVV(TAG, "ModbusClient::send address=%d function_code=0x%X start_address=%d number_of_entities=%d ", address,
-            function_code, start_address, number_of_entities);
-  std::vector<uint8_t> data;
-  data.push_back(address);
-  create_client_pdu(data, (ModbusFunctionCode) function_code, start_address, number_of_entities);
-  this->send_raw(data, device, continuous);
+void ModbusClientDevice::send(uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
+                              bool continuous) {
+  ESP_LOGVV(TAG, "ModbusClientDevice::send address=%d function_code=0x%X start_address=%d number_of_entities=%d ",
+            this->address_, function_code, start_address, number_of_entities);
+  std::vector<uint8_t> pdu;
+  create_client_pdu(pdu, (ModbusFunctionCode) function_code, start_address, number_of_entities);
+  this->send_pdu(pdu, continuous);
+}
+
+void ModbusClientDevice::send_pdu(const std::vector<uint8_t> &pdu, bool continuous) {
+  std::vector<uint8_t> payload = pdu;
+  payload.insert(payload.begin(), {this->address_});
+  this->parent_->send_raw(payload, this, continuous);
 }
 
 void ModbusServerHub::send_response_(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload) {

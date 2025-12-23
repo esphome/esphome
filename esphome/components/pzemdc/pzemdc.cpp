@@ -64,12 +64,7 @@ void PZEMDC::dump_config() {
   LOG_SENSOR("", "Energy", this->energy_sensor_);
 }
 
-void PZEMDC::reset_energy() {
-  std::vector<uint8_t> cmd;
-  cmd.push_back(this->address_);
-  cmd.push_back(PZEM_CMD_RESET_ENERGY);
-  this->send_raw(cmd);
-}
+void PZEMDC::reset_energy() { this->send_pdu({PZEM_CMD_RESET_ENERGY}); }
 
 }  // namespace pzemdc
 }  // namespace esphome
