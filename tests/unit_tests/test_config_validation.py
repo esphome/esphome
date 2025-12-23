@@ -548,13 +548,14 @@ def test_validate_entity_name__max_length() -> None:
 
 def test_validate_entity_name__none_without_friendly_name() -> None:
     # When name is "None" and friendly_name is not set, it should fail
-    CORE.config = {}  # No friendly_name set
+    CORE.friendly_name = None
     with pytest.raises(Invalid, match="friendly_name is not set"):
         config_validation._validate_entity_name("None")
 
 
 def test_validate_entity_name__none_with_friendly_name() -> None:
     # When name is "None" but friendly_name is set, it should return None
-    CORE.config = {"esphome": {"friendly_name": "My Device"}}
+    CORE.friendly_name = "My Device"
     result = config_validation._validate_entity_name("None")
     assert result is None
+    CORE.friendly_name = None  # Reset
