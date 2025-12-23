@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import esp32_ble_tracker, text_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, DEVICE_CLASS_FIRMWARE, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.const import CONF_ID, ENTITY_CATEGORY_DIAGNOSTIC
 
 from . import BTHomeBLE, bthome_ble_base_schema, setup_bthome_ble
 
@@ -15,7 +15,6 @@ MULTI_CONF = True
 CONFIG_SCHEMA = bthome_ble_base_schema(
     {
         cv.Optional(CONF_FIRMWARE_VERSION): text_sensor.text_sensor_schema(
-            device_class=DEVICE_CLASS_FIRMWARE,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         )
     }
