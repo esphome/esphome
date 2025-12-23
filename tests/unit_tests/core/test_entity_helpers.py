@@ -23,7 +23,7 @@ from esphome.core.entity_helpers import (
     setup_entity,
 )
 from esphome.cpp_generator import MockObj
-from esphome.helpers import sanitize, snake_case
+from esphome.helpers import fnv1_hash_object_id, sanitize, snake_case
 
 from .common import load_config_from_fixture
 
@@ -760,3 +760,113 @@ def test_entity_duplicate_validator_same_name_no_enhanced_message() -> None:
         r"Each entity on a device must have a unique name within its platform\.$",
     ):
         validator(config2)
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_empty_name_with_device(
+    setup_test_environment: list[str],
+) -> None:
+    """Test setup_entity with empty entity name on a sub-device.
+
+    This covers lines 96-98: when entity has empty name and device_id is set,
+    the object_id hash should be computed from the device name.
+    """
+    added_expressions = setup_test_environment
+
+    # Mock get_variable to return a mock device
+    original_get_variable = entity_helpers.get_variable
+
+    async def mock_get_variable(id_: ID) -> MockObj:
+        return MockObj("sub_device_1")
+
+    entity_helpers.get_variable = mock_get_variable
+
+    var = MockObj("sensor1")
+    device_id = ID("sub_device_1", type="Device")
+
+    config = {
+        CONF_NAME: "",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_DEVICE_ID: device_id,
+    }
+
+    await setup_entity(var, config, "sensor")
+
+    entity_helpers.get_variable = original_get_variable
+
+    # Check that set_device was called
+    assert any("sensor1.set_device" in expr for expr in added_expressions)
+
+    # Verify the hash was computed from the device name
+    expected_hash = fnv1_hash_object_id("sub_device_1")
+    assert any(
+        "sensor1.set_name" in expr and str(expected_hash) in expr
+        for expr in added_expressions
+    ), f"Expected hash {expected_hash} not found in {added_expressions}"
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_empty_name_with_mac_suffix(
+    setup_test_environment: list[str],
+) -> None:
+    """Test setup_entity with empty name and MAC suffix enabled.
+
+    This covers lines 99-102: when entity has empty name and name_add_mac_suffix
+    is enabled, the object_id hash should be computed from friendly_name directly
+    (even if empty) for bug-for-bug compatibility.
+    """
+    added_expressions = setup_test_environment
+
+    # Set up CORE.config with name_add_mac_suffix enabled
+    CORE.config = {"name_add_mac_suffix": True}
+    # Set friendly_name to a specific value
+    CORE.friendly_name = "My Device"
+
+    var = MockObj("sensor1")
+
+    config = {
+        CONF_NAME: "",
+        CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await setup_entity(var, config, "sensor")
+
+    # Verify the hash was computed from friendly_name
+    expected_hash = fnv1_hash_object_id("My Device")
+    assert any(
+        "sensor1.set_name" in expr and str(expected_hash) in expr
+        for expr in added_expressions
+    ), f"Expected hash {expected_hash} not found in {added_expressions}"
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_empty_name_with_mac_suffix_no_friendly_name(
+    setup_test_environment: list[str],
+) -> None:
+    """Test setup_entity with empty name, MAC suffix enabled, but no friendly_name.
+
+    This covers the bug-for-bug compatibility case where MAC suffix is enabled
+    but friendly_name is empty - should result in empty object_id (hash of empty string).
+    """
+    added_expressions = setup_test_environment
+
+    # Set up CORE.config with name_add_mac_suffix enabled
+    CORE.config = {"name_add_mac_suffix": True}
+    # Set friendly_name to empty
+    CORE.friendly_name = ""
+
+    var = MockObj("sensor1")
+
+    config = {
+        CONF_NAME: "",
+        CONF_DISABLED_BY_DEFAULT: False,
+    }
+
+    await setup_entity(var, config, "sensor")
+
+    # Verify the hash was computed from empty string (bug-for-bug compat)
+    expected_hash = fnv1_hash_object_id("")
+    assert any(
+        "sensor1.set_name" in expr and str(expected_hash) in expr
+        for expr in added_expressions
+    ), f"Expected hash {expected_hash} not found in {added_expressions}"
