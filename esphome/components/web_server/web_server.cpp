@@ -53,8 +53,16 @@ static const char *const HEADER_CORS_ALLOW_PNA = "Access-Control-Allow-Private-N
 #endif
 
 // Parse URL and return match info
+// URL formats:
+//   /{domain}/{entity_name} - main device, no method
+//   /{domain}/{entity_name}/{method} - main device with method
+//   /{domain}/{device_name}/{entity_name}/{method} - sub-device with method (USE_DEVICES only)
 static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain) {
   UrlMatch match{};
+#ifdef USE_DEVICES
+  match.device_name = nullptr;
+  match.device_name_len = 0;
+#endif
 
   // URL must start with '/'
   if (url_len < 2 || url_ptr[0] != '/') {
@@ -81,32 +89,71 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain)
     return match;
   }
 
-  // Parse ID if present
+  // Parse remaining segments
   if (domain_end + 1 >= end) {
     return match;  // Nothing after domain slash
   }
 
-  const char *id_start = domain_end + 1;
-  const char *id_end = (const char *) memchr(id_start, '/', end - id_start);
+  // Find all remaining slashes to count segments
+  const char *seg1_start = domain_end + 1;
+  const char *seg1_end = (const char *) memchr(seg1_start, '/', end - seg1_start);
 
-  if (!id_end) {
-    // No more slashes, entire remaining string is ID
-    match.id = id_start;
-    match.id_len = end - id_start;
+  if (!seg1_end) {
+    // Only 1 segment after domain: /{domain}/{entity_name}
+    match.id = seg1_start;
+    match.id_len = end - seg1_start;
     return match;
   }
 
-  // Set ID
-  match.id = id_start;
-  match.id_len = id_end - id_start;
+  const char *seg2_start = seg1_end + 1;
+  const char *seg2_end = (seg2_start < end) ? (const char *) memchr(seg2_start, '/', end - seg2_start) : nullptr;
 
-  // Parse method if present
-  if (id_end + 1 < end) {
-    match.method = id_end + 1;
-    match.method_len = end - (id_end + 1);
+  if (!seg2_end) {
+    // 2 segments after domain: /{domain}/{X}/{Y}
+    // This is /{domain}/{entity_name}/{method} for main device
+    match.id = seg1_start;
+    match.id_len = seg1_end - seg1_start;
+    match.method = seg2_start;
+    match.method_len = end - seg2_start;
+    return match;
   }
 
+#ifdef USE_DEVICES
+  // 3+ segments after domain: /{domain}/{device_name}/{entity_name}/{method}
+  const char *seg3_start = seg2_end + 1;
+  match.device_name = seg1_start;
+  match.device_name_len = seg1_end - seg1_start;
+  match.id = seg2_start;
+  match.id_len = seg2_end - seg2_start;
+  if (seg3_start < end) {
+    match.method = seg3_start;
+    match.method_len = end - seg3_start;
+  }
+#else
+  // Without USE_DEVICES, treat extra segments as part of method (backward compat)
+  match.id = seg1_start;
+  match.id_len = seg1_end - seg1_start;
+  match.method = seg2_start;
+  match.method_len = end - seg2_start;
+#endif
+
   return match;
+}
+
+bool UrlMatch::id_equals_entity(EntityBase *entity) const {
+  bool used_deprecated_format = false;
+  bool matches = this->matches_entity(entity, used_deprecated_format);
+
+  if (matches && used_deprecated_format) {
+    // Log deprecation warning when old object_id URL format is used
+    ESP_LOGW(TAG,
+             "Deprecated URL format: /%.*s/%.*s - use entity name '/%.*s/%s' instead. "
+             "Object ID URLs will be removed in a future release.",
+             this->domain_len, this->domain, this->id_len, this->id, this->domain_len, this->domain,
+             entity->get_name().c_str());
+  }
+
+  return matches;
 }
 
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
@@ -405,15 +452,47 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 #endif
 
 // Helper functions to reduce code size by avoiding macro expansion
+// Build unique id as: {domain}/{device_name}/{entity_name} or {domain}/{entity_name}
+// Uses names (not object_id) to avoid UTF-8 collision issues
 static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, JsonDetail start_config) {
-  char id_buf[160];  // prefix + dash + object_id (up to 128) + null
-  size_t len = strlen(prefix);
-  memcpy(id_buf, prefix, len);  // NOLINT(bugprone-not-null-terminated-result) - null added by write_object_id_to
-  id_buf[len++] = '-';
-  obj->write_object_id_to(id_buf + len, sizeof(id_buf) - len);
+  const StringRef &name = obj->get_name();
+  size_t prefix_len = strlen(prefix);
+  size_t name_len = name.size();
+
+#ifdef USE_DEVICES
+  Device *device = obj->get_device();
+  const char *device_name = device ? device->get_name() : nullptr;
+  size_t device_len = device_name ? strlen(device_name) : 0;
+#endif
+
+  // Build id into stack buffer - ArduinoJson copies the string
+  // Format: {prefix}/{device?}/{name}
+  // Buffer size guaranteed by schema validation: domain(20) + "/" + device(120) + "/" + name(120) + null = 263
+  char id_buf[280];
+  char *p = id_buf;
+  memcpy(p, prefix, prefix_len);
+  p += prefix_len;
+  *p++ = '/';
+#ifdef USE_DEVICES
+  if (device_name) {
+    memcpy(p, device_name, device_len);
+    p += device_len;
+    *p++ = '/';
+  }
+#endif
+  memcpy(p, name.c_str(), name_len);
+  p[name_len] = '\0';
+
   root[ESPHOME_F("id")] = id_buf;
+
   if (start_config == DETAIL_ALL) {
-    root[ESPHOME_F("name")] = obj->get_name();
+    root[ESPHOME_F("domain")] = prefix;
+    root[ESPHOME_F("name")] = name;
+#ifdef USE_DEVICES
+    if (device_name) {
+      root[ESPHOME_F("device")] = device_name;
+    }
+#endif
     root[ESPHOME_F("icon")] = obj->get_icon_ref();
     root[ESPHOME_F("entity_category")] = obj->get_entity_category();
     bool is_disabled = obj->is_disabled_by_default();

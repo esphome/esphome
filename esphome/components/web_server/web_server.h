@@ -39,30 +39,76 @@ namespace web_server {
 /// Internal helper struct that is used to parse incoming URLs
 struct UrlMatch {
   const char *domain;  ///< Pointer to domain within URL, for example "sensor"
-  const char *id;      ///< Pointer to id within URL, for example "living_room_fan"
+  const char *id;      ///< Pointer to entity name/id within URL, for example "Temperature"
   const char *method;  ///< Pointer to method within URL, for example "turn_on"
+#ifdef USE_DEVICES
+  const char *device_name;  ///< Pointer to device name within URL, or nullptr for main device
+#endif
   uint8_t domain_len;  ///< Length of domain string
   uint8_t id_len;      ///< Length of id string
   uint8_t method_len;  ///< Length of method string
-  bool valid;          ///< Whether this match is valid
+#ifdef USE_DEVICES
+  uint8_t device_name_len;  ///< Length of device name string (0 for main device)
+#endif
+  bool valid;  ///< Whether this match is valid
 
   // Helper methods for string comparisons
   bool domain_equals(const char *str) const {
     return domain && domain_len == strlen(str) && memcmp(domain, str, domain_len) == 0;
   }
 
-  bool id_equals_entity(EntityBase *entity) const {
-    // Get object_id with zero heap allocation
+  /// Check if URL id segment matches a string (by pointer and length)
+  bool id_matches(const char *str, size_t len) const { return id && id_len == len && memcmp(id, str, len) == 0; }
+
+  /// Match entity by name first, then fall back to object_id for backward compatibility
+  /// Returns true if entity matches. Sets used_deprecated_format to true if matched via object_id.
+  bool matches_entity(EntityBase *entity, bool &used_deprecated_format) const {
+    used_deprecated_format = false;
+
+#ifdef USE_DEVICES
+    // Check device match first (faster rejection)
+    Device *entity_device = entity->get_device();
+    bool url_has_device = (device_name_len > 0);
+    bool entity_has_device = (entity_device != nullptr);
+
+    if (url_has_device != entity_has_device) {
+      return false;  // Mismatch: one has device, other doesn't
+    }
+    if (url_has_device) {
+      const char *entity_device_name = entity_device->get_name();
+      if (device_name_len != strlen(entity_device_name) ||
+          memcmp(device_name, entity_device_name, device_name_len) != 0) {
+        return false;  // Device name doesn't match
+      }
+    }
+#endif
+
+    // Try matching by entity name first (new format)
+    const StringRef &name_ref = entity->get_name();
+    if (id_matches(name_ref.c_str(), name_ref.size())) {
+      return true;
+    }
+
+    // Fall back to object_id (deprecated format)
     char object_id_buf[OBJECT_ID_MAX_LEN];
     StringRef object_id = entity->get_object_id_to(object_id_buf);
-    return id && id_len == object_id.size() && memcmp(id, object_id.c_str(), id_len) == 0;
+    if (id_matches(object_id.c_str(), object_id.size())) {
+      used_deprecated_format = true;
+      return true;
+    }
+
+    return false;
   }
+
+  /// Match entity by name first, then fall back to object_id with deprecation warning
+  bool id_equals_entity(EntityBase *entity) const;
 
   bool method_equals(const char *str) const {
     return method && method_len == strlen(str) && memcmp(method, str, method_len) == 0;
   }
 
-  bool method_empty() const { return method_len == 0; }
+  /// Check if method is empty or "state" (for sub-device GET requests)
+  bool method_empty() const { return method_len == 0 || this->method_equals("state"); }
 };
 
 #ifdef USE_WEBSERVER_SORTING
