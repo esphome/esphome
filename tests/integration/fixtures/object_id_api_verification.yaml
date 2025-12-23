@@ -4,6 +4,12 @@ esphome:
   # Enable MAC suffix - host MAC is 98:35:69:ab:f6:79, suffix is "abf679"
   # friendly_name becomes "Test Device abf679"
   name_add_mac_suffix: true
+  # Sub-devices for testing empty-name entities on devices
+  devices:
+    - id: sub_device_1
+      name: Sub Device One
+    - id: sub_device_2
+      name: Sub Device Two
 
 host:
 
@@ -93,3 +99,27 @@ text_sensor:
     id: text_num_start
     lambda: return {"test"};
     update_interval: 60s
+
+button:
+  # Test 12: Named entity on sub-device -> object_id from entity name
+  - platform: template
+    name: "Device Button"
+    id: button_on_device
+    device_id: sub_device_1
+    on_press: []
+
+  # Test 13: Empty name on sub-device -> object_id from device name
+  # Device name "Sub Device One" -> object_id = "sub_device_one"
+  - platform: template
+    name: ""
+    id: button_empty_on_device1
+    device_id: sub_device_1
+    on_press: []
+
+  # Test 14: Empty name on different sub-device
+  # Device name "Sub Device Two" -> object_id = "sub_device_two"
+  - platform: template
+    name: ""
+    id: button_empty_on_device2
+    device_id: sub_device_2
+    on_press: []

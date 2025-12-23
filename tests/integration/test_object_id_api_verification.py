@@ -14,7 +14,9 @@ See: https://github.com/esphome/backlog/issues/76
 
 Test cases covered:
 - Named entities with various characters (uppercase, special chars, hyphens, etc.)
-- Empty-name entities (has_own_name=false, uses device's friendly_name)
+- Empty-name entities on main device (uses device's friendly_name with MAC suffix)
+- Empty-name entities on sub-devices (uses sub-device's name)
+- Named entities on sub-devices (uses entity name, not device name)
 - MAC suffix handling (name_add_mac_suffix modifies friendly_name at runtime)
 - Both object_id string and hash (key) verification
 """
@@ -48,6 +50,15 @@ NAMED_ENTITIES = [
     ("My Very Long Switch Name Here", "my_very_long_switch_name_here"),
     # text_sensor platform
     ("123 Start", "123_start"),
+    # button platform - named entity on sub-device (uses entity name, not device name)
+    ("Device Button", "device_button"),
+]
+
+# Sub-device names and their expected object_ids for empty-name entities
+# Format: (device_name, expected_object_id)
+SUB_DEVICE_EMPTY_NAME_ENTITIES = [
+    ("Sub Device One", "sub_device_one"),
+    ("Sub Device Two", "sub_device_two"),
 ]
 
 
@@ -122,47 +133,74 @@ async def test_object_id_api_verification(
                 f"Python hash {hash_from_name:#x}, API key {entity.key:#x}"
             )
 
-        # === Test 2: Verify empty-name entity (has_own_name=false) ===
-        # When entity has no name, the name field is empty in the API message
-        # and the entity uses device's friendly_name (with MAC suffix) for display
-        assert "" in entity_map, (
-            "Empty-name entity not found. "
-            f"Available entity names: {list(entity_map.keys())}"
-        )
-        empty_name_entity = entity_map[""]
+        # === Test 2: Verify empty-name entities ===
+        # Empty-name entities have name="" in API, object_id comes from:
+        # - Main device: friendly_name (with MAC suffix)
+        # - Sub-device: device name
 
-        # object_id is computed from friendly_name (which includes MAC suffix)
-        expected_object_id_empty = compute_expected_object_id(expected_friendly_name)
-        assert empty_name_entity.object_id == expected_object_id_empty, (
-            f"Empty-name entity: object_id mismatch. "
-            f"API: '{empty_name_entity.object_id}', expected: '{expected_object_id_empty}'"
+        # Get all empty-name entities
+        empty_name_entities = [e for e in entities if e.name == ""]
+        # We expect 3: 1 on main device, 2 on sub-devices
+        assert len(empty_name_entities) == 3, (
+            f"Expected 3 empty-name entities, got {len(empty_name_entities)}"
         )
 
-        # Hash is also computed from friendly_name with MAC suffix
-        expected_hash_empty = fnv1_hash_object_id(expected_friendly_name)
-        assert empty_name_entity.key == expected_hash_empty, (
-            f"Empty-name entity: hash mismatch. "
-            f"API key: {empty_name_entity.key:#x}, expected: {expected_hash_empty:#x}"
-        )
+        # Build device_id -> device_name map from device_info
+        device_id_to_name = {d.device_id: d.name for d in device_info.devices}
+
+        # Verify each empty-name entity
+        for entity in empty_name_entities:
+            if entity.device_id == 0:
+                # Main device - uses friendly_name with MAC suffix
+                expected_name = expected_friendly_name
+            else:
+                # Sub-device - uses device name
+                assert entity.device_id in device_id_to_name, (
+                    f"Entity device_id {entity.device_id} not found in devices"
+                )
+                expected_name = device_id_to_name[entity.device_id]
+
+            expected_object_id = compute_expected_object_id(expected_name)
+            assert entity.object_id == expected_object_id, (
+                f"Empty-name entity (device_id={entity.device_id}): object_id mismatch. "
+                f"API: '{entity.object_id}', expected: '{expected_object_id}' "
+                f"(from name '{expected_name}')"
+            )
+
+            # Verify hash matches
+            expected_hash = fnv1_hash_object_id(expected_name)
+            assert entity.key == expected_hash, (
+                f"Empty-name entity (device_id={entity.device_id}): hash mismatch. "
+                f"API key: {entity.key:#x}, expected: {expected_hash:#x}"
+            )
 
         # === Test 3: Verify ALL entities can have object_id computed from API data ===
         # This is the key property for removing object_id from the API protocol
         for entity in entities:
-            # Use entity name if present, otherwise device's friendly_name
-            name_for_object_id = entity.name or device_info.friendly_name
+            if entity.name:
+                # Named entity - use entity name
+                name_for_object_id = entity.name
+            elif entity.device_id == 0:
+                # Empty name on main device - use friendly_name
+                name_for_object_id = device_info.friendly_name
+            else:
+                # Empty name on sub-device - use device name
+                name_for_object_id = device_id_to_name[entity.device_id]
 
             # Compute object_id from the appropriate name
             computed_object_id = compute_expected_object_id(name_for_object_id)
 
             # Verify it matches what the API returned
             assert entity.object_id == computed_object_id, (
-                f"Entity (name='{entity.name}'): object_id cannot be computed. "
+                f"Entity (name='{entity.name}', device_id={entity.device_id}): "
+                f"object_id cannot be computed. "
                 f"API: '{entity.object_id}', Computed from '{name_for_object_id}': '{computed_object_id}'"
             )
 
             # Verify hash can also be computed
             computed_hash = fnv1_hash_object_id(name_for_object_id)
             assert entity.key == computed_hash, (
-                f"Entity (name='{entity.name}'): hash cannot be computed. "
+                f"Entity (name='{entity.name}', device_id={entity.device_id}): "
+                f"hash cannot be computed. "
                 f"API key: {entity.key:#x}, Computed: {computed_hash:#x}"
             )
