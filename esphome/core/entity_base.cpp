@@ -60,15 +60,6 @@ std::string EntityBase::get_object_id() const {
   // `App.get_friendly_name()` is constant.
   return this->object_id_c_str_ == nullptr ? "" : this->object_id_c_str_;
 }
-StringRef EntityBase::get_object_id_ref_for_api_() const {
-  static constexpr auto EMPTY_STRING = StringRef::from_lit("");
-  // Return empty for dynamic case (MAC suffix)
-  if (this->is_object_id_dynamic_()) {
-    return EMPTY_STRING;
-  }
-  // For static case, return the string or empty if null
-  return this->object_id_c_str_ == nullptr ? EMPTY_STRING : StringRef(this->object_id_c_str_);
-}
 void EntityBase::set_object_id(const char *object_id) {
   this->object_id_c_str_ = object_id;
   this->calc_object_id_();
@@ -82,8 +73,41 @@ void EntityBase::set_name_and_object_id(const char *name, const char *object_id)
 
 // Calculate Object ID Hash from Entity Name
 void EntityBase::calc_object_id_() {
-  this->object_id_hash_ =
-      fnv1_hash(this->is_object_id_dynamic_() ? this->get_object_id().c_str() : this->object_id_c_str_);
+  char buf[OBJECT_ID_MAX_LEN];
+  StringRef object_id = this->get_object_id_to(buf);
+  this->object_id_hash_ = fnv1_hash(object_id.c_str());
+}
+
+// Format dynamic object_id: sanitized snake_case of friendly_name
+static size_t format_dynamic_object_id(char *buf, size_t buf_size) {
+  const std::string &name = App.get_friendly_name();
+  size_t len = std::min(name.size(), buf_size - 1);
+  for (size_t i = 0; i < len; i++) {
+    buf[i] = to_sanitized_char(to_snake_case_char(name[i]));
+  }
+  buf[len] = '\0';
+  return len;
+}
+
+size_t EntityBase::write_object_id_to(char *buf, size_t buf_size) const {
+  if (this->is_object_id_dynamic_()) {
+    return format_dynamic_object_id(buf, buf_size);
+  }
+  const char *src = this->object_id_c_str_ == nullptr ? "" : this->object_id_c_str_;
+  size_t len = strlen(src);
+  if (len >= buf_size)
+    len = buf_size - 1;
+  memcpy(buf, src, len);
+  buf[len] = '\0';
+  return len;
+}
+
+StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) const {
+  if (this->is_object_id_dynamic_()) {
+    size_t len = format_dynamic_object_id(buf.data(), buf.size());
+    return StringRef(buf.data(), len);
+  }
+  return this->object_id_c_str_ == nullptr ? StringRef() : StringRef(this->object_id_c_str_);
 }
 
 uint32_t EntityBase::get_object_id_hash() { return this->object_id_hash_; }
