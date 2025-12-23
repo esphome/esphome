@@ -28,7 +28,7 @@ void NeewerCTLightOutput::dump_config() {
                 "  Characteristic UUID: %s\n"
                 "  Require Response: %s\n"
                 "  Colour Temperature Range: %d K - %d K",
-                this->parent_ ? this->parent_->address_str().c_str() : "N/A",
+                this->parent_ ? this->parent_->address_str() : "N/A",
                 this->ble_.service_uuid_.to_string().c_str(), this->ble_.characteristic_uuid_.to_string().c_str(),
                 this->ble_.require_response_ ? "True" : "False", utils::mireds_to_kelvin_int(warm_white_temperature_),
                 utils::mireds_to_kelvin_int(cold_white_temperature_));
