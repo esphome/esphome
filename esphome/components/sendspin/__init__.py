@@ -48,7 +48,8 @@ def _request_high_performance_networking(config):
     """
     network.require_high_performance_networking()
     socket.require_wake_loop_threadsafe()
-    socket.consume_sockets(1, "sendspin_websocket_server")(
+    # Sendspin needs 1 listening socket and up to 2 client connections
+    socket.consume_sockets(3, "sendspin_websocket_server")(
         config
     )  # Currently only supports one connection
     wifi.enable_runtime_power_save_control()  # TODO: Is this safe if wifi isn't configured?
