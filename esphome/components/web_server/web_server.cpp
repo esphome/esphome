@@ -147,16 +147,8 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain)
     return UrlMatch{};
   }
 #else
-  // Without USE_DEVICES, treat extra segments as part of method (backward compat)
-  match.id = seg1_start;
-  match.id_len = seg1_end - seg1_start;
-  match.method = seg2_start;
-  match.method_len = end - seg2_start;
-
-  // Reject empty segments
-  if (match.id_len == 0 || match.method_len == 0) {
-    return UrlMatch{};
-  }
+  // Without USE_DEVICES, reject URLs with 3+ segments (device paths not supported)
+  return UrlMatch{};
 #endif
 
   return match;
