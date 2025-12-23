@@ -102,6 +102,10 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain)
     // Only 1 segment after domain: /{domain}/{entity_name}
     match.id = seg1_start;
     match.id_len = end - seg1_start;
+    // Reject empty segment (e.g., "/sensor/")
+    if (match.id_len == 0) {
+      return UrlMatch{};
+    }
     return match;
   }
 
@@ -115,6 +119,10 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain)
     match.id_len = seg1_end - seg1_start;
     match.method = seg2_start;
     match.method_len = end - seg2_start;
+    // Reject empty segments (e.g., "/sensor//turn_on" or "/sensor/temp/")
+    if (match.id_len == 0 || match.method_len == 0) {
+      return UrlMatch{};
+    }
     return match;
   }
 
@@ -133,12 +141,22 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain)
     match.method = nullptr;
     match.method_len = 0;
   }
+
+  // Reject empty segments (e.g., "/sensor//entity/turn_on" or "/sensor/device//turn_on")
+  if (match.device_name_len == 0 || match.id_len == 0 || (match.method != nullptr && match.method_len == 0)) {
+    return UrlMatch{};
+  }
 #else
   // Without USE_DEVICES, treat extra segments as part of method (backward compat)
   match.id = seg1_start;
   match.id_len = seg1_end - seg1_start;
   match.method = seg2_start;
   match.method_len = end - seg2_start;
+
+  // Reject empty segments
+  if (match.id_len == 0 || match.method_len == 0) {
+    return UrlMatch{};
+  }
 #endif
 
   return match;
