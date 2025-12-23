@@ -1988,6 +1988,7 @@ def _validate_no_slash(value):
 # Maximum length for entity, device, and area names
 # This ensures web server URL IDs fit in a 280-byte buffer:
 # domain(20) + "/" + device(120) + "/" + name(120) + null = 263 bytes
+# Note: Must be < 255 because web_server UrlMatch uses uint8_t for length fields
 NAME_MAX_LENGTH = 120
 
 

@@ -37,6 +37,7 @@ namespace esphome {
 namespace web_server {
 
 /// Internal helper struct that is used to parse incoming URLs
+/// Note: Length fields use uint8_t, so NAME_MAX_LENGTH in config_validation.py must stay < 255
 struct UrlMatch {
   const char *domain;  ///< Pointer to domain within URL, for example "sensor"
   const char *id;      ///< Pointer to entity name/id within URL, for example "Temperature"
@@ -45,10 +46,10 @@ struct UrlMatch {
   const char *device_name;  ///< Pointer to device name within URL, or nullptr for main device
 #endif
   uint8_t domain_len;  ///< Length of domain string
-  uint8_t id_len;      ///< Length of id string
+  uint8_t id_len;      ///< Length of id string (NAME_MAX_LENGTH must be < 255)
   uint8_t method_len;  ///< Length of method string
 #ifdef USE_DEVICES
-  uint8_t device_name_len;  ///< Length of device name string (0 for main device)
+  uint8_t device_name_len;  ///< Length of device name string (NAME_MAX_LENGTH must be < 255)
 #endif
   bool valid;  ///< Whether this match is valid
 
