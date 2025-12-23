@@ -12,7 +12,7 @@
 using namespace esphome;
 
 void setup() {
-  App.pre_setup("livingroom", "LivingRoom", "comment", false);
+  App.pre_setup("livingroom", "LivingRoom", false);
   auto *log = new logger::Logger(115200, 512);  // NOLINT
   log->pre_setup();
   log->set_uart_selection(logger::UART_SELECTION_UART0);
