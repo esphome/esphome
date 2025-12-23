@@ -23,7 +23,7 @@ from esphome.core.entity_helpers import (
     setup_entity,
 )
 from esphome.cpp_generator import MockObj
-from esphome.helpers import fnv1_hash_object_id, sanitize, snake_case
+from esphome.helpers import sanitize, snake_case
 
 from .common import load_config_from_fixture
 
@@ -768,8 +768,8 @@ async def test_setup_entity_empty_name_with_device(
 ) -> None:
     """Test setup_entity with empty entity name on a sub-device.
 
-    This covers lines 96-98: when entity has empty name and device_id is set,
-    the object_id hash should be computed from the device name.
+    For empty-name entities, Python passes 0 and C++ calculates the hash
+    at runtime from the device's actual name.
     """
     added_expressions = setup_test_environment
 
@@ -797,12 +797,10 @@ async def test_setup_entity_empty_name_with_device(
     # Check that set_device was called
     assert any("sensor1.set_device" in expr for expr in added_expressions)
 
-    # Verify the hash was computed from the device name
-    expected_hash = fnv1_hash_object_id("sub_device_1")
-    assert any(
-        "sensor1.set_name" in expr and str(expected_hash) in expr
-        for expr in added_expressions
-    ), f"Expected hash {expected_hash} not found in {added_expressions}"
+    # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
+    assert any('set_name("", 0)' in expr for expr in added_expressions), (
+        f"Expected set_name with hash 0, got {added_expressions}"
+    )
 
 
 @pytest.mark.asyncio
@@ -811,9 +809,8 @@ async def test_setup_entity_empty_name_with_mac_suffix(
 ) -> None:
     """Test setup_entity with empty name and MAC suffix enabled.
 
-    This covers lines 99-102: when entity has empty name and name_add_mac_suffix
-    is enabled, the object_id hash should be computed from friendly_name directly
-    (even if empty) for bug-for-bug compatibility.
+    For empty-name entities, Python passes 0 and C++ calculates the hash
+    at runtime from friendly_name (bug-for-bug compatibility).
     """
     added_expressions = setup_test_environment
 
@@ -831,12 +828,10 @@ async def test_setup_entity_empty_name_with_mac_suffix(
 
     await setup_entity(var, config, "sensor")
 
-    # Verify the hash was computed from friendly_name
-    expected_hash = fnv1_hash_object_id("My Device")
-    assert any(
-        "sensor1.set_name" in expr and str(expected_hash) in expr
-        for expr in added_expressions
-    ), f"Expected hash {expected_hash} not found in {added_expressions}"
+    # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
+    assert any('set_name("", 0)' in expr for expr in added_expressions), (
+        f"Expected set_name with hash 0, got {added_expressions}"
+    )
 
 
 @pytest.mark.asyncio
@@ -845,8 +840,9 @@ async def test_setup_entity_empty_name_with_mac_suffix_no_friendly_name(
 ) -> None:
     """Test setup_entity with empty name, MAC suffix enabled, but no friendly_name.
 
-    This covers the bug-for-bug compatibility case where MAC suffix is enabled
-    but friendly_name is empty - should result in empty object_id (hash of empty string).
+    For empty-name entities, Python passes 0 and C++ calculates the hash
+    at runtime. In this case C++ will hash the empty friendly_name
+    (bug-for-bug compatibility).
     """
     added_expressions = setup_test_environment
 
@@ -864,21 +860,9 @@ async def test_setup_entity_empty_name_with_mac_suffix_no_friendly_name(
 
     await setup_entity(var, config, "sensor")
 
-    # Verify the hash was computed from empty string (bug-for-bug compat)
-    # FNV1 offset basis (hash of empty string) = 2166136261
-    expected_hash = fnv1_hash_object_id("")
-    assert expected_hash == 2166136261, (
-        "Hash of empty string should be FNV1 offset basis"
-    )
-
-    # Verify the exact expression: set_name("", 2166136261UL)
-    set_name_expr = next(
-        (expr for expr in added_expressions if "sensor1.set_name" in expr), None
-    )
-    assert set_name_expr is not None, "set_name call not found"
-    assert f'set_name("", {expected_hash}' in set_name_expr, (
-        f"Expected set_name with empty string and hash {expected_hash}, "
-        f"got: {set_name_expr}"
+    # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
+    assert any('set_name("", 0)' in expr for expr in added_expressions), (
+        f"Expected set_name with hash 0, got {added_expressions}"
     )
 
 
@@ -888,8 +872,8 @@ async def test_setup_entity_empty_name_no_mac_suffix_no_friendly_name(
 ) -> None:
     """Test setup_entity with empty name, no MAC suffix, and no friendly_name.
 
-    This covers lines 107-108: when entity has empty name, no MAC suffix,
-    and no friendly_name, it should fall back to CORE.name (device name).
+    For empty-name entities, Python passes 0 and C++ calculates the hash
+    at runtime from the device name.
     """
     added_expressions = setup_test_environment
 
@@ -909,14 +893,7 @@ async def test_setup_entity_empty_name_no_mac_suffix_no_friendly_name(
 
     await setup_entity(var, config, "sensor")
 
-    # Verify the hash was computed from CORE.name (device name fallback)
-    expected_hash = fnv1_hash_object_id("my-test-device")
-
-    set_name_expr = next(
-        (expr for expr in added_expressions if "sensor1.set_name" in expr), None
-    )
-    assert set_name_expr is not None, "set_name call not found"
-    assert f'set_name("", {expected_hash}' in set_name_expr, (
-        f"Expected set_name with empty string and hash {expected_hash} "
-        f"(from device name 'my-test-device'), got: {set_name_expr}"
+    # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
+    assert any('set_name("", 0)' in expr for expr in added_expressions), (
+        f"Expected set_name with hash 0, got {added_expressions}"
     )

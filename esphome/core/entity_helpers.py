@@ -76,37 +76,16 @@ async def setup_entity(var: MockObj, config: ConfigType, platform: str) -> None:
         platform: The platform name (e.g., "sensor", "binary_sensor")
     """
     # Get device info if configured
-    device_name: str | None = None
-    device_id_obj: ID | None
     if device_id_obj := config.get(CONF_DEVICE_ID):
         device: MockObj = await get_variable(device_id_obj)
         add(var.set_device(device))
-        device_name = device_id_obj.id
 
     # Set the entity name with pre-computed object_id hash
-    # Must match OLD behavior for bug-for-bug compatibility:
-    # - With MAC suffix: OLD code used App.get_friendly_name() directly (no fallback)
-    # - Without MAC suffix: OLD code used pre-computed object_id with fallback to device name
+    # For named entities: pre-compute hash from entity name
+    # For empty-name entities: pass 0, C++ calculates hash at runtime from
+    # device name, friendly_name, or app name (bug-for-bug compatibility)
     entity_name = config[CONF_NAME]
-    if entity_name:
-        # Named entity - hash from entity name
-        object_id_hash = fnv1_hash_object_id(entity_name)
-    else:
-        # Empty name - behavior depends on MAC suffix setting
-        if device_name:
-            # Entity on sub-device - use device name
-            base_name = device_name
-        elif CORE.config and CORE.config.get("name_add_mac_suffix", False):
-            # MAC suffix enabled - OLD behavior used friendly_name directly (even if empty)
-            # This is bug-for-bug compatibility
-            base_name = CORE.friendly_name or ""
-        elif CORE.friendly_name:
-            # No MAC suffix, friendly_name set - use it
-            base_name = CORE.friendly_name
-        else:
-            # No MAC suffix, no friendly_name - fallback to device name
-            base_name = CORE.name
-        object_id_hash = fnv1_hash_object_id(base_name)
+    object_id_hash = fnv1_hash_object_id(entity_name) if entity_name else 0
     add(var.set_name(entity_name, object_id_hash))
     # Only set disabled_by_default if True (default is False)
     if config[CONF_DISABLED_BY_DEFAULT]:
