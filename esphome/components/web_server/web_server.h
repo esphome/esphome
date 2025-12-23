@@ -50,6 +50,7 @@ struct UrlMatch {
   uint8_t method_len;  ///< Length of method string
 #ifdef USE_DEVICES
   uint8_t device_name_len;  ///< Length of device name string (NAME_MAX_LENGTH must be < 255)
+  mutable bool matched_as_two_segment_subdevice{false};  ///< Set when 2-segment URL matched as device/entity
 #endif
   bool valid;  ///< Whether this match is valid
 
@@ -67,20 +68,36 @@ struct UrlMatch {
     used_deprecated_format = false;
 
 #ifdef USE_DEVICES
-    // Check device match first (faster rejection)
+    // Check device match
     Device *entity_device = entity->get_device();
     bool url_has_device = (device_name_len > 0);
     bool entity_has_device = (entity_device != nullptr);
 
-    if (url_has_device != entity_has_device) {
-      return false;  // Mismatch: one has device, other doesn't
-    }
     if (url_has_device) {
+      // URL has explicit device segment - must match
+      if (!entity_has_device) {
+        return false;  // URL has device but entity doesn't
+      }
       const char *entity_device_name = entity_device->get_name();
       if (device_name_len != strlen(entity_device_name) ||
           memcmp(device_name, entity_device_name, device_name_len) != 0) {
         return false;  // Device name doesn't match
       }
+    } else if (entity_has_device && method_len > 0) {
+      // URL has 2 segments (id/method), entity has device
+      // Try interpreting as device/entity: id=device_name, method=entity_name
+      const char *entity_device_name = entity_device->get_name();
+      if (id_len == strlen(entity_device_name) && memcmp(id, entity_device_name, id_len) == 0) {
+        // Device name matches, check if method matches entity name
+        const StringRef &name_ref = entity->get_name();
+        if (method_len == name_ref.size() && memcmp(method, name_ref.c_str(), method_len) == 0) {
+          matched_as_two_segment_subdevice = true;  // Mark for method_empty() check
+          return true;                              // Matched as device/entity (2-segment sub-device URL)
+        }
+      }
+      return false;  // Entity has device but URL doesn't match as device/entity
+    } else if (entity_has_device) {
+      return false;  // Entity has device but URL has no device info
     }
 #endif
 
@@ -108,7 +125,14 @@ struct UrlMatch {
     return method && method_len == strlen(str) && memcmp(method, str, method_len) == 0;
   }
 
-  bool method_empty() const { return method_len == 0; }
+  bool method_empty() const {
+#ifdef USE_DEVICES
+    // For 2-segment sub-device URLs, method field contains entity name, not actual method
+    if (matched_as_two_segment_subdevice)
+      return true;
+#endif
+    return method_len == 0;
+  }
 };
 
 #ifdef USE_WEBSERVER_SORTING

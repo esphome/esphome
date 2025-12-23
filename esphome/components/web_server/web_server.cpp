@@ -62,6 +62,7 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain)
 #ifdef USE_DEVICES
   match.device_name = nullptr;
   match.device_name_len = 0;
+  match.matched_as_two_segment_subdevice = false;
 #endif
 
   // URL must start with '/'
