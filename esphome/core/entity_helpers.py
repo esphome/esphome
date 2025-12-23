@@ -75,21 +75,31 @@ async def setup_entity(var: MockObj, config: ConfigType, platform: str) -> None:
         config: Configuration dictionary containing entity settings
         platform: The platform name (e.g., "sensor", "binary_sensor")
     """
-    # Set device if configured
+    # Get device info if configured
+    device_name: str | None = None
     device_id_obj: ID | None
     if device_id_obj := config.get(CONF_DEVICE_ID):
         device: MockObj = await get_variable(device_id_obj)
         add(var.set_device(device))
+        device_name = device_id_obj.id
 
     # Set the entity name with pre-computed object_id hash
-    # For entities with a name, we pre-compute the hash to avoid runtime calculation
-    # For empty names (use device friendly_name), pass 0 to compute at runtime
+    # We always pre-compute the hash using the same fallback logic as get_base_entity_object_id
+    # to ensure hash matches the object_id that would be generated
     entity_name = config[CONF_NAME]
     if entity_name:
+        # Named entity - hash from entity name
         object_id_hash = fnv1_hash_object_id(entity_name)
-        add(var.set_name(entity_name, object_id_hash))
     else:
-        add(var.set_name(entity_name, 0))
+        # Empty name - use fallback logic: device_name -> friendly_name -> CORE.name
+        if device_name:
+            base_name = device_name
+        elif CORE.friendly_name:
+            base_name = CORE.friendly_name
+        else:
+            base_name = CORE.name
+        object_id_hash = fnv1_hash_object_id(base_name)
+    add(var.set_name(entity_name, object_id_hash))
     # Only set disabled_by_default if True (default is False)
     if config[CONF_DISABLED_BY_DEFAULT]:
         add(var.set_disabled_by_default(True))
