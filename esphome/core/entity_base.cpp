@@ -19,7 +19,9 @@ void EntityBase::set_name(const char *name, uint32_t object_id_hash) {
     } else
 #endif
     {
-      this->name_ = StringRef(App.get_friendly_name());
+      // Use friendly_name if available, otherwise fall back to device name
+      const std::string &friendly = App.get_friendly_name();
+      this->name_ = StringRef(!friendly.empty() ? friendly : App.get_name());
     }
     this->flags_.has_own_name = false;
     // Dynamic name - must calculate hash at runtime
