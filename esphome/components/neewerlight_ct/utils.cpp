@@ -36,12 +36,11 @@ int brightness_to_percent(float brightness) {
 }
 
 uint8_t checksum(const std::vector<uint8_t> &data) {
-  uint64_t checksum = 0;
+  uint8_t checksum = 0;
   for (uint8_t byte : data) {
     checksum += byte;
   }
-  uint8_t checksum_byte = checksum & 0xFF;
-  return checksum_byte;
+  return checksum;
 }
 
 }  // namespace esphome::neewerlight_ct::utils
