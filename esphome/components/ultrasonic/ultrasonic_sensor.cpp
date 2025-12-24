@@ -8,19 +8,33 @@ static const char *const TAG = "ultrasonic.sensor";
 
 void IRAM_ATTR UltrasonicSensorStore::gpio_intr(UltrasonicSensorStore *arg) {
   uint32_t now = micros();
-  if (arg->echo_pin.digital_read()) {
+  if (!arg->echo_start || (now - arg->echo_start_us) <= 50) {
     arg->echo_start_us = now;
+    arg->echo_start = true;
   } else {
     arg->echo_end_us = now;
-    arg->measurement_complete = true;
+    arg->echo_end = true;
   }
+}
+
+void IRAM_ATTR UltrasonicSensorComponent::send_trigger_pulse_() {
+  InterruptLock lock;
+  this->store_.echo_start_us = 0;
+  this->store_.echo_end_us = 0;
+  this->store_.echo_start = false;
+  this->store_.echo_end = false;
+  this->trigger_pin_isr_.digital_write(true);
+  delayMicroseconds(this->pulse_time_us_);
+  this->trigger_pin_isr_.digital_write(false);
+  this->measurement_pending_ = true;
+  this->measurement_start_us_ = micros();
 }
 
 void UltrasonicSensorComponent::setup() {
   this->trigger_pin_->setup();
   this->trigger_pin_->digital_write(false);
+  this->trigger_pin_isr_ = this->trigger_pin_->to_isr();
   this->echo_pin_->setup();
-  this->store_.echo_pin = this->echo_pin_->to_isr();
   this->echo_pin_->attach_interrupt(UltrasonicSensorStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
 }
 
@@ -28,16 +42,7 @@ void UltrasonicSensorComponent::update() {
   if (this->measurement_pending_) {
     return;
   }
-
-  InterruptLock lock;
-  this->store_.echo_start_us = 0;
-  this->store_.echo_end_us = 0;
-  this->store_.measurement_complete = false;
-  this->trigger_pin_->digital_write(true);
-  delayMicroseconds(this->pulse_time_us_);
-  this->trigger_pin_->digital_write(false);
-  this->measurement_pending_ = true;
-  this->measurement_start_us_ = micros();
+  this->send_trigger_pulse_();
 }
 
 void UltrasonicSensorComponent::loop() {
@@ -45,7 +50,7 @@ void UltrasonicSensorComponent::loop() {
     return;
   }
 
-  if (this->store_.measurement_complete) {
+  if (this->store_.echo_end) {
     uint32_t pulse_duration = this->store_.echo_end_us - this->store_.echo_start_us;
     ESP_LOGV(TAG, "Echo took %" PRIu32 "us", pulse_duration);
     float result = UltrasonicSensorComponent::us_to_m(pulse_duration);
