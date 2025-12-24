@@ -455,7 +455,7 @@ class DeltaFilter : public Filter {
  public:
   explicit DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1);
 
-  void set_baseline(const std::function<float(float)> &fn);
+  void set_baseline(float (*fn)(float));
 
   optional<float> new_value(float value) override;
 
@@ -465,7 +465,7 @@ class DeltaFilter : public Filter {
 
   float min_a0_, min_a1_, max_a0_, max_a1_;
   // default baseline is the previous value
-  std::function<float(float)> baseline_ = [](float last_value) { return last_value; };
+  float (*baseline_)(float) = [](float last_value) { return last_value; };
 
   float last_value_{NAN};
 };

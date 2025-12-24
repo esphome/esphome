@@ -295,7 +295,7 @@ optional<float> ThrottleWithPriorityFilter::new_value(float value) {
 DeltaFilter::DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1)
     : min_a0_(min_a0), min_a1_(min_a1), max_a0_(max_a0), max_a1_(max_a1) {}
 
-void DeltaFilter::set_baseline(const std::function<float(float)> &fn) { this->baseline_ = fn; }
+void DeltaFilter::set_baseline(float (*fn)(float)) { this->baseline_ = fn; }
 
 optional<float> DeltaFilter::new_value(float value) {
   // calculate min and max using the linear equation
