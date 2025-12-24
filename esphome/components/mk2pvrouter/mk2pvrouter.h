@@ -5,8 +5,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace mk2pvrouter {
+namespace esphome::mk2pvrouter {
 /*
  * Buffer sizes based on mk2pvrouter telemetry protocol (from teleinfo.h):
  * - Tags: max 4 chars (S_MC is longest), most are 1-2 chars (P, V1, R2, etc.)
@@ -28,8 +27,12 @@ static const uint16_t MAX_BUF_SIZE = 256;  // Full frame with all features enabl
  */
 class Mk2PVRouterListener {
  public:
-  std::string tag;
+  void set_tag(const std::string &tag) { this->tag_ = tag; }
+  const std::string &get_tag() const { return this->tag_; }
   virtual void publish_val(const std::string &val) = 0;
+
+ protected:
+  std::string tag_;
 };
 
 /**
@@ -47,11 +50,12 @@ class Mk2PVRouter : public PollingComponent, public uart::UARTDevice {
   void setup() override;
   void update() override;
   void dump_config() override;
-  std::vector<Mk2PVRouterListener *> mk2pvrouter_listeners_{};
 
  protected:
+  static constexpr size_t CHECKSUM_AREA_END = 1;
+
+  std::vector<Mk2PVRouterListener *> mk2pvrouter_listeners_{};
   uint32_t baud_rate_{9600};
-  size_t checksum_area_end_{1};
   char buf_[MAX_BUF_SIZE];
   size_t buf_index_{0};
   char tag_[MAX_TAG_SIZE];
@@ -71,5 +75,4 @@ class Mk2PVRouter : public PollingComponent, public uart::UARTDevice {
   bool check_crc_(const char *grp, const char *grp_end);
   void publish_value_(const std::string &tag, const std::string &val);
 };
-}  // namespace mk2pvrouter
-}  // namespace esphome
+}  // namespace esphome::mk2pvrouter

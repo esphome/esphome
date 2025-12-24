@@ -1,8 +1,7 @@
 #include "mk2pvrouter.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mk2pvrouter {
+namespace esphome::mk2pvrouter {
 
 static const char *const TAG = "mk2pvrouter";
 
@@ -47,7 +46,7 @@ static size_t get_field(char *dest, const char *buf_start, const char *buf_end, 
  */
 uint8_t Mk2PVRouter::calculate_crc_(const char *grp, size_t grp_len) {
   uint8_t crc_tmp{0};
-  const auto effective_len = grp_len - checksum_area_end_;
+  const auto effective_len = grp_len - CHECKSUM_AREA_END;
   for (size_t i = 0; i < effective_len; i++) {
     crc_tmp += grp[i];
   }
@@ -216,8 +215,8 @@ void Mk2PVRouter::loop() {
  * @param val The value to publish.
  */
 void Mk2PVRouter::publish_value_(const std::string &tag, const std::string &val) {
-  for (auto *element : mk2pvrouter_listeners_) {
-    if (tag != element->tag)
+  for (auto *element : this->mk2pvrouter_listeners_) {
+    if (tag != element->get_tag())
       continue;
     element->publish_val(val);
   }
@@ -242,5 +241,4 @@ void Mk2PVRouter::register_mk2pvrouter_listener(Mk2PVRouterListener *listener) {
   mk2pvrouter_listeners_.push_back(listener);
 }
 
-}  // namespace mk2pvrouter
-}  // namespace esphome
+}  // namespace esphome::mk2pvrouter

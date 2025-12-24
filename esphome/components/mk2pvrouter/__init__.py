@@ -31,7 +31,7 @@ CONFIG_SCHEMA = (
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "mk2pvrouter", baud_rate=9600, parity="EVEN", require_rx=True
+    "mk2pvrouter", baud_rate=9600, parity="EVEN", data_bits=7, require_rx=True
 )
 
 
