@@ -578,8 +578,8 @@ def validate_delta_value(value):
         try:
             cv.positive_float(value[:-1])
             return value
-        except cv.Invalid:
-            raise cv.Invalid("Malformed delta % value")
+        except cv.Invalid as exc:
+            raise cv.Invalid("Malformed delta % value") from exc
     return cv.positive_float(value)
 
 
