@@ -305,7 +305,7 @@ optional<float> DeltaFilter::new_value(float value) {
   float delta = fabsf(value - ref);
   // if there is no reference, e.g. for the first value, just accept this one,
   // otherwise accept only if within range.
-  if (std::isnan(ref) || delta >= min && delta <= max) {
+  if (std::isnan(ref) || (delta >= min && delta <= max)) {
     this->last_value_ = value;
     return value;
   }
