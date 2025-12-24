@@ -1,5 +1,3 @@
-esp32:
-
 ble_client:
   - mac_address: 00:00:00:00:00:00
     id: neewer_test_ble_client_id
