@@ -455,7 +455,7 @@ class DeltaFilter : public Filter {
  public:
   explicit DeltaFilter(float min_delta, bool min_percentage_mode, float max_delta, bool max_percentage_mode);
 
-  void set_baseline(std::function<float(float)>);
+  void set_baseline(const std::function<float(float)> &fn);
 
   optional<float> new_value(float value) override;
 
@@ -464,7 +464,7 @@ class DeltaFilter : public Filter {
   bool min_percentage_mode_;
   float max_delta_;
   bool max_percentage_mode_;
-  optional<std::function<float(float)>> baseline_;
+  std::function<float(float)> baseline_;
 
   float last_value_{NAN};
 };

@@ -599,28 +599,33 @@ def validate_delta_value(config):
     )
 
 
-DELTA_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_MIN_VALUE): cv.Any(DELTA_VALUE_SCHEMA, validate_delta_value),
-        cv.Optional(CONF_MAX_VALUE): cv.Any(DELTA_VALUE_SCHEMA, validate_delta_value),
-        cv.Optional(CONF_BASELINE): cv.templatable(cv.float_),
-    }
-)
-
-
 # Old/default definition of the delta filter. Just a value that acts as the minimum.
 def validate_min_delta(config):
     schema = cv.Any(DELTA_VALUE_SCHEMA, validate_delta_value)
     return DELTA_SCHEMA({CONF_MIN_VALUE: schema(config)})
 
 
-@FILTER_REGISTRY.register(
-    "delta", DeltaFilter, cv.Any(DELTA_SCHEMA, validate_min_delta)
+DELTA_SCHEMA = cv.All(
+    cv.Any(
+        cv.Schema(
+            {
+                cv.Optional(CONF_MIN_VALUE): cv.Any(
+                    DELTA_VALUE_SCHEMA, validate_delta_value
+                ),
+                cv.Optional(CONF_MAX_VALUE): cv.Any(
+                    DELTA_VALUE_SCHEMA, validate_delta_value
+                ),
+                cv.Optional(CONF_BASELINE): cv.templatable(cv.float_),
+            }
+        ),
+        validate_min_delta,
+    ),
+    cv.has_at_least_one_key(CONF_MAX_VALUE, CONF_MIN_VALUE),
 )
-async def delta_filter_to_code(config, filter_id):
-    if config.get(CONF_MIN_VALUE) is None and config.get(CONF_MAX_VALUE) is None:
-        raise cv.Invalid("Delta filter requires at least one of min or max values.")
 
+
+@FILTER_REGISTRY.register("delta", DeltaFilter, DELTA_SCHEMA)
+async def delta_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(
         filter_id,
         config.get(CONF_MIN_VALUE, {}).get(CONF_VALUE, float("nan")),
