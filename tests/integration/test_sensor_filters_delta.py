@@ -23,11 +23,13 @@ async def test_sensor_filters_delta(
         "filter_min": [],
         "filter_max": [],
         "filter_baseline_max": [],
+        "filter_zero_delta": [],
     }
 
     filter_min_done = loop.create_future()
     filter_max_done = loop.create_future()
     filter_baseline_max_done = loop.create_future()
+    filter_zero_delta_done = loop.create_future()
 
     def on_state(state: EntityState) -> None:
         if not isinstance(state, SensorState) or state.missing_state:
@@ -58,6 +60,12 @@ async def test_sensor_filters_delta(
             and not filter_baseline_max_done.done()
         ):
             filter_baseline_max_done.set_result(True)
+        elif (
+            sensor_name == "filter_zero_delta"
+            and len(sensor_values[sensor_name]) == 2
+            and not filter_zero_delta_done.done()
+        ):
+            filter_zero_delta_done.set_result(True)
 
     async with (
         run_compiled(yaml_config),
@@ -71,6 +79,7 @@ async def test_sensor_filters_delta(
                 "filter_min": "Filter Min",
                 "filter_max": "Filter Max",
                 "filter_baseline_max": "Filter Baseline Max",
+                "filter_zero_delta": "Filter Zero Delta",
             },
         )
 
@@ -88,13 +97,14 @@ async def test_sensor_filters_delta(
             "Test Filter Min": "filter_min",
             "Test Filter Max": "filter_max",
             "Test Filter Baseline Max": "filter_baseline_max",
+            "Test Filter Zero Delta": "filter_zero_delta",
         }
         buttons = {}
         for entity in entities:
             if isinstance(entity, ButtonInfo) and entity.name in button_name_map:
                 buttons[button_name_map[entity.name]] = entity.key
 
-        assert len(buttons) == 3, f"Expected 3 buttons, found {len(buttons)}"
+        assert len(buttons) == 4, f"Expected 3 buttons, found {len(buttons)}"
 
         # Test 1: Min
         sensor_values["filter_min"].clear()
@@ -135,4 +145,19 @@ async def test_sensor_filters_delta(
         expected = [1.0, 2.0, 3.0, 20.0]
         assert sensor_values["filter_baseline_max"] == pytest.approx(expected), (
             f"Test 3 failed: expected {expected}, got {sensor_values['filter_baseline_max']}"
+        )
+
+        # Test 4: Zero Delta
+        sensor_values["filter_zero_delta"].clear()
+        client.button_command(buttons["filter_zero_delta"])
+        try:
+            await asyncio.wait_for(filter_zero_delta_done, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Test 4 timed out. Values: {sensor_values['filter_zero_delta']}"
+            )
+
+        expected = [1.0, 2.0]
+        assert sensor_values["filter_zero_delta"] == pytest.approx(expected), (
+            f"Test 4 failed: expected {expected}, got {sensor_values['filter_zero_delta']}"
         )
