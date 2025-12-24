@@ -7,7 +7,7 @@
 
 namespace esphome::neewerlight_ct::utils {
 
-inline constexpr const char TAG[] = "neewerlight_ct.component";
+constexpr const char TAG[] = "neewerlight_ct.component";
 
 // if input is 0, output is 0
 float mireds_to_kelvin(float mireds);
