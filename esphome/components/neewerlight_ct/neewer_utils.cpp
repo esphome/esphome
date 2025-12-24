@@ -1,6 +1,7 @@
 #include "neewer_utils.h"
 
 #include <cmath>
+#include <numeric>
 
 #ifdef USE_ESP32
 
