@@ -622,6 +622,17 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
+#ifdef USE_WATER_HEATER
+    case WaterHeaterCommandRequest::MESSAGE_TYPE: {
+      WaterHeaterCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_water_heater_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_water_heater_command_request(msg);
+      break;
+    }
+#endif
     default:
       break;
   }

@@ -12,6 +12,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/scheduler.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/version.h"
@@ -87,6 +88,9 @@
 #ifdef USE_ALARM_CONTROL_PANEL
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
 #endif
+#ifdef USE_WATER_HEATER
+#include "esphome/components/water_heater/water_heater.h"
+#endif
 #ifdef USE_EVENT
 #include "esphome/components/event/event.h"
 #endif
@@ -104,8 +108,7 @@ static const uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick 
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const std::string &friendly_name, const char *comment,
-                 bool name_add_mac_suffix) {
+  void pre_setup(const std::string &name, const std::string &friendly_name, bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
@@ -124,7 +127,6 @@ class Application {
       this->name_ = name;
       this->friendly_name_ = friendly_name;
     }
-    this->comment_ = comment;
   }
 
 #ifdef USE_DEVICES
@@ -217,6 +219,10 @@ class Application {
   }
 #endif
 
+#ifdef USE_WATER_HEATER
+  void register_water_heater(water_heater::WaterHeater *water_heater) { this->water_heaters_.push_back(water_heater); }
+#endif
+
 #ifdef USE_EVENT
   void register_event(event::Event *event) { this->events_.push_back(event); }
 #endif
@@ -257,10 +263,19 @@ class Application {
     return "";
   }
 
-  /// Get the comment of this Application set by pre_setup().
-  std::string get_comment() const { return this->comment_; }
-  /// Get the comment as StringRef (avoids allocation)
-  StringRef get_comment_ref() const { return StringRef(this->comment_); }
+  /// Copy the comment string into the provided buffer
+  /// Buffer must be ESPHOME_COMMENT_SIZE bytes (compile-time enforced)
+  void get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE> buffer) {
+    ESPHOME_strncpy_P(buffer.data(), ESPHOME_COMMENT_STR, buffer.size());
+    buffer[buffer.size() - 1] = '\0';
+  }
+
+  /// Get the comment of this Application as a string
+  std::string get_comment() {
+    char buffer[ESPHOME_COMMENT_SIZE];
+    this->get_comment_string(buffer);
+    return std::string(buffer);
+  }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
@@ -437,6 +452,11 @@ class Application {
   GET_ENTITY_METHOD(alarm_control_panel::AlarmControlPanel, alarm_control_panel, alarm_control_panels)
 #endif
 
+#ifdef USE_WATER_HEATER
+  auto &get_water_heaters() const { return this->water_heaters_; }
+  GET_ENTITY_METHOD(water_heater::WaterHeater, water_heater, water_heaters)
+#endif
+
 #ifdef USE_EVENT
   auto &get_events() const { return this->events_; }
   GET_ENTITY_METHOD(event::Event, event, events)
@@ -501,7 +521,6 @@ class Application {
 
   // Pointer-sized members first
   Component *current_component_{nullptr};
-  const char *comment_{nullptr};
 
   // std::vector (3 pointers each: begin, end, capacity)
   // Partitioned vector design for looping components
@@ -633,6 +652,9 @@ class Application {
 #ifdef USE_ALARM_CONTROL_PANEL
   StaticVector<alarm_control_panel::AlarmControlPanel *, ESPHOME_ENTITY_ALARM_CONTROL_PANEL_COUNT>
       alarm_control_panels_{};
+#endif
+#ifdef USE_WATER_HEATER
+  StaticVector<water_heater::WaterHeater *, ESPHOME_ENTITY_WATER_HEATER_COUNT> water_heaters_{};
 #endif
 #ifdef USE_UPDATE
   StaticVector<update::UpdateEntity *, ESPHOME_ENTITY_UPDATE_COUNT> updates_{};
