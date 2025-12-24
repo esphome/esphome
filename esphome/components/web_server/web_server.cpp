@@ -82,57 +82,48 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain,
   if (!s2)
     return UrlMatch{};
 
+  // Helper to make StringRef from segment start to next segment (or end)
+  auto make_ref = [&end](const char *start, const char *next_start) -> StringRef {
+    return StringRef(start, (next_start ? next_start - 1 : end) - start);
+  };
+
   UrlMatch match{};
-  match.domain = s1;
-  match.domain_len = (s2 - 1) - s1;  // exclude the slash
+  match.domain = make_ref(s1, s2);
   match.valid = true;
 
   if (only_domain || s2 >= end)
     return match;
 
-  // Calculate segment lengths (segment ends at next start - 1, or at end)
-  auto seg_len = [&end](const char *start, const char *next_start) -> size_t {
-    return (next_start ? next_start - 1 : end) - start;
-  };
-
-  size_t len2 = seg_len(s2, s3);
-  size_t len3 = s3 ? seg_len(s3, s4) : 0;
-  size_t len4 = s4 ? seg_len(s4, nullptr) : 0;
+  StringRef seg2 = make_ref(s2, s3);
+  StringRef seg3 = s3 ? make_ref(s3, s4) : StringRef();
+  StringRef seg4 = s4 ? make_ref(s4, nullptr) : StringRef();
 
   // Reject empty segments
-  if (len2 == 0 || (s3 && len3 == 0) || (s4 && len4 == 0))
+  if (seg2.empty() || (s3 && seg3.empty()) || (s4 && seg4.empty()))
     return UrlMatch{};
 
   // Interpret based on segment count
   if (!s3) {
     // 1 segment after domain: /{domain}/{entity}
-    match.id = s2;
-    match.id_len = len2;
+    match.id = seg2;
   } else if (!s4) {
     // 2 segments after domain: /{domain}/{X}/{Y}
     // HTTP method disambiguates: GET = device/entity, POST = entity/action
 #ifdef USE_DEVICES
     if (!is_post) {
-      match.device_name = s2;
-      match.device_name_len = len2;
-      match.id = s3;
-      match.id_len = len3;
+      match.device_name = seg2;
+      match.id = seg3;
       return match;
     }
 #endif
-    match.id = s2;
-    match.id_len = len2;
-    match.method = s3;
-    match.method_len = len3;
+    match.id = seg2;
+    match.method = seg3;
   } else {
     // 3 segments after domain: /{domain}/{device}/{entity}/{action}
 #ifdef USE_DEVICES
-    match.device_name = s2;
-    match.device_name_len = len2;
-    match.id = s3;
-    match.id_len = len3;
-    match.method = s4;
-    match.method_len = len4;
+    match.device_name = seg2;
+    match.id = seg3;
+    match.method = seg4;
 #else
     return UrlMatch{};  // Not supported without USE_DEVICES
 #endif
@@ -142,28 +133,24 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain,
 }
 
 EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
-  EntityMatchResult result{false, this->method_len == 0};
+  EntityMatchResult result{false, this->method.empty()};
 
 #ifdef USE_DEVICES
   Device *entity_device = entity->get_device();
-  bool url_has_device = (this->device_name_len > 0);
+  bool url_has_device = !this->device_name.empty();
   bool entity_has_device = (entity_device != nullptr);
 
   // Device matching: URL device segment must match entity's device
   if (url_has_device != entity_has_device) {
     return result;  // Mismatch: one has device, other doesn't
   }
-  if (url_has_device) {
-    const char *entity_device_name = entity_device->get_name();
-    if (this->device_name_len != strlen(entity_device_name) ||
-        memcmp(this->device_name, entity_device_name, this->device_name_len) != 0) {
-      return result;  // Device name doesn't match
-    }
+  if (url_has_device && this->device_name != entity_device->get_name()) {
+    return result;  // Device name doesn't match
   }
 #endif
 
   // Try matching by entity name (new format)
-  if (this->id_matches(entity->get_name())) {
+  if (this->id == entity->get_name()) {
     result.matched = true;
     return result;
   }
@@ -171,7 +158,7 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
   // Fall back to object_id (deprecated format)
   char object_id_buf[OBJECT_ID_MAX_LEN];
   StringRef object_id = entity->get_object_id_to(object_id_buf);
-  if (this->id_matches(object_id)) {
+  if (this->id == object_id) {
     result.matched = true;
     // Log deprecation warning
 #ifdef USE_DEVICES
@@ -180,16 +167,17 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
       ESP_LOGW(TAG,
                "Deprecated URL format: /%.*s/%.*s/%.*s - use entity name '/%.*s/%s/%s' instead. "
                "Object ID URLs will be removed in 2026.7.0.",
-               this->domain_len, this->domain, this->device_name_len, this->device_name, this->id_len, this->id,
-               this->domain_len, this->domain, device->get_name(), entity->get_name().c_str());
+               (int) this->domain.size(), this->domain.c_str(), (int) this->device_name.size(),
+               this->device_name.c_str(), (int) this->id.size(), this->id.c_str(), (int) this->domain.size(),
+               this->domain.c_str(), device->get_name(), entity->get_name().c_str());
     } else
 #endif
     {
       ESP_LOGW(TAG,
                "Deprecated URL format: /%.*s/%.*s - use entity name '/%.*s/%s' instead. "
                "Object ID URLs will be removed in 2026.7.0.",
-               this->domain_len, this->domain, this->id_len, this->id, this->domain_len, this->domain,
-               entity->get_name().c_str());
+               (int) this->domain.size(), this->domain.c_str(), (int) this->id.size(), this->id.c_str(),
+               (int) this->domain.size(), this->domain.c_str(), entity->get_name().c_str());
     }
   }
 

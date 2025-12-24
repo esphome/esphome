@@ -43,39 +43,21 @@ struct EntityMatchResult {
 };
 
 /// Internal helper struct that is used to parse incoming URLs
-/// Note: Length fields use uint8_t, so NAME_MAX_LENGTH in config_validation.py must stay < 255
 struct UrlMatch {
-  const char *domain;  ///< Pointer to domain within URL, for example "sensor"
-  const char *id;      ///< Pointer to entity name/id within URL, for example "Temperature"
-  const char *method;  ///< Pointer to method within URL, for example "turn_on"
+  StringRef domain;  ///< Domain within URL, for example "sensor"
+  StringRef id;      ///< Entity name/id within URL, for example "Temperature"
+  StringRef method;  ///< Method within URL, for example "turn_on"
 #ifdef USE_DEVICES
-  const char *device_name;  ///< Pointer to device name within URL, or nullptr for main device
+  StringRef device_name;  ///< Device name within URL, empty for main device
 #endif
-  uint8_t domain_len;  ///< Length of domain string
-  uint8_t id_len;      ///< Length of id string (NAME_MAX_LENGTH must be < 255)
-  uint8_t method_len;  ///< Length of method string
-#ifdef USE_DEVICES
-  uint8_t device_name_len;  ///< Length of device name string (NAME_MAX_LENGTH must be < 255)
-#endif
-  bool valid;  ///< Whether this match is valid
+  bool valid{false};  ///< Whether this match is valid
 
   // Helper methods for string comparisons
-  bool domain_equals(const char *str) const {
-    return domain && domain_len == strlen(str) && memcmp(domain, str, domain_len) == 0;
-  }
-
-  /// Check if URL id segment matches a StringRef
-  bool id_matches(const StringRef &str) const {
-    return id && id_len == str.size() && memcmp(id, str.c_str(), id_len) == 0;
-  }
+  bool domain_equals(const char *str) const { return this->domain == str; }
+  bool method_equals(const char *str) const { return this->method == str; }
 
   /// Match entity by name first, then fall back to object_id with deprecation warning
-  /// Returns EntityMatchResult with match status and whether method is effectively empty
   EntityMatchResult match_entity(EntityBase *entity) const;
-
-  bool method_equals(const char *str) const {
-    return method && method_len == strlen(str) && memcmp(method, str, method_len) == 0;
-  }
 };
 
 #ifdef USE_WEBSERVER_SORTING
