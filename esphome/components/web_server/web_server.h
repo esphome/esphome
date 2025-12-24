@@ -64,8 +64,10 @@ struct UrlMatch {
     return domain && domain_len == strlen(str) && memcmp(domain, str, domain_len) == 0;
   }
 
-  /// Check if URL id segment matches a string (by pointer and length)
-  bool id_matches(const char *str, size_t len) const { return id && id_len == len && memcmp(id, str, len) == 0; }
+  /// Check if URL id segment matches a StringRef
+  bool id_matches(const StringRef &str) const {
+    return id && id_len == str.size() && memcmp(id, str.c_str(), id_len) == 0;
+  }
 
   /// Match entity by name first, then fall back to object_id with deprecation warning
   /// Returns EntityMatchResult with match status and whether method is effectively empty

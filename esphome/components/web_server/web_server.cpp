@@ -163,8 +163,7 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
 #endif
 
   // Try matching by entity name (new format)
-  const StringRef &name_ref = entity->get_name();
-  if (this->id_matches(name_ref.c_str(), name_ref.size())) {
+  if (this->id_matches(entity->get_name())) {
     result.matched = true;
     return result;
   }
@@ -172,7 +171,7 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
   // Fall back to object_id (deprecated format)
   char object_id_buf[OBJECT_ID_MAX_LEN];
   StringRef object_id = entity->get_object_id_to(object_id_buf);
-  if (this->id_matches(object_id.c_str(), object_id.size())) {
+  if (this->id_matches(object_id)) {
     result.matched = true;
     // Log deprecation warning
 #ifdef USE_DEVICES
