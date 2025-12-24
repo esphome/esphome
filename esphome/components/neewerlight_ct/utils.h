@@ -5,9 +5,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace neewerlight_ct {
-namespace utils {
+namespace esphome::neewerlight_ct::utils {
 
 inline constexpr const char TAG[] = "neewerlight_ct.component";
 
@@ -25,8 +23,6 @@ int brightness_to_percent(float brightness);
 
 uint8_t checksum(const std::vector<uint8_t> &data);
 
-}  // namespace utils
-}  // namespace neewerlight_ct
-}  // namespace esphome
+}  // namespace esphome::neewerlight_ct::utils
 
 #endif  // USE_ESP32

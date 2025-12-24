@@ -8,8 +8,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace neewerlight_ct {
+namespace esphome::neewerlight_ct {
 
 class NeewerBleClient {
  public:
@@ -29,7 +28,6 @@ class NeewerBleClient {
   static const std::string CHARACTERISTIC_UUID;
 };
 
-}  // namespace neewerlight_ct
-}  // namespace esphome
+}  // namespace esphome::neewerlight_ct
 
 #endif  // USE_ESP32

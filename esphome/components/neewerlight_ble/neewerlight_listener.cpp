@@ -5,8 +5,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace neewerlight_ble {
+namespace esphome::neewerlight_ble {
 
 static const char *const TAG = "neewerlight_ble";
 
@@ -28,7 +27,6 @@ bool NeewerLightListener::parse_device(const esp32_ble_tracker::ESPBTDevice &dev
   return false;
 }
 
-}  // namespace neewerlight_ble
-}  // namespace esphome
+}  // namespace esphome::neewerlight_ble
 
 #endif

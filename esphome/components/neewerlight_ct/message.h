@@ -5,8 +5,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace neewerlight_ct {
+namespace esphome::neewerlight_ct {
 
 enum class MessageType : uint8_t {
   UNDEFINED = 0x00,
@@ -25,7 +24,6 @@ struct Message {
   std::vector<uint8_t> payload = {};
 };
 
-}  // namespace neewerlight_ct
-}  // namespace esphome
+}  // namespace esphome::neewerlight_ct
 
 #endif  // USE_ESP32

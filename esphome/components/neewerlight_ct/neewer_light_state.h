@@ -2,8 +2,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace neewerlight_ct {
+namespace esphome::neewerlight_ct {
 
 enum class OnOffState {
   OFF = 0,
@@ -18,7 +17,6 @@ struct NeewerLightState {
   float color_temperature = 0.0;  // 0.0 to 1.0, normalized in mireds from coldest to warmest
 };
 
-}  // namespace neewerlight_ct
-}  // namespace esphome
+}  // namespace esphome::neewerlight_ct
 
 #endif  // USE_ESP32

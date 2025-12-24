@@ -8,8 +8,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace neewerlight_ct {
+namespace esphome::neewerlight_ct {
 
 class NeewerCTLightOutput : public Component,
                             public color_temperature::CTLightOutput,
@@ -38,7 +37,6 @@ class NeewerCTLightOutput : public Component,
   NeewerBleClient ble_;
 };
 
-}  // namespace neewerlight_ct
-}  // namespace esphome
+}  // namespace esphome::neewerlight_ct
 
 #endif  // USE_ESP32

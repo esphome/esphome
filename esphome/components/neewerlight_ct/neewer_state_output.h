@@ -4,8 +4,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace neewerlight_ct {
+namespace esphome::neewerlight_ct {
 
 class NeewerStateOutput : public output::FloatOutput {
  protected:
@@ -14,7 +13,6 @@ class NeewerStateOutput : public output::FloatOutput {
   }
 };
 
-}  // namespace neewerlight_ct
-}  // namespace esphome
+}  // namespace esphome::neewerlight_ct
 
 #endif  // USE_ESP32

@@ -4,9 +4,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace neewerlight_ct {
-namespace utils {
+namespace esphome::neewerlight_ct::utils {
 
 float mireds_to_kelvin(float mireds) {
   if (mireds == 0.0f) {
@@ -46,8 +44,6 @@ uint8_t checksum(const std::vector<uint8_t> &data) {
   return checksum_byte;
 }
 
-}  // namespace utils
-}  // namespace neewerlight_ct
-}  // namespace esphome
+}  // namespace esphome::neewerlight_ct::utils
 
 #endif  // USE_ESP32

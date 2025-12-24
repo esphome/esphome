@@ -10,8 +10,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace neewerlight_ct {
+namespace esphome::neewerlight_ct {
 
 using utils::TAG;
 
@@ -144,7 +143,6 @@ std::vector<uint8_t> NeewerCTLightOutput::neewer_msg(const Message &msg) {
   return neewer_msg;
 }
 
-}  // namespace neewerlight_ct
-}  // namespace esphome
+}  // namespace esphome::neewerlight_ct
 
 #endif  // USE_ESP32

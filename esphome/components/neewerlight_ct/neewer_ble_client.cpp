@@ -5,8 +5,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace neewerlight_ct {
+namespace esphome::neewerlight_ct {
 
 using utils::TAG;
 
@@ -69,7 +68,6 @@ void NeewerBleClient::send_message(esphome::ble_client::BLEClient *client, std::
   }
 }
 
-}  // namespace neewerlight_ct
-}  // namespace esphome
+}  // namespace esphome::neewerlight_ct
 
 #endif  // USE_ESP32
