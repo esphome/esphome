@@ -57,6 +57,7 @@ struct UrlMatch {
   bool method_equals(const char *str) const { return this->method == str; }
 
   /// Match entity by name first, then fall back to object_id with deprecation warning
+  /// Returns EntityMatchResult with match status and whether action segment is empty
   EntityMatchResult match_entity(EntityBase *entity) const;
 };
 
