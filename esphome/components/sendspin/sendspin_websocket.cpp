@@ -40,6 +40,7 @@ void SendspinWebsocket::start_server(std::function<esp_err_t((httpd_req_t *) )> 
   config.close_fn = SendspinWebsocket::close_callback;
   config.global_user_ctx = (void *) this;
   config.global_user_ctx_free_fn = nullptr;
+  config.ctrl_port = ESP_HTTPD_DEF_CTRL_PORT + 1;  // Avoid a conflict with web_server component
 
   const httpd_uri_t sendspin_ws_uri = {.uri = "/sendspin",
                                        .method = HTTP_GET,
