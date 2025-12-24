@@ -53,11 +53,12 @@ static const char *const HEADER_CORS_ALLOW_PNA = "Access-Control-Allow-Private-N
 #endif
 
 // Parse URL and return match info
-// URL formats:
-//   /{domain}/{entity_name} - main device, no method
-//   /{domain}/{entity_name}/{method} - main device with method
-//   /{domain}/{device_name}/{entity_name}/{method} - sub-device with method (USE_DEVICES only)
-static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain) {
+// URL formats (disambiguated by HTTP method for 3-segment case):
+//   GET  /{domain}/{entity_name} - main device state
+//   POST /{domain}/{entity_name}/{action} - main device action
+//   GET  /{domain}/{device_name}/{entity_name} - sub-device state (USE_DEVICES only)
+//   POST /{domain}/{device_name}/{entity_name}/{action} - sub-device action (USE_DEVICES only)
+static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain, bool is_post = false) {
   UrlMatch match{};
 #ifdef USE_DEVICES
   match.device_name = nullptr;
@@ -114,7 +115,24 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain)
 
   if (!seg2_end) {
     // 2 segments after domain: /{domain}/{X}/{Y}
-    // This is /{domain}/{entity_name}/{method} for main device
+    // Disambiguate based on HTTP method:
+    //   POST: /{domain}/{entity_name}/{action} - main device action
+    //   GET:  /{domain}/{device_name}/{entity_name} - sub-device state (USE_DEVICES only)
+#ifdef USE_DEVICES
+    if (!is_post) {
+      // GET request: interpret as /{domain}/{device}/{entity}
+      match.device_name = seg1_start;
+      match.device_name_len = seg1_end - seg1_start;
+      match.id = seg2_start;
+      match.id_len = end - seg2_start;
+      // Reject empty segments
+      if (match.device_name_len == 0 || match.id_len == 0) {
+        return UrlMatch{};
+      }
+      return match;
+    }
+#endif
+    // POST request (or no USE_DEVICES): interpret as /{domain}/{entity}/{action}
     match.id = seg1_start;
     match.id_len = seg1_end - seg1_start;
     match.method = seg2_start;
@@ -162,28 +180,16 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
   bool url_has_device = (this->device_name_len > 0);
   bool entity_has_device = (entity_device != nullptr);
 
+  // Device matching: URL device segment must match entity's device
+  if (url_has_device != entity_has_device) {
+    return result;  // Mismatch: one has device, other doesn't
+  }
   if (url_has_device) {
-    // URL has explicit device segment (3+ segments) - must match device
-    if (!entity_has_device)
-      return result;
     const char *entity_device_name = entity_device->get_name();
     if (this->device_name_len != strlen(entity_device_name) ||
-        memcmp(this->device_name, entity_device_name, this->device_name_len) != 0)
-      return result;
-  } else if (entity_has_device) {
-    // Entity has device but URL has only 2 segments (id/method)
-    // Try interpreting as device/entity: id=device_name, method=entity_name
-    if (this->method_len == 0)
-      return result;  // Need 2 segments for this interpretation
-    const char *entity_device_name = entity_device->get_name();
-    if (this->id_len == strlen(entity_device_name) && memcmp(this->id, entity_device_name, this->id_len) == 0) {
-      const StringRef &name_ref = entity->get_name();
-      if (this->method_len == name_ref.size() && memcmp(this->method, name_ref.c_str(), this->method_len) == 0) {
-        // Matched: id=device, method=entity_name, so method is effectively empty
-        return {true, true};
-      }
+        memcmp(this->device_name, entity_device_name, this->device_name_len) != 0) {
+      return result;  // Device name doesn't match
     }
-    return result;  // No match
   }
 #endif
 
@@ -2152,7 +2158,8 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #endif
 
   // Parse URL for component routing
-  UrlMatch match = match_url(url.c_str(), url.length(), false);
+  // Pass HTTP method to disambiguate 3-segment URLs (GET=sub-device state, POST=main device action)
+  UrlMatch match = match_url(url.c_str(), url.length(), false, request->method() == HTTP_POST);
 
   // Route to appropriate handler based on domain
   // NOLINTNEXTLINE(readability-simplify-boolean-expr)

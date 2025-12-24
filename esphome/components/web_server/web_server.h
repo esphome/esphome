@@ -39,7 +39,7 @@ namespace web_server {
 /// Result of matching a URL against an entity
 struct EntityMatchResult {
   bool matched;          ///< True if entity matched the URL
-  bool action_is_empty;  ///< True if no action in URL (or action field was used as entity name for 2-seg subdevice)
+  bool action_is_empty;  ///< True if no action/method segment in URL
 };
 
 /// Internal helper struct that is used to parse incoming URLs
