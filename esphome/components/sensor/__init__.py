@@ -583,17 +583,18 @@ def validate_delta_value(value):
     return cv.positive_float(value)
 
 
-DELTA_SCHEMA = cv.All(
-    cv.maybe_simple_value(
+# This ideally would be done with `cv.maybe_simple_value` but it doesn't seem to respect the default for min_value.
+DELTA_SCHEMA = cv.Any(
+    cv.All(
         {
-            cv.Optional(CONF_MIN_VALUE, default=0.0): validate_delta_value,
-            # Ideally this would be 'default=float("inf")' but it doesn't translate well to C++
             cv.Optional(CONF_MAX_VALUE): validate_delta_value,
+            cv.Optional(CONF_MIN_VALUE, default="0.0"): validate_delta_value,
+            # Ideally this would be 'default=float("inf")' but it doesn't translate well to C++
             cv.Optional(CONF_BASELINE): cv.templatable(cv.float_),
         },
-        key=CONF_MIN_VALUE,
+        cv.has_at_least_one_key(CONF_MAX_VALUE, CONF_MIN_VALUE),
     ),
-    cv.has_at_least_one_key(CONF_MAX_VALUE, CONF_MIN_VALUE),
+    validate_delta_value,
 )
 
 
@@ -606,12 +607,16 @@ def _get_delta(value):
 
 @FILTER_REGISTRY.register("delta", DeltaFilter, DELTA_SCHEMA)
 async def delta_filter_to_code(config, filter_id):
-    if CONF_MAX_VALUE in config:
-        max = _get_delta(config[CONF_MAX_VALUE])
+    # The config could be just the min_value, or it could be a dict.
+    max = MockObj("std::numeric_limits<float>::infinity()"), 0
+    if isinstance(config, dict):
+        min = _get_delta(config[CONF_MIN_VALUE])
+        if CONF_MAX_VALUE in config:
+            max = _get_delta(config[CONF_MAX_VALUE])
     else:
-        max = MockObj("std::numeric_limits<float>::infinity()"), 0
-    var = cg.new_Pvariable(filter_id, *_get_delta(config[CONF_MIN_VALUE]), *max)
-    if baseline_lambda := config.get(CONF_BASELINE):
+        min = _get_delta(config)
+    var = cg.new_Pvariable(filter_id, *min, *max)
+    if isinstance(config, dict) and (baseline_lambda := config.get(CONF_BASELINE)):
         baseline = await cg.process_lambda(
             baseline_lambda, [(float, "x")], return_type=float
         )
