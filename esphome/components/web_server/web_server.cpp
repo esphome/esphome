@@ -59,115 +59,84 @@ static const char *const HEADER_CORS_ALLOW_PNA = "Access-Control-Allow-Private-N
 //   GET  /{domain}/{device_name}/{entity_name} - sub-device state (USE_DEVICES only)
 //   POST /{domain}/{device_name}/{entity_name}/{action} - sub-device action (USE_DEVICES only)
 static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain, bool is_post = false) {
-  UrlMatch match{};
-#ifdef USE_DEVICES
-  match.device_name = nullptr;
-  match.device_name_len = 0;
-#endif
+  // URL must start with '/' and have content after it
+  if (url_len < 2 || url_ptr[0] != '/')
+    return UrlMatch{};
 
-  // URL must start with '/'
-  if (url_len < 2 || url_ptr[0] != '/') {
-    return match;
-  }
-
-  // Skip leading '/'
-  const char *start = url_ptr + 1;
+  const char *p = url_ptr + 1;
   const char *end = url_ptr + url_len;
 
-  // Find domain (everything up to next '/' or end)
-  const char *domain_end = (const char *) memchr(start, '/', end - start);
-  if (!domain_end) {
-    // No second slash found - original behavior returns invalid
-    return match;
-  }
+  // Helper to find next segment: returns pointer after '/' or nullptr if no more slashes
+  auto next_segment = [&end](const char *start) -> const char * {
+    const char *slash = (const char *) memchr(start, '/', end - start);
+    return slash ? slash + 1 : nullptr;
+  };
 
-  // Set domain
-  match.domain = start;
-  match.domain_len = domain_end - start;
+  // Parse segments: domain, then up to 3 more
+  const char *s1 = p;                                // domain start
+  const char *s2 = next_segment(s1);                 // after domain
+  const char *s3 = s2 ? next_segment(s2) : nullptr;  // 2nd segment after domain
+  const char *s4 = s3 ? next_segment(s3) : nullptr;  // 3rd segment after domain
+
+  // Must have domain with trailing slash
+  if (!s2)
+    return UrlMatch{};
+
+  UrlMatch match{};
+  match.domain = s1;
+  match.domain_len = (s2 - 1) - s1;  // exclude the slash
   match.valid = true;
 
-  if (only_domain) {
+  if (only_domain || s2 >= end)
     return match;
-  }
 
-  // Parse remaining segments
-  if (domain_end + 1 >= end) {
-    return match;  // Nothing after domain slash
-  }
+  // Calculate segment lengths (segment ends at next start - 1, or at end)
+  auto seg_len = [&end](const char *start, const char *next_start) -> size_t {
+    return (next_start ? next_start - 1 : end) - start;
+  };
 
-  // Find all remaining slashes to count segments
-  const char *seg1_start = domain_end + 1;
-  const char *seg1_end = (const char *) memchr(seg1_start, '/', end - seg1_start);
+  size_t len2 = seg_len(s2, s3);
+  size_t len3 = s3 ? seg_len(s3, s4) : 0;
+  size_t len4 = s4 ? seg_len(s4, nullptr) : 0;
 
-  if (!seg1_end) {
-    // Only 1 segment after domain: /{domain}/{entity_name}
-    match.id = seg1_start;
-    match.id_len = end - seg1_start;
-    // Reject empty segment (e.g., "/sensor/")
-    if (match.id_len == 0) {
-      return UrlMatch{};
-    }
-    return match;
-  }
+  // Reject empty segments
+  if (len2 == 0 || (s3 && len3 == 0) || (s4 && len4 == 0))
+    return UrlMatch{};
 
-  const char *seg2_start = seg1_end + 1;
-  const char *seg2_end = (seg2_start < end) ? (const char *) memchr(seg2_start, '/', end - seg2_start) : nullptr;
-
-  if (!seg2_end) {
+  // Interpret based on segment count
+  if (!s3) {
+    // 1 segment after domain: /{domain}/{entity}
+    match.id = s2;
+    match.id_len = len2;
+  } else if (!s4) {
     // 2 segments after domain: /{domain}/{X}/{Y}
-    // Disambiguate based on HTTP method:
-    //   POST: /{domain}/{entity_name}/{action} - main device action
-    //   GET:  /{domain}/{device_name}/{entity_name} - sub-device state (USE_DEVICES only)
+    // HTTP method disambiguates: GET = device/entity, POST = entity/action
 #ifdef USE_DEVICES
     if (!is_post) {
-      // GET request: interpret as /{domain}/{device}/{entity}
-      match.device_name = seg1_start;
-      match.device_name_len = seg1_end - seg1_start;
-      match.id = seg2_start;
-      match.id_len = end - seg2_start;
-      // Reject empty segments
-      if (match.device_name_len == 0 || match.id_len == 0) {
-        return UrlMatch{};
-      }
+      match.device_name = s2;
+      match.device_name_len = len2;
+      match.id = s3;
+      match.id_len = len3;
       return match;
     }
 #endif
-    // POST request (or no USE_DEVICES): interpret as /{domain}/{entity}/{action}
-    match.id = seg1_start;
-    match.id_len = seg1_end - seg1_start;
-    match.method = seg2_start;
-    match.method_len = end - seg2_start;
-    // Reject empty segments (e.g., "/sensor//turn_on" or "/sensor/temp/")
-    if (match.id_len == 0 || match.method_len == 0) {
-      return UrlMatch{};
-    }
-    return match;
-  }
-
-#ifdef USE_DEVICES
-  // 3+ segments after domain: /{domain}/{device_name}/{entity_name}/{method}
-  const char *seg3_start = seg2_end + 1;
-  match.device_name = seg1_start;
-  match.device_name_len = seg1_end - seg1_start;
-  match.id = seg2_start;
-  match.id_len = seg2_end - seg2_start;
-  if (seg3_start < end) {
-    match.method = seg3_start;
-    match.method_len = end - seg3_start;
+    match.id = s2;
+    match.id_len = len2;
+    match.method = s3;
+    match.method_len = len3;
   } else {
-    // No method segment - fields already zero-initialized by UrlMatch{}
-    match.method = nullptr;
-    match.method_len = 0;
-  }
-
-  // Reject empty segments (e.g., "/sensor//entity/turn_on" or "/sensor/device//turn_on")
-  if (match.device_name_len == 0 || match.id_len == 0 || (match.method != nullptr && match.method_len == 0)) {
-    return UrlMatch{};
-  }
+    // 3 segments after domain: /{domain}/{device}/{entity}/{action}
+#ifdef USE_DEVICES
+    match.device_name = s2;
+    match.device_name_len = len2;
+    match.id = s3;
+    match.id_len = len3;
+    match.method = s4;
+    match.method_len = len4;
 #else
-  // Without USE_DEVICES, reject URLs with 3+ segments (device paths not supported)
-  return UrlMatch{};
+    return UrlMatch{};  // Not supported without USE_DEVICES
 #endif
+  }
 
   return match;
 }
