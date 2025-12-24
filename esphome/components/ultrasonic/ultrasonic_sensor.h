@@ -30,8 +30,6 @@ class UltrasonicSensorComponent : public sensor::Sensor, public PollingComponent
   void dump_config() override;
   void update() override;
 
-  void send_trigger_pulse_();
-
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   /// Set the time in µs the trigger pin should be enabled for in µs, defaults to 10µs (for HC-SR04)
@@ -40,6 +38,7 @@ class UltrasonicSensorComponent : public sensor::Sensor, public PollingComponent
  protected:
   /// Helper function to convert the specified echo duration in µs to meters.
   static float us_to_m(uint32_t us);
+  void send_trigger_pulse_();
 
   InternalGPIOPin *trigger_pin_;
   ISRInternalGPIOPin trigger_pin_isr_;
