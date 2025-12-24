@@ -17,7 +17,7 @@ void NeewerBleClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
   switch (event) {
     case ESP_GATTC_OPEN_EVT:
       this->client_state_ = esp32_ble_tracker::ClientState::ESTABLISHED;
-      ESP_LOGW(TAG, "[%s] Connected successfully!", this->characteristic_uuid_.to_string().c_str());
+      ESP_LOGD(TAG, "[%s] Connected successfully!", this->characteristic_uuid_.to_string().c_str());
       break;
     case ESP_GATTC_DISCONNECT_EVT:
       ESP_LOGW(TAG, "[%s] Disconnected", this->characteristic_uuid_.to_string().c_str());
