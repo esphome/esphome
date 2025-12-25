@@ -220,10 +220,6 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-        cv.Optional("enable_mdns"): cv.invalid(
-            "This option has been removed. Please use the [disabled] option under the "
-            "new mdns component instead."
-        ),
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
     }
 ).extend(cv.COMPONENT_SCHEMA)
