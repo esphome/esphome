@@ -259,7 +259,7 @@ bool Hitachi168bitClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Set received temp
-  int temp = remote_state[3] & 0xF0;
+  int32_t temp = remote_state[3] & 0xF0;
   ESP_LOGVV(TAG, "Temperature Raw: %02X", temp);
   temp = (uint8_t) temp >> 4;
   temp += static_cast<int>(this->temperature_min_());

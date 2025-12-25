@@ -17,7 +17,7 @@ constexpr float HITACHI168BIT_HCRA31NEWH_TEMP_MAX = 30.0f;
 class Hitachi168bitClimate : public climate_ir::ClimateIR {
  public:
   Hitachi168bitClimate()
-      : climate_ir::ClimateIR(temperature_min_(), temperature_max_(), 1.0f, true, true,
+      : climate_ir::ClimateIR(this->temperature_min_(), this->temperature_max_(), 1.0f, true, true,
                               {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
                                climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
@@ -29,14 +29,11 @@ class Hitachi168bitClimate : public climate_ir::ClimateIR {
   }
 
   /// Override control to change settings of the climate device.
-  void control(const climate::ClimateCall &call) override {
-    send_swing_cmd_ = call.get_swing_mode().has_value();
-    climate_ir::ClimateIR::control(call);
-  }
+  void control(const climate::ClimateCall &call) override { this->send_swing_cmd_ = call.get_swing_mode().has_value(); }
 
   void set_model(Model model) { this->model_ = model; }
 
-  // used to track when to send the power toggle command
+  /// Used to track when to send the power toggle command
   bool powered_on_assumed{false};
 
  protected:
