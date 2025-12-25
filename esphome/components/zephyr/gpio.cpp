@@ -61,7 +61,8 @@ void ZephyrGPIOPin::pin_mode(gpio::Flags flags) {
   if (nullptr == this->gpio_) {
     return;
   }
-  auto ret = gpio_pin_configure(this->gpio_, this->pin_ % 32, flags_to_mode(flags, this->inverted_, this->value_));
+  auto ret = gpio_pin_configure(this->gpio_, this->pin_ % this->gpio_size_,
+                                flags_to_mode(flags, this->inverted_, this->value_));
   if (ret != 0) {
     ESP_LOGE(TAG, "gpio %u cannot be configured %d.", this->pin_, ret);
   }
@@ -77,7 +78,7 @@ bool ZephyrGPIOPin::digital_read() {
   if (nullptr == this->gpio_) {
     return false;
   }
-  return bool(gpio_pin_get(this->gpio_, this->pin_ % 32) != this->inverted_);
+  return bool(gpio_pin_get(this->gpio_, this->pin_ % this->gpio_size_) != this->inverted_);
 }
 
 void ZephyrGPIOPin::digital_write(bool value) {
@@ -87,7 +88,7 @@ void ZephyrGPIOPin::digital_write(bool value) {
   if (nullptr == this->gpio_) {
     return;
   }
-  gpio_pin_set(this->gpio_, this->pin_ % 32, value != this->inverted_ ? 1 : 0);
+  gpio_pin_set(this->gpio_, this->pin_ % this->gpio_size_, value != this->inverted_ ? 1 : 0);
 }
 void ZephyrGPIOPin::detach_interrupt() const {
   // TODO
