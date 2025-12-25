@@ -887,7 +887,6 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
     @property
     def decode_length_content(self) -> str | None:
         return f"""case {self.number}: {{
-      // Use raw data directly to avoid allocation
       this->{self.field_name} = value.data();
       this->{self.field_name}_len = value.size();
       break;
