@@ -747,7 +747,7 @@ message NoiseEncryptionSetKeyRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_API_NOISE";
 
-  bytes key = 1 [(pointer_to_buffer) = true];
+  bytes key = 1;
 }
 
 message NoiseEncryptionSetKeyResponse {
@@ -796,7 +796,7 @@ message HomeassistantActionResponse {
   uint32 call_id = 1; // Matches the call_id from HomeassistantActionRequest
   bool success = 2; // Whether the service call succeeded
   string error_message = 3; // Error message if success = false
-  bytes response_data = 4 [(pointer_to_buffer) = true, (field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
+  bytes response_data = 4 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
 }
 
 // ==================== IMPORT HOME ASSISTANT STATES ====================
@@ -1692,7 +1692,7 @@ message BluetoothGATTWriteRequest {
   uint32 handle = 2;
   bool response = 3;
 
-  bytes data = 4 [(pointer_to_buffer) = true];
+  bytes data = 4;
 }
 
 message BluetoothGATTReadDescriptorRequest {
@@ -1712,7 +1712,7 @@ message BluetoothGATTWriteDescriptorRequest {
   uint64 address = 1;
   uint32 handle = 2;
 
-  bytes data = 3 [(pointer_to_buffer) = true];
+  bytes data = 3;
 }
 
 message BluetoothGATTNotifyRequest {
