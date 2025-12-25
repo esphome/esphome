@@ -72,20 +72,18 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain,
     return slash ? slash + 1 : nullptr;
   };
 
-  // Parse segments: domain, then up to 3 more
-  const char *s1 = p;                                // domain start
-  const char *s2 = next_segment(s1);                 // after domain
-  const char *s3 = s2 ? next_segment(s2) : nullptr;  // 2nd segment after domain
-  const char *s4 = s3 ? next_segment(s3) : nullptr;  // 3rd segment after domain
-
-  // Must have domain with trailing slash
-  if (!s2)
-    return UrlMatch{};
-
   // Helper to make StringRef from segment start to next segment (or end)
   auto make_ref = [&end](const char *start, const char *next_start) -> StringRef {
     return StringRef(start, (next_start ? next_start - 1 : end) - start);
   };
+
+  // Parse domain segment
+  const char *s1 = p;
+  const char *s2 = next_segment(s1);
+
+  // Must have domain with trailing slash
+  if (!s2)
+    return UrlMatch{};
 
   UrlMatch match{};
   match.domain = make_ref(s1, s2);
@@ -93,6 +91,10 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain,
 
   if (only_domain || s2 >= end)
     return match;
+
+  // Parse remaining segments only when needed
+  const char *s3 = next_segment(s2);
+  const char *s4 = s3 ? next_segment(s3) : nullptr;
 
   StringRef seg2 = make_ref(s2, s3);
   StringRef seg3 = s3 ? make_ref(s3, s4) : StringRef();
