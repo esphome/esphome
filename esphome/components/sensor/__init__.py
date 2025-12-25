@@ -587,9 +587,9 @@ def validate_delta_value(value):
 DELTA_SCHEMA = cv.Any(
     cv.All(
         {
+            # Ideally this would be 'default=float("inf")' but it doesn't translate well to C++
             cv.Optional(CONF_MAX_VALUE): validate_delta_value,
             cv.Optional(CONF_MIN_VALUE, default="0.0"): validate_delta_value,
-            # Ideally this would be 'default=float("inf")' but it doesn't translate well to C++
             cv.Optional(CONF_BASELINE): cv.templatable(cv.float_),
         },
         cv.has_at_least_one_key(CONF_MAX_VALUE, CONF_MIN_VALUE),
