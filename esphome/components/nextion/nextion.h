@@ -541,6 +541,23 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void goto_page(uint8_t page);
 
   /**
+   * Set the visibility of a component.
+   *
+   * @param component The component name.
+   * @param show True to show the component, false to hide it.
+   *
+   * @see show_component()
+   * @see hide_component()
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_visibility("textview", true);   // Equivalent to show_component("textview")
+   * it.set_component_visibility("textview", false);  // Equivalent to hide_component("textview")
+   * ```
+   */
+  void set_component_visibility(const char *component, bool show) override;
+
+  /**
    * Hide a component.
    * @param component The component name.
    *

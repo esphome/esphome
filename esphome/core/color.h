@@ -14,6 +14,15 @@ inline static constexpr uint8_t esp_scale8(uint8_t i, uint8_t scale) {
   return (uint16_t(i) * (1 + uint16_t(scale))) / 256;
 }
 
+/// Scale an 8-bit value by two 8-bit scale factors with improved precision.
+/// This is more accurate than calling esp_scale8() twice because it delays
+/// truncation until after both multiplications, preserving intermediate precision.
+/// For example: esp_scale8_twice(value, max_brightness, local_brightness)
+/// gives better results than esp_scale8(esp_scale8(value, max_brightness), local_brightness)
+inline static constexpr uint8_t esp_scale8_twice(uint8_t i, uint8_t scale1, uint8_t scale2) {
+  return (uint32_t(i) * (1 + uint32_t(scale1)) * (1 + uint32_t(scale2))) >> 16;
+}
+
 struct Color {
   union {
     struct {

@@ -1,9 +1,9 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-c3-idf.yaml
+
 substitutions:
-  clk_pin: GPIO6
-  mosi_pin: GPIO7
-  miso_pin: GPIO8
-  clock_pin: GPIO5
-  data_pin: GPIO4
+  clock_pin: GPIO7
+  data_pin: GPIO10
   latch_pin1: GPIO1
   oe_pin1: GPIO2
   latch_pin2: GPIO3

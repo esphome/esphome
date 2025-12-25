@@ -10,7 +10,7 @@ namespace template_ {
 
 class TemplateNumber : public number::Number, public PollingComponent {
  public:
-  void set_template(std::function<optional<float>()> &&f) { this->f_ = f; }
+  void set_template(optional<float> (*f)()) { this->f_ = f; }
 
   void setup() override;
   void update() override;
@@ -28,7 +28,7 @@ class TemplateNumber : public number::Number, public PollingComponent {
   float initial_value_{NAN};
   bool restore_value_{false};
   Trigger<float> *set_trigger_ = new Trigger<float>();
-  optional<std::function<optional<float>()>> f_;
+  optional<optional<float> (*)()> f_;
 
   ESPPreferenceObject pref_;
 };

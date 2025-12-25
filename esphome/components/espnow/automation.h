@@ -14,13 +14,13 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
   TEMPLATABLE_VALUE(std::vector<uint8_t>, data);
 
  public:
-  void add_on_sent(const std::vector<Action<Ts...> *> &actions) {
+  void add_on_sent(const std::initializer_list<Action<Ts...> *> &actions) {
     this->sent_.add_actions(actions);
     if (this->flags_.wait_for_sent) {
       this->sent_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next_(x...); }));
     }
   }
-  void add_on_error(const std::vector<Action<Ts...> *> &actions) {
+  void add_on_error(const std::initializer_list<Action<Ts...> *> &actions) {
     this->error_.add_actions(actions);
     if (this->flags_.wait_for_sent) {
       this->error_.add_action(new LambdaAction<Ts...>([this](Ts... x) {

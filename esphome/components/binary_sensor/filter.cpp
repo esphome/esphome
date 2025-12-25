@@ -1,7 +1,6 @@
 #include "filter.h"
 
 #include "binary_sensor.h"
-#include <utility>
 
 namespace esphome {
 
@@ -68,7 +67,7 @@ float DelayedOffFilter::get_setup_priority() const { return setup_priority::HARD
 
 optional<bool> InvertFilter::new_value(bool value) { return !value; }
 
-AutorepeatFilter::AutorepeatFilter(std::vector<AutorepeatFilterTiming> timings) : timings_(std::move(timings)) {}
+AutorepeatFilter::AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings) : timings_(timings) {}
 
 optional<bool> AutorepeatFilter::new_value(bool value) {
   if (value) {

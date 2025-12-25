@@ -55,7 +55,7 @@ void TemplateValve::loop() {
 
 void TemplateValve::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 void TemplateValve::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
-void TemplateValve::set_state_lambda(std::function<optional<float>()> &&f) { this->state_f_ = f; }
+void TemplateValve::set_state_lambda(optional<float> (*f)()) { this->state_f_ = f; }
 float TemplateValve::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 Trigger<> *TemplateValve::get_open_trigger() const { return this->open_trigger_; }

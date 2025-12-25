@@ -116,7 +116,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA),
-    esp32_ble_tracker.consume_connection_slots(1, "ble_client"),
+    esp32_ble.consume_connection_slots(1, "ble_client"),
 )
 
 CONF_BLE_CLIENT_ID = "ble_client_id"

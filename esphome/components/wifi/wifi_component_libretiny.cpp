@@ -411,7 +411,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
   if (num < 0)
     return;
 
-  this->scan_result_.reserve(static_cast<unsigned int>(num));
+  this->scan_result_.init(static_cast<unsigned int>(num));
   for (int i = 0; i < num; i++) {
     String ssid = WiFi.SSID(i);
     wifi_auth_mode_t authmode = WiFi.encryptionType(i);
@@ -419,9 +419,9 @@ void WiFiComponent::wifi_scan_done_callback_() {
     uint8_t *bssid = WiFi.BSSID(i);
     int32_t channel = WiFi.channel(i);
 
-    WiFiScanResult scan({bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]}, std::string(ssid.c_str()),
-                        channel, rssi, authmode != WIFI_AUTH_OPEN, ssid.length() == 0);
-    this->scan_result_.push_back(scan);
+    this->scan_result_.emplace_back(bssid_t{bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]},
+                                    std::string(ssid.c_str()), channel, rssi, authmode != WIFI_AUTH_OPEN,
+                                    ssid.length() == 0);
   }
   WiFi.scanDelete();
   this->scan_done_ = true;

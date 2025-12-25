@@ -61,7 +61,7 @@ template<uint8_t SZ> class TextSaver : public TemplateTextSaverBase {
 
 class TemplateText : public text::Text, public PollingComponent {
  public:
-  void set_template(std::function<optional<std::string>()> &&f) { this->f_ = f; }
+  void set_template(optional<std::string> (*f)()) { this->f_ = f; }
 
   void setup() override;
   void update() override;
@@ -78,7 +78,7 @@ class TemplateText : public text::Text, public PollingComponent {
   bool optimistic_ = false;
   std::string initial_value_;
   Trigger<std::string> *set_trigger_ = new Trigger<std::string>();
-  optional<std::function<optional<std::string>()>> f_{nullptr};
+  optional<optional<std::string> (*)()> f_{nullptr};
 
   TemplateTextSaverBase *pref_ = nullptr;
 };

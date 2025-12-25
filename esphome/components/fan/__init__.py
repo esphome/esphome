@@ -38,7 +38,6 @@ IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace("fan")
 Fan = fan_ns.class_("Fan", cg.EntityBase)
-FanState = fan_ns.class_("Fan", Fan, cg.Component)
 
 FanDirection = fan_ns.enum("FanDirection", is_class=True)
 FAN_DIRECTION_ENUM = {

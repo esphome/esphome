@@ -1,8 +1,8 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
-#include "fan_state.h"
+#include "esphome/core/component.h"
+#include "fan.h"
 
 namespace esphome {
 namespace fan {

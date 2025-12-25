@@ -46,6 +46,13 @@ uint16_t LibreTinyUARTComponent::get_config() {
 }
 
 void LibreTinyUARTComponent::setup() {
+  if (this->rx_pin_) {
+    this->rx_pin_->setup();
+  }
+  if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
+    this->tx_pin_->setup();
+  }
+
   int8_t tx_pin = tx_pin_ == nullptr ? -1 : tx_pin_->get_pin();
   int8_t rx_pin = rx_pin_ == nullptr ? -1 : rx_pin_->get_pin();
   bool tx_inverted = tx_pin_ != nullptr && tx_pin_->is_inverted();

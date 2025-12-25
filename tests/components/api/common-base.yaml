@@ -1,0 +1,89 @@
+esphome:
+  on_boot:
+    then:
+      - homeassistant.event:
+          event: esphome.button_pressed
+          data:
+            message: Button was pressed
+      - homeassistant.action:
+          action: notify.html5
+          data:
+            message: Button was pressed
+      - homeassistant.tag_scanned: pulse
+      - homeassistant.action:
+          action: weather.get_forecasts
+          data:
+            entity_id: weather.forecast_home
+            type: hourly
+          capture_response: true
+          on_success:
+            - lambda: |-
+                JsonObjectConst next_hour = response["response"]["weather.forecast_home"]["forecast"][0];
+                float next_temperature = next_hour["temperature"].as<float>();
+                ESP_LOGD("main", "Next hour temperature: %f", next_temperature);
+          on_error:
+            - lambda: |-
+                ESP_LOGE("main", "Action failed with error: %s", error.c_str());
+      - homeassistant.action:
+          action: weather.get_forecasts
+          data:
+            entity_id: weather.forecast_home
+            type: hourly
+          capture_response: true
+          response_template: "{{ response['weather.forecast_home']['forecast'][0]['temperature'] }}"
+          on_success:
+            - lambda: |-
+                float temperature = response["response"].as<float>();
+                ESP_LOGD("main", "Next hour temperature: %f", temperature);
+      - homeassistant.action:
+          action: light.toggle
+          data:
+            entity_id: light.demo_light
+          on_success:
+            - logger.log: "Toggled demo light"
+          on_error:
+            - logger.log: "Failed to toggle demo light"
+
+api:
+  port: 8000
+  reboot_timeout: 0min
+  actions:
+    - action: hello_world
+      variables:
+        name: string
+      then:
+        - logger.log:
+            format: Hello World %s!
+            args:
+              - name.c_str()
+    - action: empty_action
+      then:
+        - logger.log: Action Called
+    - action: all_types
+      variables:
+        bool_: bool
+        int_: int
+        float_: float
+        string_: string
+      then:
+        - logger.log: Something happened
+    - action: array_types
+      variables:
+        bool_arr: bool[]
+        int_arr: int[]
+        float_arr: float[]
+        string_arr: string[]
+      then:
+        - logger.log:
+            # yamllint disable rule:line-length
+            format: "Bool: %s (%u), Int: %ld (%u), Float: %f (%u), String: %s (%u)"
+            # yamllint enable rule:line-length
+            args:
+              - YESNO(bool_arr[0])
+              - bool_arr.size()
+              - (long) int_arr[0]
+              - int_arr.size()
+              - float_arr[0]
+              - float_arr.size()
+              - string_arr[0].c_str()
+              - string_arr.size()

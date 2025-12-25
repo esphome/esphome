@@ -1,12 +1,9 @@
-i2c:
-  - id: i2c_gp8403
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 gp8403:
   - id: gp8403_5v
+    i2c_id: i2c_bus
     voltage: 5V
   - id: gp8403_10v
+    i2c_id: i2c_bus
     voltage: 10V
 
 output:

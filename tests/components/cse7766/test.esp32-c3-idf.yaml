@@ -1,5 +1,5 @@
 substitutions:
-  tx_pin: GPIO7
-  rx_pin: GPIO8
+packages:
+  uart_4800_even: !include ../../test_build_components/common/uart_4800_even/esp32-c3-idf.yaml
 
 <<: !include common.yaml

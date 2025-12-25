@@ -13,7 +13,7 @@ class TemplateLock : public lock::Lock, public Component {
 
   void dump_config() override;
 
-  void set_state_lambda(std::function<optional<lock::LockState>()> &&f);
+  void set_state_lambda(optional<lock::LockState> (*f)());
   Trigger<> *get_lock_trigger() const;
   Trigger<> *get_unlock_trigger() const;
   Trigger<> *get_open_trigger() const;
@@ -26,7 +26,7 @@ class TemplateLock : public lock::Lock, public Component {
   void control(const lock::LockCall &call) override;
   void open_latch() override;
 
-  optional<std::function<optional<lock::LockState>()>> f_;
+  optional<optional<lock::LockState> (*)()> f_;
   bool optimistic_{false};
   Trigger<> *lock_trigger_;
   Trigger<> *unlock_trigger_;

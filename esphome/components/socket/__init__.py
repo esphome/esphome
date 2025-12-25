@@ -1,3 +1,5 @@
+from collections.abc import Callable, MutableMapping
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import CORE
@@ -8,6 +10,32 @@ CONF_IMPLEMENTATION = "implementation"
 IMPLEMENTATION_LWIP_TCP = "lwip_tcp"
 IMPLEMENTATION_LWIP_SOCKETS = "lwip_sockets"
 IMPLEMENTATION_BSD_SOCKETS = "bsd_sockets"
+
+# Socket tracking infrastructure
+# Components register their socket needs and platforms read this to configure appropriately
+KEY_SOCKET_CONSUMERS = "socket_consumers"
+
+
+def consume_sockets(
+    value: int, consumer: str
+) -> Callable[[MutableMapping], MutableMapping]:
+    """Register socket usage for a component.
+
+    Args:
+        value: Number of sockets needed by the component
+        consumer: Name of the component consuming the sockets
+
+    Returns:
+        A validator function that records the socket usage
+    """
+
+    def _consume_sockets(config: MutableMapping) -> MutableMapping:
+        consumers: dict[str, int] = CORE.data.setdefault(KEY_SOCKET_CONSUMERS, {})
+        consumers[consumer] = consumers.get(consumer, 0) + value
+        return config
+
+    return _consume_sockets
+
 
 CONFIG_SCHEMA = cv.Schema(
     {

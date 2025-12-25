@@ -70,11 +70,11 @@ class Canbus : public Component {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
 
-  void send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
-                 const std::vector<uint8_t> &data);
-  void send_data(uint32_t can_id, bool use_extended_id, const std::vector<uint8_t> &data) {
+  canbus::Error send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
+                          const std::vector<uint8_t> &data);
+  canbus::Error send_data(uint32_t can_id, bool use_extended_id, const std::vector<uint8_t> &data) {
     // for backwards compatibility only
-    this->send_data(can_id, use_extended_id, false, data);
+    return this->send_data(can_id, use_extended_id, false, data);
   }
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
@@ -105,9 +105,9 @@ class Canbus : public Component {
   CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
       callback_manager_{};
 
-  virtual bool setup_internal();
-  virtual Error send_message(struct CanFrame *frame);
-  virtual Error read_message(struct CanFrame *frame);
+  virtual bool setup_internal() = 0;
+  virtual Error send_message(struct CanFrame *frame) = 0;
+  virtual Error read_message(struct CanFrame *frame) = 0;
 };
 
 template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public Parented<Canbus> {

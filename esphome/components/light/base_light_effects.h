@@ -1,9 +1,9 @@
 #pragma once
 
 #include <utility>
-#include <vector>
 
 #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 #include "light_effect.h"
 
 namespace esphome {
@@ -17,7 +17,7 @@ inline static float random_cubic_float() {
 /// Pulse effect.
 class PulseLightEffect : public LightEffect {
  public:
-  explicit PulseLightEffect(const std::string &name) : LightEffect(name) {}
+  explicit PulseLightEffect(const char *name) : LightEffect(name) {}
 
   void apply() override {
     const uint32_t now = millis();
@@ -60,7 +60,7 @@ class PulseLightEffect : public LightEffect {
 /// Random effect. Sets random colors every 10 seconds and slowly transitions between them.
 class RandomLightEffect : public LightEffect {
  public:
-  explicit RandomLightEffect(const std::string &name) : LightEffect(name) {}
+  explicit RandomLightEffect(const char *name) : LightEffect(name) {}
 
   void apply() override {
     const uint32_t now = millis();
@@ -112,8 +112,8 @@ class RandomLightEffect : public LightEffect {
 
 class LambdaLightEffect : public LightEffect {
  public:
-  LambdaLightEffect(const std::string &name, std::function<void(bool initial_run)> f, uint32_t update_interval)
-      : LightEffect(name), f_(std::move(f)), update_interval_(update_interval) {}
+  LambdaLightEffect(const char *name, void (*f)(bool initial_run), uint32_t update_interval)
+      : LightEffect(name), f_(f), update_interval_(update_interval) {}
 
   void start() override { this->initial_run_ = true; }
   void apply() override {
@@ -130,7 +130,7 @@ class LambdaLightEffect : public LightEffect {
   uint32_t get_current_index() const { return this->get_index(); }
 
  protected:
-  std::function<void(bool initial_run)> f_;
+  void (*f_)(bool initial_run);
   uint32_t update_interval_;
   uint32_t last_run_{0};
   bool initial_run_;
@@ -138,7 +138,7 @@ class LambdaLightEffect : public LightEffect {
 
 class AutomationLightEffect : public LightEffect {
  public:
-  AutomationLightEffect(const std::string &name) : LightEffect(name) {}
+  AutomationLightEffect(const char *name) : LightEffect(name) {}
   void stop() override { this->trig_->stop_action(); }
   void apply() override {
     if (!this->trig_->is_action_running()) {
@@ -163,7 +163,7 @@ struct StrobeLightEffectColor {
 
 class StrobeLightEffect : public LightEffect {
  public:
-  explicit StrobeLightEffect(const std::string &name) : LightEffect(name) {}
+  explicit StrobeLightEffect(const char *name) : LightEffect(name) {}
   void apply() override {
     const uint32_t now = millis();
     if (now - this->last_switch_ < this->colors_[this->at_color_].duration)
@@ -188,17 +188,17 @@ class StrobeLightEffect : public LightEffect {
     this->last_switch_ = now;
   }
 
-  void set_colors(const std::vector<StrobeLightEffectColor> &colors) { this->colors_ = colors; }
+  void set_colors(const std::initializer_list<StrobeLightEffectColor> &colors) { this->colors_ = colors; }
 
  protected:
-  std::vector<StrobeLightEffectColor> colors_;
+  FixedVector<StrobeLightEffectColor> colors_;
   uint32_t last_switch_{0};
   size_t at_color_{0};
 };
 
 class FlickerLightEffect : public LightEffect {
  public:
-  explicit FlickerLightEffect(const std::string &name) : LightEffect(name) {}
+  explicit FlickerLightEffect(const char *name) : LightEffect(name) {}
 
   void apply() override {
     LightColorValues remote = this->state_->remote_values;

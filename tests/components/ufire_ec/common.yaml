@@ -7,16 +7,12 @@ esphome:
           temperature: !lambda "return id(test_sensor).state;"
       - ufire_ec.reset:
 
-i2c:
-  - id: i2c_ufire_ec
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: template
     id: test_sensor
     lambda: "return 21;"
   - platform: ufire_ec
+    i2c_id: i2c_bus
     id: ufire_ec_board
     ec:
       name: Ufire EC

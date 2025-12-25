@@ -1,0 +1,33 @@
+json:
+
+interval:
+  - interval: 60s
+    then:
+      - lambda: |-
+          // Test build_json
+          std::string json_str = esphome::json::build_json([](JsonObject root) {
+            root["sensor"] = "temperature";
+            root["value"] = 23.5;
+            root["unit"] = "°C";
+          });
+          ESP_LOGD("test", "Built JSON: %s", json_str.c_str());
+
+          // Test parse_json
+          bool parse_ok = esphome::json::parse_json(json_str, [](JsonObject root) {
+            if (root.containsKey("sensor") && root.containsKey("value")) {
+              const char* sensor = root["sensor"];
+              float value = root["value"];
+              ESP_LOGD("test", "Parsed: sensor=%s, value=%.1f", sensor, value);
+            } else {
+              ESP_LOGD("test", "Parsed JSON missing required keys");
+            }
+          });
+          ESP_LOGD("test", "Parse result (JSON syntax only): %s", parse_ok ? "success" : "failed");
+
+          // Test JsonBuilder class
+          esphome::json::JsonBuilder builder;
+          JsonObject obj = builder.root();
+          obj["test"] = "direct_builder";
+          obj["count"] = 42;
+          std::string result = builder.serialize();
+          ESP_LOGD("test", "JsonBuilder result: %s", result.c_str());

@@ -1,6 +1,4 @@
-i2c:
-  - id: i2c_als_ps
-    scl: 5
-    sda: 4
+packages:
+  i2c_low_freq: !include ../../test_build_components/common/i2c_low_freq/esp32-c3-idf.yaml
 
 <<: !include common.yaml

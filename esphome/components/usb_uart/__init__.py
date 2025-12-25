@@ -24,7 +24,6 @@ usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
 USBUartComponent = usb_uart_ns.class_("USBUartComponent", Component)
 USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
 
-
 UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
 UART_PARITY_OPTIONS = {
     "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,

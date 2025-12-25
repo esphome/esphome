@@ -1,30 +1,26 @@
 #pragma once
 
 #include "esphome/components/esp32_ble/ble_uuid.h"
-#include "esphome/components/event_emitter/event_emitter.h"
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
 #ifdef USE_ESP32
 
 #include <esp_gatt_defs.h>
 #include <esp_gatts_api.h>
+#include <span>
+#include <functional>
+#include <memory>
 
 namespace esphome {
 namespace esp32_ble_server {
 
 using namespace esp32_ble;
 using namespace bytebuffer;
-using namespace event_emitter;
 
 class BLECharacteristic;
 
-namespace BLEDescriptorEvt {
-enum VectorEvt {
-  ON_WRITE,
-};
-}  // namespace BLEDescriptorEvt
-
-class BLEDescriptor : public EventEmitter<BLEDescriptorEvt::VectorEvt, std::vector<uint8_t>, uint16_t> {
+// Base class for BLE descriptors
+class BLEDescriptor {
  public:
   BLEDescriptor(ESPBTUUID uuid, uint16_t max_len = 100, bool read = true, bool write = true);
   virtual ~BLEDescriptor();
@@ -39,12 +35,20 @@ class BLEDescriptor : public EventEmitter<BLEDescriptorEvt::VectorEvt, std::vect
   bool is_created() { return this->state_ == CREATED; }
   bool is_failed() { return this->state_ == FAILED; }
 
+  // Direct callback registration - only allocates when callback is set
+  void on_write(std::function<void(std::span<const uint8_t>, uint16_t)> &&callback) {
+    this->on_write_callback_ =
+        std::make_unique<std::function<void(std::span<const uint8_t>, uint16_t)>>(std::move(callback));
+  }
+
  protected:
   BLECharacteristic *characteristic_{nullptr};
   ESPBTUUID uuid_;
   uint16_t handle_{0xFFFF};
 
   esp_attr_value_t value_{};
+
+  std::unique_ptr<std::function<void(std::span<const uint8_t>, uint16_t)>> on_write_callback_;
 
   esp_gatt_perm_t permissions_{};
 

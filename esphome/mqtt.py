@@ -120,7 +120,7 @@ def prepare(
                 cert_file.flush()
                 key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
                 key_file.flush()
-                context.load_cert_chain(cert_file, key_file)
+                context.load_cert_chain(cert_file.name, key_file.name)
         client.tls_set_context(context)
 
     try:

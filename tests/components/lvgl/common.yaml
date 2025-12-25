@@ -1,5 +1,6 @@
 touchscreen:
   - platform: ft63x6
+    i2c_id: i2c_bus
     id: tft_touch
     display: tft_display
     update_interval: 50ms

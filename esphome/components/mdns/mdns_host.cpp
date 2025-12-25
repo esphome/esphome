@@ -9,7 +9,9 @@
 namespace esphome {
 namespace mdns {
 
-void MDNSComponent::setup() { this->compile_records_(); }
+void MDNSComponent::setup() {
+  // Host platform doesn't have actual mDNS implementation
+}
 
 void MDNSComponent::on_shutdown() {}
 

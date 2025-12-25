@@ -1,25 +1,12 @@
-uart:
-  - id: uart_modbus_client
-    tx_pin: ${client_tx_pin}
-    rx_pin: ${client_rx_pin}
-    baud_rate: 9600
-  - id: uart_modbus_server
-    tx_pin: ${server_tx_pin}
-    rx_pin: ${server_rx_pin}
-    baud_rate: 9600
-
 modbus:
-  - id: mod_bus1
-    uart_id: uart_modbus_client
-    flow_control_pin: ${flow_control_pin}
   - id: mod_bus2
-    uart_id: uart_modbus_server
+    uart_id: uart_bus
     role: server
 
 modbus_controller:
   - id: modbus_controller1
     address: 0x2
-    modbus_id: mod_bus1
+    modbus_id: modbus_bus
     allow_duplicate_commands: false
     on_online:
       then:
@@ -45,6 +32,22 @@ modbus_controller:
           printf("address=%d, value=%d", x);
           return true;
     max_cmd_retries: 0
+  - id: modbus_controller4
+    modbus_id: mod_bus2
+    address: 0x4
+    server_courtesy_response:
+      enabled: true
+      register_last_address: 100
+      register_value: 0
+    server_registers:
+      - address: 0x0001
+        value_type: U_WORD
+        read_lambda: |-
+          return 0x8;
+      - address: 0x0005
+        value_type: U_WORD
+        read_lambda: |-
+          return (random_uint32() % 100);
 binary_sensor:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller1

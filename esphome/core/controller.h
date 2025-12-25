@@ -5,7 +5,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 #ifdef USE_FAN
-#include "esphome/components/fan/fan_state.h"
+#include "esphome/components/fan/fan.h"
 #endif
 #ifdef USE_LIGHT
 #include "esphome/components/light/light_state.h"

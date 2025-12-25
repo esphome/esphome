@@ -9,7 +9,7 @@ namespace template_ {
 
 class TemplateTextSensor : public text_sensor::TextSensor, public PollingComponent {
  public:
-  void set_template(std::function<optional<std::string>()> &&f);
+  void set_template(optional<std::string> (*f)());
 
   void update() override;
 
@@ -18,7 +18,7 @@ class TemplateTextSensor : public text_sensor::TextSensor, public PollingCompone
   void dump_config() override;
 
  protected:
-  optional<std::function<optional<std::string>()>> f_{};
+  optional<optional<std::string> (*)()> f_{};
 };
 
 }  // namespace template_

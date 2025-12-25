@@ -1,0 +1,9 @@
+substitutions:
+  A: component1
+  B: component2
+  C: component3
+some_component:
+  - id: component1
+    value: 2
+  - id: component2
+    value: 5

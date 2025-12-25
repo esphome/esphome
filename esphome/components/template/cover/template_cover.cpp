@@ -63,7 +63,7 @@ void TemplateCover::loop() {
 }
 void TemplateCover::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 void TemplateCover::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
-void TemplateCover::set_state_lambda(std::function<optional<float>()> &&f) { this->state_f_ = f; }
+void TemplateCover::set_state_lambda(optional<float> (*f)()) { this->state_f_ = f; }
 float TemplateCover::get_setup_priority() const { return setup_priority::HARDWARE; }
 Trigger<> *TemplateCover::get_open_trigger() const { return this->open_trigger_; }
 Trigger<> *TemplateCover::get_close_trigger() const { return this->close_trigger_; }
@@ -124,7 +124,7 @@ CoverTraits TemplateCover::get_traits() {
 }
 Trigger<float> *TemplateCover::get_position_trigger() const { return this->position_trigger_; }
 Trigger<float> *TemplateCover::get_tilt_trigger() const { return this->tilt_trigger_; }
-void TemplateCover::set_tilt_lambda(std::function<optional<float>()> &&tilt_f) { this->tilt_f_ = tilt_f; }
+void TemplateCover::set_tilt_lambda(optional<float> (*tilt_f)()) { this->tilt_f_ = tilt_f; }
 void TemplateCover::set_has_stop(bool has_stop) { this->has_stop_ = has_stop; }
 void TemplateCover::set_has_toggle(bool has_toggle) { this->has_toggle_ = has_toggle; }
 void TemplateCover::set_has_position(bool has_position) { this->has_position_ = has_position; }

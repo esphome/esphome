@@ -43,13 +43,6 @@ void BLEClientBase::setup() {
 void BLEClientBase::set_state(espbt::ClientState st) {
   ESP_LOGV(TAG, "[%d] [%s] Set state %d", this->connection_index_, this->address_str_.c_str(), (int) st);
   ESPBTClient::set_state(st);
-
-  if (st == espbt::ClientState::READY_TO_CONNECT) {
-    // Enable loop for state processing
-    this->enable_loop();
-    // Connect immediately instead of waiting for next loop
-    this->connect();
-  }
 }
 
 void BLEClientBase::loop() {
@@ -65,8 +58,8 @@ void BLEClientBase::loop() {
     }
     this->set_state(espbt::ClientState::IDLE);
   }
-  // If its idle, we can disable the loop as set_state
-  // will enable it again when we need to connect.
+  // If idle, we can disable the loop as connect()
+  // will enable it again when a connection is needed.
   else if (this->state_ == espbt::ClientState::IDLE) {
     this->disable_loop();
   }
@@ -108,9 +101,20 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
 #endif
 
 void BLEClientBase::connect() {
+  // Prevent duplicate connection attempts
+  if (this->state_ == espbt::ClientState::CONNECTING || this->state_ == espbt::ClientState::CONNECTED ||
+      this->state_ == espbt::ClientState::ESTABLISHED) {
+    ESP_LOGW(TAG, "[%d] [%s] Connection already in progress, state=%s", this->connection_index_,
+             this->address_str_.c_str(), espbt::client_state_to_string(this->state_));
+    return;
+  }
   ESP_LOGI(TAG, "[%d] [%s] 0x%02x Connecting", this->connection_index_, this->address_str_.c_str(),
            this->remote_addr_type_);
   this->paired_ = false;
+  // Enable loop for state processing
+  this->enable_loop();
+  // Immediately transition to CONNECTING to prevent duplicate connection attempts
+  this->set_state(espbt::ClientState::CONNECTING);
 
   // Determine connection parameters based on connection type
   if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
@@ -168,7 +172,7 @@ void BLEClientBase::unconditional_disconnect() {
     this->log_gattc_warning_("esp_ble_gattc_close", err);
   }
 
-  if (this->state_ == espbt::ClientState::READY_TO_CONNECT || this->state_ == espbt::ClientState::DISCOVERED) {
+  if (this->state_ == espbt::ClientState::DISCOVERED) {
     this->set_address(0);
     this->set_state(espbt::ClientState::IDLE);
   } else {
@@ -212,8 +216,6 @@ void BLEClientBase::handle_connection_result_(esp_err_t ret) {
   if (ret) {
     this->log_gattc_warning_("esp_ble_gattc_open", ret);
     this->set_state(espbt::ClientState::IDLE);
-  } else {
-    this->set_state(espbt::ClientState::CONNECTING);
   }
 }
 

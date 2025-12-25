@@ -16,7 +16,7 @@ void TemplateTextSensor::update() {
   }
 }
 float TemplateTextSensor::get_setup_priority() const { return setup_priority::HARDWARE; }
-void TemplateTextSensor::set_template(std::function<optional<std::string>()> &&f) { this->f_ = f; }
+void TemplateTextSensor::set_template(optional<std::string> (*f)()) { this->f_ = f; }
 void TemplateTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Template Sensor", this); }
 
 }  // namespace template_

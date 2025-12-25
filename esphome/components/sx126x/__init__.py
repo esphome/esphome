@@ -15,6 +15,10 @@ CONF_BANDWIDTH = "bandwidth"
 CONF_BITRATE = "bitrate"
 CONF_CODING_RATE = "coding_rate"
 CONF_CRC_ENABLE = "crc_enable"
+CONF_CRC_INVERTED = "crc_inverted"
+CONF_CRC_SIZE = "crc_size"
+CONF_CRC_POLYNOMIAL = "crc_polynomial"
+CONF_CRC_INITIAL = "crc_initial"
 CONF_DEVIATION = "deviation"
 CONF_DIO1_PIN = "dio1_pin"
 CONF_HW_VERSION = "hw_version"
@@ -188,6 +192,14 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_BUSY_PIN): pins.internal_gpio_input_pin_schema,
             cv.Optional(CONF_CODING_RATE, default="CR_4_5"): cv.enum(CODING_RATE),
             cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
+            cv.Optional(CONF_CRC_INVERTED, default=True): cv.boolean,
+            cv.Optional(CONF_CRC_SIZE, default=2): cv.int_range(min=1, max=2),
+            cv.Optional(CONF_CRC_POLYNOMIAL, default=0x1021): cv.All(
+                cv.hex_int, cv.Range(min=0, max=0xFFFF)
+            ),
+            cv.Optional(CONF_CRC_INITIAL, default=0x1D0F): cv.All(
+                cv.hex_int, cv.Range(min=0, max=0xFFFF)
+            ),
             cv.Optional(CONF_DEVIATION, default=5000): cv.int_range(min=0, max=100000),
             cv.Required(CONF_DIO1_PIN): pins.internal_gpio_input_pin_schema,
             cv.Required(CONF_FREQUENCY): cv.int_range(min=137000000, max=1020000000),
@@ -251,6 +263,10 @@ async def to_code(config):
     cg.add(var.set_shaping(config[CONF_SHAPING]))
     cg.add(var.set_bitrate(config[CONF_BITRATE]))
     cg.add(var.set_crc_enable(config[CONF_CRC_ENABLE]))
+    cg.add(var.set_crc_inverted(config[CONF_CRC_INVERTED]))
+    cg.add(var.set_crc_size(config[CONF_CRC_SIZE]))
+    cg.add(var.set_crc_polynomial(config[CONF_CRC_POLYNOMIAL]))
+    cg.add(var.set_crc_initial(config[CONF_CRC_INITIAL]))
     cg.add(var.set_payload_length(config[CONF_PAYLOAD_LENGTH]))
     cg.add(var.set_preamble_size(config[CONF_PREAMBLE_SIZE]))
     cg.add(var.set_preamble_detect(config[CONF_PREAMBLE_DETECT]))
