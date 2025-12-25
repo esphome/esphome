@@ -631,7 +631,8 @@ void SEN5XComponent::update() {
         if (this->model_.value() == SEN69C)
           measurement = measurements[9];
         ESP_LOGV(TAG, "co2 = 0x%.4x", measurement);
-        float co2 = measurement == INT16_MAX ? NAN : measurement / 1.0f;
+        float co2 = measurement / 1.0f;
+        // float co2 = measurement == UINT16_MAX ? NAN : measurement / 1.0f;
         this->co2_sensor_->publish_state(co2);
       }
     }
