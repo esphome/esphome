@@ -23,9 +23,8 @@ bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
-      // Use raw data directly to avoid allocation
-      this->client_info = value.data();
-      this->client_info_len = value.size();
+      // Use raw data directly via StringRef to avoid allocation
+      this->client_info = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }
     default:
@@ -49,9 +48,8 @@ void HelloResponse::calculate_size(ProtoSize &size) const {
 bool AuthenticationRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
-      // Use raw data directly to avoid allocation
-      this->password = value.data();
-      this->password_len = value.size();
+      // Use raw data directly via StringRef to avoid allocation
+      this->password = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }
     default:
@@ -448,9 +446,8 @@ bool FanCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 bool FanCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 13: {
-      // Use raw data directly to avoid allocation
-      this->preset_mode = value.data();
-      this->preset_mode_len = value.size();
+      // Use raw data directly via StringRef to avoid allocation
+      this->preset_mode = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }
     default:
@@ -615,9 +612,8 @@ bool LightCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 bool LightCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 19: {
-      // Use raw data directly to avoid allocation
-      this->effect = value.data();
-      this->effect_len = value.size();
+      // Use raw data directly via StringRef to avoid allocation
+      this->effect = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }
     default:
@@ -936,9 +932,11 @@ bool HomeassistantActionResponse::decode_varint(uint32_t field_id, ProtoVarInt v
 }
 bool HomeassistantActionResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 3:
-      this->error_message = value.as_string();
+    case 3: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->error_message = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
     case 4: {
       // Use raw data directly to avoid allocation
@@ -967,21 +965,18 @@ void SubscribeHomeAssistantStateResponse::calculate_size(ProtoSize &size) const 
 bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
-      // Use raw data directly to avoid allocation
-      this->entity_id = value.data();
-      this->entity_id_len = value.size();
+      // Use raw data directly via StringRef to avoid allocation
+      this->entity_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }
     case 2: {
-      // Use raw data directly to avoid allocation
-      this->state = value.data();
-      this->state_len = value.size();
+      // Use raw data directly via StringRef to avoid allocation
+      this->state = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }
     case 3: {
-      // Use raw data directly to avoid allocation
-      this->attribute = value.data();
-      this->attribute_len = value.size();
+      // Use raw data directly via StringRef to avoid allocation
+      this->attribute = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }
     default:
@@ -993,9 +988,8 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
 bool GetTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2: {
-      // Use raw data directly to avoid allocation
-      this->timezone = value.data();
-      this->timezone_len = value.size();
+      // Use raw data directly via StringRef to avoid allocation
+      this->timezone = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }
     default:
@@ -1060,9 +1054,11 @@ bool ExecuteServiceArgument::decode_varint(uint32_t field_id, ProtoVarInt value)
 }
 bool ExecuteServiceArgument::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 4:
-      this->string_ = value.as_string();
+    case 4: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->string_ = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     case 9:
       this->string_array.push_back(value.as_string());
       break;
@@ -1408,15 +1404,13 @@ bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
 bool ClimateCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 17: {
-      // Use raw data directly to avoid allocation
-      this->custom_fan_mode = value.data();
-      this->custom_fan_mode_len = value.size();
+      // Use raw data directly via StringRef to avoid allocation
+      this->custom_fan_mode = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }
     case 21: {
-      // Use raw data directly to avoid allocation
-      this->custom_preset = value.data();
-      this->custom_preset_len = value.size();
+      // Use raw data directly via StringRef to avoid allocation
+      this->custom_preset = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }
     default:
@@ -1702,9 +1696,8 @@ bool SelectCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 bool SelectCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2: {
-      // Use raw data directly to avoid allocation
-      this->state = value.data();
-      this->state_len = value.size();
+      // Use raw data directly via StringRef to avoid allocation
+      this->state = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }
     default:
@@ -1808,9 +1801,11 @@ bool SirenCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool SirenCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 5:
-      this->tone = value.as_string();
+    case 5: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->tone = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -1899,9 +1894,11 @@ bool LockCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool LockCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 4:
-      this->code = value.as_string();
+    case 4: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->code = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -2069,9 +2066,11 @@ bool MediaPlayerCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt val
 }
 bool MediaPlayerCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 7:
-      this->media_url = value.as_string();
+    case 7: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->media_url = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -2502,12 +2501,16 @@ bool VoiceAssistantResponse::decode_varint(uint32_t field_id, ProtoVarInt value)
 }
 bool VoiceAssistantEventData::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->name = value.as_string();
+    case 1: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->name = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 2:
-      this->value = value.as_string();
+    }
+    case 2: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->value = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -2583,12 +2586,16 @@ bool VoiceAssistantTimerEventResponse::decode_varint(uint32_t field_id, ProtoVar
 }
 bool VoiceAssistantTimerEventResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2:
-      this->timer_id = value.as_string();
+    case 2: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->timer_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 3:
-      this->name = value.as_string();
+    }
+    case 3: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->name = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -2606,15 +2613,21 @@ bool VoiceAssistantAnnounceRequest::decode_varint(uint32_t field_id, ProtoVarInt
 }
 bool VoiceAssistantAnnounceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->media_id = value.as_string();
+    case 1: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->media_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 2:
-      this->text = value.as_string();
+    }
+    case 2: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->text = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 3:
-      this->preannounce_media_id = value.as_string();
+    }
+    case 3: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->preannounce_media_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -2650,24 +2663,34 @@ bool VoiceAssistantExternalWakeWord::decode_varint(uint32_t field_id, ProtoVarIn
 }
 bool VoiceAssistantExternalWakeWord::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->id = value.as_string();
+    case 1: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 2:
-      this->wake_word = value.as_string();
+    }
+    case 2: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->wake_word = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     case 3:
       this->trained_languages.push_back(value.as_string());
       break;
-    case 4:
-      this->model_type = value.as_string();
+    case 4: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->model_type = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 6:
-      this->model_hash = value.as_string();
+    }
+    case 6: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->model_hash = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 7:
-      this->url = value.as_string();
+    }
+    case 7: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->url = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -2777,9 +2800,11 @@ bool AlarmControlPanelCommandRequest::decode_varint(uint32_t field_id, ProtoVarI
 }
 bool AlarmControlPanelCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 3:
-      this->code = value.as_string();
+    case 3: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->code = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -2861,9 +2886,11 @@ bool TextCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool TextCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2:
-      this->state = value.as_string();
+    case 2: {
+      // Use raw data directly via StringRef to avoid allocation
+      this->state = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
