@@ -736,7 +736,7 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums:
 void HelloRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HelloRequest");
   out.append("  client_info: ");
-  out.append(format_hex_pretty(this->client_info, this->client_info_len));
+  out.append("'").append(this->client_info.c_str(), this->client_info.size()).append("'");
   out.append("\n");
   dump_field(out, "api_version_major", this->api_version_major);
   dump_field(out, "api_version_minor", this->api_version_minor);
@@ -752,7 +752,7 @@ void HelloResponse::dump_to(std::string &out) const {
 void AuthenticationRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "AuthenticationRequest");
   out.append("  password: ");
-  out.append(format_hex_pretty(this->password, this->password_len));
+  out.append("'").append(this->password.c_str(), this->password.size()).append("'");
   out.append("\n");
 }
 void AuthenticationResponse::dump_to(std::string &out) const {
@@ -965,7 +965,7 @@ void FanCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "speed_level", this->speed_level);
   dump_field(out, "has_preset_mode", this->has_preset_mode);
   out.append("  preset_mode: ");
-  out.append(format_hex_pretty(this->preset_mode, this->preset_mode_len));
+  out.append("'").append(this->preset_mode.c_str(), this->preset_mode.size()).append("'");
   out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
@@ -1043,7 +1043,7 @@ void LightCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "flash_length", this->flash_length);
   dump_field(out, "has_effect", this->has_effect);
   out.append("  effect: ");
-  out.append(format_hex_pretty(this->effect, this->effect_len));
+  out.append("'").append(this->effect.c_str(), this->effect.size()).append("'");
   out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
@@ -1205,7 +1205,9 @@ void HomeassistantActionResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HomeassistantActionResponse");
   dump_field(out, "call_id", this->call_id);
   dump_field(out, "success", this->success);
-  dump_field(out, "error_message", this->error_message);
+  out.append("  error_message: ");
+  out.append("'").append(this->error_message.c_str(), this->error_message.size()).append("'");
+  out.append("\n");
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   out.append("  response_data: ");
   out.append(format_hex_pretty(this->response_data, this->response_data_len));
@@ -1226,13 +1228,13 @@ void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
 void HomeAssistantStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HomeAssistantStateResponse");
   out.append("  entity_id: ");
-  out.append(format_hex_pretty(this->entity_id, this->entity_id_len));
+  out.append("'").append(this->entity_id.c_str(), this->entity_id.size()).append("'");
   out.append("\n");
   out.append("  state: ");
-  out.append(format_hex_pretty(this->state, this->state_len));
+  out.append("'").append(this->state.c_str(), this->state.size()).append("'");
   out.append("\n");
   out.append("  attribute: ");
-  out.append(format_hex_pretty(this->attribute, this->attribute_len));
+  out.append("'").append(this->attribute.c_str(), this->attribute.size()).append("'");
   out.append("\n");
 }
 #endif
@@ -1241,7 +1243,7 @@ void GetTimeResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "GetTimeResponse");
   dump_field(out, "epoch_seconds", this->epoch_seconds);
   out.append("  timezone: ");
-  out.append(format_hex_pretty(this->timezone, this->timezone_len));
+  out.append("'").append(this->timezone.c_str(), this->timezone.size()).append("'");
   out.append("\n");
 }
 #ifdef USE_API_USER_DEFINED_ACTIONS
@@ -1266,7 +1268,9 @@ void ExecuteServiceArgument::dump_to(std::string &out) const {
   dump_field(out, "bool_", this->bool_);
   dump_field(out, "legacy_int", this->legacy_int);
   dump_field(out, "float_", this->float_);
-  dump_field(out, "string_", this->string_);
+  out.append("  string_: ");
+  out.append("'").append(this->string_.c_str(), this->string_.size()).append("'");
+  out.append("\n");
   dump_field(out, "int_", this->int_);
   for (const auto it : this->bool_array) {
     dump_field(out, "bool_array", static_cast<bool>(it), 4);
@@ -1424,13 +1428,13 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "swing_mode", static_cast<enums::ClimateSwingMode>(this->swing_mode));
   dump_field(out, "has_custom_fan_mode", this->has_custom_fan_mode);
   out.append("  custom_fan_mode: ");
-  out.append(format_hex_pretty(this->custom_fan_mode, this->custom_fan_mode_len));
+  out.append("'").append(this->custom_fan_mode.c_str(), this->custom_fan_mode.size()).append("'");
   out.append("\n");
   dump_field(out, "has_preset", this->has_preset);
   dump_field(out, "preset", static_cast<enums::ClimatePreset>(this->preset));
   dump_field(out, "has_custom_preset", this->has_custom_preset);
   out.append("  custom_preset: ");
-  out.append(format_hex_pretty(this->custom_preset, this->custom_preset_len));
+  out.append("'").append(this->custom_preset.c_str(), this->custom_preset.size()).append("'");
   out.append("\n");
   dump_field(out, "has_target_humidity", this->has_target_humidity);
   dump_field(out, "target_humidity", this->target_humidity);
@@ -1558,7 +1562,7 @@ void SelectCommandRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "SelectCommandRequest");
   dump_field(out, "key", this->key);
   out.append("  state: ");
-  out.append(format_hex_pretty(this->state, this->state_len));
+  out.append("'").append(this->state.c_str(), this->state.size()).append("'");
   out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
@@ -1599,7 +1603,9 @@ void SirenCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "has_state", this->has_state);
   dump_field(out, "state", this->state);
   dump_field(out, "has_tone", this->has_tone);
-  dump_field(out, "tone", this->tone);
+  out.append("  tone: ");
+  out.append("'").append(this->tone.c_str(), this->tone.size()).append("'");
+  out.append("\n");
   dump_field(out, "has_duration", this->has_duration);
   dump_field(out, "duration", this->duration);
   dump_field(out, "has_volume", this->has_volume);
@@ -1641,7 +1647,9 @@ void LockCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "key", this->key);
   dump_field(out, "command", static_cast<enums::LockCommand>(this->command));
   dump_field(out, "has_code", this->has_code);
-  dump_field(out, "code", this->code);
+  out.append("  code: ");
+  out.append("'").append(this->code.c_str(), this->code.size()).append("'");
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1719,7 +1727,9 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
   dump_field(out, "has_volume", this->has_volume);
   dump_field(out, "volume", this->volume);
   dump_field(out, "has_media_url", this->has_media_url);
-  dump_field(out, "media_url", this->media_url);
+  out.append("  media_url: ");
+  out.append("'").append(this->media_url.c_str(), this->media_url.size()).append("'");
+  out.append("\n");
   dump_field(out, "has_announcement", this->has_announcement);
   dump_field(out, "announcement", this->announcement);
 #ifdef USE_DEVICES
@@ -1949,8 +1959,12 @@ void VoiceAssistantResponse::dump_to(std::string &out) const {
 }
 void VoiceAssistantEventData::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantEventData");
-  dump_field(out, "name", this->name);
-  dump_field(out, "value", this->value);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
+  out.append("  value: ");
+  out.append("'").append(this->value.c_str(), this->value.size()).append("'");
+  out.append("\n");
 }
 void VoiceAssistantEventResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantEventResponse");
@@ -1975,17 +1989,27 @@ void VoiceAssistantAudio::dump_to(std::string &out) const {
 void VoiceAssistantTimerEventResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantTimerEventResponse");
   dump_field(out, "event_type", static_cast<enums::VoiceAssistantTimerEvent>(this->event_type));
-  dump_field(out, "timer_id", this->timer_id);
-  dump_field(out, "name", this->name);
+  out.append("  timer_id: ");
+  out.append("'").append(this->timer_id.c_str(), this->timer_id.size()).append("'");
+  out.append("\n");
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
   dump_field(out, "total_seconds", this->total_seconds);
   dump_field(out, "seconds_left", this->seconds_left);
   dump_field(out, "is_active", this->is_active);
 }
 void VoiceAssistantAnnounceRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantAnnounceRequest");
-  dump_field(out, "media_id", this->media_id);
-  dump_field(out, "text", this->text);
-  dump_field(out, "preannounce_media_id", this->preannounce_media_id);
+  out.append("  media_id: ");
+  out.append("'").append(this->media_id.c_str(), this->media_id.size()).append("'");
+  out.append("\n");
+  out.append("  text: ");
+  out.append("'").append(this->text.c_str(), this->text.size()).append("'");
+  out.append("\n");
+  out.append("  preannounce_media_id: ");
+  out.append("'").append(this->preannounce_media_id.c_str(), this->preannounce_media_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "start_conversation", this->start_conversation);
 }
 void VoiceAssistantAnnounceFinished::dump_to(std::string &out) const { dump_field(out, "success", this->success); }
@@ -1999,15 +2023,25 @@ void VoiceAssistantWakeWord::dump_to(std::string &out) const {
 }
 void VoiceAssistantExternalWakeWord::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantExternalWakeWord");
-  dump_field(out, "id", this->id);
-  dump_field(out, "wake_word", this->wake_word);
+  out.append("  id: ");
+  out.append("'").append(this->id.c_str(), this->id.size()).append("'");
+  out.append("\n");
+  out.append("  wake_word: ");
+  out.append("'").append(this->wake_word.c_str(), this->wake_word.size()).append("'");
+  out.append("\n");
   for (const auto &it : this->trained_languages) {
     dump_field(out, "trained_languages", it, 4);
   }
-  dump_field(out, "model_type", this->model_type);
+  out.append("  model_type: ");
+  out.append("'").append(this->model_type.c_str(), this->model_type.size()).append("'");
+  out.append("\n");
   dump_field(out, "model_size", this->model_size);
-  dump_field(out, "model_hash", this->model_hash);
-  dump_field(out, "url", this->url);
+  out.append("  model_hash: ");
+  out.append("'").append(this->model_hash.c_str(), this->model_hash.size()).append("'");
+  out.append("\n");
+  out.append("  url: ");
+  out.append("'").append(this->url.c_str(), this->url.size()).append("'");
+  out.append("\n");
 }
 void VoiceAssistantConfigurationRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantConfigurationRequest");
@@ -2066,7 +2100,9 @@ void AlarmControlPanelCommandRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "AlarmControlPanelCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "command", static_cast<enums::AlarmControlPanelStateCommand>(this->command));
-  dump_field(out, "code", this->code);
+  out.append("  code: ");
+  out.append("'").append(this->code.c_str(), this->code.size()).append("'");
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -2103,7 +2139,9 @@ void TextStateResponse::dump_to(std::string &out) const {
 void TextCommandRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "TextCommandRequest");
   dump_field(out, "key", this->key);
-  dump_field(out, "state", this->state);
+  out.append("  state: ");
+  out.append("'").append(this->state.c_str(), this->state.size()).append("'");
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif

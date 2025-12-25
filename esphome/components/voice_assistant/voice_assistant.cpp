@@ -627,9 +627,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       ESP_LOGD(TAG, "Assist Pipeline running");
 #ifdef USE_MEDIA_PLAYER
       this->started_streaming_tts_ = false;
-      for (auto arg : msg.data) {
+      for (const auto &arg : msg.data) {
         if (arg.name == "url") {
-          this->tts_response_url_ = std::move(arg.value);
+          this->tts_response_url_ = arg.value;
         }
       }
 #endif
@@ -648,9 +648,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     case api::enums::VOICE_ASSISTANT_STT_END: {
       std::string text;
-      for (auto arg : msg.data) {
+      for (const auto &arg : msg.data) {
         if (arg.name == "text") {
-          text = std::move(arg.value);
+          text = arg.value;
         }
       }
       if (text.empty()) {
@@ -693,9 +693,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     }
     case api::enums::VOICE_ASSISTANT_INTENT_END: {
-      for (auto arg : msg.data) {
+      for (const auto &arg : msg.data) {
         if (arg.name == "conversation_id") {
-          this->conversation_id_ = std::move(arg.value);
+          this->conversation_id_ = arg.value;
         } else if (arg.name == "continue_conversation") {
           this->continue_conversation_ = (arg.value == "1");
         }
@@ -705,9 +705,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     }
     case api::enums::VOICE_ASSISTANT_TTS_START: {
       std::string text;
-      for (auto arg : msg.data) {
+      for (const auto &arg : msg.data) {
         if (arg.name == "text") {
-          text = std::move(arg.value);
+          text = arg.value;
         }
       }
       if (text.empty()) {
@@ -731,9 +731,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     }
     case api::enums::VOICE_ASSISTANT_TTS_END: {
       std::string url;
-      for (auto arg : msg.data) {
+      for (const auto &arg : msg.data) {
         if (arg.name == "url") {
-          url = std::move(arg.value);
+          url = arg.value;
         }
       }
       if (url.empty()) {
@@ -778,11 +778,11 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     case api::enums::VOICE_ASSISTANT_ERROR: {
       std::string code = "";
       std::string message = "";
-      for (auto arg : msg.data) {
+      for (const auto &arg : msg.data) {
         if (arg.name == "code") {
-          code = std::move(arg.value);
+          code = arg.value;
         } else if (arg.name == "message") {
-          message = std::move(arg.value);
+          message = arg.value;
         }
       }
       if (code == "wake-word-timeout" || code == "wake_word_detection_aborted" || code == "no_wake_word") {
