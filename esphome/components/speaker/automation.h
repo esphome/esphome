@@ -10,40 +10,45 @@ namespace speaker {
 
 template<typename... Ts> class PlayAction : public Action<Ts...>, public Parented<Speaker> {
  public:
-  void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) {
-    this->data_func_ = func;
-    this->static_ = false;
-  }
-  void set_data_static(const std::vector<uint8_t> &data) {
-    this->data_static_ = data;
-    this->static_ = true;
+  void set_data_template(std::vector<uint8_t> (*func)(Ts...)) {
+    this->data_.func = func;
+    this->len_ = -1;  // Sentinel value indicates template mode
   }
 
-  void play(Ts... x) override {
-    if (this->static_) {
-      this->parent_->play(this->data_static_);
+  void set_data_static(const uint8_t *data, size_t len) {
+    this->data_.data = data;
+    this->len_ = len;  // Length >= 0 indicates static mode
+  }
+
+  void play(const Ts &...x) override {
+    if (this->len_ >= 0) {
+      // Static mode: pass pointer directly to play(const uint8_t *, size_t)
+      this->parent_->play(this->data_.data, static_cast<size_t>(this->len_));
     } else {
-      auto val = this->data_func_(x...);
+      // Template mode: call function and pass vector to play(const std::vector<uint8_t> &)
+      auto val = this->data_.func(x...);
       this->parent_->play(val);
     }
   }
 
  protected:
-  bool static_{false};
-  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
-  std::vector<uint8_t> data_static_{};
+  ssize_t len_{-1};  // -1 = template mode, >=0 = static mode with length
+  union Data {
+    std::vector<uint8_t> (*func)(Ts...);  // Function pointer (stateless lambdas)
+    const uint8_t *data;                  // Pointer to static data in flash
+  } data_;
 };
 
 template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Parented<Speaker> {
   TEMPLATABLE_VALUE(float, volume)
-  void play(Ts... x) override { this->parent_->set_volume(this->volume_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->set_volume(this->volume_.value(x...)); }
 };
 
 template<typename... Ts> class MuteOnAction : public Action<Ts...> {
  public:
   explicit MuteOnAction(Speaker *speaker) : speaker_(speaker) {}
 
-  void play(Ts... x) override { this->speaker_->set_mute_state(true); }
+  void play(const Ts &...x) override { this->speaker_->set_mute_state(true); }
 
  protected:
   Speaker *speaker_;
@@ -53,7 +58,7 @@ template<typename... Ts> class MuteOffAction : public Action<Ts...> {
  public:
   explicit MuteOffAction(Speaker *speaker) : speaker_(speaker) {}
 
-  void play(Ts... x) override { this->speaker_->set_mute_state(false); }
+  void play(const Ts &...x) override { this->speaker_->set_mute_state(false); }
 
  protected:
   Speaker *speaker_;
@@ -61,22 +66,22 @@ template<typename... Ts> class MuteOffAction : public Action<Ts...> {
 
 template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<Speaker> {
  public:
-  void play(Ts... x) override { this->parent_->stop(); }
+  void play(const Ts &...x) override { this->parent_->stop(); }
 };
 
 template<typename... Ts> class FinishAction : public Action<Ts...>, public Parented<Speaker> {
  public:
-  void play(Ts... x) override { this->parent_->finish(); }
+  void play(const Ts &...x) override { this->parent_->finish(); }
 };
 
 template<typename... Ts> class IsPlayingCondition : public Condition<Ts...>, public Parented<Speaker> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_running(); }
+  bool check(const Ts &...x) override { return this->parent_->is_running(); }
 };
 
 template<typename... Ts> class IsStoppedCondition : public Condition<Ts...>, public Parented<Speaker> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_stopped(); }
+  bool check(const Ts &...x) override { return this->parent_->is_stopped(); }
 };
 
 }  // namespace speaker

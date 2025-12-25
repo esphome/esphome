@@ -548,11 +548,6 @@ def binary_sensor_schema(
     return _BINARY_SENSOR_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-BINARY_SENSOR_SCHEMA = binary_sensor_schema()
-BINARY_SENSOR_SCHEMA.add_extra(cv.deprecated_schema_constant("binary_sensor"))
-
-
 async def setup_binary_sensor_core_(var, config):
     await setup_entity(var, config, "binary_sensor")
 

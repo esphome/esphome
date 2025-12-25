@@ -135,6 +135,13 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
 }
 #endif
 
+#ifdef USE_WATER_HEATER
+bool ListEntitiesIterator::on_water_heater(water_heater::WaterHeater *obj) {
+  // Water heater web_server support not yet implemented - this stub acknowledges the entity
+  return true;
+}
+#endif
+
 #ifdef USE_EVENT
 bool ListEntitiesIterator::on_event(event::Event *obj) {
   // Null event type, since we are just iterating over entities

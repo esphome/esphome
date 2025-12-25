@@ -220,7 +220,7 @@ def test_esp32s3_specific_errors(
 
     set_core_config(
         PlatformFramework.ESP32_IDF,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32S3},
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
 
     with pytest.raises(cv.Invalid, match=error_match):
@@ -250,7 +250,7 @@ def test_custom_model_with_all_options(
     """Test custom model configuration with all available options."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32S3},
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
 
     run_schema_validation(
@@ -293,7 +293,7 @@ def test_all_predefined_models(
     """Test all predefined display models validate successfully with appropriate defaults."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32S3},
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
 
     # Enable PSRAM which is required for some models
@@ -304,14 +304,14 @@ def test_all_predefined_models(
         config = {"model": name}
 
         # Get the pins required by this model and find a compatible variant
-        pins = [
-            pin
-            for pin in [
-                model.get_default(pin, None)
-                for pin in ("dc_pin", "reset_pin", "cs_pin")
-            ]
-            if pin is not None
-        ]
+        pins = []
+        for pin_name in ("dc_pin", "reset_pin", "cs_pin", "enable_pin"):
+            pin_value = model.get_default(pin_name, None)
+            if pin_value is not None:
+                if isinstance(pin_value, list):
+                    pins.extend(pin_value)
+                else:
+                    pins.append(pin_value)
         choose_variant_with_pins(pins)
 
         # Add required fields that don't have defaults

@@ -20,7 +20,7 @@ void MQTTUpdateComponent::setup() {
     if (payload == "INSTALL") {
       this->update_->perform();
     } else {
-      ESP_LOGW(TAG, "'%s': Received unknown update payload: %s", this->friendly_name().c_str(), payload.c_str());
+      ESP_LOGW(TAG, "'%s': Received unknown update payload: %s", this->friendly_name_().c_str(), payload.c_str());
       this->status_momentary_warning("state", 5000);
     }
   });

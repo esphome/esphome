@@ -9,6 +9,13 @@ esphome:
         id: template_sens
         state: !lambda "return 42.0;"
 
+    # Test C++ API: set_template() with stateless lambda (no captures)
+    # NOTE: set_template() is not intended to be a public API, but we test it to ensure it doesn't break.
+    - lambda: |-
+        id(template_sens).set_template([]() -> esphome::optional<float> {
+          return 123.0f;
+        });
+
     - datetime.date.set:
         id: test_date
         date:
@@ -215,6 +222,7 @@ cover:
 
 number:
   - platform: template
+    id: template_number
     name: "Template number"
     optimistic: true
     min_value: 0

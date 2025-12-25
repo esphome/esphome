@@ -238,11 +238,6 @@ def number_schema(
     return _NUMBER_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-NUMBER_SCHEMA = number_schema(Number)
-NUMBER_SCHEMA.add_extra(cv.deprecated_schema_constant("number"))
-
-
 async def setup_number_core_(
     var, config, *, min_value: float, max_value: float, step: float
 ):

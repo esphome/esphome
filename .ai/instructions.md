@@ -51,7 +51,79 @@ This document provides essential context for AI models interacting with this pro
 
 *   **Naming Conventions:**
     *   **Python:** Follows PEP 8. Use clear, descriptive names following snake_case.
-    *   **C++:** Follows the Google C++ Style Guide.
+    *   **C++:** Follows the Google C++ Style Guide with these specifics (following clang-tidy conventions):
+        - Function, method, and variable names: `lower_snake_case`
+        - Class/struct/enum names: `UpperCamelCase`
+        - Top-level constants (global/namespace scope): `UPPER_SNAKE_CASE`
+        - Function-local constants: `lower_snake_case`
+        - Protected/private fields: `lower_snake_case_with_trailing_underscore_`
+        - Favor descriptive names over abbreviations
+
+*   **C++ Field Visibility:**
+    *   **Prefer `protected`:** Use `protected` for most class fields to enable extensibility and testing. Fields should be `lower_snake_case_with_trailing_underscore_`.
+    *   **Use `private` for safety-critical cases:** Use `private` visibility when direct field access could introduce bugs or violate invariants:
+        1. **Pointer lifetime issues:** When setters validate and store pointers from known lists to prevent dangling references.
+           ```cpp
+           // Helper to find matching string in vector and return its pointer
+           inline const char *vector_find(const std::vector<const char *> &vec, const char *value) {
+             for (const char *item : vec) {
+               if (strcmp(item, value) == 0)
+                 return item;
+             }
+             return nullptr;
+           }
+
+           class ClimateDevice {
+            public:
+             void set_custom_fan_modes(std::initializer_list<const char *> modes) {
+               this->custom_fan_modes_ = modes;
+               this->active_custom_fan_mode_ = nullptr;  // Reset when modes change
+             }
+             bool set_custom_fan_mode(const char *mode) {
+               // Find mode in supported list and store that pointer (not the input pointer)
+               const char *validated_mode = vector_find(this->custom_fan_modes_, mode);
+               if (validated_mode != nullptr) {
+                 this->active_custom_fan_mode_ = validated_mode;
+                 return true;
+               }
+               return false;
+             }
+            private:
+             std::vector<const char *> custom_fan_modes_;  // Pointers to string literals in flash
+             const char *active_custom_fan_mode_{nullptr};  // Must point to entry in custom_fan_modes_
+           };
+           ```
+        2. **Invariant coupling:** When multiple fields must remain synchronized to prevent buffer overflows or data corruption.
+           ```cpp
+           class Buffer {
+            public:
+             void resize(size_t new_size) {
+               auto new_data = std::make_unique<uint8_t[]>(new_size);
+               if (this->data_) {
+                 std::memcpy(new_data.get(), this->data_.get(), std::min(this->size_, new_size));
+               }
+               this->data_ = std::move(new_data);
+               this->size_ = new_size;  // Must stay in sync with data_
+             }
+            private:
+             std::unique_ptr<uint8_t[]> data_;
+             size_t size_{0};  // Must match allocated size of data_
+           };
+           ```
+        3. **Resource management:** When setters perform cleanup or registration operations that derived classes might skip.
+    *   **Provide `protected` accessor methods:** When derived classes need controlled access to `private` members.
+
+*   **C++ Preprocessor Directives:**
+    *   **Avoid `#define` for constants:** Using `#define` for constants is discouraged and should be replaced with `const` variables or enums.
+    *   **Use `#define` only for:**
+        - Conditional compilation (`#ifdef`, `#ifndef`)
+        - Compile-time sizes calculated during Python code generation (e.g., configuring `std::array` or `StaticVector` dimensions via `cg.add_define()`)
+
+*   **C++ Additional Conventions:**
+    *   **Member access:** Prefix all class member access with `this->` (e.g., `this->value_` not `value_`)
+    *   **Indentation:** Use spaces (two per indentation level), not tabs
+    *   **Type aliases:** Prefer `using type_t = int;` over `typedef int type_t;`
+    *   **Line length:** Wrap lines at no more than 120 characters
 
 *   **Component Structure:**
     *   **Standard Files:**
@@ -100,8 +172,7 @@ This document provides essential context for AI models interacting with this pro
 
     *   **C++ Class Pattern:**
         ```cpp
-        namespace esphome {
-        namespace my_component {
+        namespace esphome::my_component {
 
         class MyComponent : public Component {
          public:
@@ -117,8 +188,7 @@ This document provides essential context for AI models interacting with this pro
           int param_{0};
         };
 
-        }  // namespace my_component
-        }  // namespace esphome
+        }  // namespace esphome::my_component
         ```
 
     *   **Common Component Examples:**
@@ -206,12 +276,12 @@ This document provides essential context for AI models interacting with this pro
 ## 7. Specific Instructions for AI Collaboration
 
 *   **Contribution Workflow (Pull Request Process):**
-    1.  **Fork & Branch:** Create a new branch in your fork.
+    1.  **Fork & Branch:** Create a new branch based on the `dev` branch (always use `git checkout -b <branch-name> dev` to ensure you're branching from `dev`, not the currently checked out branch).
     2.  **Make Changes:** Adhere to all coding conventions and patterns.
     3.  **Test:** Create component tests for all supported platforms and run the full test suite locally.
     4.  **Lint:** Run `pre-commit` to ensure code is compliant.
     5.  **Commit:** Commit your changes. There is no strict format for commit messages.
-    6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title should have a prefix of the component being worked on (e.g., `[display] Fix bug`, `[abc123] Add new component`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made with the PULL_REQUEST_TEMPLATE.md template filled out correctly.
+    6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title should have a prefix of the component being worked on (e.g., `[display] Fix bug`, `[abc123] Add new component`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
 
 *   **Documentation Contributions:**
     *   Documentation is hosted in the separate `esphome/esphome-docs` repository.
@@ -332,35 +402,45 @@ This document provides essential context for AI models interacting with this pro
             _use_feature = True
         ```
 
-        **Good Pattern (CORE.data with Helpers):**
+        **Bad Pattern (Flat Keys):**
         ```python
+        # Don't do this - keys should be namespaced under component domain
+        MY_FEATURE_KEY = "my_component_feature"
+        CORE.data[MY_FEATURE_KEY] = True
+        ```
+
+        **Good Pattern (dataclass):**
+        ```python
+        from dataclasses import dataclass, field
         from esphome.core import CORE
 
-        # Keys for CORE.data storage
-        COMPONENT_STATE_KEY = "my_component_state"
-        USE_FEATURE_KEY = "my_component_use_feature"
+        DOMAIN = "my_component"
 
-        def _get_component_state() -> list:
-            """Get component state from CORE.data."""
-            return CORE.data.setdefault(COMPONENT_STATE_KEY, [])
+        @dataclass
+        class MyComponentData:
+            feature_enabled: bool = False
+            item_count: int = 0
+            items: list[str] = field(default_factory=list)
 
-        def _get_use_feature() -> bool | None:
-            """Get feature flag from CORE.data."""
-            return CORE.data.get(USE_FEATURE_KEY)
+        def _get_data() -> MyComponentData:
+            if DOMAIN not in CORE.data:
+                CORE.data[DOMAIN] = MyComponentData()
+            return CORE.data[DOMAIN]
 
-        def _set_use_feature(value: bool) -> None:
-            """Set feature flag in CORE.data."""
-            CORE.data[USE_FEATURE_KEY] = value
+        def request_feature() -> None:
+            _get_data().feature_enabled = True
 
-        def enable_feature():
-            _set_use_feature(True)
+        def add_item(item: str) -> None:
+            _get_data().items.append(item)
         ```
+
+        If you need a real-world example, search for components that use `@dataclass` with `CORE.data` in the codebase. Note: Some components may use `TypedDict` for dictionary-based storage; both patterns are acceptable depending on your needs.
 
         **Why this matters:**
         - Module-level globals persist between compilation runs if the dashboard doesn't fork/exec
         - `CORE.data` automatically clears between runs
-        - Typed helper functions provide better IDE support and maintainability
-        - Encapsulation makes state management explicit and testable
+        - Namespacing under `DOMAIN` prevents key collisions between components
+        - `@dataclass` provides type safety and cleaner attribute access
 
 *   **Security:** Be mindful of security when making changes to the API, web server, or any other network-related code. Do not hardcode secrets or keys.
 
@@ -368,3 +448,45 @@ This document provides essential context for AI models interacting with this pro
     *   **Python:** When adding a new Python dependency, add it to the appropriate `requirements*.txt` file and `pyproject.toml`.
     *   **C++ / PlatformIO:** When adding a new C++ dependency, add it to `platformio.ini` and use `cg.add_library`.
     *   **Build Flags:** Use `cg.add_build_flag(...)` to add compiler flags.
+
+## 8. Public API and Breaking Changes
+
+*   **Public C++ API:**
+    *   **Components**: Only documented features at [esphome.io](https://esphome.io) are public API. Undocumented `public` members are internal.
+    *   **Core/Base Classes** (`esphome/core/`, `Component`, `Sensor`, etc.): All `public` members are public API.
+    *   **Components with Global Accessors** (`global_api_server`, etc.): All `public` members are public API (except config setters).
+
+*   **Public Python API:**
+    *   All documented configuration options at [esphome.io](https://esphome.io) are public API.
+    *   Python code in `esphome/core/` actively used by existing core components is considered stable API.
+    *   Other Python code is internal unless explicitly documented for external component use.
+
+*   **Breaking Changes Policy:**
+    *   Aim for **6-month deprecation window** when possible
+    *   Clean breaks allowed for: signature changes, deep refactorings, resource constraints
+    *   Must document migration path in PR description (generates release notes)
+    *   Blog post required for core/base class changes or significant architectural changes
+    *   Full details: https://developers.esphome.io/contributing/code/#public-api-and-breaking-changes
+
+*   **Breaking Change Checklist:**
+    - [ ] Clear justification (RAM/flash savings, architectural improvement)
+    - [ ] Explored non-breaking alternatives
+    - [ ] Added deprecation warnings if possible (use `ESPDEPRECATED` macro for C++)
+    - [ ] Documented migration path in PR description with before/after examples
+    - [ ] Updated all internal usage and esphome-docs
+    - [ ] Tested backward compatibility during deprecation period
+
+*   **Deprecation Pattern (C++):**
+    ```cpp
+    // Remove before 2026.6.0
+    ESPDEPRECATED("Use new_method() instead. Removed in 2026.6.0", "2025.12.0")
+    void old_method() { this->new_method(); }
+    ```
+
+*   **Deprecation Pattern (Python):**
+    ```python
+    # Remove before 2026.6.0
+    if CONF_OLD_KEY in config:
+        _LOGGER.warning(f"'{CONF_OLD_KEY}' deprecated, use '{CONF_NEW_KEY}'. Removed in 2026.6.0")
+        config[CONF_NEW_KEY] = config.pop(CONF_OLD_KEY)  # Auto-migrate
+    ```
