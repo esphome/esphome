@@ -111,18 +111,23 @@ static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain,
   } else if (!s4) {
     // 2 segments after domain: /{domain}/{X}/{Y}
     // HTTP method disambiguates: GET = device/entity, POST = entity/action
-#ifdef USE_DEVICES
-    if (!is_post) {
-      match.device_name = seg2;
-      match.id = seg3;
+    if (is_post) {
+      match.id = seg2;
+      match.method = seg3;
       return match;
     }
+#ifdef USE_DEVICES
+    match.device_name = seg2;
+    match.id = seg3;
+#else
+    return UrlMatch{};  // 3-segment GET not supported without USE_DEVICES
 #endif
-    match.id = seg2;
-    match.method = seg3;
   } else {
     // 3 segments after domain: /{domain}/{device}/{entity}/{action}
 #ifdef USE_DEVICES
+    if (!is_post) {
+      return UrlMatch{};  // 4-segment GET not supported (action requires POST)
+    }
     match.device_name = seg2;
     match.id = seg3;
     match.method = seg4;
