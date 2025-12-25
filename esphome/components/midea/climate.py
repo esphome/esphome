@@ -149,7 +149,6 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
-    cv.only_with_arduino,
 )
 
 # Actions
@@ -290,4 +289,10 @@ async def to_code(config):
     if CONF_HUMIDITY_SETPOINT in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
-    cg.add_library("dudanov/MideaUART", "1.1.9")
+    # TODO: Update to official library after https://github.com/dudanov/MideaUART/pull/27 is merged
+    # cg.add_library("dudanov/MideaUART", "1.2.0")
+    cg.add_library(
+        name="MideaUART",
+        version=None,
+        repository="https://github.com/ShaTie/MideaUART.git",
+    )

@@ -1,10 +1,9 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
 // MideaUART
 #include <Appliance/ApplianceBase.h>
 #include <Helpers/Logger.h>
+#include <Helpers/Platform.h>
 
 // Include global defines
 #include "esphome/core/defines.h"
@@ -98,5 +97,3 @@ template<typename T> class ApplianceBase : public Component {
 
 }  // namespace midea
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

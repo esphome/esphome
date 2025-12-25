@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
 // MideaUART
 #include <Appliance/AirConditioner/AirConditioner.h>
 
@@ -47,5 +45,3 @@ class Converters {
 }  // namespace ac
 }  // namespace midea
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

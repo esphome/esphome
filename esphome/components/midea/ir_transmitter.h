@@ -1,6 +1,5 @@
 #pragma once
 
-#ifdef USE_ARDUINO
 #ifdef USE_REMOTE_TRANSMITTER
 #include "esphome/components/remote_base/midea_protocol.h"
 
@@ -87,5 +86,4 @@ class IrTransmitter {
 }  // namespace midea
 }  // namespace esphome
 
-#endif
-#endif  // USE_ARDUINO
+#endif  // USE_REMOTE_TRANSMITTER
