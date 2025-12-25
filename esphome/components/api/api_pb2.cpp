@@ -1149,7 +1149,7 @@ void ExecuteServiceResponse::calculate_size(ProtoSize &size) const {
   size.add_bool(1, this->success);
   size.add_length(1, this->error_message_ref_.size());
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  size.add_length(4, this->response_data_len);
+  size.add_length(1, this->response_data_len);
 #endif
 }
 #endif
@@ -3399,7 +3399,7 @@ void ZWaveProxyRequest::encode(ProtoWriteBuffer buffer) const {
 }
 void ZWaveProxyRequest::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, static_cast<uint32_t>(this->type));
-  size.add_length(2, this->data_len);
+  size.add_length(1, this->data_len);
 }
 #endif
 

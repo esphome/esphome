@@ -907,7 +907,7 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
         )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return f"size.add_length({self.number}, this->{self.field_name}_len);"
+        return f"size.add_length({self.calculate_field_id_size()}, this->{self.field_name}_len);"
 
 
 class PointerToStringBufferType(PointerToBufferTypeBase):
@@ -932,7 +932,6 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
     @property
     def decode_length_content(self) -> str | None:
         return f"""case {self.number}: {{
-      // Use raw data directly via StringRef to avoid allocation
       this->{self.field_name} = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }}"""
