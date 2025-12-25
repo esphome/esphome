@@ -64,9 +64,9 @@ class StreamingModel {
   /// @return True if successful, false otherwise
   bool load_model_();
   /// @brief Returns true if successfully registered the streaming model's TensorFlow operations
-  bool register_streaming_ops_(tflite::MicroMutableOpResolver<20> &op_resolver);
+  bool register_streaming_ops_(tflite::MicroMutableOpResolver<21> &op_resolver);
 
-  tflite::MicroMutableOpResolver<20> streaming_op_resolver_;
+  tflite::MicroMutableOpResolver<21> streaming_op_resolver_;
 
   bool loaded_{false};
   bool enabled_{true};
