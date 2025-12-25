@@ -15,7 +15,8 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
   stream->print("\" id=\"");
   stream->print(klass.c_str());
   stream->print("-");
-  stream->print(obj->get_object_id().c_str());
+  char object_id_buf[OBJECT_ID_MAX_LEN];
+  stream->print(obj->get_object_id_to(object_id_buf).c_str());
   stream->print("\"><td>");
   stream->print(obj->get_name().c_str());
   stream->print("</td><td></td><td>");
@@ -142,7 +143,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
         stream.print(R"(" maxlength=")");
         stream.print(text->traits.get_max_length());
         stream.print(R"(" pattern=")");
-        stream.print(text->traits.get_pattern().c_str());
+        stream.print(text->traits.get_pattern_c_str());
         stream.print(R"(" value=")");
         stream.print(text->state.c_str());
         stream.print(R"("/>)");
@@ -190,9 +191,8 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   }
 #endif
 
-  stream->print(
-      ESPHOME_F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
-                "REST API documentation.</p>"));
+  stream->print(ESPHOME_F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/\">ESPHome Web API</a> for "
+                          "REST API documentation.</p>"));
 #if defined(USE_WEBSERVER_OTA) && !defined(USE_WEBSERVER_OTA_DISABLED)
   // Show OTA form only if web_server OTA is not explicitly disabled
   // Note: USE_WEBSERVER_OTA_DISABLED only affects web_server, not captive_portal

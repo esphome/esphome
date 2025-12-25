@@ -49,7 +49,7 @@ template<typename... Ts> class BrakeAction : public Action<Ts...> {
  public:
   explicit BrakeAction(HBridgeFan *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->brake(); }
+  void play(const Ts &...x) override { this->parent_->brake(); }
 
   HBridgeFan *parent_;
 };

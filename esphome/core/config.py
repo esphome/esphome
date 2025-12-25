@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_DEBUG_SCHEDULER,
     CONF_DEVICES,
+    CONF_ENVIRONMENT_VARIABLES,
     CONF_ESPHOME,
     CONF_FRIENDLY_NAME,
     CONF_ID,
@@ -40,7 +41,12 @@ from esphome.const import (
     PlatformFramework,
     __version__ as ESPHOME_VERSION,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    KEY_CONTROLLER_REGISTRY_COUNT,
+    CoroPriority,
+    coroutine_with_priority,
+)
 from esphome.helpers import (
     copy_file_if_changed,
     fnv1a_32bit_hash,
@@ -81,7 +87,7 @@ def validate_hostname(config):
         _LOGGER.warning(
             "'%s': Using the '_' (underscore) character in the hostname is discouraged "
             "as it can cause problems with some DHCP and local name services. "
-            "For more information, see https://esphome.io/guides/faq.html#why-shouldn-t-i-use-underscores-in-my-device-name",
+            "For more information, see https://esphome.io/guides/faq/#why-shouldnt-i-use-underscores-in-my-device-name",
             config[CONF_NAME],
         )
     return config
@@ -203,11 +209,16 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NAME): cv.valid_name,
             cv.Optional(CONF_FRIENDLY_NAME, ""): cv.All(cv.string, cv.Length(max=120)),
             cv.Optional(CONF_AREA): validate_area_config,
-            cv.Optional(CONF_COMMENT): cv.string,
+            cv.Optional(CONF_COMMENT): cv.All(cv.string, cv.Length(max=255)),
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
                 {
                     cv.string_strict: cv.Any([cv.string], cv.string),
+                }
+            ),
+            cv.Optional(CONF_ENVIRONMENT_VARIABLES, default={}): cv.Schema(
+                {
+                    cv.string_strict: cv.string,
                 }
             ),
             cv.Optional(CONF_ON_BOOT): automation.validate_automation(
@@ -371,10 +382,15 @@ def include_file(path: Path, basename: Path, is_c_header: bool = False):
 
 
 ARDUINO_GLUE_CODE = """\
+#undef yield
 #define yield() esphome::yield()
+#undef millis
 #define millis() esphome::millis()
+#undef micros
 #define micros() esphome::micros()
+#undef delay
 #define delay(x) esphome::delay(x)
+#undef delayMicroseconds
 #define delayMicroseconds(x) esphome::delayMicroseconds(x)
 """
 
@@ -421,6 +437,12 @@ async def _add_platformio_options(pio_options):
         cg.add_platformio_option(key, val)
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_environment_variables(env_vars: dict[str, str]) -> None:
+    # Set environment variables for the build process
+    os.environ.update(env_vars)
+
+
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _add_automations(config):
     for conf in config.get(CONF_ON_BOOT, []):
@@ -462,6 +484,15 @@ async def _add_platform_defines() -> None:
             cg.add_define(f"USE_{platform_name.upper()}")
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_controller_registry_define() -> None:
+    # Generate StaticVector size for ControllerRegistry
+    controller_count = CORE.data.get(KEY_CONTROLLER_REGISTRY_COUNT, 0)
+    if controller_count > 0:
+        cg.add_define("USE_CONTROLLER_REGISTRY")
+        cg.add_define("CONTROLLER_REGISTRY_MAX", controller_count)
+
+
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.global_ns.namespace("esphome").using)
@@ -474,8 +505,6 @@ async def to_code(config: ConfigType) -> None:
         cg.App.pre_setup(
             config[CONF_NAME],
             config[CONF_FRIENDLY_NAME],
-            config.get(CONF_COMMENT, ""),
-            cg.RawExpression('__DATE__ ", " __TIME__'),
             config[CONF_NAME_ADD_MAC_SUFFIX],
         )
     )
@@ -483,6 +512,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
 
     CORE.add_job(_add_platform_defines)
+    CORE.add_job(_add_controller_registry_define)
 
     CORE.add_job(_add_automations, config)
 
@@ -510,7 +540,7 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_DEBUG_SCHEDULER]:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
 
-    if CORE.using_arduino and not CORE.is_bk72xx:
+    if CORE.using_arduino:
         CORE.add_job(add_arduino_global_workaround)
 
     if config[CONF_INCLUDES]:
@@ -547,6 +577,9 @@ async def to_code(config: ConfigType) -> None:
 
     if config[CONF_PLATFORMIO_OPTIONS]:
         CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])
+
+    if config[CONF_ENVIRONMENT_VARIABLES]:
+        CORE.add_job(_add_environment_variables, config[CONF_ENVIRONMENT_VARIABLES])
 
     # Process areas
     all_areas: list[dict[str, str | core.ID]] = []

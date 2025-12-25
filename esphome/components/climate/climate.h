@@ -8,8 +8,7 @@
 #include "climate_mode.h"
 #include "climate_traits.h"
 
-namespace esphome {
-namespace climate {
+namespace esphome::climate {
 
 #define LOG_CLIMATE(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -79,6 +78,8 @@ class ClimateCall {
   ClimateCall &set_fan_mode(optional<std::string> fan_mode);
   /// Set the custom fan mode of the climate device.
   ClimateCall &set_fan_mode(const char *custom_fan_mode);
+  /// Set the custom fan mode of the climate device (zero-copy API path).
+  ClimateCall &set_fan_mode(const char *custom_fan_mode, size_t len);
   /// Set the swing mode of the climate device.
   ClimateCall &set_swing_mode(ClimateSwingMode swing_mode);
   /// Set the swing mode of the climate device.
@@ -95,6 +96,8 @@ class ClimateCall {
   ClimateCall &set_preset(optional<std::string> preset);
   /// Set the custom preset of the climate device.
   ClimateCall &set_preset(const char *custom_preset);
+  /// Set the custom preset of the climate device (zero-copy API path).
+  ClimateCall &set_preset(const char *custom_preset, size_t len);
 
   void perform();
 
@@ -214,11 +217,13 @@ class Climate : public EntityBase {
    */
   ClimateTraits get_traits();
 
+#ifdef USE_CLIMATE_VISUAL_OVERRIDES
   void set_visual_min_temperature_override(float visual_min_temperature_override);
   void set_visual_max_temperature_override(float visual_max_temperature_override);
   void set_visual_temperature_step_override(float target, float current);
   void set_visual_min_humidity_override(float visual_min_humidity_override);
   void set_visual_max_humidity_override(float visual_max_humidity_override);
+#endif
 
   /// Check if a custom fan mode is currently active.
   bool has_custom_fan_mode() const { return this->custom_fan_mode_ != nullptr; }
@@ -289,9 +294,11 @@ class Climate : public EntityBase {
 
   /// Find and return the matching custom fan mode pointer from traits, or nullptr if not found.
   const char *find_custom_fan_mode_(const char *custom_fan_mode);
+  const char *find_custom_fan_mode_(const char *custom_fan_mode, size_t len);
 
   /// Find and return the matching custom preset pointer from traits, or nullptr if not found.
   const char *find_custom_preset_(const char *custom_preset);
+  const char *find_custom_preset_(const char *custom_preset, size_t len);
 
   /** Get the default traits of this climate device.
    *
@@ -319,15 +326,17 @@ class Climate : public EntityBase {
 
   void dump_traits_(const char *tag);
 
-  CallbackManager<void(Climate &)> state_callback_{};
-  CallbackManager<void(ClimateCall &)> control_callback_{};
+  LazyCallbackManager<void(Climate &)> state_callback_{};
+  LazyCallbackManager<void(ClimateCall &)> control_callback_{};
   ESPPreferenceObject rtc_;
-  optional<float> visual_min_temperature_override_{};
-  optional<float> visual_max_temperature_override_{};
-  optional<float> visual_target_temperature_step_override_{};
-  optional<float> visual_current_temperature_step_override_{};
-  optional<float> visual_min_humidity_override_{};
-  optional<float> visual_max_humidity_override_{};
+#ifdef USE_CLIMATE_VISUAL_OVERRIDES
+  float visual_min_temperature_override_{NAN};
+  float visual_max_temperature_override_{NAN};
+  float visual_target_temperature_step_override_{NAN};
+  float visual_current_temperature_step_override_{NAN};
+  float visual_min_humidity_override_{NAN};
+  float visual_max_humidity_override_{NAN};
+#endif
 
  private:
   /** The active custom fan mode (private - enforces use of safe setters).
@@ -345,5 +354,4 @@ class Climate : public EntityBase {
   const char *custom_preset_{nullptr};
 };
 
-}  // namespace climate
-}  // namespace esphome
+}  // namespace esphome::climate

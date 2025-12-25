@@ -6,20 +6,7 @@
 #include <vector>
 
 #include "esphome/core/component.h"
-
-// Platform-agnostic macros for web server components
-// On ESP32 (both Arduino and IDF): Use plain strings (no PROGMEM)
-// On ESP8266: Use Arduino's F() macro for PROGMEM strings
-#ifdef USE_ESP32
-#define ESPHOME_F(string_literal) (string_literal)
-#define ESPHOME_PGM_P const char *
-#define ESPHOME_strncpy_P strncpy
-#else
-// ESP8266 uses Arduino macros
-#define ESPHOME_F(string_literal) F(string_literal)
-#define ESPHOME_PGM_P PGM_P
-#define ESPHOME_strncpy_P strncpy_P
-#endif
+#include "esphome/core/progmem.h"
 
 #if USE_ESP32
 #include "esphome/core/hal.h"
@@ -111,7 +98,7 @@ class WebServerBase : public Component {
       this->initialized_++;
       return;
     }
-    this->server_ = std::make_shared<AsyncWebServer>(this->port_);
+    this->server_ = std::make_unique<AsyncWebServer>(this->port_);
     // All content is controlled and created by user - so allowing all origins is fine here.
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
     this->server_->begin();
@@ -127,7 +114,7 @@ class WebServerBase : public Component {
       this->server_ = nullptr;
     }
   }
-  std::shared_ptr<AsyncWebServer> get_server() const { return server_; }
+  AsyncWebServer *get_server() const { return this->server_.get(); }
   float get_setup_priority() const override;
 
 #ifdef USE_WEBSERVER_AUTH
@@ -143,7 +130,7 @@ class WebServerBase : public Component {
  protected:
   int initialized_{0};
   uint16_t port_{80};
-  std::shared_ptr<AsyncWebServer> server_{nullptr};
+  std::unique_ptr<AsyncWebServer> server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
 #ifdef USE_WEBSERVER_AUTH
   internal::Credentials credentials_;

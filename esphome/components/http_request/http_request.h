@@ -15,8 +15,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 struct Header {
   std::string name;
@@ -113,8 +112,8 @@ class HttpContainer : public Parented<HttpRequestComponent> {
 
 class HttpRequestResponseTrigger : public Trigger<std::shared_ptr<HttpContainer>, std::string &> {
  public:
-  void process(std::shared_ptr<HttpContainer> container, std::string &response_body) {
-    this->trigger(std::move(container), response_body);
+  void process(const std::shared_ptr<HttpContainer> &container, std::string &response_body) {
+    this->trigger(container, response_body);
   }
 };
 
@@ -210,7 +209,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     this->max_response_buffer_size_ = max_response_buffer_size;
   }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     std::string body;
     if (this->body_.has_value()) {
       body = this->body_.value(x...);
@@ -255,6 +254,9 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
         size_t read_index = 0;
         while (container->get_bytes_read() < max_length) {
           int read = container->read(buf + read_index, std::min<size_t>(max_length - read_index, 512));
+          if (read <= 0) {
+            break;
+          }
           App.feed_wdt();
           yield();
           read_index += read;
@@ -302,5 +304,4 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   size_t max_response_buffer_size_{SIZE_MAX};
 };
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request

@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include <initializer_list>
 
-namespace esphome {
-namespace select {
+namespace esphome::select {
 
 class SelectTraits {
  public:
@@ -16,5 +15,4 @@ class SelectTraits {
   FixedVector<const char *> options_;
 };
 
-}  // namespace select
-}  // namespace esphome
+}  // namespace esphome::select

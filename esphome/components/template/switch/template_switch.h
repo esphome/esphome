@@ -5,10 +5,9 @@
 #include "esphome/core/template_lambda.h"
 #include "esphome/components/switch/switch.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
-class TemplateSwitch : public switch_::Switch, public Component {
+class TemplateSwitch final : public switch_::Switch, public Component {
  public:
   TemplateSwitch();
 
@@ -37,5 +36,4 @@ class TemplateSwitch : public switch_::Switch, public Component {
   Trigger<> *prev_trigger_{nullptr};
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

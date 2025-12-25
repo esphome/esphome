@@ -156,22 +156,25 @@ def print_error_for_file(file: str | Path, body: str | None) -> None:
         print()
 
 
-def build_all_include() -> None:
-    # Build a cpp file that includes all header files in this repo.
-    # Otherwise header-only integrations would not be tested by clang-tidy
+def build_all_include(header_files: list[str] | None = None) -> None:
+    # Build a cpp file that includes header files for clang-tidy to check.
+    # If header_files is provided, only include those headers.
+    # Otherwise, include all header files in the esphome directory.
 
-    # Use git ls-files to find all .h files in the esphome directory
-    # This is much faster than walking the filesystem
-    cmd = ["git", "ls-files", "esphome/**/*.h"]
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    if header_files is None:
+        # Use git ls-files to find all .h files in the esphome directory
+        # This is much faster than walking the filesystem
+        cmd = ["git", "ls-files", "esphome/**/*.h"]
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
-    # Process git output - git already returns paths relative to repo root
-    headers = [
-        f'#include "{include_p}"'
-        for line in proc.stdout.strip().split("\n")
-        if (include_p := line.replace(os.path.sep, "/"))
-    ]
+        # Process git output - git already returns paths relative to repo root
+        header_files = [
+            line.replace(os.path.sep, "/")
+            for line in proc.stdout.strip().split("\n")
+            if line
+        ]
 
+    headers = [f'#include "{h}"' for h in header_files]
     headers.sort()
     headers.append("")
     content = "\n".join(headers)
@@ -196,6 +199,20 @@ def splitlines_no_ends(string: str) -> list[str]:
     return [s.strip() for s in string.splitlines()]
 
 
+@cache
+def _get_github_event_data() -> dict | None:
+    """Read and parse GitHub event file (cached).
+
+    Returns:
+        Parsed event data dictionary, or None if not available
+    """
+    github_event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if github_event_path and os.path.exists(github_event_path):
+        with open(github_event_path) as f:
+            return json.load(f)
+    return None
+
+
 def _get_pr_number_from_github_env() -> str | None:
     """Extract PR number from GitHub environment variables.
 
@@ -208,13 +225,30 @@ def _get_pr_number_from_github_env() -> str | None:
         return github_ref.split("/pull/")[1].split("/")[0]
 
     # Fallback to GitHub event file
-    github_event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if github_event_path and os.path.exists(github_event_path):
-        with open(github_event_path) as f:
-            event_data = json.load(f)
-            pr_data = event_data.get("pull_request", {})
-            if pr_number := pr_data.get("number"):
-                return str(pr_number)
+    if event_data := _get_github_event_data():
+        pr_data = event_data.get("pull_request", {})
+        if pr_number := pr_data.get("number"):
+            return str(pr_number)
+
+    return None
+
+
+def get_target_branch() -> str | None:
+    """Get the target branch from GitHub environment variables.
+
+    Returns:
+        Target branch name (e.g., "dev", "release", "beta"), or None if not in PR context
+    """
+    # First try GITHUB_BASE_REF (set for pull_request events)
+    if base_ref := os.environ.get("GITHUB_BASE_REF"):
+        return base_ref
+
+    # Fallback to GitHub event file
+    if event_data := _get_github_event_data():
+        pr_data = event_data.get("pull_request", {})
+        base_data = pr_data.get("base", {})
+        if ref := base_data.get("ref"):
+            return ref
 
     return None
 
@@ -599,7 +633,12 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
     Returns:
         Set of all components including dependencies and auto-loaded components
     """
-    from esphome.const import KEY_CORE
+    from esphome.const import (
+        KEY_CORE,
+        KEY_TARGET_FRAMEWORK,
+        KEY_TARGET_PLATFORM,
+        PLATFORM_HOST,
+    )
     from esphome.core import CORE
     from esphome.loader import get_component
 
@@ -611,7 +650,10 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
     # Set up fake config path for component loading
     root = Path(__file__).parent.parent
     CORE.config_path = root
-    CORE.data[KEY_CORE] = {}
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: PLATFORM_HOST,
+        KEY_TARGET_FRAMEWORK: "host-native",
+    }
 
     # Keep finding dependencies until no new ones are found
     while True:
