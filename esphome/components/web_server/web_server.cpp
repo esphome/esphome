@@ -46,10 +46,19 @@ static constexpr size_t PSTR_LOCAL_SIZE = 18;
 #define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), PSTR_LOCAL_SIZE - 1)
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+#ifdef USE_ESP8266
+static const char HEADER_PNA_NAME[] PROGMEM = "Private-Network-Access-Name";
+static const char HEADER_PNA_ID[] PROGMEM = "Private-Network-Access-ID";
+static const char HEADER_CORS_REQ_PNA[] PROGMEM = "Access-Control-Request-Private-Network";
+static const char HEADER_CORS_ALLOW_PNA[] PROGMEM = "Access-Control-Allow-Private-Network";
+#define PNA_HEADER(x) FPSTR(x)
+#else
 static const char *const HEADER_PNA_NAME = "Private-Network-Access-Name";
 static const char *const HEADER_PNA_ID = "Private-Network-Access-ID";
 static const char *const HEADER_CORS_REQ_PNA = "Access-Control-Request-Private-Network";
 static const char *const HEADER_CORS_ALLOW_PNA = "Access-Control-Allow-Private-Network";
+#define PNA_HEADER(x) (x)
+#endif
 #endif
 
 // Parse URL and return match info
@@ -368,10 +377,10 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse(200, "");
-  response->addHeader(HEADER_CORS_ALLOW_PNA, "true");
-  response->addHeader(HEADER_PNA_NAME, App.get_name().c_str());
+  response->addHeader(PNA_HEADER(HEADER_CORS_ALLOW_PNA), ESPHOME_F("true"));
+  response->addHeader(PNA_HEADER(HEADER_PNA_NAME), App.get_name().c_str());
   char mac_s[18];
-  response->addHeader(HEADER_PNA_ID, get_mac_address_pretty_into_buffer(mac_s));
+  response->addHeader(PNA_HEADER(HEADER_PNA_ID), get_mac_address_pretty_into_buffer(mac_s));
   request->send(response);
 }
 #endif
@@ -1841,7 +1850,7 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   }
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-  if (method == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA))
+  if (method == HTTP_OPTIONS && request->hasHeader(PNA_HEADER(HEADER_CORS_REQ_PNA)))
     return true;
 #endif
 
@@ -1974,7 +1983,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-  if (request->method() == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA)) {
+  if (request->method() == HTTP_OPTIONS && request->hasHeader(PNA_HEADER(HEADER_CORS_REQ_PNA))) {
     this->handle_pna_cors_request(request);
     return;
   }
