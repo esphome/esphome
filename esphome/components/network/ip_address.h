@@ -55,8 +55,7 @@ struct IPAddress {
   std::string str() const { return str_lower_case(inet_ntoa(ip_addr_)); }
   /// Write IP address to buffer. Buffer must be at least IP_ADDRESS_BUFFER_SIZE bytes.
   char *str_to(char *buf) const {
-    inet_ntop(AF_INET, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE);
-    return buf;
+    return const_cast<char *>(inet_ntop(AF_INET, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE));
   }
 #else
   IPAddress() { ip_addr_set_zero(&ip_addr_); }
