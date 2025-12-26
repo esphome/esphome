@@ -46,8 +46,8 @@ void DNSAddressWifiInfo::dump_config() { LOG_TEXT_SENSOR("", "DNS Address", this
 
 void DNSAddressWifiInfo::on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
                                      const network::IPAddress &dns2) {
-  // Single buffer: IP1 + space + IP2 + null
-  char buf[network::IP_ADDRESS_BUFFER_SIZE * 2 + 1];
+  // IP_ADDRESS_BUFFER_SIZE (40) = max IP (39) + null; space reuses first null's slot
+  char buf[network::IP_ADDRESS_BUFFER_SIZE * 2];
   dns1.str_to(buf);
   size_t len1 = strlen(buf);
   buf[len1] = ' ';
