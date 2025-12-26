@@ -343,8 +343,9 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
 
 void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
   httpd_resp_set_hdr(*this, "Connection", "keep-alive");
-  auto auth_val = str_sprintf("Basic realm=\"%s\"", realm ? realm : "Login Required");
-  httpd_resp_set_hdr(*this, "WWW-Authenticate", auth_val.c_str());
+  // Note: realm is never configured in ESPHome, always nullptr -> "Login Required"
+  (void) realm;  // Unused - always use default
+  httpd_resp_set_hdr(*this, "WWW-Authenticate", "Basic realm=\"Login Required\"");
   httpd_resp_send_err(*this, HTTPD_401_UNAUTHORIZED, nullptr);
 }
 #endif

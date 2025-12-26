@@ -112,7 +112,11 @@ void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
 
 std::string PrometheusHandler::relabel_id_(EntityBase *obj) {
   auto item = relabel_map_id_.find(obj);
-  return item == relabel_map_id_.end() ? obj->get_object_id() : item->second;
+  if (item != relabel_map_id_.end()) {
+    return item->second;
+  }
+  char object_id_buf[OBJECT_ID_MAX_LEN];
+  return obj->get_object_id_to(object_id_buf).str();
 }
 
 std::string PrometheusHandler::relabel_name_(EntityBase *obj) {
