@@ -347,7 +347,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #else
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
 #endif
-  response->addHeader("Content-Encoding", "gzip");
+  response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
   request->send(response);
 }
 #elif USE_WEBSERVER_VERSION >= 2
@@ -384,7 +384,7 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/css", ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
 #endif
-  response->addHeader("Content-Encoding", "gzip");
+  response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
   request->send(response);
 }
 #endif
@@ -398,7 +398,7 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/javascript", ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
 #endif
-  response->addHeader("Content-Encoding", "gzip");
+  response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
   request->send(response);
 }
 #endif
