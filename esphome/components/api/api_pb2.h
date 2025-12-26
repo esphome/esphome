@@ -1708,7 +1708,7 @@ class ListEntitiesSirenResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_siren_response"; }
 #endif
-  std::vector<std::string> tones{};
+  const FixedVector<const char *> *tones{};
   bool supports_duration{false};
   bool supports_volume{false};
   void encode(ProtoWriteBuffer buffer) const override;

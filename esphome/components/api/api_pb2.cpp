@@ -1710,8 +1710,8 @@ void ListEntitiesSirenResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(5, this->icon_ref_);
 #endif
   buffer.encode_bool(6, this->disabled_by_default);
-  for (auto &it : this->tones) {
-    buffer.encode_string(7, it, true);
+  for (const char *it : *this->tones) {
+    buffer.encode_string(7, it, strlen(it), true);
   }
   buffer.encode_bool(8, this->supports_duration);
   buffer.encode_bool(9, this->supports_volume);
@@ -1728,9 +1728,9 @@ void ListEntitiesSirenResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->icon_ref_.size());
 #endif
   size.add_bool(1, this->disabled_by_default);
-  if (!this->tones.empty()) {
-    for (const auto &it : this->tones) {
-      size.add_length_force(1, it.size());
+  if (!this->tones->empty()) {
+    for (const char *it : *this->tones) {
+      size.add_length_force(1, strlen(it));
     }
   }
   size.add_bool(1, this->supports_duration);
