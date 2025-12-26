@@ -25,18 +25,9 @@ def test_text_sensor_sets_mandatory_fields(generate_main):
     main_cpp = generate_main("tests/component_tests/text_sensor/test_text_sensor.yaml")
 
     # Then
-    assert (
-        'ts_1->set_name_and_object_id("Template Text Sensor 1", "template_text_sensor_1");'
-        in main_cpp
-    )
-    assert (
-        'ts_2->set_name_and_object_id("Template Text Sensor 2", "template_text_sensor_2");'
-        in main_cpp
-    )
-    assert (
-        'ts_3->set_name_and_object_id("Template Text Sensor 3", "template_text_sensor_3");'
-        in main_cpp
-    )
+    assert 'ts_1->set_name("Template Text Sensor 1",' in main_cpp
+    assert 'ts_2->set_name("Template Text Sensor 2",' in main_cpp
+    assert 'ts_3->set_name("Template Text Sensor 3",' in main_cpp
 
 
 def test_text_sensor_config_value_internal_set(generate_main):
