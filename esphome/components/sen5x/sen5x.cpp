@@ -589,17 +589,25 @@ void SEN5XComponent::update() {
       float pm_10_0 = measurements[3] == UINT16_MAX ? NAN : measurements[3] / 10.0f;
       this->pm_10_0_sensor_->publish_state(pm_10_0);
     }
-    if (this->model_.value() != SEN50) {
-      if (this->humidity_sensor_ != nullptr) {
-        ESP_LOGV(TAG, "humidity = 0x%.4x", measurements[4]);
-        float humidity = measurements[4] == INT16_MAX ? NAN : static_cast<int16_t>(measurements[4]) / 100.0f;
-        this->humidity_sensor_->publish_state(humidity);
+    if (this->humidity_sensor_ != nullptr) {
+      float humidity = static_cast<int16_t>(measurements[4]) / 100.0f;
+      if (this->is_sen6x_() && measurements[5] == INT16_MAX) {
+        humidity = NAN;
+      } else if (measurements[5] == UINT16_MAX) {
+        humidity = NAN;
       }
-      if (this->temperature_sensor_ != nullptr) {
-        ESP_LOGV(TAG, "temperature = 0x%.4x", measurements[5]);
-        float temperature = measurements[5] == INT16_MAX ? NAN : static_cast<int16_t>(measurements[5]) / 200.0f;
-        this->temperature_sensor_->publish_state(temperature);
+      ESP_LOGV(TAG, "humidity = 0x%.4x", measurements[4]);
+      this->humidity_sensor_->publish_state(humidity);
+    }
+    if (this->temperature_sensor_ != nullptr) {
+      float temperature = static_cast<int16_t>(measurements[5]) / 200.0f;
+      if (this->is_sen6x_() && measurements[5] == INT16_MAX) {
+        temperature = NAN;
+      } else if (measurements[5] == UINT16_MAX) {
+        temperature = NAN;
       }
+      ESP_LOGV(TAG, "temperature = 0x%.4x", measurements[5]);
+      this->temperature_sensor_->publish_state(temperature);
     }
     if (this->voc_sensor_ != nullptr) {
       if (this->model_.value() == SEN54 || this->model_.value() == SEN55 || this->model_.value() == SEN65 ||
@@ -624,16 +632,18 @@ void SEN5XComponent::update() {
       }
     }
     if (this->co2_sensor_ != nullptr) {
-      if (this->model_.value() == SEN63C || this->model_.value() == SEN66 || this->model_.value() == SEN69C) {
-        uint16_t measurement = measurements[6];
-        if (this->model_.value() == SEN66)
-          measurement = measurements[8];
+      if (this->model_.value() == SEN63C || this->model_.value() == SEN69C) {
+        uint16_t measurement = measurements[6];  // SEN63C
         if (this->model_.value() == SEN69C)
-          measurement = measurements[9];
+          measurement = measurements[9];  // SEN69C
         ESP_LOGV(TAG, "co2 = 0x%.4x", measurement);
-        float co2 = measurement / 1.0f;
-        // float co2 = measurement == UINT16_MAX ? NAN : measurement / 1.0f;
-        this->co2_sensor_->publish_state(co2);
+        float co2_1 = measurement == INT16_MAX ? NAN : static_cast<int16_t>(measurement) / 1.0f;
+        this->co2_sensor_->publish_state(co2_1);
+      }
+      if (this->model_.value() == SEN66) {
+        ESP_LOGV(TAG, "co2 = 0x%.4x", measurements[8]);  // SEN66
+        float co2_2 = measurements[8] == UINT16_MAX ? NAN : measurements[8] / 1.0f;
+        this->co2_sensor_->publish_state(co2_2);
       }
     }
     if (this->hcho_sensor_ != nullptr) {
