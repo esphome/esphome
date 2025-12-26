@@ -555,10 +555,10 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
   auto it = subscriptions_.begin();
   while (it != subscriptions_.end()) {
     if (it->topic == topic) {
-      it = subscriptions_.erase(it);
       if (!this->credentials_.clean_session) {
         remove_subscription(*it);
       }
+      it = subscriptions_.erase(it);
     } else {
       ++it;
     }
