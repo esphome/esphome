@@ -696,7 +696,7 @@ inline char *int8_to_str(char *buf, int8_t val) {
     *buf++ = '1';  // int8 max is 128, so hundreds digit is always 1
     v -= 100;
     // Must write tens digit (even if 0) after hundreds
-    int tens = v / 10;
+    int32_t tens = v / 10;
     *buf++ = '0' + tens;
     v -= tens * 10;
   } else if (v >= 10) {
