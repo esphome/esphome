@@ -23,8 +23,7 @@ using PlatformString = std::string;
 using PlatformString = String;
 #endif
 
-namespace esphome {
-namespace web_server {
+namespace esphome::web_server {
 
 static const char *const TAG = "web_server.ota";
 
@@ -236,7 +235,6 @@ void WebServerOTAComponent::setup() {
 
 void WebServerOTAComponent::dump_config() { ESP_LOGCONFIG(TAG, "Web Server OTA"); }
 
-}  // namespace web_server
-}  // namespace esphome
+}  // namespace esphome::web_server
 
 #endif  // USE_WEBSERVER_OTA
