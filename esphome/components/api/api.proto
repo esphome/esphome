@@ -1101,6 +1101,85 @@ message ClimateCommandRequest {
   uint32 device_id = 24 [(field_ifdef) = "USE_DEVICES"];
 }
 
+// ==================== WATER_HEATER ====================
+enum WaterHeaterMode {
+  WATER_HEATER_MODE_OFF = 0;
+  WATER_HEATER_MODE_ECO = 1;
+  WATER_HEATER_MODE_ELECTRIC = 2;
+  WATER_HEATER_MODE_PERFORMANCE = 3;
+  WATER_HEATER_MODE_HIGH_DEMAND = 4;
+  WATER_HEATER_MODE_HEAT_PUMP = 5;
+  WATER_HEATER_MODE_GAS = 6;
+}
+
+message ListEntitiesWaterHeaterResponse {
+  option (id) = 132;
+  option (base_class) = "InfoResponseProtoMessage";
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_WATER_HEATER";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON"];
+  bool disabled_by_default = 5;
+  EntityCategory entity_category = 6;
+  uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];
+  float min_temperature = 8;
+  float max_temperature = 9;
+  float target_temperature_step = 10;
+  repeated WaterHeaterMode supported_modes = 11 [(container_pointer_no_template) = "water_heater::WaterHeaterModeMask"];
+  // Bitmask of WaterHeaterFeature flags
+  uint32 supported_features = 12;
+}
+
+message WaterHeaterStateResponse {
+  option (id) = 133;
+  option (base_class) = "StateResponseProtoMessage";
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_WATER_HEATER";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  float current_temperature = 2;
+  float target_temperature = 3;
+  WaterHeaterMode mode = 4;
+  uint32 device_id = 5 [(field_ifdef) = "USE_DEVICES"];
+  // Bitmask of current state flags (bit 0 = away, bit 1 = on)
+  uint32 state = 6;
+  float target_temperature_low = 7;
+  float target_temperature_high = 8;
+}
+
+// Bitmask for WaterHeaterCommandRequest.has_fields
+enum WaterHeaterCommandHasField {
+  WATER_HEATER_COMMAND_HAS_NONE = 0;
+  WATER_HEATER_COMMAND_HAS_MODE = 1;
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE = 2;
+  WATER_HEATER_COMMAND_HAS_STATE = 4;
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW = 8;
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH = 16;
+}
+
+message WaterHeaterCommandRequest {
+  option (id) = 134;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_WATER_HEATER";
+  option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
+
+  fixed32 key = 1;
+  // Bitmask of which fields are set (see WaterHeaterCommandHasField)
+  uint32 has_fields = 2;
+  WaterHeaterMode mode = 3;
+  float target_temperature = 4;
+  uint32 device_id = 5 [(field_ifdef) = "USE_DEVICES"];
+  // State flags bitmask (bit 0 = away, bit 1 = on)
+  uint32 state = 6;
+  float target_temperature_low = 7;
+  float target_temperature_high = 8;
+}
+
 // ==================== NUMBER ====================
 enum NumberMode {
   NUMBER_MODE_AUTO = 0;

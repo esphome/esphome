@@ -6,8 +6,7 @@
 
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace alarm_control_panel {
+namespace esphome::alarm_control_panel {
 
 class AlarmControlPanel;
 
@@ -36,5 +35,4 @@ class AlarmControlPanelCall {
   void validate_();
 };
 
-}  // namespace alarm_control_panel
-}  // namespace esphome
+}  // namespace esphome::alarm_control_panel

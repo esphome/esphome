@@ -348,6 +348,47 @@ template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::Climate
   }
 }
 #endif
+#ifdef USE_WATER_HEATER
+template<> const char *proto_enum_to_string<enums::WaterHeaterMode>(enums::WaterHeaterMode value) {
+  switch (value) {
+    case enums::WATER_HEATER_MODE_OFF:
+      return "WATER_HEATER_MODE_OFF";
+    case enums::WATER_HEATER_MODE_ECO:
+      return "WATER_HEATER_MODE_ECO";
+    case enums::WATER_HEATER_MODE_ELECTRIC:
+      return "WATER_HEATER_MODE_ELECTRIC";
+    case enums::WATER_HEATER_MODE_PERFORMANCE:
+      return "WATER_HEATER_MODE_PERFORMANCE";
+    case enums::WATER_HEATER_MODE_HIGH_DEMAND:
+      return "WATER_HEATER_MODE_HIGH_DEMAND";
+    case enums::WATER_HEATER_MODE_HEAT_PUMP:
+      return "WATER_HEATER_MODE_HEAT_PUMP";
+    case enums::WATER_HEATER_MODE_GAS:
+      return "WATER_HEATER_MODE_GAS";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+template<>
+const char *proto_enum_to_string<enums::WaterHeaterCommandHasField>(enums::WaterHeaterCommandHasField value) {
+  switch (value) {
+    case enums::WATER_HEATER_COMMAND_HAS_NONE:
+      return "WATER_HEATER_COMMAND_HAS_NONE";
+    case enums::WATER_HEATER_COMMAND_HAS_MODE:
+      return "WATER_HEATER_COMMAND_HAS_MODE";
+    case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE:
+      return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE";
+    case enums::WATER_HEATER_COMMAND_HAS_STATE:
+      return "WATER_HEATER_COMMAND_HAS_STATE";
+    case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW:
+      return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW";
+    case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH:
+      return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH";
+    default:
+      return "UNKNOWN";
+  }
+}
 #ifdef USE_NUMBER
 template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode value) {
   switch (value) {
@@ -1396,6 +1437,55 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
+}
+#endif
+#ifdef USE_WATER_HEATER
+void ListEntitiesWaterHeaterResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ListEntitiesWaterHeaterResponse");
+  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "key", this->key);
+  dump_field(out, "name", this->name_ref_);
+#ifdef USE_ENTITY_ICON
+  dump_field(out, "icon", this->icon_ref_);
+#endif
+  dump_field(out, "disabled_by_default", this->disabled_by_default);
+  dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+  dump_field(out, "min_temperature", this->min_temperature);
+  dump_field(out, "max_temperature", this->max_temperature);
+  dump_field(out, "target_temperature_step", this->target_temperature_step);
+  for (const auto &it : *this->supported_modes) {
+    dump_field(out, "supported_modes", static_cast<enums::WaterHeaterMode>(it), 4);
+  }
+  dump_field(out, "supported_features", this->supported_features);
+}
+void WaterHeaterStateResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "WaterHeaterStateResponse");
+  dump_field(out, "key", this->key);
+  dump_field(out, "current_temperature", this->current_temperature);
+  dump_field(out, "target_temperature", this->target_temperature);
+  dump_field(out, "mode", static_cast<enums::WaterHeaterMode>(this->mode));
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+  dump_field(out, "state", this->state);
+  dump_field(out, "target_temperature_low", this->target_temperature_low);
+  dump_field(out, "target_temperature_high", this->target_temperature_high);
+}
+void WaterHeaterCommandRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "WaterHeaterCommandRequest");
+  dump_field(out, "key", this->key);
+  dump_field(out, "has_fields", this->has_fields);
+  dump_field(out, "mode", static_cast<enums::WaterHeaterMode>(this->mode));
+  dump_field(out, "target_temperature", this->target_temperature);
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+  dump_field(out, "state", this->state);
+  dump_field(out, "target_temperature_low", this->target_temperature_low);
+  dump_field(out, "target_temperature_high", this->target_temperature_high);
 }
 #endif
 #ifdef USE_NUMBER
