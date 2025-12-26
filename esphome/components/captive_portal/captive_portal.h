@@ -5,7 +5,7 @@
 #ifdef USE_ARDUINO
 #include <DNSServer.h>
 #endif
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include "dns_server_esp32_idf.h"
 #endif
 #include "esphome/core/component.h"
@@ -23,14 +23,13 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   void setup() override;
   void dump_config() override;
   void loop() override {
-#ifdef USE_ARDUINO
-    if (this->dns_server_ != nullptr) {
-      this->dns_server_->processNextRequest();
-    }
-#endif
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP32)
     if (this->dns_server_ != nullptr) {
       this->dns_server_->process_next_request();
+    }
+#elif defined(USE_ARDUINO)
+    if (this->dns_server_ != nullptr) {
+      this->dns_server_->processNextRequest();
     }
 #endif
   }
@@ -64,7 +63,7 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   web_server_base::WebServerBase *base_;
   bool initialized_{false};
   bool active_{false};
-#if defined(USE_ARDUINO) || defined(USE_ESP_IDF)
+#if defined(USE_ARDUINO) || defined(USE_ESP32)
   std::unique_ptr<DNSServer> dns_server_{nullptr};
 #endif
 };
