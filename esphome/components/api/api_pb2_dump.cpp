@@ -1579,7 +1579,7 @@ void ListEntitiesSirenResponse::dump_to(std::string &out) const {
   dump_field(out, "icon", this->icon_ref_);
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
-  for (const auto &it : this->tones) {
+  for (const auto &it : *this->tones) {
     dump_field(out, "tones", it, 4);
   }
   dump_field(out, "supports_duration", this->supports_duration);

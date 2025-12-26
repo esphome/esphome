@@ -1292,7 +1292,7 @@ message ListEntitiesSirenResponse {
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
   bool disabled_by_default = 6;
-  repeated string tones = 7;
+  repeated string tones = 7 [(container_pointer_no_template) = "FixedVector<const char *>"];
   bool supports_duration = 8;
   bool supports_volume = 9;
   EntityCategory entity_category = 10;
