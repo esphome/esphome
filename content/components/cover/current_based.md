@@ -98,7 +98,7 @@ cover:
 - **obstacle_rollback** (*Optional*, percentage): The percentage of rollback the cover will perform in case of
   obstacle detection. Defaults to `10%`.
 
-- **malfunction_detection** (*Optional*, boolean): Enable to detect malfunction detection (Tipically welded realys). Defaults to `True`.
+- **malfunction_detection** (*Optional*, boolean): Enable to detect malfunction detection (Typically welded relays). Defaults to `True`.
 - **malfunction_action** (*Optional*, [Action](/automations/actions#all-actions)): The action that should
   be performed when relay malfunction is detected. Malfunction may require device servicing. You can use this action
   to notify other systems about this situation
