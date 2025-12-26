@@ -706,20 +706,14 @@ inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
   output[12] = '\0';
 }
 
+/// Format byte array as lowercase hex to buffer (base implementation).
+char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length);
+
 /// Format byte array as lowercase hex to buffer. Automatically deduces buffer size.
 /// Truncates output if data exceeds buffer capacity. Returns pointer to buffer.
 template<size_t N> inline char *format_hex_to(char (&buffer)[N], const uint8_t *data, size_t length) {
   static_assert(N >= 3, "Buffer must hold at least one hex byte (3 chars)");
-  size_t max_bytes = (N - 1) / 2;
-  if (length > max_bytes) {
-    length = max_bytes;
-  }
-  for (size_t i = 0; i < length; i++) {
-    buffer[2 * i] = format_hex_char(data[i] >> 4);
-    buffer[2 * i + 1] = format_hex_char(data[i] & 0x0F);
-  }
-  buffer[length * 2] = '\0';
-  return buffer;
+  return format_hex_to(buffer, N, data, length);
 }
 
 /// Format an unsigned integer in lowercased hex to buffer, starting with the most significant byte.
