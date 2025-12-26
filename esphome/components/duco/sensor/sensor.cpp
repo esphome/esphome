@@ -110,7 +110,7 @@ void DucoBoxTemperatureSensor::receive_response(const DucoMessage &message) {
     int16_t temp_value = (message.data[4] << 8) + message.data[3];
     // only publish the state if the temperature value is reasonable
     // otherwise the value is likely invalid
-    if (temp_value <= 1000 && temp_value > -100)
+    if (temp_value <= 1000 && temp_value > -1000)
       publish_state(temp_value / 10.0);
 
     this->parent_->stop_waiting(message.id);
