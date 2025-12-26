@@ -3,9 +3,13 @@ description: "Installing ESPHome Manually"
 title: "Installing ESPHome Manually"
 ---
 
+> [!WARNING]
+> **Python 3.14 is not yet supported.** Please use Python 3.11, 3.12, or 3.13.
+> Python 3.14 introduced breaking changes that ESPHome's dependencies have not yet adapted to.
+
 ## Windows
 
-Download Python from [the official site](https://www.python.org/downloads/). Confirm that the version is at least 3.11; versions 3.14 or higher are not yet recommended.
+Download Python from [the official site](https://www.python.org/downloads/). Use Python 3.11, 3.12, or 3.13.
 
 {{< img src="python-win-installer.png"
   alt="Python installer window with arrows pointing to \"Add Python to PATH\" and \"Install Now\""
