@@ -63,7 +63,7 @@ void ScanResultsWiFiInfo::setup() { wifi::global_wifi_component->add_scan_result
 
 void ScanResultsWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "Scan Results", this); }
 
-// Format: "SSID: -XXdB\n" - caller must ensure 9 bytes available after ssid
+// Format: "SSID: -XXdB\n" - caller must ensure ssid_len + 9 bytes available in buffer
 static char *format_scan_entry(char *buf, const char *ssid, size_t ssid_len, int8_t rssi) {
   memcpy(buf, ssid, ssid_len);
   buf += ssid_len;
