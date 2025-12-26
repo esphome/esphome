@@ -36,8 +36,7 @@
 #endif
 #endif
 
-namespace esphome {
-namespace web_server {
+namespace esphome::web_server {
 
 static const char *const TAG = "web_server";
 
@@ -2112,6 +2111,5 @@ void WebServer::add_sorting_group(uint64_t group_id, const std::string &group_na
 }
 #endif
 
-}  // namespace web_server
-}  // namespace esphome
+}  // namespace esphome::web_server
 #endif
