@@ -700,7 +700,7 @@ inline char *int8_to_str(char *buf, int8_t val) {
     *buf++ = '0' + tens;
     v -= tens * 10;
   } else if (v >= 10) {
-    int tens = v / 10;
+    int32_t tens = v / 10;
     *buf++ = '0' + tens;
     v -= tens * 10;
   }
