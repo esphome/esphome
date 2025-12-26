@@ -44,13 +44,6 @@ static const char *const TAG = "web_server";
 static constexpr size_t PSTR_LOCAL_SIZE = 18;
 #define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), PSTR_LOCAL_SIZE - 1)
 
-#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-static const char *const HEADER_PNA_NAME = "Private-Network-Access-Name";
-static const char *const HEADER_PNA_ID = "Private-Network-Access-ID";
-static const char *const HEADER_CORS_REQ_PNA = "Access-Control-Request-Private-Network";
-static const char *const HEADER_CORS_ALLOW_PNA = "Access-Control-Allow-Private-Network";
-#endif
-
 // Parse URL and return match info
 static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain) {
   UrlMatch match{};
@@ -367,10 +360,10 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse(200, "");
-  response->addHeader(HEADER_CORS_ALLOW_PNA, "true");
-  response->addHeader(HEADER_PNA_NAME, App.get_name().c_str());
+  response->addHeader(ESPHOME_F("Access-Control-Allow-Private-Network"), ESPHOME_F("true"));
+  response->addHeader(ESPHOME_F("Private-Network-Access-Name"), App.get_name().c_str());
   char mac_s[18];
-  response->addHeader(HEADER_PNA_ID, get_mac_address_pretty_into_buffer(mac_s));
+  response->addHeader(ESPHOME_F("Private-Network-Access-ID"), get_mac_address_pretty_into_buffer(mac_s));
   request->send(response);
 }
 #endif
@@ -1840,7 +1833,7 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   }
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-  if (method == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA))
+  if (method == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network")))
     return true;
 #endif
 
@@ -1973,7 +1966,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-  if (request->method() == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA)) {
+  if (request->method() == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network"))) {
     this->handle_pna_cors_request(request);
     return;
   }
