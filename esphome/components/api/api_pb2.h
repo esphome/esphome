@@ -2521,17 +2521,12 @@ class VoiceAssistantEventResponse final : public ProtoDecodableMessage {
 class VoiceAssistantAudio final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 106;
-  static constexpr uint8_t ESTIMATED_SIZE = 11;
+  static constexpr uint8_t ESTIMATED_SIZE = 21;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "voice_assistant_audio"; }
 #endif
-  std::string data{};
-  const uint8_t *data_ptr_{nullptr};
-  size_t data_len_{0};
-  void set_data(const uint8_t *data, size_t len) {
-    this->data_ptr_ = data;
-    this->data_len_ = len;
-  }
+  const uint8_t *data{nullptr};
+  uint16_t data_len{0};
   bool end{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
