@@ -50,6 +50,14 @@ services:
 > need to mount the volume with the `nolock` option, otherwise platformio may
 > freeze on container startup as per [platformIO-core Issue 3089](https://github.com/platformio/platformio-core/issues/3089)
 
+> [!WARNING]
+> Running ESPHome in Docker on WSL2 can be significantly slower
+> (10x or more) than native Linux or a traditional VM due to filesystem performance
+> issues when accessing files on Windows drives. For better performance, store your
+> ESPHome files inside the WSL2 filesystem (e.g., `~/esphome/...`)
+> rather than on a Windows mount (e.g., `/mnt/c/...`). See [Issue #12568](https://github.com/esphome/esphome/issues/12568)
+> for more details.
+
 The project provides multiple docker tags; please pick the one that suits you
 better:
 
