@@ -1937,7 +1937,7 @@ message VoiceAssistantAudio {
   option (source) = SOURCE_BOTH;
   option (ifdef) = "USE_VOICE_ASSISTANT";
 
-  bytes data = 1;
+  bytes data = 1 [(pointer_to_buffer) = true];
   bool end = 2;
 }
 
