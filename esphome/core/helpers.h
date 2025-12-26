@@ -687,7 +687,7 @@ inline char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) 
 /// Write int8 value to buffer without modulo operations.
 /// Buffer must have at least 4 bytes free. Returns pointer past last char written.
 inline char *int8_to_str(char *buf, int8_t val) {
-  int v = val;
+  int32_t v = val;
   if (v < 0) {
     *buf++ = '-';
     v = -v;
