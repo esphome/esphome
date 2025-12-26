@@ -671,11 +671,16 @@ void EthernetComponent::dump_connect_params_() {
   }
 #endif /* USE_NETWORK_IPV6 */
 
+  // Use stack buffer for MAC address formatting to avoid heap allocation
+  uint8_t mac[6];
+  char mac_buf[18];
+  get_eth_mac_address_raw(mac);
+  format_mac_addr_upper(mac, mac_buf);
   ESP_LOGCONFIG(TAG,
                 "  MAC Address: %s\n"
                 "  Is Full Duplex: %s\n"
                 "  Link Speed: %u",
-                this->get_eth_mac_address_pretty().c_str(), YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL),
+                mac_buf, YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL),
                 this->get_link_speed() == ETH_SPEED_100M ? 100 : 10);
 }
 
