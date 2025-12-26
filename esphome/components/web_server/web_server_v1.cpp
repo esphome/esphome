@@ -3,8 +3,7 @@
 
 #if USE_WEBSERVER_VERSION == 1
 
-namespace esphome {
-namespace web_server {
+namespace esphome::web_server {
 
 // Write HTML-escaped text to stream (escapes ", &, <, >)
 static void write_html_escaped(AsyncResponseStream *stream, const char *text) {
@@ -257,6 +256,5 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   request->send(stream);
 }
 
-}  // namespace web_server
-}  // namespace esphome
+}  // namespace esphome::web_server
 #endif

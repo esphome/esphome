@@ -33,8 +33,7 @@ extern const uint8_t ESPHOME_WEBSERVER_JS_INCLUDE[] PROGMEM;
 extern const size_t ESPHOME_WEBSERVER_JS_INCLUDE_SIZE;
 #endif
 
-namespace esphome {
-namespace web_server {
+namespace esphome::web_server {
 
 /// Result of matching a URL against an entity
 struct EntityMatchResult {
@@ -612,6 +611,5 @@ class WebServer : public Controller,
 #endif
 };
 
-}  // namespace web_server
-}  // namespace esphome
+}  // namespace esphome::web_server
 #endif
