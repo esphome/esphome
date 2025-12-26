@@ -190,6 +190,10 @@ void HUB75Display::set_brightness(uint8_t brightness) {
   }
 }
 
+int HUB75Display::get_width_internal() { return this->driver_ != nullptr ? this->driver_->get_width() : 0; }
+
+int HUB75Display::get_height_internal() { return this->driver_ != nullptr ? this->driver_->get_height() : 0; }
+
 }  // namespace esphome::hub75
 
 #endif

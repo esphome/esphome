@@ -39,8 +39,8 @@ class HUB75Display : public display::Display {
 
  protected:
   // Display internal methods
-  int get_width_internal() override { return config_.panel_width * config_.layout_cols; }
-  int get_height_internal() override { return config_.panel_height * config_.layout_rows; }
+  int get_width_internal() override;
+  int get_height_internal() override;
 
   // Member variables
   Hub75Driver *driver_{nullptr};
