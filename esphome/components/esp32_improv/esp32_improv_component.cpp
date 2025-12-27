@@ -403,8 +403,12 @@ void ESP32ImprovComponent::check_wifi_connection_() {
 #ifdef USE_WEBSERVER
     for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
       if (ip.is_ip4()) {
-        char url_buffer[64];
-        snprintf(url_buffer, sizeof(url_buffer), "http://%s:%d", ip.str().c_str(), USE_WEBSERVER_PORT);
+        // "http://" (7) + IPv4 max (15) + ":" (1) + port max (5) + null = 29
+        char url_buffer[32];
+        memcpy(url_buffer, "http://", 7);  // NOLINT(bugprone-not-null-terminated-result) - str_to null-terminates
+        ip.str_to(url_buffer + 7);
+        size_t len = strlen(url_buffer);
+        snprintf(url_buffer + len, sizeof(url_buffer) - len, ":%d", USE_WEBSERVER_PORT);
         url_strings[url_count++] = url_buffer;
         break;
       }
