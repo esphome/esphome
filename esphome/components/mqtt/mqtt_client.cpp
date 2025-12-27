@@ -404,24 +404,27 @@ void MQTTClientComponent::loop() {
 }
 float MQTTClientComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
-/** Generate a 32-bit hash for an MQTT subscription topic
- *
- * Creates a unique identifier for the subscription topic that can be used
- * as a key for persistence storage.
+/** Generate a 32-bit hash for an MQTT subscription (based on topic and QoS)
  *
  * @param sub The MQTT subscription to hash.
  * @return A 32-bit hash value based on the topic.
  */
-uint32_t MQTTClientComponent::hash_subscription(const MQTTSubscription &sub) { return fnv1_hash(sub.topic.c_str()); }
+uint32_t MQTTClientComponent::hash_subscription(const MQTTSubscription &sub) {
+  uint32_t hash = fnv1_hash(sub.topic.c_str());
+  // Incorporate QoS by mixing it into the hash
+  // Use a simple XOR with shifted QoS to avoid common patterns
+  hash ^= (static_cast<uint32_t>(sub.qos) << 24);
+  // Avoid zero hash
+  if (hash == 0) {
+    hash = 1;
+  }
+  return hash;
+}
 
-/** Check if a subscription is stored in persistent storage
- *
- * Retrieves the subscription QoS from non-volatile memory to determine if
- * this subscription was previously stored (indicating it may still be active
- * on the broker in a persistent session).
+/** Check if a subscription is stored in persistent storage/RTC memory
  *
  * @param sub The MQTT subscription to check.
- * @return true if the subscription was found in storage, false otherwise.
+ * @return true if the subscription was stored, false otherwise.
  */
 bool MQTTClientComponent::is_subscription_persisted(const MQTTSubscription &sub) {
   uint32_t hash = hash_subscription(sub);
@@ -443,11 +446,7 @@ bool MQTTClientComponent::is_subscription_persisted(const MQTTSubscription &sub)
 #endif
 }
 
-/** Store a subscription in persistent storage
- *
- * Saves the subscription QoS to non-volatile memory so it can be checked
- * on reconnect to determine if the subscription is already active on the broker.
- * Stores QoS + 34 as a magic value to distinguish from uninitialized storage.
+/** Store a subscription in persistent storage/RTC memory
  *
  * @param sub The MQTT subscription to store.
  * @return true if the subscription was successfully stored, false otherwise.
@@ -483,10 +482,7 @@ bool MQTTClientComponent::persist_subscription(const MQTTSubscription &sub) {
 #endif
 }
 
-/** Remove a subscription from persistent storage
- *
- * Deletes the subscription from non-volatile memory, typically when
- * unsubscribing from a topic or cleaning up after a clean session.
+/** Remove a subscription from persistent storage/RTC memory
  *
  * @param sub The MQTT subscription to remove.
  * @return true if the subscription was successfully removed, false otherwise.
