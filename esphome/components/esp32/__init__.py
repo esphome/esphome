@@ -4,6 +4,7 @@ import itertools
 import logging
 import os
 from pathlib import Path
+import re
 
 from esphome import yaml_util
 import esphome.codegen as cg
@@ -12,6 +13,7 @@ from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
     CONF_COMPONENTS,
+    CONF_DISABLED,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
     CONF_IGNORE_EFUSE_CUSTOM_MAC,
@@ -23,6 +25,7 @@ from esphome.const import (
     CONF_PLATFORMIO_OPTIONS,
     CONF_REF,
     CONF_REFRESH,
+    CONF_SAFE_MODE,
     CONF_SOURCE,
     CONF_TYPE,
     CONF_VARIANT,
@@ -59,6 +62,7 @@ from .const import (  # noqa
     VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
@@ -79,6 +83,7 @@ CONF_ASSERTION_LEVEL = "assertion_level"
 CONF_COMPILER_OPTIMIZATION = "compiler_optimization"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
+CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_RELEASE = "release"
 
@@ -116,8 +121,8 @@ ARDUINO_ALLOWED_VARIANTS = [
 ]
 
 
-def get_cpu_frequencies(*frequencies):
-    return [str(x) + "MHZ" for x in frequencies]
+def get_cpu_frequencies(*frequencies: int) -> list[str]:
+    return [f"{frequency}MHZ" for frequency in frequencies]
 
 
 CPU_FREQUENCIES = {
@@ -126,6 +131,7 @@ CPU_FREQUENCIES = {
     VARIANT_ESP32C3: get_cpu_frequencies(80, 160),
     VARIANT_ESP32C5: get_cpu_frequencies(80, 160, 240),
     VARIANT_ESP32C6: get_cpu_frequencies(80, 120, 160),
+    VARIANT_ESP32C61: get_cpu_frequencies(80, 120, 160),
     VARIANT_ESP32H2: get_cpu_frequencies(16, 32, 48, 64, 96),
     VARIANT_ESP32P4: get_cpu_frequencies(40, 360, 400),
     VARIANT_ESP32S2: get_cpu_frequencies(80, 160, 240),
@@ -133,7 +139,7 @@ CPU_FREQUENCIES = {
 }
 
 # Make sure not missed here if a new variant added.
-assert all(v in CPU_FREQUENCIES for v in VARIANTS)
+assert all(variant in CPU_FREQUENCIES for variant in VARIANTS)
 
 FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values()))
 
@@ -247,10 +253,10 @@ def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
 def add_idf_component(
     *,
     name: str,
-    repo: str = None,
-    ref: str = None,
-    path: str = None,
-    refresh: TimePeriod = None,
+    repo: str | None = None,
+    ref: str | None = None,
+    path: str | None = None,
+    refresh: TimePeriod | None = None,
     components: list[str] | None = None,
     submodules: list[str] | None = None,
 ):
@@ -331,7 +337,7 @@ def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
     return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}/esp-idf-v{str(ver)}.{ext}"
 
 
-def _is_framework_url(source: str) -> str:
+def _is_framework_url(source: str) -> bool:
     # platformio accepts many URL schemes for framework repositories and archives including http, https, git, file, and symlink
     import urllib.parse
 
@@ -568,6 +574,13 @@ def final_validate(config):
                 path=[CONF_FLASH_SIZE],
             )
         )
+    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+        safe_mode_config = full_config.get(CONF_SAFE_MODE)
+        if safe_mode_config is None or safe_mode_config.get(CONF_DISABLED, False):
+            _LOGGER.warning(
+                "OTA rollback requires safe_mode, disabling rollback support"
+            )
+            advanced[CONF_ENABLE_OTA_ROLLBACK] = False
     if errs:
         raise cv.MultipleInvalid(errs)
 
@@ -614,10 +627,13 @@ def require_vfs_dir() -> None:
 
 def _parse_idf_component(value: str) -> ConfigType:
     """Parse IDF component shorthand syntax like 'owner/component^version'"""
-    if "^" not in value:
-        raise cv.Invalid(f"Invalid IDF component shorthand '{value}'")
-    name, ref = value.split("^", 1)
-    return {CONF_NAME: name, CONF_REF: ref}
+    # Match operator followed by version-like string (digit or *)
+    if match := re.search(r"(~=|>=|<=|==|!=|>|<|\^|~)(\d|\*)", value):
+        return {CONF_NAME: value[: match.start()], CONF_REF: value[match.start() :]}
+    raise cv.Invalid(
+        f"Invalid IDF component shorthand '{value}'. "
+        f"Expected format: 'owner/component<op>version' where <op> is one of: ^, ~, ~=, ==, !=, >=, >, <=, <"
+    )
 
 
 def _validate_idf_component(config: ConfigType) -> ConfigType:
@@ -685,6 +701,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
                     min=8192, max=32768
                 ),
+                cv.Optional(CONF_ENABLE_OTA_ROLLBACK, default=True): cv.boolean,
             }
         ),
         cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
@@ -762,7 +779,7 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
         + "Need help? Check out the migration guide:\n"
         + color(
             AnsiFore.BLUE,
-            "https://esphome.io/guides/esp32_arduino_to_idf.html",
+            "https://esphome.io/guides/esp32_arduino_to_idf/",
         )
     )
     _LOGGER.warning(message)
@@ -965,29 +982,14 @@ async def to_code(config):
         cg.add_platformio_option("framework", "arduino, espidf")
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
-        cg.add_platformio_option(
-            "board_build.embed_txtfiles",
-            [
-                "managed_components/espressif__esp_insights/server_certs/https_server.crt",
-                "managed_components/espressif__esp_rainmaker/server_certs/rmaker_mqtt_server.crt",
-                "managed_components/espressif__esp_rainmaker/server_certs/rmaker_claim_service_server.crt",
-                "managed_components/espressif__esp_rainmaker/server_certs/rmaker_ota_server.crt",
-            ],
-        )
         cg.add_define(
             "USE_ARDUINO_VERSION_CODE",
             cg.RawExpression(
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
         )
-        add_idf_sdkconfig_option(
-            "CONFIG_ARDUINO_LOOP_STACK_SIZE",
-            conf[CONF_ADVANCED][CONF_LOOP_TASK_STACK_SIZE],
-        )
-        add_idf_sdkconfig_option("CONFIG_AUTOSTART_ARDUINO", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
-        add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
         # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
         if get_esp32_variant() == VARIANT_ESP32S2:
@@ -1158,6 +1160,11 @@ async def to_code(config):
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH", True
             )
 
+    # Enable OTA rollback support
+    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+        add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
+        cg.add_define("USE_OTA_ROLLBACK")
+
     cg.add_define("ESPHOME_LOOP_TASK_STACK_SIZE", advanced[CONF_LOOP_TASK_STACK_SIZE])
 
     cg.add_define(
@@ -1187,7 +1194,7 @@ APP_PARTITION_SIZES = {
 }
 
 
-def get_arduino_partition_csv(flash_size):
+def get_arduino_partition_csv(flash_size: str):
     app_partition_size = APP_PARTITION_SIZES[flash_size]
     eeprom_partition_size = 0x1000  # 4 KB
     spiffs_partition_size = 0xF000  # 60 KB
@@ -1207,7 +1214,7 @@ spiffs,   data, spiffs,  0x{spiffs_partition_start:X}, 0x{spiffs_partition_size:
 """
 
 
-def get_idf_partition_csv(flash_size):
+def get_idf_partition_csv(flash_size: str):
     app_partition_size = APP_PARTITION_SIZES[flash_size]
 
     return f"""\

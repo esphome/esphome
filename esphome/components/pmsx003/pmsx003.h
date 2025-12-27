@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/components/aqi/aqi_calculator_factory.h"
 
 namespace esphome {
 namespace pmsx003 {
@@ -31,6 +32,7 @@ enum PMSX003State {
 class PMSX003Component : public uart::UARTDevice, public Component {
  public:
   PMSX003Component() = default;
+  void setup() override;
   void dump_config() override;
   void loop() override;
 
@@ -71,6 +73,10 @@ class PMSX003Component : public uart::UARTDevice, public Component {
 
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
+
+  void set_aqi_sensor(sensor::Sensor *aqi_sensor) { aqi_sensor_ = aqi_sensor; }
+
+  void set_aqi_calculation_type(aqi::AQICalculatorType aqi_calc_type) { aqi_calc_type_ = aqi_calc_type; }
 
  protected:
   optional<bool> check_byte_();
@@ -115,6 +121,12 @@ class PMSX003Component : public uart::UARTDevice, public Component {
   // Temperature and Humidity
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
+
+  // AQI
+  sensor::Sensor *aqi_sensor_{nullptr};
+
+  aqi::AQICalculatorType aqi_calc_type_;
+  aqi::AQICalculatorFactory aqi_calculator_factory_ = aqi::AQICalculatorFactory();
 };
 
 }  // namespace pmsx003
