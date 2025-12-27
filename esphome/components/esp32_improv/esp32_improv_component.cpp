@@ -405,7 +405,7 @@ void ESP32ImprovComponent::check_wifi_connection_() {
       if (ip.is_ip4()) {
         // "http://" (7) + IPv4 max (15) + ":" (1) + port max (5) + null = 29
         char url_buffer[32];
-        memcpy(url_buffer, "http://", 7);  // NOLINT - str_to null-terminates
+        memcpy(url_buffer, "http://", 7);  // NOLINT(bugprone-not-null-terminated-result) - str_to null-terminates
         ip.str_to(url_buffer + 7);
         size_t len = strlen(url_buffer);
         snprintf(url_buffer + len, sizeof(url_buffer) - len, ":%d", USE_WEBSERVER_PORT);
