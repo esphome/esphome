@@ -31,6 +31,19 @@ static constexpr uint8_t FIRMWARE_MAGIC = 0xE9;
 static constexpr uint8_t GZIP_MAGIC_1 = 0x1F;
 static constexpr uint8_t GZIP_MAGIC_2 = 0x8B;
 
+// ESP8266 flash memory base address (memory-mapped flash starts here)
+static constexpr uint32_t FLASH_BASE_ADDRESS = 0x40200000;
+
+// Boot mode extraction from GPI register (bits 16-19 contain boot mode)
+static constexpr int BOOT_MODE_SHIFT = 16;
+static constexpr int BOOT_MODE_MASK = 0xf;
+
+// Boot mode indicating UART download mode (OTA not possible)
+static constexpr int BOOT_MODE_UART_DOWNLOAD = 1;
+
+// Minimum buffer size when memory is constrained
+static constexpr size_t MIN_BUFFER_SIZE = 256;
+
 namespace esphome::ota {
 
 static const char *const TAG = "ota.esp8266";
@@ -44,10 +57,10 @@ OTAResponseTypes ESP8266OTABackend::begin(size_t image_size) {
     image_size = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
   }
 
-  // Check boot mode - if boot mode is 1 (UART download mode),
+  // Check boot mode - if boot mode is UART download mode,
   // we will not be able to reset into normal mode once update is done
-  int boot_mode = (GPI >> 16) & 0xf;
-  if (boot_mode == 1) {
+  int boot_mode = (GPI >> BOOT_MODE_SHIFT) & BOOT_MODE_MASK;
+  if (boot_mode == BOOT_MODE_UART_DOWNLOAD) {
     return OTA_RESPONSE_ERROR_INVALID_BOOTSTRAPPING;
   }
 
@@ -68,7 +81,7 @@ OTAResponseTypes ESP8266OTABackend::begin(size_t image_size) {
   uint32_t rounded_size = (image_size + FLASH_SECTOR_SIZE - 1) & (~(FLASH_SECTOR_SIZE - 1));
 
   // End of available space for sketch and update (start of filesystem)
-  uint32_t update_end_address = FS_start - 0x40200000;
+  uint32_t update_end_address = FS_start - FLASH_BASE_ADDRESS;
 
   // Calculate start address for the update (write from end backwards)
   this->start_address_ = (update_end_address > rounded_size) ? (update_end_address - rounded_size) : 0;
@@ -83,7 +96,7 @@ OTAResponseTypes ESP8266OTABackend::begin(size_t image_size) {
   if (ESP.getFreeHeap() > 2 * FLASH_SECTOR_SIZE) {
     this->buffer_size_ = FLASH_SECTOR_SIZE;
   } else {
-    this->buffer_size_ = 256;
+    this->buffer_size_ = MIN_BUFFER_SIZE;
   }
 
   this->buffer_ = make_unique<uint8_t[]>(this->buffer_size_);
