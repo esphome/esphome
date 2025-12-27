@@ -6,6 +6,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
 #include <string>
 #include <vector>
@@ -274,7 +275,7 @@ class WiFiScanResultsListener {
  */
 class WiFiConnectStateListener {
  public:
-  virtual void on_wifi_connect_state(const std::string &ssid, const bssid_t &bssid) = 0;
+  virtual void on_wifi_connect_state(StringRef ssid, const bssid_t &bssid) = 0;
 };
 
 /** Listener interface for WiFi power save mode changes.
