@@ -302,10 +302,8 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       ESP_LOGV(TAG, "Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
                format_mac_address_pretty(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
 #ifdef USE_WIFI_LISTENERS
-      bssid_t bssid;
-      std::copy_n(it.bssid, 6, bssid.begin());
       for (auto *listener : this->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(buf, it.ssid_len), bssid);
+        listener->on_wifi_connect_state(StringRef(buf, it.ssid_len), it.bssid);
       }
       // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #ifdef USE_WIFI_MANUAL_IP
@@ -359,8 +357,9 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
 
       s_sta_connecting = false;
 #ifdef USE_WIFI_LISTENERS
+      static constexpr uint8_t EMPTY_BSSID[6] = {};
       for (auto *listener : this->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(), bssid_t({0, 0, 0, 0, 0, 0}));
+        listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
       }
 #endif
       break;

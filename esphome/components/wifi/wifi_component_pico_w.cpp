@@ -277,8 +277,9 @@ void WiFiComponent::wifi_loop_() {
     s_sta_had_ip = false;
     ESP_LOGV(TAG, "Disconnected");
 #ifdef USE_WIFI_LISTENERS
+    static constexpr uint8_t EMPTY_BSSID[6] = {};
     for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(), bssid_t({0, 0, 0, 0, 0, 0}));
+      listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
     }
 #endif
   }
