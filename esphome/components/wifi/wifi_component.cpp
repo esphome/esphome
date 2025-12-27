@@ -655,12 +655,15 @@ void WiFiComponent::setup_ap_config_() {
 #ifdef USE_WIFI_MANUAL_IP
   auto manual_ip = this->ap_.get_manual_ip();
   if (manual_ip.has_value()) {
+    char static_ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
     ESP_LOGCONFIG(TAG,
                   "  AP Static IP: '%s'\n"
                   "  AP Gateway: '%s'\n"
                   "  AP Subnet: '%s'",
-                  manual_ip->static_ip.str().c_str(), manual_ip->gateway.str().c_str(),
-                  manual_ip->subnet.str().c_str());
+                  manual_ip->static_ip.str_to(static_ip_buf), manual_ip->gateway.str_to(gateway_buf),
+                  manual_ip->subnet.str_to(subnet_buf));
   }
 #endif
 
@@ -816,8 +819,14 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 #ifdef USE_WIFI_MANUAL_IP
   if (ap.get_manual_ip().has_value()) {
     ManualIP m = *ap.get_manual_ip();
-    ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.str().c_str(),
-             m.gateway.str().c_str(), m.subnet.str().c_str(), m.dns1.str().c_str(), m.dns2.str().c_str());
+    char static_ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.str_to(static_ip_buf),
+             m.gateway.str_to(gateway_buf), m.subnet.str_to(subnet_buf), m.dns1.str_to(dns1_buf),
+             m.dns2.str_to(dns2_buf));
   } else
 #endif
   {
