@@ -53,8 +53,9 @@ std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::ES
 OTAResponseTypes ESP8266OTABackend::begin(size_t image_size) {
   // Handle UPDATE_SIZE_UNKNOWN (0) by calculating available space
   if (image_size == 0) {
+    // Round down to sector boundary: subtract one sector, then mask to sector alignment
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-    image_size = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+    image_size = (ESP.getFreeSketchSpace() - FLASH_SECTOR_SIZE) & ~(FLASH_SECTOR_SIZE - 1);
   }
 
   // Check boot mode - if boot mode is UART download mode,
@@ -91,13 +92,9 @@ OTAResponseTypes ESP8266OTABackend::begin(size_t image_size) {
     return OTA_RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE;
   }
 
-  // Allocate buffer for sector writes
+  // Allocate buffer for sector writes (use smaller buffer if memory constrained)
   // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-  if (ESP.getFreeHeap() > 2 * FLASH_SECTOR_SIZE) {
-    this->buffer_size_ = FLASH_SECTOR_SIZE;
-  } else {
-    this->buffer_size_ = MIN_BUFFER_SIZE;
-  }
+  this->buffer_size_ = (ESP.getFreeHeap() > 2 * FLASH_SECTOR_SIZE) ? FLASH_SECTOR_SIZE : MIN_BUFFER_SIZE;
 
   this->buffer_ = make_unique<uint8_t[]>(this->buffer_size_);
   if (!this->buffer_) {
