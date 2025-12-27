@@ -2,10 +2,12 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/wifi/wifi_component.h"
 #ifdef USE_WIFI
 #include <array>
+#include <span>
 
 namespace esphome::wifi_info {
 
@@ -52,7 +54,7 @@ class SSIDWiFiInfo final : public Component, public text_sensor::TextSensor, pub
   void dump_config() override;
 
   // WiFiConnectStateListener interface
-  void on_wifi_connect_state(const std::string &ssid, const wifi::bssid_t &bssid) override;
+  void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) override;
 };
 
 class BSSIDWiFiInfo final : public Component, public text_sensor::TextSensor, public wifi::WiFiConnectStateListener {
@@ -61,7 +63,7 @@ class BSSIDWiFiInfo final : public Component, public text_sensor::TextSensor, pu
   void dump_config() override;
 
   // WiFiConnectStateListener interface
-  void on_wifi_connect_state(const std::string &ssid, const wifi::bssid_t &bssid) override;
+  void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) override;
 };
 
 class PowerSaveModeWiFiInfo final : public Component,
