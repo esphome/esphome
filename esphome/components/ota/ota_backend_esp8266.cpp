@@ -223,7 +223,7 @@ bool ESP8266OTABackend::write_buffer_() {
 }
 
 bool ESP8266OTABackend::write_buffer_final_() {
-  // Same as write_buffer_() but without MD5 update (for final padded write)
+  // Similar to write_buffer_(), but without flash mode patching or MD5 update (for final padded write)
   if (this->buffer_len_ == 0) {
     return true;
   }
@@ -334,9 +334,9 @@ bool ESP8266OTABackend::verify_end_() {
     return false;
   }
 
-// Check if new firmware's flash size fits (only when auto-detection is disabled)
-// With FLASH_MAP_SUPPORT (modern cores), flash size is auto-detected from chip
 #if !FLASH_MAP_SUPPORT
+  // Check if new firmware's flash size fits (only when auto-detection is disabled)
+  // With FLASH_MAP_SUPPORT (modern cores), flash size is auto-detected from chip
   // NOLINTNEXTLINE(readability-static-accessed-through-instance)
   uint32_t bin_flash_size = ESP.magicFlashChipSize((bytes[3] & 0xf0) >> 4);
   // NOLINTNEXTLINE(readability-static-accessed-through-instance)
