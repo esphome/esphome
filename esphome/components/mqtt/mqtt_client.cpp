@@ -425,9 +425,29 @@ static uint32_t hash_subscription(const MQTTSubscription &sub) { return fnv1_has
  */
 static bool store_subscription(const MQTTSubscription &sub) {
   uint32_t hash = hash_subscription(sub);
-  auto pref = global_preferences->make_preference<uint8_t>(hash, true);
+
+  // For ESP8266 it could be implemented using system_rtc_mem_read & system_rtc_mem_write
+#ifdef USE_ESP32_MQTT_RTC_SESSION_PERSISTENCE
+  // Use RTC memory storage - just store hash (0 = empty)
+  // Find existing entry or first empty slot
+  for (size_t i = 0; i < USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS; i++) {
+    if (MQTTClientComponent::rtc_subscription_hashes_[i] == hash) {
+      // Already stored
+      return true;
+    }
+    if (MQTTClientComponent::rtc_subscription_hashes_[i] == 0) {
+      MQTTClientComponent::rtc_subscription_hashes_[i] = hash;
+      return true;
+    }
+  }
+  ESP_LOGW(TAG, "RTC subscription storage full, cannot store subscription");
+  return false;
+#else
+  // Use flash storage with magic value to distinguish from uninitialized
   uint8_t stored_value = sub.qos + 34;
+  auto pref = global_preferences->make_preference<uint8_t>(hash, true);
   return pref.save(&stored_value);
+#endif
 }
 
 /** Check if a subscription is stored in persistent storage
@@ -441,11 +461,22 @@ static bool store_subscription(const MQTTSubscription &sub) {
  */
 static bool is_subscription_stored(const MQTTSubscription &sub) {
   uint32_t hash = hash_subscription(sub);
+#ifdef USE_ESP32_MQTT_RTC_SESSION_PERSISTENCE
+  // Use RTC memory storage - just check if hash exists
+  for (size_t i = 0; i < USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS; i++) {
+    if (MQTTClientComponent::rtc_subscription_hashes_[i] == hash) {
+      return true;
+    }
+  }
+  return false;
+#else
+  // Use flash storage
   auto pref = global_preferences->make_preference<uint8_t>(hash, true);
   uint8_t stored_value = 0;
   if (!pref.load(&stored_value))
     return false;
   return stored_value == (sub.qos + 34);
+#endif
 }
 
 /** Remove a subscription from persistent storage
@@ -456,15 +487,28 @@ static bool is_subscription_stored(const MQTTSubscription &sub) {
  * @param sub The MQTT subscription to remove.
  * @return true if the subscription was successfully removed, false otherwise.
  */
-static bool remove_subscription(const MQTTSubscription &sub) {
+static bool remove_stored_subscription(const MQTTSubscription &sub) {
   uint32_t hash = hash_subscription(sub);
   // Check if it exists first
   if (!is_subscription_stored(sub)) {
     return true;
   }
+
+#ifdef USE_ESP32_MQTT_RTC_SESSION_PERSISTENCE
+  // Use RTC memory storage - clear hash (set to 0)
+  for (size_t i = 0; i < USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS; i++) {
+    if (MQTTClientComponent::rtc_subscription_hashes_[i] == hash) {
+      MQTTClientComponent::rtc_subscription_hashes_[i] = 0;
+      return true;
+    }
+  }
+  return false;
+#else
+  // Use flash storage
   auto pref = global_preferences->make_preference<uint8_t>(hash, true);
   uint8_t zero_value = 0;
   return pref.save(&zero_value);
+#endif
 }
 
 // Subscribe
@@ -556,7 +600,7 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
   while (it != subscriptions_.end()) {
     if (it->topic == topic) {
       if (!this->credentials_.clean_session) {
-        remove_subscription(*it);
+        remove_stored_subscription(*it);
       }
       it = subscriptions_.erase(it);
     } else {

@@ -25,6 +25,7 @@ from esphome.const import (
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
     CONF_ENABLE_ON_BOOT,
     CONF_ID,
+    CONF_INTERNAL,
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
@@ -60,6 +61,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
+from esphome.final_validate import full_config
 
 DEPENDENCIES = ["network"]
 
@@ -76,6 +78,9 @@ def AUTO_LOAD():
 CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
+CONF_RTC_MAX_SUBSCRIPTIONS = (
+    "rtc_max_subscriptions"
+)
 
 
 def validate_message_just_topic(value):
@@ -160,6 +165,46 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
 }
 
 
+def _final_validate(config: ConfigType) -> ConfigType:
+    # Calculate the number of required space for subscriptions for RTC persistence
+    subscription_count = 0
+    fconf = full_config.get()
+    for conf in fconf.get("alarm_control_panel", []) + fconf.get("button", []) + \
+        fconf.get("datetime", []) + fconf.get("light", []) + fconf.get("lock", []) + \
+        fconf.get("lock", []) + fconf.get("select", []) + fconf.get("switch", []) + \
+        fconf.get("text", []) + fconf.get("time", []) + fconf.get("update", []):
+        if conf.get(CONF_INTERNAL, False):
+            continue
+        subscription_count += 1
+    for conf in fconf.get("climate", []):
+        if conf.get(CONF_INTERNAL, False):
+            continue
+        # Command, temperature (x2), humidity, preset, fan, swing (worst case scenario)
+        subscription_count += 7
+    for conf in fconf.get("cover", []):
+        if conf.get(CONF_INTERNAL, False):
+            continue
+        # Command, tilt and position (worst case scenario)
+        subscription_count += 3
+    for conf in fconf.get("fan", []):
+        if conf.get(CONF_INTERNAL, False):
+            continue
+        # Command, speed, oscillation and direction (worst case scenario)
+        subscription_count += 4
+        pass
+    for conf in fconf.get("valve", []):
+        if conf.get(CONF_INTERNAL, False):
+            continue
+        # Command and position (worst case scenario)
+        subscription_count += 2
+    # For MQTT subscribe sensor and text_sensor
+    for conf in fconf.get("sensor", []) + fconf.get("text_sensor", []):
+        if conf.get("platform") == "mqtt_subscribe":
+            subscription_count += 1
+    config[CONF_RTC_MAX_SUBSCRIPTIONS] = subscription_count
+    return config
+
+
 def validate_config(value):
     # Populate default fields
     out = value.copy()
@@ -215,6 +260,20 @@ def validate_fingerprint(value):
     return value
 
 
+def validate_clean_session(value):
+    """Validate clean_session configuration.
+    
+    Accepts:
+    - True: Clean session (no persistence)
+    - False: Persistent session (uses RTC on ESP32, FLASH otherwise)
+    - FLASH: Persistent session using flash storage
+    - RTC: Persistent session using RTC memory (ESP32 only)
+    """
+    if CORE.is_esp32:
+        return cv.Any(cv.boolean, cv.one_of("FLASH", "RTC"))(value)
+    return cv.Any(cv.boolean, cv.one_of("FLASH"))(value)
+
+
 def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for MQTT component."""
     # MQTT needs 1 socket for the broker connection
@@ -231,7 +290,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PORT, default=1883): cv.port,
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
-            cv.Optional(CONF_CLEAN_SESSION, default=True): cv.boolean,
+            cv.Optional(CONF_CLEAN_SESSION, default=True): validate_clean_session,
+            cv.Optional(CONF_RTC_MAX_SUBSCRIPTIONS): cv.positive_int,
             cv.Optional(CONF_CLIENT_ID): cv.string,
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
@@ -321,6 +381,8 @@ CONFIG_SCHEMA = cv.All(
     _consume_mqtt_sockets,
 )
 
+FINAL_VALIDATE_SCHEMA = _final_validate
+
 
 def exp_mqtt_message(config):
     if config is None:
@@ -356,7 +418,21 @@ async def to_code(config):
     cg.add(var.set_broker_port(config[CONF_PORT]))
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
-    cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
+
+    # Handle clean_session configuration
+    clean_session = config[CONF_CLEAN_SESSION]
+    if clean_session is True:
+        # Standard clean session - no persistence
+        cg.add(var.set_clean_session(True))
+    else:
+        cg.add(var.set_clean_session(False))
+        # Default to RTC on ESP32
+        if clean_session == "RTC" or (clean_session is True and CORE.is_esp32):
+            cg.add_define("USE_ESP32_MQTT_SESSION_PERSISTENCE_IN_RTC")
+            cg.add_define(
+                f"USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS", config[CONF_RTC_MAX_SUBSCRIPTIONS]
+            )
+
     if CONF_CLIENT_ID in config:
         cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
 

@@ -352,6 +352,11 @@ class MQTTClientComponent : public Component
   bool publish_nan_as_none_{false};
   bool wait_for_connection_{false};
   bool session_present_{false};
+
+#ifdef USE_ESP32_MQTT_RTC_SESSION_PERSISTENCE
+  /// RTC memory storage for subscription hashes (ESP32 only), 0 means empty
+  inline static RTC_DATA_ATTR uint32_t rtc_subscription_hashes_[USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS] = {};
+#endif
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
