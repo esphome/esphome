@@ -172,7 +172,8 @@ bool ESP8266OTABackend::write_buffer_() {
   uint8_t original_flash_mode = 0;
   bool patched_flash_mode = false;
 
-  if (is_first_sector && this->buffer_[0] != GZIP_MAGIC_1) {
+  // Only patch if we have enough bytes to access flash mode offset and it's not GZIP
+  if (is_first_sector && this->buffer_len_ > FLASH_MODE_OFFSET && this->buffer_[0] != GZIP_MAGIC_1) {
     // Not GZIP compressed - check and patch flash mode
     uint8_t current_flash_mode = this->get_flash_chip_mode_();
     uint8_t buffer_flash_mode = this->buffer_[FLASH_MODE_OFFSET];
