@@ -50,7 +50,7 @@ class ESP8266OTABackend : public OTABackend {
   size_t image_size_{0};
 
   md5::MD5Digest md5_{};
-  uint8_t expected_md5_[16];  // MD5 = 16 bytes
+  uint8_t expected_md5_[16];  // Fixed-size buffer for 128-bit (16-byte) MD5 digest
   bool md5_set_{false};
 };
 
