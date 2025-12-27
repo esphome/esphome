@@ -476,7 +476,9 @@ void SX127x::dump_config() {
       ESP_LOGCONFIG(TAG, "  Payload Length: %" PRIu32, this->payload_length_);
     }
     if (!this->sync_value_.empty()) {
-      ESP_LOGCONFIG(TAG, "  Sync Value: 0x%s", format_hex(this->sync_value_).c_str());
+      char hex_buf[17];  // 8 bytes max = 16 hex chars + null
+      ESP_LOGCONFIG(TAG, "  Sync Value: 0x%s",
+                    format_hex_to(hex_buf, this->sync_value_.data(), this->sync_value_.size()));
     }
     if (this->preamble_size_ > 0 || this->preamble_detect_ > 0) {
       ESP_LOGCONFIG(TAG,
