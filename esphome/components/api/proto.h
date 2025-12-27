@@ -334,7 +334,7 @@ class ProtoWriteBuffer {
   void encode_sint64(uint32_t field_id, int64_t value, bool force = false) {
     this->encode_uint64(field_id, encode_zigzag64(value), force);
   }
-  void encode_message(uint32_t field_id, const ProtoMessage &value, bool force = false);
+  void encode_message(uint32_t field_id, const ProtoMessage &value);
   std::vector<uint8_t> *get_buffer() const { return buffer_; }
 
  protected:
@@ -795,7 +795,7 @@ class ProtoSize {
 };
 
 // Implementation of encode_message - must be after ProtoMessage is defined
-inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessage &value, bool force) {
+inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessage &value) {
   this->encode_field_raw(field_id, 2);  // type 2: Length-delimited message
 
   // Calculate the message size first

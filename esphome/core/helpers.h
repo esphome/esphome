@@ -378,8 +378,31 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc = 0, uint16_t p
                  bool refout = false);
 
 /// Calculate a FNV-1 hash of \p str.
+/// Note: FNV-1a (fnv1a_hash) is preferred for new code due to better avalanche characteristics.
 uint32_t fnv1_hash(const char *str);
 inline uint32_t fnv1_hash(const std::string &str) { return fnv1_hash(str.c_str()); }
+
+/// FNV-1 32-bit offset basis
+constexpr uint32_t FNV1_OFFSET_BASIS = 2166136261UL;
+/// FNV-1 32-bit prime
+constexpr uint32_t FNV1_PRIME = 16777619UL;
+
+/// Extend a FNV-1a hash with additional string data.
+constexpr uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
+  if (str) {
+    while (*str) {
+      hash ^= *str++;
+      hash *= FNV1_PRIME;
+    }
+  }
+  return hash;
+}
+inline uint32_t fnv1a_hash_extend(uint32_t hash, const std::string &str) {
+  return fnv1a_hash_extend(hash, str.c_str());
+}
+/// Calculate a FNV-1a hash of \p str.
+constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
+inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }
 
 /// Return a random 32-bit unsigned integer.
 uint32_t random_uint32();
@@ -493,9 +516,16 @@ std::string str_until(const std::string &str, char ch);
 std::string str_lower_case(const std::string &str);
 /// Convert the string to upper case.
 std::string str_upper_case(const std::string &str);
+
+/// Convert a single char to snake_case: lowercase and space to underscore.
+constexpr char to_snake_case_char(char c) { return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c; }
 /// Convert the string to snake case (lowercase with underscores).
 std::string str_snake_case(const std::string &str);
 
+/// Sanitize a single char: keep alphanumerics, dashes, underscores; replace others with underscore.
+constexpr char to_sanitized_char(char c) {
+  return (c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) ? c : '_';
+}
 /// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
 std::string str_sanitize(const std::string &str);
 
@@ -525,6 +555,18 @@ std::string make_name_with_suffix(const std::string &name, char sep, const char 
 /// @return The concatenated string: name + sep + suffix
 std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
                                   size_t suffix_len);
+
+/// Zero-allocation version: format name + separator + suffix directly into buffer.
+/// @param buffer Output buffer (must have space for result + null terminator)
+/// @param buffer_size Size of the output buffer
+/// @param name The base name string
+/// @param name_len Length of the name
+/// @param sep Single character separator
+/// @param suffix_ptr Pointer to the suffix characters
+/// @param suffix_len Length of the suffix
+/// @return Length written (excluding null terminator)
+size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
+                                const char *suffix_ptr, size_t suffix_len);
 
 ///@}
 
@@ -642,6 +684,30 @@ inline char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' +
 /// This always uses uppercase (A-F) for pretty/human-readable output
 inline char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
 
+/// Write int8 value to buffer without modulo operations.
+/// Buffer must have at least 4 bytes free. Returns pointer past last char written.
+inline char *int8_to_str(char *buf, int8_t val) {
+  int32_t v = val;
+  if (v < 0) {
+    *buf++ = '-';
+    v = -v;
+  }
+  if (v >= 100) {
+    *buf++ = '1';  // int8 max is 128, so hundreds digit is always 1
+    v -= 100;
+    // Must write tens digit (even if 0) after hundreds
+    int32_t tens = v / 10;
+    *buf++ = '0' + tens;
+    v -= tens * 10;
+  } else if (v >= 10) {
+    int32_t tens = v / 10;
+    *buf++ = '0' + tens;
+    v -= tens * 10;
+  }
+  *buf++ = '0' + v;
+  return buf;
+}
+
 /// Format MAC address as XX:XX:XX:XX:XX:XX (uppercase)
 inline void format_mac_addr_upper(const uint8_t *mac, char *output) {
   for (size_t i = 0; i < 6; i++) {
@@ -662,6 +728,24 @@ inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
     output[i * 2 + 1] = format_hex_char(byte & 0x0F);
   }
   output[12] = '\0';
+}
+
+/// Format byte array as lowercase hex to buffer (base implementation).
+char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length);
+
+/// Format byte array as lowercase hex to buffer. Automatically deduces buffer size.
+/// Truncates output if data exceeds buffer capacity. Returns pointer to buffer.
+template<size_t N> inline char *format_hex_to(char (&buffer)[N], const uint8_t *data, size_t length) {
+  static_assert(N >= 3, "Buffer must hold at least one hex byte (3 chars)");
+  return format_hex_to(buffer, N, data, length);
+}
+
+/// Format an unsigned integer in lowercased hex to buffer, starting with the most significant byte.
+template<size_t N, typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline char *format_hex_to(char (&buffer)[N], T val) {
+  static_assert(N >= sizeof(T) * 2 + 1, "Buffer too small for type");
+  val = convert_big_endian(val);
+  return format_hex_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
 }
 
 /// Format the six-byte array \p mac into a MAC address.
@@ -844,8 +928,15 @@ ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const ch
 
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
-/// Create a string from a value, an accuracy in decimals, and a unit of measurement.
-std::string value_accuracy_with_uom_to_string(float value, int8_t accuracy_decimals, StringRef unit_of_measurement);
+
+/// Maximum buffer size for value_accuracy formatting (float ~15 chars + space + UOM ~40 chars + null)
+static constexpr size_t VALUE_ACCURACY_MAX_LEN = 64;
+
+/// Format value with accuracy to buffer, returns chars written (excluding null)
+size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value, int8_t accuracy_decimals);
+/// Format value with accuracy and UOM to buffer, returns chars written (excluding null)
+size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value,
+                                      int8_t accuracy_decimals, StringRef unit_of_measurement);
 
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
@@ -855,6 +946,7 @@ std::string base64_encode(const std::vector<uint8_t> &buf);
 
 std::vector<uint8_t> base64_decode(const std::string &encoded_string);
 size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
+size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len);
 
 ///@}
 
@@ -909,6 +1001,50 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
 
  protected:
   std::vector<std::function<void(Ts...)>> callbacks_;
+};
+
+template<typename... X> class LazyCallbackManager;
+
+/** Lazy-allocating callback manager that only allocates memory when callbacks are registered.
+ *
+ * This is a drop-in replacement for CallbackManager that saves memory when no callbacks
+ * are registered (common case after the Controller Registry eliminated per-entity callbacks
+ * from API and web_server components).
+ *
+ * Memory overhead comparison (32-bit systems):
+ * - CallbackManager: 12 bytes (empty std::vector)
+ * - LazyCallbackManager: 4 bytes (nullptr unique_ptr)
+ *
+ * @tparam Ts The arguments for the callbacks, wrapped in void().
+ */
+template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
+ public:
+  /// Add a callback to the list. Allocates the underlying CallbackManager on first use.
+  void add(std::function<void(Ts...)> &&callback) {
+    if (!this->callbacks_) {
+      this->callbacks_ = make_unique<CallbackManager<void(Ts...)>>();
+    }
+    this->callbacks_->add(std::move(callback));
+  }
+
+  /// Call all callbacks in this manager. No-op if no callbacks registered.
+  void call(Ts... args) {
+    if (this->callbacks_) {
+      this->callbacks_->call(args...);
+    }
+  }
+
+  /// Return the number of registered callbacks.
+  size_t size() const { return this->callbacks_ ? this->callbacks_->size() : 0; }
+
+  /// Check if any callbacks are registered.
+  bool empty() const { return !this->callbacks_ || this->callbacks_->size() == 0; }
+
+  /// Call all callbacks in this manager.
+  void operator()(Ts... args) { this->call(args...); }
+
+ protected:
+  std::unique_ptr<CallbackManager<void(Ts...)>> callbacks_;
 };
 
 /// Helper class to deduplicate items in a series of values.

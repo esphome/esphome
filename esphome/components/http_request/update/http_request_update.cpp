@@ -20,22 +20,26 @@ static const char *const TAG = "http_request.update";
 
 static const size_t MAX_READ_SIZE = 256;
 
-void HttpRequestUpdate::setup() {
-  this->ota_parent_->add_on_state_callback([this](ota::OTAState state, float progress, uint8_t err) {
-    if (state == ota::OTAState::OTA_IN_PROGRESS) {
-      this->state_ = update::UPDATE_STATE_INSTALLING;
-      this->update_info_.has_progress = true;
-      this->update_info_.progress = progress;
-      this->publish_state();
-    } else if (state == ota::OTAState::OTA_ABORT || state == ota::OTAState::OTA_ERROR) {
-      this->state_ = update::UPDATE_STATE_AVAILABLE;
-      this->status_set_error(LOG_STR("Failed to install firmware"));
-      this->publish_state();
-    }
-  });
+void HttpRequestUpdate::setup() { this->ota_parent_->add_state_listener(this); }
+
+void HttpRequestUpdate::on_ota_state(ota::OTAState state, float progress, uint8_t error) {
+  if (state == ota::OTAState::OTA_IN_PROGRESS) {
+    this->state_ = update::UPDATE_STATE_INSTALLING;
+    this->update_info_.has_progress = true;
+    this->update_info_.progress = progress;
+    this->publish_state();
+  } else if (state == ota::OTAState::OTA_ABORT || state == ota::OTAState::OTA_ERROR) {
+    this->state_ = update::UPDATE_STATE_AVAILABLE;
+    this->status_set_error(LOG_STR("Failed to install firmware"));
+    this->publish_state();
+  }
 }
 
 void HttpRequestUpdate::update() {
+  if (!network::is_connected()) {
+    ESP_LOGD(TAG, "Network not connected, skipping update check");
+    return;
+  }
 #ifdef USE_ESP32
   xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, (void *) this, 1, &this->update_task_handle_);
 #else
@@ -71,6 +75,11 @@ void HttpRequestUpdate::update_task(void *params) {
     int read_bytes = container->read(data + read_index, MAX_READ_SIZE);
 
     yield();
+
+    if (read_bytes <= 0) {
+      // Network error or connection closed - break to avoid infinite loop
+      break;
+    }
 
     read_index += read_bytes;
   }

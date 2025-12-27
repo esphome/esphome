@@ -129,6 +129,25 @@ enum ClimatePreset : uint32_t {
   CLIMATE_PRESET_ACTIVITY = 7,
 };
 #endif
+#ifdef USE_WATER_HEATER
+enum WaterHeaterMode : uint32_t {
+  WATER_HEATER_MODE_OFF = 0,
+  WATER_HEATER_MODE_ECO = 1,
+  WATER_HEATER_MODE_ELECTRIC = 2,
+  WATER_HEATER_MODE_PERFORMANCE = 3,
+  WATER_HEATER_MODE_HIGH_DEMAND = 4,
+  WATER_HEATER_MODE_HEAT_PUMP = 5,
+  WATER_HEATER_MODE_GAS = 6,
+};
+#endif
+enum WaterHeaterCommandHasField : uint32_t {
+  WATER_HEATER_COMMAND_HAS_NONE = 0,
+  WATER_HEATER_COMMAND_HAS_MODE = 1,
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE = 2,
+  WATER_HEATER_COMMAND_HAS_STATE = 4,
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW = 8,
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH = 16,
+};
 #ifdef USE_NUMBER
 enum NumberMode : uint32_t {
   NUMBER_MODE_AUTO = 0,
@@ -765,7 +784,7 @@ class FanStateResponse final : public StateResponseProtoMessage {
 class FanCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 31;
-  static constexpr uint8_t ESTIMATED_SIZE = 38;
+  static constexpr uint8_t ESTIMATED_SIZE = 48;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "fan_command_request"; }
 #endif
@@ -778,7 +797,8 @@ class FanCommandRequest final : public CommandProtoMessage {
   bool has_speed_level{false};
   int32_t speed_level{0};
   bool has_preset_mode{false};
-  std::string preset_mode{};
+  const uint8_t *preset_mode{nullptr};
+  uint16_t preset_mode_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1053,11 +1073,12 @@ class SubscribeLogsResponse final : public ProtoMessage {
 class NoiseEncryptionSetKeyRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 124;
-  static constexpr uint8_t ESTIMATED_SIZE = 9;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "noise_encryption_set_key_request"; }
 #endif
-  std::string key{};
+  const uint8_t *key{nullptr};
+  uint16_t key_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1201,13 +1222,16 @@ class SubscribeHomeAssistantStateResponse final : public ProtoMessage {
 class HomeAssistantStateResponse final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 40;
-  static constexpr uint8_t ESTIMATED_SIZE = 27;
+  static constexpr uint8_t ESTIMATED_SIZE = 57;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "home_assistant_state_response"; }
 #endif
-  std::string entity_id{};
-  std::string state{};
-  std::string attribute{};
+  const uint8_t *entity_id{nullptr};
+  uint16_t entity_id_len{0};
+  const uint8_t *state{nullptr};
+  uint16_t state_len{0};
+  const uint8_t *attribute{nullptr};
+  uint16_t attribute_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1475,7 +1499,7 @@ class ClimateStateResponse final : public StateResponseProtoMessage {
 class ClimateCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 48;
-  static constexpr uint8_t ESTIMATED_SIZE = 84;
+  static constexpr uint8_t ESTIMATED_SIZE = 104;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "climate_command_request"; }
 #endif
@@ -1492,11 +1516,13 @@ class ClimateCommandRequest final : public CommandProtoMessage {
   bool has_swing_mode{false};
   enums::ClimateSwingMode swing_mode{};
   bool has_custom_fan_mode{false};
-  std::string custom_fan_mode{};
+  const uint8_t *custom_fan_mode{nullptr};
+  uint16_t custom_fan_mode_len{0};
   bool has_preset{false};
   enums::ClimatePreset preset{};
   bool has_custom_preset{false};
-  std::string custom_preset{};
+  const uint8_t *custom_preset{nullptr};
+  uint16_t custom_preset_len{0};
   bool has_target_humidity{false};
   float target_humidity{0.0f};
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1506,6 +1532,70 @@ class ClimateCommandRequest final : public CommandProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+#endif
+#ifdef USE_WATER_HEATER
+class ListEntitiesWaterHeaterResponse final : public InfoResponseProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 132;
+  static constexpr uint8_t ESTIMATED_SIZE = 63;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "list_entities_water_heater_response"; }
+#endif
+  float min_temperature{0.0f};
+  float max_temperature{0.0f};
+  float target_temperature_step{0.0f};
+  const water_heater::WaterHeaterModeMask *supported_modes{};
+  uint32_t supported_features{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
+class WaterHeaterStateResponse final : public StateResponseProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 133;
+  static constexpr uint8_t ESTIMATED_SIZE = 35;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "water_heater_state_response"; }
+#endif
+  float current_temperature{0.0f};
+  float target_temperature{0.0f};
+  enums::WaterHeaterMode mode{};
+  uint32_t state{0};
+  float target_temperature_low{0.0f};
+  float target_temperature_high{0.0f};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
+class WaterHeaterCommandRequest final : public CommandProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 134;
+  static constexpr uint8_t ESTIMATED_SIZE = 34;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "water_heater_command_request"; }
+#endif
+  uint32_t has_fields{0};
+  enums::WaterHeaterMode mode{};
+  float target_temperature{0.0f};
+  uint32_t state{0};
+  float target_temperature_low{0.0f};
+  float target_temperature_high{0.0f};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif

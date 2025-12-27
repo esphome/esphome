@@ -527,7 +527,9 @@ void SX126x::dump_config() {
                   this->spreading_factor_, cr, this->preamble_size_);
   }
   if (!this->sync_value_.empty()) {
-    ESP_LOGCONFIG(TAG, "  Sync Value: 0x%s", format_hex(this->sync_value_).c_str());
+    char hex_buf[17];  // 8 bytes max = 16 hex chars + null
+    ESP_LOGCONFIG(TAG, "  Sync Value: 0x%s",
+                  format_hex_to(hex_buf, this->sync_value_.data(), this->sync_value_.size()));
   }
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Configuring SX126x failed");
