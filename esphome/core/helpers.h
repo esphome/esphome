@@ -684,6 +684,30 @@ inline char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' +
 /// This always uses uppercase (A-F) for pretty/human-readable output
 inline char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
 
+/// Write int8 value to buffer without modulo operations.
+/// Buffer must have at least 4 bytes free. Returns pointer past last char written.
+inline char *int8_to_str(char *buf, int8_t val) {
+  int32_t v = val;
+  if (v < 0) {
+    *buf++ = '-';
+    v = -v;
+  }
+  if (v >= 100) {
+    *buf++ = '1';  // int8 max is 128, so hundreds digit is always 1
+    v -= 100;
+    // Must write tens digit (even if 0) after hundreds
+    int32_t tens = v / 10;
+    *buf++ = '0' + tens;
+    v -= tens * 10;
+  } else if (v >= 10) {
+    int32_t tens = v / 10;
+    *buf++ = '0' + tens;
+    v -= tens * 10;
+  }
+  *buf++ = '0' + v;
+  return buf;
+}
+
 /// Format MAC address as XX:XX:XX:XX:XX:XX (uppercase)
 inline void format_mac_addr_upper(const uint8_t *mac, char *output) {
   for (size_t i = 0; i < 6; i++) {

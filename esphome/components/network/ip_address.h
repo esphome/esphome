@@ -40,6 +40,9 @@ using ip4_addr_t = in_addr;
 namespace esphome {
 namespace network {
 
+/// Buffer size for IP address string (IPv6 max: 39 chars + null)
+static constexpr size_t IP_ADDRESS_BUFFER_SIZE = 40;
+
 struct IPAddress {
  public:
 #ifdef USE_HOST
@@ -50,6 +53,10 @@ struct IPAddress {
   IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
   std::string str() const { return str_lower_case(inet_ntoa(ip_addr_)); }
+  /// Write IP address to buffer. Buffer must be at least IP_ADDRESS_BUFFER_SIZE bytes.
+  char *str_to(char *buf) const {
+    return const_cast<char *>(inet_ntop(AF_INET, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE));
+  }
 #else
   IPAddress() { ip_addr_set_zero(&ip_addr_); }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
@@ -128,6 +135,8 @@ struct IPAddress {
   bool is_ip6() const { return IP_IS_V6(&ip_addr_); }
   bool is_multicast() const { return ip_addr_ismulticast(&ip_addr_); }
   std::string str() const { return str_lower_case(ipaddr_ntoa(&ip_addr_)); }
+  /// Write IP address to buffer. Buffer must be at least IP_ADDRESS_BUFFER_SIZE bytes.
+  char *str_to(char *buf) const { return ipaddr_ntoa_r(&ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE); }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   IPAddress &operator+=(uint8_t increase) {
