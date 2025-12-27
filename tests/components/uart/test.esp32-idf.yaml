@@ -75,3 +75,11 @@ button:
       - uart.write: !lambda |-
           std::string cmd = "VALUE=" + str_sprintf("%.0f", id(test_number).state) + "\r\n";
           return std::vector<uint8_t>(cmd.begin(), cmd.end());
+
+event:
+  - platform: uart
+    uart_id: uart_uart
+    name: "UART Event"
+    event_types:
+      - "string_event_A": "*A#"
+      - "bytes_event_B": [0x2A, 0x42, 0x23]

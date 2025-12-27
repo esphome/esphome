@@ -36,21 +36,13 @@
 #endif
 #endif
 
-namespace esphome {
-namespace web_server {
+namespace esphome::web_server {
 
 static const char *const TAG = "web_server";
 
 // Longest: UPDATE AVAILABLE (16 chars + null terminator, rounded up)
 static constexpr size_t PSTR_LOCAL_SIZE = 18;
 #define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), PSTR_LOCAL_SIZE - 1)
-
-#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-static const char *const HEADER_PNA_NAME = "Private-Network-Access-Name";
-static const char *const HEADER_PNA_ID = "Private-Network-Access-ID";
-static const char *const HEADER_CORS_REQ_PNA = "Access-Control-Request-Private-Network";
-static const char *const HEADER_CORS_ALLOW_PNA = "Access-Control-Allow-Private-Network";
-#endif
 
 // Parse URL and return match info
 static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain) {
@@ -287,7 +279,9 @@ std::string WebServer::get_config_json() {
   JsonObject root = builder.root();
 
   root[ESPHOME_F("title")] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
-  root[ESPHOME_F("comment")] = App.get_comment_ref();
+  char comment_buffer[ESPHOME_COMMENT_SIZE];
+  App.get_comment_string(comment_buffer);
+  root[ESPHOME_F("comment")] = comment_buffer;
 #if defined(USE_WEBSERVER_OTA_DISABLED) || !defined(USE_WEBSERVER_OTA)
   root[ESPHOME_F("ota")] = false;  // Note: USE_WEBSERVER_OTA_DISABLED only affects web_server, not captive_portal
 #else
@@ -346,7 +340,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #else
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
 #endif
-  response->addHeader("Content-Encoding", "gzip");
+  response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
   request->send(response);
 }
 #elif USE_WEBSERVER_VERSION >= 2
@@ -366,10 +360,10 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse(200, "");
-  response->addHeader(HEADER_CORS_ALLOW_PNA, "true");
-  response->addHeader(HEADER_PNA_NAME, App.get_name().c_str());
+  response->addHeader(ESPHOME_F("Access-Control-Allow-Private-Network"), ESPHOME_F("true"));
+  response->addHeader(ESPHOME_F("Private-Network-Access-Name"), App.get_name().c_str());
   char mac_s[18];
-  response->addHeader(HEADER_PNA_ID, get_mac_address_pretty_into_buffer(mac_s));
+  response->addHeader(ESPHOME_F("Private-Network-Access-ID"), get_mac_address_pretty_into_buffer(mac_s));
   request->send(response);
 }
 #endif
@@ -383,7 +377,7 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/css", ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
 #endif
-  response->addHeader("Content-Encoding", "gzip");
+  response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
   request->send(response);
 }
 #endif
@@ -397,16 +391,18 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/javascript", ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
 #endif
-  response->addHeader("Content-Encoding", "gzip");
+  response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
   request->send(response);
 }
 #endif
 
 // Helper functions to reduce code size by avoiding macro expansion
 static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, JsonDetail start_config) {
-  char id_buf[160];  // object_id can be up to 128 chars + prefix + dash + null
-  const auto &object_id = obj->get_object_id();
-  snprintf(id_buf, sizeof(id_buf), "%s-%s", prefix, object_id.c_str());
+  char id_buf[160];  // prefix + dash + object_id (up to 128) + null
+  size_t len = strlen(prefix);
+  memcpy(id_buf, prefix, len);  // NOLINT(bugprone-not-null-terminated-result) - null added by write_object_id_to
+  id_buf[len++] = '-';
+  obj->write_object_id_to(id_buf + len, sizeof(id_buf) - len);
   root[ESPHOME_F("id")] = id_buf;
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("name")] = obj->get_name();
@@ -428,7 +424,7 @@ static void set_json_value(JsonObject &root, EntityBase *obj, const char *prefix
 }
 
 template<typename T>
-static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const char *prefix, const std::string &state,
+static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const char *prefix, const char *state,
                                       const T &value, JsonDetail start_config) {
   set_json_value(root, obj, prefix, value, start_config);
   root[ESPHOME_F("state")] = state;
@@ -453,7 +449,7 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
     // Note: request->method() is always HTTP_GET here (canHandle ensures this)
     if (match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->sensor_json(obj, obj->state, detail);
+      std::string data = this->sensor_json_(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -461,19 +457,20 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
   request->send(404);
 }
 std::string WebServer::sensor_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->sensor_json((sensor::Sensor *) (source), ((sensor::Sensor *) (source))->state, DETAIL_STATE);
+  return web_server->sensor_json_((sensor::Sensor *) (source), ((sensor::Sensor *) (source))->state, DETAIL_STATE);
 }
 std::string WebServer::sensor_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->sensor_json((sensor::Sensor *) (source), ((sensor::Sensor *) (source))->state, DETAIL_ALL);
+  return web_server->sensor_json_((sensor::Sensor *) (source), ((sensor::Sensor *) (source))->state, DETAIL_ALL);
 }
-std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail start_config) {
+std::string WebServer::sensor_json_(sensor::Sensor *obj, float value, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
   const auto uom_ref = obj->get_unit_of_measurement_ref();
-
-  std::string state =
-      std::isnan(value) ? "NA" : value_accuracy_with_uom_to_string(value, obj->get_accuracy_decimals(), uom_ref);
+  char buf[VALUE_ACCURACY_MAX_LEN];
+  const char *state = std::isnan(value)
+                          ? "NA"
+                          : (value_accuracy_with_uom_to_buf(buf, value, obj->get_accuracy_decimals(), uom_ref), buf);
   set_json_icon_state_value(root, obj, "sensor", state, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -498,7 +495,7 @@ void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const
     // Note: request->method() is always HTTP_GET here (canHandle ensures this)
     if (match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->text_sensor_json(obj, obj->state, detail);
+      std::string data = this->text_sensor_json_(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -506,19 +503,19 @@ void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const
   request->send(404);
 }
 std::string WebServer::text_sensor_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->text_sensor_json((text_sensor::TextSensor *) (source),
-                                      ((text_sensor::TextSensor *) (source))->state, DETAIL_STATE);
+  return web_server->text_sensor_json_((text_sensor::TextSensor *) (source),
+                                       ((text_sensor::TextSensor *) (source))->state, DETAIL_STATE);
 }
 std::string WebServer::text_sensor_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->text_sensor_json((text_sensor::TextSensor *) (source),
-                                      ((text_sensor::TextSensor *) (source))->state, DETAIL_ALL);
+  return web_server->text_sensor_json_((text_sensor::TextSensor *) (source),
+                                       ((text_sensor::TextSensor *) (source))->state, DETAIL_ALL);
 }
-std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std::string &value,
-                                        JsonDetail start_config) {
+std::string WebServer::text_sensor_json_(text_sensor::TextSensor *obj, const std::string &value,
+                                         JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "text_sensor", value, value, start_config);
+  set_json_icon_state_value(root, obj, "text_sensor", value.c_str(), value.c_str(), start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -540,7 +537,7 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->switch_json(obj, obj->state, detail);
+      std::string data = this->switch_json_(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -582,12 +579,12 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
   request->send(404);
 }
 std::string WebServer::switch_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->switch_json((switch_::Switch *) (source), ((switch_::Switch *) (source))->state, DETAIL_STATE);
+  return web_server->switch_json_((switch_::Switch *) (source), ((switch_::Switch *) (source))->state, DETAIL_STATE);
 }
 std::string WebServer::switch_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->switch_json((switch_::Switch *) (source), ((switch_::Switch *) (source))->state, DETAIL_ALL);
+  return web_server->switch_json_((switch_::Switch *) (source), ((switch_::Switch *) (source))->state, DETAIL_ALL);
 }
-std::string WebServer::switch_json(switch_::Switch *obj, bool value, JsonDetail start_config) {
+std::string WebServer::switch_json_(switch_::Switch *obj, bool value, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -608,7 +605,7 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
       continue;
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->button_json(obj, detail);
+      std::string data = this->button_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
     } else if (match.method_equals("press")) {
       this->defer([obj]() { obj->press(); });
@@ -622,12 +619,12 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
   request->send(404);
 }
 std::string WebServer::button_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->button_json((button::Button *) (source), DETAIL_STATE);
+  return web_server->button_json_((button::Button *) (source), DETAIL_STATE);
 }
 std::string WebServer::button_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->button_json((button::Button *) (source), DETAIL_ALL);
+  return web_server->button_json_((button::Button *) (source), DETAIL_ALL);
 }
-std::string WebServer::button_json(button::Button *obj, JsonDetail start_config) {
+std::string WebServer::button_json_(button::Button *obj, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -653,7 +650,7 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
     // Note: request->method() is always HTTP_GET here (canHandle ensures this)
     if (match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->binary_sensor_json(obj, obj->state, detail);
+      std::string data = this->binary_sensor_json_(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -661,14 +658,14 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
   request->send(404);
 }
 std::string WebServer::binary_sensor_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->binary_sensor_json((binary_sensor::BinarySensor *) (source),
-                                        ((binary_sensor::BinarySensor *) (source))->state, DETAIL_STATE);
+  return web_server->binary_sensor_json_((binary_sensor::BinarySensor *) (source),
+                                         ((binary_sensor::BinarySensor *) (source))->state, DETAIL_STATE);
 }
 std::string WebServer::binary_sensor_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->binary_sensor_json((binary_sensor::BinarySensor *) (source),
-                                        ((binary_sensor::BinarySensor *) (source))->state, DETAIL_ALL);
+  return web_server->binary_sensor_json_((binary_sensor::BinarySensor *) (source),
+                                         ((binary_sensor::BinarySensor *) (source))->state, DETAIL_ALL);
 }
-std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config) {
+std::string WebServer::binary_sensor_json_(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -694,7 +691,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
 
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->fan_json(obj, detail);
+      std::string data = this->fan_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
     } else if (match.method_equals("toggle")) {
       this->defer([obj]() { obj->toggle().perform(); });
@@ -736,12 +733,12 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
   request->send(404);
 }
 std::string WebServer::fan_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->fan_json((fan::Fan *) (source), DETAIL_STATE);
+  return web_server->fan_json_((fan::Fan *) (source), DETAIL_STATE);
 }
 std::string WebServer::fan_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->fan_json((fan::Fan *) (source), DETAIL_ALL);
+  return web_server->fan_json_((fan::Fan *) (source), DETAIL_ALL);
 }
-std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
+std::string WebServer::fan_json_(fan::Fan *obj, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -774,7 +771,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
 
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->light_json(obj, detail);
+      std::string data = this->light_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
     } else if (match.method_equals("toggle")) {
       this->defer([obj]() { obj->toggle().perform(); });
@@ -814,12 +811,12 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
   request->send(404);
 }
 std::string WebServer::light_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->light_json((light::LightState *) (source), DETAIL_STATE);
+  return web_server->light_json_((light::LightState *) (source), DETAIL_STATE);
 }
 std::string WebServer::light_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->light_json((light::LightState *) (source), DETAIL_ALL);
+  return web_server->light_json_((light::LightState *) (source), DETAIL_ALL);
 }
-std::string WebServer::light_json(light::LightState *obj, JsonDetail start_config) {
+std::string WebServer::light_json_(light::LightState *obj, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -852,7 +849,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
 
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->cover_json(obj, detail);
+      std::string data = this->cover_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -901,12 +898,12 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
   request->send(404);
 }
 std::string WebServer::cover_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->cover_json((cover::Cover *) (source), DETAIL_STATE);
+  return web_server->cover_json_((cover::Cover *) (source), DETAIL_STATE);
 }
 std::string WebServer::cover_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->cover_json((cover::Cover *) (source), DETAIL_ALL);
+  return web_server->cover_json_((cover::Cover *) (source), DETAIL_ALL);
 }
-std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
+std::string WebServer::cover_json_(cover::Cover *obj, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -940,7 +937,7 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->number_json(obj, obj->state, detail);
+      std::string data = this->number_json_(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -960,31 +957,30 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
 }
 
 std::string WebServer::number_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->number_json((number::Number *) (source), ((number::Number *) (source))->state, DETAIL_STATE);
+  return web_server->number_json_((number::Number *) (source), ((number::Number *) (source))->state, DETAIL_STATE);
 }
 std::string WebServer::number_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->number_json((number::Number *) (source), ((number::Number *) (source))->state, DETAIL_ALL);
+  return web_server->number_json_((number::Number *) (source), ((number::Number *) (source))->state, DETAIL_ALL);
 }
-std::string WebServer::number_json(number::Number *obj, float value, JsonDetail start_config) {
+std::string WebServer::number_json_(number::Number *obj, float value, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
   const auto uom_ref = obj->traits.get_unit_of_measurement_ref();
+  const int8_t accuracy = step_to_accuracy_decimals(obj->traits.get_step());
 
-  std::string val_str = std::isnan(value)
-                            ? "\"NaN\""
-                            : value_accuracy_to_string(value, step_to_accuracy_decimals(obj->traits.get_step()));
-  std::string state_str = std::isnan(value) ? "NA"
-                                            : value_accuracy_with_uom_to_string(
-                                                  value, step_to_accuracy_decimals(obj->traits.get_step()), uom_ref);
+  // Need two buffers: one for value, one for state with UOM
+  char val_buf[VALUE_ACCURACY_MAX_LEN];
+  char state_buf[VALUE_ACCURACY_MAX_LEN];
+  const char *val_str = std::isnan(value) ? "\"NaN\"" : (value_accuracy_to_buf(val_buf, value, accuracy), val_buf);
+  const char *state_str =
+      std::isnan(value) ? "NA" : (value_accuracy_with_uom_to_buf(state_buf, value, accuracy, uom_ref), state_buf);
   set_json_icon_state_value(root, obj, "number", state_str, val_str, start_config);
   if (start_config == DETAIL_ALL) {
-    root[ESPHOME_F("min_value")] =
-        value_accuracy_to_string(obj->traits.get_min_value(), step_to_accuracy_decimals(obj->traits.get_step()));
-    root[ESPHOME_F("max_value")] =
-        value_accuracy_to_string(obj->traits.get_max_value(), step_to_accuracy_decimals(obj->traits.get_step()));
-    root[ESPHOME_F("step")] =
-        value_accuracy_to_string(obj->traits.get_step(), step_to_accuracy_decimals(obj->traits.get_step()));
+    // ArduinoJson copies the string immediately, so we can reuse val_buf
+    root[ESPHOME_F("min_value")] = (value_accuracy_to_buf(val_buf, obj->traits.get_min_value(), accuracy), val_buf);
+    root[ESPHOME_F("max_value")] = (value_accuracy_to_buf(val_buf, obj->traits.get_max_value(), accuracy), val_buf);
+    root[ESPHOME_F("step")] = (value_accuracy_to_buf(val_buf, obj->traits.get_step(), accuracy), val_buf);
     root[ESPHOME_F("mode")] = (int) obj->traits.get_mode();
     if (!uom_ref.empty())
       root[ESPHOME_F("uom")] = uom_ref;
@@ -1007,7 +1003,7 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
       continue;
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->date_json(obj, detail);
+      std::string data = this->date_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1033,16 +1029,22 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
 }
 
 std::string WebServer::date_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->date_json((datetime::DateEntity *) (source), DETAIL_STATE);
+  return web_server->date_json_((datetime::DateEntity *) (source), DETAIL_STATE);
 }
 std::string WebServer::date_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->date_json((datetime::DateEntity *) (source), DETAIL_ALL);
+  return web_server->date_json_((datetime::DateEntity *) (source), DETAIL_ALL);
 }
-std::string WebServer::date_json(datetime::DateEntity *obj, JsonDetail start_config) {
+std::string WebServer::date_json_(datetime::DateEntity *obj, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  std::string value = str_sprintf("%d-%02d-%02d", obj->year, obj->month, obj->day);
+  // Format: YYYY-MM-DD (max 10 chars + null)
+  char value[12];
+#ifdef USE_ESP8266
+  snprintf_P(value, sizeof(value), PSTR("%d-%02d-%02d"), obj->year, obj->month, obj->day);
+#else
+  snprintf(value, sizeof(value), "%d-%02d-%02d", obj->year, obj->month, obj->day);
+#endif
   set_json_icon_state_value(root, obj, "date", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1064,7 +1066,7 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
       continue;
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->time_json(obj, detail);
+      std::string data = this->time_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1089,16 +1091,22 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
   request->send(404);
 }
 std::string WebServer::time_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->time_json((datetime::TimeEntity *) (source), DETAIL_STATE);
+  return web_server->time_json_((datetime::TimeEntity *) (source), DETAIL_STATE);
 }
 std::string WebServer::time_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->time_json((datetime::TimeEntity *) (source), DETAIL_ALL);
+  return web_server->time_json_((datetime::TimeEntity *) (source), DETAIL_ALL);
 }
-std::string WebServer::time_json(datetime::TimeEntity *obj, JsonDetail start_config) {
+std::string WebServer::time_json_(datetime::TimeEntity *obj, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  std::string value = str_sprintf("%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
+  // Format: HH:MM:SS (8 chars + null)
+  char value[12];
+#ifdef USE_ESP8266
+  snprintf_P(value, sizeof(value), PSTR("%02d:%02d:%02d"), obj->hour, obj->minute, obj->second);
+#else
+  snprintf(value, sizeof(value), "%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
+#endif
   set_json_icon_state_value(root, obj, "time", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1120,7 +1128,7 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
       continue;
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->datetime_json(obj, detail);
+      std::string data = this->datetime_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1145,17 +1153,24 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
   request->send(404);
 }
 std::string WebServer::datetime_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->datetime_json((datetime::DateTimeEntity *) (source), DETAIL_STATE);
+  return web_server->datetime_json_((datetime::DateTimeEntity *) (source), DETAIL_STATE);
 }
 std::string WebServer::datetime_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->datetime_json((datetime::DateTimeEntity *) (source), DETAIL_ALL);
+  return web_server->datetime_json_((datetime::DateTimeEntity *) (source), DETAIL_ALL);
 }
-std::string WebServer::datetime_json(datetime::DateTimeEntity *obj, JsonDetail start_config) {
+std::string WebServer::datetime_json_(datetime::DateTimeEntity *obj, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  std::string value =
-      str_sprintf("%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour, obj->minute, obj->second);
+  // Format: YYYY-MM-DD HH:MM:SS (max 19 chars + null)
+  char value[24];
+#ifdef USE_ESP8266
+  snprintf_P(value, sizeof(value), PSTR("%d-%02d-%02d %02d:%02d:%02d"), obj->year, obj->month, obj->day, obj->hour,
+             obj->minute, obj->second);
+#else
+  snprintf(value, sizeof(value), "%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour, obj->minute,
+           obj->second);
+#endif
   set_json_icon_state_value(root, obj, "datetime", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1178,7 +1193,7 @@ void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMat
 
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->text_json(obj, obj->state, detail);
+      std::string data = this->text_json_(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1198,17 +1213,17 @@ void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMat
 }
 
 std::string WebServer::text_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->text_json((text::Text *) (source), ((text::Text *) (source))->state, DETAIL_STATE);
+  return web_server->text_json_((text::Text *) (source), ((text::Text *) (source))->state, DETAIL_STATE);
 }
 std::string WebServer::text_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->text_json((text::Text *) (source), ((text::Text *) (source))->state, DETAIL_ALL);
+  return web_server->text_json_((text::Text *) (source), ((text::Text *) (source))->state, DETAIL_ALL);
 }
-std::string WebServer::text_json(text::Text *obj, const std::string &value, JsonDetail start_config) {
+std::string WebServer::text_json_(text::Text *obj, const std::string &value, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  std::string state = obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD ? "********" : value;
-  set_json_icon_state_value(root, obj, "text", state, value, start_config);
+  const char *state = obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD ? "********" : value.c_str();
+  set_json_icon_state_value(root, obj, "text", state, value.c_str(), start_config);
   root[ESPHOME_F("min_length")] = obj->traits.get_min_length();
   root[ESPHOME_F("max_length")] = obj->traits.get_max_length();
   root[ESPHOME_F("pattern")] = obj->traits.get_pattern_c_str();
@@ -1234,7 +1249,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->select_json(obj, obj->has_state() ? obj->current_option() : "", detail);
+      std::string data = this->select_json_(obj, obj->has_state() ? obj->current_option() : "", detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1255,13 +1270,13 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
 }
 std::string WebServer::select_state_json_generator(WebServer *web_server, void *source) {
   auto *obj = (select::Select *) (source);
-  return web_server->select_json(obj, obj->has_state() ? obj->current_option() : "", DETAIL_STATE);
+  return web_server->select_json_(obj, obj->has_state() ? obj->current_option() : "", DETAIL_STATE);
 }
 std::string WebServer::select_all_json_generator(WebServer *web_server, void *source) {
   auto *obj = (select::Select *) (source);
-  return web_server->select_json(obj, obj->has_state() ? obj->current_option() : "", DETAIL_ALL);
+  return web_server->select_json_(obj, obj->has_state() ? obj->current_option() : "", DETAIL_ALL);
 }
-std::string WebServer::select_json(select::Select *obj, const char *value, JsonDetail start_config) {
+std::string WebServer::select_json_(select::Select *obj, const char *value, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -1291,7 +1306,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
 
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->climate_json(obj, detail);
+      std::string data = this->climate_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1321,13 +1336,13 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
 }
 std::string WebServer::climate_state_json_generator(WebServer *web_server, void *source) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  return web_server->climate_json((climate::Climate *) (source), DETAIL_STATE);
+  return web_server->climate_json_((climate::Climate *) (source), DETAIL_STATE);
 }
 std::string WebServer::climate_all_json_generator(WebServer *web_server, void *source) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  return web_server->climate_json((climate::Climate *) (source), DETAIL_ALL);
+  return web_server->climate_json_((climate::Climate *) (source), DETAIL_ALL);
 }
-std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_config) {
+std::string WebServer::climate_json_(climate::Climate *obj, JsonDetail start_config) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   json::JsonBuilder builder;
   JsonObject root = builder.root();
@@ -1336,6 +1351,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
   int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
   char buf[PSTR_LOCAL_SIZE];
+  char temp_buf[VALUE_ACCURACY_MAX_LEN];
 
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root[ESPHOME_F("modes")].to<JsonArray>();
@@ -1372,8 +1388,10 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
 
   bool has_state = false;
   root[ESPHOME_F("mode")] = PSTR_LOCAL(climate_mode_to_string(obj->mode));
-  root[ESPHOME_F("max_temp")] = value_accuracy_to_string(traits.get_visual_max_temperature(), target_accuracy);
-  root[ESPHOME_F("min_temp")] = value_accuracy_to_string(traits.get_visual_min_temperature(), target_accuracy);
+  root[ESPHOME_F("max_temp")] =
+      (value_accuracy_to_buf(temp_buf, traits.get_visual_max_temperature(), target_accuracy), temp_buf);
+  root[ESPHOME_F("min_temp")] =
+      (value_accuracy_to_buf(temp_buf, traits.get_visual_min_temperature(), target_accuracy), temp_buf);
   root[ESPHOME_F("step")] = traits.get_visual_target_temperature_step();
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION)) {
     root[ESPHOME_F("action")] = PSTR_LOCAL(climate_action_to_string(obj->action));
@@ -1396,23 +1414,26 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
     root[ESPHOME_F("swing_mode")] = PSTR_LOCAL(climate_swing_mode_to_string(obj->swing_mode));
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE)) {
-    if (!std::isnan(obj->current_temperature)) {
-      root[ESPHOME_F("current_temperature")] = value_accuracy_to_string(obj->current_temperature, current_accuracy);
-    } else {
-      root[ESPHOME_F("current_temperature")] = "NA";
-    }
+    root[ESPHOME_F("current_temperature")] =
+        std::isnan(obj->current_temperature)
+            ? "NA"
+            : (value_accuracy_to_buf(temp_buf, obj->current_temperature, current_accuracy), temp_buf);
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
-    root[ESPHOME_F("target_temperature_low")] = value_accuracy_to_string(obj->target_temperature_low, target_accuracy);
+    root[ESPHOME_F("target_temperature_low")] =
+        (value_accuracy_to_buf(temp_buf, obj->target_temperature_low, target_accuracy), temp_buf);
     root[ESPHOME_F("target_temperature_high")] =
-        value_accuracy_to_string(obj->target_temperature_high, target_accuracy);
+        (value_accuracy_to_buf(temp_buf, obj->target_temperature_high, target_accuracy), temp_buf);
     if (!has_state) {
-      root[ESPHOME_F("state")] = value_accuracy_to_string(
-          (obj->target_temperature_high + obj->target_temperature_low) / 2.0f, target_accuracy);
+      root[ESPHOME_F("state")] =
+          (value_accuracy_to_buf(temp_buf, (obj->target_temperature_high + obj->target_temperature_low) / 2.0f,
+                                 target_accuracy),
+           temp_buf);
     }
   } else {
-    root[ESPHOME_F("target_temperature")] = value_accuracy_to_string(obj->target_temperature, target_accuracy);
+    root[ESPHOME_F("target_temperature")] =
+        (value_accuracy_to_buf(temp_buf, obj->target_temperature, target_accuracy), temp_buf);
     if (!has_state)
       root[ESPHOME_F("state")] = root[ESPHOME_F("target_temperature")];
   }
@@ -1435,7 +1456,7 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
 
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->lock_json(obj, obj->state, detail);
+      std::string data = this->lock_json_(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1477,12 +1498,12 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
   request->send(404);
 }
 std::string WebServer::lock_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->lock_json((lock::Lock *) (source), ((lock::Lock *) (source))->state, DETAIL_STATE);
+  return web_server->lock_json_((lock::Lock *) (source), ((lock::Lock *) (source))->state, DETAIL_STATE);
 }
 std::string WebServer::lock_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->lock_json((lock::Lock *) (source), ((lock::Lock *) (source))->state, DETAIL_ALL);
+  return web_server->lock_json_((lock::Lock *) (source), ((lock::Lock *) (source))->state, DETAIL_ALL);
 }
-std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config) {
+std::string WebServer::lock_json_(lock::Lock *obj, lock::LockState value, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -1509,7 +1530,7 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
 
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->valve_json(obj, detail);
+      std::string data = this->valve_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1556,12 +1577,12 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
   request->send(404);
 }
 std::string WebServer::valve_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->valve_json((valve::Valve *) (source), DETAIL_STATE);
+  return web_server->valve_json_((valve::Valve *) (source), DETAIL_STATE);
 }
 std::string WebServer::valve_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->valve_json((valve::Valve *) (source), DETAIL_ALL);
+  return web_server->valve_json_((valve::Valve *) (source), DETAIL_ALL);
 }
-std::string WebServer::valve_json(valve::Valve *obj, JsonDetail start_config) {
+std::string WebServer::valve_json_(valve::Valve *obj, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -1593,7 +1614,7 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
 
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->alarm_control_panel_json(obj, obj->get_state(), detail);
+      std::string data = this->alarm_control_panel_json_(obj, obj->get_state(), detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1634,18 +1655,18 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
   request->send(404);
 }
 std::string WebServer::alarm_control_panel_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->alarm_control_panel_json((alarm_control_panel::AlarmControlPanel *) (source),
-                                              ((alarm_control_panel::AlarmControlPanel *) (source))->get_state(),
-                                              DETAIL_STATE);
+  return web_server->alarm_control_panel_json_((alarm_control_panel::AlarmControlPanel *) (source),
+                                               ((alarm_control_panel::AlarmControlPanel *) (source))->get_state(),
+                                               DETAIL_STATE);
 }
 std::string WebServer::alarm_control_panel_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->alarm_control_panel_json((alarm_control_panel::AlarmControlPanel *) (source),
-                                              ((alarm_control_panel::AlarmControlPanel *) (source))->get_state(),
-                                              DETAIL_ALL);
+  return web_server->alarm_control_panel_json_((alarm_control_panel::AlarmControlPanel *) (source),
+                                               ((alarm_control_panel::AlarmControlPanel *) (source))->get_state(),
+                                               DETAIL_ALL);
 }
-std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmControlPanel *obj,
-                                                alarm_control_panel::AlarmControlPanelState value,
-                                                JsonDetail start_config) {
+std::string WebServer::alarm_control_panel_json_(alarm_control_panel::AlarmControlPanel *obj,
+                                                 alarm_control_panel::AlarmControlPanelState value,
+                                                 JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -1675,7 +1696,7 @@ void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMa
     // Note: request->method() is always HTTP_GET here (canHandle ensures this)
     if (match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->event_json(obj, "", detail);
+      std::string data = this->event_json_(obj, "", detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1690,14 +1711,14 @@ static std::string get_event_type(event::Event *event) {
 
 std::string WebServer::event_state_json_generator(WebServer *web_server, void *source) {
   auto *event = static_cast<event::Event *>(source);
-  return web_server->event_json(event, get_event_type(event), DETAIL_STATE);
+  return web_server->event_json_(event, get_event_type(event), DETAIL_STATE);
 }
 // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
 std::string WebServer::event_all_json_generator(WebServer *web_server, void *source) {
   auto *event = static_cast<event::Event *>(source);
-  return web_server->event_json(event, get_event_type(event), DETAIL_ALL);
+  return web_server->event_json_(event, get_event_type(event), DETAIL_ALL);
 }
-std::string WebServer::event_json(event::Event *obj, const std::string &event_type, JsonDetail start_config) {
+std::string WebServer::event_json_(event::Event *obj, const std::string &event_type, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -1743,7 +1764,7 @@ void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->method() == HTTP_GET && match.method_empty()) {
       auto detail = get_request_detail(request);
-      std::string data = this->update_json(obj, detail);
+      std::string data = this->update_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1761,13 +1782,13 @@ void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlM
 }
 std::string WebServer::update_state_json_generator(WebServer *web_server, void *source) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  return web_server->update_json((update::UpdateEntity *) (source), DETAIL_STATE);
+  return web_server->update_json_((update::UpdateEntity *) (source), DETAIL_STATE);
 }
 std::string WebServer::update_all_json_generator(WebServer *web_server, void *source) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  return web_server->update_json((update::UpdateEntity *) (source), DETAIL_STATE);
+  return web_server->update_json_((update::UpdateEntity *) (source), DETAIL_STATE);
 }
-std::string WebServer::update_json(update::UpdateEntity *obj, JsonDetail start_config) {
+std::string WebServer::update_json_(update::UpdateEntity *obj, JsonDetail start_config) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   json::JsonBuilder builder;
   JsonObject root = builder.root();
@@ -1812,7 +1833,7 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   }
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-  if (method == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA))
+  if (method == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network")))
     return true;
 #endif
 
@@ -1945,7 +1966,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-  if (request->method() == HTTP_OPTIONS && request->hasHeader(HEADER_CORS_REQ_PNA)) {
+  if (request->method() == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network"))) {
     this->handle_pna_cors_request(request);
     return;
   }
@@ -2083,6 +2104,5 @@ void WebServer::add_sorting_group(uint64_t group_id, const std::string &group_na
 }
 #endif
 
-}  // namespace web_server
-}  // namespace esphome
+}  // namespace esphome::web_server
 #endif
