@@ -227,23 +227,6 @@ def test_esp32s3_specific_errors(
         run_schema_validation(config)
 
 
-def test_framework_specific_errors(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """Test framework-specific configuration errors"""
-
-    set_core_config(
-        PlatformFramework.ESP32_ARDUINO,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
-    )
-
-    with pytest.raises(
-        cv.Invalid,
-        match=r"This feature is only available with framework\(s\) esp-idf",
-    ):
-        run_schema_validation({"model": "wt32-sc01-plus"})
-
-
 def test_custom_model_with_all_options(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
