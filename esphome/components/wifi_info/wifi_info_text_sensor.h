@@ -2,10 +2,12 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/wifi/wifi_component.h"
 #ifdef USE_WIFI
 #include <array>
+#include <span>
 
 namespace esphome::wifi_info {
 
