@@ -249,6 +249,13 @@ OTAResponseTypes ESP8266OTABackend::end() {
   // Calculate actual bytes written
   size_t actual_size = this->current_address_ - this->start_address_;
 
+  // Check if any data was written
+  if (actual_size == 0) {
+    ESP_LOGE(TAG, "No data written");
+    this->abort();
+    return OTA_RESPONSE_ERROR_UPDATE_END;
+  }
+
   // Verify MD5 if set (strict mode), otherwise use lenient mode
   // In lenient mode (no MD5), we accept whatever was written
   if (this->md5_set_) {
