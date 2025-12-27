@@ -444,6 +444,10 @@ static bool store_subscription(const MQTTSubscription &sub) {
   return false;
 #else
   // Use flash storage with magic value to distinguish from uninitialized
+  // Avoid writing again to flash if already stored
+  if (is_subscription_stored(sub)) {
+    return true;
+  }
   uint8_t stored_value = sub.qos + 34;
   auto pref = global_preferences->make_preference<uint8_t>(hash, true);
   return pref.save(&stored_value);
