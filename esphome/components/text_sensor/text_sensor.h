@@ -37,9 +37,9 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
 #pragma GCC diagnostic pop
 
   /// Getter-syntax for .state.
-  std::string get_state() const;
+  const std::string &get_state() const;
   /// Getter-syntax for .raw_state
-  std::string get_raw_state() const;
+  const std::string &get_raw_state() const;
 
   void publish_state(const std::string &state);
 

@@ -108,9 +108,6 @@ def register_trigger(name, type, data_type):
     validator = automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(type),
-            cv.Optional(CONF_RECEIVER_ID): cv.invalid(
-                "This has been removed in ESPHome 2022.3.0 and the trigger attaches directly to the parent receiver."
-            ),
         }
     )
     registerer = TRIGGER_REGISTRY.register(f"on_{name}", validator)
@@ -207,13 +204,7 @@ validate_binary_sensor = cv.validate_registry_entry(
     "remote receiver", BINARY_SENSOR_REGISTRY
 )
 TRIGGER_REGISTRY = SimpleRegistry()
-DUMPER_REGISTRY = Registry(
-    {
-        cv.Optional(CONF_RECEIVER_ID): cv.invalid(
-            "This has been removed in ESPHome 1.20.0 and the dumper attaches directly to the parent receiver."
-        ),
-    }
-)
+DUMPER_REGISTRY = Registry()
 
 
 def validate_dumpers(value):
@@ -480,10 +471,6 @@ COOLIX_BASE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_FIRST): cv.hex_int_range(0, 16777215),
         cv.Optional(CONF_SECOND, default=0): cv.hex_int_range(0, 16777215),
-        cv.Optional(CONF_DATA): cv.invalid(
-            "'data' option has been removed in ESPHome 2023.8. "
-            "Use the 'first' and 'second' options instead."
-        ),
     }
 )
 
