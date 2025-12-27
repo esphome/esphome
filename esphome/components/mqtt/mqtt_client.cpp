@@ -414,6 +414,35 @@ float MQTTClientComponent::get_setup_priority() const { return setup_priority::A
  */
 static uint32_t hash_subscription(const MQTTSubscription &sub) { return fnv1_hash(sub.topic.c_str()); }
 
+/** Check if a subscription is stored in persistent storage
+ *
+ * Retrieves the subscription QoS from non-volatile memory to determine if
+ * this subscription was previously stored (indicating it may still be active
+ * on the broker in a persistent session).
+ *
+ * @param sub The MQTT subscription to check.
+ * @return true if the subscription was found in storage, false otherwise.
+ */
+static bool is_subscription_stored(const MQTTSubscription &sub) {
+  uint32_t hash = hash_subscription(sub);
+#ifdef USE_ESP32_MQTT_RTC_SESSION_PERSISTENCE
+  // Use RTC memory storage - just check if hash exists
+  for (size_t i = 0; i < USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS; i++) {
+    if (MQTTClientComponent::rtc_subscription_hashes_[i] == hash) {
+      return true;
+    }
+  }
+  return false;
+#else
+  // Use flash storage
+  auto pref = global_preferences->make_preference<uint8_t>(hash, true);
+  uint8_t stored_value = 0;
+  if (!pref.load(&stored_value))
+    return false;
+  return stored_value == (sub.qos + 34);
+#endif
+}
+
 /** Store a subscription in persistent storage
  *
  * Saves the subscription QoS to non-volatile memory so it can be checked
@@ -451,35 +480,6 @@ static bool store_subscription(const MQTTSubscription &sub) {
   uint8_t stored_value = sub.qos + 34;
   auto pref = global_preferences->make_preference<uint8_t>(hash, true);
   return pref.save(&stored_value);
-#endif
-}
-
-/** Check if a subscription is stored in persistent storage
- *
- * Retrieves the subscription QoS from non-volatile memory to determine if
- * this subscription was previously stored (indicating it may still be active
- * on the broker in a persistent session).
- *
- * @param sub The MQTT subscription to check.
- * @return true if the subscription was found in storage, false otherwise.
- */
-static bool is_subscription_stored(const MQTTSubscription &sub) {
-  uint32_t hash = hash_subscription(sub);
-#ifdef USE_ESP32_MQTT_RTC_SESSION_PERSISTENCE
-  // Use RTC memory storage - just check if hash exists
-  for (size_t i = 0; i < USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS; i++) {
-    if (MQTTClientComponent::rtc_subscription_hashes_[i] == hash) {
-      return true;
-    }
-  }
-  return false;
-#else
-  // Use flash storage
-  auto pref = global_preferences->make_preference<uint8_t>(hash, true);
-  uint8_t stored_value = 0;
-  if (!pref.load(&stored_value))
-    return false;
-  return stored_value == (sub.qos + 34);
 #endif
 }
 

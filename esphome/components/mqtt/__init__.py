@@ -175,7 +175,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
         + fconf.get("datetime", [])
         + fconf.get("light", [])
         + fconf.get("lock", [])
-        + fconf.get("lock", [])
+        + fconf.get("number", [])
         + fconf.get("select", [])
         + fconf.get("switch", [])
         + fconf.get("text", [])
@@ -200,7 +200,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
             continue
         # Command, speed, oscillation and direction (worst case scenario)
         subscription_count += 4
-        pass
     for conf in fconf.get("valve", []):
         if conf.get(CONF_INTERNAL, False):
             continue
@@ -436,8 +435,8 @@ async def to_code(config):
     else:
         cg.add(var.set_clean_session(False))
         # Default to RTC on ESP32
-        if clean_session == "RTC" or (clean_session is True and CORE.is_esp32):
-            cg.add_define("USE_ESP32_MQTT_SESSION_PERSISTENCE_IN_RTC")
+        if CORE.is_esp32 and (clean_session == "RTC" or clean_session is False):
+            cg.add_define("USE_ESP32_MQTT_RTC_SESSION_PERSISTENCE")
             cg.add_define(
                 "USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS",
                 config[CONF_RTC_MAX_SUBSCRIPTIONS],
