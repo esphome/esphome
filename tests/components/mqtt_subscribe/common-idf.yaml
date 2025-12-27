@@ -5,6 +5,7 @@ wifi:
 mqtt:
   broker: test.mosquitto.org
   port: 1883
+  clean_session: False
   discovery: true
   discovery_prefix: homeassistant
   idf_send_async: false
