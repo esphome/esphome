@@ -32,12 +32,12 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
   void calibrate_zero();
   void abc_enable();
   void abc_disable();
+  void range_set(MHZ19DetectionRange detection_ppm);
 
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
   void set_abc_enabled(bool abc_enabled) { abc_boot_logic_ = abc_enabled ? MHZ19_ABC_ENABLED : MHZ19_ABC_DISABLED; }
   void set_warmup_seconds(uint32_t seconds) { warmup_seconds_ = seconds; }
-
   void set_detection_range(MHZ19DetectionRange detection_range) { detection_range_ = detection_range; }
 
  protected:
@@ -77,6 +77,17 @@ template<typename... Ts> class MHZ19ABCDisableAction : public Action<Ts...> {
   MHZ19ABCDisableAction(MHZ19Component *mhz19) : mhz19_(mhz19) {}
 
   void play(const Ts &...x) override { this->mhz19_->abc_disable(); }
+
+ protected:
+  MHZ19Component *mhz19_;
+};
+
+template<typename... Ts> class MHZ19DetectionRangeSetAction : public Action<Ts...> {
+ public:
+  MHZ19DetectionRangeSetAction(MHZ19Component *mhz19) : mhz19_(mhz19) {}
+  TEMPLATABLE_VALUE(MHZ19DetectionRange, detection_range)
+
+  void play(const Ts &...x) override { this->mhz19_->range_set(this->detection_range_.value(x...)); }
 
  protected:
   MHZ19Component *mhz19_;

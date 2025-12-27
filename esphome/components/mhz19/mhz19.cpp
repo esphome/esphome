@@ -32,23 +32,7 @@ void MHZ19Component::setup() {
     this->abc_disable();
   }
 
-  switch (this->detection_range_) {
-    case MHZ19_DETECTION_RANGE_DEFAULT:
-      ESP_LOGD(TAG, "Using previously set detection range (no change)");
-      break;
-    case MHZ19_DETECTION_RANGE_0_2000PPM:
-      ESP_LOGD(TAG, "Setting detection range to 0 to 2000ppm");
-      this->mhz19_write_command_(MHZ19_COMMAND_DETECTION_RANGE_0_2000PPM, nullptr);
-      break;
-    case MHZ19_DETECTION_RANGE_0_5000PPM:
-      ESP_LOGD(TAG, "Setting detection range to 0 to 5000ppm");
-      this->mhz19_write_command_(MHZ19_COMMAND_DETECTION_RANGE_0_5000PPM, nullptr);
-      break;
-    case MHZ19_DETECTION_RANGE_0_10000PPM:
-      ESP_LOGD(TAG, "Setting detection range to 0 to 10000ppm");
-      this->mhz19_write_command_(MHZ19_COMMAND_DETECTION_RANGE_0_10000PPM, nullptr);
-      break;
-  }
+  this->range_set(this->detection_range_);
 }
 
 void MHZ19Component::update() {
@@ -105,6 +89,26 @@ void MHZ19Component::abc_enable() {
 void MHZ19Component::abc_disable() {
   ESP_LOGD(TAG, "MHZ19 Disabling automatic baseline calibration");
   this->mhz19_write_command_(MHZ19_COMMAND_ABC_DISABLE, nullptr);
+}
+
+void MHZ19Component::range_set(MHZ19DetectionRange detection_ppm) {
+  switch (detection_ppm) {
+    case MHZ19_DETECTION_RANGE_DEFAULT:
+      ESP_LOGV(TAG, "Using previously set detection range (no change)");
+      break;
+    case MHZ19_DETECTION_RANGE_0_2000PPM:
+      ESP_LOGD(TAG, "Setting detection range to 0 to 2000ppm");
+      this->mhz19_write_command_(MHZ19_COMMAND_DETECTION_RANGE_0_2000PPM, nullptr);
+      break;
+    case MHZ19_DETECTION_RANGE_0_5000PPM:
+      ESP_LOGD(TAG, "Setting detection range to 0 to 5000ppm");
+      this->mhz19_write_command_(MHZ19_COMMAND_DETECTION_RANGE_0_5000PPM, nullptr);
+      break;
+    case MHZ19_DETECTION_RANGE_0_10000PPM:
+      ESP_LOGD(TAG, "Setting detection range to 0 to 10000ppm");
+      this->mhz19_write_command_(MHZ19_COMMAND_DETECTION_RANGE_0_10000PPM, nullptr);
+      break;
+  }
 }
 
 bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *response) {
