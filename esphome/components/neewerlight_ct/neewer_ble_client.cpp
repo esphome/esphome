@@ -9,9 +9,6 @@ namespace esphome::neewerlight_ct {
 
 using utils::TAG;
 
-const std::string NeewerBleClient::SERVICE_UUID = "69400001-B5A3-F393-E0A9-E50E24DCCA99";
-const std::string NeewerBleClient::CHARACTERISTIC_UUID = "69400002-B5A3-F393-E0A9-E50E24DCCA99";
-
 void NeewerBleClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                           esp_ble_gattc_cb_param_t *param) {
   switch (event) {

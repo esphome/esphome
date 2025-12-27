@@ -24,8 +24,8 @@ class NeewerBleClient {
  protected:
   esp32_ble_tracker::ClientState client_state_ = esp32_ble_tracker::ClientState::INIT;
 
-  static const std::string SERVICE_UUID;
-  static const std::string CHARACTERISTIC_UUID;
+  static constexpr const char *SERVICE_UUID = "69400001-B5A3-F393-E0A9-E50E24DCCA99";
+  static constexpr const char *CHARACTERISTIC_UUID = "69400002-B5A3-F393-E0A9-E50E24DCCA99";
 };
 
 }  // namespace esphome::neewerlight_ct
