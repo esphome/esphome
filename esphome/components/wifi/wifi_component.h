@@ -61,6 +61,9 @@ namespace esphome::wifi {
 /// Sentinel value for RSSI when WiFi is not connected
 static constexpr int8_t WIFI_RSSI_DISCONNECTED = -127;
 
+/// Buffer size for SSID (IEEE 802.11 max 32 bytes + null terminator)
+static constexpr size_t SSID_BUFFER_SIZE = 33;
+
 struct SavedWifiSettings {
   char ssid[33];
   char password[65];
@@ -408,6 +411,9 @@ class WiFiComponent : public Component {
 
   network::IPAddresses wifi_sta_ip_addresses();
   std::string wifi_ssid();
+  /// Write SSID to buffer without heap allocation.
+  /// Returns pointer to buffer, or empty string if not connected.
+  const char *wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer);
   bssid_t wifi_bssid();
 
   int8_t wifi_rssi();

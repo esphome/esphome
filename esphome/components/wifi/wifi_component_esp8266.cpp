@@ -913,6 +913,18 @@ bssid_t WiFiComponent::wifi_bssid() {
   return bssid;
 }
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
+const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
+  struct station_config conf {};
+  if (!wifi_station_get_config(&conf)) {
+    buffer[0] = '\0';
+    return buffer.data();
+  }
+  // conf.ssid is uint8[32], not null-terminated if full
+  size_t len = strnlen(reinterpret_cast<const char *>(conf.ssid), sizeof(conf.ssid));
+  memcpy(buffer.data(), conf.ssid, len);
+  buffer[len] = '\0';
+  return buffer.data();
+}
 int8_t WiFiComponent::wifi_rssi() {
   if (WiFi.status() != WL_CONNECTED)
     return WIFI_RSSI_DISCONNECTED;

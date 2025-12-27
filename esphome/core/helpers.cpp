@@ -297,6 +297,19 @@ std::string format_hex(const uint8_t *data, size_t length) {
 }
 std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
 
+char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
+  size_t max_bytes = (buffer_size - 1) / 2;
+  if (length > max_bytes) {
+    length = max_bytes;
+  }
+  for (size_t i = 0; i < length; i++) {
+    buffer[2 * i] = format_hex_char(data[i] >> 4);
+    buffer[2 * i + 1] = format_hex_char(data[i] & 0x0F);
+  }
+  buffer[length * 2] = '\0';
+  return buffer;
+}
+
 // Shared implementation for uint8_t and string hex formatting
 static std::string format_hex_pretty_uint8(const uint8_t *data, size_t length, char separator, bool show_length) {
   if (data == nullptr || length == 0)
