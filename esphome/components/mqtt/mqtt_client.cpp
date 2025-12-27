@@ -430,8 +430,8 @@ bool MQTTClientComponent::is_subscription_persisted(const MQTTSubscription &sub)
   uint32_t hash = hash_subscription(sub);
 #ifdef USE_ESP32_MQTT_RTC_SESSION_PERSISTENCE
   // Use RTC memory storage - just check if hash exists
-  for (size_t i = 0; i < USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS; i++) {
-    if (MQTTClientComponent::rtc_subscription_hashes[i] == hash) {
+  for (const auto &test_hash : MQTTClientComponent::rtc_subscription_hashes) {
+    if (test_hash == hash) {
       return true;
     }
   }
@@ -458,13 +458,12 @@ bool MQTTClientComponent::persist_subscription(const MQTTSubscription &sub) {
 #ifdef USE_ESP32_MQTT_RTC_SESSION_PERSISTENCE
   // Use RTC memory storage - just store hash (0 = empty)
   // Find existing entry or first empty slot
-  for (size_t i = 0; i < USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS; i++) {
-    if (MQTTClientComponent::rtc_subscription_hashes[i] == hash) {
+  for (auto &test_hash : MQTTClientComponent::rtc_subscription_hashes) {
+    if (test_hash == hash) {
       // Already stored
       return true;
-    }
-    if (MQTTClientComponent::rtc_subscription_hashes[i] == 0) {
-      MQTTClientComponent::rtc_subscription_hashes[i] = hash;
+    } else if (test_hash == 0) {
+      test_hash = hash;
       return true;
     }
   }
@@ -496,9 +495,9 @@ bool MQTTClientComponent::remove_persisted_subscription(const MQTTSubscription &
 
 #ifdef USE_ESP32_MQTT_RTC_SESSION_PERSISTENCE
   // Use RTC memory storage - clear hash (set to 0)
-  for (size_t i = 0; i < USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS; i++) {
-    if (MQTTClientComponent::rtc_subscription_hashes[i] == hash) {
-      MQTTClientComponent::rtc_subscription_hashes[i] = 0;
+  for (auto &test_hash : MQTTClientComponent::rtc_subscription_hashes) {
+    if (test_hash == hash) {
+      test_hash = 0;
       return true;
     }
   }
