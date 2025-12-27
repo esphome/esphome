@@ -2,11 +2,10 @@
 #include "esphome/core/defines.h"
 #ifdef USE_CAPTIVE_PORTAL
 #include <memory>
-#ifdef USE_ARDUINO
-#include <DNSServer.h>
-#endif
-#ifdef USE_ESP32
+#if defined(USE_ESP32)
 #include "dns_server_esp32_idf.h"
+#elif defined(USE_ARDUINO)
+#include <DNSServer.h>
 #endif
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"

@@ -12,7 +12,7 @@
 #ifdef USE_ARDUINO
 #ifdef USE_ESP8266
 #include <Updater.h>
-#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
+#elif defined(USE_LIBRETINY)
 #include <Update.h>
 #endif
 #endif  // USE_ARDUINO
@@ -124,7 +124,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
 #ifdef USE_ESP8266
     Update.runAsync(true);
 #endif
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#ifdef USE_LIBRETINY
     if (Update.isRunning()) {
       Update.abort();
     }
