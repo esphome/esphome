@@ -322,6 +322,19 @@ bool ESP8266OTABackend::verify_end_() {
     return false;
   }
 
+// Check if new firmware's flash size fits (only when auto-detection is disabled)
+// With FLASH_MAP_SUPPORT (modern cores), flash size is auto-detected from chip
+#if !FLASH_MAP_SUPPORT
+  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
+  uint32_t bin_flash_size = ESP.magicFlashChipSize((bytes[3] & 0xf0) >> 4);
+  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
+  if (bin_flash_size > ESP.getFlashChipRealSize()) {
+    ESP_LOGE(TAG, "Firmware flash size (%" PRIu32 ") exceeds chip size (%" PRIu32 ")", bin_flash_size,
+             ESP.getFlashChipRealSize());
+    return false;
+  }
+#endif
+
   return true;
 }
 
