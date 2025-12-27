@@ -1,9 +1,3 @@
-uart:
-  - id: uart_pmsx003
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 sensor:
   - platform: pmsx003
     type: PMSX003
@@ -31,4 +25,7 @@ sensor:
       name: Particulate Count >5.0um
     pm_10_0um:
       name: Particulate Count >10.0um
+    aqi:
+      name: AQI
+      calculation_type: AQI
     update_interval: 30s

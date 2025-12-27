@@ -40,13 +40,13 @@ class ESP32InternalGPIOPin : public InternalGPIOPin {
   // - 3 bytes for members below
   // - 1 byte padding for alignment
   // - 4 bytes for vtable pointer
-  uint8_t pin_;        // GPIO pin number (0-255, actual max ~54 on ESP32)
-  gpio::Flags flags_;  // GPIO flags (1 byte)
+  uint8_t pin_;          // GPIO pin number (0-255, actual max ~54 on ESP32)
+  gpio::Flags flags_{};  // GPIO flags (1 byte)
   struct PinFlags {
     uint8_t inverted : 1;        // Invert pin logic (1 bit)
     uint8_t drive_strength : 2;  // Drive strength 0-3 (2 bits)
     uint8_t reserved : 5;        // Reserved for future use (5 bits)
-  } pin_flags_;                  // Total: 1 byte
+  } pin_flags_{};                // Total: 1 byte
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
   static bool isr_service_installed;
 };

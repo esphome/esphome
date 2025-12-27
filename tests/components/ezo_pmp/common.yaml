@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_ezo_pmp
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 ezo_pmp:
+  i2c_id: i2c_bus
   id: hcl_pump
   update_interval: 1s
 

@@ -11,7 +11,7 @@ template<typename... Ts> class StartFanAction : public Action<Ts...> {
  public:
   explicit StartFanAction(SEN5XComponent *sen5x) : sen5x_(sen5x) {}
 
-  void play(Ts... x) override { this->sen5x_->start_fan_cleaning(); }
+  void play(const Ts &...x) override { this->sen5x_->start_fan_cleaning(); }
 
  protected:
   SEN5XComponent *sen5x_;

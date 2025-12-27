@@ -1,8 +1,7 @@
 #include "template_fan.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 static const char *const TAG = "template.fan";
 
@@ -29,10 +28,9 @@ void TemplateFan::control(const fan::FanCall &call) {
     this->oscillating = *call.get_oscillating();
   if (call.get_direction().has_value() && this->has_direction_)
     this->direction = *call.get_direction();
-  this->preset_mode = call.get_preset_mode();
+  this->set_preset_mode_(call.get_preset_mode());
 
   this->publish_state();
 }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

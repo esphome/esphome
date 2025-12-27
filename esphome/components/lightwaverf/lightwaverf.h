@@ -51,7 +51,7 @@ template<typename... Ts> class SendRawAction : public Action<Ts...> {
   void set_pulse_length(const int &data) { pulse_length_ = data; }
   void set_data(const std::vector<uint8_t> &data) { code_ = data; }
 
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     int repeats = this->repeat_.value(x...);
     int inverted = this->inverted_.value(x...);
     int pulse_length = this->pulse_length_.value(x...);

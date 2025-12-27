@@ -42,7 +42,7 @@ std::string MenuItemSelect::get_value_text() const {
     result = this->value_getter_.value()(this);
   } else {
     if (this->select_var_ != nullptr) {
-      result = this->select_var_->state;
+      result = this->select_var_->current_option();
     }
   }
 
@@ -54,6 +54,7 @@ bool MenuItemSelect::select_next() {
 
   if (this->select_var_ != nullptr) {
     this->select_var_->make_call().select_next(true).perform();
+    this->on_value_();
     changed = true;
   }
 
@@ -65,6 +66,7 @@ bool MenuItemSelect::select_prev() {
 
   if (this->select_var_ != nullptr) {
     this->select_var_->make_call().select_previous(true).perform();
+    this->on_value_();
     changed = true;
   }
 

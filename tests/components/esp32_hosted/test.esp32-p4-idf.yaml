@@ -1,1 +1,7 @@
 <<: !include common.yaml
+
+update:
+  - platform: esp32_hosted
+    name: "Coprocessor Firmware Update"
+    path: $component_dir/test_firmware.bin
+    sha256: de2f256064a0af797747c2b97505dc0b9f3df0de4f489eac731c23ae9ca9cc31

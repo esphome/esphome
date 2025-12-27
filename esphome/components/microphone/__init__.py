@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_GAIN_FACTOR,
     CONF_ID,
     CONF_MICROPHONE,
+    CONF_ON_DATA,
     CONF_TRIGGER_ID,
 )
 from esphome.core import CORE
@@ -18,8 +19,6 @@ AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
 
 IS_PLATFORM_COMPONENT = True
-
-CONF_ON_DATA = "on_data"
 
 microphone_ns = cg.esphome_ns.namespace("microphone")
 

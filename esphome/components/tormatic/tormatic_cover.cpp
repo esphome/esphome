@@ -251,7 +251,7 @@ void Tormatic::stop_at_target_() {
 // Read a GateStatus from the unit. The unit only sends messages in response to
 // status requests or commands, so a message needs to be sent first.
 optional<GateStatus> Tormatic::read_gate_status_() {
-  if (this->available() < sizeof(MessageHeader)) {
+  if (this->available() < static_cast<int>(sizeof(MessageHeader))) {
     return {};
   }
 

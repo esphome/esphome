@@ -33,12 +33,44 @@ static const char *const TAG = "component";
 // Using namespace-scope static to avoid guard variables (saves 16 bytes total)
 // This is safe because ESPHome is single-threaded during initialization
 namespace {
+struct ComponentErrorMessage {
+  const Component *component;
+  const char *message;
+  // Track if message is flash pointer (needs LOG_STR_ARG) or RAM pointer
+  // Remove before 2026.6.0 when deprecated const char* API is removed
+  bool is_flash_ptr;
+};
+
+struct ComponentPriorityOverride {
+  const Component *component;
+  float priority;
+};
+
 // Error messages for failed components
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-std::unique_ptr<std::vector<std::pair<const Component *, const char *>>> component_error_messages;
+std::unique_ptr<std::vector<ComponentErrorMessage>> component_error_messages;
 // Setup priority overrides - freed after setup completes
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-std::unique_ptr<std::vector<std::pair<const Component *, float>>> setup_priority_overrides;
+std::unique_ptr<std::vector<ComponentPriorityOverride>> setup_priority_overrides;
+
+// Helper to store error messages - reduces duplication between deprecated and new API
+// Remove before 2026.6.0 when deprecated const char* API is removed
+void store_component_error_message(const Component *component, const char *message, bool is_flash_ptr) {
+  // Lazy allocate the error messages vector if needed
+  if (!component_error_messages) {
+    component_error_messages = std::make_unique<std::vector<ComponentErrorMessage>>();
+  }
+  // Check if this component already has an error message
+  for (auto &entry : *component_error_messages) {
+    if (entry.component == component) {
+      entry.message = message;
+      entry.is_flash_ptr = is_flash_ptr;
+      return;
+    }
+  }
+  // Add new error message
+  component_error_messages->emplace_back(ComponentErrorMessage{component, message, is_flash_ptr});
+}
 }  // namespace
 
 namespace setup_priority {
@@ -106,7 +138,16 @@ void Component::set_retry(const std::string &name, uint32_t initial_wait_time, u
   App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
 }
 
+void Component::set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
+                          std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
+  App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
+}
+
 bool Component::cancel_retry(const std::string &name) {  // NOLINT
+  return App.scheduler.cancel_retry(this, name);
+}
+
+bool Component::cancel_retry(const char *name) {  // NOLINT
   return App.scheduler.cancel_retry(this, name);
 }
 
@@ -133,16 +174,20 @@ void Component::call_dump_config() {
   if (this->is_failed()) {
     // Look up error message from global vector
     const char *error_msg = nullptr;
+    bool is_flash_ptr = false;
     if (component_error_messages) {
-      for (const auto &pair : *component_error_messages) {
-        if (pair.first == this) {
-          error_msg = pair.second;
+      for (const auto &entry : *component_error_messages) {
+        if (entry.component == this) {
+          error_msg = entry.message;
+          is_flash_ptr = entry.is_flash_ptr;
           break;
         }
       }
     }
+    // Log with appropriate format based on pointer type
     ESP_LOGE(TAG, "  %s is marked FAILED: %s", LOG_STR_ARG(this->get_component_log_str()),
-             error_msg ? error_msg : LOG_STR_LITERAL("unspecified"));
+             error_msg ? (is_flash_ptr ? LOG_STR_ARG((const LogString *) error_msg) : error_msg)
+                       : LOG_STR_LITERAL("unspecified"));
   }
 }
 
@@ -274,6 +319,7 @@ bool Component::is_ready() const {
          (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE ||
          (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
 }
+bool Component::is_idle() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE; }
 bool Component::can_proceed() { return true; }
 bool Component::status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
 bool Component::status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
@@ -296,6 +342,7 @@ void Component::status_set_warning(const LogString *message) {
   ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
 }
+void Component::status_set_error() { this->status_set_error((const LogString *) nullptr); }
 void Component::status_set_error(const char *message) {
   if ((this->component_state_ & STATUS_LED_ERROR) != 0)
     return;
@@ -304,19 +351,19 @@ void Component::status_set_error(const char *message) {
   ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? message : LOG_STR_LITERAL("unspecified"));
   if (message != nullptr) {
-    // Lazy allocate the error messages vector if needed
-    if (!component_error_messages) {
-      component_error_messages = std::make_unique<std::vector<std::pair<const Component *, const char *>>>();
-    }
-    // Check if this component already has an error message
-    for (auto &pair : *component_error_messages) {
-      if (pair.first == this) {
-        pair.second = message;
-        return;
-      }
-    }
-    // Add new error message
-    component_error_messages->emplace_back(this, message);
+    store_component_error_message(this, message, false);
+  }
+}
+void Component::status_set_error(const LogString *message) {
+  if ((this->component_state_ & STATUS_LED_ERROR) != 0)
+    return;
+  this->component_state_ |= STATUS_LED_ERROR;
+  App.app_state_ |= STATUS_LED_ERROR;
+  ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
+           message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
+  if (message != nullptr) {
+    // Store the LogString pointer directly (safe because LogString is always in flash/static memory)
+    store_component_error_message(this, LOG_STR_ARG(message), true);
   }
 }
 void Component::status_clear_warning() {
@@ -331,11 +378,11 @@ void Component::status_clear_error() {
   this->component_state_ &= ~STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s cleared Error flag", LOG_STR_ARG(this->get_component_log_str()));
 }
-void Component::status_momentary_warning(const std::string &name, uint32_t length) {
+void Component::status_momentary_warning(const char *name, uint32_t length) {
   this->status_set_warning();
   this->set_timeout(name, length, [this]() { this->status_clear_warning(); });
 }
-void Component::status_momentary_error(const std::string &name, uint32_t length) {
+void Component::status_momentary_error(const char *name, uint32_t length) {
   this->status_set_error();
   this->set_timeout(name, length, [this]() { this->status_clear_error(); });
 }
@@ -356,9 +403,9 @@ float Component::get_actual_setup_priority() const {
   // Check if there's an override in the global vector
   if (setup_priority_overrides) {
     // Linear search is fine for small n (typically < 5 overrides)
-    for (const auto &pair : *setup_priority_overrides) {
-      if (pair.first == this) {
-        return pair.second;
+    for (const auto &entry : *setup_priority_overrides) {
+      if (entry.component == this) {
+        return entry.priority;
       }
     }
   }
@@ -367,21 +414,21 @@ float Component::get_actual_setup_priority() const {
 void Component::set_setup_priority(float priority) {
   // Lazy allocate the vector if needed
   if (!setup_priority_overrides) {
-    setup_priority_overrides = std::make_unique<std::vector<std::pair<const Component *, float>>>();
+    setup_priority_overrides = std::make_unique<std::vector<ComponentPriorityOverride>>();
     // Reserve some space to avoid reallocations (most configs have < 10 overrides)
     setup_priority_overrides->reserve(10);
   }
 
   // Check if this component already has an override
-  for (auto &pair : *setup_priority_overrides) {
-    if (pair.first == this) {
-      pair.second = priority;
+  for (auto &entry : *setup_priority_overrides) {
+    if (entry.component == this) {
+      entry.priority = priority;
       return;
     }
   }
 
   // Add new override
-  setup_priority_overrides->emplace_back(this, priority);
+  setup_priority_overrides->emplace_back(ComponentPriorityOverride{this, priority});
 }
 
 bool Component::has_overridden_loop() const {

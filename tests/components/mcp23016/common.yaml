@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_mcp23016
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 mcp23016:
+  i2c_id: i2c_bus
   id: mcp23016_hub
 
 binary_sensor:

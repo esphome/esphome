@@ -66,25 +66,8 @@ void SpeakerMediaPlayer::setup() {
     this->set_mute_state_(false);
   }
 
-#ifdef USE_OTA
-  ota::get_global_ota_callback()->add_on_state_callback(
-      [this](ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
-        if (state == ota::OTA_STARTED) {
-          if (this->media_pipeline_ != nullptr) {
-            this->media_pipeline_->suspend_tasks();
-          }
-          if (this->announcement_pipeline_ != nullptr) {
-            this->announcement_pipeline_->suspend_tasks();
-          }
-        } else if (state == ota::OTA_ERROR) {
-          if (this->media_pipeline_ != nullptr) {
-            this->media_pipeline_->resume_tasks();
-          }
-          if (this->announcement_pipeline_ != nullptr) {
-            this->announcement_pipeline_->resume_tasks();
-          }
-        }
-      });
+#ifdef USE_OTA_STATE_LISTENER
+  ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
 
   this->announcement_pipeline_ =
@@ -299,6 +282,27 @@ void SpeakerMediaPlayer::watch_media_commands_() {
     }
   }
 }
+
+#ifdef USE_OTA_STATE_LISTENER
+void SpeakerMediaPlayer::on_ota_global_state(ota::OTAState state, float progress, uint8_t error,
+                                             ota::OTAComponent *comp) {
+  if (state == ota::OTA_STARTED) {
+    if (this->media_pipeline_ != nullptr) {
+      this->media_pipeline_->suspend_tasks();
+    }
+    if (this->announcement_pipeline_ != nullptr) {
+      this->announcement_pipeline_->suspend_tasks();
+    }
+  } else if (state == ota::OTA_ERROR) {
+    if (this->media_pipeline_ != nullptr) {
+      this->media_pipeline_->resume_tasks();
+    }
+    if (this->announcement_pipeline_ != nullptr) {
+      this->announcement_pipeline_->resume_tasks();
+    }
+  }
+}
+#endif
 
 void SpeakerMediaPlayer::loop() {
   this->watch_media_commands_();
