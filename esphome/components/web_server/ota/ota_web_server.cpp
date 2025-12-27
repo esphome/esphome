@@ -10,7 +10,7 @@
 #endif
 
 #ifdef USE_ARDUINO
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_LIBRETINY)
 #include <Update.h>
 #endif
 #endif  // USE_ARDUINO
@@ -118,7 +118,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
 
     // Platform-specific pre-initialization
 #ifdef USE_ARDUINO
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_LIBRETINY)
     if (Update.isRunning()) {
       Update.abort();
     }

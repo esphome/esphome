@@ -357,11 +357,12 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 2),
-    "latest": cv.Version(3, 3, 4),
-    "dev": cv.Version(3, 3, 4),
+    "recommended": cv.Version(3, 3, 5),
+    "latest": cv.Version(3, 3, 5),
+    "dev": cv.Version(3, 3, 5),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(3, 3, 5): cv.Version(55, 3, 35),
     cv.Version(3, 3, 4): cv.Version(55, 3, 31, "2"),
     cv.Version(3, 3, 3): cv.Version(55, 3, 31, "2"),
     cv.Version(3, 3, 2): cv.Version(55, 3, 31, "2"),
@@ -378,11 +379,12 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 1),
-    "latest": cv.Version(5, 5, 1),
-    "dev": cv.Version(5, 5, 1),
+    "recommended": cv.Version(5, 5, 2),
+    "latest": cv.Version(5, 5, 2),
+    "dev": cv.Version(5, 5, 2),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(5, 5, 2): cv.Version(55, 3, 35),
     cv.Version(5, 5, 1): cv.Version(55, 3, 31, "2"),
     cv.Version(5, 5, 0): cv.Version(55, 3, 31, "2"),
     cv.Version(5, 4, 3): cv.Version(55, 3, 32),
@@ -399,9 +401,9 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 31, "2"),
-    "latest": cv.Version(55, 3, 31, "2"),
-    "dev": cv.Version(55, 3, 31, "2"),
+    "recommended": cv.Version(55, 3, 35),
+    "latest": cv.Version(55, 3, 35),
+    "dev": cv.Version(55, 3, 35),
 }
 
 
