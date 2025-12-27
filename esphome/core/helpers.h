@@ -730,6 +730,24 @@ inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
   output[12] = '\0';
 }
 
+/// Format byte array as lowercase hex to buffer (base implementation).
+char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length);
+
+/// Format byte array as lowercase hex to buffer. Automatically deduces buffer size.
+/// Truncates output if data exceeds buffer capacity. Returns pointer to buffer.
+template<size_t N> inline char *format_hex_to(char (&buffer)[N], const uint8_t *data, size_t length) {
+  static_assert(N >= 3, "Buffer must hold at least one hex byte (3 chars)");
+  return format_hex_to(buffer, N, data, length);
+}
+
+/// Format an unsigned integer in lowercased hex to buffer, starting with the most significant byte.
+template<size_t N, typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline char *format_hex_to(char (&buffer)[N], T val) {
+  static_assert(N >= sizeof(T) * 2 + 1, "Buffer too small for type");
+  val = convert_big_endian(val);
+  return format_hex_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
+}
+
 /// Format the six-byte array \p mac into a MAC address.
 std::string format_mac_address_pretty(const uint8_t mac[6]);
 /// Format the byte array \p data of length \p len in lowercased hex.
