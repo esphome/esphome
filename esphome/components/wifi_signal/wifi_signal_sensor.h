@@ -2,9 +2,11 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/wifi/wifi_component.h"
 #ifdef USE_WIFI
+#include <span>
 namespace esphome::wifi_signal {
 
 #ifdef USE_WIFI_LISTENERS
