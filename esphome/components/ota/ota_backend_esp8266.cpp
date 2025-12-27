@@ -143,10 +143,8 @@ OTAResponseTypes ESP8266OTABackend::write(uint8_t *data, size_t len) {
     written += to_buffer;
 
     // If buffer is full, write to flash
-    if (this->buffer_len_ == this->buffer_size_) {
-      if (!this->write_buffer_()) {
-        return OTA_RESPONSE_ERROR_WRITING_FLASH;
-      }
+    if (this->buffer_len_ == this->buffer_size_ && !this->write_buffer_()) {
+      return OTA_RESPONSE_ERROR_WRITING_FLASH;
     }
   }
 
@@ -228,11 +226,7 @@ bool ESP8266OTABackend::write_buffer_final_() {
     return true;
   }
 
-  if (!this->erase_sector_if_needed_()) {
-    return false;
-  }
-
-  if (!this->flash_write_()) {
+  if (!this->erase_sector_if_needed_() || !this->flash_write_()) {
     return false;
   }
 
