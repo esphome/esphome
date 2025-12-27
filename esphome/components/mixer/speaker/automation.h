@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "mixer_speaker.h"
 
 #ifdef USE_ESP32
