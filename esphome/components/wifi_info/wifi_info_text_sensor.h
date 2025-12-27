@@ -52,7 +52,7 @@ class SSIDWiFiInfo final : public Component, public text_sensor::TextSensor, pub
   void dump_config() override;
 
   // WiFiConnectStateListener interface
-  void on_wifi_connect_state(StringRef ssid, const wifi::bssid_t &bssid) override;
+  void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) override;
 };
 
 class BSSIDWiFiInfo final : public Component, public text_sensor::TextSensor, public wifi::WiFiConnectStateListener {
@@ -61,7 +61,7 @@ class BSSIDWiFiInfo final : public Component, public text_sensor::TextSensor, pu
   void dump_config() override;
 
   // WiFiConnectStateListener interface
-  void on_wifi_connect_state(StringRef ssid, const wifi::bssid_t &bssid) override;
+  void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) override;
 };
 
 class PowerSaveModeWiFiInfo final : public Component,
