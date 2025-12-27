@@ -982,8 +982,8 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   // This provides a standards-compliant way for clients to discover the captive portal
   if (captive_portal::global_captive_portal != nullptr) {
     // Buffer must be static - dhcps_set_option_info stores pointer, doesn't copy
-    static char captive_portal_uri[24];  // "http://" (7) + IPv4 max (15) + null
-    memcpy(captive_portal_uri, "http://", 7);
+    static char captive_portal_uri[24];        // "http://" (7) + IPv4 max (15) + null
+    memcpy(captive_portal_uri, "http://", 7);  // NOLINT - str_to null-terminates
     network::IPAddress(&info.ip).str_to(captive_portal_uri + 7);
     err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_CAPTIVEPORTAL_URI, captive_portal_uri,
                                  strlen(captive_portal_uri));
