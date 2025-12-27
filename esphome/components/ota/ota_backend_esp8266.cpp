@@ -223,7 +223,7 @@ bool ESP8266OTABackend::write_buffer_() {
 }
 
 bool ESP8266OTABackend::write_buffer_final_() {
-  // Same as write_buffer_() but without MD5 update (for final padded write)
+  // Similar to write_buffer_(), but without flash mode patching or MD5 update (for final padded write)
   if (this->buffer_len_ == 0) {
     return true;
   }
