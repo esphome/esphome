@@ -981,9 +981,9 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   // Configure DHCP Option 114 (Captive Portal URI) if captive portal is enabled
   // This provides a standards-compliant way for clients to discover the captive portal
   if (captive_portal::global_captive_portal != nullptr) {
-    static char captive_portal_uri[32];
-    char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
-    snprintf(captive_portal_uri, sizeof(captive_portal_uri), "http://%s", network::IPAddress(&info.ip).str_to(ip_buf));
+    char captive_portal_uri[7 + network::IP_ADDRESS_BUFFER_SIZE];  // "http://" + IP
+    memcpy(captive_portal_uri, "http://", 7);
+    network::IPAddress(&info.ip).str_to(captive_portal_uri + 7);
     err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_CAPTIVEPORTAL_URI, captive_portal_uri,
                                  strlen(captive_portal_uri));
     if (err != ESP_OK) {
