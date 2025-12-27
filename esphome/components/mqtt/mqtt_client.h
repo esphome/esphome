@@ -353,9 +353,14 @@ class MQTTClientComponent : public Component
   bool wait_for_connection_{false};
   bool session_present_{false};
 
+  static uint32_t hash_subscription(const MQTTSubscription &sub);
+  static bool is_subscription_persisted(const MQTTSubscription &sub);
+  static bool persist_subscription(const MQTTSubscription &sub);
+  static bool remove_persisted_subscription(const MQTTSubscription &sub);
+
 #ifdef USE_ESP32_MQTT_RTC_SESSION_PERSISTENCE
   /// RTC memory storage for subscription hashes (ESP32 only), 0 means empty
-  inline static RTC_DATA_ATTR uint32_t rtc_subscription_hashes_[USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS] = {};
+  inline static RTC_DATA_ATTR uint32_t rtc_subscription_hashes[USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS] = {};
 #endif
 };
 

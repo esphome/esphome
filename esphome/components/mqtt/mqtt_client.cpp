@@ -412,7 +412,7 @@ float MQTTClientComponent::get_setup_priority() const { return setup_priority::A
  * @param sub The MQTT subscription to hash.
  * @return A 32-bit hash value based on the topic.
  */
-static uint32_t hash_subscription(const MQTTSubscription &sub) { return fnv1_hash(sub.topic.c_str()); }
+uint32_t MQTTClientComponent::hash_subscription(const MQTTSubscription &sub) { return fnv1_hash(sub.topic.c_str()); }
 
 /** Check if a subscription is stored in persistent storage
  *
@@ -423,12 +423,12 @@ static uint32_t hash_subscription(const MQTTSubscription &sub) { return fnv1_has
  * @param sub The MQTT subscription to check.
  * @return true if the subscription was found in storage, false otherwise.
  */
-static bool is_subscription_stored(const MQTTSubscription &sub) {
+bool MQTTClientComponent::is_subscription_persisted(const MQTTSubscription &sub) {
   uint32_t hash = hash_subscription(sub);
 #ifdef USE_ESP32_MQTT_RTC_SESSION_PERSISTENCE
   // Use RTC memory storage - just check if hash exists
   for (size_t i = 0; i < USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS; i++) {
-    if (MQTTClientComponent::rtc_subscription_hashes_[i] == hash) {
+    if (MQTTClientComponent::rtc_subscription_hashes[i] == hash) {
       return true;
     }
   }
@@ -452,7 +452,7 @@ static bool is_subscription_stored(const MQTTSubscription &sub) {
  * @param sub The MQTT subscription to store.
  * @return true if the subscription was successfully stored, false otherwise.
  */
-static bool store_subscription(const MQTTSubscription &sub) {
+bool MQTTClientComponent::persist_subscription(const MQTTSubscription &sub) {
   uint32_t hash = hash_subscription(sub);
 
   // For ESP8266 it could be implemented using system_rtc_mem_read & system_rtc_mem_write
@@ -460,12 +460,12 @@ static bool store_subscription(const MQTTSubscription &sub) {
   // Use RTC memory storage - just store hash (0 = empty)
   // Find existing entry or first empty slot
   for (size_t i = 0; i < USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS; i++) {
-    if (MQTTClientComponent::rtc_subscription_hashes_[i] == hash) {
+    if (MQTTClientComponent::rtc_subscription_hashes[i] == hash) {
       // Already stored
       return true;
     }
-    if (MQTTClientComponent::rtc_subscription_hashes_[i] == 0) {
-      MQTTClientComponent::rtc_subscription_hashes_[i] = hash;
+    if (MQTTClientComponent::rtc_subscription_hashes[i] == 0) {
+      MQTTClientComponent::rtc_subscription_hashes[i] = hash;
       return true;
     }
   }
@@ -474,7 +474,7 @@ static bool store_subscription(const MQTTSubscription &sub) {
 #else
   // Use flash storage with magic value to distinguish from uninitialized
   // Avoid writing again to flash if already stored
-  if (is_subscription_stored(sub)) {
+  if (is_subscription_persisted(sub)) {
     return true;
   }
   uint8_t stored_value = sub.qos + 34;
@@ -491,18 +491,18 @@ static bool store_subscription(const MQTTSubscription &sub) {
  * @param sub The MQTT subscription to remove.
  * @return true if the subscription was successfully removed, false otherwise.
  */
-static bool remove_stored_subscription(const MQTTSubscription &sub) {
+bool MQTTClientComponent::remove_persisted_subscription(const MQTTSubscription &sub) {
   uint32_t hash = hash_subscription(sub);
   // Check if it exists first
-  if (!is_subscription_stored(sub)) {
+  if (!is_subscription_persisted(sub)) {
     return true;
   }
 
 #ifdef USE_ESP32_MQTT_RTC_SESSION_PERSISTENCE
   // Use RTC memory storage - clear hash (set to 0)
   for (size_t i = 0; i < USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS; i++) {
-    if (MQTTClientComponent::rtc_subscription_hashes_[i] == hash) {
-      MQTTClientComponent::rtc_subscription_hashes_[i] = 0;
+    if (MQTTClientComponent::rtc_subscription_hashes[i] == hash) {
+      MQTTClientComponent::rtc_subscription_hashes[i] = 0;
       return true;
     }
   }
@@ -536,7 +536,7 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub, bool 
   if (sub->subscribed)
     return;
   // If the session is present, check if we had already subscribed
-  if (check_persistence && is_subscription_stored(*sub)) {
+  if (check_persistence && is_subscription_persisted(*sub)) {
     sub->subscribed = true;
     return;
   }
@@ -549,7 +549,7 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub, bool 
     sub->resubscribe_timeout = now;
     // We are in a persistent session and have subscribed successfully
     if (!this->credentials_.clean_session && sub->subscribed) {
-      store_subscription(*sub);
+      persist_subscription(*sub);
     }
   }
 }
@@ -604,7 +604,7 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
   while (it != subscriptions_.end()) {
     if (it->topic == topic) {
       if (!this->credentials_.clean_session) {
-        remove_stored_subscription(*it);
+        remove_persisted_subscription(*it);
       }
       it = subscriptions_.erase(it);
     } else {
