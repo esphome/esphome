@@ -60,8 +60,8 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.types import ConfigType
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 
@@ -78,9 +78,7 @@ def AUTO_LOAD():
 CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
-CONF_RTC_MAX_SUBSCRIPTIONS = (
-    "rtc_max_subscriptions"
-)
+CONF_RTC_MAX_SUBSCRIPTIONS = "rtc_max_subscriptions"
 
 
 def validate_message_just_topic(value):
@@ -171,10 +169,19 @@ def _final_validate(config: ConfigType) -> ConfigType:
         return config
     subscription_count = 0
     fconf = full_config.get()
-    for conf in fconf.get("alarm_control_panel", []) + fconf.get("button", []) + \
-        fconf.get("datetime", []) + fconf.get("light", []) + fconf.get("lock", []) + \
-        fconf.get("lock", []) + fconf.get("select", []) + fconf.get("switch", []) + \
-        fconf.get("text", []) + fconf.get("time", []) + fconf.get("update", []):
+    for conf in (
+        fconf.get("alarm_control_panel", [])
+        + fconf.get("button", [])
+        + fconf.get("datetime", [])
+        + fconf.get("light", [])
+        + fconf.get("lock", [])
+        + fconf.get("lock", [])
+        + fconf.get("select", [])
+        + fconf.get("switch", [])
+        + fconf.get("text", [])
+        + fconf.get("time", [])
+        + fconf.get("update", [])
+    ):
         if conf.get(CONF_INTERNAL, False):
             continue
         subscription_count += 1
@@ -264,7 +271,7 @@ def validate_fingerprint(value):
 
 def validate_clean_session(value):
     """Validate clean_session configuration.
-    
+
     Accepts:
     - True: Clean session (no persistence)
     - False: Persistent session (uses RTC on ESP32, FLASH otherwise)
@@ -432,7 +439,8 @@ async def to_code(config):
         if clean_session == "RTC" or (clean_session is True and CORE.is_esp32):
             cg.add_define("USE_ESP32_MQTT_SESSION_PERSISTENCE_IN_RTC")
             cg.add_define(
-                f"USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS", config[CONF_RTC_MAX_SUBSCRIPTIONS]
+                "USE_ESP32_MQTT_RTC_MAX_SUBSCRIPTIONS",
+                config[CONF_RTC_MAX_SUBSCRIPTIONS],
             )
 
     if CONF_CLIENT_ID in config:
