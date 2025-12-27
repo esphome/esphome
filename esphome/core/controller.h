@@ -58,6 +58,9 @@
 #ifdef USE_ALARM_CONTROL_PANEL
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
 #endif
+#ifdef USE_WATER_HEATER
+#include "esphome/components/water_heater/water_heater.h"
+#endif
 #ifdef USE_EVENT
 #include "esphome/components/event/event.h"
 #endif
@@ -122,6 +125,9 @@ class Controller {
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
   virtual void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj){};
+#endif
+#ifdef USE_WATER_HEATER
+  virtual void on_water_heater_update(water_heater::WaterHeater *obj){};
 #endif
 #ifdef USE_EVENT
   virtual void on_event(event::Event *obj){};

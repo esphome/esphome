@@ -1523,12 +1523,12 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
     return;  // No BSSID to penalize
   }
 
-  // Get SSID for logging
-  std::string ssid;
+  // Get SSID for logging (use pointer to avoid copy)
+  const std::string *ssid = nullptr;
   if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
-    ssid = this->scan_result_[0].get_ssid();
+    ssid = &this->scan_result_[0].get_ssid();
   } else if (const WiFiAP *config = this->get_selected_sta_()) {
-    ssid = config->get_ssid();
+    ssid = &config->get_ssid();
   }
 
   // Only decrease priority on the last attempt for this phase
@@ -1548,8 +1548,8 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   }
   char bssid_s[18];
   format_mac_addr_upper(failed_bssid.value().data(), bssid_s);
-  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid.c_str(), bssid_s,
-           old_priority, new_priority);
+  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d",
+           ssid != nullptr ? ssid->c_str() : "", bssid_s, old_priority, new_priority);
 
   // After adjusting priority, check if all priorities are now at minimum
   // If so, clear the vector to save memory and reset for fresh start
