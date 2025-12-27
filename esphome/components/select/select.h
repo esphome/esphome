@@ -111,7 +111,7 @@ class Select : public EntityBase {
     }
   }
 
-  CallbackManager<void(size_t)> state_callback_;
+  LazyCallbackManager<void(size_t)> state_callback_;
 };
 
 }  // namespace esphome::select

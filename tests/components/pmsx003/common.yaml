@@ -25,4 +25,7 @@ sensor:
       name: Particulate Count >5.0um
     pm_10_0um:
       name: Particulate Count >10.0um
+    aqi:
+      name: AQI
+      calculation_type: AQI
     update_interval: 30s

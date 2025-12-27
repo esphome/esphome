@@ -335,6 +335,10 @@ API_DISPATCH_UPDATE(valve::Valve, valve)
 API_DISPATCH_UPDATE(media_player::MediaPlayer, media_player)
 #endif
 
+#ifdef USE_WATER_HEATER
+API_DISPATCH_UPDATE(water_heater::WaterHeater, water_heater)
+#endif
+
 #ifdef USE_EVENT
 // Event is a special case - unlike other entities with simple state fields,
 // events store their state in a member accessed via obj->get_last_event_type()
