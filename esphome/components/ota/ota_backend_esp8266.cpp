@@ -151,19 +151,36 @@ OTAResponseTypes ESP8266OTABackend::write(uint8_t *data, size_t len) {
   return OTA_RESPONSE_OK;
 }
 
+bool ESP8266OTABackend::erase_sector_if_needed_() {
+  if ((this->current_address_ % FLASH_SECTOR_SIZE) != 0) {
+    return true;  // Not at sector boundary
+  }
+
+  App.feed_wdt();
+  if (spi_flash_erase_sector(this->current_address_ / FLASH_SECTOR_SIZE) != SPI_FLASH_RESULT_OK) {
+    ESP_LOGE(TAG, "Flash erase failed at 0x%08" PRIX32, this->current_address_);
+    return false;
+  }
+  return true;
+}
+
+bool ESP8266OTABackend::flash_write_() {
+  App.feed_wdt();
+  if (spi_flash_write(this->current_address_, reinterpret_cast<uint32_t *>(this->buffer_.get()), this->buffer_len_) !=
+      SPI_FLASH_RESULT_OK) {
+    ESP_LOGE(TAG, "Flash write failed at 0x%08" PRIX32, this->current_address_);
+    return false;
+  }
+  return true;
+}
+
 bool ESP8266OTABackend::write_buffer_() {
   if (this->buffer_len_ == 0) {
     return true;
   }
 
-  // Erase sector if we're at a sector boundary
-  if ((this->current_address_ % FLASH_SECTOR_SIZE) == 0) {
-    App.feed_wdt();
-    SpiFlashOpResult erase_result = spi_flash_erase_sector(this->current_address_ / FLASH_SECTOR_SIZE);
-    if (erase_result != SPI_FLASH_RESULT_OK) {
-      ESP_LOGE(TAG, "Flash erase failed at 0x%08" PRIX32, this->current_address_);
-      return false;
-    }
+  if (!this->erase_sector_if_needed_()) {
+    return false;
   }
 
   // Patch flash mode in first sector if needed
@@ -185,13 +202,7 @@ bool ESP8266OTABackend::write_buffer_() {
     }
   }
 
-  // Write to flash (must be 4-byte aligned)
-  App.feed_wdt();
-  SpiFlashOpResult write_result =
-      spi_flash_write(this->current_address_, reinterpret_cast<uint32_t *>(this->buffer_.get()), this->buffer_len_);
-
-  if (write_result != SPI_FLASH_RESULT_OK) {
-    ESP_LOGE(TAG, "Flash write failed at 0x%08" PRIX32, this->current_address_);
+  if (!this->flash_write_()) {
     return false;
   }
 
@@ -215,23 +226,11 @@ bool ESP8266OTABackend::write_buffer_final_() {
     return true;
   }
 
-  // Erase sector if we're at a sector boundary
-  if ((this->current_address_ % FLASH_SECTOR_SIZE) == 0) {
-    App.feed_wdt();
-    SpiFlashOpResult erase_result = spi_flash_erase_sector(this->current_address_ / FLASH_SECTOR_SIZE);
-    if (erase_result != SPI_FLASH_RESULT_OK) {
-      ESP_LOGE(TAG, "Flash erase failed at 0x%08" PRIX32, this->current_address_);
-      return false;
-    }
+  if (!this->erase_sector_if_needed_()) {
+    return false;
   }
 
-  // Write to flash (must be 4-byte aligned)
-  App.feed_wdt();
-  SpiFlashOpResult write_result =
-      spi_flash_write(this->current_address_, reinterpret_cast<uint32_t *>(this->buffer_.get()), this->buffer_len_);
-
-  if (write_result != SPI_FLASH_RESULT_OK) {
-    ESP_LOGE(TAG, "Flash write failed at 0x%08" PRIX32, this->current_address_);
+  if (!this->flash_write_()) {
     return false;
   }
 

@@ -22,6 +22,12 @@ class ESP8266OTABackend : public OTABackend {
   bool supports_compression() override { return true; }
 
  protected:
+  /// Erase flash sector if current address is at sector boundary
+  bool erase_sector_if_needed_();
+
+  /// Write buffer to flash (does not update address or clear buffer)
+  bool flash_write_();
+
   /// Write buffered data to flash and update MD5
   bool write_buffer_();
 
