@@ -1167,7 +1167,8 @@ void WiFiComponent::check_connecting_finished() {
   auto status = this->wifi_sta_connect_status_();
 
   if (status == WiFiSTAConnectStatus::CONNECTED) {
-    if (wifi_ssid().empty()) {
+    char ssid_buf[SSID_BUFFER_SIZE];
+    if (wifi_ssid_to(ssid_buf)[0] == '\0') {
       ESP_LOGW(TAG, "Connection incomplete");
       this->retry_connect();
       return;
