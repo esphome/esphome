@@ -167,6 +167,8 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
 
 def _final_validate(config: ConfigType) -> ConfigType:
     # Calculate the number of required space for subscriptions for RTC persistence
+    if CONF_RTC_MAX_SUBSCRIPTIONS in config:
+        return config
     subscription_count = 0
     fconf = full_config.get()
     for conf in fconf.get("alarm_control_panel", []) + fconf.get("button", []) + \
