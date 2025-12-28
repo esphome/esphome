@@ -155,11 +155,38 @@ void DS248xComponent::process_next_channel_(uint8_t channel_idx) {
     return;
   }
 
-  // Wait for conversion (750ms)
-  // Note: We assume standard resolution (12-bit) which needs 750ms.
-  // The Strong Pullup is active during this time.
+  // Calculate required delay based on max resolution of sensors on this channel
+  uint32_t delay_ms = 750;
+  uint8_t max_res = 0;
+  for (auto *s : this->sensors_) {
+    if (s->get_channel() == channel_idx) {
+      if (s->get_resolution() > max_res) {
+        max_res = s->get_resolution();
+      }
+    }
+  }
 
-  this->set_timeout(750, [this, channel_idx]() { this->process_channel_readout_(channel_idx); });
+  if (max_res > 0) {
+    switch (max_res) {
+      case 9:
+        delay_ms = 94;
+        break;
+      case 10:
+        delay_ms = 188;
+        break;
+      case 11:
+        delay_ms = 375;
+        break;
+      case 12:
+      default:
+        delay_ms = 750;
+        break;
+    }
+  }
+
+  // Wait for conversion
+  // The Strong Pullup is active during this time.
+  this->set_timeout(delay_ms, [this, channel_idx]() { this->process_channel_readout_(channel_idx); });
 }
 
 void DS248xComponent::process_channel_readout_(uint8_t channel_idx) {
@@ -232,13 +259,14 @@ void DS248xComponent::process_sensor_readout_(uint8_t channel_idx, uint8_t senso
 
   uint8_t family_code = sensor->get_address() & 0xFF;
 
-  if (family_code == 0x28 || family_code == 0x22) {
-    // DS18B20 (0x28) or DS1822 (0x22)
+  if (family_code == 0x28 || family_code == 0x22 || family_code == 0x3B || family_code == 0x42) {
+    // DS18B20 (0x28), DS1822 (0x22), DS1825 (0x3B), DS28EA00 (0x42)
     int16_t temp_raw = (scratchpad[1] << 8) | scratchpad[0];
     float temp_c = temp_raw / 16.0f;
     sensor->publish_state(temp_c);
 
     // Check and set resolution if needed
+    // DS18S20 doesn't support this resolution config
     uint8_t current_res_byte = scratchpad[4];
     uint8_t desired_res_byte = 0x1F | ((sensor->get_resolution() - 9) << 5);
 
@@ -295,7 +323,7 @@ void DS248xComponent::process_sensor_readout_(uint8_t channel_idx, uint8_t senso
     int16_t temp_raw = (scratchpad[1] << 8) | scratchpad[0];
     if (scratchpad[7] != 0) {
       float t = (temp_raw & 0xFFFE) / 2.0f;
-      t += 0.75f + ((float) scratchpad[7] - (float) scratchpad[6]) / (float) scratchpad[7];
+      t = t - 0.25f + ((float) scratchpad[7] - (float) scratchpad[6]) / (float) scratchpad[7];
       sensor->publish_state(t);
     } else {
       sensor->publish_state(temp_raw / 2.0f);
