@@ -677,12 +677,14 @@ constexpr uint8_t parse_hex_char(char c) {
   return 255;
 }
 
+/// Convert a nibble (0-15) to hex char with specified base ('a' for lowercase, 'A' for uppercase)
+inline char format_hex_char(uint8_t v, char base) { return v >= 10 ? base + (v - 10) : '0' + v; }
+
 /// Convert a nibble (0-15) to lowercase hex char
-inline char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
+inline char format_hex_char(uint8_t v) { return format_hex_char(v, 'a'); }
 
 /// Convert a nibble (0-15) to uppercase hex char (used for pretty printing)
-/// This always uses uppercase (A-F) for pretty/human-readable output
-inline char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
+inline char format_hex_pretty_char(uint8_t v) { return format_hex_char(v, 'A'); }
 
 /// Write int8 value to buffer without modulo operations.
 /// Buffer must have at least 4 bytes free. Returns pointer past last char written.

@@ -286,28 +286,9 @@ std::string format_mac_address_pretty(const uint8_t *mac) {
   return std::string(buf);
 }
 
-char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
-  size_t max_bytes = (buffer_size - 1) / 2;
-  if (length > max_bytes) {
-    length = max_bytes;
-  }
-  for (size_t i = 0; i < length; i++) {
-    buffer[2 * i] = format_hex_char(data[i] >> 4);
-    buffer[2 * i + 1] = format_hex_char(data[i] & 0x0F);
-  }
-  buffer[length * 2] = '\0';
-  return buffer;
-}
-
-std::string format_hex(const uint8_t *data, size_t length) {
-  std::string ret;
-  ret.resize(length * 2);
-  format_hex_to(&ret[0], length * 2 + 1, data, length);
-  return ret;
-}
-std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
-
-char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator) {
+// Internal helper for hex formatting - base is 'a' for lowercase or 'A' for uppercase
+static char *format_hex_internal(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator,
+                                 char base) {
   if (length == 0) {
     buffer[0] = '\0';
     return buffer;
@@ -325,14 +306,30 @@ char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data
   }
   for (size_t i = 0; i < length; i++) {
     size_t pos = i * stride;
-    buffer[pos] = format_hex_pretty_char(data[i] >> 4);
-    buffer[pos + 1] = format_hex_pretty_char(data[i] & 0x0F);
+    buffer[pos] = format_hex_char(data[i] >> 4, base);
+    buffer[pos + 1] = format_hex_char(data[i] & 0x0F, base);
     if (separator && i < length - 1) {
       buffer[pos + 2] = separator;
     }
   }
   buffer[length * stride - (separator ? 1 : 0)] = '\0';
   return buffer;
+}
+
+char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
+  return format_hex_internal(buffer, buffer_size, data, length, 0, 'a');
+}
+
+std::string format_hex(const uint8_t *data, size_t length) {
+  std::string ret;
+  ret.resize(length * 2);
+  format_hex_to(&ret[0], length * 2 + 1, data, length);
+  return ret;
+}
+std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
+
+char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator) {
+  return format_hex_internal(buffer, buffer_size, data, length, separator, 'A');
 }
 
 // Shared implementation for uint8_t and string hex formatting
