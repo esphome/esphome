@@ -29,7 +29,7 @@ static constexpr size_t PROLOGUE_INIT_LEN = 12;  // strlen("NoiseAPIInit")
   do { \
     char peername__[socket::PEERNAME_MAX_LEN]; \
     this->socket_->getpeername_to(peername__); \
-    ESP_LOGVV(TAG, "%s (%s): " msg, this->client_info_->name.c_str(), peername__, ##__VA_ARGS__); \
+    ESP_LOGVV(TAG, "%s (%s): " msg, this->client_info_->name, peername__, ##__VA_ARGS__); \
   } while (0)
 #else
 #define HELPER_LOG(msg, ...) ((void) 0)
