@@ -232,16 +232,6 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
       this_mqtt->mqtt_event_pool_.release(elem);
     }
   }
-
-  // Clean up any remaining items in the queue
-  struct QueueElement *elem;
-  while ((elem = this_mqtt->mqtt_queue_.pop()) != nullptr) {
-    this_mqtt->mqtt_event_pool_.release(elem);
-  }
-
-  // Note: EventPool destructor will clean up the pool itself
-  // Task will delete itself
-  vTaskDelete(nullptr);
 }
 
 bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos, bool retain, const char *payload,
