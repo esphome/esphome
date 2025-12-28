@@ -10,3 +10,14 @@ esphome:
     - hub75.set_brightness:
         id: my_hub75
         brightness: 50
+
+    # Test set_rotation simple value
+    - hub75.set_rotation: 90
+
+    # Test set_rotation templatable value
+    - hub75.set_rotation: !lambda 'return 180;'
+
+    # Test set_rotation with explicit ID
+    - hub75.set_rotation:
+        id: my_hub75
+        rotation: 270
