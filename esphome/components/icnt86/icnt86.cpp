@@ -36,8 +36,7 @@ void ICNT86Touchscreen::update_touches() {
 
   if (touch_count == 0x00 || (touch_count > 5 || touch_count < 1)) {  // No new touch
     return;
-  } 
-  else {
+  } else {
     this->icnt_read_(0x1002, buf, touch_count * 7);
     this->icnt_write_(0x1001, mask, 1);
 
@@ -49,14 +48,13 @@ void ICNT86Touchscreen::update_touches() {
       uint8_t touch_evenid = buf[6 + 7 * i];
 
       if (i == 0) {
-        if(touch_count == 1 && x == x_old && y == y_old && p == 0 && p_old_zero){
-            return; // Skip this touch because previous was also zero
+        if (touch_count == 1 && x == x_old && y == y_old && p == 0 && p_old_zero) {
+          return;  // Skip this touch because previous was also zero
         }
         x_old = x;
         y_old = y;
         p_old_zero = (p == 0);
-      }
-      else if (p > 0) {
+      } else if (p > 0) {
         p_old_zero = false;
       }
       this->add_raw_touch_position_(touch_evenid, x, y, p);
@@ -88,9 +86,13 @@ void ICNT86Touchscreen::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-void ICNT86Touchscreen::icnt_read_(uint16_t reg, char const *data, uint8_t len) { this->i2c_read_byte_(reg, data, len); }
+void ICNT86Touchscreen::icnt_read_(uint16_t reg, char const *data, uint8_t len) {
+  this->i2c_read_byte_(reg, data, len);
+}
 
-void ICNT86Touchscreen::icnt_write_(uint16_t reg, char const *data, uint8_t len) { this->i2c_write_byte_(reg, data, len); }
+void ICNT86Touchscreen::icnt_write_(uint16_t reg, char const *data, uint8_t len) {
+  this->i2c_write_byte_(reg, data, len);
+}
 
 void ICNT86Touchscreen::i2c_read_byte_(uint16_t reg, char const *data, uint8_t len) {
   this->i2c_write_byte_(reg, nullptr, 0);
