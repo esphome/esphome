@@ -26,13 +26,7 @@ class HashBase {
   void get_bytes(uint8_t *output) { memcpy(output, this->digest_, this->get_size()); }
 
   /// Retrieve the hash as hex characters
-  void get_hex(char *output) {
-    for (size_t i = 0; i < this->get_size(); i++) {
-      uint8_t byte = this->digest_[i];
-      output[i * 2] = format_hex_char(byte >> 4);
-      output[i * 2 + 1] = format_hex_char(byte & 0x0F);
-    }
-  }
+  void get_hex(char *output) { format_hex_to(output, this->get_size() * 2 + 1, this->digest_, this->get_size()); }
 
   /// Compare the hash against a provided byte-encoded hash
   bool equals_bytes(const uint8_t *expected) { return memcmp(this->digest_, expected, this->get_size()) == 0; }
