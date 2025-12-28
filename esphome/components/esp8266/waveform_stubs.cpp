@@ -3,15 +3,17 @@
 // Stub implementations for Arduino waveform/PWM functions.
 //
 // When the waveform generator is not needed (no esp8266_pwm component),
-// we exclude core_esp8266_waveform_pwm.cpp from the build to save ~580 bytes
-// of RAM (wvfState 512B + pwmState 68B).
+// we exclude core_esp8266_waveform_pwm.cpp from the build to save ~596 bytes
+// of RAM and 464 bytes of flash.
 //
 // These stubs satisfy calls from the Arduino GPIO code when the real
-// waveform implementation is excluded.
+// waveform implementation is excluded. They must be in the global namespace
+// with C linkage to match the Arduino core function declarations.
 
 #include <cstdint>
 
-namespace esphome::esp8266 {
+// Empty namespace to satisfy linter - actual stubs must be at global scope
+namespace esphome::esp8266 {}  // namespace esphome::esp8266
 
 extern "C" {
 
@@ -28,7 +30,5 @@ bool _stopPWM(uint8_t pin) {
 }
 
 }  // extern "C"
-
-}  // namespace esphome::esp8266
 
 #endif  // USE_ESP8266_WAVEFORM_STUBS

@@ -20,12 +20,12 @@ def require_waveform() -> None:
     (startWaveform, stopWaveform, analogWrite, Tone, Servo).
 
     If no component calls this, the waveform code is excluded from the build
-    to save ~580 bytes of RAM (wvfState 512B + pwmState 68B).
+    to save ~596 bytes of RAM and 464 bytes of flash.
 
     Example:
-        from .const import require_waveform
+        from esphome.components.esp8266.const import require_waveform
 
         async def to_code(config):
             require_waveform()
     """
-    CORE.data[KEY_ESP8266][KEY_WAVEFORM_REQUIRED] = True
+    CORE.data.setdefault(KEY_ESP8266, {})[KEY_WAVEFORM_REQUIRED] = True
