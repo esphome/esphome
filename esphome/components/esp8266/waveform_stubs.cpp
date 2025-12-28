@@ -12,6 +12,9 @@
 
 #include <cstdint>
 
+// Empty namespace to satisfy linter - actual stubs must be at global scope
+namespace esphome::esp8266 {}  // namespace esphome::esp8266
+
 extern "C" {
 
 // Called by Arduino GPIO code to stop any waveform on a pin
