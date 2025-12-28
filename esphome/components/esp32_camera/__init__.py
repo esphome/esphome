@@ -25,6 +25,7 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -185,6 +186,21 @@ def validate_fb_location_(value):
     return validator(value)
 
 
+def validate_jpeg_quality(config: ConfigType) -> ConfigType:
+    quality = config.get(CONF_JPEG_QUALITY)
+    pixel_format = config.get(CONF_PIXEL_FORMAT, "JPEG")
+
+    if quality is None:
+        # Set appropriate default based on pixel format
+        config[CONF_JPEG_QUALITY] = 10 if pixel_format == "JPEG" else 0
+    elif pixel_format != "JPEG" and quality == 0:
+        pass  # 0 means no conversion for non-JPEG
+    elif quality < 6 or quality > 63:
+        raise cv.Invalid(f"jpeg_quality must be between 6 and 63, got {quality}")
+
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.ENTITY_BASE_SCHEMA.extend(
         {
@@ -289,6 +305,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    validate_jpeg_quality,
     cv.has_exactly_one_key(CONF_I2C_PINS, CONF_I2C_ID),
 )
 
@@ -357,9 +374,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await setup_entity(var, config, "camera")
     await cg.register_component(var, config)
-
-    if config[CONF_PIXEL_FORMAT] == "JPEG" and not config[CONF_JPEG_QUALITY]:
-        config[CONF_JPEG_QUALITY] = 10  # set default quality for JPEG format
 
     for key, setter in SETTERS.items():
         if key in config:
