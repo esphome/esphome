@@ -38,13 +38,6 @@ size_t format_sockaddr_to(const struct sockaddr_storage &storage, std::span<char
   return 0;
 }
 
-std::string format_sockaddr(const struct sockaddr_storage &storage) {
-  char buf[PEERNAME_MAX_LEN];
-  if (format_sockaddr_to(storage, buf) > 0)
-    return std::string{buf};
-  return {};
-}
-
 class BSDSocketImpl final : public Socket {
  public:
   BSDSocketImpl(int fd, bool monitor_loop = false) : fd_(fd) {
@@ -100,13 +93,6 @@ class BSDSocketImpl final : public Socket {
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) override {
     return ::getpeername(this->fd_, addr, addrlen);
   }
-  std::string getpeername() final {
-    struct sockaddr_storage storage;
-    socklen_t len = sizeof(storage);
-    if (::getpeername(this->fd_, (struct sockaddr *) &storage, &len) != 0)
-      return {};
-    return format_sockaddr(storage);
-  }
   size_t getpeername_to(std::span<char, PEERNAME_MAX_LEN> buf) override {
     struct sockaddr_storage storage;
     socklen_t len = sizeof(storage);
@@ -118,13 +104,6 @@ class BSDSocketImpl final : public Socket {
   }
   int getsockname(struct sockaddr *addr, socklen_t *addrlen) override {
     return ::getsockname(this->fd_, addr, addrlen);
-  }
-  std::string getsockname() final {
-    struct sockaddr_storage storage;
-    socklen_t len = sizeof(storage);
-    if (::getsockname(this->fd_, (struct sockaddr *) &storage, &len) != 0)
-      return {};
-    return format_sockaddr(storage);
   }
   int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override {
     return ::getsockopt(this->fd_, level, optname, optval, optlen);

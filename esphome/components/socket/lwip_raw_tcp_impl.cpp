@@ -189,13 +189,6 @@ class LWIPRawImpl : public Socket {
     }
     return this->ip2sockaddr_(&pcb_->remote_ip, pcb_->remote_port, name, addrlen);
   }
-  std::string getpeername() final {
-    if (pcb_ == nullptr) {
-      errno = ECONNRESET;
-      return "";
-    }
-    return this->format_ip_address_(pcb_->remote_ip);
-  }
   size_t getpeername_to(std::span<char, PEERNAME_MAX_LEN> buf) final {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
@@ -214,13 +207,6 @@ class LWIPRawImpl : public Socket {
       return -1;
     }
     return this->ip2sockaddr_(&pcb_->local_ip, pcb_->local_port, name, addrlen);
-  }
-  std::string getsockname() final {
-    if (pcb_ == nullptr) {
-      errno = ECONNRESET;
-      return "";
-    }
-    return this->format_ip_address_(pcb_->local_ip);
   }
   int getsockopt(int level, int optname, void *optval, socklen_t *optlen) final {
     if (pcb_ == nullptr) {
@@ -539,13 +525,6 @@ class LWIPRawImpl : public Socket {
 #endif
     buf[0] = '\0';
     return 0;
-  }
-
-  std::string format_ip_address_(const ip_addr_t &ip) {
-    char buffer[PEERNAME_MAX_LEN];
-    if (format_ip_address_to_(ip, buffer) > 0)
-      return std::string(buffer);
-    return {};
   }
 
   int ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen) {
