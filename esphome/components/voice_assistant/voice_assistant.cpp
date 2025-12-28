@@ -3,6 +3,7 @@
 
 #ifdef USE_VOICE_ASSISTANT
 
+#include "esphome/components/socket/socket.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -429,9 +430,11 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
 
   if (this->api_client_ != nullptr) {
     ESP_LOGE(TAG, "Multiple API Clients attempting to connect to Voice Assistant");
-    ESP_LOGE(TAG, "Current client: %s (%s)", this->api_client_->get_name().c_str(),
-             this->api_client_->get_peername().c_str());
-    ESP_LOGE(TAG, "New client: %s (%s)", client->get_name().c_str(), client->get_peername().c_str());
+    char peername[socket::PEERNAME_MAX_LEN];
+    this->api_client_->get_peername_to(peername);
+    ESP_LOGE(TAG, "Current client: %s (%s)", this->api_client_->get_name(), peername);
+    client->get_peername_to(peername);
+    ESP_LOGE(TAG, "New client: %s (%s)", client->get_name(), peername);
     return;
   }
 
