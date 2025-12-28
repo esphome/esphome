@@ -1710,7 +1710,7 @@ void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, cons
     this->parse_float_param_(request, "target_temperature", call,
                              &water_heater::WaterHeaterCall::set_target_temperature);
     if (request->hasParam("mode")) {
-      std::string mode = request->getParam("mode")->value();
+      const char *mode = request->getParam("mode")->value().c_str();
       call.set_mode(mode);
     }
 
