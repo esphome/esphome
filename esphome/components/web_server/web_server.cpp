@@ -1691,7 +1691,6 @@ void WebServer::on_water_heater_update(water_heater::WaterHeater *obj) {
     return;
   this->events_.deferrable_send_state(obj, "state", water_heater_state_json_generator);
 }
-
 void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (water_heater::WaterHeater *obj : App.get_water_heaters()) {
     if (!match.id_equals_entity(obj))
@@ -1703,18 +1702,15 @@ void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, cons
       request->send(200, "application/json", data.c_str());
       return;
     }
-
-    auto call = obj->make_call();
-
     if (!match.method_equals("set")) {
       request->send(404);
       return;
     }
-
-    parse_float_param_(request, "target_temperature", call, &decltype(call)::set_target_temperature);
-
+    water_heater::WaterHeaterCall call = obj->make_call();
+    this->parse_float_param_(request, "target_temperature", call,
+                             &water_heater::WaterHeaterCall::set_target_temperature);
     if (request->hasParam("mode")) {
-      String mode = request->getParam("mode")->value();
+      std::string mode = request->getParam("mode")->value();
       call.set_mode(mode.c_str());
     }
 
@@ -1726,19 +1722,19 @@ void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, cons
 }
 
 std::string WebServer::water_heater_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->water_heater_json((water_heater::WaterHeater *) (source), DETAIL_STATE);
+  return web_server->water_heater_json(static_cast<water_heater::WaterHeater *>(source), DETAIL_STATE);
 }
-
 std::string WebServer::water_heater_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->water_heater_json((water_heater::WaterHeater *) (source), DETAIL_ALL);
+  return web_server->water_heater_json(static_cast<water_heater::WaterHeater *>(source), DETAIL_ALL);
 }
-
 std::string WebServer::water_heater_json(water_heater::WaterHeater *obj, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
+  const auto mode = obj->get_mode();
   const char *mode_s = "UNKNOWN";
-  switch (obj->mode_) {
+
+  switch (mode) {
     case water_heater::WATER_HEATER_MODE_OFF:
       mode_s = "OFF";
       break;
@@ -1762,11 +1758,13 @@ std::string WebServer::water_heater_json(water_heater::WaterHeater *obj, JsonDet
       break;
   }
 
-  set_json_icon_state_value(root, obj, "water-heater", mode_s, obj->mode_, start_config);
+  set_json_icon_state_value(root, obj, "water-heater", mode_s, mode, start_config);
 
-  if (!std::isnan(obj->current_temperature_))
-    root["current_temperature"] = obj->current_temperature_;
-  root["target_temperature"] = obj->target_temperature_;
+  float current = obj->get_current_temperature();
+  if (!std::isnan(current))
+    root["current_temperature"] = current;
+
+  root["target_temperature"] = obj->get_target_temperature();
 
   auto traits = obj->get_traits();
   root["min_temperature"] = traits.get_min_temperature();
