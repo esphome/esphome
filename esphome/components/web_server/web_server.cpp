@@ -1711,7 +1711,7 @@ void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, cons
                              &water_heater::WaterHeaterCall::set_target_temperature);
     if (request->hasParam("mode")) {
       std::string mode = request->getParam("mode")->value();
-      call.set_mode(mode.c_str());
+      call.set_mode(mode);
     }
 
     this->defer([call]() mutable { call.perform(); });
