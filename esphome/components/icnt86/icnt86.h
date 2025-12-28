@@ -29,7 +29,7 @@ class ICNT86Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
 
   uint16_t x_old = 0;
   uint16_t y_old = 0;
-  uint8_t p_old = 0;
+  bool p_old_zero = false;
 };
 
 }  // namespace icnt86

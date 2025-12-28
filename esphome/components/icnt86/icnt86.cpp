@@ -36,10 +36,11 @@ void ICNT86Touchscreen::update_touches() {
 
   if (touch_count == 0x00 || (touch_count > 5 || touch_count < 1)) {  // No new touch
     return;
-  } else {
+  } 
+  else {
     this->icnt_read_(0x1002, buf, touch_count * 7);
     this->icnt_write_(0x1001, mask, 1);
-    
+
     for (uint8_t i = 0; i < touch_count; i++) {
       uint16_t x = ((uint16_t) buf[2 + 7 * i] << 8) + buf[1 + 7 * i];
       uint16_t y = ((uint16_t) buf[4 + 7 * i] << 8) + buf[3 + 7 * i];
@@ -47,17 +48,17 @@ void ICNT86Touchscreen::update_touches() {
       uint8_t p = buf[5 + 7 * i];
       uint8_t touch_evenid = buf[6 + 7 * i];
 
-      if (i == 0){
-        ESP_LOGD(TAG, "Touch count %d, first touch: x=%d, y=%d, p=%d, id=%d", touch_count, x, y, p, touch_evenid);
-        if(x == x_old && y == y_old && p == p_old && touch_count == 1 && p == 0){
-          ESP_LOGD(TAG, "Skipping touch");
-          return;
+      if (i == 0) {
+        if(touch_count == 1 && x == x_old && y == y_old && p == 0 && p_old_zero){
+            return; // Skip this touch because previous was also zero
         }
         x_old = x;
         y_old = y;
-        p_old = p;
+        p_old_zero = (p == 0);
       }
-
+      else if (p > 0) {
+        p_old_zero = false;
+      }
       this->add_raw_touch_position_(touch_evenid, x, y, p);
     }
   }
