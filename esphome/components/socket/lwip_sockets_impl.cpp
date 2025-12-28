@@ -42,7 +42,7 @@ std::string format_sockaddr(const struct sockaddr_storage &storage) {
   return {};
 }
 
-class LwIPSocketImpl : public Socket {
+class LwIPSocketImpl final : public Socket {
  public:
   LwIPSocketImpl(int fd, bool monitor_loop = false) : fd_(fd) {
 #ifdef USE_SOCKET_SELECT_SUPPORT

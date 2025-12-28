@@ -602,7 +602,7 @@ class LWIPRawImpl : public Socket {
 
 // Listening socket class - only allocates accept queue when needed (for bind+listen sockets)
 // This saves 16 bytes (12 bytes array + 1 byte count + 3 bytes padding) for regular connected sockets on ESP8266/RP2040
-class LWIPRawListenImpl : public LWIPRawImpl {
+class LWIPRawListenImpl final : public LWIPRawImpl {
  public:
   LWIPRawListenImpl(sa_family_t family, struct tcp_pcb *pcb) : LWIPRawImpl(family, pcb) {}
 

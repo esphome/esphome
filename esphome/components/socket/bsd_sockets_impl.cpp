@@ -45,7 +45,7 @@ std::string format_sockaddr(const struct sockaddr_storage &storage) {
   return {};
 }
 
-class BSDSocketImpl : public Socket {
+class BSDSocketImpl final : public Socket {
  public:
   BSDSocketImpl(int fd, bool monitor_loop = false) : fd_(fd) {
 #ifdef USE_SOCKET_SELECT_SUPPORT
