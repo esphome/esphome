@@ -113,6 +113,8 @@
 #define USE_UART_WAKE_LOOP_ON_RX
 #define USE_UPDATE
 #define USE_VALVE
+#define USE_WATER_HEATER
+#define USE_WATER_HEATER_VISUAL_OVERRIDES
 #define USE_ZWAVE_PROXY
 
 // Feature flags which do not work for zephyr
@@ -146,7 +148,7 @@
 #define USE_OTA_PASSWORD
 #define USE_OTA_SHA256
 #define ALLOW_OTA_DOWNGRADE_MD5
-#define USE_OTA_STATE_CALLBACK
+#define USE_OTA_STATE_LISTENER
 #define USE_OTA_VERSION 2
 #define USE_TIME_TIMEZONE
 #define USE_WIFI
@@ -162,13 +164,9 @@
 #define USE_I2S_LEGACY
 #endif
 
-// IDF-specific feature flags
-#ifdef USE_ESP_IDF
-#define USE_MQTT_IDF_ENQUEUE
-#endif
-
 // ESP32-specific feature flags
 #ifdef USE_ESP32
+#define USE_MQTT_IDF_ENQUEUE
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define USE_OTA_ROLLBACK
 
@@ -229,7 +227,7 @@
 #define USE_ETHERNET_MANUAL_IP
 #endif
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #define USE_MICRO_WAKE_WORD
 #define USE_MICRO_WAKE_WORD_VAD
 #if defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
@@ -337,3 +335,4 @@
 #define ESPHOME_ENTITY_TIME_COUNT 1
 #define ESPHOME_ENTITY_UPDATE_COUNT 1
 #define ESPHOME_ENTITY_VALVE_COUNT 1
+#define ESPHOME_ENTITY_WATER_HEATER_COUNT 1
