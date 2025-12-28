@@ -222,10 +222,12 @@ class APIServer : public Component,
 #endif
 
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<StringRef, StringRef> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
+  Trigger<std::string, std::string> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<StringRef, StringRef> *get_client_disconnected_trigger() const { return this->client_disconnected_trigger_; }
+  Trigger<std::string, std::string> *get_client_disconnected_trigger() const {
+    return this->client_disconnected_trigger_;
+  }
 #endif
 
  protected:
@@ -243,10 +245,10 @@ class APIServer : public Component,
   // Pointers and pointer-like types first (4 bytes each)
   std::unique_ptr<socket::Socket> socket_ = nullptr;
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<StringRef, StringRef> *client_connected_trigger_ = new Trigger<StringRef, StringRef>();
+  Trigger<std::string, std::string> *client_connected_trigger_ = new Trigger<std::string, std::string>();
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<StringRef, StringRef> *client_disconnected_trigger_ = new Trigger<StringRef, StringRef>();
+  Trigger<std::string, std::string> *client_disconnected_trigger_ = new Trigger<std::string, std::string>();
 #endif
 
   // 4-byte aligned types

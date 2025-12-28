@@ -1508,7 +1508,8 @@ void APIConnection::complete_authentication_() {
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   char peername_buf[socket::PEERNAME_MAX_LEN];
   this->helper_->getpeername_to(peername_buf);
-  this->parent_->get_client_connected_trigger()->trigger(this->helper_->get_client_name(), StringRef(peername_buf));
+  this->parent_->get_client_connected_trigger()->trigger(std::string(this->helper_->get_client_name()),
+                                                         std::string(peername_buf));
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   if (homeassistant::global_homeassistant_time != nullptr) {
