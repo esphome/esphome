@@ -1732,7 +1732,7 @@ std::string WebServer::water_heater_json(water_heater::WaterHeater *obj, JsonDet
   JsonObject root = builder.root();
 
   const auto mode = obj->get_mode();
-  const char *mode_s = "UNKNOWN";
+  const char *mode_s;
 
   switch (mode) {
     case water_heater::WATER_HEATER_MODE_OFF:
@@ -1755,6 +1755,9 @@ std::string WebServer::water_heater_json(water_heater::WaterHeater *obj, JsonDet
       break;
     case water_heater::WATER_HEATER_MODE_GAS:
       mode_s = "GAS";
+      break;
+    default:
+      mode_s = "UNKNOWN";
       break;
   }
 
