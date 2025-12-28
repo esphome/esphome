@@ -289,8 +289,6 @@ class APIConnection final : public APIServerConnection {
   size_t get_peername_to(std::span<char, socket::PEERNAME_MAX_LEN> buf) const {
     return this->helper_->getpeername_to(buf);
   }
-  /// Get peer name as std::string - use sparingly, allocates on heap
-  std::string get_peername() const { return this->helper_->getpeername(); }
 
  protected:
   // Helper function to handle authentication completion
