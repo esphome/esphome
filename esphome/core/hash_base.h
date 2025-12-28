@@ -25,7 +25,7 @@ class HashBase {
   /// Retrieve the hash as bytes
   void get_bytes(uint8_t *output) { memcpy(output, this->digest_, this->get_size()); }
 
-  /// Retrieve the hash as hex characters
+  /// Retrieve the hash as hex characters. Output buffer must hold get_size() * 2 + 1 bytes.
   void get_hex(char *output) { format_hex_to(output, this->get_size() * 2 + 1, this->digest_, this->get_size()); }
 
   /// Compare the hash against a provided byte-encoded hash
