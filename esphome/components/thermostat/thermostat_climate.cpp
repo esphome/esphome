@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace thermostat {
+namespace esphome::thermostat {
 
 static const char *const TAG = "thermostat.climate";
 
@@ -66,10 +65,12 @@ void ThermostatClimate::setup() {
 }
 
 void ThermostatClimate::loop() {
-  for (auto &timer : this->timer_) {
-    if (timer.active && (timer.started + timer.time < App.get_loop_component_start_time())) {
+  uint32_t now = App.get_loop_component_start_time();
+  for (uint8_t i = 0; i < THERMOSTAT_TIMER_COUNT; i++) {
+    auto &timer = this->timer_[i];
+    if (timer.active && (now - timer.started >= timer.time)) {
       timer.active = false;
-      timer.func();
+      this->call_timer_callback_(static_cast<ThermostatClimateTimerIndex>(i));
     }
   }
 }
@@ -916,8 +917,42 @@ uint32_t ThermostatClimate::timer_duration_(ThermostatClimateTimerIndex timer_in
   return this->timer_[timer_index].time;
 }
 
-std::function<void()> ThermostatClimate::timer_cbf_(ThermostatClimateTimerIndex timer_index) {
-  return this->timer_[timer_index].func;
+void ThermostatClimate::call_timer_callback_(ThermostatClimateTimerIndex timer_index) {
+  switch (timer_index) {
+    case THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME:
+      this->cooling_max_run_time_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_COOLING_OFF:
+      this->cooling_off_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_COOLING_ON:
+      this->cooling_on_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_FAN_MODE:
+      this->fan_mode_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_FANNING_OFF:
+      this->fanning_off_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_FANNING_ON:
+      this->fanning_on_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME:
+      this->heating_max_run_time_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_HEATING_OFF:
+      this->heating_off_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_HEATING_ON:
+      this->heating_on_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_IDLE_ON:
+      this->idle_on_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_COUNT:
+    default:
+      break;
+  }
 }
 
 void ThermostatClimate::cooling_max_run_time_timer_callback_() {
@@ -1344,7 +1379,7 @@ void ThermostatClimate::set_timer_duration_in_sec_(ThermostatClimateTimerIndex t
       ESP_LOGVV(TAG, "timer %d completing immediately (elapsed %d >= new %d)", timer_index, elapsed, new_duration_ms);
       this->timer_[timer_index].active = false;
       // Trigger the timer callback immediately
-      this->timer_[timer_index].func();
+      this->call_timer_callback_(timer_index);
       return;
     } else {
       // Adjust timer to run for remaining time - keep original start time
@@ -1672,5 +1707,4 @@ ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig(float defau
                                                                      float default_temperature_high)
     : default_temperature_low(default_temperature_low), default_temperature_high(default_temperature_high) {}
 
-}  // namespace thermostat
-}  // namespace esphome
+}  // namespace esphome::thermostat

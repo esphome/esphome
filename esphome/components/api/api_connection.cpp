@@ -13,6 +13,7 @@
 #include <cinttypes>
 #include <functional>
 #include <limits>
+#include <new>
 #include <utility>
 #ifdef USE_ESP8266
 #include <pgmspace.h>
@@ -96,8 +97,7 @@ static const int CAMERA_STOP_STREAM = 5000;
     return;
 #endif  // USE_DEVICES
 
-APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
-    : parent_(parent), initial_state_iterator_(this), list_entities_iterator_(this) {
+APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent) : parent_(parent) {
 #if defined(USE_API_PLAINTEXT) && defined(USE_API_NOISE)
   auto &noise_ctx = parent->get_noise_ctx();
   if (noise_ctx.has_psk()) {
@@ -136,6 +136,7 @@ void APIConnection::start() {
 }
 
 APIConnection::~APIConnection() {
+  this->destroy_active_iterator_();
 #ifdef USE_BLUETOOTH_PROXY
   if (bluetooth_proxy::global_bluetooth_proxy->get_api_connection() == this) {
     bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
@@ -146,6 +147,32 @@ APIConnection::~APIConnection() {
     voice_assistant::global_voice_assistant->client_subscription(this, false);
   }
 #endif
+}
+
+void APIConnection::destroy_active_iterator_() {
+  switch (this->active_iterator_) {
+    case ActiveIterator::LIST_ENTITIES:
+      this->iterator_storage_.list_entities.~ListEntitiesIterator();
+      break;
+    case ActiveIterator::INITIAL_STATE:
+      this->iterator_storage_.initial_state.~InitialStateIterator();
+      break;
+    case ActiveIterator::NONE:
+      break;
+  }
+  this->active_iterator_ = ActiveIterator::NONE;
+}
+
+void APIConnection::begin_iterator_(ActiveIterator type) {
+  this->destroy_active_iterator_();
+  this->active_iterator_ = type;
+  if (type == ActiveIterator::LIST_ENTITIES) {
+    new (&this->iterator_storage_.list_entities) ListEntitiesIterator(this);
+    this->iterator_storage_.list_entities.begin();
+  } else {
+    new (&this->iterator_storage_.initial_state) InitialStateIterator(this);
+    this->iterator_storage_.initial_state.begin();
+  }
 }
 
 void APIConnection::loop() {
@@ -190,23 +217,35 @@ void APIConnection::loop() {
     this->process_batch_();
   }
 
-  if (!this->list_entities_iterator_.completed()) {
-    this->process_iterator_batch_(this->list_entities_iterator_);
-  } else if (!this->initial_state_iterator_.completed()) {
-    this->process_iterator_batch_(this->initial_state_iterator_);
-
-    // If we've completed initial states, process any remaining and clear the flag
-    if (this->initial_state_iterator_.completed()) {
-      // Process any remaining batched messages immediately
-      if (!this->deferred_batch_.empty()) {
-        this->process_batch_();
+  switch (this->active_iterator_) {
+    case ActiveIterator::LIST_ENTITIES:
+      if (this->iterator_storage_.list_entities.completed()) {
+        this->destroy_active_iterator_();
+        if (this->flags_.state_subscription) {
+          this->begin_iterator_(ActiveIterator::INITIAL_STATE);
+        }
+      } else {
+        this->process_iterator_batch_(this->iterator_storage_.list_entities);
       }
-      // Now that everything is sent, enable immediate sending for future state changes
-      this->flags_.should_try_send_immediately = true;
-      // Release excess memory from buffers that grew during initial sync
-      this->deferred_batch_.release_buffer();
-      this->helper_->release_buffers();
-    }
+      break;
+    case ActiveIterator::INITIAL_STATE:
+      if (this->iterator_storage_.initial_state.completed()) {
+        this->destroy_active_iterator_();
+        // Process any remaining batched messages immediately
+        if (!this->deferred_batch_.empty()) {
+          this->process_batch_();
+        }
+        // Now that everything is sent, enable immediate sending for future state changes
+        this->flags_.should_try_send_immediately = true;
+        // Release excess memory from buffers that grew during initial sync
+        this->deferred_batch_.release_buffer();
+        this->helper_->release_buffers();
+      } else {
+        this->process_iterator_batch_(this->iterator_storage_.initial_state);
+      }
+      break;
+    case ActiveIterator::NONE:
+      break;
   }
 
   if (this->flags_.sent_ping) {
@@ -231,32 +270,16 @@ void APIConnection::loop() {
     }
   }
 
-#ifdef USE_CAMERA
-  if (this->image_reader_ && this->image_reader_->available() && this->helper_->can_write_without_blocking()) {
-    uint32_t to_send = std::min((size_t) MAX_BATCH_PACKET_SIZE, this->image_reader_->available());
-    bool done = this->image_reader_->available() == to_send;
-
-    CameraImageResponse msg;
-    msg.key = camera::Camera::instance()->get_object_id_hash();
-    msg.set_data(this->image_reader_->peek_data_buffer(), to_send);
-    msg.done = done;
-#ifdef USE_DEVICES
-    msg.device_id = camera::Camera::instance()->get_device_id();
-#endif
-
-    if (this->send_message_(msg, CameraImageResponse::MESSAGE_TYPE)) {
-      this->image_reader_->consume_data(to_send);
-      if (done) {
-        this->image_reader_->return_image();
-      }
-    }
-  }
-#endif
-
 #ifdef USE_API_HOMEASSISTANT_STATES
   if (state_subs_at_ >= 0) {
     this->process_state_subscriptions_();
   }
+#endif
+
+#ifdef USE_CAMERA
+  // Process camera last - state updates are higher priority
+  // (missing a frame is fine, missing a state update is not)
+  this->try_send_camera_image_();
 #endif
 }
 
@@ -1060,6 +1083,36 @@ void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
 #endif
 
 #ifdef USE_CAMERA
+void APIConnection::try_send_camera_image_() {
+  if (!this->image_reader_)
+    return;
+
+  // Send as many chunks as possible without blocking
+  while (this->image_reader_->available()) {
+    if (!this->helper_->can_write_without_blocking())
+      return;
+
+    uint32_t to_send = std::min((size_t) MAX_BATCH_PACKET_SIZE, this->image_reader_->available());
+    bool done = this->image_reader_->available() == to_send;
+
+    CameraImageResponse msg;
+    msg.key = camera::Camera::instance()->get_object_id_hash();
+    msg.set_data(this->image_reader_->peek_data_buffer(), to_send);
+    msg.done = done;
+#ifdef USE_DEVICES
+    msg.device_id = camera::Camera::instance()->get_device_id();
+#endif
+
+    if (!this->send_message_(msg, CameraImageResponse::MESSAGE_TYPE)) {
+      return;  // Send failed, try again later
+    }
+    this->image_reader_->consume_data(to_send);
+    if (done) {
+      this->image_reader_->return_image();
+      return;
+    }
+  }
+}
 void APIConnection::set_camera_state(std::shared_ptr<camera::CameraImage> image) {
   if (!this->flags_.state_subscription)
     return;
@@ -1067,8 +1120,11 @@ void APIConnection::set_camera_state(std::shared_ptr<camera::CameraImage> image)
     return;
   if (this->image_reader_->available())
     return;
-  if (image->was_requested_by(esphome::camera::API_REQUESTER) || image->was_requested_by(esphome::camera::IDLE))
+  if (image->was_requested_by(esphome::camera::API_REQUESTER) || image->was_requested_by(esphome::camera::IDLE)) {
     this->image_reader_->set_image(std::move(image));
+    // Try to send immediately to reduce latency
+    this->try_send_camera_image_();
+  }
 }
 uint16_t APIConnection::try_send_camera_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                              bool is_single) {

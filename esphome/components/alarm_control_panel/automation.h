@@ -3,8 +3,7 @@
 #include "esphome/core/automation.h"
 #include "alarm_control_panel.h"
 
-namespace esphome {
-namespace alarm_control_panel {
+namespace esphome::alarm_control_panel {
 
 /// Trigger on any state change
 class StateTrigger : public Trigger<> {
@@ -165,5 +164,4 @@ template<typename... Ts> class AlarmControlPanelCondition : public Condition<Ts.
   AlarmControlPanel *parent_;
 };
 
-}  // namespace alarm_control_panel
-}  // namespace esphome
+}  // namespace esphome::alarm_control_panel
