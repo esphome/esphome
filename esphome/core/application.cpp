@@ -7,6 +7,9 @@
 #ifdef USE_ESP8266
 #include <pgmspace.h>
 #endif
+#ifdef USE_ESP32
+#include <esp_chip_info.h>
+#endif
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
@@ -203,6 +206,12 @@ void Application::loop() {
       ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", build_time_str);
 #ifdef ESPHOME_PROJECT_NAME
       ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
+#endif
+#ifdef USE_ESP32
+      esp_chip_info_t chip_info;
+      esp_chip_info(&chip_info);
+      ESP_LOGI(TAG, "ESP32 Chip: %s r%d.%d, %d core(s)", ESPHOME_VARIANT, chip_info.revision / 100,
+               chip_info.revision % 100, chip_info.cores);
 #endif
     }
 
