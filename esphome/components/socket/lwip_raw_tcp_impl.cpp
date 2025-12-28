@@ -71,7 +71,7 @@ class LWIPRawImpl : public Socket {
     errno = EINVAL;
     return nullptr;
   }
-  int bind(const struct sockaddr *name, socklen_t addrlen) override {
+  int bind(const struct sockaddr *name, socklen_t addrlen) final {
     if (pcb_ == nullptr) {
       errno = EBADF;
       return -1;
@@ -135,7 +135,7 @@ class LWIPRawImpl : public Socket {
     }
     return 0;
   }
-  int close() override {
+  int close() final {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return -1;
@@ -152,7 +152,7 @@ class LWIPRawImpl : public Socket {
     pcb_ = nullptr;
     return 0;
   }
-  int shutdown(int how) override {
+  int shutdown(int how) final {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return -1;
@@ -178,7 +178,7 @@ class LWIPRawImpl : public Socket {
     return 0;
   }
 
-  int getpeername(struct sockaddr *name, socklen_t *addrlen) override {
+  int getpeername(struct sockaddr *name, socklen_t *addrlen) final {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return -1;
@@ -196,7 +196,7 @@ class LWIPRawImpl : public Socket {
     }
     return this->format_ip_address_(pcb_->remote_ip);
   }
-  size_t getpeername_to(std::span<char, PEERNAME_MAX_LEN> buf) override {
+  size_t getpeername_to(std::span<char, PEERNAME_MAX_LEN> buf) final {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       buf[0] = '\0';
@@ -204,7 +204,7 @@ class LWIPRawImpl : public Socket {
     }
     return this->format_ip_address_to_(pcb_->remote_ip, buf);
   }
-  int getsockname(struct sockaddr *name, socklen_t *addrlen) override {
+  int getsockname(struct sockaddr *name, socklen_t *addrlen) final {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return -1;
@@ -222,7 +222,7 @@ class LWIPRawImpl : public Socket {
     }
     return this->format_ip_address_(pcb_->local_ip);
   }
-  int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override {
+  int getsockopt(int level, int optname, void *optval, socklen_t *optlen) final {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return -1;
@@ -256,7 +256,7 @@ class LWIPRawImpl : public Socket {
     errno = EINVAL;
     return -1;
   }
-  int setsockopt(int level, int optname, const void *optval, socklen_t optlen) override {
+  int setsockopt(int level, int optname, const void *optval, socklen_t optlen) final {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return -1;
@@ -290,7 +290,7 @@ class LWIPRawImpl : public Socket {
     errno = EOPNOTSUPP;
     return -1;
   }
-  ssize_t read(void *buf, size_t len) override {
+  ssize_t read(void *buf, size_t len) final {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return -1;
@@ -348,7 +348,7 @@ class LWIPRawImpl : public Socket {
 
     return read;
   }
-  ssize_t readv(const struct iovec *iov, int iovcnt) override {
+  ssize_t readv(const struct iovec *iov, int iovcnt) final {
     ssize_t ret = 0;
     for (int i = 0; i < iovcnt; i++) {
       ssize_t err = read(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
@@ -366,7 +366,7 @@ class LWIPRawImpl : public Socket {
     return ret;
   }
 
-  ssize_t recvfrom(void *buf, size_t len, sockaddr *addr, socklen_t *addr_len) override {
+  ssize_t recvfrom(void *buf, size_t len, sockaddr *addr, socklen_t *addr_len) final {
     errno = ENOTSUP;
     return -1;
   }
@@ -420,7 +420,7 @@ class LWIPRawImpl : public Socket {
     }
     return 0;
   }
-  ssize_t write(const void *buf, size_t len) override {
+  ssize_t write(const void *buf, size_t len) final {
     ssize_t written = internal_write(buf, len);
     if (written == -1)
       return -1;
@@ -435,7 +435,7 @@ class LWIPRawImpl : public Socket {
     }
     return written;
   }
-  ssize_t writev(const struct iovec *iov, int iovcnt) override {
+  ssize_t writev(const struct iovec *iov, int iovcnt) final {
     ssize_t written = 0;
     for (int i = 0; i < iovcnt; i++) {
       ssize_t err = internal_write(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
@@ -461,12 +461,12 @@ class LWIPRawImpl : public Socket {
     }
     return written;
   }
-  ssize_t sendto(const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen) override {
+  ssize_t sendto(const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen) final {
     // return ::sendto(fd_, buf, len, flags, to, tolen);
     errno = ENOSYS;
     return -1;
   }
-  int setblocking(bool blocking) override {
+  int setblocking(bool blocking) final {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return -1;
