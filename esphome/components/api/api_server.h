@@ -10,7 +10,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/log.h"
-#include "esphome/core/string_ref.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
 #ifdef USE_LOGGER
