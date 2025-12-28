@@ -2,6 +2,7 @@
 #ifdef USE_WIFI
 #include <cassert>
 #include <cinttypes>
+#include <cmath>
 
 #ifdef USE_ESP32
 #if (ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 1)
@@ -394,7 +395,7 @@ void WiFiComponent::start() {
 
   if (this->has_sta()) {
     this->wifi_sta_pre_setup_();
-    if (this->output_power_.has_value() && !this->wifi_apply_output_power_(*this->output_power_)) {
+    if (!std::isnan(this->output_power_) && !this->wifi_apply_output_power_(this->output_power_)) {
       ESP_LOGV(TAG, "Setting Output Power Option failed");
     }
 
@@ -441,7 +442,7 @@ void WiFiComponent::start() {
 #ifdef USE_WIFI_AP
   } else if (this->has_ap()) {
     this->setup_ap_config_();
-    if (this->output_power_.has_value() && !this->wifi_apply_output_power_(*this->output_power_)) {
+    if (!std::isnan(this->output_power_) && !this->wifi_apply_output_power_(this->output_power_)) {
       ESP_LOGV(TAG, "Setting Output Power Option failed");
     }
 #ifdef USE_CAPTIVE_PORTAL
@@ -713,8 +714,8 @@ WiFiAP WiFiComponent::build_params_for_current_phase_() {
     case WiFiRetryPhase::RETRY_HIDDEN:
       // Hidden network mode: clear BSSID/channel to trigger probe request
       // (both explicit hidden and retry hidden use same behavior)
-      params.set_bssid(optional<bssid_t>{});
-      params.set_channel(optional<uint8_t>{});
+      params.clear_bssid();
+      params.clear_channel();
       break;
 
     case WiFiRetryPhase::SCAN_CONNECTING:
@@ -766,21 +767,20 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   char bssid_s[18];
   int8_t priority = 0;
 
-  if (ap.get_bssid().has_value()) {
-    format_mac_addr_upper(ap.get_bssid().value().data(), bssid_s);
-    priority = this->get_sta_priority(ap.get_bssid().value());
+  if (ap.has_bssid()) {
+    format_mac_addr_upper(ap.get_bssid().data(), bssid_s);
+    priority = this->get_sta_priority(ap.get_bssid());
   }
 
   ESP_LOGI(TAG,
            "Connecting to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " (priority %d, attempt %u/%u in phase %s)...",
-           ap.get_ssid().c_str(), ap.get_bssid().has_value() ? bssid_s : LOG_STR_LITERAL("any"), priority,
-           this->num_retried_ + 1, get_max_retries_for_phase(this->retry_phase_),
-           LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+           ap.get_ssid().c_str(), ap.has_bssid() ? bssid_s : LOG_STR_LITERAL("any"), priority, this->num_retried_ + 1,
+           get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   ESP_LOGV(TAG, "Connection Params:");
   ESP_LOGV(TAG, "  SSID: '%s'", ap.get_ssid().c_str());
-  if (ap.get_bssid().has_value()) {
+  if (ap.has_bssid()) {
     ESP_LOGV(TAG, "  BSSID: %s", bssid_s);
   } else {
     ESP_LOGV(TAG, "  BSSID: Not Set");
@@ -808,8 +808,8 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 #ifdef USE_WIFI_WPA2_EAP
   }
 #endif
-  if (ap.get_channel().has_value()) {
-    ESP_LOGV(TAG, "  Channel: %u", *ap.get_channel());
+  if (ap.has_channel()) {
+    ESP_LOGV(TAG, "  Channel: %u", ap.get_channel());
   } else {
     ESP_LOGV(TAG, "  Channel not set");
   }
@@ -899,12 +899,20 @@ void WiFiComponent::print_connect_params_() {
     ESP_LOGCONFIG(TAG, "  Disabled");
     return;
   }
+  // Use stack buffers for IP address formatting to avoid heap allocations
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
   for (auto &ip : wifi_sta_ip_addresses()) {
     if (ip.is_set()) {
-      ESP_LOGCONFIG(TAG, "  IP Address: %s", ip.str().c_str());
+      ESP_LOGCONFIG(TAG, "  IP Address: %s", ip.str_to(ip_buf));
     }
   }
   int8_t rssi = wifi_rssi();
+  // Use stack buffers for SSID and all IP addresses to avoid heap allocations
+  char ssid_buf[SSID_BUFFER_SIZE];
+  char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "  SSID: " LOG_SECRET("'%s'") "\n"
                                               "  BSSID: " LOG_SECRET("%s") "\n"
@@ -915,12 +923,12 @@ void WiFiComponent::print_connect_params_() {
                                                                            "  Gateway: %s\n"
                                                                            "  DNS1: %s\n"
                                                                            "  DNS2: %s",
-                wifi_ssid().c_str(), bssid_s, App.get_name().c_str(), rssi, LOG_STR_ARG(get_signal_bars(rssi)),
-                get_wifi_channel(), wifi_subnet_mask_().str().c_str(), wifi_gateway_ip_().str().c_str(),
-                wifi_dns_ip_(0).str().c_str(), wifi_dns_ip_(1).str().c_str());
+                wifi_ssid_to(ssid_buf), bssid_s, App.get_name().c_str(), rssi, LOG_STR_ARG(get_signal_bars(rssi)),
+                get_wifi_channel(), wifi_subnet_mask_().str_to(subnet_buf), wifi_gateway_ip_().str_to(gateway_buf),
+                wifi_dns_ip_(0).str_to(dns1_buf), wifi_dns_ip_(1).str_to(dns2_buf));
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-  if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_bssid().has_value()) {
-    ESP_LOGV(TAG, "  Priority: %d", this->get_sta_priority(*config->get_bssid()));
+  if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_bssid()) {
+    ESP_LOGV(TAG, "  Priority: %d", this->get_sta_priority(config->get_bssid()));
   }
 #endif
 #ifdef USE_WIFI_11KV_SUPPORT
@@ -1514,21 +1522,21 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
     // Scan-based phase: always use best result (index 0)
     failed_bssid = this->scan_result_[0].get_bssid();
-  } else if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_bssid()) {
+  } else if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_bssid()) {
     // Config has specific BSSID (fast_connect or user-specified)
-    failed_bssid = *config->get_bssid();
+    failed_bssid = config->get_bssid();
   }
 
   if (!failed_bssid.has_value()) {
     return;  // No BSSID to penalize
   }
 
-  // Get SSID for logging
-  std::string ssid;
+  // Get SSID for logging (use pointer to avoid copy)
+  const std::string *ssid = nullptr;
   if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
-    ssid = this->scan_result_[0].get_ssid();
+    ssid = &this->scan_result_[0].get_ssid();
   } else if (const WiFiAP *config = this->get_selected_sta_()) {
-    ssid = config->get_ssid();
+    ssid = &config->get_ssid();
   }
 
   // Only decrease priority on the last attempt for this phase
@@ -1548,8 +1556,8 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   }
   char bssid_s[18];
   format_mac_addr_upper(failed_bssid.value().data(), bssid_s);
-  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid.c_str(), bssid_s,
-           old_priority, new_priority);
+  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d",
+           ssid != nullptr ? ssid->c_str() : "", bssid_s, old_priority, new_priority);
 
   // After adjusting priority, check if all priorities are now at minimum
   // If so, clear the vector to save memory and reset for fresh start
@@ -1784,24 +1792,27 @@ void WiFiComponent::save_fast_connect_settings_() {
 #endif
 
 void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }
-void WiFiAP::set_bssid(bssid_t bssid) { this->bssid_ = bssid; }
-void WiFiAP::set_bssid(optional<bssid_t> bssid) { this->bssid_ = bssid; }
+void WiFiAP::set_bssid(const bssid_t &bssid) { this->bssid_ = bssid; }
+void WiFiAP::clear_bssid() { this->bssid_ = {}; }
 void WiFiAP::set_password(const std::string &password) { this->password_ = password; }
 #ifdef USE_WIFI_WPA2_EAP
 void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
 #endif
-void WiFiAP::set_channel(optional<uint8_t> channel) { this->channel_ = channel; }
+void WiFiAP::set_channel(uint8_t channel) { this->channel_ = channel; }
+void WiFiAP::clear_channel() { this->channel_ = 0; }
 #ifdef USE_WIFI_MANUAL_IP
 void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
 #endif
 void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
 const std::string &WiFiAP::get_ssid() const { return this->ssid_; }
-const optional<bssid_t> &WiFiAP::get_bssid() const { return this->bssid_; }
+const bssid_t &WiFiAP::get_bssid() const { return this->bssid_; }
+bool WiFiAP::has_bssid() const { return this->bssid_ != bssid_t{}; }
 const std::string &WiFiAP::get_password() const { return this->password_; }
 #ifdef USE_WIFI_WPA2_EAP
 const optional<EAPAuth> &WiFiAP::get_eap() const { return this->eap_; }
 #endif
-const optional<uint8_t> &WiFiAP::get_channel() const { return this->channel_; }
+uint8_t WiFiAP::get_channel() const { return this->channel_; }
+bool WiFiAP::has_channel() const { return this->channel_ != 0; }
 #ifdef USE_WIFI_MANUAL_IP
 const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip_; }
 #endif
@@ -1829,7 +1840,7 @@ bool WiFiScanResult::matches(const WiFiAP &config) const {
     // network is configured without SSID - match other settings
   }
   // If BSSID configured, only match for correct BSSIDs
-  if (config.get_bssid().has_value() && *config.get_bssid() != this->bssid_)
+  if (config.has_bssid() && config.get_bssid() != this->bssid_)
     return false;
 
 #ifdef USE_WIFI_WPA2_EAP
@@ -1847,7 +1858,7 @@ bool WiFiScanResult::matches(const WiFiAP &config) const {
 #endif
 
   // If channel configured, only match networks on that channel.
-  if (config.get_channel().has_value() && *config.get_channel() != this->channel_) {
+  if (config.has_channel() && config.get_channel() != this->channel_) {
     return false;
   }
   return true;
