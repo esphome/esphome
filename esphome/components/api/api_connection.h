@@ -16,16 +16,6 @@
 
 namespace esphome::api {
 
-// Client information structure - uses fixed buffer to avoid std::string heap allocation
-// Max client name length (e.g., "Home Assistant 2026.1.0.dev0" = 28 chars)
-static constexpr size_t CLIENT_INFO_NAME_MAX_LEN = 32;
-
-struct ClientInfo {
-  char name[CLIENT_INFO_NAME_MAX_LEN]{};  // Client name from Hello message
-  // Note: peername (IP address) is not stored here to save memory.
-  // Use helper_->getpeername_to() when needed.
-};
-
 // Keepalive timeout in milliseconds
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
 // Maximum number of entities to process in a single batch during initial state/info sending
@@ -294,7 +284,7 @@ class APIConnection final : public APIServerConnection {
   bool try_to_clear_buffer(bool log_out_of_space);
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
-  StringRef get_name() const { return StringRef(this->client_info_.name); }
+  const char *get_name() const { return this->helper_->get_client_name(); }
   /// Get peer name (IP address) into a stack buffer - avoids heap allocation
   size_t get_peername_to(std::span<char, socket::PEERNAME_MAX_LEN> buf) const {
     return this->helper_->getpeername_to(buf);
@@ -532,10 +522,7 @@ class APIConnection final : public APIServerConnection {
   std::unique_ptr<camera::CameraImageReader> image_reader_;
 #endif
 
-  // Group 3: Client info struct (24 bytes on 32-bit: 2 strings × 12 bytes each)
-  ClientInfo client_info_;
-
-  // Group 4: 4-byte types
+  // Group 3: 4-byte types
   uint32_t last_traffic_;
 #ifdef USE_API_HOMEASSISTANT_STATES
   int state_subs_at_ = -1;

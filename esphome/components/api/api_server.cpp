@@ -187,13 +187,14 @@ void APIServer::loop() {
 
     // Rare case: handle disconnection
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-    // Trigger expects std::string, get fresh peername from socket
-    this->client_disconnected_trigger_->trigger(client->client_info_.name, client->get_peername());
+    char peername_buf[socket::PEERNAME_MAX_LEN];
+    client->get_peername_to(peername_buf);
+    this->client_disconnected_trigger_->trigger(std::string(client->get_name()), std::string(peername_buf));
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
     this->unregister_active_action_calls_for_connection(client.get());
 #endif
-    ESP_LOGV(TAG, "Remove connection %s", client->client_info_.name);
+    ESP_LOGV(TAG, "Remove connection %s", client->get_name());
 
     // Swap with the last element and pop (avoids expensive vector shifts)
     if (client_index < this->clients_.size() - 1) {
