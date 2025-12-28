@@ -23,7 +23,7 @@ def require_waveform() -> None:
     to save ~580 bytes of RAM (wvfState 512B + pwmState 68B).
 
     Example:
-        from esphome.components.esp8266.const import require_waveform
+        from .const import require_waveform
 
         async def to_code(config):
             require_waveform()
