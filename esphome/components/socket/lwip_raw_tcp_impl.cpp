@@ -189,7 +189,7 @@ class LWIPRawImpl : public Socket {
     }
     return this->ip2sockaddr_(&pcb_->remote_ip, pcb_->remote_port, name, addrlen);
   }
-  std::string getpeername() override {
+  std::string getpeername() final {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return "";
@@ -215,7 +215,7 @@ class LWIPRawImpl : public Socket {
     }
     return this->ip2sockaddr_(&pcb_->local_ip, pcb_->local_port, name, addrlen);
   }
-  std::string getsockname() override {
+  std::string getsockname() final {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return "";
