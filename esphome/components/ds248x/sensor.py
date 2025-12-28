@@ -1,5 +1,6 @@
 import esphome.config_validation as cv
 from esphome.components import sensor
+from esphome.const import CONF_ADDRESS, CONF_INDEX
 from . import (
     CONF_DS248X_ID,
     DS248xComponent,
@@ -10,7 +11,7 @@ from . import (
 
 DEPENDENCIES = ["ds248x"]
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         unit_of_measurement="°C",
         accuracy_decimals=1,
@@ -23,7 +24,8 @@ CONFIG_SCHEMA = (
             cv.GenerateID(CONF_DS248X_ID): cv.use_id(DS248xComponent),
             cv.GenerateID(): cv.declare_id(DS248xSensor),
         }
-    )
+    ),
+    cv.has_at_least_one_key(CONF_ADDRESS, CONF_INDEX),
 )
 
 

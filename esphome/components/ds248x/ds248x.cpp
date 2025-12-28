@@ -1,6 +1,5 @@
 #include "ds248x.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -14,795 +13,585 @@ void DS248xComponent::setup() {
   if (this->sleep_pin_) {
     this->sleep_pin_->setup();
     this->sleep_pin_->pin_mode(esphome::gpio::FLAG_OUTPUT);
+    this->sleep_pin_->digital_write(true); // Wake up
+    delay(10);
   }
+  
+  // Give the device some time to wake up
+  delay(10);
 
-  this->reset_hub_();  // selects channel 0 on hub
-  uint64_t address = 0;
-  uint8_t channel = 0;
-  bool search = false;
-  while ((search = this->search_(&address)) || channel < channel_count_ - 1) {
-    if (!search) {  // if condition is true here with no address found, no more devices on channel
-      ESP_LOGD(TAG, "no more devices on channel %d", channel);
-      channel++;
-      reset_hub_();
-      if (!select_channel_(channel)) {
-        ESP_LOGW(TAG, "failed switching to channel %d while scan...", channel);
-      }
-      continue;
-    } else {
-      ESP_LOGD(TAG, "device 0x%s on channel %d", format_hex(address).c_str(), channel);
-    }
-    FoundDevice device;
-    device.channel = channel;
-    device.address = address;
-
-    auto *address8 = reinterpret_cast<uint8_t *>(&address);
-    if (crc8(address8, 7) != address8[7]) {
-      ESP_LOGW(TAG, "Dallas device 0x%s has invalid CRC.", format_hex(address).c_str());
-      continue;
-    }
-
-    ESP_LOGI(TAG, "found device 0x%s (channel: %d type: %d)", format_hex(address).c_str(), channel, address8[0]);
-    this->found_sensors_.push_back(device);
-  }
-
-  if (!this->enable_strong_pullup_) {
-    // Check for parasitic power on all channels
-    for (uint8_t i = 0; i < this->channel_count_; i++) {
-      if (this->select_channel_(i)) {
-        if (this->check_parasitic_power_()) {
-          ESP_LOGI(TAG, "Parasitic power detected on channel %d. Enabling strong pullup.", i);
-          this->enable_strong_pullup_ = true;
+  // PROBE LOOP
+  ESP_LOGI(TAG, "Probing DS248x...");
+  uint8_t status;
+  bool found = false;
+  for (int i = 0; i < 5; i++) {
+      if (this->read(&status, 1) == i2c::ERROR_OK) {
+          ESP_LOGI(TAG, "Device responded! Status: 0x%02x", status);
+          found = true;
           break;
-        }
       }
-    }
+      delay(10);
+  }
+  
+  if (!found) {
+      ESP_LOGW(TAG, "Device did not respond to Read Status. Trying Reset anyway...");
+  } else {
+      delay(100);
   }
 
-  for (auto *sensor : this->sensors_) {
-    if (sensor->get_channel().has_value() && *sensor->get_channel() >= this->channel_count_) {
-      ESP_LOGE(TAG, "Sensor %s configured for channel %d but device only has %d channels.", sensor->get_name().c_str(),
-               *sensor->get_channel(), this->channel_count_);
-      this->status_set_error();
-      sensor->ignore();
-      continue;
-    }
-
-    if (sensor->get_address().has_value() && sensor->get_channel().has_value()) {
-      // sensor was fully specified by config
-    } else if (sensor->get_index().has_value()) {
-      if (*sensor->get_index() >= this->found_sensors_.size()) {
-        ESP_LOGW(TAG, "specified sensor index (%d) bigger than found devices (%d): %s", *sensor->get_index(),
-                 (int) this->found_sensors_.size(), sensor->get_name().c_str());
-        this->status_set_error();
-        sensor->ignore();
-        continue;
-      }
-      sensor->set_address(this->found_sensors_[*sensor->get_index()].address);
-      sensor->set_channel(this->found_sensors_[*sensor->get_index()].channel);
-    } else {
-      if (!sensor->get_address().has_value()) {
-        ESP_LOGE(TAG, "Sensor %s has no address and no index.", sensor->get_name().c_str());
-        sensor->ignore();
-        continue;
-      }
-      bool sensor_found = false;
-      for (auto fsensor : this->found_sensors_) {
-        if (fsensor.address == *sensor->get_address()) {
-          sensor->set_channel(fsensor.channel);
-          sensor_found = true;
+  // 1. Device Reset
+  // We try a few times because sometimes the bus needs to settle
+  bool reset_success = false;
+  for (int i = 0; i < 3; i++) {
+      if (this->device_reset_()) {
+          reset_success = true;
           break;
-        }
       }
-      if (!sensor_found) {
-        sensor->ignore();
-        ESP_LOGW(TAG, "sensor %s not found at address: 0x%s", sensor->get_name().c_str(),
-                 format_hex(*sensor->get_address()).c_str());
-        continue;
-      }
-    }
-
-    if (!sensor->setup_sensor()) {
-      this->status_set_error();
-    }
+      delay(10);
   }
 
-  std::sort(this->sensors_.begin(), this->sensors_.end(), [](DS248xSensor *a, DS248xSensor *b) {
-    uint8_t ch_a = a->get_channel().value_or(0);
-    uint8_t ch_b = b->get_channel().value_or(0);
-    return ch_a < ch_b;
-  });
+  if (!reset_success) {
+      ESP_LOGW(TAG, "DS248x Reset failed during setup! Status was 0x%02x. Trying to configure anyway...", status);
+  }
+
+  // 2. Device Configure
+  if (!this->device_configure_()) {
+      ESP_LOGE(TAG, "DS248x Configure failed during setup!");
+      this->mark_failed();
+      return;
+  }
+
+  // 3. Select Channel 0
+  if (!this->select_channel(0)) {
+      ESP_LOGE(TAG, "DS248x Channel 0 Selection failed!");
+      this->mark_failed();
+      return;
+  }
+
+  ESP_LOGI(TAG, "DS248x Initialized successfully.");
+}
+
+void DS248xComponent::on_shutdown() {
+    if (this->sleep_pin_) {
+        this->sleep_pin_->digital_write(false); // Sleep
+    }
 }
 
 void DS248xComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "DS248x:");
-  if (this->sleep_pin_) {
-    LOG_PIN("  Sleep Pin: ", this->sleep_pin_);
-  }
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with DS248x failed!");
-  }
-  if (this->found_sensors_.empty()) {
-    ESP_LOGW(TAG, "  Found no sensors!");
-  } else {
-    ESP_LOGD(TAG, "  Found sensors:");
-    for (auto &device : this->found_sensors_) {
-      ESP_LOGD(TAG, "    0x%s (channel: %d)", format_hex(device.address).c_str(), device.channel);
-    }
-  }
-  LOG_UPDATE_INTERVAL(this);
-
+  ESP_LOGCONFIG(TAG, "  Channel Count: %d", this->channel_count_);
   for (auto *sensor : this->sensors_) {
     LOG_SENSOR("  ", "Device", sensor);
-    if (sensor->get_index().has_value()) {
-      ESP_LOGCONFIG(TAG, "    Index %u", *sensor->get_index());
-      if (*sensor->get_index() >= this->found_sensors_.size()) {
-        ESP_LOGE(TAG, "Couldn't find sensor by index - not connected. Proceeding without it.");
-        continue;
-      }
-    }
     ESP_LOGCONFIG(TAG, "    Address: %s", sensor->get_address_name().c_str());
+    ESP_LOGCONFIG(TAG, "    Channel: %d", sensor->get_channel());
   }
 }
 
-void DS248xComponent::register_sensor(DS248xSensor *sensor) { this->sensors_.push_back(sensor); }
+void DS248xComponent::register_sensor(DS248xSensor *sensor) {
+  this->sensors_.push_back(sensor);
+}
 
 void DS248xComponent::update() {
-  ESP_LOGV(TAG, "Start sensor update for %d sensors", (int) sensors_.size());
-  this->status_clear_warning();
-
-  if (this->enable_bus_sleep_) {
-    this->write_config_(this->read_config_() & ~DS248X_CONFIG_POWER_DOWN);
-  }
-
-  read_idx_ = 0;
-  /* this call triggers a cascade of async calls
-  - collect all conversion commands from the sensors to be sent to this channel
-  - trigger conversion and wait for it: start_next_conversion uses set_interval
-  - when all conversions were done
-    - update each sensor on channel: update_channel_sensors uses set_interval
-    - when all sensors on channel updated, updateChannel(+1)*/
-  update_channel_(0);
+  this->process_next_channel_(0);
 }
 
-void DS248xComponent::update_channel_(uint8_t channel) {
-  if (channel >= channel_count_)
-    return;
-
-  conv_cmds_.clear();
-  for (auto *sensor : this->sensors_) {
-    auto channel_opt = sensor->get_channel();
-    if (!channel_opt.has_value() || *channel_opt != channel)
-      continue;
-    sensor->add_conversion_commands(conv_cmds_);
+void DS248xComponent::process_next_channel_(uint8_t channel_idx) {
+  if (channel_idx >= this->channel_count_) {
+    return; // Done
   }
 
-  conv_cmds_iter_ = conv_cmds_.begin();
-  if (conv_cmds_iter_ != conv_cmds_.end()) {
-    ESP_LOGD(TAG, "Updating channel %i...", channel);
-    if (!select_channel_(channel)) {
-      this->status_set_warning();
-      ESP_LOGE(TAG, "Select channel failed");
-      return;
+  // Check if we have sensors on this channel
+  bool has_sensors = false;
+  bool needs_strong_pullup = this->strong_pullup_enabled_; // Global setting
+
+  for (auto *s : this->sensors_) {
+    if (s->get_channel() == channel_idx) {
+      has_sensors = true;
+      if (s->get_parasitic_mode()) {
+          needs_strong_pullup = true;
+      }
     }
-    start_next_conversion_();
-  } else {
-    update_channel_(channel + 1);
   }
-}
 
-void DS248xComponent::start_next_conversion_() {
-  if (conv_cmds_iter_ == conv_cmds_.end()) {  // all conversions done
-    ESP_LOGD(TAG, "conversions done");
-    this->update_channel_sensors_();
+  if (!has_sensors) {
+    this->process_next_channel_(channel_idx + 1);
     return;
   }
-  ESP_LOGD(TAG, "starting next conversion: %02x", *conv_cmds_iter_);
-  bool result = this->reset_devices_();
-  if (!result) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "Reset failed");
-    conv_cmds_iter_++;
-    this->start_next_conversion_();
+
+  // Start conversion on this channel
+  if (!this->select_channel(channel_idx)) {
+    ESP_LOGW(TAG, "Failed to select channel %d for update", channel_idx);
+    this->process_next_channel_(channel_idx + 1);
     return;
   }
-  this->write_to_wire_(WIRE_COMMAND_SKIP);
 
-  if (this->enable_strong_pullup_) {
-    this->write_config_(this->read_config_() | DS248X_CONFIG_STRONG_PULLUP);
+  bool presence;
+  if (!this->ow_reset(presence) || !presence) {
+    ESP_LOGW(TAG, "No presence on channel %d", channel_idx);
+    this->process_next_channel_(channel_idx + 1);
+    return;
   }
 
-  this->write_to_wire_(*conv_cmds_iter_);
-  conv_cmds_iter_++;
-
-  if (this->enable_strong_pullup_) {
-    // Strong pullup is active, we cannot poll as it would disable the pullup
-    // and cut power to parasitic devices. Wait for max conversion time (750ms).
-    uint16_t delay_ms = 750;
-    uint8_t max_res = 9;
-    bool force_max_delay = false;
-    for (auto *sensor : this->sensors_) {
-      if (sensor->get_channel().has_value() && *sensor->get_channel() == selected_channel_ && !sensor->is_ignored()) {
-        max_res = std::max(max_res, sensor->get_resolution());
-        if (sensor->get_address8()[0] == DALLAS_MODEL_DS18S20) {
-          force_max_delay = true;
-        }
+  // Skip ROM (CC) -> Convert T (44)
+  if (!this->skip_rom()) return;
+  
+  // Enable Strong Pullup for Parasitic Power
+  // This must be done BEFORE the command that requires the pullup (Convert T)
+  // The DS2482 will activate the pullup immediately after the next byte is written.
+  if (needs_strong_pullup) {
+      if (!this->set_strong_pullup_mode_(true)) {
+          ESP_LOGW(TAG, "Failed to enable Strong Pullup");
       }
-    }
-    if (!force_max_delay) {
-      if (max_res == 9) {
-        delay_ms = 94;
-      } else if (max_res == 10) {
-        delay_ms = 188;
-      } else if (max_res == 11) {
-        delay_ms = 375;
-      }
-    }
-
-    this->set_interval(TAG, delay_ms, [this] {
-      this->cancel_interval(TAG);
-      if (this->enable_strong_pullup_) {
-        this->write_config_(this->read_config_() & ~DS248X_CONFIG_STRONG_PULLUP);
-      }
-      this->start_next_conversion_();
-    });
-  } else {
-    this->set_interval(TAG, 50, [&] {
-      if ((is_busy_() & DS248X_STATUS_BUSY) != 0) {
-        ESP_LOGD(TAG, "SBR tells 1W busy");
-        return;
-      }
-      this->write_command_(DS248X_COMMAND_SINGLEBIT, 0x80);  // generates read bit
-      delay(1);                                              // wait for single bit command to complete
-      uint8_t status = 0;
-      this->read(&status, 1);
-      ESP_LOGD(TAG, "conversion status: %02x", status);
-      if ((status & 0x20) != 0) {  // bit 5 SBR = Single Bit Result
-        // if not busy anymore
-        this->cancel_interval(TAG);
-        this->start_next_conversion_();
-      }
-    });
   }
-}
+  
+  if (!this->ow_write_byte(0x44)) return;
 
-void DS248xComponent::update_channel_sensors_() {
-  this->set_interval(TAG, 50, [this] {
-    if (read_idx_ >= sensors_.size()) {
-      this->cancel_interval(TAG);
-      if (this->enable_bus_sleep_) {
-        this->write_config_(this->read_config_() | DS248X_CONFIG_POWER_DOWN);
-      }
-      return;
-    }
-    DS248xSensor *sensor = sensors_[read_idx_];
-    auto channel = sensor->get_channel();
-    if (!channel.has_value()) {
-      ESP_LOGW(TAG, "Sensor at index %u has no channel assigned, skipping.", static_cast<unsigned>(read_idx_));
-      read_idx_++;
-      return;
-    }
-
-    if (*channel != selected_channel_) {  // selected sensor is from different channel
-      // cancel this interval and continue with this sensor on the next channel
-      this->cancel_interval(TAG);
-      update_channel_(*channel);
-      return;
-    }
-    read_idx_++;
-
-    if (!sensor->is_ignored()) {
-      ESP_LOGD(TAG, "Update Sensor idx: %i", read_idx_);
-      bool res = sensor->update();
-      if (!res) {
-        ESP_LOGW(TAG, "Reading sensor failed!");
-      }
-    }
+  // Wait for conversion (750ms)
+  // Note: We assume standard resolution (12-bit) which needs 750ms.
+  // The Strong Pullup is active during this time.
+  
+  this->set_timeout(750, [this, channel_idx]() {
+    this->process_channel_readout_(channel_idx);
   });
 }
 
-float DS248xComponent::get_setup_priority() const { return setup_priority::DATA; }
-
-uint8_t DS248xComponent::read_config_() {
-  std::array<uint8_t, 2> cmd;
-  cmd[0] = DS248X_COMMAND_SETREADPTR;
-  cmd[1] = DS248X_POINTER_CONFIG;
-  auto err = this->write(cmd.data(), sizeof(cmd));
-  if (err != esphome::i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "error writing SETREADPTR command to Master: %d", err);
+void DS248xComponent::process_channel_readout_(uint8_t channel_idx) {
+  // Re-select channel to be safe
+  if (!this->select_channel(channel_idx)) {
+    this->process_next_channel_(channel_idx + 1);
+    return;
   }
-
-  uint8_t cfg_byte = 0;
-  err = this->read(&cfg_byte, sizeof(cfg_byte));
-  if (err != esphome::i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "error reading from Master: %d", err);
-  }
-
-  return cfg_byte;
+  
+  this->process_sensor_readout_(channel_idx, 0);
 }
 
-void DS248xComponent::write_config_(uint8_t cfg) {
-  std::array<uint8_t, 2> cmd;
-  cmd[0] = DS248X_COMMAND_WRITECONFIG;
-  cmd[1] = cfg | ((~cfg) << 4);
-  auto err = this->write(cmd.data(), sizeof(cmd));
-  if (err != esphome::i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "error writing WRITECONFIG command to Master: %d", err);
+void DS248xComponent::process_sensor_readout_(uint8_t channel_idx, uint8_t sensor_idx) {
+  DS248xSensor* sensor = nullptr;
+  uint8_t next_idx = sensor_idx + 1;
+  
+  // Find the next sensor on this channel
+  for (size_t i = sensor_idx; i < this->sensors_.size(); i++) {
+      if (this->sensors_[i]->get_channel() == channel_idx) {
+          sensor = this->sensors_[i];
+          next_idx = i + 1;
+          break;
+      }
   }
+
+  if (!sensor) {
+      // No more sensors on this channel
+      this->process_next_channel_(channel_idx + 1);
+      return;
+  }
+
+  bool presence;
+  if (!this->ow_reset(presence) || !presence) {
+    ESP_LOGW(TAG, "Sensor %s lost presence", sensor->get_name().c_str());
+    sensor->publish_state(NAN);
+    this->defer([this, channel_idx, next_idx]() { this->process_sensor_readout_(channel_idx, next_idx); });
+    return;
+  }
+
+  if (!this->match_rom(sensor->get_address())) {
+    ESP_LOGW(TAG, "Sensor %s match rom failed", sensor->get_name().c_str());
+    this->defer([this, channel_idx, next_idx]() { this->process_sensor_readout_(channel_idx, next_idx); });
+    return;
+  }
+
+  // Read Scratchpad (BE)
+  if (!this->ow_write_byte(0xBE)) {
+      this->defer([this, channel_idx, next_idx]() { this->process_sensor_readout_(channel_idx, next_idx); });
+      return;
+  }
+
+  uint8_t scratchpad[9];
+  for (uint8_t & val : scratchpad) {
+    if (!this->ow_read_byte(val)) {
+        this->defer([this, channel_idx, next_idx]() { this->process_sensor_readout_(channel_idx, next_idx); });
+        return;
+    }
+  }
+
+  // Check CRC
+  if (crc8(scratchpad, 8) != scratchpad[8]) {
+    ESP_LOGW(TAG, "Sensor %s CRC failed", sensor->get_name().c_str());
+    sensor->publish_state(NAN);
+    this->defer([this, channel_idx, next_idx]() { this->process_sensor_readout_(channel_idx, next_idx); });
+    return;
+  }
+
+  uint8_t family_code = sensor->get_address() & 0xFF;
+
+  if (family_code == 0x28 || family_code == 0x22) {
+      // DS18B20 (0x28) or DS1822 (0x22)
+      int16_t temp_raw = (scratchpad[1] << 8) | scratchpad[0];
+      float temp_c = temp_raw / 16.0f;
+      sensor->publish_state(temp_c);
+
+      // Check and set resolution if needed
+      uint8_t current_res_byte = scratchpad[4];
+      uint8_t desired_res_byte = 0x1F | ((sensor->get_resolution() - 9) << 5);
+      
+      if (current_res_byte != desired_res_byte && !sensor->has_resolution_update_attempted()) {
+          ESP_LOGD(TAG, "Updating resolution for %s to %d bit", sensor->get_name().c_str(), sensor->get_resolution());
+          sensor->set_resolution_update_attempted(true);
+          
+          bool presence;
+          // We must reset before starting a new command sequence (Write Scratchpad)
+          if (this->ow_reset(presence) && presence) {
+              if (this->match_rom(sensor->get_address())) {
+                  this->ow_write_byte(0x4E); // Write Scratchpad
+                  this->ow_write_byte(scratchpad[2]); // Th
+                  this->ow_write_byte(scratchpad[3]); // Tl
+                  this->ow_write_byte(desired_res_byte); // Config
+                  
+                  // Copy to EEPROM to make it permanent
+                  // We must reset again before the next command sequence (Copy Scratchpad)
+                  if (this->ow_reset(presence) && presence) {
+                      if (this->match_rom(sensor->get_address())) {
+                          // Enable SPU if parasitic
+                          bool use_spu = sensor->get_parasitic_mode() || this->strong_pullup_enabled_;
+                          if (use_spu) {
+                              this->set_strong_pullup_mode_(true);
+                          }
+                          
+                          this->ow_write_byte(0x48); // Copy Scratchpad
+                          
+                          // ASYNC WAIT: Schedule callback instead of delay(10)
+                          this->set_timeout(10, [this, channel_idx, next_idx, use_spu]() {
+                              if (use_spu) {
+                                  this->set_strong_pullup_mode_(false); // Turn off SPU
+                                  this->set_read_pointer_(DS248X_POINTER_STATUS); // Restore pointer
+                              }
+                              // Continue with next sensor
+                              this->process_sensor_readout_(channel_idx, next_idx);
+                          });
+                          return; // EXIT HERE, callback will continue
+                      }
+                  }
+              }
+          } else {
+               ESP_LOGW(TAG, "Reset failed during resolution update for %s", sensor->get_name().c_str());
+          }
+      }
+
+  } else if (family_code == 0x10) {
+      // DS18S20 (0x10) - Old model, 9-bit resolution but high precision mode available
+      // Standard 9-bit reading:
+      // float temp_c = ((scratchpad[0] >> 1) | (scratchpad[1] << 7)) - 0.25 + ((float)(scratchpad[7] - scratchpad[6]) / scratchpad[7]);
+      
+      // Simplified high precision calculation:
+      int16_t temp_raw = (scratchpad[1] << 8) | scratchpad[0];
+      if (scratchpad[7] != 0) {
+           float t = (temp_raw & 0xFFFE) / 2.0f;
+           t += 0.75f + ((float)scratchpad[7] - (float)scratchpad[6]) / (float)scratchpad[7];
+           sensor->publish_state(t);
+      } else {
+           sensor->publish_state(temp_raw / 2.0f);
+      }
+
+  } else {
+      // TODO: Add support for other devices
+      // 0x3A: DS2413 (Dual Channel Addressable Switch)
+      // 0x26: DS2438 (Smart Battery Monitor)
+      // 0x29: DS2408 (8-Channel Addressable Switch)
+      ESP_LOGW(TAG, "Unsupported device family 0x%02x for sensor %s", family_code, sensor->get_name().c_str());
+      sensor->publish_state(NAN);
+  }
+
+  // Continue with next sensor immediately
+  this->defer([this, channel_idx, next_idx]() { this->process_sensor_readout_(channel_idx, next_idx); });
 }
 
-uint8_t DS248xComponent::is_busy_() {
-  std::array<uint8_t, 2> cmd;
-  cmd[0] = DS248X_COMMAND_SETREADPTR;
-  cmd[1] = DS248X_POINTER_STATUS;
-  auto err = this->write(cmd.data(), sizeof(cmd));
-  if (err != esphome::i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "error writing SETREADPTR command to Master: %d", err);
-  }
+// --- Core Implementation ---
 
-  uint8_t status = 0;
-  err = this->read(&status, sizeof(status));
-  if (err != esphome::i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "error reading SBR from Master: %d", err);
-  }
-
-  return status;
+bool DS248xComponent::set_read_pointer_(uint8_t ptr) {
+  return this->write_byte(DS248X_COMMAND_SETREADPTR, ptr);
 }
 
-uint8_t DS248xComponent::wait_while_busy_() {
-  // this commands set read pointer and initially checks
-  uint8_t status = is_busy_();
-  if ((status & DS248X_STATUS_BUSY) == 0)
-    return status;
-
-  // continuous reads
-  for (int i = 100; i > 0; i--) {
-    auto err = this->read(&status, sizeof(status));
-    if (err == esphome::i2c::ERROR_OK && !(status & DS248X_STATUS_BUSY))
-      break;
-    delay(1);
+bool DS248xComponent::wait_busy_() {
+  // We assume the Read Pointer is already at Status Register (F0h).
+  // We ensure this by setting the pointer BEFORE issuing any command that causes busyness.
+  
+  uint32_t start = millis();
+  while (millis() - start < 20) {
+    uint8_t status;
+    if (this->read(&status, 1) != i2c::ERROR_OK) {
+        // Read failed. Retry.
+        delayMicroseconds(100);
+        continue;
+    }
+    if (!(status & DS248X_STATUS_BUSY)) return true;
+    delayMicroseconds(100);
   }
-  return status;
+  ESP_LOGW(TAG, "DS248x Busy Timeout");
+  // Try to recover?
+  this->device_reset_(); 
+  this->current_channel_ = -1; // Invalidate state
+  return false;
 }
 
-bool DS248xComponent::select_channel_(uint8_t channel) {
-  if (this->channel_count_ <= 1) {
-    return true;
-  }
-  if (channel == selected_channel_) {
-    return true;
-  }
-  auto status = wait_while_busy_();
-  if (status & DS248X_STATUS_BUSY) {
-    ESP_LOGW(TAG, "Master never finished command");
-    return false;
-  }
-
-  std::array<uint8_t, 2> channel_code;
-  channel_code[0] = DS248X_COMMAND_CHANNELSELECT;
-  uint8_t selection_code = DS248X_CODE_CHANNEL0 - (channel << 4) + channel;
-  channel_code[1] = selection_code;
-  ESP_LOGV(TAG, "select_channel command: %x", channel_code[1]);
-  auto err = this->write(channel_code.data(), sizeof(channel_code));
-  if (err != esphome::i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "error writing CHANNELSELECT command to Master: %d", err);
-  }
-
-  uint8_t selected = 0;
-  err = this->read(&selected, sizeof(selected));
-  if (err != esphome::i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "error reading from Master: %d", err);
-  }
-  if (selected != channel_code[1]) {
-    ESP_LOGW(TAG, "select_channel failed: wrote %02xh read back %02xh", channel_code[1], selected);
-    return false;
-  }
-
-  selected_channel_ = channel;
-  return true;
-}
-
-void DS248xComponent::reset_hub_() {
-  if (this->sleep_pin_) {
-    this->sleep_pin_->digital_write(true);
-    delay(1);
-  }
-
-  selected_channel_ = 0;
-
+bool DS248xComponent::device_reset_() {
+  ESP_LOGD(TAG, "Resetting device...");
+  // Device Reset (F0) automatically sets the Read Pointer to Status Register.
   uint8_t cmd = DS248X_COMMAND_RESET;
-  auto err = this->write(&cmd, sizeof(cmd));
-  if (err != esphome::i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "error writing RESET command to Master: %d", err);
-  }
-
-  uint8_t config = 0;
-  if (this->enable_active_pullup_) {
-    config |= DS248X_CONFIG_ACTIVE_PULLUP;
-  }
-  if (this->enable_overdrive_speed_) {
-    config |= DS248X_CONFIG_1WIRE_SPEED;
-  }
-  if (config != 0) {
-    this->write_config_(config);
-  }
-
-  // DS2484 specific port configuration
-  // These commands use opcode 0xC3, which conflicts with the channel select
-  // command on multi-channel devices (e.g., DS2482-800). Only execute them
-  // when using a single-channel device.
-  if (this->channel_count_ == 1) {
-    if (this->val_trstl_.has_value()) {
-      this->write_command_(DS248X_COMMAND_DS2484_CONFIG, 0x00 | (*this->val_trstl_ & 0x0F));
-    }
-    if (this->val_tmsp_.has_value()) {
-      this->write_command_(DS248X_COMMAND_DS2484_CONFIG, 0x10 | (*this->val_tmsp_ & 0x0F));
-    }
-    if (this->val_tw0l_.has_value()) {
-      this->write_command_(DS248X_COMMAND_DS2484_CONFIG, 0x20 | (*this->val_tw0l_ & 0x0F));
-    }
-    if (this->val_trec0_.has_value()) {
-      this->write_command_(DS248X_COMMAND_DS2484_CONFIG, 0x30 | (*this->val_trec0_ & 0x0F));
-    }
-    if (this->val_rwpu_.has_value()) {
-      this->write_command_(DS248X_COMMAND_DS2484_CONFIG, 0x40 | (*this->val_rwpu_ & 0x0F));
-    }
-  }
-
-  last_device_found_ = false;
-  search_address_ = 0;
-  search_last_discrepancy_ = 0;
-}
-
-bool DS248xComponent::reset_devices_() {
-  auto status = wait_while_busy_();
-  if (status & DS248X_STATUS_BUSY) {
-    ESP_LOGE(TAG, "Master never finished command");
-    return false;
-  }
-
-  uint8_t cmd = DS248X_COMMAND_RESETWIRE;
-  auto err = this->write(&cmd, sizeof(cmd));
-  if (err != esphome::i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Resetwire write failed %i", err);
-    return false;
-  }
-
-  status = wait_while_busy_();
-
-  if (status & DS248X_STATUS_BUSY) {
-    ESP_LOGE(TAG, "Master never finished command");
-    return false;
-  }
-  if (status & DS248X_STATUS_SD) {
-    ESP_LOGE(TAG, "Bus is shorted");
-    return false;
-  }
-
-  return true;
-}
-
-void DS248xComponent::write_command_(uint8_t command, uint8_t data) {
-  auto status = wait_while_busy_();
-
-  if (status & DS248X_STATUS_BUSY) {
-    ESP_LOGE(TAG, "Master never finished command");
-    return;
-  }
-
-  std::array<uint8_t, 2> cmd;
-  cmd[0] = command;
-  cmd[1] = data;
-  auto err = this->write(cmd.data(), sizeof(cmd));
-  if (err != esphome::i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "error writing command 0x%02X to Master: %d", cmd[0], err);
-  }
-}
-
-void DS248xComponent::select_(uint8_t channel, uint64_t address) {
-  select_channel_(channel);
-  this->write_command_(DS248X_COMMAND_WRITEBYTE, WIRE_COMMAND_SELECT);
-
-  for (int i = 0; i < 8; i++) {
-    this->write_command_(DS248X_COMMAND_WRITEBYTE, (address >> (i * 8)) & 0xff);
-  }
-}
-
-void DS248xComponent::write_to_wire_(uint8_t data) { this->write_command_(DS248X_COMMAND_WRITEBYTE, data); }
-
-uint8_t DS248xComponent::read_from_wire_() {
-  auto status = wait_while_busy_();
-
-  if (status & DS248X_STATUS_BUSY) {
-    ESP_LOGE(TAG, "Master never finished command");
-    return 0;
-  }
-
-  uint8_t command = DS248X_COMMAND_READBYTE;
-  auto err = this->write(&command, sizeof(command));
-  if (err != esphome::i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "error writing READBYTE command to Master: %d", err);
-  }
-
-  status = wait_while_busy_();
-
-  if (status & DS248X_STATUS_BUSY) {
-    ESP_LOGE(TAG, "Master never finished command");
-    return 0;
-  }
-
-  std::array<uint8_t, 2> cmd;
-  cmd[0] = DS248X_COMMAND_SETREADPTR;
-  cmd[1] = DS248X_POINTER_DATA;
-  err = this->write(cmd.data(), sizeof(cmd));
-  if (err != esphome::i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "error writing SETREADPTR command to Master: %d", err);
-  }
-
-  uint8_t data_byte = 0;
-  err = this->read(&data_byte, sizeof(data_byte));
-  if (err != esphome::i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "error reading from Master: %d", err);
-  }
-
-  return data_byte;
-}
-
-bool DS248xComponent::search_(uint64_t *address) {
-  if (last_device_found_)
-    return false;
-
-  bool result = this->reset_devices_();
-  if (!result) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "Reset failed");
-    return false;
-  }
-
-  write_to_wire_(WIRE_COMMAND_SEARCH);
-
-  uint8_t direction;
-  int last_zero = -1;
-  for (uint8_t i = 0; i < 64; i++) {
-    uint64_t search_bit = 1LL << i;
-
-    if (i < search_last_discrepancy_) {
-      direction = (search_address_ & search_bit) != 0;
-    } else {
-      direction = i == search_last_discrepancy_;
-    }
-
-    write_command_(DS248X_COMMAND_TRIPLET, direction ? 0x80 : 0x00);
-
-    uint8_t status = wait_while_busy_();
-    ESP_LOGVV(TAG, "Search: i: %i dir: %i, status: %i bit: %llu", i, direction, status, search_bit);
-
-    uint8_t id = status & DS248X_STATUS_SBR;
-    uint8_t comp_id = status & DS248X_STATUS_TSB;
-    direction = status & DS248X_STATUS_DIR;
-
-    if (id && comp_id) {
+  
+  // We use a simple 1-byte write.
+  // If this fails, it might be because the device is already resetting or busy,
+  // but we should try to verify the status anyway.
+  this->write(&cmd, 1);
+  delay(1); 
+  
+  // Verify reset success (Status bit RST=1)
+  uint8_t status;
+  if (this->read(&status, 1) != i2c::ERROR_OK) return false;
+  
+  if (!(status & DS248X_STATUS_RST)) {
+      ESP_LOGW(TAG, "Device Reset Failed (RST bit not set)");
       return false;
-    } else if (!id && !comp_id && !direction) {
-      last_zero = i;
+  }
+  
+  this->current_channel_ = -1;
+  return true;
+}
+
+bool DS248xComponent::device_configure_() {
+  ESP_LOGD(TAG, "Configuring device...");
+  uint8_t config = 0;
+  if (this->active_pullup_) config |= DS248X_CONFIG_ACTIVE_PULLUP;
+  if (this->overdrive_speed_) config |= DS248X_CONFIG_OVERDRIVE;
+  
+  uint8_t config_byte = (config & 0x0F) | ((~config & 0x0F) << 4);
+  
+  if (!this->write_byte(DS248X_COMMAND_WRITECONFIG, config_byte)) {
+      ESP_LOGW(TAG, "Config Write Failed");
+      return false;
+  }
+  
+  // Verify Config (Pointer is at Config Register now)
+  uint8_t read_config;
+  if (this->read(&read_config, 1) != i2c::ERROR_OK) {
+      ESP_LOGW(TAG, "Config Read Failed");
+      return false;
+  }
+  
+  if (read_config != config) {
+      ESP_LOGW(TAG, "Config Mismatch! Wrote: 0x%02x, Read: 0x%02x", config, read_config);
+      return false;
+  }
+  
+  // Restore pointer to Status
+  if (!this->set_read_pointer_(DS248X_POINTER_STATUS)) return false;
+  
+  ESP_LOGD(TAG, "Configured successfully");
+
+  // DS2484 Configuration
+  if (this->ds2484_mode_) {
+      if (this->ds2484_trstl_ > 0) this->configure_ds2484_port_(0x0, this->ds2484_trstl_);
+      if (this->ds2484_tmsp_ > 0) this->configure_ds2484_port_(0x1, this->ds2484_tmsp_);
+      if (this->ds2484_tw0l_ > 0) this->configure_ds2484_port_(0x2, this->ds2484_tw0l_);
+      if (this->ds2484_trec0_ > 0) this->configure_ds2484_port_(0x3, this->ds2484_trec0_);
+      if (this->ds2484_rwpu_ > 0) this->configure_ds2484_port_(0x4, this->ds2484_rwpu_);
+  }
+
+  return true;
+}
+
+bool DS248xComponent::configure_ds2484_port_(uint8_t param, uint8_t val) {
+    // DS2484 Adjust 1-Wire Port (C3h)
+    // Data Byte: [7:4] Param Select, [3:0] Param Value
+    uint8_t cmd = 0xC3;
+    uint8_t data = (param << 4) | (val & 0x0F);
+    
+    if (!this->write_byte(cmd, data)) {
+        ESP_LOGW(TAG, "DS2484 Port Config Failed (Param %d)", param);
+        return false;
     }
+    
+    // Verify? The datasheet says the response is the value read back.
+    // But write_byte doesn't read back.
+    // We can read back the port config register if we want, but let's trust it for now or check busy.
+    // DS2484 doesn't go busy after port adjust? Datasheet says "No 1-Wire activity".
+    // But we should probably reset pointer to Status just in case.
+    return this->set_read_pointer_(DS248X_POINTER_STATUS);
+}
 
-    if (direction) {
-      search_address_ |= search_bit;
-    } else {
-      search_address_ &= ~search_bit;
-    }
+bool DS248xComponent::set_strong_pullup_mode_(bool enable) {
+  uint8_t config = 0;
+  if (this->active_pullup_) config |= DS248X_CONFIG_ACTIVE_PULLUP;
+  if (this->overdrive_speed_) config |= DS248X_CONFIG_OVERDRIVE;
+  if (enable) config |= DS248X_CONFIG_STRONG_PULLUP;
+  
+  uint8_t config_byte = (config & 0x0F) | ((~config & 0x0F) << 4);
+  
+  if (!this->write_byte(DS248X_COMMAND_WRITECONFIG, config_byte)) {
+      return false;
+  }
+  
+  // We don't verify here to save time, and we don't reset pointer because
+  // usually the next command sets it or doesn't care.
+  // But to be safe for wait_busy(), we should probably set pointer to Status?
+  // Actually, Write Config sets pointer to Config.
+  // So we MUST set it back to Status if we expect wait_busy() to work later.
+  return this->set_read_pointer_(DS248X_POINTER_STATUS);
+}
+
+bool DS248xComponent::select_channel(uint8_t channel) {
+  if (this->channel_count_ <= 1) return true;
+  if (channel >= this->channel_count_) return false;
+  
+  if (this->current_channel_ == channel) return true;
+
+  uint8_t ch_code = 0;
+  switch (channel) {
+    case 0: ch_code = 0xF0; break;
+    case 1: ch_code = 0xE1; break;
+    case 2: ch_code = 0xD2; break;
+    case 3: ch_code = 0xC3; break;
+    case 4: ch_code = 0xB4; break;
+    case 5: ch_code = 0xA5; break;
+    case 6: ch_code = 0x96; break;
+    case 7: ch_code = 0x87; break;
+    default: return false;
   }
 
-  search_last_discrepancy_ = last_zero;
-
-  if (last_zero == -1) {
-    last_device_found_ = true;
+  if (!this->write_byte(DS248X_COMMAND_CHANNELSELECT, ch_code)) {
+      this->current_channel_ = -1;
+      return false;
+  }
+  
+  // Verify Channel (Pointer is at Channel Select Register now)
+  uint8_t read_code;
+  if (this->read(&read_code, 1) != i2c::ERROR_OK) {
+      this->current_channel_ = -1;
+      return false;
+  }
+  
+  uint8_t expected_read = 0;
+  switch (channel) {
+      case 0: expected_read = 0xB8; break;
+      case 1: expected_read = 0xB1; break;
+      case 2: expected_read = 0xAA; break;
+      case 3: expected_read = 0xA3; break;
+      case 4: expected_read = 0x9C; break;
+      case 5: expected_read = 0x95; break;
+      case 6: expected_read = 0x8E; break;
+      case 7: expected_read = 0x87; break;
+  }
+  
+  if (read_code != expected_read) {
+      ESP_LOGW(TAG, "Channel Select Failed! Expected 0x%02x, got 0x%02x", expected_read, read_code);
+      this->current_channel_ = -1;
+      return false;
   }
 
-  *address = search_address_;
-
+  // Restore pointer to Status
+  if (!this->set_read_pointer_(DS248X_POINTER_STATUS)) return false;
+  
+  this->current_channel_ = channel;
   return true;
 }
 
-bool DS248xComponent::check_parasitic_power_() {
-  if (!this->reset_devices_())
-    return false;
-
-  this->write_to_wire_(WIRE_COMMAND_SKIP);
-  this->write_to_wire_(0xB4);  // READ POWER SUPPLY command
-
-  // Read a bit
-  this->write_command_(DS248X_COMMAND_SINGLEBIT, 0x80);
-  auto status = this->wait_while_busy_();
-  if (status & DS248X_STATUS_BUSY) {
-    return false;
+bool DS248xComponent::ow_reset(bool &presence) {
+  // Ensure Read Pointer is at Status Register before command
+  // We ignore the result here because if the device is already in a weird state,
+  // we just want to try to send the reset command.
+  this->set_read_pointer_(DS248X_POINTER_STATUS);
+  
+  // Send 1-Wire Reset command
+  uint8_t cmd = DS248X_COMMAND_RESETWIRE;
+  // We ignore the write result. If the device NACKs (e.g. because it went busy immediately),
+  // we still check the status register to see if it's actually busy.
+  this->write(&cmd, 1);
+  
+  if (!this->wait_busy_()) {
+      ESP_LOGW(TAG, "ow_reset: Wait Busy Failed");
+      return false;
   }
-
-  // If bit is 0 (SBR=0), then we have parasitic power
-  return (status & DS248X_STATUS_SBR) == 0;
-}
-
-void DS248xSensor::ignore() { this->ignored_ = true; }
-bool DS248xSensor::is_ignored() { return this->ignored_; }
-void DS248xSensor::set_address(uint64_t address) { this->address_ = address; }
-optional<uint64_t> DS248xSensor::get_address() { return address_; };
-optional<uint8_t> DS248xSensor::get_index() const { return this->index_; }
-void DS248xSensor::set_index(uint8_t index) { this->index_ = index; }
-uint8_t *DS248xSensor::get_address8() {
-  if (!this->address_.has_value())
-    return nullptr;
-  return reinterpret_cast<uint8_t *>(&*this->address_);
-}
-const std::string &DS248xSensor::get_address_name() {
-  if (this->address_name_.empty() && this->address_.has_value()) {
-    this->address_name_ = std::string("0x") + format_hex(*this->address_);
+  
+  uint8_t status;
+  if (this->read(&status, 1) != i2c::ERROR_OK) {
+      ESP_LOGW(TAG, "ow_reset: Read Status Failed");
+      return false;
   }
-
-  return this->address_name_;
-}
-std::string DS248xSensor::unique_id() {
-  if (!this->address_.has_value()) {
-    ESP_LOGW(TAG, "DS248xSensor unique_id() called before address was set");
-    return {};
+  
+  if (status & DS248X_STATUS_SD) {
+      ESP_LOGW(TAG, "Short detected on 1-Wire bus!");
+      return false;
   }
-  return "dallas-" + str_lower_case(format_hex(*this->address_));
-}
-void DS248xSensor::set_channel(uint8_t channel) { channel_ = channel; }
-optional<uint8_t> DS248xSensor::get_channel() { return channel_; }
-
-// proxies to friend class DS248xComponent
-void DS248xSensor::select_() {
-  if (!this->channel_.has_value() || !this->address_.has_value()) {
-    ESP_LOGW(TAG, "Cannot select sensor: channel or address not set");
-    return;
-  }
-  this->parent_->select_(*this->channel_, *this->address_);
-}
-void DS248xSensor::select_channel_() {
-  if (!this->channel_.has_value()) {
-    ESP_LOGW(TAG, "Cannot select channel: channel not set");
-    return;
-  }
-  this->parent_->select_channel_(*this->channel_);
-}
-void DS248xSensor::write_to_wire_(uint8_t data) { this->parent_->write_to_wire_(data); }
-bool DS248xSensor::reset_devices_() { return this->parent_->reset_devices_(); }
-
-bool DS248xSensor::read_scratch_pad(uint8_t page) {
-  if (!this->channel_.has_value() || !this->address_.has_value()) {
-    ESP_LOGW(TAG, "Cannot read scratch pad: channel or address not set");
-    return false;
-  }
-  this->parent_->select_channel_(*this->channel_);
-
-  bool result = this->parent_->reset_devices_();
-  if (!result) {
-    this->parent_->status_set_warning();
-    ESP_LOGE(TAG, "Reset failed");
-    return false;
-  }
-
-  this->parent_->select_(*this->channel_, *this->address_);
-  this->parent_->write_to_wire_(DALLAS_COMMAND_READ_SCRATCH_PAD);
-  if (page < 255) {
-    this->parent_->write_to_wire_(page);
-  }
-
-  for (uint8_t &i : this->scratch_pad_) {
-    i = this->parent_->read_from_wire_();
-  }
-
+  
+  presence = (status & DS248X_STATUS_PPD);
   return true;
 }
 
-bool DS248xSensor::write_scratch_pad() {
-  if (!this->channel_.has_value() || !this->address_.has_value())
-    return false;
-  this->parent_->select_channel_(*this->channel_);
+bool DS248xComponent::ow_write_byte(uint8_t byte) {
+  if (!this->set_read_pointer_(DS248X_POINTER_STATUS)) return false;
+  
+  // Ignore write error (NACK) as device might be busy immediately
+  this->write_byte(DS248X_COMMAND_WRITEBYTE, byte);
+  
+  return this->wait_busy_();
+}
 
-  bool result = this->parent_->reset_devices_();
-  if (!result) {
-    this->parent_->status_set_warning();
-    ESP_LOGE(TAG, "Reset failed");
-    return false;
-  }
-
-  this->parent_->select_(*this->channel_, *this->address_);
-  this->parent_->write_to_wire_(DALLAS_COMMAND_WRITE_SCRATCH_PAD);
-  this->parent_->write_to_wire_(this->scratch_pad_[2]);  // TH
-  this->parent_->write_to_wire_(this->scratch_pad_[3]);  // TL
-  this->parent_->write_to_wire_(this->scratch_pad_[4]);  // Config
-
+bool DS248xComponent::ow_read_byte(uint8_t &byte) {
+  if (!this->set_read_pointer_(DS248X_POINTER_STATUS)) return false;
+  
+  uint8_t cmd = DS248X_COMMAND_READBYTE;
+  // Ignore write error
+  this->write(&cmd, 1);
+  
+  if (!this->wait_busy_()) return false;
+  
+  if (!this->set_read_pointer_(DS248X_POINTER_DATA)) return false;
+  
+  if (this->read(&byte, 1) != i2c::ERROR_OK) return false;
+  
   return true;
 }
 
-bool DS248xSensor::check_scratch_pad() {
-  uint8_t *addr = this->get_address8();
-  if (!addr)
-    return false;
-
-  bool chksum_validity = (crc8(this->scratch_pad_, 8) == this->scratch_pad_[8]);
-  bool config_validity = false;
-
-  switch (addr[0]) {
-    case DALLAS_MODEL_DS18B20:
-      config_validity = ((this->scratch_pad_[4] & 0x9F) == 0x1F);
-      break;
-    default:
-      config_validity = ((this->scratch_pad_[4] & 0x10) == 0x10);
-  }
-
-#ifdef ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  ESP_LOGVV(TAG, "Scratch pad: %02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X (%02X)", this->scratch_pad_[0],
-            this->scratch_pad_[1], this->scratch_pad_[2], this->scratch_pad_[3], this->scratch_pad_[4],
-            this->scratch_pad_[5], this->scratch_pad_[6], this->scratch_pad_[7], this->scratch_pad_[8],
-            crc8(this->scratch_pad_, 8));
-#endif
-  if (!chksum_validity) {
-    ESP_LOGD(TAG, "Scratch pad: %02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X (%02X)", this->scratch_pad_[0],
-             this->scratch_pad_[1], this->scratch_pad_[2], this->scratch_pad_[3], this->scratch_pad_[4],
-             this->scratch_pad_[5], this->scratch_pad_[6], this->scratch_pad_[7], this->scratch_pad_[8],
-             crc8(this->scratch_pad_, 8));
-    ESP_LOGW(TAG, "'%s' - Scratch pad checksum invalid!", this->get_name().c_str());
-  } else if (!config_validity) {
-    ESP_LOGW(TAG, "'%s' - Scratch pad config register invalid!", this->get_name().c_str());
-  }
-  return chksum_validity && config_validity;
+bool DS248xComponent::ow_write_bit(bool bit) {
+  if (!this->set_read_pointer_(DS248X_POINTER_STATUS)) return false;
+  
+  // Command 0x87: Single Bit. MSB indicates the bit value.
+  uint8_t cmd = DS248X_COMMAND_SINGLEBIT | (bit ? 0x80 : 0x00);
+  this->write(&cmd, 1);
+  
+  return this->wait_busy_();
 }
 
-bool DS248xSensor::setup_sensor() {
-  if (!this->read_scratch_pad()) {
-    return false;
-  }
-  if (!this->check_scratch_pad()) {
-    return false;
-  }
+bool DS248xComponent::ow_read_bit(bool &bit) {
+  if (!this->set_read_pointer_(DS248X_POINTER_STATUS)) return false;
+  
+  // Read slot is generated by writing a 1
+  uint8_t cmd = DS248X_COMMAND_SINGLEBIT | 0x80;
+  this->write(&cmd, 1);
+  
+  if (!this->wait_busy_()) return false;
+  
+  uint8_t status;
+  if (this->read(&status, 1) != i2c::ERROR_OK) return false;
+  
+  // Result is in SBR bit (Bit 5)
+  bit = (status & DS248X_STATUS_SBR);
+  return true;
+}
 
-  uint8_t *addr = this->get_address8();
-  if (!addr)
-    return false;
+bool DS248xComponent::skip_rom() {
+    return this->ow_write_byte(0xCC);
+}
 
-  if (addr[0] == DALLAS_MODEL_DS18B20 || addr[0] == DALLAS_MODEL_DS1822) {
-    uint8_t config_register = this->scratch_pad_[4];
-    uint8_t current_resolution = ((config_register >> 5) & 0x03) + 9;
-    if (current_resolution != this->resolution_) {
-      // update config register
-      config_register = (config_register & 0x9F) | ((this->resolution_ - 9) << 5);
-      this->scratch_pad_[4] = config_register;
-      this->write_scratch_pad();
-    }
+bool DS248xComponent::match_rom(uint64_t address) {
+  if (!this->ow_write_byte(0x55)) return false; // Match ROM
+  for (int i = 0; i < 8; i++) {
+    if (!this->ow_write_byte(static_cast<uint8_t>(address >> (i * 8)))) return false;
   }
   return true;
 }
 
-void DS248xSensor::add_conversion_commands(std::set<uint8_t> &commands) {
-  commands.insert(DALLAS_COMMAND_START_CONVERSION);
-}
-
-bool DS248xSensor::update() {
-  if (!this->read_scratch_pad()) {
-    this->publish_state(NAN);
-    return false;
-  }
-  if (!this->check_scratch_pad()) {
-    this->publish_state(NAN);
-    return false;
-  }
-
-  uint8_t *addr = this->get_address8();
-  if (!addr)
-    return false;
-
-  int16_t temp_16 = (int16_t(this->scratch_pad_[1]) << 8) | this->scratch_pad_[0];
-  if (addr[0] == DALLAS_MODEL_DS18S20) {
-    temp_16 = ((temp_16 & 0xFFFE) << 3) + 16 - this->scratch_pad_[6];
-  }
-
-  float temp = temp_16 / 16.0f;
-  this->publish_state(temp);
-  return true;
+std::string DS248xSensor::get_address_name() {
+  if (this->address_ == 0) return "";
+  return format_hex(this->address_);
 }
 
 }  // namespace ds248x

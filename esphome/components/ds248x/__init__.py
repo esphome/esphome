@@ -86,8 +86,6 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_bus_sleep(config[CONF_BUS_SLEEP]))
-    cg.add(var.set_hub_sleep(config[CONF_HUB_SLEEP]))
     cg.add(var.set_active_pullup(config[CONF_ACTIVE_PULLUP]))
     cg.add(var.set_strong_pullup(config[CONF_STRONG_PULLUP]))
     cg.add(var.set_overdrive_speed(config[CONF_OVERDRIVE_SPEED]))
@@ -128,6 +126,9 @@ async def register_ds248x_sensor(var, config):
 
     if CONF_RESOLUTION in config:
         cg.add(var.set_resolution(config[CONF_RESOLUTION]))
+    
+    if "parasitic_mode" in config:
+        cg.add(var.set_parasitic_mode(config["parasitic_mode"]))
 
     cg.add(parent.register_sensor(var))
 
@@ -143,6 +144,7 @@ def ds248x_sensor_schema():
         cv.Optional(CONF_INDEX): cv.positive_int,
         cv.Optional(CONF_CHANNEL): cv.positive_int,
         cv.Optional(CONF_RESOLUTION, default=12): cv.int_range(min=9, max=12),
+        cv.Optional("parasitic_mode", default=False): cv.boolean,
     }
 
-    return cv.Schema(schema).extend(cv.has_at_least_one_key(CONF_ADDRESS, CONF_INDEX))
+    return cv.Schema(schema)
