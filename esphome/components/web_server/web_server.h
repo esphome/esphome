@@ -33,8 +33,7 @@ extern const uint8_t ESPHOME_WEBSERVER_JS_INCLUDE[] PROGMEM;
 extern const size_t ESPHOME_WEBSERVER_JS_INCLUDE_SIZE;
 #endif
 
-namespace esphome {
-namespace web_server {
+namespace esphome::web_server {
 
 /// Internal helper struct that is used to parse incoming URLs
 struct UrlMatch {
@@ -616,6 +615,5 @@ class WebServer : public Controller,
 #endif
 };
 
-}  // namespace web_server
-}  // namespace esphome
+}  // namespace esphome::web_server
 #endif

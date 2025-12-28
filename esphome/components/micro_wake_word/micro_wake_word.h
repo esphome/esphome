@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "preprocessor_settings.h"
 #include "streaming_model.h"
@@ -140,4 +140,4 @@ class MicroWakeWord : public Component
 }  // namespace micro_wake_word
 }  // namespace esphome
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32
