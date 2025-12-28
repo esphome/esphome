@@ -20,6 +20,8 @@ static const char *const TAG = "tuya";
 static const int COMMAND_DELAY = 10;
 static const int RECEIVE_TIMEOUT = 300;
 static const int MAX_RETRIES = 5;
+// Max bytes to log for datapoint values (larger values are truncated)
+static constexpr size_t MAX_DATAPOINT_LOG_BYTES = 16;
 
 void Tuya::setup() {
   this->set_interval("heartbeat", 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
@@ -122,8 +124,11 @@ bool Tuya::validate_message_() {
 
   // valid message
   const uint8_t *message_data = data + 6;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
   ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,
-           format_hex_pretty(message_data, length).c_str(), static_cast<uint8_t>(this->init_state_));
+           format_hex_pretty_to(hex_buf, message_data, length), static_cast<uint8_t>(this->init_state_));
+#endif
   this->handle_command_(command, version, message_data, length);
 
   // return false to reset rx buffer
@@ -349,7 +354,11 @@ void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
     switch (datapoint.type) {
       case TuyaDatapointType::RAW:
         datapoint.value_raw = std::vector<uint8_t>(data, data + data_size);
-        ESP_LOGD(TAG, "Datapoint %u update to %s", datapoint.id, format_hex_pretty(datapoint.value_raw).c_str());
+        {
+          char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
+          ESP_LOGD(TAG, "Datapoint %u update to %s", datapoint.id,
+                   format_hex_pretty_to(hex_buf, datapoint.value_raw.data(), datapoint.value_raw.size()));
+        }
         break;
       case TuyaDatapointType::BOOLEAN:
         if (data_size != 1) {
@@ -460,8 +469,12 @@ void Tuya::send_raw_command_(TuyaCommand command) {
       break;
   }
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
   ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", static_cast<uint8_t>(command.cmd),
-           version, format_hex_pretty(command.payload).c_str(), static_cast<uint8_t>(this->init_state_));
+           version, format_hex_pretty_to(hex_buf, command.payload.data(), command.payload.size()),
+           static_cast<uint8_t>(this->init_state_));
+#endif
 
   this->write_array({0x55, 0xAA, version, (uint8_t) command.cmd, len_hi, len_lo});
   if (!command.payload.empty())
@@ -675,7 +688,8 @@ void Tuya::set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType 
 }
 
 void Tuya::set_raw_datapoint_value_(uint8_t datapoint_id, const std::vector<uint8_t> &value, bool forced) {
-  ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, format_hex_pretty(value).c_str());
+  char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
+  ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, format_hex_pretty_to(hex_buf, value.data(), value.size()));
   optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
   if (!datapoint.has_value()) {
     ESP_LOGW(TAG, "Setting unknown datapoint %u", datapoint_id);
