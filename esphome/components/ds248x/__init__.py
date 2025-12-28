@@ -128,7 +128,7 @@ async def register_ds248x_sensor(var, config):
 
     if CONF_RESOLUTION in config:
         cg.add(var.set_resolution(config[CONF_RESOLUTION]))
-    
+
     if "parasitic_mode" in config:
         cg.add(var.set_parasitic_mode(config["parasitic_mode"]))
 
