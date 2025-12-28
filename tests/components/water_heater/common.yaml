@@ -1,4 +1,3 @@
-
 water_heater:
   - platform: template
     id: my_boiler
