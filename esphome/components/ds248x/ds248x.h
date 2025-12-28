@@ -55,11 +55,26 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   void set_overdrive_speed(bool enabled) { overdrive_speed_ = enabled; }
 
   // DS2484 Timing Parameters
-  void set_val_trstl(uint8_t val) { ds2484_trstl_ = val; ds2484_mode_ = true; }
-  void set_val_tmsp(uint8_t val) { ds2484_tmsp_ = val; ds2484_mode_ = true; }
-  void set_val_tw0l(uint8_t val) { ds2484_tw0l_ = val; ds2484_mode_ = true; }
-  void set_val_trec0(uint8_t val) { ds2484_trec0_ = val; ds2484_mode_ = true; }
-  void set_val_rwpu(uint8_t val) { ds2484_rwpu_ = val; ds2484_mode_ = true; }
+  void set_val_trstl(uint8_t val) {
+    ds2484_trstl_ = val;
+    ds2484_mode_ = true;
+  }
+  void set_val_tmsp(uint8_t val) {
+    ds2484_tmsp_ = val;
+    ds2484_mode_ = true;
+  }
+  void set_val_tw0l(uint8_t val) {
+    ds2484_tw0l_ = val;
+    ds2484_mode_ = true;
+  }
+  void set_val_trec0(uint8_t val) {
+    ds2484_trec0_ = val;
+    ds2484_mode_ = true;
+  }
+  void set_val_rwpu(uint8_t val) {
+    ds2484_rwpu_ = val;
+    ds2484_mode_ = true;
+  }
 
   void register_sensor(DS248xSensor *sensor);
 
@@ -70,7 +85,7 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   bool ow_read_byte(uint8_t &byte);
   bool ow_write_bit(bool bit);
   bool ow_read_bit(bool &bit);
-  
+
   // --- Helpers ---
   bool match_rom(uint64_t address);
   bool skip_rom();
@@ -100,7 +115,7 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   bool device_configure_();
   bool configure_ds2484_port_(uint8_t param, uint8_t val);
   bool set_strong_pullup_mode_(bool enable);
-  
+
   // Update State Machine
   void process_next_channel_(uint8_t channel_idx);
   void process_channel_readout_(uint8_t channel_idx);
@@ -112,15 +127,15 @@ class DS248xSensor : public sensor::Sensor {
   void set_parent(DS248xComponent *parent) { parent_ = parent; }
   void set_address(uint64_t address) { address_ = address; }
   void set_channel(uint8_t channel) { channel_ = channel; }
-  void set_index(uint8_t index) { index_ = index; } // For compatibility if needed
+  void set_index(uint8_t index) { index_ = index; }  // For compatibility if needed
   void set_resolution(uint8_t resolution) { resolution_ = resolution; }
   void set_parasitic_mode(bool parasitic_mode) { parasitic_mode_ = parasitic_mode; }
-  
+
   uint64_t get_address() const { return address_; }
   uint8_t get_channel() const { return channel_; }
   uint8_t get_resolution() const { return resolution_; }
   bool get_parasitic_mode() const { return parasitic_mode_; }
-  
+
   bool has_resolution_update_attempted() const { return resolution_update_attempted_; }
   void set_resolution_update_attempted(bool attempted) { resolution_update_attempted_ = attempted; }
 
