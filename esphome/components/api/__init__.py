@@ -435,7 +435,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")
         await automation.build_automation(
             var.get_client_connected_trigger(),
-            [(cg.std_string, "client_info"), (cg.std_string, "client_address")],
+            [(cg.StringRef, "client_info"), (cg.StringRef, "client_address")],
             config[CONF_ON_CLIENT_CONNECTED],
         )
 
@@ -443,7 +443,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_API_CLIENT_DISCONNECTED_TRIGGER")
         await automation.build_automation(
             var.get_client_disconnected_trigger(),
-            [(cg.std_string, "client_info"), (cg.std_string, "client_address")],
+            [(cg.StringRef, "client_info"), (cg.StringRef, "client_address")],
             config[CONF_ON_CLIENT_DISCONNECTED],
         )
 

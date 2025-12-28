@@ -101,16 +101,14 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
 #if defined(USE_API_PLAINTEXT) && defined(USE_API_NOISE)
   auto &noise_ctx = parent->get_noise_ctx();
   if (noise_ctx.has_psk()) {
-    this->helper_ =
-        std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), noise_ctx, &this->client_info_)};
+    this->helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), noise_ctx)};
   } else {
-    this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock), &this->client_info_)};
+    this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
   }
 #elif defined(USE_API_PLAINTEXT)
-  this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock), &this->client_info_)};
+  this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
 #elif defined(USE_API_NOISE)
-  this->helper_ = std::unique_ptr<APIFrameHelper>{
-      new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx(), &this->client_info_)};
+  this->helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
 #else
 #error "No frame helper defined"
 #endif
@@ -133,8 +131,8 @@ void APIConnection::start() {
   }
   // Initialize client name with peername (IP address) until Hello message provides actual name
   char peername[socket::PEERNAME_MAX_LEN];
-  this->helper_->getpeername_to(peername);
-  strncpy(this->client_info_.name, peername, sizeof(this->client_info_.name) - 1);
+  size_t len = this->helper_->getpeername_to(peername);
+  this->helper_->set_client_name(peername, len);
 }
 
 APIConnection::~APIConnection() {
@@ -1508,8 +1506,9 @@ void APIConnection::complete_authentication_() {
   this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::AUTHENTICATED);
   this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("connected"));
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  // Trigger expects std::string, get fresh peername from socket
-  this->parent_->get_client_connected_trigger()->trigger(this->client_info_.name, this->helper_->getpeername());
+  char peername_buf[socket::PEERNAME_MAX_LEN];
+  this->helper_->getpeername_to(peername_buf);
+  this->parent_->get_client_connected_trigger()->trigger(this->helper_->get_client_name(), StringRef(peername_buf));
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   if (homeassistant::global_homeassistant_time != nullptr) {
@@ -1524,16 +1523,14 @@ void APIConnection::complete_authentication_() {
 }
 
 bool APIConnection::send_hello_response(const HelloRequest &msg) {
-  // Copy client name with truncation if needed
-  size_t copy_len = std::min(static_cast<size_t>(msg.client_info_len), sizeof(this->client_info_.name) - 1);
-  memcpy(this->client_info_.name, msg.client_info, copy_len);
-  this->client_info_.name[copy_len] = '\0';
+  // Copy client name with truncation if needed (set_client_name handles truncation)
+  this->helper_->set_client_name(reinterpret_cast<const char *>(msg.client_info), msg.client_info_len);
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
   char peername[socket::PEERNAME_MAX_LEN];
   this->helper_->getpeername_to(peername);
-  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->client_info_.name, peername,
-           this->client_api_version_major_, this->client_api_version_minor_);
+  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->helper_->get_client_name(),
+           peername, this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;
   resp.api_version_major = 1;
@@ -2110,14 +2107,14 @@ void APIConnection::process_state_subscriptions_() {
 void APIConnection::log_client_(int level, const LogString *message) {
   char peername[socket::PEERNAME_MAX_LEN];
   this->helper_->getpeername_to(peername);
-  esp_log_printf_(level, TAG, __LINE__, ESPHOME_LOG_FORMAT("%s (%s): %s"), this->client_info_.name, peername,
+  esp_log_printf_(level, TAG, __LINE__, ESPHOME_LOG_FORMAT("%s (%s): %s"), this->helper_->get_client_name(), peername,
                   LOG_STR_ARG(message));
 }
 
 void APIConnection::log_warning_(const LogString *message, APIError err) {
   char peername[socket::PEERNAME_MAX_LEN];
   this->helper_->getpeername_to(peername);
-  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->client_info_.name, peername, LOG_STR_ARG(message),
+  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->helper_->get_client_name(), peername, LOG_STR_ARG(message),
            LOG_STR_ARG(api_error_to_logstr(err)), errno);
 }
 

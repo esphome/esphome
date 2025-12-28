@@ -31,6 +31,9 @@ static constexpr uint16_t MAX_MESSAGE_SIZE = 32768;  // 32 KiB for ESP32 and oth
 
 class ProtoWriteBuffer;
 
+// Max client name length (e.g., "Home Assistant 2026.1.0.dev0" = 28 chars)
+static constexpr size_t CLIENT_INFO_NAME_MAX_LEN = 32;
+
 struct ReadPacketBuffer {
   const uint8_t *data;  // Points directly into frame helper's rx_buf_ (valid until next read_packet call)
   uint16_t data_len;
@@ -79,8 +82,16 @@ const LogString *api_error_to_logstr(APIError err);
 class APIFrameHelper {
  public:
   APIFrameHelper() = default;
-  explicit APIFrameHelper(std::unique_ptr<socket::Socket> socket, const char *client_name)
-      : socket_(std::move(socket)), client_name_(client_name) {}
+  explicit APIFrameHelper(std::unique_ptr<socket::Socket> socket) : socket_(std::move(socket)) {}
+
+  // Get client name (null-terminated)
+  const char *get_client_name() const { return this->client_name_; }
+  // Set client name from buffer with length (truncates if needed)
+  void set_client_name(const char *name, size_t len) {
+    size_t copy_len = std::min(len, sizeof(this->client_name_) - 1);
+    memcpy(this->client_name_, name, copy_len);
+    this->client_name_[copy_len] = '\0';
+  }
   virtual ~APIFrameHelper() = default;
   virtual APIError init() = 0;
   virtual APIError loop();
@@ -187,9 +198,8 @@ class APIFrameHelper {
   std::vector<struct iovec> reusable_iovs_;
   std::vector<uint8_t> rx_buf_;
 
-  // Pointer to client name buffer (4 bytes on 32-bit)
-  // Note: The pointed-to buffer must outlive this APIFrameHelper instance.
-  const char *client_name_{nullptr};
+  // Client name buffer - stores name from Hello message or initial peername
+  char client_name_[CLIENT_INFO_NAME_MAX_LEN]{};
 
   // Group smaller types together
   uint16_t rx_buf_len_ = 0;

@@ -1,6 +1,5 @@
 #include "api_frame_helper.h"
 #ifdef USE_API
-#include "api_connection.h"  // For ClientInfo struct
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -18,7 +17,7 @@ static const char *const TAG = "api.frame_helper";
   do { \
     char peername__[socket::PEERNAME_MAX_LEN]; \
     this->socket_->getpeername_to(peername__); \
-    ESP_LOGVV(TAG, "%s (%s): " msg, this->client_info_->name, peername__, ##__VA_ARGS__); \
+    ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, peername__, ##__VA_ARGS__); \
   } while (0)
 #else
 #define HELPER_LOG(msg, ...) ((void) 0)
