@@ -36,7 +36,7 @@ void DS248xComponent::setup() {
   if (!found) {
     ESP_LOGW(TAG, "Device did not respond to Read Status. Trying Reset anyway...");
   } else {
-    delay(100);
+    delay(100);  // NOLINT
   }
 
   // 1. Device Reset
