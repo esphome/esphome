@@ -99,7 +99,7 @@ class LwIPSocketImpl : public Socket {
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) override {
     return lwip_getpeername(this->fd_, addr, addrlen);
   }
-  std::string getpeername() override {
+  std::string getpeername() final {
     struct sockaddr_storage storage;
     socklen_t len = sizeof(storage);
     if (lwip_getpeername(this->fd_, (struct sockaddr *) &storage, &len) != 0)
@@ -118,7 +118,7 @@ class LwIPSocketImpl : public Socket {
   int getsockname(struct sockaddr *addr, socklen_t *addrlen) override {
     return lwip_getsockname(this->fd_, addr, addrlen);
   }
-  std::string getsockname() override {
+  std::string getsockname() final {
     struct sockaddr_storage storage;
     socklen_t len = sizeof(storage);
     if (lwip_getsockname(this->fd_, (struct sockaddr *) &storage, &len) != 0)
