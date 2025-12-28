@@ -61,12 +61,18 @@ void DS248xComponent::setup() {
     return;
   }
 
-  // 3. Select Channel 0
-  if (!this->select_channel(0)) {
-    ESP_LOGE(TAG, "DS248x Channel 0 Selection failed!");
-    this->mark_failed();
-    return;
+  // 3. Search all channels
+  for (uint8_t i = 0; i < this->channel_count_; i++) {
+    if (this->select_channel(i)) {
+      if (this->channel_count_ > 1) {
+        ESP_LOGI(TAG, "Scanning Channel %d...", i);
+      }
+      this->search();
+    }
   }
+
+  // Reset to Channel 0
+  this->select_channel(0);
 
   ESP_LOGI(TAG, "DS248x Initialized successfully.");
 }
@@ -142,8 +148,12 @@ void DS248xComponent::process_next_channel_(uint8_t channel_idx) {
     }
   }
 
-  if (!this->ow_write_byte(0x44))
+  if (!this->ow_write_byte(0x44)) {
+    if (needs_strong_pullup) {
+      this->set_strong_pullup_mode_(false);
+    }
     return;
+  }
 
   // Wait for conversion (750ms)
   // Note: We assume standard resolution (12-bit) which needs 750ms.
@@ -153,6 +163,9 @@ void DS248xComponent::process_next_channel_(uint8_t channel_idx) {
 }
 
 void DS248xComponent::process_channel_readout_(uint8_t channel_idx) {
+  // Ensure Strong Pullup is disabled after the conversion time
+  this->set_strong_pullup_mode_(false);
+
   // Re-select channel to be safe
   if (!this->select_channel(channel_idx)) {
     this->process_next_channel_(channel_idx + 1);
@@ -641,6 +654,141 @@ bool DS248xComponent::match_rom(uint64_t address) {
       return false;
   }
   return true;
+}
+
+uint8_t DS248xComponent::search_triplet(bool search_direction) {
+  if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
+    return 0;
+
+  // Command 0x78: Triplet. MSB indicates the search direction.
+  uint8_t cmd = DS248X_COMMAND_TRIPLET | (search_direction ? 0x80 : 0x00);
+  this->write(&cmd, 1);
+
+  if (!this->wait_busy_())
+    return 0;
+
+  uint8_t status;
+  if (this->read(&status, 1) != i2c::ERROR_OK)
+    return 0;
+
+  return status;
+}
+
+void DS248xComponent::search() {
+  ESP_LOGI(TAG, "Searching for 1-Wire devices...");
+  uint8_t rom[8];
+  int last_discrepancy = 0;
+  bool last_device_flag = false;
+  bool first = true;
+
+  while (!last_device_flag) {
+    if (!first) {
+      // Use previous state
+    } else {
+      last_discrepancy = 0;
+      last_device_flag = false;
+      // last_family_discrepancy = 0;
+      first = false;
+    }
+
+    bool presence;
+    if (!this->ow_reset(presence) || !presence) {
+      ESP_LOGW(TAG, "  No presence detected during search");
+      last_discrepancy = 0;
+      last_device_flag = false;
+      return;
+    }
+
+    this->ow_write_byte(0xF0);  // Search ROM
+
+    int id_bit_number = 1;
+    int last_zero = 0;
+    int rom_byte_number = 0;
+    uint8_t rom_byte_mask = 1;
+    bool search_result = false;
+    uint8_t crc8 = 0;
+
+    // Clear ROM buffer for this run if it's the first?
+    // Actually we need to keep the previous ROM to decide direction
+    if (first) {
+      for (int i = 0; i < 8; i++)
+        rom[i] = 0;
+    }
+
+    do {
+      // Determine Search Direction
+      bool search_direction = false;
+      if (id_bit_number < last_discrepancy) {
+        if ((rom[rom_byte_number] & rom_byte_mask) > 0)
+          search_direction = true;
+        else
+          search_direction = false;
+      } else {
+        // if equal to last pick 1, if not then pick 0
+        if (id_bit_number == last_discrepancy)
+          search_direction = true;
+        else
+          search_direction = false;
+      }
+
+      // Perform Triplet
+      uint8_t status = this->search_triplet(search_direction);
+
+      bool id_bit = (status & DS248X_STATUS_SBR);
+      bool cmp_id_bit = (status & DS248X_STATUS_TSB);
+      bool dir_taken = (status & DS248X_STATUS_DIR);
+
+      if (id_bit && cmp_id_bit) {
+        // No devices
+        break;
+      } else {
+        if (!id_bit && !cmp_id_bit && !dir_taken) {
+          last_zero = id_bit_number;
+          // if (last_zero < 9) LastFamilyDiscrepancy = last_zero;
+        }
+
+        if (dir_taken)
+          rom[rom_byte_number] |= rom_byte_mask;
+        else
+          rom[rom_byte_number] &= ~rom_byte_mask;
+
+        id_bit_number++;
+        rom_byte_mask <<= 1;
+
+        if (rom_byte_mask == 0) {
+          // Accumulate CRC
+          // doc says: calc_crc8(ROM_NO[rom_byte_number]);
+          // We can just check CRC at the end
+          rom_byte_number++;
+          rom_byte_mask = 1;
+        }
+      }
+    } while (rom_byte_number < 8);
+
+    if (id_bit_number >= 65) {
+      // Search successful
+      last_discrepancy = last_zero;
+      if (last_discrepancy == 0)
+        last_device_flag = true;
+      search_result = true;
+    }
+
+    if (search_result) {
+      // Check CRC
+      if (esphome::crc8(rom, 7) != rom[7]) {
+        ESP_LOGW(TAG, "  CRC Error for found device");
+      } else {
+        uint64_t addr = 0;
+        for (int i = 7; i >= 0; i--) {
+          addr = (addr << 8) | rom[i];
+        }
+        ESP_LOGI(TAG, "  Found device: %s", format_hex(addr).c_str());
+      }
+    } else {
+      break;
+    }
+  }
+  ESP_LOGI(TAG, "Search finished.");
 }
 
 std::string DS248xSensor::get_address_name() {

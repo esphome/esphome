@@ -90,6 +90,10 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   bool match_rom(uint64_t address);
   bool skip_rom();
 
+  // --- Search ---
+  uint8_t search_triplet(bool search_direction);
+  void search();
+
  protected:
   InternalGPIOPin *sleep_pin_{nullptr};
   uint8_t channel_count_ = 1;
