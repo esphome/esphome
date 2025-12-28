@@ -1738,7 +1738,7 @@ std::string WebServer::water_heater_json(water_heater::WaterHeater *obj, JsonDet
   JsonObject root = builder.root();
 
   const char *mode_s = "UNKNOWN";
-  switch (obj->mode) {
+  switch (obj->mode_) {
     case water_heater::WATER_HEATER_MODE_OFF:
       mode_s = "OFF";
       break;
@@ -1762,11 +1762,11 @@ std::string WebServer::water_heater_json(water_heater::WaterHeater *obj, JsonDet
       break;
   }
 
-  set_json_icon_state_value(root, obj, "water-heater", mode_s, obj->mode, start_config);
+  set_json_icon_state_value(root, obj, "water-heater", mode_s, obj->mode_, start_config);
 
-  if (!std::isnan(obj->current_temperature))
-    root["current_temperature"] = obj->current_temperature;
-  root["target_temperature"] = obj->target_temperature;
+  if (!std::isnan(obj->current_temperature_))
+    root["current_temperature"] = obj->current_temperature_;
+  root["target_temperature"] = obj->target_temperature_;
 
   auto traits = obj->get_traits();
   root["min_temperature"] = traits.get_min_temperature();
