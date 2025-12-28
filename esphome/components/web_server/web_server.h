@@ -622,6 +622,9 @@ class WebServer : public Controller,
 #ifdef USE_EVENT
   std::string event_json_(event::Event *obj, const std::string &event_type, JsonDetail start_config);
 #endif
+#ifdef WATER_HEATER
+  std::string water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config);
+#endif
 #ifdef USE_UPDATE
   std::string update_json_(update::UpdateEntity *obj, JsonDetail start_config);
 #endif
