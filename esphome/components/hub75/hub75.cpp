@@ -190,6 +190,18 @@ void HUB75Display::set_brightness(uint8_t brightness) {
   }
 }
 
+void HUB75Display::set_hub75_rotation(Hub75Rotation rotation) {
+  if (rotation != Hub75Rotation::ROTATE_0 && rotation != Hub75Rotation::ROTATE_90 &&
+      rotation != Hub75Rotation::ROTATE_180 && rotation != Hub75Rotation::ROTATE_270) {
+    ESP_LOGW(TAG, "Invalid rotation: %d", static_cast<int>(rotation));
+    return;
+  }
+
+  if (this->driver_ != nullptr) {
+    this->driver_->set_rotation(rotation);
+  }
+}
+
 int HUB75Display::get_width_internal() { return this->driver_ != nullptr ? this->driver_->get_width() : 0; }
 
 int HUB75Display::get_height_internal() { return this->driver_ != nullptr ? this->driver_->get_height() : 0; }
