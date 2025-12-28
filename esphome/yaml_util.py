@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from contextlib import suppress
 import functools
 import inspect
 from io import BytesIO, TextIOBase, TextIOWrapper
