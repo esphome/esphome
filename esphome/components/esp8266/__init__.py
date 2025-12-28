@@ -282,8 +282,7 @@ async def finalize_waveform_config() -> None:
     """
     if not CORE.data.get(KEY_ESP8266, {}).get(KEY_WAVEFORM_REQUIRED, False):
         # No component needs waveform - enable stubs and exclude Arduino waveform code
-        # Add both define (for C++ code) and build flag (for PlatformIO script)
-        cg.add_define("USE_ESP8266_WAVEFORM_STUBS")
+        # Use build flag (visible to both C++ code and PlatformIO script)
         cg.add_build_flag("-DUSE_ESP8266_WAVEFORM_STUBS")
 
 
