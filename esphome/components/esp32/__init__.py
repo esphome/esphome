@@ -1036,12 +1036,12 @@ async def to_code(config):
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
     # and for PSRAM users saves significant IRAM by keeping C library functions in ROM.
-    if (
-        variant == VARIANT_ESP32
-        and (min_rev := conf[CONF_ADVANCED].get(CONF_MINIMUM_CHIP_REVISION)) is not None
-    ):
-        for rev, flag in ESP32_CHIP_REVISIONS.items():
-            add_idf_sdkconfig_option(flag, rev == min_rev)
+    if variant == VARIANT_ESP32:
+        min_rev = conf[CONF_ADVANCED].get(CONF_MINIMUM_CHIP_REVISION)
+        if min_rev is not None:
+            for rev, flag in ESP32_CHIP_REVISIONS.items():
+                add_idf_sdkconfig_option(flag, rev == min_rev)
+            cg.add_define("USE_ESP32_MIN_CHIP_REVISION_SET")
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_SINGLE_APP", False)
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM", True)
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM_FILENAME", "partitions.csv")
