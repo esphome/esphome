@@ -633,7 +633,7 @@ async def hub75_set_brightness_to_code(
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(HUB75Display),
-            cv.Required(CONF_ROTATION): cv.templatable(cv.enum(ROTATIONS, int=True)),
+            cv.Required(CONF_ROTATION): cv.templatable(cv.one_of(0, 90, 180, 270)),
         },
         key=CONF_ROTATION,
     ),
@@ -646,6 +646,6 @@ async def hub75_set_rotation_to_code(
 ) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_ROTATION], args, Hub75Rotation)
+    template_ = await cg.templatable(config[CONF_ROTATION], args, cg.int_)
     cg.add(var.set_hub75_rotation(template_))
     return var

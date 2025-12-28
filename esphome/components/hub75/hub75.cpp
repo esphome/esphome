@@ -190,11 +190,24 @@ void HUB75Display::set_brightness(uint8_t brightness) {
   }
 }
 
-void HUB75Display::set_hub75_rotation(Hub75Rotation rotation) {
-  if (rotation != Hub75Rotation::ROTATE_0 && rotation != Hub75Rotation::ROTATE_90 &&
-      rotation != Hub75Rotation::ROTATE_180 && rotation != Hub75Rotation::ROTATE_270) {
-    ESP_LOGW(TAG, "Invalid rotation: %d", static_cast<int>(rotation));
-    return;
+void HUB75Display::set_hub75_rotation(int degrees) {
+  Hub75Rotation rotation;
+  switch (degrees) {
+    case 0:
+      rotation = Hub75Rotation::ROTATE_0;
+      break;
+    case 90:
+      rotation = Hub75Rotation::ROTATE_90;
+      break;
+    case 180:
+      rotation = Hub75Rotation::ROTATE_180;
+      break;
+    case 270:
+      rotation = Hub75Rotation::ROTATE_270;
+      break;
+    default:
+      ESP_LOGW(TAG, "Invalid rotation: %d degrees", degrees);
+      return;
   }
 
   if (this->driver_ != nullptr) {
