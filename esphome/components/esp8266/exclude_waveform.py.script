@@ -15,8 +15,14 @@ import os
 # _stopPWM() since digitalWrite() calls these unconditionally.
 
 
-def has_define(env, name):
-    """Check if a define exists in the build environment."""
+def has_define_flag(env, name):
+    """Check if a define exists in the build flags."""
+    define_flag = f"-D{name}"
+    # Check BUILD_FLAGS (where ESPHome puts its defines)
+    for flag in env.get("BUILD_FLAGS", []):
+        if flag == define_flag or flag.startswith(f"{define_flag}="):
+            return True
+    # Also check CPPDEFINES list (parsed defines)
     for define in env.get("CPPDEFINES", []):
         if isinstance(define, tuple):
             if define[0] == name:
@@ -25,9 +31,8 @@ def has_define(env, name):
             return True
     return False
 
-
 # USE_ESP8266_WAVEFORM_STUBS is defined when no component needs waveform
-if has_define(env, "USE_ESP8266_WAVEFORM_STUBS"):
+if has_define_flag(env, "USE_ESP8266_WAVEFORM_STUBS"):
 
     def filter_waveform_from_core(env, node):
         """Filter callback to exclude waveform files from framework build."""
