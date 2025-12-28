@@ -193,7 +193,7 @@ void APIServer::loop() {
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
     this->unregister_active_action_calls_for_connection(client.get());
 #endif
-    ESP_LOGV(TAG, "Remove connection %s", client->client_info_.name.c_str());
+    ESP_LOGV(TAG, "Remove connection %s", client->client_info_.name);
 
     // Swap with the last element and pop (avoids expensive vector shifts)
     if (client_index < this->clients_.size() - 1) {

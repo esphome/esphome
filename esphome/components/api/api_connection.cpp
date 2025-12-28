@@ -134,7 +134,7 @@ void APIConnection::start() {
   // Initialize client name with peername (IP address) until Hello message provides actual name
   char peername[socket::PEERNAME_MAX_LEN];
   this->helper_->getpeername_to(peername);
-  this->client_info_.name = peername;
+  strncpy(this->client_info_.name, peername, sizeof(this->client_info_.name) - 1);
 }
 
 APIConnection::~APIConnection() {
@@ -1524,13 +1524,16 @@ void APIConnection::complete_authentication_() {
 }
 
 bool APIConnection::send_hello_response(const HelloRequest &msg) {
-  this->client_info_.name.assign(reinterpret_cast<const char *>(msg.client_info), msg.client_info_len);
+  // Copy client name with truncation if needed
+  size_t copy_len = std::min(static_cast<size_t>(msg.client_info_len), sizeof(this->client_info_.name) - 1);
+  memcpy(this->client_info_.name, msg.client_info, copy_len);
+  this->client_info_.name[copy_len] = '\0';
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
   char peername[socket::PEERNAME_MAX_LEN];
   this->helper_->getpeername_to(peername);
-  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->client_info_.name.c_str(),
-           peername, this->client_api_version_major_, this->client_api_version_minor_);
+  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->client_info_.name, peername,
+           this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;
   resp.api_version_major = 1;
@@ -2107,14 +2110,14 @@ void APIConnection::process_state_subscriptions_() {
 void APIConnection::log_client_(int level, const LogString *message) {
   char peername[socket::PEERNAME_MAX_LEN];
   this->helper_->getpeername_to(peername);
-  esp_log_printf_(level, TAG, __LINE__, ESPHOME_LOG_FORMAT("%s (%s): %s"), this->client_info_.name.c_str(), peername,
+  esp_log_printf_(level, TAG, __LINE__, ESPHOME_LOG_FORMAT("%s (%s): %s"), this->client_info_.name, peername,
                   LOG_STR_ARG(message));
 }
 
 void APIConnection::log_warning_(const LogString *message, APIError err) {
   char peername[socket::PEERNAME_MAX_LEN];
   this->helper_->getpeername_to(peername);
-  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->client_info_.name.c_str(), peername, LOG_STR_ARG(message),
+  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->client_info_.name, peername, LOG_STR_ARG(message),
            LOG_STR_ARG(api_error_to_logstr(err)), errno);
 }
 
