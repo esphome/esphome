@@ -312,10 +312,10 @@ char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data
     buffer[0] = '\0';
     return buffer;
   }
-  // With separator: each byte needs 3 chars (XX + sep), last byte needs 2 + null = length*3
-  // Without separator: each byte needs 2 chars + null = length*2 + 1
+  // With separator: total length is 3*length (2*length hex chars, (length-1) separators, 1 null terminator)
+  // Without separator: total length is 2*length + 1 (2*length hex chars, 1 null terminator)
   uint8_t stride = separator ? 3 : 2;
-  size_t max_bytes = (buffer_size - 1) / stride + (separator ? 1 : 0);
+  size_t max_bytes = separator ? (buffer_size / stride) : ((buffer_size - 1) / stride);
   if (max_bytes == 0) {
     buffer[0] = '\0';
     return buffer;
