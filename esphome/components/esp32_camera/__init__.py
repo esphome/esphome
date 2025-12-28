@@ -22,6 +22,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VSYNC_PIN,
 )
+from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
 import esphome.final_validate as fv
 
@@ -293,6 +294,15 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config):
+    # Check psram requirement for non-JPEG formats
+    if (
+        config.get(CONF_PIXEL_FORMAT, "JPEG") != "JPEG"
+        and psram_domain not in CORE.loaded_integrations
+    ):
+        raise cv.Invalid(
+            f"Non-JPEG pixel formats require the '{psram_domain}' component for JPEG conversion"
+        )
+
     if CONF_I2C_PINS not in config:
         return
     fconf = fv.full_config.get()
