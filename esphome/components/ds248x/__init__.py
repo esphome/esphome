@@ -48,7 +48,9 @@ def validate_ds2484_config(config):
         ]
         for key in ds2484_keys:
             if key in config:
-                raise cv.Invalid(f"{key} is only available for single-channel devices (channel_count: 1)")
+                raise cv.Invalid(
+                    f"{key} is only available for single-channel devices (channel_count: 1)"
+                )
     return config
 
 

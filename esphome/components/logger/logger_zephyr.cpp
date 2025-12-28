@@ -6,6 +6,7 @@
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
+#include <zephyr/sys/printk.h>
 #include <zephyr/usb/usb_device.h>
 
 namespace esphome::logger {
@@ -14,7 +15,7 @@ static const char *const TAG = "logger";
 
 #ifdef USE_LOGGER_USB_CDC
 void Logger::loop() {
-  if (this->uart_ != UART_SELECTION_USB_CDC || nullptr == this->uart_dev_) {
+  if (this->uart_ != UART_SELECTION_USB_CDC || this->uart_dev_ == nullptr) {
     return;
   }
   static bool opened = false;
@@ -62,18 +63,17 @@ void Logger::pre_setup() {
   ESP_LOGI(TAG, "Log initialized");
 }
 
-void HOT Logger::write_msg_(const char *msg, size_t) {
+void HOT Logger::write_msg_(const char *msg, size_t len) {
+  // Single write with newline already in buffer (added by caller)
 #ifdef CONFIG_PRINTK
-  printk("%s\n", msg);
+  k_str_out(const_cast<char *>(msg), len);
 #endif
-  if (nullptr == this->uart_dev_) {
+  if (this->uart_dev_ == nullptr) {
     return;
   }
-  while (*msg) {
-    uart_poll_out(this->uart_dev_, *msg);
-    ++msg;
+  for (size_t i = 0; i < len; ++i) {
+    uart_poll_out(this->uart_dev_, msg[i]);
   }
-  uart_poll_out(this->uart_dev_, '\n');
 }
 
 const LogString *Logger::get_uart_selection_() {
