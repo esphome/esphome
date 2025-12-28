@@ -48,14 +48,14 @@ void ICNT86Touchscreen::update_touches() {
       uint8_t touch_evenid = buf[6 + 7 * i];
 
       if (i == 0) {
-        if (touch_count == 1 && x == x_old && y == y_old && p == 0 && p_old_zero) {
+        if (touch_count == 1 && x == x_old_ && y == y_old_ && p == 0 && p_old_zero_) {
           return;  // Skip this touch because previous was also zero
         }
-        x_old = x;
-        y_old = y;
-        p_old_zero = (p == 0);
+        x_old_ = x;
+        y_old_ = y;
+        p_old_zero_ = (p == 0);
       } else if (p > 0) {
-        p_old_zero = false;
+        p_old_zero_ = false;
       }
       this->add_raw_touch_position_(touch_evenid, x, y, p);
     }
