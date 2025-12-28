@@ -29,9 +29,6 @@ static constexpr uint16_t MAX_MESSAGE_SIZE = 8192;  // 8 KiB for ESP8266
 static constexpr uint16_t MAX_MESSAGE_SIZE = 32768;  // 32 KiB for ESP32 and other platforms
 #endif
 
-// Forward declaration
-struct ClientInfo;
-
 class ProtoWriteBuffer;
 
 struct ReadPacketBuffer {
@@ -82,8 +79,8 @@ const LogString *api_error_to_logstr(APIError err);
 class APIFrameHelper {
  public:
   APIFrameHelper() = default;
-  explicit APIFrameHelper(std::unique_ptr<socket::Socket> socket, const ClientInfo *client_info)
-      : socket_(std::move(socket)), client_info_(client_info) {}
+  explicit APIFrameHelper(std::unique_ptr<socket::Socket> socket, const char *client_name)
+      : socket_(std::move(socket)), client_name_(client_name) {}
   virtual ~APIFrameHelper() = default;
   virtual APIError init() = 0;
   virtual APIError loop();
