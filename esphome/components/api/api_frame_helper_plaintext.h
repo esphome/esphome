@@ -7,8 +7,8 @@ namespace esphome::api {
 
 class APIPlaintextFrameHelper final : public APIFrameHelper {
  public:
-  APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket, const ClientInfo *client_info)
-      : APIFrameHelper(std::move(socket), client_info) {
+  APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket, const char *client_name)
+      : APIFrameHelper(std::move(socket), client_name) {
     // Plaintext header structure (worst case):
     // Pos 0: indicator (0x00)
     // Pos 1-3: payload size varint (up to 3 bytes)

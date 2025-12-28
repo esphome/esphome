@@ -187,9 +187,9 @@ class APIFrameHelper {
   std::vector<struct iovec> reusable_iovs_;
   std::vector<uint8_t> rx_buf_;
 
-  // Pointer to client info (4 bytes on 32-bit)
-  // Note: The pointed-to ClientInfo object must outlive this APIFrameHelper instance.
-  const ClientInfo *client_info_{nullptr};
+  // Pointer to client name buffer (4 bytes on 32-bit)
+  // Note: The pointed-to buffer must outlive this APIFrameHelper instance.
+  const char *client_name_{nullptr};
 
   // Group smaller types together
   uint16_t rx_buf_len_ = 0;
