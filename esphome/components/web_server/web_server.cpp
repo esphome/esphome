@@ -1685,17 +1685,13 @@ void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, cons
 
     auto call = obj->make_call();
 
-    // Water heaters hebben meestal geen directe methodes zoals "open/close",
-    // maar we ondersteunen de "set" methode voor mode en temperatuur.
     if (!match.method_equals("set")) {
       request->send(404);
       return;
     }
 
-    // Parse target_temperature (float)
     parse_float_param_(request, "target_temperature", call, &decltype(call)::set_target_temperature);
 
-    // Parse mode (string)
     if (request->hasParam("mode")) {
       String mode = request->getParam("mode")->value();
       call.set_mode(mode.c_str());
@@ -1720,7 +1716,6 @@ std::string WebServer::water_heater_json(water_heater::WaterHeater *obj, JsonDet
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  // Converteer mode naar string voor de webinterface
   const char *mode_s = "UNKNOWN";
   switch (obj->mode) {
     case water_heater::WATER_HEATER_MODE_OFF:
@@ -1748,7 +1743,6 @@ std::string WebServer::water_heater_json(water_heater::WaterHeater *obj, JsonDet
 
   set_json_icon_state_value(root, obj, "water-heater", mode_s, obj->mode, start_config);
 
-  // Voeg specifieke water heater attributen toe
   if (!std::isnan(obj->current_temperature))
     root["current_temperature"] = obj->current_temperature;
   root["target_temperature"] = obj->target_temperature;
