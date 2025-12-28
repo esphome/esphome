@@ -737,7 +737,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connected = true;
 #ifdef USE_WIFI_LISTENERS
     for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(this->wifi_ssid(), this->wifi_bssid());
+      listener->on_wifi_connect_state(StringRef(buf, it.ssid_len), it.bssid);
     }
     // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #ifdef USE_WIFI_MANUAL_IP
@@ -772,8 +772,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connecting = false;
     error_from_callback_ = true;
 #ifdef USE_WIFI_LISTENERS
+    static constexpr uint8_t EMPTY_BSSID[6] = {};
     for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state("", bssid_t({0, 0, 0, 0, 0, 0}));
+      listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
     }
 #endif
 
@@ -1084,6 +1085,19 @@ std::string WiFiComponent::wifi_ssid() {
   auto *ssid_s = reinterpret_cast<const char *>(info.ssid);
   size_t len = strnlen(ssid_s, sizeof(info.ssid));
   return {ssid_s, len};
+}
+const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
+  wifi_ap_record_t info{};
+  esp_err_t err = esp_wifi_sta_get_ap_info(&info);
+  if (err != ESP_OK) {
+    buffer[0] = '\0';
+    return buffer.data();
+  }
+  // info.ssid is uint8[33], but only 32 bytes are SSID data
+  size_t len = strnlen(reinterpret_cast<const char *>(info.ssid), 32);
+  memcpy(buffer.data(), info.ssid, len);
+  buffer[len] = '\0';
+  return buffer.data();
 }
 int8_t WiFiComponent::wifi_rssi() {
   wifi_ap_record_t info;

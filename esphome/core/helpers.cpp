@@ -189,14 +189,6 @@ template<int (*fn)(int)> std::string str_ctype_transform(const std::string &str)
 }
 std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
 std::string str_upper_case(const std::string &str) { return str_ctype_transform<std::toupper>(str); }
-// Convert char to snake_case: lowercase and spaces to underscores
-static constexpr char to_snake_case_char(char c) {
-  return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c;
-}
-// Sanitize char: keep alphanumerics, dashes, underscores; replace others with underscore
-static constexpr char to_sanitized_char(char c) {
-  return (c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) ? c : '_';
-}
 std::string str_snake_case(const std::string &str) {
   std::string result = str;
   for (char &c : result) {
@@ -244,17 +236,16 @@ std::string str_sprintf(const char *fmt, ...) {
 // Maximum size for name with suffix: 120 (max friendly name) + 1 (separator) + 6 (MAC suffix) + 1 (null term)
 static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
 
-std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
-                                  size_t suffix_len) {
-  char buffer[MAX_NAME_WITH_SUFFIX_SIZE];
+size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
+                                const char *suffix_ptr, size_t suffix_len) {
   size_t total_len = name_len + 1 + suffix_len;
 
   // Silently truncate if needed: prioritize keeping the full suffix
-  if (total_len >= MAX_NAME_WITH_SUFFIX_SIZE) {
-    // NOTE: This calculation could underflow if suffix_len >= MAX_NAME_WITH_SUFFIX_SIZE - 2,
+  if (total_len >= buffer_size) {
+    // NOTE: This calculation could underflow if suffix_len >= buffer_size - 2,
     // but this is safe because this helper is only called with small suffixes:
     // MAC suffixes (6-12 bytes), ".local" (5 bytes), etc.
-    name_len = MAX_NAME_WITH_SUFFIX_SIZE - suffix_len - 2;  // -2 for separator and null terminator
+    name_len = buffer_size - suffix_len - 2;  // -2 for separator and null terminator
     total_len = name_len + 1 + suffix_len;
   }
 
@@ -262,7 +253,14 @@ std::string make_name_with_suffix(const char *name, size_t name_len, char sep, c
   buffer[name_len] = sep;
   memcpy(buffer + name_len + 1, suffix_ptr, suffix_len);
   buffer[total_len] = '\0';
-  return std::string(buffer, total_len);
+  return total_len;
+}
+
+std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
+                                  size_t suffix_len) {
+  char buffer[MAX_NAME_WITH_SUFFIX_SIZE];
+  size_t len = make_name_with_suffix_to(buffer, sizeof(buffer), name, name_len, sep, suffix_ptr, suffix_len);
+  return std::string(buffer, len);
 }
 
 std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len) {
@@ -298,6 +296,19 @@ std::string format_hex(const uint8_t *data, size_t length) {
   return ret;
 }
 std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
+
+char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
+  size_t max_bytes = (buffer_size - 1) / 2;
+  if (length > max_bytes) {
+    length = max_bytes;
+  }
+  for (size_t i = 0; i < length; i++) {
+    buffer[2 * i] = format_hex_char(data[i] >> 4);
+    buffer[2 * i + 1] = format_hex_char(data[i] & 0x0F);
+  }
+  buffer[length * 2] = '\0';
+  return buffer;
+}
 
 // Shared implementation for uint8_t and string hex formatting
 static std::string format_hex_pretty_uint8(const uint8_t *data, size_t length, char separator, bool show_length) {
@@ -385,23 +396,33 @@ static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_de
 }
 
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
-  normalize_accuracy_decimals(value, accuracy_decimals);
-  char tmp[32];  // should be enough, but we should maybe improve this at some point.
-  snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
-  return std::string(tmp);
+  char buf[VALUE_ACCURACY_MAX_LEN];
+  value_accuracy_to_buf(buf, value, accuracy_decimals);
+  return std::string(buf);
 }
 
-std::string value_accuracy_with_uom_to_string(float value, int8_t accuracy_decimals, StringRef unit_of_measurement) {
+size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value, int8_t accuracy_decimals) {
   normalize_accuracy_decimals(value, accuracy_decimals);
-  // Buffer sized for float (up to ~15 chars) + space + typical UOM (usually <20 chars like "μS/cm")
-  // snprintf truncates safely if exceeded, though ESPHome UOMs are typically short
-  char tmp[64];
+  // snprintf returns chars that would be written (excluding null), or negative on error
+  int len = snprintf(buf.data(), buf.size(), "%.*f", accuracy_decimals, value);
+  if (len < 0)
+    return 0;  // encoding error
+  // On truncation, snprintf returns would-be length; actual written is buf.size() - 1
+  return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
+}
+
+size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value,
+                                      int8_t accuracy_decimals, StringRef unit_of_measurement) {
   if (unit_of_measurement.empty()) {
-    snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
-  } else {
-    snprintf(tmp, sizeof(tmp), "%.*f %s", accuracy_decimals, value, unit_of_measurement.c_str());
+    return value_accuracy_to_buf(buf, value, accuracy_decimals);
   }
-  return std::string(tmp);
+  normalize_accuracy_decimals(value, accuracy_decimals);
+  // snprintf returns chars that would be written (excluding null), or negative on error
+  int len = snprintf(buf.data(), buf.size(), "%.*f %s", accuracy_decimals, value, unit_of_measurement.c_str());
+  if (len < 0)
+    return 0;  // encoding error
+  // On truncation, snprintf returns would-be length; actual written is buf.size() - 1
+  return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
 }
 
 int8_t step_to_accuracy_decimals(float step) {

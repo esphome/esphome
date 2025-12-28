@@ -164,13 +164,9 @@
 #define USE_I2S_LEGACY
 #endif
 
-// IDF-specific feature flags
-#ifdef USE_ESP_IDF
-#define USE_MQTT_IDF_ENQUEUE
-#endif
-
 // ESP32-specific feature flags
 #ifdef USE_ESP32
+#define USE_MQTT_IDF_ENQUEUE
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define USE_OTA_ROLLBACK
 
@@ -231,7 +227,7 @@
 #define USE_ETHERNET_MANUAL_IP
 #endif
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #define USE_MICRO_WAKE_WORD
 #define USE_MICRO_WAKE_WORD_VAD
 #if defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
