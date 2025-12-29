@@ -518,15 +518,12 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
   switch (event->event) {
     case EVENT_STAMODE_CONNECTED: {
       auto it = event->event_info.connected;
-      char buf[33];
-      memcpy(buf, it.ssid, it.ssid_len);
-      buf[it.ssid_len] = '\0';
-      ESP_LOGV(TAG, "Connected ssid='%s' bssid=%s channel=%u", buf, format_mac_address_pretty(it.bssid).c_str(),
-               it.channel);
+      ESP_LOGV(TAG, "Connected ssid='%.*s' bssid=%s channel=%u", it.ssid_len, (const char *) it.ssid,
+               format_mac_address_pretty(it.bssid).c_str(), it.channel);
       s_sta_connected = true;
 #ifdef USE_WIFI_LISTENERS
       for (auto *listener : global_wifi_component->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(buf, it.ssid_len), it.bssid);
+        listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
       }
       // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #ifdef USE_WIFI_MANUAL_IP
@@ -543,17 +540,15 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     }
     case EVENT_STAMODE_DISCONNECTED: {
       auto it = event->event_info.disconnected;
-      char buf[33];
-      memcpy(buf, it.ssid, it.ssid_len);
-      buf[it.ssid_len] = '\0';
       if (it.reason == REASON_NO_AP_FOUND) {
-        ESP_LOGW(TAG, "Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
+        ESP_LOGW(TAG, "Disconnected ssid='%.*s' reason='Probe Request Unsuccessful'", it.ssid_len,
+                 (const char *) it.ssid);
         s_sta_connect_not_found = true;
       } else {
         char bssid_s[18];
         format_mac_addr_upper(it.bssid, bssid_s);
-        ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf, bssid_s,
-                 LOG_STR_ARG(get_disconnect_reason_str(it.reason)));
+        ESP_LOGW(TAG, "Disconnected ssid='%.*s' bssid=" LOG_SECRET("%s") " reason='%s'", it.ssid_len,
+                 (const char *) it.ssid, bssid_s, LOG_STR_ARG(get_disconnect_reason_str(it.reason)));
         s_sta_connect_error = true;
       }
       s_sta_connected = false;
