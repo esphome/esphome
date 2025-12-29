@@ -181,6 +181,8 @@ ShellCommandResult execute_shell_command(const std::string &command, const Shell
     result.exit_code = -1;
   }
 
+  ESP_LOGD(TAG, "Command stdout:\n%s", result.stdout_output.c_str());
+  ESP_LOGD(TAG, "Command stderr:\n%s", result.stderr_output.c_str());
   ESP_LOGD(TAG, "Command finished with exit code %d", result.exit_code);
 
   return result;
