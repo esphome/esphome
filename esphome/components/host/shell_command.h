@@ -20,8 +20,7 @@ struct ShellCommandOptions {
   std::vector<std::pair<std::string, std::string>> environment;
 };
 
-ShellCommandResult execute_shell_command(const std::string &command,
-                                         const ShellCommandOptions &options = {});
+ShellCommandResult execute_shell_command(const std::string &command, const ShellCommandOptions &options = {});
 
 }  // namespace host
 }  // namespace esphome
