@@ -486,12 +486,21 @@ void HTTPMediaSource::read_task(void *params) {
           transfer_buffer->increase_buffer_length(received_len);
           last_data_read_ms = millis();
         } else if (received_len < 0) {
-          // HTTP read error
-          ESP_LOGE(TAG, "Pipeline %zu: Reader failed with error %d", pipeline, received_len);
-          xEventGroupSetBits(ctx.event_group, EventGroupBits::READER_ERROR | EventGroupBits::COMMAND_STOP);
-          break;
+          if (received_len == -1) {
+            // A true connection error occurred, no chance at recovery
+            ESP_LOGE(TAG, "Pipeline %zu: Reader failed with connection error", pipeline);
+            xEventGroupSetBits(ctx.event_group, EventGroupBits::READER_ERROR | EventGroupBits::COMMAND_STOP);
+            break;
+          }
+          // Other negative values (e.g., EAGAIN) - check timeout and retry
+          if ((millis() - last_data_read_ms) > CONNECTION_TIMEOUT_MS) {
+            ESP_LOGE(TAG, "Pipeline %zu: Reader timed out", pipeline);
+            xEventGroupSetBits(ctx.event_group, EventGroupBits::READER_ERROR | EventGroupBits::COMMAND_STOP);
+            break;
+          }
+          vTaskDelay(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS));
         } else {
-          // No data available, check for timeout
+          // No data available (received_len == 0), check for timeout
           if ((millis() - last_data_read_ms) > CONNECTION_TIMEOUT_MS) {
             ESP_LOGE(TAG, "Pipeline %zu: Reader timed out", pipeline);
             xEventGroupSetBits(ctx.event_group, EventGroupBits::READER_ERROR | EventGroupBits::COMMAND_STOP);
