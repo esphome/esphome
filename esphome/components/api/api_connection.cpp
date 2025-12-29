@@ -57,6 +57,14 @@ static constexpr uint8_t MAX_MESSAGES_PER_LOOP = 5;
 // Ensure batch size matches loop limit - send_buffer relies on this to skip count check
 static_assert(MAX_RESPONSES_PER_BATCH == MAX_MESSAGES_PER_LOOP,
               "MAX_RESPONSES_PER_BATCH must equal MAX_MESSAGES_PER_LOOP");
+
+// Out-of-line to reduce code size at call sites (saves ~30 bytes per call)
+void ResponseBatch::add_packet(uint8_t message_type, size_t buffer_size, uint8_t header_padding, uint8_t footer_size) {
+  uint16_t payload_size = static_cast<uint16_t>(buffer_size - this->current_offset - header_padding);
+  new (&this->packets()[this->count++]) PacketInfo(message_type, this->current_offset, payload_size);
+  this->current_offset = static_cast<uint16_t>(buffer_size + footer_size);
+}
+
 static constexpr uint8_t MAX_PING_RETRIES = 60;
 static constexpr uint16_t PING_RETRY_INTERVAL = 1000;
 static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS * 5) / 2;

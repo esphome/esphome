@@ -53,11 +53,8 @@ struct ResponseBatch {
   const PacketInfo *packets() const { return reinterpret_cast<const PacketInfo *>(packet_storage); }
 
   // Add a packet to the batch and update offset for next message
-  void add_packet(uint8_t message_type, size_t buffer_size, uint8_t header_padding, uint8_t footer_size) {
-    uint16_t payload_size = static_cast<uint16_t>(buffer_size - current_offset - header_padding);
-    new (&packets()[count++]) PacketInfo(message_type, current_offset, payload_size);
-    current_offset = static_cast<uint16_t>(buffer_size + footer_size);
-  }
+  // Defined out-of-line to reduce code size at call sites
+  void add_packet(uint8_t message_type, size_t buffer_size, uint8_t header_padding, uint8_t footer_size);
 };
 
 class APIConnection final : public APIServerConnection {
