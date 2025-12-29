@@ -424,6 +424,23 @@ bool SpeakerSourceMediaPlayer::try_execute_play_uri_(const std::string &uri, siz
     }
   }
 
+  // Also check target source directly - handles case where source errored before PLAYING state
+  // (active_source_ was never set, but source is still in ERROR/non-IDLE state)
+  media_source::MediaSourceState target_state = target_source->get_state(pipeline);
+  if (target_state != media_source::MediaSourceState::IDLE) {
+    // Only send END command once per source
+    if (*stopping_source_ptr != target_source) {
+      ESP_LOGD(TAG, "Pipeline %zu: Target source busy (state=%d), stopping before playing: %s", pipeline,
+               static_cast<int>(target_state), uri.c_str());
+      target_source->handle_command(media_source::MEDIA_SOURCE_COMMAND_END, pipeline);
+      if (target_speaker != nullptr) {
+        target_speaker->stop();
+      }
+      *stopping_source_ptr = target_source;
+    }
+    return false;  // Leave in queue, retry next loop
+  }
+
   // Clear stopping flag since we're past the stopping phase
   *stopping_source_ptr = nullptr;
 
