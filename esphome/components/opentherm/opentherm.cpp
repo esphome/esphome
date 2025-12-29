@@ -570,8 +570,8 @@ void OpenTherm::debug_data(OpenthermData &data) {
            to_string(data.f88()).c_str());
 }
 void OpenTherm::debug_error(OpenThermError &error) const {
-  ESP_LOGD(TAG, "data: 0x%08" PRIx32 "; clock: %" PRIu32 "; capture: 0x%02" PRIx32 "; bit_pos: %d", error.data,
-           this->clock_, error.capture, error.bit_pos);
+  ESP_LOGD(TAG, "data: 0x%08" PRIx32 "; clock: %u; capture: 0x%08" PRIx32 "; bit_pos: %u", error.data, this->clock_,
+           error.capture, error.bit_pos);
 }
 
 float OpenthermData::f88() { return ((float) this->s16()) / 256.0; }
