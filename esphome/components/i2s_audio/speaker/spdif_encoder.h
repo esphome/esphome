@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_I2S_AUDIO_SPDIF_MODE)
 
 #include <cstdint>
 #include <functional>
@@ -48,4 +48,4 @@ class SPDIFEncoder {
 
 }  // namespace esphome::i2s_audio
 
-#endif  // USE_ESP32
+#endif  // USE_I2S_AUDIO_SPDIF_MODE
