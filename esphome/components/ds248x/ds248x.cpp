@@ -906,7 +906,6 @@ void DS248xComponent::run_search_(uint8_t command, const char *label) {  // NOLI
     int rom_byte_number = 0;
     uint8_t rom_byte_mask = 1;
     bool search_result = false;
-    uint8_t crc8 = 0;  // NOLINT(clang-diagnostic-unused-variable)
 
     do {
       // Determine Search Direction
