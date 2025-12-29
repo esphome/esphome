@@ -97,10 +97,6 @@ async def to_code(config):
     cg.add_define("USE_CAPTIVE_PORTAL")
 
     if CORE.using_arduino:
-        if CORE.is_esp32:
-            cg.add_library("ESP32 Async UDP", None)
-            cg.add_library("DNSServer", None)
-            cg.add_library("WiFi", None)
         if CORE.is_esp8266:
             cg.add_library("DNSServer", None)
         if CORE.is_libretiny:
@@ -110,6 +106,9 @@ async def to_code(config):
 # Only compile the ESP-IDF DNS server when using ESP-IDF framework
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        "dns_server_esp32_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "dns_server_esp32_idf.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
     }
 )

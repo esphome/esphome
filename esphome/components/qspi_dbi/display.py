@@ -154,7 +154,7 @@ CONFIG_SCHEMA = cv.All(
         upper=True,
         key=CONF_MODEL,
     ),
-    cv.only_with_esp_idf,
+    cv.only_on_esp32,
 )
 
 
