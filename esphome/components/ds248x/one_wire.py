@@ -16,9 +16,7 @@ from . import CONF_DS248X_ID, DS248xComponent, ds248x_ns
 
 CODEOWNERS = ["@tomwellnitz"]
 
-DS248xOneWireBus = ds248x_ns.class_(
-    "DS248xOneWireBus", OneWireBus, cg.Component
-)
+DS248xOneWireBus = ds248x_ns.class_("DS248xOneWireBus", OneWireBus, cg.Component)
 
 CONFIG_SCHEMA = cv.Schema(
     {
