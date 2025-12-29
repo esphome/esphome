@@ -375,6 +375,20 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(3, 1, 1): cv.Version(53, 3, 11),
     cv.Version(3, 1, 0): cv.Version(53, 3, 10),
 }
+ARDUINO_IDF_VERSION_LOOKUP = {
+    cv.Version(3, 3, 5): cv.Version(5, 5, 2),
+    cv.Version(3, 3, 4): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 3): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 2): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 1): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 0): cv.Version(5, 5, 0),
+    cv.Version(3, 2, 1): cv.Version(5, 4, 2),
+    cv.Version(3, 2, 0): cv.Version(5, 4, 2),
+    cv.Version(3, 1, 3): cv.Version(5, 3, 2),
+    cv.Version(3, 1, 2): cv.Version(5, 3, 2),
+    cv.Version(3, 1, 1): cv.Version(5, 3, 1),
+    cv.Version(3, 1, 0): cv.Version(5, 3, 0),
+}
 
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
@@ -992,6 +1006,13 @@ async def to_code(config):
         )
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
+
+        # Add IDF framework source for Arduino builds to ensure it uses the same version as
+        # the ESP-IDF framework
+        if (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
+            cg.add_platformio_option(
+                "platform_packages", [_format_framework_espidf_version(idf_ver, None)]
+            )
 
         # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
         if get_esp32_variant() == VARIANT_ESP32S2:
