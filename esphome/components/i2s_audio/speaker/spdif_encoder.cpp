@@ -42,15 +42,23 @@ static constexpr uint16_t BMC_TABLE[256] = {
 };
 
 // initialize S/PDIF buffer
-void SPDIFEncoder::setup() {
+bool SPDIFEncoder::setup() {
+  // Allocate buffer on heap to avoid stack pressure (1536 bytes)
+  this->spdif_block_buf_ = std::make_unique<uint32_t[]>(SPDIF_BLOCK_SIZE_U32);
+  if (!this->spdif_block_buf_) {
+    ESP_LOGE(TAG, "Buffer allocation failed (%zu bytes)", SPDIF_BLOCK_SIZE_BYTES);
+    return false;
+  }
+
   uint32_t bmc_mw = BMC_W;
 
   for (uint32_t i = 0; i < SPDIF_BLOCK_SIZE_U32; i += 2) {
     this->spdif_block_buf_[i] = bmc_mw ^= BMC_MW_DIF;
   }
-  ESP_LOGV(TAG, "SPDIF buffer initialized to %zu bytes", sizeof(this->spdif_block_buf_));
+  ESP_LOGV(TAG, "Buffer allocated (%zu bytes) and initialized", SPDIF_BLOCK_SIZE_BYTES);
 
-  this->spdif_block_ptr_ = this->spdif_block_buf_;
+  this->spdif_block_ptr_ = this->spdif_block_buf_.get();
+  return true;
 }
 
 esp_err_t SPDIFEncoder::write(const uint8_t *src, size_t size, TickType_t ticks_to_wait) {
@@ -68,15 +76,15 @@ esp_err_t SPDIFEncoder::write(const uint8_t *src, size_t size, TickType_t ticks_
 
     if (this->spdif_block_ptr_ >= &this->spdif_block_buf_[SPDIF_BLOCK_SIZE_U32]) {
       // set block start preamble
-      ((uint8_t *) this->spdif_block_buf_)[SYNC_OFFSET] ^= SYNC_FLIP;
+      ((uint8_t *) this->spdif_block_buf_.get())[SYNC_OFFSET] ^= SYNC_FLIP;
 
       esp_err_t err =
-          this->block_complete_callback_(this->spdif_block_buf_, sizeof(this->spdif_block_buf_), ticks_to_wait);
+          this->block_complete_callback_(this->spdif_block_buf_.get(), SPDIF_BLOCK_SIZE_BYTES, ticks_to_wait);
       if (err != ESP_OK) {
         return err;
       }
 
-      this->spdif_block_ptr_ = this->spdif_block_buf_;
+      this->spdif_block_ptr_ = this->spdif_block_buf_.get();
     }
   }
 

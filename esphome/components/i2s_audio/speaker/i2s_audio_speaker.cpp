@@ -71,7 +71,11 @@ void I2SAudioSpeaker::setup() {
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
   if (this->spdif_mode_) {
     this->spdif_encoder_ = new SPDIFEncoder();
-    this->spdif_encoder_->setup();
+    if (!this->spdif_encoder_->setup()) {
+      ESP_LOGE(TAG, "Failed to setup SPDIF encoder");
+      this->mark_failed();
+      return;
+    }
     this->spdif_encoder_->set_block_complete_callback(
         [this](uint32_t *data, size_t size, TickType_t ticks_to_wait) -> esp_err_t {
           size_t bytes_written;

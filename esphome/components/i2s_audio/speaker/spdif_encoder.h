@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <freertos/FreeRTOS.h>
 
 namespace esphome::i2s_audio {
@@ -23,7 +24,8 @@ static constexpr uint32_t SPDIF_BLOCK_SIZE_U32 = SPDIF_BLOCK_SIZE_BYTES / sizeof
 class SPDIFEncoder {
  public:
   /// @brief Initialize the BMC lookup table and working buffer
-  void setup();
+  /// @return true if setup was successful, false if allocation failed
+  bool setup();
 
   /// @brief Function to call when a block of data is complete (called from write)
   void set_block_complete_callback(
@@ -38,13 +40,13 @@ class SPDIFEncoder {
   esp_err_t write(const uint8_t *src, size_t size, TickType_t ticks_to_wait);
 
   /// @brief Reset the SPDIF block buffer
-  void reset() { this->spdif_block_ptr_ = this->spdif_block_buf_; }
+  void reset() { this->spdif_block_ptr_ = this->spdif_block_buf_.get(); }
 
  protected:
   std::function<esp_err_t(uint32_t *data, size_t size, TickType_t ticks_to_wait)> block_complete_callback_;
 
-  // Working buffer that holds an entire SPDIF block ready for I2S output
-  uint32_t spdif_block_buf_[SPDIF_BLOCK_SIZE_U32];
+  // Working buffer that holds an entire SPDIF block ready for I2S output (heap allocated, 1536 bytes)
+  std::unique_ptr<uint32_t[]> spdif_block_buf_;
   uint32_t *spdif_block_ptr_{nullptr};
 };
 
