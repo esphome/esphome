@@ -1,0 +1,37 @@
+# Test: DS2482-800 multi-channel support
+# Each channel becomes a separate OneWireBus
+
+ds248x:
+  id: ds248x_hub
+  address: 0x18
+  channel_count: 8
+  active_pullup: true
+  strong_pullup: true
+
+one_wire:
+  - platform: ds248x
+    ds248x_id: ds248x_hub
+    channel: 0
+    id: onewire_ch0
+  - platform: ds248x
+    ds248x_id: ds248x_hub
+    channel: 1
+    id: onewire_ch1
+  - platform: ds248x
+    ds248x_id: ds248x_hub
+    channel: 7
+    id: onewire_ch7
+
+sensor:
+  - platform: dallas_temp
+    one_wire_id: onewire_ch0
+    address: 0x1C0000031EDD2A28
+    name: Temperature Channel 0
+  - platform: dallas_temp
+    one_wire_id: onewire_ch1
+    address: 0x2800000123456789
+    name: Temperature Channel 1
+  - platform: dallas_temp
+    one_wire_id: onewire_ch7
+    name: Temperature Channel 7
+    index: 0
