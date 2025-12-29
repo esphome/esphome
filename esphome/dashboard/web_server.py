@@ -1273,7 +1273,9 @@ class EditRequestHandler(BaseHandler):
                 self.set_header("X-File-Mtime", str(mtime))
             self.write(content)
 
-    def _read_file(self, filename: str, configuration: str) -> tuple[bytes | None, float | None]:
+    def _read_file(
+        self, filename: str, configuration: str
+    ) -> tuple[bytes | None, float | None]:
         """Read a file and return the content as bytes and modification time."""
         try:
             with open(file=filename, encoding="utf-8") as f:
@@ -1312,7 +1314,7 @@ class EditRequestHandler(BaseHandler):
                 "Invalid mtime parameter received for %s: %s (%s)",
                 configuration,
                 mtime_param,
-                e
+                e,
             )
 
         force = self.get_argument("force", "false").lower() == "true"
@@ -1330,9 +1332,11 @@ class EditRequestHandler(BaseHandler):
                     # File was modified after client opened it
                     self.set_status(409)
                     self.set_header("content-type", "application/json")
-                    self.write(json.dumps({
-                        "error": "File was modified by another tab or user"
-                    }))
+                    self.write(
+                        json.dumps(
+                            {"error": "File was modified by another tab or user"}
+                        )
+                    )
                     return
             except FileNotFoundError:
                 # File was deleted between open and save
