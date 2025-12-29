@@ -11,44 +11,42 @@ static const char *const TAG = "ds248x";
 void DS248xComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DS248x...");
 
+  // Wake up device if sleep pin is configured
   if (this->sleep_pin_) {
     this->sleep_pin_->setup();
     this->sleep_pin_->pin_mode(esphome::gpio::FLAG_OUTPUT);
     this->sleep_pin_->digital_write(true);  // Wake up
-    delay(10);
+    delay(10);                              // Wait for device to wake up (datasheet: 2ms typical)
   }
 
-  // Give the device some time to wake up
-  delay(10);
+  // Allow I2C bus to stabilize after power-on
+  delay(2);  // Reduced from 10ms - DS248x needs ~1.5ms after power-on
 
-  // PROBE LOOP
-  ESP_LOGI(TAG, "Probing DS248x...");
+  // PROBE LOOP - Try to communicate with device
+  ESP_LOGD(TAG, "Probing DS248x...");
   uint8_t status;
   bool found = false;
   for (int i = 0; i < 5; i++) {
     if (this->read(&status, 1) == i2c::ERROR_OK) {
-      ESP_LOGI(TAG, "Device responded! Status: 0x%02x", status);
+      ESP_LOGD(TAG, "Device responded! Status: 0x%02x", status);
       found = true;
       break;
     }
-    delay(10);
+    delay(5);  // Reduced retry delay
   }
 
   if (!found) {
     ESP_LOGW(TAG, "Device did not respond to Read Status. Trying Reset anyway...");
-  } else {
-    delay(100);  // NOLINT
   }
 
-  // 1. Device Reset
-  // We try a few times because sometimes the bus needs to settle
+  // 1. Device Reset - Try multiple times for bus stability
   bool reset_success = false;
   for (int i = 0; i < 3; i++) {
     if (this->device_reset_()) {
       reset_success = true;
       break;
     }
-    delay(10);
+    delay(5);  // Short retry delay
   }
 
   if (!reset_success) {

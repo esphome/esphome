@@ -12,12 +12,10 @@ from esphome.components.one_wire import OneWireBus
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
 
-from . import DS248xComponent, ds248x_ns
+from . import CONF_DS248X_ID, DS248xComponent, ds248x_ns
 
-CODEOWNERS = ["@vielleicht", "@tomwellnitz"]
+CODEOWNERS = ["@tomwellnitz"]
 DEPENDENCIES = ["ds248x"]
-
-CONF_DS248X_ID = "ds248x_id"
 
 DS248xOneWireBus = ds248x_ns.class_(
     "DS248xOneWireBus", OneWireBus, cg.Component
