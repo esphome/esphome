@@ -18,6 +18,9 @@ namespace esphome::http_request {
 
 static const char *const TAG = "http_request.idf";
 
+// Maximum attempts to fetch headers when server returns EAGAIN (e.g., during TTS generation)
+static const uint8_t MAX_HEADER_FETCH_RETRIES = 6;
+
 struct UserData {
   const std::vector<std::string> &lower_case_collect_headers;
   std::vector<Header> &response_headers;
