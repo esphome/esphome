@@ -1654,3 +1654,253 @@ async def test_websocket_check_origin_multiple_trusted_domains(
             assert data["event"] == "initial_state"
         finally:
             ws.close()
+
+
+@pytest.mark.asyncio
+async def test_edit_request_handler_get_with_mtime(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_dashboard_settings: MagicMock,
+) -> None:
+    """Test EditRequestHandler.get includes X-File-Mtime header."""
+    # Create a test yaml file
+    test_file = tmp_path / "test_mtime.yaml"
+    test_file.write_text("esphome:\n  name: test\n")
+
+    # Configure mock settings
+    mock_dashboard_settings.rel_path.return_value = test_file
+    mock_dashboard_settings.absolute_config_dir = test_file.parent
+
+    response = await dashboard.fetch("/edit?configuration=test_mtime.yaml")
+    assert response.code == 200
+    assert "X-File-Mtime" in response.headers
+    # Verify the mtime is a valid number
+    mtime = float(response.headers["X-File-Mtime"])
+    assert mtime > 0
+
+
+@pytest.mark.asyncio
+async def test_edit_request_handler_get_secrets_no_mtime(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_dashboard_settings: MagicMock,
+) -> None:
+    """Test EditRequestHandler.get for non-existent secrets.yaml returns no mtime."""
+    # secrets.yaml doesn't exist - should return empty content with no mtime
+    secrets_file = tmp_path / "secrets.yaml"
+    # Don't create the file
+
+    # Configure mock settings
+    mock_dashboard_settings.rel_path.return_value = secrets_file
+    mock_dashboard_settings.absolute_config_dir = tmp_path
+
+    response = await dashboard.fetch("/edit?configuration=secrets.yaml")
+    assert response.code == 200
+    # Verify no mtime header for non-existent secrets.yaml
+    assert "X-File-Mtime" not in response.headers
+    # Content should be empty template
+    assert response.body == b""
+
+
+@pytest.mark.asyncio
+async def test_edit_request_handler_post_with_valid_mtime(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_dashboard_settings: MagicMock,
+) -> None:
+    """Test EditRequestHandler.post with matching mtime (no conflict)."""
+    # Create a test yaml file
+    test_file = tmp_path / "test_valid_mtime.yaml"
+    test_file.write_text("esphome:\n  name: original\n")
+
+    # Get the initial mtime
+    initial_mtime = os.path.getmtime(test_file)
+
+    # Configure mock settings
+    mock_dashboard_settings.rel_path.return_value = test_file
+    mock_dashboard_settings.absolute_config_dir = test_file.parent
+
+    new_content = "esphome:\n  name: modified\n"
+    response = await dashboard.fetch(
+        f"/edit?configuration=test_valid_mtime.yaml&mtime={initial_mtime}",
+        method="POST",
+        body=new_content.encode(),
+    )
+    assert response.code == 200
+    assert "X-File-Mtime" in response.headers
+    # Verify file was modified
+    assert test_file.read_text() == new_content
+    # Verify new mtime is different
+    new_mtime = float(response.headers["X-File-Mtime"])
+    assert new_mtime != initial_mtime
+
+
+@pytest.mark.asyncio
+async def test_edit_request_handler_post_with_conflict(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_dashboard_settings: MagicMock,
+) -> None:
+    """Test EditRequestHandler.post with mismatched mtime (conflict detected)."""
+    # Create a test yaml file
+    test_file = tmp_path / "test_conflict.yaml"
+    test_file.write_text("esphome:\n  name: original\n")
+
+    # Get initial mtime
+    initial_mtime = os.path.getmtime(test_file)
+
+    # Simulate another edit by modifying the file
+    import time
+
+    time.sleep(0.01)  # Ensure mtime changes
+    test_file.write_text("esphome:\n  name: changed_by_other\n")
+
+    # Configure mock settings
+    mock_dashboard_settings.rel_path.return_value = test_file
+    mock_dashboard_settings.absolute_config_dir = test_file.parent
+
+    # Try to save with old mtime
+    new_content = "esphome:\n  name: my_changes\n"
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch(
+            f"/edit?configuration=test_conflict.yaml&mtime={initial_mtime}",
+            method="POST",
+            body=new_content.encode(),
+        )
+    # Should get 409 Conflict
+    assert exc_info.value.code == 409
+    assert b"File was modified" in exc_info.value.response.body
+    # Verify file was NOT modified
+    assert test_file.read_text() == "esphome:\n  name: changed_by_other\n"
+
+
+@pytest.mark.asyncio
+async def test_edit_request_handler_post_file_deleted(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_dashboard_settings: MagicMock,
+) -> None:
+    """Test EditRequestHandler.post when file is deleted between read and write."""
+    # Create a test yaml file
+    test_file = tmp_path / "test_deleted.yaml"
+    test_file.write_text("esphome:\n  name: original\n")
+
+    # Get initial mtime
+    initial_mtime = os.path.getmtime(test_file)
+
+    # Delete the file
+    test_file.unlink()
+
+    # Configure mock settings
+    mock_dashboard_settings.rel_path.return_value = test_file
+    mock_dashboard_settings.absolute_config_dir = test_file.parent
+
+    # Try to save
+    new_content = "esphome:\n  name: modified\n"
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch(
+            f"/edit?configuration=test_deleted.yaml&mtime={initial_mtime}",
+            method="POST",
+            body=new_content.encode(),
+        )
+    # Should get 404 Not Found
+    assert exc_info.value.code == 404
+    assert b"File not found" in exc_info.value.response.body
+
+
+@pytest.mark.asyncio
+async def test_edit_request_handler_post_force_override(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_dashboard_settings: MagicMock,
+) -> None:
+    """Test EditRequestHandler.post with force=true bypasses conflict check."""
+    # Create a test yaml file
+    test_file = tmp_path / "test_force.yaml"
+    test_file.write_text("esphome:\n  name: original\n")
+
+    # Get initial mtime
+    initial_mtime = os.path.getmtime(test_file)
+
+    # Simulate another edit by modifying the file
+    import time
+
+    time.sleep(0.01)  # Ensure mtime changes
+    test_file.write_text("esphome:\n  name: changed_by_other\n")
+
+    # Configure mock settings
+    mock_dashboard_settings.rel_path.return_value = test_file
+    mock_dashboard_settings.absolute_config_dir = test_file.parent
+
+    # Save with force=true and old mtime
+    new_content = "esphome:\n  name: forced_save\n"
+    response = await dashboard.fetch(
+        f"/edit?configuration=test_force.yaml&mtime={initial_mtime}&force=true",
+        method="POST",
+        body=new_content.encode(),
+    )
+    assert response.code == 200
+    # Verify file WAS modified despite mtime mismatch
+    assert test_file.read_text() == new_content
+
+
+@pytest.mark.asyncio
+async def test_edit_request_handler_post_invalid_mtime(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_dashboard_settings: MagicMock,
+) -> None:
+    """Test EditRequestHandler.post with invalid mtime parameter (backward compatible)."""
+    # Create a test yaml file
+    test_file = tmp_path / "test_invalid_mtime.yaml"
+    test_file.write_text("esphome:\n  name: original\n")
+
+    # Configure mock settings
+    mock_dashboard_settings.rel_path.return_value = test_file
+    mock_dashboard_settings.absolute_config_dir = test_file.parent
+
+    # Try to save with invalid mtime (should be treated as no mtime)
+    new_content = "esphome:\n  name: modified\n"
+    response = await dashboard.fetch(
+        "/edit?configuration=test_invalid_mtime.yaml&mtime=invalid",
+        method="POST",
+        body=new_content.encode(),
+    )
+    # Should succeed (backward compatible - no conflict check)
+    assert response.code == 200
+    assert test_file.read_text() == new_content
+
+
+@pytest.mark.asyncio
+async def test_edit_request_handler_post_without_mtime(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_dashboard_settings: MagicMock,
+) -> None:
+    """Test EditRequestHandler.post without mtime parameter (backward compatible)."""
+    # Create a test yaml file
+    test_file = tmp_path / "test_no_mtime.yaml"
+    test_file.write_text("esphome:\n  name: original\n")
+
+    # Modify file to create a potential conflict
+    import time
+
+    time.sleep(0.01)
+    test_file.write_text("esphome:\n  name: changed_by_other\n")
+
+    # Configure mock settings
+    mock_dashboard_settings.rel_path.return_value = test_file
+    mock_dashboard_settings.absolute_config_dir = test_file.parent
+
+    # Save without mtime parameter (should succeed - no conflict check)
+    new_content = "esphome:\n  name: no_mtime_save\n"
+    response = await dashboard.fetch(
+        "/edit?configuration=test_no_mtime.yaml",
+        method="POST",
+        body=new_content.encode(),
+    )
+    assert response.code == 200
+    # Verify file was modified (no conflict detection without mtime)
+    assert test_file.read_text() == new_content
+    # Verify response includes new mtime
+    assert "X-File-Mtime" in response.headers
