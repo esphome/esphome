@@ -528,12 +528,15 @@ void HTTPMediaSource::decode_task(void *params) {
   auto &ctx = this_source->http_pipelines_[pipeline];
 
   {  // Ensure all C++ objects fall out of scope and deallocate
-    // Wait until the reader notifies us that it's ready
-    xEventGroupWaitBits(ctx.event_group,
-                        EventGroupBits::READER_READY,  // Bit message to read
-                        pdFALSE,                       // Don't clear the bit on exit
-                        pdFALSE,                       // Wait for any bit
-                        portMAX_DELAY);                // Block indefinitely until bit is set
+
+    // Wait until the reader notifies us that it's ready or receive a stop command
+    xEventGroupWaitBits(
+        ctx.event_group,
+        EventGroupBits::READER_READY | EventGroupBits::COMMAND_STOP,  // Bit message to read
+        pdFALSE,                                                      // Don't clear the bit on exit
+        pdFALSE,                                                      // Wait for any bit
+        pdMS_TO_TICKS(
+            CONNECTION_TIMEOUT_MS));  // Timeout to avoid indefinitely waiting for the reader task to get ready
 
     xEventGroupClearBits(ctx.event_group, EventGroupBits::READER_READY);
 
