@@ -24,9 +24,9 @@ struct ClientInfo {
 // Keepalive timeout in milliseconds
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
 // Maximum number of entities to process in a single batch during initial state/info sending
-// This was increased from 24 to 34 after removing object_id from entity info messages,
-// which reduced message sizes allowing more entities per batch without exceeding packet limits
-static constexpr size_t MAX_INITIAL_PER_BATCH = 34;
+// API 1.14+ clients compute object_id client-side, so messages are smaller and we can fit more per batch
+static constexpr size_t MAX_INITIAL_PER_BATCH_LEGACY = 24;  // For clients < API 1.14 (includes object_id)
+static constexpr size_t MAX_INITIAL_PER_BATCH = 34;         // For clients >= API 1.14 (no object_id)
 // Maximum number of packets to process in a single batch (platform-dependent)
 // This limit exists to prevent stack overflow from the PacketInfo array in process_batch_
 // Each PacketInfo is 8 bytes, so 64 * 8 = 512 bytes, 32 * 8 = 256 bytes
@@ -323,8 +323,15 @@ class APIConnection final : public APIServerConnection {
                                               APIConnection *conn, uint32_t remaining_size, bool is_single) {
     // Set common fields that are shared by all entity types
     msg.key = entity->get_object_id_hash();
-    // object_id is no longer sent over the wire - clients compute it from the name
+
+    // API 1.14+ clients compute object_id client-side from the entity name
+    // For older clients, we must send object_id for backward compatibility
     // See: https://github.com/esphome/backlog/issues/76
+    // Buffer must remain in scope until encode_message_to_buffer is called
+    char object_id_buf[OBJECT_ID_MAX_LEN];
+    if (!conn->client_supports_api_version(1, 14)) {
+      msg.set_object_id(entity->get_object_id_to(object_id_buf));
+    }
 
     if (entity->has_own_name()) {
       msg.set_name(entity->get_name());
@@ -347,16 +354,23 @@ class APIConnection final : public APIServerConnection {
   inline bool check_voice_assistant_api_connection_() const;
 #endif
 
+  // Get the max batch size based on client API version
+  // API 1.14+ clients don't receive object_id, so messages are smaller and more fit per batch
+  size_t get_max_batch_size_() const {
+    return this->client_supports_api_version(1, 14) ? MAX_INITIAL_PER_BATCH : MAX_INITIAL_PER_BATCH_LEGACY;
+  }
+
   // Helper method to process multiple entities from an iterator in a batch
   template<typename Iterator> void process_iterator_batch_(Iterator &iterator) {
     size_t initial_size = this->deferred_batch_.size();
-    while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < MAX_INITIAL_PER_BATCH) {
+    size_t max_batch = this->get_max_batch_size_();
+    while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
       iterator.advance();
     }
 
     // If the batch is full, process it immediately
     // Note: iterator.advance() already calls schedule_batch_() via schedule_message_()
-    if (this->deferred_batch_.size() >= MAX_INITIAL_PER_BATCH) {
+    if (this->deferred_batch_.size() >= max_batch) {
       this->process_batch_();
     }
   }
