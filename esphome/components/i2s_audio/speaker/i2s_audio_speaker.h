@@ -45,6 +45,7 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
 
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
   void set_spdif_mode(bool enable) { this->spdif_mode_ = enable; }
+  void set_fill_silence(bool enable) { this->fill_silence_ = enable; }
 #endif
 
   void start() override;
@@ -146,6 +147,7 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
   SPDIFEncoder *spdif_encoder_{nullptr};
   bool spdif_mode_{false};
+  bool fill_silence_{false};
 #endif
 };
 

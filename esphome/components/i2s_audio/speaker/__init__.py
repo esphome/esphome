@@ -30,6 +30,8 @@ from .. import (
     validate_mclk_divisible_by_3,
 )
 
+CONF_FILL_SILENCE = "fill_silence"
+
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
 DEPENDENCIES = ["i2s_audio"]
@@ -160,6 +162,7 @@ CONFIG_SCHEMA = cv.All(
                         *I2C_COMM_FMT_OPTIONS, lower=True
                     ),
                     cv.Optional(CONF_SPDIF_MODE, default=False): cv.boolean,
+                    cv.Optional(CONF_FILL_SILENCE, default=False): cv.boolean,
                 }
             ),
         },
@@ -195,6 +198,10 @@ def _final_validate(config):
         if config[CONF_BITS_PER_SAMPLE] != 16:
             raise cv.Invalid("SPDIF mode only supports 16 bits per sample")
 
+    # Warn if fill_silence is enabled but SPDIF mode is not
+    if config.get(CONF_FILL_SILENCE, False) and not config.get(CONF_SPDIF_MODE, False):
+        raise cv.Invalid("fill_silence is only supported in SPDIF mode")
+
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
@@ -214,6 +221,7 @@ async def to_code(config):
         if config.get(CONF_SPDIF_MODE, False):
             cg.add_define("USE_I2S_AUDIO_SPDIF_MODE")
             cg.add(var.set_spdif_mode(True))
+            cg.add(var.set_fill_silence(config[CONF_FILL_SILENCE]))
         elif use_legacy():
             # Standard I2S mode
             cg.add(

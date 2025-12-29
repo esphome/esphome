@@ -98,8 +98,9 @@ void I2SAudioSpeaker::dump_config() {
   if (this->spdif_mode_) {
     ESP_LOGCONFIG(TAG,
                   "  SPDIF Mode: %s\n"
+                  "  Fill Silence: %s\n"
                   "  Sample Rate: %" PRIu32 " Hz",
-                  YESNO(this->spdif_mode_), this->sample_rate_);
+                  YESNO(this->spdif_mode_), YESNO(this->fill_silence_), this->sample_rate_);
   } else
 #endif
   {
@@ -330,6 +331,15 @@ void I2SAudioSpeaker::speaker_task(void *params) {
       while (xQueueReceive(this_speaker->i2s_event_queue_, &i2s_event, 0)) {
         if (i2s_event.type == I2S_EVENT_TX_Q_OVF) {
           tx_dma_underflow = true;
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+          // Fill with silence when buffer underflows to prevent receiver from detecting source change
+          if (this_speaker->fill_silence_ && this_speaker->spdif_mode_) {
+            // Create a buffer of silence frames (stereo 16-bit)
+            int16_t silence[SPDIF_BLOCK_SAMPLES * 2] = {0};
+            this_speaker->spdif_encoder_->reset();
+            this_speaker->spdif_encoder_->write(reinterpret_cast<uint8_t *>(silence), sizeof(silence), 0);
+          }
+#endif
         }
       }
 #else
