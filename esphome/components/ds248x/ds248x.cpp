@@ -60,15 +60,18 @@ void DS248xComponent::setup() {
     return;
   }
 
-  // 3. Search all channels
-  for (uint8_t i = 0; i < this->channel_count_; i++) {
-    if (this->select_channel(i)) {
-      if (this->channel_count_ > 1) {
-        ESP_LOGI(TAG, "Scanning Channel %d...", i);
-      }
-      this->search();
-      if (this->alarm_search_on_boot_) {
-        this->alarm_search();
+  // 3. Search channels only if using legacy sensor mode (not OneWireBus)
+  // OneWireBus instances will scan their own channels
+  if (!this->sensors_.empty()) {
+    for (uint8_t i = 0; i < this->channel_count_; i++) {
+      if (this->select_channel(i)) {
+        if (this->channel_count_ > 1) {
+          ESP_LOGI(TAG, "Scanning Channel %d...", i);
+        }
+        this->search();
+        if (this->alarm_search_on_boot_) {
+          this->alarm_search();
+        }
       }
     }
   }
@@ -284,7 +287,8 @@ void DS248xComponent::check_conversion_status_(uint8_t channel_idx, uint32_t sta
       ESP_LOGW(TAG, "Conversion timeout on channel %d in poll mode", channel_idx);
       this->process_channel_readout_(channel_idx);
     } else {
-      this->set_timeout(20, [this, channel_idx, start_time]() { this->check_conversion_status_(channel_idx, start_time); });
+      this->set_timeout(20,
+                        [this, channel_idx, start_time]() { this->check_conversion_status_(channel_idx, start_time); });
     }
   }
 }
@@ -293,19 +297,19 @@ void DS248xComponent::process_channel_readout_(uint8_t channel_idx) {
   // Check for Short Detected bit
   uint8_t status;
   if (this->read(&status, 1) == i2c::ERROR_OK) {
-      if (status & DS248X_STATUS_SD) {
-          ESP_LOGW(TAG, "Short Detected on channel %d! Status: 0x%02x", channel_idx, status);
-      }
-      if (status & DS248X_STATUS_RST) {
-          ESP_LOGW(TAG, "Device Reset Detected on channel %d! Status: 0x%02x", channel_idx, status);
-      }
+    if (status & DS248X_STATUS_SD) {
+      ESP_LOGW(TAG, "Short Detected on channel %d! Status: 0x%02x", channel_idx, status);
+    }
+    if (status & DS248X_STATUS_RST) {
+      ESP_LOGW(TAG, "Device Reset Detected on channel %d! Status: 0x%02x", channel_idx, status);
+    }
   }
 
-    // Ensure Strong Pullup is disabled after the conversion time if it is active
-    if (this->strong_pullup_active_) {
-      ESP_LOGV(TAG, "Disabling Strong Pullup for channel %d", channel_idx);
-      this->set_strong_pullup_mode_(false);
-    }
+  // Ensure Strong Pullup is disabled after the conversion time if it is active
+  if (this->strong_pullup_active_) {
+    ESP_LOGV(TAG, "Disabling Strong Pullup for channel %d", channel_idx);
+    this->set_strong_pullup_mode_(false);
+  }
 
   // Re-select channel to be safe
   if (!this->select_channel(channel_idx)) {
@@ -745,8 +749,8 @@ bool DS248xComponent::ow_write_byte(uint8_t byte, bool keep_strong_pullup) {
 
   // Ensure device is not busy before sending command
   if (!this->wait_busy_()) {
-     ESP_LOGW(TAG, "Device busy before writing byte 0x%02x", byte);
-     return false;
+    ESP_LOGW(TAG, "Device busy before writing byte 0x%02x", byte);
+    return false;
   }
 
   // Send Command using raw write to ensure correct I2C sequence
@@ -921,9 +925,9 @@ void DS248xComponent::run_search_(uint8_t command, const char *label) {  // NOLI
       bool cmp_id_bit = (status & DS248X_STATUS_TSB);
       bool dir_taken = (status & DS248X_STATUS_DIR);
 
-        if (id_bit && cmp_id_bit) {
-          // No devices
-          break;
+      if (id_bit && cmp_id_bit) {
+        // No devices
+        break;
       } else {
         if (!id_bit && !cmp_id_bit && !dir_taken) {
           last_zero = id_bit_number;
@@ -946,8 +950,8 @@ void DS248xComponent::run_search_(uint8_t command, const char *label) {  // NOLI
           rom_byte_number++;
           rom_byte_mask = 1;
         }
-        }
-      } while (rom_byte_number < 8);
+      }
+    } while (rom_byte_number < 8);
 
     if (id_bit_number >= 65) {
       // Search successful

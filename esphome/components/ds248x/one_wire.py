@@ -15,7 +15,6 @@ from esphome.const import CONF_CHANNEL, CONF_ID
 from . import CONF_DS248X_ID, DS248xComponent, ds248x_ns
 
 CODEOWNERS = ["@tomwellnitz"]
-DEPENDENCIES = ["ds248x"]
 
 DS248xOneWireBus = ds248x_ns.class_(
     "DS248xOneWireBus", OneWireBus, cg.Component
