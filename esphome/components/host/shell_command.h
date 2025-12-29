@@ -3,6 +3,8 @@
 #ifdef USE_HOST
 
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace esphome {
 namespace host {
