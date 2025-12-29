@@ -736,7 +736,7 @@ bool ESPHomeOTAComponent::handle_auth_read_() {
 
   ESP_LOGV(TAG, "Auth: CNonce is %.*s", hex_size, cnonce);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char computed_hash[65];  // SHA256 hex (64) + null
+  char computed_hash[65];  // Buffer for hex-encoded hash (max expected length + null terminator)
   hasher->get_hex(computed_hash);
   ESP_LOGV(TAG, "Auth: Result is %.*s", hex_size, computed_hash);
 #endif
