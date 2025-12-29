@@ -48,6 +48,7 @@ CONFIG_SCHEMA = (
                 host=True,
                 ln882x=False,
                 nrf52=False,
+                stm32=False,
                 rp2040=True,
                 rtl87xx=False,
             ): cv.boolean,
