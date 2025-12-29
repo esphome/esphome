@@ -23,6 +23,13 @@ static const uint32_t DMA_BUFFER_DURATION_MS = 15;
 static const size_t DMA_BUFFERS_COUNT = 4;
 
 static const size_t TASK_STACK_SIZE = 4096;
+
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+// Static silence buffer for SPDIF fill_silence feature
+// 192 samples * 2 channels * 2 bytes per sample = 768 bytes
+// Stored in flash (.rodata section) to avoid stack/heap usage
+static const int16_t SPDIF_SILENCE_BUFFER[SPDIF_BLOCK_SAMPLES * 2] = {0};
+#endif
 static const ssize_t TASK_PRIORITY = 19;
 
 static const size_t I2S_EVENT_QUEUE_COUNT = DMA_BUFFERS_COUNT + 1;
@@ -338,10 +345,9 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
           // Fill with silence when buffer underflows to prevent receiver from detecting source change
           if (this_speaker->fill_silence_ && this_speaker->spdif_mode_) {
-            // Create a buffer of silence frames (stereo 16-bit)
-            int16_t silence[SPDIF_BLOCK_SAMPLES * 2] = {0};
             this_speaker->spdif_encoder_->reset();
-            this_speaker->spdif_encoder_->write(reinterpret_cast<uint8_t *>(silence), sizeof(silence), 0);
+            this_speaker->spdif_encoder_->write(reinterpret_cast<const uint8_t *>(SPDIF_SILENCE_BUFFER),
+                                                sizeof(SPDIF_SILENCE_BUFFER), 0);
           }
 #endif
         }
