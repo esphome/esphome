@@ -27,10 +27,6 @@ static constexpr size_t OTA_BUFFER_SIZE = 1024;                  // buffer size 
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 20000;  // milliseconds for initial handshake
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 90000;       // milliseconds for data transfer
 
-#ifdef USE_OTA_PASSWORD
-static constexpr size_t SHA256_HEX_SIZE = 64;  // SHA256 hash as hex string (32 bytes * 2)
-#endif                                         // USE_OTA_PASSWORD
-
 void ESPHomeOTAComponent::setup() {
   this->server_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0);  // monitored for incoming connections
   if (this->server_ == nullptr) {
@@ -592,7 +588,7 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
   }
 
   // Try to write auth_type + nonce
-  size_t hex_size = this->get_auth_hex_size_();
+  constexpr size_t hex_size = SHA256_HEX_SIZE;
   const size_t to_write = 1 + hex_size;
   size_t remaining = to_write - this->auth_buf_pos_;
 
@@ -614,7 +610,7 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
 }
 
 bool ESPHomeOTAComponent::handle_auth_read_() {
-  size_t hex_size = this->get_auth_hex_size_();
+  constexpr size_t hex_size = SHA256_HEX_SIZE;
   const size_t to_read = hex_size * 2;  // CNonce + Response
 
   // Try to read remaining bytes (CNonce + Response)
@@ -670,8 +666,6 @@ bool ESPHomeOTAComponent::handle_auth_read_() {
 
   return true;
 }
-
-size_t ESPHomeOTAComponent::get_auth_hex_size_() const { return SHA256_HEX_SIZE; }
 
 void ESPHomeOTAComponent::cleanup_auth_() {
   this->auth_buf_ = nullptr;
