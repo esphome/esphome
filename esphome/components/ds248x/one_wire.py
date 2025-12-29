@@ -11,8 +11,9 @@ import esphome.codegen as cg
 from esphome.components.one_wire import OneWireBus
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
+from esphome import final_validate
 
-from . import CONF_DS248X_ID, DS248xComponent, ds248x_ns
+from . import CONF_CHANNEL_COUNT, CONF_DS248X_ID, DS248xComponent, ds248x_ns
 
 CODEOWNERS = ["@tomwellnitz"]
 
@@ -27,13 +28,35 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def _validate_channel(config):
-    """Validate that the channel is valid for the parent's channel count."""
-    # This validation happens at runtime since we don't have access to parent config here
-    return config
+def _final_validate(config):
+    """Validate that the channel is within the parent's channel count."""
+    full = final_validate.full_config.get()
+    parent_id = config[CONF_DS248X_ID]
+    
+    # Find the parent component configuration
+    if "ds248x" not in full:
+        return
+    
+    parent_config = None
+    for ds248x_conf in full["ds248x"]:
+        if ds248x_conf[CONF_ID] == parent_id:
+            parent_config = ds248x_conf
+            break
+    
+    if parent_config is None:
+        return
+    
+    channel_count = parent_config.get(CONF_CHANNEL_COUNT, 1)
+    channel = config[CONF_CHANNEL]
+
+    if channel >= channel_count:
+        raise cv.Invalid(
+            f"Channel {channel} is invalid for DS248x with {channel_count} channel(s). "
+            f"Valid range: 0-{channel_count - 1}"
+        )
 
 
-CONFIG_SCHEMA = CONFIG_SCHEMA.add_extra(_validate_channel)
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):

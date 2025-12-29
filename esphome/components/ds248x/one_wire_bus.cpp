@@ -53,7 +53,9 @@ void DS248xOneWireBus::write8(uint8_t val) {
   if (!this->ensure_channel_()) {
     return;
   }
-  this->parent_->ow_write_byte(val);
+  if (!this->parent_->ow_write_byte(val)) {
+    ESP_LOGE(TAG, "Failed to write byte 0x%02X on channel %d", val, this->channel_);
+  }
 }
 
 void DS248xOneWireBus::write64(uint64_t val) {
@@ -61,7 +63,11 @@ void DS248xOneWireBus::write64(uint64_t val) {
     return;
   }
   for (uint8_t i = 0; i < 8; i++) {
-    this->parent_->ow_write_byte(static_cast<uint8_t>(val >> (i * 8)));
+    uint8_t byte = static_cast<uint8_t>(val >> (i * 8));
+    if (!this->parent_->ow_write_byte(byte)) {
+      ESP_LOGE(TAG, "Failed to write byte %d/8 (0x%02X) on channel %d - aborting write64", i + 1, byte, this->channel_);
+      return;  // Stop writing to prevent sending corrupted data
+    }
   }
 }
 
@@ -70,7 +76,9 @@ uint8_t DS248xOneWireBus::read8() {
     return 0;
   }
   uint8_t value = 0;
-  this->parent_->ow_read_byte(value);
+  if (!this->parent_->ow_read_byte(value)) {
+    ESP_LOGE(TAG, "Failed to read byte on channel %d", this->channel_);
+  }
   return value;
 }
 
@@ -81,7 +89,10 @@ uint64_t DS248xOneWireBus::read64() {
   uint64_t value = 0;
   for (uint8_t i = 0; i < 8; i++) {
     uint8_t byte = 0;
-    this->parent_->ow_read_byte(byte);
+    if (!this->parent_->ow_read_byte(byte)) {
+      ESP_LOGE(TAG, "Failed to read byte %d/8 on channel %d - returning partial data", i + 1, this->channel_);
+      return value;  // Return partial data to avoid blocking, caller should validate
+    }
     value |= (static_cast<uint64_t>(byte) << (i * 8));
   }
   return value;
