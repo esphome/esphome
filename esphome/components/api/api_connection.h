@@ -36,6 +36,30 @@ static constexpr size_t MAX_PACKETS_PER_BATCH = 64;  // ESP32 has 8KB+ stack, HO
 static constexpr size_t MAX_PACKETS_PER_BATCH = 32;  // ESP8266/RP2040/etc have smaller stacks
 #endif
 
+// Maximum responses to batch when processing incoming requests
+// Each request typically generates one response, so this matches MAX_MESSAGES_PER_LOOP (5)
+static constexpr uint8_t MAX_RESPONSES_PER_BATCH = 5;
+
+// Stack-allocated batch for collecting responses during request processing loop
+// This allows multiple responses to be sent in a single TCP packet
+struct ResponseBatch {
+  // Use aligned storage since PacketInfo has no default constructor
+  // PacketInfo is trivially destructible, so no explicit destruction needed
+  alignas(PacketInfo) char packet_storage[MAX_RESPONSES_PER_BATCH * sizeof(PacketInfo)];
+  uint8_t count{0};
+  uint16_t current_offset{0};  // Tracks where next message starts in buffer
+
+  PacketInfo *packets() { return reinterpret_cast<PacketInfo *>(packet_storage); }
+  const PacketInfo *packets() const { return reinterpret_cast<const PacketInfo *>(packet_storage); }
+
+  // Add a packet to the batch and update offset for next message
+  void add_packet(uint8_t message_type, size_t buffer_size, uint8_t header_padding, uint8_t footer_size) {
+    uint16_t payload_size = static_cast<uint16_t>(buffer_size - current_offset - header_padding);
+    new (&packets()[count++]) PacketInfo(message_type, current_offset, payload_size);
+    current_offset = static_cast<uint16_t>(buffer_size + footer_size);
+  }
+};
+
 class APIConnection final : public APIServerConnection {
  public:
   friend class APIServer;
@@ -269,10 +293,18 @@ class APIConnection final : public APIServerConnection {
 
     // Get header padding size - used for both reserve and insert
     uint8_t header_padding = this->helper_->frame_header_padding();
+    uint8_t footer_size = this->helper_->frame_footer_size();
     // Get shared buffer from parent server
     std::vector<uint8_t> &shared_buf = this->parent_->get_shared_buffer_ref();
-    this->prepare_first_message_buffer(shared_buf, header_padding,
-                                       reserve_size + header_padding + this->helper_->frame_footer_size());
+    size_t total_size = reserve_size + header_padding + footer_size;
+
+    // If response batching is active and we already have messages, append to buffer
+    if (this->response_batch_ != nullptr && this->response_batch_->count > 0) {
+      this->prepare_next_message_buffer(shared_buf, header_padding, footer_size, total_size);
+    } else {
+      // First message or not batching: clear and prepare fresh buffer
+      this->prepare_first_message_buffer(shared_buf, header_padding, total_size);
+    }
     return {&shared_buf};
   }
 
@@ -284,6 +316,14 @@ class APIConnection final : public APIServerConnection {
     shared_buf.reserve(total_size);
     // Resize to add header padding so message encoding starts at the correct position
     shared_buf.resize(header_padding);
+  }
+
+  // Append space for next message in a batch (footer for previous + header padding for this one)
+  void prepare_next_message_buffer(std::vector<uint8_t> &shared_buf, size_t header_padding, size_t footer_size,
+                                   size_t total_size) {
+    size_t current_size = shared_buf.size();
+    shared_buf.reserve(current_size + total_size);
+    shared_buf.resize(current_size + footer_size + header_padding);
   }
 
   bool try_to_clear_buffer(bool log_out_of_space);
@@ -501,6 +541,7 @@ class APIConnection final : public APIServerConnection {
   // Group 1: Pointers (4 bytes each on 32-bit)
   std::unique_ptr<APIFrameHelper> helper_;
   APIServer *parent_;
+  ResponseBatch *response_batch_{nullptr};  // Non-null during request processing loop
 
   // Group 2: Iterator union (saves ~16 bytes vs separate iterators)
   // These iterators are never active simultaneously - list_entities runs to completion
@@ -656,6 +697,14 @@ class APIConnection final : public APIServerConnection {
     this->deferred_batch_.clear();
     this->flags_.batch_scheduled = false;
   }
+
+  // Flush collected responses from response_batch_ to the network
+  // Returns true on success, false on fatal error (connection should be closed)
+  bool flush_response_batch_();
+
+  // Send a batch of packets - adds footer space and calls write_protobuf_packets
+  // Returns true on success or WOULD_BLOCK, false on fatal error
+  bool send_batch_(std::span<const PacketInfo> packets);
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
   // Helper to log a proto message from a MessageCreator object

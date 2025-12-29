@@ -192,6 +192,11 @@ void APIConnection::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   // Check if socket has data ready before attempting to read
   if (this->helper_->is_socket_ready()) {
+    // Stack-allocated batch for collecting responses during request processing
+    // This allows multiple responses to be sent in a single TCP packet
+    ResponseBatch response_batch;
+    this->response_batch_ = &response_batch;
+
     // Read up to MAX_MESSAGES_PER_LOOP messages per loop to improve throughput
     for (uint8_t message_count = 0; message_count < MAX_MESSAGES_PER_LOOP; message_count++) {
       ReadPacketBuffer buffer;
@@ -200,15 +205,23 @@ void APIConnection::loop() {
         // No more data available
         break;
       } else if (err != APIError::OK) {
+        this->response_batch_ = nullptr;
         this->fatal_error_with_log_(LOG_STR("Reading failed"), err);
         return;
       } else {
         this->last_traffic_ = now;
         // read a packet
         this->read_message(buffer.data_len, buffer.type, buffer.data);
-        if (this->flags_.remove)
+        if (this->flags_.remove) {
+          this->response_batch_ = nullptr;
           return;
+        }
       }
+    }
+
+    // Flush batched responses and clear the pointer
+    if (!this->flush_response_batch_()) {
+      return;  // Fatal error occurred
     }
   }
 
@@ -337,10 +350,7 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint8_t mess
     }
   } else {
     // Batch message second or later
-    // Add padding for previous message footer + this message header
-    size_t current_size = shared_buf.size();
-    shared_buf.reserve(current_size + total_calculated_size);
-    shared_buf.resize(current_size + footer_size + header_padding);
+    conn->prepare_next_message_buffer(shared_buf, header_padding, footer_size, total_calculated_size);
   }
 
   // Encode directly into buffer
@@ -1831,6 +1841,13 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   return false;
 }
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
+  // If response batching is active, collect PacketInfo instead of sending
+  if (this->response_batch_ != nullptr && this->response_batch_->count < MAX_RESPONSES_PER_BATCH) {
+    this->response_batch_->add_packet(message_type, buffer.get_buffer()->size(), this->helper_->frame_header_padding(),
+                                      this->helper_->frame_footer_size());
+    return true;
+  }
+
   if (!this->try_to_clear_buffer(message_type != SubscribeLogsResponse::MESSAGE_TYPE)) {  // SubscribeLogsResponse
     return false;
   }
@@ -1894,6 +1911,38 @@ bool APIConnection::schedule_batch_() {
   if (!this->flags_.batch_scheduled) {
     this->flags_.batch_scheduled = true;
     this->deferred_batch_.batch_start_time = App.get_loop_component_start_time();
+  }
+  return true;
+}
+
+bool APIConnection::flush_response_batch_() {
+  ResponseBatch *batch = this->response_batch_;
+  this->response_batch_ = nullptr;
+
+  if (batch == nullptr || batch->count == 0) {
+    return true;  // Nothing to flush
+  }
+
+  // Try to clear buffer before sending
+  if (!this->try_to_clear_buffer(true)) {
+    return true;  // Can't send now, but not a fatal error
+  }
+
+  return this->send_batch_(std::span<const PacketInfo>(batch->packets(), batch->count));
+}
+
+bool APIConnection::send_batch_(std::span<const PacketInfo> packets) {
+  // Add footer space for the last message (for Noise protocol MAC)
+  uint8_t footer_size = this->helper_->frame_footer_size();
+  std::vector<uint8_t> &shared_buf = this->parent_->get_shared_buffer_ref();
+  if (footer_size > 0) {
+    shared_buf.resize(shared_buf.size() + footer_size);
+  }
+
+  APIError err = this->helper_->write_protobuf_packets(ProtoWriteBuffer{&shared_buf}, packets);
+  if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
+    this->fatal_error_with_log_(LOG_STR("Batch write failed"), err);
+    return false;
   }
   return true;
 }
@@ -2014,17 +2063,8 @@ void APIConnection::process_batch_() {
     return;
   }
 
-  // Add footer space for the last message (for Noise protocol MAC)
-  if (footer_size > 0) {
-    shared_buf.resize(shared_buf.size() + footer_size);
-  }
-
   // Send all collected packets
-  APIError err = this->helper_->write_protobuf_packets(ProtoWriteBuffer{&shared_buf},
-                                                       std::span<const PacketInfo>(packet_info, packet_count));
-  if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
-    this->fatal_error_with_log_(LOG_STR("Batch write failed"), err);
-  }
+  this->send_batch_(std::span<const PacketInfo>(packet_info, packet_count));
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
   // Log messages after send attempt for VV debugging
