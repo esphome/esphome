@@ -4,6 +4,7 @@
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble_server/ble_2902.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -14,6 +15,7 @@ namespace esp32_improv {
 using namespace bytebuffer;
 
 static const char *const TAG = "esp32_improv.component";
+static constexpr size_t IMPROV_MAX_LOG_BYTES = 128;
 static const char *const ESPHOME_MY_LINK = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
 static constexpr uint16_t STOP_ADVERTISING_DELAY =
     10000;  // Delay (ms) before stopping service to allow BLE clients to read the final state
@@ -314,7 +316,11 @@ void ESP32ImprovComponent::dump_config() {
 void ESP32ImprovComponent::process_incoming_data_() {
   uint8_t length = this->incoming_data_[1];
 
-  ESP_LOGV(TAG, "Processing bytes - %s", format_hex_pretty(this->incoming_data_).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(IMPROV_MAX_LOG_BYTES)];
+  ESP_LOGV(TAG, "Processing bytes - %s",
+           format_hex_pretty_to(hex_buf, this->incoming_data_.data(), this->incoming_data_.size()));
+#endif
   if (this->incoming_data_.size() - 3 == length) {
     this->set_error_(improv::ERROR_NONE);
     improv::ImprovCommand command = improv::parse_improv_data(this->incoming_data_);
