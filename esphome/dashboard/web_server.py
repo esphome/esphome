@@ -1264,23 +1264,34 @@ class EditRequestHandler(BaseHandler):
             return
 
         loop = asyncio.get_running_loop()
-        content = await loop.run_in_executor(
+        content, mtime = await loop.run_in_executor(
             None, self._read_file, filename, configuration
         )
         if content is not None:
             self.set_header("Content-Type", "application/yaml")
+            if mtime is not None:
+                self.set_header("X-File-Mtime", str(mtime))
             self.write(content)
 
-    def _read_file(self, filename: str, configuration: str) -> bytes | None:
-        """Read a file and return the content as bytes."""
+    def _read_file(self, filename: str, configuration: str) -> tuple[bytes | None, float | None]:
+        """Read a file and return the content as bytes and modification time."""
         try:
             with open(file=filename, encoding="utf-8") as f:
-                return f.read()
+                content = f.read()
+                # Get mtime while file is open to ensure it matches the content we read
+                mtime = os.fstat(f.fileno()).st_mtime
+            return content, mtime
         except FileNotFoundError:
             if configuration in const.SECRETS_FILES:
-                return ""
+                return "", None
             self.set_status(404)
-            return None
+            return None, None
+
+    def _write_file_and_get_mtime(self, filename: str, content: bytes) -> float:
+        """Write file and return its modification time."""
+        write_file(filename, content)
+        # Get mtime immediately after write in same execution context
+        return os.path.getmtime(filename)
 
     @authenticated
     @bind_config
@@ -1290,16 +1301,54 @@ class EditRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
+        # Parse conflict detection parameters
+        try:
+            mtime_param = self.get_argument("mtime", None)
+            sent_mtime = float(mtime_param) if mtime_param else None
+        except (ValueError, TypeError) as e:
+            # Invalid mtime format, treat as no mtime sent (backward compatible)
+            sent_mtime = None
+            _LOGGER.warning(
+                "Invalid mtime parameter received for %s: %s (%s)",
+                configuration,
+                mtime_param,
+                e
+            )
+
+        force = self.get_argument("force", "false").lower() == "true"
+
         filename = settings.rel_path(configuration)
         if filename.resolve().parent != settings.absolute_config_dir:
             self.send_error(404)
             return
 
+        # Check for file modification conflict
+        if sent_mtime is not None and not force:
+            try:
+                current_mtime = os.path.getmtime(filename)
+                if current_mtime != sent_mtime:
+                    # File was modified after client opened it
+                    self.set_status(409)
+                    self.set_header("content-type", "application/json")
+                    self.write(json.dumps({
+                        "error": "File was modified by another tab or user"
+                    }))
+                    return
+            except FileNotFoundError:
+                # File was deleted between open and save
+                self.set_status(404)
+                self.set_header("content-type", "application/json")
+                self.write(json.dumps({"error": "File not found"}))
+                return
+
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, write_file, filename, self.request.body)
+        new_mtime = await loop.run_in_executor(
+            None, self._write_file_and_get_mtime, filename, self.request.body
+        )
         # Ensure the StorageJSON is updated as well
         DASHBOARD.entries.async_schedule_storage_json_update(filename)
         self.set_status(200)
+        self.set_header("X-File-Mtime", str(new_mtime))
 
 
 class ArchiveRequestHandler(BaseHandler):
