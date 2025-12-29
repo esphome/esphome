@@ -19,9 +19,9 @@ namespace esphome::api {
 // Keepalive timeout in milliseconds
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
 // Maximum number of entities to process in a single batch during initial state/info sending
-// This was increased from 20 to 24 after removing the unique_id field from entity info messages,
+// This was increased from 24 to 34 after removing object_id from entity info messages,
 // which reduced message sizes allowing more entities per batch without exceeding packet limits
-static constexpr size_t MAX_INITIAL_PER_BATCH = 24;
+static constexpr size_t MAX_INITIAL_PER_BATCH = 34;
 // Maximum number of packets to process in a single batch (platform-dependent)
 // This limit exists to prevent stack overflow from the PacketInfo array in process_batch_
 // Each PacketInfo is 8 bytes, so 64 * 8 = 512 bytes, 32 * 8 = 256 bytes
@@ -321,10 +321,8 @@ class APIConnection final : public APIServerConnection {
                                               APIConnection *conn, uint32_t remaining_size, bool is_single) {
     // Set common fields that are shared by all entity types
     msg.key = entity->get_object_id_hash();
-    // Get object_id with zero heap allocation
-    // Static case returns direct reference, dynamic case uses buffer
-    char object_id_buf[OBJECT_ID_MAX_LEN];
-    msg.set_object_id(entity->get_object_id_to(object_id_buf));
+    // object_id is no longer sent over the wire - clients compute it from the name
+    // See: https://github.com/esphome/backlog/issues/76
 
     if (entity->has_own_name()) {
       msg.set_name(entity->get_name());
