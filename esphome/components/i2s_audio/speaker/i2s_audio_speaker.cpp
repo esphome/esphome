@@ -83,15 +83,20 @@ void I2SAudioSpeaker::setup() {
       this->mark_failed();
       return;
     }
-    this->spdif_encoder_->set_block_complete_callback(
-        [this](uint32_t *data, size_t size, TickType_t ticks_to_wait) -> esp_err_t {
-          size_t bytes_written;
+    this->spdif_encoder_->set_block_complete_callback([this](uint32_t *data, size_t size,
+                                                             TickType_t ticks_to_wait) -> esp_err_t {
+      size_t bytes_written = 0;
+      esp_err_t err;
 #ifdef USE_I2S_LEGACY
-          return i2s_write(this->parent_->get_port(), data, size, &bytes_written, ticks_to_wait);
+      err = i2s_write(this->parent_->get_port(), data, size, &bytes_written, ticks_to_wait);
 #else
-          return i2s_channel_write(this->tx_handle_, data, size, &bytes_written, ticks_to_wait);
+      err = i2s_channel_write(this->tx_handle_, data, size, &bytes_written, ticks_to_wait);
 #endif
-        });
+      if (err != ESP_OK) {
+        ESP_LOGW(TAG, "SPDIF I2S write failed: %s (wrote %zu/%zu bytes)", esp_err_to_name(err), bytes_written, size);
+      }
+      return err;
+    });
   }
 #endif
 }
