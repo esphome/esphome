@@ -25,6 +25,7 @@ struct ClientInfo {
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
 // Maximum number of entities to process in a single batch during initial state/info sending
 // API 1.14+ clients compute object_id client-side, so messages are smaller and we can fit more per batch
+// TODO: Remove MAX_INITIAL_PER_BATCH_LEGACY before 2026.7.0 - all clients should support API 1.14 by then
 static constexpr size_t MAX_INITIAL_PER_BATCH_LEGACY = 24;  // For clients < API 1.14 (includes object_id)
 static constexpr size_t MAX_INITIAL_PER_BATCH = 34;         // For clients >= API 1.14 (no object_id)
 // Maximum number of packets to process in a single batch (platform-dependent)
@@ -327,6 +328,7 @@ class APIConnection final : public APIServerConnection {
     // API 1.14+ clients compute object_id client-side from the entity name
     // For older clients, we must send object_id for backward compatibility
     // See: https://github.com/esphome/backlog/issues/76
+    // TODO: Remove this backward compat code before 2026.7.0 - all clients should support API 1.14 by then
     // Buffer must remain in scope until encode_message_to_buffer is called
     char object_id_buf[OBJECT_ID_MAX_LEN];
     if (!conn->client_supports_api_version(1, 14)) {
@@ -356,6 +358,7 @@ class APIConnection final : public APIServerConnection {
 
   // Get the max batch size based on client API version
   // API 1.14+ clients don't receive object_id, so messages are smaller and more fit per batch
+  // TODO: Remove this method before 2026.7.0 and use MAX_INITIAL_PER_BATCH directly
   size_t get_max_batch_size_() const {
     return this->client_supports_api_version(1, 14) ? MAX_INITIAL_PER_BATCH : MAX_INITIAL_PER_BATCH_LEGACY;
   }
