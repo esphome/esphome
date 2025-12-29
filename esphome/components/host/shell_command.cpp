@@ -94,6 +94,9 @@ ShellCommandResult execute_shell_command(const std::string &command, const Shell
     }
     envp.push_back(nullptr);
 
+    ESP_LOGD(TAG, "Executing command with shell '%s' and %zu custom env vars: %s", shell.c_str(),
+             options.environment.size(), command.c_str());
+
     if (dup2(stdout_pipe[1], STDOUT_FILENO) == -1 || dup2(stderr_pipe[1], STDERR_FILENO) == -1) {
       _exit(127);
     }
@@ -177,6 +180,8 @@ ShellCommandResult execute_shell_command(const std::string &command, const Shell
   } else {
     result.exit_code = -1;
   }
+
+  ESP_LOGD(TAG, "Command finished with exit code %d", result.exit_code);
 
   return result;
 }
