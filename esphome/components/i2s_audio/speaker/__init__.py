@@ -30,19 +30,18 @@ from .. import (
     validate_mclk_divisible_by_3,
 )
 
-CONF_FILL_SILENCE = "fill_silence"
-
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
 DEPENDENCIES = ["i2s_audio"]
 
+CONF_DAC_TYPE = "dac_type"
+CONF_FILL_SILENCE = "fill_silence"
+CONF_I2S_COMM_FMT = "i2s_comm_fmt"
+CONF_SPDIF_MODE = "spdif_mode"
+
 I2SAudioSpeaker = i2s_audio_ns.class_(
     "I2SAudioSpeaker", cg.Component, speaker.Speaker, I2SAudioOut
 )
-
-CONF_DAC_TYPE = "dac_type"
-CONF_I2S_COMM_FMT = "i2s_comm_fmt"
-CONF_SPDIF_MODE = "spdif_mode"
 
 i2s_dac_mode_t = cg.global_ns.enum("i2s_dac_mode_t")
 INTERNAL_DAC_OPTIONS = {
