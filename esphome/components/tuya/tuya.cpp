@@ -53,7 +53,9 @@ void Tuya::dump_config() {
   }
   for (auto &info : this->datapoints_) {
     if (info.type == TuyaDatapointType::RAW) {
-      ESP_LOGCONFIG(TAG, "  Datapoint %u: raw (value: %s)", info.id, format_hex_pretty(info.value_raw).c_str());
+      char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: raw (value: %s)", info.id,
+                    format_hex_pretty_to(hex_buf, info.value_raw.data(), info.value_raw.size()));
     } else if (info.type == TuyaDatapointType::BOOLEAN) {
       ESP_LOGCONFIG(TAG, "  Datapoint %u: switch (value: %s)", info.id, ONOFF(info.value_bool));
     } else if (info.type == TuyaDatapointType::INTEGER) {
