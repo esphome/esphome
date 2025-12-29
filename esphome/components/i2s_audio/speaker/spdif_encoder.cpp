@@ -2,7 +2,6 @@
 
 #if defined(USE_ESP32) && defined(USE_I2S_AUDIO_SPDIF_MODE)
 
-#include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
 #include <esp_timer.h>

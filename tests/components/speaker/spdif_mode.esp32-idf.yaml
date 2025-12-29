@@ -18,6 +18,7 @@ speaker:
     dac_type: external
     i2s_dout_pin: ${spdif_data_pin}
     spdif_mode: true
+    fill_silence: true
     sample_rate: 48000
     bits_per_sample: 16bit
     channel: stereo
