@@ -25,31 +25,6 @@ namespace host {
 
 static const char *const TAG = "host.shell";
 
-static std::string sanitize_for_state(const std::string &input) {
-  std::string sanitized;
-  sanitized.reserve(input.size());
-  for (unsigned char ch : input) {
-    switch (ch) {
-      case '\r':
-        // ignore carriage returns entirely
-        break;
-      case '\n':
-        sanitized += "\\n";
-        break;
-      case '\t':
-        sanitized += "\\t";
-        break;
-      default:
-        // Drop other control characters that can't be represented in HA states.
-        if (ch >= 0x20 && ch != 0x7F) {
-          sanitized.push_back(static_cast<char>(ch));
-        }
-        break;
-    }
-  }
-  return sanitized;
-}
-
 static bool create_pipe(int fds[2]) {
 #ifdef O_CLOEXEC
   if (pipe2(fds, O_CLOEXEC) == 0) {
@@ -205,9 +180,6 @@ ShellCommandResult execute_shell_command(const std::string &command, const Shell
   } else {
     result.exit_code = -1;
   }
-
-  result.stdout_output = sanitize_for_state(result.stdout_output);
-  result.stderr_output = sanitize_for_state(result.stderr_output);
 
   ESP_LOGD(TAG, "Command finished with exit code %d", result.exit_code);
 

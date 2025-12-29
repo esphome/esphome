@@ -11,7 +11,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 
-from .const import KEY_HOST, host_ns
+from .const import KEY_HOST
 
 # force import gpio to register pin schema
 from .gpio import host_pin_to_code  # noqa
@@ -48,5 +48,3 @@ async def to_code(config):
     cg.add_platformio_option("platform", "platformio/native")
     cg.add_platformio_option("lib_ldf_mode", "off")
     cg.add_platformio_option("lib_compat_mode", "strict")
-    cg.add_global(cg.RawStatement('#include "esphome/components/host/shell_command.h"'))
-    cg.add_global(host_ns.using)
