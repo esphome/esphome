@@ -54,6 +54,9 @@ namespace esphome::api {
 // Since each message could contain multiple protobuf messages when using packet batching,
 // this limits the number of messages processed, not the number of TCP packets.
 static constexpr uint8_t MAX_MESSAGES_PER_LOOP = 5;
+// Ensure batch size matches loop limit - send_buffer relies on this to skip count check
+static_assert(MAX_RESPONSES_PER_BATCH == MAX_MESSAGES_PER_LOOP,
+              "MAX_RESPONSES_PER_BATCH must equal MAX_MESSAGES_PER_LOOP");
 static constexpr uint8_t MAX_PING_RETRIES = 60;
 static constexpr uint16_t PING_RETRY_INTERVAL = 1000;
 static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS * 5) / 2;
@@ -1842,7 +1845,8 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
 }
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   // If response batching is active, collect PacketInfo instead of sending
-  if (this->response_batch_ != nullptr && this->response_batch_->count < MAX_RESPONSES_PER_BATCH) {
+  // Note: No count check needed - MAX_RESPONSES_PER_BATCH matches MAX_MESSAGES_PER_LOOP
+  if (this->response_batch_ != nullptr) {
     this->response_batch_->add_packet(message_type, buffer.get_buffer()->size(), this->helper_->frame_header_padding(),
                                       this->helper_->frame_footer_size());
     return true;
