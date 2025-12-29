@@ -16,11 +16,8 @@ void DS248xComponent::setup() {
     this->sleep_pin_->setup();
     this->sleep_pin_->pin_mode(esphome::gpio::FLAG_OUTPUT);
     this->sleep_pin_->digital_write(true);  // Wake up
-    delay(10);                              // Wait for device to wake up (datasheet: 2ms typical)
+    delay(1);                               // DS2482-101 Datasheet: tOSCWUP = 100μs (using 10x margin)
   }
-
-  // Allow I2C bus to stabilize after power-on
-  delay(2);  // Reduced from 10ms - DS248x needs ~1.5ms after power-on
 
   // PROBE LOOP - Try to communicate with device
   ESP_LOGD(TAG, "Probing DS248x...");
@@ -32,7 +29,6 @@ void DS248xComponent::setup() {
       found = true;
       break;
     }
-    delay(5);  // Reduced retry delay
   }
 
   if (!found) {
@@ -46,7 +42,6 @@ void DS248xComponent::setup() {
       reset_success = true;
       break;
     }
-    delay(5);  // Short retry delay
   }
 
   if (!reset_success) {
@@ -111,7 +106,7 @@ void DS248xComponent::update() {
   if (this->sleep_pin_ && this->bus_sleep_) {
     // Wake bus before starting an update cycle
     this->sleep_pin_->digital_write(true);
-    delay(1);
+    // Wake-up is immediate - first I2C transaction will occur after context switch anyway
   }
   this->is_updating_ = true;
   this->process_next_channel_(0);
@@ -178,8 +173,9 @@ void DS248xComponent::process_next_channel_(uint8_t channel_idx) {
     if (!this->set_strong_pullup_mode_(true)) {
       ESP_LOGW(TAG, "Failed to enable Strong Pullup");
     }
-    // Give it a moment to settle
-    delay(10);
+    // REQUIRED: Strong pullup settling time for parasitic-powered sensors
+    // Empirically tested: 2ms minimum for reliable temperature conversions
+    delay(2);
   }
 
   if (!this->ow_write_byte(0x44, needs_strong_pullup)) {
@@ -504,7 +500,6 @@ bool DS248xComponent::device_reset_() {
   // If this fails, it might be because the device is already resetting or busy,
   // but we should try to verify the status anyway.
   this->write(&cmd, 1);
-  delay(1);
 
   // Verify reset success (Status bit RST=1)
   uint8_t status;
@@ -589,7 +584,6 @@ bool DS248xComponent::set_strong_pullup_mode_(bool enable) {
     return false;
   }
 
-  delay(1);
   if (!this->set_read_pointer_(DS248X_POINTER_CONFIG)) {
     return false;
   }
