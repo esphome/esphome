@@ -62,28 +62,50 @@ bool SPDIFEncoder::setup() {
 }
 
 esp_err_t SPDIFEncoder::write(const uint8_t *src, size_t size, TickType_t ticks_to_wait) {
-  const uint8_t *p = reinterpret_cast<const uint8_t *>(src);
+  // SPDIF requires 16-bit stereo samples (2 bytes per sample, 2 channels = 4 bytes per frame)
+  if (size % 4 != 0) {
+    ESP_LOGE(TAG, "Invalid buffer size: %zu (must be multiple of 4 bytes)", size);
+    return ESP_ERR_INVALID_SIZE;
+  }
 
-  while (p < (uint8_t *) src + size) {
-    // convert PCM 16bit data to BMC 32bit pulse pattern (which is 64 i2s bits to emulate BMC)
-    // We cast to int16_t to avoid sign extension issues when XOR-ing
-    *(this->spdif_block_ptr_ + 1) =
-        (uint32_t) (((static_cast<int16_t>(BMC_TABLE[*p]) << 16) ^ static_cast<int16_t>(BMC_TABLE[*(p + 1)])) << 1) >>
-        1;
+  const uint8_t *p = src;
+  const uint8_t *end = src + size;
+
+  while (p < end) {
+    // Ensure we have at least 2 bytes remaining to read
+    if (p + 1 >= end) {
+      ESP_LOGW(TAG, "Incomplete sample at end of buffer, dropping %zu bytes", end - p);
+      break;
+    }
+
+    // Calculate the current position in the SPDIF block (in uint32_t units)
+    size_t block_offset = this->spdif_block_ptr_ - this->spdif_block_buf_.get();
+
+    // Convert PCM 16-bit data to BMC 32-bit pulse pattern (64 I2S bits to emulate BMC)
+    // Each SPDIF frame uses 2 uint32_t entries: [0] = preamble, [1] = audio data
+    // BMC_TABLE contains unsigned 16-bit values, we combine them into a 32-bit pattern
+    uint32_t low_byte_bmc = static_cast<uint32_t>(BMC_TABLE[p[0]]);
+    uint32_t high_byte_bmc = static_cast<uint32_t>(BMC_TABLE[p[1]]);
+    uint32_t bmc_data = (low_byte_bmc << 16) ^ high_byte_bmc;
+
+    this->spdif_block_ptr_[1] = bmc_data;
 
     p += 2;
-    this->spdif_block_ptr_ += 2;  // advance to next audio data
+    this->spdif_block_ptr_ += 2;  // Advance to next frame (skip preamble and data slots)
 
-    if (this->spdif_block_ptr_ >= &this->spdif_block_buf_[SPDIF_BLOCK_SIZE_U32]) {
-      // set block start preamble
-      ((uint8_t *) this->spdif_block_buf_.get())[SYNC_OFFSET] ^= SYNC_FLIP;
+    // Check if we've filled the entire SPDIF block
+    if (block_offset + 2 >= SPDIF_BLOCK_SIZE_U32) {
+      // Set block start preamble by flipping the sync bits
+      reinterpret_cast<uint8_t *>(this->spdif_block_buf_.get())[SYNC_OFFSET] ^= SYNC_FLIP;
 
+      // Send the complete block via callback
       esp_err_t err =
           this->block_complete_callback_(this->spdif_block_buf_.get(), SPDIF_BLOCK_SIZE_BYTES, ticks_to_wait);
       if (err != ESP_OK) {
         return err;
       }
 
+      // Reset to start of buffer for next block
       this->spdif_block_ptr_ = this->spdif_block_buf_.get();
     }
   }
