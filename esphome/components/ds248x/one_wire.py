@@ -7,11 +7,11 @@ For multi-channel devices (DS2482-800), create one platform entry per channel.
 Each entry becomes a separate one_wire bus that can be used by dallas_temp and other 1-Wire devices.
 """
 
+from esphome import final_validate
 import esphome.codegen as cg
 from esphome.components.one_wire import OneWireBus
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
-from esphome import final_validate
 
 from . import CONF_CHANNEL_COUNT, CONF_DS248X_ID, DS248xComponent, ds248x_ns
 
@@ -32,20 +32,20 @@ def _final_validate(config):
     """Validate that the channel is within the parent's channel count."""
     full = final_validate.full_config.get()
     parent_id = config[CONF_DS248X_ID]
-    
+
     # Find the parent component configuration
     if "ds248x" not in full:
         return
-    
+
     parent_config = None
     for ds248x_conf in full["ds248x"]:
         if ds248x_conf[CONF_ID] == parent_id:
             parent_config = ds248x_conf
             break
-    
+
     if parent_config is None:
         return
-    
+
     channel_count = parent_config.get(CONF_CHANNEL_COUNT, 1)
     channel = config[CONF_CHANNEL]
 
