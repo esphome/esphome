@@ -1,7 +1,5 @@
 #pragma once
 
-#include <map>
-
 #include "alarm_control_panel_call.h"
 #include "alarm_control_panel_state.h"
 
@@ -9,8 +7,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace alarm_control_panel {
+namespace esphome::alarm_control_panel {
 
 enum AlarmControlPanelFeature : uint8_t {
   // Matches Home Assistant values
@@ -35,53 +32,12 @@ class AlarmControlPanel : public EntityBase {
    */
   void publish_state(AlarmControlPanelState state);
 
-  /** Add a callback for when the state of the alarm_control_panel changes
+  /** Add a callback for when the state of the alarm_control_panel changes.
+   * Triggers can check get_state() to determine the new state.
    *
    * @param callback The callback function
    */
   void add_on_state_callback(std::function<void()> &&callback);
-
-  /** Add a callback for when the state of the alarm_control_panel chanes to triggered
-   *
-   * @param callback The callback function
-   */
-  void add_on_triggered_callback(std::function<void()> &&callback);
-
-  /** Add a callback for when the state of the alarm_control_panel chanes to arming
-   *
-   * @param callback The callback function
-   */
-  void add_on_arming_callback(std::function<void()> &&callback);
-
-  /** Add a callback for when the state of the alarm_control_panel changes to pending
-   *
-   * @param callback The callback function
-   */
-  void add_on_pending_callback(std::function<void()> &&callback);
-
-  /** Add a callback for when the state of the alarm_control_panel changes to armed_home
-   *
-   * @param callback The callback function
-   */
-  void add_on_armed_home_callback(std::function<void()> &&callback);
-
-  /** Add a callback for when the state of the alarm_control_panel changes to armed_night
-   *
-   * @param callback The callback function
-   */
-  void add_on_armed_night_callback(std::function<void()> &&callback);
-
-  /** Add a callback for when the state of the alarm_control_panel changes to armed_away
-   *
-   * @param callback The callback function
-   */
-  void add_on_armed_away_callback(std::function<void()> &&callback);
-
-  /** Add a callback for when the state of the alarm_control_panel changes to disarmed
-   *
-   * @param callback The callback function
-   */
-  void add_on_disarmed_callback(std::function<void()> &&callback);
 
   /** Add a callback for when the state of the alarm_control_panel clears from triggered
    *
@@ -172,29 +128,14 @@ class AlarmControlPanel : public EntityBase {
   uint32_t last_update_;
   // the call control function
   virtual void control(const AlarmControlPanelCall &call) = 0;
-  // state callback
-  CallbackManager<void()> state_callback_{};
-  // trigger callback
-  CallbackManager<void()> triggered_callback_{};
-  // arming callback
-  CallbackManager<void()> arming_callback_{};
-  // pending callback
-  CallbackManager<void()> pending_callback_{};
-  // armed_home callback
-  CallbackManager<void()> armed_home_callback_{};
-  // armed_night callback
-  CallbackManager<void()> armed_night_callback_{};
-  // armed_away callback
-  CallbackManager<void()> armed_away_callback_{};
-  // disarmed callback
-  CallbackManager<void()> disarmed_callback_{};
-  // clear callback
-  CallbackManager<void()> cleared_callback_{};
+  // state callback - triggers check get_state() for specific state
+  LazyCallbackManager<void()> state_callback_{};
+  // clear callback - fires when leaving TRIGGERED state
+  LazyCallbackManager<void()> cleared_callback_{};
   // chime callback
-  CallbackManager<void()> chime_callback_{};
+  LazyCallbackManager<void()> chime_callback_{};
   // ready callback
-  CallbackManager<void()> ready_callback_{};
+  LazyCallbackManager<void()> ready_callback_{};
 };
 
-}  // namespace alarm_control_panel
-}  // namespace esphome
+}  // namespace esphome::alarm_control_panel

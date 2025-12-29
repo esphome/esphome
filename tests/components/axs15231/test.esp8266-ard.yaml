@@ -1,10 +1,9 @@
-i2c:
-  - id: i2c_axs15231
-    scl: 5
-    sda: 4
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp8266-ard.yaml
 
 display:
   - platform: ssd1306_i2c
+    i2c_id: i2c_bus
     id: ssd1306_display
     model: SSD1306_128X64
     reset_pin: 13
@@ -15,5 +14,6 @@ display:
 
 touchscreen:
   - platform: axs15231
+    i2c_id: i2c_bus
     display: ssd1306_display
     interrupt_pin: 12

@@ -21,7 +21,7 @@ permissions:
 jobs:
   request-codeowner-reviews:
     name: Run
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ github.repository == 'esphome/esphome' && !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
       - name: Request reviews from component codeowners

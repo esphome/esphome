@@ -11,7 +11,7 @@ namespace adalight {
 
 class AdalightLightEffect : public light::AddressableLightEffect, public uart::UARTDevice {
  public:
-  AdalightLightEffect(const std::string &name);
+  AdalightLightEffect(const char *name);
 
   void start() override;
   void stop() override;

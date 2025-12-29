@@ -6,7 +6,7 @@
 #include "esphome/core/log.h"
 #include "esphome/components/sensor/filter.h"
 
-#include <vector>
+#include <initializer_list>
 #include <memory>
 
 namespace esphome {
@@ -31,6 +31,7 @@ enum StateClass : uint8_t {
   STATE_CLASS_MEASUREMENT = 1,
   STATE_CLASS_TOTAL_INCREASING = 2,
   STATE_CLASS_TOTAL = 3,
+  STATE_CLASS_MEASUREMENT_ANGLE = 4
 };
 
 const LogString *state_class_to_string(StateClass state_class);
@@ -77,10 +78,10 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
    *   SlidingWindowMovingAverageFilter(15, 15), // average over last 15 values
    * });
    */
-  void add_filters(const std::vector<Filter *> &filters);
+  void add_filters(std::initializer_list<Filter *> filters);
 
   /// Clear the filters and replace them by filters.
-  void set_filters(const std::vector<Filter *> &filters);
+  void set_filters(std::initializer_list<Filter *> filters);
 
   /// Clear the entire filter chain.
   void clear_filters();
@@ -124,8 +125,8 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   void internal_send_state_to_frontend(float state);
 
  protected:
-  std::unique_ptr<CallbackManager<void(float)>> raw_callback_;  ///< Storage for raw state callbacks (lazy allocated).
-  CallbackManager<void(float)> callback_;                       ///< Storage for filtered state callbacks.
+  LazyCallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
+  LazyCallbackManager<void(float)> callback_;      ///< Storage for filtered state callbacks.
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 

@@ -16,35 +16,9 @@ namespace modbus_controller {
 
 class ModbusController;
 
-enum class ModbusFunctionCode {
-  CUSTOM = 0x00,
-  READ_COILS = 0x01,
-  READ_DISCRETE_INPUTS = 0x02,
-  READ_HOLDING_REGISTERS = 0x03,
-  READ_INPUT_REGISTERS = 0x04,
-  WRITE_SINGLE_COIL = 0x05,
-  WRITE_SINGLE_REGISTER = 0x06,
-  READ_EXCEPTION_STATUS = 0x07,   // not implemented
-  DIAGNOSTICS = 0x08,             // not implemented
-  GET_COMM_EVENT_COUNTER = 0x0B,  // not implemented
-  GET_COMM_EVENT_LOG = 0x0C,      // not implemented
-  WRITE_MULTIPLE_COILS = 0x0F,
-  WRITE_MULTIPLE_REGISTERS = 0x10,
-  REPORT_SERVER_ID = 0x11,               // not implemented
-  READ_FILE_RECORD = 0x14,               // not implemented
-  WRITE_FILE_RECORD = 0x15,              // not implemented
-  MASK_WRITE_REGISTER = 0x16,            // not implemented
-  READ_WRITE_MULTIPLE_REGISTERS = 0x17,  // not implemented
-  READ_FIFO_QUEUE = 0x18,                // not implemented
-};
-
-enum class ModbusRegisterType : uint8_t {
-  CUSTOM = 0x0,
-  COIL = 0x01,
-  DISCRETE_INPUT = 0x02,
-  HOLDING = 0x03,
-  READ = 0x04,
-};
+using modbus::ModbusFunctionCode;
+using modbus::ModbusRegisterType;
+using modbus::ModbusExceptionCode;
 
 enum class SensorValueType : uint8_t {
   RAW = 0x00,     // variable length
@@ -254,6 +228,12 @@ class SensorItem {
   uint16_t skip_updates{0};
   std::vector<uint8_t> custom_data{};
   bool force_new_range{false};
+};
+
+struct ServerCourtesyResponse {
+  bool enabled{false};
+  uint16_t register_last_address{0xFFFF};
+  uint16_t register_value{0};
 };
 
 class ServerRegister {
@@ -530,6 +510,12 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   void set_max_cmd_retries(uint8_t max_cmd_retries) { this->max_cmd_retries_ = max_cmd_retries; }
   /// get how many times a command will be (re)sent if no response is received
   uint8_t get_max_cmd_retries() { return this->max_cmd_retries_; }
+  /// Called by esphome generated code to set the server courtesy response object
+  void set_server_courtesy_response(const ServerCourtesyResponse &server_courtesy_response) {
+    this->server_courtesy_response_ = server_courtesy_response;
+  }
+  /// Get the server courtesy response object
+  ServerCourtesyResponse get_server_courtesy_response() const { return this->server_courtesy_response_; }
 
  protected:
   /// parse sensormap_ and create range of sequential addresses
@@ -572,6 +558,9 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   CallbackManager<void(int, int)> online_callback_{};
   /// Server offline callback
   CallbackManager<void(int, int)> offline_callback_{};
+  /// Server courtesy response
+  ServerCourtesyResponse server_courtesy_response_{
+      .enabled = false, .register_last_address = 0xFFFF, .register_value = 0};
 };
 
 /** Convert vector<uint8_t> response payload to float.
