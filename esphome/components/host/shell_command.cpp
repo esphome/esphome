@@ -42,8 +42,7 @@ static bool create_pipe(int fds[2]) {
 
 static std::map<std::string, std::string> current_environment() {
   std::map<std::string, std::string> env_map;
-  extern char **environ;
-  for (char **env = environ; env != nullptr && *env != nullptr; ++env) {
+  for (char **env = ::environ; env != nullptr && *env != nullptr; ++env) {
     const std::string entry(*env);
     auto separator = entry.find('=');
     if (separator == std::string::npos) {
