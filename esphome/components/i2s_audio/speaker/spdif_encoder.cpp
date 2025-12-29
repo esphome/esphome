@@ -4,8 +4,6 @@
 
 #include "esphome/core/log.h"
 
-#include <esp_timer.h>
-
 namespace esphome::i2s_audio {
 
 static const char *const TAG = "i2s_audio.spdif_encoder";
