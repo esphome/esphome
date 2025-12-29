@@ -270,8 +270,8 @@ void ShellyDimmer::send_settings_() {
 }
 
 bool ShellyDimmer::send_command_(uint8_t cmd, const uint8_t *const payload, uint8_t len) {
-  // Buffer for hex formatting: max payload size (SETTINGS=10 bytes) * 2 chars + null = 21 bytes
-  char hex_buf[SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE * 2 + 1];
+  // Buffer for hex formatting: max frame size * 2 + null (covers any payload)
+  char hex_buf[SHELLY_DIMMER_PROTO_MAX_FRAME_SIZE * 2 + 1];
   ESP_LOGD(TAG, "Sending command: 0x%02x (%d bytes) payload 0x%s", cmd, len,
            format_hex_to(hex_buf, sizeof(hex_buf), payload, len));
 
