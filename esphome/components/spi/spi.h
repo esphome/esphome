@@ -83,11 +83,13 @@ enum SPIMode {
  *
  * Implementations can use the pre-defined constants here, or use an integer in the template definition
  * to manually use a specific data rate.
+ * manually currenlty does not work! prevented by __init__.py? at least you can only select defined speeds?
  */
 enum SPIDataRate : uint32_t {
   DATA_RATE_1KHZ = 1000,
   DATA_RATE_75KHZ = 75000,
   DATA_RATE_200KHZ = 200000,
+  DATA_RATE_500KHZ = 500000,
   DATA_RATE_1MHZ = 1000000,
   DATA_RATE_2MHZ = 2000000,
   DATA_RATE_4MHZ = 4000000,
