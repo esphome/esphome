@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 
-# Import validate_filters from sensor module for filter validation
-from esphome.components.sensor import validate_filters
+# Import validators from sensor module
+from esphome.components.sensor import validate_filters, validate_state_class
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
@@ -103,10 +103,10 @@ SENSOR_CONFIGS = {
 
 
 # Create a base schema that's flexible for any tag
-# Note: Don't set accuracy_decimals here - let tag-specific configs set it
+# Note: Don't set defaults here for values that vary by tag type
+# (accuracy_decimals, state_class) - let tag-specific configs set them
 BASE_SCHEMA = sensor.sensor_schema(
     Mk2PVRouterSensor,
-    state_class=STATE_CLASS_MEASUREMENT,
 ).extend(MK2PVROUTER_LISTENER_SCHEMA)
 
 
@@ -136,12 +136,18 @@ def apply_tag_defaults(config):
                 validated_filters = validate_filters(value)
                 user_filters = config.get(key, [])
                 config[key] = validated_filters + user_filters
+            elif key == CONF_STATE_CLASS:
+                # Validate state_class to convert string to enum
+                if key not in config:
+                    config[key] = validate_state_class(value)
             elif key not in config:
                 config[key] = value
 
-    # Fallback: ensure accuracy_decimals has a default for unknown tags
+    # Fallback: ensure defaults for unknown tags
     if CONF_ACCURACY_DECIMALS not in config:
         config[CONF_ACCURACY_DECIMALS] = 0
+    if CONF_STATE_CLASS not in config:
+        config[CONF_STATE_CLASS] = validate_state_class(STATE_CLASS_MEASUREMENT)
 
     return config
 
