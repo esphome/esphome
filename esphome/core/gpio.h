@@ -14,9 +14,13 @@ inline constexpr size_t GPIO_SUMMARY_MAX_LEN = 48;
 class GPIOPin;  // Forward declaration
 
 /// Log a pin summary to the config log
+#ifdef USE_ESP8266
+void log_pin(const char *tag, const __FlashStringHelper *prefix, GPIOPin *pin);
+#define LOG_PIN(prefix, pin) log_pin(TAG, F(prefix), pin)
+#else
 void log_pin(const char *tag, const char *prefix, GPIOPin *pin);
-
 #define LOG_PIN(prefix, pin) log_pin(TAG, prefix, pin)
+#endif
 
 // put GPIO flags in a namespace to not pollute esphome namespace
 namespace gpio {
