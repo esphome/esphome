@@ -43,8 +43,8 @@ class AmberApiComponent : public PollingComponent {
   float get_general_forecast_price() const { return this->data_.general_forecast_price; }
   float get_feedin_price() const { return this->data_.feedin_price; }
   float get_feedin_forecast_price() const { return this->data_.feedin_forecast_price; }
-  std::string get_spike_status() const { return this->data_.spike_status; }
-  std::string get_descriptor() const { return this->data_.descriptor; }
+  const std::string &get_spike_status() const { return this->data_.spike_status; }
+  const std::string &get_descriptor() const { return this->data_.descriptor; }
 
  protected:
   void parse_response_(const std::string &response_body);
