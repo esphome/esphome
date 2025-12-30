@@ -13,6 +13,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome.const import (
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
+)
 from esphome.core import EsphomeError
 from esphome.storage_json import StorageJSON
 from esphome.writer import (
@@ -183,12 +190,12 @@ def test_storage_should_update_cmake_cache_when_integration_added_esp32(
     """Test cmake cache update triggered when integration added on ESP32."""
     old = create_storage(
         loaded_integrations=["api", "wifi"],
-        core_platform="esp32",
+        core_platform=PLATFORM_ESP32,
         framework=framework,
     )
     new = create_storage(
         loaded_integrations=["api", "wifi", "restart"],
-        core_platform="esp32",
+        core_platform=PLATFORM_ESP32,
         framework=framework,
     )
     assert storage_should_update_cmake_cache(old, new) is True
@@ -201,13 +208,13 @@ def test_storage_should_update_cmake_cache_when_platform_changed_esp32(
     old = create_storage(
         loaded_integrations=["api", "wifi"],
         loaded_platforms={"sensor"},
-        core_platform="esp32",
+        core_platform=PLATFORM_ESP32,
         framework="arduino",
     )
     new = create_storage(
         loaded_integrations=["api", "wifi"],
         loaded_platforms={"sensor", "binary_sensor"},
-        core_platform="esp32",
+        core_platform=PLATFORM_ESP32,
         framework="arduino",
     )
     assert storage_should_update_cmake_cache(old, new) is True
@@ -219,18 +226,21 @@ def test_storage_should_not_update_cmake_cache_when_nothing_changes(
     """Test cmake cache not updated when nothing changes."""
     old = create_storage(
         loaded_integrations=["api", "wifi"],
-        core_platform="esp32",
+        core_platform=PLATFORM_ESP32,
         framework="arduino",
     )
     new = create_storage(
         loaded_integrations=["api", "wifi"],
-        core_platform="esp32",
+        core_platform=PLATFORM_ESP32,
         framework="arduino",
     )
     assert storage_should_update_cmake_cache(old, new) is False
 
 
-@pytest.mark.parametrize("core_platform", ["esp8266", "rp2040", "bk72xx", "rtl87xx"])
+@pytest.mark.parametrize(
+    "core_platform",
+    [PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_BK72XX, PLATFORM_RTL87XX],
+)
 def test_storage_should_not_update_cmake_cache_for_non_esp32(
     create_storage: Callable[..., StorageJSON],
     core_platform: str,
