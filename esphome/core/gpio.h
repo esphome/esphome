@@ -5,20 +5,16 @@
 #include <string>
 
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 
 /// Maximum buffer size for dump_summary output
 inline constexpr size_t GPIO_SUMMARY_MAX_LEN = 48;
 
-class GPIOPin;  // Forward declaration
-
-/// Log a pin summary to the config log
 #ifdef USE_ESP8266
-void log_pin(const char *tag, const __FlashStringHelper *prefix, GPIOPin *pin);
 #define LOG_PIN(prefix, pin) log_pin(TAG, F(prefix), pin)
 #else
-void log_pin(const char *tag, const char *prefix, GPIOPin *pin);
 #define LOG_PIN(prefix, pin) log_pin(TAG, prefix, pin)
 #endif
 
@@ -147,5 +143,20 @@ inline size_t GPIOPin::dump_summary(char *buffer, size_t len) const {
 // External components should override this if they haven't migrated to buffer-based version.
 // Remove before 2026.7.0
 inline std::string GPIOPin::dump_summary() const { return {}; }
+
+// Inline helper for log_pin - allows compiler to inline into log_pin in gpio.cpp
+inline void log_pin_with_prefix_(const char *tag, const char *prefix, GPIOPin *pin) {
+  char buffer[GPIO_SUMMARY_MAX_LEN];
+  size_t len = pin->dump_summary(buffer, sizeof(buffer));
+  len = std::min(len, sizeof(buffer) - 1);
+  esp_log_printf_(ESPHOME_LOG_LEVEL_CONFIG, tag, __LINE__, "%s%.*s", prefix, (int) len, buffer);
+}
+
+// log_pin function declarations - implementation in gpio.cpp
+#ifdef USE_ESP8266
+void log_pin(const char *tag, const __FlashStringHelper *prefix, GPIOPin *pin);
+#else
+void log_pin(const char *tag, const char *prefix, GPIOPin *pin);
+#endif
 
 }  // namespace esphome
