@@ -21,12 +21,13 @@ class STCC4Component : public PollingComponent, public sensirion_common::Sensiri
 
   struct SensorState {
     bool is_idle = false;
-    bool is_sleep = false;
+    bool is_sleep = true;
     bool is_conditioning = false;
     bool is_testing_mode = false;
     bool is_sht45_present = false;
     bool is_rht_compensated = false;
     bool is_pressure_compensated = false;
+    bool is_measuring = false;
 
     void reset() {
       is_idle = true;
@@ -36,6 +37,7 @@ class STCC4Component : public PollingComponent, public sensirion_common::Sensiri
       is_sht45_present = false;
       is_rht_compensated = false;
       is_pressure_compensated = false;
+      is_measuring = false;
     }
   };
 
@@ -44,6 +46,7 @@ class STCC4Component : public PollingComponent, public sensirion_common::Sensiri
  protected:
   bool continuous_{false};
   SensorState state_;
+  uint8_t stage_ = 0;
 
   enum class SensorCommand : uint16_t {
     START_CONTINUOUS_MEASUREMENT = 0x218B,
@@ -80,14 +83,16 @@ class STCC4Component : public PollingComponent, public sensirion_common::Sensiri
   void set_pressure_compensation_(uint16_t pressure);
   void measure_single_shot_(uint16_t *data);
   void enter_sleep_mode_();
-  void exit_sleep_mode_();
+  bool exit_sleep_mode_();
   void perform_conditioning_();
   void perform_soft_reset_();
   void perform_factory_reset_();
-  void perform_self_test_();
+  bool perform_self_test_();
   void enable_testing_mode_();
   void disable_testing_mode_();
   void perform_forced_recalibration_();
+
+  void continue_setup_();
 };
 
 }  // namespace stcc4
