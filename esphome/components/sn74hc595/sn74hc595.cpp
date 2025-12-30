@@ -93,7 +93,9 @@ float SN74HC595Component::get_setup_priority() const { return setup_priority::IO
 void SN74HC595GPIOPin::digital_write(bool value) {
   this->parent_->digital_write_(this->pin_, value != this->inverted_);
 }
-std::string SN74HC595GPIOPin::dump_summary() const { return str_snprintf("%u via SN74HC595", 18, pin_); }
+size_t SN74HC595GPIOPin::dump_summary(char *buffer, size_t len) const {
+  return snprintf(buffer, len, "%u via SN74HC595", this->pin_);
+}
 
 }  // namespace sn74hc595
 }  // namespace esphome
