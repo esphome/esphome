@@ -315,7 +315,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_VOLUME): automation.validate_automation(single=True),
         }
     ),
-    cv.only_with_esp_idf,
+    cv.only_on_esp32,
     _validate_repeated_speaker,
     _request_high_performance_networking,
 )
