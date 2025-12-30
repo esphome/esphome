@@ -6,6 +6,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
 )
+import logging
 
 CODEOWNERS = ["@MrSuicideParrot"]
 DEPENDENCIES = ["uart"]
@@ -39,3 +40,7 @@ async def to_code(config):
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+    logging.warning(
+        "The 'a01nyub' component is deprecated and will be removed in a future release. "
+        "Please migrate to the 'distance_uart' component."
+    )
