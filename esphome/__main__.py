@@ -431,25 +431,33 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     while tries < 5:
         try:
             with ser:
+                buffer = b""
+                ser.timeout = 0.1  # 100ms timeout for non-blocking reads
                 while True:
                     try:
-                        raw = ser.readline()
+                        # Read all available data and timestamp it
+                        chunk = ser.read(ser.in_waiting or 1)
+                        if not chunk:
+                            continue
+                        time_ = datetime.now()
+                        nanoseconds = time_.microsecond // 1000
+                        time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{nanoseconds:03}]"
+
+                        # Add to buffer and process complete lines
+                        buffer += chunk
+                        while b"\n" in buffer:
+                            raw_line, buffer = buffer.split(b"\n", 1)
+                            line = raw_line.replace(b"\r", b"").decode(
+                                "utf8", "backslashreplace"
+                            )
+                            safe_print(parser.parse_line(line, time_str))
+
+                            backtrace_state = platformio_api.process_stacktrace(
+                                config, line, backtrace_state=backtrace_state
+                            )
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
-                    line = (
-                        raw.replace(b"\r", b"")
-                        .replace(b"\n", b"")
-                        .decode("utf8", "backslashreplace")
-                    )
-                    time_ = datetime.now()
-                    nanoseconds = time_.microsecond // 1000
-                    time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{nanoseconds:03}]"
-                    safe_print(parser.parse_line(line, time_str))
-
-                    backtrace_state = platformio_api.process_stacktrace(
-                        config, line, backtrace_state=backtrace_state
-                    )
         except serial.SerialException:
             tries += 1
             time.sleep(1)
