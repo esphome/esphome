@@ -654,12 +654,7 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
     this->auth_buf_[0] = this->auth_type_;
     hasher->get_hex(buf);
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char log_buf[65];  // Fixed size for SHA256 hex (64) + null, works for MD5 (32) too
-    memcpy(log_buf, buf, hex_size);
-    log_buf[hex_size] = '\0';
-    ESP_LOGV(TAG, "Auth: Nonce is %s", log_buf);
-#endif
+    ESP_LOGV(TAG, "Auth: Nonce is %.*s", hex_size, buf);
   }
 
   // Try to write auth_type + nonce
@@ -739,23 +734,13 @@ bool ESPHomeOTAComponent::handle_auth_read_() {
   hasher->add(nonce, hex_size * 2);  // Add both nonce and cnonce (contiguous in buffer)
   hasher->calculate();
 
+  ESP_LOGV(TAG, "Auth: CNonce is %.*s", hex_size, cnonce);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char log_buf[65];  // Fixed size for SHA256 hex (64) + null, works for MD5 (32) too
-  // Log CNonce
-  memcpy(log_buf, cnonce, hex_size);
-  log_buf[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: CNonce is %s", log_buf);
-
-  // Log computed hash
-  hasher->get_hex(log_buf);
-  log_buf[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: Result is %s", log_buf);
-
-  // Log received response
-  memcpy(log_buf, response, hex_size);
-  log_buf[hex_size] = '\0';
-  ESP_LOGV(TAG, "Auth: Response is %s", log_buf);
+  char computed_hash[65];  // Buffer for hex-encoded hash (max expected length + null terminator)
+  hasher->get_hex(computed_hash);
+  ESP_LOGV(TAG, "Auth: Result is %.*s", hex_size, computed_hash);
 #endif
+  ESP_LOGV(TAG, "Auth: Response is %.*s", hex_size, response);
 
   // Compare response
   bool matches = hasher->equals_hex(response);
