@@ -1,0 +1,57 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+http_request:
+  useragent: esphome/amber-electric
+  timeout: 10s
+
+# Amber API base component
+amber_api:
+  id: amber_component
+  api_key: "Notreal"
+  site_id: "what_site"
+  update_interval: 5min
+  on_update:
+    - logger.log: "Amber API data updated!"
+
+# Numeric sensors for prices
+sensor:
+  - platform: amber_api
+    type: general
+    name: "Electricity Price"
+    id: electricity_price
+
+  - platform: amber_api
+    type: general_forecast
+    name: "Electricity Price Forecast"
+    id: electricity_price_forecast
+
+  - platform: amber_api
+    amber_api_id: amber_component
+    type: feedin
+    name: "Feed-in Price"
+    id: feedin_price
+    icon: "mdi:solar-power"
+
+  - platform: amber_api
+    amber_api_id: amber_component
+    type: feedin_forecast
+    name: "Feed-in Forecast"
+    id: feedin_forecast
+    icon: "mdi:solar-power"
+
+# Binary sensor for spike status
+binary_sensor:
+  - platform: amber_api
+    amber_api_id: amber_component
+    name: "Price Spike"
+    id: price_spike
+    device_class: problem
+
+# Text sensor for price descriptor
+text_sensor:
+  - platform: amber_api
+    amber_api_id: amber_component
+    name: "Price Descriptor"
+    id: price_descriptor
