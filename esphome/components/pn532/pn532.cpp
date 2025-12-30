@@ -31,8 +31,10 @@ void PN532::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "Found chip PN5%02X", version_data[0]);
-  ESP_LOGD(TAG, "Firmware ver. %d.%d", version_data[1], version_data[2]);
+  ESP_LOGD(TAG,
+           "Found chip PN5%02X\n"
+           "Firmware ver. %d.%d",
+           version_data[0], version_data[1], version_data[2]);
 
   if (!this->write_command_({
           PN532_COMMAND_SAMCONFIGURATION,
@@ -279,10 +281,9 @@ bool PN532::write_command_(const std::vector<uint8_t> &data) {
 }
 
 bool PN532::read_ack_() {
-  ESP_LOGV(TAG, "Reading ACK");
-
   std::vector<uint8_t> data;
   if (!this->read_data(data, 6)) {
+    ESP_LOGV(TAG, "Reading ACK failed");
     return false;
   }
 

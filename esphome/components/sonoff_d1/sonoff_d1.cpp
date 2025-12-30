@@ -86,8 +86,10 @@ bool SonoffD1Output::read_command_(uint8_t *cmd, size_t &len) {
 
   // Read a minimal packet
   if (this->read_array(cmd, 6)) {
-    ESP_LOGV(TAG, "[%04d] Reading from dimmer:", this->write_count_);
-    ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty(cmd, 6).c_str());
+    ESP_LOGV(TAG,
+             "[%04d] Reading from dimmer:\n"
+             "[%04d] %s",
+             this->write_count_, this->write_count_, format_hex_pretty(cmd, 6).c_str());
 
     if (cmd[0] != 0xAA || cmd[1] != 0x55) {
       ESP_LOGW(TAG, "[%04d] RX: wrong header (%x%x, must be AA55)", this->write_count_, cmd[0], cmd[1]);
@@ -174,8 +176,10 @@ bool SonoffD1Output::write_command_(uint8_t *cmd, const size_t len, bool needs_a
   // 2. UART command initiated by this component can clash with a command initiated by RF
   uint32_t retries = 10;
   do {
-    ESP_LOGV(TAG, "[%04d] Writing to the dimmer:", this->write_count_);
-    ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty(cmd, len).c_str());
+    ESP_LOGV(TAG,
+             "[%04d] Writing to the dimmer:\n"
+             "[%04d] %s",
+             this->write_count_, this->write_count_, format_hex_pretty(cmd, len).c_str());
     this->write_array(cmd, len);
     this->write_count_++;
     if (!needs_ack)

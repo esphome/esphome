@@ -21,9 +21,11 @@ void PCF8574Component::loop() {
   this->reset_pin_cache_();
 }
 void PCF8574Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "PCF8574:");
+  ESP_LOGCONFIG(TAG,
+                "PCF8574:\n"
+                "  Is PCF8575: %s",
+                YESNO(this->pcf8575_));
   LOG_I2C_DEVICE(this)
-  ESP_LOGCONFIG(TAG, "  Is PCF8575: %s", YESNO(this->pcf8575_));
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }

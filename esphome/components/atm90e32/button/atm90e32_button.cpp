@@ -13,9 +13,10 @@ void ATM90E32GainCalibrationButton::press_action() {
     return;
   }
 
-  ESP_LOGI(TAG, "%s", this->get_name().c_str());
   ESP_LOGI(TAG,
-           "[CALIBRATION] Use gain_ct: & gain_voltage: under each phase_x: in your config file to save these values");
+           "%s\n"
+           "[CALIBRATION] Use gain_ct: & gain_voltage: under each phase_x: in your config file to save these values",
+           this->get_name().c_str());
   this->parent_->run_gain_calibrations();
 }
 
@@ -35,10 +36,12 @@ void ATM90E32OffsetCalibrationButton::press_action() {
     return;
   }
 
-  ESP_LOGI(TAG, "%s", this->get_name().c_str());
-  ESP_LOGI(TAG, "[CALIBRATION] **NOTE: CTs and ACVs must be 0 during this process. USB power only**");
-  ESP_LOGI(TAG, "[CALIBRATION] Use offset_voltage: & offset_current: under each phase_x: in your config file to save "
-                "these values");
+  ESP_LOGI(TAG,
+           "%s\n"
+           "[CALIBRATION] **NOTE: CTs and ACVs must be 0 during this process. USB power only**\n"
+           "[CALIBRATION] Use offset_voltage: & offset_current: under each phase_x: in your config file to save "
+           "these values",
+           this->get_name().c_str());
   this->parent_->run_offset_calibrations();
 }
 
@@ -58,10 +61,12 @@ void ATM90E32PowerOffsetCalibrationButton::press_action() {
     return;
   }
 
-  ESP_LOGI(TAG, "%s", this->get_name().c_str());
-  ESP_LOGI(TAG, "[CALIBRATION] **NOTE: CTs must be 0 during this process. Voltage reference should be present**");
-  ESP_LOGI(TAG, "[CALIBRATION] Use offset_active_power: & offset_reactive_power: under each phase_x: in your config "
-                "file to save these values");
+  ESP_LOGI(TAG,
+           "%s\n"
+           "[CALIBRATION] **NOTE: CTs must be 0 during this process. Voltage reference should be present**\n"
+           "[CALIBRATION] Use offset_active_power: & offset_reactive_power: under each phase_x: in your config "
+           "file to save these values",
+           this->get_name().c_str());
   this->parent_->run_power_offset_calibrations();
 }
 

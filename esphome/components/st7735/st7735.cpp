@@ -377,11 +377,13 @@ void ST7735::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGD(TAG, "  Buffer Size: %zu", this->get_buffer_length());
-  ESP_LOGD(TAG, "  Height: %d", this->height_);
-  ESP_LOGD(TAG, "  Width: %d", this->width_);
-  ESP_LOGD(TAG, "  ColStart: %d", this->colstart_);
-  ESP_LOGD(TAG, "  RowStart: %d", this->rowstart_);
+  ESP_LOGD(TAG,
+           "  Buffer Size: %zu\n"
+           "  Height: %d\n"
+           "  Width: %d\n"
+           "  ColStart: %d\n"
+           "  RowStart: %d",
+           this->get_buffer_length(), this->height_, this->width_, this->colstart_, this->rowstart_);
   LOG_UPDATE_INTERVAL(this);
 }
 
