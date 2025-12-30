@@ -22,3 +22,24 @@ esphome:
         assert(x == 95);
         x = clamp_at_most(x, 40);
         assert(x == 40);
+    - lambda: |-
+        auto result = esphome::host::execute_shell_command("hostname");
+        id(last_exit_code).publish_state(result.exit_code);
+        id(last_stdout).publish_state(result.stdout_output.substr(0, 255));
+        id(last_stderr).publish_state(result.stderr_output);
+
+text_sensor:
+  - platform: template
+    id: last_stdout
+    entity_category: diagnostic
+    name: "Last Command Stdout"
+  - platform: template
+    id: last_stderr
+    entity_category: diagnostic
+    name: "Last Command Stderr"
+
+sensor:
+  - platform: template
+    id: last_exit_code
+    entity_category: diagnostic
+    name: "Last Command Exit Code"
