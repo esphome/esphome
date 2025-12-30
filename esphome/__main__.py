@@ -62,6 +62,9 @@ from esphome.util import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Maximum buffer size for serial log reading to prevent unbounded memory growth
+SERIAL_BUFFER_MAX_SIZE = 65536
+
 # Special non-component keys that appear in configs
 _NON_COMPONENT_KEYS = frozenset(
     {
@@ -440,11 +443,15 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                         if not chunk:
                             continue
                         time_ = datetime.now()
-                        nanoseconds = time_.microsecond // 1000
-                        time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{nanoseconds:03}]"
+                        milliseconds = time_.microsecond // 1000
+                        time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{milliseconds:03}]"
 
                         # Add to buffer and process complete lines
+                        # Limit buffer size to prevent unbounded memory growth
+                        # if device sends data without newlines
                         buffer += chunk
+                        if len(buffer) > SERIAL_BUFFER_MAX_SIZE:
+                            buffer = buffer[-SERIAL_BUFFER_MAX_SIZE:]
                         while b"\n" in buffer:
                             raw_line, buffer = buffer.split(b"\n", 1)
                             line = raw_line.replace(b"\r", b"").decode(

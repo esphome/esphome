@@ -2853,16 +2853,31 @@ class MockSerial:
         return 0
 
     def read(self, size: int = 1) -> bytes:
-        """Read next chunk of data."""
+        """Read up to size bytes from the current chunk.
+
+        This method respects the size argument and keeps any unconsumed
+        bytes in the current chunk so that subsequent calls to in_waiting
+        and read see the remaining data.
+        """
         if self.chunk_index < len(self.chunks):
             chunk = self.chunks[self.chunk_index]
-            self.chunk_index += 1
             if chunk is MOCK_SERIAL_END:
                 # Sentinel means we're done - simulate port closed
                 import serial
 
                 raise serial.SerialException("Port closed")
-            return chunk  # type: ignore[return-value]
+            # Respect the requested size and keep any remaining bytes
+            if size <= 0:
+                return b""
+            data = chunk[:size]  # type: ignore[index]
+            remaining = chunk[size:]  # type: ignore[index]
+            if remaining:
+                # Keep remaining bytes for the next read
+                self.chunks[self.chunk_index] = remaining  # type: ignore[assignment]
+            else:
+                # Entire chunk consumed; advance to the next one
+                self.chunk_index += 1
+            return data  # type: ignore[return-value]
         import serial
 
         raise serial.SerialException("Port closed")
@@ -3104,3 +3119,54 @@ def test_run_miniterm_baud_rate_zero_returns_early(
 
     assert result == 1
     assert "UART logging is disabled" in caplog.text
+
+
+def test_run_miniterm_buffer_limit_prevents_unbounded_growth() -> None:
+    """Test that buffer is limited to prevent unbounded memory growth.
+
+    If a device sends data without newlines, the buffer should be truncated
+    to SERIAL_BUFFER_MAX_SIZE to prevent memory exhaustion.
+    """
+    # Use a small buffer limit for testing
+    test_buffer_limit = 100
+
+    # Create data larger than the limit without newlines
+    large_data_no_newline = b"X" * 150  # 150 bytes, no newline
+    final_line = b"END\r\n"
+
+    mock_serial = MockSerial([large_data_no_newline, final_line, MOCK_SERIAL_END])
+
+    config = {
+        CONF_LOGGER: {
+            CONF_BAUD_RATE: 115200,
+            "deassert_rts_dtr": False,
+        }
+    }
+    args = MockArgs()
+
+    with (
+        patch("serial.Serial", return_value=mock_serial),
+        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch("esphome.__main__.safe_print") as mock_print,
+        patch("esphome.__main__.SERIAL_BUFFER_MAX_SIZE", test_buffer_limit),
+    ):
+        mock_bt.return_value = False
+        run_miniterm(config, "/dev/ttyUSB0", args)
+
+    # Should have printed exactly one line
+    assert mock_print.call_count == 1
+    printed_line = mock_print.call_args[0][0]
+
+    # The line should contain "END" and some X's, but not all 150 X's
+    # because the buffer was truncated
+    assert "END" in printed_line
+    assert "X" in printed_line
+    # Verify truncation happened - we shouldn't have all 150 X's
+    # The buffer logic is:
+    # 1. Add 150 X's -> buffer = 150 bytes -> truncate to last 100 = 100 X's
+    # 2. Add "END\r\n" (5 bytes) -> buffer = 105 bytes -> truncate to last 100
+    #    = 95 X's + "END\r\n"
+    # 3. Find newline, extract line = "95 X's + END"
+    x_count = printed_line.count("X")
+    assert x_count < 150, f"Expected truncation but got {x_count} X's"
+    assert x_count == 95, f"Expected 95 X's after truncation but got {x_count}"
