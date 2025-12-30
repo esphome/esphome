@@ -11,12 +11,12 @@ namespace esphome {
 /// Maximum buffer size for dump_summary output
 inline constexpr size_t GPIO_SUMMARY_MAX_LEN = 48;
 
-#define LOG_PIN(prefix, pin) \
-  if ((pin) != nullptr) { \
-    char esphome_pin_buf_[GPIO_SUMMARY_MAX_LEN]; \
-    (pin)->dump_summary(esphome_pin_buf_, sizeof(esphome_pin_buf_)); \
-    ESP_LOGCONFIG(TAG, prefix "%s", esphome_pin_buf_); \
-  }
+class GPIOPin;  // Forward declaration
+
+/// Log a pin summary to the config log
+void log_pin(const char *tag, const char *prefix, GPIOPin *pin);
+
+#define LOG_PIN(prefix, pin) log_pin(TAG, prefix, pin)
 
 // put GPIO flags in a namespace to not pollute esphome namespace
 namespace gpio {
