@@ -96,6 +96,8 @@ sensor:
 - **bme68x_bsec2_id** (_Optional_, [ID](/guides/configuration-types#id)): The ID of the `bme68x_bsec2_i2c` component sensors will refer
   to. Useful when multiple devices are present in your configuration.
 
+- **id** (_Optional_, [ID](/guides/configuration-types#id)): This ID has no effect other than providing a target for package management.
+
 - **temperature** (_Optional_): Configuration for the temperature sensor.
 
   - **sample_rate** (_Optional_, string): Optional sample rate override for this sensor. Can be `LP` for low power
