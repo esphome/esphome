@@ -17,8 +17,10 @@ void MAX6956LedChannel::setup() {
 }
 
 void MAX6956LedChannel::dump_config() {
-  ESP_LOGCONFIG(TAG, "MAX6956 current:");
-  ESP_LOGCONFIG(TAG, "  MAX6956 pin: %d", this->pin_);
+  ESP_LOGCONFIG(TAG,
+                "MAX6956 current:\n"
+                "  MAX6956 pin: %d",
+                this->pin_);
   LOG_FLOAT_OUTPUT(this);
 }
 
