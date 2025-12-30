@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/color.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/light/addressable_light.h"
 
@@ -25,11 +26,14 @@ class AddressableLightDisplay : public display::DisplayBuffer {
       if (enabled_ && !enabled) {  // enabled -> disabled
         // - Tell the parent light to refresh, effectively wiping the display. Also
         //   restores the previous effect (if any).
-        light_state_->make_call().set_effect(this->last_effect_).perform();
+        if (this->last_effect_.has_value()) {
+          auto &ref = *this->last_effect_;
+          light_state_->make_call().set_effect(ref.c_str(), ref.size()).perform();
+        }
 
       } else if (!enabled_ && enabled) {  // disabled -> enabled
-        // - Save the current effect.
-        this->last_effect_ = light_state_->get_effect_name();
+        // - Save the current effect (pointer to rodata, valid for program lifetime).
+        this->last_effect_ = light_state_->get_effect_name_ref();
         // - Disable any current effect.
         light_state_->make_call().set_effect(0).perform();
       }
@@ -56,7 +60,7 @@ class AddressableLightDisplay : public display::DisplayBuffer {
   int32_t width_;
   int32_t height_;
   std::vector<Color> addressable_light_buffer_;
-  optional<std::string> last_effect_;
+  optional<StringRef> last_effect_;
   optional<std::function<int(int, int)>> pixel_mapper_f_;
 };
 }  // namespace addressable_light
