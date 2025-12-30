@@ -12,7 +12,7 @@ namespace stcc4 {
 class STCC4Component : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
   void setup() override;
-  void dump_config() override;
+  // void dump_config() override;
   void update() override;
 
   void set_co2_sensor(sensor::Sensor *co2_sensor) { this->co2_sensor_ = co2_sensor; }
