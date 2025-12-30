@@ -1722,7 +1722,7 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
       memcpy(state_buf, msg.state, msg.state_len);
     }
     state_buf[msg.state_len] = '\0';
-    it.callback(StringRef(state_buf));
+    it.callback(StringRef(state_buf, msg.state_len));
   }
 }
 #endif
