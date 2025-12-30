@@ -6,7 +6,7 @@ from esphome.const import CONF_ID, CONF_ON_UPDATE, CONF_TRIGGER_ID
 
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["http_request", "json"]
-AUTO_LOAD = ["http_request", "json"]
+AUTO_LOAD = ["json"]
 
 CONF_AMBER_API_ID = "amber_api_id"
 CONF_API_KEY = "api_key"
