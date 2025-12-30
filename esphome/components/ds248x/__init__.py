@@ -1,15 +1,8 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import i2c, sensor
+from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ADDRESS,
-    CONF_CHANNEL,
-    CONF_ID,
-    CONF_INDEX,
-    CONF_RESOLUTION,
-    CONF_SLEEP_PIN,
-)
+from esphome.const import CONF_ID, CONF_SLEEP_PIN
 
 CODEOWNERS = ["@tomwellnitz"]
 MULTI_CONF = True
@@ -22,21 +15,15 @@ CONF_ACTIVE_PULLUP = "active_pullup"
 CONF_STRONG_PULLUP = "strong_pullup"
 CONF_OVERDRIVE_SPEED = "overdrive_speed"
 CONF_CHANNEL_COUNT = "channel_count"
-CONF_CONVERSION_MODE = "conversion_mode"
 
 CONF_DS2484_RESET_LOW_TIME = "ds2484_reset_low_time"
 CONF_DS2484_MASTER_SAMPLE_TIME = "ds2484_master_sample_time"
 CONF_DS2484_WRITE_0_LOW_TIME = "ds2484_write_0_low_time"
 CONF_DS2484_RECOVERY_TIME = "ds2484_recovery_time"
 CONF_DS2484_ACTIVE_PULLUP_RESISTANCE = "ds2484_active_pullup_resistance"
-CONF_ALARM_SEARCH = "alarm_search"
-CONF_PARASITIC_MODE = "parasitic_mode"
 
 ds248x_ns = cg.esphome_ns.namespace("ds248x")
-DS248xComponent = ds248x_ns.class_(
-    "DS248xComponent", cg.PollingComponent, i2c.I2CDevice
-)
-DS248xSensor = ds248x_ns.class_("DS248xSensor", sensor.Sensor)
+DS248xComponent = ds248x_ns.class_("DS248xComponent", cg.Component, i2c.I2CDevice)
 
 
 def validate_ds2484_config(config):
@@ -67,13 +54,6 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_STRONG_PULLUP, default=False): cv.boolean,
             cv.Optional(CONF_OVERDRIVE_SPEED, default=False): cv.boolean,
             cv.Optional(CONF_CHANNEL_COUNT, default=1): cv.one_of(1, 8, int=True),
-            cv.Optional(CONF_CONVERSION_MODE, default="fixed"): cv.enum(
-                {
-                    "fixed": 0,
-                    "poll": 1,
-                }
-            ),
-            cv.Optional(CONF_ALARM_SEARCH, default=False): cv.boolean,
             cv.Optional(CONF_DS2484_RESET_LOW_TIME): cv.int_range(min=0, max=15),
             cv.Optional(CONF_DS2484_MASTER_SAMPLE_TIME): cv.int_range(min=0, max=15),
             cv.Optional(CONF_DS2484_WRITE_0_LOW_TIME): cv.int_range(min=0, max=15),
@@ -86,7 +66,7 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(cv.polling_component_schema("60s"))
+    .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(0x18))
     .add_extra(validate_ds2484_config)
 )
@@ -103,8 +83,6 @@ async def to_code(config):
     cg.add(var.set_bus_sleep(config[CONF_BUS_SLEEP]))
     cg.add(var.set_hub_sleep(config[CONF_HUB_SLEEP]))
     cg.add(var.set_channel_count(config[CONF_CHANNEL_COUNT]))
-    cg.add(var.set_conversion_mode(config[CONF_CONVERSION_MODE]))
-    cg.add(var.set_alarm_search_on_boot(config[CONF_ALARM_SEARCH]))
 
     if CONF_DS2484_RESET_LOW_TIME in config:
         cg.add(var.set_val_trstl(config[CONF_DS2484_RESET_LOW_TIME]))
@@ -120,46 +98,3 @@ async def to_code(config):
     if CONF_SLEEP_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_SLEEP_PIN])
         cg.add(var.set_sleep_pin(pin))
-
-
-async def register_ds248x_sensor(var, config):
-    """Register an 1wire device connected to the ds248x with the given config.
-
-    Sets the ds248x to use and the address and index.
-
-    This is an async coroutine; you need to await it.
-    """
-    parent = await cg.get_variable(config[CONF_DS248X_ID])
-    cg.add(var.set_parent(parent))
-    if CONF_ADDRESS in config:
-        cg.add(var.set_address(config[CONF_ADDRESS]))
-    else:
-        cg.add(var.set_index(config[CONF_INDEX]))
-
-    if CONF_CHANNEL in config:
-        cg.add(var.set_channel(config[CONF_CHANNEL]))
-
-    if CONF_RESOLUTION in config:
-        cg.add(var.set_resolution(config[CONF_RESOLUTION]))
-
-    if CONF_PARASITIC_MODE in config:
-        cg.add(var.set_parasitic_mode(config[CONF_PARASITIC_MODE]))
-
-    cg.add(parent.register_sensor(var))
-
-
-def ds248x_sensor_schema():
-    """Create a schema for a ds248x sensor.
-
-    :return: The ds248x device schema, `extend` this in your config schema.
-    """
-    schema = {
-        cv.GenerateID(CONF_DS248X_ID): cv.use_id(DS248xComponent),
-        cv.Optional(CONF_ADDRESS): cv.hex_int,
-        cv.Optional(CONF_INDEX): cv.positive_int,
-        cv.Optional(CONF_CHANNEL): cv.positive_int,
-        cv.Optional(CONF_RESOLUTION, default=12): cv.int_range(min=9, max=12),
-        cv.Optional(CONF_PARASITIC_MODE, default=False): cv.boolean,
-    }
-
-    return cv.Schema(schema)
