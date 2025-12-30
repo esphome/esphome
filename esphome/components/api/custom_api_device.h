@@ -122,18 +122,31 @@ class CustomAPIDevice {
    *   subscribe_homeassistant_state(&CustomNativeAPI::on_state_changed, "climate.kitchen", "current_temperature");
    * }
    *
-   * void on_state_changed(const std::string &state) {
-   *   // State of sensor.weather_forecast is `state`
+   * void on_state_changed(StringRef state) {
+   *   // State of climate.kitchen current_temperature is `state`
+   *   // Use state.c_str() for C string, state.str() for std::string
    * }
    * ```
    *
    * @tparam T The class type creating the service, automatically deduced from the function pointer.
-   * @param callback The member function to call when the entity state changes.
+   * @param callback The member function to call when the entity state changes (zero-allocation).
    * @param entity_id The entity_id to track.
    * @param attribute The entity state attribute to track.
    */
   template<typename T>
-  void subscribe_homeassistant_state(void (T::*callback)(const std::string &), const std::string &entity_id,
+  void subscribe_homeassistant_state(void (T::*callback)(StringRef), const std::string &entity_id,
+                                     const std::string &attribute = "") {
+    auto f = std::bind(callback, (T *) this, std::placeholders::_1);
+    global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), std::move(f));
+  }
+
+  /** Subscribe to the state (or attribute state) of an entity from Home Assistant (legacy std::string version).
+   *
+   * @deprecated Use the StringRef overload for zero-allocation callbacks. Will be removed in 2027.1.0.
+   */
+  template<typename T>
+  ESPDEPRECATED("Use void callback(StringRef) instead. Will be removed in 2027.1.0.", "2026.1.0")
+  void subscribe_homeassistant_state(void (T::*callback)(std::string), const std::string &entity_id,
                                      const std::string &attribute = "") {
     auto f = std::bind(callback, (T *) this, std::placeholders::_1);
     global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
@@ -148,25 +161,37 @@ class CustomAPIDevice {
    *   subscribe_homeassistant_state(&CustomNativeAPI::on_state_changed, "sensor.weather_forecast");
    * }
    *
-   * void on_state_changed(const std::string &entity_id, const std::string &state) {
+   * void on_state_changed(const std::string &entity_id, StringRef state) {
    *   // State of `entity_id` is `state`
    * }
    * ```
    *
    * @tparam T The class type creating the service, automatically deduced from the function pointer.
-   * @param callback The member function to call when the entity state changes.
+   * @param callback The member function to call when the entity state changes (zero-allocation for state).
    * @param entity_id The entity_id to track.
    * @param attribute The entity state attribute to track.
    */
   template<typename T>
-  void subscribe_homeassistant_state(void (T::*callback)(const std::string &, const std::string &),
-                                     const std::string &entity_id, const std::string &attribute = "") {
+  void subscribe_homeassistant_state(void (T::*callback)(const std::string &, StringRef), const std::string &entity_id,
+                                     const std::string &attribute = "") {
+    auto f = std::bind(callback, (T *) this, entity_id, std::placeholders::_1);
+    global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), std::move(f));
+  }
+
+  /** Subscribe to the state (or attribute state) of an entity from Home Assistant (legacy std::string version).
+   *
+   * @deprecated Use the StringRef overload for zero-allocation callbacks. Will be removed in 2027.1.0.
+   */
+  template<typename T>
+  ESPDEPRECATED("Use void callback(const std::string &, StringRef) instead. Will be removed in 2027.1.0.", "2026.1.0")
+  void subscribe_homeassistant_state(void (T::*callback)(std::string, std::string), const std::string &entity_id,
+                                     const std::string &attribute = "") {
     auto f = std::bind(callback, (T *) this, entity_id, std::placeholders::_1);
     global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
   }
 #else
   template<typename T>
-  void subscribe_homeassistant_state(void (T::*callback)(const std::string &), const std::string &entity_id,
+  void subscribe_homeassistant_state(void (T::*callback)(StringRef), const std::string &entity_id,
                                      const std::string &attribute = "") {
     static_assert(sizeof(T) == 0,
                   "subscribe_homeassistant_state() requires 'homeassistant_states: true' in the 'api:' section "
@@ -174,8 +199,24 @@ class CustomAPIDevice {
   }
 
   template<typename T>
-  void subscribe_homeassistant_state(void (T::*callback)(const std::string &, const std::string &),
-                                     const std::string &entity_id, const std::string &attribute = "") {
+  void subscribe_homeassistant_state(void (T::*callback)(std::string), const std::string &entity_id,
+                                     const std::string &attribute = "") {
+    static_assert(sizeof(T) == 0,
+                  "subscribe_homeassistant_state() requires 'homeassistant_states: true' in the 'api:' section "
+                  "of your YAML configuration");
+  }
+
+  template<typename T>
+  void subscribe_homeassistant_state(void (T::*callback)(const std::string &, StringRef), const std::string &entity_id,
+                                     const std::string &attribute = "") {
+    static_assert(sizeof(T) == 0,
+                  "subscribe_homeassistant_state() requires 'homeassistant_states: true' in the 'api:' section "
+                  "of your YAML configuration");
+  }
+
+  template<typename T>
+  void subscribe_homeassistant_state(void (T::*callback)(std::string, std::string), const std::string &entity_id,
+                                     const std::string &attribute = "") {
     static_assert(sizeof(T) == 0,
                   "subscribe_homeassistant_state() requires 'homeassistant_states: true' in the 'api:' section "
                   "of your YAML configuration");

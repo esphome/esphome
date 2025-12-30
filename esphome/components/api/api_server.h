@@ -10,6 +10,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
 #ifdef USE_LOGGER
@@ -195,7 +196,7 @@ class APIServer : public Component,
   struct HomeAssistantStateSubscription {
     const char *entity_id;  // Pointer to flash (internal) or heap (external)
     const char *attribute;  // Pointer to flash or nullptr (nullptr means no attribute)
-    std::function<void(const std::string &)> callback;
+    std::function<void(StringRef)> callback;
     bool once;
 
     // Dynamic storage for external components using std::string API (custom_api_device.h)
@@ -205,12 +206,16 @@ class APIServer : public Component,
   };
 
   // New const char* overload (for internal components - zero allocation)
-  void subscribe_home_assistant_state(const char *entity_id, const char *attribute,
-                                      std::function<void(const std::string &)> f);
-  void get_home_assistant_state(const char *entity_id, const char *attribute,
-                                std::function<void(const std::string &)> f);
+  void subscribe_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> f);
+  void get_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> f);
 
-  // Existing std::string overload (for custom_api_device.h - heap allocation)
+  // std::string overload with StringRef callback (for custom_api_device.h with zero-allocation callback)
+  void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
+                                      std::function<void(StringRef)> f);
+  void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
+                                std::function<void(StringRef)> f);
+
+  // Legacy std::string overload (for custom_api_device.h - converts StringRef to std::string for callback)
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                       std::function<void(const std::string &)> f);
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
@@ -238,8 +243,11 @@ class APIServer : public Component,
 #endif  // USE_API_NOISE
 #ifdef USE_API_HOMEASSISTANT_STATES
   // Helper methods to reduce code duplication
-  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(const std::string &)> f,
+  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(StringRef)> f,
                                bool once);
+  void add_state_subscription_(std::string entity_id, optional<std::string> attribute, std::function<void(StringRef)> f,
+                               bool once);
+  // Legacy helper: wraps std::string callback and delegates to StringRef version
   void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
                                std::function<void(const std::string &)> f, bool once);
 #endif  // USE_API_HOMEASSISTANT_STATES
