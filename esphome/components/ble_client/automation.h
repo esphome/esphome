@@ -10,8 +10,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-// Maximum bytes to log in hex format for BLE writes
-static constexpr size_t BLE_WRITE_MAX_LOG_BYTES = 32;
+// Maximum bytes to log in hex format for BLE writes (many logging buffers are 256 chars)
+static constexpr size_t BLE_WRITE_MAX_LOG_BYTES = 64;
 
 namespace esphome::ble_client {
 
