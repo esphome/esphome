@@ -1,10 +1,15 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+
+# Import validate_filters from sensor module for filter validation
+from esphome.components.sensor import validate_filters
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_DEVICE_CLASS,
+    CONF_FILTERS,
     CONF_ID,
+    CONF_MULTIPLY,
     CONF_STATE_CLASS,
     CONF_UNIT_OF_MEASUREMENT,
     DEVICE_CLASS_EMPTY,
@@ -47,6 +52,7 @@ VOLTAGE_CONFIG = {
     CONF_DEVICE_CLASS: DEVICE_CLASS_VOLTAGE,
     CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
     CONF_ACCURACY_DECIMALS: 2,
+    CONF_FILTERS: [{CONF_MULTIPLY: 0.01}],  # Device sends voltage * 100
 }
 
 ENERGY_CONFIG = {
@@ -122,10 +128,15 @@ def apply_tag_defaults(config):
         if prefix in SENSOR_CONFIGS["patterns"] and suffix.isdigit():
             defaults = SENSOR_CONFIGS["patterns"][prefix]
 
-    # Apply defaults if found, but only if not overridden by user
+    # Apply defaults if found
     if defaults:
         for key, value in defaults.items():
-            if key not in config:
+            if key == CONF_FILTERS:
+                # Validate and prepend default filters to user's filters
+                validated_filters = validate_filters(value)
+                user_filters = config.get(key, [])
+                config[key] = validated_filters + user_filters
+            elif key not in config:
                 config[key] = value
 
     return config
