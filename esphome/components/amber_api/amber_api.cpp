@@ -11,7 +11,7 @@ void AmberApiComponent::setup() { ESP_LOGCONFIG(TAG, "Setting up Amber API...");
 
 void AmberApiComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Amber API:");
-  ESP_LOGCONFIG(TAG, "  Site ID: %s", this->site_id_.c_str());
+  ESP_LOGCONFIG(TAG, "  Site ID: %s", this->site_id_);
   ESP_LOGCONFIG(TAG, "  Update Interval: %ums", (unsigned) this->get_update_interval());
 }
 
@@ -31,13 +31,14 @@ void AmberApiComponent::update() {
   }
 
   // Build the URL
-  std::string url = "https://api.amber.com.au/v1/sites/" + this->site_id_ + "/prices/current?next=1&resolution=5";
+  std::string url =
+      str_sprintf("https://api.amber.com.au/v1/sites/%s/prices/current?next=1&resolution=5", this->site_id_);
 
   // Build the authorization header
   std::list<http_request::Header> headers;
   http_request::Header auth_header;
   auth_header.name = "Authorization";
-  auth_header.value = "Bearer " + this->api_key_;
+  auth_header.value = str_sprintf("Bearer %s", this->api_key_);
   headers.push_back(auth_header);
 
   ESP_LOGD(TAG, "Requesting Amber API data from: %s", url.c_str());
@@ -137,18 +138,17 @@ void AmberApiComponent::parse_response_(const std::string &response_body) {
         ESP_LOGD(TAG, "General forecast price: %.2f $/kWh", per_kwh);
       }
     } else if (channel_type == "feedIn") {
-      // For feed-in, use spotPerKwh instead of perKwh
-      if (obj["spotPerKwh"].isNull()) {
+      if (obj["perKwh"].isNull()) {
         continue;
       }
-      float spot_per_kwh = obj["spotPerKwh"].as<float>() / 100.0f;
+      float feed_in_per_kwh = obj["perKwh"].as<float>() / -100.0f;
 
       if (interval_type == "CurrentInterval") {
-        this->data_.feedin_price = spot_per_kwh;
-        ESP_LOGD(TAG, "Feed-in current price: %.2f $/kWh", spot_per_kwh);
+        this->data_.feedin_price = feed_in_per_kwh;
+        ESP_LOGD(TAG, "Feed-in current price: %.2f $/kWh", feed_in_per_kwh);
       } else if (interval_type == "ForecastInterval") {
-        this->data_.feedin_forecast_price = spot_per_kwh;
-        ESP_LOGD(TAG, "Feed-in forecast price: %.2f $/kWh", spot_per_kwh);
+        this->data_.feedin_forecast_price = feed_in_per_kwh;
+        ESP_LOGD(TAG, "Feed-in forecast price: %.2f $/kWh", feed_in_per_kwh);
       }
     }
   }

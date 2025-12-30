@@ -32,8 +32,8 @@ class AmberApiComponent : public PollingComponent {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  void set_api_key(const std::string &api_key) { this->api_key_ = api_key; }
-  void set_site_id(const std::string &site_id) { this->site_id_ = site_id; }
+  void set_api_key(const char *api_key) { this->api_key_ = api_key; }
+  void set_site_id(const char *site_id) { this->site_id_ = site_id; }
   void set_http_request(http_request::HttpRequestComponent *http_request) { this->http_request_ = http_request; }
 
   void register_listener(AmberApiListener *listener) { this->listeners_.push_back(listener); }
@@ -51,8 +51,8 @@ class AmberApiComponent : public PollingComponent {
   void parse_response_(const std::string &response_body);
   void notify_listeners_();
 
-  std::string api_key_;
-  std::string site_id_;
+  const char *api_key_{};
+  const char *site_id_{};
   http_request::HttpRequestComponent *http_request_{nullptr};
 
   std::vector<AmberApiListener *> listeners_;
