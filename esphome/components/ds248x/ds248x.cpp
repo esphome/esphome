@@ -1,5 +1,4 @@
 #include "ds248x.h"
-#include "one_wire_bus.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
@@ -78,15 +77,15 @@ void DS248xComponent::dump_config() {
   }
 }
 
-void DS248xComponent::register_bus(DS248xOneWireBus *bus) { this->buses_.push_back(bus); }
-
 // --- Internal Helpers ---
+
+static constexpr uint32_t BUSY_TIMEOUT_MS = 50;
 
 bool DS248xComponent::set_read_pointer_(uint8_t ptr) { return this->write_byte(DS248X_COMMAND_SETREADPTR, ptr); }
 
 bool DS248xComponent::wait_busy_() {
   uint32_t start = millis();
-  while (millis() - start < this->busy_timeout_ms_) {
+  while (millis() - start < BUSY_TIMEOUT_MS) {
     uint8_t status;
     if (this->read(&status, 1) != i2c::ERROR_OK) {
       delayMicroseconds(100);
@@ -201,26 +200,11 @@ bool DS248xComponent::set_strong_pullup_mode_(bool enable) {
   return this->set_read_pointer_(DS248X_POINTER_STATUS);
 }
 
-bool DS248xComponent::recover_device_(const char *reason) {
-  if (this->recovering_) {
-    ESP_LOGW(TAG, "Recovery already in progress, skipping (%s)", reason);
-    return false;
-  }
-  this->recovering_ = true;
-  ESP_LOGW(TAG, "Attempting DS248x recovery after %s", reason);
-  if (!this->device_reset_()) {
-    this->recovering_ = false;
-    return false;
-  }
-  if (!this->device_configure_()) {
-    this->recovering_ = false;
-    return false;
-  }
-  this->recovering_ = false;
-  return true;
-}
-
 // --- Channel Selection ---
+
+// Channel select codes: write code -> expected read code
+static constexpr uint8_t CHANNEL_WRITE_CODES[8] = {0xF0, 0xE1, 0xD2, 0xC3, 0xB4, 0xA5, 0x96, 0x87};
+static constexpr uint8_t CHANNEL_READ_CODES[8] = {0xB8, 0xB1, 0xAA, 0xA3, 0x9C, 0x95, 0x8E, 0x87};
 
 bool DS248xComponent::select_channel(uint8_t channel) {
   if (this->channel_count_ <= 1)
@@ -231,37 +215,7 @@ bool DS248xComponent::select_channel(uint8_t channel) {
   if (this->current_channel_ == channel)
     return true;
 
-  uint8_t ch_code = 0;
-  switch (channel) {
-    case 0:
-      ch_code = 0xF0;
-      break;
-    case 1:
-      ch_code = 0xE1;
-      break;
-    case 2:
-      ch_code = 0xD2;
-      break;
-    case 3:
-      ch_code = 0xC3;
-      break;
-    case 4:
-      ch_code = 0xB4;
-      break;
-    case 5:
-      ch_code = 0xA5;
-      break;
-    case 6:
-      ch_code = 0x96;
-      break;
-    case 7:
-      ch_code = 0x87;
-      break;
-    default:
-      return false;
-  }
-
-  if (!this->write_byte(DS248X_COMMAND_CHANNELSELECT, ch_code)) {
+  if (!this->write_byte(DS248X_COMMAND_CHANNELSELECT, CHANNEL_WRITE_CODES[channel])) {
     this->current_channel_ = -1;
     return false;
   }
@@ -272,36 +226,8 @@ bool DS248xComponent::select_channel(uint8_t channel) {
     return false;
   }
 
-  uint8_t expected_read = 0;
-  switch (channel) {
-    case 0:
-      expected_read = 0xB8;
-      break;
-    case 1:
-      expected_read = 0xB1;
-      break;
-    case 2:
-      expected_read = 0xAA;
-      break;
-    case 3:
-      expected_read = 0xA3;
-      break;
-    case 4:
-      expected_read = 0x9C;
-      break;
-    case 5:
-      expected_read = 0x95;
-      break;
-    case 6:
-      expected_read = 0x8E;
-      break;
-    case 7:
-      expected_read = 0x87;
-      break;
-  }
-
-  if (read_code != expected_read) {
-    ESP_LOGW(TAG, "Channel select failed! Expected 0x%02x, got 0x%02x", expected_read, read_code);
+  if (read_code != CHANNEL_READ_CODES[channel]) {
+    ESP_LOGW(TAG, "Channel select failed! Expected 0x%02x, got 0x%02x", CHANNEL_READ_CODES[channel], read_code);
     this->current_channel_ = -1;
     return false;
   }
@@ -391,35 +317,6 @@ bool DS248xComponent::ow_read_byte(uint8_t &byte) {
   if (this->read(&byte, 1) != i2c::ERROR_OK)
     return false;
 
-  return true;
-}
-
-bool DS248xComponent::ow_write_bit(bool bit) {
-  if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
-    return false;
-
-  uint8_t cmd = (bit ? 0x87 : 0x07);
-  this->write(&cmd, 1);
-
-  return this->wait_busy_();
-}
-
-bool DS248xComponent::ow_read_bit(bool &bit) {
-  if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
-    return false;
-
-  uint8_t cmd = 0x87;
-  this->write(&cmd, 1);
-
-  if (!this->wait_busy_())
-    return false;
-
-  uint8_t status;
-  if (this->read(&status, 1) != i2c::ERROR_OK)
-    return false;
-
-  bit = (status & DS248X_STATUS_SBR) != 0;
-  ESP_LOGVV(TAG, "ow_read_bit: status=0x%02x, bit=%d", status, bit);
   return true;
 }
 

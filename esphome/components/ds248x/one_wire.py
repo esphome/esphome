@@ -66,6 +66,3 @@ async def to_code(config):
     parent = await cg.get_variable(config[CONF_DS248X_ID])
     cg.add(var.set_parent(parent))
     cg.add(var.set_channel(config[CONF_CHANNEL]))
-
-    # Register this bus with the parent for lifecycle management
-    cg.add(parent.register_bus(var))
