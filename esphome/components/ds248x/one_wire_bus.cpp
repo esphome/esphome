@@ -120,7 +120,7 @@ uint64_t DS248xOneWireBus::search_int() {
   }
 
   // Send Search ROM command (0xF0)
-  if (!this->parent_->ow_write_byte(0xF0)) {
+  if (!this->parent_->ow_write_byte(ONEWIRE_ROM_SEARCH)) {
     this->reset_search();
     return 0;
   }

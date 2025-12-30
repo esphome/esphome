@@ -1,5 +1,10 @@
 #pragma once
 
+// DS248x I2C-to-1-Wire Bridge Family
+// Datasheet: https://www.analog.com/media/en/technical-documentation/data-sheets/ds2482-100.pdf
+// Datasheet: https://www.analog.com/media/en/technical-documentation/data-sheets/ds2482-800.pdf
+// Datasheet: https://www.analog.com/media/en/technical-documentation/data-sheets/ds2484.pdf
+
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
@@ -38,6 +43,26 @@ static const uint8_t DS248X_CONFIG_ACTIVE_PULLUP = (1 << 0);
 static const uint8_t DS248X_CONFIG_STRONG_PULLUP = (1 << 2);
 static const uint8_t DS248X_CONFIG_OVERDRIVE = (1 << 3);
 
+// 1-Wire ROM Commands
+static const uint8_t ONEWIRE_ROM_SEARCH = 0xF0;
+static const uint8_t ONEWIRE_ROM_ALARM_SEARCH = 0xEC;
+static const uint8_t ONEWIRE_ROM_READ = 0x33;
+static const uint8_t ONEWIRE_ROM_MATCH = 0x55;
+static const uint8_t ONEWIRE_ROM_SKIP = 0xCC;
+
+// DS18x20 Function Commands
+static const uint8_t DS18X20_CMD_CONVERT_T = 0x44;
+static const uint8_t DS18X20_CMD_READ_SCRATCHPAD = 0xBE;
+static const uint8_t DS18X20_CMD_WRITE_SCRATCHPAD = 0x4E;
+static const uint8_t DS18X20_CMD_COPY_SCRATCHPAD = 0x48;
+
+// DS18x20 Family Codes
+static const uint8_t DS18B20_FAMILY_CODE = 0x28;
+static const uint8_t DS1822_FAMILY_CODE = 0x22;
+static const uint8_t DS1825_FAMILY_CODE = 0x3B;
+static const uint8_t DS28EA00_FAMILY_CODE = 0x42;
+static const uint8_t DS18S20_FAMILY_CODE = 0x10;
+
 class DS248xSensor;
 class DS248xOneWireBus;
 
@@ -64,37 +89,37 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   void on_shutdown() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  void set_sleep_pin(InternalGPIOPin *pin) { sleep_pin_ = pin; }
-  void set_bus_sleep(bool enabled) { bus_sleep_ = enabled; }
-  void set_hub_sleep(bool enabled) { hub_sleep_ = enabled; }
-  void set_channel_count(uint8_t count) { channel_count_ = count; }
-  void set_active_pullup(bool enabled) { active_pullup_ = enabled; }
-  void set_strong_pullup(bool enabled) { strong_pullup_enabled_ = enabled; }
-  void set_overdrive_speed(bool enabled) { overdrive_speed_ = enabled; }
-  void set_conversion_mode(ConversionMode mode) { conversion_mode_ = mode; }
-  void set_conversion_mode(uint8_t mode) { conversion_mode_ = static_cast<ConversionMode>(mode); }
-  void set_alarm_search_on_boot(bool enabled) { alarm_search_on_boot_ = enabled; }
+  void set_sleep_pin(InternalGPIOPin *pin) { this->sleep_pin_ = pin; }
+  void set_bus_sleep(bool enabled) { this->bus_sleep_ = enabled; }
+  void set_hub_sleep(bool enabled) { this->hub_sleep_ = enabled; }
+  void set_channel_count(uint8_t count) { this->channel_count_ = count; }
+  void set_active_pullup(bool enabled) { this->active_pullup_ = enabled; }
+  void set_strong_pullup(bool enabled) { this->strong_pullup_enabled_ = enabled; }
+  void set_overdrive_speed(bool enabled) { this->overdrive_speed_ = enabled; }
+  void set_conversion_mode(ConversionMode mode) { this->conversion_mode_ = mode; }
+  void set_conversion_mode(uint8_t mode) { this->conversion_mode_ = static_cast<ConversionMode>(mode); }
+  void set_alarm_search_on_boot(bool enabled) { this->alarm_search_on_boot_ = enabled; }
 
   // DS2484 Timing Parameters
   void set_val_trstl(uint8_t val) {
-    ds2484_trstl_ = val;
-    ds2484_mode_ = true;
+    this->ds2484_trstl_ = val;
+    this->ds2484_mode_ = true;
   }
   void set_val_tmsp(uint8_t val) {
-    ds2484_tmsp_ = val;
-    ds2484_mode_ = true;
+    this->ds2484_tmsp_ = val;
+    this->ds2484_mode_ = true;
   }
   void set_val_tw0l(uint8_t val) {
-    ds2484_tw0l_ = val;
-    ds2484_mode_ = true;
+    this->ds2484_tw0l_ = val;
+    this->ds2484_mode_ = true;
   }
   void set_val_trec0(uint8_t val) {
-    ds2484_trec0_ = val;
-    ds2484_mode_ = true;
+    this->ds2484_trec0_ = val;
+    this->ds2484_mode_ = true;
   }
   void set_val_rwpu(uint8_t val) {
-    ds2484_rwpu_ = val;
-    ds2484_mode_ = true;
+    this->ds2484_rwpu_ = val;
+    this->ds2484_mode_ = true;
   }
 
   void register_sensor(DS248xSensor *sensor);
@@ -171,20 +196,20 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
 
 class DS248xSensor : public sensor::Sensor {
  public:
-  void set_parent(DS248xComponent *parent) { parent_ = parent; }
-  void set_address(uint64_t address) { address_ = address; }
-  void set_channel(uint8_t channel) { channel_ = channel; }
-  void set_index(uint8_t index) { index_ = index; }  // For compatibility if needed
-  void set_resolution(uint8_t resolution) { resolution_ = resolution; }
-  void set_parasitic_mode(bool parasitic_mode) { parasitic_mode_ = parasitic_mode; }
+  void set_parent(DS248xComponent *parent) { this->parent_ = parent; }
+  void set_address(uint64_t address) { this->address_ = address; }
+  void set_channel(uint8_t channel) { this->channel_ = channel; }
+  void set_index(uint8_t index) { this->index_ = index; }  // For compatibility if needed
+  void set_resolution(uint8_t resolution) { this->resolution_ = resolution; }
+  void set_parasitic_mode(bool parasitic_mode) { this->parasitic_mode_ = parasitic_mode; }
 
-  uint64_t get_address() const { return address_; }
-  uint8_t get_channel() const { return channel_; }
-  uint8_t get_resolution() const { return resolution_; }
-  bool get_parasitic_mode() const { return parasitic_mode_; }
+  uint64_t get_address() const { return this->address_; }
+  uint8_t get_channel() const { return this->channel_; }
+  uint8_t get_resolution() const { return this->resolution_; }
+  bool get_parasitic_mode() const { return this->parasitic_mode_; }
 
-  bool has_resolution_update_attempted() const { return resolution_update_attempted_; }
-  void set_resolution_update_attempted(bool attempted) { resolution_update_attempted_ = attempted; }
+  bool has_resolution_update_attempted() const { return this->resolution_update_attempted_; }
+  void set_resolution_update_attempted(bool attempted) { this->resolution_update_attempted_ = attempted; }
 
   std::string get_address_name();
 

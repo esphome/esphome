@@ -178,7 +178,7 @@ void DS248xComponent::process_next_channel_(uint8_t channel_idx) {
     delay(2);
   }
 
-  if (!this->ow_write_byte(0x44, needs_strong_pullup)) {
+  if (!this->ow_write_byte(DS18X20_CMD_CONVERT_T, needs_strong_pullup)) {
     if (needs_strong_pullup) {
       this->set_strong_pullup_mode_(false);
     }
@@ -359,7 +359,7 @@ void DS248xComponent::process_sensor_readout_(uint8_t channel_idx, uint8_t senso
   }
 
   // Read Scratchpad (BE)
-  if (!this->ow_write_byte(0xBE)) {
+  if (!this->ow_write_byte(DS18X20_CMD_READ_SCRATCHPAD)) {
     this->defer([this, channel_idx, next_idx]() { this->process_sensor_readout_(channel_idx, next_idx); });
     return;
   }
@@ -382,7 +382,8 @@ void DS248xComponent::process_sensor_readout_(uint8_t channel_idx, uint8_t senso
 
   uint8_t family_code = sensor->get_address() & 0xFF;
 
-  if (family_code == 0x28 || family_code == 0x22 || family_code == 0x3B || family_code == 0x42) {
+  if (family_code == DS18B20_FAMILY_CODE || family_code == DS1822_FAMILY_CODE || family_code == DS1825_FAMILY_CODE ||
+      family_code == DS28EA00_FAMILY_CODE) {
     // DS18B20 (0x28), DS1822 (0x22), DS1825 (0x3B), DS28EA00 (0x42)
     int16_t temp_raw = (scratchpad[1] << 8) | scratchpad[0];
     float temp_c = temp_raw / 16.0f;
@@ -400,10 +401,10 @@ void DS248xComponent::process_sensor_readout_(uint8_t channel_idx, uint8_t senso
       // We must reset before starting a new command sequence (Write Scratchpad)
       if (this->ow_reset(presence) && presence) {
         if (this->match_rom(sensor->get_address())) {
-          this->ow_write_byte(0x4E);              // Write Scratchpad
-          this->ow_write_byte(scratchpad[2]);     // Th
-          this->ow_write_byte(scratchpad[3]);     // Tl
-          this->ow_write_byte(desired_res_byte);  // Config
+          this->ow_write_byte(DS18X20_CMD_WRITE_SCRATCHPAD);  // Write Scratchpad
+          this->ow_write_byte(scratchpad[2]);                 // Th
+          this->ow_write_byte(scratchpad[3]);                 // Tl
+          this->ow_write_byte(desired_res_byte);              // Config
 
           // Copy to EEPROM to make it permanent
           // We must reset again before the next command sequence (Copy Scratchpad)
@@ -415,7 +416,7 @@ void DS248xComponent::process_sensor_readout_(uint8_t channel_idx, uint8_t senso
                 this->set_strong_pullup_mode_(true);
               }
 
-              this->ow_write_byte(0x48);  // Copy Scratchpad
+              this->ow_write_byte(DS18X20_CMD_COPY_SCRATCHPAD);  // Copy Scratchpad
 
               // ASYNC WAIT: Schedule callback instead of delay(10)
               this->set_timeout(10, [this, channel_idx, next_idx, use_spu]() {
@@ -435,7 +436,7 @@ void DS248xComponent::process_sensor_readout_(uint8_t channel_idx, uint8_t senso
       }
     }
 
-  } else if (family_code == 0x10) {
+  } else if (family_code == DS18S20_FAMILY_CODE) {
     // DS18S20 (0x10) - Old model, 9-bit resolution but high precision mode available
     // Standard 9-bit reading:
     // float temp_c = ((scratchpad[0] >> 1) | (scratchpad[1] << 7)) - 0.25 + ((float)(scratchpad[7] - scratchpad[6]) /
@@ -825,10 +826,10 @@ bool DS248xComponent::ow_read_bit(bool &bit) {
   return true;
 }
 
-bool DS248xComponent::skip_rom() { return this->ow_write_byte(0xCC); }
+bool DS248xComponent::skip_rom() { return this->ow_write_byte(ONEWIRE_ROM_SKIP); }
 
 bool DS248xComponent::match_rom(uint64_t address) {
-  if (!this->ow_write_byte(0x55))
+  if (!this->ow_write_byte(ONEWIRE_ROM_MATCH))
     return false;  // Match ROM
   for (int i = 0; i < 8; i++) {
     if (!this->ow_write_byte(static_cast<uint8_t>(address >> (i * 8))))
@@ -855,9 +856,9 @@ uint8_t DS248xComponent::search_triplet(bool search_direction) {
   return status;
 }
 
-void DS248xComponent::search() { this->run_search_(0xF0, "Search ROM"); }
+void DS248xComponent::search() { this->run_search_(ONEWIRE_ROM_SEARCH, "Search ROM"); }
 
-void DS248xComponent::alarm_search() { this->run_search_(0xEC, "Alarm Search"); }
+void DS248xComponent::alarm_search() { this->run_search_(ONEWIRE_ROM_ALARM_SEARCH, "Alarm Search"); }
 
 void DS248xComponent::run_search_(uint8_t command, const char *label) {  // NOLINT(readability-identifier-naming)
   ESP_LOGI(TAG, "%s...", label);

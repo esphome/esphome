@@ -13,7 +13,6 @@ from esphome.const import (
 
 CODEOWNERS = ["@tomwellnitz"]
 MULTI_CONF = True
-AUTO_LOAD = ["sensor"]
 DEPENDENCIES = ["i2c"]
 
 CONF_DS248X_ID = "ds248x_id"
@@ -31,6 +30,7 @@ CONF_DS2484_WRITE_0_LOW_TIME = "ds2484_write_0_low_time"
 CONF_DS2484_RECOVERY_TIME = "ds2484_recovery_time"
 CONF_DS2484_ACTIVE_PULLUP_RESISTANCE = "ds2484_active_pullup_resistance"
 CONF_ALARM_SEARCH = "alarm_search"
+CONF_PARASITIC_MODE = "parasitic_mode"
 
 ds248x_ns = cg.esphome_ns.namespace("ds248x")
 DS248xComponent = ds248x_ns.class_(
@@ -142,8 +142,8 @@ async def register_ds248x_sensor(var, config):
     if CONF_RESOLUTION in config:
         cg.add(var.set_resolution(config[CONF_RESOLUTION]))
 
-    if "parasitic_mode" in config:
-        cg.add(var.set_parasitic_mode(config["parasitic_mode"]))
+    if CONF_PARASITIC_MODE in config:
+        cg.add(var.set_parasitic_mode(config[CONF_PARASITIC_MODE]))
 
     cg.add(parent.register_sensor(var))
 
@@ -159,7 +159,7 @@ def ds248x_sensor_schema():
         cv.Optional(CONF_INDEX): cv.positive_int,
         cv.Optional(CONF_CHANNEL): cv.positive_int,
         cv.Optional(CONF_RESOLUTION, default=12): cv.int_range(min=9, max=12),
-        cv.Optional("parasitic_mode", default=False): cv.boolean,
+        cv.Optional(CONF_PARASITIC_MODE, default=False): cv.boolean,
     }
 
     return cv.Schema(schema)
