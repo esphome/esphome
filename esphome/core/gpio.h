@@ -9,14 +9,16 @@
 namespace esphome {
 
 /// Maximum buffer size for dump_summary output
-static constexpr size_t GPIO_SUMMARY_MAX_LEN = 48;
+inline constexpr size_t GPIO_SUMMARY_MAX_LEN = 48;
 
 #define LOG_PIN(prefix, pin) \
-  if ((pin) != nullptr) { \
-    char _pin_buf[GPIO_SUMMARY_MAX_LEN]; \
-    (pin)->dump_summary(_pin_buf, sizeof(_pin_buf)); \
-    ESP_LOGCONFIG(TAG, prefix "%s", _pin_buf); \
-  }
+  do { \
+    if ((pin) != nullptr) { \
+      char pin_buf_[GPIO_SUMMARY_MAX_LEN]; \
+      (pin)->dump_summary(pin_buf_, sizeof(pin_buf_)); \
+      ESP_LOGCONFIG(TAG, prefix "%s", pin_buf_); \
+    } \
+  } while (false)
 
 // put GPIO flags in a namespace to not pollute esphome namespace
 namespace gpio {
@@ -75,8 +77,9 @@ class GPIOPin {
 
   /// Write a summary of this pin to the provided buffer.
   /// @param buffer The buffer to write to
-  /// @param len The size of the buffer
-  /// @return The number of characters written (excluding null terminator)
+  /// @param len The size of the buffer (must be > 0)
+  /// @return The number of characters that would be written (excluding null terminator),
+  ///         which may exceed len-1 if truncation occurred (snprintf semantics)
   virtual size_t dump_summary(char *buffer, size_t len) const;
 
   /// Get a summary of this pin as a string.
@@ -126,6 +129,8 @@ class InternalGPIOPin : public GPIOPin {
 
 // Default implementation bridges to old std::string method for backwards compatibility.
 inline size_t GPIOPin::dump_summary(char *buffer, size_t len) const {
+  if (len == 0)
+    return 0;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   std::string s = this->dump_summary();
@@ -133,7 +138,7 @@ inline size_t GPIOPin::dump_summary(char *buffer, size_t len) const {
   size_t copy_len = std::min(s.size(), len - 1);
   memcpy(buffer, s.c_str(), copy_len);
   buffer[copy_len] = '\0';
-  return copy_len;
+  return s.size();  // Return would-be length (snprintf semantics)
 }
 
 // Default implementation returns empty string.
