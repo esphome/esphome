@@ -30,7 +30,7 @@ CONFIG_SCHEMA = (
     sensor.sensor_schema(
         AmberApiSensor,
         unit_of_measurement=UNIT_DOLLARS_PER_KWH,
-        accuracy_decimals=4,
+        accuracy_decimals=2,
         device_class=DEVICE_CLASS_MONETARY,
         state_class=STATE_CLASS_MEASUREMENT,
         icon=ICON_CURRENCY_USD,

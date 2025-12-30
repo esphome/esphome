@@ -21,6 +21,7 @@ struct AmberApiData {
 
 class AmberApiListener {
  public:
+  virtual ~AmberApiListener() = default;
   virtual void on_amber_api_update(const AmberApiData &data) = 0;
 };
 

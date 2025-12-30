@@ -23,7 +23,7 @@ void AmberApiSensor::on_amber_api_update(const AmberApiData &data) {
       break;
   }
   if (!std::isnan(value)) {
-    this->publish_state(value / 100.0f);  // Convert cents to dollars
+    this->publish_state(value);  // Convert cents to dollars
   }
 }
 

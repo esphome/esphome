@@ -58,8 +58,10 @@ void AmberApiComponent::update() {
   }
 
   // Read the response body
-  std::string response_body;
-  response_body.reserve(4096);
+  std::string response_body{};
+  if (container->content_length > 0) {
+    response_body.reserve(container->content_length);
+  }
 
   uint8_t buffer[512];
   while (container->get_bytes_read() < container->content_length) {
@@ -116,7 +118,7 @@ void AmberApiComponent::parse_response_(const std::string &response_body) {
       if (obj["perKwh"].isNull()) {
         continue;
       }
-      float per_kwh = obj["perKwh"].as<float>();
+      float per_kwh = obj["perKwh"].as<float>() / 100.0f;
 
       if (interval_type == "CurrentInterval") {
         this->data_.general_price = per_kwh;
@@ -139,7 +141,7 @@ void AmberApiComponent::parse_response_(const std::string &response_body) {
       if (obj["spotPerKwh"].isNull()) {
         continue;
       }
-      float spot_per_kwh = obj["spotPerKwh"].as<float>();
+      float spot_per_kwh = obj["spotPerKwh"].as<float>() / 100.0f;
 
       if (interval_type == "CurrentInterval") {
         this->data_.feedin_price = spot_per_kwh;
