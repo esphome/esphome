@@ -789,7 +789,16 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     exit_code = compile_program(args, config)
     if exit_code != 0:
         return exit_code
-    _LOGGER.info("Successfully compiled program.")
+    if CORE.is_host:
+        from esphome.platformio_api import get_idedata
+
+        idedata = get_idedata(config)
+        if idedata is None:
+            return 1
+        program_path = idedata.raw["prog_path"]
+        _LOGGER.info("Successfully compiled program to path '%s'", program_path)
+    else:
+        _LOGGER.info("Successfully compiled program.")
     return 0
 
 
@@ -843,6 +852,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         if idedata is None:
             return 1
         program_path = idedata.raw["prog_path"]
+        _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
     # Get devices, resolving special identifiers like OTA
