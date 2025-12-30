@@ -792,10 +792,7 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     if CORE.is_host:
         from esphome.platformio_api import get_idedata
 
-        idedata = get_idedata(config)
-        if idedata is None:
-            return 1
-        program_path = idedata.raw["prog_path"]
+        program_path = str(get_idedata(config).firmware_elf_path)
         _LOGGER.info("Successfully compiled program to path '%s'", program_path)
     else:
         _LOGGER.info("Successfully compiled program.")
@@ -848,10 +845,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     if CORE.is_host:
         from esphome.platformio_api import get_idedata
 
-        idedata = get_idedata(config)
-        if idedata is None:
-            return 1
-        program_path = idedata.raw["prog_path"]
+        program_path = str(get_idedata(config).firmware_elf_path)
         _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
