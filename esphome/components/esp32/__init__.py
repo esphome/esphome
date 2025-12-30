@@ -375,6 +375,23 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(3, 1, 1): cv.Version(53, 3, 11),
     cv.Version(3, 1, 0): cv.Version(53, 3, 10),
 }
+# Maps Arduino framework versions to a compatible ESP-IDF version
+# These versions correspond to pioarduino/esp-idf releases
+# See: https://github.com/pioarduino/esp-idf/releases
+ARDUINO_IDF_VERSION_LOOKUP = {
+    cv.Version(3, 3, 5): cv.Version(5, 5, 2),
+    cv.Version(3, 3, 4): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 3): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 2): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 1): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 0): cv.Version(5, 5, 0),
+    cv.Version(3, 2, 1): cv.Version(5, 4, 2),
+    cv.Version(3, 2, 0): cv.Version(5, 4, 2),
+    cv.Version(3, 1, 3): cv.Version(5, 3, 2),
+    cv.Version(3, 1, 2): cv.Version(5, 3, 2),
+    cv.Version(3, 1, 1): cv.Version(5, 3, 1),
+    cv.Version(3, 1, 0): cv.Version(5, 3, 0),
+}
 
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
@@ -729,12 +746,14 @@ FRAMEWORK_SCHEMA = cv.Schema(
 )
 
 
+# Remove this class in 2026.7.0
 class _FrameworkMigrationWarning:
     shown = False
 
 
 def _show_framework_migration_message(name: str, variant: str) -> None:
-    """Show a friendly message about framework migration when defaulting to Arduino."""
+    """Show a message about the framework default change and how to switch back to Arduino."""
+    # Remove this function in 2026.7.0
     if _FrameworkMigrationWarning.shown:
         return
     _FrameworkMigrationWarning.shown = True
@@ -744,41 +763,27 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
     message = (
         color(
             AnsiFore.BOLD_CYAN,
-            f"💡 IMPORTANT: {name} doesn't have a framework specified!",
+            f"💡 NOTICE: {name} does not have a framework specified.",
         )
         + "\n\n"
-        + f"Currently, {variant} defaults to the Arduino framework.\n"
-        + color(AnsiFore.YELLOW, "This will change to ESP-IDF in ESPHome 2026.1.0.\n")
+        + f"Starting with ESPHome 2026.1.0, the default framework for {variant} is ESP-IDF.\n"
+        + "(We've been warning about this change since ESPHome 2025.8.0)\n"
         + "\n"
-        + "Note: Newer ESP32 variants (C6, H2, P4, etc.) already use ESP-IDF by default.\n"
-        + "\n"
-        + "Why change? ESP-IDF offers:\n"
-        + color(AnsiFore.GREEN, "  ✨ Up to 40% smaller binaries\n")
-        + color(AnsiFore.GREEN, "  🚀 Better performance and optimization\n")
+        + "Why we made this change:\n"
+        + color(AnsiFore.GREEN, "  ✨ Up to 40% smaller firmware binaries\n")
         + color(AnsiFore.GREEN, "  ⚡ 2-3x faster compile times\n")
-        + color(AnsiFore.GREEN, "  📦 Custom-built firmware for your exact needs\n")
-        + color(
-            AnsiFore.GREEN,
-            "  🔧 Active development and testing by ESPHome developers\n",
-        )
+        + color(AnsiFore.GREEN, "  🚀 Better performance and newer features\n")
+        + color(AnsiFore.GREEN, "  🔧 More actively maintained by ESPHome\n")
         + "\n"
-        + "Trade-offs:\n"
-        + color(AnsiFore.YELLOW, "  🔄 Some components need migration\n")
+        + "To continue using Arduino, add this to your YAML under 'esp32:':\n"
+        + color(AnsiFore.WHITE, "    framework:\n")
+        + color(AnsiFore.WHITE, "      type: arduino\n")
         + "\n"
-        + "What should I do?\n"
-        + color(AnsiFore.CYAN, "  Option 1")
-        + ": Migrate to ESP-IDF (recommended)\n"
-        + "    Add this to your YAML under 'esp32:':\n"
-        + color(AnsiFore.WHITE, "      framework:\n")
-        + color(AnsiFore.WHITE, "        type: esp-idf\n")
+        + "To silence this message with ESP-IDF, explicitly set:\n"
+        + color(AnsiFore.WHITE, "    framework:\n")
+        + color(AnsiFore.WHITE, "      type: esp-idf\n")
         + "\n"
-        + color(AnsiFore.CYAN, "  Option 2")
-        + ": Keep using Arduino (still supported)\n"
-        + "    Add this to your YAML under 'esp32:':\n"
-        + color(AnsiFore.WHITE, "      framework:\n")
-        + color(AnsiFore.WHITE, "        type: arduino\n")
-        + "\n"
-        + "Need help? Check out the migration guide:\n"
+        + "Migration guide: "
         + color(
             AnsiFore.BLUE,
             "https://esphome.io/guides/esp32_arduino_to_idf/",
@@ -793,13 +798,13 @@ def _set_default_framework(config):
         config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA({})
     if CONF_TYPE not in config[CONF_FRAMEWORK]:
         variant = config[CONF_VARIANT]
+        config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ESP_IDF
+        # Show migration message for variants that previously defaulted to Arduino
+        # Remove this message in 2026.7.0
         if variant in ARDUINO_ALLOWED_VARIANTS:
-            config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ARDUINO
             _show_framework_migration_message(
                 config.get(CONF_NAME, "This device"), variant
             )
-        else:
-            config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ESP_IDF
 
     return config
 
@@ -992,6 +997,13 @@ async def to_code(config):
         )
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
+
+        # Add IDF framework source for Arduino builds to ensure it uses the same version as
+        # the ESP-IDF framework
+        if (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
+            cg.add_platformio_option(
+                "platform_packages", [_format_framework_espidf_version(idf_ver, None)]
+            )
 
         # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
         if get_esp32_variant() == VARIANT_ESP32S2:
