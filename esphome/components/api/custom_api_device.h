@@ -149,7 +149,9 @@ class CustomAPIDevice {
   void subscribe_homeassistant_state(void (T::*callback)(std::string), const std::string &entity_id,
                                      const std::string &attribute = "") {
     auto f = std::bind(callback, (T *) this, std::placeholders::_1);
-    global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
+    // Explicit type to disambiguate overload resolution
+    global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute),
+                                                      std::function<void(const std::string &)>(f));
   }
 
   /** Subscribe to the state (or attribute state) of an entity from Home Assistant.
@@ -187,7 +189,9 @@ class CustomAPIDevice {
   void subscribe_homeassistant_state(void (T::*callback)(std::string, std::string), const std::string &entity_id,
                                      const std::string &attribute = "") {
     auto f = std::bind(callback, (T *) this, entity_id, std::placeholders::_1);
-    global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
+    // Explicit type to disambiguate overload resolution
+    global_api_server->subscribe_home_assistant_state(entity_id, optional<std::string>(attribute),
+                                                      std::function<void(const std::string &)>(f));
   }
 #else
   template<typename T>
