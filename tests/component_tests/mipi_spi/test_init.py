@@ -1,4 +1,4 @@
-"""Tests for mpip_spi configuration validation."""
+"""Tests for mipi_spi configuration validation."""
 
 from collections.abc import Callable
 from pathlib import Path
