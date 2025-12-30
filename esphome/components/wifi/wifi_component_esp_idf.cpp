@@ -483,6 +483,12 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   s_sta_connected = false;
   s_sta_connect_error = false;
   s_sta_connect_not_found = false;
+  // Reset IP address flags - ensures we don't report connected before DHCP completes
+  // (IP_EVENT_STA_LOST_IP doesn't always fire on disconnect)
+  this->got_ipv4_address_ = false;
+#if USE_NETWORK_IPV6
+  this->num_ipv6_addresses_ = 0;
+#endif
 
   err = esp_wifi_connect();
   if (err != ESP_OK) {
