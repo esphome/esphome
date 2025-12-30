@@ -53,7 +53,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
         }
     ),
-    only_on_variant(supported=[VARIANT_ESP32S2, VARIANT_ESP32S3, VARIANT_ESP32P4]),
+    only_on_variant(supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3]),
 )
 
 
