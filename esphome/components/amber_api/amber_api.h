@@ -27,18 +27,16 @@ class AmberApiListener {
 
 class AmberApiComponent : public PollingComponent {
  public:
-  void setup() override;
+  AmberApiComponent(const char *url, const char *auth_header, http_request::HttpRequestComponent *http_request)
+      : url_(url), auth_header_(auth_header), http_request_(http_request){};
+
   void update() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  void set_api_key(const char *api_key) { this->api_key_ = api_key; }
-  void set_site_id(const char *site_id) { this->site_id_ = site_id; }
-  void set_http_request(http_request::HttpRequestComponent *http_request) { this->http_request_ = http_request; }
-
   void register_listener(AmberApiListener *listener) { this->listeners_.push_back(listener); }
 
-  void add_on_update_trigger(Trigger<> *trigger) { this->update_triggers_.push_back(trigger); }
+  void add_on_update_trigger(Trigger<const AmberApiData &> *trigger) { this->update_triggers_.push_back(trigger); }
   const AmberApiData &get_data() const { return this->data_; }
   float get_general_price() const { return this->data_.general_price; }
   float get_general_forecast_price() const { return this->data_.general_forecast_price; }
@@ -49,14 +47,14 @@ class AmberApiComponent : public PollingComponent {
 
  protected:
   void parse_response_(const std::string &response_body);
-  void notify_listeners_();
+  void notify_listeners_() const;
 
-  const char *api_key_{};
-  const char *site_id_{};
-  http_request::HttpRequestComponent *http_request_{nullptr};
+  const char *url_;
+  const char *auth_header_;
+  http_request::HttpRequestComponent *http_request_;
 
   std::vector<AmberApiListener *> listeners_;
-  std::vector<Trigger<> *> update_triggers_;
+  std::vector<Trigger<const AmberApiData &> *> update_triggers_;
   AmberApiData data_;
 };
 

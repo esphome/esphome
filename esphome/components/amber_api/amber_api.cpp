@@ -7,20 +7,18 @@ namespace amber_api {
 
 static const char *const TAG = "amber_api";
 
-void AmberApiComponent::setup() { ESP_LOGCONFIG(TAG, "Setting up Amber API..."); }
-
 void AmberApiComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Amber API:");
-  ESP_LOGCONFIG(TAG, "  Site ID: %s", this->site_id_);
+  ESP_LOGCONFIG(TAG, "  URL: %s", this->url_);
   ESP_LOGCONFIG(TAG, "  Update Interval: %ums", (unsigned) this->get_update_interval());
 }
 
-void AmberApiComponent::notify_listeners_() {
+void AmberApiComponent::notify_listeners_() const {
   for (auto *listener : this->listeners_) {
     listener->on_amber_api_update(this->data_);
   }
   for (auto *trigger : this->update_triggers_) {
-    trigger->trigger();
+    trigger->trigger(this->data_);
   }
 }
 
@@ -30,21 +28,15 @@ void AmberApiComponent::update() {
     return;
   }
 
-  // Build the URL
-  std::string url =
-      str_sprintf("https://api.amber.com.au/v1/sites/%s/prices/current?next=1&resolution=5", this->site_id_);
-
   // Build the authorization header
   std::list<http_request::Header> headers;
-  http_request::Header auth_header;
-  auth_header.name = "Authorization";
-  auth_header.value = str_sprintf("Bearer %s", this->api_key_);
+  http_request::Header auth_header{"Authorization", this->auth_header_};
   headers.push_back(auth_header);
 
-  ESP_LOGD(TAG, "Requesting Amber API data from: %s", url.c_str());
+  ESP_LOGD(TAG, "Requesting Amber API data from: %s", this->url_);
 
   // Make the HTTP request
-  auto container = this->http_request_->get(url, headers);
+  auto container = this->http_request_->get(this->url_, headers);
 
   if (container == nullptr) {
     ESP_LOGW(TAG, "Failed to make HTTP request");

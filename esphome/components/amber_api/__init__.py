@@ -15,6 +15,8 @@ CONF_HTTP_REQUEST_ID = "http_request_id"
 
 amber_api_ns = cg.esphome_ns.namespace("amber_api")
 AmberApiComponent = amber_api_ns.class_("AmberApiComponent", cg.PollingComponent)
+AmberApiData = amber_api_ns.struct("AmberApiData")
+AmberApiDataRef = AmberApiData.operator("ref").operator("const")
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -25,7 +27,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    automation.Trigger.template()
+                    automation.Trigger.template(AmberApiDataRef)
                 ),
             }
         ),
@@ -34,16 +36,16 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-
-    cg.add(var.set_api_key(config[CONF_API_KEY]))
-    cg.add(var.set_site_id(config[CONF_SITE_ID]))
-
     http_request = await cg.get_variable(config[CONF_HTTP_REQUEST_ID])
-    cg.add(var.set_http_request(http_request))
+    api_key = config[CONF_API_KEY]
+    site_id = config[CONF_SITE_ID]
+    url = f"https://api.amber.com.au/v1/sites/{site_id}/prices/current?next=1&resolution=5"
+    auth_header = f"Bearer {api_key}"
+
+    var = cg.new_Pvariable(config[CONF_ID], url, auth_header, http_request)
+    await cg.register_component(var, config)
 
     for conf in config.get(CONF_ON_UPDATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [(AmberApiDataRef, "x")], conf)
         cg.add(var.add_on_update_trigger(trigger))
