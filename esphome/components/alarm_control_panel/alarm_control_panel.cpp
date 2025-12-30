@@ -8,8 +8,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace alarm_control_panel {
+namespace esphome::alarm_control_panel {
 
 static const char *const TAG = "alarm_control_panel";
 
@@ -115,5 +114,4 @@ void AlarmControlPanel::disarm(optional<std::string> code) {
   call.perform();
 }
 
-}  // namespace alarm_control_panel
-}  // namespace esphome
+}  // namespace esphome::alarm_control_panel
