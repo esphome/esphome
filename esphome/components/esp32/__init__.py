@@ -806,7 +806,7 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
             f"💡 NOTICE: {name} does not have a framework specified.",
         )
         + "\n\n"
-        + f"The default framework for {variant} has changed to ESP-IDF in ESPHome 2026.1.0.\n"
+        + f"Starting with ESPHome 2026.1.0, the default framework for {variant} is ESP-IDF.\n"
         + "(We've been warning about this change since ESPHome 2025.8.0)\n"
         + "\n"
         + "Why we made this change:\n"
