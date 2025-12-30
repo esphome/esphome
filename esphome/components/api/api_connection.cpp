@@ -1714,11 +1714,15 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
     // Create null-terminated state for callback (parse_number needs null-termination)
     // HA state max length is 255, so 256 byte buffer covers all cases
     char state_buf[256];
-    if (msg.state_len > 0) {
-      memcpy(state_buf, msg.state, msg.state_len);
+    size_t copy_len = msg.state_len;
+    if (copy_len >= sizeof(state_buf)) {
+      copy_len = sizeof(state_buf) - 1;  // Truncate to leave space for null terminator
     }
-    state_buf[msg.state_len] = '\0';
-    it.callback(StringRef(state_buf, msg.state_len));
+    if (copy_len > 0) {
+      memcpy(state_buf, msg.state, copy_len);
+    }
+    state_buf[copy_len] = '\0';
+    it.callback(StringRef(state_buf, copy_len));
   }
 }
 #endif
