@@ -526,7 +526,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       s_sta_connected = true;
 #ifdef USE_WIFI_LISTENERS
       for (auto *listener : global_wifi_component->connect_state_listeners_) {
-        listener->on_wifi_connect_state(global_wifi_component->wifi_ssid(), global_wifi_component->wifi_bssid());
+        listener->on_wifi_connect_state(StringRef(buf, it.ssid_len), it.bssid);
       }
       // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #ifdef USE_WIFI_MANUAL_IP
@@ -559,8 +559,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       s_sta_connected = false;
       s_sta_connecting = false;
 #ifdef USE_WIFI_LISTENERS
+      static constexpr uint8_t EMPTY_BSSID[6] = {};
       for (auto *listener : global_wifi_component->connect_state_listeners_) {
-        listener->on_wifi_connect_state("", bssid_t({0, 0, 0, 0, 0, 0}));
+        listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
       }
 #endif
       break;
@@ -912,6 +913,18 @@ bssid_t WiFiComponent::wifi_bssid() {
   return bssid;
 }
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
+const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
+  struct station_config conf {};
+  if (!wifi_station_get_config(&conf)) {
+    buffer[0] = '\0';
+    return buffer.data();
+  }
+  // conf.ssid is uint8[32], not null-terminated if full
+  size_t len = strnlen(reinterpret_cast<const char *>(conf.ssid), sizeof(conf.ssid));
+  memcpy(buffer.data(), conf.ssid, len);
+  buffer[len] = '\0';
+  return buffer.data();
+}
 int8_t WiFiComponent::wifi_rssi() {
   if (WiFi.status() != WL_CONNECTED)
     return WIFI_RSSI_DISCONNECTED;
