@@ -12,13 +12,11 @@ namespace esphome {
 inline constexpr size_t GPIO_SUMMARY_MAX_LEN = 48;
 
 #define LOG_PIN(prefix, pin) \
-  do { \
-    if ((pin) != nullptr) { \
-      char pin_buf_[GPIO_SUMMARY_MAX_LEN]; \
-      (pin)->dump_summary(pin_buf_, sizeof(pin_buf_)); \
-      ESP_LOGCONFIG(TAG, prefix "%s", pin_buf_); \
-    } \
-  } while (false)
+  if ((pin) != nullptr) { \
+    char pin_buf_[GPIO_SUMMARY_MAX_LEN]; \
+    (pin)->dump_summary(pin_buf_, sizeof(pin_buf_)); \
+    ESP_LOGCONFIG(TAG, prefix "%s", pin_buf_); \
+  }
 
 // put GPIO flags in a namespace to not pollute esphome namespace
 namespace gpio {
