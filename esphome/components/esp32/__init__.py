@@ -729,12 +729,14 @@ FRAMEWORK_SCHEMA = cv.Schema(
 )
 
 
+# Remove this class in 2026.7.0
 class _FrameworkMigrationWarning:
     shown = False
 
 
 def _show_framework_migration_message(name: str, variant: str) -> None:
-    """Show a friendly message about framework migration when defaulting to Arduino."""
+    """Show a message about the framework default change and how to switch back to Arduino."""
+    # Remove this function in 2026.7.0
     if _FrameworkMigrationWarning.shown:
         return
     _FrameworkMigrationWarning.shown = True
@@ -744,41 +746,27 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
     message = (
         color(
             AnsiFore.BOLD_CYAN,
-            f"💡 IMPORTANT: {name} doesn't have a framework specified!",
+            f"💡 NOTICE: {name} does not have a framework specified.",
         )
         + "\n\n"
-        + f"Currently, {variant} defaults to the Arduino framework.\n"
-        + color(AnsiFore.YELLOW, "This will change to ESP-IDF in ESPHome 2026.1.0.\n")
+        + f"The default framework for {variant} has changed to ESP-IDF in ESPHome 2026.1.0.\n"
+        + "(We've been warning about this change since ESPHome 2025.8.0)\n"
         + "\n"
-        + "Note: Newer ESP32 variants (C6, H2, P4, etc.) already use ESP-IDF by default.\n"
-        + "\n"
-        + "Why change? ESP-IDF offers:\n"
-        + color(AnsiFore.GREEN, "  ✨ Up to 40% smaller binaries\n")
-        + color(AnsiFore.GREEN, "  🚀 Better performance and optimization\n")
+        + "Why we made this change:\n"
+        + color(AnsiFore.GREEN, "  ✨ Up to 40% smaller firmware binaries\n")
         + color(AnsiFore.GREEN, "  ⚡ 2-3x faster compile times\n")
-        + color(AnsiFore.GREEN, "  📦 Custom-built firmware for your exact needs\n")
-        + color(
-            AnsiFore.GREEN,
-            "  🔧 Active development and testing by ESPHome developers\n",
-        )
+        + color(AnsiFore.GREEN, "  🚀 Better performance and newer features\n")
+        + color(AnsiFore.GREEN, "  🔧 More actively maintained by ESPHome\n")
         + "\n"
-        + "Trade-offs:\n"
-        + color(AnsiFore.YELLOW, "  🔄 Some components need migration\n")
+        + "To continue using Arduino, add this to your YAML under 'esp32:':\n"
+        + color(AnsiFore.WHITE, "    framework:\n")
+        + color(AnsiFore.WHITE, "      type: arduino\n")
         + "\n"
-        + "What should I do?\n"
-        + color(AnsiFore.CYAN, "  Option 1")
-        + ": Migrate to ESP-IDF (recommended)\n"
-        + "    Add this to your YAML under 'esp32:':\n"
-        + color(AnsiFore.WHITE, "      framework:\n")
-        + color(AnsiFore.WHITE, "        type: esp-idf\n")
+        + "To silence this message with ESP-IDF, explicitly set:\n"
+        + color(AnsiFore.WHITE, "    framework:\n")
+        + color(AnsiFore.WHITE, "      type: esp-idf\n")
         + "\n"
-        + color(AnsiFore.CYAN, "  Option 2")
-        + ": Keep using Arduino (still supported)\n"
-        + "    Add this to your YAML under 'esp32:':\n"
-        + color(AnsiFore.WHITE, "      framework:\n")
-        + color(AnsiFore.WHITE, "        type: arduino\n")
-        + "\n"
-        + "Need help? Check out the migration guide:\n"
+        + "Migration guide: "
         + color(
             AnsiFore.BLUE,
             "https://esphome.io/guides/esp32_arduino_to_idf/",
@@ -793,13 +781,13 @@ def _set_default_framework(config):
         config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA({})
     if CONF_TYPE not in config[CONF_FRAMEWORK]:
         variant = config[CONF_VARIANT]
+        config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ESP_IDF
+        # Show migration message for variants that previously defaulted to Arduino
+        # Remove this message in 2026.7.0
         if variant in ARDUINO_ALLOWED_VARIANTS:
-            config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ARDUINO
             _show_framework_migration_message(
                 config.get(CONF_NAME, "This device"), variant
             )
-        else:
-            config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ESP_IDF
 
     return config
 
