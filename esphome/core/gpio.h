@@ -145,7 +145,7 @@ inline size_t GPIOPin::dump_summary(char *buffer, size_t len) const {
 inline std::string GPIOPin::dump_summary() const { return {}; }
 
 // Inline helper for log_pin - allows compiler to inline into log_pin in gpio.cpp
-inline void log_pin_with_prefix_(const char *tag, const char *prefix, GPIOPin *pin) {
+inline void log_pin_with_prefix(const char *tag, const char *prefix, GPIOPin *pin) {
   char buffer[GPIO_SUMMARY_MAX_LEN];
   size_t len = pin->dump_summary(buffer, sizeof(buffer));
   len = std::min(len, sizeof(buffer) - 1);
