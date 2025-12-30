@@ -103,10 +103,10 @@ SENSOR_CONFIGS = {
 
 
 # Create a base schema that's flexible for any tag
+# Note: Don't set accuracy_decimals here - let tag-specific configs set it
 BASE_SCHEMA = sensor.sensor_schema(
     Mk2PVRouterSensor,
     state_class=STATE_CLASS_MEASUREMENT,
-    accuracy_decimals=0,
 ).extend(MK2PVROUTER_LISTENER_SCHEMA)
 
 
@@ -138,6 +138,10 @@ def apply_tag_defaults(config):
                 config[key] = validated_filters + user_filters
             elif key not in config:
                 config[key] = value
+
+    # Fallback: ensure accuracy_decimals has a default for unknown tags
+    if CONF_ACCURACY_DECIMALS not in config:
+        config[CONF_ACCURACY_DECIMALS] = 0
 
     return config
 
