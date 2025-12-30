@@ -81,6 +81,18 @@ ShellCommandResult execute_shell_command(const std::string &command, const Shell
       env_map[kv.first] = kv.second;
     }
 
+    std::string env_log;
+    if (!options.environment.empty()) {
+      for (const auto &kv : options.environment) {
+        if (!env_log.empty()) {
+          env_log.append(", ");
+        }
+        env_log.append(kv.first);
+        env_log.append("=");
+        env_log.append(kv.second);
+      }
+    }
+
     std::vector<std::string> env_strings;
     env_strings.reserve(env_map.size());
     for (const auto &kv : env_map) {
@@ -96,6 +108,9 @@ ShellCommandResult execute_shell_command(const std::string &command, const Shell
 
     ESP_LOGD(TAG, "Executing command with shell '%s' and %zu custom env vars: %s", shell.c_str(),
              options.environment.size(), command.c_str());
+    if (!env_log.empty()) {
+      ESP_LOGD(TAG, "Custom environment variables from YAML: %s", env_log.c_str());
+    }
 
     if (dup2(stdout_pipe[1], STDOUT_FILENO) == -1 || dup2(stderr_pipe[1], STDERR_FILENO) == -1) {
       _exit(127);
@@ -182,7 +197,9 @@ ShellCommandResult execute_shell_command(const std::string &command, const Shell
   }
 
   ESP_LOGD(TAG, "Command stdout:\n%s", result.stdout_output.c_str());
-  ESP_LOGD(TAG, "Command stderr:\n%s", result.stderr_output.c_str());
+  if (!result.stderr_output.empty()) {
+    ESP_LOGE(TAG, "Command stderr:\n%s", result.stderr_output.c_str());
+  }
   ESP_LOGD(TAG, "Command finished with exit code %d", result.exit_code);
 
   return result;
