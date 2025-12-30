@@ -1,12 +1,21 @@
 #pragma once
+#include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <string>
+
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 
+/// Maximum buffer size for dump_summary output
+static constexpr size_t GPIO_SUMMARY_MAX_LEN = 48;
+
 #define LOG_PIN(prefix, pin) \
   if ((pin) != nullptr) { \
-    ESP_LOGCONFIG(TAG, prefix "%s", (pin)->dump_summary().c_str()); \
+    char _pin_buf[GPIO_SUMMARY_MAX_LEN]; \
+    (pin)->dump_summary(_pin_buf, sizeof(_pin_buf)); \
+    ESP_LOGCONFIG(TAG, prefix "%s", _pin_buf); \
   }
 
 // put GPIO flags in a namespace to not pollute esphome namespace
@@ -64,7 +73,16 @@ class GPIOPin {
 
   virtual void digital_write(bool value) = 0;
 
-  virtual std::string dump_summary() const = 0;
+  /// Write a summary of this pin to the provided buffer.
+  /// @param buffer The buffer to write to
+  /// @param len The size of the buffer
+  /// @return The number of characters written (excluding null terminator)
+  virtual size_t dump_summary(char *buffer, size_t len) const;
+
+  /// Get a summary of this pin as a string.
+  /// @deprecated Use dump_summary(char*, size_t) instead. Will be removed in 2026.7.0.
+  ESPDEPRECATED("Override dump_summary(char*, size_t) instead. Will be removed in 2026.7.0.", "2026.1.0")
+  virtual std::string dump_summary() const;
 
   virtual bool is_internal() { return false; }
 };
@@ -102,5 +120,25 @@ class InternalGPIOPin : public GPIOPin {
  protected:
   virtual void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const = 0;
 };
+
+// Inline default implementations for GPIOPin virtual methods.
+// These provide bridge functionality for backwards compatibility with external components.
+
+// Default implementation bridges to old std::string method for backwards compatibility.
+inline size_t GPIOPin::dump_summary(char *buffer, size_t len) const {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  std::string s = this->dump_summary();
+#pragma GCC diagnostic pop
+  size_t copy_len = std::min(s.size(), len - 1);
+  memcpy(buffer, s.c_str(), copy_len);
+  buffer[copy_len] = '\0';
+  return copy_len;
+}
+
+// Default implementation returns empty string.
+// External components should override this if they haven't migrated to buffer-based version.
+// Remove before 2026.7.0
+inline std::string GPIOPin::dump_summary() const { return {}; }
 
 }  // namespace esphome
