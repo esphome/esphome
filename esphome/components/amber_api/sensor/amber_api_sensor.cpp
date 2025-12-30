@@ -29,9 +29,9 @@ void AmberApiSensor::on_amber_api_update(const AmberApiData &data) {
 
 void AmberApiSensor::dump_config() {
   LOG_SENSOR("", "Amber API Sensor", this);
-  const char *type_str = "";
+  const char *type_str;
   switch (this->type_) {
-    case GENERAL:
+    default:
       type_str = "General Price";
       break;
     case GENERAL_FORECAST:

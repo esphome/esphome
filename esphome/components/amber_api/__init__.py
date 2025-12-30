@@ -2,7 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components.http_request import HttpRequestComponent
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_ON_UPDATE, CONF_TRIGGER_ID
 
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["http_request", "json"]
@@ -12,7 +12,6 @@ CONF_AMBER_API_ID = "amber_api_id"
 CONF_API_KEY = "api_key"
 CONF_SITE_ID = "site_id"
 CONF_HTTP_REQUEST_ID = "http_request_id"
-CONF_ON_UPDATE = "on_update"
 
 amber_api_ns = cg.esphome_ns.namespace("amber_api")
 AmberApiComponent = amber_api_ns.class_("AmberApiComponent", cg.PollingComponent)
