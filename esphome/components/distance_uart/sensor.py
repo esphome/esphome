@@ -9,10 +9,12 @@ from esphome.const import (
     CONF_MODEL,
     CONF_TRIGGER_PIN,
     CONF_UART_ID,
+    CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_DISTANCE,
     ICON_ARROW_EXPAND_VERTICAL,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
+    CONF_MAX_RANGE,
 )
 from esphome.core import CORE, EsphomeError
 
@@ -30,7 +32,6 @@ DistanceUARTPublishMode = distance_uart_ns.enum("DistanceUARTPublishMode")
 
 # Define new configuration keys and modes
 CONF_BLIND_ZONE = "blind_zone"
-CONF_MAX_RANGE = "max_range"
 CONF_OUTPUT_MODE = "output_mode"
 CONF_OUTPUT_MODE_PIN = "output_mode_pin"
 CONF_PUBLISH_MODE = "publish_mode"
