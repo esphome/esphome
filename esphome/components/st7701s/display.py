@@ -161,8 +161,8 @@ CONFIG_SCHEMA = cv.All(
             }
         ).extend(spi.spi_device_schema(cs_pin_required=False, default_data_rate=1e6))
     ),
+    cv.only_on_esp32,
     only_on_variant(supported=[VARIANT_ESP32S3]),
-    cv.only_with_esp_idf,
 )
 
 FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
