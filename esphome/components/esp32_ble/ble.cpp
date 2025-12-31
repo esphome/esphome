@@ -24,7 +24,9 @@ extern "C" {
 #include <nvs_flash.h>
 
 #ifdef USE_ARDUINO
-#include <esp32-hal-bt.h>
+// Prevent Arduino from releasing BT memory at startup (esp32-hal-misc.c).
+// Without this, esp_bt_controller_init() fails with ESP_ERR_INVALID_STATE.
+extern "C" bool btInUse() { return true; }  // NOLINT(readability-identifier-naming)
 #endif
 
 namespace esphome::esp32_ble {
@@ -165,12 +167,6 @@ void ESP32BLE::advertising_init_() {
 bool ESP32BLE::ble_setup_() {
   esp_err_t err;
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#ifdef USE_ARDUINO
-  if (!btStart()) {
-    ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
-    return false;
-  }
-#else
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
@@ -195,7 +191,6 @@ bool ESP32BLE::ble_setup_() {
       return false;
     }
   }
-#endif
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 #else
@@ -256,8 +251,11 @@ bool ESP32BLE::ble_setup_() {
   }
 #endif
 
+  // BLE device names are limited to 20 characters
+  // Buffer: 20 chars + null terminator
+  constexpr size_t ble_name_max_len = 21;
+  char name_buffer[ble_name_max_len];
   const char *device_name;
-  std::string name_with_suffix;
 
   if (this->name_ != nullptr) {
     if (App.is_name_add_mac_suffix_enabled()) {
@@ -268,23 +266,28 @@ bool ESP32BLE::ble_setup_() {
       char mac_addr[mac_address_len];
       get_mac_address_into_buffer(mac_addr);
       const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
-      name_with_suffix =
-          make_name_with_suffix(this->name_, strlen(this->name_), '-', mac_suffix_ptr, mac_address_suffix_len);
-      device_name = name_with_suffix.c_str();
+      make_name_with_suffix_to(name_buffer, sizeof(name_buffer), this->name_, strlen(this->name_), '-', mac_suffix_ptr,
+                               mac_address_suffix_len);
+      device_name = name_buffer;
     } else {
       device_name = this->name_;
     }
   } else {
-    name_with_suffix = App.get_name();
-    if (name_with_suffix.length() > 20) {
+    const std::string &app_name = App.get_name();
+    size_t name_len = app_name.length();
+    if (name_len > 20) {
       if (App.is_name_add_mac_suffix_enabled()) {
         // Keep first 13 chars and last 7 chars (MAC suffix), remove middle
-        name_with_suffix.erase(13, name_with_suffix.length() - 20);
+        memcpy(name_buffer, app_name.c_str(), 13);
+        memcpy(name_buffer + 13, app_name.c_str() + name_len - 7, 7);
       } else {
-        name_with_suffix.resize(20);
+        memcpy(name_buffer, app_name.c_str(), 20);
       }
+      name_buffer[20] = '\0';
+    } else {
+      memcpy(name_buffer, app_name.c_str(), name_len + 1);  // Include null terminator
     }
-    device_name = name_with_suffix.c_str();
+    device_name = name_buffer;
   }
 
   err = esp_ble_gap_set_device_name(device_name);
@@ -326,12 +329,6 @@ bool ESP32BLE::ble_dismantle_() {
   }
 
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#ifdef USE_ARDUINO
-  if (!btStop()) {
-    ESP_LOGE(TAG, "btStop failed: %d", esp_bt_controller_get_status());
-    return false;
-  }
-#else
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
     // stop bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED) {
@@ -355,7 +352,6 @@ bool ESP32BLE::ble_dismantle_() {
       return false;
     }
   }
-#endif
 #else
   if (esp_hosted_bt_controller_disable() != ESP_OK) {
     ESP_LOGW(TAG, "esp_hosted_bt_controller_disable failed");

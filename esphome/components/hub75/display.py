@@ -95,35 +95,35 @@ CONF_DOUBLE_BUFFER = "double_buffer"
 CONF_MIN_REFRESH_RATE = "min_refresh_rate"
 
 # Map to hub75 library enums (in global namespace)
-ShiftDriver = cg.global_ns.enum("ShiftDriver", is_class=True)
+Hub75ShiftDriver = cg.global_ns.enum("Hub75ShiftDriver", is_class=True)
 SHIFT_DRIVERS = {
-    "GENERIC": ShiftDriver.GENERIC,
-    "FM6126A": ShiftDriver.FM6126A,
-    "ICN2038S": ShiftDriver.ICN2038S,
-    "FM6124": ShiftDriver.FM6124,
-    "MBI5124": ShiftDriver.MBI5124,
-    "DP3246": ShiftDriver.DP3246,
+    "GENERIC": Hub75ShiftDriver.GENERIC,
+    "FM6126A": Hub75ShiftDriver.FM6126A,
+    "ICN2038S": Hub75ShiftDriver.ICN2038S,
+    "FM6124": Hub75ShiftDriver.FM6124,
+    "MBI5124": Hub75ShiftDriver.MBI5124,
+    "DP3246": Hub75ShiftDriver.DP3246,
 }
 
-PanelLayout = cg.global_ns.enum("PanelLayout", is_class=True)
+Hub75PanelLayout = cg.global_ns.enum("Hub75PanelLayout", is_class=True)
 PANEL_LAYOUTS = {
-    "HORIZONTAL": PanelLayout.HORIZONTAL,
-    "TOP_LEFT_DOWN": PanelLayout.TOP_LEFT_DOWN,
-    "TOP_RIGHT_DOWN": PanelLayout.TOP_RIGHT_DOWN,
-    "BOTTOM_LEFT_UP": PanelLayout.BOTTOM_LEFT_UP,
-    "BOTTOM_RIGHT_UP": PanelLayout.BOTTOM_RIGHT_UP,
-    "TOP_LEFT_DOWN_ZIGZAG": PanelLayout.TOP_LEFT_DOWN_ZIGZAG,
-    "TOP_RIGHT_DOWN_ZIGZAG": PanelLayout.TOP_RIGHT_DOWN_ZIGZAG,
-    "BOTTOM_LEFT_UP_ZIGZAG": PanelLayout.BOTTOM_LEFT_UP_ZIGZAG,
-    "BOTTOM_RIGHT_UP_ZIGZAG": PanelLayout.BOTTOM_RIGHT_UP_ZIGZAG,
+    "HORIZONTAL": Hub75PanelLayout.HORIZONTAL,
+    "TOP_LEFT_DOWN": Hub75PanelLayout.TOP_LEFT_DOWN,
+    "TOP_RIGHT_DOWN": Hub75PanelLayout.TOP_RIGHT_DOWN,
+    "BOTTOM_LEFT_UP": Hub75PanelLayout.BOTTOM_LEFT_UP,
+    "BOTTOM_RIGHT_UP": Hub75PanelLayout.BOTTOM_RIGHT_UP,
+    "TOP_LEFT_DOWN_ZIGZAG": Hub75PanelLayout.TOP_LEFT_DOWN_ZIGZAG,
+    "TOP_RIGHT_DOWN_ZIGZAG": Hub75PanelLayout.TOP_RIGHT_DOWN_ZIGZAG,
+    "BOTTOM_LEFT_UP_ZIGZAG": Hub75PanelLayout.BOTTOM_LEFT_UP_ZIGZAG,
+    "BOTTOM_RIGHT_UP_ZIGZAG": Hub75PanelLayout.BOTTOM_RIGHT_UP_ZIGZAG,
 }
 
-ScanPattern = cg.global_ns.enum("ScanPattern", is_class=True)
+Hub75ScanWiring = cg.global_ns.enum("Hub75ScanWiring", is_class=True)
 SCAN_PATTERNS = {
-    "STANDARD_TWO_SCAN": ScanPattern.STANDARD_TWO_SCAN,
-    "FOUR_SCAN_16PX_HIGH": ScanPattern.FOUR_SCAN_16PX_HIGH,
-    "FOUR_SCAN_32PX_HIGH": ScanPattern.FOUR_SCAN_32PX_HIGH,
-    "FOUR_SCAN_64PX_HIGH": ScanPattern.FOUR_SCAN_64PX_HIGH,
+    "STANDARD_TWO_SCAN": Hub75ScanWiring.STANDARD_TWO_SCAN,
+    "FOUR_SCAN_16PX_HIGH": Hub75ScanWiring.FOUR_SCAN_16PX_HIGH,
+    "FOUR_SCAN_32PX_HIGH": Hub75ScanWiring.FOUR_SCAN_32PX_HIGH,
+    "FOUR_SCAN_64PX_HIGH": Hub75ScanWiring.FOUR_SCAN_64PX_HIGH,
 }
 
 Hub75ClockSpeed = cg.global_ns.enum("Hub75ClockSpeed", is_class=True)
@@ -531,7 +531,7 @@ def _build_config_struct(
 async def to_code(config: ConfigType) -> None:
     add_idf_component(
         name="esphome/esp-hub75",
-        ref="0.1.6",
+        ref="0.1.7",
     )
 
     # Set compile-time configuration via defines
