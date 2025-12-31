@@ -1,18 +1,18 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import sensor, uart
 from esphome import pins
+import esphome.codegen as cg
+from esphome.components import sensor, uart
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BAUD_RATE,
     CONF_ID,
-    CONF_MODEL,
     CONF_MODE,
+    CONF_MODEL,
     CONF_TRIGGER_PIN,
     CONF_UART_ID,
+    DEVICE_CLASS_DISTANCE,
+    ICON_ARROW_EXPAND_VERTICAL,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
-    ICON_ARROW_EXPAND_VERTICAL,
-    DEVICE_CLASS_DISTANCE,
-    CONF_BAUD_RATE,
 )
 from esphome.core import CORE, EsphomeError
 
@@ -281,10 +281,9 @@ async def to_code(config):
                 if str(conf[CONF_ID]) == uart_id_to_find:
                     uart_conf = conf
                     break
-    else:
-        # Fallback to the first available UART if CONF_UART_ID is missing
-        if "uart" in CORE.config and len(CORE.config["uart"]) > 0:
-            uart_conf = CORE.config["uart"][0]
+    # Fallback to the first available UART if CONF_UART_ID is missing
+    elif "uart" in CORE.config and len(CORE.config["uart"]) > 0:
+        uart_conf = CORE.config["uart"][0]
 
     if uart_conf is None:
         raise EsphomeError(
@@ -336,12 +335,11 @@ async def to_code(config):
         if CONF_TRIGGER_PIN in config:
             trigger_pin_obj = await cg.gpio_pin_expression(config[CONF_TRIGGER_PIN])
             cg.add(var.set_trigger_pin(trigger_pin_obj))
-        else:
-            if uart_conf is None or "tx_pin" not in uart_conf:
-                raise EsphomeError(
-                    f"distance_uart sensor in CONTROLLED mode has no 'trigger_pin' and the parent uart "
-                    f"component '{uart_id_to_find}' does not have a 'tx_pin' defined."
-                )
+        elif uart_conf is None or "tx_pin" not in uart_conf:
+            raise EsphomeError(
+                f"distance_uart sensor in CONTROLLED mode has no 'trigger_pin' and the parent uart "
+                f"component '{uart_id_to_find}' does not have a 'tx_pin' defined."
+            )
 
     elif final_mode_enum == MODES["AUTO"]:
         if CONF_OUTPUT_MODE_PIN in config:

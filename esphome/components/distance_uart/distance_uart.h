@@ -26,9 +26,7 @@ enum DistanceUARTPublishMode {
   PUBLISH_MODE_IMMEDIATE,
 };
 
-class DistanceUARTSensor : public sensor::Sensor,
-                           public PollingComponent,
-                           public uart::UARTDevice {
+class DistanceUARTSensor : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
  public:
   // Public methods
   void set_mode(DistanceUARTMode mode);

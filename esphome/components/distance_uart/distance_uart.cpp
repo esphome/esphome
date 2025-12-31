@@ -10,27 +10,13 @@ static const uint8_t FRAME_START = 0xFF;
 static const int FRAME_LENGTH = 4;
 
 void DistanceUARTSensor::set_mode(DistanceUARTMode mode) { this->mode_ = mode; }
-void DistanceUARTSensor::set_trigger_pin(GPIOPin *trigger_pin) {
-  this->trigger_pin_ = trigger_pin;
-}
-void DistanceUARTSensor::set_blind_zone(float blind_zone_m) {
-  this->blind_zone_mm_ = blind_zone_m * 1000;
-}
-void DistanceUARTSensor::set_max_range(float max_range_m) {
-  this->max_range_mm_ = max_range_m * 1000;
-}
-void DistanceUARTSensor::set_output_mode(DistanceUARTOutputMode output_mode) {
-  this->output_mode_ = output_mode;
-}
-void DistanceUARTSensor::set_output_mode_pin(GPIOPin *output_mode_pin) {
-  this->output_mode_pin_ = output_mode_pin;
-}
-void DistanceUARTSensor::set_publish_mode(DistanceUARTPublishMode publish_mode) {
-  this->publish_mode_ = publish_mode;
-}
-void DistanceUARTSensor::set_baud_rate(uint32_t baud_rate) {
-  this->baud_rate_ = baud_rate;
-}
+void DistanceUARTSensor::set_trigger_pin(GPIOPin *trigger_pin) { this->trigger_pin_ = trigger_pin; }
+void DistanceUARTSensor::set_blind_zone(float blind_zone_m) { this->blind_zone_mm_ = blind_zone_m * 1000; }
+void DistanceUARTSensor::set_max_range(float max_range_m) { this->max_range_mm_ = max_range_m * 1000; }
+void DistanceUARTSensor::set_output_mode(DistanceUARTOutputMode output_mode) { this->output_mode_ = output_mode; }
+void DistanceUARTSensor::set_output_mode_pin(GPIOPin *output_mode_pin) { this->output_mode_pin_ = output_mode_pin; }
+void DistanceUARTSensor::set_publish_mode(DistanceUARTPublishMode publish_mode) { this->publish_mode_ = publish_mode; }
+void DistanceUARTSensor::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
 
 void DistanceUARTSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Distance UART Sensor...");
@@ -48,11 +34,8 @@ void DistanceUARTSensor::setup() {
 void DistanceUARTSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Distance UART Sensor:");
   LOG_SENSOR("  ", "Distance", this);
-  ESP_LOGCONFIG(TAG, "  Mode: %s",
-                this->mode_ == MODE_CONTROLLED ? "CONTROLLED" : "AUTO");
-  ESP_LOGCONFIG(TAG, "  Publish Mode: %s",
-                this->publish_mode_ == PUBLISH_MODE_INTERVAL ? "INTERVAL"
-                                                             : "IMMEDIATE");
+  ESP_LOGCONFIG(TAG, "  Mode: %s", this->mode_ == MODE_CONTROLLED ? "CONTROLLED" : "AUTO");
+  ESP_LOGCONFIG(TAG, "  Publish Mode: %s", this->publish_mode_ == PUBLISH_MODE_INTERVAL ? "INTERVAL" : "IMMEDIATE");
   if (this->mode_ == MODE_CONTROLLED) {
     if (this->trigger_pin_ != nullptr) {
       LOG_PIN("  Trigger Pin: ", this->trigger_pin_);
@@ -62,9 +45,7 @@ void DistanceUARTSensor::dump_config() {
   }
   if (this->mode_ == MODE_AUTO && this->output_mode_pin_ != nullptr) {
     LOG_PIN("  Output Mode Pin: ", this->output_mode_pin_);
-    ESP_LOGCONFIG(TAG, "  Output Mode: %s",
-                  this->output_mode_ == OUTPUT_MODE_PROCESSED ? "PROCESSED"
-                                                              : "REALTIME");
+    ESP_LOGCONFIG(TAG, "  Output Mode: %s", this->output_mode_ == OUTPUT_MODE_PROCESSED ? "PROCESSED" : "REALTIME");
   }
   ESP_LOGCONFIG(TAG, "  Blind Zone: %.2fm", this->blind_zone_mm_ / 1000.0f);
   if (this->max_range_mm_ > 0) {
@@ -86,8 +67,7 @@ void DistanceUARTSensor::update() {
   } else {  // MODE_AUTO
     // Only publish on interval if the publish_mode is set to INTERVAL
     if (this->publish_mode_ == PUBLISH_MODE_INTERVAL) {
-      ESP_LOGD(TAG, "Publishing last known distance: %.3f m",
-               this->last_distance_m_);
+      ESP_LOGD(TAG, "Publishing last known distance: %.3f m", this->last_distance_m_);
       this->publish_state(this->last_distance_m_);
       this->last_distance_m_ = NAN;
     }
@@ -126,8 +106,7 @@ void DistanceUARTSensor::process_frame_() {
 
   uint8_t checksum_calculated = (start_byte + data_h + data_l) & 0xFF;
   if (checksum_received != checksum_calculated) {
-    ESP_LOGW(TAG, "Checksum mismatch! Received: 0x%02X, Calculated: 0x%02X",
-             checksum_received, checksum_calculated);
+    ESP_LOGW(TAG, "Checksum mismatch! Received: 0x%02X, Calculated: 0x%02X", checksum_received, checksum_calculated);
     return;
   }
 
@@ -135,19 +114,14 @@ void DistanceUARTSensor::process_frame_() {
   float distance_m = NAN;
 
   if (this->blind_zone_mm_ > 0 && distance_mm <= this->blind_zone_mm_) {
-    ESP_LOGW(TAG,
-             "Distance is within the blind zone (<= %.2fm). Ignoring reading.",
-             this->blind_zone_mm_ / 1000.0f);
+    ESP_LOGW(TAG, "Distance is within the blind zone (<= %.2fm). Ignoring reading.", this->blind_zone_mm_ / 1000.0f);
     distance_m = NAN;
   } else if (this->max_range_mm_ > 0 && distance_mm > this->max_range_mm_) {
-    ESP_LOGW(TAG,
-             "Distance exceeds the max range (> %.2fm). Ignoring reading.",
-             this->max_range_mm_ / 1000.0f);
+    ESP_LOGW(TAG, "Distance exceeds the max range (> %.2fm). Ignoring reading.", this->max_range_mm_ / 1000.0f);
     distance_m = NAN;
   } else {
     distance_m = distance_mm / 1000.0f;
-    ESP_LOGD(TAG, "Received valid frame. Distance: %u mm (%.3f m)", distance_mm,
-             distance_m);
+    ESP_LOGD(TAG, "Received valid frame. Distance: %u mm (%.3f m)", distance_mm, distance_m);
   }
 
   if (this->mode_ == MODE_CONTROLLED) {
