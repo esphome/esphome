@@ -87,7 +87,6 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
   mac[4] = NRF_FICR->DEVICEADDR[0] >> 8;
   mac[5] = NRF_FICR->DEVICEADDR[0];
 }
-
 #endif
 }  // namespace esphome
 
