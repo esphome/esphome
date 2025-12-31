@@ -90,10 +90,10 @@ class ArcType(NumberType):
             lv.arc_set_angles(w.obj, start_angle, end_angle)
         elif CONF_START_ANGLE in config:
             start_angle = await lv_angle_degrees.process(config[CONF_START_ANGLE])
-            end_angle = w.get_property(CONF_END_ANGLE, "arc")
+            end_angle = w.get_property(CONF_END_ANGLE)
             lv.arc_set_angles(w.obj, start_angle, end_angle)
         elif CONF_END_ANGLE in config:
-            start_angle = w.get_property(CONF_START_ANGLE, "arc")
+            start_angle = w.get_property(CONF_START_ANGLE)
             end_angle = await lv_angle_degrees.process(config[CONF_END_ANGLE])
             lv.arc_set_angles(w.obj, start_angle, end_angle)
 
