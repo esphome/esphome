@@ -217,7 +217,9 @@ def _validate_user_config(config):
     if effective_mode_str.upper() == "AUTO":
         if CONF_TRIGGER_PIN in config:
             raise cv.Invalid("`trigger_pin` is not allowed when `mode` is 'AUTO'.")
-    elif effective_mode_str.upper() == "CONTROLLED" and (CONF_OUTPUT_MODE in config or CONF_OUTPUT_MODE_PIN in config) :
+    elif effective_mode_str.upper() == "CONTROLLED" and (
+        CONF_OUTPUT_MODE in config or CONF_OUTPUT_MODE_PIN in config
+    ):
         raise cv.Invalid(
             "'output_mode' and 'output_mode_pin' are only allowed when 'mode' is 'AUTO'."
         )
