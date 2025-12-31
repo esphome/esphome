@@ -390,7 +390,7 @@ CONFIG_SCHEMA = cv.All(
             # Display configuration
             cv.Optional(CONF_DOUBLE_BUFFER): cv.boolean,
             cv.Optional(CONF_BRIGHTNESS): cv.int_range(min=0, max=255),
-            cv.Optional(CONF_BIT_DEPTH): cv.int_range(min=6, max=12),
+            cv.Optional(CONF_BIT_DEPTH): cv.int_range(min=4, max=12),
             cv.Optional(CONF_GAMMA_CORRECT): cv.enum(
                 {"LINEAR": 0, "CIE1931": 1, "GAMMA_2_2": 2}, upper=True
             ),
@@ -548,7 +548,7 @@ def _build_config_struct(
 async def to_code(config: ConfigType) -> None:
     add_idf_component(
         name="esphome/esp-hub75",
-        ref="0.2.0",
+        ref="0.2.1",
     )
 
     # Set compile-time configuration via defines
