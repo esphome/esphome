@@ -172,7 +172,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
         return false;
     }
     if (i == 14 && !data.is_valid()) {
-      // Remote control only sent 14 bytes, nothing more to read, not event the footer
+      // Remote control only sent 14 bytes, nothing more to read, not even the footer
       ESP_LOGV(TAG, "Remote control only sent %d bytes", i);
       skip_footer = true;
       break;
