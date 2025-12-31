@@ -11,6 +11,12 @@ FROM base-source-${BUILD_TYPE} AS base
 
 RUN git config --system --add safe.directory "*"
 
+# Install build tools for Python packages that require compilation
+# (e.g., ruamel.yaml.clibz used by ESP-IDF's idf-component-manager)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
 RUN pip install --no-cache-dir -U pip uv==0.6.14
