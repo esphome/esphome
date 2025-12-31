@@ -6,8 +6,7 @@
 
 #include "web_server.h"
 
-namespace esphome {
-namespace web_server {
+namespace esphome::web_server {
 
 #ifdef USE_ESP32
 ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, AsyncEventSource *es) : web_server_(ws), events_(es) {}
@@ -135,6 +134,13 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
 }
 #endif
 
+#ifdef USE_WATER_HEATER
+bool ListEntitiesIterator::on_water_heater(water_heater::WaterHeater *obj) {
+  // Water heater web_server support not yet implemented - this stub acknowledges the entity
+  return true;
+}
+#endif
+
 #ifdef USE_EVENT
 bool ListEntitiesIterator::on_event(event::Event *obj) {
   // Null event type, since we are just iterating over entities
@@ -150,6 +156,5 @@ bool ListEntitiesIterator::on_update(update::UpdateEntity *obj) {
 }
 #endif
 
-}  // namespace web_server
-}  // namespace esphome
+}  // namespace esphome::web_server
 #endif

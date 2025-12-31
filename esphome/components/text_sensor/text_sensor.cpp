@@ -71,15 +71,15 @@ void TextSensor::clear_filters() {
   this->filter_list_ = nullptr;
 }
 
-void TextSensor::add_on_state_callback(std::function<void(std::string)> callback) {
+void TextSensor::add_on_state_callback(std::function<void(const std::string &)> callback) {
   this->callback_.add(std::move(callback));
 }
-void TextSensor::add_on_raw_state_callback(std::function<void(std::string)> callback) {
+void TextSensor::add_on_raw_state_callback(std::function<void(const std::string &)> callback) {
   this->raw_callback_.add(std::move(callback));
 }
 
-std::string TextSensor::get_state() const { return this->state; }
-std::string TextSensor::get_raw_state() const {
+const std::string &TextSensor::get_state() const { return this->state; }
+const std::string &TextSensor::get_raw_state() const {
 // Suppress deprecation warning - get_raw_state() is the replacement API
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
