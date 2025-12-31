@@ -729,12 +729,14 @@ void Display::strftime(int x, int y, BaseFont *font, const char *format, ESPTime
   this->strftime(x, y, font, COLOR_ON, COLOR_OFF, TextAlign::TOP_LEFT, format, time);
 }
 
-void Display::start_clipping(Rect rect) {
-  if (!this->clipping_rectangle_.empty()) {
-    Rect r = this->clipping_rectangle_.back();
-    rect.shrink(r);
+void Display::start_clipping(const Rect &rect) {
+  if (this->clipping_rectangle_.empty()) {
+    this->clipping_rectangle_.push_back(rect);
+  } else {
+    Rect r = rect;
+    r.shrink(this->clipping_rectangle_.back());
+    this->clipping_rectangle_.push_back(r);
   }
-  this->clipping_rectangle_.push_back(rect);
 }
 
 void Display::end_clipping() {
@@ -745,7 +747,7 @@ void Display::end_clipping() {
   }
 }
 
-void Display::extend_clipping(Rect add_rect) {
+void Display::extend_clipping(const Rect &add_rect) {
   if (this->clipping_rectangle_.empty()) {
     ESP_LOGE(TAG, "add: Clipping is not set.");
   } else {
@@ -753,7 +755,7 @@ void Display::extend_clipping(Rect add_rect) {
   }
 }
 
-void Display::shrink_clipping(Rect add_rect) {
+void Display::shrink_clipping(const Rect &add_rect) {
   if (this->clipping_rectangle_.empty()) {
     ESP_LOGE(TAG, "add: Clipping is not set.");
   } else {

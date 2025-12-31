@@ -722,7 +722,7 @@ class Display : public PollingComponent {
    *
    * return true if success, false if error
    */
-  void start_clipping(Rect rect);
+  void start_clipping(const Rect &rect);
   void start_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
     start_clipping(Rect(left, top, right - left, bottom - top));
   };
@@ -732,7 +732,7 @@ class Display : public PollingComponent {
    *
    * @param[in]  rect: Rectangle to add to the invalidation region
    */
-  void extend_clipping(Rect rect);
+  void extend_clipping(const Rect &rect);
   void extend_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
     this->extend_clipping(Rect(left, top, right - left, bottom - top));
   };
@@ -742,7 +742,7 @@ class Display : public PollingComponent {
    *
    * @param[in]  rect: Rectangle to add to the invalidation region
    */
-  void shrink_clipping(Rect rect);
+  void shrink_clipping(const Rect &rect);
   void shrink_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) {
     this->shrink_clipping(Rect(left, top, right - left, bottom - top));
   };
