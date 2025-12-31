@@ -777,6 +777,7 @@ lvgl:
             align: left_mid
             id: lv_arc
             adjustable: true
+            start_angle: 170
             on_value:
               then:
                 - logger.log:
@@ -799,6 +800,8 @@ lvgl:
             value: !lambda return 75;
             min_value: !lambda return 50;
             max_value: !lambda return 60;
+            start_angle: 135
+            end_angle: 45
             arc_color: 0xFF0000
             indicator:
               arc_width: !lambda return 20;
