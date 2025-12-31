@@ -23,12 +23,24 @@ class Rect {
 
   void expand(int16_t horizontal, int16_t vertical);
 
-  void extend(Rect rect);
-  void shrink(Rect rect);
+  void extend(const Rect &rect);
+  void shrink(const Rect &rect);
 
-  bool inside(Rect rect) const;
-  bool inside(int16_t test_x, int16_t test_y, bool absolute = true) const;
-  bool equal(Rect rect) const;
+  inline bool inside(int16_t test_x, int16_t test_y, bool absolute = true) const ESPHOME_ALWAYS_INLINE {
+    if (!this->is_set())
+      return true;
+    if (absolute) {
+      return test_x >= this->x && test_x < this->x2() && test_y >= this->y && test_y < this->y2();
+    }
+    return test_x >= 0 && test_x < this->w && test_y >= 0 && test_y < this->h;
+  }
+
+  inline bool inside(const Rect &rect) const ESPHOME_ALWAYS_INLINE {
+    if (!this->is_set() || !rect.is_set())
+      return true;
+    return this->x2() >= rect.x && this->x <= rect.x2() && this->y2() >= rect.y && this->y <= rect.y2();
+  }
+  bool equal(const Rect &rect) const;
   void info(const std::string &prefix = "rect info:");
 };
 

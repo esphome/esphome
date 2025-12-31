@@ -755,7 +755,7 @@ class Display : public PollingComponent {
    *
    * return rect for active clipping region
    */
-  Rect get_clipping() const;
+  const Rect &get_clipping() const;
 
   bool is_clipping() const { return !this->clipping_rectangle_.empty(); }
 

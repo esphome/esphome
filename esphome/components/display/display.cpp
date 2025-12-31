@@ -761,12 +761,12 @@ void Display::shrink_clipping(Rect add_rect) {
   }
 }
 
-Rect Display::get_clipping() const {
+const Rect &Display::get_clipping() const {
+  static const Rect NO_CLIPPING;
   if (this->clipping_rectangle_.empty()) {
-    return Rect();
-  } else {
-    return this->clipping_rectangle_.back();
+    return NO_CLIPPING;
   }
+  return this->clipping_rectangle_.back();
 }
 
 void Display::clear_clipping_() { this->clipping_rectangle_.clear(); }

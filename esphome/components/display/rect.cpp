@@ -16,7 +16,7 @@ void Rect::expand(int16_t horizontal, int16_t vertical) {
   }
 }
 
-void Rect::extend(Rect rect) {
+void Rect::extend(const Rect &rect) {
   if (!this->is_set()) {
     this->x = rect.x;
     this->y = rect.y;
@@ -39,7 +39,7 @@ void Rect::extend(Rect rect) {
     }
   }
 }
-void Rect::shrink(Rect rect) {
+void Rect::shrink(const Rect &rect) {
   if (!this->inside(rect)) {
     (*this) = Rect();
   } else {
@@ -60,25 +60,8 @@ void Rect::shrink(Rect rect) {
   }
 }
 
-bool Rect::equal(Rect rect) const {
+bool Rect::equal(const Rect &rect) const {
   return (rect.x == this->x) && (rect.w == this->w) && (rect.y == this->y) && (rect.h == this->h);
-}
-
-bool Rect::inside(int16_t test_x, int16_t test_y, bool absolute) const {  // NOLINT
-  if (!this->is_set()) {
-    return true;
-  }
-  if (absolute) {
-    return test_x >= this->x && test_x < this->x2() && test_y >= this->y && test_y < this->y2();
-  }
-  return test_x >= 0 && test_x < this->w && test_y >= 0 && test_y < this->h;
-}
-
-bool Rect::inside(Rect rect) const {
-  if (!this->is_set() || !rect.is_set()) {
-    return true;
-  }
-  return this->x2() >= rect.x && this->x <= rect.x2() && this->y2() >= rect.y && this->y <= rect.y2();
 }
 
 void Rect::info(const std::string &prefix) {
