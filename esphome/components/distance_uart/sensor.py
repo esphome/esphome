@@ -5,16 +5,15 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_ID,
+    CONF_MAX_RANGE,
     CONF_MODE,
     CONF_MODEL,
     CONF_TRIGGER_PIN,
     CONF_UART_ID,
-    CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_DISTANCE,
     ICON_ARROW_EXPAND_VERTICAL,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
-    CONF_MAX_RANGE,
 )
 from esphome.core import CORE, EsphomeError
 
