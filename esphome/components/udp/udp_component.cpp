@@ -130,7 +130,8 @@ void UDPComponent::dump_config() {
   for (const auto &address : this->addresses_)
     ESP_LOGCONFIG(TAG, "  Address: %s", address.c_str());
   if (this->listen_address_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Listen address: %s", this->listen_address_.value().str().c_str());
+    char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    ESP_LOGCONFIG(TAG, "  Listen address: %s", this->listen_address_.value().str_to(addr_buf));
   }
   ESP_LOGCONFIG(TAG,
                 "  Broadcasting: %s\n"

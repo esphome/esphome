@@ -123,10 +123,11 @@ void ZWaveProxy::process_uart_() {
 }
 
 void ZWaveProxy::dump_config() {
+  char hex_buf[format_hex_pretty_size(ZWAVE_HOME_ID_SIZE)];
   ESP_LOGCONFIG(TAG,
                 "Z-Wave Proxy:\n"
                 "  Home ID: %s",
-                format_hex_pretty(this->home_id_.data(), this->home_id_.size(), ':', false).c_str());
+                format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size()));
 }
 
 void ZWaveProxy::api_connection_authenticated(api::APIConnection *conn) {
@@ -167,7 +168,8 @@ bool ZWaveProxy::set_home_id(const uint8_t *new_home_id) {
     return false;  // No change
   }
   std::memcpy(this->home_id_.data(), new_home_id, this->home_id_.size());
-  ESP_LOGI(TAG, "Home ID: %s", format_hex_pretty(this->home_id_.data(), this->home_id_.size(), ':', false).c_str());
+  char hex_buf[format_hex_pretty_size(ZWAVE_HOME_ID_SIZE)];
+  ESP_LOGI(TAG, "Home ID: %s", format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size()));
   this->home_id_ready_ = true;
   return true;  // Home ID was changed
 }
