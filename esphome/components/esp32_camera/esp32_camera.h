@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include <atomic>
 #include <esp_camera.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -205,8 +206,8 @@ class ESP32Camera : public camera::Camera {
 
   esp_err_t init_error_{ESP_OK};
   std::shared_ptr<ESP32CameraImage> current_image_;
-  uint8_t single_requesters_{0};
-  uint8_t stream_requesters_{0};
+  std::atomic<uint8_t> single_requesters_{0};
+  std::atomic<uint8_t> stream_requesters_{0};
   QueueHandle_t framebuffer_get_queue_;
   QueueHandle_t framebuffer_return_queue_;
   std::vector<camera::CameraListener *> listeners_;

@@ -311,7 +311,7 @@ def spi_mode_schema(mode):
     if mode == TYPE_SINGLE:
         return SPI_SINGLE_SCHEMA
     pin_count = 4 if mode == TYPE_QUAD else 8
-    onlys = [cv.only_on([PLATFORM_ESP32]), cv.only_with_esp_idf]
+    onlys = [cv.only_on([PLATFORM_ESP32])]
     if pin_count == 8:
         onlys.append(
             only_on_variant(
@@ -399,7 +399,7 @@ def spi_device_schema(
         cv.Optional(CONF_SPI_MODE, default=default_mode): cv.enum(
             SPI_MODE_OPTIONS, upper=True
         ),
-        cv.Optional(CONF_RELEASE_DEVICE): cv.All(cv.boolean, cv.only_with_esp_idf),
+        cv.Optional(CONF_RELEASE_DEVICE): cv.All(cv.boolean, cv.only_on_esp32),
     }
     if cs_pin_required:
         schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
