@@ -677,12 +677,14 @@ constexpr uint8_t parse_hex_char(char c) {
   return 255;
 }
 
+/// Convert a nibble (0-15) to hex char with specified base ('a' for lowercase, 'A' for uppercase)
+inline char format_hex_char(uint8_t v, char base) { return v >= 10 ? base + (v - 10) : '0' + v; }
+
 /// Convert a nibble (0-15) to lowercase hex char
-inline char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
+inline char format_hex_char(uint8_t v) { return format_hex_char(v, 'a'); }
 
 /// Convert a nibble (0-15) to uppercase hex char (used for pretty printing)
-/// This always uses uppercase (A-F) for pretty/human-readable output
-inline char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
+inline char format_hex_pretty_char(uint8_t v) { return format_hex_char(v, 'A'); }
 
 /// Write int8 value to buffer without modulo operations.
 /// Buffer must have at least 4 bytes free. Returns pointer past last char written.
@@ -708,28 +710,6 @@ inline char *int8_to_str(char *buf, int8_t val) {
   return buf;
 }
 
-/// Format MAC address as XX:XX:XX:XX:XX:XX (uppercase)
-inline void format_mac_addr_upper(const uint8_t *mac, char *output) {
-  for (size_t i = 0; i < 6; i++) {
-    uint8_t byte = mac[i];
-    output[i * 3] = format_hex_pretty_char(byte >> 4);
-    output[i * 3 + 1] = format_hex_pretty_char(byte & 0x0F);
-    if (i < 5)
-      output[i * 3 + 2] = ':';
-  }
-  output[17] = '\0';
-}
-
-/// Format MAC address as xxxxxxxxxxxxxx (lowercase, no separators)
-inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
-  for (size_t i = 0; i < 6; i++) {
-    uint8_t byte = mac[i];
-    output[i * 2] = format_hex_char(byte >> 4);
-    output[i * 2 + 1] = format_hex_char(byte & 0x0F);
-  }
-  output[12] = '\0';
-}
-
 /// Format byte array as lowercase hex to buffer (base implementation).
 char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length);
 
@@ -746,6 +726,46 @@ inline char *format_hex_to(char (&buffer)[N], T val) {
   static_assert(N >= sizeof(T) * 2 + 1, "Buffer too small for type");
   val = convert_big_endian(val);
   return format_hex_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
+}
+
+/// Calculate buffer size needed for format_hex_pretty_to with separator: "XX:XX:...:XX\0"
+constexpr size_t format_hex_pretty_size(size_t byte_count) { return byte_count * 3; }
+
+/** Format byte array as uppercase hex to buffer (base implementation).
+ *
+ * @param buffer Output buffer to write to.
+ * @param buffer_size Size of the output buffer.
+ * @param data Pointer to the byte array to format.
+ * @param length Number of bytes in the array.
+ * @param separator Character to use between hex bytes, or '\0' for no separator.
+ * @return Pointer to buffer.
+ *
+ * Buffer size needed: length * 3 with separator (for "XX:XX:XX\0"), length * 2 + 1 without.
+ */
+char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator = ':');
+
+/// Format byte array as uppercase hex with separator to buffer. Automatically deduces buffer size.
+template<size_t N>
+inline char *format_hex_pretty_to(char (&buffer)[N], const uint8_t *data, size_t length, char separator = ':') {
+  static_assert(N >= 3, "Buffer must hold at least one hex byte");
+  return format_hex_pretty_to(buffer, N, data, length, separator);
+}
+
+/// MAC address size in bytes
+static constexpr size_t MAC_ADDRESS_SIZE = 6;
+/// Buffer size for MAC address with separators: "XX:XX:XX:XX:XX:XX\0"
+static constexpr size_t MAC_ADDRESS_PRETTY_BUFFER_SIZE = format_hex_pretty_size(MAC_ADDRESS_SIZE);
+/// Buffer size for MAC address without separators: "XXXXXXXXXXXX\0"
+static constexpr size_t MAC_ADDRESS_BUFFER_SIZE = MAC_ADDRESS_SIZE * 2 + 1;
+
+/// Format MAC address as XX:XX:XX:XX:XX:XX (uppercase, colon separators)
+inline void format_mac_addr_upper(const uint8_t *mac, char *output) {
+  format_hex_pretty_to(output, MAC_ADDRESS_PRETTY_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE, ':');
+}
+
+/// Format MAC address as xxxxxxxxxxxxxx (lowercase, no separators)
+inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
+  format_hex_to(output, MAC_ADDRESS_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE);
 }
 
 /// Format the six-byte array \p mac into a MAC address.
@@ -1202,12 +1222,6 @@ class HighFrequencyLoopRequester {
 
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
 void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
-
-/// Buffer size for MAC address in lowercase hex notation (12 hex chars + null terminator)
-constexpr size_t MAC_ADDRESS_BUFFER_SIZE = 13;
-
-/// Buffer size for MAC address in colon-separated uppercase hex notation (17 chars + null terminator)
-constexpr size_t MAC_ADDRESS_PRETTY_BUFFER_SIZE = 18;
 
 /// Get the device MAC address as a string, in lowercase hex notation.
 std::string get_mac_address();
