@@ -84,13 +84,19 @@ class ArcType(NumberType):
             min_value = w.get_property(CONF_MIN_VALUE)
             lv.arc_set_range(w.obj, min_value, max_value)
 
-        await w.set_property(
-            CONF_START_ANGLE,
-            await lv_angle_degrees.process(config.get(CONF_START_ANGLE)),
-        )
-        await w.set_property(
-            CONF_END_ANGLE, await lv_angle_degrees.process(config.get(CONF_END_ANGLE))
-        )
+        if CONF_START_ANGLE in config and CONF_END_ANGLE in config:
+            start_angle = await lv_angle_degrees.process(config[CONF_START_ANGLE])
+            end_angle = await lv_angle_degrees.process(config[CONF_END_ANGLE])
+            lv.arc_set_angles(w.obj, start_angle, end_angle)
+        elif CONF_START_ANGLE in config:
+            start_angle = await lv_angle_degrees.process(config[CONF_START_ANGLE])
+            end_angle = w.get_property(CONF_END_ANGLE, "arc")
+            lv.arc_set_angles(w.obj, start_angle, end_angle)
+        elif CONF_END_ANGLE in config:
+            start_angle = w.get_property(CONF_START_ANGLE, "arc")
+            end_angle = await lv_angle_degrees.process(config[CONF_END_ANGLE])
+            lv.arc_set_angles(w.obj, start_angle, end_angle)
+
         await w.set_property(
             CONF_ROTATION, await lv_angle_degrees.process(config.get(CONF_ROTATION))
         )
