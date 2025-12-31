@@ -163,13 +163,21 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   uint8_t remote_state[WHIRLPOOL_STATE_LENGTH] = {0};
+  bool skip_footer = false;
   // Read all bytes.
   for (int i = 0; i < WHIRLPOOL_STATE_LENGTH; i++) {
     // Read bit
     if (i == 6 || i == 14) {
       if (!data.expect_item(WHIRLPOOL_BIT_MARK, WHIRLPOOL_GAP))
         return false;
+    } 
+    if (i == 14 && !data.is_valid()){
+      // Remote control only sent 14 bytes, nothing more to read, not event the footer
+      ESP_LOGV(TAG, "Remote control only sent %d bytes", i);
+      skip_footer = true;
+      break;
     }
+    
     for (int j = 0; j < 8; j++) {
       if (data.expect_item(WHIRLPOOL_BIT_MARK, WHIRLPOOL_ONE_SPACE)) {
         remote_state[i] |= 1 << j;
@@ -183,7 +191,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
     ESP_LOGVV(TAG, "Byte %d %02X", i, remote_state[i]);
   }
   // Validate footer
-  if (!data.expect_mark(WHIRLPOOL_BIT_MARK)) {
+  if (!data.expect_mark(WHIRLPOOL_BIT_MARK) && !skip_footer) {
     ESP_LOGV(TAG, "Footer fail");
     return false;
   }
