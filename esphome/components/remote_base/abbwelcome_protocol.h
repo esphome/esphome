@@ -170,7 +170,7 @@ class ABBWelcomeData {
                              '.');
         snprintf(ptr, remaining, ", Data: %s", data_hex);
       }
-    } else {
+    } else if (remaining > 1) {
       snprintf(ptr, remaining, "[Invalid]");
     }
 
