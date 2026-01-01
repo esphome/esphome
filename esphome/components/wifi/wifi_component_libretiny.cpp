@@ -478,14 +478,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
   if (num < 0)
     return;
 
-  // Count unique SSIDs
-  UniqueSSIDCounter ssid_counter;
-  for (int i = 0; i < num; i++) {
-    String ssid = WiFi.SSID(i);
-    ssid_counter.add(ssid.c_str(), static_cast<uint8_t>(ssid.length()));
-  }
-
-  this->scan_result_.init(static_cast<unsigned int>(num), ssid_counter.pool_size());
+  this->scan_result_.init(static_cast<unsigned int>(num));
   for (int i = 0; i < num; i++) {
     String ssid = WiFi.SSID(i);
     wifi_auth_mode_t authmode = WiFi.encryptionType(i);
@@ -500,7 +493,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
   WiFi.scanDelete();
 #ifdef USE_WIFI_LISTENERS
   for (auto *listener : this->scan_results_listeners_) {
-    listener->on_wifi_scan_results(this->scan_result_.results());
+    listener->on_wifi_scan_results(this->scan_result_);
   }
 #endif
 }

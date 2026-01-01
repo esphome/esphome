@@ -837,14 +837,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       return;
     }
 
-    // Count unique SSIDs
-    UniqueSSIDCounter ssid_counter;
-    for (int i = 0; i < number; i++) {
-      const char *ssid = reinterpret_cast<const char *>(records[i].ssid);
-      ssid_counter.add(ssid, static_cast<uint8_t>(strlen(ssid)));
-    }
-
-    scan_result_.init(number, ssid_counter.pool_size());
+    scan_result_.init(number);
     for (int i = 0; i < number; i++) {
       auto &record = records[i];
       bssid_t bssid;
@@ -857,7 +850,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
 #ifdef USE_WIFI_LISTENERS
     for (auto *listener : this->scan_results_listeners_) {
-      listener->on_wifi_scan_results(this->scan_result_.results());
+      listener->on_wifi_scan_results(this->scan_result_);
     }
 #endif
 

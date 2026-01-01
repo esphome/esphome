@@ -254,7 +254,7 @@ void WiFiComponent::wifi_loop_() {
     ESP_LOGV(TAG, "Scan done");
 #ifdef USE_WIFI_LISTENERS
     for (auto *listener : this->scan_results_listeners_) {
-      listener->on_wifi_scan_results(this->scan_result_.results());
+      listener->on_wifi_scan_results(this->scan_result_);
     }
 #endif
   }
