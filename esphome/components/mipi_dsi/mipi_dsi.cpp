@@ -1,9 +1,13 @@
 #ifdef USE_ESP32_VARIANT_ESP32P4
 #include <utility>
 #include "mipi_dsi.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace mipi_dsi {
+
+// Maximum bytes to log for init commands (truncated if larger)
+static constexpr size_t MIPI_DSI_MAX_CMD_LOG_BYTES = 64;
 
 static bool notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
   auto *sem = static_cast<SemaphoreHandle_t *>(user_ctx);
@@ -121,8 +125,11 @@ void MIPI_DSI::setup() {
         }
       }
       const auto *ptr = vec.data() + index;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+      char hex_buf[format_hex_pretty_size(MIPI_DSI_MAX_CMD_LOG_BYTES)];
+#endif
       ESP_LOGVV(TAG, "Command %02X, length %d, byte(s) %s", cmd, num_args,
-                format_hex_pretty(ptr, num_args, '.', false).c_str());
+                format_hex_pretty_to(hex_buf, ptr, num_args, '.'));
       err = esp_lcd_panel_io_tx_param(this->io_handle_, cmd, ptr, num_args);
       if (err != ESP_OK) {
         this->smark_failed(LOG_STR("lcd_panel_io_tx_param failed"), err);
