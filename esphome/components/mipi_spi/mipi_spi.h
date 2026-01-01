@@ -573,8 +573,8 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
     const int16_t buffer_h = HEIGHT / FRACTION;
 
     // Calculate fill region, respecting clipping
-    Rect fill_rect(0, this->start_line_, WIDTH, buffer_h);
-    Rect clip = this->get_clipping();
+    display::Rect fill_rect(0, this->start_line_, WIDTH, buffer_h);
+    display::Rect clip = this->get_clipping();
     if (clip.is_set()) {
       fill_rect.shrink(clip);
       if (!fill_rect.is_set())
