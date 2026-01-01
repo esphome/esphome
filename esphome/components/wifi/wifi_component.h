@@ -8,6 +8,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 
+#include <cstring>
 #include <span>
 #include <string>
 #include <vector>
@@ -61,12 +62,25 @@ namespace esphome::wifi {
 /// Sentinel value for RSSI when WiFi is not connected
 static constexpr int8_t WIFI_RSSI_DISCONNECTED = -127;
 
-/// Buffer size for SSID (IEEE 802.11 max 32 bytes + null terminator)
-static constexpr size_t SSID_BUFFER_SIZE = 33;
+/// Maximum SSID length per IEEE 802.11
+static constexpr uint8_t MAX_SSID_LEN = 32;
+
+/// Buffer size for SSID (max length + null terminator)
+static constexpr size_t SSID_BUFFER_SIZE = MAX_SSID_LEN + 1;
+
+/// Maximum password length per WPA2
+static constexpr uint8_t MAX_PASSWORD_LEN = 64;
+
+/// Buffer size for password (max length + null terminator)
+static constexpr size_t PASSWORD_BUFFER_SIZE = MAX_PASSWORD_LEN + 1;
+
+/// Maximum unique SSIDs tracked for deduplication during scan
+/// Beyond this limit, duplicate SSID storage may occur
+static constexpr size_t MAX_UNIQUE_SSIDS = 32;
 
 struct SavedWifiSettings {
-  char ssid[33];
-  char password[65];
+  char ssid[SSID_BUFFER_SIZE];
+  char password[PASSWORD_BUFFER_SIZE];
 } PACKED;  // NOLINT
 
 struct SavedWifiFastConnectSettings {
@@ -202,32 +216,159 @@ class WiFiAP {
 
 class WiFiScanResult {
  public:
-  WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth, bool is_hidden);
+  WiFiScanResult(const bssid_t &bssid, const char *ssid, uint8_t channel, int8_t rssi, bool with_auth, bool is_hidden);
 
   bool matches(const WiFiAP &config) const;
 
-  bool get_matches() const;
+  bool get_matches() const { return this->flags_ & FLAG_MATCHES; }
   void set_matches(bool matches);
   const bssid_t &get_bssid() const;
-  const std::string &get_ssid() const;
+  const char *get_ssid() const;
   uint8_t get_channel() const;
   int8_t get_rssi() const;
-  bool get_with_auth() const;
-  bool get_is_hidden() const;
-  int8_t get_priority() const { return priority_; }
-  void set_priority(int8_t priority) { priority_ = priority; }
+  bool get_with_auth() const { return this->flags_ & FLAG_WITH_AUTH; }
+  bool get_is_hidden() const { return this->flags_ & FLAG_IS_HIDDEN; }
+  int8_t get_priority() const { return this->priority_; }
+  void set_priority(int8_t priority) { this->priority_ = priority; }
 
   bool operator==(const WiFiScanResult &rhs) const;
 
  protected:
-  bssid_t bssid_;
-  uint8_t channel_;
-  int8_t rssi_;
-  std::string ssid_;
-  int8_t priority_{0};
-  bool matches_{false};
-  bool with_auth_;
-  bool is_hidden_;
+  static constexpr uint8_t FLAG_MATCHES = 1 << 0;
+  static constexpr uint8_t FLAG_WITH_AUTH = 1 << 1;
+  static constexpr uint8_t FLAG_IS_HIDDEN = 1 << 2;
+
+  bssid_t bssid_;       // 6 bytes
+  uint8_t channel_;     // 1 byte
+  int8_t rssi_;         // 1 byte (now 4-byte aligned for pointer)
+  const char *ssid_;    // 4 bytes - points into WiFiScanResults::ssid_pool_
+  int8_t priority_{0};  // 1 byte
+  uint8_t flags_{0};    // 1 byte (+ 2 bytes padding for struct alignment)
+};
+
+/// SSID entry with length for efficient comparison
+struct SSIDEntry {
+  char ssid[SSID_BUFFER_SIZE];  // SSID data, always null-terminated
+  uint8_t len{0};               // Length of SSID (0-MAX_SSID_LEN)
+
+  /// Get null-terminated SSID
+  const char *c_str() const { return this->ssid; }
+
+  /// Check if this entry matches the given SSID
+  bool matches(const char *other, uint8_t other_len) const {
+    return this->len == other_len && memcmp(this->ssid, other, other_len) == 0;
+  }
+
+  /// Store an SSID with its length (always null-terminates)
+  void set(const char *data, uint8_t length) {
+    this->len = length > MAX_SSID_LEN ? MAX_SSID_LEN : length;
+    memcpy(this->ssid, data, this->len);
+    this->ssid[this->len] = '\0';
+  }
+};
+
+/// Helper to count unique SSIDs using length + memcmp comparison.
+/// Designed for single-pass counting during scan result iteration.
+/// Tracks up to MAX_UNIQUE_SSIDS - sufficient for typical environments.
+/// After capacity is reached, continues checking against stored SSIDs
+/// and counts additional unique ones separately.
+class UniqueSSIDCounter {
+ public:
+  /// Add an SSID and return true if not previously seen (vs stored SSIDs)
+  /// @param ssid Pointer to SSID data (not required to be null-terminated)
+  /// @param len Length of SSID (0-32)
+  __attribute__((noinline)) bool add(const char *ssid, uint8_t len) {
+    // Always check against stored SSIDs
+    for (size_t i = 0; i < this->count_; i++) {
+      if (this->ssids_[i].matches(ssid, len))
+        return false;  // Already seen
+    }
+    if (this->count_ < MAX_UNIQUE_SSIDS) {
+      this->ssids_[this->count_].set(ssid, len);
+      this->count_++;
+    } else {
+      // Can't store, but wasn't a duplicate of stored SSIDs
+      // Count as potential unique (worst case for pool sizing)
+      this->overflow_count_++;
+    }
+    return true;  // Not seen before (in stored set)
+  }
+  /// Total pool size needed: stored + overflow (worst case)
+  size_t pool_size() const { return this->count_ + this->overflow_count_; }
+
+ protected:
+  std::array<SSIDEntry, MAX_UNIQUE_SSIDS> ssids_{};
+  uint8_t count_{0};
+  uint8_t overflow_count_{0};
+};
+
+/// Container for WiFi scan results with SSID deduplication.
+/// SSIDs are interned into a pool - duplicates point to the same storage.
+class WiFiScanResults {
+ public:
+#ifndef USE_RP2040
+  /// Initialize storage for the expected number of results and SSIDs.
+  /// @param result_count Number of scan results to store
+  /// @param ssid_pool_size Size of SSID pool (use result_count if UniqueSSIDCounter overflowed)
+  void init(size_t result_count, size_t ssid_pool_size) {
+    this->results_.init(result_count);
+    this->ssid_pool_.init(ssid_pool_size);
+  }
+#endif
+
+  /// Add a scan result, interning the SSID
+  /// @param ssid Pointer to SSID data (not required to be null-terminated)
+  /// @param ssid_len Length of SSID (0-32)
+  void emplace_back(const bssid_t &bssid, const char *ssid, uint8_t ssid_len, uint8_t channel, int8_t rssi,
+                    bool with_auth, bool is_hidden) {
+    const char *interned_ssid = this->intern_ssid_(ssid, ssid_len);
+    this->results_.emplace_back(bssid, interned_ssid, channel, rssi, with_auth, is_hidden);
+  }
+
+  /// Clear both results and SSID pool
+  void clear() {
+    this->results_.clear();
+    this->ssid_pool_.clear();
+  }
+
+  /// Release memory (for shrink_to_fit semantics)
+  void shrink_to_fit() {
+    this->results_.shrink_to_fit();
+    this->ssid_pool_.shrink_to_fit();
+  }
+
+  // Vector-like accessors
+  bool empty() const { return this->results_.empty(); }
+  size_t size() const { return this->results_.size(); }
+  WiFiScanResult &operator[](size_t idx) { return this->results_[idx]; }
+  const WiFiScanResult &operator[](size_t idx) const { return this->results_[idx]; }
+  auto begin() { return this->results_.begin(); }
+  auto end() { return this->results_.end(); }
+  auto begin() const { return this->results_.begin(); }
+  auto end() const { return this->results_.end(); }
+
+  /// Get underlying vector (for listener interface compatibility)
+  const wifi_scan_vector_t<WiFiScanResult> &results() const { return this->results_; }
+
+ protected:
+  /// Intern an SSID - returns pointer to existing or newly added pool entry
+  /// @param ssid Pointer to SSID data (not required to be null-terminated)
+  /// @param len Length of SSID (0-32)
+  __attribute__((noinline)) const char *intern_ssid_(const char *ssid, uint8_t len) {
+    // Check if already in pool
+    for (auto &entry : this->ssid_pool_) {
+      if (entry.matches(ssid, len)) {
+        return entry.c_str();
+      }
+    }
+    // Add new entry (pool is sized via UniqueSSIDCounter::pool_size())
+    this->ssid_pool_.emplace_back();
+    this->ssid_pool_.back().set(ssid, len);
+    return this->ssid_pool_.back().c_str();
+  }
+
+  wifi_scan_vector_t<WiFiScanResult> results_;
+  wifi_scan_vector_t<SSIDEntry> ssid_pool_;
 };
 
 struct WiFiSTAPriority {
@@ -378,7 +519,7 @@ class WiFiComponent : public Component {
   const char *get_use_address() const;
   void set_use_address(const char *use_address);
 
-  const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
+  const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return this->scan_result_.results(); }
 
   network::IPAddress wifi_soft_ap_ip();
 
@@ -598,7 +739,7 @@ class WiFiComponent : public Component {
 
   FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
-  wifi_scan_vector_t<WiFiScanResult> scan_result_;
+  WiFiScanResults scan_result_;
 #ifdef USE_WIFI_AP
   WiFiAP ap_;
 #endif

@@ -1045,7 +1045,7 @@ __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res)
   auto bssid = res.get_bssid();
   format_mac_addr_upper(bssid.data(), bssid_s);
 
-  ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
+  ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid(),
            res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
            LOG_STR_ARG(get_signal_bars(res.get_rssi())));
   ESP_LOGD(TAG, "  Channel: %2u, RSSI: %3d dB, Priority: %4d", res.get_channel(), res.get_rssi(), res.get_priority());
@@ -1058,7 +1058,7 @@ __attribute__((noinline)) static void log_scan_result_non_matching(const WiFiSca
   auto bssid = res.get_bssid();
   format_mac_addr_upper(bssid.data(), bssid_s);
 
-  ESP_LOGV(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
+  ESP_LOGV(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid(), bssid_s,
            LOG_STR_ARG(get_signal_bars(res.get_rssi())));
 }
 #endif
@@ -1532,11 +1532,11 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   }
 
   // Get SSID for logging (use pointer to avoid copy)
-  const std::string *ssid = nullptr;
+  const char *ssid = nullptr;
   if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
-    ssid = &this->scan_result_[0].get_ssid();
+    ssid = this->scan_result_[0].get_ssid();
   } else if (const WiFiAP *config = this->get_selected_sta_()) {
-    ssid = &config->get_ssid();
+    ssid = config->get_ssid().c_str();
   }
 
   // Only decrease priority on the last attempt for this phase
@@ -1556,8 +1556,8 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   }
   char bssid_s[18];
   format_mac_addr_upper(failed_bssid.value().data(), bssid_s);
-  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d",
-           ssid != nullptr ? ssid->c_str() : "", bssid_s, old_priority, new_priority);
+  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid != nullptr ? ssid : "",
+           bssid_s, old_priority, new_priority);
 
   // After adjusting priority, check if all priorities are now at minimum
   // If so, clear the vector to save memory and reset for fresh start
@@ -1818,19 +1818,18 @@ const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip
 #endif
 bool WiFiAP::get_hidden() const { return this->hidden_; }
 
-WiFiScanResult::WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth,
+WiFiScanResult::WiFiScanResult(const bssid_t &bssid, const char *ssid, uint8_t channel, int8_t rssi, bool with_auth,
                                bool is_hidden)
     : bssid_(bssid),
       channel_(channel),
       rssi_(rssi),
-      ssid_(std::move(ssid)),
-      with_auth_(with_auth),
-      is_hidden_(is_hidden) {}
+      ssid_(ssid),
+      flags_((with_auth ? FLAG_WITH_AUTH : 0) | (is_hidden ? FLAG_IS_HIDDEN : 0)) {}
 bool WiFiScanResult::matches(const WiFiAP &config) const {
   if (config.get_hidden()) {
     // User configured a hidden network, only match actually hidden networks
     // don't match SSID
-    if (!this->is_hidden_)
+    if (!this->get_is_hidden())
       return false;
   } else if (!config.get_ssid().empty()) {
     // check if SSID matches
@@ -1845,15 +1844,15 @@ bool WiFiScanResult::matches(const WiFiAP &config) const {
 
 #ifdef USE_WIFI_WPA2_EAP
   // BSSID requires auth but no PSK or EAP credentials given
-  if (this->with_auth_ && (config.get_password().empty() && !config.get_eap().has_value()))
+  if (this->get_with_auth() && (config.get_password().empty() && !config.get_eap().has_value()))
     return false;
 
   // BSSID does not require auth, but PSK or EAP credentials given
-  if (!this->with_auth_ && (!config.get_password().empty() || config.get_eap().has_value()))
+  if (!this->get_with_auth() && (!config.get_password().empty() || config.get_eap().has_value()))
     return false;
 #else
   // If PSK given, only match for networks with auth (and vice versa)
-  if (config.get_password().empty() == this->with_auth_)
+  if (config.get_password().empty() == this->get_with_auth())
     return false;
 #endif
 
@@ -1863,14 +1862,17 @@ bool WiFiScanResult::matches(const WiFiAP &config) const {
   }
   return true;
 }
-bool WiFiScanResult::get_matches() const { return this->matches_; }
-void WiFiScanResult::set_matches(bool matches) { this->matches_ = matches; }
+void WiFiScanResult::set_matches(bool matches) {
+  if (matches) {
+    this->flags_ |= FLAG_MATCHES;
+  } else {
+    this->flags_ &= ~FLAG_MATCHES;
+  }
+}
 const bssid_t &WiFiScanResult::get_bssid() const { return this->bssid_; }
-const std::string &WiFiScanResult::get_ssid() const { return this->ssid_; }
+const char *WiFiScanResult::get_ssid() const { return this->ssid_; }
 uint8_t WiFiScanResult::get_channel() const { return this->channel_; }
 int8_t WiFiScanResult::get_rssi() const { return this->rssi_; }
-bool WiFiScanResult::get_with_auth() const { return this->with_auth_; }
-bool WiFiScanResult::get_is_hidden() const { return this->is_hidden_; }
 
 bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->bssid_ == rhs.bssid_; }
 

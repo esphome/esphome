@@ -751,24 +751,28 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
     return;
   }
 
-  // Count the number of results first
+  // Count results and unique SSIDs in single pass
   auto *head = reinterpret_cast<bss_info *>(arg);
   size_t count = 0;
+  UniqueSSIDCounter ssid_counter;
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
     count++;
+    uint8_t len = std::min(it->ssid_len, static_cast<uint8>(MAX_SSID_LEN));
+    ssid_counter.add(reinterpret_cast<const char *>(it->ssid), len);
   }
 
-  this->scan_result_.init(count);
+  this->scan_result_.init(count, ssid_counter.pool_size());
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
+    uint8_t len = std::min(it->ssid_len, static_cast<uint8>(MAX_SSID_LEN));
     this->scan_result_.emplace_back(
         bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
-        std::string(reinterpret_cast<char *>(it->ssid), it->ssid_len), it->channel, it->rssi, it->authmode != AUTH_OPEN,
+        reinterpret_cast<const char *>(it->ssid), len, it->channel, it->rssi, it->authmode != AUTH_OPEN,
         it->is_hidden != 0);
   }
   this->scan_done_ = true;
 #ifdef USE_WIFI_LISTENERS
   for (auto *listener : global_wifi_component->scan_results_listeners_) {
-    listener->on_wifi_scan_results(global_wifi_component->scan_result_);
+    listener->on_wifi_scan_results(global_wifi_component->scan_result_.results());
   }
 #endif
 }

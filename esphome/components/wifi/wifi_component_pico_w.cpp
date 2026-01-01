@@ -139,11 +139,18 @@ int WiFiComponent::s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *r
 void WiFiComponent::wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result) {
   bssid_t bssid;
   std::copy(result->bssid, result->bssid + 6, bssid.begin());
-  std::string ssid(reinterpret_cast<const char *>(result->ssid));
-  WiFiScanResult res(bssid, ssid, result->channel, result->rssi, result->auth_mode != CYW43_AUTH_OPEN, ssid.empty());
-  if (std::find(this->scan_result_.begin(), this->scan_result_.end(), res) == this->scan_result_.end()) {
-    this->scan_result_.push_back(res);
+  const char *ssid = reinterpret_cast<const char *>(result->ssid);
+  uint8_t ssid_len = result->ssid_len;
+
+  // Check for duplicates by BSSID (same AP) - RP2040 can report same AP multiple times
+  for (const auto &existing : this->scan_result_) {
+    if (existing.get_bssid() == bssid) {
+      return;  // Already have this BSSID
+    }
   }
+
+  this->scan_result_.emplace_back(bssid, ssid, ssid_len, result->channel, result->rssi,
+                                  result->auth_mode != CYW43_AUTH_OPEN, ssid_len == 0);
 }
 
 bool WiFiComponent::wifi_scan_start_(bool passive) {
@@ -247,7 +254,7 @@ void WiFiComponent::wifi_loop_() {
     ESP_LOGV(TAG, "Scan done");
 #ifdef USE_WIFI_LISTENERS
     for (auto *listener : this->scan_results_listeners_) {
-      listener->on_wifi_scan_results(this->scan_result_);
+      listener->on_wifi_scan_results(this->scan_result_.results());
     }
 #endif
   }

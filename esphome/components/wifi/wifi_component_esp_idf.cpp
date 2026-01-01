@@ -837,18 +837,27 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       return;
     }
 
-    scan_result_.init(number);
+    // Count unique SSIDs
+    UniqueSSIDCounter ssid_counter;
+    for (int i = 0; i < number; i++) {
+      const char *ssid = reinterpret_cast<const char *>(records[i].ssid);
+      ssid_counter.add(ssid, static_cast<uint8_t>(strlen(ssid)));
+    }
+
+    scan_result_.init(number, ssid_counter.pool_size());
     for (int i = 0; i < number; i++) {
       auto &record = records[i];
       bssid_t bssid;
       std::copy(record.bssid, record.bssid + 6, bssid.begin());
-      std::string ssid(reinterpret_cast<const char *>(record.ssid));
-      scan_result_.emplace_back(bssid, ssid, record.primary, record.rssi, record.authmode != WIFI_AUTH_OPEN,
-                                ssid.empty());
+      // ESP-IDF ssid is null-terminated uint8_t[33]
+      const char *ssid = reinterpret_cast<const char *>(record.ssid);
+      uint8_t ssid_len = static_cast<uint8_t>(strlen(ssid));
+      scan_result_.emplace_back(bssid, ssid, ssid_len, record.primary, record.rssi, record.authmode != WIFI_AUTH_OPEN,
+                                ssid_len == 0);
     }
 #ifdef USE_WIFI_LISTENERS
     for (auto *listener : this->scan_results_listeners_) {
-      listener->on_wifi_scan_results(this->scan_result_);
+      listener->on_wifi_scan_results(this->scan_result_.results());
     }
 #endif
 
@@ -1099,8 +1108,8 @@ const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer
     buffer[0] = '\0';
     return buffer.data();
   }
-  // info.ssid is uint8[33], but only 32 bytes are SSID data
-  size_t len = strnlen(reinterpret_cast<const char *>(info.ssid), 32);
+  // info.ssid is uint8[33], but only MAX_SSID_LEN bytes are SSID data
+  size_t len = strnlen(reinterpret_cast<const char *>(info.ssid), MAX_SSID_LEN);
   memcpy(buffer.data(), info.ssid, len);
   buffer[len] = '\0';
   return buffer.data();

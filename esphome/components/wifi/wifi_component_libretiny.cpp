@@ -478,22 +478,29 @@ void WiFiComponent::wifi_scan_done_callback_() {
   if (num < 0)
     return;
 
-  this->scan_result_.init(static_cast<unsigned int>(num));
+  // Count unique SSIDs
+  UniqueSSIDCounter ssid_counter;
+  for (int i = 0; i < num; i++) {
+    String ssid = WiFi.SSID(i);
+    ssid_counter.add(ssid.c_str(), static_cast<uint8_t>(ssid.length()));
+  }
+
+  this->scan_result_.init(static_cast<unsigned int>(num), ssid_counter.pool_size());
   for (int i = 0; i < num; i++) {
     String ssid = WiFi.SSID(i);
     wifi_auth_mode_t authmode = WiFi.encryptionType(i);
     int32_t rssi = WiFi.RSSI(i);
     uint8_t *bssid = WiFi.BSSID(i);
     int32_t channel = WiFi.channel(i);
+    uint8_t ssid_len = static_cast<uint8_t>(ssid.length());
 
-    this->scan_result_.emplace_back(bssid_t{bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]},
-                                    std::string(ssid.c_str()), channel, rssi, authmode != WIFI_AUTH_OPEN,
-                                    ssid.length() == 0);
+    this->scan_result_.emplace_back(bssid_t{bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]}, ssid.c_str(),
+                                    ssid_len, channel, rssi, authmode != WIFI_AUTH_OPEN, ssid_len == 0);
   }
   WiFi.scanDelete();
 #ifdef USE_WIFI_LISTENERS
   for (auto *listener : this->scan_results_listeners_) {
-    listener->on_wifi_scan_results(this->scan_result_);
+    listener->on_wifi_scan_results(this->scan_result_.results());
   }
 #endif
 }

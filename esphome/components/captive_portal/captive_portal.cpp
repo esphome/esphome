@@ -29,18 +29,17 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
     if (scan.get_is_hidden())
       continue;
 
-      // Assumes no " in ssid, possible unicode isses?
+      // Assumes no " in ssid, possible unicode issues?
 #ifdef USE_ESP8266
     stream->print(ESPHOME_F(",{\"ssid\":\""));
-    stream->print(scan.get_ssid().c_str());
+    stream->print(scan.get_ssid());
     stream->print(ESPHOME_F("\",\"rssi\":"));
     stream->print(scan.get_rssi());
     stream->print(ESPHOME_F(",\"lock\":"));
     stream->print(scan.get_with_auth());
     stream->print(ESPHOME_F("}"));
 #else
-    stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", scan.get_ssid().c_str(), scan.get_rssi(),
-                   scan.get_with_auth());
+    stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", scan.get_ssid(), scan.get_rssi(), scan.get_with_auth());
 #endif
   }
   stream->print(ESPHOME_F("]}"));
