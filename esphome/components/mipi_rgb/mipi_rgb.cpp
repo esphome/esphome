@@ -1,5 +1,6 @@
 #ifdef USE_ESP32_VARIANT_ESP32S3
 #include "mipi_rgb.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esp_lcd_panel_rgb.h"
@@ -8,6 +9,9 @@ namespace esphome {
 namespace mipi_rgb {
 
 static const uint8_t DELAY_FLAG = 0xFF;
+
+// Maximum bytes to log for init commands (truncated if larger)
+static constexpr size_t MIPI_RGB_MAX_CMD_LOG_BYTES = 64;
 static constexpr uint8_t MADCTL_MY = 0x80;     // Bit 7 Bottom to top
 static constexpr uint8_t MADCTL_MX = 0x40;     // Bit 6 Right to left
 static constexpr uint8_t MADCTL_MV = 0x20;     // Bit 5 Swap axes
@@ -91,8 +95,9 @@ void MipiRgbSpi::write_init_sequence_() {
         delay(120);  // NOLINT
       }
       const auto *ptr = vec.data() + index;
+      char hex_buf[format_hex_pretty_size(MIPI_RGB_MAX_CMD_LOG_BYTES)];
       ESP_LOGD(TAG, "Write command %02X, length %d, byte(s) %s", cmd, num_args,
-               format_hex_pretty(ptr, num_args, '.', false).c_str());
+               format_hex_pretty_to(hex_buf, ptr, num_args, '.'));
       index += num_args;
       this->write_command_(cmd);
       while (num_args-- != 0)
