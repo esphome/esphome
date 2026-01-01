@@ -14,7 +14,7 @@ static constexpr size_t RTCGQ02LM_BINDKEY_SIZE = 16;
 void XiaomiRTCGQ02LM::dump_config() {
   char bindkey_hex[format_hex_pretty_size(RTCGQ02LM_BINDKEY_SIZE)];
   ESP_LOGCONFIG(TAG, "Xiaomi RTCGQ02LM");
-  ESP_LOGCONFIG(TAG, "  Bindkey: %s", format_hex_pretty_to(bindkey_hex, this->bindkey_, RTCGQ02LM_BINDKEY_SIZE));
+  ESP_LOGCONFIG(TAG, "  Bindkey: %s", format_hex_pretty_to(bindkey_hex, this->bindkey_, RTCGQ02LM_BINDKEY_SIZE, '.'));
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Motion", this->motion_);
   LOG_BINARY_SENSOR("  ", "Light", this->light_);
