@@ -136,22 +136,45 @@ class ABBWelcomeData {
     this->data_[1] = 0xff;
     this->data_[this->size() - 1] = this->calc_cs_();
   }
-  std::string to_string(uint8_t max_print_bytes = 255) const {
-    std::string info;
-    if (this->is_valid()) {
-      info = str_sprintf(this->get_three_byte_address() ? "[%06" PRIX32 " %s %06" PRIX32 "] Type: %02X"
-                                                        : "[%04" PRIX32 " %s %04" PRIX32 "] Type: %02X",
-                         this->get_source_address(), this->get_retransmission() ? "»" : ">",
-                         this->get_destination_address(), this->get_message_type());
-      if (this->get_data_size())
-        info += str_sprintf(", Data: %s", format_hex_pretty(this->get_data()).c_str());
-    } else {
-      info = "[Invalid]";
-    }
+  // Buffer size for format_to(): raw_hex(81) + space(1) + brackets/addrs/type(~35) + data(53) + null(1)
+  static constexpr size_t FORMAT_BUFFER_SIZE = 192;
+
+  char *format_to(char *buffer, uint8_t max_print_bytes = 255) const {
+    size_t remaining = FORMAT_BUFFER_SIZE;
+    char *ptr = buffer;
+
     uint8_t print_bytes = std::min(this->size(), max_print_bytes);
-    if (print_bytes)
-      info = str_sprintf("%s %s", format_hex_pretty(this->data_.data(), print_bytes).c_str(), info.c_str());
-    return info;
+    if (print_bytes) {
+      char raw_hex[format_hex_pretty_size(12 + MAX_DATA_LENGTH)];
+      format_hex_pretty_to(raw_hex, this->data_.data(), print_bytes, '.');
+      int written = snprintf(ptr, remaining, "%s ", raw_hex);
+      if (written > 0 && static_cast<size_t>(written) < remaining) {
+        ptr += written;
+        remaining -= written;
+      }
+    }
+
+    if (this->is_valid()) {
+      int written = snprintf(ptr, remaining,
+                             this->get_three_byte_address() ? "[%06" PRIX32 " %s %06" PRIX32 "] Type: %02X"
+                                                            : "[%04" PRIX32 " %s %04" PRIX32 "] Type: %02X",
+                             this->get_source_address(), this->get_retransmission() ? "»" : ">",
+                             this->get_destination_address(), this->get_message_type());
+      if (written > 0 && static_cast<size_t>(written) < remaining) {
+        ptr += written;
+        remaining -= written;
+      }
+      if (this->get_data_size() && remaining > 1) {
+        char data_hex[format_hex_pretty_size(MAX_DATA_LENGTH)];
+        format_hex_pretty_to(data_hex, this->data_.data() + 5 + 2 * this->get_address_length(), this->get_data_size(),
+                             '.');
+        snprintf(ptr, remaining, ", Data: %s", data_hex);
+      }
+    } else {
+      snprintf(ptr, remaining, "[Invalid]");
+    }
+
+    return buffer;
   }
   bool operator==(const ABBWelcomeData &rhs) const {
     if (std::equal(this->data_.begin(), this->data_.begin() + this->size(), rhs.data_.begin()))
