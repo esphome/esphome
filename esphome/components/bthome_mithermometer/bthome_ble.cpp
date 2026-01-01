@@ -12,8 +12,6 @@ namespace bthome_mithermometer {
 
 static const char *const TAG = "bthome_mithermometer";
 
-static const int MAC_ADDRESS_SIZE = 6;
-
 static std::string format_mac_address(uint64_t address) {
   std::array<uint8_t, MAC_ADDRESS_SIZE> mac{};
   for (size_t i = 0; i < MAC_ADDRESS_SIZE; i++) {
