@@ -328,9 +328,10 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
     ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): authenticated decryption failed.");
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
     char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+    format_mac_addr_upper(mac_address, mac_buf);
     char hex_buf[format_hex_pretty_size(XIAOMI_MAX_LOG_BYTES)];
 #endif
-    ESP_LOGVV(TAG, "  MAC address : %s", format_mac_addr_pretty(mac_buf, mac_address));
+    ESP_LOGVV(TAG, "  MAC address : %s", mac_buf);
     ESP_LOGVV(TAG, "       Packet : %s", format_hex_pretty_to(hex_buf, raw.data(), raw.size()));
     ESP_LOGVV(TAG, "          Key : %s", format_hex_pretty_to(hex_buf, vector.key, vector.keysize));
     ESP_LOGVV(TAG, "           Iv : %s", format_hex_pretty_to(hex_buf, vector.iv, vector.ivsize));
