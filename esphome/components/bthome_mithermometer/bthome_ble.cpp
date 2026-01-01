@@ -13,12 +13,12 @@ namespace bthome_mithermometer {
 static const char *const TAG = "bthome_mithermometer";
 
 static std::string format_mac_address(uint64_t address) {
-  std::array<uint8_t, MAC_ADDRESS_SIZE> mac{};
-  for (size_t i = 0; i < MAC_ADDRESS_SIZE; i++) {
-    mac[i] = (address >> ((MAC_ADDRESS_SIZE - 1 - i) * 8)) & 0xFF;
+  std::array<uint8_t, ::esphome::MAC_ADDRESS_SIZE> mac{};
+  for (size_t i = 0; i < ::esphome::MAC_ADDRESS_SIZE; i++) {
+    mac[i] = (address >> ((::esphome::MAC_ADDRESS_SIZE - 1 - i) * 8)) & 0xFF;
   }
 
-  char buffer[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  char buffer[::esphome::MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(mac.data(), buffer);
   return buffer;
 }
