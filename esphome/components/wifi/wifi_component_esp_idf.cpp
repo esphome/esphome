@@ -339,14 +339,14 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   conf.sta.rm_enabled = this->rrm_;
 #endif
 
-  if (ap.get_bssid().has_value()) {
+  if (ap.has_bssid()) {
     conf.sta.bssid_set = true;
-    memcpy(conf.sta.bssid, ap.get_bssid()->data(), 6);
+    memcpy(conf.sta.bssid, ap.get_bssid().data(), 6);
   } else {
     conf.sta.bssid_set = false;
   }
-  if (ap.get_channel().has_value()) {
-    conf.sta.channel = *ap.get_channel();
+  if (ap.has_channel()) {
+    conf.sta.channel = ap.get_channel();
     conf.sta.scan_method = WIFI_FAST_SCAN;
   } else {
     conf.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
@@ -483,6 +483,12 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   s_sta_connected = false;
   s_sta_connect_error = false;
   s_sta_connect_not_found = false;
+  // Reset IP address flags - ensures we don't report connected before DHCP completes
+  // (IP_EVENT_STA_LOST_IP doesn't always fire on disconnect)
+  this->got_ipv4_address_ = false;
+#if USE_NETWORK_IPV6
+  this->num_ipv6_addresses_ = 0;
+#endif
 
   err = esp_wifi_connect();
   if (err != ESP_OK) {
@@ -737,8 +743,16 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connected = true;
 #ifdef USE_WIFI_LISTENERS
     for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(this->wifi_ssid(), this->wifi_bssid());
+      listener->on_wifi_connect_state(StringRef(buf, it.ssid_len), it.bssid);
     }
+    // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
+#ifdef USE_WIFI_MANUAL_IP
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+      for (auto *listener : this->ip_state_listeners_) {
+        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+      }
+    }
+#endif
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_DISCONNECTED) {
@@ -764,8 +778,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connecting = false;
     error_from_callback_ = true;
 #ifdef USE_WIFI_LISTENERS
+    static constexpr uint8_t EMPTY_BSSID[6] = {};
     for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state("", bssid_t({0, 0, 0, 0, 0, 0}));
+      listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
     }
 #endif
 
@@ -1003,7 +1018,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     return false;
   }
   memcpy(reinterpret_cast<char *>(conf.ap.ssid), ap.get_ssid().c_str(), ap.get_ssid().size());
-  conf.ap.channel = ap.get_channel().value_or(1);
+  conf.ap.channel = ap.has_channel() ? ap.get_channel() : 1;
   conf.ap.ssid_hidden = ap.get_ssid().size();
   conf.ap.max_connection = 5;
   conf.ap.beacon_interval = 100;
@@ -1076,6 +1091,19 @@ std::string WiFiComponent::wifi_ssid() {
   auto *ssid_s = reinterpret_cast<const char *>(info.ssid);
   size_t len = strnlen(ssid_s, sizeof(info.ssid));
   return {ssid_s, len};
+}
+const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
+  wifi_ap_record_t info{};
+  esp_err_t err = esp_wifi_sta_get_ap_info(&info);
+  if (err != ESP_OK) {
+    buffer[0] = '\0';
+    return buffer.data();
+  }
+  // info.ssid is uint8[33], but only 32 bytes are SSID data
+  size_t len = strnlen(reinterpret_cast<const char *>(info.ssid), 32);
+  memcpy(buffer.data(), info.ssid, len);
+  buffer[len] = '\0';
+  return buffer.data();
 }
 int8_t WiFiComponent::wifi_rssi() {
   wifi_ap_record_t info;

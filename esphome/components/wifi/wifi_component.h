@@ -6,7 +6,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
+#include <span>
 #include <string>
 #include <vector>
 
@@ -58,6 +60,9 @@ namespace esphome::wifi {
 
 /// Sentinel value for RSSI when WiFi is not connected
 static constexpr int8_t WIFI_RSSI_DISCONNECTED = -127;
+
+/// Buffer size for SSID (IEEE 802.11 max 32 bytes + null terminator)
+static constexpr size_t SSID_BUFFER_SIZE = 33;
 
 struct SavedWifiSettings {
   char ssid[33];
@@ -151,25 +156,28 @@ template<typename T> using wifi_scan_vector_t = FixedVector<T>;
 class WiFiAP {
  public:
   void set_ssid(const std::string &ssid);
-  void set_bssid(bssid_t bssid);
-  void set_bssid(optional<bssid_t> bssid);
+  void set_bssid(const bssid_t &bssid);
+  void clear_bssid();
   void set_password(const std::string &password);
 #ifdef USE_WIFI_WPA2_EAP
   void set_eap(optional<EAPAuth> eap_auth);
 #endif  // USE_WIFI_WPA2_EAP
-  void set_channel(optional<uint8_t> channel);
+  void set_channel(uint8_t channel);
+  void clear_channel();
   void set_priority(int8_t priority) { priority_ = priority; }
 #ifdef USE_WIFI_MANUAL_IP
   void set_manual_ip(optional<ManualIP> manual_ip);
 #endif
   void set_hidden(bool hidden);
   const std::string &get_ssid() const;
-  const optional<bssid_t> &get_bssid() const;
+  const bssid_t &get_bssid() const;
+  bool has_bssid() const;
   const std::string &get_password() const;
 #ifdef USE_WIFI_WPA2_EAP
   const optional<EAPAuth> &get_eap() const;
 #endif  // USE_WIFI_WPA2_EAP
-  const optional<uint8_t> &get_channel() const;
+  uint8_t get_channel() const;
+  bool has_channel() const;
   int8_t get_priority() const { return priority_; }
 #ifdef USE_WIFI_MANUAL_IP
   const optional<ManualIP> &get_manual_ip() const;
@@ -179,16 +187,17 @@ class WiFiAP {
  protected:
   std::string ssid_;
   std::string password_;
-  optional<bssid_t> bssid_;
 #ifdef USE_WIFI_WPA2_EAP
   optional<EAPAuth> eap_;
 #endif  // USE_WIFI_WPA2_EAP
 #ifdef USE_WIFI_MANUAL_IP
   optional<ManualIP> manual_ip_;
 #endif
-  optional<uint8_t> channel_;
-  int8_t priority_{0};
-  bool hidden_{false};
+  // Group small types together to minimize padding
+  bssid_t bssid_{};     // 6 bytes, all zeros = any/not set
+  uint8_t channel_{0};  // 1 byte, 0 = auto/not set
+  int8_t priority_{0};  // 1 byte
+  bool hidden_{false};  // 1 byte (+ 3 bytes end padding to 4-byte align)
 };
 
 class WiFiScanResult {
@@ -270,7 +279,7 @@ class WiFiScanResultsListener {
  */
 class WiFiConnectStateListener {
  public:
-  virtual void on_wifi_connect_state(const std::string &ssid, const bssid_t &bssid) = 0;
+  virtual void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) = 0;
 };
 
 /** Listener interface for WiFi power save mode changes.
@@ -402,6 +411,9 @@ class WiFiComponent : public Component {
 
   network::IPAddresses wifi_sta_ip_addresses();
   std::string wifi_ssid();
+  /// Write SSID to buffer without heap allocation.
+  /// Returns pointer to buffer, or empty string if not connected.
+  const char *wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer);
   bssid_t wifi_bssid();
 
   int8_t wifi_rssi();
@@ -590,7 +602,7 @@ class WiFiComponent : public Component {
 #ifdef USE_WIFI_AP
   WiFiAP ap_;
 #endif
-  optional<float> output_power_;
+  float output_power_{NAN};
 #ifdef USE_WIFI_LISTENERS
   std::vector<WiFiIPStateListener *> ip_state_listeners_;
   std::vector<WiFiScanResultsListener *> scan_results_listeners_;
