@@ -93,10 +93,10 @@ void HUB75Display::fill(Color color) {
     return;
 
   // Start with full display rect
-  Rect fill_rect(0, 0, this->get_width_internal(), this->get_height_internal());
+  display::Rect fill_rect(0, 0, this->get_width_internal(), this->get_height_internal());
 
   // Apply clipping using Rect::shrink() to intersect
-  Rect clip = this->get_clipping();
+  display::Rect clip = this->get_clipping();
   if (clip.is_set()) {
     fill_rect.shrink(clip);
     if (!fill_rect.is_set())
