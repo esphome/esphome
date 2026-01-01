@@ -20,9 +20,9 @@ def choose_variant_with_pins() -> Generator[Callable[[list], None]]:
     """
 
     def chooser(pins: list) -> None:
-        for v in VARIANTS:
+        for variant in VARIANTS:
             try:
-                CORE.data[KEY_ESP32][KEY_VARIANT] = v
+                CORE.data[KEY_ESP32][KEY_VARIANT] = variant
                 for pin in pins:
                     if pin is not None:
                         pin = gpio_pin_schema(
