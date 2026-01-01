@@ -4,9 +4,8 @@ from esphome.components import i2c, touchscreen
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_RESET_PIN
 
-DEPENDENCIES = ["i2c"]
+from . import icnt86_ns
 
-icnt86_ns = cg.esphome_ns.namespace("icnt86")
 ICNT86Touchscreen = icnt86_ns.class_(
     "ICNT86Touchscreen",
     touchscreen.Touchscreen,
