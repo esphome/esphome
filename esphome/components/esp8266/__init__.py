@@ -191,7 +191,8 @@ async def to_code(config):
     cg.add_define(ThreadModel.SINGLE)
 
     cg.add_platformio_option(
-        "extra_scripts", ["pre:testing_mode.py", "post:post_build.py"]
+        "extra_scripts",
+        ["pre:testing_mode.py", "pre:exclude_updater.py", "post:post_build.py"],
     )
 
     conf = config[CONF_FRAMEWORK]
@@ -277,4 +278,9 @@ def copy_files():
     copy_file_if_changed(
         testing_mode_file,
         CORE.relative_build_path("testing_mode.py"),
+    )
+    exclude_updater_file = dir / "exclude_updater.py.script"
+    copy_file_if_changed(
+        exclude_updater_file,
+        CORE.relative_build_path("exclude_updater.py"),
     )
