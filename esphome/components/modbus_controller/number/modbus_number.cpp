@@ -55,7 +55,8 @@ void ModbusNumber::control(float value) {
     char hex_buf[format_hex_pretty_size(MODBUS_NUMBER_MAX_LOG_BYTES)];
 #endif
     ESP_LOGV(TAG, "Modbus Number write raw: %s",
-             format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
+             format_hex_pretty_to(hex_buf, sizeof(hex_buf), reinterpret_cast<const uint8_t *>(data.data()),
+                                  data.size() * sizeof(uint16_t)));
     write_cmd = ModbusCommandItem::create_custom_command(
         this->parent_, data,
         [this, write_cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
