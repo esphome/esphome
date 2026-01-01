@@ -210,9 +210,7 @@ void MR60FDA2Component::split_frame_(uint8_t buffer) {
         char byte_buf[format_hex_pretty_size(1)];
 #endif
         ESP_LOGV(TAG, "CURRENT_FRAME: %s %s",
-                 format_hex_pretty_to(frame_buf, this->current_frame_buf_,
-                                      this->current_frame_len_ < MR60FDA2_MAX_LOG_BYTES ? this->current_frame_len_
-                                                                                        : MR60FDA2_MAX_LOG_BYTES),
+                 format_hex_pretty_to(frame_buf, this->current_frame_buf_, this->current_frame_len_),
                  format_hex_pretty_to(byte_buf, &buffer, 1));
         this->current_frame_locate_ = LOCATE_FRAME_HEADER;
       }
@@ -242,9 +240,7 @@ void MR60FDA2Component::split_frame_(uint8_t buffer) {
         char byte_buf[format_hex_pretty_size(1)];
 #endif
         ESP_LOGV(TAG, "GET CURRENT_FRAME: %s %s",
-                 format_hex_pretty_to(frame_buf, this->current_frame_buf_,
-                                      this->current_frame_len_ < MR60FDA2_MAX_LOG_BYTES ? this->current_frame_len_
-                                                                                        : MR60FDA2_MAX_LOG_BYTES),
+                 format_hex_pretty_to(frame_buf, this->current_frame_buf_, this->current_frame_len_),
                  format_hex_pretty_to(byte_buf, &buffer, 1));
 
         this->current_frame_locate_ = LOCATE_FRAME_HEADER;
