@@ -5,7 +5,6 @@ from esphome.const import CONF_ID, CONF_MAC_ADDRESS
 
 CODEOWNERS = ["@nagyrobi"]
 DEPENDENCIES = ["esp32_ble_tracker"]
-AUTO_LOAD = ["esp32_ble_tracker"]
 
 BLE_DEVICE_SCHEMA = esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA
 
