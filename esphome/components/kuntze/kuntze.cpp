@@ -11,7 +11,7 @@ static const char *const TAG = "kuntze";
 static const uint8_t CMD_READ_REG = 0x03;
 static const uint16_t REGISTER[] = {4136, 4160, 4680, 6000, 4688, 4728, 5832};
 
-// Maximum bytes to log for Modbus responses (2 registers = 4 bytes, plus byte count = 5 bytes) // NOLINT
+// Maximum bytes to log for Modbus responses (2 registers = 4, plus count = 5)
 static constexpr size_t KUNTZE_MAX_LOG_BYTES = 8;
 
 void Kuntze::on_modbus_data(const std::vector<uint8_t> &data) {
