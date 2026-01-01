@@ -332,6 +332,37 @@ char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data
   return format_hex_internal(buffer, buffer_size, data, length, separator, 'A');
 }
 
+char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint16_t *data, size_t length, char separator) {
+  if (length == 0 || buffer_size == 0) {
+    if (buffer_size > 0)
+      buffer[0] = '\0';
+    return buffer;
+  }
+  // With separator: each uint16_t needs 5 chars (4 hex + 1 sep), except last has no separator
+  // Without separator: each uint16_t needs 4 chars, plus null terminator
+  uint8_t stride = separator ? 5 : 4;
+  size_t max_values = separator ? (buffer_size / stride) : ((buffer_size - 1) / stride);
+  if (max_values == 0) {
+    buffer[0] = '\0';
+    return buffer;
+  }
+  if (length > max_values) {
+    length = max_values;
+  }
+  for (size_t i = 0; i < length; i++) {
+    size_t pos = i * stride;
+    buffer[pos] = format_hex_pretty_char((data[i] & 0xF000) >> 12);
+    buffer[pos + 1] = format_hex_pretty_char((data[i] & 0x0F00) >> 8);
+    buffer[pos + 2] = format_hex_pretty_char((data[i] & 0x00F0) >> 4);
+    buffer[pos + 3] = format_hex_pretty_char(data[i] & 0x000F);
+    if (separator && i < length - 1) {
+      buffer[pos + 4] = separator;
+    }
+  }
+  buffer[length * stride - (separator ? 1 : 0)] = '\0';
+  return buffer;
+}
+
 // Shared implementation for uint8_t and string hex formatting
 static std::string format_hex_pretty_uint8(const uint8_t *data, size_t length, char separator, bool show_length) {
   if (data == nullptr || length == 0)
@@ -356,16 +387,9 @@ std::string format_hex_pretty(const uint16_t *data, size_t length, char separato
   if (data == nullptr || length == 0)
     return "";
   std::string ret;
-  uint8_t multiple = separator ? 5 : 4;  // 5 if separator is not \0, 4 otherwise
-  ret.resize(multiple * length - (separator ? 1 : 0));
-  for (size_t i = 0; i < length; i++) {
-    ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF000) >> 12);
-    ret[multiple * i + 1] = format_hex_pretty_char((data[i] & 0x0F00) >> 8);
-    ret[multiple * i + 2] = format_hex_pretty_char((data[i] & 0x00F0) >> 4);
-    ret[multiple * i + 3] = format_hex_pretty_char(data[i] & 0x000F);
-    if (separator && i != length - 1)
-      ret[multiple * i + 4] = separator;
-  }
+  size_t hex_len = separator ? (length * 5 - 1) : (length * 4);
+  ret.resize(hex_len);
+  format_hex_pretty_to(&ret[0], hex_len + 1, data, length, separator);
   if (show_length && length > 4)
     return ret + " (" + std::to_string(length) + ")";
   return ret;
