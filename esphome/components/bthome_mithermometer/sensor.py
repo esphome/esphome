@@ -66,6 +66,7 @@ CONFIG_SCHEMA = bthome_mithermometer_base_schema(
     }
 )
 
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await setup_bthome_mithermometer(var, config)
