@@ -10,9 +10,6 @@
 namespace esphome {
 namespace bthome_mithermometer {
 
-using esphome::MAC_ADDRESS_PRETTY_BUFFER_SIZE;
-using esphome::MAC_ADDRESS_SIZE;
-
 static const char *const TAG = "bthome_mithermometer";
 
 static std::string format_mac_address(uint64_t address) {
