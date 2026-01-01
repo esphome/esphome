@@ -136,45 +136,12 @@ class ABBWelcomeData {
     this->data_[1] = 0xff;
     this->data_[this->size() - 1] = this->calc_cs_();
   }
-  // Buffer size for format_to(): raw_hex(81) + space(1) + brackets/addrs/type(~35) + data(53) + null(1)
+  // Buffer size: raw_hex(80) + space(1) + type_info(27) + data(52) + null(1) = 161, rounded up
   static constexpr size_t FORMAT_BUFFER_SIZE = 192;
 
-  char *format_to(char *buffer, uint8_t max_print_bytes = 255) const {
-    size_t remaining = FORMAT_BUFFER_SIZE;
-    char *ptr = buffer;
-
-    uint8_t print_bytes = std::min(this->size(), max_print_bytes);
-    if (print_bytes) {
-      char raw_hex[format_hex_pretty_size(12 + MAX_DATA_LENGTH)];
-      format_hex_pretty_to(raw_hex, this->data_.data(), print_bytes, '.');
-      int written = snprintf(ptr, remaining, "%s ", raw_hex);
-      if (written > 0 && static_cast<size_t>(written) < remaining) {
-        ptr += written;
-        remaining -= written;
-      }
-    }
-
-    if (this->is_valid()) {
-      int written = snprintf(ptr, remaining,
-                             this->get_three_byte_address() ? "[%06" PRIX32 " %s %06" PRIX32 "] Type: %02X"
-                                                            : "[%04" PRIX32 " %s %04" PRIX32 "] Type: %02X",
-                             this->get_source_address(), this->get_retransmission() ? "»" : ">",
-                             this->get_destination_address(), this->get_message_type());
-      if (written > 0 && static_cast<size_t>(written) < remaining) {
-        ptr += written;
-        remaining -= written;
-      }
-      if (this->get_data_size() && remaining > 1) {
-        char data_hex[format_hex_pretty_size(MAX_DATA_LENGTH)];
-        format_hex_pretty_to(data_hex, this->data_.data() + 5 + 2 * this->get_address_length(), this->get_data_size(),
-                             '.');
-        snprintf(ptr, remaining, ", Data: %s", data_hex);
-      }
-    } else if (remaining > 1) {
-      snprintf(ptr, remaining, "[Invalid]");
-    }
-
-    return buffer;
+  template<size_t N> char *format_to(char (&buffer)[N], uint8_t max_print_bytes = 255) const {
+    static_assert(N >= FORMAT_BUFFER_SIZE, "Buffer too small for format_to()");
+    return this->format_to_internal_(buffer, max_print_bytes);
   }
   bool operator==(const ABBWelcomeData &rhs) const {
     if (std::equal(this->data_.begin(), this->data_.begin() + this->size(), rhs.data_.begin()))
@@ -191,6 +158,35 @@ class ABBWelcomeData {
   std::array<uint8_t, 12 + MAX_DATA_LENGTH> data_;
   // Calculate checksum
   uint8_t calc_cs_() const;
+  // Internal format implementation
+  char *format_to_internal_(char *buffer, uint8_t max_print_bytes) const {
+    char *ptr = buffer;
+
+    uint8_t print_bytes = std::min(this->size(), max_print_bytes);
+    if (print_bytes) {
+      char raw_hex[format_hex_pretty_size(12 + MAX_DATA_LENGTH)];
+      format_hex_pretty_to(raw_hex, this->data_.data(), print_bytes, '.');
+      ptr += sprintf(ptr, "%s ", raw_hex);
+    }
+
+    if (this->is_valid()) {
+      ptr += sprintf(ptr,
+                     this->get_three_byte_address() ? "[%06" PRIX32 " %s %06" PRIX32 "] Type: %02X"
+                                                    : "[%04" PRIX32 " %s %04" PRIX32 "] Type: %02X",
+                     this->get_source_address(), this->get_retransmission() ? "»" : ">",
+                     this->get_destination_address(), this->get_message_type());
+      if (this->get_data_size()) {
+        char data_hex[format_hex_pretty_size(MAX_DATA_LENGTH)];
+        format_hex_pretty_to(data_hex, this->data_.data() + 5 + 2 * this->get_address_length(), this->get_data_size(),
+                             '.');
+        sprintf(ptr, ", Data: %s", data_hex);
+      }
+    } else {
+      sprintf(ptr, "[Invalid]");
+    }
+
+    return buffer;
+  }
 };
 
 class ABBWelcomeProtocol : public RemoteProtocol<ABBWelcomeData> {
