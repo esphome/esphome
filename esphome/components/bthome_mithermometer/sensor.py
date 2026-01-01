@@ -23,7 +23,7 @@ from esphome.const import (
 
 from . import bthome_mithermometer_base_schema, setup_bthome_mithermometer
 
-CODEOWNERS = ["@esphome/core"]
+CODEOWNERS = ["@nagyrobi"]
 
 DEPENDENCIES = ["esp32_ble_tracker"]
 
@@ -66,7 +66,6 @@ CONFIG_SCHEMA = bthome_mithermometer_base_schema(
     }
 )
 
-
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await setup_bthome_mithermometer(var, config)
@@ -74,15 +73,15 @@ async def to_code(config):
     if temp_sens := config.get(CONF_TEMPERATURE):
         sens = await sensor.new_sensor(temp_sens)
         cg.add(var.set_temperature(sens))
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
+    if humi_sens := config.get(CONF_HUMIDITY):
+        sens = await sensor.new_sensor(humi_sens)
         cg.add(var.set_humidity(sens))
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
+    if batl_sens := config.get(CONF_BATTERY_LEVEL):
+        sens = await sensor.new_sensor(batl_sens)
         cg.add(var.set_battery_level(sens))
-    if CONF_BATTERY_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_VOLTAGE])
+    if batv_sens := config.get(CONF_BATTERY_VOLTAGE):
+        sens = await sensor.new_sensor(batv_sens)
         cg.add(var.set_battery_voltage(sens))
-    if CONF_SIGNAL_STRENGTH in config:
-        sens = await sensor.new_sensor(config[CONF_SIGNAL_STRENGTH])
+    if sgnl_sens := config.get(CONF_SIGNAL_STRENGTH):
+        sens = await sensor.new_sensor(sgnl_sens)
         cg.add(var.set_signal_strength(sens))
