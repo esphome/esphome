@@ -82,6 +82,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_ALARM_CONTROL_PANEL
   bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *entity) override;
 #endif
+#ifdef USE_WATER_HEATER
+  bool on_water_heater(water_heater::WaterHeater *entity) override;
+#endif
 #ifdef USE_EVENT
   bool on_event(event::Event *entity) override;
 #endif

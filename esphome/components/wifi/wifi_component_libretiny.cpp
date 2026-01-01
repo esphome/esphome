@@ -139,8 +139,8 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   s_sta_connecting = true;
 
   WiFiStatus status = WiFi.begin(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
-                                 ap.get_channel().has_value() ? *ap.get_channel() : 0,
-                                 ap.get_bssid().has_value() ? ap.get_bssid()->data() : NULL);
+                                 ap.get_channel(),  // 0 = auto
+                                 ap.has_bssid() ? ap.get_bssid().data() : NULL);
   if (status != WL_CONNECTED) {
     ESP_LOGW(TAG, "esp_wifi_connect failed: %d", status);
     return false;
@@ -291,6 +291,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
     }
     case ESPHOME_EVENT_ID_WIFI_STA_STOP: {
       ESP_LOGV(TAG, "STA stop");
+      s_sta_connecting = false;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_CONNECTED: {
@@ -302,8 +303,16 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
                format_mac_address_pretty(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
 #ifdef USE_WIFI_LISTENERS
       for (auto *listener : this->connect_state_listeners_) {
-        listener->on_wifi_connect_state(this->wifi_ssid(), this->wifi_bssid());
+        listener->on_wifi_connect_state(StringRef(buf, it.ssid_len), it.bssid);
       }
+      // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
+#ifdef USE_WIFI_MANUAL_IP
+      if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+        for (auto *listener : this->ip_state_listeners_) {
+          listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+        }
+      }
+#endif
 #endif
       break;
     }
@@ -322,7 +331,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       // wifi_sta_connect_status_() to return IDLE. The main loop then sees
       // "Unknown connection status 0" (wifi_component.cpp check_connecting_finished)
       // and calls retry_connect(), aborting a connection that may succeed moments later.
-      // Real connection failures will have ssid/bssid populated, or we'll hit the 30s timeout.
+      // Real connection failures will have ssid/bssid populated, or we'll hit the connection timeout.
       if (it.ssid_len == 0 && s_sta_connecting) {
         ESP_LOGV(TAG, "Ignoring disconnect event with empty ssid while connecting (reason=%s)",
                  get_disconnect_reason_str(it.reason));
@@ -348,8 +357,9 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
 
       s_sta_connecting = false;
 #ifdef USE_WIFI_LISTENERS
+      static constexpr uint8_t EMPTY_BSSID[6] = {};
       for (auto *listener : this->connect_state_listeners_) {
-        listener->on_wifi_connect_state("", bssid_t({0, 0, 0, 0, 0, 0}));
+        listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
       }
 #endif
       break;
@@ -521,13 +531,18 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   yield();
 
   return WiFi.softAP(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
-                     ap.get_channel().value_or(1), ap.get_hidden());
+                     ap.has_channel() ? ap.get_channel() : 1, ap.get_hidden());
 }
 
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; }
 #endif  // USE_WIFI_AP
 
-bool WiFiComponent::wifi_disconnect_() { return WiFi.disconnect(); }
+bool WiFiComponent::wifi_disconnect_() {
+  // Clear connecting flag first so disconnect events aren't ignored
+  // and wifi_sta_connect_status_() returns IDLE instead of CONNECTING
+  s_sta_connecting = false;
+  return WiFi.disconnect();
+}
 
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};
@@ -539,6 +554,14 @@ bssid_t WiFiComponent::wifi_bssid() {
   return bssid;
 }
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
+const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
+  // TODO: Find direct LibreTiny API to avoid Arduino String allocation
+  String ssid = WiFi.SSID();
+  size_t len = std::min(static_cast<size_t>(ssid.length()), SSID_BUFFER_SIZE - 1);
+  memcpy(buffer.data(), ssid.c_str(), len);
+  buffer[len] = '\0';
+  return buffer.data();
+}
 int8_t WiFiComponent::wifi_rssi() { return WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : WIFI_RSSI_DISCONNECTED; }
 int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
