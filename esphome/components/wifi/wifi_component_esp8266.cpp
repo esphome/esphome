@@ -757,13 +757,13 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
   UniqueSSIDCounter ssid_counter;
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
     count++;
-    uint8_t len = std::min(it->ssid_len, static_cast<uint8>(MAX_SSID_LEN));
+    uint8_t len = std::min(it->ssid_len, static_cast<uint8>(ESPHOME_MAX_SSID_LEN));
     ssid_counter.add(reinterpret_cast<const char *>(it->ssid), len);
   }
 
   this->scan_result_.init(count, ssid_counter.pool_size());
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
-    uint8_t len = std::min(it->ssid_len, static_cast<uint8>(MAX_SSID_LEN));
+    uint8_t len = std::min(it->ssid_len, static_cast<uint8>(ESPHOME_MAX_SSID_LEN));
     this->scan_result_.emplace_back(
         bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
         reinterpret_cast<const char *>(it->ssid), len, it->channel, it->rssi, it->authmode != AUTH_OPEN,

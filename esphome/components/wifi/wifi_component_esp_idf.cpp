@@ -1108,8 +1108,8 @@ const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer
     buffer[0] = '\0';
     return buffer.data();
   }
-  // info.ssid is uint8[33], but only MAX_SSID_LEN bytes are SSID data
-  size_t len = strnlen(reinterpret_cast<const char *>(info.ssid), MAX_SSID_LEN);
+  // info.ssid is uint8[33], but only ESPHOME_MAX_SSID_LEN bytes are SSID data
+  size_t len = strnlen(reinterpret_cast<const char *>(info.ssid), ESPHOME_MAX_SSID_LEN);
   memcpy(buffer.data(), info.ssid, len);
   buffer[len] = '\0';
   return buffer.data();

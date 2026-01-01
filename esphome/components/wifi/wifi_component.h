@@ -63,10 +63,10 @@ namespace esphome::wifi {
 static constexpr int8_t WIFI_RSSI_DISCONNECTED = -127;
 
 /// Maximum SSID length per IEEE 802.11
-static constexpr uint8_t MAX_SSID_LEN = 32;
+static constexpr uint8_t ESPHOME_MAX_SSID_LEN = 32;
 
 /// Buffer size for SSID (max length + null terminator)
-static constexpr size_t SSID_BUFFER_SIZE = MAX_SSID_LEN + 1;
+static constexpr size_t SSID_BUFFER_SIZE = ESPHOME_MAX_SSID_LEN + 1;
 
 /// Maximum password length per WPA2
 static constexpr uint8_t MAX_PASSWORD_LEN = 64;
@@ -249,7 +249,7 @@ class WiFiScanResult {
 /// SSID entry with length for efficient comparison
 struct SSIDEntry {
   char ssid[SSID_BUFFER_SIZE];  // SSID data, always null-terminated
-  uint8_t len{0};               // Length of SSID (0-MAX_SSID_LEN)
+  uint8_t len{0};               // Length of SSID (0-ESPHOME_MAX_SSID_LEN)
 
   /// Get null-terminated SSID
   const char *c_str() const { return this->ssid; }
@@ -261,7 +261,7 @@ struct SSIDEntry {
 
   /// Store an SSID with its length (always null-terminates)
   void set(const char *data, uint8_t length) {
-    this->len = length > MAX_SSID_LEN ? MAX_SSID_LEN : length;
+    this->len = length > ESPHOME_MAX_SSID_LEN ? ESPHOME_MAX_SSID_LEN : length;
     memcpy(this->ssid, data, this->len);
     this->ssid[this->len] = '\0';
   }
