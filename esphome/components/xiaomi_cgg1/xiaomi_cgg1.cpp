@@ -16,7 +16,7 @@ void XiaomiCGG1::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Xiaomi CGG1\n"
                 "  Bindkey: %s",
-                format_hex_pretty_to(bindkey_hex, this->bindkey_, CGG1_BINDKEY_SIZE));
+                format_hex_pretty_to(bindkey_hex, this->bindkey_, CGG1_BINDKEY_SIZE, '.'));
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
