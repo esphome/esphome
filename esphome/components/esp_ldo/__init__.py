@@ -31,7 +31,7 @@ CONFIG_SCHEMA = cv.All(
             }
         )
     ),
-    cv.only_with_esp_idf,
+    cv.only_on_esp32,
     only_on_variant(supported=[VARIANT_ESP32P4]),
 )
 

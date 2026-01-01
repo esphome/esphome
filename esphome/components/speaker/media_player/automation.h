@@ -2,7 +2,7 @@
 
 #include "speaker_media_player.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/components/audio/audio.h"
 #include "esphome/core/automation.h"

@@ -5,11 +5,15 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace mipi_spi {
 
 constexpr static const char *const TAG = "display.mipi_spi";
+
+// Maximum bytes to log for commands (truncated if larger)
+static constexpr size_t MIPI_SPI_MAX_CMD_LOG_BYTES = 64;
 static constexpr uint8_t SW_RESET_CMD = 0x01;
 static constexpr uint8_t SLEEP_OUT = 0x11;
 static constexpr uint8_t NORON = 0x13;
@@ -241,7 +245,10 @@ class MipiSpi : public display::Display,
 
   // Writes a command to the display, with the given bytes.
   void write_command_(uint8_t cmd, const uint8_t *bytes, size_t len) {
-    esph_log_v(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty(bytes, len).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    char hex_buf[format_hex_pretty_size(MIPI_SPI_MAX_CMD_LOG_BYTES)];
+    esph_log_v(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+#endif
     if constexpr (BUS_TYPE == BUS_TYPE_QUAD) {
       this->enable();
       this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);

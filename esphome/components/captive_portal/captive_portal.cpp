@@ -65,22 +65,15 @@ void CaptivePortal::start() {
   this->base_->init();
   if (!this->initialized_) {
     this->base_->add_handler(this);
-#ifdef USE_ESP32
-    // Enable LRU socket purging to handle captive portal detection probe bursts
-    // OS captive portal detection makes many simultaneous HTTP requests which can
-    // exhaust sockets. LRU purging automatically closes oldest idle connections.
-    this->base_->get_server()->set_lru_purge_enable(true);
-#endif
   }
 
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
 
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP32)
   // Create DNS server instance for ESP-IDF
   this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->start(ip);
-#endif
-#ifdef USE_ARDUINO
+#elif defined(USE_ARDUINO)
   this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
   this->dns_server_->start(53, ESPHOME_F("*"), ip);

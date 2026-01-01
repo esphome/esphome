@@ -200,7 +200,7 @@ void DebugComponent::get_device_info_(std::string &device_info) {
 #ifdef USE_ARDUINO
   ESP_LOGD(TAG, "Framework: Arduino");
   device_info += "Arduino";
-#elif defined(USE_ESP_IDF)
+#elif defined(USE_ESP32)
   ESP_LOGD(TAG, "Framework: ESP-IDF");
   device_info += "ESP-IDF";
 #else

@@ -1,5 +1,12 @@
 #include "esphome/core/application.h"
+#include "esphome/core/build_info_data.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
+#include <cstring>
+
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
@@ -10,6 +17,10 @@
 
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
+#endif
+
+#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+#include "esphome/components/socket/socket.h"
 #endif
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
@@ -187,7 +198,9 @@ void Application::loop() {
 
   if (this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
-      ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_);
+      char build_time_str[Application::BUILD_TIME_STR_SIZE];
+      this->get_build_time_string(build_time_str);
+      ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", build_time_str);
 #ifdef ESPHOME_PROJECT_NAME
       ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
 #endif
@@ -627,6 +640,9 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     // No sockets registered, use regular delay
     delay(delay_ms);
   }
+#elif defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  // No select support but can wake on socket activity via esp_schedule()
+  socket::socket_delay(delay_ms);
 #else
   // No select support, use regular delay
   delay(delay_ms);
@@ -703,5 +719,10 @@ void Application::wake_loop_threadsafe() {
   }
 }
 #endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+
+void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer) {
+  ESPHOME_strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());
+  buffer[buffer.size() - 1] = '\0';
+}
 
 }  // namespace esphome
