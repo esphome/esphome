@@ -7,9 +7,13 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/components/ble_client/ble_client.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::ble_client {
+
+// Maximum bytes to log in very verbose hex output (168 * 3 = 504, under TX buffer size of 512)
+static constexpr size_t BLE_CLIENT_MAX_LOG_BYTES = 168;
 
 // placeholder class for static TAG .
 class Automation {
@@ -151,7 +155,11 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
       esph_log_w(Automation::TAG, "Cannot write to BLE characteristic - not connected");
       return false;
     }
-    esph_log_vv(Automation::TAG, "Will write %d bytes: %s", len, format_hex_pretty(data, len).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+    char hex_buf[format_hex_pretty_size(BLE_CLIENT_MAX_LOG_BYTES)];
+#endif
+    esph_log_vv(Automation::TAG, "Will write %d bytes: %s", len,
+                format_hex_pretty_to(hex_buf, data, len < BLE_CLIENT_MAX_LOG_BYTES ? len : BLE_CLIENT_MAX_LOG_BYTES));
     esp_err_t err =
         esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_, len,
                                  const_cast<uint8_t *>(data), this->write_type_, ESP_GATT_AUTH_REQ_NONE);
