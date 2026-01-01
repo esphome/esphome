@@ -391,7 +391,7 @@ class WiFiComponent : public Component {
   const char *get_use_address() const;
   void set_use_address(const char *use_address);
 
-  const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return this->scan_result_.results(); }
+  const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return this->scan_result_; }
 
   network::IPAddress wifi_soft_ap_ip();
 
