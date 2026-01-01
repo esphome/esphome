@@ -39,8 +39,8 @@ class HUB75Display : public display::Display {
 
  protected:
   // Display internal methods
-  int get_width_internal() override;
-  int get_height_internal() override;
+  int get_width_internal() override { return this->driver_ != nullptr ? this->driver_->get_width() : 0; }
+  int get_height_internal() override { return this->driver_ != nullptr ? this->driver_->get_height() : 0; }
 
   // Member variables
   Hub75Driver *driver_{nullptr};
