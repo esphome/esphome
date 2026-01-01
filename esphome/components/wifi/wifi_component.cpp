@@ -1818,13 +1818,17 @@ const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip
 #endif
 bool WiFiAP::get_hidden() const { return this->hidden_; }
 
-WiFiScanResult::WiFiScanResult(const bssid_t &bssid, const char *ssid, uint8_t channel, int8_t rssi, bool with_auth,
-                               bool is_hidden)
+WiFiScanResult::WiFiScanResult(const bssid_t &bssid, const char *ssid, uint8_t ssid_len, uint8_t channel, int8_t rssi,
+                               bool with_auth, bool is_hidden)
     : bssid_(bssid),
       channel_(channel),
       rssi_(rssi),
-      ssid_(ssid),
-      flags_((with_auth ? FLAG_WITH_AUTH : 0) | (is_hidden ? FLAG_IS_HIDDEN : 0)) {}
+      flags_((with_auth ? FLAG_WITH_AUTH : 0) | (is_hidden ? FLAG_IS_HIDDEN : 0)) {
+  // Copy SSID with length limit and null-terminate
+  uint8_t len = ssid_len > ESPHOME_MAX_SSID_LEN ? ESPHOME_MAX_SSID_LEN : ssid_len;
+  memcpy(this->ssid_, ssid, len);
+  this->ssid_[len] = '\0';
+}
 bool WiFiScanResult::matches(const WiFiAP &config) const {
   if (config.get_hidden()) {
     // User configured a hidden network, only match actually hidden networks
@@ -1869,10 +1873,6 @@ void WiFiScanResult::set_matches(bool matches) {
     this->flags_ &= ~FLAG_MATCHES;
   }
 }
-const bssid_t &WiFiScanResult::get_bssid() const { return this->bssid_; }
-const char *WiFiScanResult::get_ssid() const { return this->ssid_; }
-uint8_t WiFiScanResult::get_channel() const { return this->channel_; }
-int8_t WiFiScanResult::get_rssi() const { return this->rssi_; }
 
 bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->bssid_ == rhs.bssid_; }
 
