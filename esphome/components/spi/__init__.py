@@ -63,14 +63,14 @@ def _render_hz(value: float) -> str:
 
     Examples:
       500 -> "500 Hz"
-      1500 -> "1.5 KHz"
+      1500 -> "1.5 kHz"
       2000000 -> "2 MHz"
     """
     if value >= 1e6:
         unit = "MHz"
         num = value / 1e6
     elif value >= 1e3:
-        unit = "KHz"
+        unit = "kHz"
         num = value / 1e3
     else:
         unit = "Hz"
