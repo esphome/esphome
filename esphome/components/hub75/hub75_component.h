@@ -37,9 +37,6 @@ class HUB75Display : public display::Display {
   // Brightness control (runtime mutable)
   void set_brightness(uint8_t brightness);
 
-  // Rotation control (runtime mutable, accepts degrees: 0, 90, 180, 270)
-  void set_hub75_rotation(int degrees);
-
  protected:
   // Display internal methods
   int get_width_internal() override;
@@ -59,13 +56,6 @@ template<typename... Ts> class SetBrightnessAction : public Action<Ts...>, publi
   TEMPLATABLE_VALUE(uint8_t, brightness)
 
   void play(const Ts &...x) override { this->parent_->set_brightness(this->brightness_.value(x...)); }
-};
-
-template<typename... Ts> class SetRotationAction : public Action<Ts...>, public Parented<HUB75Display> {
- public:
-  TEMPLATABLE_VALUE(int, hub75_rotation)
-
-  void play(const Ts &...x) override { this->parent_->set_hub75_rotation(this->hub75_rotation_.value(x...)); }
 };
 
 }  // namespace esphome::hub75
