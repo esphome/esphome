@@ -96,7 +96,7 @@ def _frequency_validator(value):
     error = abs(actual - value) / value
     if error > MAX_DATA_RATE_ERROR:
         raise cv.Invalid(
-            f"The configured SPI data rate ({_render_hz(value)}) is not available for this chip"
+            f"The configured SPI data rate ({_render_hz(value)}) is not available for this chip - closest is {_render_hz(actual)}"
         )
     return value
 
