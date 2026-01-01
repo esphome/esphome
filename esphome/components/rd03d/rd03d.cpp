@@ -1,0 +1,204 @@
+#include "rd03d.h"
+#include "esphome/core/log.h"
+
+namespace esphome {
+namespace rd03d {
+
+static const char *const TAG = "rd03d";
+
+void RD03DComponent::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up RD-03D...");
+  this->set_timeout(100, [this]() { this->apply_config_(); });
+}
+
+void RD03DComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "RD-03D:");
+  if (this->tracking_mode_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Tracking Mode: %s",
+                  *this->tracking_mode_ == TrackingMode::SINGLE_TARGET ? "single" : "multi");
+  }
+  if (this->throttle_ > 0) {
+    ESP_LOGCONFIG(TAG, "  Throttle: %ums", this->throttle_);
+  }
+  LOG_SENSOR("  ", "Target Count", this->target_count_sensor_);
+  LOG_BINARY_SENSOR("  ", "Target", this->target_binary_sensor_);
+  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+    ESP_LOGCONFIG(TAG, "  Target %d:", i + 1);
+    LOG_SENSOR("    ", "X", this->targets_[i].x);
+    LOG_SENSOR("    ", "Y", this->targets_[i].y);
+    LOG_SENSOR("    ", "Speed", this->targets_[i].speed);
+    LOG_SENSOR("    ", "Distance", this->targets_[i].distance);
+    LOG_SENSOR("    ", "Resolution", this->targets_[i].resolution);
+    LOG_SENSOR("    ", "Angle", this->targets_[i].angle);
+    LOG_BINARY_SENSOR("    ", "Presence", this->target_presence_[i]);
+  }
+}
+
+void RD03DComponent::loop() {
+  while (this->available()) {
+    uint8_t byte = this->read();
+    ESP_LOGVV(TAG, "Received byte: 0x%02X, buffer_pos: %d", byte, this->buffer_pos_);
+
+    // Check if we're looking for frame header
+    if (this->buffer_pos_ < FRAME_HEADER_SIZE) {
+      if (byte == FRAME_HEADER[this->buffer_pos_]) {
+        this->buffer_[this->buffer_pos_++] = byte;
+      } else if (byte == FRAME_HEADER[0]) {
+        // Start over if we see a potential new header
+        this->buffer_[0] = byte;
+        this->buffer_pos_ = 1;
+      } else {
+        this->buffer_pos_ = 0;
+      }
+      continue;
+    }
+
+    // Accumulate data bytes
+    this->buffer_[this->buffer_pos_++] = byte;
+
+    // Check if we have a complete frame
+    if (this->buffer_pos_ == FRAME_SIZE) {
+      // Validate footer
+      if (this->buffer_[FRAME_SIZE - 2] == FRAME_FOOTER[0] && this->buffer_[FRAME_SIZE - 1] == FRAME_FOOTER[1]) {
+        this->process_frame_();
+      } else {
+        ESP_LOGW(TAG, "Invalid frame footer: 0x%02X 0x%02X (expected 0x55 0xCC)", this->buffer_[FRAME_SIZE - 2],
+                 this->buffer_[FRAME_SIZE - 1]);
+      }
+      this->buffer_pos_ = 0;
+    }
+  }
+}
+
+void RD03DComponent::process_frame_() {
+  // Apply throttle if configured
+  if (this->throttle_ > 0) {
+    uint32_t now = millis();
+    if (now - this->last_publish_time_ < this->throttle_) {
+      return;
+    }
+    this->last_publish_time_ = now;
+  }
+
+  uint8_t target_count = 0;
+
+  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+    // Calculate offset for this target's data
+    // Header is 4 bytes, each target is 8 bytes
+    uint8_t offset = FRAME_HEADER_SIZE + (i * TARGET_DATA_SIZE);
+
+    // Extract raw bytes for this target
+    uint8_t x_low = this->buffer_[offset + 0];
+    uint8_t x_high = this->buffer_[offset + 1];
+    uint8_t y_low = this->buffer_[offset + 2];
+    uint8_t y_high = this->buffer_[offset + 3];
+    uint8_t speed_low = this->buffer_[offset + 4];
+    uint8_t speed_high = this->buffer_[offset + 5];
+    uint8_t res_low = this->buffer_[offset + 6];
+    uint8_t res_high = this->buffer_[offset + 7];
+
+    // Decode values per RD-03D format
+    int16_t x = decode_value(x_low, x_high);
+    int16_t y = decode_value(y_low, y_high);
+    int16_t speed = decode_value(speed_low, speed_high);
+    uint16_t resolution = (res_high << 8) | res_low;
+
+    // Check if target is present (non-zero coordinates)
+    bool target_present = (x != 0 || y != 0);
+    if (target_present) {
+      target_count++;
+    }
+
+    this->publish_target_(i, x, y, speed, resolution);
+
+    // Update per-target presence
+    if (this->target_presence_[i] != nullptr) {
+      this->target_presence_[i]->publish_state(target_present);
+    }
+  }
+
+  // Update overall target count
+  if (this->target_count_sensor_ != nullptr) {
+    this->target_count_sensor_->publish_state(target_count);
+  }
+
+  // Update overall presence
+  if (this->target_binary_sensor_ != nullptr) {
+    this->target_binary_sensor_->publish_state(target_count > 0);
+  }
+}
+
+void RD03DComponent::publish_target_(uint8_t target_num, int16_t x, int16_t y, int16_t speed, uint16_t resolution) {
+  TargetSensor &target = this->targets_[target_num];
+
+  // Publish X coordinate (mm)
+  if (target.x != nullptr) {
+    target.x->publish_state(x);
+  }
+
+  // Publish Y coordinate (mm)
+  if (target.y != nullptr) {
+    target.y->publish_state(y);
+  }
+
+  // Publish speed (convert from cm/s to mm/s)
+  if (target.speed != nullptr) {
+    target.speed->publish_state(speed * 10);
+  }
+
+  // Publish resolution (mm)
+  if (target.resolution != nullptr) {
+    target.resolution->publish_state(resolution);
+  }
+
+  // Calculate and publish distance (mm)
+  if (target.distance != nullptr) {
+    float distance = std::sqrt(static_cast<float>(x) * x + static_cast<float>(y) * y);
+    target.distance->publish_state(distance);
+  }
+
+  // Calculate and publish angle (degrees)
+  // Angle is measured from the Y axis (radar forward direction)
+  if (target.angle != nullptr) {
+    if (x == 0 && y == 0) {
+      target.angle->publish_state(0);
+    } else {
+      float angle = std::atan2(static_cast<float>(x), static_cast<float>(y)) * 180.0f / M_PI;
+      target.angle->publish_state(angle);
+    }
+  }
+}
+
+void RD03DComponent::send_command_(uint16_t command, const uint8_t *data, uint8_t data_len) {
+  // Send header
+  this->write_array(CMD_FRAME_HEADER, sizeof(CMD_FRAME_HEADER));
+
+  // Send length (command word + data)
+  uint16_t len = 2 + data_len;
+  this->write_byte(len & 0xFF);
+  this->write_byte((len >> 8) & 0xFF);
+
+  // Send command word (little-endian)
+  this->write_byte(command & 0xFF);
+  this->write_byte((command >> 8) & 0xFF);
+
+  // Send data if any
+  if (data != nullptr && data_len > 0) {
+    this->write_array(data, data_len);
+  }
+
+  // Send footer
+  this->write_array(CMD_FRAME_FOOTER, sizeof(CMD_FRAME_FOOTER));
+
+  ESP_LOGD(TAG, "Sent command 0x%04X with %d bytes of data", command, data_len);
+}
+
+void RD03DComponent::apply_config_() {
+  if (this->tracking_mode_.has_value()) {
+    uint16_t mode_cmd = (*this->tracking_mode_ == TrackingMode::SINGLE_TARGET) ? CMD_SINGLE_TARGET : CMD_MULTI_TARGET;
+    this->send_command_(mode_cmd);
+  }
+}
+
+}  // namespace rd03d
+}  // namespace esphome
