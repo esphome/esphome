@@ -247,8 +247,8 @@ class MipiSpi : public display::Display,
   void write_command_(uint8_t cmd, const uint8_t *bytes, size_t len) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_size(MIPI_SPI_MAX_CMD_LOG_BYTES)];
-#endif
     esph_log_v(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+#endif
     if constexpr (BUS_TYPE == BUS_TYPE_QUAD) {
       this->enable();
       this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);
