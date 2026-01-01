@@ -185,8 +185,7 @@ void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
 #endif
-  ESP_LOGVV(TAG, "Sending: %s",
-            format_hex_pretty_to(hex_buf, data, length < ZWAVE_MAX_LOG_BYTES ? length : ZWAVE_MAX_LOG_BYTES));
+  ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty_to(hex_buf, data, length));
   this->write_array(data, length);
 }
 
@@ -262,10 +261,7 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
         char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
 #endif
-        ESP_LOGVV(TAG, "Received frame: %s",
-                  format_hex_pretty_to(
-                      hex_buf, this->buffer_.data(),
-                      this->buffer_index_ < ZWAVE_MAX_LOG_BYTES ? this->buffer_index_ : ZWAVE_MAX_LOG_BYTES));
+        ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty_to(hex_buf, this->buffer_.data(), this->buffer_index_));
         frame_completed = true;
       }
       this->response_handler_();
