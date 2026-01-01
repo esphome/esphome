@@ -728,6 +728,9 @@ inline char *format_hex_to(char (&buffer)[N], T val) {
   return format_hex_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
 }
 
+/// Calculate buffer size needed for format_hex_to: "XXXXXXXX...\0" = bytes * 2 + 1
+constexpr size_t format_hex_size(size_t byte_count) { return byte_count * 2 + 1; }
+
 /// Calculate buffer size needed for format_hex_pretty_to with separator: "XX:XX:...:XX\0"
 constexpr size_t format_hex_pretty_size(size_t byte_count) { return byte_count * 3; }
 
