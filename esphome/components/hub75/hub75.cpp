@@ -111,6 +111,9 @@ void HOT HUB75Display::draw_pixel_at(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) [[unlikely]]
     return;
 
+  if (!this->get_clipping().inside(x, y))
+    return;
+
   driver_->set_pixel(x, y, color.r, color.g, color.b);
   App.feed_wdt();
 }

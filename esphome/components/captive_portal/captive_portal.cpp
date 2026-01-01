@@ -69,12 +69,11 @@ void CaptivePortal::start() {
 
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
 
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP32)
   // Create DNS server instance for ESP-IDF
   this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->start(ip);
-#endif
-#ifdef USE_ARDUINO
+#elif defined(USE_ARDUINO)
   this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
   this->dns_server_->start(53, ESPHOME_F("*"), ip);

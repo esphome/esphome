@@ -164,13 +164,9 @@
 #define USE_I2S_LEGACY
 #endif
 
-// IDF-specific feature flags
-#ifdef USE_ESP_IDF
-#define USE_MQTT_IDF_ENQUEUE
-#endif
-
 // ESP32-specific feature flags
 #ifdef USE_ESP32
+#define USE_MQTT_IDF_ENQUEUE
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define USE_OTA_ROLLBACK
 
@@ -225,13 +221,13 @@
 #define USB_HOST_MAX_REQUESTS 16
 
 #ifdef USE_ARDUINO
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 2)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 5)
 #define USE_ETHERNET
 #define USE_ETHERNET_KSZ8081
 #define USE_ETHERNET_MANUAL_IP
 #endif
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #define USE_MICRO_WAKE_WORD
 #define USE_MICRO_WAKE_WORD_VAD
 #if defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
