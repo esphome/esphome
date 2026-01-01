@@ -548,7 +548,7 @@ def _build_config_struct(
 async def to_code(config: ConfigType) -> None:
     add_idf_component(
         name="esphome/esp-hub75",
-        ref="0.2.1",
+        ref="0.2.2",
     )
 
     # Set compile-time configuration via defines
