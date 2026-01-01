@@ -7,7 +7,7 @@
 #include "esphome/components/md5/md5.h"
 #include "esphome/components/watchdog/watchdog.h"
 #include "esphome/components/ota/ota_backend.h"
-#include "esphome/components/ota/ota_backend_arduino_esp8266.h"
+#include "esphome/components/ota/ota_backend_esp8266.h"
 #include "esphome/components/ota/ota_backend_arduino_rp2040.h"
 #include "esphome/components/ota/ota_backend_esp_idf.h"
 

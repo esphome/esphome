@@ -644,6 +644,12 @@ void EthernetComponent::dump_connect_params_() {
     dns_ip2 = dns_getserver(1);
   }
 
+  // Use stack buffers for IP address formatting to avoid heap allocations
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "  IP Address: %s\n"
                 "  Hostname: '%s'\n"
@@ -651,9 +657,9 @@ void EthernetComponent::dump_connect_params_() {
                 "  Gateway: %s\n"
                 "  DNS1: %s\n"
                 "  DNS2: %s",
-                network::IPAddress(&ip.ip).str().c_str(), App.get_name().c_str(),
-                network::IPAddress(&ip.netmask).str().c_str(), network::IPAddress(&ip.gw).str().c_str(),
-                network::IPAddress(dns_ip1).str().c_str(), network::IPAddress(dns_ip2).str().c_str());
+                network::IPAddress(&ip.ip).str_to(ip_buf), App.get_name().c_str(),
+                network::IPAddress(&ip.netmask).str_to(subnet_buf), network::IPAddress(&ip.gw).str_to(gateway_buf),
+                network::IPAddress(dns_ip1).str_to(dns1_buf), network::IPAddress(dns_ip2).str_to(dns2_buf));
 
 #if USE_NETWORK_IPV6
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
@@ -665,12 +671,13 @@ void EthernetComponent::dump_connect_params_() {
   }
 #endif /* USE_NETWORK_IPV6 */
 
+  char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "  MAC Address: %s\n"
                 "  Is Full Duplex: %s\n"
                 "  Link Speed: %u",
-                this->get_eth_mac_address_pretty().c_str(), YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL),
-                this->get_link_speed() == ETH_SPEED_100M ? 100 : 10);
+                this->get_eth_mac_address_pretty_into_buffer(mac_buf),
+                YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL), this->get_link_speed() == ETH_SPEED_100M ? 100 : 10);
 }
 
 #ifdef USE_ETHERNET_SPI
@@ -711,11 +718,16 @@ void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
 }
 
 std::string EthernetComponent::get_eth_mac_address_pretty() {
+  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  return std::string(this->get_eth_mac_address_pretty_into_buffer(buf));
+}
+
+const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
+    std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
   uint8_t mac[6];
   get_eth_mac_address_raw(mac);
-  char buf[18];
-  format_mac_addr_upper(mac, buf);
-  return std::string(buf);
+  format_mac_addr_upper(mac, buf.data());
+  return buf.data();
 }
 
 eth_duplex_t EthernetComponent::get_duplex_mode() {
