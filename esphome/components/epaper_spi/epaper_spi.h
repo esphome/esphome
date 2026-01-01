@@ -76,14 +76,55 @@ class EPaperBase : public Display,
     return 0;
   }
   void fill(Color color) override {
-    auto pixel_color = color_to_bit(color) ? 0xFF : 0x00;
+    const uint8_t pixel_color = color_to_bit(color) ? 0xFF : 0x00;
+    const int16_t w = this->get_width_internal();
+    const int16_t h = this->get_height_internal();
 
-    // We store 8 pixels per byte
-    this->buffer_.fill(pixel_color);
-    this->x_high_ = this->width_;
-    this->y_high_ = this->height_;
-    this->x_low_ = 0;
-    this->y_low_ = 0;
+    // Calculate fill region, respecting clipping
+    Rect fill_rect(0, 0, w, h);
+    Rect clip = this->get_clipping();
+    if (clip.is_set()) {
+      fill_rect.shrink(clip);
+      if (!fill_rect.is_set())
+        return;  // Completely clipped
+    }
+
+    // Check if filling entire display
+    if (fill_rect.x == 0 && fill_rect.y == 0 && fill_rect.w == w && fill_rect.h == h) {
+      this->buffer_.fill(pixel_color);
+      this->x_high_ = this->width_;
+      this->y_high_ = this->height_;
+      this->x_low_ = 0;
+      this->y_low_ = 0;
+      return;
+    }
+
+    // Partial fill - 1-bit, 8 pixels per byte, MSB first, row-major
+    const int16_t x_start = fill_rect.x;
+    const int16_t x_end = fill_rect.x + fill_rect.w;
+    const int16_t y_start = fill_rect.y;
+    const int16_t y_end = fill_rect.y + fill_rect.h;
+
+    for (int16_t y = y_start; y < y_end; y++) {
+      for (int16_t x = x_start; x < x_end; x++) {
+        const size_t pixel_position = y * w + x;
+        const size_t byte_position = pixel_position / 8;
+        const uint8_t bit_position = pixel_position % 8;
+        const uint8_t pixel_bit = 0x80 >> bit_position;
+
+        if (pixel_color) {
+          this->buffer_[byte_position] = this->buffer_[byte_position] | pixel_bit;
+        } else {
+          this->buffer_[byte_position] = this->buffer_[byte_position] & ~pixel_bit;
+        }
+      }
+    }
+
+    // Update dirty region
+    this->x_low_ = std::min(this->x_low_, static_cast<uint16_t>(x_start));
+    this->y_low_ = std::min(this->y_low_, static_cast<uint16_t>(y_start));
+    this->x_high_ = std::max(this->x_high_, static_cast<uint16_t>(x_end));
+    this->y_high_ = std::max(this->y_high_, static_cast<uint16_t>(y_end));
   }
 
   void clear() override {

@@ -293,12 +293,108 @@ void Inkplate::fill(Color color) {
   ESP_LOGV(TAG, "Fill called");
   uint32_t start_time = millis();
 
+  const int16_t w = this->get_width_internal();
+  const int16_t h = this->get_height_internal();
+
+  // Calculate fill region, respecting clipping
+  Rect fill_rect(0, 0, w, h);
+  Rect clip = this->get_clipping();
+  if (clip.is_set()) {
+    fill_rect.shrink(clip);
+    if (!fill_rect.is_set()) {
+      ESP_LOGV(TAG, "Fill completely clipped");
+      return;
+    }
+  }
+
+  // Check if filling entire display
+  const bool full_fill = (fill_rect.x == 0 && fill_rect.y == 0 && fill_rect.w == w && fill_rect.h == h);
+
   if (this->greyscale_) {
-    uint8_t fill = ((color.red * 2126 / 10000) + (color.green * 7152 / 10000) + (color.blue * 722 / 10000)) >> 5;
-    memset(this->buffer_, (fill << 4) | fill, this->get_buffer_length_());
+    uint8_t gs = ((color.red * 2126 / 10000) + (color.green * 7152 / 10000) + (color.blue * 722 / 10000)) >> 5;
+    const uint8_t fill = (gs << 4) | gs;
+    const int16_t w_bytes = w / 2;
+
+    if (full_fill) {
+      memset(this->buffer_, fill, this->get_buffer_length_());
+    } else {
+      // Partial fill - 4-bit grayscale, 2 pixels per byte, high nibble first
+      const int16_t x_start = fill_rect.x;
+      const int16_t x_end = fill_rect.x + fill_rect.w;
+      const int16_t y_start = fill_rect.y;
+      const int16_t y_end = fill_rect.y + fill_rect.h;
+
+      for (int16_t y = y_start; y < y_end; y++) {
+        const uint32_t row_offset = y * w_bytes;
+        int16_t x = x_start;
+
+        // Handle partial byte at start (odd x - low nibble)
+        if (x % 2 != 0) {
+          uint32_t pos = row_offset + x / 2;
+          this->buffer_[pos] = (this->buffer_[pos] & 0xF0) | gs;
+          x++;
+        }
+
+        // Handle full bytes in the middle
+        while (x + 1 < x_end) {
+          this->buffer_[row_offset + x / 2] = fill;
+          x += 2;
+        }
+
+        // Handle partial byte at end (if remaining - high nibble)
+        if (x < x_end) {
+          uint32_t pos = row_offset + x / 2;
+          this->buffer_[pos] = (this->buffer_[pos] & 0x0F) | (gs << 4);
+        }
+      }
+    }
   } else {
-    uint8_t fill = color.is_on() ? 0x00 : 0xFF;
-    memset(this->partial_buffer_, fill, this->get_buffer_length_());
+    // Binary mode - inverted logic (on = 0x00, off = 0xFF)
+    const uint8_t fill = color.is_on() ? 0x00 : 0xFF;
+    const int16_t w_bytes = w / 8;
+
+    if (full_fill) {
+      memset(this->partial_buffer_, fill, this->get_buffer_length_());
+    } else {
+      // Partial fill - 1-bit, 8 pixels per byte, LSB first
+      const int16_t x_start = fill_rect.x;
+      const int16_t x_end = fill_rect.x + fill_rect.w;
+      const int16_t y_start = fill_rect.y;
+      const int16_t y_end = fill_rect.y + fill_rect.h;
+
+      for (int16_t y = y_start; y < y_end; y++) {
+        const uint32_t row_offset = y * w_bytes;
+
+        // Calculate byte boundaries
+        const int16_t byte_start = x_start / 8;
+        const int16_t byte_end = (x_end - 1) / 8;
+
+        for (int16_t byte_idx = byte_start; byte_idx <= byte_end; byte_idx++) {
+          const int16_t byte_x_start = byte_idx * 8;
+          const int16_t byte_x_end = byte_x_start + 8;
+
+          // Calculate which bits in this byte are affected
+          const int16_t bit_start = (x_start > byte_x_start) ? (x_start - byte_x_start) : 0;
+          const int16_t bit_end = (x_end < byte_x_end) ? (x_end - byte_x_start) : 8;
+
+          // Create mask for affected bits (LSB first)
+          uint8_t mask = 0;
+          for (int16_t bit = bit_start; bit < bit_end; bit++) {
+            mask |= (1 << bit);
+          }
+
+          if (mask == 0xFF) {
+            this->partial_buffer_[row_offset + byte_idx] = fill;
+          } else {
+            if (fill) {
+              this->partial_buffer_[row_offset + byte_idx] |= mask;
+            } else {
+              this->partial_buffer_[row_offset + byte_idx] &= ~mask;
+            }
+          }
+        }
+      }
+    }
   }
 
   ESP_LOGV(TAG, "Fill finished (%ums)", millis() - start_time);

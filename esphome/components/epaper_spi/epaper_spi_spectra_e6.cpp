@@ -97,10 +97,56 @@ void EPaperSpectraE6::deep_sleep() {
 }
 
 void EPaperSpectraE6::fill(Color color) {
-  auto pixel_color = color_to_hex(color);
+  const uint8_t pixel_color = color_to_hex(color);
+  const uint8_t fill_byte = pixel_color | (pixel_color << 4);
+  const int16_t w = this->get_width_internal();
+  const int16_t h = this->get_height_internal();
 
-  // We store 2 pixels per byte
-  this->buffer_.fill(pixel_color + (pixel_color << 4));
+  // Calculate fill region, respecting clipping
+  Rect fill_rect(0, 0, w, h);
+  Rect clip = this->get_clipping();
+  if (clip.is_set()) {
+    fill_rect.shrink(clip);
+    if (!fill_rect.is_set())
+      return;  // Completely clipped
+  }
+
+  // Check if filling entire display
+  if (fill_rect.x == 0 && fill_rect.y == 0 && fill_rect.w == w && fill_rect.h == h) {
+    // We store 2 pixels per byte
+    this->buffer_.fill(fill_byte);
+    return;
+  }
+
+  // Partial fill - 4-bit, 2 pixels per byte, high nibble first
+  const int16_t x_start = fill_rect.x;
+  const int16_t x_end = fill_rect.x + fill_rect.w;
+  const int16_t y_start = fill_rect.y;
+  const int16_t y_end = fill_rect.y + fill_rect.h;
+
+  for (int16_t y = y_start; y < y_end; y++) {
+    int16_t x = x_start;
+
+    // Handle partial byte at start (odd position - low nibble)
+    if ((y * w + x) % 2 != 0) {
+      const uint32_t byte_position = (y * w + x) / 2;
+      this->buffer_[byte_position] = (this->buffer_[byte_position] & 0xF0) | pixel_color;
+      x++;
+    }
+
+    // Handle full bytes in the middle
+    while (x + 1 < x_end) {
+      const uint32_t byte_position = (y * w + x) / 2;
+      this->buffer_[byte_position] = fill_byte;
+      x += 2;
+    }
+
+    // Handle partial byte at end (if remaining - high nibble)
+    if (x < x_end) {
+      const uint32_t byte_position = (y * w + x) / 2;
+      this->buffer_[byte_position] = (this->buffer_[byte_position] & 0x0F) | (pixel_color << 4);
+    }
+  }
 }
 
 void EPaperSpectraE6::clear() {

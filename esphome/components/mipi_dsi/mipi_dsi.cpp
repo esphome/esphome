@@ -293,30 +293,74 @@ void MIPI_DSI::draw_pixel_at(int x, int y, Color color) {
 void MIPI_DSI::fill(Color color) {
   if (!this->check_buffer_())
     return;
+
+  const int16_t w = this->get_width_internal();
+  const int16_t h = this->get_height_internal();
+
+  // Calculate fill region, respecting clipping
+  Rect fill_rect(0, 0, w, h);
+  Rect clip = this->get_clipping();
+  if (clip.is_set()) {
+    fill_rect.shrink(clip);
+    if (!fill_rect.is_set())
+      return;  // Completely clipped
+  }
+
+  const bool full_fill = (fill_rect.x == 0 && fill_rect.y == 0 && fill_rect.w == w && fill_rect.h == h);
+
   switch (this->color_depth_) {
     case display::COLOR_BITNESS_565: {
       auto *ptr_16 = reinterpret_cast<uint16_t *>(this->buffer_);
       uint8_t hi_byte = static_cast<uint8_t>(color.r & 0xF8) | (color.g >> 5);
       uint8_t lo_byte = static_cast<uint8_t>((color.g & 0x1C) << 3) | (color.b >> 3);
       uint16_t new_color = lo_byte | (hi_byte << 8);  // little endian
-      std::fill_n(ptr_16, this->width_ * this->height_, new_color);
+
+      if (full_fill) {
+        std::fill_n(ptr_16, w * h, new_color);
+      } else {
+        const int16_t x_start = fill_rect.x;
+        const int16_t x_end = fill_rect.x + fill_rect.w;
+        const int16_t y_start = fill_rect.y;
+        const int16_t y_end = fill_rect.y + fill_rect.h;
+
+        for (int16_t y = y_start; y < y_end; y++) {
+          uint16_t *row = ptr_16 + y * w;
+          for (int16_t x = x_start; x < x_end; x++) {
+            row[x] = new_color;
+          }
+        }
+      }
       break;
     }
 
-    case display::COLOR_BITNESS_888:
-      if (this->color_mode_ == display::COLOR_ORDER_BGR) {
-        for (size_t i = 0; i != this->width_ * this->height_; i++) {
-          this->buffer_[i * 3 + 0] = color.b;
-          this->buffer_[i * 3 + 1] = color.g;
-          this->buffer_[i * 3 + 2] = color.r;
+    case display::COLOR_BITNESS_888: {
+      const uint8_t c0 = (this->color_mode_ == display::COLOR_ORDER_BGR) ? color.b : color.r;
+      const uint8_t c1 = color.g;
+      const uint8_t c2 = (this->color_mode_ == display::COLOR_ORDER_BGR) ? color.r : color.b;
+
+      if (full_fill) {
+        for (size_t i = 0; i != static_cast<size_t>(w * h); i++) {
+          this->buffer_[i * 3 + 0] = c0;
+          this->buffer_[i * 3 + 1] = c1;
+          this->buffer_[i * 3 + 2] = c2;
         }
       } else {
-        for (size_t i = 0; i != this->width_ * this->height_; i++) {
-          this->buffer_[i * 3 + 0] = color.r;
-          this->buffer_[i * 3 + 1] = color.g;
-          this->buffer_[i * 3 + 2] = color.b;
+        const int16_t x_start = fill_rect.x;
+        const int16_t x_end = fill_rect.x + fill_rect.w;
+        const int16_t y_start = fill_rect.y;
+        const int16_t y_end = fill_rect.y + fill_rect.h;
+
+        for (int16_t y = y_start; y < y_end; y++) {
+          for (int16_t x = x_start; x < x_end; x++) {
+            size_t pos = (y * w + x) * 3;
+            this->buffer_[pos + 0] = c0;
+            this->buffer_[pos + 1] = c1;
+            this->buffer_[pos + 2] = c2;
+          }
         }
       }
+      break;
+    }
 
     default:
       break;

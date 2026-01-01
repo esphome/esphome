@@ -174,8 +174,65 @@ void WaveshareEPaperBase::update() {
 void WaveshareEPaper::fill(Color color) {
   // flip logic
   const uint8_t fill = color.is_on() ? 0x00 : 0xFF;
-  for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
-    this->buffer_[i] = fill;
+  const int16_t w = this->get_width_internal();
+  const int16_t h = this->get_height_internal();
+  const int16_t w_ctrl = this->get_width_controller();  // row stride may differ from visible width
+  const int16_t w_bytes = w_ctrl / 8;
+
+  // Calculate fill region, respecting clipping
+  Rect fill_rect(0, 0, w, h);
+  Rect clip = this->get_clipping();
+  if (clip.is_set()) {
+    fill_rect.shrink(clip);
+    if (!fill_rect.is_set())
+      return;  // Completely clipped
+  }
+
+  // Check if filling entire display
+  if (fill_rect.x == 0 && fill_rect.y == 0 && fill_rect.w == w && fill_rect.h == h) {
+    for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
+      this->buffer_[i] = fill;
+    return;
+  }
+
+  // Partial fill - horizontal layout (8 horizontal pixels per byte, MSB first)
+  const int16_t x_start = fill_rect.x;
+  const int16_t x_end = fill_rect.x + fill_rect.w;
+  const int16_t y_start = fill_rect.y;
+  const int16_t y_end = fill_rect.y + fill_rect.h;
+
+  for (int16_t y = y_start; y < y_end; y++) {
+    const uint32_t row_offset = y * w_bytes;
+
+    // Calculate byte boundaries
+    const int16_t byte_start = x_start / 8;
+    const int16_t byte_end = (x_end - 1) / 8;
+
+    for (int16_t byte_idx = byte_start; byte_idx <= byte_end; byte_idx++) {
+      const int16_t byte_x_start = byte_idx * 8;
+      const int16_t byte_x_end = byte_x_start + 8;
+
+      // Calculate which bits in this byte are affected
+      const int16_t bit_start = (x_start > byte_x_start) ? (x_start - byte_x_start) : 0;
+      const int16_t bit_end = (x_end < byte_x_end) ? (x_end - byte_x_start) : 8;
+
+      // Create mask for affected bits (MSB first: bit 0 is 0x80)
+      uint8_t mask = 0;
+      for (int16_t bit = bit_start; bit < bit_end; bit++) {
+        mask |= (0x80 >> bit);
+      }
+
+      if (mask == 0xFF) {
+        this->buffer_[row_offset + byte_idx] = fill;
+      } else {
+        if (fill) {
+          this->buffer_[row_offset + byte_idx] |= mask;
+        } else {
+          this->buffer_[row_offset + byte_idx] &= ~mask;
+        }
+      }
+    }
+  }
 }
 void WaveshareEPaper7C::setup() {
   this->init_internal_7c_(this->get_buffer_length_());
@@ -234,6 +291,12 @@ uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
   return hex_code;
 }
 void WaveshareEPaper7C::fill(Color color) {
+  // If clipping is active, use base class (3-bit packing is complex for partial fills)
+  if (this->get_clipping().is_set()) {
+    display::Display::fill(color);
+    return;
+  }
+
   uint8_t pixel_color;
   if (color.is_on()) {
     pixel_color = this->color_to_hex(color);

@@ -161,11 +161,40 @@ void HOT SSD1351::draw_absolute_pixel_internal(int x, int y, Color color) {
 }
 void SSD1351::fill(Color color) {
   const uint32_t color565 = display::ColorUtil::color_to_565(color);
-  for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
-    if (i & 1) {
-      this->buffer_[i] = color565 & 0xff;
-    } else {
-      this->buffer_[i] = (color565 >> 8) & 0xff;
+  const uint8_t color_hi = (color565 >> 8) & 0xff;
+  const uint8_t color_lo = color565 & 0xff;
+  const int16_t w = this->get_width_internal();
+  const int16_t h = this->get_height_internal();
+
+  // Calculate fill region, respecting clipping
+  Rect fill_rect(0, 0, w, h);
+  Rect clip = this->get_clipping();
+  if (clip.is_set()) {
+    fill_rect.shrink(clip);
+    if (!fill_rect.is_set())
+      return;  // Completely clipped
+  }
+
+  // Check if filling entire display
+  if (fill_rect.x == 0 && fill_rect.y == 0 && fill_rect.w == w && fill_rect.h == h) {
+    for (uint32_t i = 0; i < this->get_buffer_length_(); i += 2) {
+      this->buffer_[i] = color_hi;
+      this->buffer_[i + 1] = color_lo;
+    }
+    return;
+  }
+
+  // Partial fill - 16-bit RGB565 (2 bytes per pixel, row-major)
+  const int16_t x_start = fill_rect.x;
+  const int16_t x_end = fill_rect.x + fill_rect.w;
+  const int16_t y_start = fill_rect.y;
+  const int16_t y_end = fill_rect.y + fill_rect.h;
+
+  for (int16_t y = y_start; y < y_end; y++) {
+    uint32_t row_pos = (y * w + x_start) * SSD1351_BYTESPERPIXEL;
+    for (int16_t x = x_start; x < x_end; x++) {
+      this->buffer_[row_pos++] = color_hi;
+      this->buffer_[row_pos++] = color_lo;
     }
   }
 }

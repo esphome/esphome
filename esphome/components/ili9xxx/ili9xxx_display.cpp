@@ -131,35 +131,82 @@ float ILI9XXXDisplay::get_setup_priority() const { return setup_priority::HARDWA
 void ILI9XXXDisplay::fill(Color color) {
   if (!this->check_buffer_())
     return;
+
+  // Calculate fill region, respecting clipping
+  const int16_t w = this->get_width_internal();
+  const int16_t h = this->get_height_internal();
+  Rect fill_rect(0, 0, w, h);
+  Rect clip = this->get_clipping();
+  if (clip.is_set()) {
+    fill_rect.shrink(clip);
+    if (!fill_rect.is_set())
+      return;  // Completely clipped
+  }
+
+  // Update dirty region tracking
+  if (fill_rect.x < this->x_low_)
+    this->x_low_ = fill_rect.x;
+  if (fill_rect.y < this->y_low_)
+    this->y_low_ = fill_rect.y;
+  if (fill_rect.x + fill_rect.w - 1 > this->x_high_)
+    this->x_high_ = fill_rect.x + fill_rect.w - 1;
+  if (fill_rect.y + fill_rect.h - 1 > this->y_high_)
+    this->y_high_ = fill_rect.y + fill_rect.h - 1;
+
+  // Check if filling entire display (no clipping active)
+  const bool full_fill = (fill_rect.x == 0 && fill_rect.y == 0 && fill_rect.w == w && fill_rect.h == h);
+
   uint16_t new_color = 0;
-  this->x_low_ = 0;
-  this->y_low_ = 0;
-  this->x_high_ = this->get_width_internal() - 1;
-  this->y_high_ = this->get_height_internal() - 1;
   switch (this->buffer_color_mode_) {
     case BITS_8_INDEXED:
       new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
       break;
-    case BITS_16:
+    case BITS_16: {
       new_color = display::ColorUtil::color_to_565(color);
-      {
+      const uint8_t hi = (uint8_t) (new_color >> 8);
+      const uint8_t lo = (uint8_t) new_color;
+      if (full_fill) {
+        // Fast path: fill entire buffer
         const uint32_t buffer_length_16_bits = this->get_buffer_length_() * 2;
-        if (((uint8_t) (new_color >> 8)) == ((uint8_t) new_color)) {
-          // Upper and lower is equal can use quicker memset operation. Takes ~20ms.
-          memset(this->buffer_, (uint8_t) new_color, buffer_length_16_bits);
+        if (hi == lo) {
+          memset(this->buffer_, hi, buffer_length_16_bits);
         } else {
-          for (uint32_t i = 0; i < buffer_length_16_bits; i = i + 2) {
-            this->buffer_[i] = (uint8_t) (new_color >> 8);
-            this->buffer_[i + 1] = (uint8_t) new_color;
+          for (uint32_t i = 0; i < buffer_length_16_bits; i += 2) {
+            this->buffer_[i] = hi;
+            this->buffer_[i + 1] = lo;
+          }
+        }
+      } else {
+        // Partial fill: fill only the clipped region row by row
+        for (int16_t y = fill_rect.y; y < fill_rect.y + fill_rect.h; y++) {
+          uint32_t row_start = (y * w + fill_rect.x) * 2;
+          if (hi == lo) {
+            memset(&this->buffer_[row_start], hi, fill_rect.w * 2);
+          } else {
+            for (int16_t x = 0; x < fill_rect.w; x++) {
+              this->buffer_[row_start + x * 2] = hi;
+              this->buffer_[row_start + x * 2 + 1] = lo;
+            }
           }
         }
       }
       return;
+    }
     default:
       new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
       break;
   }
-  memset(this->buffer_, (uint8_t) new_color, this->get_buffer_length_());
+
+  // 8-bit modes (indexed or RGB332)
+  if (full_fill) {
+    memset(this->buffer_, (uint8_t) new_color, this->get_buffer_length_());
+  } else {
+    // Partial fill: fill only the clipped region row by row
+    for (int16_t y = fill_rect.y; y < fill_rect.y + fill_rect.h; y++) {
+      uint32_t row_start = y * w + fill_rect.x;
+      memset(&this->buffer_[row_start], (uint8_t) new_color, fill_rect.w);
+    }
+  }
 }
 
 void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color) {

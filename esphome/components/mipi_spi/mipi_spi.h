@@ -569,11 +569,51 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
 
   // Fills the display with a color.
   void fill(Color color) override {
-    this->x_low_ = 0;
-    this->y_low_ = this->start_line_;
-    this->x_high_ = WIDTH - 1;
-    this->y_high_ = this->end_line_ - 1;
-    std::fill_n(this->buffer_, HEIGHT * BUFFER_WIDTH / FRACTION, convert_color(color));
+    const auto fill_color = convert_color(color);
+    const int16_t buffer_h = HEIGHT / FRACTION;
+
+    // Calculate fill region, respecting clipping
+    Rect fill_rect(0, this->start_line_, WIDTH, buffer_h);
+    Rect clip = this->get_clipping();
+    if (clip.is_set()) {
+      fill_rect.shrink(clip);
+      if (!fill_rect.is_set())
+        return;  // Completely clipped
+    }
+
+    // Check if filling entire buffer
+    if (fill_rect.x == 0 && fill_rect.y == this->start_line_ && fill_rect.w == WIDTH &&
+        fill_rect.h == static_cast<int16_t>(buffer_h)) {
+      std::fill_n(this->buffer_, buffer_h * BUFFER_WIDTH, fill_color);
+      this->x_low_ = 0;
+      this->y_low_ = this->start_line_;
+      this->x_high_ = WIDTH - 1;
+      this->y_high_ = this->end_line_ - 1;
+      return;
+    }
+
+    // Partial fill - row-major, 8 or 16-bit pixels
+    const int16_t x_start = fill_rect.x;
+    const int16_t x_end = fill_rect.x + fill_rect.w;
+    const int16_t y_start = fill_rect.y;
+    const int16_t y_end = fill_rect.y + fill_rect.h;
+
+    for (int16_t y = y_start; y < y_end; y++) {
+      const size_t row_offset = (y - this->start_line_) * BUFFER_WIDTH;
+      for (int16_t x = x_start; x < x_end; x++) {
+        this->buffer_[row_offset + x] = fill_color;
+      }
+    }
+
+    // Update dirty region
+    if (x_start < this->x_low_)
+      this->x_low_ = x_start;
+    if (y_start < this->y_low_)
+      this->y_low_ = y_start;
+    if (x_end - 1 > this->x_high_)
+      this->x_high_ = x_end - 1;
+    if (y_end - 1 > this->y_high_)
+      this->y_high_ = y_end - 1;
   }
 
   int get_width() override {
