@@ -135,8 +135,8 @@ void ILI9XXXDisplay::fill(Color color) {
   // Calculate fill region, respecting clipping
   const int16_t w = this->get_width_internal();
   const int16_t h = this->get_height_internal();
-  Rect fill_rect(0, 0, w, h);
-  Rect clip = this->get_clipping();
+  display::Rect fill_rect(0, 0, w, h);
+  display::Rect clip = this->get_clipping();
   if (clip.is_set()) {
     fill_rect.shrink(clip);
     if (!fill_rect.is_set())
