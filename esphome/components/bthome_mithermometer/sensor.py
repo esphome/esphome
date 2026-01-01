@@ -71,8 +71,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await setup_bthome_mithermometer(var, config)
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
+    if temp_sens := config.get(CONF_TEMPERATURE):
+        sens = await sensor.new_sensor(temp_sens)
         cg.add(var.set_temperature(sens))
     if CONF_HUMIDITY in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY])
