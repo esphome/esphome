@@ -136,7 +136,7 @@ class ABBWelcomeData {
     this->data_[1] = 0xff;
     this->data_[this->size() - 1] = this->calc_cs_();
   }
-  // Buffer size: raw_hex(80) + space(1) + type_info(27) + data(52) + null(1) = 161, rounded up
+  // Buffer size: max raw hex output (27*3-1=80) + space(1) + type_info(27) + data(52) + null(1) = 161, rounded up
   static constexpr size_t FORMAT_BUFFER_SIZE = 192;
 
   template<size_t N> char *format_to(char (&buffer)[N], uint8_t max_print_bytes = 255) const {
