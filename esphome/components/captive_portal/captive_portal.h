@@ -57,41 +57,41 @@ class CaptivePortal : public AsyncWebHandler, public Component {
         return true;
       if (request->url() == "/wifisave")
         return true;
-  void end() {
-    this->active_ = false;
-    this->disable_loop();  // Stop processing DNS requests
-    this->base_->deinit();
-    if (this->dns_server_ != nullptr) {
-      this->dns_server_->stop();
-      this->dns_server_ = nullptr;
-    }
-  }
+      void end() {
+        this->active_ = false;
+        this->disable_loop();  // Stop processing DNS requests
+        this->base_->deinit();
+        if (this->dns_server_ != nullptr) {
+          this->dns_server_->stop();
+          this->dns_server_ = nullptr;
+        }
+      }
 
-  bool canHandle(AsyncWebServerRequest *request) const override {
-    // Handle all GET requests when captive portal is active
-    // This allows us to respond with the portal page for any URL,
-    // triggering OS captive portal detection
-    return this->active_ && request->method() == HTTP_GET;
-  }
+      bool canHandle(AsyncWebServerRequest * request) const override {
+        // Handle all GET requests when captive portal is active
+        // This allows us to respond with the portal page for any URL,
+        // triggering OS captive portal detection
+        return this->active_ && request->method() == HTTP_GET;
+      }
 
-  void handle_captive_portal(AsyncWebServerRequest *request);
-  void handle_config(AsyncWebServerRequest *request);
-  void handle_wifisave(AsyncWebServerRequest *request);
-  void handleRequest(AsyncWebServerRequest *req) override;
+      void handle_captive_portal(AsyncWebServerRequest * request);
+      void handle_config(AsyncWebServerRequest * request);
+      void handle_wifisave(AsyncWebServerRequest * request);
+      void handleRequest(AsyncWebServerRequest * req) override;
 
-  Mode mode{MODE_AP_ONLY};
+      Mode mode{MODE_AP_ONLY};
 
- protected:
-  web_server_base::WebServerBase *base_;
-  bool initialized_{false};
-  bool active_{false};
+     protected:
+      web_server_base::WebServerBase *base_;
+      bool initialized_{false};
+      bool active_{false};
 #if defined(USE_ARDUINO) || defined(USE_ESP32)
-  std::unique_ptr<DNSServer> dns_server_{nullptr};
+      std::unique_ptr<DNSServer> dns_server_{nullptr};
 #endif
-};
+    };
 
-extern CaptivePortal *global_captive_portal;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+    extern CaptivePortal *global_captive_portal;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace captive_portal
+  }  // namespace captive_portal
 }  // namespace esphome
 #endif

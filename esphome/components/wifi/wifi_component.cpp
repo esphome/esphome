@@ -1179,7 +1179,7 @@ void WiFiComponent::check_scanning_finished() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       log_scan_result_non_matching(res);
 #else
-      non_matching_count++;
+        non_matching_count++;
 #endif
     }
   }
@@ -1756,14 +1756,14 @@ bool WiFiComponent::is_captive_portal_active_() {
 #ifdef USE_CAPTIVE_PORTAL
   return captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active();
 #else
-  return false;
+    return false;
 #endif
 }
 bool WiFiComponent::is_esp32_improv_active_() {
 #ifdef USE_IMPROV
   return esp32_improv::global_improv_component != nullptr && esp32_improv::global_improv_component->is_active();
 #else
-  return false;
+    return false;
 #endif
 }
 
@@ -1780,178 +1780,178 @@ void WiFiComponent::print_scan_result_() {
 
 void WiFiComponent::load_fast_connect_settings_() {
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
-bool WiFiComponent::request_high_performance() {
-  // Already configured for high performance - request satisfied
-  if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE) {
-    return true;
-  }
+  bool WiFiComponent::request_high_performance() {
+    // Already configured for high performance - request satisfied
+    if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE) {
+      return true;
+    }
 
-  // Semaphore initialization failed
-  if (this->high_performance_semaphore_ == nullptr) {
-    return false;
-  }
-
-  // Give the semaphore (non-blocking). This increments the count.
-  return xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
-}
-
-bool WiFiComponent::release_high_performance() {
-  // Already configured for high performance - nothing to release
-  if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE) {
-    return true;
-  }
-
-  // Semaphore initialization failed
-  if (this->high_performance_semaphore_ == nullptr) {
-    return false;
-  }
-
-  // Take the semaphore (non-blocking). This decrements the count.
-  return xSemaphoreTake(this->high_performance_semaphore_, 0) == pdTRUE;
-}
-#endif  // USE_ESP32 && USE_WIFI_RUNTIME_POWER_SAVE
-
-#ifdef USE_WIFI_FAST_CONNECT
-bool WiFiComponent::load_fast_connect_settings_(WiFiAP &params) {
-  SavedWifiFastConnectSettings fast_connect_save{};
-
-  if (this->fast_connect_pref_.load(&fast_connect_save)) {
-    // Validate saved AP index
-    if (fast_connect_save.ap_index < 0 || static_cast<size_t>(fast_connect_save.ap_index) >= this->sta_.size()) {
-      ESP_LOGW(TAG, "AP index out of bounds");
+    // Semaphore initialization failed
+    if (this->high_performance_semaphore_ == nullptr) {
       return false;
     }
 
-    // Set selected index for future operations (save, retry, etc)
-    this->selected_sta_index_ = fast_connect_save.ap_index;
+    // Give the semaphore (non-blocking). This increments the count.
+    return xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
+  }
 
-    // Copy entire config, then override with fast connect data
-    params = this->sta_[fast_connect_save.ap_index];
+  bool WiFiComponent::release_high_performance() {
+    // Already configured for high performance - nothing to release
+    if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE) {
+      return true;
+    }
 
-    // Override with saved BSSID/channel from fast connect (SSID/password/etc already copied from config)
-    bssid_t bssid{};
-    std::copy(fast_connect_save.bssid, fast_connect_save.bssid + 6, bssid.begin());
-    params.set_bssid(bssid);
-    params.set_channel(fast_connect_save.channel);
-    // Fast connect uses specific BSSID+channel, not hidden network probe (even if config has hidden: true)
-    params.set_hidden(false);
+    // Semaphore initialization failed
+    if (this->high_performance_semaphore_ == nullptr) {
+      return false;
+    }
 
-    ESP_LOGD(TAG, "Loaded fast_connect settings");
+    // Take the semaphore (non-blocking). This decrements the count.
+    return xSemaphoreTake(this->high_performance_semaphore_, 0) == pdTRUE;
+  }
+#endif  // USE_ESP32 && USE_WIFI_RUNTIME_POWER_SAVE
+
+#ifdef USE_WIFI_FAST_CONNECT
+  bool WiFiComponent::load_fast_connect_settings_(WiFiAP & params) {
+    SavedWifiFastConnectSettings fast_connect_save{};
+
+    if (this->fast_connect_pref_.load(&fast_connect_save)) {
+      // Validate saved AP index
+      if (fast_connect_save.ap_index < 0 || static_cast<size_t>(fast_connect_save.ap_index) >= this->sta_.size()) {
+        ESP_LOGW(TAG, "AP index out of bounds");
+        return false;
+      }
+
+      // Set selected index for future operations (save, retry, etc)
+      this->selected_sta_index_ = fast_connect_save.ap_index;
+
+      // Copy entire config, then override with fast connect data
+      params = this->sta_[fast_connect_save.ap_index];
+
+      // Override with saved BSSID/channel from fast connect (SSID/password/etc already copied from config)
+      bssid_t bssid{};
+      std::copy(fast_connect_save.bssid, fast_connect_save.bssid + 6, bssid.begin());
+      params.set_bssid(bssid);
+      params.set_channel(fast_connect_save.channel);
+      // Fast connect uses specific BSSID+channel, not hidden network probe (even if config has hidden: true)
+      params.set_hidden(false);
+
+      ESP_LOGD(TAG, "Loaded fast_connect settings");
+      return true;
+    }
+
+    return false;
+  }
+
+  void WiFiComponent::save_fast_connect_settings_() {
+    bssid_t bssid = wifi_bssid();
+    uint8_t channel = get_wifi_channel();
+    // selected_sta_index_ is always valid here (called only after successful connection)
+    // Fallback to 0 is defensive programming for robustness
+    int8_t ap_index = this->selected_sta_index_ >= 0 ? this->selected_sta_index_ : 0;
+
+    // Skip save if settings haven't changed (compare with previously saved settings to reduce flash wear)
+    SavedWifiFastConnectSettings previous_save{};
+    if (this->fast_connect_pref_.load(&previous_save) && memcmp(previous_save.bssid, bssid.data(), 6) == 0 &&
+        previous_save.channel == channel && previous_save.ap_index == ap_index) {
+      return;  // No change, nothing to save
+    }
+
+    SavedWifiFastConnectSettings fast_connect_save{};
+    memcpy(fast_connect_save.bssid, bssid.data(), 6);
+    fast_connect_save.channel = channel;
+    fast_connect_save.ap_index = ap_index;
+
+    this->fast_connect_pref_.save(&fast_connect_save);
+
+    ESP_LOGD(TAG, "Saved fast_connect settings");
+  }
+#endif
+
+  void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }
+  void WiFiAP::set_bssid(const bssid_t &bssid) { this->bssid_ = bssid; }
+  void WiFiAP::clear_bssid() { this->bssid_ = {}; }
+  void WiFiAP::set_password(const std::string &password) { this->password_ = password; }
+#ifdef USE_WIFI_WPA2_EAP
+  void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
+#endif
+  void WiFiAP::set_channel(uint8_t channel) { this->channel_ = channel; }
+  void WiFiAP::clear_channel() { this->channel_ = 0; }
+#ifdef USE_WIFI_MANUAL_IP
+  void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
+#endif
+  void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
+  const std::string &WiFiAP::get_ssid() const { return this->ssid_; }
+  const bssid_t &WiFiAP::get_bssid() const { return this->bssid_; }
+  bool WiFiAP::has_bssid() const { return this->bssid_ != bssid_t{}; }
+  const std::string &WiFiAP::get_password() const { return this->password_; }
+#ifdef USE_WIFI_WPA2_EAP
+  const optional<EAPAuth> &WiFiAP::get_eap() const { return this->eap_; }
+#endif
+  uint8_t WiFiAP::get_channel() const { return this->channel_; }
+  bool WiFiAP::has_channel() const { return this->channel_ != 0; }
+#ifdef USE_WIFI_MANUAL_IP
+  const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip_; }
+#endif
+  bool WiFiAP::get_hidden() const { return this->hidden_; }
+
+  WiFiScanResult::WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth,
+                                 bool is_hidden)
+      : bssid_(bssid),
+        channel_(channel),
+        rssi_(rssi),
+        ssid_(std::move(ssid)),
+        with_auth_(with_auth),
+        is_hidden_(is_hidden) {}
+  bool WiFiScanResult::matches(const WiFiAP &config) const {
+    if (config.get_hidden()) {
+      // User configured a hidden network, only match actually hidden networks
+      // don't match SSID
+      if (!this->is_hidden_)
+        return false;
+    } else if (!config.get_ssid().empty()) {
+      // check if SSID matches
+      if (config.get_ssid() != this->ssid_)
+        return false;
+    } else {
+      // network is configured without SSID - match other settings
+    }
+    // If BSSID configured, only match for correct BSSIDs
+    if (config.has_bssid() && config.get_bssid() != this->bssid_)
+      return false;
+
+#ifdef USE_WIFI_WPA2_EAP
+    // BSSID requires auth but no PSK or EAP credentials given
+    if (this->with_auth_ && (config.get_password().empty() && !config.get_eap().has_value()))
+      return false;
+
+    // BSSID does not require auth, but PSK or EAP credentials given
+    if (!this->with_auth_ && (!config.get_password().empty() || config.get_eap().has_value()))
+      return false;
+#else
+      // If PSK given, only match for networks with auth (and vice versa)
+      if (config.get_password().empty() == this->with_auth_)
+        return false;
+#endif
+
+    // If channel configured, only match networks on that channel.
+    if (config.has_channel() && config.get_channel() != this->channel_) {
+      return false;
+    }
     return true;
   }
+  bool WiFiScanResult::get_matches() const { return this->matches_; }
+  void WiFiScanResult::set_matches(bool matches) { this->matches_ = matches; }
+  const bssid_t &WiFiScanResult::get_bssid() const { return this->bssid_; }
+  const std::string &WiFiScanResult::get_ssid() const { return this->ssid_; }
+  uint8_t WiFiScanResult::get_channel() const { return this->channel_; }
+  int8_t WiFiScanResult::get_rssi() const { return this->rssi_; }
+  bool WiFiScanResult::get_with_auth() const { return this->with_auth_; }
+  bool WiFiScanResult::get_is_hidden() const { return this->is_hidden_; }
 
-  return false;
-}
+  bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->bssid_ == rhs.bssid_; }
 
-void WiFiComponent::save_fast_connect_settings_() {
-  bssid_t bssid = wifi_bssid();
-  uint8_t channel = get_wifi_channel();
-  // selected_sta_index_ is always valid here (called only after successful connection)
-  // Fallback to 0 is defensive programming for robustness
-  int8_t ap_index = this->selected_sta_index_ >= 0 ? this->selected_sta_index_ : 0;
-
-  // Skip save if settings haven't changed (compare with previously saved settings to reduce flash wear)
-  SavedWifiFastConnectSettings previous_save{};
-  if (this->fast_connect_pref_.load(&previous_save) && memcmp(previous_save.bssid, bssid.data(), 6) == 0 &&
-      previous_save.channel == channel && previous_save.ap_index == ap_index) {
-    return;  // No change, nothing to save
-  }
-
-  SavedWifiFastConnectSettings fast_connect_save{};
-  memcpy(fast_connect_save.bssid, bssid.data(), 6);
-  fast_connect_save.channel = channel;
-  fast_connect_save.ap_index = ap_index;
-
-  this->fast_connect_pref_.save(&fast_connect_save);
-
-  ESP_LOGD(TAG, "Saved fast_connect settings");
-}
-#endif
-
-void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }
-void WiFiAP::set_bssid(const bssid_t &bssid) { this->bssid_ = bssid; }
-void WiFiAP::clear_bssid() { this->bssid_ = {}; }
-void WiFiAP::set_password(const std::string &password) { this->password_ = password; }
-#ifdef USE_WIFI_WPA2_EAP
-void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
-#endif
-void WiFiAP::set_channel(uint8_t channel) { this->channel_ = channel; }
-void WiFiAP::clear_channel() { this->channel_ = 0; }
-#ifdef USE_WIFI_MANUAL_IP
-void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
-#endif
-void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
-const std::string &WiFiAP::get_ssid() const { return this->ssid_; }
-const bssid_t &WiFiAP::get_bssid() const { return this->bssid_; }
-bool WiFiAP::has_bssid() const { return this->bssid_ != bssid_t{}; }
-const std::string &WiFiAP::get_password() const { return this->password_; }
-#ifdef USE_WIFI_WPA2_EAP
-const optional<EAPAuth> &WiFiAP::get_eap() const { return this->eap_; }
-#endif
-uint8_t WiFiAP::get_channel() const { return this->channel_; }
-bool WiFiAP::has_channel() const { return this->channel_ != 0; }
-#ifdef USE_WIFI_MANUAL_IP
-const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip_; }
-#endif
-bool WiFiAP::get_hidden() const { return this->hidden_; }
-
-WiFiScanResult::WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth,
-                               bool is_hidden)
-    : bssid_(bssid),
-      channel_(channel),
-      rssi_(rssi),
-      ssid_(std::move(ssid)),
-      with_auth_(with_auth),
-      is_hidden_(is_hidden) {}
-bool WiFiScanResult::matches(const WiFiAP &config) const {
-  if (config.get_hidden()) {
-    // User configured a hidden network, only match actually hidden networks
-    // don't match SSID
-    if (!this->is_hidden_)
-      return false;
-  } else if (!config.get_ssid().empty()) {
-    // check if SSID matches
-    if (config.get_ssid() != this->ssid_)
-      return false;
-  } else {
-    // network is configured without SSID - match other settings
-  }
-  // If BSSID configured, only match for correct BSSIDs
-  if (config.has_bssid() && config.get_bssid() != this->bssid_)
-    return false;
-
-#ifdef USE_WIFI_WPA2_EAP
-  // BSSID requires auth but no PSK or EAP credentials given
-  if (this->with_auth_ && (config.get_password().empty() && !config.get_eap().has_value()))
-    return false;
-
-  // BSSID does not require auth, but PSK or EAP credentials given
-  if (!this->with_auth_ && (!config.get_password().empty() || config.get_eap().has_value()))
-    return false;
-#else
-  // If PSK given, only match for networks with auth (and vice versa)
-  if (config.get_password().empty() == this->with_auth_)
-    return false;
-#endif
-
-  // If channel configured, only match networks on that channel.
-  if (config.has_channel() && config.get_channel() != this->channel_) {
-    return false;
-  }
-  return true;
-}
-bool WiFiScanResult::get_matches() const { return this->matches_; }
-void WiFiScanResult::set_matches(bool matches) { this->matches_ = matches; }
-const bssid_t &WiFiScanResult::get_bssid() const { return this->bssid_; }
-const std::string &WiFiScanResult::get_ssid() const { return this->ssid_; }
-uint8_t WiFiScanResult::get_channel() const { return this->channel_; }
-int8_t WiFiScanResult::get_rssi() const { return this->rssi_; }
-bool WiFiScanResult::get_with_auth() const { return this->with_auth_; }
-bool WiFiScanResult::get_is_hidden() const { return this->is_hidden_; }
-
-bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->bssid_ == rhs.bssid_; }
-
-WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::wifi
 #endif

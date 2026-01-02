@@ -140,35 +140,35 @@ void CaptivePortal::end() {
   this->dns_server_->stop();
   this->dns_server_ = nullptr;
 #endif
-void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
-  if (req->url() == ESPHOME_F("/config.json")) {
-    this->handle_config(req);
-    return;
-  } else if (req->url() == ESPHOME_F("/wifisave")) {
-    this->handle_wifisave(req);
-    return;
+  void CaptivePortal::handleRequest(AsyncWebServerRequest * req) {
+    if (req->url() == ESPHOME_F("/config.json")) {
+      this->handle_config(req);
+      return;
+    } else if (req->url() == ESPHOME_F("/wifisave")) {
+      this->handle_wifisave(req);
+      return;
+    }
+
+    // All other requests get the captive portal page
+    // This includes OS captive portal detection endpoints which will trigger
+    // the captive portal when they don't receive their expected responses
+#ifndef USE_ESP8266
+    auto *response = req->beginResponse(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
+#else
+    auto *response = req->beginResponse_P(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
+#endif
+    response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
+    req->send(response);
   }
 
-  // All other requests get the captive portal page
-  // This includes OS captive portal detection endpoints which will trigger
-  // the captive portal when they don't receive their expected responses
-#ifndef USE_ESP8266
-  auto *response = req->beginResponse(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
-#else
-  auto *response = req->beginResponse_P(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
-#endif
-  response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
-  req->send(response);
-}
+  CaptivePortal::CaptivePortal(web_server_base::WebServerBase * base) : base_(base) { global_captive_portal = this; }
+  float CaptivePortal::get_setup_priority() const {
+    // Before WiFi
+    return setup_priority::WIFI + 1.0f;
+  }
+  void CaptivePortal::dump_config() { ESP_LOGCONFIG(TAG, "Captive Portal:"); }
 
-CaptivePortal::CaptivePortal(web_server_base::WebServerBase *base) : base_(base) { global_captive_portal = this; }
-float CaptivePortal::get_setup_priority() const {
-  // Before WiFi
-  return setup_priority::WIFI + 1.0f;
-}
-void CaptivePortal::dump_config() { ESP_LOGCONFIG(TAG, "Captive Portal:"); }
-
-CaptivePortal *global_captive_portal = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  CaptivePortal *global_captive_portal = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace captive_portal
 }  // namespace esphome

@@ -1960,163 +1960,163 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   } else if (request->url() == "/config.json") {
     captive_portal::global_captive_portal->handle_config(request);
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
-  if (url == "/events") {
-    this->events_.add_new_client(this, request);
-    return;
-  }
+    if (url == "/events") {
+      this->events_.add_new_client(this, request);
+      return;
+    }
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
-  if (url == "/0.css") {
-    this->handle_css_request(request);
-    return;
-  }
+    if (url == "/0.css") {
+      this->handle_css_request(request);
+      return;
+    }
 #endif
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
-  if (url == "/0.js") {
-    this->handle_js_request(request);
-    return;
-  }
+    if (url == "/0.js") {
+      this->handle_js_request(request);
+      return;
+    }
 #endif
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-  if (request->method() == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network"))) {
-    this->handle_pna_cors_request(request);
-    return;
-  }
+    if (request->method() == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network"))) {
+      this->handle_pna_cors_request(request);
+      return;
+    }
 #endif
 
-  // Parse URL for component routing
-  UrlMatch match = match_url(url.c_str(), url.length(), false);
+    // Parse URL for component routing
+    UrlMatch match = match_url(url.c_str(), url.length(), false);
 
-  // Route to appropriate handler based on domain
-  // NOLINTNEXTLINE(readability-simplify-boolean-expr)
-  if (false) {  // Start chain for else-if macro pattern
-  }
+    // Route to appropriate handler based on domain
+    // NOLINTNEXTLINE(readability-simplify-boolean-expr)
+    if (false) {  // Start chain for else-if macro pattern
+    }
 #ifdef USE_SENSOR
-  else if (match.domain_equals("sensor")) {
-    this->handle_sensor_request(request, match);
-  }
+    else if (match.domain_equals("sensor")) {
+      this->handle_sensor_request(request, match);
+    }
 #endif
 #ifdef USE_SWITCH
-  else if (match.domain_equals("switch")) {
-    this->handle_switch_request(request, match);
-  }
+    else if (match.domain_equals("switch")) {
+      this->handle_switch_request(request, match);
+    }
 #endif
 #ifdef USE_BUTTON
-  else if (match.domain_equals("button")) {
-    this->handle_button_request(request, match);
-  }
+    else if (match.domain_equals("button")) {
+      this->handle_button_request(request, match);
+    }
 #endif
 #ifdef USE_BINARY_SENSOR
-  else if (match.domain_equals("binary_sensor")) {
-    this->handle_binary_sensor_request(request, match);
-  }
+    else if (match.domain_equals("binary_sensor")) {
+      this->handle_binary_sensor_request(request, match);
+    }
 #endif
 #ifdef USE_FAN
-  else if (match.domain_equals("fan")) {
-    this->handle_fan_request(request, match);
-  }
+    else if (match.domain_equals("fan")) {
+      this->handle_fan_request(request, match);
+    }
 #endif
 #ifdef USE_LIGHT
-  else if (match.domain_equals("light")) {
-    this->handle_light_request(request, match);
-  }
+    else if (match.domain_equals("light")) {
+      this->handle_light_request(request, match);
+    }
 #endif
 #ifdef USE_TEXT_SENSOR
-  else if (match.domain_equals("text_sensor")) {
-    this->handle_text_sensor_request(request, match);
-  }
+    else if (match.domain_equals("text_sensor")) {
+      this->handle_text_sensor_request(request, match);
+    }
 #endif
 #ifdef USE_COVER
-  else if (match.domain_equals("cover")) {
-    this->handle_cover_request(request, match);
-  }
+    else if (match.domain_equals("cover")) {
+      this->handle_cover_request(request, match);
+    }
 #endif
 #ifdef USE_NUMBER
-  else if (match.domain_equals("number")) {
-    this->handle_number_request(request, match);
-  }
+    else if (match.domain_equals("number")) {
+      this->handle_number_request(request, match);
+    }
 #endif
 #ifdef USE_DATETIME_DATE
-  else if (match.domain_equals("date")) {
-    this->handle_date_request(request, match);
-  }
+    else if (match.domain_equals("date")) {
+      this->handle_date_request(request, match);
+    }
 #endif
 #ifdef USE_DATETIME_TIME
-  else if (match.domain_equals("time")) {
-    this->handle_time_request(request, match);
-  }
+    else if (match.domain_equals("time")) {
+      this->handle_time_request(request, match);
+    }
 #endif
 #ifdef USE_DATETIME_DATETIME
-  else if (match.domain_equals("datetime")) {
-    this->handle_datetime_request(request, match);
-  }
+    else if (match.domain_equals("datetime")) {
+      this->handle_datetime_request(request, match);
+    }
 #endif
 #ifdef USE_TEXT
-  else if (match.domain_equals("text")) {
-    this->handle_text_request(request, match);
-  }
+    else if (match.domain_equals("text")) {
+      this->handle_text_request(request, match);
+    }
 #endif
 #ifdef USE_SELECT
-  else if (match.domain_equals("select")) {
-    this->handle_select_request(request, match);
-  }
+    else if (match.domain_equals("select")) {
+      this->handle_select_request(request, match);
+    }
 #endif
 #ifdef USE_CLIMATE
-  else if (match.domain_equals("climate")) {
-    this->handle_climate_request(request, match);
-  }
+    else if (match.domain_equals("climate")) {
+      this->handle_climate_request(request, match);
+    }
 #endif
 #ifdef USE_LOCK
-  else if (match.domain_equals("lock")) {
-    this->handle_lock_request(request, match);
-  }
+    else if (match.domain_equals("lock")) {
+      this->handle_lock_request(request, match);
+    }
 #endif
 #ifdef USE_VALVE
-  else if (match.domain_equals("valve")) {
-    this->handle_valve_request(request, match);
-  }
+    else if (match.domain_equals("valve")) {
+      this->handle_valve_request(request, match);
+    }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-  else if (match.domain_equals("alarm_control_panel")) {
-    this->handle_alarm_control_panel_request(request, match);
-  }
+    else if (match.domain_equals("alarm_control_panel")) {
+      this->handle_alarm_control_panel_request(request, match);
+    }
 #endif
 #ifdef USE_UPDATE
-  else if (match.domain_equals("update")) {
-    this->handle_update_request(request, match);
-  }
+    else if (match.domain_equals("update")) {
+      this->handle_update_request(request, match);
+    }
 #endif
-  else {
-    // No matching handler found - send 404
-    ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
-    request->send(404, "text/plain", "Not Found");
-  }
-}
-
-bool WebServer::isRequestHandlerTrivial() const { return false; }
-
-void WebServer::add_sorting_info_(JsonObject &root, EntityBase *entity) {
-#ifdef USE_WEBSERVER_SORTING
-  if (this->sorting_entitys_.find(entity) != this->sorting_entitys_.end()) {
-    root[ESPHOME_F("sorting_weight")] = this->sorting_entitys_[entity].weight;
-    if (this->sorting_groups_.find(this->sorting_entitys_[entity].group_id) != this->sorting_groups_.end()) {
-      root[ESPHOME_F("sorting_group")] = this->sorting_groups_[this->sorting_entitys_[entity].group_id].name;
+    else {
+      // No matching handler found - send 404
+      ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
+      request->send(404, "text/plain", "Not Found");
     }
   }
+
+  bool WebServer::isRequestHandlerTrivial() const { return false; }
+
+  void WebServer::add_sorting_info_(JsonObject & root, EntityBase * entity) {
+#ifdef USE_WEBSERVER_SORTING
+    if (this->sorting_entitys_.find(entity) != this->sorting_entitys_.end()) {
+      root[ESPHOME_F("sorting_weight")] = this->sorting_entitys_[entity].weight;
+      if (this->sorting_groups_.find(this->sorting_entitys_[entity].group_id) != this->sorting_groups_.end()) {
+        root[ESPHOME_F("sorting_group")] = this->sorting_groups_[this->sorting_entitys_[entity].group_id].name;
+      }
+    }
 #endif
-}
+  }
 
 #ifdef USE_WEBSERVER_SORTING
-void WebServer::add_entity_config(EntityBase *entity, float weight, uint64_t group) {
-  this->sorting_entitys_[entity] = SortingComponents{weight, group};
-}
+  void WebServer::add_entity_config(EntityBase * entity, float weight, uint64_t group) {
+    this->sorting_entitys_[entity] = SortingComponents{weight, group};
+  }
 
-void WebServer::add_sorting_group(uint64_t group_id, const std::string &group_name, float weight) {
-  this->sorting_groups_[group_id] = SortingGroup{group_name, weight};
-}
+  void WebServer::add_sorting_group(uint64_t group_id, const std::string &group_name, float weight) {
+    this->sorting_groups_[group_id] = SortingGroup{group_name, weight};
+  }
 #endif
 
 }  // namespace esphome::web_server

@@ -8,12 +8,12 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
     CONF_ID,
+    CONF_MODE,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
     PLATFORM_RTL87XX,
-    CONF_MODE,
     PlatformFramework,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -113,6 +113,7 @@ async def to_code(config):
             cg.add_library("DNSServer", None)
 
     cg.add(var.setMode(config[CONF_MODE]))
+
 
 # Only compile the ESP-IDF DNS server when using ESP-IDF framework
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
