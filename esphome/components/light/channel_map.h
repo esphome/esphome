@@ -2,20 +2,17 @@
 
 #include <vector>
 #include <algorithm>
-#include <map>
+#include <array>
 #include <memory>
 
 namespace esphome::light {
 class ChannelMap {
  public:
-  enum class ChannelName : uint8_t { R, G, B, W, CW, WW };
+  enum class ChannelName : uint8_t { R = 0, G, B, W, CW, WW, SIZE };
 
  private:
-  // Create all channels and initialize them with the sentinel value
-  std::map<ChannelName, int8_t> channels_ = {
-      {ChannelName::R, -1}, {ChannelName::G, -1},  {ChannelName::B, -1},
-      {ChannelName::W, -1}, {ChannelName::CW, -1}, {ChannelName::WW, -1},
-  };
+  // Create all channels
+  std::array<int8_t, static_cast<size_t>(ChannelName::SIZE)> channels_ = {};
 
   // Store the number of existing channels for faster processing. This is not this->channels_.size() but the number of
   // existent channels within this->channels_.
@@ -31,8 +28,12 @@ class ChannelMap {
  public:
   // Create a ChannelMap from a list of channel names ordered by their index.
   ChannelMap(const std::vector<ChannelName> &ordered_channel_names, const char *channel_map_str, ColorMode color_mode) {
+    // Initialize all channels with sentinel value
+    std::fill(this->channels_.begin(), this->channels_.end(), -1);
+
+    // Assign indices to channels
     for (int8_t channel_index = 0; channel_index < static_cast<int8_t>(ordered_channel_names.size()); ++channel_index) {
-      this->channels_.at(ordered_channel_names[channel_index]) = channel_index;
+      this->channels_.at(static_cast<size_t>(ordered_channel_names[channel_index])) = channel_index;
     }
     this->channel_count_ = ordered_channel_names.size();
 
@@ -53,7 +54,7 @@ class ChannelMap {
   ColorMode get_color_mode() const { return this->color_mode_; }
 
   uint8_t *get_address_by_channel_name(const uint8_t *base_ptr, const ChannelName channel_name) const {
-    int8_t index = this->channels_.at(channel_name);
+    int8_t index = this->channels_.at(static_cast<size_t>(channel_name));
     if (index != -1) {
       return const_cast<uint8_t *>(base_ptr) + index;
     }
