@@ -99,7 +99,7 @@ void EPaperSpectraE6::deep_sleep() {
 void EPaperSpectraE6::fill(Color color) {
   // If clipping is active, fall back to base implementation
   if (this->get_clipping().is_set()) {
-    Display::fill(color);
+    display::Display::fill(color);
     return;
   }
 
