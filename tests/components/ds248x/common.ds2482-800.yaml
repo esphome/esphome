@@ -1,5 +1,5 @@
-# Test: DS2482-800 all channels with sleep pin
-# Tests all 8 channels and bus sleep functionality
+# Test: DS2482-800 all channels 
+# Tests all 8 channels
 
 ds248x:
   id: ds2482_800_full
@@ -7,10 +7,7 @@ ds248x:
   channel_count: 8
   active_pullup: true
   strong_pullup: true
-  bus_sleep: true
-  sleep_pin:
-    number: GPIO4
-    inverted: false
+
 
 one_wire:
   - platform: ds248x
