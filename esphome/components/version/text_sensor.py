@@ -1,11 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
-from esphome.const import (
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    ICON_NEW_BOX,
-    CONF_HIDE_TIMESTAMP,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_HIDE_TIMESTAMP, ENTITY_CATEGORY_DIAGNOSTIC, ICON_NEW_BOX
 
 version_ns = cg.esphome_ns.namespace("version")
 VersionTextSensor = version_ns.class_(

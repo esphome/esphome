@@ -1,14 +1,14 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ACCURACY_DECIMALS,
     CONF_ICON,
     CONF_ID,
-    CONF_SENSOR,
     CONF_RESTORE,
+    CONF_SENSOR,
     CONF_UNIT_OF_MEASUREMENT,
-    CONF_ACCURACY_DECIMALS,
 )
 from esphome.core.entity_helpers import inherit_property_from
 

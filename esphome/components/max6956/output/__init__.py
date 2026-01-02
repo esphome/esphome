@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import output
-from esphome.const import CONF_PIN, CONF_ID
-from .. import MAX6956, max6956_ns, CONF_MAX6956
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_PIN
+
+from .. import CONF_MAX6956, MAX6956, max6956_ns
 
 DEPENDENCIES = ["max6956"]
 

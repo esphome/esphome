@@ -29,7 +29,7 @@ void HOT esp_log_vprintf_(int level, const char *tag, int line, const char *form
   if (log == nullptr)
     return;
 
-  log->log_vprintf_(level, tag, line, format, args);
+  log->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, args);
 #endif
 }
 
@@ -41,12 +41,12 @@ void HOT esp_log_vprintf_(int level, const char *tag, int line, const __FlashStr
   if (log == nullptr)
     return;
 
-  log->log_vprintf_(level, tag, line, format, args);
+  log->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, args);
 #endif
 }
 #endif
 
-#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
 int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
 #ifdef USE_LOGGER
   auto *log = logger::global_logger;

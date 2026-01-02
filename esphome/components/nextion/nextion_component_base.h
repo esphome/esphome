@@ -25,6 +25,9 @@ class NextionQueue {
   virtual ~NextionQueue() = default;
   NextionComponentBase *component;
   uint32_t queue_time = 0;
+
+  // Store command for retry if spacing blocked it
+  std::string pending_command;  // Empty if command was sent successfully
 };
 
 class NextionComponentBase {

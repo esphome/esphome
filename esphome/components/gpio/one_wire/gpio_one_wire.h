@@ -18,7 +18,6 @@ class GPIOOneWireBus : public one_wire::OneWireBus, public Component {
     this->pin_ = pin->to_isr();
   }
 
-  bool reset() override;
   void write8(uint8_t val) override;
   void write64(uint64_t val) override;
   uint8_t read8() override;
@@ -31,10 +30,12 @@ class GPIOOneWireBus : public one_wire::OneWireBus, public Component {
   bool last_device_flag_{false};
   uint64_t address_;
 
+  int reset_int() override;
   void reset_search() override;
   uint64_t search_int() override;
   void write_bit_(bool bit);
   bool read_bit_();
+  bool read_bit_(uint32_t *t);
 };
 
 }  // namespace gpio

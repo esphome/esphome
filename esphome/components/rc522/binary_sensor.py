@@ -1,9 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_UID
 from esphome.core import HexInt
-from . import rc522_ns, RC522, CONF_RC522_ID
+
+from . import CONF_RC522_ID, RC522, rc522_ns
 
 DEPENDENCIES = ["rc522"]
 
@@ -13,8 +14,7 @@ def validate_uid(value):
     for x in value.split("-"):
         if len(x) != 2:
             raise cv.Invalid(
-                "Each part (separated by '-') of the UID must be two characters "
-                "long."
+                "Each part (separated by '-') of the UID must be two characters long."
             )
         try:
             x = int(x, 16)

@@ -132,6 +132,10 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
     yrange = ymax - ymin;
   }
 
+  // Store graph limts
+  this->graph_limit_max_ = ymax;
+  this->graph_limit_min_ = ymin;
+
   /// Draw grid
   if (!std::isnan(this->gridspacing_y_)) {
     for (int y = yn; y <= ym; y++) {
@@ -175,7 +179,7 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
         if (b) {
           int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v)) - thick / 2 + y_offset;
           auto draw_pixel_at = [&buff, c, y_offset, this](int16_t x, int16_t y) {
-            if (y >= y_offset && y < y_offset + this->height_)
+            if (y >= y_offset && static_cast<uint32_t>(y) < y_offset + this->height_)
               buff->draw_pixel_at(x, y, c);
           };
           if (!continuous || !has_prev || !prev_b || (abs(y - prev_y) <= thick)) {
@@ -231,7 +235,7 @@ void GraphLegend::init(Graph *g) {
       std::string valstr =
           value_accuracy_to_string(trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals());
       if (this->units_) {
-        valstr += trace->sensor_->get_unit_of_measurement();
+        valstr += trace->sensor_->get_unit_of_measurement_ref();
       }
       this->font_value_->measure(valstr.c_str(), &fw, &fos, &fbl, &fh);
       if (fw > valw)
@@ -333,7 +337,7 @@ void Graph::draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_of
     return;
 
   /// Plot border
-  if (this->border_) {
+  if (legend_->border_) {
     int w = legend_->width_;
     int h = legend_->height_;
     buff->horizontal_line(x_offset, y_offset, w, color);
@@ -367,7 +371,7 @@ void Graph::draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_of
       std::string valstr =
           value_accuracy_to_string(trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals());
       if (legend_->units_) {
-        valstr += trace->sensor_->get_unit_of_measurement();
+        valstr += trace->sensor_->get_unit_of_measurement_ref();
       }
       buff->printf(xv, yv, legend_->font_value_, trace->get_line_color(), TextAlign::TOP_CENTER, "%s", valstr.c_str());
       ESP_LOGV(TAG, "    value: %s", valstr.c_str());

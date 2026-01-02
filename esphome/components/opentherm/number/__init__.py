@@ -1,16 +1,11 @@
 from typing import Any
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import number
-from esphome.const import (
-    CONF_ID,
-    CONF_UNIT_OF_MEASUREMENT,
-    CONF_STEP,
-    CONF_INITIAL_VALUE,
-    CONF_RESTORE_VALUE,
-)
-from .. import const, schema, validate, input, generate
+import esphome.config_validation as cv
+from esphome.const import CONF_INITIAL_VALUE, CONF_RESTORE_VALUE, CONF_STEP
+
+from .. import const, generate, input, schema, validate
 
 DEPENDENCIES = [const.OPENTHERM]
 COMPONENT_TYPE = const.NUMBER
@@ -21,33 +16,30 @@ OpenthermNumber = generate.opentherm_ns.class_(
 
 
 async def new_openthermnumber(config: dict[str, Any]) -> cg.Pvariable:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await number.register_number(
-        var,
+    var = await number.new_number(
         config,
         min_value=config[input.CONF_min_value],
         max_value=config[input.CONF_max_value],
         step=config[input.CONF_step],
     )
+    await cg.register_component(var, config)
     input.generate_setters(var, config)
 
-    if CONF_INITIAL_VALUE in config:
-        cg.add(var.set_initial_value(config[CONF_INITIAL_VALUE]))
-    if CONF_RESTORE_VALUE in config:
-        cg.add(var.set_restore_value(config[CONF_RESTORE_VALUE]))
+    if (initial_value := config.get(CONF_INITIAL_VALUE)) is not None:
+        cg.add(var.set_initial_value(initial_value))
+    if (restore_value := config.get(CONF_RESTORE_VALUE)) is not None:
+        cg.add(var.set_restore_value(restore_value))
 
     return var
 
 
 def get_entity_validation_schema(entity: schema.InputSchema) -> cv.Schema:
     return (
-        number.NUMBER_SCHEMA.extend(
+        number.number_schema(
+            OpenthermNumber, unit_of_measurement=entity.unit_of_measurement
+        )
+        .extend(
             {
-                cv.GenerateID(): cv.declare_id(OpenthermNumber),
-                cv.Optional(
-                    CONF_UNIT_OF_MEASUREMENT, entity.unit_of_measurement
-                ): cv.string_strict,
                 cv.Optional(CONF_STEP, entity.step): cv.float_,
                 cv.Optional(CONF_INITIAL_VALUE): cv.float_,
                 cv.Optional(CONF_RESTORE_VALUE): cv.boolean,

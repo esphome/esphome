@@ -1,8 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import spi, canbus
-from esphome.const import CONF_ID, CONF_MODE
+from esphome.components import canbus, spi
 from esphome.components.canbus import CanbusComponent
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_MODE
 
 CODEOWNERS = ["@mvturnho", "@danielschramm"]
 DEPENDENCIES = ["spi"]

@@ -5,6 +5,8 @@ from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
     CONF_ON_OPEN,
@@ -19,8 +21,9 @@ from esphome.const import (
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_WATER,
 )
-from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_helpers import setup_entity
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.cpp_generator import MockObjClass
 
 IS_PLATFORM_COMPONENT = True
 
@@ -71,7 +74,7 @@ ValveClosedTrigger = valve_ns.class_(
 
 CONF_ON_CLOSED = "on_closed"
 
-VALVE_SCHEMA = (
+_VALVE_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
@@ -100,8 +103,34 @@ VALVE_SCHEMA = (
 )
 
 
-async def setup_valve_core_(var, config):
-    await setup_entity(var, config)
+_VALVE_SCHEMA.add_extra(entity_duplicate_validator("valve"))
+
+
+def valve_schema(
+    class_: MockObjClass = cv.UNDEFINED,
+    *,
+    device_class: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {}
+
+    if class_ is not cv.UNDEFINED:
+        schema[cv.GenerateID()] = cv.declare_id(class_)
+
+    for key, default, validator in [
+        (CONF_DEVICE_CLASS, device_class, cv.one_of(*DEVICE_CLASSES, lower=True)),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_ICON, icon, cv.icon),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _VALVE_SCHEMA.extend(schema)
+
+
+async def _setup_valve_core(var, config):
+    await setup_entity(var, config, "valve")
 
     if device_class_config := config.get(CONF_DEVICE_CLASS):
         cg.add(var.set_device_class(device_class_config))
@@ -132,7 +161,8 @@ async def register_valve(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_valve(var))
-    await setup_valve_core_(var, config)
+    CORE.register_platform_component("valve", var)
+    await _setup_valve_core(var, config)
 
 
 async def new_valve(config, *args):
@@ -167,9 +197,9 @@ async def valve_stop_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action("valve.toggle", ToggleAction, VALVE_ACTION_SCHEMA)
-def valve_toggle_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def valve_toggle_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 VALVE_CONTROL_ACTION_SCHEMA = cv.Schema(
@@ -198,7 +228,6 @@ async def valve_control_to_code(config, action_id, template_arg, args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_VALVE")
     cg.add_global(valve_ns.using)

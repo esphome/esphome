@@ -12,8 +12,8 @@ namespace text {
 #define LOG_TEXT(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
+    if (!(obj)->get_icon_ref().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon_ref().c_str()); \
     } \
   }
 
@@ -28,13 +28,10 @@ class Text : public EntityBase {
 
   void publish_state(const std::string &state);
 
-  /// Return whether this text input has gotten a full state yet.
-  bool has_state() const { return has_state_; }
-
   /// Instantiate a TextCall object to modify this text component's state.
   TextCall make_call() { return TextCall(this); }
 
-  void add_on_state_callback(std::function<void(std::string)> &&callback);
+  void add_on_state_callback(std::function<void(const std::string &)> &&callback);
 
  protected:
   friend class TextCall;
@@ -47,8 +44,7 @@ class Text : public EntityBase {
    */
   virtual void control(const std::string &value) = 0;
 
-  CallbackManager<void(std::string)> state_callback_;
-  bool has_state_{false};
+  LazyCallbackManager<void(const std::string &)> state_callback_;
 };
 
 }  // namespace text

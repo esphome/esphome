@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display, spi
+from esphome.components.const import CONF_DRAW_ROUNDING
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BRIGHTNESS,
@@ -24,7 +25,7 @@ from esphome.const import (
 )
 from esphome.core import TimePeriod
 
-from . import CONF_DRAW_FROM_ORIGIN, CONF_DRAW_ROUNDING
+from . import CONF_DRAW_FROM_ORIGIN
 from .models import DriverChip
 
 DEPENDENCIES = ["spi"]
@@ -72,9 +73,8 @@ def map_sequence(value):
 
 def _validate(config):
     chip = DriverChip.chips[config[CONF_MODEL]]
-    if not chip.initsequence:
-        if CONF_INIT_SEQUENCE not in config:
-            raise cv.Invalid(f"{chip.name} model requires init_sequence")
+    if not chip.initsequence and CONF_INIT_SEQUENCE not in config:
+        raise cv.Invalid(f"{chip.name} model requires init_sequence")
     return config
 
 
@@ -113,7 +113,7 @@ BASE_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
             cs_pin_required=False,
             default_mode="MODE0",
             default_data_rate=10e6,
-            quad=True,
+            mode=spi.TYPE_QUAD,
         )
     )
 )
@@ -154,7 +154,7 @@ CONFIG_SCHEMA = cv.All(
         upper=True,
         key=CONF_MODEL,
     ),
-    cv.only_with_esp_idf,
+    cv.only_on_esp32,
 )
 
 

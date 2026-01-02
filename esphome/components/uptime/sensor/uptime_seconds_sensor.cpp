@@ -27,7 +27,6 @@ void UptimeSecondsSensor::update() {
   const float seconds = float(seconds_int) + (this->uptime_ % 1000ULL) / 1000.0f;
   this->publish_state(seconds);
 }
-std::string UptimeSecondsSensor::unique_id() { return get_mac_address() + "-uptime"; }
 float UptimeSecondsSensor::get_setup_priority() const { return setup_priority::HARDWARE; }
 void UptimeSecondsSensor::dump_config() {
   LOG_SENSOR("", "Uptime Sensor", this);

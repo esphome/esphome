@@ -34,9 +34,11 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
 
   /// @brief Mute state changes are passed to the parent's output speaker
   void set_mute_state(bool mute_state) override;
+  bool get_mute_state() override { return this->output_speaker_->get_mute_state(); }
 
   /// @brief Volume state changes are passed to the parent's output speaker
   void set_volume(float volume) override;
+  float get_volume() override { return this->output_speaker_->get_volume(); }
 
   void set_output_speaker(speaker::Speaker *speaker) { this->output_speaker_ = speaker; }
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
@@ -98,7 +100,7 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
 
   uint32_t buffer_duration_ms_;
 
-  int32_t playback_differential_ms_{0};
+  uint64_t callback_remainder_{0};
 };
 
 }  // namespace resampler

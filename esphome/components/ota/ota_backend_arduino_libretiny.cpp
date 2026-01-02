@@ -15,6 +15,11 @@ static const char *const TAG = "ota.arduino_libretiny";
 std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::ArduinoLibreTinyOTABackend>(); }
 
 OTAResponseTypes ArduinoLibreTinyOTABackend::begin(size_t image_size) {
+  // Handle UPDATE_SIZE_UNKNOWN (0) which is used by web server OTA
+  // where the exact firmware size is unknown due to multipart encoding
+  if (image_size == 0) {
+    image_size = UPDATE_SIZE_UNKNOWN;
+  }
   bool ret = Update.begin(image_size, U_FLASH);
   if (ret) {
     return OTA_RESPONSE_OK;
@@ -29,7 +34,10 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::begin(size_t image_size) {
   return OTA_RESPONSE_ERROR_UNKNOWN;
 }
 
-void ArduinoLibreTinyOTABackend::set_update_md5(const char *md5) { Update.setMD5(md5); }
+void ArduinoLibreTinyOTABackend::set_update_md5(const char *md5) {
+  Update.setMD5(md5);
+  this->md5_set_ = true;
+}
 
 OTAResponseTypes ArduinoLibreTinyOTABackend::write(uint8_t *data, size_t len) {
   size_t written = Update.write(data, len);
@@ -44,7 +52,9 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::write(uint8_t *data, size_t len) {
 }
 
 OTAResponseTypes ArduinoLibreTinyOTABackend::end() {
-  if (Update.end()) {
+  // Use strict validation (false) when MD5 is set, lenient validation (true) when no MD5
+  // This matches the behavior of the old web_server OTA implementation
+  if (Update.end(!this->md5_set_)) {
     return OTA_RESPONSE_OK;
   }
 

@@ -1,20 +1,25 @@
 """Tests for the wizard.py file."""
 
-import os
-
-import esphome.wizard as wz
-import pytest
-from esphome.core import CORE
-from esphome.components.esp8266.boards import ESP8266_BOARD_PINS
-from esphome.components.esp32.boards import ESP32_BOARD_PINS
-from esphome.components.bk72xx.boards import BK72XX_BOARD_PINS
-from esphome.components.rtl87xx.boards import RTL87XX_BOARD_PINS
+from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
+
+import pytest
+from pytest import MonkeyPatch
+
+from esphome.components.bk72xx.boards import BK72XX_BOARD_PINS
+from esphome.components.esp32.boards import ESP32_BOARD_PINS
+from esphome.components.esp8266.boards import ESP8266_BOARD_PINS
+from esphome.components.ln882x.boards import LN882X_BOARD_PINS
+from esphome.components.rtl87xx.boards import RTL87XX_BOARD_PINS
+from esphome.core import CORE
+import esphome.wizard as wz
 
 
 @pytest.fixture
-def default_config():
+def default_config() -> dict[str, Any]:
     return {
+        "type": "basic",
         "name": "test-name",
         "platform": "ESP8266",
         "board": "esp01_1m",
@@ -25,7 +30,7 @@ def default_config():
 
 
 @pytest.fixture
-def wizard_answers():
+def wizard_answers() -> list[str]:
     return [
         "test-node",  # Name of the node
         "ESP8266",  # platform
@@ -50,7 +55,9 @@ def test_sanitize_quotes_replaces_with_escaped_char():
     assert output_str == '\\"key\\": \\"value\\"'
 
 
-def test_config_file_fallback_ap_includes_descriptive_name(default_config):
+def test_config_file_fallback_ap_includes_descriptive_name(
+    default_config: dict[str, Any],
+):
     """
     The fallback AP should include the node and a descriptive name
     """
@@ -64,7 +71,9 @@ def test_config_file_fallback_ap_includes_descriptive_name(default_config):
     assert 'ssid: "Test Node Fallback Hotspot"' in config
 
 
-def test_config_file_fallback_ap_name_less_than_32_chars(default_config):
+def test_config_file_fallback_ap_name_less_than_32_chars(
+    default_config: dict[str, Any],
+):
     """
     The fallback AP name must be less than 32 chars.
     Since it is composed of the node name and "Fallback Hotspot" this can be too long and needs truncating
@@ -79,7 +88,7 @@ def test_config_file_fallback_ap_name_less_than_32_chars(default_config):
     assert 'ssid: "A Very Long Name For This Node"' in config
 
 
-def test_config_file_should_include_ota(default_config):
+def test_config_file_should_include_ota(default_config: dict[str, Any]):
     """
     The Over-The-Air update should be enabled by default
     """
@@ -92,7 +101,9 @@ def test_config_file_should_include_ota(default_config):
     assert "ota:" in config
 
 
-def test_config_file_should_include_ota_when_password_set(default_config):
+def test_config_file_should_include_ota_when_password_set(
+    default_config: dict[str, Any],
+):
     """
     The Over-The-Air update should be enabled when a password is set
     """
@@ -106,14 +117,16 @@ def test_config_file_should_include_ota_when_password_set(default_config):
     assert "ota:" in config
 
 
-def test_wizard_write_sets_platform(default_config, tmp_path, monkeypatch):
+def test_wizard_write_sets_platform(
+    default_config: dict[str, Any], tmp_path: Path, monkeypatch: MonkeyPatch
+):
     """
     If the platform is not explicitly set, use "ESP8266" if the board is one of the ESP8266 boards
     """
     # Given
     del default_config["platform"]
     monkeypatch.setattr(wz, "write_file", MagicMock())
-    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
+    monkeypatch.setattr(CORE, "config_path", tmp_path.parent)
 
     # When
     wz.wizard_write(tmp_path, **default_config)
@@ -123,8 +136,49 @@ def test_wizard_write_sets_platform(default_config, tmp_path, monkeypatch):
     assert "esp8266:" in generated_config
 
 
+def test_wizard_empty_config(tmp_path: Path, monkeypatch: MonkeyPatch):
+    """
+    The wizard should be able to create an empty configuration
+    """
+    # Given
+    empty_config = {
+        "type": "empty",
+        "name": "test-empty",
+    }
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", tmp_path.parent)
+
+    # When
+    wz.wizard_write(tmp_path, **empty_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert generated_config == ""
+
+
+def test_wizard_upload_config(tmp_path: Path, monkeypatch: MonkeyPatch):
+    """
+    The wizard should be able to import an base64 encoded configuration
+    """
+    # Given
+    empty_config = {
+        "type": "upload",
+        "name": "test-upload",
+        "file_text": "# imported file 📁\n\n",
+    }
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", tmp_path.parent)
+
+    # When
+    wz.wizard_write(tmp_path, **empty_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert generated_config == "# imported file 📁\n\n"
+
+
 def test_wizard_write_defaults_platform_from_board_esp8266(
-    default_config, tmp_path, monkeypatch
+    default_config: dict[str, Any], tmp_path: Path, monkeypatch: MonkeyPatch
 ):
     """
     If the platform is not explicitly set, use "ESP8266" if the board is one of the ESP8266 boards
@@ -134,7 +188,7 @@ def test_wizard_write_defaults_platform_from_board_esp8266(
     default_config["board"] = [*ESP8266_BOARD_PINS][0]
 
     monkeypatch.setattr(wz, "write_file", MagicMock())
-    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
+    monkeypatch.setattr(CORE, "config_path", tmp_path.parent)
 
     # When
     wz.wizard_write(tmp_path, **default_config)
@@ -145,7 +199,7 @@ def test_wizard_write_defaults_platform_from_board_esp8266(
 
 
 def test_wizard_write_defaults_platform_from_board_esp32(
-    default_config, tmp_path, monkeypatch
+    default_config: dict[str, Any], tmp_path: Path, monkeypatch: MonkeyPatch
 ):
     """
     If the platform is not explicitly set, use "ESP32" if the board is one of the ESP32 boards
@@ -155,7 +209,7 @@ def test_wizard_write_defaults_platform_from_board_esp32(
     default_config["board"] = [*ESP32_BOARD_PINS][0]
 
     monkeypatch.setattr(wz, "write_file", MagicMock())
-    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
+    monkeypatch.setattr(CORE, "config_path", tmp_path.parent)
 
     # When
     wz.wizard_write(tmp_path, **default_config)
@@ -166,7 +220,7 @@ def test_wizard_write_defaults_platform_from_board_esp32(
 
 
 def test_wizard_write_defaults_platform_from_board_bk72xx(
-    default_config, tmp_path, monkeypatch
+    default_config: dict[str, Any], tmp_path: Path, monkeypatch: MonkeyPatch
 ):
     """
     If the platform is not explicitly set, use "BK72XX" if the board is one of BK72XX boards
@@ -176,7 +230,7 @@ def test_wizard_write_defaults_platform_from_board_bk72xx(
     default_config["board"] = [*BK72XX_BOARD_PINS][0]
 
     monkeypatch.setattr(wz, "write_file", MagicMock())
-    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
+    monkeypatch.setattr(CORE, "config_path", tmp_path.parent)
 
     # When
     wz.wizard_write(tmp_path, **default_config)
@@ -186,8 +240,29 @@ def test_wizard_write_defaults_platform_from_board_bk72xx(
     assert "bk72xx:" in generated_config
 
 
+def test_wizard_write_defaults_platform_from_board_ln882x(
+    default_config: dict[str, Any], tmp_path: Path, monkeypatch: MonkeyPatch
+):
+    """
+    If the platform is not explicitly set, use "LN882X" if the board is one of LN882X boards
+    """
+    # Given
+    del default_config["platform"]
+    default_config["board"] = [*LN882X_BOARD_PINS][0]
+
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", tmp_path.parent)
+
+    # When
+    wz.wizard_write(tmp_path, **default_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert "ln882x:" in generated_config
+
+
 def test_wizard_write_defaults_platform_from_board_rtl87xx(
-    default_config, tmp_path, monkeypatch
+    default_config: dict[str, Any], tmp_path: Path, monkeypatch: MonkeyPatch
 ):
     """
     If the platform is not explicitly set, use "RTL87XX" if the board is one of RTL87XX boards
@@ -197,7 +272,7 @@ def test_wizard_write_defaults_platform_from_board_rtl87xx(
     default_config["board"] = [*RTL87XX_BOARD_PINS][0]
 
     monkeypatch.setattr(wz, "write_file", MagicMock())
-    monkeypatch.setattr(CORE, "config_path", os.path.dirname(tmp_path))
+    monkeypatch.setattr(CORE, "config_path", tmp_path.parent)
 
     # When
     wz.wizard_write(tmp_path, **default_config)
@@ -207,7 +282,7 @@ def test_wizard_write_defaults_platform_from_board_rtl87xx(
     assert "rtl87xx:" in generated_config
 
 
-def test_safe_print_step_prints_step_number_and_description(monkeypatch):
+def test_safe_print_step_prints_step_number_and_description(monkeypatch: MonkeyPatch):
     """
     The safe_print_step function prints the step number and the passed description
     """
@@ -231,7 +306,7 @@ def test_safe_print_step_prints_step_number_and_description(monkeypatch):
     assert any(f"STEP {step_num}" in arg for arg in all_args)
 
 
-def test_default_input_uses_default_if_no_input_supplied(monkeypatch):
+def test_default_input_uses_default_if_no_input_supplied(monkeypatch: MonkeyPatch):
     """
     The default_input() function should return the supplied default value if the user doesn't enter anything
     """
@@ -247,7 +322,7 @@ def test_default_input_uses_default_if_no_input_supplied(monkeypatch):
     assert retval == default_string
 
 
-def test_default_input_uses_user_supplied_value(monkeypatch):
+def test_default_input_uses_user_supplied_value(monkeypatch: MonkeyPatch):
     """
     The default_input() function should return the value that the user enters
     """
@@ -286,7 +361,7 @@ def test_wizard_rejects_path_with_invalid_extension():
     """
 
     # Given
-    config_file = "test.json"
+    config_file = Path("test.json")
 
     # When
     retval = wz.wizard(config_file)
@@ -295,29 +370,31 @@ def test_wizard_rejects_path_with_invalid_extension():
     assert retval == 1
 
 
-def test_wizard_rejects_existing_files(tmpdir):
+def test_wizard_rejects_existing_files(tmp_path):
     """
     The wizard should reject any configuration file that already exists
     """
 
     # Given
-    config_file = tmpdir.join("test.yaml")
-    config_file.write("")
+    config_file = tmp_path / "test.yaml"
+    config_file.write_text("")
 
     # When
-    retval = wz.wizard(str(config_file))
+    retval = wz.wizard(config_file)
 
     # Then
     assert retval == 2
 
 
-def test_wizard_accepts_default_answers_esp8266(tmpdir, monkeypatch, wizard_answers):
+def test_wizard_accepts_default_answers_esp8266(
+    tmp_path: Path, monkeypatch: MonkeyPatch, wizard_answers: list[str]
+):
     """
     The wizard should accept the given default answers for esp8266
     """
 
     # Given
-    config_file = tmpdir.join("test.yaml")
+    config_file = tmp_path / "test.yaml"
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
     monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
@@ -325,13 +402,15 @@ def test_wizard_accepts_default_answers_esp8266(tmpdir, monkeypatch, wizard_answ
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
     # When
-    retval = wz.wizard(str(config_file))
+    retval = wz.wizard(config_file)
 
     # Then
     assert retval == 0
 
 
-def test_wizard_accepts_default_answers_esp32(tmpdir, monkeypatch, wizard_answers):
+def test_wizard_accepts_default_answers_esp32(
+    tmp_path: Path, monkeypatch: MonkeyPatch, wizard_answers: list[str]
+):
     """
     The wizard should accept the given default answers for esp32
     """
@@ -339,7 +418,7 @@ def test_wizard_accepts_default_answers_esp32(tmpdir, monkeypatch, wizard_answer
     # Given
     wizard_answers[1] = "ESP32"
     wizard_answers[2] = "nodemcu-32s"
-    config_file = tmpdir.join("test.yaml")
+    config_file = tmp_path / "test.yaml"
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
     monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
@@ -347,13 +426,15 @@ def test_wizard_accepts_default_answers_esp32(tmpdir, monkeypatch, wizard_answer
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
     # When
-    retval = wz.wizard(str(config_file))
+    retval = wz.wizard(config_file)
 
     # Then
     assert retval == 0
 
 
-def test_wizard_offers_better_node_name(tmpdir, monkeypatch, wizard_answers):
+def test_wizard_offers_better_node_name(
+    tmp_path: Path, monkeypatch: MonkeyPatch, wizard_answers: list[str]
+):
     """
     When the node name does not conform, a better alternative is offered
     * Removes special chars
@@ -369,7 +450,7 @@ def test_wizard_offers_better_node_name(tmpdir, monkeypatch, wizard_answers):
         wz, "default_input", MagicMock(side_effect=lambda _, default: default)
     )
 
-    config_file = tmpdir.join("test.yaml")
+    config_file = tmp_path / "test.yaml"
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
     monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
@@ -377,14 +458,16 @@ def test_wizard_offers_better_node_name(tmpdir, monkeypatch, wizard_answers):
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
     # When
-    retval = wz.wizard(str(config_file))
+    retval = wz.wizard(config_file)
 
     # Then
     assert retval == 0
     assert wz.default_input.call_args.args[1] == expected_name
 
 
-def test_wizard_requires_correct_platform(tmpdir, monkeypatch, wizard_answers):
+def test_wizard_requires_correct_platform(
+    tmp_path: Path, monkeypatch: MonkeyPatch, wizard_answers: list[str]
+):
     """
     When the platform is not either esp32 or esp8266, the wizard should reject it
     """
@@ -392,7 +475,7 @@ def test_wizard_requires_correct_platform(tmpdir, monkeypatch, wizard_answers):
     # Given
     wizard_answers.insert(1, "foobar")  # add invalid entry for platform
 
-    config_file = tmpdir.join("test.yaml")
+    config_file = tmp_path / "test.yaml"
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
     monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
@@ -400,13 +483,15 @@ def test_wizard_requires_correct_platform(tmpdir, monkeypatch, wizard_answers):
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
     # When
-    retval = wz.wizard(str(config_file))
+    retval = wz.wizard(config_file)
 
     # Then
     assert retval == 0
 
 
-def test_wizard_requires_correct_board(tmpdir, monkeypatch, wizard_answers):
+def test_wizard_requires_correct_board(
+    tmp_path: Path, monkeypatch: MonkeyPatch, wizard_answers: list[str]
+):
     """
     When the board is not a valid esp8266 board, the wizard should reject it
     """
@@ -414,7 +499,7 @@ def test_wizard_requires_correct_board(tmpdir, monkeypatch, wizard_answers):
     # Given
     wizard_answers.insert(2, "foobar")  # add an invalid entry for board
 
-    config_file = tmpdir.join("test.yaml")
+    config_file = tmp_path / "test.yaml"
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
     monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
@@ -422,13 +507,15 @@ def test_wizard_requires_correct_board(tmpdir, monkeypatch, wizard_answers):
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
     # When
-    retval = wz.wizard(str(config_file))
+    retval = wz.wizard(config_file)
 
     # Then
     assert retval == 0
 
 
-def test_wizard_requires_valid_ssid(tmpdir, monkeypatch, wizard_answers):
+def test_wizard_requires_valid_ssid(
+    tmp_path: Path, monkeypatch: MonkeyPatch, wizard_answers: list[str]
+):
     """
     When the board is not a valid esp8266 board, the wizard should reject it
     """
@@ -436,7 +523,7 @@ def test_wizard_requires_valid_ssid(tmpdir, monkeypatch, wizard_answers):
     # Given
     wizard_answers.insert(3, "")  # add an invalid entry for ssid
 
-    config_file = tmpdir.join("test.yaml")
+    config_file = tmp_path / "test.yaml"
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
     monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
@@ -444,7 +531,28 @@ def test_wizard_requires_valid_ssid(tmpdir, monkeypatch, wizard_answers):
     monkeypatch.setattr(wz, "wizard_write", MagicMock())
 
     # When
-    retval = wz.wizard(str(config_file))
+    retval = wz.wizard(config_file)
 
     # Then
     assert retval == 0
+
+
+def test_wizard_write_protects_existing_config(
+    tmp_path: Path, default_config: dict[str, Any], monkeypatch: MonkeyPatch
+):
+    """
+    The wizard_write function should not overwrite existing config files and return False
+    """
+    # Given
+    config_file = tmp_path / "test.yaml"
+    original_content = "# Original config content\n"
+    config_file.write_text(original_content)
+
+    monkeypatch.setattr(CORE, "config_path", tmp_path.parent)
+
+    # When
+    result = wz.wizard_write(config_file, **default_config)
+
+    # Then
+    assert result is False  # Should return False when file exists
+    assert config_file.read_text() == original_content

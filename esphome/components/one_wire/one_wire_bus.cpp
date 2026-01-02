@@ -17,8 +17,15 @@ const uint8_t ONE_WIRE_ROM_SEARCH = 0xF0;
 
 const std::vector<uint64_t> &OneWireBus::get_devices() { return this->devices_; }
 
+bool OneWireBus::reset_() {
+  int res = this->reset_int();
+  if (res == -1)
+    ESP_LOGE(TAG, "1-wire bus is held low");
+  return res == 1;
+}
+
 bool IRAM_ATTR OneWireBus::select(uint64_t address) {
-  if (!this->reset())
+  if (!this->reset_())
     return false;
   this->write8(ONE_WIRE_ROM_SELECT);
   this->write64(address);
@@ -31,21 +38,19 @@ void OneWireBus::search() {
   this->reset_search();
   uint64_t address;
   while (true) {
-    {
-      InterruptLock lock;
-      if (!this->reset()) {
-        // Reset failed or no devices present
-        return;
-      }
-
-      this->write8(ONE_WIRE_ROM_SEARCH);
-      address = this->search_int();
+    if (!this->reset_()) {
+      // Reset failed or no devices present
+      return;
     }
+
+    this->write8(ONE_WIRE_ROM_SEARCH);
+    address = this->search_int();
     if (address == 0)
       break;
     auto *address8 = reinterpret_cast<uint8_t *>(&address);
     if (crc8(address8, 7) != address8[7]) {
-      ESP_LOGW(TAG, "Dallas device 0x%s has invalid CRC.", format_hex(address).c_str());
+      char hex_buf[17];
+      ESP_LOGW(TAG, "Dallas device 0x%s has invalid CRC.", format_hex_to(hex_buf, address));
     } else {
       this->devices_.push_back(address);
     }
@@ -78,8 +83,9 @@ void OneWireBus::dump_devices_(const char *tag) {
     ESP_LOGW(tag, "  Found no devices!");
   } else {
     ESP_LOGCONFIG(tag, "  Found devices:");
+    char hex_buf[17];  // uint64_t = 16 hex chars + null
     for (auto &address : this->devices_) {
-      ESP_LOGCONFIG(tag, "    0x%s (%s)", format_hex(address).c_str(), LOG_STR_ARG(get_model_str(address & 0xff)));
+      ESP_LOGCONFIG(tag, "    0x%s (%s)", format_hex_to(hex_buf, address), LOG_STR_ARG(get_model_str(address & 0xff)));
     }
   }
 }

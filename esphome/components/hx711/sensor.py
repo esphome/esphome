@@ -1,13 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import sensor
-from esphome.const import (
-    CONF_CLK_PIN,
-    CONF_GAIN,
-    ICON_SCALE,
-    STATE_CLASS_MEASUREMENT,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_CLK_PIN, CONF_GAIN, ICON_SCALE, STATE_CLASS_MEASUREMENT
 
 hx711_ns = cg.esphome_ns.namespace("hx711")
 HX711Sensor = hx711_ns.class_("HX711Sensor", sensor.Sensor, cg.PollingComponent)

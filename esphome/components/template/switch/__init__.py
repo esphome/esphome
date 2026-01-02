@@ -1,17 +1,17 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import switch
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ASSUMED_STATE,
     CONF_ID,
     CONF_LAMBDA,
     CONF_OPTIMISTIC,
-    CONF_RESTORE_STATE,
     CONF_STATE,
     CONF_TURN_OFF_ACTION,
     CONF_TURN_ON_ACTION,
 )
+
 from .. import template_ns
 
 TemplateSwitch = template_ns.class_("TemplateSwitch", switch.Switch, cg.Component)
@@ -42,9 +42,6 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_TURN_ON_ACTION): automation.validate_automation(
                 single=True
-            ),
-            cv.Optional(CONF_RESTORE_STATE): cv.invalid(
-                "The restore_state option has been removed in 2023.7.0. Use the restore_mode option instead"
             ),
         }
     )

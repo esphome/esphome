@@ -3,7 +3,7 @@
 //
 #pragma once
 
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S3)
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_buffer.h"

@@ -2,7 +2,9 @@
 #include "esphome/core/defines.h"
 #ifdef USE_CAPTIVE_PORTAL
 #include <memory>
-#ifdef USE_ARDUINO
+#if defined(USE_ESP32)
+#include "dns_server_esp32_idf.h"
+#elif defined(USE_ARDUINO)
 #include <DNSServer.h>
 #endif
 #include "esphome/core/component.h"
@@ -23,12 +25,17 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   CaptivePortal(web_server_base::WebServerBase *base);
   void setup() override;
   void dump_config() override;
-#ifdef USE_ARDUINO
   void loop() override {
-    if (this->dns_server_ != nullptr)
+#if defined(USE_ESP32)
+    if (this->dns_server_ != nullptr) {
+      this->dns_server_->process_next_request();
+    }
+#elif defined(USE_ARDUINO)
+    if (this->dns_server_ != nullptr) {
       this->dns_server_->processNextRequest();
-  }
+    }
 #endif
+  }
   float get_setup_priority() const override;
 
   void setMode(Mode _mode) { this->mode = _mode; }
@@ -50,9 +57,21 @@ class CaptivePortal : public AsyncWebHandler, public Component {
         return true;
       if (request->url() == "/wifisave")
         return true;
+  void end() {
+    this->active_ = false;
+    this->disable_loop();  // Stop processing DNS requests
+    this->base_->deinit();
+    if (this->dns_server_ != nullptr) {
+      this->dns_server_->stop();
+      this->dns_server_ = nullptr;
     }
+  }
 
-    return false;
+  bool canHandle(AsyncWebServerRequest *request) const override {
+    // Handle all GET requests when captive portal is active
+    // This allows us to respond with the portal page for any URL,
+    // triggering OS captive portal detection
+    return this->active_ && request->method() == HTTP_GET;
   }
 
   void handle_captive_portal(AsyncWebServerRequest *request);
@@ -66,8 +85,7 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   web_server_base::WebServerBase *base_;
   bool initialized_{false};
   bool active_{false};
-  String portal_path_{};
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) || defined(USE_ESP32)
   std::unique_ptr<DNSServer> dns_server_{nullptr};
 #endif
 };

@@ -4,9 +4,9 @@
 #include <cstring>
 #include <string>
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
-namespace esphome {
-namespace socket {
+namespace esphome::socket {
 
 Socket::~Socket() {}
 
@@ -15,6 +15,14 @@ std::unique_ptr<Socket> socket_ip(int type, int protocol) {
   return socket(AF_INET6, type, protocol);
 #else
   return socket(AF_INET, type, protocol);
+#endif /* USE_NETWORK_IPV6 */
+}
+
+std::unique_ptr<Socket> socket_ip_loop_monitored(int type, int protocol) {
+#if USE_NETWORK_IPV6
+  return socket_loop_monitored(AF_INET6, type, protocol);
+#else
+  return socket_loop_monitored(AF_INET, type, protocol);
 #endif /* USE_NETWORK_IPV6 */
 }
 
@@ -30,9 +38,18 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::stri
     server->sin6_family = AF_INET6;
     server->sin6_port = htons(port);
 
+#ifdef USE_SOCKET_IMPL_BSD_SOCKETS
+    // Use standard inet_pton for BSD sockets
+    if (inet_pton(AF_INET6, ip_address.c_str(), &server->sin6_addr) != 1) {
+      errno = EINVAL;
+      return 0;
+    }
+#else
+    // Use LWIP-specific functions
     ip6_addr_t ip6;
     inet6_aton(ip_address.c_str(), &ip6);
     memcpy(server->sin6_addr.un.u32_addr, ip6.addr, sizeof(ip6.addr));
+#endif
     return sizeof(sockaddr_in6);
   }
 #endif /* USE_NETWORK_IPV6 */
@@ -73,6 +90,5 @@ socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t po
   return sizeof(sockaddr_in);
 #endif /* USE_NETWORK_IPV6 */
 }
-}  // namespace socket
-}  // namespace esphome
+}  // namespace esphome::socket
 #endif

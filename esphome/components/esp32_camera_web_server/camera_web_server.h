@@ -6,7 +6,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
-#include "esphome/components/esp32_camera/esp32_camera.h"
+#include "esphome/components/camera/camera.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
@@ -18,7 +18,7 @@ namespace esp32_camera_web_server {
 
 enum Mode { STREAM, SNAPSHOT };
 
-class CameraWebServer : public Component {
+class CameraWebServer : public Component, public camera::CameraListener {
  public:
   CameraWebServer();
   ~CameraWebServer();
@@ -31,8 +31,11 @@ class CameraWebServer : public Component {
   void set_mode(Mode mode) { this->mode_ = mode; }
   void loop() override;
 
+  /// CameraListener interface
+  void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
+
  protected:
-  std::shared_ptr<esphome::esp32_camera::CameraImage> wait_for_image_();
+  std::shared_ptr<camera::CameraImage> wait_for_image_();
   esp_err_t handler_(struct httpd_req *req);
   esp_err_t streaming_handler_(struct httpd_req *req);
   esp_err_t snapshot_handler_(struct httpd_req *req);
@@ -40,7 +43,7 @@ class CameraWebServer : public Component {
   uint16_t port_{0};
   void *httpd_{nullptr};
   SemaphoreHandle_t semaphore_;
-  std::shared_ptr<esphome::esp32_camera::CameraImage> image_;
+  std::shared_ptr<camera::CameraImage> image_;
   bool running_{false};
   Mode mode_{STREAM};
 };

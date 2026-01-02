@@ -1,0 +1,16 @@
+substitutions:
+  B: 5
+  var7: 79
+
+packages:
+  closures_package: !include
+    file: closures_package.yaml
+    vars:
+      A: 7
+
+local_results:
+  - The value of B is ${B}
+  - |
+    You will see, however, that
+    ${A} is not substituted here, since
+    it is out of scope.

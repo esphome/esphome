@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sm10bit_base
+import esphome.config_validation as cv
 
 AUTO_LOAD = ["sm10bit_base", "output"]
 CODEOWNERS = ["@Cossid"]

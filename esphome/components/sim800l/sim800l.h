@@ -162,7 +162,7 @@ template<typename... Ts> class Sim800LSendSmsAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, recipient)
   TEMPLATABLE_VALUE(std::string, message)
 
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     auto recipient = this->recipient_.value(x...);
     auto message = this->message_.value(x...);
     this->parent_->send_sms(recipient, message);
@@ -177,7 +177,7 @@ template<typename... Ts> class Sim800LSendUssdAction : public Action<Ts...> {
   Sim800LSendUssdAction(Sim800LComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, ussd)
 
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     auto ussd_code = this->ussd_.value(x...);
     this->parent_->send_ussd(ussd_code);
   }
@@ -191,7 +191,7 @@ template<typename... Ts> class Sim800LDialAction : public Action<Ts...> {
   Sim800LDialAction(Sim800LComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, recipient)
 
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     auto recipient = this->recipient_.value(x...);
     this->parent_->dial(recipient);
   }
@@ -203,7 +203,7 @@ template<typename... Ts> class Sim800LConnectAction : public Action<Ts...> {
  public:
   Sim800LConnectAction(Sim800LComponent *parent) : parent_(parent) {}
 
-  void play(Ts... x) { this->parent_->connect(); }
+  void play(const Ts &...x) { this->parent_->connect(); }
 
  protected:
   Sim800LComponent *parent_;
@@ -213,7 +213,7 @@ template<typename... Ts> class Sim800LDisconnectAction : public Action<Ts...> {
  public:
   Sim800LDisconnectAction(Sim800LComponent *parent) : parent_(parent) {}
 
-  void play(Ts... x) { this->parent_->disconnect(); }
+  void play(const Ts &...x) { this->parent_->disconnect(); }
 
  protected:
   Sim800LComponent *parent_;

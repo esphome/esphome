@@ -1,17 +1,18 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_GAIN,
+    CONF_ID,
     CONF_MULTIPLEXER,
     CONF_RESOLUTION,
     CONF_SAMPLE_RATE,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
-    CONF_ID,
 )
-from .. import ads1115_ns, ADS1115Component, CONF_ADS1115_ID
+
+from .. import CONF_ADS1115_ID, ADS1115Component, ads1115_ns
 
 AUTO_LOAD = ["voltage_sampler"]
 DEPENDENCIES = ["ads1115"]

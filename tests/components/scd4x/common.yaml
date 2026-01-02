@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_scd4x
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: scd4x
+    i2c_id: i2c_bus
     id: scd40
     co2:
       name: SCD4X CO2

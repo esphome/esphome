@@ -1,17 +1,15 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import sensor, cover
+import esphome.codegen as cg
+from esphome.components import cover, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLOSE_ACTION,
     CONF_CLOSE_DURATION,
-    CONF_ID,
+    CONF_MAX_DURATION,
     CONF_OPEN_ACTION,
     CONF_OPEN_DURATION,
     CONF_STOP_ACTION,
-    CONF_MAX_DURATION,
 )
-
 
 CONF_OPEN_SENSOR = "open_sensor"
 CONF_OPEN_MOVING_CURRENT_THRESHOLD = "open_moving_current_threshold"
@@ -31,45 +29,47 @@ CurrentBasedCover = current_based_ns.class_(
     "CurrentBasedCover", cover.Cover, cg.Component
 )
 
-CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(CurrentBasedCover),
-        cv.Required(CONF_STOP_ACTION): automation.validate_automation(single=True),
-        cv.Required(CONF_OPEN_SENSOR): cv.use_id(sensor.Sensor),
-        cv.Required(CONF_OPEN_MOVING_CURRENT_THRESHOLD): cv.float_range(
-            min=0, min_included=False
-        ),
-        cv.Optional(CONF_OPEN_OBSTACLE_CURRENT_THRESHOLD): cv.float_range(
-            min=0, min_included=False
-        ),
-        cv.Required(CONF_OPEN_ACTION): automation.validate_automation(single=True),
-        cv.Required(CONF_OPEN_DURATION): cv.positive_time_period_milliseconds,
-        cv.Required(CONF_CLOSE_SENSOR): cv.use_id(sensor.Sensor),
-        cv.Required(CONF_CLOSE_MOVING_CURRENT_THRESHOLD): cv.float_range(
-            min=0, min_included=False
-        ),
-        cv.Optional(CONF_CLOSE_OBSTACLE_CURRENT_THRESHOLD): cv.float_range(
-            min=0, min_included=False
-        ),
-        cv.Required(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
-        cv.Required(CONF_CLOSE_DURATION): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_OBSTACLE_ROLLBACK, default="10%"): cv.percentage,
-        cv.Optional(CONF_MAX_DURATION): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_MALFUNCTION_DETECTION, default=True): cv.boolean,
-        cv.Optional(CONF_MALFUNCTION_ACTION): automation.validate_automation(
-            single=True
-        ),
-        cv.Optional(
-            CONF_START_SENSING_DELAY, default="500ms"
-        ): cv.positive_time_period_milliseconds,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    cover.cover_schema(CurrentBasedCover)
+    .extend(
+        {
+            cv.Required(CONF_STOP_ACTION): automation.validate_automation(single=True),
+            cv.Required(CONF_OPEN_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_OPEN_MOVING_CURRENT_THRESHOLD): cv.float_range(
+                min=0, min_included=False
+            ),
+            cv.Optional(CONF_OPEN_OBSTACLE_CURRENT_THRESHOLD): cv.float_range(
+                min=0, min_included=False
+            ),
+            cv.Required(CONF_OPEN_ACTION): automation.validate_automation(single=True),
+            cv.Required(CONF_OPEN_DURATION): cv.positive_time_period_milliseconds,
+            cv.Required(CONF_CLOSE_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_CLOSE_MOVING_CURRENT_THRESHOLD): cv.float_range(
+                min=0, min_included=False
+            ),
+            cv.Optional(CONF_CLOSE_OBSTACLE_CURRENT_THRESHOLD): cv.float_range(
+                min=0, min_included=False
+            ),
+            cv.Required(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
+            cv.Required(CONF_CLOSE_DURATION): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_OBSTACLE_ROLLBACK, default="10%"): cv.percentage,
+            cv.Optional(CONF_MAX_DURATION): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_MALFUNCTION_DETECTION, default=True): cv.boolean,
+            cv.Optional(CONF_MALFUNCTION_ACTION): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(
+                CONF_START_SENSING_DELAY, default="500ms"
+            ): cv.positive_time_period_milliseconds,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await cover.new_cover(config)
     await cg.register_component(var, config)
-    await cover.register_cover(var, config)
 
     await automation.build_automation(
         var.get_stop_trigger(), [], config[CONF_STOP_ACTION]

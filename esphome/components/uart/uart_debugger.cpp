@@ -6,8 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 static const char *const TAG = "uart_debug";
 
@@ -197,6 +196,5 @@ void UARTDebug::log_binary(UARTDirection direction, std::vector<uint8_t> bytes, 
   delay(10);
 }
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart
 #endif

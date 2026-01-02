@@ -1,19 +1,20 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_EXTERNAL_TEMPERATURE,
     CONF_ID,
     CONF_INTERNAL_TEMPERATURE,
     CONF_SPEED,
     DEVICE_CLASS_TEMPERATURE,
+    ICON_PERCENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
     UNIT_REVOLUTIONS_PER_MINUTE,
-    ICON_PERCENT,
 )
-from .. import EMC2101_COMPONENT_SCHEMA, CONF_EMC2101_ID, emc2101_ns
+
+from .. import CONF_EMC2101_ID, EMC2101_COMPONENT_SCHEMA, emc2101_ns
 
 DEPENDENCIES = ["emc2101"]
 

@@ -1,37 +1,31 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_PM_1_0,
     CONF_PM_2_5,
     CONF_PM_10_0,
-    CONF_PM_1_0,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
+    ICON_CHEMICAL_WEAPON,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
-    ICON_CHEMICAL_WEAPON,
 )
 
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["aqi"]
 CODEOWNERS = ["@freekode"]
 
 hm3301_ns = cg.esphome_ns.namespace("hm3301")
 HM3301Component = hm3301_ns.class_(
     "HM3301Component", cg.PollingComponent, i2c.I2CDevice
 )
-AQICalculatorType = hm3301_ns.enum("AQICalculatorType")
 
-CONF_AQI = "aqi"
-CONF_CALCULATION_TYPE = "calculation_type"
 UNIT_INDEX = "index"
-
-AQI_CALCULATION_TYPE = {
-    "CAQI": AQICalculatorType.CAQI_TYPE,
-    "AQI": AQICalculatorType.AQI_TYPE,
-}
 
 
 def _validate(config):

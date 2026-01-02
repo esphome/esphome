@@ -1,23 +1,25 @@
 from esphome import automation, core
 import esphome.codegen as cg
+from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor
-from esphome.components import sensirion_common
 from esphome.const import (
-    CONF_ID,
-    CONF_HUMIDITY,
-    CONF_TEMPERATURE,
+    CONF_ALTITUDE_COMPENSATION,
+    CONF_AMBIENT_PRESSURE_COMPENSATION,
+    CONF_AUTOMATIC_SELF_CALIBRATION,
     CONF_CO2,
+    CONF_HUMIDITY,
+    CONF_ID,
+    CONF_TEMPERATURE,
     CONF_TEMPERATURE_OFFSET,
     CONF_UPDATE_INTERVAL,
     CONF_VALUE,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
     ICON_MOLECULE_CO2,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
+    UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
 
@@ -33,11 +35,6 @@ SCD30Component = scd30_ns.class_(
 ForceRecalibrationWithReference = scd30_ns.class_(
     "ForceRecalibrationWithReference", automation.Action
 )
-
-CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
-CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
-CONF_AMBIENT_PRESSURE_COMPENSATION = "ambient_pressure_compensation"
-
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -69,13 +66,13 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION, default=0): cv.pressure,
             cv.Optional(CONF_TEMPERATURE_OFFSET): cv.All(
-                cv.temperature,
+                cv.temperature_delta,
                 cv.float_range(min=0, max=655.35),
             ),
             cv.Optional(CONF_UPDATE_INTERVAL, default="60s"): cv.All(
                 cv.positive_time_period_seconds,
                 cv.Range(
-                    min=core.TimePeriod(seconds=1), max=core.TimePeriod(seconds=1800)
+                    min=core.TimePeriod(seconds=2), max=core.TimePeriod(seconds=1800)
                 ),
             ),
         }

@@ -17,7 +17,7 @@ static const char *const TAG = "shutdown.button";
 
 void ShutdownButton::dump_config() { LOG_BUTTON("", "Shutdown Button", this); }
 void ShutdownButton::press_action() {
-  ESP_LOGI(TAG, "Shutting down...");
+  ESP_LOGI(TAG, "Shutting down");
   // Let MQTT settle a bit
   delay(100);  // NOLINT
   App.run_safe_shutdown_hooks();

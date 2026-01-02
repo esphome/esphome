@@ -2,6 +2,7 @@
 #ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
 
 #include "esphome/components/display/display_buffer.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -34,10 +35,38 @@ static void init_callback(pngle_t *pngle, uint32_t w, uint32_t h) {
  * @param h The height of the rectangle to draw.
  * @param rgba The color to paint the rectangle in.
  */
-static void draw_callback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint8_t rgba[4]) {
+static void draw_callback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint8_t rgba[4]) {
   PngDecoder *decoder = (PngDecoder *) pngle_get_user_data(pngle);
   Color color(rgba[0], rgba[1], rgba[2], rgba[3]);
   decoder->draw(x, y, w, h, color);
+
+  // Feed watchdog periodically to avoid triggering during long decode operations.
+  // Feed every 1024 pixels to balance efficiency and responsiveness.
+  uint32_t pixels = w * h;
+  decoder->increment_pixels_decoded(pixels);
+  if ((decoder->get_pixels_decoded() % 1024) < pixels) {
+    App.feed_wdt();
+  }
+}
+
+PngDecoder::PngDecoder(OnlineImage *image) : ImageDecoder(image) {
+  {
+    pngle_t *pngle = this->allocator_.allocate(1, PNGLE_T_SIZE);
+    if (!pngle) {
+      ESP_LOGE(TAG, "Failed to allocate memory for PNGLE engine!");
+      return;
+    }
+    memset(pngle, 0, PNGLE_T_SIZE);
+    pngle_reset(pngle);
+    this->pngle_ = pngle;
+  }
+}
+
+PngDecoder::~PngDecoder() {
+  if (this->pngle_) {
+    pngle_reset(this->pngle_);
+    this->allocator_.deallocate(this->pngle_, PNGLE_T_SIZE);
+  }
 }
 
 int PngDecoder::prepare(size_t download_size) {

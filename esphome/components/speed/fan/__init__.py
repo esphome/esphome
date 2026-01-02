@@ -1,13 +1,12 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import fan, output
 from esphome.components.fan import validate_preset_modes
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_PRESET_MODES,
     CONF_DIRECTION_OUTPUT,
     CONF_OSCILLATION_OUTPUT,
     CONF_OUTPUT,
-    CONF_OUTPUT_ID,
+    CONF_PRESET_MODES,
     CONF_SPEED,
     CONF_SPEED_COUNT,
 )
@@ -16,25 +15,27 @@ from .. import speed_ns
 
 SpeedFan = speed_ns.class_("SpeedFan", cg.Component, fan.Fan)
 
-CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
-    {
-        cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(SpeedFan),
-        cv.Required(CONF_OUTPUT): cv.use_id(output.FloatOutput),
-        cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_id(output.BinaryOutput),
-        cv.Optional(CONF_DIRECTION_OUTPUT): cv.use_id(output.BinaryOutput),
-        cv.Optional(CONF_SPEED): cv.invalid(
-            "Configuring individual speeds is deprecated."
-        ),
-        cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
-        cv.Optional(CONF_PRESET_MODES): validate_preset_modes,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    fan.fan_schema(SpeedFan)
+    .extend(
+        {
+            cv.Required(CONF_OUTPUT): cv.use_id(output.FloatOutput),
+            cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_id(output.BinaryOutput),
+            cv.Optional(CONF_DIRECTION_OUTPUT): cv.use_id(output.BinaryOutput),
+            cv.Optional(CONF_SPEED): cv.invalid(
+                "Configuring individual speeds is deprecated."
+            ),
+            cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
+            cv.Optional(CONF_PRESET_MODES): validate_preset_modes,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], config[CONF_SPEED_COUNT])
+    var = await fan.new_fan(config, config[CONF_SPEED_COUNT])
     await cg.register_component(var, config)
-    await fan.register_fan(var, config)
 
     output_ = await cg.get_variable(config[CONF_OUTPUT])
     cg.add(var.set_output(output_))

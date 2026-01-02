@@ -1,10 +1,14 @@
 #include "mitsubishi.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace mitsubishi {
 
 static const char *const TAG = "mitsubishi.climate";
+
+// IR frame size for Mitsubishi climate
+static constexpr size_t MITSUBISHI_FRAME_SIZE = 18;
 
 const uint8_t MITSUBISHI_OFF = 0x00;
 
@@ -25,8 +29,8 @@ const uint8_t MITSUBISHI_FAN_AUTO = 0x00;
 
 const uint8_t MITSUBISHI_VERTICAL_VANE_SWING = 0x38;
 
-// const uint8_t MITSUBISHI_AUTO = 0X80;
-const uint8_t MITSUBISHI_OTHERWISE = 0X40;
+// const uint8_t MITSUBISHI_AUTO = 0x80;
+const uint8_t MITSUBISHI_OTHERWISE = 0x40;
 const uint8_t MITSUBISHI_POWERFUL = 0x08;
 
 // Optional presets used to enable some model features
@@ -42,18 +46,19 @@ const uint16_t MITSUBISHI_HEADER_SPACE = 1700;
 const uint16_t MITSUBISHI_MIN_GAP = 17500;
 
 // Marker bytes
-const uint8_t MITSUBISHI_BYTE00 = 0X23;
-const uint8_t MITSUBISHI_BYTE01 = 0XCB;
-const uint8_t MITSUBISHI_BYTE02 = 0X26;
-const uint8_t MITSUBISHI_BYTE03 = 0X01;
-const uint8_t MITSUBISHI_BYTE04 = 0X00;
-const uint8_t MITSUBISHI_BYTE13 = 0X00;
-const uint8_t MITSUBISHI_BYTE16 = 0X00;
+const uint8_t MITSUBISHI_BYTE00 = 0x23;
+const uint8_t MITSUBISHI_BYTE01 = 0xCB;
+const uint8_t MITSUBISHI_BYTE02 = 0x26;
+const uint8_t MITSUBISHI_BYTE03 = 0x01;
+const uint8_t MITSUBISHI_BYTE04 = 0x00;
+const uint8_t MITSUBISHI_BYTE13 = 0x00;
+const uint8_t MITSUBISHI_BYTE16 = 0x00;
 
 climate::ClimateTraits MitsubishiClimate::traits() {
   auto traits = climate::ClimateTraits();
-  traits.set_supports_current_temperature(this->sensor_ != nullptr);
-  traits.set_supports_action(false);
+  if (this->sensor_ != nullptr) {
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+  }
   traits.set_visual_min_temperature(MITSUBISHI_TEMP_MIN);
   traits.set_visual_max_temperature(MITSUBISHI_TEMP_MAX);
   traits.set_visual_temperature_step(1.0f);
@@ -387,7 +392,10 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
   }
 
-  ESP_LOGV(TAG, "Receiving: %s", format_hex_pretty(state_frame, 18).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(MITSUBISHI_FRAME_SIZE)];
+#endif
+  ESP_LOGV(TAG, "Receiving: %s", format_hex_pretty_to(hex_buf, state_frame, MITSUBISHI_FRAME_SIZE));
 
   this->publish_state();
   return true;
