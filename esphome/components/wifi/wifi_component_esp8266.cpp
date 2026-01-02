@@ -242,7 +242,11 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (!this->wifi_mode_(true, {}))
     return false;
 
-  this->wifi_disconnect_();
+  // Skip disconnect for roaming - let the SDK handle the transition
+  // This preserves TCP connections during the brief AP switch
+  if (!this->roaming_connect_active_) {
+    this->wifi_disconnect_();
+  }
 
   struct station_config conf {};
   memset(&conf, 0, sizeof(conf));
