@@ -1966,7 +1966,13 @@ void WiFiComponent::process_roaming_scan_(uint32_t now) {
     if (result.get_bssid() == current_bssid)
       continue;
 
-    ESP_LOGV(TAG, "Roaming: candidate %s RSSI %d dB", result.get_ssid().c_str(), result.get_rssi());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    {
+      char bssid_buf[18];
+      format_mac_addr_upper(result.get_bssid().data(), bssid_buf);
+      ESP_LOGV(TAG, "Roaming: candidate %s RSSI %d dB", bssid_buf, result.get_rssi());
+    }
+#endif
 
     // Track the best candidate
     if (result.get_rssi() > best_rssi) {
@@ -1981,23 +1987,20 @@ void WiFiComponent::process_roaming_scan_(uint32_t now) {
   // Check if best candidate meets minimum improvement threshold
   int8_t improvement = (best_rssi == WIFI_RSSI_DISCONNECTED) ? 0 : best_rssi - current_rssi;
   if (improvement < ROAMING_MIN_IMPROVEMENT) {
-    ESP_LOGD(TAG, "Roaming: best candidate %+d dB (need +%d dB)", improvement, ROAMING_MIN_IMPROVEMENT);
+    ESP_LOGV(TAG, "Roaming: best candidate %+d dB (need +%d dB)", improvement, ROAMING_MIN_IMPROVEMENT);
     return;
   }
 
   // Found better AP - initiate roam
+  const WiFiAP *selected = this->get_selected_sta_();
+  if (selected == nullptr)
+    return;  // Defensive: shouldn't happen since clear_sta() clears roaming_scan_active_
+
   this->roaming_attempts_++;
 
   char bssid_s[18];
   format_mac_addr_upper(best_bssid.data(), bssid_s);
-  ESP_LOGI(TAG, "Roaming: switching to %s (%d dBm, +%d dB improvement)", bssid_s, best_rssi, best_rssi - current_rssi);
-
-  // Create roam parameters from current selected AP with target BSSID/channel
-  const WiFiAP *selected = this->get_selected_sta_();
-  if (selected == nullptr) {
-    ESP_LOGW(TAG, "Roaming: selected AP is null");
-    return;
-  }
+  ESP_LOGI(TAG, "Roaming to %s (%+d dB)", bssid_s, improvement);
 
   WiFiAP roam_params = *selected;
   roam_params.set_bssid(best_bssid);
