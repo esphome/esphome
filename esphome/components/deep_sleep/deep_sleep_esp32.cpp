@@ -26,7 +26,7 @@ namespace deep_sleep {
 // - ext0: Single pin wakeup using RTC GPIO (esp_sleep_enable_ext0_wakeup)
 // - ext1: Multiple pin wakeup (esp_sleep_enable_ext1_wakeup)
 // - Touch: Touch pad wakeup (esp_sleep_enable_touchpad_wakeup)
-// - GPIO wakeup: GPIO wakeup for non-RTC pins (esp_deep_sleep_enable_gpio_wakeup)
+// - GPIO wakeup: GPIO wakeup for RTC pins (esp_deep_sleep_enable_gpio_wakeup)
 
 static const char *const TAG = "deep_sleep";
 
