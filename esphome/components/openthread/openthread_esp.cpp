@@ -1,5 +1,5 @@
 #include "esphome/core/defines.h"
-#if defined(USE_OPENTHREAD) && defined(USE_ESP_IDF)
+#if defined(USE_OPENTHREAD) && defined(USE_ESP32)
 #include <openthread/logging.h>
 #include "openthread.h"
 

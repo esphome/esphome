@@ -1,6 +1,6 @@
 #include "micro_wake_word.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -473,4 +473,4 @@ bool MicroWakeWord::update_model_probabilities_(const int8_t audio_features[PREP
 }  // namespace micro_wake_word
 }  // namespace esphome
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32
