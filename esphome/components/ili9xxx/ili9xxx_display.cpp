@@ -149,19 +149,21 @@ void ILI9XXXDisplay::fill(Color color) {
     case BITS_8_INDEXED:
       new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
       break;
-    case BITS_16: {
+    case BITS_16:
       new_color = display::ColorUtil::color_to_565(color);
-      const uint32_t buffer_length_16_bits = this->get_buffer_length_() * 2;
-      if (((uint8_t) (new_color >> 8)) == ((uint8_t) new_color)) {
-        memset(this->buffer_, (uint8_t) new_color, buffer_length_16_bits);
-      } else {
-        for (uint32_t i = 0; i < buffer_length_16_bits; i += 2) {
-          this->buffer_[i] = (uint8_t) (new_color >> 8);
-          this->buffer_[i + 1] = (uint8_t) new_color;
+      {
+        const uint32_t buffer_length_16_bits = this->get_buffer_length_() * 2;
+        if (((uint8_t) (new_color >> 8)) == ((uint8_t) new_color)) {
+          // Upper and lower is equal can use quicker memset operation. Takes ~20ms.
+          memset(this->buffer_, (uint8_t) new_color, buffer_length_16_bits);
+        } else {
+          for (uint32_t i = 0; i < buffer_length_16_bits; i = i + 2) {
+            this->buffer_[i] = (uint8_t) (new_color >> 8);
+            this->buffer_[i + 1] = (uint8_t) new_color;
+          }
         }
       }
       return;
-    }
     default:
       new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
       break;

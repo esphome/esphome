@@ -103,9 +103,10 @@ void EPaperSpectraE6::fill(Color color) {
     return;
   }
 
-  // Fast path: fill entire buffer (2 pixels per byte)
-  const uint8_t pixel_color = color_to_hex(color);
-  this->buffer_.fill(pixel_color | (pixel_color << 4));
+  auto pixel_color = color_to_hex(color);
+
+  // We store 2 pixels per byte
+  this->buffer_.fill(pixel_color + (pixel_color << 4));
 }
 
 void EPaperSpectraE6::clear() {

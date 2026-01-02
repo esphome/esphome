@@ -156,9 +156,8 @@ void SSD1327::fill(Color color) {
     return;
   }
 
-  // Fast path: fill entire buffer
-  const uint32_t color4 = display::ColorUtil::color_to_grayscale4(color) & SSD1327_COLORMASK;
-  uint8_t fill = color4 | (color4 << SSD1327_COLORSHIFT);
+  const uint32_t color4 = display::ColorUtil::color_to_grayscale4(color);
+  uint8_t fill = (color4 & SSD1327_COLORMASK) | ((color4 & SSD1327_COLORMASK) << SSD1327_COLORSHIFT);
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }

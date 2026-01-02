@@ -300,10 +300,9 @@ void Inkplate::fill(Color color) {
     return;
   }
 
-  // Fast path: fill entire buffer
   if (this->greyscale_) {
-    uint8_t gs = ((color.red * 2126 / 10000) + (color.green * 7152 / 10000) + (color.blue * 722 / 10000)) >> 5;
-    memset(this->buffer_, (gs << 4) | gs, this->get_buffer_length_());
+    uint8_t fill = ((color.red * 2126 / 10000) + (color.green * 7152 / 10000) + (color.blue * 722 / 10000)) >> 5;
+    memset(this->buffer_, (fill << 4) | fill, this->get_buffer_length_());
   } else {
     uint8_t fill = color.is_on() ? 0x00 : 0xFF;
     memset(this->partial_buffer_, fill, this->get_buffer_length_());

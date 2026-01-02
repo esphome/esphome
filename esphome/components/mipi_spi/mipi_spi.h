@@ -575,13 +575,11 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
       return;
     }
 
-    // Fast path: fill entire buffer
-    const int16_t buffer_h = HEIGHT / FRACTION;
-    std::fill_n(this->buffer_, buffer_h * BUFFER_WIDTH, convert_color(color));
     this->x_low_ = 0;
     this->y_low_ = this->start_line_;
     this->x_high_ = WIDTH - 1;
     this->y_high_ = this->end_line_ - 1;
+    std::fill_n(this->buffer_, HEIGHT * BUFFER_WIDTH / FRACTION, convert_color(color));
   }
 
   int get_width() override {

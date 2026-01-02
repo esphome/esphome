@@ -166,13 +166,13 @@ void SSD1351::fill(Color color) {
     return;
   }
 
-  // Fast path: fill entire buffer
   const uint32_t color565 = display::ColorUtil::color_to_565(color);
-  const uint8_t color_hi = (color565 >> 8) & 0xff;
-  const uint8_t color_lo = color565 & 0xff;
-  for (uint32_t i = 0; i < this->get_buffer_length_(); i += 2) {
-    this->buffer_[i] = color_hi;
-    this->buffer_[i + 1] = color_lo;
+  for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
+    if (i & 1) {
+      this->buffer_[i] = color565 & 0xff;
+    } else {
+      this->buffer_[i] = (color565 >> 8) & 0xff;
+    }
   }
 }
 void SSD1351::init_reset_() {
