@@ -143,6 +143,54 @@ static const char *const TAG = "wifi";
 /// - Networks not in scan results → Tried in RETRY_HIDDEN phase
 /// - Networks visible in scan + not marked hidden → Skipped in RETRY_HIDDEN phase
 /// - Networks marked 'hidden: true' always use hidden mode, even if broadcasting SSID
+///
+/// ┌──────────────────────────────────────────────────────────────────────┐
+/// │              Post-Connect Roaming (for stationary devices)           │
+/// ├──────────────────────────────────────────────────────────────────────┤
+/// │  Purpose: Handle AP reboot or power loss scenarios where device      │
+/// │           connects to suboptimal AP and never switches back          │
+/// │                                                                      │
+/// │  ┌─────────────────┐                                                 │
+/// │  │ STA_CONNECTED   │ (non-hidden network, roaming enabled,           │
+/// │  │                 │  not already scanning/roaming)                  │
+/// │  └────────┬────────┘                                                 │
+/// │           ↓                                                          │
+/// │  ┌─────────────────┐    Every 5 minutes, up to 3 times               │
+/// │  │ check_roaming_  │───────────────────────────────────────┐         │
+/// │  └────────┬────────┘                                       │         │
+/// │           ↓                                                │         │
+/// │  ┌─────────────────┐                                       │         │
+/// │  │ Start scan      │ (same as normal scan)                 │         │
+/// │  └────────┬────────┘                                       │         │
+/// │           ↓                                                │         │
+/// │  ┌─────────────────────────┐                               │         │
+/// │  │ process_roaming_scan_  │ roaming_attempts_++            │         │
+/// │  └────────┬───────────────┘                                │         │
+/// │           ↓                                                │         │
+/// │  ┌─────────────────┐  No     ┌───────────────┐             │         │
+/// │  │ +10dB better AP?├────────→│ Stay connected│─────────────┤         │
+/// │  └────────┬────────┘         └───────────────┘             │         │
+/// │           │ Yes                                            │         │
+/// │           ↓                                                │         │
+/// │  ┌─────────────────┐                                       │         │
+/// │  │ start_connecting│ (roaming_connect_active_ = true)      │         │
+/// │  └────────┬────────┘                                       │         │
+/// │           ↓                                                │         │
+/// │      ┌────┴────┐                                           │         │
+/// │      ↓         ↓                                           │         │
+/// │  ┌───────┐ ┌───────┐                                       │         │
+/// │  │SUCCESS│ │FAILED │                                       │         │
+/// │  └───┬───┘ └───┬───┘                                       │         │
+/// │      ↓         ↓                                           │         │
+/// │  Keep counter  Keep counter                                │         │
+/// │  (no reset)    retry_connect()                             │         │
+/// │      │              │                                      │         │
+/// │      └──────────────┴──────────────────────────────────────┘         │
+/// │                                                                      │
+/// │  After 3 scans: roaming_attempts_ >= 3, stop checking                │
+/// │  Non-roaming disconnect: clear_roaming_state_() resets counter       │
+/// │  Roaming success: counter preserved (prevents ping-pong)             │
+/// └──────────────────────────────────────────────────────────────────────┘
 
 static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   switch (phase) {
@@ -1221,6 +1269,11 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 
     // Reset roaming state on successful connection
     this->roaming_last_check_ = now;
+    // Only reset attempts if this wasn't a roaming-triggered connection
+    // (prevents ping-pong between APs)
+    if (!this->roaming_connect_active_) {
+      this->roaming_attempts_ = 0;
+    }
     this->roaming_connect_active_ = false;
 
     // Clear all priority penalties - successful connection forgives past failures
@@ -1946,6 +1999,7 @@ void WiFiComponent::process_roaming_scan_(uint32_t now) {
 
   this->scan_done_ = false;
   this->roaming_scan_active_ = false;
+  this->roaming_attempts_++;
 
   // Get current connection info
   bssid_t current_bssid = this->wifi_bssid();
@@ -1995,8 +2049,6 @@ void WiFiComponent::process_roaming_scan_(uint32_t now) {
   const WiFiAP *selected = this->get_selected_sta_();
   if (selected == nullptr)
     return;  // Defensive: shouldn't happen since clear_sta() clears roaming_scan_active_
-
-  this->roaming_attempts_++;
 
   char bssid_s[18];
   format_mac_addr_upper(best_bssid.data(), bssid_s);
