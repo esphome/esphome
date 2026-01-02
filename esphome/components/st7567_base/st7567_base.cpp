@@ -138,7 +138,6 @@ void ST7567::fill(Color color) {
     return;
   }
 
-  // Fast path: fill entire buffer
   uint8_t fill = color.is_on() ? 0xFF : 0x00;
   memset(buffer_, fill, this->get_buffer_length_());
 }

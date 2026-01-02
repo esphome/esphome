@@ -335,7 +335,6 @@ void SSD1306::fill(Color color) {
     return;
   }
 
-  // Fast path: fill entire buffer
   uint8_t fill = color.is_on() ? 0xFF : 0x00;
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;

@@ -138,13 +138,11 @@ void ILI9XXXDisplay::fill(Color color) {
     return;
   }
 
-  // Fast path: fill entire buffer
+  uint16_t new_color = 0;
   this->x_low_ = 0;
   this->y_low_ = 0;
   this->x_high_ = this->get_width_internal() - 1;
   this->y_high_ = this->get_height_internal() - 1;
-
-  uint16_t new_color = 0;
   switch (this->buffer_color_mode_) {
     case BITS_8_INDEXED:
       new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
@@ -168,7 +166,6 @@ void ILI9XXXDisplay::fill(Color color) {
       new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
       break;
   }
-
   memset(this->buffer_, (uint8_t) new_color, this->get_buffer_length_());
 }
 

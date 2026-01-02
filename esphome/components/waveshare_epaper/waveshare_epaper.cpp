@@ -178,8 +178,8 @@ void WaveshareEPaper::fill(Color color) {
     return;
   }
 
-  // Fast path: fill entire buffer (flip logic: on = 0x00, off = 0xFF)
-  uint8_t fill = color.is_on() ? 0x00 : 0xFF;
+  // flip logic
+  const uint8_t fill = color.is_on() ? 0x00 : 0xFF;
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }

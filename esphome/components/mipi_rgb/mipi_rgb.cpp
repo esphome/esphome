@@ -307,7 +307,6 @@ void MipiRgb::fill(Color color) {
     return;
   }
 
-  // Fast path: fill entire buffer
   auto *ptr_16 = reinterpret_cast<uint16_t *>(this->buffer_);
   uint8_t hi_byte = static_cast<uint8_t>(color.r & 0xF8) | (color.g >> 5);
   uint8_t lo_byte = static_cast<uint8_t>((color.g & 0x1C) << 3) | (color.b >> 3);

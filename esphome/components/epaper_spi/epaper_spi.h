@@ -82,8 +82,9 @@ class EPaperBase : public Display,
       return;
     }
 
-    // Fast path: fill entire buffer
-    const uint8_t pixel_color = color_to_bit(color) ? 0xFF : 0x00;
+    auto pixel_color = color_to_bit(color) ? 0xFF : 0x00;
+
+    // We store 8 pixels per byte
     this->buffer_.fill(pixel_color);
     this->x_high_ = this->width_;
     this->y_high_ = this->height_;
