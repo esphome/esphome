@@ -489,7 +489,7 @@ void WiFiComponent::loop() {
         // Skip cooldown if new credentials were provided while connecting
         if (this->skip_cooldown_next_cycle_) {
           this->skip_cooldown_next_cycle_ = false;
-          this->check_connecting_finished();
+          this->check_connecting_finished(now);
           break;
         }
         // Use longer cooldown when captive portal/improv is active to avoid disrupting user config
@@ -500,7 +500,7 @@ void WiFiComponent::loop() {
           // a failure, or something tried to connect over and over
           // so we entered cooldown. In both cases we call
           // check_connecting_finished to continue the state machine.
-          this->check_connecting_finished();
+          this->check_connecting_finished(now);
         }
         break;
       }
@@ -511,7 +511,7 @@ void WiFiComponent::loop() {
       }
       case WIFI_COMPONENT_STATE_STA_CONNECTING: {
         this->status_set_warning(LOG_STR("associating to network"));
-        this->check_connecting_finished();
+        this->check_connecting_finished(now);
         break;
       }
 
@@ -525,6 +525,10 @@ void WiFiComponent::loop() {
         } else {
           this->status_clear_warning();
           this->last_connected_ = now;
+
+          // Post-connect roaming: check for better AP
+          this->check_roaming_(now);
+          this->process_roaming_scan_(now);
         }
         break;
       }
@@ -681,8 +685,14 @@ float WiFiComponent::get_loop_priority() const {
 
 void WiFiComponent::init_sta(size_t count) { this->sta_.init(count); }
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
+void WiFiComponent::clear_sta() {
+  // Clear roaming state - no more configured networks
+  this->clear_roaming_state_();
+  this->sta_.clear();
+  this->selected_sta_index_ = -1;
+}
 void WiFiComponent::set_sta(const WiFiAP &ap) {
-  this->clear_sta();
+  this->clear_sta();  // Also clears roaming state
   this->init_sta(1);
   this->add_sta(ap);
   this->selected_sta_index_ = 0;
@@ -1163,7 +1173,7 @@ void WiFiComponent::dump_config() {
   this->print_connect_params_();
 }
 
-void WiFiComponent::check_connecting_finished() {
+void WiFiComponent::check_connecting_finished(uint32_t now) {
   auto status = this->wifi_sta_connect_status_();
 
   if (status == WiFiSTAConnectStatus::CONNECTED) {
@@ -1209,6 +1219,9 @@ void WiFiComponent::check_connecting_finished() {
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
 
+    // Reset roaming timer on successful connection
+    this->roaming_last_check_ = now;
+
     // Clear priority tracking if all priorities are at minimum
     this->clear_priorities_if_all_min_();
 
@@ -1216,16 +1229,11 @@ void WiFiComponent::check_connecting_finished() {
     this->save_fast_connect_settings_();
 #endif
 
-    // Free scan results memory unless a component needs them
-    if (!this->keep_scan_results_) {
-      this->scan_result_.clear();
-      this->scan_result_.shrink_to_fit();
-    }
+    this->release_scan_results_();
 
     return;
   }
 
-  uint32_t now = millis();
   if (now - this->action_started_ > WIFI_CONNECT_TIMEOUT_MS) {
     ESP_LOGW(TAG, "Connection timeout, aborting connection attempt");
     this->wifi_disconnect_();
@@ -1632,6 +1640,11 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
 }
 
 void WiFiComponent::retry_connect() {
+  // Reset roaming state if this wasn't a roaming-initiated disconnect
+  if (!this->roaming_in_progress_) {
+    this->clear_roaming_state_();
+  }
+
   this->log_and_adjust_priority_for_failed_connect_();
 
   // Determine next retry phase based on current state
@@ -1873,6 +1886,113 @@ bool WiFiScanResult::get_with_auth() const { return this->with_auth_; }
 bool WiFiScanResult::get_is_hidden() const { return this->is_hidden_; }
 
 bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->bssid_ == rhs.bssid_; }
+
+void WiFiComponent::clear_roaming_state_() {
+  this->roaming_attempts_ = 0;
+  this->roaming_last_check_ = 0;
+  this->roaming_scan_active_ = false;
+}
+
+void WiFiComponent::check_roaming_(uint32_t now) {
+  // Guard: feature enabled
+  if (!this->post_connect_roaming_)
+    return;
+
+  // Guard: not for hidden networks (may not appear in scan)
+  const WiFiAP *selected = this->get_selected_sta_();
+  if (selected == nullptr || selected->get_hidden())
+    return;
+
+  // Guard: attempt limit
+  if (this->roaming_attempts_ >= ROAMING_MAX_ATTEMPTS)
+    return;
+
+  // Guard: scan not already active
+  if (this->roaming_scan_active_)
+    return;
+
+  // Guard: interval check
+  if (now - this->roaming_last_check_ < ROAMING_CHECK_INTERVAL)
+    return;
+
+  this->roaming_last_check_ = now;
+  ESP_LOGD(TAG, "Roaming: scanning for better AP (current RSSI %d dBm)", this->wifi_rssi());
+  this->roaming_scan_active_ = true;
+  this->wifi_scan_start_(this->passive_scan_);
+}
+
+void WiFiComponent::process_roaming_scan_(uint32_t now) {
+  // Not our scan
+  if (!this->roaming_scan_active_)
+    return;
+
+  // Scan not done yet
+  if (!this->scan_done_)
+    return;
+
+  this->scan_done_ = false;
+  this->roaming_scan_active_ = false;
+
+  // Get current connection info
+  bssid_t current_bssid = this->wifi_bssid();
+  int8_t current_rssi = this->wifi_rssi();
+  std::string current_ssid = this->wifi_ssid();
+
+  // Find best candidate: same SSID, different BSSID
+  bssid_t best_bssid{};
+  uint8_t best_channel = 0;
+  int8_t best_rssi = WIFI_RSSI_DISCONNECTED;
+
+  for (const auto &result : this->scan_result_) {
+    // Must be same SSID as current connection
+    if (result.get_ssid() != current_ssid)
+      continue;
+
+    // Must be different BSSID
+    if (result.get_bssid() == current_bssid)
+      continue;
+
+    ESP_LOGV(TAG, "Roaming: candidate %s RSSI %d dB", result.get_ssid().c_str(), result.get_rssi());
+
+    // Track the best candidate
+    if (result.get_rssi() > best_rssi) {
+      best_rssi = result.get_rssi();
+      best_bssid = result.get_bssid();
+      best_channel = result.get_channel();
+    }
+  }
+
+  this->release_scan_results_();
+
+  // Check if best candidate meets minimum improvement threshold
+  int8_t improvement = (best_rssi == WIFI_RSSI_DISCONNECTED) ? 0 : best_rssi - current_rssi;
+  if (improvement < ROAMING_MIN_IMPROVEMENT) {
+    ESP_LOGD(TAG, "Roaming: best candidate %+d dB (need +%d dB)", improvement, ROAMING_MIN_IMPROVEMENT);
+    return;
+  }
+
+  // Found better AP - initiate roam
+  this->roaming_attempts_++;
+
+  char bssid_s[18];
+  format_mac_addr_upper(best_bssid.data(), bssid_s);
+  ESP_LOGI(TAG, "Roaming: switching to %s (%d dBm, +%d dB improvement)", bssid_s, best_rssi, best_rssi - current_rssi);
+
+  // Create roam parameters from current selected AP with target BSSID/channel
+  const WiFiAP *selected = this->get_selected_sta_();
+  if (selected == nullptr) {
+    ESP_LOGW(TAG, "Roaming: selected AP is null");
+    return;
+  }
+
+  WiFiAP roam_params = *selected;
+  roam_params.set_bssid(best_bssid);
+  roam_params.set_channel(best_channel);
+
+  // Connect directly - wifi_sta_connect_ handles disconnect internally
+  this->error_from_callback_ = false;
+  this->start_connecting(roam_params);
+}
 
 WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
