@@ -329,67 +329,16 @@ void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, Color color) {
   }
 }
 void SSD1306::fill(Color color) {
-  const uint8_t fill = color.is_on() ? 0xFF : 0x00;
-  const int16_t w = this->get_width_internal();
-  const int16_t h = this->get_height_internal();
-
-  // Calculate fill region, respecting clipping
-  display::Rect fill_rect(0, 0, w, h);
-  display::Rect clip = this->get_clipping();
-  if (clip.is_set()) {
-    fill_rect.shrink(clip);
-    if (!fill_rect.is_set())
-      return;  // Completely clipped
-  }
-
-  // Check if filling entire display
-  if (fill_rect.x == 0 && fill_rect.y == 0 && fill_rect.w == w && fill_rect.h == h) {
-    for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
-      this->buffer_[i] = fill;
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
     return;
   }
 
-  // Partial fill - handle page-based layout (8 vertical pixels per byte)
-  const int16_t x_start = fill_rect.x;
-  const int16_t x_end = fill_rect.x + fill_rect.w;
-  const int16_t y_start = fill_rect.y;
-  const int16_t y_end = fill_rect.y + fill_rect.h;
-
-  const int16_t page_start = y_start / 8;
-  const int16_t page_end = (y_end - 1) / 8;
-
-  for (int16_t page = page_start; page <= page_end; page++) {
-    const int16_t page_y_start = page * 8;
-    const int16_t page_y_end = page_y_start + 8;
-
-    // Calculate which bits in this page are affected
-    const int16_t bit_start = (y_start > page_y_start) ? (y_start - page_y_start) : 0;
-    const int16_t bit_end = (y_end < page_y_end) ? (y_end - page_y_start) : 8;
-
-    // Create mask for affected bits
-    uint8_t mask = 0;
-    for (int16_t bit = bit_start; bit < bit_end; bit++) {
-      mask |= (1 << bit);
-    }
-
-    // Fill this page's row segment
-    const uint32_t row_offset = page * w;
-    if (mask == 0xFF) {
-      // Full page - can use direct assignment
-      for (int16_t x = x_start; x < x_end; x++) {
-        this->buffer_[row_offset + x] = fill;
-      }
-    } else {
-      // Partial page - need bit manipulation
-      for (int16_t x = x_start; x < x_end; x++) {
-        if (fill) {
-          this->buffer_[row_offset + x] |= mask;
-        } else {
-          this->buffer_[row_offset + x] &= ~mask;
-        }
-      }
-    }
-  }
+  // Fast path: fill entire buffer
+  uint8_t fill = color.is_on() ? 0xFF : 0x00;
+  for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
+    this->buffer_[i] = fill;
 }
 void SSD1306::init_reset_() {
   if (this->reset_pin_ != nullptr) {

@@ -174,57 +174,17 @@ void HOT SSD1322::draw_absolute_pixel_internal(int x, int y, Color color) {
   this->buffer_[pos] |= color4;
 }
 void SSD1322::fill(Color color) {
-  const uint32_t color4 = display::ColorUtil::color_to_grayscale4(color) & SSD1322_COLORMASK;
-  const uint8_t fill = color4 | (color4 << SSD1322_COLORSHIFT);
-  const int16_t w = this->get_width_internal();
-  const int16_t h = this->get_height_internal();
-  const int16_t w_bytes = w / SSD1322_PIXELSPERBYTE;
-
-  // Calculate fill region, respecting clipping
-  display::Rect fill_rect(0, 0, w, h);
-  display::Rect clip = this->get_clipping();
-  if (clip.is_set()) {
-    fill_rect.shrink(clip);
-    if (!fill_rect.is_set())
-      return;  // Completely clipped
-  }
-
-  // Check if filling entire display
-  if (fill_rect.x == 0 && fill_rect.y == 0 && fill_rect.w == w && fill_rect.h == h) {
-    for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
-      this->buffer_[i] = fill;
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
     return;
   }
 
-  // Partial fill - 4-bit grayscale, 2 pixels per byte, upper nibble first (reversed from SSD1325/1327)
-  const int16_t x_start = fill_rect.x;
-  const int16_t x_end = fill_rect.x + fill_rect.w;
-  const int16_t y_start = fill_rect.y;
-  const int16_t y_end = fill_rect.y + fill_rect.h;
-
-  for (int16_t y = y_start; y < y_end; y++) {
-    const uint32_t row_offset = y * w_bytes;
-    int16_t x = x_start;
-
-    // Handle partial byte at start (odd x - lower nibble)
-    if (x % 2 != 0) {
-      uint32_t pos = row_offset + x / 2;
-      this->buffer_[pos] = (this->buffer_[pos] & (SSD1322_COLORMASK << SSD1322_COLORSHIFT)) | color4;
-      x++;
-    }
-
-    // Handle full bytes in the middle
-    while (x + 1 < x_end) {
-      this->buffer_[row_offset + x / 2] = fill;
-      x += 2;
-    }
-
-    // Handle partial byte at end (if remaining - upper nibble)
-    if (x < x_end) {
-      uint32_t pos = row_offset + x / 2;
-      this->buffer_[pos] = (this->buffer_[pos] & SSD1322_COLORMASK) | (color4 << SSD1322_COLORSHIFT);
-    }
-  }
+  // Fast path: fill entire buffer
+  const uint32_t color4 = display::ColorUtil::color_to_grayscale4(color) & SSD1322_COLORMASK;
+  uint8_t fill = color4 | (color4 << SSD1322_COLORSHIFT);
+  for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
+    this->buffer_[i] = fill;
 }
 void SSD1322::init_reset_() {
   if (this->reset_pin_ != nullptr) {

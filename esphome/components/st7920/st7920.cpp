@@ -90,64 +90,15 @@ void HOT ST7920::write_display_data() {
 }
 
 void ST7920::fill(Color color) {
-  const uint8_t fill = color.is_on() ? 0xFF : 0x00;
-  const int16_t w = this->get_width_internal();
-  const int16_t h = this->get_height_internal();
-  const int16_t w_bytes = w / 8;  // 8 horizontal pixels per byte
-
-  // Calculate fill region, respecting clipping
-  display::Rect fill_rect(0, 0, w, h);
-  display::Rect clip = this->get_clipping();
-  if (clip.is_set()) {
-    fill_rect.shrink(clip);
-    if (!fill_rect.is_set())
-      return;  // Completely clipped
-  }
-
-  // Check if filling entire display
-  if (fill_rect.x == 0 && fill_rect.y == 0 && fill_rect.w == w && fill_rect.h == h) {
-    memset(this->buffer_, fill, this->get_buffer_length_());
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
     return;
   }
 
-  // Partial fill - horizontal layout (8 horizontal pixels per byte, MSB first)
-  const int16_t x_start = fill_rect.x;
-  const int16_t x_end = fill_rect.x + fill_rect.w;
-  const int16_t y_start = fill_rect.y;
-  const int16_t y_end = fill_rect.y + fill_rect.h;
-
-  for (int16_t y = y_start; y < y_end; y++) {
-    const uint32_t row_offset = y * w_bytes;
-
-    // Calculate byte boundaries
-    const int16_t byte_start = x_start / 8;
-    const int16_t byte_end = (x_end - 1) / 8;
-
-    for (int16_t byte_idx = byte_start; byte_idx <= byte_end; byte_idx++) {
-      const int16_t byte_x_start = byte_idx * 8;
-      const int16_t byte_x_end = byte_x_start + 8;
-
-      // Calculate which bits in this byte are affected
-      const int16_t bit_start = (x_start > byte_x_start) ? (x_start - byte_x_start) : 0;
-      const int16_t bit_end = (x_end < byte_x_end) ? (x_end - byte_x_start) : 8;
-
-      // Create mask for affected bits (MSB first: bit 0 is 0x80)
-      uint8_t mask = 0;
-      for (int16_t bit = bit_start; bit < bit_end; bit++) {
-        mask |= (0x80 >> bit);
-      }
-
-      if (mask == 0xFF) {
-        this->buffer_[row_offset + byte_idx] = fill;
-      } else {
-        if (fill) {
-          this->buffer_[row_offset + byte_idx] |= mask;
-        } else {
-          this->buffer_[row_offset + byte_idx] &= ~mask;
-        }
-      }
-    }
-  }
+  // Fast path: fill entire buffer
+  uint8_t fill = color.is_on() ? 0xFF : 0x00;
+  memset(this->buffer_, fill, this->get_buffer_length_());
 }
 
 void ST7920::dump_config() {

@@ -301,41 +301,18 @@ void MipiRgb::fill(Color color) {
   if (!this->check_buffer_())
     return;
 
-  const int16_t w = this->get_width_internal();
-  const int16_t h = this->get_height_internal();
-
-  // Calculate fill region, respecting clipping
-  display::Rect fill_rect(0, 0, w, h);
-  display::Rect clip = this->get_clipping();
-  if (clip.is_set()) {
-    fill_rect.shrink(clip);
-    if (!fill_rect.is_set())
-      return;  // Completely clipped
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
   }
 
+  // Fast path: fill entire buffer
   auto *ptr_16 = reinterpret_cast<uint16_t *>(this->buffer_);
   uint8_t hi_byte = static_cast<uint8_t>(color.r & 0xF8) | (color.g >> 5);
   uint8_t lo_byte = static_cast<uint8_t>((color.g & 0x1C) << 3) | (color.b >> 3);
   uint16_t new_color = lo_byte | (hi_byte << 8);  // little endian
-
-  // Check if filling entire display
-  if (fill_rect.x == 0 && fill_rect.y == 0 && fill_rect.w == w && fill_rect.h == h) {
-    std::fill_n(ptr_16, w * h, new_color);
-    return;
-  }
-
-  // Partial fill - 16-bit RGB565, row-major
-  const int16_t x_start = fill_rect.x;
-  const int16_t x_end = fill_rect.x + fill_rect.w;
-  const int16_t y_start = fill_rect.y;
-  const int16_t y_end = fill_rect.y + fill_rect.h;
-
-  for (int16_t y = y_start; y < y_end; y++) {
-    uint16_t *row = ptr_16 + y * w;
-    for (int16_t x = x_start; x < x_end; x++) {
-      row[x] = new_color;
-    }
-  }
+  std::fill_n(ptr_16, this->width_ * this->height_, new_color);
 }
 
 int MipiRgb::get_width() {
