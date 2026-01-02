@@ -1,4 +1,5 @@
 #include "xiaomi_lywsd02mmc.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -8,11 +9,14 @@ namespace xiaomi_lywsd02mmc {
 
 static const char *const TAG = "xiaomi_lywsd02mmc";
 
+static constexpr size_t LYWSD02MMC_BINDKEY_SIZE = 16;
+
 void XiaomiLYWSD02MMC::dump_config() {
+  char bindkey_hex[format_hex_pretty_size(LYWSD02MMC_BINDKEY_SIZE)];
   ESP_LOGCONFIG(TAG,
                 "Xiaomi LYWSD02MMC\n"
                 "  Bindkey: %s",
-                format_hex_pretty(this->bindkey_, 16).c_str());
+                format_hex_pretty_to(bindkey_hex, this->bindkey_, LYWSD02MMC_BINDKEY_SIZE, '.'));
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
