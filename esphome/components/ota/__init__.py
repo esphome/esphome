@@ -148,7 +148,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
-        "ota_backend_arduino_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "ota_backend_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
         "ota_backend_arduino_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
         "ota_backend_arduino_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,

@@ -1,5 +1,5 @@
 #include "dns_server_esp32_idf.h"
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -202,4 +202,4 @@ void DNSServer::process_next_request() {
 
 }  // namespace esphome::captive_portal
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32
