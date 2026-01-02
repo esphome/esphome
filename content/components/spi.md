@@ -145,9 +145,8 @@ spi_device:
 
 ### Configuration variables
 
-- **data_rate** (*Optional*): Set the data rate of the controller. One of `80MHz`, `40MHz`, `20MHz`, `10MHz`,
-  `5MHz`, `4MHz`, `2MHz`, `1MHz` (default), `200kHz`, `75kHz` or `1kHz`. A numeric value in Hz can alternatively
-  be specified.
+- **data_rate** (*Optional*): Set the data rate of the controller. This may be a numeric value in Hz or a string with
+  a unit suffix, e.g. "100kHz" or "20MHz". Must be at least 1000Hz, see below for other constraints.
 
 - **spi_mode** (*Optional*): Set the controller mode - one of `mode0`, `mode1`, `mode2`, `mode3`. The default is `mode3`.
   See table below for more information
@@ -158,6 +157,19 @@ spi_device:
   `False`. Setting this to `True` will enable more than 6 devices to be connected to hardware SPI buses.
 
 - **interface** (*Optional*): Controls which hardware or software SPI implementation should be used.
+
+## Data rates
+
+Any data rate may be set that is above 1000Hz, less than the maximum available for the target platform, and can
+be achieved by division from the SPI clock source. Clock source frequencies are:
+
+| Platform | Clock Source |
+|----------|--------------|
+| ESP32    | 80MHz        |
+| ESP8266  | 40MHz        |
+| RP2040   | 62.5MHz      |
+
+The requested rate must be able to be generated from the clock source with integer division, with a 5% error allowed.
 
 ## SPI modes
 
