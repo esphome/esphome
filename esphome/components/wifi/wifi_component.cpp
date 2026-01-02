@@ -1924,8 +1924,13 @@ void WiFiComponent::check_roaming_(uint32_t now) {
   if (now - this->roaming_last_check_ < ROAMING_CHECK_INTERVAL)
     return;
 
+  // Guard: must have valid RSSI reading
+  int8_t current_rssi = this->wifi_rssi();
+  if (current_rssi == WIFI_RSSI_DISCONNECTED)
+    return;
+
   this->roaming_last_check_ = now;
-  ESP_LOGD(TAG, "Roaming: scanning for better AP (current RSSI %d dBm)", this->wifi_rssi());
+  ESP_LOGD(TAG, "Roaming: scanning for better AP (current RSSI %d dBm)", current_rssi);
   this->roaming_scan_active_ = true;
   this->wifi_scan_start_(this->passive_scan_);
 }
