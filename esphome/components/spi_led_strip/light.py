@@ -28,7 +28,7 @@ SpiLedStrip = spi_led_strip_ns.class_(
 )
 Protocol = spi_led_strip_ns.enum("Protocol")
 PROTOCOL = {
-    "DOTSTAR": Protocol.DOTSTAR,
+    "APA102": Protocol.APA102,
     "RAW": Protocol.RAW,
 }
 
@@ -43,7 +43,7 @@ def check_deprecated_settings(config):
             "Not setting a protocol via '%s' will be deprecated in a future version.",
             CONF_PROTOCOL,
         )
-        config[CONF_PROTOCOL] = "DOTSTAR"
+        config[CONF_PROTOCOL] = "APA102"
 
     if CONF_CHANNEL_MAP not in config:
         _LOGGER.warning(

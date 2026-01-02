@@ -5,8 +5,8 @@ namespace spi_led_strip {
 
 SpiLedStrip::SpiLedStrip(Protocol protocol, light::ChannelMap channel_map, uint16_t num_leds)
     : protocol_(protocol), channel_map_(std::move(channel_map)), num_leds_(num_leds) {
-  this->buffer_size_ = this->num_leds_ * ((this->protocol_ == DOTSTAR) ? 4 : this->channel_map_.get_channel_count()) +
-                       ((this->protocol_ == DOTSTAR) ? 8 : 0);
+  this->buffer_size_ = this->num_leds_ * ((this->protocol_ == APA102) ? 4 : this->channel_map_.get_channel_count()) +
+                       ((this->protocol_ == APA102) ? 8 : 0);
 
   RAMAllocator<uint8_t> allocator;
   this->buf_ = allocator.allocate(this->buffer_size_);
@@ -25,7 +25,7 @@ SpiLedStrip::SpiLedStrip(Protocol protocol, light::ChannelMap channel_map, uint1
   this->address_multiplier_ = this->channel_map_.get_channel_count();
 
   switch (this->protocol_) {
-    case Protocol::DOTSTAR: {
+    case Protocol::APA102: {
       memset(this->buf_, 0xFF, this->buffer_size_);
       memset(this->buf_, 0x00, 4);     // Start bytes
       this->base_ += 5;                // Skip brightness and start bytes
@@ -62,9 +62,9 @@ void SpiLedStrip::dump_config() {
   ESP_LOGCONFIG(TAG, "SPI LED Strip:");
   ESP_LOGCONFIG(TAG, "  LEDs: %d", this->num_leds_);
   ESP_LOGCONFIG(TAG, "  Protocol: %s",
-                this->protocol_ == DOTSTAR ? "DOTSTAR"
-                : this->protocol_ == RAW   ? "RAW"
-                                           : "Unknown");
+                this->protocol_ == APA102 ? "APA102"
+                : this->protocol_ == RAW  ? "RAW"
+                                          : "Unknown");
   ESP_LOGCONFIG(TAG, "  Channel Map: %s (%u channels)", this->channel_map_.get_str(),
                 this->channel_map_.get_channel_count());
   ESP_LOGCONFIG(TAG, "  Color mode: %s",
