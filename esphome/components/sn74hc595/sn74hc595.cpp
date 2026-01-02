@@ -70,7 +70,7 @@ void SN74HC595GPIOComponent::write_gpio() {
 void SN74HC595SPIComponent::write_gpio() {
   for (uint8_t &output_byte : std::ranges::reverse_view(this->output_bytes_)) {
     this->enable();
-    this->transfer_byte(output_byte);
+    this->write_byte(output_byte);
     this->disable();
   }
   SN74HC595Component::write_gpio();
