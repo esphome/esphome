@@ -1219,11 +1219,14 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
 
-    // Reset roaming timer on successful connection
+    // Reset roaming state on successful connection
     this->roaming_last_check_ = now;
+    this->roaming_connect_active_ = false;
 
-    // Clear priority tracking if all priorities are at minimum
-    this->clear_priorities_if_all_min_();
+    // Clear all priority penalties - successful connection forgives past failures
+    if (!this->sta_priorities_.empty()) {
+      decltype(this->sta_priorities_)().swap(this->sta_priorities_);
+    }
 
 #ifdef USE_WIFI_FAST_CONNECT
     this->save_fast_connect_settings_();
@@ -1501,8 +1504,7 @@ void WiFiComponent::clear_priorities_if_all_min_() {
 
   // All priorities are at minimum - clear the vector to save memory and reset
   ESP_LOGD(TAG, "Clearing BSSID priorities (all at minimum)");
-  this->sta_priorities_.clear();
-  this->sta_priorities_.shrink_to_fit();
+  decltype(this->sta_priorities_)().swap(this->sta_priorities_);
 }
 
 /// Log failed connection attempt and decrease BSSID priority to avoid repeated failures
@@ -1640,8 +1642,16 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
 }
 
 void WiFiComponent::retry_connect() {
-  // Reset roaming state when entering retry flow
-  this->clear_roaming_state_();
+  // If this was a roaming attempt, preserve roaming_attempts_ count
+  // (so we stop roaming after ROAMING_MAX_ATTEMPTS failures)
+  // Otherwise reset all roaming state
+  if (this->roaming_connect_active_) {
+    this->roaming_connect_active_ = false;
+    this->roaming_scan_active_ = false;
+    // Keep roaming_attempts_ - will prevent further roaming after max failures
+  } else {
+    this->clear_roaming_state_();
+  }
 
   this->log_and_adjust_priority_for_failed_connect_();
 
@@ -1889,6 +1899,7 @@ void WiFiComponent::clear_roaming_state_() {
   this->roaming_attempts_ = 0;
   this->roaming_last_check_ = 0;
   this->roaming_scan_active_ = false;
+  this->roaming_connect_active_ = false;
 }
 
 void WiFiComponent::check_roaming_(uint32_t now) {
@@ -1986,6 +1997,9 @@ void WiFiComponent::process_roaming_scan_(uint32_t now) {
   WiFiAP roam_params = *selected;
   roam_params.set_bssid(best_bssid);
   roam_params.set_channel(best_channel);
+
+  // Mark as roaming attempt - affects retry behavior if connection fails
+  this->roaming_connect_active_ = true;
 
   // Connect directly - wifi_sta_connect_ handles disconnect internally
   this->error_from_callback_ = false;

@@ -578,8 +578,13 @@ class WiFiComponent : public Component {
   /// Free scan results memory unless a component needs them
   void release_scan_results_() {
     if (!this->keep_scan_results_) {
-      this->scan_result_.clear();
+#ifdef USE_RP2040
+      // std::vector - use swap trick since shrink_to_fit is non-binding
+      decltype(this->scan_result_)().swap(this->scan_result_);
+#else
+      // FixedVector::shrink_to_fit() actually frees all memory
       this->scan_result_.shrink_to_fit();
+#endif
     }
   }
 
@@ -675,6 +680,7 @@ class WiFiComponent : public Component {
   bool skip_cooldown_next_cycle_{false};
   bool post_connect_roaming_{true};  // Enabled by default
   bool roaming_scan_active_{false};
+  bool roaming_connect_active_{false};  // True during roaming connection attempt (skip priority decrease on fail)
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
   bool is_high_performance_mode_{false};
