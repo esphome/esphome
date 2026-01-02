@@ -6,9 +6,12 @@ namespace esphome::ultrasonic {
 
 static const char *const TAG = "ultrasonic.sensor";
 
+static constexpr uint32_t DEBOUNCE_US = 50;          // Ignore edges within 50us (noise filtering)
+static constexpr uint32_t TIMEOUT_MARGIN_US = 1000;  // Extra margin for sensor processing time
+
 void IRAM_ATTR UltrasonicSensorStore::gpio_intr(UltrasonicSensorStore *arg) {
   uint32_t now = micros();
-  if (!arg->echo_start || (now - arg->echo_start_us) <= 50) {
+  if (!arg->echo_start || (now - arg->echo_start_us) <= DEBOUNCE_US) {
     arg->echo_start_us = now;
     arg->echo_start = true;
   } else {
@@ -61,7 +64,7 @@ void UltrasonicSensorComponent::loop() {
   }
 
   uint32_t elapsed = micros() - this->measurement_start_us_;
-  if (elapsed >= this->timeout_us_ + 1000) {
+  if (elapsed >= this->timeout_us_ + TIMEOUT_MARGIN_US) {
     ESP_LOGD(TAG,
              "'%s' - Timeout after %" PRIu32 "us (measurement_start=%" PRIu32 ", echo_start=%" PRIu32
              ", echo_end=%" PRIu32 ")",
