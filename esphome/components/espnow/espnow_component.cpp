@@ -6,6 +6,7 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <esp_event.h>
@@ -299,9 +300,10 @@ void ESPNowComponent::loop() {
         // Intentionally left as if instead of else in case the peer is added above
         if (esp_now_is_peer_exist(info.src_addr)) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+          char hex_buf[format_hex_pretty_size(ESP_NOW_MAX_DATA_LEN)];
           ESP_LOGV(TAG, "<<< [%s -> %s] %s", format_mac_address_pretty(info.src_addr).c_str(),
                    format_mac_address_pretty(info.des_addr).c_str(),
-                   format_hex_pretty(packet->packet_.receive.data, packet->packet_.receive.size).c_str());
+                   format_hex_pretty_to(hex_buf, packet->packet_.receive.data, packet->packet_.receive.size));
 #endif
           if (memcmp(info.des_addr, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0) {
             for (auto *handler : this->broadcasted_handlers_) {

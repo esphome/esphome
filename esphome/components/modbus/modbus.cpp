@@ -8,6 +8,9 @@ namespace modbus {
 
 static const char *const TAG = "modbus";
 
+// Maximum bytes to log for Modbus frames (truncated if larger)
+static constexpr size_t MODBUS_MAX_LOG_BYTES = 64;
+
 void Modbus::setup() {
   if (this->flow_control_pin_ != nullptr) {
     this->flow_control_pin_->setup();
@@ -255,7 +258,10 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
     this->flow_control_pin_->digital_write(false);
   waiting_for_response = address;
   last_send_ = millis();
-  ESP_LOGV(TAG, "Modbus write: %s", format_hex_pretty(data).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+#endif
+  ESP_LOGV(TAG, "Modbus write: %s", format_hex_pretty_to(hex_buf, data.data(), data.size()));
 }
 
 // Helper function for lambdas
@@ -276,7 +282,10 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   if (this->flow_control_pin_ != nullptr)
     this->flow_control_pin_->digital_write(false);
   waiting_for_response = payload[0];
-  ESP_LOGV(TAG, "Modbus write raw: %s", format_hex_pretty(payload).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+#endif
+  ESP_LOGV(TAG, "Modbus write raw: %s", format_hex_pretty_to(hex_buf, payload.data(), payload.size()));
   last_send_ = millis();
 }
 
