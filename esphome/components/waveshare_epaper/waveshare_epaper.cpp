@@ -172,6 +172,12 @@ void WaveshareEPaperBase::update() {
   this->display();
 }
 void WaveshareEPaper::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
   // flip logic
   const uint8_t fill = color.is_on() ? 0x00 : 0xFF;
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
@@ -234,6 +240,12 @@ uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
   return hex_code;
 }
 void WaveshareEPaper7C::fill(Color color) {
+  // If clipping is active, use base class (3-bit packing is complex for partial fills)
+  if (this->get_clipping().is_set()) {
+    display::Display::fill(color);
+    return;
+  }
+
   uint8_t pixel_color;
   if (color.is_on()) {
     pixel_color = this->color_to_hex(color);
