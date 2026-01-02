@@ -103,14 +103,11 @@ def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
 
 
 def storage_should_update_cmake_cache(old: StorageJSON, new: StorageJSON) -> bool:
-    if (
+    # ESP32 uses CMake for both Arduino and ESP-IDF frameworks
+    return (
         old.loaded_integrations != new.loaded_integrations
         or old.loaded_platforms != new.loaded_platforms
-    ) and new.core_platform == PLATFORM_ESP32:
-        from esphome.components.esp32 import FRAMEWORK_ESP_IDF
-
-        return new.framework == FRAMEWORK_ESP_IDF
-    return False
+    ) and new.core_platform == PLATFORM_ESP32
 
 
 def update_storage_json() -> None:
