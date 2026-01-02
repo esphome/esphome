@@ -247,11 +247,20 @@ optional<std::string> AsyncWebServerRequest::get_header(const char *name) const 
 }
 
 std::string AsyncWebServerRequest::url() const {
-  auto *str = strchr(this->req_->uri, '?');
-  if (str == nullptr) {
-    return this->req_->uri;
+  auto *query_start = strchr(this->req_->uri, '?');
+  std::string result;
+  if (query_start == nullptr) {
+    result = this->req_->uri;
+  } else {
+    result = std::string(this->req_->uri, query_start - this->req_->uri);
   }
-  return std::string(this->req_->uri, str - this->req_->uri);
+  // Decode URL-encoded characters in-place (e.g., %20 -> space)
+  // This matches AsyncWebServer behavior on Arduino
+  if (!result.empty()) {
+    size_t new_len = url_decode(&result[0]);
+    result.resize(new_len);
+  }
+  return result;
 }
 
 std::string AsyncWebServerRequest::host() const { return this->get_header("Host").value(); }

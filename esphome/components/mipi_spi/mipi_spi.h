@@ -247,8 +247,8 @@ class MipiSpi : public display::Display,
   void write_command_(uint8_t cmd, const uint8_t *bytes, size_t len) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_size(MIPI_SPI_MAX_CMD_LOG_BYTES)];
-#endif
     esph_log_v(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+#endif
     if constexpr (BUS_TYPE == BUS_TYPE_QUAD) {
       this->enable();
       this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);
@@ -569,6 +569,12 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
 
   // Fills the display with a color.
   void fill(Color color) override {
+    // If clipping is active, fall back to base implementation
+    if (this->get_clipping().is_set()) {
+      display::Display::fill(color);
+      return;
+    }
+
     this->x_low_ = 0;
     this->y_low_ = this->start_line_;
     this->x_high_ = WIDTH - 1;

@@ -305,6 +305,13 @@ void MipiRgb::draw_pixel_at(int x, int y, Color color) {
 void MipiRgb::fill(Color color) {
   if (!this->check_buffer_())
     return;
+
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
   auto *ptr_16 = reinterpret_cast<uint16_t *>(this->buffer_);
   uint8_t hi_byte = static_cast<uint8_t>(color.r & 0xF8) | (color.g >> 5);
   uint8_t lo_byte = static_cast<uint8_t>((color.g & 0x1C) << 3) | (color.b >> 3);
