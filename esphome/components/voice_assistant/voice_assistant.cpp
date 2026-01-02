@@ -947,7 +947,7 @@ void VoiceAssistant::on_set_configuration(const std::vector<std::string> &active
     }
 
     // Enable only active wake words
-    for (auto ww_id : active_wake_words) {
+    for (const auto &ww_id : active_wake_words) {
       for (auto &model : this->micro_wake_word_->get_wake_words()) {
         if (model->get_id() == ww_id) {
           model->enable();

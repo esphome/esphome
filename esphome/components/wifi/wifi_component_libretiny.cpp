@@ -303,7 +303,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
                format_mac_address_pretty(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
 #ifdef USE_WIFI_LISTENERS
       for (auto *listener : this->connect_state_listeners_) {
-        listener->on_wifi_connect_state(this->wifi_ssid(), this->wifi_bssid());
+        listener->on_wifi_connect_state(StringRef(buf, it.ssid_len), it.bssid);
       }
       // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #ifdef USE_WIFI_MANUAL_IP
@@ -357,8 +357,9 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
 
       s_sta_connecting = false;
 #ifdef USE_WIFI_LISTENERS
+      static constexpr uint8_t EMPTY_BSSID[6] = {};
       for (auto *listener : this->connect_state_listeners_) {
-        listener->on_wifi_connect_state("", bssid_t({0, 0, 0, 0, 0, 0}));
+        listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
       }
 #endif
       break;
@@ -553,6 +554,14 @@ bssid_t WiFiComponent::wifi_bssid() {
   return bssid;
 }
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
+const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
+  // TODO: Find direct LibreTiny API to avoid Arduino String allocation
+  String ssid = WiFi.SSID();
+  size_t len = std::min(static_cast<size_t>(ssid.length()), SSID_BUFFER_SIZE - 1);
+  memcpy(buffer.data(), ssid.c_str(), len);
+  buffer[len] = '\0';
+  return buffer.data();
+}
 int8_t WiFiComponent::wifi_rssi() { return WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : WIFI_RSSI_DISCONNECTED; }
 int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
