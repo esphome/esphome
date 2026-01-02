@@ -374,20 +374,16 @@ def create_field_type_info(
             # Traditional fixed array approach with copy
             return FixedArrayBytesType(field, fixed_size)
 
-    # Check for pointer_to_buffer option on string fields
-    if field.type == 9:
-        has_pointer_to_buffer = get_field_opt(field, pb.pointer_to_buffer, False)
-
-        if has_pointer_to_buffer:
-            # Zero-copy pointer approach for strings
-            return PointerToBytesBufferType(field, None)
-
     # Special handling for bytes fields
     if field.type == 12:
         return BytesType(field, needs_decode, needs_encode)
 
     # Special handling for string fields
     if field.type == 9:
+        # For SOURCE_CLIENT only messages (decode but no encode), use StringRef
+        # for zero-copy access to the receive buffer
+        if needs_decode and not needs_encode:
+            return PointerToStringBufferType(field, None)
         return StringType(field, needs_decode, needs_encode)
 
     validate_field_type(field.type, field.name)
@@ -840,8 +836,8 @@ class BytesType(TypeInfo):
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical bytes
 
 
-class PointerToBytesBufferType(TypeInfo):
-    """Type for bytes fields that use pointer_to_buffer option for zero-copy."""
+class PointerToBufferTypeBase(TypeInfo):
+    """Base class for pointer_to_buffer types (bytes and strings) for zero-copy decoding."""
 
     @classmethod
     def can_use_dump_field(cls) -> bool:
@@ -851,29 +847,34 @@ class PointerToBytesBufferType(TypeInfo):
         self, field: descriptor.FieldDescriptorProto, size: int | None = None
     ) -> None:
         super().__init__(field)
-        # Size is not used for pointer_to_buffer - we always use size_t for length
         self.array_size = 0
 
     @property
-    def cpp_type(self) -> str:
-        return "const uint8_t*"
+    def decode_length(self) -> str | None:
+        # This is handled in decode_length_content
+        return None
 
     @property
-    def default_value(self) -> str:
-        return "nullptr"
+    def wire_type(self) -> WireType:
+        """Get the wire type for this field."""
+        return WireType.LENGTH_DELIMITED  # Uses wire type 2
 
-    @property
-    def reference_type(self) -> str:
-        return "const uint8_t*"
+    def get_estimated_size(self) -> int:
+        # field ID + length varint + typical data (assume small for pointer fields)
+        return self.calculate_field_id_size() + 2 + 16
 
-    @property
-    def const_reference_type(self) -> str:
-        return "const uint8_t*"
+
+class PointerToBytesBufferType(PointerToBufferTypeBase):
+    """Type for bytes fields that use pointer_to_buffer option for zero-copy."""
+
+    cpp_type = "const uint8_t*"
+    default_value = "nullptr"
+    reference_type = "const uint8_t*"
+    const_reference_type = "const uint8_t*"
 
     @property
     def public_content(self) -> list[str]:
         # Use uint16_t for length - max packet size is well below 65535
-        # Add pointer and length fields
         return [
             f"const uint8_t* {self.field_name}{{nullptr}};",
             f"uint16_t {self.field_name}_len{{0}};",
@@ -885,23 +886,11 @@ class PointerToBytesBufferType(TypeInfo):
 
     @property
     def decode_length_content(self) -> str | None:
-        # Decode directly stores the pointer to avoid allocation
         return f"""case {self.number}: {{
-      // Use raw data directly to avoid allocation
       this->{self.field_name} = value.data();
       this->{self.field_name}_len = value.size();
       break;
     }}"""
-
-    @property
-    def decode_length(self) -> str | None:
-        # This is handled in decode_length_content
-        return None
-
-    @property
-    def wire_type(self) -> WireType:
-        """Get the wire type for this bytes field."""
-        return WireType.LENGTH_DELIMITED  # Uses wire type 2
 
     def dump(self, name: str) -> str:
         return (
@@ -910,7 +899,6 @@ class PointerToBytesBufferType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        # Custom dump that doesn't use dump_field template
         return (
             f'out.append("  {self.name}: ");\n'
             + f"out.append({self.dump(self.field_name)});\n"
@@ -918,11 +906,48 @@ class PointerToBytesBufferType(TypeInfo):
         )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return f"size.add_length({self.number}, this->{self.field_name}_len);"
+        return f"size.add_length({self.calculate_field_id_size()}, this->{self.field_name}_len);"
 
-    def get_estimated_size(self) -> int:
-        # field ID + length varint + typical data (assume small for pointer fields)
-        return self.calculate_field_id_size() + 2 + 16
+
+class PointerToStringBufferType(PointerToBufferTypeBase):
+    """Type for string fields that use pointer_to_buffer option for zero-copy.
+
+    Uses StringRef instead of separate pointer and length fields.
+    """
+
+    cpp_type = "StringRef"
+    default_value = ""
+    reference_type = "StringRef &"
+    const_reference_type = "const StringRef &"
+
+    @property
+    def public_content(self) -> list[str]:
+        return [f"StringRef {self.field_name}{{}};"]
+
+    @property
+    def encode_content(self) -> str:
+        return f"buffer.encode_string({self.number}, this->{self.field_name});"
+
+    @property
+    def decode_length_content(self) -> str | None:
+        return f"""case {self.number}: {{
+      this->{self.field_name} = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      break;
+    }}"""
+
+    def dump(self, name: str) -> str:
+        return f'out.append("\'").append(this->{self.field_name}.c_str(), this->{self.field_name}.size()).append("\'");'
+
+    @property
+    def dump_content(self) -> str:
+        return (
+            f'out.append("  {self.name}: ");\n'
+            + f"{self.dump(self.field_name)}\n"
+            + 'out.append("\\n");'
+        )
+
+    def get_size_calculation(self, name: str, force: bool = False) -> str:
+        return f"size.add_length({self.calculate_field_id_size()}, this->{self.field_name}.size());"
 
 
 class FixedArrayBytesType(TypeInfo):
