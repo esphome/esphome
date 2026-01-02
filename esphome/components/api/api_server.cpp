@@ -25,6 +25,10 @@ namespace esphome::api {
 
 static const char *const TAG = "api";
 
+// Grace period before dropping API clients when network disconnects
+// Allows for brief disconnections during WiFi roaming
+static constexpr uint32_t NETWORK_DISCONNECT_GRACE_MS = 10000;
+
 // APIServer
 APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -106,8 +110,10 @@ void APIServer::setup() {
   }
 #endif
 
-  // Initialize last_connected_ for reboot timeout tracking
-  this->last_connected_ = App.get_loop_component_start_time();
+  // Initialize timestamps for timeout tracking
+  const uint32_t now = App.get_loop_component_start_time();
+  this->last_connected_ = now;
+  this->network_last_connected_ = now;
   // Set warning status if reboot timeout is enabled
   if (this->reboot_timeout_ != 0) {
     this->status_set_warning();
@@ -162,14 +168,22 @@ void APIServer::loop() {
 
   // Process clients and remove disconnected ones in a single pass
   // Check network connectivity once for all clients
-  if (!network::is_connected()) {
-    // Network is down - disconnect all clients
-    for (auto &client : this->clients_) {
-      client->on_fatal_error();
-      ESP_LOGW(TAG, "%s (%s): Network down; disconnect", client->client_info_.name.c_str(),
-               client->client_info_.peername.c_str());
+  const uint32_t now = App.get_loop_component_start_time();
+  if (network::is_connected()) {
+    // Network is up - track this for grace period
+    this->network_last_connected_ = now;
+  } else {
+    // Network is down - check if grace period has expired
+    // This allows brief disconnections during WiFi roaming without dropping API clients
+    if (now - this->network_last_connected_ > NETWORK_DISCONNECT_GRACE_MS) {
+      // Grace period expired - disconnect all clients
+      for (auto &client : this->clients_) {
+        client->on_fatal_error();
+        ESP_LOGW(TAG, "%s (%s): Network down; disconnect", client->client_info_.name.c_str(),
+                 client->client_info_.peername.c_str());
+      }
+      // Continue to process and clean up the clients below
     }
-    // Continue to process and clean up the clients below
   }
 
   size_t client_index = 0;

@@ -253,6 +253,7 @@ class APIServer : public Component,
   // 4-byte aligned types
   uint32_t reboot_timeout_{300000};
   uint32_t last_connected_{0};
+  uint32_t network_last_connected_{0};  // Track when network was last connected (for roaming grace period)
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;
