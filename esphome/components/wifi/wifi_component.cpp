@@ -2024,7 +2024,7 @@ void WiFiComponent::process_roaming_scan_(uint32_t now) {
     {
       char bssid_buf[18];
       format_mac_addr_upper(result.get_bssid().data(), bssid_buf);
-      ESP_LOGV(TAG, "Roaming: candidate %s RSSI %d dB", bssid_buf, result.get_rssi());
+      ESP_LOGV(TAG, "Roaming: candidate %s RSSI %d dBm", bssid_buf, result.get_rssi());
     }
 #endif
 
