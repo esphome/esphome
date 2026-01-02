@@ -1,7 +1,5 @@
 #pragma once
 
-#include <map>
-
 #include "alarm_control_panel_call.h"
 #include "alarm_control_panel_state.h"
 
@@ -9,8 +7,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace alarm_control_panel {
+namespace esphome::alarm_control_panel {
 
 enum AlarmControlPanelFeature : uint8_t {
   // Matches Home Assistant values
@@ -132,14 +129,13 @@ class AlarmControlPanel : public EntityBase {
   // the call control function
   virtual void control(const AlarmControlPanelCall &call) = 0;
   // state callback - triggers check get_state() for specific state
-  CallbackManager<void()> state_callback_{};
+  LazyCallbackManager<void()> state_callback_{};
   // clear callback - fires when leaving TRIGGERED state
-  CallbackManager<void()> cleared_callback_{};
+  LazyCallbackManager<void()> cleared_callback_{};
   // chime callback
-  CallbackManager<void()> chime_callback_{};
+  LazyCallbackManager<void()> chime_callback_{};
   // ready callback
-  CallbackManager<void()> ready_callback_{};
+  LazyCallbackManager<void()> ready_callback_{};
 };
 
-}  // namespace alarm_control_panel
-}  // namespace esphome
+}  // namespace esphome::alarm_control_panel

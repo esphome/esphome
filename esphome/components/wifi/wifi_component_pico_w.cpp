@@ -214,6 +214,14 @@ bssid_t WiFiComponent::wifi_bssid() {
   return bssid;
 }
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
+const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
+  // TODO: Find direct CYW43 API to avoid Arduino String allocation
+  String ssid = WiFi.SSID();
+  size_t len = std::min(static_cast<size_t>(ssid.length()), SSID_BUFFER_SIZE - 1);
+  memcpy(buffer.data(), ssid.c_str(), len);
+  buffer[len] = '\0';
+  return buffer.data();
+}
 int8_t WiFiComponent::wifi_rssi() { return WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : WIFI_RSSI_DISCONNECTED; }
 int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 
@@ -256,9 +264,20 @@ void WiFiComponent::wifi_loop_() {
     s_sta_was_connected = true;
     ESP_LOGV(TAG, "Connected");
 #ifdef USE_WIFI_LISTENERS
+    String ssid = WiFi.SSID();
+    bssid_t bssid = this->wifi_bssid();
     for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(this->wifi_ssid(), this->wifi_bssid());
+      listener->on_wifi_connect_state(StringRef(ssid.c_str(), ssid.length()), bssid);
     }
+    // For static IP configurations, notify IP listeners immediately as the IP is already configured
+#ifdef USE_WIFI_MANUAL_IP
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+      s_sta_had_ip = true;
+      for (auto *listener : this->ip_state_listeners_) {
+        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+      }
+    }
+#endif
 #endif
   } else if (!is_connected && s_sta_was_connected) {
     // Just disconnected
@@ -266,8 +285,9 @@ void WiFiComponent::wifi_loop_() {
     s_sta_had_ip = false;
     ESP_LOGV(TAG, "Disconnected");
 #ifdef USE_WIFI_LISTENERS
+    static constexpr uint8_t EMPTY_BSSID[6] = {};
     for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state("", bssid_t({0, 0, 0, 0, 0, 0}));
+      listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
     }
 #endif
   }
