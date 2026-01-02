@@ -357,12 +357,11 @@ class CommandProtoMessage : public ProtoDecodableMessage {
 class HelloRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 1;
-  static constexpr uint8_t ESTIMATED_SIZE = 27;
+  static constexpr uint8_t ESTIMATED_SIZE = 17;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "hello_request"; }
 #endif
-  const uint8_t *client_info{nullptr};
-  uint16_t client_info_len{0};
+  StringRef client_info{};
   uint32_t api_version_major{0};
   uint32_t api_version_minor{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -398,12 +397,11 @@ class HelloResponse final : public ProtoMessage {
 class AuthenticationRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 3;
-  static constexpr uint8_t ESTIMATED_SIZE = 19;
+  static constexpr uint8_t ESTIMATED_SIZE = 9;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "authentication_request"; }
 #endif
-  const uint8_t *password{nullptr};
-  uint16_t password_len{0};
+  StringRef password{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -784,7 +782,7 @@ class FanStateResponse final : public StateResponseProtoMessage {
 class FanCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 31;
-  static constexpr uint8_t ESTIMATED_SIZE = 48;
+  static constexpr uint8_t ESTIMATED_SIZE = 38;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "fan_command_request"; }
 #endif
@@ -797,8 +795,7 @@ class FanCommandRequest final : public CommandProtoMessage {
   bool has_speed_level{false};
   int32_t speed_level{0};
   bool has_preset_mode{false};
-  const uint8_t *preset_mode{nullptr};
-  uint16_t preset_mode_len{0};
+  StringRef preset_mode{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -860,7 +857,7 @@ class LightStateResponse final : public StateResponseProtoMessage {
 class LightCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 32;
-  static constexpr uint8_t ESTIMATED_SIZE = 122;
+  static constexpr uint8_t ESTIMATED_SIZE = 112;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "light_command_request"; }
 #endif
@@ -889,8 +886,7 @@ class LightCommandRequest final : public CommandProtoMessage {
   bool has_flash_length{false};
   uint32_t flash_length{0};
   bool has_effect{false};
-  const uint8_t *effect{nullptr};
-  uint16_t effect_len{0};
+  StringRef effect{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1171,7 +1167,7 @@ class HomeassistantActionResponse final : public ProtoDecodableMessage {
 #endif
   uint32_t call_id{0};
   bool success{false};
-  std::string error_message{};
+  StringRef error_message{};
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   const uint8_t *response_data{nullptr};
   uint16_t response_data_len{0};
@@ -1222,16 +1218,13 @@ class SubscribeHomeAssistantStateResponse final : public ProtoMessage {
 class HomeAssistantStateResponse final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 40;
-  static constexpr uint8_t ESTIMATED_SIZE = 57;
+  static constexpr uint8_t ESTIMATED_SIZE = 27;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "home_assistant_state_response"; }
 #endif
-  const uint8_t *entity_id{nullptr};
-  uint16_t entity_id_len{0};
-  const uint8_t *state{nullptr};
-  uint16_t state_len{0};
-  const uint8_t *attribute{nullptr};
-  uint16_t attribute_len{0};
+  StringRef entity_id{};
+  StringRef state{};
+  StringRef attribute{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1256,13 +1249,12 @@ class GetTimeRequest final : public ProtoMessage {
 class GetTimeResponse final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 37;
-  static constexpr uint8_t ESTIMATED_SIZE = 24;
+  static constexpr uint8_t ESTIMATED_SIZE = 14;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "get_time_response"; }
 #endif
   uint32_t epoch_seconds{0};
-  const uint8_t *timezone{nullptr};
-  uint16_t timezone_len{0};
+  StringRef timezone{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1310,7 +1302,7 @@ class ExecuteServiceArgument final : public ProtoDecodableMessage {
   bool bool_{false};
   int32_t legacy_int{0};
   float float_{0.0f};
-  std::string string_{};
+  StringRef string_{};
   int32_t int_{0};
   FixedVector<bool> bool_array{};
   FixedVector<int32_t> int_array{};
@@ -1499,7 +1491,7 @@ class ClimateStateResponse final : public StateResponseProtoMessage {
 class ClimateCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 48;
-  static constexpr uint8_t ESTIMATED_SIZE = 104;
+  static constexpr uint8_t ESTIMATED_SIZE = 84;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "climate_command_request"; }
 #endif
@@ -1516,13 +1508,11 @@ class ClimateCommandRequest final : public CommandProtoMessage {
   bool has_swing_mode{false};
   enums::ClimateSwingMode swing_mode{};
   bool has_custom_fan_mode{false};
-  const uint8_t *custom_fan_mode{nullptr};
-  uint16_t custom_fan_mode_len{0};
+  StringRef custom_fan_mode{};
   bool has_preset{false};
   enums::ClimatePreset preset{};
   bool has_custom_preset{false};
-  const uint8_t *custom_preset{nullptr};
-  uint16_t custom_preset_len{0};
+  StringRef custom_preset{};
   bool has_target_humidity{false};
   float target_humidity{0.0f};
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1695,12 +1685,11 @@ class SelectStateResponse final : public StateResponseProtoMessage {
 class SelectCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 54;
-  static constexpr uint8_t ESTIMATED_SIZE = 28;
+  static constexpr uint8_t ESTIMATED_SIZE = 18;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "select_command_request"; }
 #endif
-  const uint8_t *state{nullptr};
-  uint16_t state_len{0};
+  StringRef state{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1756,7 +1745,7 @@ class SirenCommandRequest final : public CommandProtoMessage {
   bool has_state{false};
   bool state{false};
   bool has_tone{false};
-  std::string tone{};
+  StringRef tone{};
   bool has_duration{false};
   uint32_t duration{0};
   bool has_volume{false};
@@ -1817,7 +1806,7 @@ class LockCommandRequest final : public CommandProtoMessage {
 #endif
   enums::LockCommand command{};
   bool has_code{false};
-  std::string code{};
+  StringRef code{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1927,7 +1916,7 @@ class MediaPlayerCommandRequest final : public CommandProtoMessage {
   bool has_volume{false};
   float volume{0.0f};
   bool has_media_url{false};
-  std::string media_url{};
+  StringRef media_url{};
   bool has_announcement{false};
   bool announcement{false};
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2503,8 +2492,8 @@ class VoiceAssistantResponse final : public ProtoDecodableMessage {
 };
 class VoiceAssistantEventData final : public ProtoDecodableMessage {
  public:
-  std::string name{};
-  std::string value{};
+  StringRef name{};
+  StringRef value{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -2562,8 +2551,8 @@ class VoiceAssistantTimerEventResponse final : public ProtoDecodableMessage {
   const char *message_name() const override { return "voice_assistant_timer_event_response"; }
 #endif
   enums::VoiceAssistantTimerEvent event_type{};
-  std::string timer_id{};
-  std::string name{};
+  StringRef timer_id{};
+  StringRef name{};
   uint32_t total_seconds{0};
   uint32_t seconds_left{0};
   bool is_active{false};
@@ -2582,9 +2571,9 @@ class VoiceAssistantAnnounceRequest final : public ProtoDecodableMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "voice_assistant_announce_request"; }
 #endif
-  std::string media_id{};
-  std::string text{};
-  std::string preannounce_media_id{};
+  StringRef media_id{};
+  StringRef text{};
+  StringRef preannounce_media_id{};
   bool start_conversation{false};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -2627,13 +2616,13 @@ class VoiceAssistantWakeWord final : public ProtoMessage {
 };
 class VoiceAssistantExternalWakeWord final : public ProtoDecodableMessage {
  public:
-  std::string id{};
-  std::string wake_word{};
+  StringRef id{};
+  StringRef wake_word{};
   std::vector<std::string> trained_languages{};
-  std::string model_type{};
+  StringRef model_type{};
   uint32_t model_size{0};
-  std::string model_hash{};
-  std::string url{};
+  StringRef model_hash{};
+  StringRef url{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -2734,7 +2723,7 @@ class AlarmControlPanelCommandRequest final : public CommandProtoMessage {
   const char *message_name() const override { return "alarm_control_panel_command_request"; }
 #endif
   enums::AlarmControlPanelStateCommand command{};
-  std::string code{};
+  StringRef code{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -2791,7 +2780,7 @@ class TextCommandRequest final : public CommandProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "text_command_request"; }
 #endif
-  std::string state{};
+  StringRef state{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif

@@ -102,7 +102,7 @@ message HelloRequest {
   // For example "Home Assistant"
   // Not strictly necessary to send but nice for debugging
   // purposes.
-  string client_info = 1 [(pointer_to_buffer) = true];
+  string client_info = 1;
   uint32 api_version_major = 2;
   uint32 api_version_minor = 3;
 }
@@ -139,7 +139,7 @@ message AuthenticationRequest {
   option (ifdef) = "USE_API_PASSWORD";
 
   // The password to log in with
-  string password = 1 [(pointer_to_buffer) = true];
+  string password = 1;
 }
 
 // Confirmation of successful connection. After this the connection is available for all traffic.
@@ -477,7 +477,7 @@ message FanCommandRequest {
   bool has_speed_level = 10;
   int32 speed_level = 11;
   bool has_preset_mode = 12;
-  string preset_mode = 13 [(pointer_to_buffer) = true];
+  string preset_mode = 13;
   uint32 device_id = 14 [(field_ifdef) = "USE_DEVICES"];
 }
 
@@ -579,7 +579,7 @@ message LightCommandRequest {
   bool has_flash_length = 16;
   uint32 flash_length = 17;
   bool has_effect = 18;
-  string effect = 19 [(pointer_to_buffer) = true];
+  string effect = 19;
   uint32 device_id = 28 [(field_ifdef) = "USE_DEVICES"];
 }
 
@@ -824,9 +824,9 @@ message HomeAssistantStateResponse {
   option (no_delay) = true;
   option (ifdef) = "USE_API_HOMEASSISTANT_STATES";
 
-  string entity_id = 1 [(pointer_to_buffer) = true];
-  string state = 2 [(pointer_to_buffer) = true];
-  string attribute = 3 [(pointer_to_buffer) = true];
+  string entity_id = 1;
+  string state = 2;
+  string attribute = 3;
 }
 
 // ==================== IMPORT TIME ====================
@@ -841,7 +841,7 @@ message GetTimeResponse {
   option (no_delay) = true;
 
   fixed32 epoch_seconds = 1;
-  string timezone = 2 [(pointer_to_buffer) = true];
+  string timezone = 2;
 }
 
 // ==================== USER-DEFINES SERVICES ====================
@@ -1091,11 +1091,11 @@ message ClimateCommandRequest {
   bool has_swing_mode = 14;
   ClimateSwingMode swing_mode = 15;
   bool has_custom_fan_mode = 16;
-  string custom_fan_mode = 17 [(pointer_to_buffer) = true];
+  string custom_fan_mode = 17;
   bool has_preset = 18;
   ClimatePreset preset = 19;
   bool has_custom_preset = 20;
-  string custom_preset = 21 [(pointer_to_buffer) = true];
+  string custom_preset = 21;
   bool has_target_humidity = 22;
   float target_humidity = 23;
   uint32 device_id = 24 [(field_ifdef) = "USE_DEVICES"];
@@ -1274,7 +1274,7 @@ message SelectCommandRequest {
   option (base_class) = "CommandProtoMessage";
 
   fixed32 key = 1;
-  string state = 2 [(pointer_to_buffer) = true];
+  string state = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
 }
 
