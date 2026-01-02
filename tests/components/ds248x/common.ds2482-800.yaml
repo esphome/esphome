@@ -8,7 +8,6 @@ ds248x:
   active_pullup: true
   strong_pullup: true
 
-
 one_wire:
   - platform: ds248x
     ds248x_id: ds2482_800_full
