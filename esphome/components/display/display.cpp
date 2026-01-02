@@ -87,14 +87,20 @@ void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
 }
 
 void HOT Display::horizontal_line(int x, int y, int width, Color color) {
-  // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
-  for (int i = x; i < x + width; i++)
-    this->draw_pixel_at(i, y, color);
+  this->horizontal_line_internal(x, y, width, color);
 }
 
 void HOT Display::vertical_line(int x, int y, int height, Color color) {
-  // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
-  for (int i = y; i < y + height; i++)
+  this->vertical_line_internal(x, y, height, color);
+}
+
+void HOT Display::horizontal_line_internal(int x, int y, int w, Color color) {
+  for (int i = x; i < x + w; i++)
+    this->draw_pixel_at(i, y, color);
+}
+
+void HOT Display::vertical_line_internal(int x, int y, int h, Color color) {
+  for (int i = y; i < y + h; i++)
     this->draw_pixel_at(x, i, color);
 }
 
@@ -106,9 +112,12 @@ void Display::rectangle(int x1, int y1, int width, int height, Color color) {
 }
 
 void Display::filled_rectangle(int x1, int y1, int width, int height, Color color) {
-  // Future: Use vertical_line and horizontal_line methods depending on rotation to reduce memory accesses.
-  for (int i = y1; i < y1 + height; i++) {
-    this->horizontal_line(x1, i, width, color);
+  this->filled_rectangle_internal(x1, y1, width, height, color);
+}
+
+void Display::filled_rectangle_internal(int x, int y, int w, int h, Color color) {
+  for (int i = y; i < y + h; i++) {
+    this->horizontal_line_internal(x, i, w, color);
   }
 }
 

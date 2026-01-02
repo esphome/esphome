@@ -377,17 +377,17 @@ class Display : public PollingComponent {
   void line_at_angle(int x, int y, int angle, int start_radius, int stop_radius, Color color = COLOR_ON);
 
   /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
-  virtual void horizontal_line(int x, int y, int width, Color color = COLOR_ON);
+  void horizontal_line(int x, int y, int width, Color color = COLOR_ON);
 
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-  virtual void vertical_line(int x, int y, int height, Color color = COLOR_ON);
+  void vertical_line(int x, int y, int height, Color color = COLOR_ON);
 
   /// Draw the outline of a rectangle with the top left point at [x1,y1] and the bottom right point at
   /// [x1+width,y1+height].
   void rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
 
   /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
-  virtual void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
+  void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
 
   /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
   void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON);
@@ -777,6 +777,13 @@ class Display : public PollingComponent {
 
   virtual int get_height_internal() = 0;
   virtual int get_width_internal() = 0;
+
+  /// Draw a horizontal line. Override in subclass for optimized implementation.
+  virtual void horizontal_line_internal(int x, int y, int w, Color color);
+  /// Draw a vertical line. Override in subclass for optimized implementation.
+  virtual void vertical_line_internal(int x, int y, int h, Color color);
+  /// Fill a rectangle. Override in subclass for optimized implementation.
+  virtual void filled_rectangle_internal(int x, int y, int w, int h, Color color);
 
   /**
    * This method fills a triangle using only integer variables by using a
