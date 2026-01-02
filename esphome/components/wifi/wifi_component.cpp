@@ -1640,10 +1640,8 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
 }
 
 void WiFiComponent::retry_connect() {
-  // Reset roaming state if this wasn't a roaming-initiated disconnect
-  if (!this->roaming_in_progress_) {
-    this->clear_roaming_state_();
-  }
+  // Reset roaming state when entering retry flow
+  this->clear_roaming_state_();
 
   this->log_and_adjust_priority_for_failed_connect_();
 
