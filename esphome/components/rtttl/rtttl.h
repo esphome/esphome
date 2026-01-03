@@ -13,6 +13,9 @@
 
 namespace esphome::rtttl {
 
+static const uint8_t DEFAULT_NOTE_DOMINATOR = 4;  // Default note-dominator (quarter note)
+static const uint8_t DEFAULT_OCTAVE = 6;          // Default octave for a note (see: MIN_OCTAVE, MAX_OCTAVE)
+
 enum class State : uint8_t {
   STOPPED = 0,
   INIT,
@@ -29,14 +32,15 @@ class Rtttl : public Component {
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
 #endif
-  float get_gain() { return this->gain_; }
-  void set_gain(float gain) { this->gain_ = clamp(gain, 0.0f, 1.0f); }
+
+  void dump_config() override;
+  void loop() override;
   void play(std::string rtttl);
   void stop();
-  void dump_config() override;
 
+  float get_gain() { return this->gain_; }
+  void set_gain(float gain) { this->gain_ = clamp(gain, 0.0f, 1.0f); }
   bool is_playing() { return this->state_ != State::STOPPED; }
-  void loop() override;
 
   void add_on_finished_playback_callback(std::function<void()> callback) {
     this->on_finished_playback_callback_.add(std::move(callback));
@@ -72,8 +76,8 @@ class Rtttl : public Component {
   uint16_t note_duration_{0};
   /// The default duration of a note (e.g. 4 for a quarter note).
   uint16_t wholenote_duration_;
-  /// The time the last note was started.
-  uint32_t last_note_;
+  /// The time in milliseconds since microcontroller boot when the last note was started.
+  uint32_t last_note_start_time_;
   /// The frequency of the current note in Hz.
   uint32_t output_freq_{0};
   /// The gain of the output.
@@ -85,19 +89,17 @@ class Rtttl : public Component {
   /// The output to write the sound to.
   output::FloatOutput *output_;
 #endif
-
 #ifdef USE_SPEAKER
   /// The speaker to write the sound to.
   speaker::Speaker *speaker_{nullptr};
   /// The number of samples for one full cycle of a note's waveform, in Q10 fixed-point format.
-  int samples_per_wave_{0};
+  uint32_t samples_per_wave_{0};
   /// The number of samples sent.
   int samples_sent_{0};
   /// The total number of samples to send.
   int samples_count_{0};
   /// The number of samples for the gap between notes.
-  int samples_gap_{0};
-
+  uint8_t samples_gap_{0};
 #endif
 
   /// The callback to call when playback is finished.

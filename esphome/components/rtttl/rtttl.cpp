@@ -14,11 +14,9 @@ static const uint8_t SEMITONES_IN_OCTAVE = 12;
 static const uint8_t MIN_OCTAVE = 4;
 static const uint8_t MAX_OCTAVE = 7;
 
-static const uint8_t DEFAULT_NOTE_DOMINATOR = 4;  // Default note-dominator (quarter note)
-static const uint8_t DEFAULT_OCTAVE = 6;          // Default octave for a note (see: MIN_OCTAVE, MAX_OCTAVE)
-static const uint8_t DEFAULT_BPM = 63;            // Default beats per minute
+static const uint8_t DEFAULT_BPM = 63;  // Default beats per minute
 
-static const uint8_t DOUBLE_NOTE_GAP_MS = 10;
+static const uint8_t REPEATING_NOTE_GAP_MS = 10;
 
 // These values can also be found as constants in the Tone library (Tone.h)
 static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370,  392,  415,  440,  466,  494,
@@ -94,6 +92,181 @@ void Rtttl::dump_config() {
                 "Rtttl:\n"
                 "  Gain: %f",
                 this->gain_);
+}
+
+void Rtttl::loop() {
+  if (this->state_ == State::STOPPED) {
+    this->disable_loop();
+    return;
+  }
+
+#ifdef USE_OUTPUT
+  if (this->output_ != nullptr && millis() - this->last_note_start_time_ < this->note_duration_) {
+    return;
+  }
+#endif
+#ifdef USE_SPEAKER
+  if (this->speaker_ != nullptr) {
+    if (this->state_ == State::STOPPING) {
+      if (this->speaker_->is_stopped()) {
+        this->set_state_(State::STOPPED);
+      } else {
+        return;
+      }
+    } else if (this->state_ == State::INIT) {
+      if (this->speaker_->is_stopped()) {
+        this->speaker_->start();
+        this->set_state_(State::STARTING);
+      }
+    } else if (this->state_ == State::STARTING) {
+      if (this->speaker_->is_running()) {
+        this->set_state_(State::RUNNING);
+      }
+    }
+    if (!this->speaker_->is_running()) {
+      return;
+    }
+    if (this->samples_sent_ != this->samples_count_) {
+      SpeakerSample sample[SAMPLE_BUFFER_SIZE + 2];
+      uint16_t sample_index = 0;
+      double rem = 0.0;
+
+      while (true) {
+        // Try and send out the remainder of the existing note, one per loop()
+        if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note
+          rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
+
+          int8_t val = (127 * this->gain_) * sin(deg2rad(rem));
+
+          sample[sample_index].left = val;
+          sample[sample_index].right = val;
+        } else {
+          sample[sample_index].left = 0;
+          sample[sample_index].right = 0;
+        }
+
+        if (sample_index >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
+          break;
+        }
+        this->samples_sent_++;
+        sample_index++;
+      }
+      if (sample_index > 0) {
+        size_t send = this->speaker_->play((uint8_t *) (&sample), sample_index * 2);
+        if (send != sample_index * 4) {
+          this->samples_sent_ -= sample_index - (send / 2);
+        }
+        return;
+      }
+    }
+  }
+#endif
+  if (this->position_ >= this->rtttl_.length()) {
+    this->finish_();
+    return;
+  }
+
+  // align to note: most rtttl's out there does not add any space after the ',' separator but just in case...
+  while (this->rtttl_[this->position_] == ',' || this->rtttl_[this->position_] == ' ') {
+    this->position_++;
+  }
+
+  // first, get note duration, if available
+  uint8_t note_dominator = this->get_integer_();
+
+  if (note_dominator) {
+    this->note_duration_ = this->wholenote_duration_ / note_dominator;
+  } else {
+    // we will need to check if we are a dotted note after
+    this->note_duration_ = this->wholenote_duration_ / this->default_note_dominator_;
+  }
+
+  uint8_t note_in_octave = note_from_char(this->rtttl_[this->position_]);
+  this->position_++;
+
+  // now, get optional '#' sharp
+  if (this->rtttl_[this->position_] == '#') {
+    note_in_octave++;
+    this->position_++;
+  }
+
+  // now, get optional '.' dotted note
+  if (this->rtttl_[this->position_] == '.') {
+    this->note_duration_ += this->note_duration_ / 2;  // Duration +50%
+    this->position_++;
+  }
+
+  // now, get scale
+  uint8_t scale = get_integer_();
+  if (scale == 0) {
+    scale = this->default_octave_;
+  }
+
+  if (scale < MIN_OCTAVE || scale > MAX_OCTAVE) {
+    ESP_LOGE(TAG, "Octave must be between %d and %d (it is %d)", MIN_OCTAVE, MAX_OCTAVE, scale);
+    this->finish_();
+    return;
+  }
+
+  bool need_note_gap = false;
+
+  // Now play the note
+  if (note_in_octave == 0) {
+    this->output_freq_ = 0;
+    ESP_LOGVV(TAG, "waiting: %dms", this->note_duration_);
+  } else {
+    uint8_t note_index = (scale - MIN_OCTAVE) * SEMITONES_IN_OCTAVE + note_in_octave;
+    // Should not be possible to be out of bounds
+    uint16_t freq = NOTES[note_index];
+    need_note_gap = freq == this->output_freq_;
+
+    // Add small silence gap between same note
+    this->output_freq_ = freq;
+
+    ESP_LOGVV(TAG, "playing note: %d for %dms", note_in_octave, this->note_duration_);
+  }
+
+#ifdef USE_OUTPUT
+  if (this->output_ != nullptr) {
+    if (this->output_freq_ == 0) {
+      this->output_->set_level(0.0);
+    } else {
+      if (need_note_gap) {
+        this->output_->set_level(0.0);
+        delay(REPEATING_NOTE_GAP_MS);
+        this->note_duration_ -= REPEATING_NOTE_GAP_MS;
+      }
+      this->output_->update_frequency(this->output_freq_);
+      this->output_->set_level(this->gain_);
+    }
+  }
+#endif
+#ifdef USE_SPEAKER
+  if (this->speaker_ != nullptr) {
+    this->samples_sent_ = 0;
+    this->samples_gap_ = 0;
+    this->samples_per_wave_ = 0;
+    this->samples_count_ = (SAMPLE_RATE * this->note_duration_) / 1600;  //(ms);
+    if (need_note_gap) {
+      this->samples_gap_ = (SAMPLE_RATE * REPEATING_NOTE_GAP_MS) / 1600;  //(ms);
+    }
+    if (this->output_freq_ != 0) {
+      // make sure there is enough samples to add a full last sinus.
+
+      uint16_t samples_wish = this->samples_count_;
+      this->samples_per_wave_ = (SAMPLE_RATE << 10) / this->output_freq_;
+
+      uint16_t division = ((this->samples_count_ << 10) / this->samples_per_wave_) + 1;
+
+      this->samples_count_ = (division * this->samples_per_wave_) >> 10;
+      ESP_LOGVV(TAG, "- Calc play time: wish: %d gets: %d (div: %d spw: %d)", samples_wish, this->samples_count_,
+                division, this->samples_per_wave_);
+    }
+    // Convert from frequency in Hz to high and low samples in fixed point
+  }
+#endif
+
+  this->last_note_start_time_ = millis();
 }
 
 void Rtttl::play(std::string rtttl) {
@@ -185,19 +358,19 @@ void Rtttl::play(std::string rtttl) {
   this->wholenote_duration_ = 60 * 1000L * 4 / bpm;  // this is the time for whole note (in milliseconds)
 
   this->output_freq_ = 0;
-  this->last_note_ = millis();
+  this->last_note_start_time_ = millis();
   this->note_duration_ = 1;
 
+#ifdef USE_OUTPUT
+  if (this->output_ != nullptr) {
+    this->set_state_(State::RUNNING);
+  }
+#endif
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
     this->set_state_(State::INIT);
     this->samples_sent_ = 0;
     this->samples_count_ = 0;
-  }
-#endif
-#ifdef USE_OUTPUT
-  if (this->output_ != nullptr) {
-    this->set_state_(State::RUNNING);
   }
 #endif
 }
@@ -244,187 +417,6 @@ void Rtttl::finish_() {
   // Ensure no more notes are played in case finish_() is called for an error.
   this->position_ = this->rtttl_.length();
   this->note_duration_ = 0;
-}
-
-void Rtttl::loop() {
-  if (this->state_ == State::STOPPED) {
-    this->disable_loop();
-    return;
-  }
-
-#ifdef USE_SPEAKER
-  if (this->speaker_ != nullptr) {
-    if (this->state_ == State::STOPPING) {
-      if (this->speaker_->is_stopped()) {
-        this->set_state_(State::STOPPED);
-      } else {
-        return;
-      }
-    } else if (this->state_ == State::INIT) {
-      if (this->speaker_->is_stopped()) {
-        this->speaker_->start();
-        this->set_state_(State::STARTING);
-      }
-    } else if (this->state_ == State::STARTING) {
-      if (this->speaker_->is_running()) {
-        this->set_state_(State::RUNNING);
-      }
-    }
-    if (!this->speaker_->is_running()) {
-      return;
-    }
-    if (this->samples_sent_ != this->samples_count_) {
-      SpeakerSample sample[SAMPLE_BUFFER_SIZE + 2];
-      uint16_t sample_index = 0;
-      double rem = 0.0;
-
-      while (true) {
-        // Try and send out the remainder of the existing note, one per loop()
-        if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note
-          rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
-
-          int8_t val = (127 * this->gain_) * sin(deg2rad(rem));
-
-          sample[sample_index].left = val;
-          sample[sample_index].right = val;
-        } else {
-          sample[sample_index].left = 0;
-          sample[sample_index].right = 0;
-        }
-
-        if (sample_index >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
-          break;
-        }
-        this->samples_sent_++;
-        sample_index++;
-      }
-      if (sample_index > 0) {
-        size_t send = this->speaker_->play((uint8_t *) (&sample), sample_index * 2);
-        if (send != sample_index * 4) {
-          this->samples_sent_ -= (sample_index - (send / 2));
-        }
-        return;
-      }
-    }
-  }
-#endif
-#ifdef USE_OUTPUT
-  if (this->output_ != nullptr && millis() - this->last_note_ < this->note_duration_) {
-    return;
-  }
-#endif
-  if (this->position_ >= this->rtttl_.length()) {
-    this->finish_();
-    return;
-  }
-
-  // align to note: most rtttl's out there does not add any space after the ',' separator but just in case...
-  while (this->rtttl_[this->position_] == ',' || this->rtttl_[this->position_] == ' ') {
-    this->position_++;
-  }
-
-  // first, get note duration, if available
-  uint8_t note_dominator = this->get_integer_();
-
-  if (note_dominator) {
-    this->note_duration_ = this->wholenote_duration_ / note_dominator;
-  } else {
-    // we will need to check if we are a dotted note after
-    this->note_duration_ = this->wholenote_duration_ / this->default_note_dominator_;
-  }
-
-  uint8_t note = note_from_char(this->rtttl_[this->position_]);
-  this->position_++;
-
-  // now, get optional '#' sharp
-  if (this->rtttl_[this->position_] == '#') {
-    note++;
-    this->position_++;
-  }
-
-  // now, get optional '.' dotted note
-  if (this->rtttl_[this->position_] == '.') {
-    this->note_duration_ += this->note_duration_ / 2;
-    this->position_++;
-  }
-
-  // now, get scale
-  uint8_t scale = get_integer_();
-  if (scale == 0) {
-    scale = this->default_octave_;
-  }
-
-  if (scale < MIN_OCTAVE || scale > MAX_OCTAVE) {
-    ESP_LOGE(TAG, "Octave must be between %d and %d (it is %d)", MIN_OCTAVE, MAX_OCTAVE, scale);
-    this->finish_();
-    return;
-  }
-
-  bool need_note_gap = false;
-
-  // Now play the note
-  if (note) {
-    auto note_index = (scale - MIN_OCTAVE) * SEMITONES_IN_OCTAVE + note;
-    if (note_index < 0 || note_index >= NOTES_COUNT) {
-      ESP_LOGE(TAG, "Note out of range (note: %d, scale: %d, index: %d, max: %d)", note, scale, note_index,
-               NOTES_COUNT);
-      this->finish_();
-      return;
-    }
-    uint16_t freq = NOTES[note_index];
-    need_note_gap = freq == this->output_freq_;
-
-    // Add small silence gap between same note
-    this->output_freq_ = freq;
-
-    ESP_LOGVV(TAG, "playing note: %d for %dms", note, this->note_duration_);
-  } else {
-    ESP_LOGVV(TAG, "waiting: %dms", this->note_duration_);
-    this->output_freq_ = 0;
-  }
-
-#ifdef USE_OUTPUT
-  if (this->output_ != nullptr) {
-    if (need_note_gap) {
-      this->output_->set_level(0.0);
-      delay(DOUBLE_NOTE_GAP_MS);
-      this->note_duration_ -= DOUBLE_NOTE_GAP_MS;
-    }
-    if (this->output_freq_ != 0) {
-      this->output_->update_frequency(this->output_freq_);
-      this->output_->set_level(this->gain_);
-    } else {
-      this->output_->set_level(0.0);
-    }
-  }
-#endif
-#ifdef USE_SPEAKER
-  if (this->speaker_ != nullptr) {
-    this->samples_sent_ = 0;
-    this->samples_gap_ = 0;
-    this->samples_per_wave_ = 0;
-    this->samples_count_ = (SAMPLE_RATE * this->note_duration_) / 1600;  //(ms);
-    if (need_note_gap) {
-      this->samples_gap_ = (SAMPLE_RATE * DOUBLE_NOTE_GAP_MS) / 1600;  //(ms);
-    }
-    if (this->output_freq_ != 0) {
-      // make sure there is enough samples to add a full last sinus.
-
-      uint16_t samples_wish = this->samples_count_;
-      this->samples_per_wave_ = (SAMPLE_RATE << 10) / this->output_freq_;
-
-      uint16_t division = ((this->samples_count_ << 10) / this->samples_per_wave_) + 1;
-
-      this->samples_count_ = (division * this->samples_per_wave_);
-      this->samples_count_ = this->samples_count_ >> 10;
-      ESP_LOGVV(TAG, "- Calc play time: wish: %d gets: %d (div: %d spw: %d)", samples_wish, this->samples_count_,
-                division, this->samples_per_wave_);
-    }
-    // Convert from frequency in Hz to high and low samples in fixed point
-  }
-#endif
-
-  this->last_note_ = millis();
 }
 
 void Rtttl::set_state_(State state) {
