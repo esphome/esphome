@@ -655,12 +655,15 @@ void WiFiComponent::setup_ap_config_() {
 #ifdef USE_WIFI_MANUAL_IP
   auto manual_ip = this->ap_.get_manual_ip();
   if (manual_ip.has_value()) {
+    char static_ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
     ESP_LOGCONFIG(TAG,
                   "  AP Static IP: '%s'\n"
                   "  AP Gateway: '%s'\n"
                   "  AP Subnet: '%s'",
-                  manual_ip->static_ip.str().c_str(), manual_ip->gateway.str().c_str(),
-                  manual_ip->subnet.str().c_str());
+                  manual_ip->static_ip.str_to(static_ip_buf), manual_ip->gateway.str_to(gateway_buf),
+                  manual_ip->subnet.str_to(subnet_buf));
   }
 #endif
 
@@ -816,8 +819,14 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 #ifdef USE_WIFI_MANUAL_IP
   if (ap.get_manual_ip().has_value()) {
     ManualIP m = *ap.get_manual_ip();
-    ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.str().c_str(),
-             m.gateway.str().c_str(), m.subnet.str().c_str(), m.dns1.str().c_str(), m.dns2.str().c_str());
+    char static_ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.str_to(static_ip_buf),
+             m.gateway.str_to(gateway_buf), m.subnet.str_to(subnet_buf), m.dns1.str_to(dns1_buf),
+             m.dns2.str_to(dns2_buf));
   } else
 #endif
   {
@@ -899,12 +908,20 @@ void WiFiComponent::print_connect_params_() {
     ESP_LOGCONFIG(TAG, "  Disabled");
     return;
   }
+  // Use stack buffers for IP address formatting to avoid heap allocations
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
   for (auto &ip : wifi_sta_ip_addresses()) {
     if (ip.is_set()) {
-      ESP_LOGCONFIG(TAG, "  IP Address: %s", ip.str().c_str());
+      ESP_LOGCONFIG(TAG, "  IP Address: %s", ip.str_to(ip_buf));
     }
   }
   int8_t rssi = wifi_rssi();
+  // Use stack buffers for SSID and all IP addresses to avoid heap allocations
+  char ssid_buf[SSID_BUFFER_SIZE];
+  char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "  SSID: " LOG_SECRET("'%s'") "\n"
                                               "  BSSID: " LOG_SECRET("%s") "\n"
@@ -915,9 +932,9 @@ void WiFiComponent::print_connect_params_() {
                                                                            "  Gateway: %s\n"
                                                                            "  DNS1: %s\n"
                                                                            "  DNS2: %s",
-                wifi_ssid().c_str(), bssid_s, App.get_name().c_str(), rssi, LOG_STR_ARG(get_signal_bars(rssi)),
-                get_wifi_channel(), wifi_subnet_mask_().str().c_str(), wifi_gateway_ip_().str().c_str(),
-                wifi_dns_ip_(0).str().c_str(), wifi_dns_ip_(1).str().c_str());
+                wifi_ssid_to(ssid_buf), bssid_s, App.get_name().c_str(), rssi, LOG_STR_ARG(get_signal_bars(rssi)),
+                get_wifi_channel(), wifi_subnet_mask_().str_to(subnet_buf), wifi_gateway_ip_().str_to(gateway_buf),
+                wifi_dns_ip_(0).str_to(dns1_buf), wifi_dns_ip_(1).str_to(dns2_buf));
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_bssid()) {
     ESP_LOGV(TAG, "  Priority: %d", this->get_sta_priority(config->get_bssid()));
@@ -1159,7 +1176,8 @@ void WiFiComponent::check_connecting_finished() {
   auto status = this->wifi_sta_connect_status_();
 
   if (status == WiFiSTAConnectStatus::CONNECTED) {
-    if (wifi_ssid().empty()) {
+    char ssid_buf[SSID_BUFFER_SIZE];
+    if (wifi_ssid_to(ssid_buf)[0] == '\0') {
       ESP_LOGW(TAG, "Connection incomplete");
       this->retry_connect();
       return;
@@ -1523,12 +1541,12 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
     return;  // No BSSID to penalize
   }
 
-  // Get SSID for logging
-  std::string ssid;
+  // Get SSID for logging (use pointer to avoid copy)
+  const std::string *ssid = nullptr;
   if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
-    ssid = this->scan_result_[0].get_ssid();
+    ssid = &this->scan_result_[0].get_ssid();
   } else if (const WiFiAP *config = this->get_selected_sta_()) {
-    ssid = config->get_ssid();
+    ssid = &config->get_ssid();
   }
 
   // Only decrease priority on the last attempt for this phase
@@ -1548,8 +1566,8 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   }
   char bssid_s[18];
   format_mac_addr_upper(failed_bssid.value().data(), bssid_s);
-  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid.c_str(), bssid_s,
-           old_priority, new_priority);
+  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d",
+           ssid != nullptr ? ssid->c_str() : "", bssid_s, old_priority, new_priority);
 
   // After adjusting priority, check if all priorities are now at minimum
   // If so, clear the vector to save memory and reset for fresh start

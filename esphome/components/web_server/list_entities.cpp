@@ -6,8 +6,7 @@
 
 #include "web_server.h"
 
-namespace esphome {
-namespace web_server {
+namespace esphome::web_server {
 
 #ifdef USE_ESP32
 ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, AsyncEventSource *es) : web_server_(ws), events_(es) {}
@@ -157,6 +156,5 @@ bool ListEntitiesIterator::on_update(update::UpdateEntity *obj) {
 }
 #endif
 
-}  // namespace web_server
-}  // namespace esphome
+}  // namespace esphome::web_server
 #endif
