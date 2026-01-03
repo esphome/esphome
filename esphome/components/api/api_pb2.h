@@ -1069,7 +1069,7 @@ class SubscribeLogsResponse final : public ProtoMessage {
 class NoiseEncryptionSetKeyRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 124;
-  static constexpr uint8_t ESTIMATED_SIZE = 19;
+  static constexpr uint8_t ESTIMATED_SIZE = 9;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "noise_encryption_set_key_request"; }
 #endif
@@ -1161,7 +1161,7 @@ class HomeassistantActionRequest final : public ProtoMessage {
 class HomeassistantActionResponse final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 130;
-  static constexpr uint8_t ESTIMATED_SIZE = 34;
+  static constexpr uint8_t ESTIMATED_SIZE = 24;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "homeassistant_action_response"; }
 #endif
@@ -1708,7 +1708,7 @@ class ListEntitiesSirenResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_siren_response"; }
 #endif
-  std::vector<std::string> tones{};
+  const FixedVector<const char *> *tones{};
   bool supports_duration{false};
   bool supports_volume{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -2146,7 +2146,7 @@ class BluetoothGATTReadResponse final : public ProtoMessage {
 class BluetoothGATTWriteRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 75;
-  static constexpr uint8_t ESTIMATED_SIZE = 29;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_gatt_write_request"; }
 #endif
@@ -2182,7 +2182,7 @@ class BluetoothGATTReadDescriptorRequest final : public ProtoDecodableMessage {
 class BluetoothGATTWriteDescriptorRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 77;
-  static constexpr uint8_t ESTIMATED_SIZE = 27;
+  static constexpr uint8_t ESTIMATED_SIZE = 17;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_gatt_write_descriptor_request"; }
 #endif
@@ -2521,17 +2521,12 @@ class VoiceAssistantEventResponse final : public ProtoDecodableMessage {
 class VoiceAssistantAudio final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 106;
-  static constexpr uint8_t ESTIMATED_SIZE = 11;
+  static constexpr uint8_t ESTIMATED_SIZE = 21;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "voice_assistant_audio"; }
 #endif
-  std::string data{};
-  const uint8_t *data_ptr_{nullptr};
-  size_t data_len_{0};
-  void set_data(const uint8_t *data, size_t len) {
-    this->data_ptr_ = data;
-    this->data_len_ = len;
-  }
+  const uint8_t *data{nullptr};
+  uint16_t data_len{0};
   bool end{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
