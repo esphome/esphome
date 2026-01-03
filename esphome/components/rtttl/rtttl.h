@@ -5,11 +5,11 @@
 
 #ifdef USE_OUTPUT
 #include "esphome/components/output/float_output.h"
-#endif
+#endif  // USE_OUTPUT
 
 #ifdef USE_SPEAKER
 #include "esphome/components/speaker/speaker.h"
-#endif
+#endif  // USE_SPEAKER
 
 namespace esphome::rtttl {
 
@@ -28,10 +28,10 @@ class Rtttl : public Component {
  public:
 #ifdef USE_OUTPUT
   void set_output(output::FloatOutput *output) { this->output_ = output; }
-#endif
+#endif  // USE_OUTPUT
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
-#endif
+#endif  // USE_SPEAKER
 
   void dump_config() override;
   void loop() override;
@@ -88,7 +88,7 @@ class Rtttl : public Component {
 #ifdef USE_OUTPUT
   /// The output to write the sound to.
   output::FloatOutput *output_;
-#endif
+#endif  // USE_OUTPUT
 #ifdef USE_SPEAKER
   /// The speaker to write the sound to.
   speaker::Speaker *speaker_{nullptr};
@@ -100,7 +100,7 @@ class Rtttl : public Component {
   int samples_count_{0};
   /// The number of samples for the gap between notes.
   uint8_t samples_gap_{0};
-#endif
+#endif  // USE_SPEAKER
 
   /// The callback to call when playback is finished.
   CallbackManager<void()> on_finished_playback_callback_;
