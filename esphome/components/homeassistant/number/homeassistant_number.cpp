@@ -86,15 +86,15 @@ void HomeassistantNumber::control(float value) {
   static constexpr auto VALUE_KEY = StringRef::from_lit("value");
 
   api::HomeassistantActionRequest resp;
-  resp.set_service(SERVICE_NAME);
+  resp.service = SERVICE_NAME;
 
   resp.data.init(2);
   auto &entity_id = resp.data.emplace_back();
-  entity_id.set_key(ENTITY_ID_KEY);
+  entity_id.key = ENTITY_ID_KEY;
   entity_id.value = this->entity_id_;
 
   auto &entity_value = resp.data.emplace_back();
-  entity_value.set_key(VALUE_KEY);
+  entity_value.key = VALUE_KEY;
   entity_value.value = to_string(value);
 
   api::global_api_server->send_homeassistant_action(resp);

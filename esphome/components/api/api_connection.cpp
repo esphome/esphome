@@ -377,7 +377,7 @@ uint16_t APIConnection::try_send_binary_sensor_info(EntityBase *entity, APIConne
                                                     bool is_single) {
   auto *binary_sensor = static_cast<binary_sensor::BinarySensor *>(entity);
   ListEntitiesBinarySensorResponse msg;
-  msg.set_device_class(binary_sensor->get_device_class_ref());
+  msg.device_class = binary_sensor->get_device_class_ref();
   msg.is_status_binary_sensor = binary_sensor->is_status_binary_sensor();
   return fill_and_encode_entity_info(binary_sensor, msg, ListEntitiesBinarySensorResponse::MESSAGE_TYPE, conn,
                                      remaining_size, is_single);
@@ -409,7 +409,7 @@ uint16_t APIConnection::try_send_cover_info(EntityBase *entity, APIConnection *c
   msg.supports_position = traits.get_supports_position();
   msg.supports_tilt = traits.get_supports_tilt();
   msg.supports_stop = traits.get_supports_stop();
-  msg.set_device_class(cover->get_device_class_ref());
+  msg.device_class = cover->get_device_class_ref();
   return fill_and_encode_entity_info(cover, msg, ListEntitiesCoverResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
 }
@@ -444,7 +444,7 @@ uint16_t APIConnection::try_send_fan_state(EntityBase *entity, APIConnection *co
   if (traits.supports_direction())
     msg.direction = static_cast<enums::FanDirection>(fan->direction);
   if (traits.supports_preset_modes() && fan->has_preset_mode())
-    msg.set_preset_mode(StringRef(fan->get_preset_mode()));
+    msg.preset_mode = StringRef(fan->get_preset_mode());
   return fill_and_encode_entity_state(fan, msg, FanStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 uint16_t APIConnection::try_send_fan_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -500,7 +500,7 @@ uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *
   resp.cold_white = values.get_cold_white();
   resp.warm_white = values.get_warm_white();
   if (light->supports_effects()) {
-    resp.set_effect(light->get_effect_name_ref());
+    resp.effect = light->get_effect_name_ref();
   }
   return fill_and_encode_entity_state(light, resp, LightStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
@@ -582,10 +582,10 @@ uint16_t APIConnection::try_send_sensor_info(EntityBase *entity, APIConnection *
                                              bool is_single) {
   auto *sensor = static_cast<sensor::Sensor *>(entity);
   ListEntitiesSensorResponse msg;
-  msg.set_unit_of_measurement(sensor->get_unit_of_measurement_ref());
+  msg.unit_of_measurement = sensor->get_unit_of_measurement_ref();
   msg.accuracy_decimals = sensor->get_accuracy_decimals();
   msg.force_update = sensor->get_force_update();
-  msg.set_device_class(sensor->get_device_class_ref());
+  msg.device_class = sensor->get_device_class_ref();
   msg.state_class = static_cast<enums::SensorStateClass>(sensor->get_state_class());
   return fill_and_encode_entity_info(sensor, msg, ListEntitiesSensorResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
@@ -612,7 +612,7 @@ uint16_t APIConnection::try_send_switch_info(EntityBase *entity, APIConnection *
   auto *a_switch = static_cast<switch_::Switch *>(entity);
   ListEntitiesSwitchResponse msg;
   msg.assumed_state = a_switch->assumed_state();
-  msg.set_device_class(a_switch->get_device_class_ref());
+  msg.device_class = a_switch->get_device_class_ref();
   return fill_and_encode_entity_info(a_switch, msg, ListEntitiesSwitchResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
 }
@@ -637,7 +637,7 @@ uint16_t APIConnection::try_send_text_sensor_state(EntityBase *entity, APIConnec
                                                    bool is_single) {
   auto *text_sensor = static_cast<text_sensor::TextSensor *>(entity);
   TextSensorStateResponse resp;
-  resp.set_state(StringRef(text_sensor->state));
+  resp.state = StringRef(text_sensor->state);
   resp.missing_state = !text_sensor->has_state();
   return fill_and_encode_entity_state(text_sensor, resp, TextSensorStateResponse::MESSAGE_TYPE, conn, remaining_size,
                                       is_single);
@@ -646,7 +646,7 @@ uint16_t APIConnection::try_send_text_sensor_info(EntityBase *entity, APIConnect
                                                   bool is_single) {
   auto *text_sensor = static_cast<text_sensor::TextSensor *>(entity);
   ListEntitiesTextSensorResponse msg;
-  msg.set_device_class(text_sensor->get_device_class_ref());
+  msg.device_class = text_sensor->get_device_class_ref();
   return fill_and_encode_entity_info(text_sensor, msg, ListEntitiesTextSensorResponse::MESSAGE_TYPE, conn,
                                      remaining_size, is_single);
 }
@@ -676,13 +676,13 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
   if (traits.get_supports_fan_modes() && climate->fan_mode.has_value())
     resp.fan_mode = static_cast<enums::ClimateFanMode>(climate->fan_mode.value());
   if (!traits.get_supported_custom_fan_modes().empty() && climate->has_custom_fan_mode()) {
-    resp.set_custom_fan_mode(StringRef(climate->get_custom_fan_mode()));
+    resp.custom_fan_mode = StringRef(climate->get_custom_fan_mode());
   }
   if (traits.get_supports_presets() && climate->preset.has_value()) {
     resp.preset = static_cast<enums::ClimatePreset>(climate->preset.value());
   }
   if (!traits.get_supported_custom_presets().empty() && climate->has_custom_preset()) {
-    resp.set_custom_preset(StringRef(climate->get_custom_preset()));
+    resp.custom_preset = StringRef(climate->get_custom_preset());
   }
   if (traits.get_supports_swing_modes())
     resp.swing_mode = static_cast<enums::ClimateSwingMode>(climate->swing_mode);
@@ -767,9 +767,9 @@ uint16_t APIConnection::try_send_number_info(EntityBase *entity, APIConnection *
                                              bool is_single) {
   auto *number = static_cast<number::Number *>(entity);
   ListEntitiesNumberResponse msg;
-  msg.set_unit_of_measurement(number->traits.get_unit_of_measurement_ref());
+  msg.unit_of_measurement = number->traits.get_unit_of_measurement_ref();
   msg.mode = static_cast<enums::NumberMode>(number->traits.get_mode());
-  msg.set_device_class(number->traits.get_device_class_ref());
+  msg.device_class = number->traits.get_device_class_ref();
   msg.min_value = number->traits.get_min_value();
   msg.max_value = number->traits.get_max_value();
   msg.step = number->traits.get_step();
@@ -882,7 +882,7 @@ uint16_t APIConnection::try_send_text_state(EntityBase *entity, APIConnection *c
                                             bool is_single) {
   auto *text = static_cast<text::Text *>(entity);
   TextStateResponse resp;
-  resp.set_state(StringRef(text->state));
+  resp.state = StringRef(text->state);
   resp.missing_state = !text->has_state();
   return fill_and_encode_entity_state(text, resp, TextStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
@@ -894,7 +894,7 @@ uint16_t APIConnection::try_send_text_info(EntityBase *entity, APIConnection *co
   msg.mode = static_cast<enums::TextMode>(text->traits.get_mode());
   msg.min_length = text->traits.get_min_length();
   msg.max_length = text->traits.get_max_length();
-  msg.set_pattern(text->traits.get_pattern_ref());
+  msg.pattern = text->traits.get_pattern_ref();
   return fill_and_encode_entity_info(text, msg, ListEntitiesTextResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
 }
@@ -915,7 +915,7 @@ uint16_t APIConnection::try_send_select_state(EntityBase *entity, APIConnection 
                                               bool is_single) {
   auto *select = static_cast<select::Select *>(entity);
   SelectStateResponse resp;
-  resp.set_state(StringRef(select->current_option()));
+  resp.state = StringRef(select->current_option());
   resp.missing_state = !select->has_state();
   return fill_and_encode_entity_state(select, resp, SelectStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
@@ -940,7 +940,7 @@ uint16_t APIConnection::try_send_button_info(EntityBase *entity, APIConnection *
                                              bool is_single) {
   auto *button = static_cast<button::Button *>(entity);
   ListEntitiesButtonResponse msg;
-  msg.set_device_class(button->get_device_class_ref());
+  msg.device_class = button->get_device_class_ref();
   return fill_and_encode_entity_info(button, msg, ListEntitiesButtonResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
 }
@@ -1009,7 +1009,7 @@ uint16_t APIConnection::try_send_valve_info(EntityBase *entity, APIConnection *c
   auto *valve = static_cast<valve::Valve *>(entity);
   ListEntitiesValveResponse msg;
   auto traits = valve->get_traits();
-  msg.set_device_class(valve->get_device_class_ref());
+  msg.device_class = valve->get_device_class_ref();
   msg.assumed_state = traits.get_is_assumed_state();
   msg.supports_position = traits.get_supports_position();
   msg.supports_stop = traits.get_supports_stop();
@@ -1054,7 +1054,7 @@ uint16_t APIConnection::try_send_media_player_info(EntityBase *entity, APIConnec
   for (auto &supported_format : traits.get_supported_formats()) {
     msg.supported_formats.emplace_back();
     auto &media_format = msg.supported_formats.back();
-    media_format.set_format(StringRef(supported_format.format));
+    media_format.format = StringRef(supported_format.format);
     media_format.sample_rate = supported_format.sample_rate;
     media_format.num_channels = supported_format.num_channels;
     media_format.purpose = static_cast<enums::MediaPlayerFormatPurpose>(supported_format.purpose);
@@ -1264,8 +1264,8 @@ bool APIConnection::send_voice_assistant_get_configuration_response(const VoiceA
   for (auto &wake_word : config.available_wake_words) {
     resp.available_wake_words.emplace_back();
     auto &resp_wake_word = resp.available_wake_words.back();
-    resp_wake_word.set_id(StringRef(wake_word.id));
-    resp_wake_word.set_wake_word(StringRef(wake_word.wake_word));
+    resp_wake_word.id = StringRef(wake_word.id);
+    resp_wake_word.wake_word = StringRef(wake_word.wake_word);
     for (const auto &lang : wake_word.trained_languages) {
       resp_wake_word.trained_languages.push_back(lang);
     }
@@ -1280,8 +1280,8 @@ bool APIConnection::send_voice_assistant_get_configuration_response(const VoiceA
 
     resp.available_wake_words.emplace_back();
     auto &resp_wake_word = resp.available_wake_words.back();
-    resp_wake_word.set_id(StringRef(wake_word.id));
-    resp_wake_word.set_wake_word(StringRef(wake_word.wake_word));
+    resp_wake_word.id = StringRef(wake_word.id);
+    resp_wake_word.wake_word = StringRef(wake_word.wake_word);
     for (const auto &lang : wake_word.trained_languages) {
       resp_wake_word.trained_languages.push_back(lang);
     }
@@ -1422,7 +1422,7 @@ void APIConnection::send_event(event::Event *event, const char *event_type) {
 uint16_t APIConnection::try_send_event_response(event::Event *event, const char *event_type, APIConnection *conn,
                                                 uint32_t remaining_size, bool is_single) {
   EventResponse resp;
-  resp.set_event_type(StringRef(event_type));
+  resp.event_type = StringRef(event_type);
   return fill_and_encode_entity_state(event, resp, EventResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 
@@ -1430,7 +1430,7 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
                                             bool is_single) {
   auto *event = static_cast<event::Event *>(entity);
   ListEntitiesEventResponse msg;
-  msg.set_device_class(event->get_device_class_ref());
+  msg.device_class = event->get_device_class_ref();
   msg.event_types = &event->get_event_types();
   return fill_and_encode_entity_info(event, msg, ListEntitiesEventResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
@@ -1453,11 +1453,11 @@ uint16_t APIConnection::try_send_update_state(EntityBase *entity, APIConnection 
       resp.has_progress = true;
       resp.progress = update->update_info.progress;
     }
-    resp.set_current_version(StringRef(update->update_info.current_version));
-    resp.set_latest_version(StringRef(update->update_info.latest_version));
-    resp.set_title(StringRef(update->update_info.title));
-    resp.set_release_summary(StringRef(update->update_info.summary));
-    resp.set_release_url(StringRef(update->update_info.release_url));
+    resp.current_version = StringRef(update->update_info.current_version);
+    resp.latest_version = StringRef(update->update_info.latest_version);
+    resp.title = StringRef(update->update_info.title);
+    resp.release_summary = StringRef(update->update_info.summary);
+    resp.release_url = StringRef(update->update_info.release_url);
   }
   return fill_and_encode_entity_state(update, resp, UpdateStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
@@ -1465,7 +1465,7 @@ uint16_t APIConnection::try_send_update_info(EntityBase *entity, APIConnection *
                                              bool is_single) {
   auto *update = static_cast<update::UpdateEntity *>(entity);
   ListEntitiesUpdateResponse msg;
-  msg.set_device_class(update->get_device_class_ref());
+  msg.device_class = update->get_device_class_ref();
   return fill_and_encode_entity_info(update, msg, ListEntitiesUpdateResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
 }
@@ -1536,8 +1536,8 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
   resp.api_version_major = 1;
   resp.api_version_minor = 14;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
-  resp.set_server_info(ESPHOME_VERSION_REF);
-  resp.set_name(StringRef(App.get_name()));
+  resp.server_info = ESPHOME_VERSION_REF;
+  resp.name = StringRef(App.get_name());
 
   // Auto-authenticate - password auth was removed in ESPHome 2026.1.0
   this->complete_authentication_();
@@ -1552,24 +1552,24 @@ bool APIConnection::send_ping_response(const PingRequest &msg) {
 
 bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   DeviceInfoResponse resp{};
-  resp.set_name(StringRef(App.get_name()));
-  resp.set_friendly_name(StringRef(App.get_friendly_name()));
+  resp.name = StringRef(App.get_name());
+  resp.friendly_name = StringRef(App.get_friendly_name());
 #ifdef USE_AREAS
-  resp.set_suggested_area(StringRef(App.get_area()));
+  resp.suggested_area = StringRef(App.get_area());
 #endif
   // Stack buffer for MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
   char mac_address[18];
   uint8_t mac[6];
   get_mac_address_raw(mac);
   format_mac_addr_upper(mac, mac_address);
-  resp.set_mac_address(StringRef(mac_address));
+  resp.mac_address = StringRef(mac_address);
 
-  resp.set_esphome_version(ESPHOME_VERSION_REF);
+  resp.esphome_version = ESPHOME_VERSION_REF;
 
   // Stack buffer for build time string
   char build_time_str[Application::BUILD_TIME_STR_SIZE];
   App.get_build_time_string(build_time_str);
-  resp.set_compilation_time(StringRef(build_time_str));
+  resp.compilation_time = StringRef(build_time_str);
 
   // Manufacturer string - define once, handle ESP8266 PROGMEM separately
 #if defined(USE_ESP8266) || defined(USE_ESP32)
@@ -1593,10 +1593,10 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   static const char MANUFACTURER_PROGMEM[] PROGMEM = ESPHOME_MANUFACTURER;
   char manufacturer_buf[sizeof(MANUFACTURER_PROGMEM)];
   memcpy_P(manufacturer_buf, MANUFACTURER_PROGMEM, sizeof(MANUFACTURER_PROGMEM));
-  resp.set_manufacturer(StringRef(manufacturer_buf, sizeof(MANUFACTURER_PROGMEM) - 1));
+  resp.manufacturer = StringRef(manufacturer_buf, sizeof(MANUFACTURER_PROGMEM) - 1);
 #else
   static constexpr auto MANUFACTURER = StringRef::from_lit(ESPHOME_MANUFACTURER);
-  resp.set_manufacturer(MANUFACTURER);
+  resp.manufacturer = MANUFACTURER;
 #endif
 #undef ESPHOME_MANUFACTURER
 
@@ -1604,10 +1604,10 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   static const char MODEL_PROGMEM[] PROGMEM = ESPHOME_BOARD;
   char model_buf[sizeof(MODEL_PROGMEM)];
   memcpy_P(model_buf, MODEL_PROGMEM, sizeof(MODEL_PROGMEM));
-  resp.set_model(StringRef(model_buf, sizeof(MODEL_PROGMEM) - 1));
+  resp.model = StringRef(model_buf, sizeof(MODEL_PROGMEM) - 1);
 #else
   static constexpr auto MODEL = StringRef::from_lit(ESPHOME_BOARD);
-  resp.set_model(MODEL);
+  resp.model = MODEL;
 #endif
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
@@ -1620,13 +1620,13 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   char project_version_buf[sizeof(PROJECT_VERSION_PROGMEM)];
   memcpy_P(project_name_buf, PROJECT_NAME_PROGMEM, sizeof(PROJECT_NAME_PROGMEM));
   memcpy_P(project_version_buf, PROJECT_VERSION_PROGMEM, sizeof(PROJECT_VERSION_PROGMEM));
-  resp.set_project_name(StringRef(project_name_buf, sizeof(PROJECT_NAME_PROGMEM) - 1));
-  resp.set_project_version(StringRef(project_version_buf, sizeof(PROJECT_VERSION_PROGMEM) - 1));
+  resp.project_name = StringRef(project_name_buf, sizeof(PROJECT_NAME_PROGMEM) - 1);
+  resp.project_version = StringRef(project_version_buf, sizeof(PROJECT_VERSION_PROGMEM) - 1);
 #else
   static constexpr auto PROJECT_NAME = StringRef::from_lit(ESPHOME_PROJECT_NAME);
   static constexpr auto PROJECT_VERSION = StringRef::from_lit(ESPHOME_PROJECT_VERSION);
-  resp.set_project_name(PROJECT_NAME);
-  resp.set_project_version(PROJECT_VERSION);
+  resp.project_name = PROJECT_NAME;
+  resp.project_version = PROJECT_VERSION;
 #endif
 #endif
 #ifdef USE_WEBSERVER
@@ -1637,7 +1637,7 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   // Stack buffer for Bluetooth MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
   char bluetooth_mac[18];
   bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty(bluetooth_mac);
-  resp.set_bluetooth_mac_address(StringRef(bluetooth_mac));
+  resp.bluetooth_mac_address = StringRef(bluetooth_mac);
 #endif
 #ifdef USE_VOICE_ASSISTANT
   resp.voice_assistant_feature_flags = voice_assistant::global_voice_assistant->get_feature_flags();
@@ -1656,7 +1656,7 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
       break;
     auto &device_info = resp.devices[device_index++];
     device_info.device_id = device->get_device_id();
-    device_info.set_name(StringRef(device->get_name()));
+    device_info.name = StringRef(device->get_name());
     device_info.area_id = device->get_area_id();
   }
 #endif
@@ -1667,7 +1667,7 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
       break;
     auto &area_info = resp.areas[area_index++];
     area_info.area_id = area->get_area_id();
-    area_info.set_name(StringRef(area->get_name()));
+    area_info.name = StringRef(area->get_name());
   }
 #endif
 
@@ -1746,7 +1746,7 @@ void APIConnection::send_execute_service_response(uint32_t call_id, bool success
   ExecuteServiceResponse resp;
   resp.call_id = call_id;
   resp.success = success;
-  resp.set_error_message(error_message);
+  resp.error_message = error_message;
   this->send_message(resp, ExecuteServiceResponse::MESSAGE_TYPE);
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
@@ -1755,7 +1755,7 @@ void APIConnection::send_execute_service_response(uint32_t call_id, bool success
   ExecuteServiceResponse resp;
   resp.call_id = call_id;
   resp.success = success;
-  resp.set_error_message(error_message);
+  resp.error_message = error_message;
   resp.response_data = response_data;
   resp.response_data_len = response_data_len;
   this->send_message(resp, ExecuteServiceResponse::MESSAGE_TYPE);
@@ -2076,10 +2076,10 @@ void APIConnection::process_state_subscriptions_() {
 
   const auto &it = subs[this->state_subs_at_];
   SubscribeHomeAssistantStateResponse resp;
-  resp.set_entity_id(StringRef(it.entity_id));
+  resp.entity_id = StringRef(it.entity_id);
 
   // Avoid string copy by using the const char* pointer if it exists
-  resp.set_attribute(it.attribute != nullptr ? StringRef(it.attribute) : StringRef(""));
+  resp.attribute = it.attribute != nullptr ? StringRef(it.attribute) : StringRef("");
 
   resp.once = it.once;
   if (this->send_message(resp, SubscribeHomeAssistantStateResponse::MESSAGE_TYPE)) {

@@ -147,7 +147,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   void play(const Ts &...x) override {
     HomeassistantActionRequest resp;
     std::string service_value = this->service_.value(x...);
-    resp.set_service(StringRef(service_value));
+    resp.service = StringRef(service_value);
     resp.is_event = this->flags_.is_event;
     this->populate_service_map(resp.data, this->data_, x...);
     this->populate_service_map(resp.data_template, this->data_template_, x...);
@@ -209,7 +209,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
     dest.init(source.size());
     for (auto &it : source) {
       auto &kv = dest.emplace_back();
-      kv.set_key(StringRef(it.key));
+      kv.key = StringRef(it.key);
       kv.value = it.value.value(x...);
     }
   }
