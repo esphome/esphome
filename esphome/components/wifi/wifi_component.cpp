@@ -2000,9 +2000,7 @@ void WiFiComponent::process_roaming_scan_() {
   const char *current_ssid = this->wifi_ssid_to(ssid_buf);
 
   // Find best candidate: same SSID, different BSSID
-  bssid_t best_bssid{};
-  uint8_t best_channel = 0;
-  int8_t best_rssi = WIFI_RSSI_DISCONNECTED;
+  const WiFiScanResult *best = nullptr;
   char bssid_buf[18];
 
   for (const auto &result : this->scan_result_) {
@@ -2020,33 +2018,32 @@ void WiFiComponent::process_roaming_scan_() {
 #endif
 
     // Track the best candidate
-    if (result.get_rssi() > best_rssi) {
-      best_rssi = result.get_rssi();
-      best_bssid = result.get_bssid();
-      best_channel = result.get_channel();
+    if (best == nullptr || result.get_rssi() > best->get_rssi()) {
+      best = &result;
     }
   }
 
-  this->release_scan_results_();
-
   // Check if best candidate meets minimum improvement threshold
-  int8_t improvement = (best_rssi == WIFI_RSSI_DISCONNECTED) ? 0 : best_rssi - current_rssi;
+  int8_t improvement = (best == nullptr) ? 0 : best->get_rssi() - current_rssi;
   if (improvement < ROAMING_MIN_IMPROVEMENT) {
     ESP_LOGV(TAG, "Roaming: best candidate %+d dB (need +%d dB)", improvement, ROAMING_MIN_IMPROVEMENT);
+    this->release_scan_results_();
     return;
   }
 
   // Found better AP - initiate roam
   const WiFiAP *selected = this->get_selected_sta_();
-  if (selected == nullptr)
+  if (selected == nullptr) {
+    this->release_scan_results_();
     return;  // Defensive: shouldn't happen since clear_sta() clears roaming_scan_active_
+  }
 
-  format_mac_addr_upper(best_bssid.data(), bssid_buf);
+  format_mac_addr_upper(best->get_bssid().data(), bssid_buf);
   ESP_LOGI(TAG, "Roaming to %s (%+d dB)", bssid_buf, improvement);
 
   WiFiAP roam_params = *selected;
-  roam_params.set_bssid(best_bssid);
-  roam_params.set_channel(best_channel);
+  apply_scan_result_to_params(roam_params, *best);
+  this->release_scan_results_();
 
   // Mark as roaming attempt - affects retry behavior if connection fails
   this->roaming_connect_active_ = true;
