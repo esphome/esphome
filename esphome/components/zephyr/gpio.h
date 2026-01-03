@@ -35,7 +35,7 @@ class ZephyrGPIOPin : public InternalGPIOPin {
   gpio::Flags flags_{};
   const device *gpio_{nullptr};
   const char *pin_name_prefix_{nullptr};
-  uint8_t gpio_size_{};  
+  uint8_t gpio_size_{};
   bool value_{false};
 };
 
