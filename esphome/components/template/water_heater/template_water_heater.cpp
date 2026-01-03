@@ -16,6 +16,8 @@ void TemplateWaterHeater::setup() {
       restore->perform();
     }
   }
+  if (!this->current_temperature_f_.has_value() && !this->mode_f_.has_value())
+    this->disable_loop();
 }
 
 water_heater::WaterHeaterTraits TemplateWaterHeater::traits() {
