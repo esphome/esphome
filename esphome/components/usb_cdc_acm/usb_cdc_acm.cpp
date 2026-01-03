@@ -1,6 +1,7 @@
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "usb_cdc_acm.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <sys/param.h>
@@ -15,6 +16,9 @@
 namespace esphome::usb_cdc_acm {
 
 static const char *TAG = "usb_cdc_acm";
+
+// Maximum bytes to log in very verbose hex output (168 * 3 = 504, under TX buffer size of 512)
+static constexpr size_t USB_CDC_MAX_LOG_BYTES = 168;
 
 static constexpr size_t USB_TX_TASK_STACK_SIZE = 4096;
 static constexpr size_t USB_TX_TASK_STACK_SIZE_VV = 8192;
@@ -43,7 +47,10 @@ static void tinyusb_cdc_rx_callback(int itf, cdcacm_event_t *event) {
   esp_err_t ret =
       tinyusb_cdcacm_read(static_cast<tinyusb_cdcacm_itf_t>(itf), rx_buf, CONFIG_TINYUSB_CDC_RX_BUFSIZE, &rx_size);
   ESP_LOGV(TAG, "tinyusb_cdc_rx_callback itf=%d (size: %u)", itf, rx_size);
-  ESP_LOGVV(TAG, "rx_buf = %s", format_hex_pretty(rx_buf, rx_size).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+  char rx_hex_buf[format_hex_pretty_size(USB_CDC_MAX_LOG_BYTES)];
+#endif
+  ESP_LOGVV(TAG, "rx_buf = %s", format_hex_pretty_to(rx_hex_buf, rx_buf, rx_size));
 
   if (ret == ESP_OK && rx_size > 0) {
     RingbufHandle_t rx_ringbuf = instance->get_rx_ringbuf();
@@ -306,7 +313,10 @@ void USBCDCACMInstance::usb_tx_task() {
     }
 
     ESP_LOGV(TAG, "USB TX itf=%d: Read %d bytes from buffer", this->itf_, tx_data_size);
-    ESP_LOGVV(TAG, "data = %s", format_hex_pretty(data, tx_data_size).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+    char tx_hex_buf[format_hex_pretty_size(USB_CDC_MAX_LOG_BYTES)];
+#endif
+    ESP_LOGVV(TAG, "data = %s", format_hex_pretty_to(tx_hex_buf, data, tx_data_size));
 
     // Serial data will be split up into 64 byte chunks to be sent over USB so this
     // usually will take multiple iterations

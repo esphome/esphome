@@ -7,6 +7,7 @@
 namespace esphome::epaper_spi {
 
 static const char *const TAG = "epaper_spi";
+static constexpr size_t EPAPER_MAX_CMD_LOG_BYTES = 128;
 
 static constexpr const char *const EPAPER_STATE_STRINGS[] = {
     "IDLE",          "UPDATE",   "RESET",          "RESET_END", "SHOULD_WAIT", "INITIALISE",
@@ -68,8 +69,11 @@ void EPaperBase::data(uint8_t value) {
 // The command is the first byte, length is the length of data only in the second byte, followed by the data.
 // [COMMAND, LENGTH, DATA...]
 void EPaperBase::cmd_data(uint8_t command, const uint8_t *ptr, size_t length) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(EPAPER_MAX_CMD_LOG_BYTES)];
   ESP_LOGV(TAG, "Command: 0x%02X, Length: %d, Data: %s", command, length,
-           format_hex_pretty(ptr, length, '.', false).c_str());
+           format_hex_pretty_to(hex_buf, ptr, length, '.'));
+#endif
 
   this->dc_pin_->digital_write(false);
   this->enable();

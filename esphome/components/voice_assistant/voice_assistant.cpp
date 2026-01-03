@@ -272,7 +272,8 @@ void VoiceAssistant::loop() {
         size_t read_bytes = this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
         if (this->audio_mode_ == AUDIO_MODE_API) {
           api::VoiceAssistantAudio msg;
-          msg.set_data(this->send_buffer_, read_bytes);
+          msg.data = this->send_buffer_;
+          msg.data_len = read_bytes;
           this->api_client_->send_message(msg, api::VoiceAssistantAudio::MESSAGE_TYPE);
         } else {
           if (!this->udp_socket_running_) {
@@ -629,9 +630,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       ESP_LOGD(TAG, "Assist Pipeline running");
 #ifdef USE_MEDIA_PLAYER
       this->started_streaming_tts_ = false;
-      for (auto arg : msg.data) {
+      for (const auto &arg : msg.data) {
         if (arg.name == "url") {
-          this->tts_response_url_ = std::move(arg.value);
+          this->tts_response_url_ = arg.value;
         }
       }
 #endif
@@ -650,9 +651,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     case api::enums::VOICE_ASSISTANT_STT_END: {
       std::string text;
-      for (auto arg : msg.data) {
+      for (const auto &arg : msg.data) {
         if (arg.name == "text") {
-          text = std::move(arg.value);
+          text = arg.value;
         }
       }
       if (text.empty()) {
@@ -695,9 +696,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     }
     case api::enums::VOICE_ASSISTANT_INTENT_END: {
-      for (auto arg : msg.data) {
+      for (const auto &arg : msg.data) {
         if (arg.name == "conversation_id") {
-          this->conversation_id_ = std::move(arg.value);
+          this->conversation_id_ = arg.value;
         } else if (arg.name == "continue_conversation") {
           this->continue_conversation_ = (arg.value == "1");
         }
@@ -707,9 +708,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     }
     case api::enums::VOICE_ASSISTANT_TTS_START: {
       std::string text;
-      for (auto arg : msg.data) {
+      for (const auto &arg : msg.data) {
         if (arg.name == "text") {
-          text = std::move(arg.value);
+          text = arg.value;
         }
       }
       if (text.empty()) {
@@ -733,9 +734,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     }
     case api::enums::VOICE_ASSISTANT_TTS_END: {
       std::string url;
-      for (auto arg : msg.data) {
+      for (const auto &arg : msg.data) {
         if (arg.name == "url") {
-          url = std::move(arg.value);
+          url = arg.value;
         }
       }
       if (url.empty()) {
@@ -780,11 +781,11 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     case api::enums::VOICE_ASSISTANT_ERROR: {
       std::string code = "";
       std::string message = "";
-      for (auto arg : msg.data) {
+      for (const auto &arg : msg.data) {
         if (arg.name == "code") {
-          code = std::move(arg.value);
+          code = arg.value;
         } else if (arg.name == "message") {
-          message = std::move(arg.value);
+          message = arg.value;
         }
       }
       if (code == "wake-word-timeout" || code == "wake_word_detection_aborted" || code == "no_wake_word") {
@@ -843,12 +844,12 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 void VoiceAssistant::on_audio(const api::VoiceAssistantAudio &msg) {
 #ifdef USE_SPEAKER  // We should never get to this function if there is no speaker anyway
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
-    if (this->speaker_buffer_index_ + msg.data.length() < SPEAKER_BUFFER_SIZE) {
-      memcpy(this->speaker_buffer_ + this->speaker_buffer_index_, msg.data.data(), msg.data.length());
-      this->speaker_buffer_index_ += msg.data.length();
-      this->speaker_buffer_size_ += msg.data.length();
-      this->speaker_bytes_received_ += msg.data.length();
-      ESP_LOGV(TAG, "Received audio: %u bytes from API", msg.data.length());
+    if (this->speaker_buffer_index_ + msg.data_len < SPEAKER_BUFFER_SIZE) {
+      memcpy(this->speaker_buffer_ + this->speaker_buffer_index_, msg.data, msg.data_len);
+      this->speaker_buffer_index_ += msg.data_len;
+      this->speaker_buffer_size_ += msg.data_len;
+      this->speaker_bytes_received_ += msg.data_len;
+      ESP_LOGV(TAG, "Received audio: %u bytes from API", msg.data_len);
     } else {
       ESP_LOGE(TAG, "Cannot receive audio, buffer is full");
     }

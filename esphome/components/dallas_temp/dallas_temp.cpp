@@ -51,7 +51,7 @@ void DallasTemperatureSensor::update() {
     }
 
     float tempc = this->get_temp_c_();
-    ESP_LOGD(TAG, "'%s': Got Temperature=%.1f°C", this->get_name().c_str(), tempc);
+    ESP_LOGD(TAG, "'%s': Got Temperature=%f°C", this->get_name().c_str(), tempc);
     this->publish_state(tempc);
   });
 }
