@@ -2425,7 +2425,7 @@ message ZWaveProxyFrame {
   option (ifdef) = "USE_ZWAVE_PROXY";
   option (no_delay) = true;
 
-  bytes data = 1 [(pointer_to_buffer) = true];
+  bytes data = 1;
 }
 
 enum ZWaveProxyRequestType {
@@ -2439,5 +2439,5 @@ message ZWaveProxyRequest {
   option (ifdef) = "USE_ZWAVE_PROXY";
 
   ZWaveProxyRequestType type = 1;
-  bytes data = 2 [(pointer_to_buffer) = true];
+  bytes data = 2;
 }

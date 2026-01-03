@@ -28,6 +28,7 @@ from .const import (
     KEY_ESP8266,
     KEY_FLASH_SIZE,
     KEY_PIN_INITIAL_STATES,
+    KEY_WAVEFORM_REQUIRED,
     esp8266_ns,
 )
 from .gpio import PinInitialState, add_pin_initial_states_array
@@ -192,7 +193,12 @@ async def to_code(config):
 
     cg.add_platformio_option(
         "extra_scripts",
-        ["pre:testing_mode.py", "pre:exclude_updater.py", "post:post_build.py"],
+        [
+            "pre:testing_mode.py",
+            "pre:exclude_updater.py",
+            "pre:exclude_waveform.py",
+            "post:post_build.py",
+        ],
     )
 
     conf = config[CONF_FRAMEWORK]
@@ -264,10 +270,24 @@ async def to_code(config):
             cg.add_platformio_option("board_build.ldscript", ld_script)
 
     CORE.add_job(add_pin_initial_states_array)
+    CORE.add_job(finalize_waveform_config)
+
+
+@coroutine_with_priority(CoroPriority.WORKAROUNDS)
+async def finalize_waveform_config() -> None:
+    """Add waveform stubs define if waveform is not required.
+
+    This runs at WORKAROUNDS priority (-999) to ensure all components
+    have had a chance to call require_waveform() first.
+    """
+    if not CORE.data.get(KEY_ESP8266, {}).get(KEY_WAVEFORM_REQUIRED, False):
+        # No component needs waveform - enable stubs and exclude Arduino waveform code
+        # Use build flag (visible to both C++ code and PlatformIO script)
+        cg.add_build_flag("-DUSE_ESP8266_WAVEFORM_STUBS")
 
 
 # Called by writer.py
-def copy_files():
+def copy_files() -> None:
     dir = Path(__file__).parent
     post_build_file = dir / "post_build.py.script"
     copy_file_if_changed(
@@ -283,4 +303,9 @@ def copy_files():
     copy_file_if_changed(
         exclude_updater_file,
         CORE.relative_build_path("exclude_updater.py"),
+    )
+    exclude_waveform_file = dir / "exclude_waveform.py.script"
+    copy_file_if_changed(
+        exclude_waveform_file,
+        CORE.relative_build_path("exclude_waveform.py"),
     )
