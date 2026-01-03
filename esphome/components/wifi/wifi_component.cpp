@@ -1994,7 +1994,7 @@ void WiFiComponent::check_roaming_(uint32_t now) {
     return;
 
   this->roaming_last_check_ = now;
-  ESP_LOGD(TAG, "Roaming: scanning for better AP (current RSSI %d dBm)", this->wifi_rssi());
+  ESP_LOGD(TAG, "Roam scan (%d dBm)", this->wifi_rssi());
   this->roaming_scan_active_ = true;
   this->wifi_scan_start_(this->passive_scan_);
 }
@@ -2032,7 +2032,7 @@ void WiFiComponent::process_roaming_scan_() {
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     format_mac_addr_upper(result.get_bssid().data(), bssid_buf);
-    ESP_LOGV(TAG, "Roaming: candidate %s RSSI %d dBm", bssid_buf, result.get_rssi());
+    ESP_LOGV(TAG, "Roam candidate %s %d dBm", bssid_buf, result.get_rssi());
 #endif
 
     // Track the best candidate
@@ -2044,7 +2044,7 @@ void WiFiComponent::process_roaming_scan_() {
   // Check if best candidate meets minimum improvement threshold
   int8_t improvement = (best == nullptr) ? 0 : best->get_rssi() - current_rssi;
   if (improvement < ROAMING_MIN_IMPROVEMENT) {
-    ESP_LOGV(TAG, "Roaming: best candidate %+d dB (need +%d dB)", improvement, ROAMING_MIN_IMPROVEMENT);
+    ESP_LOGV(TAG, "Roam best %+d dB (need +%d)", improvement, ROAMING_MIN_IMPROVEMENT);
     this->release_scan_results_();
     return;
   }
