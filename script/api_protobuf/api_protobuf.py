@@ -913,6 +913,10 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
     reference_type = "StringRef &"
     const_reference_type = "const StringRef &"
 
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return True
+
     @property
     def public_content(self) -> list[str]:
         return [f"StringRef {self.field_name}{{}};"]
@@ -929,15 +933,12 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
     }}"""
 
     def dump(self, name: str) -> str:
-        return f'out.append("\'").append(this->{self.field_name}.c_str(), this->{self.field_name}.size()).append("\'");'
+        # Not used since we use dump_field, but required by abstract base class
+        return f'out.append("\'").append({name}.c_str(), {name}.size()).append("\'");'
 
     @property
     def dump_content(self) -> str:
-        return (
-            f'out.append("  {self.name}: ");\n'
-            + f"{self.dump(self.field_name)}\n"
-            + 'out.append("\\n");'
-        )
+        return f'dump_field(out, "{self.name}", this->{self.field_name});'
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return f"size.add_length({self.calculate_field_id_size()}, this->{self.field_name}.size());"
