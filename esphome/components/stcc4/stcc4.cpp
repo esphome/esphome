@@ -46,18 +46,22 @@ void STCC4Component::set_rht_compensation_(uint16_t temp, uint16_t rh) {
 }
 
 void STCC4Component::set_pressure_compensation_(float pressure_hpa) {
-  // Convert pressure from hPa to Pa
-  uint16_t pressure_pa = (uint16_t) (pressure_hpa * 100.0f);
+  uint32_t pressure_pa_32 = (uint32_t) (pressure_hpa * 50.0f);
 
-  // Clamp to valid range: 40000 - 110000 Pa
-  if (pressure_pa < 40000)
-    pressure_pa = (uint16_t) 40000;
-  if (pressure_pa > 110000)
-    pressure_pa = (uint16_t) 110000;
+  if (pressure_pa_32 < 40000)
+    pressure_pa_32 = 40000;
+  if (pressure_pa_32 > 110000)
+    pressure_pa_32 = 110000;
+
+  uint16_t pressure_pa = (uint16_t) pressure_pa_32;
 
   write_command((uint16_t) SensorCommand::SET_PRESSURE_COMPENSATION, pressure_pa);
   delay_microseconds_safe(1000 * 2);
   this->state_.is_pressure_compensated = true;
+
+  // Reset read cycle
+  this->write_command((uint16_t) SensorCommand::READ_MEASUREMENT);
+  delay_microseconds_safe(1 * 1000);
 }
 
 void STCC4Component::measure_single_shot_(uint16_t *data) {
@@ -272,10 +276,10 @@ void STCC4Component::update() {
 
   float pressure = NAN;
   if (this->pressure_sensor_ != nullptr) {
-    pressure = float(this->pressure_sensor_->state);
+    pressure = this->pressure_sensor_->state;
   }
 
-  if (pressure != NAN) {
+  if (!std::isnan(pressure)) {  // Use isnan() to check for NAN
     this->set_pressure_compensation_(pressure);
   }
 
