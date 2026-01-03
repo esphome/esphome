@@ -36,7 +36,8 @@ static const char *const TAG = "wifi_lt";
 // This is the same approach used by ESP32 IDF's wifi_process_event_().
 // All state modifications happen in the main loop context, eliminating races.
 
-static QueueHandle_t s_event_queue = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static constexpr size_t EVENT_QUEUE_SIZE = 16;  // Max pending WiFi events before overflow
+static QueueHandle_t s_event_queue = nullptr;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static volatile uint32_t s_event_queue_overflow_count =
     0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -593,7 +594,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
 void WiFiComponent::wifi_pre_setup_() {
   // Create event queue for thread-safe event handling
   // Events are pushed from WiFi callback thread and processed in main loop
-  s_event_queue = xQueueCreate(16, sizeof(LTWiFiEvent *));
+  s_event_queue = xQueueCreate(EVENT_QUEUE_SIZE, sizeof(LTWiFiEvent *));
   if (s_event_queue == nullptr) {
     ESP_LOGE(TAG, "Failed to create event queue");
     return;
