@@ -51,9 +51,9 @@ void STCC4Component::set_pressure_compensation_(float pressure_hpa) {
 
   // Clamp to valid range: 40000 - 110000 Pa
   if (pressure_pa < 40000)
-    pressure_pa = 40000;
+    pressure_pa = (uint16_t) 40000;
   if (pressure_pa > 110000)
-    pressure_pa = 110000;
+    pressure_pa = (uint16_t) 110000;
 
   write_command((uint16_t) SensorCommand::SET_PRESSURE_COMPENSATION, pressure_pa);
   delay_microseconds_safe(1000 * 2);
