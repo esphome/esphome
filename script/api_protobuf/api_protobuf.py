@@ -362,12 +362,12 @@ def create_field_type_info(
             # Traditional fixed array approach with copy (takes priority)
             return FixedArrayBytesType(field, fixed_size)
 
-        # For SOURCE_CLIENT only messages (decode but no encode), use pointer
+        # For messages that decode (SOURCE_CLIENT or SOURCE_BOTH), use pointer
         # for zero-copy access to the receive buffer
-        if needs_decode and not needs_encode:
+        if needs_decode:
             return PointerToBytesBufferType(field, None)
 
-        # For SOURCE_BOTH/SOURCE_SERVER, explicit annotation is still needed
+        # For SOURCE_SERVER (encode only), explicit annotation is still needed
         if get_field_opt(field, pb.pointer_to_buffer, False):
             return PointerToBytesBufferType(field, None)
 
