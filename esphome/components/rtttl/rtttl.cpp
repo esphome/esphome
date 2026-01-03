@@ -59,7 +59,7 @@ static const LogString *state_to_string(State state) {
 };
 #endif
 
-static uint8_t note_from_char(char note) {
+static uint8_t note_index_from_char(char note) {
   switch (note) {
     case 'c':
       return 1;
@@ -78,8 +78,9 @@ static uint8_t note_from_char(char note) {
     case 'a':
       return 10;
     // 'a#': 11
-    case 'h':
+    // Support both 'b' (English notation for B natural) and 'h' (German notation for B natural)
     case 'b':
+    case 'h':
       return 12;
     case 'p':
     default:
@@ -172,21 +173,21 @@ void Rtttl::loop() {
   }
 
   // first, get note duration, if available
-  uint8_t note_dominator = this->get_integer_();
+  uint8_t note_denominator = this->get_integer_();
 
-  if (note_dominator) {
-    this->note_duration_ = this->wholenote_duration_ / note_dominator;
+  if (note_denominator) {
+    this->note_duration_ = this->wholenote_duration_ / note_denominator;
   } else {
     // we will need to check if we are a dotted note after
-    this->note_duration_ = this->wholenote_duration_ / this->default_note_dominator_;
+    this->note_duration_ = this->wholenote_duration_ / this->default_note_denominator_;
   }
 
-  uint8_t note_in_octave = note_from_char(this->rtttl_[this->position_]);
+  uint8_t note_index_in_octave = note_index_from_char(this->rtttl_[this->position_]);
   this->position_++;
 
   // now, get optional '#' sharp
   if (this->rtttl_[this->position_] == '#') {
-    note_in_octave++;
+    note_index_in_octave++;
     this->position_++;
   }
 
@@ -211,11 +212,11 @@ void Rtttl::loop() {
   bool need_note_gap = false;
 
   // Now play the note
-  if (note_in_octave == 0) {
+  if (note_index_in_octave == 0) {
     this->output_freq_ = 0;
     ESP_LOGVV(TAG, "waiting: %dms", this->note_duration_);
   } else {
-    uint8_t note_index = (scale - MIN_OCTAVE) * SEMITONES_IN_OCTAVE + note_in_octave;
+    uint8_t note_index = (scale - MIN_OCTAVE) * SEMITONES_IN_OCTAVE + note_index_in_octave;
     // Should not be possible to be out of bounds
     uint16_t freq = NOTES[note_index];
     need_note_gap = freq == this->output_freq_;
@@ -223,7 +224,7 @@ void Rtttl::loop() {
     // Add small silence gap between same note
     this->output_freq_ = freq;
 
-    ESP_LOGVV(TAG, "playing note: %d for %dms", note_in_octave, this->note_duration_);
+    ESP_LOGVV(TAG, "playing note: %d for %dms", note_index_in_octave, this->note_duration_);
   }
 
 #ifdef USE_OUTPUT
@@ -279,12 +280,12 @@ void Rtttl::play(std::string rtttl) {
 
   this->rtttl_ = std::move(rtttl);
 
-  this->default_note_dominator_ = DEFAULT_NOTE_DOMINATOR;
+  this->default_note_denominator_ = DEFAULT_NOTE_DENOMINATOR;
   this->default_octave_ = DEFAULT_OCTAVE;
   this->note_duration_ = 0;
 
   uint8_t bpm = DEFAULT_BPM;
-  uint8_t num;  // used for: default note-dominator, default octave, BPM
+  uint8_t num;  // used for: default note-denominator, default octave, BPM
 
   // Get name
   this->position_ = this->rtttl_.find(':');
@@ -311,7 +312,7 @@ void Rtttl::play(std::string rtttl) {
   this->position_ += 2;
   num = this->get_integer_();
   if (num == 1 || num == 2 || num == 4 || num == 8 || num == 16 || num == 32) {
-    this->default_note_dominator_ = num;
+    this->default_note_denominator_ = num;
   } else {
     ESP_LOGE(TAG, "Invalid default duration: %d", num);
     return;

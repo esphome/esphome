@@ -13,8 +13,8 @@
 
 namespace esphome::rtttl {
 
-static const uint8_t DEFAULT_NOTE_DOMINATOR = 4;  // Default note-dominator (quarter note)
-static const uint8_t DEFAULT_OCTAVE = 6;          // Default octave for a note (see: MIN_OCTAVE, MAX_OCTAVE)
+static const uint8_t DEFAULT_NOTE_DENOMINATOR = 4;  // Default note-denominator (quarter note)
+static const uint8_t DEFAULT_OCTAVE = 6;            // Default octave for a note (see: MIN_OCTAVE, MAX_OCTAVE)
 
 enum class State : uint8_t {
   STOPPED = 0,
@@ -69,7 +69,7 @@ class Rtttl : public Component {
   /// The current position in the RTTTL string.
   size_t position_{0};
   /// The duration of a whole note in milliseconds.
-  uint8_t default_note_dominator_{DEFAULT_NOTE_DOMINATOR};
+  uint8_t default_note_denominator_{DEFAULT_NOTE_DENOMINATOR};
   /// The default octave for a note.
   uint8_t default_octave_{DEFAULT_OCTAVE};
   /// The duration of the current note in milliseconds.
