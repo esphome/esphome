@@ -5,8 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace pmsx003 {
+namespace esphome::pmsx003 {
 
 enum PMSX0003Command : uint8_t {
   PMS_CMD_MEASUREMENT_MODE =
@@ -118,5 +117,4 @@ class PMSX003Component : public uart::UARTDevice, public Component {
   sensor::Sensor *humidity_sensor_{nullptr};
 };
 
-}  // namespace pmsx003
-}  // namespace esphome
+}  // namespace esphome::pmsx003
