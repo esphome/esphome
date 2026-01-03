@@ -678,7 +678,7 @@ void APIServer::unregister_active_action_calls_for_connection(APIConnection *con
   }
 }
 
-void APIServer::send_action_response(uint32_t action_call_id, bool success, const std::string &error_message) {
+void APIServer::send_action_response(uint32_t action_call_id, bool success, StringRef error_message) {
   for (auto &call : this->active_action_calls_) {
     if (call.action_call_id == action_call_id) {
       call.connection->send_execute_service_response(call.client_call_id, success, error_message);
@@ -688,7 +688,7 @@ void APIServer::send_action_response(uint32_t action_call_id, bool success, cons
   ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %u", action_call_id);
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-void APIServer::send_action_response(uint32_t action_call_id, bool success, const std::string &error_message,
+void APIServer::send_action_response(uint32_t action_call_id, bool success, StringRef error_message,
                                      const uint8_t *response_data, size_t response_data_len) {
   for (auto &call : this->active_action_calls_) {
     if (call.action_call_id == action_call_id) {
