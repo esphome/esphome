@@ -343,57 +343,58 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
     return;
   }
 
-  LTWiFiEvent evt{};
-  evt.event_id = event;
+  // Allocate on heap and fill directly to avoid extra memcpy
+  auto *to_send = new LTWiFiEvent{};  // NOLINT(cppcoreguidelines-owning-memory)
+  to_send->event_id = event;
 
   // Copy event-specific data
   switch (event) {
     case ESPHOME_EVENT_ID_WIFI_STA_CONNECTED: {
       auto &it = info.wifi_sta_connected;
-      evt.data.sta_connected.ssid_len = it.ssid_len;
-      memcpy(evt.data.sta_connected.ssid, it.ssid,
-             std::min(static_cast<size_t>(it.ssid_len), sizeof(evt.data.sta_connected.ssid) - 1));
-      memcpy(evt.data.sta_connected.bssid, it.bssid, 6);
-      evt.data.sta_connected.channel = it.channel;
-      evt.data.sta_connected.authmode = it.authmode;
+      to_send->data.sta_connected.ssid_len = it.ssid_len;
+      memcpy(to_send->data.sta_connected.ssid, it.ssid,
+             std::min(static_cast<size_t>(it.ssid_len), sizeof(to_send->data.sta_connected.ssid) - 1));
+      memcpy(to_send->data.sta_connected.bssid, it.bssid, 6);
+      to_send->data.sta_connected.channel = it.channel;
+      to_send->data.sta_connected.authmode = it.authmode;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_DISCONNECTED: {
       auto &it = info.wifi_sta_disconnected;
-      evt.data.sta_disconnected.ssid_len = it.ssid_len;
-      memcpy(evt.data.sta_disconnected.ssid, it.ssid,
-             std::min(static_cast<size_t>(it.ssid_len), sizeof(evt.data.sta_disconnected.ssid) - 1));
-      memcpy(evt.data.sta_disconnected.bssid, it.bssid, 6);
-      evt.data.sta_disconnected.reason = it.reason;
+      to_send->data.sta_disconnected.ssid_len = it.ssid_len;
+      memcpy(to_send->data.sta_disconnected.ssid, it.ssid,
+             std::min(static_cast<size_t>(it.ssid_len), sizeof(to_send->data.sta_disconnected.ssid) - 1));
+      memcpy(to_send->data.sta_disconnected.bssid, it.bssid, 6);
+      to_send->data.sta_disconnected.reason = it.reason;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_AUTHMODE_CHANGE: {
       auto &it = info.wifi_sta_authmode_change;
-      evt.data.sta_authmode_change.old_mode = it.old_mode;
-      evt.data.sta_authmode_change.new_mode = it.new_mode;
+      to_send->data.sta_authmode_change.old_mode = it.old_mode;
+      to_send->data.sta_authmode_change.new_mode = it.new_mode;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_SCAN_DONE: {
       auto &it = info.wifi_scan_done;
-      evt.data.scan_done.status = it.status;
-      evt.data.scan_done.number = it.number;
-      evt.data.scan_done.scan_id = it.scan_id;
+      to_send->data.scan_done.status = it.status;
+      to_send->data.scan_done.number = it.number;
+      to_send->data.scan_done.scan_id = it.scan_id;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_PROBEREQRECVED: {
       auto &it = info.wifi_ap_probereqrecved;
-      memcpy(evt.data.ap_probe_req.mac, it.mac, 6);
-      evt.data.ap_probe_req.rssi = it.rssi;
+      memcpy(to_send->data.ap_probe_req.mac, it.mac, 6);
+      to_send->data.ap_probe_req.rssi = it.rssi;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STACONNECTED: {
       auto &it = info.wifi_sta_connected;
-      memcpy(evt.data.sta_connected.bssid, it.bssid, 6);
+      memcpy(to_send->data.sta_connected.bssid, it.bssid, 6);
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STADISCONNECTED: {
       auto &it = info.wifi_sta_disconnected;
-      memcpy(evt.data.sta_disconnected.bssid, it.bssid, 6);
+      memcpy(to_send->data.sta_disconnected.bssid, it.bssid, 6);
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_READY:
@@ -409,12 +410,11 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       break;
     default:
       // Unknown event, don't queue
+      delete to_send;  // NOLINT(cppcoreguidelines-owning-memory)
       return;
   }
 
-  // Copy to heap and queue (don't block if queue is full)
-  auto *to_send = new LTWiFiEvent;  // NOLINT(cppcoreguidelines-owning-memory)
-  memcpy(to_send, &evt, sizeof(LTWiFiEvent));
+  // Queue event (don't block if queue is full)
   if (xQueueSend(s_event_queue, &to_send, 0) != pdPASS) {
     delete to_send;  // NOLINT(cppcoreguidelines-owning-memory)
     s_event_queue_overflow_count++;
