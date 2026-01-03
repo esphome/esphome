@@ -529,6 +529,20 @@ constexpr char to_sanitized_char(char c) {
 /// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
 std::string str_sanitize(const std::string &str);
 
+/// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
+/// This computes object_id hashes directly from names without creating an intermediate buffer.
+/// IMPORTANT: Must match Python fnv1_hash_object_id() in esphome/helpers.py.
+/// If you modify this function, update the Python version and tests in both places.
+inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
+  uint32_t hash = FNV1_OFFSET_BASIS;
+  for (size_t i = 0; i < len; i++) {
+    hash *= FNV1_PRIME;
+    // Apply snake_case (space->underscore, uppercase->lowercase) then sanitize
+    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(str[i])));
+  }
+  return hash;
+}
+
 /// snprintf-like function returning std::string of maximum length \p len (excluding null terminator).
 std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t len, ...);
 
@@ -727,6 +741,9 @@ inline char *format_hex_to(char (&buffer)[N], T val) {
   val = convert_big_endian(val);
   return format_hex_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
 }
+
+/// Calculate buffer size needed for format_hex_to: "XXXXXXXX...\0" = bytes * 2 + 1
+constexpr size_t format_hex_size(size_t byte_count) { return byte_count * 2 + 1; }
 
 /// Calculate buffer size needed for format_hex_pretty_to with separator: "XX:XX:...:XX\0"
 constexpr size_t format_hex_pretty_size(size_t byte_count) { return byte_count * 3; }

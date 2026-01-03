@@ -16,7 +16,7 @@ from esphome.const import (
     CONF_SAFE_MODE,
     CONF_VERSION,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import coroutine_with_priority
 from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -28,17 +28,7 @@ CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
 
 
-def supports_sha256() -> bool:
-    """Check if the current platform supports SHA256 for OTA authentication."""
-    return bool(CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2040 or CORE.is_libretiny)
-
-
-def AUTO_LOAD() -> list[str]:
-    """Conditionally auto-load sha256 only on platforms that support it."""
-    base_components = ["md5", "socket"]
-    if supports_sha256():
-        return base_components + ["sha256"]
-    return base_components
+AUTO_LOAD = ["sha256", "socket"]
 
 
 esphome = cg.esphome_ns.namespace("esphome")
@@ -155,11 +145,6 @@ async def to_code(config: ConfigType) -> None:
     if config.get(CONF_PASSWORD):
         cg.add(var.set_auth_password(config[CONF_PASSWORD]))
         cg.add_define("USE_OTA_PASSWORD")
-        # Only include hash algorithms when password is configured
-        cg.add_define("USE_OTA_MD5")
-        # Only include SHA256 support on platforms that have it
-        if supports_sha256():
-            cg.add_define("USE_OTA_SHA256")
     cg.add_define("USE_OTA_VERSION", config[CONF_VERSION])
 
     await cg.register_component(var, config)

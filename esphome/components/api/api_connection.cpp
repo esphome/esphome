@@ -473,7 +473,7 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
   if (msg.has_direction)
     call.set_direction(static_cast<fan::FanDirection>(msg.direction));
   if (msg.has_preset_mode)
-    call.set_preset_mode(reinterpret_cast<const char *>(msg.preset_mode), msg.preset_mode_len);
+    call.set_preset_mode(msg.preset_mode.c_str(), msg.preset_mode.size());
   call.perform();
 }
 #endif
@@ -559,7 +559,7 @@ void APIConnection::light_command(const LightCommandRequest &msg) {
   if (msg.has_flash_length)
     call.set_flash_length(msg.flash_length);
   if (msg.has_effect)
-    call.set_effect(reinterpret_cast<const char *>(msg.effect), msg.effect_len);
+    call.set_effect(msg.effect.c_str(), msg.effect.size());
   call.perform();
 }
 #endif
@@ -738,11 +738,11 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
   if (msg.has_fan_mode)
     call.set_fan_mode(static_cast<climate::ClimateFanMode>(msg.fan_mode));
   if (msg.has_custom_fan_mode)
-    call.set_fan_mode(reinterpret_cast<const char *>(msg.custom_fan_mode), msg.custom_fan_mode_len);
+    call.set_fan_mode(msg.custom_fan_mode.c_str(), msg.custom_fan_mode.size());
   if (msg.has_preset)
     call.set_preset(static_cast<climate::ClimatePreset>(msg.preset));
   if (msg.has_custom_preset)
-    call.set_preset(reinterpret_cast<const char *>(msg.custom_preset), msg.custom_preset_len);
+    call.set_preset(msg.custom_preset.c_str(), msg.custom_preset.size());
   if (msg.has_swing_mode)
     call.set_swing_mode(static_cast<climate::ClimateSwingMode>(msg.swing_mode));
   call.perform();
@@ -931,7 +931,7 @@ uint16_t APIConnection::try_send_select_info(EntityBase *entity, APIConnection *
 }
 void APIConnection::select_command(const SelectCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(select::Select, select, select)
-  call.set_option(reinterpret_cast<const char *>(msg.state), msg.state_len);
+  call.set_option(msg.state.c_str(), msg.state.size());
   call.perform();
 }
 #endif
@@ -1153,9 +1153,8 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #ifdef USE_TIME_TIMEZONE
-    if (value.timezone_len > 0) {
-      homeassistant::global_homeassistant_time->set_timezone(reinterpret_cast<const char *>(value.timezone),
-                                                             value.timezone_len);
+    if (!value.timezone.empty()) {
+      homeassistant::global_homeassistant_time->set_timezone(value.timezone.c_str(), value.timezone.size());
     }
 #endif
   }
@@ -1522,7 +1521,7 @@ void APIConnection::complete_authentication_() {
 }
 
 bool APIConnection::send_hello_response(const HelloRequest &msg) {
-  this->client_info_.name.assign(reinterpret_cast<const char *>(msg.client_info), msg.client_info_len);
+  this->client_info_.name.assign(msg.client_info.c_str(), msg.client_info.size());
   this->client_info_.peername = this->helper_->getpeername();
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
@@ -1531,32 +1530,16 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 13;
+  resp.api_version_minor = 14;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.set_server_info(ESPHOME_VERSION_REF);
   resp.set_name(StringRef(App.get_name()));
 
-#ifdef USE_API_PASSWORD
-  // Password required - wait for authentication
-  this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::CONNECTED);
-#else
-  // No password configured - auto-authenticate
+  // Auto-authenticate - password auth was removed in ESPHome 2026.1.0
   this->complete_authentication_();
-#endif
 
   return this->send_message(resp, HelloResponse::MESSAGE_TYPE);
 }
-#ifdef USE_API_PASSWORD
-bool APIConnection::send_authenticate_response(const AuthenticationRequest &msg) {
-  AuthenticationResponse resp;
-  // bool invalid_password = 1;
-  resp.invalid_password = !this->parent_->check_password(msg.password, msg.password_len);
-  if (!resp.invalid_password) {
-    this->complete_authentication_();
-  }
-  return this->send_message(resp, AuthenticationResponse::MESSAGE_TYPE);
-}
-#endif  // USE_API_PASSWORD
 
 bool APIConnection::send_ping_response(const PingRequest &msg) {
   PingResponse resp;
@@ -1565,9 +1548,6 @@ bool APIConnection::send_ping_response(const PingRequest &msg) {
 
 bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   DeviceInfoResponse resp{};
-#ifdef USE_API_PASSWORD
-  resp.uses_password = true;
-#endif
   resp.set_name(StringRef(App.get_name()));
   resp.set_friendly_name(StringRef(App.get_friendly_name()));
 #ifdef USE_AREAS
@@ -1693,27 +1673,28 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
   // Skip if entity_id is empty (invalid message)
-  if (msg.entity_id_len == 0) {
+  if (msg.entity_id.empty()) {
     return;
   }
 
   for (auto &it : this->parent_->get_state_subs()) {
     // Compare entity_id: check length matches and content matches
     size_t entity_id_len = strlen(it.entity_id);
-    if (entity_id_len != msg.entity_id_len || memcmp(it.entity_id, msg.entity_id, msg.entity_id_len) != 0) {
+    if (entity_id_len != msg.entity_id.size() ||
+        memcmp(it.entity_id, msg.entity_id.c_str(), msg.entity_id.size()) != 0) {
       continue;
     }
 
     // Compare attribute: either both have matching attribute, or both have none
     size_t sub_attr_len = it.attribute != nullptr ? strlen(it.attribute) : 0;
-    if (sub_attr_len != msg.attribute_len ||
-        (sub_attr_len > 0 && memcmp(it.attribute, msg.attribute, sub_attr_len) != 0)) {
+    if (sub_attr_len != msg.attribute.size() ||
+        (sub_attr_len > 0 && memcmp(it.attribute, msg.attribute.c_str(), sub_attr_len) != 0)) {
       continue;
     }
 
     // Create temporary string for callback (callback takes const std::string &)
-    // Handle empty state (nullptr with len=0)
-    std::string state(msg.state_len > 0 ? reinterpret_cast<const char *>(msg.state) : "", msg.state_len);
+    // Handle empty state
+    std::string state(!msg.state.empty() ? msg.state.c_str() : "", msg.state.size());
     it.callback(state);
   }
 }
@@ -1749,20 +1730,20 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   // the action list. This ensures async actions (delays, waits) complete first.
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-void APIConnection::send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message) {
+void APIConnection::send_execute_service_response(uint32_t call_id, bool success, StringRef error_message) {
   ExecuteServiceResponse resp;
   resp.call_id = call_id;
   resp.success = success;
-  resp.set_error_message(StringRef(error_message));
+  resp.set_error_message(error_message);
   this->send_message(resp, ExecuteServiceResponse::MESSAGE_TYPE);
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-void APIConnection::send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message,
+void APIConnection::send_execute_service_response(uint32_t call_id, bool success, StringRef error_message,
                                                   const uint8_t *response_data, size_t response_data_len) {
   ExecuteServiceResponse resp;
   resp.call_id = call_id;
   resp.success = success;
-  resp.set_error_message(StringRef(error_message));
+  resp.set_error_message(error_message);
   resp.response_data = response_data;
   resp.response_data_len = response_data_len;
   this->send_message(resp, ExecuteServiceResponse::MESSAGE_TYPE);
@@ -1845,12 +1826,6 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   // Do not set last_traffic_ on send
   return true;
 }
-#ifdef USE_API_PASSWORD
-void APIConnection::on_unauthenticated_access() {
-  this->on_fatal_error();
-  ESP_LOGD(TAG, "%s (%s) no authentication", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
-}
-#endif
 void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
   ESP_LOGD(TAG, "%s (%s) no connection setup", this->client_info_.name.c_str(), this->client_info_.peername.c_str());

@@ -37,6 +37,9 @@ namespace esphome::esp32_ble_tracker {
 
 static const char *const TAG = "esp32_ble_tracker";
 
+// BLE advertisement max: 31 bytes adv data + 31 bytes scan response
+static constexpr size_t BLE_ADV_MAX_LOG_BYTES = 62;
+
 ESP32BLETracker *global_esp32_ble_tracker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 const char *client_state_to_string(ClientState state) {
@@ -445,6 +448,7 @@ void ESPBTDevice::parse_scan_rst(const BLEScanResult &scan_result) {
     uuid.to_str(uuid_buf);
     ESP_LOGVV(TAG, "  Service UUID: %s", uuid_buf);
   }
+  char hex_buf[format_hex_pretty_size(BLE_ADV_MAX_LOG_BYTES)];
   for (auto &data : this->manufacturer_datas_) {
     auto ibeacon = ESPBLEiBeacon::from_manufacturer_data(data);
     if (ibeacon.has_value()) {
@@ -458,7 +462,8 @@ void ESPBTDevice::parse_scan_rst(const BLEScanResult &scan_result) {
     } else {
       char uuid_buf[esp32_ble::UUID_STR_LEN];
       data.uuid.to_str(uuid_buf);
-      ESP_LOGVV(TAG, "  Manufacturer ID: %s, data: %s", uuid_buf, format_hex_pretty(data.data).c_str());
+      ESP_LOGVV(TAG, "  Manufacturer ID: %s, data: %s", uuid_buf,
+                format_hex_pretty_to(hex_buf, data.data.data(), data.data.size()));
     }
   }
   for (auto &data : this->service_datas_) {
@@ -466,11 +471,11 @@ void ESPBTDevice::parse_scan_rst(const BLEScanResult &scan_result) {
     char uuid_buf[esp32_ble::UUID_STR_LEN];
     data.uuid.to_str(uuid_buf);
     ESP_LOGVV(TAG, "    UUID: %s", uuid_buf);
-    ESP_LOGVV(TAG, "    Data: %s", format_hex_pretty(data.data).c_str());
+    ESP_LOGVV(TAG, "    Data: %s", format_hex_pretty_to(hex_buf, data.data.data(), data.data.size()));
   }
 
   ESP_LOGVV(TAG, "  Adv data: %s",
-            format_hex_pretty(scan_result.ble_adv, scan_result.adv_data_len + scan_result.scan_rsp_len).c_str());
+            format_hex_pretty_to(hex_buf, scan_result.ble_adv, scan_result.adv_data_len + scan_result.scan_rsp_len));
 #endif
 }
 
