@@ -2001,7 +2001,7 @@ void WiFiComponent::process_roaming_scan_() {
 
   // Find best candidate: same SSID, different BSSID
   const WiFiScanResult *best = nullptr;
-  char bssid_buf[18];
+  char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
 
   for (const auto &result : this->scan_result_) {
     // Must be same SSID as current connection
