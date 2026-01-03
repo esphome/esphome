@@ -1,0 +1,27 @@
+esphome:
+  name: test-device
+  # friendly_name set but NO MAC suffix
+  # Empty-name entity should use friendly_name for object_id
+  friendly_name: My Friendly Device
+
+host:
+
+api:
+
+logger:
+
+sensor:
+  # Empty name entity - should use friendly_name for object_id
+  # friendly_name = "My Friendly Device" -> object_id = "my_friendly_device"
+  - platform: template
+    name: ""
+    id: sensor_empty_name
+    lambda: return 42.0;
+    update_interval: 60s
+
+  # Named entity for comparison
+  - platform: template
+    name: "Temperature"
+    id: sensor_named
+    lambda: return 43.0;
+    update_interval: 60s
