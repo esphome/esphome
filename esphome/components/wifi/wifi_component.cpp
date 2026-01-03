@@ -576,7 +576,7 @@ void WiFiComponent::loop() {
 
           // Post-connect roaming: check for better AP
           if (this->roaming_scan_active_) {
-            this->process_roaming_scan_(now);
+            this->process_roaming_scan_();
           } else if (this->post_connect_roaming_ && this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
                      now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL) {
             this->check_roaming_(now);
@@ -1984,7 +1984,7 @@ void WiFiComponent::check_roaming_(uint32_t now) {
   this->wifi_scan_start_(this->passive_scan_);
 }
 
-void WiFiComponent::process_roaming_scan_(uint32_t now) {
+void WiFiComponent::process_roaming_scan_() {
   // Scan not done yet
   if (!this->scan_done_)
     return;

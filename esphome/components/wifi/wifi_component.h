@@ -572,7 +572,7 @@ class WiFiComponent : public Component {
 
   // Post-connect roaming methods
   void check_roaming_(uint32_t now);
-  void process_roaming_scan_(uint32_t now);
+  void process_roaming_scan_();
   void clear_roaming_state_();
 
   /// Free scan results memory unless a component needs them
