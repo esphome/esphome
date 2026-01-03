@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace pmsx003 {
+namespace esphome::pmsx003 {
 
 static const char *const TAG = "pmsx003";
 
@@ -341,5 +340,4 @@ void PMSX003Component::parse_data_() {
   this->status_clear_warning();
 }
 
-}  // namespace pmsx003
-}  // namespace esphome
+}  // namespace esphome::pmsx003

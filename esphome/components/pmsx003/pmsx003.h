@@ -6,8 +6,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/aqi/aqi_calculator_factory.h"
 
-namespace esphome {
-namespace pmsx003 {
+namespace esphome::pmsx003 {
 
 enum class Type : uint8_t {
   PMS1003 = 0,
@@ -131,5 +130,4 @@ class PMSX003Component : public uart::UARTDevice, public Component {
   aqi::AQICalculatorFactory aqi_calculator_factory_ = aqi::AQICalculatorFactory();
 };
 
-}  // namespace pmsx003
-}  // namespace esphome
+}  // namespace esphome::pmsx003
