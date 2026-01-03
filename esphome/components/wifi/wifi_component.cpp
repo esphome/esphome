@@ -159,7 +159,7 @@ static const char *const TAG = "wifi";
 /// │           ↓                                                          │
 /// │    attempts++, update last_check                                     │
 /// │           ↓                                                          │
-/// │    RSSI > -55 dBm? ────Yes────→ Skip scan (signal good)──────┐       │
+/// │    RSSI > -49 dBm? ────Yes────→ Skip scan (excellent signal)─┐       │
 /// │           ↓ No                                               │       │
 /// │  ┌─────────────────┐                                         │       │
 /// │  │ Start scan      │                                         │       │
