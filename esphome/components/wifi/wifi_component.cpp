@@ -2020,9 +2020,7 @@ void WiFiComponent::process_roaming_scan_() {
   this->roaming_scan_active_ = false;
 
   // Get current connection info
-  bssid_t current_bssid = this->wifi_bssid();
   int8_t current_rssi = this->wifi_rssi();
-
   // Guard: must still be connected (RSSI may have become invalid during scan)
   if (current_rssi == WIFI_RSSI_DISCONNECTED) {
     this->release_scan_results_();
@@ -2031,6 +2029,7 @@ void WiFiComponent::process_roaming_scan_() {
 
   char ssid_buf[SSID_BUFFER_SIZE];
   StringRef current_ssid(this->wifi_ssid_to(ssid_buf));
+  bssid_t current_bssid = this->wifi_bssid();
 
   // Find best candidate: same SSID, different BSSID
   const WiFiScanResult *best = nullptr;
