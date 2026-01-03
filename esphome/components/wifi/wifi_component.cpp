@@ -1277,9 +1277,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->roaming_connect_active_ = false;
 
     // Clear all priority penalties - successful connection forgives past failures
-    if (!this->sta_priorities_.empty()) {
-      decltype(this->sta_priorities_)().swap(this->sta_priorities_);
-    }
+    this->clear_all_bssid_priorities_();
 
 #ifdef USE_WIFI_FAST_CONNECT
     this->save_fast_connect_settings_();
@@ -1557,7 +1555,7 @@ void WiFiComponent::clear_priorities_if_all_min_() {
 
   // All priorities are at minimum - clear the vector to save memory and reset
   ESP_LOGD(TAG, "Clearing BSSID priorities (all at minimum)");
-  decltype(this->sta_priorities_)().swap(this->sta_priorities_);
+  this->clear_all_bssid_priorities_();
 }
 
 /// Log failed connection attempt and decrease BSSID priority to avoid repeated failures
@@ -2004,12 +2002,14 @@ void WiFiComponent::process_roaming_scan_(uint32_t now) {
   // Get current connection info
   bssid_t current_bssid = this->wifi_bssid();
   int8_t current_rssi = this->wifi_rssi();
-  std::string current_ssid = this->wifi_ssid();
+  char ssid_buf[SSID_BUFFER_SIZE];
+  const char *current_ssid = this->wifi_ssid_to(ssid_buf);
 
   // Find best candidate: same SSID, different BSSID
   bssid_t best_bssid{};
   uint8_t best_channel = 0;
   int8_t best_rssi = WIFI_RSSI_DISCONNECTED;
+  char bssid_buf[18];
 
   for (const auto &result : this->scan_result_) {
     // Must be same SSID as current connection
@@ -2021,11 +2021,8 @@ void WiFiComponent::process_roaming_scan_(uint32_t now) {
       continue;
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    {
-      char bssid_buf[18];
-      format_mac_addr_upper(result.get_bssid().data(), bssid_buf);
-      ESP_LOGV(TAG, "Roaming: candidate %s RSSI %d dBm", bssid_buf, result.get_rssi());
-    }
+    format_mac_addr_upper(result.get_bssid().data(), bssid_buf);
+    ESP_LOGV(TAG, "Roaming: candidate %s RSSI %d dBm", bssid_buf, result.get_rssi());
 #endif
 
     // Track the best candidate
@@ -2050,9 +2047,8 @@ void WiFiComponent::process_roaming_scan_(uint32_t now) {
   if (selected == nullptr)
     return;  // Defensive: shouldn't happen since clear_sta() clears roaming_scan_active_
 
-  char bssid_s[18];
-  format_mac_addr_upper(best_bssid.data(), bssid_s);
-  ESP_LOGI(TAG, "Roaming to %s (%+d dB)", bssid_s, improvement);
+  format_mac_addr_upper(best_bssid.data(), bssid_buf);
+  ESP_LOGI(TAG, "Roaming to %s (%+d dB)", bssid_buf, improvement);
 
   WiFiAP roam_params = *selected;
   roam_params.set_bssid(best_bssid);
