@@ -1530,7 +1530,7 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 13;
+  resp.api_version_minor = 14;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.set_server_info(ESPHOME_VERSION_REF);
   resp.set_name(StringRef(App.get_name()));
