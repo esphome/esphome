@@ -1524,7 +1524,7 @@ void APIConnection::complete_authentication_() {
 
 bool APIConnection::send_hello_response(const HelloRequest &msg) {
   // Copy client name with truncation if needed (set_client_name handles truncation)
-  this->helper_->set_client_name(reinterpret_cast<const char *>(msg.client_info), msg.client_info_len);
+  this->helper_->set_client_name(msg.client_info.data(), msg.client_info.size());
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
   char peername[socket::PEERNAME_MAX_LEN];
