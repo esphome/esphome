@@ -1968,11 +1968,6 @@ void WiFiComponent::check_roaming_(uint32_t now) {
   if (!this->post_connect_roaming_)
     return;
 
-  // Guard: not for hidden networks (may not appear in scan)
-  const WiFiAP *selected = this->get_selected_sta_();
-  if (selected == nullptr || selected->get_hidden())
-    return;
-
   // Guard: attempt limit
   if (this->roaming_attempts_ >= ROAMING_MAX_ATTEMPTS)
     return;
@@ -1988,6 +1983,11 @@ void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: must have valid RSSI reading
   int8_t current_rssi = this->wifi_rssi();
   if (current_rssi == WIFI_RSSI_DISCONNECTED)
+    return;
+
+  // Guard: not for hidden networks (may not appear in scan)
+  const WiFiAP *selected = this->get_selected_sta_();
+  if (selected == nullptr || selected->get_hidden())
     return;
 
   this->roaming_last_check_ = now;
