@@ -747,7 +747,10 @@ void HelloResponse::dump_to(std::string &out) const {
   dump_field(out, "name", this->name);
 }
 #ifdef USE_API_PASSWORD
-void AuthenticationRequest::dump_to(std::string &out) const { dump_field(out, "password", this->password); }
+void AuthenticationRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "AuthenticationRequest");
+  dump_field(out, "password", this->password);
+}
 void AuthenticationResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "AuthenticationResponse");
   dump_field(out, "invalid_password", this->invalid_password);
@@ -1148,7 +1151,10 @@ void NoiseEncryptionSetKeyRequest::dump_to(std::string &out) const {
   out.append(format_hex_pretty(this->key, this->key_len));
   out.append("\n");
 }
-void NoiseEncryptionSetKeyResponse::dump_to(std::string &out) const { dump_field(out, "success", this->success); }
+void NoiseEncryptionSetKeyResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "NoiseEncryptionSetKeyResponse");
+  dump_field(out, "success", this->success);
+}
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 void SubscribeHomeassistantServicesRequest::dump_to(std::string &out) const {
@@ -1738,7 +1744,10 @@ void BluetoothDeviceConnectionResponse::dump_to(std::string &out) const {
   dump_field(out, "mtu", this->mtu);
   dump_field(out, "error", this->error);
 }
-void BluetoothGATTGetServicesRequest::dump_to(std::string &out) const { dump_field(out, "address", this->address); }
+void BluetoothGATTGetServicesRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "BluetoothGATTGetServicesRequest");
+  dump_field(out, "address", this->address);
+}
 void BluetoothGATTDescriptor::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTDescriptor");
   for (const auto &it : this->uuid) {
@@ -1959,7 +1968,10 @@ void VoiceAssistantAnnounceRequest::dump_to(std::string &out) const {
   dump_field(out, "preannounce_media_id", this->preannounce_media_id);
   dump_field(out, "start_conversation", this->start_conversation);
 }
-void VoiceAssistantAnnounceFinished::dump_to(std::string &out) const { dump_field(out, "success", this->success); }
+void VoiceAssistantAnnounceFinished::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "VoiceAssistantAnnounceFinished");
+  dump_field(out, "success", this->success);
+}
 void VoiceAssistantWakeWord::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantWakeWord");
   dump_field(out, "id", this->id);

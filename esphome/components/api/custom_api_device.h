@@ -220,7 +220,7 @@ class CustomAPIDevice {
     for (auto &it : data) {
       auto &kv = resp.data.emplace_back();
       kv.key = StringRef(it.first);
-      kv.value = StringRef(it.second);
+      kv.value = it.second;  // value is std::string (no_zero_copy), assign directly
     }
     global_api_server->send_homeassistant_action(resp);
   }
@@ -263,7 +263,7 @@ class CustomAPIDevice {
     for (auto &it : data) {
       auto &kv = resp.data.emplace_back();
       kv.key = StringRef(it.first);
-      kv.value = StringRef(it.second);
+      kv.value = it.second;  // value is std::string (no_zero_copy), assign directly
     }
     global_api_server->send_homeassistant_action(resp);
   }

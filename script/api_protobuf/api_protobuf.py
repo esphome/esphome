@@ -2151,12 +2151,10 @@ def build_message_type(
     # dump_to implementation will go in dump_cpp
     dump_impl = f"void {desc.name}::dump_to(std::string &out) const {{"
     if dump:
-        if len(dump) == 1 and len(dump[0]) + len(dump_impl) + 3 < 120:
-            dump_impl += f" {dump[0]} "
-        else:
-            dump_impl += "\n"
-            dump_impl += f'  MessageDumpHelper helper(out, "{desc.name}");\n'
-            dump_impl += indent("\n".join(dump)) + "\n"
+        # Always use MessageDumpHelper for consistent output formatting
+        dump_impl += "\n"
+        dump_impl += f'  MessageDumpHelper helper(out, "{desc.name}");\n'
+        dump_impl += indent("\n".join(dump)) + "\n"
     else:
         o2 = f'out.append("{desc.name} {{}}");'
         if len(dump_impl) + len(o2) + 3 < 120:
