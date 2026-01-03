@@ -399,7 +399,7 @@ async def to_code(config):
     if config.get(CONF_EARLY_MESSAGE):
         cg.add_define("USE_LOGGER_EARLY_MESSAGE")
 
-    if CORE.using_zephyr:
+    if CORE.is_nrf52:
         if config[CONF_HARDWARE_UART] == UART0:
             zephyr_add_overlay("""&uart0 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == UART1:

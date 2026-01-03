@@ -1049,15 +1049,27 @@ template<typename VectorType> static void insertion_sort_scan_results(VectorType
 }
 
 // Helper function to log matching scan results - marked noinline to prevent re-inlining into loop
+//
+// IMPORTANT: This function deliberately uses a SINGLE log call to minimize blocking.
+// In environments with many matching networks (e.g., 18+ mesh APs), multiple log calls
+// per network would block the main loop for an unacceptable duration. Each log call
+// has overhead from UART transmission, so combining INFO+DEBUG into one line halves
+// the blocking time. Do NOT split this into separate ESP_LOGI/ESP_LOGD calls.
 __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res) {
   char bssid_s[18];
   auto bssid = res.get_bssid();
   format_mac_addr_upper(bssid.data(), bssid_s);
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+  // Single combined log line with all details when DEBUG enabled
+  ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s Ch:%2u %3ddB P:%d", res.get_ssid().c_str(),
+           res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
+           LOG_STR_ARG(get_signal_bars(res.get_rssi())), res.get_channel(), res.get_rssi(), res.get_priority());
+#else
   ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
            res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
            LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-  ESP_LOGD(TAG, "  Channel: %2u, RSSI: %3d dB, Priority: %4d", res.get_channel(), res.get_rssi(), res.get_priority());
+#endif
 }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
