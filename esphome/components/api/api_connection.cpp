@@ -1723,7 +1723,7 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
       copy_len = sizeof(state_buf) - 1;  // Truncate to leave space for null terminator
     }
     if (copy_len > 0) {
-      memcpy(state_buf, msg.state.data(), copy_len);
+      memcpy(state_buf, msg.state.c_str(), copy_len);
     }
     state_buf[copy_len] = '\0';
     it.callback(StringRef(state_buf, copy_len));
