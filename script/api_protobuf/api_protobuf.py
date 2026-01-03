@@ -354,28 +354,23 @@ def create_field_type_info(
             return FixedArrayRepeatedType(field, size_define)
         return RepeatedTypeInfo(field)
 
-    # Check for mutually exclusive options on bytes fields
-    if field.type == 12:
-        has_pointer_to_buffer = get_field_opt(field, pb.pointer_to_buffer, False)
-        fixed_size = get_field_opt(field, pb.fixed_array_size, None)
-
-        if has_pointer_to_buffer and fixed_size is not None:
-            raise ValueError(
-                f"Field '{field.name}' has both pointer_to_buffer and fixed_array_size. "
-                "These options are mutually exclusive. Use pointer_to_buffer for zero-copy "
-                "or fixed_array_size for traditional array storage."
-            )
-
-        if has_pointer_to_buffer:
-            # Zero-copy pointer approach - no size needed, will use size_t for length
-            return PointerToBytesBufferType(field, None)
-
-        if fixed_size is not None:
-            # Traditional fixed array approach with copy
-            return FixedArrayBytesType(field, fixed_size)
-
     # Special handling for bytes fields
     if field.type == 12:
+        fixed_size = get_field_opt(field, pb.fixed_array_size, None)
+
+        if fixed_size is not None:
+            # Traditional fixed array approach with copy (takes priority)
+            return FixedArrayBytesType(field, fixed_size)
+
+        # For SOURCE_CLIENT only messages (decode but no encode), use pointer
+        # for zero-copy access to the receive buffer
+        if needs_decode and not needs_encode:
+            return PointerToBytesBufferType(field, None)
+
+        # For SOURCE_BOTH/SOURCE_SERVER, explicit annotation is still needed
+        if get_field_opt(field, pb.pointer_to_buffer, False):
+            return PointerToBytesBufferType(field, None)
+
         return BytesType(field, needs_decode, needs_encode)
 
     # Special handling for string fields

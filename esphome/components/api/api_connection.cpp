@@ -1530,7 +1530,7 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 13;
+  resp.api_version_minor = 14;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.set_server_info(ESPHOME_VERSION_REF);
   resp.set_name(StringRef(App.get_name()));
@@ -1749,20 +1749,20 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   // the action list. This ensures async actions (delays, waits) complete first.
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-void APIConnection::send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message) {
+void APIConnection::send_execute_service_response(uint32_t call_id, bool success, StringRef error_message) {
   ExecuteServiceResponse resp;
   resp.call_id = call_id;
   resp.success = success;
-  resp.set_error_message(StringRef(error_message));
+  resp.set_error_message(error_message);
   this->send_message(resp, ExecuteServiceResponse::MESSAGE_TYPE);
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-void APIConnection::send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message,
+void APIConnection::send_execute_service_response(uint32_t call_id, bool success, StringRef error_message,
                                                   const uint8_t *response_data, size_t response_data_len) {
   ExecuteServiceResponse resp;
   resp.call_id = call_id;
   resp.success = success;
-  resp.set_error_message(StringRef(error_message));
+  resp.set_error_message(error_message);
   resp.response_data = response_data;
   resp.response_data_len = response_data_len;
   this->send_message(resp, ExecuteServiceResponse::MESSAGE_TYPE);
