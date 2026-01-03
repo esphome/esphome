@@ -203,9 +203,6 @@ class APIConnection final : public APIServerConnection {
   void on_get_time_response(const GetTimeResponse &value) override;
 #endif
   bool send_hello_response(const HelloRequest &msg) override;
-#ifdef USE_API_PASSWORD
-  bool send_authenticate_response(const AuthenticationRequest &msg) override;
-#endif
   bool send_disconnect_response(const DisconnectRequest &msg) override;
   bool send_ping_response(const PingRequest &msg) override;
   bool send_device_info_response(const DeviceInfoRequest &msg) override;
@@ -261,9 +258,6 @@ class APIConnection final : public APIServerConnection {
   }
 
   void on_fatal_error() override;
-#ifdef USE_API_PASSWORD
-  void on_unauthenticated_access() override;
-#endif
   void on_no_setup_connection() override;
   ProtoWriteBuffer create_buffer(uint32_t reserve_size) override {
     // FIXME: ensure no recursive writes can happen

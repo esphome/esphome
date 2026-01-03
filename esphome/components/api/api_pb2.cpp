@@ -43,21 +43,6 @@ void HelloResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->server_info_ref_.size());
   size.add_length(1, this->name_ref_.size());
 }
-#ifdef USE_API_PASSWORD
-bool AuthenticationRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1: {
-      this->password = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-void AuthenticationResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->invalid_password); }
-void AuthenticationResponse::calculate_size(ProtoSize &size) const { size.add_bool(1, this->invalid_password); }
-#endif
 #ifdef USE_AREAS
 void AreaInfo::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, this->area_id);
@@ -81,9 +66,6 @@ void DeviceInfo::calculate_size(ProtoSize &size) const {
 }
 #endif
 void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
-#ifdef USE_API_PASSWORD
-  buffer.encode_bool(1, this->uses_password);
-#endif
   buffer.encode_string(2, this->name_ref_);
   buffer.encode_string(3, this->mac_address_ref_);
   buffer.encode_string(4, this->esphome_version_ref_);
@@ -139,9 +121,6 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
-#ifdef USE_API_PASSWORD
-  size.add_bool(1, this->uses_password);
-#endif
   size.add_length(1, this->name_ref_.size());
   size.add_length(1, this->mac_address_ref_.size());
   size.add_length(1, this->esphome_version_ref_.size());
