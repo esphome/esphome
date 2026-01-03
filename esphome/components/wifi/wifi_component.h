@@ -662,7 +662,7 @@ class WiFiComponent : public Component {
   bool skip_cooldown_next_cycle_{false};
   bool post_connect_roaming_{true};  // Enabled by default
   bool roaming_scan_active_{false};
-  bool roaming_connect_active_{false};  // True during roaming connection attempt (skip priority decrease on fail)
+  bool roaming_connect_active_{false};  // True during roaming connection attempt (preserves roaming_attempts_)
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
   bool is_high_performance_mode_{false};
