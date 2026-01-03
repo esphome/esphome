@@ -1548,9 +1548,6 @@ bool APIConnection::send_ping_response(const PingRequest &msg) {
 
 bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   DeviceInfoResponse resp{};
-#ifdef USE_API_PASSWORD
-  resp.uses_password = true;
-#endif
   resp.name = StringRef(App.get_name());
   resp.friendly_name = StringRef(App.get_friendly_name());
 #ifdef USE_AREAS
