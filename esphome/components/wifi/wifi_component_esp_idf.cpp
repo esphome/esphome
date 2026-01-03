@@ -734,16 +734,13 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_CONNECTED) {
     const auto &it = data->data.sta_connected;
-    char buf[33];
-    assert(it.ssid_len <= 32);
-    memcpy(buf, it.ssid, it.ssid_len);
-    buf[it.ssid_len] = '\0';
-    ESP_LOGV(TAG, "Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
-             format_mac_address_pretty(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
+    ESP_LOGV(TAG, "Connected ssid='%.*s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", it.ssid_len,
+             (const char *) it.ssid, format_mac_address_pretty(it.bssid).c_str(), it.channel,
+             get_auth_mode_str(it.authmode));
     s_sta_connected = true;
 #ifdef USE_WIFI_LISTENERS
     for (auto *listener : this->connect_state_listeners_) {
-      listener->on_wifi_connect_state(StringRef(buf, it.ssid_len), it.bssid);
+      listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
     }
     // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #ifdef USE_WIFI_MANUAL_IP
@@ -757,21 +754,18 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_DISCONNECTED) {
     const auto &it = data->data.sta_disconnected;
-    char buf[33];
-    assert(it.ssid_len <= 32);
-    memcpy(buf, it.ssid, it.ssid_len);
-    buf[it.ssid_len] = '\0';
     if (it.reason == WIFI_REASON_NO_AP_FOUND) {
-      ESP_LOGW(TAG, "Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
+      ESP_LOGW(TAG, "Disconnected ssid='%.*s' reason='Probe Request Unsuccessful'", it.ssid_len,
+               (const char *) it.ssid);
       s_sta_connect_not_found = true;
     } else if (it.reason == WIFI_REASON_ROAMING) {
-      ESP_LOGI(TAG, "Disconnected ssid='%s' reason='Station Roaming'", buf);
+      ESP_LOGI(TAG, "Disconnected ssid='%.*s' reason='Station Roaming'", it.ssid_len, (const char *) it.ssid);
       return;
     } else {
       char bssid_s[18];
       format_mac_addr_upper(it.bssid, bssid_s);
-      ESP_LOGW(TAG, "Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf, bssid_s,
-               get_disconnect_reason_str(it.reason));
+      ESP_LOGW(TAG, "Disconnected ssid='%.*s' bssid=" LOG_SECRET("%s") " reason='%s'", it.ssid_len,
+               (const char *) it.ssid, bssid_s, get_disconnect_reason_str(it.reason));
       s_sta_connect_error = true;
     }
     s_sta_connected = false;
@@ -969,10 +963,13 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   network::IPAddress start_address = network::IPAddress(&info.ip);
   start_address += 99;
   lease.start_ip = start_address;
-  ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.str().c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+#endif
+  ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.str_to(ip_buf));
   start_address += 10;
   lease.end_ip = start_address;
-  ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str().c_str());
+  ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str_to(ip_buf));
   err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_REQUESTED_IP_ADDRESS, &lease, sizeof(lease));
 
   if (err != ESP_OK) {
@@ -984,8 +981,10 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   // Configure DHCP Option 114 (Captive Portal URI) if captive portal is enabled
   // This provides a standards-compliant way for clients to discover the captive portal
   if (captive_portal::global_captive_portal != nullptr) {
-    static char captive_portal_uri[32];
-    snprintf(captive_portal_uri, sizeof(captive_portal_uri), "http://%s", network::IPAddress(&info.ip).str().c_str());
+    // Buffer must be static - dhcps_set_option_info stores pointer, doesn't copy
+    static char captive_portal_uri[24];        // "http://" (7) + IPv4 max (15) + null
+    memcpy(captive_portal_uri, "http://", 7);  // NOLINT(bugprone-not-null-terminated-result) - str_to null-terminates
+    network::IPAddress(&info.ip).str_to(captive_portal_uri + 7);
     err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_CAPTIVEPORTAL_URI, captive_portal_uri,
                                  strlen(captive_portal_uri));
     if (err != ESP_OK) {
