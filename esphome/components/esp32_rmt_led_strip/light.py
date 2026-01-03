@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_IS_RGBW,
     CONF_MAX_REFRESH_RATE,
     CONF_NUM_LEDS,
+    CONF_NUMBER,
     CONF_OUTPUT_ID,
     CONF_PIN,
     CONF_RGB_ORDER,
@@ -72,7 +73,7 @@ CONFIG_SCHEMA = cv.All(
     light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         {
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ESP32RMTLEDStripLightOutput),
-            cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
+            cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
             cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
             cv.SplitDefault(
@@ -86,7 +87,6 @@ CONFIG_SCHEMA = cv.All(
                 esp32_s2=192,
                 esp32_s3=192,
             ): cv.int_range(min=2),
-            cv.Optional(CONF_INVERTED, default=False): cv.boolean,
             cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
@@ -134,10 +134,9 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add(var.set_num_leds(config[CONF_NUM_LEDS]))
-    cg.add(var.set_pin(config[CONF_PIN]))
-
-    if CONF_INVERTED in config:
-        cg.add(var.set_inverted(config[CONF_INVERTED]))
+    cg.add(var.set_pin(config[CONF_PIN][CONF_NUMBER]))
+    if config[CONF_PIN][CONF_INVERTED]:
+        cg.add(var.set_inverted(True))
 
     if CONF_MAX_REFRESH_RATE in config:
         cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
