@@ -15,7 +15,7 @@ from esphome.const import (
     UNIT_MILLIMETER,
 )
 
-from . import CONF_RD03D_ID, RD03DComponent, rd03d_ns
+from . import CONF_RD03D_ID, RD03DComponent
 
 DEPENDENCIES = ["rd03d"]
 
@@ -24,8 +24,6 @@ CONF_TARGET_COUNT = "target_count"
 MAX_TARGETS = 3
 
 UNIT_MILLIMETER_PER_SECOND = "mm/s"
-
-TargetSensor = rd03d_ns.struct("TargetSensor")
 
 TARGET_SCHEMA = cv.Schema(
     {
