@@ -1968,18 +1968,13 @@ void WiFiComponent::clear_roaming_state_() {
 }
 
 void WiFiComponent::check_roaming_(uint32_t now) {
-  // Guard: must have valid RSSI reading
-  int8_t current_rssi = this->wifi_rssi();
-  if (current_rssi == WIFI_RSSI_DISCONNECTED)
-    return;
-
   // Guard: not for hidden networks (may not appear in scan)
   const WiFiAP *selected = this->get_selected_sta_();
   if (selected == nullptr || selected->get_hidden())
     return;
 
   this->roaming_last_check_ = now;
-  ESP_LOGD(TAG, "Roaming: scanning for better AP (current RSSI %d dBm)", current_rssi);
+  ESP_LOGD(TAG, "Roaming: scanning for better AP (current RSSI %d dBm)", this->wifi_rssi());
   this->roaming_scan_active_ = true;
   this->wifi_scan_start_(this->passive_scan_);
 }
@@ -1996,6 +1991,13 @@ void WiFiComponent::process_roaming_scan_() {
   // Get current connection info
   bssid_t current_bssid = this->wifi_bssid();
   int8_t current_rssi = this->wifi_rssi();
+
+  // Guard: must still be connected (RSSI may have become invalid during scan)
+  if (current_rssi == WIFI_RSSI_DISCONNECTED) {
+    this->release_scan_results_();
+    return;
+  }
+
   char ssid_buf[SSID_BUFFER_SIZE];
   const char *current_ssid = this->wifi_ssid_to(ssid_buf);
 
