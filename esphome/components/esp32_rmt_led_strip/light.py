@@ -8,6 +8,7 @@ from esphome.components.const import CONF_USE_PSRAM
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
+    CONF_INVERTED,
     CONF_IS_RGBW,
     CONF_MAX_REFRESH_RATE,
     CONF_NUM_LEDS,
@@ -85,6 +86,7 @@ CONFIG_SCHEMA = cv.All(
                 esp32_s2=192,
                 esp32_s3=192,
             ): cv.int_range(min=2),
+            cv.Optional(CONF_INVERTED): cv.boolean,
             cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
@@ -133,6 +135,9 @@ async def to_code(config):
 
     cg.add(var.set_num_leds(config[CONF_NUM_LEDS]))
     cg.add(var.set_pin(config[CONF_PIN]))
+
+    if CONF_INVERTED in config:
+        cg.add(var.set_inverted(config[CONF_INVERTED]))
 
     if CONF_MAX_REFRESH_RATE in config:
         cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
