@@ -339,19 +339,15 @@ async def to_code(config):
 
     # Add defines for which Serial object is needed (allows linker to exclude unused)
     if CORE.is_esp8266:
+        from esphome.components.esp8266.const import enable_serial, enable_serial1
+
         hw_uart = config.get(CONF_HARDWARE_UART, UART0)
         if has_serial_logging and hw_uart in (UART0, UART0_SWAP):
             cg.add_define("USE_ESP8266_LOGGER_SERIAL")
-            # Exclude Serial1 from Arduino build
-            cg.add_build_flag("-DNO_GLOBAL_SERIAL1")
+            enable_serial()
         elif has_serial_logging and hw_uart == UART1:
             cg.add_define("USE_ESP8266_LOGGER_SERIAL1")
-            # Exclude Serial from Arduino build
-            cg.add_build_flag("-DNO_GLOBAL_SERIAL")
-        else:
-            # No serial logging - exclude both
-            cg.add_build_flag("-DNO_GLOBAL_SERIAL")
-            cg.add_build_flag("-DNO_GLOBAL_SERIAL1")
+            enable_serial1()
 
     if (
         (CORE.is_esp8266 or CORE.is_rp2040)

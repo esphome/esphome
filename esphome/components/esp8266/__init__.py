@@ -28,6 +28,8 @@ from .const import (
     KEY_ESP8266,
     KEY_FLASH_SIZE,
     KEY_PIN_INITIAL_STATES,
+    KEY_SERIAL1_REQUIRED,
+    KEY_SERIAL_REQUIRED,
     KEY_WAVEFORM_REQUIRED,
     esp8266_ns,
 )
@@ -271,6 +273,7 @@ async def to_code(config):
 
     CORE.add_job(add_pin_initial_states_array)
     CORE.add_job(finalize_waveform_config)
+    CORE.add_job(finalize_serial_config)
 
 
 @coroutine_with_priority(CoroPriority.WORKAROUNDS)
@@ -284,6 +287,24 @@ async def finalize_waveform_config() -> None:
         # No component needs waveform - enable stubs and exclude Arduino waveform code
         # Use build flag (visible to both C++ code and PlatformIO script)
         cg.add_build_flag("-DUSE_ESP8266_WAVEFORM_STUBS")
+
+
+@coroutine_with_priority(CoroPriority.WORKAROUNDS)
+async def finalize_serial_config() -> None:
+    """Exclude unused Arduino Serial objects from the build.
+
+    This runs at WORKAROUNDS priority (-999) to ensure all components
+    have had a chance to call enable_serial() or enable_serial1() first.
+
+    The Arduino ESP8266 core defines two global Serial objects (32 bytes each).
+    By adding NO_GLOBAL_SERIAL or NO_GLOBAL_SERIAL1 build flags, we prevent
+    unused Serial objects from being linked, saving 32 bytes each.
+    """
+    esp8266_data = CORE.data.get(KEY_ESP8266, {})
+    if not esp8266_data.get(KEY_SERIAL_REQUIRED, False):
+        cg.add_build_flag("-DNO_GLOBAL_SERIAL")
+    if not esp8266_data.get(KEY_SERIAL1_REQUIRED, False):
+        cg.add_build_flag("-DNO_GLOBAL_SERIAL1")
 
 
 # Called by writer.py
