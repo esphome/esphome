@@ -745,8 +745,12 @@ void HelloResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HelloResponse");
   dump_field(out, "api_version_major", this->api_version_major);
   dump_field(out, "api_version_minor", this->api_version_minor);
-  dump_field(out, "server_info", this->server_info_ref_);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  server_info: ");
+  out.append("'").append(this->server_info.c_str(), this->server_info.size()).append("'");
+  out.append("\n");
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 }
 #ifdef USE_API_PASSWORD
 void AuthenticationRequest::dump_to(std::string &out) const {
@@ -769,14 +773,18 @@ void DeviceInfoRequest::dump_to(std::string &out) const { out.append("DeviceInfo
 void AreaInfo::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "AreaInfo");
   dump_field(out, "area_id", this->area_id);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 }
 #endif
 #ifdef USE_DEVICES
 void DeviceInfo::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "DeviceInfo");
   dump_field(out, "device_id", this->device_id);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
   dump_field(out, "area_id", this->area_id);
 }
 #endif
@@ -785,19 +793,33 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 #ifdef USE_API_PASSWORD
   dump_field(out, "uses_password", this->uses_password);
 #endif
-  dump_field(out, "name", this->name_ref_);
-  dump_field(out, "mac_address", this->mac_address_ref_);
-  dump_field(out, "esphome_version", this->esphome_version_ref_);
-  dump_field(out, "compilation_time", this->compilation_time_ref_);
-  dump_field(out, "model", this->model_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
+  out.append("  mac_address: ");
+  out.append("'").append(this->mac_address.c_str(), this->mac_address.size()).append("'");
+  out.append("\n");
+  out.append("  esphome_version: ");
+  out.append("'").append(this->esphome_version.c_str(), this->esphome_version.size()).append("'");
+  out.append("\n");
+  out.append("  compilation_time: ");
+  out.append("'").append(this->compilation_time.c_str(), this->compilation_time.size()).append("'");
+  out.append("\n");
+  out.append("  model: ");
+  out.append("'").append(this->model.c_str(), this->model.size()).append("'");
+  out.append("\n");
 #ifdef USE_DEEP_SLEEP
   dump_field(out, "has_deep_sleep", this->has_deep_sleep);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  dump_field(out, "project_name", this->project_name_ref_);
+  out.append("  project_name: ");
+  out.append("'").append(this->project_name.c_str(), this->project_name.size()).append("'");
+  out.append("\n");
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  dump_field(out, "project_version", this->project_version_ref_);
+  out.append("  project_version: ");
+  out.append("'").append(this->project_version.c_str(), this->project_version.size()).append("'");
+  out.append("\n");
 #endif
 #ifdef USE_WEBSERVER
   dump_field(out, "webserver_port", this->webserver_port);
@@ -805,16 +827,24 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 #ifdef USE_BLUETOOTH_PROXY
   dump_field(out, "bluetooth_proxy_feature_flags", this->bluetooth_proxy_feature_flags);
 #endif
-  dump_field(out, "manufacturer", this->manufacturer_ref_);
-  dump_field(out, "friendly_name", this->friendly_name_ref_);
+  out.append("  manufacturer: ");
+  out.append("'").append(this->manufacturer.c_str(), this->manufacturer.size()).append("'");
+  out.append("\n");
+  out.append("  friendly_name: ");
+  out.append("'").append(this->friendly_name.c_str(), this->friendly_name.size()).append("'");
+  out.append("\n");
 #ifdef USE_VOICE_ASSISTANT
   dump_field(out, "voice_assistant_feature_flags", this->voice_assistant_feature_flags);
 #endif
 #ifdef USE_AREAS
-  dump_field(out, "suggested_area", this->suggested_area_ref_);
+  out.append("  suggested_area: ");
+  out.append("'").append(this->suggested_area.c_str(), this->suggested_area.size()).append("'");
+  out.append("\n");
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  dump_field(out, "bluetooth_mac_address", this->bluetooth_mac_address_ref_);
+  out.append("  bluetooth_mac_address: ");
+  out.append("'").append(this->bluetooth_mac_address.c_str(), this->bluetooth_mac_address.size()).append("'");
+  out.append("\n");
 #endif
 #ifdef USE_API_NOISE
   dump_field(out, "api_encryption_supported", this->api_encryption_supported);
@@ -851,14 +881,22 @@ void SubscribeStatesRequest::dump_to(std::string &out) const { out.append("Subsc
 #ifdef USE_BINARY_SENSOR
 void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesBinarySensorResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
-  dump_field(out, "device_class", this->device_class_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class.c_str(), this->device_class.size()).append("'");
+  out.append("\n");
   dump_field(out, "is_status_binary_sensor", this->is_status_binary_sensor);
   dump_field(out, "disabled_by_default", this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
 #ifdef USE_DEVICES
@@ -878,16 +916,24 @@ void BinarySensorStateResponse::dump_to(std::string &out) const {
 #ifdef USE_COVER
 void ListEntitiesCoverResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesCoverResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
   dump_field(out, "assumed_state", this->assumed_state);
   dump_field(out, "supports_position", this->supports_position);
   dump_field(out, "supports_tilt", this->supports_tilt);
-  dump_field(out, "device_class", this->device_class_ref_);
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class.c_str(), this->device_class.size()).append("'");
+  out.append("\n");
   dump_field(out, "disabled_by_default", this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
   dump_field(out, "supports_stop", this->supports_stop);
@@ -921,16 +967,22 @@ void CoverCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_FAN
 void ListEntitiesFanResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesFanResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
   dump_field(out, "supports_oscillation", this->supports_oscillation);
   dump_field(out, "supports_speed", this->supports_speed);
   dump_field(out, "supports_direction", this->supports_direction);
   dump_field(out, "supported_speed_count", this->supported_speed_count);
   dump_field(out, "disabled_by_default", this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
   for (const auto &it : *this->supported_preset_modes) {
@@ -947,7 +999,9 @@ void FanStateResponse::dump_to(std::string &out) const {
   dump_field(out, "oscillating", this->oscillating);
   dump_field(out, "direction", static_cast<enums::FanDirection>(this->direction));
   dump_field(out, "speed_level", this->speed_level);
-  dump_field(out, "preset_mode", this->preset_mode_ref_);
+  out.append("  preset_mode: ");
+  out.append("'").append(this->preset_mode.c_str(), this->preset_mode.size()).append("'");
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -975,9 +1029,13 @@ void FanCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_LIGHT
 void ListEntitiesLightResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesLightResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
   for (const auto &it : *this->supported_color_modes) {
     dump_field(out, "supported_color_modes", static_cast<enums::ColorMode>(it), 4);
   }
@@ -988,7 +1046,9 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
   }
   dump_field(out, "disabled_by_default", this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
 #ifdef USE_DEVICES
@@ -1009,7 +1069,9 @@ void LightStateResponse::dump_to(std::string &out) const {
   dump_field(out, "color_temperature", this->color_temperature);
   dump_field(out, "cold_white", this->cold_white);
   dump_field(out, "warm_white", this->warm_white);
-  dump_field(out, "effect", this->effect_ref_);
+  out.append("  effect: ");
+  out.append("'").append(this->effect.c_str(), this->effect.size()).append("'");
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1053,16 +1115,26 @@ void LightCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_SENSOR
 void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesSensorResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
-  dump_field(out, "unit_of_measurement", this->unit_of_measurement_ref_);
+  out.append("  unit_of_measurement: ");
+  out.append("'").append(this->unit_of_measurement.c_str(), this->unit_of_measurement.size()).append("'");
+  out.append("\n");
   dump_field(out, "accuracy_decimals", this->accuracy_decimals);
   dump_field(out, "force_update", this->force_update);
-  dump_field(out, "device_class", this->device_class_ref_);
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class.c_str(), this->device_class.size()).append("'");
+  out.append("\n");
   dump_field(out, "state_class", static_cast<enums::SensorStateClass>(this->state_class));
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
@@ -1083,16 +1155,24 @@ void SensorStateResponse::dump_to(std::string &out) const {
 #ifdef USE_SWITCH
 void ListEntitiesSwitchResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesSwitchResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "assumed_state", this->assumed_state);
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, "device_class", this->device_class_ref_);
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class.c_str(), this->device_class.size()).append("'");
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1117,15 +1197,23 @@ void SwitchCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_TEXT_SENSOR
 void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesTextSensorResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, "device_class", this->device_class_ref_);
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class.c_str(), this->device_class.size()).append("'");
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1133,7 +1221,9 @@ void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
 void TextSensorStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "TextSensorStateResponse");
   dump_field(out, "key", this->key);
-  dump_field(out, "state", this->state_ref_);
+  out.append("  state: ");
+  out.append("'").append(this->state.c_str(), this->state.size()).append("'");
+  out.append("\n");
   dump_field(out, "missing_state", this->missing_state);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
@@ -1167,12 +1257,16 @@ void SubscribeHomeassistantServicesRequest::dump_to(std::string &out) const {
 }
 void HomeassistantServiceMap::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HomeassistantServiceMap");
-  dump_field(out, "key", this->key_ref_);
+  out.append("  key: ");
+  out.append("'").append(this->key.c_str(), this->key.size()).append("'");
+  out.append("\n");
   dump_field(out, "value", this->value);
 }
 void HomeassistantActionRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HomeassistantActionRequest");
-  dump_field(out, "service", this->service_ref_);
+  out.append("  service: ");
+  out.append("'").append(this->service.c_str(), this->service.size()).append("'");
+  out.append("\n");
   for (const auto &it : this->data) {
     out.append("  data: ");
     it.dump_to(out);
@@ -1221,8 +1315,12 @@ void SubscribeHomeAssistantStatesRequest::dump_to(std::string &out) const {
 }
 void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "SubscribeHomeAssistantStateResponse");
-  dump_field(out, "entity_id", this->entity_id_ref_);
-  dump_field(out, "attribute", this->attribute_ref_);
+  out.append("  entity_id: ");
+  out.append("'").append(this->entity_id.c_str(), this->entity_id.size()).append("'");
+  out.append("\n");
+  out.append("  attribute: ");
+  out.append("'").append(this->attribute.c_str(), this->attribute.size()).append("'");
+  out.append("\n");
   dump_field(out, "once", this->once);
 }
 void HomeAssistantStateResponse::dump_to(std::string &out) const {
@@ -1249,12 +1347,16 @@ void GetTimeResponse::dump_to(std::string &out) const {
 #ifdef USE_API_USER_DEFINED_ACTIONS
 void ListEntitiesServicesArgument::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesServicesArgument");
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
   dump_field(out, "type", static_cast<enums::ServiceArgType>(this->type));
 }
 void ListEntitiesServicesResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesServicesResponse");
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
   for (const auto &it : this->args) {
     out.append("  args: ");
@@ -1306,7 +1408,9 @@ void ExecuteServiceResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ExecuteServiceResponse");
   dump_field(out, "call_id", this->call_id);
   dump_field(out, "success", this->success);
-  dump_field(out, "error_message", this->error_message_ref_);
+  out.append("  error_message: ");
+  out.append("'").append(this->error_message.c_str(), this->error_message.size()).append("'");
+  out.append("\n");
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
   out.append("  response_data: ");
   out.append(format_hex_pretty(this->response_data, this->response_data_len));
@@ -1317,12 +1421,18 @@ void ExecuteServiceResponse::dump_to(std::string &out) const {
 #ifdef USE_CAMERA
 void ListEntitiesCameraResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesCameraResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
   dump_field(out, "disabled_by_default", this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
 #ifdef USE_DEVICES
@@ -1349,9 +1459,13 @@ void CameraImageRequest::dump_to(std::string &out) const {
 #ifdef USE_CLIMATE
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesClimateResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
   dump_field(out, "supports_current_temperature", this->supports_current_temperature);
   dump_field(out, "supports_two_point_target_temperature", this->supports_two_point_target_temperature);
   for (const auto &it : *this->supported_modes) {
@@ -1378,7 +1492,9 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   }
   dump_field(out, "disabled_by_default", this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
   dump_field(out, "visual_current_temperature_step", this->visual_current_temperature_step);
@@ -1402,9 +1518,13 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   dump_field(out, "action", static_cast<enums::ClimateAction>(this->action));
   dump_field(out, "fan_mode", static_cast<enums::ClimateFanMode>(this->fan_mode));
   dump_field(out, "swing_mode", static_cast<enums::ClimateSwingMode>(this->swing_mode));
-  dump_field(out, "custom_fan_mode", this->custom_fan_mode_ref_);
+  out.append("  custom_fan_mode: ");
+  out.append("'").append(this->custom_fan_mode.c_str(), this->custom_fan_mode.size()).append("'");
+  out.append("\n");
   dump_field(out, "preset", static_cast<enums::ClimatePreset>(this->preset));
-  dump_field(out, "custom_preset", this->custom_preset_ref_);
+  out.append("  custom_preset: ");
+  out.append("'").append(this->custom_preset.c_str(), this->custom_preset.size()).append("'");
+  out.append("\n");
   dump_field(out, "current_humidity", this->current_humidity);
   dump_field(out, "target_humidity", this->target_humidity);
 #ifdef USE_DEVICES
@@ -1446,11 +1566,17 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_WATER_HEATER
 void ListEntitiesWaterHeaterResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesWaterHeaterResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
@@ -1495,20 +1621,30 @@ void WaterHeaterCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_NUMBER
 void ListEntitiesNumberResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesNumberResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "min_value", this->min_value);
   dump_field(out, "max_value", this->max_value);
   dump_field(out, "step", this->step);
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, "unit_of_measurement", this->unit_of_measurement_ref_);
+  out.append("  unit_of_measurement: ");
+  out.append("'").append(this->unit_of_measurement.c_str(), this->unit_of_measurement.size()).append("'");
+  out.append("\n");
   dump_field(out, "mode", static_cast<enums::NumberMode>(this->mode));
-  dump_field(out, "device_class", this->device_class_ref_);
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class.c_str(), this->device_class.size()).append("'");
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1534,11 +1670,17 @@ void NumberCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_SELECT
 void ListEntitiesSelectResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesSelectResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   for (const auto &it : *this->options) {
     dump_field(out, "options", it, 4);
@@ -1552,7 +1694,9 @@ void ListEntitiesSelectResponse::dump_to(std::string &out) const {
 void SelectStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "SelectStateResponse");
   dump_field(out, "key", this->key);
-  dump_field(out, "state", this->state_ref_);
+  out.append("  state: ");
+  out.append("'").append(this->state.c_str(), this->state.size()).append("'");
+  out.append("\n");
   dump_field(out, "missing_state", this->missing_state);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
@@ -1572,11 +1716,17 @@ void SelectCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_SIREN
 void ListEntitiesSirenResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesSirenResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   for (const auto &it : *this->tones) {
@@ -1618,18 +1768,26 @@ void SirenCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_LOCK
 void ListEntitiesLockResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesLockResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
   dump_field(out, "assumed_state", this->assumed_state);
   dump_field(out, "supports_open", this->supports_open);
   dump_field(out, "requires_code", this->requires_code);
-  dump_field(out, "code_format", this->code_format_ref_);
+  out.append("  code_format: ");
+  out.append("'").append(this->code_format.c_str(), this->code_format.size()).append("'");
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1658,15 +1816,23 @@ void LockCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_BUTTON
 void ListEntitiesButtonResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesButtonResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, "device_class", this->device_class_ref_);
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class.c_str(), this->device_class.size()).append("'");
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1682,7 +1848,9 @@ void ButtonCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_MEDIA_PLAYER
 void MediaPlayerSupportedFormat::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "MediaPlayerSupportedFormat");
-  dump_field(out, "format", this->format_ref_);
+  out.append("  format: ");
+  out.append("'").append(this->format.c_str(), this->format.size()).append("'");
+  out.append("\n");
   dump_field(out, "sample_rate", this->sample_rate);
   dump_field(out, "num_channels", this->num_channels);
   dump_field(out, "purpose", static_cast<enums::MediaPlayerFormatPurpose>(this->purpose));
@@ -1690,11 +1858,17 @@ void MediaPlayerSupportedFormat::dump_to(std::string &out) const {
 }
 void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesMediaPlayerResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
@@ -1945,12 +2119,16 @@ void VoiceAssistantAudioSettings::dump_to(std::string &out) const {
 void VoiceAssistantRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantRequest");
   dump_field(out, "start", this->start);
-  dump_field(out, "conversation_id", this->conversation_id_ref_);
+  out.append("  conversation_id: ");
+  out.append("'").append(this->conversation_id.c_str(), this->conversation_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "flags", this->flags);
   out.append("  audio_settings: ");
   this->audio_settings.dump_to(out);
   out.append("\n");
-  dump_field(out, "wake_word_phrase", this->wake_word_phrase_ref_);
+  out.append("  wake_word_phrase: ");
+  out.append("'").append(this->wake_word_phrase.c_str(), this->wake_word_phrase.size()).append("'");
+  out.append("\n");
 }
 void VoiceAssistantResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantResponse");
@@ -2011,8 +2189,12 @@ void VoiceAssistantAnnounceRequest::dump_to(std::string &out) const {
 void VoiceAssistantAnnounceFinished::dump_to(std::string &out) const { dump_field(out, "success", this->success); }
 void VoiceAssistantWakeWord::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantWakeWord");
-  dump_field(out, "id", this->id_ref_);
-  dump_field(out, "wake_word", this->wake_word_ref_);
+  out.append("  id: ");
+  out.append("'").append(this->id.c_str(), this->id.size()).append("'");
+  out.append("\n");
+  out.append("  wake_word: ");
+  out.append("'").append(this->wake_word.c_str(), this->wake_word.size()).append("'");
+  out.append("\n");
   for (const auto &it : this->trained_languages) {
     dump_field(out, "trained_languages", it, 4);
   }
@@ -2069,11 +2251,17 @@ void VoiceAssistantSetConfiguration::dump_to(std::string &out) const {
 #ifdef USE_ALARM_CONTROL_PANEL
 void ListEntitiesAlarmControlPanelResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesAlarmControlPanelResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
@@ -2107,17 +2295,25 @@ void AlarmControlPanelCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_TEXT
 void ListEntitiesTextResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesTextResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
   dump_field(out, "min_length", this->min_length);
   dump_field(out, "max_length", this->max_length);
-  dump_field(out, "pattern", this->pattern_ref_);
+  out.append("  pattern: ");
+  out.append("'").append(this->pattern.c_str(), this->pattern.size()).append("'");
+  out.append("\n");
   dump_field(out, "mode", static_cast<enums::TextMode>(this->mode));
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
@@ -2126,7 +2322,9 @@ void ListEntitiesTextResponse::dump_to(std::string &out) const {
 void TextStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "TextStateResponse");
   dump_field(out, "key", this->key);
-  dump_field(out, "state", this->state_ref_);
+  out.append("  state: ");
+  out.append("'").append(this->state.c_str(), this->state.size()).append("'");
+  out.append("\n");
   dump_field(out, "missing_state", this->missing_state);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
@@ -2146,11 +2344,17 @@ void TextCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_DATETIME_DATE
 void ListEntitiesDateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesDateResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
@@ -2183,11 +2387,17 @@ void DateCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_DATETIME_TIME
 void ListEntitiesTimeResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesTimeResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
@@ -2220,15 +2430,23 @@ void TimeCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_EVENT
 void ListEntitiesEventResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesEventResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, "device_class", this->device_class_ref_);
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class.c_str(), this->device_class.size()).append("'");
+  out.append("\n");
   for (const auto &it : *this->event_types) {
     dump_field(out, "event_types", it, 4);
   }
@@ -2239,7 +2457,9 @@ void ListEntitiesEventResponse::dump_to(std::string &out) const {
 void EventResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "EventResponse");
   dump_field(out, "key", this->key);
-  dump_field(out, "event_type", this->event_type_ref_);
+  out.append("  event_type: ");
+  out.append("'").append(this->event_type.c_str(), this->event_type.size()).append("'");
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -2248,15 +2468,23 @@ void EventResponse::dump_to(std::string &out) const {
 #ifdef USE_VALVE
 void ListEntitiesValveResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesValveResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, "device_class", this->device_class_ref_);
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class.c_str(), this->device_class.size()).append("'");
+  out.append("\n");
   dump_field(out, "assumed_state", this->assumed_state);
   dump_field(out, "supports_position", this->supports_position);
   dump_field(out, "supports_stop", this->supports_stop);
@@ -2287,11 +2515,17 @@ void ValveCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_DATETIME_DATETIME
 void ListEntitiesDateTimeResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesDateTimeResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
@@ -2320,15 +2554,23 @@ void DateTimeCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_UPDATE
 void ListEntitiesUpdateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesUpdateResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id.c_str(), this->object_id.size()).append("'");
+  out.append("\n");
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  out.append("  name: ");
+  out.append("'").append(this->name.c_str(), this->name.size()).append("'");
+  out.append("\n");
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  out.append("  icon: ");
+  out.append("'").append(this->icon.c_str(), this->icon.size()).append("'");
+  out.append("\n");
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, "device_class", this->device_class_ref_);
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class.c_str(), this->device_class.size()).append("'");
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -2340,11 +2582,21 @@ void UpdateStateResponse::dump_to(std::string &out) const {
   dump_field(out, "in_progress", this->in_progress);
   dump_field(out, "has_progress", this->has_progress);
   dump_field(out, "progress", this->progress);
-  dump_field(out, "current_version", this->current_version_ref_);
-  dump_field(out, "latest_version", this->latest_version_ref_);
-  dump_field(out, "title", this->title_ref_);
-  dump_field(out, "release_summary", this->release_summary_ref_);
-  dump_field(out, "release_url", this->release_url_ref_);
+  out.append("  current_version: ");
+  out.append("'").append(this->current_version.c_str(), this->current_version.size()).append("'");
+  out.append("\n");
+  out.append("  latest_version: ");
+  out.append("'").append(this->latest_version.c_str(), this->latest_version.size()).append("'");
+  out.append("\n");
+  out.append("  title: ");
+  out.append("'").append(this->title.c_str(), this->title.size()).append("'");
+  out.append("\n");
+  out.append("  release_summary: ");
+  out.append("'").append(this->release_summary.c_str(), this->release_summary.size()).append("'");
+  out.append("\n");
+  out.append("  release_url: ");
+  out.append("'").append(this->release_url.c_str(), this->release_url.size()).append("'");
+  out.append("\n");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif

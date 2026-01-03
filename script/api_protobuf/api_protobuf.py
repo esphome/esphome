@@ -373,13 +373,11 @@ def create_field_type_info(
 
         return BytesType(field, needs_decode, needs_encode)
 
-    # Special handling for string fields
+    # Special handling for string fields - use StringRef for zero-copy unless no_zero_copy is set
     if field.type == 9:
-        # For SOURCE_CLIENT only messages (decode but no encode), use StringRef
-        # for zero-copy access to the receive buffer
-        if needs_decode and not needs_encode:
-            return PointerToStringBufferType(field, None)
-        return StringType(field, needs_decode, needs_encode)
+        if get_field_opt(field, pb.no_zero_copy, False):
+            return StringType(field, needs_decode, needs_encode)
+        return PointerToStringBufferType(field, None)
 
     validate_field_type(field.type, field.name)
     return TYPE_INFO[field.type](field)
@@ -943,6 +941,9 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return f"size.add_length({self.calculate_field_id_size()}, this->{self.field_name}.size());"
+
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
 
 
 class FixedArrayBytesType(TypeInfo):
