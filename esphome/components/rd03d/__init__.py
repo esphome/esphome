@@ -5,8 +5,6 @@ from esphome.const import CONF_ID, CONF_THROTTLE
 
 CODEOWNERS = ["@jasstrong"]
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["sensor", "binary_sensor"]
-
 MULTI_CONF = True
 
 CONF_RD03D_ID = "rd03d_id"

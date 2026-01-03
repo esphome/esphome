@@ -1,7 +1,5 @@
 rd03d:
   id: rd03d_radar
-  # tracking_mode: multi  # optional, only sends command if set
-  # max_distance_gate: 8  # experimental
 
 sensor:
   - platform: rd03d

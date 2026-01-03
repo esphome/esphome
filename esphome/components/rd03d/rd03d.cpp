@@ -1,14 +1,13 @@
 #include "rd03d.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace rd03d {
+namespace esphome::rd03d {
 
 static const char *const TAG = "rd03d";
 
 void RD03DComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up RD-03D...");
-  this->set_timeout(100, [this]() { this->apply_config_(); });
+  this->set_timeout(SETUP_TIMEOUT_MS, [this]() { this->apply_config_(); });
 }
 
 void RD03DComponent::dump_config() {
@@ -20,17 +19,25 @@ void RD03DComponent::dump_config() {
   if (this->throttle_ > 0) {
     ESP_LOGCONFIG(TAG, "  Throttle: %ums", this->throttle_);
   }
+#ifdef USE_SENSOR
   LOG_SENSOR("  ", "Target Count", this->target_count_sensor_);
+#endif
+#ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Target", this->target_binary_sensor_);
+#endif
   for (uint8_t i = 0; i < MAX_TARGETS; i++) {
     ESP_LOGCONFIG(TAG, "  Target %d:", i + 1);
+#ifdef USE_SENSOR
     LOG_SENSOR("    ", "X", this->targets_[i].x);
     LOG_SENSOR("    ", "Y", this->targets_[i].y);
     LOG_SENSOR("    ", "Speed", this->targets_[i].speed);
     LOG_SENSOR("    ", "Distance", this->targets_[i].distance);
     LOG_SENSOR("    ", "Resolution", this->targets_[i].resolution);
     LOG_SENSOR("    ", "Angle", this->targets_[i].angle);
+#endif
+#ifdef USE_BINARY_SENSOR
     LOG_BINARY_SENSOR("    ", "Presence", this->target_presence_[i]);
+#endif
   }
 }
 
@@ -109,25 +116,31 @@ void RD03DComponent::process_frame_() {
       target_count++;
     }
 
+#ifdef USE_SENSOR
     this->publish_target_(i, x, y, speed, resolution);
+#endif
 
-    // Update per-target presence
+#ifdef USE_BINARY_SENSOR
     if (this->target_presence_[i] != nullptr) {
       this->target_presence_[i]->publish_state(target_present);
     }
+#endif
   }
 
-  // Update overall target count
+#ifdef USE_SENSOR
   if (this->target_count_sensor_ != nullptr) {
     this->target_count_sensor_->publish_state(target_count);
   }
+#endif
 
-  // Update overall presence
+#ifdef USE_BINARY_SENSOR
   if (this->target_binary_sensor_ != nullptr) {
     this->target_binary_sensor_->publish_state(target_count > 0);
   }
+#endif
 }
 
+#ifdef USE_SENSOR
 void RD03DComponent::publish_target_(uint8_t target_num, int16_t x, int16_t y, int16_t speed, uint16_t resolution) {
   TargetSensor &target = this->targets_[target_num];
 
@@ -153,7 +166,7 @@ void RD03DComponent::publish_target_(uint8_t target_num, int16_t x, int16_t y, i
 
   // Calculate and publish distance (mm)
   if (target.distance != nullptr) {
-    float distance = std::sqrt(static_cast<float>(x) * x + static_cast<float>(y) * y);
+    float distance = std::hypot(static_cast<float>(x), static_cast<float>(y));
     target.distance->publish_state(distance);
   }
 
@@ -168,6 +181,7 @@ void RD03DComponent::publish_target_(uint8_t target_num, int16_t x, int16_t y, i
     }
   }
 }
+#endif
 
 void RD03DComponent::send_command_(uint16_t command, const uint8_t *data, uint8_t data_len) {
   // Send header
@@ -200,5 +214,4 @@ void RD03DComponent::apply_config_() {
   }
 }
 
-}  // namespace rd03d
-}  // namespace esphome
+}  // namespace esphome::rd03d
