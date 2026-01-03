@@ -104,7 +104,8 @@ bool DS248xComponent::wait_busy_() {
 bool DS248xComponent::device_reset_() {
   ESP_LOGD(TAG, "Resetting device...");
   uint8_t cmd = DS248X_COMMAND_RESET;
-  this->write(&cmd, 1);
+  if (this->write(&cmd, 1) != i2c::ERROR_OK)
+    return false;
 
   uint8_t status;
   if (this->read(&status, 1) != i2c::ERROR_OK)
@@ -150,7 +151,8 @@ bool DS248xComponent::device_configure_() {
 
 bool DS248xComponent::configure_ds2484_port_(uint8_t param, uint8_t val) {
   uint8_t cmd = 0xC3;
-  uint8_t data = (param << 4) | (val & 0x0F);
+  // Control Byte format (DS2484 Table 6): P[2:0] in bits 7:5, OD in bit 4, VAL[3:0] in bits 3:0
+  uint8_t data = ((param & 0x07) << 5) | (val & 0x0F);
 
   if (!this->write_byte(cmd, data)) {
     ESP_LOGW(TAG, "DS2484 port config failed (param %d)", param);
@@ -242,10 +244,12 @@ bool DS248xComponent::select_channel(uint8_t channel) {
 // --- 1-Wire Bus Operations ---
 
 bool DS248xComponent::ow_reset(bool &presence) {
-  this->set_read_pointer_(DS248X_POINTER_STATUS);
+  if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
+    return false;
 
   uint8_t cmd = DS248X_COMMAND_RESETWIRE;
-  this->write(&cmd, 1);
+  if (this->write(&cmd, 1) != i2c::ERROR_OK)
+    return false;
 
   if (!this->wait_busy_()) {
     ESP_LOGW(TAG, "ow_reset: wait busy failed");
@@ -306,7 +310,8 @@ bool DS248xComponent::ow_read_byte(uint8_t &byte) {
     return false;
 
   uint8_t cmd = DS248X_COMMAND_READBYTE;
-  this->write(&cmd, 1);
+  if (this->write(&cmd, 1) != i2c::ERROR_OK)
+    return false;
 
   if (!this->wait_busy_())
     return false;
@@ -324,8 +329,12 @@ uint8_t DS248xComponent::search_triplet(bool search_direction) {
   if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
     return 0;
 
-  uint8_t cmd = DS248X_COMMAND_TRIPLET | (search_direction ? 0x80 : 0x00);
-  this->write(&cmd, 1);
+  // DS248x Datasheet: 1-Wire Triplet command requires 2 bytes:
+  // Byte 1: Command code 0x78
+  // Byte 2: Direction byte (bit 7 = V, search direction if discrepancy)
+  uint8_t buffer[2] = {DS248X_COMMAND_TRIPLET, static_cast<uint8_t>(search_direction ? 0x80 : 0x00)};
+  if (this->write(buffer, 2) != i2c::ERROR_OK)
+    return 0;
 
   if (!this->wait_busy_())
     return 0;
