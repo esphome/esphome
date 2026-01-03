@@ -229,13 +229,10 @@ async def to_code(config):
         var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    pins_configured = config[CONF_SDA] != "SDA" or config[CONF_SCL] != "SCL"
-    if not CORE.using_zephyr or pins_configured:
-        cg.add(var.set_sda_pin(config[CONF_SDA]))
-        cg.add(var.set_scl_pin(config[CONF_SCL]))
-
+    cg.add(var.set_sda_pin(config[CONF_SDA]))
     if CONF_SDA_PULLUP_ENABLED in config:
         cg.add(var.set_sda_pullup_enabled(config[CONF_SDA_PULLUP_ENABLED]))
+    cg.add(var.set_scl_pin(config[CONF_SCL]))
     if CONF_SCL_PULLUP_ENABLED in config:
         cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
 
