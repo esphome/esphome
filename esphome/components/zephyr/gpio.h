@@ -30,12 +30,12 @@ class ZephyrGPIOPin : public InternalGPIOPin {
 
  protected:
   void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
-  uint8_t pin_;
-  bool inverted_{};
-  gpio::Flags flags_{};
   const device *gpio_{nullptr};
   const char *pin_name_prefix_{nullptr};
+  gpio::Flags flags_{};
+  uint8_t pin_;
   uint8_t gpio_size_{};
+  bool inverted_{};
   bool value_{false};
 };
 
