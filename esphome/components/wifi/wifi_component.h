@@ -615,6 +615,7 @@ class WiFiComponent : public Component {
   // Post-connect roaming constants
   static constexpr uint32_t ROAMING_CHECK_INTERVAL = 5 * 60 * 1000;  // 5 minutes
   static constexpr int8_t ROAMING_MIN_IMPROVEMENT = 10;              // dB
+  static constexpr int8_t ROAMING_GOOD_RSSI = -55;                   // Skip scan if better than this
   static constexpr uint8_t ROAMING_MAX_ATTEMPTS = 3;
 
   // Group all 32-bit integers together

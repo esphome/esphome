@@ -151,44 +151,45 @@ static const char *const TAG = "wifi";
 /// │  Purpose: Handle AP reboot or power loss scenarios where device      │
 /// │           connects to suboptimal AP and never switches back          │
 /// │                                                                      │
-/// │  ┌─────────────────┐                                                 │
-/// │  │ STA_CONNECTED   │ (non-hidden network, roaming enabled,           │
-/// │  │                 │  not already scanning/roaming)                  │
-/// │  └────────┬────────┘                                                 │
+/// │  Loop call site: roaming enabled && attempts < 3 && 5 min elapsed    │
 /// │           ↓                                                          │
-/// │  ┌─────────────────┐    Every 5 minutes, up to 3 times               │
-/// │  │ check_roaming_  │───────────────────────────────────────┐         │
-/// │  └────────┬────────┘                                       │         │
-/// │           ↓                                                │         │
-/// │  ┌─────────────────┐                                       │         │
-/// │  │ Start scan      │ (same as normal scan)                 │         │
-/// │  └────────┬────────┘                                       │         │
-/// │           ↓                                                │         │
-/// │  ┌────────────────────────┐                                │         │
-/// │  │ process_roaming_scan_  │ roaming_attempts_++            │         │
-/// │  └────────┬───────────────┘                                │         │
-/// │           ↓                                                │         │
-/// │  ┌─────────────────┐  No     ┌───────────────┐             │         │
-/// │  │ +10 dB better AP├────────→│ Stay connected│─────────────┤         │
-/// │  └────────┬────────┘         └───────────────┘             │         │
-/// │           │ Yes                                            │         │
-/// │           ↓                                                │         │
-/// │  ┌─────────────────┐                                       │         │
-/// │  │ start_connecting│ (roaming_connect_active_ = true)      │         │
-/// │  └────────┬────────┘                                       │         │
-/// │           ↓                                                │         │
-/// │      ┌────┴────┐                                           │         │
-/// │      ↓         ↓                                           │         │
-/// │  ┌───────┐ ┌───────┐                                       │         │
-/// │  │SUCCESS│ │FAILED │                                       │         │
-/// │  └───┬───┘ └───┬───┘                                       │         │
-/// │      ↓         ↓                                           │         │
-/// │  Keep counter  Keep counter                                │         │
-/// │  (no reset)    retry_connect()                             │         │
-/// │      │              │                                      │         │
-/// │      └──────────────┴──────────────────────────────────────┘         │
+/// │  ┌─────────────────┐  Hidden?   ┌──────────────────────────┐         │
+/// │  │ check_roaming_  ├───────────→│ attempts = MAX, stop     │         │
+/// │  └────────┬────────┘            └──────────────────────────┘         │
+/// │           ↓                                                          │
+/// │    attempts++, update last_check                                     │
+/// │           ↓                                                          │
+/// │    RSSI > -55 dBm? ────Yes────→ Skip scan (signal good)──────┐       │
+/// │           ↓ No                                               │       │
+/// │  ┌─────────────────┐                                         │       │
+/// │  │ Start scan      │                                         │       │
+/// │  └────────┬────────┘                                         │       │
+/// │           ↓                                                  │       │
+/// │  ┌────────────────────────┐                                  │       │
+/// │  │ process_roaming_scan_  │                                  │       │
+/// │  └────────┬───────────────┘                                  │       │
+/// │           ↓                                                  │       │
+/// │  ┌─────────────────┐  No     ┌───────────────┐               │       │
+/// │  │ +10 dB better AP├────────→│ Stay connected│───────────────┤       │
+/// │  └────────┬────────┘         └───────────────┘               │       │
+/// │           │ Yes                                              │       │
+/// │           ↓                                                  │       │
+/// │  ┌─────────────────┐                                         │       │
+/// │  │ start_connecting│ (roaming_connect_active_ = true)        │       │
+/// │  └────────┬────────┘                                         │       │
+/// │           ↓                                                  │       │
+/// │      ┌────┴────┐                                             │       │
+/// │      ↓         ↓                                             │       │
+/// │  ┌───────┐ ┌───────┐                                         │       │
+/// │  │SUCCESS│ │FAILED │                                         │       │
+/// │  └───┬───┘ └───┬───┘                                         │       │
+/// │      ↓         ↓                                             │       │
+/// │  Keep counter  retry_connect()                               │       │
+/// │  (no reset)    (keep counter)                                │       │
+/// │      │              │                                        │       │
+/// │      └──────────────┴────────────────────────────────────────┘       │
 /// │                                                                      │
-/// │  After 3 scans: roaming_attempts_ >= 3, stop checking                │
+/// │  After 3 checks: attempts >= 3, stop checking                        │
 /// │  Non-roaming disconnect: clear_roaming_state_() resets counter       │
 /// │  Roaming success: counter preserved (prevents ping-pong)             │
 /// └──────────────────────────────────────────────────────────────────────┘
@@ -1989,11 +1990,20 @@ void WiFiComponent::release_scan_results_() {
 void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: not for hidden networks (may not appear in scan)
   const WiFiAP *selected = this->get_selected_sta_();
-  if (selected == nullptr || selected->get_hidden())
+  if (selected == nullptr || selected->get_hidden()) {
+    this->roaming_attempts_ = ROAMING_MAX_ATTEMPTS;  // Stop checking forever
     return;
+  }
 
   this->roaming_last_check_ = now;
-  ESP_LOGD(TAG, "Roam scan (%d dBm)", this->wifi_rssi());
+  this->roaming_attempts_++;
+
+  // Guard: skip scan if signal is already good (no meaningful improvement possible)
+  int8_t rssi = this->wifi_rssi();
+  if (rssi > ROAMING_GOOD_RSSI)
+    return;
+
+  ESP_LOGD(TAG, "Roam scan (%d dBm)", rssi);
   this->roaming_scan_active_ = true;
   this->wifi_scan_start_(this->passive_scan_);
 }
@@ -2005,7 +2015,6 @@ void WiFiComponent::process_roaming_scan_() {
 
   this->scan_done_ = false;
   this->roaming_scan_active_ = false;
-  this->roaming_attempts_++;
 
   // Get current connection info
   bssid_t current_bssid = this->wifi_bssid();
