@@ -91,11 +91,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_mode_lambda(template_))
 
     if CONF_SUPPORTED_MODES in config:
-        modes = [
-            water_heater.WATER_HEATER_MODES[mode]
-            for mode in config[CONF_SUPPORTED_MODES]
-        ]
-        cg.add(var.set_supported_modes(modes))
+        cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
 
 
 @automation.register_action(
