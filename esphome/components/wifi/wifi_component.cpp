@@ -1293,7 +1293,8 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     }
     this->roaming_connect_active_ = false;
 
-    // Clear all priority penalties - successful connection forgives past failures
+    // Clear all priority penalties - the next reconnect will happen when an AP disconnects,
+    // which means the landscape has likely changed and previous tracked failures are stale
     this->clear_all_bssid_priorities_();
 
 #ifdef USE_WIFI_FAST_CONNECT
