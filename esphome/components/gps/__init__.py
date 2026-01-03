@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_SPEED,
     DEVICE_CLASS_SPEED,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_MEASUREMENT_ANGLE,
     UNIT_DEGREES,
     UNIT_KILOMETER_PER_HOUR,
     UNIT_METER,
@@ -21,6 +22,7 @@ CONF_HDOP = "hdop"
 
 ICON_ALTIMETER = "mdi:altimeter"
 ICON_COMPASS = "mdi:compass"
+ICON_CIRCLE_DOUBLE = "mdi:circle-double"
 ICON_LATITUDE = "mdi:latitude"
 ICON_LONGITUDE = "mdi:longitude"
 ICON_SATELLITE = "mdi:satellite-variant"
@@ -50,7 +52,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_DEGREES,
                 icon=ICON_LONGITUDE,
                 accuracy_decimals=6,
-                state_class=STATE_CLASS_MEASUREMENT,
+                state_class=STATE_CLASS_MEASUREMENT_ANGLE,
             ),
             cv.Optional(CONF_SPEED): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOMETER_PER_HOUR,
@@ -63,7 +65,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_DEGREES,
                 icon=ICON_COMPASS,
                 accuracy_decimals=2,
-                state_class=STATE_CLASS_MEASUREMENT,
+                state_class=STATE_CLASS_MEASUREMENT_ANGLE,
             ),
             cv.Optional(CONF_ALTITUDE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_METER,
@@ -72,11 +74,14 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_SATELLITES): sensor.sensor_schema(
+                # no unit_of_measurement
                 icon=ICON_SATELLITE,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_HDOP): sensor.sensor_schema(
+                # no unit_of_measurement
+                icon=ICON_CIRCLE_DOUBLE,
                 accuracy_decimals=3,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
