@@ -563,17 +563,21 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STACONNECTED: {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto &it = event->data.sta_connected;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(it.bssid, mac_buf);
       ESP_LOGV(TAG, "AP client connected MAC=%s", mac_buf);
+#endif
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STADISCONNECTED: {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto &it = event->data.sta_disconnected;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(it.bssid, mac_buf);
       ESP_LOGV(TAG, "AP client disconnected MAC=%s", mac_buf);
+#endif
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STAIPASSIGNED: {
@@ -581,10 +585,12 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_PROBEREQRECVED: {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
       auto &it = event->data.ap_probe_req;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(it.mac, mac_buf);
       ESP_LOGVV(TAG, "AP receive Probe Request MAC=%s RSSI=%d", mac_buf, it.rssi);
+#endif
       break;
     }
     default:
