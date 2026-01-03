@@ -575,8 +575,12 @@ void WiFiComponent::loop() {
           this->last_connected_ = now;
 
           // Post-connect roaming: check for better AP
-          this->check_roaming_(now);
-          this->process_roaming_scan_(now);
+          if (this->roaming_scan_active_) {
+            this->process_roaming_scan_(now);
+          } else if (this->post_connect_roaming_ && this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
+                     now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL) {
+            this->check_roaming_(now);
+          }
         }
         break;
       }
@@ -1964,22 +1968,6 @@ void WiFiComponent::clear_roaming_state_() {
 }
 
 void WiFiComponent::check_roaming_(uint32_t now) {
-  // Guard: feature enabled
-  if (!this->post_connect_roaming_)
-    return;
-
-  // Guard: attempt limit
-  if (this->roaming_attempts_ >= ROAMING_MAX_ATTEMPTS)
-    return;
-
-  // Guard: scan not already active
-  if (this->roaming_scan_active_)
-    return;
-
-  // Guard: interval check
-  if (now - this->roaming_last_check_ < ROAMING_CHECK_INTERVAL)
-    return;
-
   // Guard: must have valid RSSI reading
   int8_t current_rssi = this->wifi_rssi();
   if (current_rssi == WIFI_RSSI_DISCONNECTED)
@@ -1997,10 +1985,6 @@ void WiFiComponent::check_roaming_(uint32_t now) {
 }
 
 void WiFiComponent::process_roaming_scan_(uint32_t now) {
-  // Not our scan
-  if (!this->roaming_scan_active_)
-    return;
-
   // Scan not done yet
   if (!this->scan_done_)
     return;
