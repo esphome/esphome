@@ -45,8 +45,17 @@ void STCC4Component::set_rht_compensation_(uint16_t temp, uint16_t rh) {
   this->state_.is_rht_compensated = true;
 }
 
-void STCC4Component::set_pressure_compensation_(uint16_t pressure) {
-  write_command((uint16_t) SensorCommand::SET_PRESSURE_COMPENSATION, pressure);
+void STCC4Component::set_pressure_compensation_(float pressure_hpa) {
+  // Convert pressure from hPa to Pa
+  uint16_t pressure_pa = (uint16_t) (pressure_hpa * 100.0f);
+
+  // Clamp to valid range: 40000 - 110000 Pa
+  if (pressure_pa < 40000)
+    pressure_pa = 40000;
+  if (pressure_pa > 110000)
+    pressure_pa = 110000;
+
+  write_command((uint16_t) SensorCommand::SET_PRESSURE_COMPENSATION, pressure_pa);
   delay_microseconds_safe(1000 * 2);
   this->state_.is_pressure_compensated = true;
 }
@@ -260,6 +269,16 @@ void STCC4Component::update() {
   if (!this->state_.is_measuring || this->state_.is_conditioning || this->state_.is_idle) {
     return;
   }
+
+  float pressure = NAN;
+  if (this->pressure_sensor_ != nullptr) {
+    pressure = float(this->pressure_sensor_->state);
+  }
+
+  if (pressure != NAN) {
+    this->set_pressure_compensation_(pressure);
+  }
+
   // Send command and read result
   uint16_t buffer[4] = {0};
   if (continuous_) {

@@ -2,7 +2,9 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
     CONF_CO2,
+    CONF_COMPENSATION,
     CONF_CONTINUOUS,
     CONF_HUMIDITY,
     CONF_ID,
@@ -59,6 +61,13 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Required(CONF_CONTINUOUS): cv.boolean,
+            cv.Optional(CONF_COMPENSATION): cv.Schema(
+                {
+                    cv.Required(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
+                        sensor.Sensor
+                    ),
+                },
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -83,3 +92,9 @@ async def to_code(config):
             cg.add(getattr(var, func_name)(sens))
 
     cg.add(var.set_continuous(config[CONF_CONTINUOUS]))
+    if CONF_COMPENSATION in config:
+        compensation_config = config[CONF_COMPENSATION]
+        sens = await cg.get_variable(
+            compensation_config[CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE]
+        )
+        cg.add(var.set_pressure_sensor(sens))

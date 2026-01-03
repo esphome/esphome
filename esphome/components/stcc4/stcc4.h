@@ -18,6 +18,7 @@ class STCC4Component : public PollingComponent, public sensirion_common::Sensiri
   void set_co2_sensor(sensor::Sensor *co2_sensor) { this->co2_sensor_ = co2_sensor; }
   void set_temp_sensor(sensor::Sensor *temp_sensor) { this->temp_sensor_ = temp_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
+  void set_pressure_sensor(sensor::Sensor *pressure) { pressure_sensor_ = pressure; }
 
   struct SensorState {
     bool is_idle = false;
@@ -74,13 +75,14 @@ class STCC4Component : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *co2_sensor_{nullptr};
   sensor::Sensor *temp_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
+  sensor::Sensor *pressure_sensor_{nullptr};
 
  private:
   void start_continuous_measurement_();  // Called automatically
   void stop_continuous_measurement_();
   void read_measurement_(uint16_t *data);
   void set_rht_compensation_(uint16_t temp, uint16_t rh);
-  void set_pressure_compensation_(uint16_t pressure);
+  void set_pressure_compensation_(float pressure);
   void measure_single_shot_(uint16_t *data);
   void enter_sleep_mode_();
   bool exit_sleep_mode_();
