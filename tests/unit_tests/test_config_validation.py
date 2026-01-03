@@ -502,3 +502,60 @@ def test_only_with_user_value_overrides_default() -> None:
 
     result = schema({"mqtt_id": "custom_id"})
     assert result.get("mqtt_id") == "custom_id"
+
+
+@pytest.mark.parametrize("value", ("hello", "Hello World", "test_name", "温度"))
+def test_string_no_slash__valid(value: str) -> None:
+    actual = config_validation.string_no_slash(value)
+    assert actual == value
+
+
+@pytest.mark.parametrize("value", ("has/slash", "a/b/c", "/leading", "trailing/"))
+def test_string_no_slash__slash_rejected(value: str) -> None:
+    with pytest.raises(Invalid, match="cannot contain '/' character"):
+        config_validation.string_no_slash(value)
+
+
+def test_string_no_slash__long_string_allowed() -> None:
+    # string_no_slash doesn't enforce length - use cv.Length() separately
+    long_value = "x" * 200
+    assert config_validation.string_no_slash(long_value) == long_value
+
+
+def test_string_no_slash__empty() -> None:
+    assert config_validation.string_no_slash("") == ""
+
+
+@pytest.mark.parametrize("value", ("Temperature", "Living Room Light", "温度传感器"))
+def test_validate_entity_name__valid(value: str) -> None:
+    actual = config_validation._validate_entity_name(value)
+    assert actual == value
+
+
+def test_validate_entity_name__slash_rejected() -> None:
+    with pytest.raises(Invalid, match="cannot contain '/' character"):
+        config_validation._validate_entity_name("has/slash")
+
+
+def test_validate_entity_name__max_length() -> None:
+    # 120 chars should pass
+    assert config_validation._validate_entity_name("x" * 120) == "x" * 120
+
+    # 121 chars should fail
+    with pytest.raises(Invalid, match="too long.*121 chars.*Maximum.*120"):
+        config_validation._validate_entity_name("x" * 121)
+
+
+def test_validate_entity_name__none_without_friendly_name() -> None:
+    # When name is "None" and friendly_name is not set, it should fail
+    CORE.friendly_name = None
+    with pytest.raises(Invalid, match="friendly_name is not set"):
+        config_validation._validate_entity_name("None")
+
+
+def test_validate_entity_name__none_with_friendly_name() -> None:
+    # When name is "None" but friendly_name is set, it should return None
+    CORE.friendly_name = "My Device"
+    result = config_validation._validate_entity_name("None")
+    assert result is None
+    CORE.friendly_name = None  # Reset
