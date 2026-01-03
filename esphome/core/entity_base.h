@@ -100,6 +100,8 @@ class EntityBase {
     return this->device_->get_device_id();
   }
   void set_device(Device *device) { this->device_ = device; }
+  // Get the device this entity belongs to (nullptr if main device)
+  Device *get_device() const { return this->device_; }
 #endif
 
   // Check if this entity has state

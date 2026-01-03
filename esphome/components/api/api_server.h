@@ -143,10 +143,10 @@ class APIServer : public Component,
   // Action response handling
   using ActionResponseCallback = std::function<void(const class ActionResponse &)>;
   void register_action_response_callback(uint32_t call_id, ActionResponseCallback callback);
-  void handle_action_response(uint32_t call_id, bool success, const std::string &error_message);
+  void handle_action_response(uint32_t call_id, bool success, StringRef error_message);
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  void handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
-                              const uint8_t *response_data, size_t response_data_len);
+  void handle_action_response(uint32_t call_id, bool success, StringRef error_message, const uint8_t *response_data,
+                              size_t response_data_len);
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #endif  // USE_API_HOMEASSISTANT_SERVICES
@@ -165,9 +165,9 @@ class APIServer : public Component,
   void unregister_active_action_call(uint32_t action_call_id);
   void unregister_active_action_calls_for_connection(APIConnection *conn);
   // Send response for a specific action call (uses action_call_id, sends client_call_id in response)
-  void send_action_response(uint32_t action_call_id, bool success, const std::string &error_message);
+  void send_action_response(uint32_t action_call_id, bool success, StringRef error_message);
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  void send_action_response(uint32_t action_call_id, bool success, const std::string &error_message,
+  void send_action_response(uint32_t action_call_id, bool success, StringRef error_message,
                             const uint8_t *response_data, size_t response_data_len);
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
