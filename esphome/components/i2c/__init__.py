@@ -114,11 +114,11 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): _bus_declare_type,
-            cv.Optional(CONF_SDA, default="SDA"): pins.internal_gpio_pin_number,
+            cv.Optional(CONF_SDA): pins.internal_gpio_pin_number,
             cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32=True): cv.All(
                 cv.only_on_esp32, cv.boolean
             ),
-            cv.Optional(CONF_SCL, default="SCL"): pins.internal_gpio_pin_number,
+            cv.Optional(CONF_SCL): pins.internal_gpio_pin_number,
             cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32=True): cv.All(
                 cv.only_on_esp32, cv.boolean
             ),
@@ -165,6 +165,13 @@ def _final_validate(config):
             )
         if len({c["device_name"] for c in full_config}) != len(full_config):
             raise cv.Invalid("Unique device_name properties are required")
+    else:
+        for i2c_config in full_config:
+            if CONF_SDA not in i2c_config:
+                i2c_config[CONF_SDA] = pins.internal_gpio_pin_number("SDA")
+            if CONF_SCL not in i2c_config:
+                i2c_config[CONF_SCL] = pins.internal_gpio_pin_number("SCL")
+
     if CORE.is_esp32 and get_esp32_variant() in ESP32_I2C_CAPABILITIES:
         variant = get_esp32_variant()
         max_num = ESP32_I2C_CAPABILITIES[variant]["NUM"]
@@ -229,10 +236,12 @@ async def to_code(config):
         var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    cg.add(var.set_sda_pin(config[CONF_SDA]))
+    if CONF_SDA in config:
+        cg.add(var.set_sda_pin(config[CONF_SDA]))
     if CONF_SDA_PULLUP_ENABLED in config:
         cg.add(var.set_sda_pullup_enabled(config[CONF_SDA_PULLUP_ENABLED]))
-    cg.add(var.set_scl_pin(config[CONF_SCL]))
+    if CONF_SCL in config:
+        cg.add(var.set_scl_pin(config[CONF_SCL]))
     if CONF_SCL_PULLUP_ENABLED in config:
         cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
 
