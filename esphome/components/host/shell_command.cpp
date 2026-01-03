@@ -20,21 +20,18 @@
 #include <vector>
 #include <unistd.h>
 
+extern char **environ;  // Declare the global variable
+
 namespace esphome {
 namespace host {
 
 static const char *const TAG = "host.shell";
 
 static bool create_pipe(int fds[2]) {
-#ifdef O_CLOEXEC
-  if (pipe2(fds, O_CLOEXEC) == 0) {
-    return true;
-  }
-#endif
   if (pipe(fds) != 0) {
     return false;
   }
-  // Ensure the descriptors are close-on-exec even if pipe2 is unavailable.
+  // Make the descriptors close-on-exec
   fcntl(fds[0], F_SETFD, FD_CLOEXEC);
   fcntl(fds[1], F_SETFD, FD_CLOEXEC);
   return true;
@@ -42,7 +39,7 @@ static bool create_pipe(int fds[2]) {
 
 static std::map<std::string, std::string> current_environment() {
   std::map<std::string, std::string> env_map;
-  for (char **env = ::environ; env != nullptr && *env != nullptr; ++env) {
+  for (char **env = environ; env != nullptr && *env != nullptr; ++env) {
     const std::string entry(*env);
     auto separator = entry.find('=');
     if (separator == std::string::npos) {
@@ -82,27 +79,22 @@ ShellCommandResult execute_shell_command(const std::string &command, const Shell
     }
 
     std::string env_log;
-    if (!options.environment.empty()) {
-      for (const auto &kv : options.environment) {
-        if (!env_log.empty()) {
-          env_log.append(", ");
-        }
-        env_log.append(kv.first);
-        env_log.append("=");
-        env_log.append(kv.second);
+    for (const auto &kv : options.environment) {
+      if (!env_log.empty()) {
+        env_log.append(", ");
       }
-    }
-
-    std::vector<std::string> env_strings;
-    env_strings.reserve(env_map.size());
-    for (const auto &kv : env_map) {
-      env_strings.push_back(kv.first + "=" + kv.second);
+      env_log.append(kv.first);
+      env_log.append("=");
+      env_log.append(kv.second);
     }
 
     std::vector<char *> envp;
-    envp.reserve(env_strings.size() + 1);
-    for (auto &entry : env_strings) {
-      envp.push_back(entry.data());
+    // strdup is used to allocate memory that remains valid after the map is out of scope.
+    // There is no memory leak since the process memory is replaced by execle.
+    // if execle fails, we immediately exit anyway
+    envp.reserve(env_map.size() + 1);
+    for (const auto &[k, v] : env_map) {
+      envp.push_back(strdup((k + "=" + v).c_str()));
     }
     envp.push_back(nullptr);
 
@@ -119,8 +111,7 @@ ShellCommandResult execute_shell_command(const std::string &command, const Shell
     close(stdout_pipe[1]);
     close(stderr_pipe[0]);
     close(stderr_pipe[1]);
-    const char *argv[] = {shell.c_str(), "-c", command.c_str(), nullptr};
-    execve(shell.c_str(), const_cast<char *const *>(argv), envp.data());
+    execle(shell.c_str(), "sh", "-c", command.c_str(), nullptr, envp.data());
     _exit(127);
   }
 
