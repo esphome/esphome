@@ -163,7 +163,7 @@ static const char *const TAG = "wifi";
 /// │  │ Start scan      │ (same as normal scan)                 │         │
 /// │  └────────┬────────┘                                       │         │
 /// │           ↓                                                │         │
-/// │  ┌─────────────────────────┐                               │         │
+/// │  ┌────────────────────────┐                                │         │
 /// │  │ process_roaming_scan_  │ roaming_attempts_++            │         │
 /// │  └────────┬───────────────┘                                │         │
 /// │           ↓                                                │         │
@@ -575,8 +575,12 @@ void WiFiComponent::loop() {
           this->last_connected_ = now;
 
           // Post-connect roaming: check for better AP
-          this->check_roaming_(now);
-          this->process_roaming_scan_(now);
+          if (this->roaming_scan_active_) {
+            this->process_roaming_scan_();
+          } else if (this->post_connect_roaming_ && this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
+                     now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL) {
+            this->check_roaming_(now);
+          }
         }
         break;
       }
@@ -1287,9 +1291,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->roaming_connect_active_ = false;
 
     // Clear all priority penalties - successful connection forgives past failures
-    if (!this->sta_priorities_.empty()) {
-      decltype(this->sta_priorities_)().swap(this->sta_priorities_);
-    }
+    this->clear_all_bssid_priorities_();
 
 #ifdef USE_WIFI_FAST_CONNECT
     this->save_fast_connect_settings_();
@@ -1567,7 +1569,7 @@ void WiFiComponent::clear_priorities_if_all_min_() {
 
   // All priorities are at minimum - clear the vector to save memory and reset
   ESP_LOGD(TAG, "Clearing BSSID priorities (all at minimum)");
-  decltype(this->sta_priorities_)().swap(this->sta_priorities_);
+  this->clear_all_bssid_priorities_();
 }
 
 /// Log failed connection attempt and decrease BSSID priority to avoid repeated failures
@@ -1967,30 +1969,14 @@ void WiFiComponent::clear_roaming_state_() {
 }
 
 void WiFiComponent::check_roaming_(uint32_t now) {
-  // Guard: feature enabled
-  if (!this->post_connect_roaming_)
+  // Guard: must have valid RSSI reading
+  int8_t current_rssi = this->wifi_rssi();
+  if (current_rssi == WIFI_RSSI_DISCONNECTED)
     return;
 
   // Guard: not for hidden networks (may not appear in scan)
   const WiFiAP *selected = this->get_selected_sta_();
   if (selected == nullptr || selected->get_hidden())
-    return;
-
-  // Guard: attempt limit
-  if (this->roaming_attempts_ >= ROAMING_MAX_ATTEMPTS)
-    return;
-
-  // Guard: scan not already active
-  if (this->roaming_scan_active_)
-    return;
-
-  // Guard: interval check
-  if (now - this->roaming_last_check_ < ROAMING_CHECK_INTERVAL)
-    return;
-
-  // Guard: must have valid RSSI reading
-  int8_t current_rssi = this->wifi_rssi();
-  if (current_rssi == WIFI_RSSI_DISCONNECTED)
     return;
 
   this->roaming_last_check_ = now;
@@ -1999,11 +1985,7 @@ void WiFiComponent::check_roaming_(uint32_t now) {
   this->wifi_scan_start_(this->passive_scan_);
 }
 
-void WiFiComponent::process_roaming_scan_(uint32_t now) {
-  // Not our scan
-  if (!this->roaming_scan_active_)
-    return;
-
+void WiFiComponent::process_roaming_scan_() {
   // Scan not done yet
   if (!this->scan_done_)
     return;
@@ -2015,12 +1997,12 @@ void WiFiComponent::process_roaming_scan_(uint32_t now) {
   // Get current connection info
   bssid_t current_bssid = this->wifi_bssid();
   int8_t current_rssi = this->wifi_rssi();
-  std::string current_ssid = this->wifi_ssid();
+  char ssid_buf[SSID_BUFFER_SIZE];
+  const char *current_ssid = this->wifi_ssid_to(ssid_buf);
 
   // Find best candidate: same SSID, different BSSID
-  bssid_t best_bssid{};
-  uint8_t best_channel = 0;
-  int8_t best_rssi = WIFI_RSSI_DISCONNECTED;
+  const WiFiScanResult *best = nullptr;
+  char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
 
   for (const auto &result : this->scan_result_) {
     // Must be same SSID as current connection
@@ -2032,42 +2014,37 @@ void WiFiComponent::process_roaming_scan_(uint32_t now) {
       continue;
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    {
-      char bssid_buf[18];
-      format_mac_addr_upper(result.get_bssid().data(), bssid_buf);
-      ESP_LOGV(TAG, "Roaming: candidate %s RSSI %d dBm", bssid_buf, result.get_rssi());
-    }
+    format_mac_addr_upper(result.get_bssid().data(), bssid_buf);
+    ESP_LOGV(TAG, "Roaming: candidate %s RSSI %d dBm", bssid_buf, result.get_rssi());
 #endif
 
     // Track the best candidate
-    if (result.get_rssi() > best_rssi) {
-      best_rssi = result.get_rssi();
-      best_bssid = result.get_bssid();
-      best_channel = result.get_channel();
+    if (best == nullptr || result.get_rssi() > best->get_rssi()) {
+      best = &result;
     }
   }
 
-  this->release_scan_results_();
-
   // Check if best candidate meets minimum improvement threshold
-  int8_t improvement = (best_rssi == WIFI_RSSI_DISCONNECTED) ? 0 : best_rssi - current_rssi;
+  int8_t improvement = (best == nullptr) ? 0 : best->get_rssi() - current_rssi;
   if (improvement < ROAMING_MIN_IMPROVEMENT) {
     ESP_LOGV(TAG, "Roaming: best candidate %+d dB (need +%d dB)", improvement, ROAMING_MIN_IMPROVEMENT);
+    this->release_scan_results_();
     return;
   }
 
   // Found better AP - initiate roam
   const WiFiAP *selected = this->get_selected_sta_();
-  if (selected == nullptr)
+  if (selected == nullptr) {
+    this->release_scan_results_();
     return;  // Defensive: shouldn't happen since clear_sta() clears roaming_scan_active_
+  }
 
-  char bssid_s[18];
-  format_mac_addr_upper(best_bssid.data(), bssid_s);
-  ESP_LOGI(TAG, "Roaming to %s (%+d dB)", bssid_s, improvement);
+  format_mac_addr_upper(best->get_bssid().data(), bssid_buf);
+  ESP_LOGI(TAG, "Roaming to %s (%+d dB)", bssid_buf, improvement);
 
   WiFiAP roam_params = *selected;
-  roam_params.set_bssid(best_bssid);
-  roam_params.set_channel(best_channel);
+  apply_scan_result_to_params(roam_params, *best);
+  this->release_scan_results_();
 
   // Mark as roaming attempt - affects retry behavior if connection fails
   this->roaming_connect_active_ = true;
