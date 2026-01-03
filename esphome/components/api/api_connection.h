@@ -233,9 +233,9 @@ class APIConnection final : public APIServerConnection {
 #ifdef USE_API_USER_DEFINED_ACTIONS
   void execute_service(const ExecuteServiceRequest &msg) override;
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-  void send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message);
+  void send_execute_service_response(uint32_t call_id, bool success, StringRef error_message);
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  void send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message,
+  void send_execute_service_response(uint32_t call_id, bool success, StringRef error_message,
                                      const uint8_t *response_data, size_t response_data_len);
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
