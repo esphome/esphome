@@ -9,6 +9,10 @@
 #include <cinttypes>
 #include <cstdio>
 
+#ifdef USE_OTA_ROLLBACK
+#include <esp_ota_ops.h>
+#endif
+
 namespace esphome {
 namespace safe_mode {
 
@@ -32,6 +36,14 @@ void SafeModeComponent::dump_config() {
       ESP_LOGW(TAG, "SAFE MODE IS ACTIVE");
     }
   }
+
+#ifdef USE_OTA_ROLLBACK
+  const esp_partition_t *last_invalid = esp_ota_get_last_invalid_partition();
+  if (last_invalid != nullptr) {
+    ESP_LOGW(TAG, "OTA rollback detected! Rolled back from partition '%s'", last_invalid->label);
+    ESP_LOGW(TAG, "The device reset before the boot was marked successful");
+  }
+#endif
 }
 
 float SafeModeComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
@@ -42,6 +54,10 @@ void SafeModeComponent::loop() {
     ESP_LOGI(TAG, "Boot seems successful; resetting boot loop counter");
     this->clean_rtc();
     this->boot_successful_ = true;
+#ifdef USE_OTA_ROLLBACK
+    // Mark OTA partition as valid to prevent rollback
+    esp_ota_mark_app_valid_cancel_rollback();
+#endif
     // Disable loop since we no longer need to check
     this->disable_loop();
   }
@@ -125,7 +141,14 @@ uint32_t SafeModeComponent::read_rtc_() {
   return val;
 }
 
-void SafeModeComponent::clean_rtc() { this->write_rtc_(0); }
+void SafeModeComponent::clean_rtc() {
+  // Save without sync - preferences will be written at shutdown or by IntervalSyncer.
+  // This avoids blocking the loop for 50+ ms on flash write. If the device crashes
+  // before sync, the boot wasn't really successful anyway and the counter should
+  // remain incremented.
+  uint32_t val = 0;
+  this->rtc_.save(&val);
+}
 
 void SafeModeComponent::on_safe_shutdown() {
   if (this->read_rtc_() != SafeModeComponent::ENTER_SAFE_MODE_MAGIC)

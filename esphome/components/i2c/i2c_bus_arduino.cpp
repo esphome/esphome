@@ -12,6 +12,9 @@ namespace i2c {
 
 static const char *const TAG = "i2c.arduino";
 
+// Maximum bytes to log in hex format (truncates larger transfers)
+static constexpr size_t I2C_MAX_LOG_BYTES = 32;
+
 void ArduinoI2CBus::setup() {
   recover_();
 
@@ -107,7 +110,10 @@ ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffe
     return ERROR_NOT_INITIALIZED;
   }
 
-  ESP_LOGV(TAG, "0x%02X TX %s", address, format_hex_pretty(write_buffer, write_count).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(I2C_MAX_LOG_BYTES)];
+  ESP_LOGV(TAG, "0x%02X TX %s", address, format_hex_pretty_to(hex_buf, write_buffer, write_count));
+#endif
 
   uint8_t status = 0;
   if (write_count != 0 || read_count == 0) {

@@ -23,9 +23,7 @@ bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
-      // Use raw data directly to avoid allocation
-      this->client_info = value.data();
-      this->client_info_len = value.size();
+      this->client_info = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }
     default:
@@ -49,9 +47,7 @@ void HelloResponse::calculate_size(ProtoSize &size) const {
 bool AuthenticationRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
-      // Use raw data directly to avoid allocation
-      this->password = value.data();
-      this->password_len = value.size();
+      this->password = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }
     default:
@@ -124,12 +120,12 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #endif
 #ifdef USE_DEVICES
   for (const auto &it : this->devices) {
-    buffer.encode_message(20, it, true);
+    buffer.encode_message(20, it);
   }
 #endif
 #ifdef USE_AREAS
   for (const auto &it : this->areas) {
-    buffer.encode_message(21, it, true);
+    buffer.encode_message(21, it);
   }
 #endif
 #ifdef USE_AREAS
@@ -447,9 +443,10 @@ bool FanCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool FanCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 13:
-      this->preset_mode = value.as_string();
+    case 13: {
+      this->preset_mode = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -611,9 +608,10 @@ bool LightCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool LightCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 19:
-      this->effect = value.as_string();
+    case 19: {
+      this->effect = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -852,9 +850,11 @@ void SubscribeLogsResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_API_NOISE
 bool NoiseEncryptionSetKeyRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->key = value.as_string();
+    case 1: {
+      this->key = value.data();
+      this->key_len = value.size();
       break;
+    }
     default:
       return false;
   }
@@ -875,13 +875,13 @@ void HomeassistantServiceMap::calculate_size(ProtoSize &size) const {
 void HomeassistantActionRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->service_ref_);
   for (auto &it : this->data) {
-    buffer.encode_message(2, it, true);
+    buffer.encode_message(2, it);
   }
   for (auto &it : this->data_template) {
-    buffer.encode_message(3, it, true);
+    buffer.encode_message(3, it);
   }
   for (auto &it : this->variables) {
-    buffer.encode_message(4, it, true);
+    buffer.encode_message(4, it);
   }
   buffer.encode_bool(5, this->is_event);
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -927,12 +927,12 @@ bool HomeassistantActionResponse::decode_varint(uint32_t field_id, ProtoVarInt v
 }
 bool HomeassistantActionResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 3:
-      this->error_message = value.as_string();
+    case 3: {
+      this->error_message = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
     case 4: {
-      // Use raw data directly to avoid allocation
       this->response_data = value.data();
       this->response_data_len = value.size();
       break;
@@ -957,15 +957,18 @@ void SubscribeHomeAssistantStateResponse::calculate_size(ProtoSize &size) const 
 }
 bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->entity_id = value.as_string();
+    case 1: {
+      this->entity_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 2:
-      this->state = value.as_string();
+    }
+    case 2: {
+      this->state = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 3:
-      this->attribute = value.as_string();
+    }
+    case 3: {
+      this->attribute = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -975,9 +978,7 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
 bool GetTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2: {
-      // Use raw data directly to avoid allocation
-      this->timezone = value.data();
-      this->timezone_len = value.size();
+      this->timezone = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     }
     default:
@@ -1008,13 +1009,15 @@ void ListEntitiesServicesResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->name_ref_);
   buffer.encode_fixed32(2, this->key);
   for (auto &it : this->args) {
-    buffer.encode_message(3, it, true);
+    buffer.encode_message(3, it);
   }
+  buffer.encode_uint32(4, static_cast<uint32_t>(this->supports_response));
 }
 void ListEntitiesServicesResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->name_ref_.size());
   size.add_fixed32(1, this->key);
   size.add_repeated_message(1, this->args);
+  size.add_uint32(1, static_cast<uint32_t>(this->supports_response));
 }
 bool ExecuteServiceArgument::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
@@ -1040,9 +1043,10 @@ bool ExecuteServiceArgument::decode_varint(uint32_t field_id, ProtoVarInt value)
 }
 bool ExecuteServiceArgument::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 4:
-      this->string_ = value.as_string();
+    case 4: {
+      this->string_ = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     case 9:
       this->string_array.push_back(value.as_string());
       break;
@@ -1075,6 +1079,23 @@ void ExecuteServiceArgument::decode(const uint8_t *buffer, size_t length) {
   this->string_array.init(count_string_array);
   ProtoDecodableMessage::decode(buffer, length);
 }
+bool ExecuteServiceRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+    case 3:
+      this->call_id = value.as_uint32();
+      break;
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+    case 4:
+      this->return_response = value.as_bool();
+      break;
+#endif
+    default:
+      return false;
+  }
+  return true;
+}
 bool ExecuteServiceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2:
@@ -1100,6 +1121,24 @@ void ExecuteServiceRequest::decode(const uint8_t *buffer, size_t length) {
   uint32_t count_args = ProtoDecodableMessage::count_repeated_field(buffer, length, 2);
   this->args.init(count_args);
   ProtoDecodableMessage::decode(buffer, length);
+}
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+void ExecuteServiceResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint32(1, this->call_id);
+  buffer.encode_bool(2, this->success);
+  buffer.encode_string(3, this->error_message_ref_);
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  buffer.encode_bytes(4, this->response_data, this->response_data_len);
+#endif
+}
+void ExecuteServiceResponse::calculate_size(ProtoSize &size) const {
+  size.add_uint32(1, this->call_id);
+  size.add_bool(1, this->success);
+  size.add_length(1, this->error_message_ref_.size());
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  size.add_length(1, this->response_data_len);
+#endif
 }
 #endif
 #ifdef USE_CAMERA
@@ -1352,12 +1391,14 @@ bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
 }
 bool ClimateCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 17:
-      this->custom_fan_mode = value.as_string();
+    case 17: {
+      this->custom_fan_mode = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 21:
-      this->custom_preset = value.as_string();
+    }
+    case 21: {
+      this->custom_preset = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -1379,6 +1420,114 @@ bool ClimateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
       break;
     case 23:
       this->target_humidity = value.as_float();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+#endif
+#ifdef USE_WATER_HEATER
+void ListEntitiesWaterHeaterResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id_ref_);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name_ref_);
+#ifdef USE_ENTITY_ICON
+  buffer.encode_string(4, this->icon_ref_);
+#endif
+  buffer.encode_bool(5, this->disabled_by_default);
+  buffer.encode_uint32(6, static_cast<uint32_t>(this->entity_category));
+#ifdef USE_DEVICES
+  buffer.encode_uint32(7, this->device_id);
+#endif
+  buffer.encode_float(8, this->min_temperature);
+  buffer.encode_float(9, this->max_temperature);
+  buffer.encode_float(10, this->target_temperature_step);
+  for (const auto &it : *this->supported_modes) {
+    buffer.encode_uint32(11, static_cast<uint32_t>(it), true);
+  }
+  buffer.encode_uint32(12, this->supported_features);
+}
+void ListEntitiesWaterHeaterResponse::calculate_size(ProtoSize &size) const {
+  size.add_length(1, this->object_id_ref_.size());
+  size.add_fixed32(1, this->key);
+  size.add_length(1, this->name_ref_.size());
+#ifdef USE_ENTITY_ICON
+  size.add_length(1, this->icon_ref_.size());
+#endif
+  size.add_bool(1, this->disabled_by_default);
+  size.add_uint32(1, static_cast<uint32_t>(this->entity_category));
+#ifdef USE_DEVICES
+  size.add_uint32(1, this->device_id);
+#endif
+  size.add_float(1, this->min_temperature);
+  size.add_float(1, this->max_temperature);
+  size.add_float(1, this->target_temperature_step);
+  if (!this->supported_modes->empty()) {
+    for (const auto &it : *this->supported_modes) {
+      size.add_uint32_force(1, static_cast<uint32_t>(it));
+    }
+  }
+  size.add_uint32(1, this->supported_features);
+}
+void WaterHeaterStateResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_float(2, this->current_temperature);
+  buffer.encode_float(3, this->target_temperature);
+  buffer.encode_uint32(4, static_cast<uint32_t>(this->mode));
+#ifdef USE_DEVICES
+  buffer.encode_uint32(5, this->device_id);
+#endif
+  buffer.encode_uint32(6, this->state);
+  buffer.encode_float(7, this->target_temperature_low);
+  buffer.encode_float(8, this->target_temperature_high);
+}
+void WaterHeaterStateResponse::calculate_size(ProtoSize &size) const {
+  size.add_fixed32(1, this->key);
+  size.add_float(1, this->current_temperature);
+  size.add_float(1, this->target_temperature);
+  size.add_uint32(1, static_cast<uint32_t>(this->mode));
+#ifdef USE_DEVICES
+  size.add_uint32(1, this->device_id);
+#endif
+  size.add_uint32(1, this->state);
+  size.add_float(1, this->target_temperature_low);
+  size.add_float(1, this->target_temperature_high);
+}
+bool WaterHeaterCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2:
+      this->has_fields = value.as_uint32();
+      break;
+    case 3:
+      this->mode = static_cast<enums::WaterHeaterMode>(value.as_uint32());
+      break;
+#ifdef USE_DEVICES
+    case 5:
+      this->device_id = value.as_uint32();
+      break;
+#endif
+    case 6:
+      this->state = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool WaterHeaterCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1:
+      this->key = value.as_fixed32();
+      break;
+    case 4:
+      this->target_temperature = value.as_float();
+      break;
+    case 7:
+      this->target_temperature_low = value.as_float();
+      break;
+    case 8:
+      this->target_temperature_high = value.as_float();
       break;
     default:
       return false;
@@ -1532,9 +1681,10 @@ bool SelectCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool SelectCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2:
-      this->state = value.as_string();
+    case 2: {
+      this->state = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -1560,8 +1710,8 @@ void ListEntitiesSirenResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(5, this->icon_ref_);
 #endif
   buffer.encode_bool(6, this->disabled_by_default);
-  for (auto &it : this->tones) {
-    buffer.encode_string(7, it, true);
+  for (const char *it : *this->tones) {
+    buffer.encode_string(7, it, strlen(it), true);
   }
   buffer.encode_bool(8, this->supports_duration);
   buffer.encode_bool(9, this->supports_volume);
@@ -1578,9 +1728,9 @@ void ListEntitiesSirenResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->icon_ref_.size());
 #endif
   size.add_bool(1, this->disabled_by_default);
-  if (!this->tones.empty()) {
-    for (const auto &it : this->tones) {
-      size.add_length_force(1, it.size());
+  if (!this->tones->empty()) {
+    for (const char *it : *this->tones) {
+      size.add_length_force(1, strlen(it));
     }
   }
   size.add_bool(1, this->supports_duration);
@@ -1636,9 +1786,10 @@ bool SirenCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool SirenCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 5:
-      this->tone = value.as_string();
+    case 5: {
+      this->tone = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -1727,9 +1878,10 @@ bool LockCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool LockCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 4:
-      this->code = value.as_string();
+    case 4: {
+      this->code = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -1824,7 +1976,7 @@ void ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
   buffer.encode_bool(8, this->supports_pause);
   for (auto &it : this->supported_formats) {
-    buffer.encode_message(9, it, true);
+    buffer.encode_message(9, it);
   }
 #ifdef USE_DEVICES
   buffer.encode_uint32(10, this->device_id);
@@ -1897,9 +2049,10 @@ bool MediaPlayerCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt val
 }
 bool MediaPlayerCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 7:
-      this->media_url = value.as_string();
+    case 7: {
+      this->media_url = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -1944,7 +2097,7 @@ void BluetoothLERawAdvertisement::calculate_size(ProtoSize &size) const {
 }
 void BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer buffer) const {
   for (uint16_t i = 0; i < this->advertisements_len; i++) {
-    buffer.encode_message(1, this->advertisements[i], true);
+    buffer.encode_message(1, this->advertisements[i]);
   }
 }
 void BluetoothLERawAdvertisementsResponse::calculate_size(ProtoSize &size) const {
@@ -2017,7 +2170,7 @@ void BluetoothGATTCharacteristic::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(2, this->handle);
   buffer.encode_uint32(3, this->properties);
   for (auto &it : this->descriptors) {
-    buffer.encode_message(4, it, true);
+    buffer.encode_message(4, it);
   }
   buffer.encode_uint32(5, this->short_uuid);
 }
@@ -2038,7 +2191,7 @@ void BluetoothGATTService::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_uint32(2, this->handle);
   for (auto &it : this->characteristics) {
-    buffer.encode_message(3, it, true);
+    buffer.encode_message(3, it);
   }
   buffer.encode_uint32(4, this->short_uuid);
 }
@@ -2054,7 +2207,7 @@ void BluetoothGATTService::calculate_size(ProtoSize &size) const {
 void BluetoothGATTGetServicesResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint64(1, this->address);
   for (auto &it : this->services) {
-    buffer.encode_message(2, it, true);
+    buffer.encode_message(2, it);
   }
 }
 void BluetoothGATTGetServicesResponse::calculate_size(ProtoSize &size) const {
@@ -2107,7 +2260,6 @@ bool BluetoothGATTWriteRequest::decode_varint(uint32_t field_id, ProtoVarInt val
 bool BluetoothGATTWriteRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 4: {
-      // Use raw data directly to avoid allocation
       this->data = value.data();
       this->data_len = value.size();
       break;
@@ -2146,7 +2298,6 @@ bool BluetoothGATTWriteDescriptorRequest::decode_varint(uint32_t field_id, Proto
 bool BluetoothGATTWriteDescriptorRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 3: {
-      // Use raw data directly to avoid allocation
       this->data = value.data();
       this->data_len = value.size();
       break;
@@ -2330,12 +2481,14 @@ bool VoiceAssistantResponse::decode_varint(uint32_t field_id, ProtoVarInt value)
 }
 bool VoiceAssistantEventData::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->name = value.as_string();
+    case 1: {
+      this->name = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 2:
-      this->value = value.as_string();
+    }
+    case 2: {
+      this->value = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -2374,20 +2527,22 @@ bool VoiceAssistantAudio::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool VoiceAssistantAudio::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->data = value.as_string();
+    case 1: {
+      this->data = value.data();
+      this->data_len = value.size();
       break;
+    }
     default:
       return false;
   }
   return true;
 }
 void VoiceAssistantAudio::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_bytes(1, this->data_ptr_, this->data_len_);
+  buffer.encode_bytes(1, this->data, this->data_len);
   buffer.encode_bool(2, this->end);
 }
 void VoiceAssistantAudio::calculate_size(ProtoSize &size) const {
-  size.add_length(1, this->data_len_);
+  size.add_length(1, this->data_len);
   size.add_bool(1, this->end);
 }
 bool VoiceAssistantTimerEventResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
@@ -2411,12 +2566,14 @@ bool VoiceAssistantTimerEventResponse::decode_varint(uint32_t field_id, ProtoVar
 }
 bool VoiceAssistantTimerEventResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2:
-      this->timer_id = value.as_string();
+    case 2: {
+      this->timer_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 3:
-      this->name = value.as_string();
+    }
+    case 3: {
+      this->name = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -2434,15 +2591,18 @@ bool VoiceAssistantAnnounceRequest::decode_varint(uint32_t field_id, ProtoVarInt
 }
 bool VoiceAssistantAnnounceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->media_id = value.as_string();
+    case 1: {
+      this->media_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 2:
-      this->text = value.as_string();
+    }
+    case 2: {
+      this->text = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 3:
-      this->preannounce_media_id = value.as_string();
+    }
+    case 3: {
+      this->preannounce_media_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -2478,24 +2638,29 @@ bool VoiceAssistantExternalWakeWord::decode_varint(uint32_t field_id, ProtoVarIn
 }
 bool VoiceAssistantExternalWakeWord::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->id = value.as_string();
+    case 1: {
+      this->id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 2:
-      this->wake_word = value.as_string();
+    }
+    case 2: {
+      this->wake_word = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     case 3:
       this->trained_languages.push_back(value.as_string());
       break;
-    case 4:
-      this->model_type = value.as_string();
+    case 4: {
+      this->model_type = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 6:
-      this->model_hash = value.as_string();
+    }
+    case 6: {
+      this->model_hash = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
-    case 7:
-      this->url = value.as_string();
+    }
+    case 7: {
+      this->url = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -2514,7 +2679,7 @@ bool VoiceAssistantConfigurationRequest::decode_length(uint32_t field_id, ProtoL
 }
 void VoiceAssistantConfigurationResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->available_wake_words) {
-    buffer.encode_message(1, it, true);
+    buffer.encode_message(1, it);
   }
   for (const auto &it : *this->active_wake_words) {
     buffer.encode_string(2, it, true);
@@ -2605,9 +2770,10 @@ bool AlarmControlPanelCommandRequest::decode_varint(uint32_t field_id, ProtoVarI
 }
 bool AlarmControlPanelCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 3:
-      this->code = value.as_string();
+    case 3: {
+      this->code = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -2689,9 +2855,10 @@ bool TextCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool TextCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2:
-      this->state = value.as_string();
+    case 2: {
+      this->state = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
+    }
     default:
       return false;
   }
@@ -3159,7 +3326,6 @@ bool UpdateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 bool ZWaveProxyFrame::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
-      // Use raw data directly to avoid allocation
       this->data = value.data();
       this->data_len = value.size();
       break;
@@ -3184,7 +3350,6 @@ bool ZWaveProxyRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
 bool ZWaveProxyRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2: {
-      // Use raw data directly to avoid allocation
       this->data = value.data();
       this->data_len = value.size();
       break;
@@ -3200,7 +3365,7 @@ void ZWaveProxyRequest::encode(ProtoWriteBuffer buffer) const {
 }
 void ZWaveProxyRequest::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, static_cast<uint32_t>(this->type));
-  size.add_length(2, this->data_len);
+  size.add_length(1, this->data_len);
 }
 #endif
 

@@ -24,9 +24,10 @@ struct ClientInfo {
 // Keepalive timeout in milliseconds
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
 // Maximum number of entities to process in a single batch during initial state/info sending
-// This was increased from 20 to 24 after removing the unique_id field from entity info messages,
-// which reduced message sizes allowing more entities per batch without exceeding packet limits
-static constexpr size_t MAX_INITIAL_PER_BATCH = 24;
+// API 1.14+ clients compute object_id client-side, so messages are smaller and we can fit more per batch
+// TODO: Remove MAX_INITIAL_PER_BATCH_LEGACY before 2026.7.0 - all clients should support API 1.14 by then
+static constexpr size_t MAX_INITIAL_PER_BATCH_LEGACY = 24;  // For clients < API 1.14 (includes object_id)
+static constexpr size_t MAX_INITIAL_PER_BATCH = 34;         // For clients >= API 1.14 (no object_id)
 // Maximum number of packets to process in a single batch (platform-dependent)
 // This limit exists to prevent stack overflow from the PacketInfo array in process_batch_
 // Each PacketInfo is 8 bytes, so 64 * 8 = 512 bytes, 32 * 8 = 256 bytes
@@ -176,6 +177,11 @@ class APIConnection final : public APIServerConnection {
   void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) override;
 #endif
 
+#ifdef USE_WATER_HEATER
+  bool send_water_heater_state(water_heater::WaterHeater *water_heater);
+  void on_water_heater_command_request(const WaterHeaterCommandRequest &msg) override;
+#endif
+
 #ifdef USE_EVENT
   void send_event(event::Event *event, const char *event_type);
 #endif
@@ -203,10 +209,14 @@ class APIConnection final : public APIServerConnection {
   bool send_disconnect_response(const DisconnectRequest &msg) override;
   bool send_ping_response(const PingRequest &msg) override;
   bool send_device_info_response(const DeviceInfoRequest &msg) override;
-  void list_entities(const ListEntitiesRequest &msg) override { this->list_entities_iterator_.begin(); }
+  void list_entities(const ListEntitiesRequest &msg) override { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
   void subscribe_states(const SubscribeStatesRequest &msg) override {
     this->flags_.state_subscription = true;
-    this->initial_state_iterator_.begin();
+    // Start initial state iterator only if no iterator is active
+    // If list_entities is running, we'll start initial_state when it completes
+    if (this->active_iterator_ == ActiveIterator::NONE) {
+      this->begin_iterator_(ActiveIterator::INITIAL_STATE);
+    }
   }
   void subscribe_logs(const SubscribeLogsRequest &msg) override {
     this->flags_.log_subscription = msg.level;
@@ -223,6 +233,13 @@ class APIConnection final : public APIServerConnection {
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   void execute_service(const ExecuteServiceRequest &msg) override;
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  void send_execute_service_response(uint32_t call_id, bool success, StringRef error_message);
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  void send_execute_service_response(uint32_t call_id, bool success, StringRef error_message,
+                                     const uint8_t *response_data, size_t response_data_len);
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
 #ifdef USE_API_NOISE
   bool send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyRequest &msg) override;
@@ -280,6 +297,10 @@ class APIConnection final : public APIServerConnection {
   // Helper function to handle authentication completion
   void complete_authentication_();
 
+#ifdef USE_CAMERA
+  void try_send_camera_image_();
+#endif
+
 #ifdef USE_API_HOMEASSISTANT_STATES
   void process_state_subscriptions_();
 #endif
@@ -303,16 +324,15 @@ class APIConnection final : public APIServerConnection {
                                               APIConnection *conn, uint32_t remaining_size, bool is_single) {
     // Set common fields that are shared by all entity types
     msg.key = entity->get_object_id_hash();
-    // Try to use static reference first to avoid allocation
-    StringRef static_ref = entity->get_object_id_ref_for_api_();
-    // Store dynamic string outside the if-else to maintain lifetime
-    std::string object_id;
-    if (!static_ref.empty()) {
-      msg.set_object_id(static_ref);
-    } else {
-      // Dynamic case - need to allocate
-      object_id = entity->get_object_id();
-      msg.set_object_id(StringRef(object_id));
+
+    // API 1.14+ clients compute object_id client-side from the entity name
+    // For older clients, we must send object_id for backward compatibility
+    // See: https://github.com/esphome/backlog/issues/76
+    // TODO: Remove this backward compat code before 2026.7.0 - all clients should support API 1.14 by then
+    // Buffer must remain in scope until encode_message_to_buffer is called
+    char object_id_buf[OBJECT_ID_MAX_LEN];
+    if (!conn->client_supports_api_version(1, 14)) {
+      msg.set_object_id(entity->get_object_id_to(object_id_buf));
     }
 
     if (entity->has_own_name()) {
@@ -336,16 +356,24 @@ class APIConnection final : public APIServerConnection {
   inline bool check_voice_assistant_api_connection_() const;
 #endif
 
+  // Get the max batch size based on client API version
+  // API 1.14+ clients don't receive object_id, so messages are smaller and more fit per batch
+  // TODO: Remove this method before 2026.7.0 and use MAX_INITIAL_PER_BATCH directly
+  size_t get_max_batch_size_() const {
+    return this->client_supports_api_version(1, 14) ? MAX_INITIAL_PER_BATCH : MAX_INITIAL_PER_BATCH_LEGACY;
+  }
+
   // Helper method to process multiple entities from an iterator in a batch
   template<typename Iterator> void process_iterator_batch_(Iterator &iterator) {
     size_t initial_size = this->deferred_batch_.size();
-    while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < MAX_INITIAL_PER_BATCH) {
+    size_t max_batch = this->get_max_batch_size_();
+    while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
       iterator.advance();
     }
 
     // If the batch is full, process it immediately
     // Note: iterator.advance() already calls schedule_batch_() via schedule_message_()
-    if (this->deferred_batch_.size() >= MAX_INITIAL_PER_BATCH) {
+    if (this->deferred_batch_.size() >= max_batch) {
       this->process_batch_();
     }
   }
@@ -449,6 +477,12 @@ class APIConnection final : public APIServerConnection {
   static uint16_t try_send_alarm_control_panel_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                                     bool is_single);
 #endif
+#ifdef USE_WATER_HEATER
+  static uint16_t try_send_water_heater_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                              bool is_single);
+  static uint16_t try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                             bool is_single);
+#endif
 #ifdef USE_EVENT
   static uint16_t try_send_event_response(event::Event *event, const char *event_type, APIConnection *conn,
                                           uint32_t remaining_size, bool is_single);
@@ -483,10 +517,22 @@ class APIConnection final : public APIServerConnection {
   std::unique_ptr<APIFrameHelper> helper_;
   APIServer *parent_;
 
-  // Group 2: Larger objects (must be 4-byte aligned)
-  // These contain vectors/pointers internally, so putting them early ensures good alignment
-  InitialStateIterator initial_state_iterator_;
-  ListEntitiesIterator list_entities_iterator_;
+  // Group 2: Iterator union (saves ~16 bytes vs separate iterators)
+  // These iterators are never active simultaneously - list_entities runs to completion
+  // before initial_state begins, so we use a union with explicit construction/destruction.
+  enum class ActiveIterator : uint8_t { NONE, LIST_ENTITIES, INITIAL_STATE };
+
+  union IteratorUnion {
+    ListEntitiesIterator list_entities;
+    InitialStateIterator initial_state;
+    // Constructor/destructor do nothing - use placement new/explicit destructor
+    IteratorUnion() {}
+    ~IteratorUnion() {}
+  } iterator_storage_;
+
+  // Helper methods for iterator lifecycle management
+  void destroy_active_iterator_();
+  void begin_iterator_(ActiveIterator type);
 #ifdef USE_CAMERA
   std::unique_ptr<camera::CameraImageReader> image_reader_;
 #endif
@@ -505,27 +551,8 @@ class APIConnection final : public APIServerConnection {
 
   class MessageCreator {
    public:
-    // Constructor for function pointer
     MessageCreator(MessageCreatorPtr ptr) { data_.function_ptr = ptr; }
-
-    // Constructor for const char * (Event types - no allocation needed)
     explicit MessageCreator(const char *str_value) { data_.const_char_ptr = str_value; }
-
-    // Delete copy operations - MessageCreator should only be moved
-    MessageCreator(const MessageCreator &other) = delete;
-    MessageCreator &operator=(const MessageCreator &other) = delete;
-
-    // Move constructor
-    MessageCreator(MessageCreator &&other) noexcept : data_(other.data_) { other.data_.function_ptr = nullptr; }
-
-    // Move assignment
-    MessageCreator &operator=(MessageCreator &&other) noexcept {
-      if (this != &other) {
-        data_ = other.data_;
-        other.data_.function_ptr = nullptr;
-      }
-      return *this;
-    }
 
     // Call operator - uses message_type to determine union type
     uint16_t operator()(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single,
@@ -535,7 +562,7 @@ class APIConnection final : public APIServerConnection {
     union Data {
       MessageCreatorPtr function_ptr;
       const char *const_char_ptr;
-    } data_;  // 4 bytes on 32-bit, 8 bytes on 64-bit - same as before
+    } data_;  // 4 bytes on 32-bit, 8 bytes on 64-bit
   };
 
   // Generic batching mechanism for both state updates and entity info
@@ -548,7 +575,7 @@ class APIConnection final : public APIServerConnection {
 
       // Constructor for creating BatchItem
       BatchItem(EntityBase *entity, MessageCreator creator, uint8_t message_type, uint8_t estimated_size)
-          : entity(entity), creator(std::move(creator)), message_type(message_type), estimated_size(estimated_size) {}
+          : entity(entity), creator(creator), message_type(message_type), estimated_size(estimated_size) {}
     };
 
     std::vector<BatchItem> items;
@@ -620,7 +647,9 @@ class APIConnection final : public APIServerConnection {
   // 2-byte types immediately after flags_ (no padding between them)
   uint16_t client_api_version_major_{0};
   uint16_t client_api_version_minor_{0};
-  // Total: 2 (flags) + 2 + 2 = 6 bytes, then 2 bytes padding to next 4-byte boundary
+  // 1-byte type to fill padding
+  ActiveIterator active_iterator_{ActiveIterator::NONE};
+  // Total: 2 (flags) + 2 + 2 + 1 = 7 bytes, then 1 byte padding to next 4-byte boundary
 
   uint32_t get_batch_delay_ms_() const;
   // Message will use 8 more bytes than the minimum size, and typical
@@ -716,12 +745,12 @@ class APIConnection final : public APIServerConnection {
     }
 
     // Fall back to scheduled batching
-    return this->schedule_message_(entity, std::move(creator), message_type, estimated_size);
+    return this->schedule_message_(entity, creator, message_type, estimated_size);
   }
 
   // Helper function to schedule a deferred message with known message type
   bool schedule_message_(EntityBase *entity, MessageCreator creator, uint8_t message_type, uint8_t estimated_size) {
-    this->deferred_batch_.add_item(entity, std::move(creator), message_type, estimated_size);
+    this->deferred_batch_.add_item(entity, creator, message_type, estimated_size);
     return this->schedule_batch_();
   }
 
