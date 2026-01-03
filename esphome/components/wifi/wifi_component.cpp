@@ -1545,6 +1545,12 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
   return false;  // Did not start scan, can proceed with connection
 }
 
+void WiFiComponent::clear_all_bssid_priorities_() {
+  if (!this->sta_priorities_.empty()) {
+    decltype(this->sta_priorities_)().swap(this->sta_priorities_);
+  }
+}
+
 /// Clear BSSID priority tracking if all priorities are at minimum (saves memory)
 /// At minimum priority, all BSSIDs are equally bad, so priority tracking is useless
 /// Called after successful connection or after failed connection attempts
@@ -1965,6 +1971,18 @@ void WiFiComponent::clear_roaming_state_() {
   this->roaming_last_check_ = 0;
   this->roaming_scan_active_ = false;
   this->roaming_connect_active_ = false;
+}
+
+void WiFiComponent::release_scan_results_() {
+  if (!this->keep_scan_results_) {
+#ifdef USE_RP2040
+    // std::vector - use swap trick since shrink_to_fit is non-binding
+    decltype(this->scan_result_)().swap(this->scan_result_);
+#else
+    // FixedVector::shrink_to_fit() actually frees all memory
+    this->scan_result_.shrink_to_fit();
+#endif
+  }
 }
 
 void WiFiComponent::check_roaming_(uint32_t now) {

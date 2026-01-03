@@ -502,11 +502,7 @@ class WiFiComponent : public Component {
   /// Log failed connection and decrease BSSID priority to avoid repeated attempts
   void log_and_adjust_priority_for_failed_connect_();
   /// Clear all BSSID priority penalties (e.g., after successful connection)
-  void clear_all_bssid_priorities_() {
-    if (!this->sta_priorities_.empty()) {
-      decltype(this->sta_priorities_)().swap(this->sta_priorities_);
-    }
-  }
+  void clear_all_bssid_priorities_();
   /// Clear BSSID priority tracking if all priorities are at minimum (saves memory)
   void clear_priorities_if_all_min_();
   /// Advance to next target (AP/SSID) within current phase, or increment retry counter
@@ -576,17 +572,7 @@ class WiFiComponent : public Component {
   void clear_roaming_state_();
 
   /// Free scan results memory unless a component needs them
-  void release_scan_results_() {
-    if (!this->keep_scan_results_) {
-#ifdef USE_RP2040
-      // std::vector - use swap trick since shrink_to_fit is non-binding
-      decltype(this->scan_result_)().swap(this->scan_result_);
-#else
-      // FixedVector::shrink_to_fit() actually frees all memory
-      this->scan_result_.shrink_to_fit();
-#endif
-    }
-  }
+  void release_scan_results_();
 
 #ifdef USE_ESP8266
   static void wifi_event_callback(System_Event_t *event);
