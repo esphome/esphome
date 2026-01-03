@@ -394,7 +394,7 @@ void APIServer::register_action_response_callback(uint32_t call_id, ActionRespon
   this->action_response_callbacks_.push_back({call_id, std::move(callback)});
 }
 
-void APIServer::handle_action_response(uint32_t call_id, bool success, const std::string &error_message) {
+void APIServer::handle_action_response(uint32_t call_id, bool success, StringRef error_message) {
   for (auto it = this->action_response_callbacks_.begin(); it != this->action_response_callbacks_.end(); ++it) {
     if (it->call_id == call_id) {
       auto callback = std::move(it->callback);
@@ -406,7 +406,7 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, const std
   }
 }
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-void APIServer::handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
+void APIServer::handle_action_response(uint32_t call_id, bool success, StringRef error_message,
                                        const uint8_t *response_data, size_t response_data_len) {
   for (auto it = this->action_response_callbacks_.begin(); it != this->action_response_callbacks_.end(); ++it) {
     if (it->call_id == call_id) {

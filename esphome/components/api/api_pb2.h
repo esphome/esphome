@@ -1069,7 +1069,7 @@ class SubscribeLogsResponse final : public ProtoMessage {
 class NoiseEncryptionSetKeyRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 124;
-  static constexpr uint8_t ESTIMATED_SIZE = 19;
+  static constexpr uint8_t ESTIMATED_SIZE = 9;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "noise_encryption_set_key_request"; }
 #endif
@@ -1161,7 +1161,7 @@ class HomeassistantActionRequest final : public ProtoMessage {
 class HomeassistantActionResponse final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 130;
-  static constexpr uint8_t ESTIMATED_SIZE = 34;
+  static constexpr uint8_t ESTIMATED_SIZE = 24;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "homeassistant_action_response"; }
 #endif
@@ -2146,7 +2146,7 @@ class BluetoothGATTReadResponse final : public ProtoMessage {
 class BluetoothGATTWriteRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 75;
-  static constexpr uint8_t ESTIMATED_SIZE = 29;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_gatt_write_request"; }
 #endif
@@ -2182,7 +2182,7 @@ class BluetoothGATTReadDescriptorRequest final : public ProtoDecodableMessage {
 class BluetoothGATTWriteDescriptorRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 77;
-  static constexpr uint8_t ESTIMATED_SIZE = 27;
+  static constexpr uint8_t ESTIMATED_SIZE = 17;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_gatt_write_descriptor_request"; }
 #endif
