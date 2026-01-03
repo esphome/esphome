@@ -578,11 +578,13 @@ void WiFiComponent::loop() {
           this->last_connected_ = now;
 
           // Post-connect roaming: check for better AP
-          if (this->roaming_scan_active_) {
-            this->process_roaming_scan_();
-          } else if (this->post_connect_roaming_ && this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
-                     now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL) {
-            this->check_roaming_(now);
+          if (this->post_connect_roaming_) {
+            if (this->roaming_scan_active_ && this->scan_done_) {
+              this->process_roaming_scan_();
+            } else if (this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
+                       now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL) {
+              this->check_roaming_(now);
+            }
           }
         }
         break;
@@ -2011,10 +2013,6 @@ void WiFiComponent::check_roaming_(uint32_t now) {
 }
 
 void WiFiComponent::process_roaming_scan_() {
-  // Scan not done yet
-  if (!this->scan_done_)
-    return;
-
   this->scan_done_ = false;
   this->roaming_scan_active_ = false;
 
@@ -2052,18 +2050,12 @@ void WiFiComponent::process_roaming_scan_() {
   }
 
   // Check if best candidate meets minimum improvement threshold
+  const WiFiAP *selected = this->get_selected_sta_();
   int8_t improvement = (best == nullptr) ? 0 : best->get_rssi() - current_rssi;
-  if (improvement < ROAMING_MIN_IMPROVEMENT) {
+  if (selected == nullptr || improvement < ROAMING_MIN_IMPROVEMENT) {
     ESP_LOGV(TAG, "Roam best %+d dB (need +%d)", improvement, ROAMING_MIN_IMPROVEMENT);
     this->release_scan_results_();
     return;
-  }
-
-  // Found better AP - initiate roam
-  const WiFiAP *selected = this->get_selected_sta_();
-  if (selected == nullptr) {
-    this->release_scan_results_();
-    return;  // Defensive: shouldn't happen since clear_sta() clears roaming_scan_active_
   }
 
   format_mac_addr_upper(best->get_bssid().data(), bssid_buf);
