@@ -746,16 +746,6 @@ void HelloResponse::dump_to(std::string &out) const {
   dump_field(out, "server_info", this->server_info);
   dump_field(out, "name", this->name);
 }
-#ifdef USE_API_PASSWORD
-void AuthenticationRequest::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "AuthenticationRequest");
-  dump_field(out, "password", this->password);
-}
-void AuthenticationResponse::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "AuthenticationResponse");
-  dump_field(out, "invalid_password", this->invalid_password);
-}
-#endif
 void DisconnectRequest::dump_to(std::string &out) const { out.append("DisconnectRequest {}"); }
 void DisconnectResponse::dump_to(std::string &out) const { out.append("DisconnectResponse {}"); }
 void PingRequest::dump_to(std::string &out) const { out.append("PingRequest {}"); }
@@ -778,9 +768,6 @@ void DeviceInfo::dump_to(std::string &out) const {
 #endif
 void DeviceInfoResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "DeviceInfoResponse");
-#ifdef USE_API_PASSWORD
-  dump_field(out, "uses_password", this->uses_password);
-#endif
   dump_field(out, "name", this->name);
   dump_field(out, "mac_address", this->mac_address);
   dump_field(out, "esphome_version", this->esphome_version);
