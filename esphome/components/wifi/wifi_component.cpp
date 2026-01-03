@@ -163,7 +163,7 @@ static const char *const TAG = "wifi";
 /// │  │ Start scan      │ (same as normal scan)                 │         │
 /// │  └────────┬────────┘                                       │         │
 /// │           ↓                                                │         │
-/// │  ┌─────────────────────────┐                               │         │
+/// │  ┌────────────────────────┐                                │         │
 /// │  │ process_roaming_scan_  │ roaming_attempts_++            │         │
 /// │  └────────┬───────────────┘                                │         │
 /// │           ↓                                                │         │
