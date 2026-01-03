@@ -7,10 +7,7 @@ service APIConnection {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
   }
-  rpc authenticate (AuthenticationRequest) returns (AuthenticationResponse) {
-    option (needs_setup_connection) = false;
-    option (needs_authentication) = false;
-  }
+  // REMOVED in ESPHome 2026.1.0: rpc authenticate (AuthenticationRequest) returns (AuthenticationResponse)
   rpc disconnect (DisconnectRequest) returns (DisconnectResponse) {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
@@ -82,14 +79,13 @@ service APIConnection {
 //  * VarInt denoting the type of message.
 //  * The message object encoded as a ProtoBuf message
 
-// The connection is established in 4 steps:
+// The connection is established in 2 steps:
 //  * First, the client connects to the server and sends a "Hello Request" identifying itself
-//  * The server responds with a "Hello Response" and selects the protocol version
-//  * After receiving this message, the client attempts to authenticate itself using
-//    the password and a "Connect Request"
-//  * The server responds with a "Connect Response" and notifies of invalid password.
+//  * The server responds with a "Hello Response" and the connection is authenticated
 // If anything in this initial process fails, the connection must immediately closed
 // by both sides and _no_ disconnection message is to be sent.
+// Note: Password authentication via AuthenticationRequest/AuthenticationResponse (message IDs 3, 4)
+// was removed in ESPHome 2026.1.0. Those message IDs are reserved and should not be reused.
 
 // Message sent at the beginning of each connection
 // Can only be sent by the client and only at the beginning of the connection
@@ -130,25 +126,23 @@ message HelloResponse {
   string name = 4;
 }
 
-// Message sent at the beginning of each connection to authenticate the client
-// Can only be sent by the client and only at the beginning of the connection
+// DEPRECATED in ESPHome 2026.1.0 - Password authentication is no longer supported.
+// These messages are kept for protocol documentation but are not processed by the server.
+// Use noise encryption instead: https://esphome.io/components/api/#configuration-variables
 message AuthenticationRequest {
   option (id) = 3;
   option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
-  option (ifdef) = "USE_API_PASSWORD";
+  option deprecated = true;
 
-  // The password to log in with
   string password = 1;
 }
 
-// Confirmation of successful connection. After this the connection is available for all traffic.
-// Can only be sent by the server and only at the beginning of the connection
 message AuthenticationResponse {
   option (id) = 4;
   option (source) = SOURCE_SERVER;
   option (no_delay) = true;
-  option (ifdef) = "USE_API_PASSWORD";
+  option deprecated = true;
 
   bool invalid_password = 1;
 }
@@ -205,7 +199,9 @@ message DeviceInfoResponse {
   option (id) = 10;
   option (source) = SOURCE_SERVER;
 
-  bool uses_password = 1 [(field_ifdef) = "USE_API_PASSWORD"];
+  // Deprecated in ESPHome 2026.1.0, but kept for backward compatibility
+  // with older ESPHome versions that still send this field.
+  bool uses_password = 1 [deprecated = true];
 
   // The name of the node, given by "App.set_name()"
   string name = 2;
