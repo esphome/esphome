@@ -28,6 +28,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/core/util.h"
 
 #ifdef USE_CAPTIVE_PORTAL
@@ -2018,19 +2019,15 @@ void WiFiComponent::process_roaming_scan_() {
   }
 
   char ssid_buf[SSID_BUFFER_SIZE];
-  const char *current_ssid = this->wifi_ssid_to(ssid_buf);
+  StringRef current_ssid(this->wifi_ssid_to(ssid_buf));
 
   // Find best candidate: same SSID, different BSSID
   const WiFiScanResult *best = nullptr;
   char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
 
   for (const auto &result : this->scan_result_) {
-    // Must be same SSID as current connection
-    if (result.get_ssid() != current_ssid)
-      continue;
-
-    // Must be different BSSID
-    if (result.get_bssid() == current_bssid)
+    // Must be same SSID, different BSSID
+    if (current_ssid != result.get_ssid() || result.get_bssid() == current_bssid)
       continue;
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
