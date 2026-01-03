@@ -184,14 +184,15 @@ static const char *const TAG = "wifi";
 /// │  │SUCCESS│ │FAILED │                                         │       │
 /// │  └───┬───┘ └───┬───┘                                         │       │
 /// │      ↓         ↓                                             │       │
-/// │  Keep counter  retry_connect()                               │       │
-/// │  (no reset)    (keep counter)                                │       │
+/// │  Keep counter  retry_connect() → normal reconnect flow       │       │
+/// │  (no reset)    (keeps counter, handles retries)              │       │
 /// │      │              │                                        │       │
 /// │      └──────────────┴────────────────────────────────────────┘       │
 /// │                                                                      │
 /// │  After 3 checks: attempts >= 3, stop checking                        │
 /// │  Non-roaming disconnect: clear_roaming_state_() resets counter       │
 /// │  Roaming success: counter preserved (prevents ping-pong)             │
+/// │  Roaming fail: normal flow handles reconnection, counter preserved   │
 /// └──────────────────────────────────────────────────────────────────────┘
 
 static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
