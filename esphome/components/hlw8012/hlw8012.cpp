@@ -34,9 +34,9 @@ void HLW8012Component::setup() {
 }
 void HLW8012Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HLW8012:");
-  LOG_PIN("  SEL Pin: ", this->sel_pin_)
-  LOG_PIN("  CF Pin: ", this->cf_pin_)
-  LOG_PIN("  CF1 Pin: ", this->cf1_pin_)
+  LOG_PIN("  SEL Pin: ", this->sel_pin_);
+  LOG_PIN("  CF Pin: ", this->cf_pin_);
+  LOG_PIN("  CF1 Pin: ", this->cf1_pin_);
   ESP_LOGCONFIG(TAG,
                 "  Change measurement mode every %" PRIu32 "\n"
                 "  Current resistor: %.1f mΩ\n"

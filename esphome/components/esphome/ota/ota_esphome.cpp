@@ -1,12 +1,7 @@
 #include "ota_esphome.h"
 #ifdef USE_OTA
 #ifdef USE_OTA_PASSWORD
-#ifdef USE_OTA_MD5
-#include "esphome/components/md5/md5.h"
-#endif
-#ifdef USE_OTA_SHA256
 #include "esphome/components/sha256/sha256.h"
-#endif
 #endif
 #include "esphome/components/network/util.h"
 #include "esphome/components/ota/ota_backend.h"
@@ -30,15 +25,6 @@ static constexpr uint16_t OTA_BLOCK_SIZE = 8192;
 static constexpr size_t OTA_BUFFER_SIZE = 1024;                  // buffer size for OTA data transfer
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 20000;  // milliseconds for initial handshake
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 90000;       // milliseconds for data transfer
-
-#ifdef USE_OTA_PASSWORD
-#ifdef USE_OTA_MD5
-static constexpr size_t MD5_HEX_SIZE = 32;  // MD5 hash as hex string (16 bytes * 2)
-#endif
-#ifdef USE_OTA_SHA256
-static constexpr size_t SHA256_HEX_SIZE = 64;  // SHA256 hash as hex string (32 bytes * 2)
-#endif
-#endif  // USE_OTA_PASSWORD
 
 void ESPHomeOTAComponent::setup() {
   this->server_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0);  // monitored for incoming connections
@@ -108,15 +94,7 @@ void ESPHomeOTAComponent::loop() {
 }
 
 static const uint8_t FEATURE_SUPPORTS_COMPRESSION = 0x01;
-#ifdef USE_OTA_SHA256
 static const uint8_t FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
-#endif
-
-// Temporary flag to allow MD5 downgrade for ~3 versions (until 2026.1.0)
-// This allows users to downgrade via OTA if they encounter issues after updating.
-// Without this, users would need to do a serial flash to downgrade.
-// TODO: Remove this flag and all associated code in 2026.1.0
-#define ALLOW_OTA_DOWNGRADE_MD5
 
 void ESPHomeOTAComponent::handle_handshake_() {
   /// Handle the OTA handshake and authentication.
@@ -547,26 +525,8 @@ void ESPHomeOTAComponent::yield_and_feed_watchdog_() {
 void ESPHomeOTAComponent::log_auth_warning_(const LogString *msg) { ESP_LOGW(TAG, "Auth: %s", LOG_STR_ARG(msg)); }
 
 bool ESPHomeOTAComponent::select_auth_type_() {
-#ifdef USE_OTA_SHA256
   bool client_supports_sha256 = (this->ota_features_ & FEATURE_SUPPORTS_SHA256_AUTH) != 0;
 
-#ifdef ALLOW_OTA_DOWNGRADE_MD5
-  // Allow fallback to MD5 if client doesn't support SHA256
-  if (client_supports_sha256) {
-    this->auth_type_ = ota::OTA_RESPONSE_REQUEST_SHA256_AUTH;
-    return true;
-  }
-#ifdef USE_OTA_MD5
-  this->log_auth_warning_(LOG_STR("Using deprecated MD5"));
-  this->auth_type_ = ota::OTA_RESPONSE_REQUEST_AUTH;
-  return true;
-#else
-  this->log_auth_warning_(LOG_STR("SHA256 required"));
-  this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
-  return false;
-#endif  // USE_OTA_MD5
-
-#else   // !ALLOW_OTA_DOWNGRADE_MD5
   // Require SHA256
   if (!client_supports_sha256) {
     this->log_auth_warning_(LOG_STR("SHA256 required"));
@@ -575,20 +535,6 @@ bool ESPHomeOTAComponent::select_auth_type_() {
   }
   this->auth_type_ = ota::OTA_RESPONSE_REQUEST_SHA256_AUTH;
   return true;
-#endif  // ALLOW_OTA_DOWNGRADE_MD5
-
-#else  // !USE_OTA_SHA256
-#ifdef USE_OTA_MD5
-  // Only MD5 available
-  this->auth_type_ = ota::OTA_RESPONSE_REQUEST_AUTH;
-  return true;
-#else
-  // No auth methods available
-  this->log_auth_warning_(LOG_STR("No auth methods available"));
-  this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_AUTH_INVALID);
-  return false;
-#endif  // USE_OTA_MD5
-#endif  // USE_OTA_SHA256
 }
 
 bool ESPHomeOTAComponent::handle_auth_send_() {
@@ -612,31 +558,12 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
     //   [1+hex_size...1+2*hex_size-1]: cnonce (hex_size bytes) - client's nonce
     //   [1+2*hex_size...1+3*hex_size-1]: response (hex_size bytes) - client's hash
 
-    // Declare both hash objects in same stack frame, use pointer to select.
-    // NOTE: Both objects are declared here even though only one is used. This is REQUIRED for ESP32-S3
-    // hardware SHA acceleration - the object must exist in this stack frame for all operations.
-    // Do NOT try to "optimize" by creating the object inside the if block, as it would go out of scope.
-#ifdef USE_OTA_SHA256
-    sha256::SHA256 sha_hasher;
-#endif
-#ifdef USE_OTA_MD5
-    md5::MD5Digest md5_hasher;
-#endif
-    HashBase *hasher = nullptr;
+    // CRITICAL ESP32-S3 HARDWARE SHA ACCELERATION: Hash object must stay in same stack frame
+    // (no passing to other functions). All hash operations must happen in this function.
+    sha256::SHA256 hasher;
 
-#ifdef USE_OTA_SHA256
-    if (this->auth_type_ == ota::OTA_RESPONSE_REQUEST_SHA256_AUTH) {
-      hasher = &sha_hasher;
-    }
-#endif
-#ifdef USE_OTA_MD5
-    if (this->auth_type_ == ota::OTA_RESPONSE_REQUEST_AUTH) {
-      hasher = &md5_hasher;
-    }
-#endif
-
-    const size_t hex_size = hasher->get_size() * 2;
-    const size_t nonce_len = hasher->get_size() / 4;
+    const size_t hex_size = hasher.get_size() * 2;
+    const size_t nonce_len = hasher.get_size() / 4;
     const size_t auth_buf_size = 1 + 3 * hex_size;
     this->auth_buf_ = std::make_unique<uint8_t[]>(auth_buf_size);
     this->auth_buf_pos_ = 0;
@@ -648,17 +575,17 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
       return false;
     }
 
-    hasher->init();
-    hasher->add(buf, nonce_len);
-    hasher->calculate();
+    hasher.init();
+    hasher.add(buf, nonce_len);
+    hasher.calculate();
     this->auth_buf_[0] = this->auth_type_;
-    hasher->get_hex(buf);
+    hasher.get_hex(buf);
 
     ESP_LOGV(TAG, "Auth: Nonce is %.*s", hex_size, buf);
   }
 
   // Try to write auth_type + nonce
-  size_t hex_size = this->get_auth_hex_size_();
+  constexpr size_t hex_size = SHA256_HEX_SIZE;
   const size_t to_write = 1 + hex_size;
   size_t remaining = to_write - this->auth_buf_pos_;
 
@@ -680,7 +607,7 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
 }
 
 bool ESPHomeOTAComponent::handle_auth_read_() {
-  size_t hex_size = this->get_auth_hex_size_();
+  constexpr size_t hex_size = SHA256_HEX_SIZE;
   const size_t to_read = hex_size * 2;  // CNonce + Response
 
   // Try to read remaining bytes (CNonce + Response)
@@ -705,45 +632,25 @@ bool ESPHomeOTAComponent::handle_auth_read_() {
   const char *cnonce = nonce + hex_size;
   const char *response = cnonce + hex_size;
 
-  // CRITICAL ESP32-S3: Hash objects must stay in same stack frame (no passing to other functions).
-  // Declare both hash objects in same stack frame, use pointer to select.
-  // NOTE: Both objects are declared here even though only one is used. This is REQUIRED for ESP32-S3
-  // hardware SHA acceleration - the object must exist in this stack frame for all operations.
-  // Do NOT try to "optimize" by creating the object inside the if block, as it would go out of scope.
-#ifdef USE_OTA_SHA256
-  sha256::SHA256 sha_hasher;
-#endif
-#ifdef USE_OTA_MD5
-  md5::MD5Digest md5_hasher;
-#endif
-  HashBase *hasher = nullptr;
+  // CRITICAL ESP32-S3 HARDWARE SHA ACCELERATION: Hash object must stay in same stack frame
+  // (no passing to other functions). All hash operations must happen in this function.
+  sha256::SHA256 hasher;
 
-#ifdef USE_OTA_SHA256
-  if (this->auth_type_ == ota::OTA_RESPONSE_REQUEST_SHA256_AUTH) {
-    hasher = &sha_hasher;
-  }
-#endif
-#ifdef USE_OTA_MD5
-  if (this->auth_type_ == ota::OTA_RESPONSE_REQUEST_AUTH) {
-    hasher = &md5_hasher;
-  }
-#endif
-
-  hasher->init();
-  hasher->add(this->password_.c_str(), this->password_.length());
-  hasher->add(nonce, hex_size * 2);  // Add both nonce and cnonce (contiguous in buffer)
-  hasher->calculate();
+  hasher.init();
+  hasher.add(this->password_.c_str(), this->password_.length());
+  hasher.add(nonce, hex_size * 2);  // Add both nonce and cnonce (contiguous in buffer)
+  hasher.calculate();
 
   ESP_LOGV(TAG, "Auth: CNonce is %.*s", hex_size, cnonce);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char computed_hash[65];  // Buffer for hex-encoded hash (max expected length + null terminator)
-  hasher->get_hex(computed_hash);
+  char computed_hash[SHA256_HEX_SIZE + 1];  // Buffer for hex-encoded hash (max expected length + null terminator)
+  hasher.get_hex(computed_hash);
   ESP_LOGV(TAG, "Auth: Result is %.*s", hex_size, computed_hash);
 #endif
   ESP_LOGV(TAG, "Auth: Response is %.*s", hex_size, response);
 
   // Compare response
-  bool matches = hasher->equals_hex(response);
+  bool matches = hasher.equals_hex(response);
 
   if (!matches) {
     this->log_auth_warning_(LOG_STR("Password mismatch"));
@@ -755,21 +662,6 @@ bool ESPHomeOTAComponent::handle_auth_read_() {
   this->cleanup_auth_();
 
   return true;
-}
-
-size_t ESPHomeOTAComponent::get_auth_hex_size_() const {
-#ifdef USE_OTA_SHA256
-  if (this->auth_type_ == ota::OTA_RESPONSE_REQUEST_SHA256_AUTH) {
-    return SHA256_HEX_SIZE;
-  }
-#endif
-#ifdef USE_OTA_MD5
-  return MD5_HEX_SIZE;
-#else
-#ifndef USE_OTA_SHA256
-#error "Either USE_OTA_MD5 or USE_OTA_SHA256 must be defined when USE_OTA_PASSWORD is enabled"
-#endif
-#endif
 }
 
 void ESPHomeOTAComponent::cleanup_auth_() {
