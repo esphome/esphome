@@ -71,7 +71,7 @@ cd esp-idf
 source export.sh  # for Linux/macOS
 export.bat        # for Windows
 cd ..
-idf.py create-project-from-example "espressif/esp_hosted^2.7.0:slave"
+idf.py create-project-from-example "espressif/esp_hosted==2.7.0:slave"
 cd slave/
 idf.py set-target esp32c6
 idf.py build
