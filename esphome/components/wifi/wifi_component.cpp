@@ -1545,6 +1545,12 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
   return false;  // Did not start scan, can proceed with connection
 }
 
+void WiFiComponent::clear_all_bssid_priorities_() {
+  if (!this->sta_priorities_.empty()) {
+    decltype(this->sta_priorities_)().swap(this->sta_priorities_);
+  }
+}
+
 /// Clear BSSID priority tracking if all priorities are at minimum (saves memory)
 /// At minimum priority, all BSSIDs are equally bad, so priority tracking is useless
 /// Called after successful connection or after failed connection attempts
@@ -1968,19 +1974,26 @@ void WiFiComponent::clear_roaming_state_() {
   this->roaming_connect_active_ = false;
 }
 
-void WiFiComponent::check_roaming_(uint32_t now) {
-  // Guard: must have valid RSSI reading
-  int8_t current_rssi = this->wifi_rssi();
-  if (current_rssi == WIFI_RSSI_DISCONNECTED)
-    return;
+void WiFiComponent::release_scan_results_() {
+  if (!this->keep_scan_results_) {
+#ifdef USE_RP2040
+    // std::vector - use swap trick since shrink_to_fit is non-binding
+    decltype(this->scan_result_)().swap(this->scan_result_);
+#else
+    // FixedVector::shrink_to_fit() actually frees all memory
+    this->scan_result_.shrink_to_fit();
+#endif
+  }
+}
 
+void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: not for hidden networks (may not appear in scan)
   const WiFiAP *selected = this->get_selected_sta_();
   if (selected == nullptr || selected->get_hidden())
     return;
 
   this->roaming_last_check_ = now;
-  ESP_LOGD(TAG, "Roaming: scanning for better AP (current RSSI %d dBm)", current_rssi);
+  ESP_LOGD(TAG, "Roaming: scanning for better AP (current RSSI %d dBm)", this->wifi_rssi());
   this->roaming_scan_active_ = true;
   this->wifi_scan_start_(this->passive_scan_);
 }
@@ -1997,6 +2010,13 @@ void WiFiComponent::process_roaming_scan_() {
   // Get current connection info
   bssid_t current_bssid = this->wifi_bssid();
   int8_t current_rssi = this->wifi_rssi();
+
+  // Guard: must still be connected (RSSI may have become invalid during scan)
+  if (current_rssi == WIFI_RSSI_DISCONNECTED) {
+    this->release_scan_results_();
+    return;
+  }
+
   char ssid_buf[SSID_BUFFER_SIZE];
   const char *current_ssid = this->wifi_ssid_to(ssid_buf);
 
