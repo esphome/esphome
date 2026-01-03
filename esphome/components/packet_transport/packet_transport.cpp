@@ -267,9 +267,7 @@ void PacketTransport::flush_() {
     xxtea::encrypt((uint32_t *) (encode_buffer.data() + header_len), len / 4,
                    (uint32_t *) this->encryption_key_.data());
   }
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   char hex_buf[format_hex_pretty_size(PACKET_MAX_LOG_BYTES)];
-#endif
   ESP_LOGVV(TAG, "Sending packet %s", format_hex_pretty_to(hex_buf, encode_buffer.data(), encode_buffer.size()));
   this->send_packet(encode_buffer);
 }
