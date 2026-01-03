@@ -199,9 +199,9 @@ message DeviceInfoResponse {
   option (id) = 10;
   option (source) = SOURCE_SERVER;
 
-  // REMOVED in ESPHome 2026.1.0: bool uses_password = 1
-  reserved 1;
-  reserved "uses_password";
+  // Deprecated in ESPHome 2026.1.0, but kept for backward compatibility
+  // with older ESPHome versions that still send this field.
+  bool uses_password = 1 [deprecated = true];
 
   // The name of the node, given by "App.set_name()"
   string name = 2;
