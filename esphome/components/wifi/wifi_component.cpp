@@ -1554,7 +1554,7 @@ void WiFiComponent::clear_all_bssid_priorities_() {
 
 /// Clear BSSID priority tracking if all priorities are at minimum (saves memory)
 /// At minimum priority, all BSSIDs are equally bad, so priority tracking is useless
-/// Called after successful connection or after failed connection attempts
+/// Called after failed connection attempts
 void WiFiComponent::clear_priorities_if_all_min_() {
   if (this->sta_priorities_.empty()) {
     return;
