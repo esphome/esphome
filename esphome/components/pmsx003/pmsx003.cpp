@@ -179,6 +179,7 @@ optional<bool> PMSX003Component::check_byte_() {
 }
 
 bool PMSX003Component::check_payload_length_(uint16_t payload_length) {
+  // https://avaldebe.github.io/PyPMS/sensors/Plantower/
   switch (this->type_) {
     case Type::PMS1003:
     case Type::PMS3003:
