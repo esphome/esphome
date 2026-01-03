@@ -1,0 +1,3 @@
+[submodule "esphome/components/bb_temperature/bb_temperature"]
+	path = esphome/components/bb_temperature/bb_temperature
+	url = https://github.com/bitbank2/bb_temperature.git
