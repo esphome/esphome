@@ -40,17 +40,34 @@ bool MQTTBackendESP32::initialize_() {
   if (!this->client_id_.empty()) {
     mqtt_cfg_.credentials.client_id = this->client_id_.c_str();
   }
+
+  // Configure transport type
+  if (this->transport_ == "ws") {
+    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WS;
+    mqtt_cfg_.broker.address.path = this->ws_path_.c_str();
+    // Disable TLS for plain WebSocket
+    mqtt_cfg_.broker.verification.skip_cert_common_name_check = true;
+    mqtt_cfg_.broker.verification.use_global_ca_store = false;
+  } else if (this->transport_ == "wss") {
+    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WSS;
+    mqtt_cfg_.broker.address.path = this->ws_path_.c_str();
+  } else if (ca_certificate_.has_value() || (cl_certificate_.has_value() && cl_key_.has_value())) {
+    // TCP with TLS (legacy SSL configuration)
+    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
+  } else {
+    // Plain TCP
+    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+  }
+
+  // Configure TLS certificates if provided (for SSL/TLS or WSS)
   if (ca_certificate_.has_value()) {
     mqtt_cfg_.broker.verification.certificate = ca_certificate_.value().c_str();
     mqtt_cfg_.broker.verification.skip_cert_common_name_check = skip_cert_cn_check_;
-    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
+  }
 
-    if (this->cl_certificate_.has_value() && this->cl_key_.has_value()) {
-      mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_.value().c_str();
-      mqtt_cfg_.credentials.authentication.key = this->cl_key_.value().c_str();
-    }
-  } else {
-    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+  if (this->cl_certificate_.has_value() && this->cl_key_.has_value()) {
+    mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_.value().c_str();
+    mqtt_cfg_.credentials.authentication.key = this->cl_key_.value().c_str();
   }
 
   auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
