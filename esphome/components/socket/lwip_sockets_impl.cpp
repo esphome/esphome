@@ -9,32 +9,6 @@
 
 namespace esphome::socket {
 
-// Format sockaddr into caller-provided buffer, returns length written (excluding null)
-size_t format_sockaddr_to(const struct sockaddr_storage &storage, std::span<char, PEERNAME_MAX_LEN> buf) {
-  if (storage.ss_family == AF_INET) {
-    const struct sockaddr_in *addr = reinterpret_cast<const struct sockaddr_in *>(&storage);
-    const char *ret = lwip_inet_ntop(AF_INET, &addr->sin_addr, buf.data(), buf.size());
-    if (ret == nullptr) {
-      buf[0] = '\0';
-      return 0;
-    }
-    return strlen(buf.data());
-  }
-#if LWIP_IPV6
-  else if (storage.ss_family == AF_INET6) {
-    const struct sockaddr_in6 *addr = reinterpret_cast<const struct sockaddr_in6 *>(&storage);
-    const char *ret = lwip_inet_ntop(AF_INET6, &addr->sin6_addr, buf.data(), buf.size());
-    if (ret == nullptr) {
-      buf[0] = '\0';
-      return 0;
-    }
-    return strlen(buf.data());
-  }
-#endif
-  buf[0] = '\0';
-  return 0;
-}
-
 class LwIPSocketImpl final : public Socket {
  public:
   LwIPSocketImpl(int fd, bool monitor_loop = false) : fd_(fd) {
@@ -91,15 +65,6 @@ class LwIPSocketImpl final : public Socket {
 
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) override {
     return lwip_getpeername(this->fd_, addr, addrlen);
-  }
-  size_t getpeername_to(std::span<char, PEERNAME_MAX_LEN> buf) override {
-    struct sockaddr_storage storage;
-    socklen_t len = sizeof(storage);
-    if (lwip_getpeername(this->fd_, (struct sockaddr *) &storage, &len) != 0) {
-      buf[0] = '\0';
-      return 0;
-    }
-    return format_sockaddr_to(storage, buf);
   }
   int getsockname(struct sockaddr *addr, socklen_t *addrlen) override {
     return lwip_getsockname(this->fd_, addr, addrlen);

@@ -444,7 +444,7 @@ void ESPHomeOTAComponent::log_socket_error_(const LogString *msg) {
 void ESPHomeOTAComponent::log_read_error_(const LogString *what) { ESP_LOGW(TAG, "Read %s failed", LOG_STR_ARG(what)); }
 
 void ESPHomeOTAComponent::log_start_(const LogString *phase) {
-  char peername[socket::PEERNAME_MAX_LEN];
+  char peername[socket::SOCKADDR_STR_LEN];
   this->client_->getpeername_to(peername);
   ESP_LOGD(TAG, "Starting %s from %s", LOG_STR_ARG(phase), peername);
 }

@@ -189,14 +189,6 @@ class LWIPRawImpl : public Socket {
     }
     return this->ip2sockaddr_(&pcb_->remote_ip, pcb_->remote_port, name, addrlen);
   }
-  size_t getpeername_to(std::span<char, PEERNAME_MAX_LEN> buf) final {
-    if (pcb_ == nullptr) {
-      errno = ECONNRESET;
-      buf[0] = '\0';
-      return 0;
-    }
-    return this->format_ip_address_to_(pcb_->remote_ip, buf);
-  }
   int getsockname(struct sockaddr *name, socklen_t *addrlen) final {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
@@ -511,22 +503,6 @@ class LWIPRawImpl : public Socket {
   }
 
  protected:
-  // Format IP address into caller-provided buffer, returns length written (excluding null)
-  size_t format_ip_address_to_(const ip_addr_t &ip, std::span<char, PEERNAME_MAX_LEN> buf) {
-    if (IP_IS_V4_VAL(ip)) {
-      inet_ntoa_r(ip, buf.data(), buf.size());
-      return strlen(buf.data());
-    }
-#if LWIP_IPV6
-    else if (IP_IS_V6_VAL(ip)) {
-      inet6_ntoa_r(ip, buf.data(), buf.size());
-      return strlen(buf.data());
-    }
-#endif
-    buf[0] = '\0';
-    return 0;
-  }
-
   int ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen) {
     if (family_ == AF_INET) {
       if (*addrlen < sizeof(struct sockaddr_in)) {

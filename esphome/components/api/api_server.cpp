@@ -125,7 +125,7 @@ void APIServer::loop() {
       if (!sock)
         break;
 
-      char peername[socket::PEERNAME_MAX_LEN];
+      char peername[socket::SOCKADDR_STR_LEN];
       sock->getpeername_to(peername);
 
       // Check if we're at the connection limit
