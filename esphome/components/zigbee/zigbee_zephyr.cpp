@@ -21,7 +21,7 @@ ZigbeeComponent *global_zigbee = nullptr;  // NOLINT(cppcoreguidelines-avoid-non
 const uint8_t IEEE_ADDR_BUF_SIZE = 17;
 
 void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
-  zb_zdo_app_signal_hdr_t *sig_hndler = NULL;
+  zb_zdo_app_signal_hdr_t *sig_hndler = nullptr;
   zb_zdo_app_signal_type_t sig = zb_get_app_signal(bufid, &sig_hndler);
   zb_ret_t status = ZB_GET_APP_SIGNAL_STATUS(bufid);
 
@@ -153,12 +153,14 @@ void ZigbeeComponent::setup() {
 }
 
 void ZigbeeComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Zigbee");
   bool wipe = false;
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
   wipe = true;
 #endif
-  ESP_LOGCONFIG(TAG, "  Wipe on boot: %s", YESNO(wipe));
+  ESP_LOGCONFIG(TAG,
+                "Zigbee\n"
+                "  Wipe on boot: %s",
+                YESNO(wipe));
 }
 
 static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
