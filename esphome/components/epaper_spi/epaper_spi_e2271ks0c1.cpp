@@ -8,6 +8,16 @@ namespace esphome::epaper_spi {
 
 static constexpr const char *const TAG = "epaper_spi.e2271ks0c1";
 
+bool EPaperE2271KS0C1::is_idle_() const {
+  if (this->busy_pin_ == nullptr) {
+    ESP_LOGD(TAG, "No busy pin configured, assuming idle");
+    return true;
+  }
+  bool pin = this->busy_pin_->digital_read();
+  ESP_LOGD(TAG, "Busy pin read: %d", pin);
+  return pin;  // HIGH = idle (active-low busy pin)
+}
+
 static inline uint8_t encode_temp_tsset(float temp_c, bool fast) {
   int t = static_cast<int>(lroundf(temp_c));
   uint8_t ts = static_cast<uint8_t>(t & 0xFF);  // 2's complement via cast
