@@ -115,7 +115,7 @@ def zigbee_new_variable(name: str, type_: str) -> cg.MockObj:
     return MockObj(name, ".")
 
 
-def zigbee_assign(target: cg.MockObj, expression) -> str:
+def zigbee_assign(target: cg.MockObj, expression: cg.RawExpression | int) -> str:
     """Assign an expression to a target and return a reference to it."""
     cg.add(AssignmentExpression("", "", target, expression))
     return f"&{target}"

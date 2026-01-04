@@ -118,7 +118,7 @@ async def reset_zigbee_to_code(
     action_id: core.ID,
     template_arg: cg.TemplateArguments,
     args: list[tuple],
-):
+) -> cg.Pvariable:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var

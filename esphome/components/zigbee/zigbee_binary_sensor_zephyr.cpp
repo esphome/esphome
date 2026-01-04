@@ -27,8 +27,10 @@ void ZigbeeBinarySensor::setup() {
 }
 
 void ZigbeeBinarySensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Zigbee Binary Sensor");
-  ESP_LOGCONFIG(TAG, "  End point: %d, present_value %u", this->end_point_, this->cluster_attributes_->present_value);
+  ESP_LOGCONFIG(TAG,
+                "Zigbee Binary Sensor\n"
+                "  End point: %d, present_value %u",
+                this->end_point_, this->cluster_attributes_->present_value);
 }
 
 }  // namespace esphome::zigbee
