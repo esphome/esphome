@@ -16,6 +16,7 @@ class EPaperE2271KS0C1 : public EPaperBase {
 
   void setup() override;
   void set_temperature_c(float t) { this->temperature_c_ = t; }
+  void force_full_update() { this->update_count_ = 0; }
 
  protected:
   bool transfer_data() override;
