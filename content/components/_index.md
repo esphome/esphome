@@ -1040,6 +1040,13 @@ at the {{< docref "light/fastled" "FastLED Light" >}}.
 "Template Valve","components/valve/template","description.svg","dark-invert"
 {{< /imgtable >}}
 
+## Water Heater Components
+
+{{< imgtable >}}
+"Water Heater Core","components/water_heater/index","folder-open.svg","dark-invert"
+"Template Water Heater","components/water_heater/template","description.svg","dark-invert"
+{{< /imgtable >}}
+
 ## Wireless Communication
 
 Used for creating infrared (IR) or radio frequency (RF) remote control transmitters and/or receivers, or to connect
