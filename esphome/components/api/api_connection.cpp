@@ -1874,9 +1874,9 @@ bool APIConnection::schedule_batch_() {
 }
 
 void APIConnection::process_batch_() {
-  // Ensure PacketInfo remains trivially destructible for our placement new approach
-  static_assert(std::is_trivially_destructible<PacketInfo>::value,
-                "PacketInfo must remain trivially destructible with this placement-new approach");
+  // Ensure MessageInfo remains trivially destructible for our placement new approach
+  static_assert(std::is_trivially_destructible<MessageInfo>::value,
+                "MessageInfo must remain trivially destructible with this placement-new approach");
 
   if (this->deferred_batch_.empty()) {
     this->flags_.batch_scheduled = false;
@@ -1916,12 +1916,12 @@ void APIConnection::process_batch_() {
     return;
   }
 
-  size_t packets_to_process = std::min(num_items, MAX_PACKETS_PER_BATCH);
+  size_t messages_to_process = std::min(num_items, MAX_MESSAGES_PER_BATCH);
 
-  // Stack-allocated array for packet info
-  alignas(PacketInfo) char packet_info_storage[MAX_PACKETS_PER_BATCH * sizeof(PacketInfo)];
-  PacketInfo *packet_info = reinterpret_cast<PacketInfo *>(packet_info_storage);
-  size_t packet_count = 0;
+  // Stack-allocated array for message info
+  alignas(MessageInfo) char message_info_storage[MAX_MESSAGES_PER_BATCH * sizeof(MessageInfo)];
+  MessageInfo *message_info = reinterpret_cast<MessageInfo *>(message_info_storage);
+  size_t message_count = 0;
 
   // Cache these values to avoid repeated virtual calls
   const uint8_t header_padding = this->helper_->frame_header_padding();
@@ -1952,7 +1952,7 @@ void APIConnection::process_batch_() {
   uint32_t current_offset = 0;
 
   // Process items and encode directly to buffer (up to our limit)
-  for (size_t i = 0; i < packets_to_process; i++) {
+  for (size_t i = 0; i < messages_to_process; i++) {
     const auto &item = this->deferred_batch_[i];
     // Try to encode message
     // The creator will calculate overhead to determine if the message fits
@@ -1966,11 +1966,11 @@ void APIConnection::process_batch_() {
     // Message was encoded successfully
     // payload_size is header_padding + actual payload size + footer_size
     uint16_t proto_payload_size = payload_size - header_padding - footer_size;
-    // Use placement new to construct PacketInfo in pre-allocated stack array
-    // This avoids default-constructing all MAX_PACKETS_PER_BATCH elements
-    // Explicit destruction is not needed because PacketInfo is trivially destructible,
+    // Use placement new to construct MessageInfo in pre-allocated stack array
+    // This avoids default-constructing all MAX_MESSAGES_PER_BATCH elements
+    // Explicit destruction is not needed because MessageInfo is trivially destructible,
     // as ensured by the static_assert in its definition.
-    new (&packet_info[packet_count++]) PacketInfo(item.message_type, current_offset, proto_payload_size);
+    new (&message_info[message_count++]) MessageInfo(item.message_type, current_offset, proto_payload_size);
 
     // Update tracking variables
     items_processed++;
@@ -1994,9 +1994,9 @@ void APIConnection::process_batch_() {
     shared_buf.resize(shared_buf.size() + footer_size);
   }
 
-  // Send all collected packets
-  APIError err = this->helper_->write_protobuf_packets(ProtoWriteBuffer{&shared_buf},
-                                                       std::span<const PacketInfo>(packet_info, packet_count));
+  // Send all collected messages
+  APIError err = this->helper_->write_protobuf_messages(ProtoWriteBuffer{&shared_buf},
+                                                        std::span<const MessageInfo>(message_info, message_count));
   if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
     this->fatal_error_with_log_(LOG_STR("Batch write failed"), err);
   }
