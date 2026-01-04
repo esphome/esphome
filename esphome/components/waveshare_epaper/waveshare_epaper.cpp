@@ -109,6 +109,22 @@ static const uint8_t PARTIAL_UPD_2IN9_LUT[PARTIAL_UPD_2IN9_LUT_SIZE] =
     0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x00, 0x00, 0x00,
     0x22, 0x17, 0x41, 0xB0, 0x32, 0x36,
 };
+
+static const uint8_t LUT_1GRAY_DU_3IN7_SIZE = 105;
+
+static const uint8_t LUT_1GRAY_DU_3IN7[LUT_1GRAY_DU_3IN7_SIZE] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x0A, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x05, 0x05, 0x00, 0x05, 0x03, 0x05, 0x05, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x22, 0x22, 0x22, 0x22, 0x22
+};
 // clang-format on
 
 void WaveshareEPaperBase::setup() {
@@ -4756,6 +4772,136 @@ uint32_t WaveshareEPaper13P3InK::idle_timeout_() { return 10000; }
 void WaveshareEPaper13P3InK::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 13.3inK");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+// ========== 3.7in ==========
+void WaveshareEPaper3P7In::initialize() {
+  this->reset_();
+
+  // COMMAND SOFT RESET
+  this->command(0x12);
+  delay(300);
+
+  // COMMAND INTERNAL TEMPERATURE SENSOR CONTROL (0x46)
+  this->command(0x46);
+  this->data(0xF7);
+  this->wait_until_idle_();
+
+  // COMMAND INTERNAL TEMPERATURE SENSOR CONTROL (0x47)
+  this->command(0x47);
+  this->data(0xF7);
+  this->wait_until_idle_();
+
+  // COMMAND GATE SETTING
+  this->command(0x01);
+  this->data(0xDF);  // 480-1=479=0x01DF (height)
+  this->data(0x01);
+  this->data(0x00);
+
+  // COMMAND GATE VOLTAGE
+  this->command(0x03);
+  this->data(0x00);
+
+  // COMMAND SOURCE VOLTAGE
+  this->command(0x04);
+  this->data(0x41);  // VSH
+  this->data(0xA8);  // VSH2
+  this->data(0x32);  // VSL
+
+  // COMMAND DATA ENTRY SEQUENCE
+  this->command(0x11);
+  this->data(0x03);
+
+  // COMMAND BORDER WAVEFORM
+  this->command(0x3C);
+  this->data(0x03);
+
+  // COMMAND BOOSTER STRENGTH
+  this->command(0x0C);
+  this->data(0xAE);
+  this->data(0xC7);
+  this->data(0xC3);
+  this->data(0xC0);
+  this->data(0xC0);
+
+  // COMMAND INTERNAL SENSOR ON
+  this->command(0x18);
+  this->data(0x80);
+
+  // COMMAND VCOM VOLTAGE
+  this->command(0x2C);
+  this->data(0x44);
+
+  // COMMAND DISPLAY OPTION
+  this->command(0x37);
+  this->data(0x00);  // Can switch 1 gray or 4 gray
+  this->data(0xFF);
+  this->data(0xFF);
+  this->data(0xFF);
+  this->data(0xFF);
+  this->data(0x4F);
+  this->data(0xFF);
+  this->data(0xFF);
+  this->data(0xFF);
+  this->data(0xFF);
+
+  // COMMAND X ADDRESS START/END
+  this->command(0x44);
+  this->data(0x00);
+  this->data(0x00);
+  this->data(0x17);  // 280/8-1=34=0x22, but reference uses 0x17 (23)
+  this->data(0x01);
+
+  // COMMAND Y ADDRESS START/END
+  this->command(0x45);
+  this->data(0x00);
+  this->data(0x00);
+  this->data(0xDF);  // 480-1=479=0x01DF
+  this->data(0x01);
+
+  // COMMAND DISPLAY UPDATE CONTROL 2
+  this->command(0x22);
+  this->data(0xCF);
+}
+
+void HOT WaveshareEPaper3P7In::display() {
+  uint32_t image_counter = this->get_buffer_length_();
+
+  // COMMAND X ADDRESS COUNTER
+  this->command(0x4E);
+  this->data(0x00);
+  this->data(0x00);
+
+  // COMMAND Y ADDRESS COUNTER
+  this->command(0x4F);
+  this->data(0x00);
+  this->data(0x00);
+
+  // COMMAND WRITE RAM
+  this->command(0x24);
+  this->start_data_();
+  this->write_array(this->buffer_, image_counter);
+  this->end_data_();
+
+  // Load LUT
+  this->command(0x32);
+  for (uint8_t i : LUT_1GRAY_DU_3IN7)
+    this->data(i);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x20);
+  this->wait_until_idle_();
+}
+
+int WaveshareEPaper3P7In::get_width_internal() { return 280; }
+int WaveshareEPaper3P7In::get_height_internal() { return 480; }
+void WaveshareEPaper3P7In::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 3.7in");
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
