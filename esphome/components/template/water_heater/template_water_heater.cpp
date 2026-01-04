@@ -21,7 +21,7 @@ void TemplateWaterHeater::setup() {
 }
 
 water_heater::WaterHeaterTraits TemplateWaterHeater::traits() {
-  auto traits = water_heater::WaterHeater::get_traits();
+  water_heater::WaterHeaterTraits traits;
 
   if (!this->supported_modes_.empty()) {
     traits.set_supported_modes(this->supported_modes_);

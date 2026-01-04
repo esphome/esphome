@@ -3,11 +3,15 @@
 #ifdef USE_WIFI
 #ifdef USE_LIBRETINY
 
+#include <cinttypes>
 #include <utility>
 #include <algorithm>
 #include "lwip/ip_addr.h"
 #include "lwip/err.h"
 #include "lwip/dns.h"
+
+#include <FreeRTOS.h>
+#include <queue.h>
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -19,7 +23,68 @@ namespace esphome::wifi {
 
 static const char *const TAG = "wifi_lt";
 
-static bool s_sta_connecting = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// Thread-safe event handling for LibreTiny WiFi
+//
+// LibreTiny's WiFi.onEvent() callback runs in the WiFi driver's thread context,
+// not the main ESPHome loop. Without synchronization, modifying shared state
+// (like connection status flags) from the callback causes race conditions:
+// - The main loop may never see state changes (values cached in registers)
+// - State changes may be visible in inconsistent order
+// - LibreTiny targets (BK7231, RTL8720) lack atomic instructions (no LDREX/STREX)
+//
+// Solution: Queue events in the callback and process them in the main loop.
+// This is the same approach used by ESP32 IDF's wifi_process_event_().
+// All state modifications happen in the main loop context, eliminating races.
+
+static constexpr size_t EVENT_QUEUE_SIZE = 16;  // Max pending WiFi events before overflow
+static QueueHandle_t s_event_queue = nullptr;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static volatile uint32_t s_event_queue_overflow_count =
+    0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+// Event structure for queued WiFi events - contains a copy of event data
+// to avoid lifetime issues with the original event data from the callback
+struct LTWiFiEvent {
+  arduino_event_id_t event_id;
+  union {
+    struct {
+      uint8_t ssid[33];
+      uint8_t ssid_len;
+      uint8_t bssid[6];
+      uint8_t channel;
+      uint8_t authmode;
+    } sta_connected;
+    struct {
+      uint8_t ssid[33];
+      uint8_t ssid_len;
+      uint8_t bssid[6];
+      uint8_t reason;
+    } sta_disconnected;
+    struct {
+      uint8_t old_mode;
+      uint8_t new_mode;
+    } sta_authmode_change;
+    struct {
+      uint32_t status;
+      uint8_t number;
+      uint8_t scan_id;
+    } scan_done;
+    struct {
+      uint8_t mac[6];
+      int rssi;
+    } ap_probe_req;
+  } data;
+};
+
+// Connection state machine - only modified from main loop after queue processing
+enum class LTWiFiSTAState : uint8_t {
+  IDLE,             // Not connecting
+  CONNECTING,       // Connection in progress
+  CONNECTED,        // Successfully connected with IP
+  ERROR_NOT_FOUND,  // AP not found (probe failed)
+  ERROR_FAILED,     // Connection failed (auth, timeout, etc.)
+};
+
+static LTWiFiSTAState s_sta_state = LTWiFiSTAState::IDLE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = WiFi.getMode();
@@ -136,7 +201,8 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   this->wifi_apply_hostname_();
 
-  s_sta_connecting = true;
+  // Reset state machine before connecting
+  s_sta_state = LTWiFiSTAState::CONNECTING;
 
   WiFiStatus status = WiFi.begin(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
                                  ap.get_channel(),  // 0 = auto
@@ -271,16 +337,101 @@ const char *get_disconnect_reason_str(uint8_t reason) {
 using esphome_wifi_event_id_t = arduino_event_id_t;
 using esphome_wifi_event_info_t = arduino_event_info_t;
 
+// Event callback - runs in WiFi driver thread context
+// Only queues events for processing in main loop, no logging or state changes here
 void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_wifi_event_info_t info) {
+  if (s_event_queue == nullptr) {
+    return;
+  }
+
+  // Allocate on heap and fill directly to avoid extra memcpy
+  auto *to_send = new LTWiFiEvent{};  // NOLINT(cppcoreguidelines-owning-memory)
+  to_send->event_id = event;
+
+  // Copy event-specific data
   switch (event) {
+    case ESPHOME_EVENT_ID_WIFI_STA_CONNECTED: {
+      auto &it = info.wifi_sta_connected;
+      to_send->data.sta_connected.ssid_len = it.ssid_len;
+      memcpy(to_send->data.sta_connected.ssid, it.ssid,
+             std::min(static_cast<size_t>(it.ssid_len), sizeof(to_send->data.sta_connected.ssid) - 1));
+      memcpy(to_send->data.sta_connected.bssid, it.bssid, 6);
+      to_send->data.sta_connected.channel = it.channel;
+      to_send->data.sta_connected.authmode = it.authmode;
+      break;
+    }
+    case ESPHOME_EVENT_ID_WIFI_STA_DISCONNECTED: {
+      auto &it = info.wifi_sta_disconnected;
+      to_send->data.sta_disconnected.ssid_len = it.ssid_len;
+      memcpy(to_send->data.sta_disconnected.ssid, it.ssid,
+             std::min(static_cast<size_t>(it.ssid_len), sizeof(to_send->data.sta_disconnected.ssid) - 1));
+      memcpy(to_send->data.sta_disconnected.bssid, it.bssid, 6);
+      to_send->data.sta_disconnected.reason = it.reason;
+      break;
+    }
+    case ESPHOME_EVENT_ID_WIFI_STA_AUTHMODE_CHANGE: {
+      auto &it = info.wifi_sta_authmode_change;
+      to_send->data.sta_authmode_change.old_mode = it.old_mode;
+      to_send->data.sta_authmode_change.new_mode = it.new_mode;
+      break;
+    }
+    case ESPHOME_EVENT_ID_WIFI_SCAN_DONE: {
+      auto &it = info.wifi_scan_done;
+      to_send->data.scan_done.status = it.status;
+      to_send->data.scan_done.number = it.number;
+      to_send->data.scan_done.scan_id = it.scan_id;
+      break;
+    }
+    case ESPHOME_EVENT_ID_WIFI_AP_PROBEREQRECVED: {
+      auto &it = info.wifi_ap_probereqrecved;
+      memcpy(to_send->data.ap_probe_req.mac, it.mac, 6);
+      to_send->data.ap_probe_req.rssi = it.rssi;
+      break;
+    }
+    case ESPHOME_EVENT_ID_WIFI_AP_STACONNECTED: {
+      auto &it = info.wifi_sta_connected;
+      memcpy(to_send->data.sta_connected.bssid, it.bssid, 6);
+      break;
+    }
+    case ESPHOME_EVENT_ID_WIFI_AP_STADISCONNECTED: {
+      auto &it = info.wifi_sta_disconnected;
+      memcpy(to_send->data.sta_disconnected.bssid, it.bssid, 6);
+      break;
+    }
+    case ESPHOME_EVENT_ID_WIFI_READY:
+    case ESPHOME_EVENT_ID_WIFI_STA_START:
+    case ESPHOME_EVENT_ID_WIFI_STA_STOP:
+    case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP:
+    case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6:
+    case ESPHOME_EVENT_ID_WIFI_STA_LOST_IP:
+    case ESPHOME_EVENT_ID_WIFI_AP_START:
+    case ESPHOME_EVENT_ID_WIFI_AP_STOP:
+    case ESPHOME_EVENT_ID_WIFI_AP_STAIPASSIGNED:
+      // No additional data needed
+      break;
+    default:
+      // Unknown event, don't queue
+      delete to_send;  // NOLINT(cppcoreguidelines-owning-memory)
+      return;
+  }
+
+  // Queue event (don't block if queue is full)
+  if (xQueueSend(s_event_queue, &to_send, 0) != pdPASS) {
+    delete to_send;  // NOLINT(cppcoreguidelines-owning-memory)
+    s_event_queue_overflow_count++;
+  }
+}
+
+// Process a single event from the queue - runs in main loop context
+void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
+  switch (event->event_id) {
     case ESPHOME_EVENT_ID_WIFI_READY: {
       ESP_LOGV(TAG, "Ready");
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_SCAN_DONE: {
-      auto it = info.wifi_scan_done;
-      ESP_LOGV(TAG, "Scan done: status=%u number=%u scan_id=%u", it.status, it.number, it.scan_id);
-
+      auto &it = event->data.scan_done;
+      ESP_LOGV(TAG, "Scan done: status=%" PRIu32 " number=%u scan_id=%u", it.status, it.number, it.scan_id);
       this->wifi_scan_done_callback_();
       break;
     }
@@ -291,14 +442,18 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
     }
     case ESPHOME_EVENT_ID_WIFI_STA_STOP: {
       ESP_LOGV(TAG, "STA stop");
-      s_sta_connecting = false;
+      s_sta_state = LTWiFiSTAState::IDLE;
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_CONNECTED: {
-      auto it = info.wifi_sta_connected;
+      auto &it = event->data.sta_connected;
+      char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(it.bssid, bssid_buf);
       ESP_LOGV(TAG, "Connected ssid='%.*s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", it.ssid_len,
-               (const char *) it.ssid, format_mac_address_pretty(it.bssid).c_str(), it.channel,
-               get_auth_mode_str(it.authmode));
+               (const char *) it.ssid, bssid_buf, it.channel, get_auth_mode_str(it.authmode));
+      // Note: We don't set CONNECTED state here yet - wait for GOT_IP
+      // This matches ESP32 IDF behavior where s_sta_connected is set but
+      // wifi_sta_connect_status_() also checks got_ipv4_address_
 #ifdef USE_WIFI_LISTENERS
       for (auto *listener : this->connect_state_listeners_) {
         listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
@@ -306,6 +461,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #ifdef USE_WIFI_MANUAL_IP
       if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+        s_sta_state = LTWiFiSTAState::CONNECTED;
         for (auto *listener : this->ip_state_listeners_) {
           listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
         }
@@ -315,19 +471,18 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_DISCONNECTED: {
-      auto it = info.wifi_sta_disconnected;
+      auto &it = event->data.sta_disconnected;
 
       // LibreTiny can send spurious disconnect events with empty ssid/bssid during connection.
       // These are typically "Association Leave" events that don't indicate actual failures:
       //   [W][wifi_lt]: Disconnected ssid='' bssid=00:00:00:00:00:00 reason='Association Leave'
       //   [W][wifi_lt]: Disconnected ssid='' bssid=00:00:00:00:00:00 reason='Association Leave'
       //   [V][wifi_lt]: Connected ssid='WIFI' bssid=... channel=3, authmode=WPA2 PSK
-      // Without this check, the spurious events set s_sta_connecting=false, causing
-      // wifi_sta_connect_status_() to return IDLE. The main loop then sees
-      // "Unknown connection status 0" (wifi_component.cpp check_connecting_finished)
-      // and calls retry_connect(), aborting a connection that may succeed moments later.
-      // Real connection failures will have ssid/bssid populated, or we'll hit the connection timeout.
-      if (it.ssid_len == 0 && s_sta_connecting) {
+      // Without this check, the spurious events would transition state to ERROR_FAILED,
+      // causing wifi_sta_connect_status_() to return an error. The main loop would then
+      // call retry_connect(), aborting a connection that may succeed moments later.
+      // Only ignore benign reasons - real failures like NO_AP_FOUND should still be processed.
+      if (it.ssid_len == 0 && s_sta_state == LTWiFiSTAState::CONNECTING && it.reason != WIFI_REASON_NO_AP_FOUND) {
         ESP_LOGV(TAG, "Ignoring disconnect event with empty ssid while connecting (reason=%s)",
                  get_disconnect_reason_str(it.reason));
         break;
@@ -336,11 +491,13 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       if (it.reason == WIFI_REASON_NO_AP_FOUND) {
         ESP_LOGW(TAG, "Disconnected ssid='%.*s' reason='Probe Request Unsuccessful'", it.ssid_len,
                  (const char *) it.ssid);
+        s_sta_state = LTWiFiSTAState::ERROR_NOT_FOUND;
       } else {
-        char bssid_s[18];
+        char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(it.bssid, bssid_s);
         ESP_LOGW(TAG, "Disconnected ssid='%.*s' bssid=" LOG_SECRET("%s") " reason='%s'", it.ssid_len,
                  (const char *) it.ssid, bssid_s, get_disconnect_reason_str(it.reason));
+        s_sta_state = LTWiFiSTAState::ERROR_FAILED;
       }
 
       uint8_t reason = it.reason;
@@ -351,7 +508,6 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
         this->error_from_callback_ = true;
       }
 
-      s_sta_connecting = false;
 #ifdef USE_WIFI_LISTENERS
       static constexpr uint8_t EMPTY_BSSID[6] = {};
       for (auto *listener : this->connect_state_listeners_) {
@@ -361,24 +517,22 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_AUTHMODE_CHANGE: {
-      auto it = info.wifi_sta_authmode_change;
+      auto &it = event->data.sta_authmode_change;
       ESP_LOGV(TAG, "Authmode Change old=%s new=%s", get_auth_mode_str(it.old_mode), get_auth_mode_str(it.new_mode));
       // Mitigate CVE-2020-12638
       // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
       if (it.old_mode != WIFI_AUTH_OPEN && it.new_mode == WIFI_AUTH_OPEN) {
         ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting");
-        // we can't call retry_connect() from this context, so disconnect immediately
-        // and notify main thread with error_from_callback_
         WiFi.disconnect();
         this->error_from_callback_ = true;
+        s_sta_state = LTWiFiSTAState::ERROR_FAILED;
       }
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP: {
-      // auto it = info.got_ip.ip_info;
       ESP_LOGV(TAG, "static_ip=%s gateway=%s", format_ip4_addr(WiFi.localIP()).c_str(),
                format_ip4_addr(WiFi.gatewayIP()).c_str());
-      s_sta_connecting = false;
+      s_sta_state = LTWiFiSTAState::CONNECTED;
 #ifdef USE_WIFI_LISTENERS
       for (auto *listener : this->ip_state_listeners_) {
         listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
@@ -387,7 +541,6 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6: {
-      // auto it = info.got_ip.ip_info;
       ESP_LOGV(TAG, "Got IPv6");
 #ifdef USE_WIFI_LISTENERS
       for (auto *listener : this->ip_state_listeners_) {
@@ -398,6 +551,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
     }
     case ESPHOME_EVENT_ID_WIFI_STA_LOST_IP: {
       ESP_LOGV(TAG, "Lost IP");
+      // Don't change state to IDLE - let the disconnect event handle that
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_START: {
@@ -409,15 +563,21 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STACONNECTED: {
-      auto it = info.wifi_sta_connected;
-      auto &mac = it.bssid;
-      ESP_LOGV(TAG, "AP client connected MAC=%s", format_mac_address_pretty(mac).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      auto &it = event->data.sta_connected;
+      char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(it.bssid, mac_buf);
+      ESP_LOGV(TAG, "AP client connected MAC=%s", mac_buf);
+#endif
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STADISCONNECTED: {
-      auto it = info.wifi_sta_disconnected;
-      auto &mac = it.bssid;
-      ESP_LOGV(TAG, "AP client disconnected MAC=%s", format_mac_address_pretty(mac).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      auto &it = event->data.sta_disconnected;
+      char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(it.bssid, mac_buf);
+      ESP_LOGV(TAG, "AP client disconnected MAC=%s", mac_buf);
+#endif
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_STAIPASSIGNED: {
@@ -425,8 +585,12 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_AP_PROBEREQRECVED: {
-      auto it = info.wifi_ap_probereqrecved;
-      ESP_LOGVV(TAG, "AP receive Probe Request MAC=%s RSSI=%d", format_mac_address_pretty(it.mac).c_str(), it.rssi);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+      auto &it = event->data.ap_probe_req;
+      char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(it.mac, mac_buf);
+      ESP_LOGVV(TAG, "AP receive Probe Request MAC=%s RSSI=%d", mac_buf, it.rssi);
+#endif
       break;
     }
     default:
@@ -434,23 +598,35 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
   }
 }
 void WiFiComponent::wifi_pre_setup_() {
+  // Create event queue for thread-safe event handling
+  // Events are pushed from WiFi callback thread and processed in main loop
+  s_event_queue = xQueueCreate(EVENT_QUEUE_SIZE, sizeof(LTWiFiEvent *));
+  if (s_event_queue == nullptr) {
+    ESP_LOGE(TAG, "Failed to create event queue");
+    return;
+  }
+
   auto f = std::bind(&WiFiComponent::wifi_event_callback_, this, std::placeholders::_1, std::placeholders::_2);
   WiFi.onEvent(f);
   // Make sure WiFi is in clean state before anything starts
   this->wifi_mode_(false, false);
 }
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
-  auto status = WiFi.status();
-  if (status == WL_CONNECTED) {
-    return WiFiSTAConnectStatus::CONNECTED;
-  } else if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST) {
-    return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
-  } else if (status == WL_NO_SSID_AVAIL) {
-    return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
-  } else if (s_sta_connecting) {
-    return WiFiSTAConnectStatus::CONNECTING;
+  // Use state machine instead of querying WiFi.status() directly
+  // State is updated in main loop from queued events, ensuring thread safety
+  switch (s_sta_state) {
+    case LTWiFiSTAState::CONNECTED:
+      return WiFiSTAConnectStatus::CONNECTED;
+    case LTWiFiSTAState::ERROR_NOT_FOUND:
+      return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
+    case LTWiFiSTAState::ERROR_FAILED:
+      return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
+    case LTWiFiSTAState::CONNECTING:
+      return WiFiSTAConnectStatus::CONNECTING;
+    case LTWiFiSTAState::IDLE:
+    default:
+      return WiFiSTAConnectStatus::IDLE;
   }
-  return WiFiSTAConnectStatus::IDLE;
 }
 bool WiFiComponent::wifi_scan_start_(bool passive) {
   // enable STA
@@ -534,9 +710,9 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; 
 #endif  // USE_WIFI_AP
 
 bool WiFiComponent::wifi_disconnect_() {
-  // Clear connecting flag first so disconnect events aren't ignored
+  // Reset state first so disconnect events aren't ignored
   // and wifi_sta_connect_status_() returns IDLE instead of CONNECTING
-  s_sta_connecting = false;
+  s_sta_state = LTWiFiSTAState::IDLE;
   return WiFi.disconnect();
 }
 
@@ -563,7 +739,29 @@ int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {WiFi.dnsIP(num)}; }
-void WiFiComponent::wifi_loop_() {}
+void WiFiComponent::wifi_loop_() {
+  // Process all pending events from the queue
+  if (s_event_queue == nullptr) {
+    return;
+  }
+
+  // Check for dropped events due to queue overflow
+  if (s_event_queue_overflow_count > 0) {
+    ESP_LOGW(TAG, "Event queue overflow, %" PRIu32 " events dropped", s_event_queue_overflow_count);
+    s_event_queue_overflow_count = 0;
+  }
+
+  while (true) {
+    LTWiFiEvent *event;
+    if (xQueueReceive(s_event_queue, &event, 0) != pdTRUE) {
+      // No more events
+      break;
+    }
+
+    wifi_process_event_(event);
+    delete event;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
+}
 
 }  // namespace esphome::wifi
 #endif  // USE_LIBRETINY
