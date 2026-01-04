@@ -662,13 +662,10 @@ def _render_svg_safely(svg_path: Path, resize) -> bytes:
 
     script = f"""
 import sys, resvg_py
-try:
-    with open('{svg_path}', encoding="utf-8") as f:
-        data = f.read()
-        png = resvg_py.svg_to_bytes(data {args})
-        sys.stdout.buffer.write(png)
-except Exception:
-    sys.exit(1)
+with open('{svg_path}', encoding="utf-8") as f:
+    data = f.read()
+    png = resvg_py.svg_to_bytes(data {args})
+    sys.stdout.buffer.write(png)
 """
 
     # Run the script in a subprocess
