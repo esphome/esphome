@@ -1,15 +1,18 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import DEVICE_CLASS_AQI, STATE_CLASS_MEASUREMENT
+from esphome.const import (
+    CONF_PM_2_5,
+    CONF_PM_10_0,
+    DEVICE_CLASS_AQI,
+    STATE_CLASS_MEASUREMENT,
+)
 
 from . import AQI_CALCULATION_TYPE, CONF_CALCULATION_TYPE, aqi_ns
 
 CODEOWNERS = ["@jasstrong"]
 DEPENDENCIES = ["sensor"]
 
-CONF_PM_2_5_SENSOR = "pm_2_5"
-CONF_PM_10_0_SENSOR = "pm_10_0"
 UNIT_INDEX = "index"
 
 AQISensor = aqi_ns.class_("AQISensor", sensor.Sensor, cg.Component)
@@ -24,8 +27,8 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.Required(CONF_PM_2_5_SENSOR): cv.use_id(sensor.Sensor),
-            cv.Required(CONF_PM_10_0_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_PM_2_5): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_PM_10_0): cv.use_id(sensor.Sensor),
             cv.Required(CONF_CALCULATION_TYPE): cv.enum(
                 AQI_CALCULATION_TYPE, upper=True
             ),
@@ -39,10 +42,10 @@ async def to_code(config):
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    pm_2_5_sensor = await cg.get_variable(config[CONF_PM_2_5_SENSOR])
+    pm_2_5_sensor = await cg.get_variable(config[CONF_PM_2_5])
     cg.add(var.set_pm_2_5_sensor(pm_2_5_sensor))
 
-    pm_10_0_sensor = await cg.get_variable(config[CONF_PM_10_0_SENSOR])
+    pm_10_0_sensor = await cg.get_variable(config[CONF_PM_10_0])
     cg.add(var.set_pm_10_0_sensor(pm_10_0_sensor))
 
     cg.add(var.set_aqi_calculation_type(config[CONF_CALCULATION_TYPE]))

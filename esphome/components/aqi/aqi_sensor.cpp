@@ -9,13 +9,14 @@ void AQISensor::setup() {
   if (this->pm_2_5_sensor_ != nullptr) {
     this->pm_2_5_sensor_->add_on_state_callback([this](float value) {
       this->pm_2_5_value_ = value;
-      this->calculate_aqi_();
+      // Defer calculation to avoid double-publishing if both sensors update in the same loop
+      this->defer("update", [this]() { this->calculate_aqi_(); });
     });
   }
   if (this->pm_10_0_sensor_ != nullptr) {
     this->pm_10_0_sensor_->add_on_state_callback([this](float value) {
       this->pm_10_0_value_ = value;
-      this->calculate_aqi_();
+      this->defer("update", [this]() { this->calculate_aqi_(); });
     });
   }
 }
