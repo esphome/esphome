@@ -1,13 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
-from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_PM_1_0,
     CONF_PM_2_5,
     CONF_PM_10_0,
-    DEVICE_CLASS_AQI,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
@@ -17,7 +15,6 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["aqi"]
 CODEOWNERS = ["@freekode"]
 
 hm3301_ns = cg.esphome_ns.namespace("hm3301")
@@ -25,18 +22,7 @@ HM3301Component = hm3301_ns.class_(
     "HM3301Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-UNIT_INDEX = "index"
-
-
-def _validate(config):
-    if CONF_AQI in config and CONF_PM_2_5 not in config:
-        raise cv.Invalid("AQI sensor requires PM 2.5")
-    if CONF_AQI in config and CONF_PM_10_0 not in config:
-        raise cv.Invalid("AQI sensor requires PM 10 sensors")
-    return config
-
-
-CONFIG_SCHEMA = cv.All(
+CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(HM3301Component),
@@ -61,24 +47,10 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_PM10,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_AQI): sensor.sensor_schema(
-                unit_of_measurement=UNIT_INDEX,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_AQI,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(
-                {
-                    cv.Required(CONF_CALCULATION_TYPE): cv.enum(
-                        AQI_CALCULATION_TYPE, upper=True
-                    ),
-                }
-            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x40)),
-    _validate,
+    .extend(i2c.i2c_device_schema(0x40))
 )
 
 
@@ -98,8 +70,3 @@ async def to_code(config):
     if CONF_PM_10_0 in config:
         sens = await sensor.new_sensor(config[CONF_PM_10_0])
         cg.add(var.set_pm_10_0_sensor(sens))
-
-    if CONF_AQI in config:
-        sens = await sensor.new_sensor(config[CONF_AQI])
-        cg.add(var.set_aqi_sensor(sens))
-        cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))
