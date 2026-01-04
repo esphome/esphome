@@ -19,6 +19,7 @@ class EPaperE2271KS0C1 : public EPaperBase {
   void force_full_update() { this->update_count_ = 0; }
 
  protected:
+  bool reset() override { return true; }  // Hardware reset done in setup()
   bool transfer_data() override;
   void power_on() override;
   void refresh_screen(bool partial) override;
