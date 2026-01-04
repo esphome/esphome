@@ -1113,10 +1113,17 @@ class WaveshareEPaper3P7In : public WaveshareEPaper {
     this->data(0x03);
   }
 
+  void set_full_update_every(uint32_t full_update_every);
+
  protected:
   int get_width_internal() override;
 
   int get_height_internal() override;
+
+  void write_lut_(const uint8_t *lut);
+
+  uint32_t full_update_every_{30};
+  uint32_t at_update_{0};
 };
 
 }  // namespace waveshare_epaper

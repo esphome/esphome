@@ -110,9 +110,25 @@ static const uint8_t PARTIAL_UPD_2IN9_LUT[PARTIAL_UPD_2IN9_LUT_SIZE] =
     0x22, 0x17, 0x41, 0xB0, 0x32, 0x36,
 };
 
-static const uint8_t LUT_1GRAY_DU_3IN7_SIZE = 105;
+static const uint8_t LUT_3IN7_SIZE = 105;
 
-static const uint8_t LUT_1GRAY_DU_3IN7[LUT_1GRAY_DU_3IN7_SIZE] = {
+// Full refresh LUT (Ghost Clear)
+static const uint8_t LUT_1GRAY_GC_3IN7[LUT_3IN7_SIZE] = {
+    0x2A, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x05, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x2A, 0x15, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x05, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x02, 0x03, 0x0A, 0x00, 0x02, 0x06, 0x0A, 0x05, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x22, 0x22, 0x22, 0x22, 0x22
+};
+
+// Partial refresh LUT (Direct Update)
+static const uint8_t LUT_1GRAY_DU_3IN7[LUT_3IN7_SIZE] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x01, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x0A, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -4870,6 +4886,7 @@ void WaveshareEPaper3P7In::initialize() {
 
 void HOT WaveshareEPaper3P7In::display() {
   uint32_t image_counter = this->get_buffer_length_();
+  bool full_update = this->at_update_ == 0;
 
   // COMMAND X ADDRESS COUNTER
   this->command(0x4E);
@@ -4881,27 +4898,61 @@ void HOT WaveshareEPaper3P7In::display() {
   this->data(0x00);
   this->data(0x00);
 
-  // COMMAND WRITE RAM
+  // COMMAND WRITE RAM (new data)
   this->command(0x24);
   this->start_data_();
   this->write_array(this->buffer_, image_counter);
   this->end_data_();
 
-  // Load LUT
-  this->command(0x32);
-  for (uint8_t i : LUT_1GRAY_DU_3IN7)
-    this->data(i);
+  if (full_update) {
+    // Full update: write to both buffers to ensure proper clearing
+    // COMMAND X ADDRESS COUNTER (reset for second buffer)
+    this->command(0x4E);
+    this->data(0x00);
+    this->data(0x00);
+
+    // COMMAND Y ADDRESS COUNTER (reset for second buffer)
+    this->command(0x4F);
+    this->data(0x00);
+    this->data(0x00);
+
+    // COMMAND WRITE RAM (old data buffer - write same data to clear properly)
+    this->command(0x26);
+    this->start_data_();
+    this->write_array(this->buffer_, image_counter);
+    this->end_data_();
+
+    // Load full refresh LUT
+    this->write_lut_(LUT_1GRAY_GC_3IN7);
+  } else {
+    // Partial update: use fast update LUT
+    this->write_lut_(LUT_1GRAY_DU_3IN7);
+  }
 
   // COMMAND DISPLAY REFRESH
   this->command(0x20);
   this->wait_until_idle_();
+
+  this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+}
+
+void WaveshareEPaper3P7In::write_lut_(const uint8_t *lut) {
+  this->command(0x32);
+  for (uint8_t i = 0; i < LUT_3IN7_SIZE; i++)
+    this->data(lut[i]);
 }
 
 int WaveshareEPaper3P7In::get_width_internal() { return 280; }
 int WaveshareEPaper3P7In::get_height_internal() { return 480; }
+
+void WaveshareEPaper3P7In::set_full_update_every(uint32_t full_update_every) {
+  this->full_update_every_ = full_update_every;
+}
+
 void WaveshareEPaper3P7In::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 3.7in");
+  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
