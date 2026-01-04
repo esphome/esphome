@@ -76,6 +76,12 @@ class EPaperBase : public Display,
     return 0;
   }
   void fill(Color color) override {
+    // If clipping is active, fall back to base implementation
+    if (this->get_clipping().is_set()) {
+      Display::fill(color);
+      return;
+    }
+
     auto pixel_color = color_to_bit(color) ? 0xFF : 0x00;
 
     // We store 8 pixels per byte
@@ -106,7 +112,7 @@ class EPaperBase : public Display,
   void initialise_();
   void wait_for_idle_(bool should_wait);
   bool init_buffer_(size_t buffer_length);
-  bool rotate_coordinates_(int &x, int &y) const;
+  bool rotate_coordinates_(int &x, int &y);
 
   /**
    * Methods that must be implemented by concrete classes to control the display

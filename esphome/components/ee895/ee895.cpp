@@ -7,6 +7,9 @@ namespace ee895 {
 
 static const char *const TAG = "ee895";
 
+// Serial number is 16 bytes
+static constexpr size_t EE895_SERIAL_NUMBER_SIZE = 16;
+
 static const uint16_t CRC16_ONEWIRE_START = 0xFFFF;
 static const uint8_t FUNCTION_CODE_READ = 0x03;
 static const uint16_t SERIAL_NUMBER = 0x0000;
@@ -26,7 +29,10 @@ void EE895Component::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGV(TAG, "    Serial Number: 0x%s", format_hex(serial_number + 2, 16).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char serial_hex[format_hex_size(EE895_SERIAL_NUMBER_SIZE)];
+#endif
+  ESP_LOGV(TAG, "    Serial Number: 0x%s", format_hex_to(serial_hex, serial_number + 2, EE895_SERIAL_NUMBER_SIZE));
 }
 
 void EE895Component::dump_config() {

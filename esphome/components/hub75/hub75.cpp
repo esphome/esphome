@@ -111,6 +111,9 @@ void HOT HUB75Display::draw_pixel_at(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) [[unlikely]]
     return;
 
+  if (!this->get_clipping().inside(x, y))
+    return;
+
   driver_->set_pixel(x, y, color.r, color.g, color.b);
   App.feed_wdt();
 }
@@ -179,7 +182,7 @@ void HOT HUB75Display::draw_pixels_at(int x_start, int y_start, int w, int h, co
   }
 }
 
-void HUB75Display::set_brightness(int brightness) {
+void HUB75Display::set_brightness(uint8_t brightness) {
   this->brightness_ = brightness;
   this->enabled_ = (brightness > 0);
   if (this->driver_ != nullptr) {

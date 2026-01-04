@@ -241,9 +241,12 @@ CONFIG_SCHEMA = cv.All(
                 CONF_HARDWARE_UART,
                 esp8266=UART0,
                 esp32=UART0,
+                esp32_c2=UART0,
                 esp32_c3=USB_SERIAL_JTAG,
                 esp32_c5=USB_SERIAL_JTAG,
                 esp32_c6=USB_SERIAL_JTAG,
+                esp32_c61=USB_SERIAL_JTAG,
+                esp32_h2=USB_SERIAL_JTAG,
                 esp32_p4=USB_SERIAL_JTAG,
                 esp32_s2=USB_CDC,
                 esp32_s3=USB_SERIAL_JTAG,
@@ -383,7 +386,7 @@ async def to_code(config):
     except cv.Invalid:
         pass
 
-    if CORE.using_zephyr:
+    if CORE.is_nrf52:
         if config[CONF_HARDWARE_UART] == UART0:
             zephyr_add_overlay("""&uart0 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == UART1:

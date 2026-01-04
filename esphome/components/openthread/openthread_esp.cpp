@@ -1,5 +1,5 @@
 #include "esphome/core/defines.h"
-#if defined(USE_OPENTHREAD) && defined(USE_ESP_IDF)
+#if defined(USE_OPENTHREAD) && defined(USE_ESP32)
 #include <openthread/logging.h>
 #include "openthread.h"
 
@@ -24,8 +24,7 @@
 
 static const char *const TAG = "openthread";
 
-namespace esphome {
-namespace openthread {
+namespace esphome::openthread {
 
 void OpenThreadComponent::setup() {
   // Used eventfds:
@@ -209,6 +208,5 @@ otInstance *InstanceLock::get_instance() { return esp_openthread_get_instance();
 
 InstanceLock::~InstanceLock() { esp_openthread_lock_release(); }
 
-}  // namespace openthread
-}  // namespace esphome
+}  // namespace esphome::openthread
 #endif
