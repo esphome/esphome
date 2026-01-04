@@ -29,6 +29,15 @@ class EPaperE2271KS0C1 : public EPaperBase {
   void power_off() override;
   void deep_sleep() override;
 
+  // E2271KS0C1 busy pin is active-low (LOW when busy, HIGH when idle)
+  // Override base class which assumes active-high
+  bool is_idle_() const override {
+    if (this->busy_pin_ == nullptr) {
+      return true;
+    }
+    return this->busy_pin_->digital_read();  // HIGH = idle (no inversion)
+  }
+
  private:
   static constexpr uint8_t ADDR_INPUT_TEMP = 0xE5;
   static constexpr uint8_t ADDR_ACTIVE_TEMP = 0xE0;
