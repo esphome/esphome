@@ -654,17 +654,13 @@ async def write_image(config, all_frames=False):
         if is_svg_file(path):
             from resvg_py import svg_to_bytes
 
-            # 1. Load the SVG content
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 svg_data = f.read()
 
-            # 2. Configure usage (e.g. loading fonts if needed, usually defaults are fine)
-            #    resvg automatically handles the parsing and rasterization
-
-            # 3. Handle Resizing
             if resize:
                 width, height = resize
-                # resvg-py allows rendering by width/height directly
+                # resvg-py allows rendering by width/height directly and maintains aspect ratio, i.e. it will be
+                # resized to fit within the given dimensions.
                 image_data = svg_to_bytes(
                     svg_data, width=int(width), height=int(height)
                 )
@@ -672,7 +668,7 @@ async def write_image(config, all_frames=False):
                 # Default size
                 image_data = svg_to_bytes(svg_data)
 
-            # 4. Convert bytes to Pillow Image
+            # Convert bytes to Pillow Image
             image = Image.open(io.BytesIO(image_data))
             width, height = image.size
 
