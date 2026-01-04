@@ -46,7 +46,6 @@ typedef struct _tagbbi2c {
 #ifdef ARDUINO
 #include <Arduino.h>
 #include "esp_generic.h"
-//#include <BitBang_I2C.h>
 #else  // esp-idf?
 #include <stdint.h>
 #endif  // ARDUINO
@@ -72,6 +71,7 @@ enum {
   BBT_TYPE_HDC1080,
   BBT_TYPE_HTS221,
   BBT_TYPE_MCP9808,
+  BBT_TYPE_SHTC3,
   BBT_TYPE_COUNT
 };
 
@@ -83,6 +83,7 @@ enum {
 #define BBT_ADDR_BMP388 0x76
 #define BBT_ADDR_BME680 0x76
 #define BBT_ADDR_SHT3X 0x44
+#define BBT_ADDR_SHTC3 0x70
 
 #define BME280_REG_WHOAMI 0xd0
 #define BME280_REG_CTRL_HUM 0xf2
@@ -126,6 +127,13 @@ enum { BME280_OVERSAMPLE1 = 1, BME280_OVERSAMPLE2, BME280_OVERSAMPLE4, BME280_OV
 #define HDC_REG_CONFIG 0x02
 #define HDC_REG_DEVICEID 0xff
 #define HDC_VAL_DEVICEID 0x1050
+
+#define SHTC3_ID 0xefc8
+#define SHTC3_WAKEUP 0x3517
+#define SHTC3_SOFTRESET 0x805d
+#define SHTC3_SLEEP 0xb098
+#define SHTC3_T_FIRST 0x7866
+#define SHTC3_H_FIRST 0x58e0
 
 #define SHT3X_MEAS_HIGHREP_STRETCH 0x2C06
 #define SHT3X_MEAS_MEDREP_STRETCH 0x2C0D

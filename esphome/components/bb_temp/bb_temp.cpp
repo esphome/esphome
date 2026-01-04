@@ -1,6 +1,7 @@
 // Implementation based on:
 //  bb_temperature: https://github.com/bitbank2/bb_temperature
-//  written by Larry Bank
+//  Copyright (c) 2025 BitBank Software, Inc.
+//  written by Larry Bank (bitbank@pobox.com, Github: bitbank2)
 //
 
 #include "bb_temp.h"
@@ -13,17 +14,20 @@ namespace esphome {
 namespace bb_temp {
 
 static const char *const TAG = "bb_temp";
+static const char *szSensorNames[] = {"Unknown", "AHT20",   "BMP180", "BME280",  "BMP388",
+                                      "SHT3X",   "HDC1080", "HTS221", "MCP9808", "SHTC3"};
 
 void BBTempComponent::setup() {
-  ESP_LOGE(TAG, "starting bb_temperature");
-  int rc = _bbt.init(47, 48);  //_sda_pin, _scl_pin, false, 100000);
+  int rc;
+
+  rc = _bbt.init(_sda_pin, _scl_pin, false, 400000);
   if (rc != BBT_SUCCESS) {
     ESP_LOGE(TAG, "bb_temperature init() failed, rc = %d", rc);
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
-  ESP_LOGI(TAG, "bb_temperature init() succeeded!");
+  ESP_LOGI(TAG, "bb_temperature init() succeeded, detected sensor: %s", szSensorNames[_bbt.type()]);
   _bbt.start();  // tell the sensor to start generating samples
 } /* setup() */
 

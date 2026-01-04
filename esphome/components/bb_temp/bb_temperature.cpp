@@ -136,6 +136,12 @@ int BBTemp::start(void) {
       I2CWrite(&_bbi2c, _iAddr, ucTemp, 2);
       break;
 
+    case BBT_TYPE_SHTC3:
+      ucTemp[0] = (uint8_t) (SHTC3_SOFTRESET >> 8);
+      ucTemp[1] = (uint8_t) SHTC3_SOFTRESET;
+      I2CWrite(&_bbi2c, _iAddr, ucTemp, 2);
+      break;
+
     case BBT_TYPE_BME280:
       // Read 24 bytes of calibration data
       I2CReadRegister(&_bbi2c, _iAddr, 0x88, ucCal, 24);      // 24 from register 0x88
@@ -303,12 +309,9 @@ void BBTemp::stop(void) {
 //
 int BBTemp::init(int iSDA, int iSCL, bool bBitBang, uint32_t u32Speed) {
   _iType = -1;
-  _bbi2c.bWire = !bBitBang;  // use bit bang?
+  _bbi2c.bWire = 1;
   _bbi2c.iSDA = iSDA;
   _bbi2c.iSCL = iSCL;
-#ifdef __LINUX__
-  _bbi2c.file_i2c = -1;  // force it to create a new i2c handle
-#endif
   I2CInit(&_bbi2c, u32Speed);
   return initInternal();
 } /* init() */
@@ -398,6 +401,19 @@ int BBTemp::initInternal(void) {
         return BBT_SUCCESS;
       }
     }  // if SHT3X
+
+    if (I2CTest(&_bbi2c, BBT_ADDR_SHTC3 + iOff)) {
+      ucTemp[0] = (uint8_t) (SHTC3_ID >> 8);
+      ucTemp[1] = (uint8_t) SHTC3_ID;  // read ID command
+      I2CWrite(&_bbi2c, BBT_ADDR_SHTC3 + iOff, ucTemp, 2);
+      I2CRead(&_bbi2c, BBT_ADDR_SHTC3 + iOff, ucTemp, 3);  // read ID + CRC
+      if ((ucTemp[1] & 0x3f) == 0x07) {                    // yes, it's the SHTC3
+        _iAddr = BBT_ADDR_SHTC3 + iOff;
+        _iType = BBT_TYPE_SHTC3;
+        _u32Caps = BBT_CAP_TEMPERATURE | BBT_CAP_HUMIDITY;
+        return BBT_SUCCESS;
+      }
+    }  // if SHTC3
 
   }  // for each address permutation
   return BBT_ERROR;
@@ -512,8 +528,14 @@ int BBTemp::getSample(BBT_SAMPLE *pBS) {
     } break;
 
     case BBT_TYPE_SHT3X:
-      ucTemp[0] = (uint8_t) (SHT3X_MEAS_HIGHREP >> 8);
-      ucTemp[1] = (uint8_t) SHT3X_MEAS_HIGHREP;
+    case BBT_TYPE_SHTC3:
+      if (_iType == BBT_TYPE_SHT3X) {
+        ucTemp[0] = (uint8_t) (SHT3X_MEAS_HIGHREP >> 8);
+        ucTemp[1] = (uint8_t) SHT3X_MEAS_HIGHREP;
+      } else {
+        ucTemp[0] = (uint8_t) (SHTC3_T_FIRST >> 8);
+        ucTemp[1] = (uint8_t) SHTC3_T_FIRST;
+      }
       I2CWrite(&_bbi2c, _iAddr, ucTemp, 2);
       delay(50);
       I2CRead(&_bbi2c, _iAddr, ucTemp, 6);
