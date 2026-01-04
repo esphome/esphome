@@ -648,7 +648,7 @@ CONFIG_SCHEMA = _config_schema
 
 def _render_svg_safely(svg_path: Path, resize) -> bytes:
     # Check that resvg-py is available
-    from resvg_py import svg_to_bytes  # noqa: F401
+    import resvg_py  # noqa pylint: disable=unused-import
 
     # Create a tiny script to run in a separate process
     # This is required since resvg-py can panic on malformed SVGs, without proper exception handling.
@@ -695,7 +695,7 @@ except BaseException:
                 else:
                     # No specific pattern found, use first non-empty line
                     error_msg = f"resvg failed to render SVG: {lines[0]}"
-        raise UnidentifiedImageError(error_msg)
+        raise UnidentifiedImageError(error_msg) from e
 
 
 async def write_image(config, all_frames=False):
