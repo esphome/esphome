@@ -14,8 +14,12 @@ bool EPaperE2271KS0C1::is_idle_() const {
     return true;
   }
   bool pin = this->busy_pin_->digital_read();
-  ESP_LOGD(TAG, "Busy pin read: %d", pin);
-  return pin;  // HIGH = idle (active-low busy pin)
+  // Try both polarities - uncomment the correct one for your display:
+  // Active-HIGH busy (most e-paper): HIGH=busy, LOW=idle → return !pin
+  // Active-LOW busy (some displays): LOW=busy, HIGH=idle → return pin
+  bool idle = !pin;  // Assuming active-HIGH busy (like base class)
+  ESP_LOGD(TAG, "Busy pin: %d, idle: %s", pin, idle ? "YES" : "NO");
+  return idle;
 }
 
 static inline uint8_t encode_temp_tsset(float temp_c, bool fast) {
