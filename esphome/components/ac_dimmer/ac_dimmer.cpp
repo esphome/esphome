@@ -211,13 +211,13 @@ void AcDimmer::write_state(float state) {
   this->store_.value = new_value;
 }
 void AcDimmer::dump_config() {
-  ESP_LOGCONFIG(TAG, "AcDimmer:");
-  LOG_PIN("  Output Pin: ", this->gate_pin_);
-  LOG_PIN("  Zero-Cross Pin: ", this->zero_cross_pin_);
   ESP_LOGCONFIG(TAG,
+                "AcDimmer:\n"
                 "   Min Power: %.1f%%\n"
                 "   Init with half cycle: %s",
                 this->store_.min_power / 10.0f, YESNO(this->init_with_half_cycle_));
+  LOG_PIN("  Output Pin: ", this->gate_pin_);
+  LOG_PIN("  Zero-Cross Pin: ", this->zero_cross_pin_);
   if (method_ == DIM_METHOD_LEADING_PULSE) {
     ESP_LOGCONFIG(TAG, "   Method: leading pulse");
   } else if (method_ == DIM_METHOD_LEADING) {
