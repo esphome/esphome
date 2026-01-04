@@ -47,14 +47,17 @@ void DebugComponent::get_device_info_(std::string &device_info) {
 
 #if !defined(CLANG_TIDY)
   auto reset_reason = get_reset_reason_();
-  ESP_LOGD(TAG, "Chip ID: 0x%08X", ESP.getChipId());
-  ESP_LOGD(TAG, "SDK Version: %s", ESP.getSdkVersion());
-  ESP_LOGD(TAG, "Core Version: %s", ESP.getCoreVersion().c_str());
-  ESP_LOGD(TAG, "Boot Version=%u Mode=%u", ESP.getBootVersion(), ESP.getBootMode());
-  ESP_LOGD(TAG, "CPU Frequency: %u", ESP.getCpuFreqMHz());
-  ESP_LOGD(TAG, "Flash Chip ID=0x%08X", ESP.getFlashChipId());
-  ESP_LOGD(TAG, "Reset Reason: %s", reset_reason.c_str());
-  ESP_LOGD(TAG, "Reset Info: %s", ESP.getResetInfo().c_str());
+  ESP_LOGD(TAG,
+           "Chip ID: 0x%08X\n"
+           "SDK Version: %s\n"
+           "Core Version: %s\n"
+           "Boot Version=%u Mode=%u\n"
+           "CPU Frequency: %u\n"
+           "Flash Chip ID=0x%08X\n"
+           "Reset Reason: %s\n"
+           "Reset Info: %s",
+           ESP.getChipId(), ESP.getSdkVersion(), ESP.getCoreVersion().c_str(), ESP.getBootVersion(), ESP.getBootMode(),
+           ESP.getCpuFreqMHz(), ESP.getFlashChipId(), reset_reason.c_str(), ESP.getResetInfo().c_str());
 
   device_info += "|Chip: 0x" + format_hex(ESP.getChipId());
   device_info += "|SDK: ";
