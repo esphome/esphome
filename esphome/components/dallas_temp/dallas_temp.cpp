@@ -31,8 +31,8 @@ void DallasTemperatureSensor::dump_config() {
     ESP_LOGW(TAG, "  Unable to select an address");
     return;
   }
-  LOG_ONE_WIRE_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Resolution: %u bits", this->resolution_);
+  LOG_ONE_WIRE_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
 }
 
