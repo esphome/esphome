@@ -657,8 +657,10 @@ void ESP32BLETracker::dump_config() {
                 "  Continuous Scanning: %s",
                 this->scan_duration_, this->scan_interval_ * 0.625f, this->scan_window_ * 0.625f,
                 this->scan_active_ ? "ACTIVE" : "PASSIVE", YESNO(this->scan_continuous_));
-  ESP_LOGCONFIG(TAG, "  Scanner State: %s", this->scanner_state_to_string_(this->scanner_state_));
-  ESP_LOGCONFIG(TAG, "  Connecting: %d, discovered: %d, disconnecting: %d", this->client_state_counts_.connecting,
+  ESP_LOGCONFIG(TAG,
+                "  Scanner State: %s\n"
+                "  Connecting: %d, discovered: %d, disconnecting: %d",
+                this->scanner_state_to_string_(this->scanner_state_), this->client_state_counts_.connecting,
                 this->client_state_counts_.discovered, this->client_state_counts_.disconnecting);
   if (this->scan_start_fail_count_) {
     ESP_LOGCONFIG(TAG, "  Scan Start Fail Count: %d", this->scan_start_fail_count_);
