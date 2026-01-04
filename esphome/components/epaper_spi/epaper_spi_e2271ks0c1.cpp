@@ -61,10 +61,10 @@ bool EPaperE2271KS0C1::transfer_data() {
   // Source buffer: 264 wide x 176 tall (as reported to ESPHome)
   // Panel expects: 176 wide x 264 tall
   // Rotation: source(x,y) -> dest(src_height-1-y, x)
-  const int src_width = 264;
-  const int src_height = 176;
-  const int dst_width = 176;
-  const int dst_height = 264;
+  const int src_width = this->width_;
+  const int src_height = this->height_;
+  const int dst_width = this->height_;
+  const int dst_height = this->width_;
   const size_t n = static_cast<size_t>(dst_width * dst_height / 8);  // 5808 bytes
 
   if (this->tx_.size() != n) {
