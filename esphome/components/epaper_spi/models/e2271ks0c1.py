@@ -20,14 +20,10 @@ class E2271KS0C1(EpaperModel):
         # Busy pin is active-low on this display
         super().__init__(name, class_name, **kwargs)
 
-    # fmt: off
     def get_init_sequence(self, config: dict):
-        # Panel Settings Register (PSR) initialization
-        # 0xCF, 0x8D are the base values for this display
-        # These get modified dynamically in transfer_data() for fast updates
-        return (
-            (0x00, 0xCF, 0x8D),  # PSR - Panel Settings Register
-        )
+        # No init sequence needed - all configuration happens dynamically in
+        # transfer_data() based on update mode (fast/full) and temperature
+        return ()
 
 
 e2271ks0c1 = E2271KS0C1("E2271KS0C1")
