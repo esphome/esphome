@@ -320,7 +320,7 @@ class TestRenderSvgSafely:
             args = mock_run.call_args
             script = args[0][0][2]
             # Verify backslashes are properly escaped
-            assert "\\\\" in script or "\\\\\\\\" in script
+            assert "\\\\" in script
 
     def test_path_with_quotes(self) -> None:
         """Test path sanitization for paths containing quotes."""
@@ -338,7 +338,7 @@ class TestRenderSvgSafely:
             args = mock_run.call_args
             script = args[0][0][2]
             # Verify quotes are properly escaped (looking for escaped single quote)
-            assert "\\'" in script or "my\\\\'test" in script
+            assert "\\'" in script
 
     def test_error_handling_subprocess_failure(self) -> None:
         """Test error handling when subprocess fails without stderr."""
