@@ -1,0 +1,32 @@
+sensor:
+  - platform: ips7100
+    pm_0_1:
+      name: PM 0.1
+    pm_0_3:
+      name: PM 0.3
+    pm_0_5:
+      name: PM 0.5
+    pm_1_0:
+      name: PM 1.0
+    pm_2_5:
+      name: PM 2.5
+    pm_5_0:
+      name: PM 5.0
+    pm_10_0:
+      name: PM 10.0
+    pmc_0_1:
+      name: Particle Count 0.1
+    pmc_0_3:
+      name: Particle Count 0.3
+    pmc_0_5:
+      name: Particle Count 0.5
+    pmc_1_0:
+      name: Particle Count 1.0
+    pmc_2_5:
+      name: Particle Count 2.5
+    pmc_5_0:
+      name: Particle Count 5.0
+    pmc_10_0:
+      name: Particle Count 10.0
+    address: 0x4B
+    update_interval: 60s
