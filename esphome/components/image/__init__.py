@@ -6,6 +6,8 @@ import io
 import logging
 from pathlib import Path
 import re
+import subprocess
+import sys
 
 from PIL import Image, UnidentifiedImageError
 
@@ -644,6 +646,33 @@ def _config_schema(value):
 CONFIG_SCHEMA = _config_schema
 
 
+def render_svg_safely(svg_path, resize):
+    # Create a tiny script to run in a separate process
+    # This is required since resvg-py can panic on malformed SVGs, without proper exception handling.
+
+    args = f", width={resize[0]}, height={resize[1]}" if resize else ""
+
+    script = f"""
+import sys, resvg_py
+try:
+    with open('{svg_path}', encoding="utf-8") as f:
+        data = f.read()
+        png = resvg_py.svg_to_bytes(data {args})
+        sys.stdout.buffer.write(png)
+except BaseException:
+    sys.exit(1)
+"""
+
+    # Run the script in a subprocess
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", script], capture_output=True, check=True
+        )
+        return result.stdout  # This is the PNG bytes
+    except subprocess.CalledProcessError:
+        raise UnidentifiedImageError("resvg failed to render SVG.")
+
+
 async def write_image(config, all_frames=False):
     path = Path(config[CONF_FILE])
     if not path.is_file():
@@ -652,21 +681,7 @@ async def write_image(config, all_frames=False):
     resize = config.get(CONF_RESIZE)
     try:
         if is_svg_file(path):
-            from resvg_py import svg_to_bytes
-
-            with open(path, encoding="utf-8") as f:
-                svg_data = f.read()
-
-            if resize:
-                width, height = resize
-                # resvg-py allows rendering by width/height directly and maintains aspect ratio, i.e. it will be
-                # resized to fit within the given dimensions.
-                image_data = svg_to_bytes(
-                    svg_data, width=int(width), height=int(height)
-                )
-            else:
-                # Default size
-                image_data = svg_to_bytes(svg_data)
+            image_data = render_svg_safely(path, resize)
 
             # Convert bytes to Pillow Image
             image = Image.open(io.BytesIO(image_data))
