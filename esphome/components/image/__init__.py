@@ -374,23 +374,6 @@ def is_svg_file(file):
         return "<svg" in str(f.read(1024))
 
 
-def validate_cairosvg_installed():
-    try:
-        import cairosvg
-    except ImportError as err:
-        raise cv.Invalid(
-            "Please install the cairosvg python package to use this feature. "
-            "(pip install cairosvg)"
-        ) from err
-
-    major, minor, _ = cairosvg.__version__.split(".")
-    if major < "2" or major == "2" and minor < "2":
-        raise cv.Invalid(
-            "Please update your cairosvg installation to at least 2.2.0. "
-            "(pip install -U cairosvg)"
-        )
-
-
 def validate_file_shorthand(value):
     value = cv.string_strict(value)
     parts = value.strip().split(":")
@@ -490,9 +473,7 @@ def validate_settings(value, path=()):
         )
     if file := value.get(CONF_FILE):
         file = Path(file)
-        if is_svg_file(file):
-            validate_cairosvg_installed()
-        else:
+        if not is_svg_file(file):
             try:
                 Image.open(file)
             except UnidentifiedImageError as exc:
@@ -669,44 +650,43 @@ async def write_image(config, all_frames=False):
         raise core.EsphomeError(f"Could not load image file {path}")
 
     resize = config.get(CONF_RESIZE)
-    if is_svg_file(path):
-        # Local import so use of non-SVG files needn't require cairosvg installed
-        from pyexpat import ExpatError
-        from xml.etree.ElementTree import ParseError
+    try:
+        if is_svg_file(path):
+            from resvg_py import svg_to_bytes
 
-        from cairosvg import svg2png
-        from cairosvg.helpers import PointError
+            # 1. Load the SVG content
+            with open(path) as f:
+                svg_data = f.read()
 
-        if not resize:
-            resize = (None, None)
-        try:
-            with open(path, "rb") as file:
-                image = svg2png(
-                    file_obj=file,
-                    output_width=resize[0],
-                    output_height=resize[1],
+            # 2. Configure usage (e.g. loading fonts if needed, usually defaults are fine)
+            #    resvg automatically handles the parsing and rasterization
+
+            # 3. Handle Resizing
+            if resize:
+                width, height = resize
+                # resvg-py allows rendering by width/height directly
+                image_data = svg_to_bytes(
+                    svg_data, width=int(width), height=int(height)
                 )
-            image = Image.open(io.BytesIO(image))
+            else:
+                # Default size
+                image_data = svg_to_bytes(svg_data)
+
+            # 4. Convert bytes to Pillow Image
+            image = Image.open(io.BytesIO(image_data))
             width, height = image.size
-        except (
-            ValueError,
-            ParseError,
-            IndexError,
-            ExpatError,
-            AttributeError,
-            TypeError,
-            PointError,
-        ) as e:
-            raise core.EsphomeError(f"Could not load SVG image {path}: {e}") from e
-    else:
-        image = Image.open(path)
-        width, height = image.size
-        if resize:
-            # Preserve aspect ratio
-            new_width_max = min(width, resize[0])
-            new_height_max = min(height, resize[1])
-            ratio = min(new_width_max / width, new_height_max / height)
-            width, height = int(width * ratio), int(height * ratio)
+
+        else:
+            image = Image.open(path)
+            width, height = image.size
+            if resize:
+                # Preserve aspect ratio
+                new_width_max = min(width, resize[0])
+                new_height_max = min(height, resize[1])
+                ratio = min(new_width_max / width, new_height_max / height)
+                width, height = int(width * ratio), int(height * ratio)
+    except (OSError, UnidentifiedImageError) as exc:
+        raise core.EsphomeError(f"Could not read image file {path}: {exc}") from exc
 
     if not resize and (width > 500 or height > 500):
         _LOGGER.warning(
