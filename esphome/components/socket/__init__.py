@@ -58,7 +58,7 @@ def require_wake_loop_threadsafe() -> None:
     """
 
     # Only set up once (idempotent - multiple components can call this)
-    if ("wifi" in CORE.config or "ethernet" in CORE.config) and not CORE.data.get(
+    if CORE.has_networking and not CORE.data.get(
         KEY_WAKE_LOOP_THREADSAFE_REQUIRED, False
     ):
         CORE.data[KEY_WAKE_LOOP_THREADSAFE_REQUIRED] = True
