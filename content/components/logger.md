@@ -84,18 +84,18 @@ so if you use any other configuration you will not get log messages over the on-
 
 ### Default UART GPIO Pins
 
-|          | `UART0`        | `UART0_SWAP`   | `UART1`        | `UART2`        | `USB_CDC` | `USB_SERIAL_JTAG` |
-| -------- | -------------- | -------------- | -------------- | -------------- | --------- | ----------------- |
-| ESP8266  | TX: 1, RX: 3   | TX: 15, RX: 13 | TX: 2, RX: N/A | N/A            | N/A       | N/A               |
-| ESP32    | TX: 1, RX: 3   | N/A            | TX: 10, RX: 9  | TX: 17, RX: 16 | N/A       | N/A               |
-| ESP32-C3 | TX: 21, RX: 20 | N/A | Undefined | N/A | N/A | 18/19 |
-| ESP32-C5 | TX: 10, RX: 11 | N/A | Undefined | N/A | N/A | 13/14 |
-| ESP32-C6 | TX: 16, RX: 17 | N/A | Undefined | N/A | N/A | 12/13 |
-| ESP32-C61 | TX: 5, RX: 4 | N/A | Undefined | N/A | N/A | 12/13 |
-| ESP32-P4 | TX: 37, RX: 38 | N/A | TX: 10, RX: 11 | N/A | N/A | 24/25 |
-| ESP32-S2 | TX: 43, RX: 44 | N/A | TX: 17, RX: 18 | N/A | 19/20 | N/A |
-| ESP32-S3 | TX: 43, RX: 44 | N/A | TX: 17, RX: 18 | Undefined | 19/20 | 19/20 |
-| NRF52    | pins varies by board | N/A | pins varies by board | Undefined | D+/D- | N/A |
+| Variant   | `UART0`        | `UART0_SWAP`   | `UART1`        | `UART2`        | `USB_CDC` | `USB_SERIAL_JTAG` |
+| --------- | -------------- | -------------- | -------------- | -------------- | --------- | ----------------- |
+| ESP8266   | TX: 1, RX: 3   | TX: 15, RX: 13 | TX: 2, RX: N/A | N/A            | N/A       | N/A               |
+| ESP32     | TX: 1, RX: 3   | N/A            | TX: 10, RX: 9  | TX: 17, RX: 16 | N/A       | N/A               |
+| ESP32-C3  | TX: 21, RX: 20 | N/A            | Undefined      | N/A            | N/A       | 18/19             |
+| ESP32-C5  | TX: 10, RX: 11 | N/A            | Undefined      | N/A            | N/A       | 13/14             |
+| ESP32-C6  | TX: 16, RX: 17 | N/A            | Undefined      | N/A            | N/A       | 12/13             |
+| ESP32-C61 | TX: 5, RX: 4   | N/A            | Undefined      | N/A            | N/A       | 12/13             |
+| ESP32-P4  | TX: 37, RX: 38 | N/A            | TX: 10, RX: 11 | N/A            | N/A       | 24/25             |
+| ESP32-S2  | TX: 43, RX: 44 | N/A            | TX: 17, RX: 18 | N/A            | 19/20     | N/A               |
+| ESP32-S3  | TX: 43, RX: 44 | N/A            | TX: 17, RX: 18 | Undefined      | 19/20     | 19/20             |
+| NRF52     | pins varies by board | N/A      | pins varies by board | Undefined | D+/D-    | N/A               |
 
 *Undefined* means that the logger component cannot use this hardware UART at this time.
 
@@ -108,19 +108,19 @@ hardware interfaces for logging. Many newer boards based on ESP32 variants (such
 are using the ESP's on-board USB hardware peripheral while boards based on older processors (such as
 the original ESP32 or ESP8266) continue to use USB-to-serial bridge ICs for communication.
 
-|          | Interface |
-| -------- | --------- |
-| ESP8266  | `UART0`   |
-| ESP32    | `UART0`   |
-| ESP32-C3 | `USB_SERIAL_JTAG` |
-| ESP32-C5 | `USB_SERIAL_JTAG` |
-| ESP32-C6 | `USB_SERIAL_JTAG` |
+| Variant   | Interface         |
+| --------- | ----------------- |
+| ESP8266   | `UART0`           |
+| ESP32     | `UART0`           |
+| ESP32-C3  | `USB_SERIAL_JTAG` |
+| ESP32-C5  | `USB_SERIAL_JTAG` |
+| ESP32-C6  | `USB_SERIAL_JTAG` |
 | ESP32-C61 | `USB_SERIAL_JTAG` |
-| ESP32-P4 | `USB_SERIAL_JTAG` |
-| ESP32-S2 | `USB_CDC`         |
-| ESP32-S3 | `USB_SERIAL_JTAG` |
-| RP2040   | `USB_CDC` |
-| NRF52    | `USB_CDC` |
+| ESP32-P4  | `USB_SERIAL_JTAG` |
+| ESP32-S2  | `USB_CDC`         |
+| ESP32-S3  | `USB_SERIAL_JTAG` |
+| RP2040    | `USB_CDC`         |
+| NRF52     | `USB_CDC`         |
 
 {{< anchor "logger-log_levels" >}}
 
