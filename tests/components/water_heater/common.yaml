@@ -1,0 +1,16 @@
+water_heater:
+  - platform: template
+    id: my_boiler
+    name: "Test Boiler"
+    min_temperature: 10
+    max_temperature: 85
+    target_temperature_step: 0.5
+    current_temperature_step: 0.1
+    optimistic: true
+    current_temperature: 45.0
+    mode: !lambda "return water_heater::WATER_HEATER_MODE_ECO;"
+    visual:
+      min_temperature: 10
+      max_temperature: 85
+      target_temperature_step: 0.5
+      current_temperature_step: 0.1
