@@ -6,9 +6,11 @@ from esphome.const import (
     CONF_PM_1_0,
     CONF_PM_2_5,
     CONF_PM_10_0,
+    CONF_PMC_0_3,
     CONF_PMC_0_5,
     CONF_PMC_1_0,
     CONF_PMC_2_5,
+    CONF_PMC_5_0,
     CONF_PMC_10_0,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
@@ -25,9 +27,6 @@ DEPENDENCIES = ["uart"]
 gcja5_ns = cg.esphome_ns.namespace("gcja5")
 
 GCJA5Component = gcja5_ns.class_("GCJA5Component", cg.Component, uart.UARTDevice)
-
-CONF_PMC_0_3 = "pmc_0_3"
-CONF_PMC_5_0 = "pmc_5_0"
 
 CONFIG_SCHEMA = (
     cv.Schema(
