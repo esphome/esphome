@@ -80,8 +80,7 @@ async def to_code(config: ConfigType) -> None:
     if CONF_MODE in config:
         conf = config[CONF_MODE]
         if not isinstance(conf, cv.Lambda):
-            enum_value_str = str(conf).rsplit("::", maxsplit=1)[-1]
-            conf = cv.Lambda(f"return water_heater::{enum_value_str};")
+            conf = cv.Lambda(f"return {conf};")
 
         template_ = await cg.process_lambda(
             conf,
