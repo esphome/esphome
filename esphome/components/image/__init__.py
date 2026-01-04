@@ -667,7 +667,7 @@ try:
         data = f.read()
         png = resvg_py.svg_to_bytes(data {args})
         sys.stdout.buffer.write(png)
-except BaseException:
+except Exception:
     sys.exit(1)
 """
 
