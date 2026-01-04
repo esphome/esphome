@@ -33,7 +33,6 @@ from esphome.const import (
     CONF_WIDTH,
 )
 
-CONF_TEMPERATURE_C = "temperature_c"
 from esphome.cpp_generator import RawExpression
 from esphome.final_validate import full_config
 
@@ -44,6 +43,7 @@ DEPENDENCIES = ["spi"]
 
 CONF_INIT_SEQUENCE_ID = "init_sequence_id"
 CONF_MINIMUM_UPDATE_INTERVAL = "minimum_update_interval"
+CONF_TEMPERATURE_C = "temperature_c"
 
 epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
