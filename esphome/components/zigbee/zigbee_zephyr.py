@@ -74,7 +74,7 @@ async def _attr_to_code(config: ConfigType) -> None:
     zigbee_new_attr_list(
         "zigbee_basic_attrib_list",
         "ZB_ZCL_DECLARE_BASIC_ATTRIB_LIST_EXT",
-        zigbee_assign(basic_attrs.zcl_version, "ZB_ZCL_VERSION"),
+        zigbee_assign(basic_attrs.zcl_version, cg.RawExpression("ZB_ZCL_VERSION")),
         zigbee_assign(basic_attrs.app_version, 0),
         zigbee_assign(basic_attrs.stack_version, 0),
         zigbee_assign(basic_attrs.hw_version, 0),
@@ -83,9 +83,14 @@ async def _attr_to_code(config: ConfigType) -> None:
         zigbee_set_string(
             basic_attrs.date_code, datetime.now().strftime("%d/%m/%y %H:%M")
         ),
-        zigbee_assign(basic_attrs.power_source, "ZB_ZCL_BASIC_POWER_SOURCE_DC_SOURCE"),
+        zigbee_assign(
+            basic_attrs.power_source,
+            cg.RawExpression("ZB_ZCL_BASIC_POWER_SOURCE_DC_SOURCE"),
+        ),
         zigbee_set_string(basic_attrs.location_id, ""),
-        zigbee_assign(basic_attrs.ph_env, "ZB_ZCL_BASIC_ENV_UNSPECIFIED"),
+        zigbee_assign(
+            basic_attrs.ph_env, cg.RawExpression("ZB_ZCL_BASIC_ENV_UNSPECIFIED")
+        ),
         zigbee_set_string(basic_attrs.sw_ver, __version__),
     )
 
@@ -97,7 +102,8 @@ async def _attr_to_code(config: ConfigType) -> None:
         "zigbee_identify_attrib_list",
         "ZB_ZCL_DECLARE_IDENTIFY_ATTRIB_LIST",
         zigbee_assign(
-            identify_attrs.identify_time, "ZB_ZCL_IDENTIFY_IDENTIFY_TIME_DEFAULT_VALUE"
+            identify_attrs.identify_time,
+            cg.RawExpression("ZB_ZCL_IDENTIFY_IDENTIFY_TIME_DEFAULT_VALUE"),
         ),
     )
 
@@ -109,7 +115,7 @@ def zigbee_new_variable(name: str, type_: str) -> cg.MockObj:
     return MockObj(name, ".")
 
 
-def zigbee_assign(target: cg.MockObj, expression: cg.MockObj | str | int) -> cg.MockObj:
+def zigbee_assign(target: cg.MockObj, expression) -> cg.MockObj:
     """Assign an expression to a target and return the target."""
     cg.add(AssignmentExpression("", "", target, expression))
     return target
