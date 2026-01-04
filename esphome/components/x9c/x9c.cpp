@@ -62,14 +62,14 @@ void X9cOutput::write_state(float state) {
 }
 
 void X9cOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "X9C Potentiometer Output:");
-  LOG_PIN("  Chip Select Pin: ", this->cs_pin_);
-  LOG_PIN("  Increment Pin: ", this->inc_pin_);
-  LOG_PIN("  Up/Down Pin: ", this->ud_pin_);
   ESP_LOGCONFIG(TAG,
+                "X9C Potentiometer Output:\n"
                 "  Initial Value: %f\n"
                 "  Step Delay: %d",
                 this->initial_value_, this->step_delay_);
+  LOG_PIN("  Chip Select Pin: ", this->cs_pin_);
+  LOG_PIN("  Increment Pin: ", this->inc_pin_);
+  LOG_PIN("  Up/Down Pin: ", this->ud_pin_);
   LOG_FLOAT_OUTPUT(this);
 }
 
