@@ -21,7 +21,7 @@ light:
 
 ## Configuration variables
 
-- **pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin for the data line of the light.
+- **pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The pin for the data line of the light.
 - **num_leds** (**Required**, int): The number of LEDs in the strip.
 - **chipset** (**Required**, enum): The name of the chipset used; determines signal timing. Not required if
   [specifying the timings manually](#esp32-rmt-led-strip-manual_timings).
