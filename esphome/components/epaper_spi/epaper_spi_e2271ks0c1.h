@@ -33,9 +33,12 @@ class EPaperE2271KS0C1 : public EPaperBase {
   // Override base class which assumes active-high
   bool is_idle_() const override {
     if (this->busy_pin_ == nullptr) {
+      ESP_LOGD("e2271ks0c1", "No busy pin configured, assuming idle");
       return true;
     }
-    return this->busy_pin_->digital_read();  // HIGH = idle (no inversion)
+    bool pin = this->busy_pin_->digital_read();
+    ESP_LOGD("e2271ks0c1", "Busy pin read: %d (idle=%d)", pin, pin);
+    return pin;  // HIGH = idle (no inversion)
   }
 
  private:
