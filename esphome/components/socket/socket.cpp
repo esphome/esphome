@@ -10,6 +10,62 @@ namespace esphome::socket {
 
 Socket::~Socket() {}
 
+// Format sockaddr into caller-provided buffer, returns length written (excluding null)
+static size_t format_sockaddr_to(const struct sockaddr_storage &storage, std::span<char, PEERNAME_MAX_LEN> buf) {
+  if (storage.ss_family == AF_INET) {
+    const auto *addr = reinterpret_cast<const struct sockaddr_in *>(&storage);
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+    // LWIP raw TCP only has inet_ntoa_r, not inet_ntop
+    inet_ntoa_r(addr->sin_addr, buf.data(), buf.size());
+    return strlen(buf.data());
+#else
+    if (inet_ntop(AF_INET, &addr->sin_addr, buf.data(), buf.size()) != nullptr)
+      return strlen(buf.data());
+#endif
+  }
+#if LWIP_IPV6
+  else if (storage.ss_family == AF_INET6) {
+    const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(&storage);
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+    // LWIP raw TCP uses inet6_ntoa_r
+    inet6_ntoa_r(addr->sin6_addr, buf.data(), buf.size());
+    return strlen(buf.data());
+#else
+    // Format IPv4-mapped IPv6 addresses as regular IPv4 addresses
+    if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
+        addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
+        inet_ntop(AF_INET, &addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {
+      return strlen(buf.data());
+    }
+    if (inet_ntop(AF_INET6, &addr->sin6_addr, buf.data(), buf.size()) != nullptr)
+      return strlen(buf.data());
+#endif
+  }
+#endif
+  buf[0] = '\0';
+  return 0;
+}
+
+size_t Socket::getpeername_to(std::span<char, PEERNAME_MAX_LEN> buf) {
+  struct sockaddr_storage storage;
+  socklen_t len = sizeof(storage);
+  if (this->getpeername(reinterpret_cast<struct sockaddr *>(&storage), &len) != 0) {
+    buf[0] = '\0';
+    return 0;
+  }
+  return format_sockaddr_to(storage, buf);
+}
+
+size_t Socket::getsockname_to(std::span<char, PEERNAME_MAX_LEN> buf) {
+  struct sockaddr_storage storage;
+  socklen_t len = sizeof(storage);
+  if (this->getsockname(reinterpret_cast<struct sockaddr *>(&storage), &len) != 0) {
+    buf[0] = '\0';
+    return 0;
+  }
+  return format_sockaddr_to(storage, buf);
+}
+
 std::unique_ptr<Socket> socket_ip(int type, int protocol) {
 #if USE_NETWORK_IPV6
   return socket(AF_INET6, type, protocol);

@@ -41,10 +41,15 @@ class Socket {
   virtual int shutdown(int how) = 0;
 
   virtual int getpeername(struct sockaddr *addr, socklen_t *addrlen) = 0;
-  /// Format peer address into a fixed-size buffer (no heap allocation)
-  /// Returns number of characters written (excluding null terminator), or 0 on error
-  virtual size_t getpeername_to(std::span<char, PEERNAME_MAX_LEN> buf) = 0;
   virtual int getsockname(struct sockaddr *addr, socklen_t *addrlen) = 0;
+
+  /// Format peer address into a fixed-size buffer (no heap allocation)
+  /// Non-virtual wrapper around getpeername() - can be optimized away if unused
+  /// Returns number of characters written (excluding null terminator), or 0 on error
+  size_t getpeername_to(std::span<char, PEERNAME_MAX_LEN> buf);
+  /// Format local address into a fixed-size buffer (no heap allocation)
+  /// Non-virtual wrapper around getsockname() - can be optimized away if unused
+  size_t getsockname_to(std::span<char, PEERNAME_MAX_LEN> buf);
   virtual int getsockopt(int level, int optname, void *optval, socklen_t *optlen) = 0;
   virtual int setsockopt(int level, int optname, const void *optval, socklen_t optlen) = 0;
   virtual int listen(int backlog) = 0;
