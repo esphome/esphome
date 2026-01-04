@@ -130,9 +130,8 @@ void APIConnection::start() {
     return;
   }
   // Initialize client name with peername (IP address) until Hello message provides actual name
-  char peername[socket::PEERNAME_MAX_LEN];
-  size_t len = this->helper_->getpeername_to(peername);
-  this->helper_->set_client_name(peername, len);
+  const char *peername = this->helper_->get_client_peername();
+  this->helper_->set_client_name(peername, strlen(peername));
 }
 
 APIConnection::~APIConnection() {
@@ -1505,10 +1504,8 @@ void APIConnection::complete_authentication_() {
   this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::AUTHENTICATED);
   this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("connected"));
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  char peername_buf[socket::PEERNAME_MAX_LEN];
-  this->helper_->getpeername_to(peername_buf);
   this->parent_->get_client_connected_trigger()->trigger(std::string(this->helper_->get_client_name()),
-                                                         std::string(peername_buf));
+                                                         std::string(this->helper_->get_client_peername()));
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   if (homeassistant::global_homeassistant_time != nullptr) {
@@ -1527,10 +1524,8 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
   this->helper_->set_client_name(msg.client_info.c_str(), msg.client_info.size());
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
-  char peername[socket::PEERNAME_MAX_LEN];
-  this->helper_->getpeername_to(peername);
   ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->helper_->get_client_name(),
-           peername, this->client_api_version_major_, this->client_api_version_minor_);
+           this->helper_->get_client_peername(), this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;
   resp.api_version_major = 1;
@@ -2089,17 +2084,13 @@ void APIConnection::process_state_subscriptions_() {
 #endif  // USE_API_HOMEASSISTANT_STATES
 
 void APIConnection::log_client_(int level, const LogString *message) {
-  char peername[socket::PEERNAME_MAX_LEN];
-  this->helper_->getpeername_to(peername);
-  esp_log_printf_(level, TAG, __LINE__, ESPHOME_LOG_FORMAT("%s (%s): %s"), this->helper_->get_client_name(), peername,
-                  LOG_STR_ARG(message));
+  esp_log_printf_(level, TAG, __LINE__, ESPHOME_LOG_FORMAT("%s (%s): %s"), this->helper_->get_client_name(),
+                  this->helper_->get_client_peername(), LOG_STR_ARG(message));
 }
 
 void APIConnection::log_warning_(const LogString *message, APIError err) {
-  char peername[socket::PEERNAME_MAX_LEN];
-  this->helper_->getpeername_to(peername);
-  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->helper_->get_client_name(), peername, LOG_STR_ARG(message),
-           LOG_STR_ARG(api_error_to_logstr(err)), errno);
+  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->helper_->get_client_name(), this->helper_->get_client_peername(),
+           LOG_STR_ARG(message), LOG_STR_ARG(api_error_to_logstr(err)), errno);
 }
 
 }  // namespace esphome::api

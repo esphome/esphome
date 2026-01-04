@@ -86,6 +86,8 @@ class APIFrameHelper {
 
   // Get client name (null-terminated)
   const char *get_client_name() const { return this->client_name_; }
+  // Get client peername/IP (null-terminated, cached at init time for availability after socket failure)
+  const char *get_client_peername() const { return this->client_peername_; }
   // Set client name from buffer with length (truncates if needed)
   void set_client_name(const char *name, size_t len) {
     size_t copy_len = std::min(len, sizeof(this->client_name_) - 1);
@@ -98,7 +100,6 @@ class APIFrameHelper {
   virtual APIError read_packet(ReadPacketBuffer *buffer) = 0;
   bool can_write_without_blocking() { return this->state_ == State::DATA && this->tx_buf_count_ == 0; }
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) { return socket_->getpeername(addr, addrlen); }
-  size_t getpeername_to(std::span<char, socket::PEERNAME_MAX_LEN> buf) { return socket_->getpeername_to(buf); }
   APIError close() {
     state_ = State::CLOSED;
     int err = this->socket_->close();
@@ -199,6 +200,8 @@ class APIFrameHelper {
 
   // Client name buffer - stores name from Hello message or initial peername
   char client_name_[CLIENT_INFO_NAME_MAX_LEN]{};
+  // Cached peername/IP address - captured at init time for availability after socket failure
+  char client_peername_[socket::PEERNAME_MAX_LEN]{};
 
   // Group smaller types together
   uint16_t rx_buf_len_ = 0;

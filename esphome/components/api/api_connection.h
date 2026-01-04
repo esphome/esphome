@@ -280,10 +280,8 @@ class APIConnection final : public APIServerConnection {
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
   const char *get_name() const { return this->helper_->get_client_name(); }
-  /// Get peer name (IP address) into a stack buffer - avoids heap allocation
-  size_t get_peername_to(std::span<char, socket::PEERNAME_MAX_LEN> buf) const {
-    return this->helper_->getpeername_to(buf);
-  }
+  /// Get peer name (IP address) - cached at connection init time
+  const char *get_peername() const { return this->helper_->get_client_peername(); }
 
  protected:
   // Helper function to handle authentication completion
