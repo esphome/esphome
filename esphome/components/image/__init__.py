@@ -690,8 +690,8 @@ with open('{svg_path}', encoding="utf-8") as f:
                         error_msg = f"resvg failed to render SVG: {error_part}"
                         break
                 else:
-                    # No specific pattern found, use first non-empty line
-                    error_msg = f"resvg failed to render SVG: {lines[0]}"
+                    # No specific pattern found, use last non-empty line, best for exceptions
+                    error_msg = f"resvg failed to render SVG: {lines[-1]}"
         raise UnidentifiedImageError(error_msg) from e
 
 
