@@ -7,20 +7,10 @@
 namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.e2271ks0c1";
 
-bool EPaperE2271KS0C1::is_idle_() const {
-  if (this->busy_pin_ == nullptr) {
-    return true;
-  }
-  // E2271KS0C1 has active-low busy: HIGH = idle
-  return this->busy_pin_->digital_read();
-}
-
-bool EPaperE2271KS0C1::reset() {
-  if (this->reset_pin_ == nullptr) {
-    return true;
-  }
-  // Hardware reset: double-toggle sequence per datasheet (first update only)
-  if (!this->initialized_) {
+void EPaperE2271KS0C1::setup() {
+  EPaperBase::setup();
+  // Hardware reset: double-toggle sequence per datasheet
+  if (this->reset_pin_ != nullptr) {
     ESP_LOGV(TAG, "Hardware reset");
     this->reset_pin_->digital_write(false);
     delay(50);
@@ -30,9 +20,15 @@ bool EPaperE2271KS0C1::reset() {
     delay(50);
     this->reset_pin_->digital_write(true);
     delay(50);
-    this->initialized_ = true;
   }
-  return true;
+}
+
+bool EPaperE2271KS0C1::is_idle() const {
+  if (this->busy_pin_ == nullptr) {
+    return true;
+  }
+  // E2271KS0C1 has active-low busy: HIGH = idle
+  return this->busy_pin_->digital_read();
 }
 
 static inline uint8_t encode_temp(float temp_c, bool fast) {
@@ -44,14 +40,18 @@ static inline uint8_t encode_temp(float temp_c, bool fast) {
 
 bool EPaperE2271KS0C1::transfer_data() {
   const bool partial = this->update_count_ != 0;
-  ESP_LOGV(TAG, "Transfer data, partial=%s", YESNO(partial));
 
-  // Soft reset only on full updates
-  if (!partial) {
+  // Soft reset only on full updates (non-blocking via state machine delay)
+  if (!partial && !this->soft_reset_pending_) {
+    ESP_LOGV(TAG, "Transfer data, partial=%s", YESNO(partial));
     uint8_t reset_data = 0x0E;
     this->cmd_data(CMD_PSR, &reset_data, 1);
-    delay(50);
+    this->soft_reset_pending_ = true;
+    this->delay_until_ = millis() + 50;
+    return false;  // Wait for soft reset delay
   }
+  this->soft_reset_pending_ = false;
+  ESP_LOGV(TAG, "Transfer data, partial=%s", YESNO(partial));
 
   // Build rotated buffer (90 degrees clockwise)
   // Source: 264x176, Panel expects: 176x264

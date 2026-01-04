@@ -14,17 +14,17 @@ class EPaperE2271KS0C1 : public EPaperBase {
     this->buffer_length_ = width * height / 8;  // 1bpp, 8 pixels per byte
   }
 
+  void setup() override;
   void set_temperature_c(float t) { this->temperature_c_ = t; }
 
  protected:
-  bool reset() override;
   bool transfer_data() override;
   void power_on() override;
   void refresh_screen(bool partial) override;
   void power_off() override;
   void deep_sleep() override;
   // E2271KS0C1 has active-low busy pin (LOW=busy, HIGH=idle)
-  bool is_idle_() const override;
+  bool is_idle() const override;
 
  private:
   static constexpr uint8_t CMD_PSR = 0x00;
@@ -42,7 +42,7 @@ class EPaperE2271KS0C1 : public EPaperBase {
   float temperature_c_{25.0f};
   std::vector<uint8_t> tx_;
   std::vector<uint8_t> prev_;
-  bool initialized_{false};
+  bool soft_reset_pending_{false};
 };
 
 }  // namespace esphome::epaper_spi

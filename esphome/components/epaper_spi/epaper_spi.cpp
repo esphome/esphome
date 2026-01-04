@@ -85,7 +85,7 @@ void EPaperBase::cmd_data(uint8_t command, const uint8_t *ptr, size_t length) {
   this->disable();
 }
 
-bool EPaperBase::is_idle_() const {
+bool EPaperBase::is_idle() const {
   if (this->busy_pin_ == nullptr) {
     return true;
   }
@@ -139,7 +139,7 @@ void EPaperBase::loop() {
     this->delay_until_ = 0;
   }
   if (this->waiting_for_idle_) {
-    if (this->is_idle_()) {
+    if (this->is_idle()) {
       this->waiting_for_idle_ = false;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       ESP_LOGV(TAG, "Screen was busy for %u ms", (unsigned) (millis() - this->waiting_for_idle_start_));

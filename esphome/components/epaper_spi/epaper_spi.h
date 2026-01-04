@@ -106,7 +106,7 @@ class EPaperBase : public Display,
   void process_state_();
 
   const char *epaper_state_to_string_();
-  virtual bool is_idle_() const;
+  virtual bool is_idle() const;
   void setup_pins_() const;
   virtual bool reset();
   void initialise_();
