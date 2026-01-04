@@ -41,11 +41,13 @@ void Esp32HostedUpdate::setup() {
   if (this->firmware_size_ >= app_desc_offset + sizeof(esp_app_desc_t)) {
     esp_app_desc_t *app_desc = (esp_app_desc_t *) (this->firmware_data_ + app_desc_offset);
     if (app_desc->magic_word == ESP_APP_DESC_MAGIC_WORD) {
-      ESP_LOGD(TAG, "Firmware version: %s", app_desc->version);
-      ESP_LOGD(TAG, "Project name: %s", app_desc->project_name);
-      ESP_LOGD(TAG, "Build date: %s", app_desc->date);
-      ESP_LOGD(TAG, "Build time: %s", app_desc->time);
-      ESP_LOGD(TAG, "IDF version: %s", app_desc->idf_ver);
+      ESP_LOGD(TAG,
+               "Firmware version: %s\n"
+               "Project name: %s\n"
+               "Build date: %s\n"
+               "Build time: %s\n"
+               "IDF version: %s",
+               app_desc->version, app_desc->project_name, app_desc->date, app_desc->time, app_desc->idf_ver);
       this->update_info_.latest_version = app_desc->version;
       if (this->update_info_.latest_version != this->update_info_.current_version) {
         this->state_ = update::UPDATE_STATE_AVAILABLE;
