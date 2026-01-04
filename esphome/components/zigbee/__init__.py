@@ -87,7 +87,7 @@ async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 def validate_binary_sensor(config: ConfigType) -> ConfigType:
-    if config.get(CONF_INTERNAL):
+    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
         return config
     data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
     slots: list[str] = data.setdefault(KEY_EP_NUMBER, [])
