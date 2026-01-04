@@ -4,6 +4,7 @@ from esphome.core import CORE
 
 def test_require_wake_loop_threadsafe__first_call() -> None:
     """Test that first call sets up define and consumes socket."""
+    CORE.config = {"wifi": True}
     socket.require_wake_loop_threadsafe()
 
     # Verify CORE.data was updated
@@ -17,6 +18,7 @@ def test_require_wake_loop_threadsafe__idempotent() -> None:
     """Test that subsequent calls are idempotent."""
     # Set up initial state as if already called
     CORE.data[socket.KEY_WAKE_LOOP_THREADSAFE_REQUIRED] = True
+    CORE.config = {"wifi": True}
 
     # Call again - should not raise or fail
     socket.require_wake_loop_threadsafe()
@@ -31,6 +33,7 @@ def test_require_wake_loop_threadsafe__idempotent() -> None:
 def test_require_wake_loop_threadsafe__multiple_calls() -> None:
     """Test that multiple calls only set up once."""
     # Call three times
+    CORE.config = {"wifi": True}
     socket.require_wake_loop_threadsafe()
     socket.require_wake_loop_threadsafe()
     socket.require_wake_loop_threadsafe()
