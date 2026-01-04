@@ -13,12 +13,16 @@ void EPaperE2271KS0C1::setup() {
   if (this->reset_pin_ != nullptr) {
     ESP_LOGV(TAG, "Hardware reset");
     this->reset_pin_->digital_write(false);
+    // NOLINT
     delay(50);
     this->reset_pin_->digital_write(true);
+    // NOLINT
     delay(50);
     this->reset_pin_->digital_write(false);
+    // NOLINT
     delay(50);
     this->reset_pin_->digital_write(true);
+    // NOLINT
     delay(50);
   }
 }
