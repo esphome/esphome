@@ -20,7 +20,7 @@ from .const_zephyr import (
     ZigbeeComponent,
     zigbee_ns,
 )
-from .zigbee_zephyr import zephyr_binary_sensor, zephyr_component
+from .zigbee_zephyr import zephyr_binary_sensor
 
 CODEOWNERS = ["@tomaszduda23"]
 
@@ -46,9 +46,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.requires_component("nrf52"),
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(zephyr_component),
+    ).extend(cv.COMPONENT_SCHEMA),
     zigbee_set_core_data,
     cv.only_with_framework("zephyr"),
 )
