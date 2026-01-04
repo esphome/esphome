@@ -264,6 +264,7 @@ esphome/components/inkplate/* @jesserockz @JosipKuci
 esphome/components/integration/* @OttoWinter
 esphome/components/internal_temperature/* @Mat931
 esphome/components/interval/* @esphome/core
+esphome/components/ips7100/* @piitaya
 esphome/components/ir_rf_proxy/* @kbx81
 esphome/components/jsn_sr04t/* @Mafus1
 esphome/components/json/* @esphome/core
