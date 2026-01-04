@@ -781,8 +781,10 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
            get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-  ESP_LOGV(TAG, "Connection Params:");
-  ESP_LOGV(TAG, "  SSID: '%s'", ap.get_ssid().c_str());
+  ESP_LOGV(TAG,
+           "Connection Params:\n"
+           "  SSID: '%s'",
+           ap.get_ssid().c_str());
   if (ap.has_bssid()) {
     ESP_LOGV(TAG, "  BSSID: %s", bssid_s);
   } else {
@@ -791,20 +793,28 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 
 #ifdef USE_WIFI_WPA2_EAP
   if (ap.get_eap().has_value()) {
-    ESP_LOGV(TAG, "  WPA2 Enterprise authentication configured:");
     EAPAuth eap_config = ap.get_eap().value();
-    ESP_LOGV(TAG, "    Identity: " LOG_SECRET("'%s'"), eap_config.identity.c_str());
-    ESP_LOGV(TAG, "    Username: " LOG_SECRET("'%s'"), eap_config.username.c_str());
-    ESP_LOGV(TAG, "    Password: " LOG_SECRET("'%s'"), eap_config.password.c_str());
+    // clang-format off
+    ESP_LOGV(
+        TAG,
+        "  WPA2 Enterprise authentication configured:\n"
+        "    Identity: " LOG_SECRET("'%s'") "\n"
+        "    Username: " LOG_SECRET("'%s'") "\n"
+        "    Password: " LOG_SECRET("'%s'"),
+        eap_config.identity.c_str(), eap_config.username.c_str(), eap_config.password.c_str());
+    // clang-format on
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP) && ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     ESP_LOGV(TAG, "    TTLS Phase 2: " LOG_SECRET("'%s'"), eap_phase2_to_str(eap_config.ttls_phase_2));
 #endif
     bool ca_cert_present = eap_config.ca_cert != nullptr && strlen(eap_config.ca_cert);
     bool client_cert_present = eap_config.client_cert != nullptr && strlen(eap_config.client_cert);
     bool client_key_present = eap_config.client_key != nullptr && strlen(eap_config.client_key);
-    ESP_LOGV(TAG, "    CA Cert:     %s", ca_cert_present ? "present" : "not present");
-    ESP_LOGV(TAG, "    Client Cert: %s", client_cert_present ? "present" : "not present");
-    ESP_LOGV(TAG, "    Client Key:  %s", client_key_present ? "present" : "not present");
+    ESP_LOGV(TAG,
+             "    CA Cert:     %s\n"
+             "    Client Cert: %s\n"
+             "    Client Key:  %s",
+             ca_cert_present ? "present" : "not present", client_cert_present ? "present" : "not present",
+             client_key_present ? "present" : "not present");
   } else {
 #endif
     ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.get_password().c_str());
