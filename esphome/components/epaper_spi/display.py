@@ -32,7 +32,6 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
 )
-
 from esphome.cpp_generator import RawExpression
 from esphome.final_validate import full_config
 
