@@ -165,6 +165,10 @@ template<typename T, size_t N> class StaticVector {
   // Direct access to size counter for efficient in-place construction
   size_t &count() { return count_; }
 
+  // Direct access to underlying data
+  T *data() { return data_.data(); }
+  const T *data() const { return data_.data(); }
+
   T &operator[](size_t i) { return data_[i]; }
   const T &operator[](size_t i) const { return data_[i]; }
 
