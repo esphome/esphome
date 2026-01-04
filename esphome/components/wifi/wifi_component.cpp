@@ -794,13 +794,15 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 #ifdef USE_WIFI_WPA2_EAP
   if (ap.get_eap().has_value()) {
     EAPAuth eap_config = ap.get_eap().value();
+    // clang-format off
     ESP_LOGV(
         TAG,
         "  WPA2 Enterprise authentication configured:\n"
         "    Identity: " LOG_SECRET("'%s'") "\n"
-                                            "    Username: " LOG_SECRET("'%s'") "\n"
-                                                                                "    Password: " LOG_SECRET("'%s'"),
+        "    Username: " LOG_SECRET("'%s'") "\n"
+        "    Password: " LOG_SECRET("'%s'"),
         eap_config.identity.c_str(), eap_config.username.c_str(), eap_config.password.c_str());
+    // clang-format on
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP) && ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     ESP_LOGV(TAG, "    TTLS Phase 2: " LOG_SECRET("'%s'"), eap_phase2_to_str(eap_config.ttls_phase_2));
 #endif
