@@ -59,13 +59,13 @@ light:
 | ------------- | ---------------- | ---------- |
 | ESP32         | 512 symbols      | 64 symbols |
 | ESP32-C3      | 96 symbols       | 48 symbols |
-| ESP32-C5 | 96 symbols | 48 symbols |
-| ESP32-C6 | 96 symbols | 48 symbols |
-| ESP32-C61 | 96 symbols | 48 symbols |
-| ESP32-H2 | 96 symbols | 48 symbols |
-| ESP32-P4 | 192 symbols | 48 symbols |
-| ESP32-S2 | 256 symbols | 64 symbols |
-| ESP32-S3 | 192 symbols | 48 symbols |
+| ESP32-C5      | 96 symbols       | 48 symbols |
+| ESP32-C6      | 96 symbols       | 48 symbols |
+| ESP32-C61     | 96 symbols       | 48 symbols |
+| ESP32-H2      | 96 symbols       | 48 symbols |
+| ESP32-P4      | 192 symbols      | 48 symbols |
+| ESP32-S2      | 256 symbols      | 64 symbols |
+| ESP32-S3      | 192 symbols      | 48 symbols |
 
 - **use_dma** (*Optional*, boolean): Enable DMA on variants that support it. If enabled `rmt_symbols` controls
   the DMA buffer size and can be set to a large value.
