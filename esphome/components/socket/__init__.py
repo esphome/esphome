@@ -47,6 +47,8 @@ def require_wake_loop_threadsafe() -> None:
     This enables the shared UDP loopback socket mechanism (~208 bytes RAM).
     The socket is shared across all components that use this feature.
 
+    This call is a no-op if networking is not enabled in the configuration.
+
     IMPORTANT: This is for background thread context only, NOT ISR context.
     Socket operations are not safe to call from ISR handlers.
 
