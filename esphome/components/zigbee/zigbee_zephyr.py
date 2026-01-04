@@ -115,14 +115,14 @@ def zigbee_new_variable(name: str, type_: str) -> cg.MockObj:
     return MockObj(name, ".")
 
 
-def zigbee_assign(target: cg.MockObj, expression) -> cg.MockObj:
-    """Assign an expression to a target and return the target."""
+def zigbee_assign(target: cg.MockObj, expression) -> str:
+    """Assign an expression to a target and return a reference to it."""
     cg.add(AssignmentExpression("", "", target, expression))
-    return target
+    return f"&{target}"
 
 
 def zigbee_set_string(target: cg.MockObj, value: str) -> str:
-    """Set a ZCL string value and return the target name."""
+    """Set a ZCL string value and return the target name (arrays decay to pointers)."""
     cg.add(
         cg.RawExpression(
             f"ZB_ZCL_SET_STRING_VAL({target}, {cg.safe_exp(value)}, ZB_ZCL_STRING_CONST_SIZE({cg.safe_exp(value)}))"
@@ -131,18 +131,9 @@ def zigbee_set_string(target: cg.MockObj, value: str) -> str:
     return str(target)
 
 
-def zigbee_new_attr_list(name: str, macro: str, *args: cg.MockObj | str) -> str:
+def zigbee_new_attr_list(name: str, macro: str, *args: str) -> str:
     """Create an attribute list using a ZBOSS macro and return the name."""
-    attr_list = []
-    for arg in args:
-        arg_str = str(arg)
-        # String attributes and time attrs are passed directly, others by reference
-        if arg_str.endswith("description") or arg_str == "zb_zcl_time_attrs_t_id":
-            attr_list.append(arg_str)
-        else:
-            attr_list.append(f"&{arg_str}")
-
-    obj = cg.RawExpression(f"{macro}({name}, {', '.join(attr_list)})")
+    obj = cg.RawExpression(f"{macro}({name}, {', '.join(args)})")
     CORE.add_global(obj)
     return name
 
