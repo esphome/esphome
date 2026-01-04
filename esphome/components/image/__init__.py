@@ -646,9 +646,10 @@ def _config_schema(value):
 CONFIG_SCHEMA = _config_schema
 
 
-def render_svg_safely(svg_path, resize):
+def _render_svg_safely(svg_path, resize):
     # Create a tiny script to run in a separate process
     # This is required since resvg-py can panic on malformed SVGs, without proper exception handling.
+    # The path has already been sanitised by this point, and indeed is known to be an SVG file.
 
     args = f", width={resize[0]}, height={resize[1]}" if resize else ""
 
@@ -669,8 +670,25 @@ except BaseException:
             [sys.executable, "-c", script], capture_output=True, check=True
         )
         return result.stdout  # This is the PNG bytes
-    except subprocess.CalledProcessError:
-        raise UnidentifiedImageError("resvg failed to render SVG.")
+    except subprocess.CalledProcessError as e:
+        error_msg = "resvg failed to render SVG."
+        if e.stderr:
+            # Parse error message from stderr (handles Rust panic messages)
+            stderr_text = e.stderr.decode("utf-8", errors="replace").strip()
+            if stderr_text:
+                # Try to extract the main error from Rust panic messages
+                # Format: "called `Result::unwrap()` on an `Err` value: \"error message\""
+                lines = stderr_text.split("\n")
+                for line in lines:
+                    # Extract the meaningful part
+                    if "`Err` value:" in line:
+                        error_part = line.split("`Err` value:", 1)[1].strip()
+                        error_msg = f"resvg failed to render SVG: {error_part}"
+                        break
+                else:
+                    # No specific pattern found, use first non-empty line
+                    error_msg = f"resvg failed to render SVG: {lines[0]}"
+        raise UnidentifiedImageError(error_msg)
 
 
 async def write_image(config, all_frames=False):
@@ -681,7 +699,7 @@ async def write_image(config, all_frames=False):
     resize = config.get(CONF_RESIZE)
     try:
         if is_svg_file(path):
-            image_data = render_svg_safely(path, resize)
+            image_data = _render_svg_safely(path, resize)
 
             # Convert bytes to Pillow Image
             image = Image.open(io.BytesIO(image_data))
