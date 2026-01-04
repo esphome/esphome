@@ -10,9 +10,7 @@
 #endif
 
 #ifdef USE_ARDUINO
-#ifdef USE_ESP8266
-#include <Updater.h>
-#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_LIBRETINY)
 #include <Update.h>
 #endif
 #endif  // USE_ARDUINO
@@ -23,8 +21,7 @@ using PlatformString = std::string;
 using PlatformString = String;
 #endif
 
-namespace esphome {
-namespace web_server {
+namespace esphome::web_server {
 
 static const char *const TAG = "web_server.ota";
 
@@ -121,10 +118,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
 
     // Platform-specific pre-initialization
 #ifdef USE_ARDUINO
-#ifdef USE_ESP8266
-    Update.runAsync(true);
-#endif
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_LIBRETINY)
     if (Update.isRunning()) {
       Update.abort();
     }
@@ -236,7 +230,6 @@ void WebServerOTAComponent::setup() {
 
 void WebServerOTAComponent::dump_config() { ESP_LOGCONFIG(TAG, "Web Server OTA"); }
 
-}  // namespace web_server
-}  // namespace esphome
+}  // namespace esphome::web_server
 
 #endif  // USE_WEBSERVER_OTA

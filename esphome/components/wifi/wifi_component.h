@@ -6,15 +6,11 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
+#include <span>
 #include <string>
 #include <vector>
-
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#include <WiFi.h>
-#include <WiFiType.h>
-#include <esp_wifi.h>
-#endif
 
 #ifdef USE_LIBRETINY
 #include <WiFi.h>
@@ -58,6 +54,9 @@ namespace esphome::wifi {
 
 /// Sentinel value for RSSI when WiFi is not connected
 static constexpr int8_t WIFI_RSSI_DISCONNECTED = -127;
+
+/// Buffer size for SSID (IEEE 802.11 max 32 bytes + null terminator)
+static constexpr size_t SSID_BUFFER_SIZE = 33;
 
 struct SavedWifiSettings {
   char ssid[33];
@@ -274,7 +273,7 @@ class WiFiScanResultsListener {
  */
 class WiFiConnectStateListener {
  public:
-  virtual void on_wifi_connect_state(const std::string &ssid, const bssid_t &bssid) = 0;
+  virtual void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) = 0;
 };
 
 /** Listener interface for WiFi power save mode changes.
@@ -406,6 +405,9 @@ class WiFiComponent : public Component {
 
   network::IPAddresses wifi_sta_ip_addresses();
   std::string wifi_ssid();
+  /// Write SSID to buffer without heap allocation.
+  /// Returns pointer to buffer, or empty string if not connected.
+  const char *wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer);
   bssid_t wifi_bssid();
 
   int8_t wifi_rssi();
@@ -570,10 +572,6 @@ class WiFiComponent : public Component {
   static void s_wifi_scan_done_callback(void *arg, STATUS status);
 #endif
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-  void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
-  void wifi_scan_done_callback_();
-#endif
 #ifdef USE_ESP32
   void wifi_process_event_(IDFWiFiEvent *data);
 #endif

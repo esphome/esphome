@@ -516,11 +516,32 @@ std::string str_until(const std::string &str, char ch);
 std::string str_lower_case(const std::string &str);
 /// Convert the string to upper case.
 std::string str_upper_case(const std::string &str);
+
+/// Convert a single char to snake_case: lowercase and space to underscore.
+constexpr char to_snake_case_char(char c) { return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c; }
 /// Convert the string to snake case (lowercase with underscores).
 std::string str_snake_case(const std::string &str);
 
+/// Sanitize a single char: keep alphanumerics, dashes, underscores; replace others with underscore.
+constexpr char to_sanitized_char(char c) {
+  return (c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) ? c : '_';
+}
 /// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
 std::string str_sanitize(const std::string &str);
+
+/// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
+/// This computes object_id hashes directly from names without creating an intermediate buffer.
+/// IMPORTANT: Must match Python fnv1_hash_object_id() in esphome/helpers.py.
+/// If you modify this function, update the Python version and tests in both places.
+inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
+  uint32_t hash = FNV1_OFFSET_BASIS;
+  for (size_t i = 0; i < len; i++) {
+    hash *= FNV1_PRIME;
+    // Apply snake_case (space->underscore, uppercase->lowercase) then sanitize
+    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(str[i])));
+  }
+  return hash;
+}
 
 /// snprintf-like function returning std::string of maximum length \p len (excluding null terminator).
 std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t len, ...);
@@ -548,6 +569,18 @@ std::string make_name_with_suffix(const std::string &name, char sep, const char 
 /// @return The concatenated string: name + sep + suffix
 std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
                                   size_t suffix_len);
+
+/// Zero-allocation version: format name + separator + suffix directly into buffer.
+/// @param buffer Output buffer (must have space for result + null terminator)
+/// @param buffer_size Size of the output buffer
+/// @param name The base name string
+/// @param name_len Length of the name
+/// @param sep Single character separator
+/// @param suffix_ptr Pointer to the suffix characters
+/// @param suffix_len Length of the suffix
+/// @return Length written (excluding null terminator)
+size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
+                                const char *suffix_ptr, size_t suffix_len);
 
 ///@}
 
@@ -658,33 +691,98 @@ constexpr uint8_t parse_hex_char(char c) {
   return 255;
 }
 
+/// Convert a nibble (0-15) to hex char with specified base ('a' for lowercase, 'A' for uppercase)
+inline char format_hex_char(uint8_t v, char base) { return v >= 10 ? base + (v - 10) : '0' + v; }
+
 /// Convert a nibble (0-15) to lowercase hex char
-inline char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
+inline char format_hex_char(uint8_t v) { return format_hex_char(v, 'a'); }
 
 /// Convert a nibble (0-15) to uppercase hex char (used for pretty printing)
-/// This always uses uppercase (A-F) for pretty/human-readable output
-inline char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
+inline char format_hex_pretty_char(uint8_t v) { return format_hex_char(v, 'A'); }
 
-/// Format MAC address as XX:XX:XX:XX:XX:XX (uppercase)
-inline void format_mac_addr_upper(const uint8_t *mac, char *output) {
-  for (size_t i = 0; i < 6; i++) {
-    uint8_t byte = mac[i];
-    output[i * 3] = format_hex_pretty_char(byte >> 4);
-    output[i * 3 + 1] = format_hex_pretty_char(byte & 0x0F);
-    if (i < 5)
-      output[i * 3 + 2] = ':';
+/// Write int8 value to buffer without modulo operations.
+/// Buffer must have at least 4 bytes free. Returns pointer past last char written.
+inline char *int8_to_str(char *buf, int8_t val) {
+  int32_t v = val;
+  if (v < 0) {
+    *buf++ = '-';
+    v = -v;
   }
-  output[17] = '\0';
+  if (v >= 100) {
+    *buf++ = '1';  // int8 max is 128, so hundreds digit is always 1
+    v -= 100;
+    // Must write tens digit (even if 0) after hundreds
+    int32_t tens = v / 10;
+    *buf++ = '0' + tens;
+    v -= tens * 10;
+  } else if (v >= 10) {
+    int32_t tens = v / 10;
+    *buf++ = '0' + tens;
+    v -= tens * 10;
+  }
+  *buf++ = '0' + v;
+  return buf;
+}
+
+/// Format byte array as lowercase hex to buffer (base implementation).
+char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length);
+
+/// Format byte array as lowercase hex to buffer. Automatically deduces buffer size.
+/// Truncates output if data exceeds buffer capacity. Returns pointer to buffer.
+template<size_t N> inline char *format_hex_to(char (&buffer)[N], const uint8_t *data, size_t length) {
+  static_assert(N >= 3, "Buffer must hold at least one hex byte (3 chars)");
+  return format_hex_to(buffer, N, data, length);
+}
+
+/// Format an unsigned integer in lowercased hex to buffer, starting with the most significant byte.
+template<size_t N, typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline char *format_hex_to(char (&buffer)[N], T val) {
+  static_assert(N >= sizeof(T) * 2 + 1, "Buffer too small for type");
+  val = convert_big_endian(val);
+  return format_hex_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
+}
+
+/// Calculate buffer size needed for format_hex_to: "XXXXXXXX...\0" = bytes * 2 + 1
+constexpr size_t format_hex_size(size_t byte_count) { return byte_count * 2 + 1; }
+
+/// Calculate buffer size needed for format_hex_pretty_to with separator: "XX:XX:...:XX\0"
+constexpr size_t format_hex_pretty_size(size_t byte_count) { return byte_count * 3; }
+
+/** Format byte array as uppercase hex to buffer (base implementation).
+ *
+ * @param buffer Output buffer to write to.
+ * @param buffer_size Size of the output buffer.
+ * @param data Pointer to the byte array to format.
+ * @param length Number of bytes in the array.
+ * @param separator Character to use between hex bytes, or '\0' for no separator.
+ * @return Pointer to buffer.
+ *
+ * Buffer size needed: length * 3 with separator (for "XX:XX:XX\0"), length * 2 + 1 without.
+ */
+char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator = ':');
+
+/// Format byte array as uppercase hex with separator to buffer. Automatically deduces buffer size.
+template<size_t N>
+inline char *format_hex_pretty_to(char (&buffer)[N], const uint8_t *data, size_t length, char separator = ':') {
+  static_assert(N >= 3, "Buffer must hold at least one hex byte");
+  return format_hex_pretty_to(buffer, N, data, length, separator);
+}
+
+/// MAC address size in bytes
+static constexpr size_t MAC_ADDRESS_SIZE = 6;
+/// Buffer size for MAC address with separators: "XX:XX:XX:XX:XX:XX\0"
+static constexpr size_t MAC_ADDRESS_PRETTY_BUFFER_SIZE = format_hex_pretty_size(MAC_ADDRESS_SIZE);
+/// Buffer size for MAC address without separators: "XXXXXXXXXXXX\0"
+static constexpr size_t MAC_ADDRESS_BUFFER_SIZE = MAC_ADDRESS_SIZE * 2 + 1;
+
+/// Format MAC address as XX:XX:XX:XX:XX:XX (uppercase, colon separators)
+inline void format_mac_addr_upper(const uint8_t *mac, char *output) {
+  format_hex_pretty_to(output, MAC_ADDRESS_PRETTY_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE, ':');
 }
 
 /// Format MAC address as xxxxxxxxxxxxxx (lowercase, no separators)
 inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
-  for (size_t i = 0; i < 6; i++) {
-    uint8_t byte = mac[i];
-    output[i * 2] = format_hex_char(byte >> 4);
-    output[i * 2 + 1] = format_hex_char(byte & 0x0F);
-  }
-  output[12] = '\0';
+  format_hex_to(output, MAC_ADDRESS_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE);
 }
 
 /// Format the six-byte array \p mac into a MAC address.
@@ -867,8 +965,15 @@ ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const ch
 
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
-/// Create a string from a value, an accuracy in decimals, and a unit of measurement.
-std::string value_accuracy_with_uom_to_string(float value, int8_t accuracy_decimals, StringRef unit_of_measurement);
+
+/// Maximum buffer size for value_accuracy formatting (float ~15 chars + space + UOM ~40 chars + null)
+static constexpr size_t VALUE_ACCURACY_MAX_LEN = 64;
+
+/// Format value with accuracy to buffer, returns chars written (excluding null)
+size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value, int8_t accuracy_decimals);
+/// Format value with accuracy and UOM to buffer, returns chars written (excluding null)
+size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value,
+                                      int8_t accuracy_decimals, StringRef unit_of_measurement);
 
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
@@ -878,6 +983,7 @@ std::string base64_encode(const std::vector<uint8_t> &buf);
 
 std::vector<uint8_t> base64_decode(const std::string &encoded_string);
 size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
+size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len);
 
 ///@}
 
@@ -1133,12 +1239,6 @@ class HighFrequencyLoopRequester {
 
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
 void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
-
-/// Buffer size for MAC address in lowercase hex notation (12 hex chars + null terminator)
-constexpr size_t MAC_ADDRESS_BUFFER_SIZE = 13;
-
-/// Buffer size for MAC address in colon-separated uppercase hex notation (17 chars + null terminator)
-constexpr size_t MAC_ADDRESS_PRETTY_BUFFER_SIZE = 18;
 
 /// Get the device MAC address as a string, in lowercase hex notation.
 std::string get_mac_address();

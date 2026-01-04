@@ -7,7 +7,7 @@
 #include "esphome/components/md5/md5.h"
 #include "esphome/components/watchdog/watchdog.h"
 #include "esphome/components/ota/ota_backend.h"
-#include "esphome/components/ota/ota_backend_arduino_esp8266.h"
+#include "esphome/components/ota/ota_backend_esp8266.h"
 #include "esphome/components/ota/ota_backend_arduino_rp2040.h"
 #include "esphome/components/ota/ota_backend_esp_idf.h"
 
@@ -105,9 +105,8 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   // we will compute MD5 on the fly for verification -- Arduino OTA seems to ignore it
   md5_receive.init();
-  ESP_LOGV(TAG, "MD5Digest initialized");
-
-  ESP_LOGV(TAG, "OTA backend begin");
+  ESP_LOGV(TAG, "MD5Digest initialized\n"
+                "OTA backend begin");
   auto backend = ota::make_ota_backend();
   auto error_code = backend->begin(container->content_length);
   if (error_code != ota::OTA_RESPONSE_OK) {

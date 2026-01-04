@@ -9,12 +9,14 @@
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
 namespace esphome {
 namespace nextion {
 static const char *const TAG = "nextion.upload.esp32";
+static constexpr size_t NEXTION_MAX_RESPONSE_LOG_BYTES = 16;
 
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
@@ -110,8 +112,10 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
 #endif
       upload_first_chunk_sent_ = true;
       if (recv_string[0] == 0x08 && recv_string.size() == 5) {  // handle partial upload request
-        ESP_LOGD(TAG, "Recv: [%s]",
-                 format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
+        char hex_buf[format_hex_pretty_size(NEXTION_MAX_RESPONSE_LOG_BYTES)];
+        ESP_LOGD(
+            TAG, "Recv: [%s]",
+            format_hex_pretty_to(hex_buf, reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()));
         uint32_t result = 0;
         for (int j = 0; j < 4; ++j) {
           result += static_cast<uint8_t>(recv_string[j + 1]) << (8 * j);
@@ -128,8 +132,10 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
         buffer = nullptr;
         return range_end + 1;
       } else if (recv_string[0] != 0x05 and recv_string[0] != 0x08) {  // 0x05 == "ok"
-        ESP_LOGE(TAG, "Invalid response: [%s]",
-                 format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
+        char hex_buf[format_hex_pretty_size(NEXTION_MAX_RESPONSE_LOG_BYTES)];
+        ESP_LOGE(
+            TAG, "Invalid response: [%s]",
+            format_hex_pretty_to(hex_buf, reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()));
         // Deallocate buffer
         allocator.deallocate(buffer, 4096);
         buffer = nullptr;
@@ -287,8 +293,9 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   this->recv_ret_string_(response, 5000, true);  // This can take some time to return
 
   // The Nextion display will, if it's ready to accept data, send a 0x05 byte.
+  char hex_buf[format_hex_pretty_size(NEXTION_MAX_RESPONSE_LOG_BYTES)];
   ESP_LOGD(TAG, "Upload resp: [%s] %zu B",
-           format_hex_pretty(reinterpret_cast<const uint8_t *>(response.data()), response.size()).c_str(),
+           format_hex_pretty_to(hex_buf, reinterpret_cast<const uint8_t *>(response.data()), response.size()),
            response.length());
   ESP_LOGV(TAG, "Heap: %" PRIu32, esp_get_free_heap_size());
 

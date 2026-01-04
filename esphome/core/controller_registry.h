@@ -119,6 +119,12 @@ class AlarmControlPanel;
 }
 #endif
 
+#ifdef USE_WATER_HEATER
+namespace water_heater {
+class WaterHeater;
+}
+#endif
+
 #ifdef USE_EVENT
 namespace event {
 class Event;
@@ -226,6 +232,10 @@ class ControllerRegistry {
 
 #ifdef USE_ALARM_CONTROL_PANEL
   static void notify_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj);
+#endif
+
+#ifdef USE_WATER_HEATER
+  static void notify_water_heater_update(water_heater::WaterHeater *obj);
 #endif
 
 #ifdef USE_EVENT

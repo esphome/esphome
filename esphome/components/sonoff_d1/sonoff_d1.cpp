@@ -42,11 +42,16 @@
  *  M                                                 6C - CRC over bytes 2 to F (Addition)
 \*********************************************************************************************/
 #include "sonoff_d1.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace sonoff_d1 {
 
 static const char *const TAG = "sonoff_d1";
+
+// Protocol constants
+static constexpr size_t SONOFF_D1_ACK_SIZE = 7;
+static constexpr size_t SONOFF_D1_MAX_CMD_SIZE = 17;
 
 uint8_t SonoffD1Output::calc_checksum_(const uint8_t *cmd, const size_t len) {
   uint8_t crc = 0;
@@ -86,8 +91,11 @@ bool SonoffD1Output::read_command_(uint8_t *cmd, size_t &len) {
 
   // Read a minimal packet
   if (this->read_array(cmd, 6)) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    char hex_buf[format_hex_pretty_size(6)];
     ESP_LOGV(TAG, "[%04d] Reading from dimmer:", this->write_count_);
-    ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty(cmd, 6).c_str());
+    ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty_to(hex_buf, cmd, 6));
+#endif
 
     if (cmd[0] != 0xAA || cmd[1] != 0x55) {
       ESP_LOGW(TAG, "[%04d] RX: wrong header (%x%x, must be AA55)", this->write_count_, cmd[0], cmd[1]);
@@ -101,7 +109,10 @@ bool SonoffD1Output::read_command_(uint8_t *cmd, size_t &len) {
       return false;
     }
     if (this->read_array(&cmd[6], cmd[5] + 1 /*checksum suffix*/)) {
-      ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty(&cmd[6], cmd[5] + 1).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      char hex_buf2[format_hex_pretty_size(SONOFF_D1_MAX_CMD_SIZE)];
+      ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty_to(hex_buf2, &cmd[6], cmd[5] + 1));
+#endif
 
       // Check the checksum
       uint8_t valid_checksum = this->calc_checksum_(cmd, cmd[5] + 7);
@@ -145,9 +156,10 @@ bool SonoffD1Output::read_ack_(const uint8_t *cmd, const size_t len) {
     ESP_LOGD(TAG, "[%04d] Acknowledge received", this->write_count_);
     return true;
   } else {
+    char hex_buf[format_hex_pretty_size(SONOFF_D1_ACK_SIZE)];
     ESP_LOGW(TAG, "[%04d] Unexpected acknowledge received (possible clash of RF/HA commands), expected ack was:",
              this->write_count_);
-    ESP_LOGW(TAG, "[%04d] %s", this->write_count_, format_hex_pretty(ref_buffer, sizeof(ref_buffer)).c_str());
+    ESP_LOGW(TAG, "[%04d] %s", this->write_count_, format_hex_pretty_to(hex_buf, ref_buffer, sizeof(ref_buffer)));
   }
   return false;
 }
@@ -174,8 +186,11 @@ bool SonoffD1Output::write_command_(uint8_t *cmd, const size_t len, bool needs_a
   // 2. UART command initiated by this component can clash with a command initiated by RF
   uint32_t retries = 10;
   do {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    char hex_buf[format_hex_pretty_size(SONOFF_D1_MAX_CMD_SIZE)];
     ESP_LOGV(TAG, "[%04d] Writing to the dimmer:", this->write_count_);
-    ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty(cmd, len).c_str());
+    ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty_to(hex_buf, cmd, len));
+#endif
     this->write_array(cmd, len);
     this->write_count_++;
     if (!needs_ack)
