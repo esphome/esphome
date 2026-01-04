@@ -11,7 +11,7 @@ namespace esphome::socket {
 Socket::~Socket() {}
 
 // Platform-specific inet_ntop wrappers
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
+#if defined(USE_SOCKET_IMPL_LWIP_TCP)
 // LWIP raw TCP (ESP8266) uses inet_ntoa_r which takes struct by value
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
   inet_ntoa_r(*reinterpret_cast<const struct in_addr *>(addr), buf, size);
