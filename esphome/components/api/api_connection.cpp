@@ -1535,27 +1535,11 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
   resp.set_server_info(ESPHOME_VERSION_REF);
   resp.set_name(StringRef(App.get_name()));
 
-#ifdef USE_API_PASSWORD
-  // Password required - wait for authentication
-  this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::CONNECTED);
-#else
-  // No password configured - auto-authenticate
+  // Auto-authenticate - password auth was removed in ESPHome 2026.1.0
   this->complete_authentication_();
-#endif
 
   return this->send_message(resp, HelloResponse::MESSAGE_TYPE);
 }
-#ifdef USE_API_PASSWORD
-bool APIConnection::send_authenticate_response(const AuthenticationRequest &msg) {
-  AuthenticationResponse resp;
-  // bool invalid_password = 1;
-  resp.invalid_password = !this->parent_->check_password(msg.password.byte(), msg.password.size());
-  if (!resp.invalid_password) {
-    this->complete_authentication_();
-  }
-  return this->send_message(resp, AuthenticationResponse::MESSAGE_TYPE);
-}
-#endif  // USE_API_PASSWORD
 
 bool APIConnection::send_ping_response(const PingRequest &msg) {
   PingResponse resp;
@@ -1564,9 +1548,6 @@ bool APIConnection::send_ping_response(const PingRequest &msg) {
 
 bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   DeviceInfoResponse resp{};
-#ifdef USE_API_PASSWORD
-  resp.uses_password = true;
-#endif
   resp.set_name(StringRef(App.get_name()));
   resp.set_friendly_name(StringRef(App.get_friendly_name()));
 #ifdef USE_AREAS
@@ -1845,12 +1826,6 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   // Do not set last_traffic_ on send
   return true;
 }
-#ifdef USE_API_PASSWORD
-void APIConnection::on_unauthenticated_access() {
-  this->on_fatal_error();
-  ESP_LOGD(TAG, "%s (%s) no authentication", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
-}
-#endif
 void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
   ESP_LOGD(TAG, "%s (%s) no connection setup", this->client_info_.name.c_str(), this->client_info_.peername.c_str());

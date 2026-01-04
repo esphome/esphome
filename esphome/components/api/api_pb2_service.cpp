@@ -24,17 +24,6 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_hello_request(msg);
       break;
     }
-#ifdef USE_API_PASSWORD
-    case AuthenticationRequest::MESSAGE_TYPE: {
-      AuthenticationRequest msg;
-      msg.decode(msg_data, msg_size);
-#ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_authentication_request: %s", msg.dump().c_str());
-#endif
-      this->on_authentication_request(msg);
-      break;
-    }
-#endif
     case DisconnectRequest::MESSAGE_TYPE: {
       DisconnectRequest msg;
       // Empty message: no decode needed
@@ -643,13 +632,6 @@ void APIServerConnection::on_hello_request(const HelloRequest &msg) {
     this->on_fatal_error();
   }
 }
-#ifdef USE_API_PASSWORD
-void APIServerConnection::on_authentication_request(const AuthenticationRequest &msg) {
-  if (!this->send_authenticate_response(msg)) {
-    this->on_fatal_error();
-  }
-}
-#endif
 void APIServerConnection::on_disconnect_request(const DisconnectRequest &msg) {
   if (!this->send_disconnect_response(msg)) {
     this->on_fatal_error();
@@ -841,10 +823,7 @@ void APIServerConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) 
 void APIServerConnection::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {
   // Check authentication/connection requirements for messages
   switch (msg_type) {
-    case HelloRequest::MESSAGE_TYPE:  // No setup required
-#ifdef USE_API_PASSWORD
-    case AuthenticationRequest::MESSAGE_TYPE:  // No setup required
-#endif
+    case HelloRequest::MESSAGE_TYPE:       // No setup required
     case DisconnectRequest::MESSAGE_TYPE:  // No setup required
     case PingRequest::MESSAGE_TYPE:        // No setup required
       break;                               // Skip all checks for these messages

@@ -643,7 +643,7 @@ async def get_variable(id_: ID) -> "MockObj":
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
 
-    This is a coroutine, you need to await it with a 'await' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
 
     :param id_: The ID to retrieve
     :return: The variable as a MockObj.
@@ -656,7 +656,7 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
 
-    This is a coroutine, you need to await it with a 'await' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
 
     :param id_: The ID to retrieve
     :return: The variable as a MockObj.
