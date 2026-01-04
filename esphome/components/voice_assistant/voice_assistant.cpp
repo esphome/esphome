@@ -430,9 +430,12 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
   }
 
   if (this->api_client_ != nullptr) {
-    ESP_LOGE(TAG, "Multiple API Clients attempting to connect to Voice Assistant");
-    ESP_LOGE(TAG, "Current client: %s (%s)", this->api_client_->get_name(), this->api_client_->get_peername());
-    ESP_LOGE(TAG, "New client: %s (%s)", client->get_name(), client->get_peername());
+    ESP_LOGE(TAG,
+             "Multiple API Clients attempting to connect to Voice Assistant\n"
+             "Current client: %s (%s)\n"
+             "New client: %s (%s)",
+             this->api_client_->get_name(), this->api_client_->get_peername(), client->get_name(),
+             client->get_peername());
     return;
   }
 
@@ -864,9 +867,11 @@ void VoiceAssistant::on_timer_event(const api::VoiceAssistantTimerEventResponse 
       .is_active = msg.is_active,
   };
   this->timers_[timer.id] = timer;
-  ESP_LOGD(TAG, "Timer Event");
-  ESP_LOGD(TAG, "  Type: %" PRId32, msg.event_type);
-  ESP_LOGD(TAG, "  %s", timer.to_string().c_str());
+  ESP_LOGD(TAG,
+           "Timer Event\n"
+           "  Type: %" PRId32 "\n"
+           "  %s",
+           msg.event_type, timer.to_string().c_str());
 
   switch (msg.event_type) {
     case api::enums::VOICE_ASSISTANT_TIMER_STARTED:
