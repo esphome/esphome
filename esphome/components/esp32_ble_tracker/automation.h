@@ -98,7 +98,12 @@ template<typename... Ts> class ESP32BLEStartScanAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(bool, continuous)
   void play(const Ts &...x) override {
     this->parent_->set_scan_continuous(this->continuous_.value(x...));
-    this->parent_->start_scan();
+    // Only call start_scan() if scanner is IDLE
+    // For other states (STARTING, RUNNING, STOPPING, FAILED), the state machine
+    // will handle restarting when appropriate based on the continuous flag
+    if (this->parent_->get_scanner_state() == ScannerState::IDLE) {
+      this->parent_->start_scan();
+    }
   }
 
  protected:
