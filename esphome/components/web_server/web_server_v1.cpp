@@ -5,6 +5,29 @@
 
 namespace esphome::web_server {
 
+// Write HTML-escaped text to stream (escapes ", &, <, >)
+static void write_html_escaped(AsyncResponseStream *stream, const char *text) {
+  for (const char *p = text; *p; ++p) {
+    switch (*p) {
+      case '"':
+        stream->print("&quot;");
+        break;
+      case '&':
+        stream->print("&amp;");
+        break;
+      case '<':
+        stream->print("&lt;");
+        break;
+      case '>':
+        stream->print("&gt;");
+        break;
+      default:
+        stream->write(*p);
+        break;
+    }
+  }
+}
+
 void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
                const std::function<void(AsyncResponseStream &stream, EntityBase *obj)> &action_func = nullptr) {
   stream->print("<tr class=\"");
@@ -16,8 +39,27 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
   stream->print("-");
   char object_id_buf[OBJECT_ID_MAX_LEN];
   stream->print(obj->get_object_id_to(object_id_buf).c_str());
+  // Add data attributes for hierarchical URL support
+  stream->print("\" data-domain=\"");
+  stream->print(klass.c_str());
+  stream->print("\" data-name=\"");
+  write_html_escaped(stream, obj->get_name().c_str());
+#ifdef USE_DEVICES
+  Device *device = obj->get_device();
+  if (device != nullptr) {
+    stream->print("\" data-device=\"");
+    write_html_escaped(stream, device->get_name());
+  }
+#endif
   stream->print("\"><td>");
-  stream->print(obj->get_name().c_str());
+#ifdef USE_DEVICES
+  if (device != nullptr) {
+    stream->print("[");
+    write_html_escaped(stream, device->get_name());
+    stream->print("] ");
+  }
+#endif
+  write_html_escaped(stream, obj->get_name().c_str());
   stream->print("</td><td></td><td>");
   stream->print(action.c_str());
   if (action_func) {

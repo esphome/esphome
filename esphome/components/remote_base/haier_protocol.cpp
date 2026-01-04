@@ -1,4 +1,5 @@
 #include "haier_protocol.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -12,6 +13,8 @@ constexpr uint32_t BIT_MARK_US = 540;
 constexpr uint32_t BIT_ONE_SPACE_US = 1650;
 constexpr uint32_t BIT_ZERO_SPACE_US = 580;
 constexpr unsigned int HAIER_IR_PACKET_BIT_SIZE = 112;
+// Max data bytes in packet (excluding checksum)
+constexpr size_t HAIER_MAX_DATA_BYTES = (HAIER_IR_PACKET_BIT_SIZE / 8);
 
 void HaierProtocol::encode_byte_(RemoteTransmitData *dst, uint8_t item) {
   for (uint8_t mask = 1 << 7; mask != 0; mask >>= 1) {
@@ -77,7 +80,8 @@ optional<HaierData> HaierProtocol::decode(RemoteReceiveData src) {
 }
 
 void HaierProtocol::dump(const HaierData &data) {
-  ESP_LOGI(TAG, "Received Haier: %s", format_hex_pretty(data.data).c_str());
+  char hex_buf[format_hex_pretty_size(HAIER_MAX_DATA_BYTES)];
+  ESP_LOGI(TAG, "Received Haier: %s", format_hex_pretty_to(hex_buf, data.data.data(), data.data.size()));
 }
 
 }  // namespace remote_base
