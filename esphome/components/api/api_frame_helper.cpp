@@ -16,12 +16,7 @@ static const char *const TAG = "api.frame_helper";
 static constexpr size_t API_MAX_LOG_BYTES = 168;
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-#define HELPER_LOG(msg, ...) \
-  do { \
-    char peername__[socket::PEERNAME_MAX_LEN]; \
-    this->socket_->getpeername_to(peername__); \
-    ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, peername__, ##__VA_ARGS__); \
-  } while (0)
+#define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, this->client_peername_, ##__VA_ARGS__)
 #else
 #define HELPER_LOG(msg, ...) ((void) 0)
 #endif
@@ -250,6 +245,8 @@ APIError APIFrameHelper::init_common_() {
     HELPER_LOG("Bad state for init %d", (int) state_);
     return APIError::BAD_STATE;
   }
+  // Cache peername now while socket is valid - needed for error logging after socket failure
+  this->socket_->getpeername_to(this->client_peername_);
   int err = this->socket_->setblocking(false);
   if (err != 0) {
     state_ = State::FAILED;
