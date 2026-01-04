@@ -9,7 +9,7 @@ static const char *const TAG = "uponor_smatrix.sensor";
 void UponorSmatrixSensor::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Uponor Smatrix Sensor\n"
-                "  Device address: 0x%04X",
+                "  Device address: 0x%08X",
                 this->address_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "External Temperature", this->external_temperature_sensor_);
@@ -18,7 +18,7 @@ void UponorSmatrixSensor::dump_config() {
 }
 
 void UponorSmatrixSensor::on_device_data(const UponorSmatrixData *data, size_t data_len) {
-  for (int i = 0; i < data_len; i++) {
+  for (size_t i = 0; i < data_len; i++) {
     switch (data[i].id) {
       case UPONOR_ID_ROOM_TEMP:
         if (this->temperature_sensor_ != nullptr)

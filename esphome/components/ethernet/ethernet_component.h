@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/network/ip_address.h"
 
 #ifdef USE_ESP32
@@ -58,7 +59,6 @@ class EthernetComponent : public Component {
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  bool can_proceed() override;
   void on_powerdown() override { powerdown(); }
   bool is_connected();
 
@@ -83,15 +83,18 @@ class EthernetComponent : public Component {
   void add_phy_register(PHYRegister register_value);
 #endif
   void set_type(EthernetType type);
+#ifdef USE_ETHERNET_MANUAL_IP
   void set_manual_ip(const ManualIP &manual_ip);
+#endif
   void set_fixed_mac(const std::array<uint8_t, 6> &mac) { this->fixed_mac_ = mac; }
 
   network::IPAddresses get_ip_addresses();
   network::IPAddress get_dns_address(uint8_t num);
-  std::string get_use_address() const;
-  void set_use_address(const std::string &use_address);
+  const char *get_use_address() const;
+  void set_use_address(const char *use_address);
   void get_eth_mac_address_raw(uint8_t *mac);
   std::string get_eth_mac_address_pretty();
+  const char *get_eth_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
   eth_duplex_t get_duplex_mode();
   eth_speed_t get_link_speed();
   bool powerdown();
@@ -114,7 +117,6 @@ class EthernetComponent : public Component {
   /// @brief Set arbitratry PHY registers from config.
   void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);
 
-  std::string use_address_;
 #ifdef USE_ETHERNET_SPI
   uint8_t clk_pin_;
   uint8_t miso_pin_;
@@ -139,7 +141,9 @@ class EthernetComponent : public Component {
   uint8_t mdc_pin_{23};
   uint8_t mdio_pin_{18};
 #endif
+#ifdef USE_ETHERNET_MANUAL_IP
   optional<ManualIP> manual_ip_{};
+#endif
   uint32_t connect_begin_;
 
   // Group all uint8_t types together (enums and bools)
@@ -158,12 +162,17 @@ class EthernetComponent : public Component {
   esp_eth_handle_t eth_handle_;
   esp_eth_phy_t *phy_{nullptr};
   optional<std::array<uint8_t, 6>> fixed_mac_;
+
+ private:
+  // Stores a pointer to a string literal (static storage duration).
+  // ONLY set from Python-generated code with string literals - never dynamic strings.
+  const char *use_address_{""};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
 
-#if defined(USE_ARDUINO) || ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
 #endif
 

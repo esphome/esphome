@@ -7,7 +7,8 @@
 
 #include "opentherm.h"
 #include "esphome/core/helpers.h"
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#include <cinttypes>
+#ifdef USE_ESP32
 #include "driver/timer.h"
 #include "esp_err.h"
 #endif
@@ -31,7 +32,7 @@ OpenTherm *OpenTherm::instance = nullptr;
 OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t device_timeout)
     : in_pin_(in_pin),
       out_pin_(out_pin),
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
       timer_group_(TIMER_GROUP_0),
       timer_idx_(TIMER_0),
 #endif
@@ -57,7 +58,7 @@ bool OpenTherm::initialize() {
   this->out_pin_->setup();
   this->out_pin_->digital_write(true);
 
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
   return this->init_esp32_timer_();
 #else
   return true;
@@ -238,7 +239,7 @@ void IRAM_ATTR OpenTherm::write_bit_(uint8_t high, uint8_t clock) {
   }
 }
 
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
 
 bool OpenTherm::init_esp32_timer_() {
   // Search for a free timer. Maybe unstable, we'll see.
@@ -365,7 +366,7 @@ void IRAM_ATTR OpenTherm::stop_timer_() {
   }
 }
 
-#endif  // END ESP32
+#endif  // USE_ESP32
 
 #ifdef ESP8266
 // 5 kHz timer_
@@ -569,8 +570,8 @@ void OpenTherm::debug_data(OpenthermData &data) {
            to_string(data.f88()).c_str());
 }
 void OpenTherm::debug_error(OpenThermError &error) const {
-  ESP_LOGD(TAG, "data: %s; clock: %s; capture: %s; bit_pos: %s", format_hex(error.data).c_str(),
-           to_string(clock_).c_str(), format_bin(error.capture).c_str(), to_string(error.bit_pos).c_str());
+  ESP_LOGD(TAG, "data: 0x%08" PRIx32 "; clock: %u; capture: 0x%08" PRIx32 "; bit_pos: %u", error.data, this->clock_,
+           error.capture, error.bit_pos);
 }
 
 float OpenthermData::f88() { return ((float) this->s16()) / 256.0; }

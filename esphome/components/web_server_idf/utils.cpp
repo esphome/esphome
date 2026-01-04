@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include <memory>
 #include <cstring>
 #include <cctype>
@@ -13,7 +13,8 @@ namespace web_server_idf {
 
 static const char *const TAG = "web_server_idf_utils";
 
-void url_decode(char *str) {
+size_t url_decode(char *str) {
+  char *start = str;
   char *ptr = str, buf;
   for (; *str; str++, ptr++) {
     if (*str == '%') {
@@ -31,7 +32,8 @@ void url_decode(char *str) {
       *ptr = *str;
     }
   }
-  *ptr = *str;
+  *ptr = '\0';
+  return ptr - start;
 }
 
 bool request_has_header(httpd_req_t *req, const char *name) { return httpd_req_get_hdr_value_len(req, name); }
@@ -122,4 +124,4 @@ const char *stristr(const char *haystack, const char *needle) {
 
 }  // namespace web_server_idf
 }  // namespace esphome
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

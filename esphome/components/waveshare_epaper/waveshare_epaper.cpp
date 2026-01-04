@@ -172,6 +172,12 @@ void WaveshareEPaperBase::update() {
   this->display();
 }
 void WaveshareEPaper::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
   // flip logic
   const uint8_t fill = color.is_on() ? 0x00 : 0xFF;
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
@@ -234,6 +240,12 @@ uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
   return hex_code;
 }
 void WaveshareEPaper7C::fill(Color color) {
+  // If clipping is active, use base class (3-bit packing is complex for partial fills)
+  if (this->get_clipping().is_set()) {
+    display::Display::fill(color);
+    return;
+  }
+
   uint8_t pixel_color;
   if (color.is_on()) {
     pixel_color = this->color_to_hex(color);
@@ -2274,11 +2286,11 @@ void GDEW0154M09::clear_() {
   uint32_t pixsize = this->get_buffer_length_();
   for (uint8_t j = 0; j < 2; j++) {
     this->command(CMD_DTM1_DATA_START_TRANS);
-    for (int count = 0; count < pixsize; count++) {
+    for (uint32_t count = 0; count < pixsize; count++) {
       this->data(0x00);
     }
     this->command(CMD_DTM2_DATA_START_TRANS2);
-    for (int count = 0; count < pixsize; count++) {
+    for (uint32_t count = 0; count < pixsize; count++) {
       this->data(0xff);
     }
     this->command(CMD_DISPLAY_REFRESH);
@@ -2291,11 +2303,11 @@ void HOT GDEW0154M09::display() {
   this->init_internal_();
   // "Mode 0 display" for now
   this->command(CMD_DTM1_DATA_START_TRANS);
-  for (int i = 0; i < this->get_buffer_length_(); i++) {
+  for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
     this->data(0xff);
   }
   this->command(CMD_DTM2_DATA_START_TRANS2);  // write 'new' data to SRAM
-  for (int i = 0; i < this->get_buffer_length_(); i++) {
+  for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
     this->data(this->buffer_[i]);
   }
   this->command(CMD_DISPLAY_REFRESH);

@@ -65,23 +65,23 @@ void BMP280Component::setup() {
   // https://community.st.com/t5/stm32-mcus-products/issue-with-reading-bmp280-chip-id-using-spi/td-p/691855
   if (!this->bmp_read_byte(0xD0, &chip_id)) {
     this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (!this->bmp_read_byte(0xD0, &chip_id)) {
     this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (chip_id != 0x58) {
     this->error_code_ = WRONG_CHIP_ID;
-    this->mark_failed(BMP280_ERROR_WRONG_CHIP_ID);
+    this->mark_failed(LOG_STR(BMP280_ERROR_WRONG_CHIP_ID));
     return;
   }
 
   // Send a soft reset.
   if (!this->bmp_write_byte(BMP280_REGISTER_RESET, BMP280_SOFT_RESET)) {
-    this->mark_failed("Reset failed");
+    this->mark_failed(LOG_STR("Reset failed"));
     return;
   }
   // Wait until the NVM data has finished loading.
@@ -90,12 +90,12 @@ void BMP280Component::setup() {
   do {
     delay(2);
     if (!this->bmp_read_byte(BMP280_REGISTER_STATUS, &status)) {
-      this->mark_failed("Error reading status register");
+      this->mark_failed(LOG_STR("Error reading status register"));
       return;
     }
   } while ((status & BMP280_STATUS_IM_UPDATE) && (--retry));
   if (status & BMP280_STATUS_IM_UPDATE) {
-    this->mark_failed("Timeout loading NVM");
+    this->mark_failed(LOG_STR("Timeout loading NVM"));
     return;
   }
 
@@ -116,14 +116,14 @@ void BMP280Component::setup() {
 
   uint8_t config_register = 0;
   if (!this->bmp_read_byte(BMP280_REGISTER_CONFIG, &config_register)) {
-    this->mark_failed("Read config");
+    this->mark_failed(LOG_STR("Read config"));
     return;
   }
   config_register &= ~0b11111100;
   config_register |= 0b000 << 5;  // 0.5 ms standby time
   config_register |= (this->iir_filter_ & 0b111) << 2;
   if (!this->bmp_write_byte(BMP280_REGISTER_CONFIG, config_register)) {
-    this->mark_failed("Write config");
+    this->mark_failed(LOG_STR("Write config"));
     return;
   }
 }

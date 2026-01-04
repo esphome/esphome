@@ -71,6 +71,7 @@ ignore_types = (
     ".apng",
     ".gif",
     ".webp",
+    ".bin",
 )
 
 LINT_FILE_CHECKS = []
@@ -501,7 +502,7 @@ def lint_constants_usage():
             continue
         errs.append(
             f"Constant {highlight(constant)} is defined in {len(uses)} files. Please move all definitions of the "
-            f"constant to const.py (Uses: {', '.join(uses)}) in a separate PR. "
+            f"constant to const.py (Uses: {', '.join(str(u) for u in uses)}) in a separate PR. "
             "See https://developers.esphome.io/contributing/code/#python"
         )
     return errs
@@ -551,12 +552,14 @@ def convert_path_to_relative(abspath, current):
     exclude=[
         "esphome/components/libretiny/generate_components.py",
         "esphome/components/web_server/__init__.py",
+        # const.py has absolute import in docstring example for external components
+        "esphome/components/esp8266/const.py",
     ],
 )
-def lint_relative_py_import(fname, line, col, content):
+def lint_relative_py_import(fname: Path, line, col, content):
     import_line = content.splitlines()[line]
     abspath = import_line[col:].split(" ")[0]
-    current = fname.removesuffix(".py").replace(os.path.sep, ".")
+    current = str(fname).removesuffix(".py").replace(os.path.sep, ".")
     replacement = convert_path_to_relative(abspath, current)
     newline = import_line.replace(abspath, replacement)
     return (

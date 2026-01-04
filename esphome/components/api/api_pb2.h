@@ -51,6 +51,7 @@ enum SensorStateClass : uint32_t {
   STATE_CLASS_MEASUREMENT = 1,
   STATE_CLASS_TOTAL_INCREASING = 2,
   STATE_CLASS_TOTAL = 3,
+  STATE_CLASS_MEASUREMENT_ANGLE = 4,
 };
 #endif
 enum LogLevel : uint32_t {
@@ -63,7 +64,7 @@ enum LogLevel : uint32_t {
   LOG_LEVEL_VERBOSE = 6,
   LOG_LEVEL_VERY_VERBOSE = 7,
 };
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 enum ServiceArgType : uint32_t {
   SERVICE_ARG_TYPE_BOOL = 0,
   SERVICE_ARG_TYPE_INT = 1,
@@ -73,6 +74,12 @@ enum ServiceArgType : uint32_t {
   SERVICE_ARG_TYPE_INT_ARRAY = 5,
   SERVICE_ARG_TYPE_FLOAT_ARRAY = 6,
   SERVICE_ARG_TYPE_STRING_ARRAY = 7,
+};
+enum SupportsResponseType : uint32_t {
+  SUPPORTS_RESPONSE_NONE = 0,
+  SUPPORTS_RESPONSE_OPTIONAL = 1,
+  SUPPORTS_RESPONSE_ONLY = 2,
+  SUPPORTS_RESPONSE_STATUS = 100,
 };
 #endif
 #ifdef USE_CLIMATE
@@ -122,6 +129,25 @@ enum ClimatePreset : uint32_t {
   CLIMATE_PRESET_ACTIVITY = 7,
 };
 #endif
+#ifdef USE_WATER_HEATER
+enum WaterHeaterMode : uint32_t {
+  WATER_HEATER_MODE_OFF = 0,
+  WATER_HEATER_MODE_ECO = 1,
+  WATER_HEATER_MODE_ELECTRIC = 2,
+  WATER_HEATER_MODE_PERFORMANCE = 3,
+  WATER_HEATER_MODE_HIGH_DEMAND = 4,
+  WATER_HEATER_MODE_HEAT_PUMP = 5,
+  WATER_HEATER_MODE_GAS = 6,
+};
+#endif
+enum WaterHeaterCommandHasField : uint32_t {
+  WATER_HEATER_COMMAND_HAS_NONE = 0,
+  WATER_HEATER_COMMAND_HAS_MODE = 1,
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE = 2,
+  WATER_HEATER_COMMAND_HAS_STATE = 4,
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW = 8,
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH = 16,
+};
 #ifdef USE_NUMBER
 enum NumberMode : uint32_t {
   NUMBER_MODE_AUTO = 0,
@@ -331,12 +357,11 @@ class CommandProtoMessage : public ProtoDecodableMessage {
 class HelloRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 1;
-  static constexpr uint8_t ESTIMATED_SIZE = 27;
+  static constexpr uint8_t ESTIMATED_SIZE = 17;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "hello_request"; }
 #endif
-  const uint8_t *client_info{nullptr};
-  uint16_t client_info_len{0};
+  StringRef client_info{};
   uint32_t api_version_major{0};
   uint32_t api_version_minor{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -368,40 +393,6 @@ class HelloResponse final : public ProtoMessage {
 
  protected:
 };
-#ifdef USE_API_PASSWORD
-class AuthenticationRequest final : public ProtoDecodableMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 3;
-  static constexpr uint8_t ESTIMATED_SIZE = 19;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "authentication_request"; }
-#endif
-  const uint8_t *password{nullptr};
-  uint16_t password_len{0};
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-};
-class AuthenticationResponse final : public ProtoMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 4;
-  static constexpr uint8_t ESTIMATED_SIZE = 2;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "authentication_response"; }
-#endif
-  bool invalid_password{false};
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(ProtoSize &size) const override;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-};
-#endif
 class DisconnectRequest final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 5;
@@ -501,12 +492,9 @@ class DeviceInfo final : public ProtoMessage {
 class DeviceInfoResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 10;
-  static constexpr uint16_t ESTIMATED_SIZE = 257;
+  static constexpr uint8_t ESTIMATED_SIZE = 255;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "device_info_response"; }
-#endif
-#ifdef USE_API_PASSWORD
-  bool uses_password{false};
 #endif
   StringRef name_ref_{};
   void set_name(const StringRef &ref) { this->name_ref_ = ref; }
@@ -725,7 +713,7 @@ class ListEntitiesFanResponse final : public InfoResponseProtoMessage {
   bool supports_speed{false};
   bool supports_direction{false};
   int32_t supported_speed_count{0};
-  const std::set<std::string> *supported_preset_modes{};
+  const std::vector<const char *> *supported_preset_modes{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -771,7 +759,7 @@ class FanCommandRequest final : public CommandProtoMessage {
   bool has_speed_level{false};
   int32_t speed_level{0};
   bool has_preset_mode{false};
-  std::string preset_mode{};
+  StringRef preset_mode{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -790,10 +778,10 @@ class ListEntitiesLightResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_light_response"; }
 #endif
-  const std::set<light::ColorMode> *supported_color_modes{};
+  const light::ColorModeMask *supported_color_modes{};
   float min_mireds{0.0f};
   float max_mireds{0.0f};
-  std::vector<std::string> effects{};
+  const FixedVector<const char *> *effects{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -862,7 +850,7 @@ class LightCommandRequest final : public CommandProtoMessage {
   bool has_flash_length{false};
   uint32_t flash_length{0};
   bool has_effect{false};
-  std::string effect{};
+  StringRef effect{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1022,7 +1010,7 @@ class SubscribeLogsRequest final : public ProtoDecodableMessage {
 class SubscribeLogsResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 29;
-  static constexpr uint8_t ESTIMATED_SIZE = 11;
+  static constexpr uint8_t ESTIMATED_SIZE = 21;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "subscribe_logs_response"; }
 #endif
@@ -1045,11 +1033,12 @@ class SubscribeLogsResponse final : public ProtoMessage {
 class NoiseEncryptionSetKeyRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 124;
-  static constexpr uint8_t ESTIMATED_SIZE = 9;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "noise_encryption_set_key_request"; }
 #endif
-  std::string key{};
+  const uint8_t *key{nullptr};
+  uint16_t key_len{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1104,16 +1093,25 @@ class HomeassistantServiceMap final : public ProtoMessage {
 class HomeassistantActionRequest final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 35;
-  static constexpr uint8_t ESTIMATED_SIZE = 113;
+  static constexpr uint8_t ESTIMATED_SIZE = 128;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "homeassistant_action_request"; }
 #endif
   StringRef service_ref_{};
   void set_service(const StringRef &ref) { this->service_ref_ = ref; }
-  std::vector<HomeassistantServiceMap> data{};
-  std::vector<HomeassistantServiceMap> data_template{};
-  std::vector<HomeassistantServiceMap> variables{};
+  FixedVector<HomeassistantServiceMap> data{};
+  FixedVector<HomeassistantServiceMap> data_template{};
+  FixedVector<HomeassistantServiceMap> variables{};
   bool is_event{false};
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  uint32_t call_id{0};
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  bool wants_response{false};
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  std::string response_template{};
+#endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1121,6 +1119,30 @@ class HomeassistantActionRequest final : public ProtoMessage {
 #endif
 
  protected:
+};
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+class HomeassistantActionResponse final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 130;
+  static constexpr uint8_t ESTIMATED_SIZE = 34;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "homeassistant_action_response"; }
+#endif
+  uint32_t call_id{0};
+  bool success{false};
+  StringRef error_message{};
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  const uint8_t *response_data{nullptr};
+  uint16_t response_data_len{0};
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
@@ -1164,9 +1186,9 @@ class HomeAssistantStateResponse final : public ProtoDecodableMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "home_assistant_state_response"; }
 #endif
-  std::string entity_id{};
-  std::string state{};
-  std::string attribute{};
+  StringRef entity_id{};
+  StringRef state{};
+  StringRef attribute{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1191,13 +1213,12 @@ class GetTimeRequest final : public ProtoMessage {
 class GetTimeResponse final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 37;
-  static constexpr uint8_t ESTIMATED_SIZE = 24;
+  static constexpr uint8_t ESTIMATED_SIZE = 14;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "get_time_response"; }
 #endif
   uint32_t epoch_seconds{0};
-  const uint8_t *timezone{nullptr};
-  uint16_t timezone_len{0};
+  StringRef timezone{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1206,7 +1227,7 @@ class GetTimeResponse final : public ProtoDecodableMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
 class ListEntitiesServicesArgument final : public ProtoMessage {
  public:
   StringRef name_ref_{};
@@ -1223,14 +1244,15 @@ class ListEntitiesServicesArgument final : public ProtoMessage {
 class ListEntitiesServicesResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 41;
-  static constexpr uint8_t ESTIMATED_SIZE = 48;
+  static constexpr uint8_t ESTIMATED_SIZE = 50;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_services_response"; }
 #endif
   StringRef name_ref_{};
   void set_name(const StringRef &ref) { this->name_ref_ = ref; }
   uint32_t key{0};
-  std::vector<ListEntitiesServicesArgument> args{};
+  FixedVector<ListEntitiesServicesArgument> args{};
+  enums::SupportsResponseType supports_response{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1244,12 +1266,13 @@ class ExecuteServiceArgument final : public ProtoDecodableMessage {
   bool bool_{false};
   int32_t legacy_int{0};
   float float_{0.0f};
-  std::string string_{};
+  StringRef string_{};
   int32_t int_{0};
-  std::vector<bool> bool_array{};
-  std::vector<int32_t> int_array{};
-  std::vector<float> float_array{};
-  std::vector<std::string> string_array{};
+  FixedVector<bool> bool_array{};
+  FixedVector<int32_t> int_array{};
+  FixedVector<float> float_array{};
+  FixedVector<std::string> string_array{};
+  void decode(const uint8_t *buffer, size_t length) override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1262,12 +1285,19 @@ class ExecuteServiceArgument final : public ProtoDecodableMessage {
 class ExecuteServiceRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 42;
-  static constexpr uint8_t ESTIMATED_SIZE = 39;
+  static constexpr uint8_t ESTIMATED_SIZE = 45;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "execute_service_request"; }
 #endif
   uint32_t key{0};
-  std::vector<ExecuteServiceArgument> args{};
+  FixedVector<ExecuteServiceArgument> args{};
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  uint32_t call_id{0};
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  bool return_response{false};
+#endif
+  void decode(const uint8_t *buffer, size_t length) override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1275,6 +1305,32 @@ class ExecuteServiceRequest final : public ProtoDecodableMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+class ExecuteServiceResponse final : public ProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 131;
+  static constexpr uint8_t ESTIMATED_SIZE = 34;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "execute_service_response"; }
+#endif
+  uint32_t call_id{0};
+  bool success{false};
+  StringRef error_message_ref_{};
+  void set_error_message(const StringRef &ref) { this->error_message_ref_ = ref; }
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  const uint8_t *response_data{nullptr};
+  uint16_t response_data_len{0};
+#endif
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
 };
 #endif
 #ifdef USE_CAMERA
@@ -1296,7 +1352,7 @@ class ListEntitiesCameraResponse final : public InfoResponseProtoMessage {
 class CameraImageResponse final : public StateResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 44;
-  static constexpr uint8_t ESTIMATED_SIZE = 20;
+  static constexpr uint8_t ESTIMATED_SIZE = 30;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "camera_image_response"; }
 #endif
@@ -1336,27 +1392,28 @@ class CameraImageRequest final : public ProtoDecodableMessage {
 class ListEntitiesClimateResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 46;
-  static constexpr uint8_t ESTIMATED_SIZE = 145;
+  static constexpr uint8_t ESTIMATED_SIZE = 150;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_climate_response"; }
 #endif
   bool supports_current_temperature{false};
   bool supports_two_point_target_temperature{false};
-  const std::set<climate::ClimateMode> *supported_modes{};
+  const climate::ClimateModeMask *supported_modes{};
   float visual_min_temperature{0.0f};
   float visual_max_temperature{0.0f};
   float visual_target_temperature_step{0.0f};
   bool supports_action{false};
-  const std::set<climate::ClimateFanMode> *supported_fan_modes{};
-  const std::set<climate::ClimateSwingMode> *supported_swing_modes{};
-  const std::set<std::string> *supported_custom_fan_modes{};
-  const std::set<climate::ClimatePreset> *supported_presets{};
-  const std::set<std::string> *supported_custom_presets{};
+  const climate::ClimateFanModeMask *supported_fan_modes{};
+  const climate::ClimateSwingModeMask *supported_swing_modes{};
+  const std::vector<const char *> *supported_custom_fan_modes{};
+  const climate::ClimatePresetMask *supported_presets{};
+  const std::vector<const char *> *supported_custom_presets{};
   float visual_current_temperature_step{0.0f};
   bool supports_current_humidity{false};
   bool supports_target_humidity{false};
   float visual_min_humidity{0.0f};
   float visual_max_humidity{0.0f};
+  uint32_t feature_flags{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1415,11 +1472,11 @@ class ClimateCommandRequest final : public CommandProtoMessage {
   bool has_swing_mode{false};
   enums::ClimateSwingMode swing_mode{};
   bool has_custom_fan_mode{false};
-  std::string custom_fan_mode{};
+  StringRef custom_fan_mode{};
   bool has_preset{false};
   enums::ClimatePreset preset{};
   bool has_custom_preset{false};
-  std::string custom_preset{};
+  StringRef custom_preset{};
   bool has_target_humidity{false};
   float target_humidity{0.0f};
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1429,6 +1486,70 @@ class ClimateCommandRequest final : public CommandProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+#endif
+#ifdef USE_WATER_HEATER
+class ListEntitiesWaterHeaterResponse final : public InfoResponseProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 132;
+  static constexpr uint8_t ESTIMATED_SIZE = 63;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "list_entities_water_heater_response"; }
+#endif
+  float min_temperature{0.0f};
+  float max_temperature{0.0f};
+  float target_temperature_step{0.0f};
+  const water_heater::WaterHeaterModeMask *supported_modes{};
+  uint32_t supported_features{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
+class WaterHeaterStateResponse final : public StateResponseProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 133;
+  static constexpr uint8_t ESTIMATED_SIZE = 35;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "water_heater_state_response"; }
+#endif
+  float current_temperature{0.0f};
+  float target_temperature{0.0f};
+  enums::WaterHeaterMode mode{};
+  uint32_t state{0};
+  float target_temperature_low{0.0f};
+  float target_temperature_high{0.0f};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
+class WaterHeaterCommandRequest final : public CommandProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 134;
+  static constexpr uint8_t ESTIMATED_SIZE = 34;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "water_heater_command_request"; }
+#endif
+  uint32_t has_fields{0};
+  enums::WaterHeaterMode mode{};
+  float target_temperature{0.0f};
+  uint32_t state{0};
+  float target_temperature_low{0.0f};
+  float target_temperature_high{0.0f};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif
@@ -1498,7 +1619,7 @@ class ListEntitiesSelectResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_select_response"; }
 #endif
-  const std::vector<std::string> *options{};
+  const FixedVector<const char *> *options{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1532,7 +1653,7 @@ class SelectCommandRequest final : public CommandProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "select_command_request"; }
 #endif
-  std::string state{};
+  StringRef state{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1551,7 +1672,7 @@ class ListEntitiesSirenResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_siren_response"; }
 #endif
-  std::vector<std::string> tones{};
+  const FixedVector<const char *> *tones{};
   bool supports_duration{false};
   bool supports_volume{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1588,7 +1709,7 @@ class SirenCommandRequest final : public CommandProtoMessage {
   bool has_state{false};
   bool state{false};
   bool has_tone{false};
-  std::string tone{};
+  StringRef tone{};
   bool has_duration{false};
   uint32_t duration{0};
   bool has_volume{false};
@@ -1649,7 +1770,7 @@ class LockCommandRequest final : public CommandProtoMessage {
 #endif
   enums::LockCommand command{};
   bool has_code{false};
-  std::string code{};
+  StringRef code{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -1759,7 +1880,7 @@ class MediaPlayerCommandRequest final : public CommandProtoMessage {
   bool has_volume{false};
   float volume{0.0f};
   bool has_media_url{false};
-  std::string media_url{};
+  StringRef media_url{};
   bool has_announcement{false};
   bool announcement{false};
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1890,7 +2011,7 @@ class BluetoothGATTCharacteristic final : public ProtoMessage {
   std::array<uint64_t, 2> uuid{};
   uint32_t handle{0};
   uint32_t properties{0};
-  std::vector<BluetoothGATTDescriptor> descriptors{};
+  FixedVector<BluetoothGATTDescriptor> descriptors{};
   uint32_t short_uuid{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -1904,7 +2025,7 @@ class BluetoothGATTService final : public ProtoMessage {
  public:
   std::array<uint64_t, 2> uuid{};
   uint32_t handle{0};
-  std::vector<BluetoothGATTCharacteristic> characteristics{};
+  FixedVector<BluetoothGATTCharacteristic> characteristics{};
   uint32_t short_uuid{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -1966,7 +2087,7 @@ class BluetoothGATTReadRequest final : public ProtoDecodableMessage {
 class BluetoothGATTReadResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 74;
-  static constexpr uint8_t ESTIMATED_SIZE = 17;
+  static constexpr uint8_t ESTIMATED_SIZE = 27;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_gatt_read_response"; }
 #endif
@@ -2061,7 +2182,7 @@ class BluetoothGATTNotifyRequest final : public ProtoDecodableMessage {
 class BluetoothGATTNotifyDataResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 79;
-  static constexpr uint8_t ESTIMATED_SIZE = 17;
+  static constexpr uint8_t ESTIMATED_SIZE = 27;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_gatt_notify_data_response"; }
 #endif
@@ -2335,8 +2456,8 @@ class VoiceAssistantResponse final : public ProtoDecodableMessage {
 };
 class VoiceAssistantEventData final : public ProtoDecodableMessage {
  public:
-  std::string name{};
-  std::string value{};
+  StringRef name{};
+  StringRef value{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -2364,17 +2485,12 @@ class VoiceAssistantEventResponse final : public ProtoDecodableMessage {
 class VoiceAssistantAudio final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 106;
-  static constexpr uint8_t ESTIMATED_SIZE = 11;
+  static constexpr uint8_t ESTIMATED_SIZE = 21;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "voice_assistant_audio"; }
 #endif
-  std::string data{};
-  const uint8_t *data_ptr_{nullptr};
-  size_t data_len_{0};
-  void set_data(const uint8_t *data, size_t len) {
-    this->data_ptr_ = data;
-    this->data_len_ = len;
-  }
+  const uint8_t *data{nullptr};
+  uint16_t data_len{0};
   bool end{false};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -2394,8 +2510,8 @@ class VoiceAssistantTimerEventResponse final : public ProtoDecodableMessage {
   const char *message_name() const override { return "voice_assistant_timer_event_response"; }
 #endif
   enums::VoiceAssistantTimerEvent event_type{};
-  std::string timer_id{};
-  std::string name{};
+  StringRef timer_id{};
+  StringRef name{};
   uint32_t total_seconds{0};
   uint32_t seconds_left{0};
   bool is_active{false};
@@ -2414,9 +2530,9 @@ class VoiceAssistantAnnounceRequest final : public ProtoDecodableMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "voice_assistant_announce_request"; }
 #endif
-  std::string media_id{};
-  std::string text{};
-  std::string preannounce_media_id{};
+  StringRef media_id{};
+  StringRef text{};
+  StringRef preannounce_media_id{};
   bool start_conversation{false};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -2459,13 +2575,13 @@ class VoiceAssistantWakeWord final : public ProtoMessage {
 };
 class VoiceAssistantExternalWakeWord final : public ProtoDecodableMessage {
  public:
-  std::string id{};
-  std::string wake_word{};
+  StringRef id{};
+  StringRef wake_word{};
   std::vector<std::string> trained_languages{};
-  std::string model_type{};
+  StringRef model_type{};
   uint32_t model_size{0};
-  std::string model_hash{};
-  std::string url{};
+  StringRef model_hash{};
+  StringRef url{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -2566,7 +2682,7 @@ class AlarmControlPanelCommandRequest final : public CommandProtoMessage {
   const char *message_name() const override { return "alarm_control_panel_command_request"; }
 #endif
   enums::AlarmControlPanelStateCommand command{};
-  std::string code{};
+  StringRef code{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -2623,7 +2739,7 @@ class TextCommandRequest final : public CommandProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "text_command_request"; }
 #endif
-  std::string state{};
+  StringRef state{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -2752,7 +2868,7 @@ class ListEntitiesEventResponse final : public InfoResponseProtoMessage {
 #endif
   StringRef device_class_ref_{};
   void set_device_class(const StringRef &ref) { this->device_class_ref_ = ref; }
-  std::vector<std::string> event_types{};
+  const FixedVector<const char *> *event_types{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

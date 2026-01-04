@@ -26,10 +26,6 @@ class APIServerConnectionBase : public ProtoService {
 
   virtual void on_hello_request(const HelloRequest &value){};
 
-#ifdef USE_API_PASSWORD
-  virtual void on_authentication_request(const AuthenticationRequest &value){};
-#endif
-
   virtual void on_disconnect_request(const DisconnectRequest &value){};
   virtual void on_disconnect_response(const DisconnectResponse &value){};
   virtual void on_ping_request(const PingRequest &value){};
@@ -66,6 +62,9 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &value){};
 #endif
 
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  virtual void on_homeassistant_action_response(const HomeassistantActionResponse &value){};
+#endif
 #ifdef USE_API_HOMEASSISTANT_STATES
   virtual void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &value){};
 #endif
@@ -76,7 +75,7 @@ class APIServerConnectionBase : public ProtoService {
 
   virtual void on_get_time_response(const GetTimeResponse &value){};
 
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
   virtual void on_execute_service_request(const ExecuteServiceRequest &value){};
 #endif
 
@@ -86,6 +85,10 @@ class APIServerConnectionBase : public ProtoService {
 
 #ifdef USE_CLIMATE
   virtual void on_climate_command_request(const ClimateCommandRequest &value){};
+#endif
+
+#ifdef USE_WATER_HEATER
+  virtual void on_water_heater_command_request(const WaterHeaterCommandRequest &value){};
 #endif
 
 #ifdef USE_NUMBER
@@ -215,15 +218,12 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_z_wave_proxy_request(const ZWaveProxyRequest &value){};
 #endif
  protected:
-  void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
+  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;
 };
 
 class APIServerConnection : public APIServerConnectionBase {
  public:
   virtual bool send_hello_response(const HelloRequest &msg) = 0;
-#ifdef USE_API_PASSWORD
-  virtual bool send_authenticate_response(const AuthenticationRequest &msg) = 0;
-#endif
   virtual bool send_disconnect_response(const DisconnectRequest &msg) = 0;
   virtual bool send_ping_response(const PingRequest &msg) = 0;
   virtual bool send_device_info_response(const DeviceInfoRequest &msg) = 0;
@@ -236,7 +236,7 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_API_HOMEASSISTANT_STATES
   virtual void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) = 0;
 #endif
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
   virtual void execute_service(const ExecuteServiceRequest &msg) = 0;
 #endif
 #ifdef USE_API_NOISE
@@ -350,9 +350,6 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
-#ifdef USE_API_PASSWORD
-  void on_authentication_request(const AuthenticationRequest &msg) override;
-#endif
   void on_disconnect_request(const DisconnectRequest &msg) override;
   void on_ping_request(const PingRequest &msg) override;
   void on_device_info_request(const DeviceInfoRequest &msg) override;
@@ -365,7 +362,7 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_API_HOMEASSISTANT_STATES
   void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) override;
 #endif
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
   void on_execute_service_request(const ExecuteServiceRequest &msg) override;
 #endif
 #ifdef USE_API_NOISE
@@ -477,7 +474,7 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_ZWAVE_PROXY
   void on_z_wave_proxy_request(const ZWaveProxyRequest &msg) override;
 #endif
-  void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
+  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;
 };
 
 }  // namespace esphome::api

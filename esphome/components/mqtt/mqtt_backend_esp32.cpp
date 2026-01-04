@@ -190,6 +190,11 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
   if (instance) {
     auto event = *static_cast<esp_mqtt_event_t *>(event_data);
     instance->mqtt_events_.emplace(event);
+
+    // Wake main loop immediately to process MQTT event instead of waiting for select() timeout
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+    App.wake_loop_threadsafe();
+#endif
   }
 }
 
@@ -227,16 +232,6 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
       this_mqtt->mqtt_event_pool_.release(elem);
     }
   }
-
-  // Clean up any remaining items in the queue
-  struct QueueElement *elem;
-  while ((elem = this_mqtt->mqtt_queue_.pop()) != nullptr) {
-    this_mqtt->mqtt_event_pool_.release(elem);
-  }
-
-  // Note: EventPool destructor will clean up the pool itself
-  // Task will delete itself
-  vTaskDelete(nullptr);
 }
 
 bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos, bool retain, const char *payload,
