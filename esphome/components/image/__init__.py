@@ -646,10 +646,13 @@ def _config_schema(value):
 CONFIG_SCHEMA = _config_schema
 
 
-def _render_svg_safely(svg_path, resize):
+def _render_svg_safely(svg_path: Path, resize) -> bytes:
     # Create a tiny script to run in a separate process
     # This is required since resvg-py can panic on malformed SVGs, without proper exception handling.
-    # The path has already been sanitised by this point, and indeed is known to be an SVG file.
+    # The path has already been sanitised by this point, and indeed is known to be an SVG file, but
+    # we still need to escape backslashes and single quotes for embedding in the script.
+
+    svg_path = str(svg_path).replace("\\", "\\\\").replace("'", "\\'")
 
     args = f", width={resize[0]}, height={resize[1]}" if resize else ""
 
