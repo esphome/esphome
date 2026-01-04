@@ -32,12 +32,12 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
 )
-
-CONF_TEMPERATURE_C = "temperature_c"
 from esphome.cpp_generator import RawExpression
 from esphome.final_validate import full_config
 
 from . import models
+
+CONF_TEMPERATURE_C = "temperature_c"
 
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
