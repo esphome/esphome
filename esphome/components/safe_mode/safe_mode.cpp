@@ -40,8 +40,10 @@ void SafeModeComponent::dump_config() {
 #ifdef USE_OTA_ROLLBACK
   const esp_partition_t *last_invalid = esp_ota_get_last_invalid_partition();
   if (last_invalid != nullptr) {
-    ESP_LOGW(TAG, "OTA rollback detected! Rolled back from partition '%s'", last_invalid->label);
-    ESP_LOGW(TAG, "The device reset before the boot was marked successful");
+    ESP_LOGW(TAG,
+             "OTA rollback detected! Rolled back from partition '%s'\n"
+             "The device reset before the boot was marked successful",
+             last_invalid->label);
   }
 #endif
 }
