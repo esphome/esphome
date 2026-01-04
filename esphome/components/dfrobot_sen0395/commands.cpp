@@ -179,8 +179,10 @@ uint8_t DetRangeCfgCommand::on_message(std::string &message) {
     ESP_LOGE(TAG, "Cannot configure range config. Sensor is not stopped!");
     return 1;  // Command done
   } else if (message == "Done") {
-    ESP_LOGI(TAG, "Updated detection area config:");
-    ESP_LOGI(TAG, "Detection area 1 from %.02fm to %.02fm.", this->min1_, this->max1_);
+    ESP_LOGI(TAG,
+             "Updated detection area config:\n"
+             "Detection area 1 from %.02fm to %.02fm.",
+             this->min1_, this->max1_);
     if (this->min2_ >= 0 && this->max2_ >= 0) {
       ESP_LOGI(TAG, "Detection area 2 from %.02fm to %.02fm.", this->min2_, this->max2_);
     }
@@ -209,9 +211,11 @@ uint8_t SetLatencyCommand::on_message(std::string &message) {
     ESP_LOGE(TAG, "Cannot configure output latency. Sensor is not stopped!");
     return 1;  // Command done
   } else if (message == "Done") {
-    ESP_LOGI(TAG, "Updated output latency config:");
-    ESP_LOGI(TAG, "Signal that someone was detected is delayed by %.03f s.", this->delay_after_detection_);
-    ESP_LOGI(TAG, "Signal that nobody is detected anymore is delayed by %.03f s.", this->delay_after_disappear_);
+    ESP_LOGI(TAG,
+             "Updated output latency config:\n"
+             "Signal that someone was detected is delayed by %.03f s.\n"
+             "Signal that nobody is detected anymore is delayed by %.03f s.",
+             this->delay_after_detection_, this->delay_after_disappear_);
     ESP_LOGD(TAG, "Used command: %s", this->cmd_.c_str());
     return 1;  // Command done
   }
