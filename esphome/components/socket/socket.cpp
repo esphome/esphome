@@ -15,10 +15,15 @@ static size_t format_sockaddr_to(const struct sockaddr_storage &storage, std::sp
   if (storage.ss_family == AF_INET) {
     const auto *addr = reinterpret_cast<const struct sockaddr_in *>(&storage);
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
-    // LWIP raw TCP only has inet_ntoa_r, not inet_ntop
+    // LWIP raw TCP (ESP8266) uses inet_ntoa_r
     inet_ntoa_r(addr->sin_addr, buf.data(), buf.size());
     return strlen(buf.data());
+#elif defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+    // LWIP sockets (LibreTiny, ESP32 Arduino) uses lwip_inet_ntop
+    if (lwip_inet_ntop(AF_INET, &addr->sin_addr, buf.data(), buf.size()) != nullptr)
+      return strlen(buf.data());
 #else
+    // BSD sockets (host, ESP32-IDF)
     if (inet_ntop(AF_INET, &addr->sin_addr, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());
 #endif
@@ -27,11 +32,20 @@ static size_t format_sockaddr_to(const struct sockaddr_storage &storage, std::sp
   else if (storage.ss_family == AF_INET6) {
     const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(&storage);
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
-    // LWIP raw TCP uses inet6_ntoa_r
+    // LWIP raw TCP (ESP8266) uses inet6_ntoa_r
     inet6_ntoa_r(addr->sin6_addr, buf.data(), buf.size());
     return strlen(buf.data());
+#elif defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+    // LWIP sockets - format IPv4-mapped IPv6 as IPv4
+    if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
+        addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
+        lwip_inet_ntop(AF_INET, &addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {
+      return strlen(buf.data());
+    }
+    if (lwip_inet_ntop(AF_INET6, &addr->sin6_addr, buf.data(), buf.size()) != nullptr)
+      return strlen(buf.data());
 #else
-    // Format IPv4-mapped IPv6 addresses as regular IPv4 addresses
+    // BSD sockets - format IPv4-mapped IPv6 as IPv4
     if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
         addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
         inet_ntop(AF_INET, &addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {
