@@ -1,4 +1,5 @@
 #ifdef USE_ZEPHYR
+#ifdef CONFIG_SETTINGS
 
 #include <zephyr/kernel.h>
 #include "esphome/core/preferences.h"
@@ -153,4 +154,5 @@ ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const
 
 }  // namespace esphome
 
+#endif
 #endif

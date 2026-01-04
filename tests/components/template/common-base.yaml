@@ -9,6 +9,18 @@ esphome:
         id: template_sens
         state: !lambda "return 42.0;"
 
+    - water_heater.template.publish:
+        id: template_water_heater
+        target_temperature: 50.0
+        mode: ECO
+
+    # Templated
+    - water_heater.template.publish:
+        id: template_water_heater
+        current_temperature: !lambda "return 45.0;"
+        target_temperature: !lambda "return 55.0;"
+        mode: !lambda "return water_heater::WATER_HEATER_MODE_GAS;"
+
     # Test C++ API: set_template() with stateless lambda (no captures)
     # NOTE: set_template() is not intended to be a public API, but we test it to ensure it doesn't break.
     - lambda: |-
@@ -298,6 +310,24 @@ alarm_control_panel:
     name: Alarm Panel
     codes:
       - "1234"
+
+water_heater:
+  - platform: template
+    id: template_water_heater
+    name: "Template Water Heater"
+    optimistic: true
+    current_temperature: !lambda "return 42.0f;"
+    mode: !lambda "return water_heater::WATER_HEATER_MODE_ECO;"
+    supported_modes:
+      - "OFF"
+      - ECO
+      - GAS
+      - ELECTRIC
+      - HEAT_PUMP
+      - HIGH_DEMAND
+      - PERFORMANCE
+    set_action:
+      - logger.log: "set_action"
 
 datetime:
   - platform: template
