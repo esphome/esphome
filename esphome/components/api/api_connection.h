@@ -24,9 +24,10 @@ struct ClientInfo {
 // Keepalive timeout in milliseconds
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
 // Maximum number of entities to process in a single batch during initial state/info sending
-// This was increased from 20 to 24 after removing the unique_id field from entity info messages,
-// which reduced message sizes allowing more entities per batch without exceeding packet limits
-static constexpr size_t MAX_INITIAL_PER_BATCH = 24;
+// API 1.14+ clients compute object_id client-side, so messages are smaller and we can fit more per batch
+// TODO: Remove MAX_INITIAL_PER_BATCH_LEGACY before 2026.7.0 - all clients should support API 1.14 by then
+static constexpr size_t MAX_INITIAL_PER_BATCH_LEGACY = 24;  // For clients < API 1.14 (includes object_id)
+static constexpr size_t MAX_INITIAL_PER_BATCH = 34;         // For clients >= API 1.14 (no object_id)
 // Maximum number of packets to process in a single batch (platform-dependent)
 // This limit exists to prevent stack overflow from the PacketInfo array in process_batch_
 // Each PacketInfo is 8 bytes, so 64 * 8 = 512 bytes, 32 * 8 = 256 bytes
@@ -202,9 +203,6 @@ class APIConnection final : public APIServerConnection {
   void on_get_time_response(const GetTimeResponse &value) override;
 #endif
   bool send_hello_response(const HelloRequest &msg) override;
-#ifdef USE_API_PASSWORD
-  bool send_authenticate_response(const AuthenticationRequest &msg) override;
-#endif
   bool send_disconnect_response(const DisconnectRequest &msg) override;
   bool send_ping_response(const PingRequest &msg) override;
   bool send_device_info_response(const DeviceInfoRequest &msg) override;
@@ -233,9 +231,9 @@ class APIConnection final : public APIServerConnection {
 #ifdef USE_API_USER_DEFINED_ACTIONS
   void execute_service(const ExecuteServiceRequest &msg) override;
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-  void send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message);
+  void send_execute_service_response(uint32_t call_id, bool success, StringRef error_message);
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  void send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message,
+  void send_execute_service_response(uint32_t call_id, bool success, StringRef error_message,
                                      const uint8_t *response_data, size_t response_data_len);
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
@@ -260,9 +258,6 @@ class APIConnection final : public APIServerConnection {
   }
 
   void on_fatal_error() override;
-#ifdef USE_API_PASSWORD
-  void on_unauthenticated_access() override;
-#endif
   void on_no_setup_connection() override;
   ProtoWriteBuffer create_buffer(uint32_t reserve_size) override {
     // FIXME: ensure no recursive writes can happen
@@ -323,10 +318,16 @@ class APIConnection final : public APIServerConnection {
                                               APIConnection *conn, uint32_t remaining_size, bool is_single) {
     // Set common fields that are shared by all entity types
     msg.key = entity->get_object_id_hash();
-    // Get object_id with zero heap allocation
-    // Static case returns direct reference, dynamic case uses buffer
+
+    // API 1.14+ clients compute object_id client-side from the entity name
+    // For older clients, we must send object_id for backward compatibility
+    // See: https://github.com/esphome/backlog/issues/76
+    // TODO: Remove this backward compat code before 2026.7.0 - all clients should support API 1.14 by then
+    // Buffer must remain in scope until encode_message_to_buffer is called
     char object_id_buf[OBJECT_ID_MAX_LEN];
-    msg.set_object_id(entity->get_object_id_to(object_id_buf));
+    if (!conn->client_supports_api_version(1, 14)) {
+      msg.set_object_id(entity->get_object_id_to(object_id_buf));
+    }
 
     if (entity->has_own_name()) {
       msg.set_name(entity->get_name());
@@ -349,16 +350,24 @@ class APIConnection final : public APIServerConnection {
   inline bool check_voice_assistant_api_connection_() const;
 #endif
 
+  // Get the max batch size based on client API version
+  // API 1.14+ clients don't receive object_id, so messages are smaller and more fit per batch
+  // TODO: Remove this method before 2026.7.0 and use MAX_INITIAL_PER_BATCH directly
+  size_t get_max_batch_size_() const {
+    return this->client_supports_api_version(1, 14) ? MAX_INITIAL_PER_BATCH : MAX_INITIAL_PER_BATCH_LEGACY;
+  }
+
   // Helper method to process multiple entities from an iterator in a batch
   template<typename Iterator> void process_iterator_batch_(Iterator &iterator) {
     size_t initial_size = this->deferred_batch_.size();
-    while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < MAX_INITIAL_PER_BATCH) {
+    size_t max_batch = this->get_max_batch_size_();
+    while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
       iterator.advance();
     }
 
     // If the batch is full, process it immediately
     // Note: iterator.advance() already calls schedule_batch_() via schedule_message_()
-    if (this->deferred_batch_.size() >= MAX_INITIAL_PER_BATCH) {
+    if (this->deferred_batch_.size() >= max_batch) {
       this->process_batch_();
     }
   }

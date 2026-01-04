@@ -28,7 +28,7 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.Required(CONF_TRIGGER_PIN): pins.gpio_output_pin_schema,
+            cv.Required(CONF_TRIGGER_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_ECHO_PIN): pins.internal_gpio_input_pin_schema,
             cv.Optional(CONF_TIMEOUT, default="2m"): cv.distance,
             cv.Optional(

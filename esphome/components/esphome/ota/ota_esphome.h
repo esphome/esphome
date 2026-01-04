@@ -44,10 +44,10 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   void handle_handshake_();
   void handle_data_();
 #ifdef USE_OTA_PASSWORD
+  static constexpr size_t SHA256_HEX_SIZE = 64;  // SHA256 hash as hex string (32 bytes * 2)
   bool handle_auth_send_();
   bool handle_auth_read_();
   bool select_auth_type_();
-  size_t get_auth_hex_size_() const;
   void cleanup_auth_();
   void log_auth_warning_(const LogString *msg);
 #endif  // USE_OTA_PASSWORD

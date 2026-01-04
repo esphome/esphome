@@ -10,6 +10,9 @@ namespace seeed_mr60bha2 {
 
 static const char *const TAG = "seeed_mr60bha2";
 
+// Maximum bytes to log in verbose hex output
+static constexpr size_t MR60BHA2_MAX_LOG_BYTES = 64;
+
 // Prints the component's configuration data. dump_config() prints all of the component's configuration
 // items in an easy-to-read format, including the configuration key-value pairs.
 void MR60BHA2Component::dump_config() {
@@ -110,7 +113,10 @@ bool MR60BHA2Component::validate_message_() {
   if (at == 7) {
     if (!validate_checksum(data, 7, header_checksum)) {
       ESP_LOGE(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", header_checksum);
-      ESP_LOGV(TAG, "GET FRAME: %s", format_hex_pretty(data, 8).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      char hex_buf[format_hex_pretty_size(MR60BHA2_MAX_LOG_BYTES)];
+#endif
+      ESP_LOGV(TAG, "GET FRAME: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data, 8));
       return false;
     }
     return true;
@@ -125,14 +131,22 @@ bool MR60BHA2Component::validate_message_() {
   if (at == 8 + length) {
     if (!validate_checksum(data + 8, length, data_checksum)) {
       ESP_LOGE(TAG, "DATA_CKSUM_FRAME ERROR: 0x%02x", data_checksum);
-      ESP_LOGV(TAG, "GET FRAME: %s", format_hex_pretty(data, 8 + length).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      char hex_buf[format_hex_pretty_size(MR60BHA2_MAX_LOG_BYTES)];
+#endif
+      ESP_LOGV(TAG, "GET FRAME: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data, 8 + length));
       return false;
     }
   }
 
   const uint8_t *frame_data = data + 8;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf1[format_hex_pretty_size(MR60BHA2_MAX_LOG_BYTES)];
+  char hex_buf2[format_hex_pretty_size(MR60BHA2_MAX_LOG_BYTES)];
+#endif
   ESP_LOGV(TAG, "Received Frame: ID: 0x%04x, Type: 0x%04x, Data: [%s] Raw Data: [%s]", frame_id, frame_type,
-           format_hex_pretty(frame_data, length).c_str(), format_hex_pretty(this->rx_message_).c_str());
+           format_hex_pretty_to(hex_buf1, sizeof(hex_buf1), frame_data, length),
+           format_hex_pretty_to(hex_buf2, sizeof(hex_buf2), this->rx_message_.data(), this->rx_message_.size()));
   this->process_frame_(frame_id, frame_type, data + 8, length);
 
   // Return false to reset rx buffer
