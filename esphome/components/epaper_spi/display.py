@@ -32,6 +32,8 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
 )
+
+CONF_TEMPERATURE_C = "temperature_c"
 from esphome.cpp_generator import RawExpression
 from esphome.final_validate import full_config
 
@@ -51,6 +53,7 @@ Transform = epaper_spi_ns.enum("Transform")
 
 EPaperSpectraE6 = epaper_spi_ns.class_("EPaperSpectraE6", EPaperBase)
 EPaper7p3InSpectraE6 = epaper_spi_ns.class_("EPaper7p3InSpectraE6", EPaperSpectraE6)
+EPaperE2271KS0C1 = epaper_spi_ns.class_("EPaperE2271KS0C1", EPaperBase)
 
 
 # Import all models dynamically from the models package
@@ -118,6 +121,7 @@ def model_schema(config):
                     cv.positive_time_period_milliseconds,
                     cv.Range(max=core.TimePeriod(milliseconds=500)),
                 ),
+                model.option(CONF_TEMPERATURE_C, cv.UNDEFINED): cv.float_,
             }
         )
     )
@@ -208,6 +212,8 @@ async def to_code(config):
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
+    if CONF_TEMPERATURE_C in config:
+        cg.add(var.set_temperature_c(config[CONF_TEMPERATURE_C]))
     if transform := config.get(CONF_TRANSFORM):
         transform[CONF_SWAP_XY] = False
     else:
