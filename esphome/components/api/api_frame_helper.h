@@ -201,7 +201,7 @@ class APIFrameHelper {
   // Client name buffer - stores name from Hello message or initial peername
   char client_name_[CLIENT_INFO_NAME_MAX_LEN]{};
   // Cached peername/IP address - captured at init time for availability after socket failure
-  char client_peername_[socket::PEERNAME_MAX_LEN]{};
+  char client_peername_[socket::SOCKADDR_STR_LEN]{};
 
   // Group smaller types together
   uint16_t rx_buf_len_ = 0;

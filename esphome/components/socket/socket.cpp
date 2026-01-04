@@ -11,7 +11,7 @@ namespace esphome::socket {
 Socket::~Socket() {}
 
 // Format sockaddr into caller-provided buffer, returns length written (excluding null)
-static size_t format_sockaddr_to(const struct sockaddr_storage &storage, std::span<char, PEERNAME_MAX_LEN> buf) {
+static size_t format_sockaddr_to(const struct sockaddr_storage &storage, std::span<char, SOCKADDR_STR_LEN> buf) {
   if (storage.ss_family == AF_INET) {
     const auto *addr = reinterpret_cast<const struct sockaddr_in *>(&storage);
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
@@ -23,7 +23,7 @@ static size_t format_sockaddr_to(const struct sockaddr_storage &storage, std::sp
       return strlen(buf.data());
 #endif
   }
-#if LWIP_IPV6
+#if USE_NETWORK_IPV6
   else if (storage.ss_family == AF_INET6) {
     const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(&storage);
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
@@ -46,7 +46,7 @@ static size_t format_sockaddr_to(const struct sockaddr_storage &storage, std::sp
   return 0;
 }
 
-size_t Socket::getpeername_to(std::span<char, PEERNAME_MAX_LEN> buf) {
+size_t Socket::getpeername_to(std::span<char, SOCKADDR_STR_LEN> buf) {
   struct sockaddr_storage storage;
   socklen_t len = sizeof(storage);
   if (this->getpeername(reinterpret_cast<struct sockaddr *>(&storage), &len) != 0) {
@@ -56,7 +56,7 @@ size_t Socket::getpeername_to(std::span<char, PEERNAME_MAX_LEN> buf) {
   return format_sockaddr_to(storage, buf);
 }
 
-size_t Socket::getsockname_to(std::span<char, PEERNAME_MAX_LEN> buf) {
+size_t Socket::getsockname_to(std::span<char, SOCKADDR_STR_LEN> buf) {
   struct sockaddr_storage storage;
   socklen_t len = sizeof(storage);
   if (this->getsockname(reinterpret_cast<struct sockaddr *>(&storage), &len) != 0) {
