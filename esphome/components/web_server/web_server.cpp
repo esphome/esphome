@@ -1831,12 +1831,13 @@ void WebServer::on_water_heater_update(water_heater::WaterHeater *obj) {
 }
 void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (water_heater::WaterHeater *obj : App.get_water_heaters()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
 
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
-      std::string data = this->water_heater_json(obj, detail);
+      std::string data = this->water_heater_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1860,12 +1861,12 @@ void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, cons
 }
 
 std::string WebServer::water_heater_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->water_heater_json(static_cast<water_heater::WaterHeater *>(source), DETAIL_STATE);
+  return web_server->water_heater_json_(static_cast<water_heater::WaterHeater *>(source), DETAIL_STATE);
 }
 std::string WebServer::water_heater_all_json_generator(WebServer *web_server, void *source) {
-  return web_server->water_heater_json(static_cast<water_heater::WaterHeater *>(source), DETAIL_ALL);
+  return web_server->water_heater_json_(static_cast<water_heater::WaterHeater *>(source), DETAIL_ALL);
 }
-std::string WebServer::water_heater_json(water_heater::WaterHeater *obj, JsonDetail start_config) {
+std::string WebServer::water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -2155,6 +2156,9 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
 #ifdef USE_UPDATE
       "update",
 #endif
+#ifdef USE_WATER_HEATER
+      "water_heater",
+#endif
   };
 
   // Check GET-only domains
@@ -2313,6 +2317,11 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_UPDATE
   else if (match.domain_equals("update")) {
     this->handle_update_request(request, match);
+  }
+#endif
+#ifdef USE_WATER_HEATER
+  else if (match.domain_equals("water_heater")) {
+    this->handle_water_heater_request(request, match);
   }
 #endif
   else {

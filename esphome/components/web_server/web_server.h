@@ -437,8 +437,6 @@ class WebServer : public Controller,
 
   static std::string water_heater_state_json_generator(WebServer *web_server, void *source);
   static std::string water_heater_all_json_generator(WebServer *web_server, void *source);
-  /// Dump the water_heater state as a JSON string.
-  std::string water_heater_json(water_heater::WaterHeater *obj, JsonDetail start_config);
 #endif
 
 #ifdef USE_EVENT
@@ -618,7 +616,7 @@ class WebServer : public Controller,
 #ifdef USE_EVENT
   std::string event_json_(event::Event *obj, const std::string &event_type, JsonDetail start_config);
 #endif
-#ifdef WATER_HEATER
+#ifdef USE_WATER_HEATER
   std::string water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config);
 #endif
 #ifdef USE_UPDATE
