@@ -56,8 +56,11 @@ def require_wake_loop_threadsafe() -> None:
         async def to_code(config):
             socket.require_wake_loop_threadsafe()
     """
+
     # Only set up once (idempotent - multiple components can call this)
-    if not CORE.data.get(KEY_WAKE_LOOP_THREADSAFE_REQUIRED, False):
+    if ("wifi" in CORE.config or "ethernet" in CORE.config) and not CORE.data.get(
+        KEY_WAKE_LOOP_THREADSAFE_REQUIRED, False
+    ):
         CORE.data[KEY_WAKE_LOOP_THREADSAFE_REQUIRED] = True
         cg.add_define("USE_WAKE_LOOP_THREADSAFE")
         # Consume 1 socket for the shared wake notification socket
