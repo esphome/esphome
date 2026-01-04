@@ -8,12 +8,12 @@ namespace ips7100 {
 static const char *const TAG = "ips7100";
 
 // I2C commands
-static const uint8_t IPS7100_CMD_READ_PC = 0x11;   // Read particle count data (30 bytes)
-static const uint8_t IPS7100_CMD_READ_PM = 0x12;   // Read PM mass data (32 bytes)
+static const uint8_t IPS7100_CMD_READ_PC = 0x11;  // Read particle count data (30 bytes)
+static const uint8_t IPS7100_CMD_READ_PM = 0x12;  // Read PM mass data (32 bytes)
 
 // Data sizes
-static const uint8_t PC_DATA_SIZE = 30;   // 7 x 4 bytes + 2 bytes checksum
-static const uint8_t PM_DATA_SIZE = 32;   // 7 x 4 bytes + 2 bytes event status + 2 bytes checksum
+static const uint8_t PC_DATA_SIZE = 30;  // 7 x 4 bytes + 2 bytes checksum
+static const uint8_t PM_DATA_SIZE = 32;  // 7 x 4 bytes + 2 bytes event status + 2 bytes checksum
 
 // CRC16 polynomial
 static const uint16_t CRC16_POLYNOMIAL = 0x8408;
