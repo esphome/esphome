@@ -734,9 +734,12 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_CONNECTED) {
     const auto &it = data->data.sta_connected;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+    format_mac_addr_upper(it.bssid, bssid_buf);
     ESP_LOGV(TAG, "Connected ssid='%.*s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", it.ssid_len,
-             (const char *) it.ssid, format_mac_address_pretty(it.bssid).c_str(), it.channel,
-             get_auth_mode_str(it.authmode));
+             (const char *) it.ssid, bssid_buf, it.channel, get_auth_mode_str(it.authmode));
+#endif
     s_sta_connected = true;
 #ifdef USE_WIFI_LISTENERS
     for (auto *listener : this->connect_state_listeners_) {
@@ -855,16 +858,28 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     this->ap_started_ = false;
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_PROBEREQRECVED) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
     const auto &it = data->data.ap_probe_req_rx;
-    ESP_LOGVV(TAG, "AP receive Probe Request MAC=%s RSSI=%d", format_mac_address_pretty(it.mac).c_str(), it.rssi);
+    char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+    format_mac_addr_upper(it.mac, mac_buf);
+    ESP_LOGVV(TAG, "AP receive Probe Request MAC=%s RSSI=%d", mac_buf, it.rssi);
+#endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_STACONNECTED) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     const auto &it = data->data.ap_staconnected;
-    ESP_LOGV(TAG, "AP client connected MAC=%s", format_mac_address_pretty(it.mac).c_str());
+    char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+    format_mac_addr_upper(it.mac, mac_buf);
+    ESP_LOGV(TAG, "AP client connected MAC=%s", mac_buf);
+#endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     const auto &it = data->data.ap_stadisconnected;
-    ESP_LOGV(TAG, "AP client disconnected MAC=%s", format_mac_address_pretty(it.mac).c_str());
+    char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+    format_mac_addr_upper(it.mac, mac_buf);
+    ESP_LOGV(TAG, "AP client disconnected MAC=%s", mac_buf);
+#endif
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_AP_STAIPASSIGNED) {
     const auto &it = data->data.ip_ap_staipassigned;
