@@ -17,9 +17,7 @@ sounds.
 
 This sensor platform expects a sensor that can be sent a **trigger
 pulse** on a specific pin and will send out an **echo pulse** once a
-measurement has been taken. Because sometimes (for example if no object
-is detected) the echo pulse is never returned, this sensor also has a
-timeout option which specifies how long to wait for values.
+measurement has been taken.
 
 {{< img src="ultrasonic-full.jpg" alt="Image" caption="HC-SR04 Ultrasonic Distance Sensor." width="50.0%" class="align-center" >}}
 
@@ -48,9 +46,6 @@ sensor:
 - All other options from [Sensor](/components/sensor).
 
 Advanced options:
-
-- **timeout** (*Optional*, float): The number of meters for the
-  timeout. Most sensors can only sense up to 2 meters. Defaults to 2 meters.
 
 - **pulse_time** (*Optional*, [Time](/guides/configuration-types#time)): The duration for which the trigger pin will be
   active. Defaults to `10us`.
