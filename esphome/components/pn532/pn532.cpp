@@ -281,9 +281,10 @@ bool PN532::write_command_(const std::vector<uint8_t> &data) {
 }
 
 bool PN532::read_ack_() {
+  ESP_LOGV(TAG, "Reading ACK");
+
   std::vector<uint8_t> data;
   if (!this->read_data(data, 6)) {
-    ESP_LOGV(TAG, "Reading ACK failed");
     return false;
   }
 
