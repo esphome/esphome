@@ -177,9 +177,15 @@ async def to_code(config):
         init_sequence = model.get_init_sequence(config)
     init_sequence = flatten_sequence(init_sequence)
     init_sequence_length = len(init_sequence)
-    init_sequence_id = cg.static_const_array(
-        config[CONF_INIT_SEQUENCE_ID], init_sequence
-    )
+
+    # Handle empty init sequence by passing nullptr (like original external component)
+    if init_sequence_length > 0:
+        init_sequence_id = cg.static_const_array(
+            config[CONF_INIT_SEQUENCE_ID], init_sequence
+        )
+    else:
+        init_sequence_id = RawExpression("nullptr")
+
     width, height = model.get_dimensions(config)
     var = cg.new_Pvariable(
         config[CONF_ID],
