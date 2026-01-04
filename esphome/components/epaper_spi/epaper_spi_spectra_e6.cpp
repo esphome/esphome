@@ -97,6 +97,12 @@ void EPaperSpectraE6::deep_sleep() {
 }
 
 void EPaperSpectraE6::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    EPaperBase::fill(color);
+    return;
+  }
+
   auto pixel_color = color_to_hex(color);
 
   // We store 2 pixels per byte

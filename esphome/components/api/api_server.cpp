@@ -224,38 +224,6 @@ void APIServer::dump_config() {
 #endif
 }
 
-#ifdef USE_API_PASSWORD
-bool APIServer::check_password(const uint8_t *password_data, size_t password_len) const {
-  // depend only on input password length
-  const char *a = this->password_.c_str();
-  uint32_t len_a = this->password_.length();
-  const char *b = reinterpret_cast<const char *>(password_data);
-  uint32_t len_b = password_len;
-
-  // disable optimization with volatile
-  volatile uint32_t length = len_b;
-  volatile const char *left = nullptr;
-  volatile const char *right = b;
-  uint8_t result = 0;
-
-  if (len_a == length) {
-    left = *((volatile const char **) &a);
-    result = 0;
-  }
-  if (len_a != length) {
-    left = b;
-    result = 1;
-  }
-
-  for (size_t i = 0; i < length; i++) {
-    result |= *left++ ^ *right++;  // NOLINT
-  }
-
-  return result == 0;
-}
-
-#endif
-
 void APIServer::handle_disconnect(APIConnection *conn) {}
 
 // Macro for controller update dispatch
@@ -377,10 +345,6 @@ float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI;
 
 void APIServer::set_port(uint16_t port) { this->port_ = port; }
 
-#ifdef USE_API_PASSWORD
-void APIServer::set_password(const std::string &password) { this->password_ = password; }
-#endif
-
 void APIServer::set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = batch_delay; }
 
 #ifdef USE_API_HOMEASSISTANT_SERVICES
@@ -394,7 +358,7 @@ void APIServer::register_action_response_callback(uint32_t call_id, ActionRespon
   this->action_response_callbacks_.push_back({call_id, std::move(callback)});
 }
 
-void APIServer::handle_action_response(uint32_t call_id, bool success, const std::string &error_message) {
+void APIServer::handle_action_response(uint32_t call_id, bool success, StringRef error_message) {
   for (auto it = this->action_response_callbacks_.begin(); it != this->action_response_callbacks_.end(); ++it) {
     if (it->call_id == call_id) {
       auto callback = std::move(it->callback);
@@ -406,7 +370,7 @@ void APIServer::handle_action_response(uint32_t call_id, bool success, const std
   }
 }
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-void APIServer::handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
+void APIServer::handle_action_response(uint32_t call_id, bool success, StringRef error_message,
                                        const uint8_t *response_data, size_t response_data_len) {
   for (auto it = this->action_response_callbacks_.begin(); it != this->action_response_callbacks_.end(); ++it) {
     if (it->call_id == call_id) {
@@ -678,7 +642,7 @@ void APIServer::unregister_active_action_calls_for_connection(APIConnection *con
   }
 }
 
-void APIServer::send_action_response(uint32_t action_call_id, bool success, const std::string &error_message) {
+void APIServer::send_action_response(uint32_t action_call_id, bool success, StringRef error_message) {
   for (auto &call : this->active_action_calls_) {
     if (call.action_call_id == action_call_id) {
       call.connection->send_execute_service_response(call.client_call_id, success, error_message);
@@ -688,7 +652,7 @@ void APIServer::send_action_response(uint32_t action_call_id, bool success, cons
   ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %u", action_call_id);
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-void APIServer::send_action_response(uint32_t action_call_id, bool success, const std::string &error_message,
+void APIServer::send_action_response(uint32_t action_call_id, bool success, StringRef error_message,
                                      const uint8_t *response_data, size_t response_data_len) {
   for (auto &call : this->active_action_calls_) {
     if (call.action_call_id == action_call_id) {

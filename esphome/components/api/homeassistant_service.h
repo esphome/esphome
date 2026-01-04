@@ -67,10 +67,10 @@ template<typename... Ts> class TemplatableKeyValuePair {
 // the callback is invoked synchronously while the message is on the stack).
 class ActionResponse {
  public:
-  ActionResponse(bool success, const std::string &error_message) : success_(success), error_message_(error_message) {}
+  ActionResponse(bool success, StringRef error_message) : success_(success), error_message_(error_message) {}
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  ActionResponse(bool success, const std::string &error_message, const uint8_t *data, size_t data_len)
+  ActionResponse(bool success, StringRef error_message, const uint8_t *data, size_t data_len)
       : success_(success), error_message_(error_message) {
     if (data == nullptr || data_len == 0)
       return;

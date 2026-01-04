@@ -121,23 +121,21 @@ void ADCSensor::setup() {
 void ADCSensor::dump_config() {
   LOG_SENSOR("", "ADC Sensor", this);
   LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(TAG,
-                "  Channel:       %d\n"
-                "  Unit:          %s\n"
-                "  Attenuation:   %s\n"
-                "  Samples:       %i\n"
-                "  Sampling mode: %s",
-                this->channel_, LOG_STR_ARG(adc_unit_to_str(this->adc_unit_)),
-                this->autorange_ ? "Auto" : LOG_STR_ARG(attenuation_to_str(this->attenuation_)), this->sample_count_,
-                LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)));
-
   ESP_LOGCONFIG(
       TAG,
+      "  Channel:       %d\n"
+      "  Unit:          %s\n"
+      "  Attenuation:   %s\n"
+      "  Samples:       %i\n"
+      "  Sampling mode: %s\n"
       "  Setup Status:\n"
       "    Handle Init:  %s\n"
       "    Config:       %s\n"
       "    Calibration:  %s\n"
       "    Overall Init: %s",
+      this->channel_, LOG_STR_ARG(adc_unit_to_str(this->adc_unit_)),
+      this->autorange_ ? "Auto" : LOG_STR_ARG(attenuation_to_str(this->attenuation_)), this->sample_count_,
+      LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)),
       this->setup_flags_.handle_init_complete ? "OK" : "FAILED", this->setup_flags_.config_complete ? "OK" : "FAILED",
       this->setup_flags_.calibration_complete ? "OK" : "FAILED", this->setup_flags_.init_complete ? "OK" : "FAILED");
 

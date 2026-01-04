@@ -655,12 +655,15 @@ void WiFiComponent::setup_ap_config_() {
 #ifdef USE_WIFI_MANUAL_IP
   auto manual_ip = this->ap_.get_manual_ip();
   if (manual_ip.has_value()) {
+    char static_ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
     ESP_LOGCONFIG(TAG,
                   "  AP Static IP: '%s'\n"
                   "  AP Gateway: '%s'\n"
                   "  AP Subnet: '%s'",
-                  manual_ip->static_ip.str().c_str(), manual_ip->gateway.str().c_str(),
-                  manual_ip->subnet.str().c_str());
+                  manual_ip->static_ip.str_to(static_ip_buf), manual_ip->gateway.str_to(gateway_buf),
+                  manual_ip->subnet.str_to(subnet_buf));
   }
 #endif
 
@@ -778,8 +781,10 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
            get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-  ESP_LOGV(TAG, "Connection Params:");
-  ESP_LOGV(TAG, "  SSID: '%s'", ap.get_ssid().c_str());
+  ESP_LOGV(TAG,
+           "Connection Params:\n"
+           "  SSID: '%s'",
+           ap.get_ssid().c_str());
   if (ap.has_bssid()) {
     ESP_LOGV(TAG, "  BSSID: %s", bssid_s);
   } else {
@@ -788,20 +793,28 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 
 #ifdef USE_WIFI_WPA2_EAP
   if (ap.get_eap().has_value()) {
-    ESP_LOGV(TAG, "  WPA2 Enterprise authentication configured:");
     EAPAuth eap_config = ap.get_eap().value();
-    ESP_LOGV(TAG, "    Identity: " LOG_SECRET("'%s'"), eap_config.identity.c_str());
-    ESP_LOGV(TAG, "    Username: " LOG_SECRET("'%s'"), eap_config.username.c_str());
-    ESP_LOGV(TAG, "    Password: " LOG_SECRET("'%s'"), eap_config.password.c_str());
+    // clang-format off
+    ESP_LOGV(
+        TAG,
+        "  WPA2 Enterprise authentication configured:\n"
+        "    Identity: " LOG_SECRET("'%s'") "\n"
+        "    Username: " LOG_SECRET("'%s'") "\n"
+        "    Password: " LOG_SECRET("'%s'"),
+        eap_config.identity.c_str(), eap_config.username.c_str(), eap_config.password.c_str());
+    // clang-format on
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP) && ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     ESP_LOGV(TAG, "    TTLS Phase 2: " LOG_SECRET("'%s'"), eap_phase2_to_str(eap_config.ttls_phase_2));
 #endif
     bool ca_cert_present = eap_config.ca_cert != nullptr && strlen(eap_config.ca_cert);
     bool client_cert_present = eap_config.client_cert != nullptr && strlen(eap_config.client_cert);
     bool client_key_present = eap_config.client_key != nullptr && strlen(eap_config.client_key);
-    ESP_LOGV(TAG, "    CA Cert:     %s", ca_cert_present ? "present" : "not present");
-    ESP_LOGV(TAG, "    Client Cert: %s", client_cert_present ? "present" : "not present");
-    ESP_LOGV(TAG, "    Client Key:  %s", client_key_present ? "present" : "not present");
+    ESP_LOGV(TAG,
+             "    CA Cert:     %s\n"
+             "    Client Cert: %s\n"
+             "    Client Key:  %s",
+             ca_cert_present ? "present" : "not present", client_cert_present ? "present" : "not present",
+             client_key_present ? "present" : "not present");
   } else {
 #endif
     ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.get_password().c_str());
@@ -816,8 +829,14 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 #ifdef USE_WIFI_MANUAL_IP
   if (ap.get_manual_ip().has_value()) {
     ManualIP m = *ap.get_manual_ip();
-    ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.str().c_str(),
-             m.gateway.str().c_str(), m.subnet.str().c_str(), m.dns1.str().c_str(), m.dns2.str().c_str());
+    char static_ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.str_to(static_ip_buf),
+             m.gateway.str_to(gateway_buf), m.subnet.str_to(subnet_buf), m.dns1.str_to(dns1_buf),
+             m.dns2.str_to(dns2_buf));
   } else
 #endif
   {
@@ -1040,15 +1059,27 @@ template<typename VectorType> static void insertion_sort_scan_results(VectorType
 }
 
 // Helper function to log matching scan results - marked noinline to prevent re-inlining into loop
+//
+// IMPORTANT: This function deliberately uses a SINGLE log call to minimize blocking.
+// In environments with many matching networks (e.g., 18+ mesh APs), multiple log calls
+// per network would block the main loop for an unacceptable duration. Each log call
+// has overhead from UART transmission, so combining INFO+DEBUG into one line halves
+// the blocking time. Do NOT split this into separate ESP_LOGI/ESP_LOGD calls.
 __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res) {
   char bssid_s[18];
   auto bssid = res.get_bssid();
   format_mac_addr_upper(bssid.data(), bssid_s);
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+  // Single combined log line with all details when DEBUG enabled
+  ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s Ch:%2u %3ddB P:%d", res.get_ssid().c_str(),
+           res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
+           LOG_STR_ARG(get_signal_bars(res.get_rssi())), res.get_channel(), res.get_rssi(), res.get_priority());
+#else
   ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
            res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
            LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-  ESP_LOGD(TAG, "  Channel: %2u, RSSI: %3d dB, Priority: %4d", res.get_channel(), res.get_rssi(), res.get_priority());
+#endif
 }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -1167,7 +1198,8 @@ void WiFiComponent::check_connecting_finished() {
   auto status = this->wifi_sta_connect_status_();
 
   if (status == WiFiSTAConnectStatus::CONNECTED) {
-    if (wifi_ssid().empty()) {
+    char ssid_buf[SSID_BUFFER_SIZE];
+    if (wifi_ssid_to(ssid_buf)[0] == '\0') {
       ESP_LOGW(TAG, "Connection incomplete");
       this->retry_connect();
       return;

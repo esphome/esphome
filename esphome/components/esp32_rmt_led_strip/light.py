@@ -8,9 +8,11 @@ from esphome.components.const import CONF_USE_PSRAM
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
+    CONF_INVERTED,
     CONF_IS_RGBW,
     CONF_MAX_REFRESH_RATE,
     CONF_NUM_LEDS,
+    CONF_NUMBER,
     CONF_OUTPUT_ID,
     CONF_PIN,
     CONF_RGB_ORDER,
@@ -71,7 +73,7 @@ CONFIG_SCHEMA = cv.All(
     light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         {
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ESP32RMTLEDStripLightOutput),
-            cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
+            cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
             cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
             cv.SplitDefault(
@@ -132,7 +134,9 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add(var.set_num_leds(config[CONF_NUM_LEDS]))
-    cg.add(var.set_pin(config[CONF_PIN]))
+    cg.add(var.set_pin(config[CONF_PIN][CONF_NUMBER]))
+    if config[CONF_PIN][CONF_INVERTED]:
+        cg.add(var.set_inverted(True))
 
     if CONF_MAX_REFRESH_RATE in config:
         cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
