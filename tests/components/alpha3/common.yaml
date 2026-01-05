@@ -15,3 +15,27 @@ sensor:
       name: "Radiator Pump Power"
     speed:
       name: "Radiator Pump Speed"
+
+text_sensor:
+  - platform: alpha3
+    alpha3_id: alpha3_blec
+    pump_mode:
+      name: "Pump Mode"
+
+select:
+  - platform: alpha3
+    alpha3_id: alpha3_blec
+    pump_mode:
+      name: "Pump Mode"
+
+button:
+  - platform: alpha3
+    alpha3_id: alpha3_blec
+    start_pump:
+      name: "Start Pump"
+    stop_pump:
+      name: "Stop Pump"
+    setpoint_up:
+      name: "Increase Setpoint"
+    setpoint_down:
+      name: "Decrease Setpoint"

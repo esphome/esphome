@@ -17,8 +17,10 @@ from esphome.const import (
     UNIT_WATT,
 )
 
-alpha3_ns = cg.esphome_ns.namespace("alpha3")
-Alpha3 = alpha3_ns.class_("Alpha3", ble_client.BLEClientNode, cg.PollingComponent)
+from . import Alpha3
+
+# Re-export for other platform files
+CONF_ALPHA3_ID = "alpha3_id"
 
 CONFIG_SCHEMA = (
     cv.Schema(
