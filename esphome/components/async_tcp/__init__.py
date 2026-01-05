@@ -20,7 +20,7 @@ def AUTO_LOAD() -> list[str]:
     return []
 
 
-# Support all platforms - Arduino gets library, ESP-IDF/host get socket implementation
+# Support all platforms - Arduino platforms get PlatformIO libraries, ESP-IDF gets IDF component, other platforms use socket implementation
 CONFIG_SCHEMA = cv.Schema({})
 
 
