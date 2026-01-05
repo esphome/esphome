@@ -9,7 +9,7 @@ extern "C" {
 #include <zboss_api_addons.h>
 }
 
-enum zb_zcl_analog_input_attr_e {
+enum {
   ZB_ZCL_ATTR_ANALOG_INPUT_DESCRIPTION_ID = 0x001C,
   ZB_ZCL_ATTR_ANALOG_INPUT_OUT_OF_SERVICE_ID = 0x0051,
   ZB_ZCL_ATTR_ANALOG_INPUT_PRESENT_VALUE_ID = 0x0055,

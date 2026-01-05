@@ -139,21 +139,21 @@ void ZigbeeComponent::setup() {
 
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
   bool wipe = true;
-#if USE_ZIGBEE_WIPE_ON_BOOT
+#ifdef USE_ZIGBEE_WIPE_ON_BOOT_MAGIC
   uint32_t hash = 88498616UL;
   uint32_t wipe_value = 0;
   auto wipe_pref = global_preferences->make_preference<uint32_t>(hash, true);
   if (wipe_pref.load(&wipe_value)) {
-    wipe = wipe_value != USE_ZIGBEE_WIPE_ON_BOOT;
-    ESP_LOGD(TAG, "Wipe value in preferences %u, in firmware %u\n", wipe_value, USE_ZIGBEE_WIPE_ON_BOOT);
+    wipe = wipe_value != USE_ZIGBEE_WIPE_ON_BOOT_MAGIC;
+    ESP_LOGD(TAG, "Wipe value in preferences %u, in firmware %u\n", wipe_value, USE_ZIGBEE_WIPE_ON_BOOT_MAGIC);
   }
 #endif
   if (wipe) {
     erase_flash_(FIXED_PARTITION_ID(ZBOSS_NVRAM));
     erase_flash_(FIXED_PARTITION_ID(ZBOSS_PRODUCT_CONFIG));
     erase_flash_(FIXED_PARTITION_ID(SETTINGS_STORAGE));
-#if USE_ZIGBEE_WIPE_ON_BOOT
-    wipe_value = USE_ZIGBEE_WIPE_ON_BOOT;
+#ifdef USE_ZIGBEE_WIPE_ON_BOOT_MAGIC
+    wipe_value = USE_ZIGBEE_WIPE_ON_BOOT_MAGIC;
     wipe_pref.save(&wipe_value);
 #endif
   }
@@ -180,15 +180,19 @@ static const char *role() {
   return "unknown";
 }
 
-void ZigbeeComponent::dump_config() {
-  const char *wipe = "NO";
+static const char *get_wipe_on_boot() {
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
-#if USE_ZIGBEE_WIPE_ON_BOOT
-  wipe = "ONCE";
+#ifdef USE_ZIGBEE_WIPE_ON_BOOT_MAGIC
+  return "ONCE";
 #else
-  wipe = "YES";
+  return "YES";
 #endif
+#else
+  return "NO";
 #endif
+}
+
+void ZigbeeComponent::dump_config() {
   char ieee_addr_buf[IEEE_ADDR_BUF_SIZE] = {0};
   zb_ieee_addr_t addr;
   zb_get_long_address(addr);
@@ -209,8 +213,9 @@ void ZigbeeComponent::dump_config() {
                 "  Short addr: 0x%04X\n"
                 "  Long pan id: 0x%s\n"
                 "  Short pan id: 0x%04X",
-                wipe, YESNO(zb_zdo_joined()), zb_get_current_channel(), zb_get_current_page(), zb_get_sleep_threshold(),
-                role(), ieee_addr_buf, zb_get_short_address(), extended_pan_id_buf, zb_get_pan_id());
+                get_wipe_on_boot(), YESNO(zb_zdo_joined()), zb_get_current_channel(), zb_get_current_page(),
+                zb_get_sleep_threshold(), role(), ieee_addr_buf, zb_get_short_address(), extended_pan_id_buf,
+                zb_get_pan_id());
 }
 
 static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
