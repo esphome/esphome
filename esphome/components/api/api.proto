@@ -2453,7 +2453,7 @@ message ZWaveProxyRequest {
 
 // Listing of infrared proxy instances
 message ListEntitiesInfraredProxyResponse {
-  option (id) = 132;
+  option (id) = 135;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_INFRARED_PROXY";
 
@@ -2489,7 +2489,7 @@ message InfraredProxyTimingParams {
 
 // Command to transmit infrared data
 message InfraredProxyTransmitPulseWidthRequest {
-  option (id) = 133;
+  option (id) = 136;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_INFRARED_PROXY";
 
@@ -2500,7 +2500,7 @@ message InfraredProxyTransmitPulseWidthRequest {
 
 // Command to transmit infrared/RF data using protocol-based JSON encoding
 message InfraredProxyTransmitProtocolRequest {
-  option (id) = 134;
+  option (id) = 137;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_INFRARED_PROXY";
 
@@ -2510,7 +2510,7 @@ message InfraredProxyTransmitProtocolRequest {
 
 // Event message for received infrared data
 message InfraredProxyReceiveEvent {
-  option (id) = 135;
+  option (id) = 138;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_INFRARED_PROXY";
   option (no_delay) = true;

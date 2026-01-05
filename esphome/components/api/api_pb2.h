@@ -3118,7 +3118,7 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
 #ifdef USE_INFRARED_PROXY
 class ListEntitiesInfraredProxyResponse final : public ProtoMessage {
  public:
-  static constexpr uint8_t MESSAGE_TYPE = 132;
+  static constexpr uint8_t MESSAGE_TYPE = 135;
   static constexpr uint8_t ESTIMATED_SIZE = 48;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_infrared_proxy_response"; }
@@ -3173,7 +3173,7 @@ class InfraredProxyTimingParams final : public ProtoDecodableMessage {
 };
 class InfraredProxyTransmitPulseWidthRequest final : public ProtoDecodableMessage {
  public:
-  static constexpr uint8_t MESSAGE_TYPE = 133;
+  static constexpr uint8_t MESSAGE_TYPE = 136;
   static constexpr uint8_t ESTIMATED_SIZE = 41;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "infrared_proxy_transmit_pulse_width_request"; }
@@ -3192,7 +3192,7 @@ class InfraredProxyTransmitPulseWidthRequest final : public ProtoDecodableMessag
 };
 class InfraredProxyTransmitProtocolRequest final : public ProtoDecodableMessage {
  public:
-  static constexpr uint8_t MESSAGE_TYPE = 134;
+  static constexpr uint8_t MESSAGE_TYPE = 137;
   static constexpr uint8_t ESTIMATED_SIZE = 14;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "infrared_proxy_transmit_protocol_request"; }
@@ -3209,7 +3209,7 @@ class InfraredProxyTransmitProtocolRequest final : public ProtoDecodableMessage 
 };
 class InfraredProxyReceiveEvent final : public ProtoMessage {
  public:
-  static constexpr uint8_t MESSAGE_TYPE = 135;
+  static constexpr uint8_t MESSAGE_TYPE = 138;
   static constexpr uint8_t ESTIMATED_SIZE = 13;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "infrared_proxy_receive_event"; }
