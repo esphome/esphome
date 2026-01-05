@@ -6,8 +6,6 @@ import io
 import logging
 from pathlib import Path
 import re
-import subprocess
-import sys
 
 from PIL import Image, UnidentifiedImageError
 
@@ -646,55 +644,6 @@ def _config_schema(value):
 CONFIG_SCHEMA = _config_schema
 
 
-def _render_svg_safely(svg_path: Path, resize) -> bytes:
-    # Check that resvg-py is available
-    import resvg_py  # noqa pylint: disable=unused-import
-
-    # Create a tiny script to run in a separate process
-    # This is required since resvg-py can panic on malformed SVGs, without proper exception handling.
-    # The path has already been sanitised by this point, and indeed is known to be an SVG file, but
-    # we still need to escape backslashes and single quotes for embedding in the script.
-
-    svg_path = str(svg_path).replace("\\", "\\\\").replace("'", "\\'")
-
-    # Specify resize arguments if needed
-    args = f", width={resize[0]}, height={resize[1]}" if resize else ""
-
-    script = f"""
-import sys, resvg_py
-with open('{svg_path}', encoding="utf-8") as f:
-    data = f.read()
-    png = resvg_py.svg_to_bytes(data {args})
-    sys.stdout.buffer.write(png)
-"""
-
-    # Run the script in a subprocess
-    try:
-        result = subprocess.run(
-            [sys.executable, "-c", script], capture_output=True, check=True
-        )
-        return result.stdout  # This is the PNG bytes
-    except subprocess.CalledProcessError as e:
-        error_msg = "resvg failed to render SVG."
-        if e.stderr:
-            # Parse error message from stderr (handles Rust panic messages)
-            stderr_text = e.stderr.decode("utf-8", errors="replace").strip()
-            if stderr_text:
-                # Try to extract the main error from Rust panic messages
-                # Format: "called `Result::unwrap()` on an `Err` value: \"error message\""
-                lines = stderr_text.split("\n")
-                for line in lines:
-                    # Extract the meaningful part
-                    if "`Err` value:" in line:
-                        error_part = line.split("`Err` value:", 1)[1].strip()
-                        error_msg = f"resvg failed to render SVG: {error_part}"
-                        break
-                else:
-                    # No specific pattern found, use last non-empty line, best for exceptions
-                    error_msg = f"resvg failed to render SVG: {lines[-1]}"
-        raise UnidentifiedImageError(error_msg) from e
-
-
 async def write_image(config, all_frames=False):
     path = Path(config[CONF_FILE])
     if not path.is_file():
@@ -703,7 +652,20 @@ async def write_image(config, all_frames=False):
     resize = config.get(CONF_RESIZE)
     try:
         if is_svg_file(path):
-            image_data = _render_svg_safely(path, resize)
+            from resvg_py import svg_to_bytes
+
+            with open(path) as f:
+                svg_data = f.read()
+
+            if resize:
+                width, height = resize
+                # resvg-py allows rendering by width/height directly
+                image_data = svg_to_bytes(
+                    svg_data, width=int(width), height=int(height)
+                )
+            else:
+                # Default size
+                image_data = svg_to_bytes(svg_data)
 
             # Convert bytes to Pillow Image
             image = Image.open(io.BytesIO(image_data))
@@ -718,7 +680,7 @@ async def write_image(config, all_frames=False):
                 new_height_max = min(height, resize[1])
                 ratio = min(new_width_max / width, new_height_max / height)
                 width, height = int(width * ratio), int(height * ratio)
-    except (OSError, UnidentifiedImageError) as exc:
+    except (OSError, UnidentifiedImageError, ValueError) as exc:
         raise core.EsphomeError(f"Could not read image file {path}: {exc}") from exc
 
     if not resize and (width > 500 or height > 500):
