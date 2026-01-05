@@ -441,7 +441,7 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     if "esp32" in filename_lower:
         return Platform.ESP32_IDF
 
-    # LibreTiny (BK72xx, RTL87xx)
+    # LibreTiny (via 'libretiny' pattern or BK72xx-specific files)
     if "libretiny" in filename_lower or "bk72" in filename_lower:
         return Platform.BK72XX_ARD
 
