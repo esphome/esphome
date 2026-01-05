@@ -127,8 +127,8 @@ static bool load_from_rtc(size_t offset, uint32_t *data, size_t len) {
   return true;
 }
 
-// Stack buffer size - 16 words covers up to 15 words of data (60 bytes)
-// which handles virtually all real-world preferences without heap allocation
+// Stack buffer size - 16 words total: up to 15 words of preference data + 1 word CRC (60 bytes of preference data)
+// This handles virtually all real-world preferences without heap allocation
 static constexpr size_t PREF_BUFFER_WORDS = 16;
 
 class ESP8266PreferenceBackend : public ESPPreferenceBackend {
