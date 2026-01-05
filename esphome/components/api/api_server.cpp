@@ -714,9 +714,8 @@ void APIServer::list_infrared_proxy_entities(APIConnection *conn) {
     ListEntitiesInfraredProxyResponse msg{};
     msg.key = infrared_proxy->get_object_id_hash();
 
-    // Store object_id in a local variable to ensure it outlives StringRef creation
-    std::string object_id = infrared_proxy->get_object_id();
-    msg.set_object_id(StringRef(object_id));
+    char object_id_buf[OBJECT_ID_MAX_LEN];
+    msg.set_object_id(infrared_proxy->get_object_id_to(object_id_buf));
 
     if (infrared_proxy->has_own_name()) {
       msg.set_name(infrared_proxy->get_name());
