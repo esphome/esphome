@@ -118,10 +118,11 @@ void RadonEyeRD200::read_sensors_(uint8_t *value, uint16_t value_len) {
     radon_long_term_sensor_->publish_state(radon_day);
   }
 
-  ESP_LOGV(TAG, "  Measurements (Bq/m³) now: %0.03f, day: %0.03f, month: %0.03f", radon_now, radon_day, radon_month);
-
-  ESP_LOGV(TAG, "  Measurements (pCi/L) now: %0.03f, day: %0.03f, month: %0.03f", radon_now / convert_to_bwpm3,
-           radon_day / convert_to_bwpm3, radon_month / convert_to_bwpm3);
+  ESP_LOGV(TAG,
+           "  Measurements (Bq/m³) now: %0.03f, day: %0.03f, month: %0.03f\n"
+           "  Measurements (pCi/L) now: %0.03f, day: %0.03f, month: %0.03f",
+           radon_now, radon_day, radon_month, radon_now / convert_to_bwpm3, radon_day / convert_to_bwpm3,
+           radon_month / convert_to_bwpm3);
 
   // This instance must not stay connected
   // so other clients can connect to it (e.g. the
