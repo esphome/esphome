@@ -58,6 +58,7 @@ def mock_write_file_if_changed() -> Generator[Mock, None, None]:
 def mock_copy_file_if_changed() -> Generator[Mock, None, None]:
     """Mock copy_file_if_changed for core.config."""
     with patch("esphome.core.config.copy_file_if_changed") as mock:
+        mock.return_value = True
         yield mock
 
 

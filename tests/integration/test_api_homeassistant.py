@@ -179,6 +179,12 @@ async def test_api_homeassistant(
         client.send_home_assistant_state("binary_sensor.external_motion", "", "ON")
         client.send_home_assistant_state("weather.home", "condition", "sunny")
 
+        # Test edge cases for zero-copy implementation safety
+        # Empty entity_id should be silently ignored (no crash)
+        client.send_home_assistant_state("", "", "should_be_ignored")
+        # Empty state with valid entity should work (use different entity to not interfere with test)
+        client.send_home_assistant_state("sensor.edge_case_empty_state", "", "")
+
         # List entities and services
         _, services = await client.list_entities_services()
 
