@@ -22,7 +22,7 @@ class AsyncClient {
   AsyncClient() = default;
   ~AsyncClient() = default;
 
-  bool connect(const char *host, uint16_t port);
+  [[nodiscard]] bool connect(const char *host, uint16_t port);
   void close();
   [[nodiscard]] bool connected() const { return connected_; }
   size_t write(const char *data, size_t len);
