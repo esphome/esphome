@@ -1,17 +1,23 @@
 #if defined(USE_HOST)
 #include "logger.h"
+#include <algorithm>
+#include <cstring>
+#include <ctime>
+#include <mutex>
 
 namespace esphome::logger {
 
 void HOT Logger::write_msg_(const char *msg, size_t len) {
+  static std::mutex stdout_mutex;
   static constexpr size_t TIMESTAMP_LEN = 10;  // "[HH:MM:SS]"
   // tx_buffer_size_ defaults to 512, so 768 covers default + headroom
   char buffer[TIMESTAMP_LEN + 768];
 
   time_t rawtime;
   time(&rawtime);
-  struct tm *timeinfo = localtime(&rawtime);
-  size_t pos = strftime(buffer, TIMESTAMP_LEN + 1, "[%H:%M:%S]", timeinfo);
+  struct tm timeinfo;
+  localtime_r(&rawtime, &timeinfo);
+  size_t pos = strftime(buffer, TIMESTAMP_LEN + 1, "[%H:%M:%S]", &timeinfo);
 
   // Copy message (with newline already included by caller)
   size_t copy_len = std::min(len, sizeof(buffer) - pos);
@@ -19,6 +25,7 @@ void HOT Logger::write_msg_(const char *msg, size_t len) {
   pos += copy_len;
 
   // Single write for everything
+  std::lock_guard<std::mutex> lock(stdout_mutex);
   fwrite(buffer, 1, pos, stdout);
 }
 
