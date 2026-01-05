@@ -2,3 +2,4 @@
 
 zigbee:
   wipe_on_boot: once
+  power_source: battery
