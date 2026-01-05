@@ -33,6 +33,8 @@ class HostPreferences : public ESPPreferences {
     if (len > 255)
       return false;
     this->setup_();
+    if (!this->setup_complete_)
+      return false;
     std::vector vec(data, data + len);
     this->data[key] = vec;
     return true;
@@ -42,6 +44,8 @@ class HostPreferences : public ESPPreferences {
     if (len > 255)
       return false;
     this->setup_();
+    if (!this->setup_complete_)
+      return false;
     auto it = this->data.find(key);
     if (it == this->data.end())
       return false;

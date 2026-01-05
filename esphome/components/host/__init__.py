@@ -13,6 +13,8 @@ from esphome.core import CORE
 
 from .const import KEY_HOST
 
+CONF_PREFERENCES_PATH = "preferences_path"
+
 # force import gpio to register pin schema
 from .gpio import host_pin_to_code  # noqa
 
@@ -33,6 +35,9 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_MAC_ADDRESS, default="98:35:69:ab:f6:79"): cv.mac_address,
+            cv.Optional(CONF_PREFERENCES_PATH): cv.All(
+                cv.string_strict, cv.Length(min=1)
+            ),
         }
     ),
     set_core_data,
@@ -42,6 +47,8 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     cg.add_build_flag("-DUSE_HOST")
     cg.add_define("USE_ESPHOME_HOST_MAC_ADDRESS", config[CONF_MAC_ADDRESS].parts)
+    if preferences_path := config.get(CONF_PREFERENCES_PATH):
+        cg.add_define("ESPHOME_HOST_PREFERENCES_PATH", preferences_path)
     cg.add_build_flag("-std=gnu++20")
     cg.add_define("ESPHOME_BOARD", "host")
     cg.add_define(ThreadModel.MULTI_ATOMICS)
