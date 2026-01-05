@@ -8,6 +8,9 @@ namespace esphome::cc1101 {
 
 static const char *const TAG = "cc1101";
 
+// FSCAL1 register value when PLL is not locked (per datasheet)
+static constexpr uint8_t FSCAL1_PLL_NOT_LOCKED = 0x3F;
+
 static void split_float(float value, int mbits, uint8_t &e, uint32_t &m) {
   int e_tmp;
   float m_tmp = std::frexp(value, &e_tmp);
@@ -281,7 +284,7 @@ bool CC1101Component::enter_rx_() {
       return false;
     }
     this->read_(Register::FSCAL1);
-    if ((this->state_.FSCAL1 & 0x3F) != 0x3F) {
+    if (this->state_.FSCAL1 != FSCAL1_PLL_NOT_LOCKED) {
       return true;
     }
     ESP_LOGW(TAG, "PLL lock failed, retrying calibration");
@@ -299,7 +302,7 @@ bool CC1101Component::enter_tx_() {
       return false;
     }
     this->read_(Register::FSCAL1);
-    if ((this->state_.FSCAL1 & 0x3F) != 0x3F) {
+    if (this->state_.FSCAL1 != FSCAL1_PLL_NOT_LOCKED) {
       return true;
     }
     ESP_LOGW(TAG, "PLL lock failed, retrying calibration");
@@ -381,7 +384,7 @@ CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet)
 
   // Check if PLL was locked during TX
   this->read_(Register::FSCAL1);
-  if ((this->state_.FSCAL1 & 0x3F) == 0x3F) {
+  if (this->state_.FSCAL1 == FSCAL1_PLL_NOT_LOCKED) {
     ESP_LOGW(TAG, "PLL lock failed during TX");
     this->enter_rx_();
     return CC1101Error::PLL_LOCK;
