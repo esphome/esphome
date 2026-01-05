@@ -60,10 +60,6 @@ class APIServer : public Component,
 #ifdef USE_CAMERA
   void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
 #endif
-#ifdef USE_API_PASSWORD
-  bool check_password(const uint8_t *password_data, size_t password_len) const;
-  void set_password(const std::string &password);
-#endif
   void set_port(uint16_t port);
   void set_reboot_timeout(uint32_t reboot_timeout);
   void set_batch_delay(uint16_t batch_delay);
@@ -143,10 +139,10 @@ class APIServer : public Component,
   // Action response handling
   using ActionResponseCallback = std::function<void(const class ActionResponse &)>;
   void register_action_response_callback(uint32_t call_id, ActionResponseCallback callback);
-  void handle_action_response(uint32_t call_id, bool success, const std::string &error_message);
+  void handle_action_response(uint32_t call_id, bool success, StringRef error_message);
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  void handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
-                              const uint8_t *response_data, size_t response_data_len);
+  void handle_action_response(uint32_t call_id, bool success, StringRef error_message, const uint8_t *response_data,
+                              size_t response_data_len);
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #endif  // USE_API_HOMEASSISTANT_SERVICES
@@ -165,9 +161,9 @@ class APIServer : public Component,
   void unregister_active_action_call(uint32_t action_call_id);
   void unregister_active_action_calls_for_connection(APIConnection *conn);
   // Send response for a specific action call (uses action_call_id, sends client_call_id in response)
-  void send_action_response(uint32_t action_call_id, bool success, const std::string &error_message);
+  void send_action_response(uint32_t action_call_id, bool success, StringRef error_message);
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  void send_action_response(uint32_t action_call_id, bool success, const std::string &error_message,
+  void send_action_response(uint32_t action_call_id, bool success, StringRef error_message,
                             const uint8_t *response_data, size_t response_data_len);
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
@@ -256,9 +252,6 @@ class APIServer : public Component,
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;
-#ifdef USE_API_PASSWORD
-  std::string password_;
-#endif
   std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
 #ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;

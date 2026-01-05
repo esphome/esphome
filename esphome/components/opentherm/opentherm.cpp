@@ -7,6 +7,7 @@
 
 #include "opentherm.h"
 #include "esphome/core/helpers.h"
+#include <cinttypes>
 #ifdef USE_ESP32
 #include "driver/timer.h"
 #include "esp_err.h"
@@ -569,8 +570,8 @@ void OpenTherm::debug_data(OpenthermData &data) {
            to_string(data.f88()).c_str());
 }
 void OpenTherm::debug_error(OpenThermError &error) const {
-  ESP_LOGD(TAG, "data: %s; clock: %s; capture: %s; bit_pos: %s", format_hex(error.data).c_str(),
-           to_string(clock_).c_str(), format_bin(error.capture).c_str(), to_string(error.bit_pos).c_str());
+  ESP_LOGD(TAG, "data: 0x%08" PRIx32 "; clock: %u; capture: 0x%08" PRIx32 "; bit_pos: %u", error.data, this->clock_,
+           error.capture, error.bit_pos);
 }
 
 float OpenthermData::f88() { return ((float) this->s16()) / 256.0; }

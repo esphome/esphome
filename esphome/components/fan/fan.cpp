@@ -179,8 +179,10 @@ void Fan::add_on_state_callback(std::function<void()> &&callback) { this->state_
 void Fan::publish_state() {
   auto traits = this->get_traits();
 
-  ESP_LOGD(TAG, "'%s' - Sending state:", this->name_.c_str());
-  ESP_LOGD(TAG, "  State: %s", ONOFF(this->state));
+  ESP_LOGD(TAG,
+           "'%s' - Sending state:\n"
+           "  State: %s",
+           this->name_.c_str(), ONOFF(this->state));
   if (traits.supports_speed()) {
     ESP_LOGD(TAG, "  Speed: %d", this->speed);
   }

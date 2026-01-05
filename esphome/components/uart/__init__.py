@@ -482,7 +482,7 @@ def final_validate_device_schema(
 async def register_uart_device(var, config):
     """Register a UART device, setting up all the internal values.
 
-    This is a coroutine, you need to await it with a 'yield' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
     """
     parent = await cg.get_variable(config[CONF_UART_ID])
     cg.add(var.set_uart_parent(parent))
