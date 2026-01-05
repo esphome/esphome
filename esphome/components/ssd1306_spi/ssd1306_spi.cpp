@@ -16,19 +16,19 @@ void SPISSD1306::setup() {
 }
 void SPISSD1306::dump_config() {
   LOG_DISPLAY("", "SPI SSD1306", this);
-  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
-  LOG_PIN("  CS Pin: ", this->cs_);
-  LOG_PIN("  DC Pin: ", this->dc_pin_);
-  LOG_PIN("  Reset Pin: ", this->reset_pin_);
   ESP_LOGCONFIG(TAG,
+                "  Model: %s\n"
                 "  External VCC: %s\n"
                 "  Flip X: %s\n"
                 "  Flip Y: %s\n"
                 "  Offset X: %d\n"
                 "  Offset Y: %d\n"
                 "  Inverted Color: %s",
-                YESNO(this->external_vcc_), YESNO(this->flip_x_), YESNO(this->flip_y_), this->offset_x_,
-                this->offset_y_, YESNO(this->invert_));
+                this->model_str_(), YESNO(this->external_vcc_), YESNO(this->flip_x_), YESNO(this->flip_y_),
+                this->offset_x_, this->offset_y_, YESNO(this->invert_));
+  LOG_PIN("  CS Pin: ", this->cs_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
 void SPISSD1306::command(uint8_t value) {
