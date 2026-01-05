@@ -1,4 +1,4 @@
-#include "zigbee_attribute.h"
+#include "zigbee_attribute_esp32.h"
 #include "esphome/core/log.h"
 #include "esphome/core/defines.h"
 #ifdef USE_ESP32

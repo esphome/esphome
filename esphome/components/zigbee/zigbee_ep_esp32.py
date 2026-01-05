@@ -11,7 +11,7 @@ from .const import (
     REPORT,
     ROLE,
 )
-from .zigbee_const import CLUSTER_ROLE
+from .const_esp32 import CLUSTER_ROLE
 
 # endpoint configs:
 ep_configs = {

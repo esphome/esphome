@@ -3,9 +3,10 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/defines.h"
 
-#ifdef USE_ESP32
 #ifdef USE_ZIGBEE
-#include "zigbee.h"
+#ifdef USE_ESP32
+#include "zigbee_esp32.h"
+#endif
 
 namespace esphome::zigbee {
 template<typename... Ts> class FactoryResetAction : public Action<Ts...>, public Parented<ZigbeeComponent> {
@@ -14,5 +15,4 @@ template<typename... Ts> class FactoryResetAction : public Action<Ts...>, public
 };
 }  // namespace esphome::zigbee
 
-#endif
 #endif

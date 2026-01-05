@@ -3,7 +3,7 @@
 #ifdef USE_ZIGBEE
 
 #include "ha/esp_zigbee_ha_standard.h"
-#include "zigbee_helpers.h"
+#include "zigbee_helpers_esp32.h"
 
 esp_zb_cluster_list_t *esphome_zb_default_clusters_create(esp_zb_ha_standard_devices_t device_type) {
   return esp_zb_zcl_cluster_list_create();

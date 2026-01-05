@@ -6,10 +6,10 @@
 #include "freertos/task.h"
 #include "esp_check.h"
 #include "nvs_flash.h"
-#include "zigbee_attribute.h"
-#include "zigbee.h"
+#include "zigbee_attribute_esp32.h"
+#include "zigbee_esp32.h"
 #include "esphome/core/log.h"
-#include "zigbee_helpers.h"
+#include "zigbee_helpers_esp32.h"
 #ifdef CONFIG_WIFI_COEX
 #include "esp_coexist.h"
 #endif

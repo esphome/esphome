@@ -10,7 +10,7 @@
 #ifdef USE_ZIGBEE
 
 #include "esp_zigbee_core.h"
-#include "zigbee.h"
+#include "zigbee_esp32.h"
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"

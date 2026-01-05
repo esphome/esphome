@@ -44,8 +44,8 @@ from .const import (
     ZigbeeAttribute,
     ZigbeeComponent,
 )
-from .zigbee_const import ATTR_TYPE, CLUSTER_ID, CLUSTER_ROLE, DEVICE_ID
-from .zigbee_ep import create_ep, ep_configs
+from .const_esp32 import ATTR_TYPE, CLUSTER_ID, CLUSTER_ROLE, DEVICE_ID
+from .zigbee_ep_esp32 import create_ep, ep_configs
 
 CODEOWNERS = ["@luar123"]
 
