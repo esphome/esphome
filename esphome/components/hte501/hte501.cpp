@@ -7,6 +7,8 @@ namespace hte501 {
 
 static const char *const TAG = "hte501";
 
+static constexpr size_t HTE501_SERIAL_NUMBER_SIZE = 7;
+
 void HTE501Component::setup() {
   uint8_t address[] = {0x70, 0x29};
   uint8_t identification[9];
@@ -16,7 +18,10 @@ void HTE501Component::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGV(TAG, "    Serial Number: 0x%s", format_hex(identification + 0, 7).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char serial_hex[format_hex_size(HTE501_SERIAL_NUMBER_SIZE)];
+#endif
+  ESP_LOGV(TAG, "    Serial Number: 0x%s", format_hex_to(serial_hex, identification, HTE501_SERIAL_NUMBER_SIZE));
 }
 
 void HTE501Component::dump_config() {

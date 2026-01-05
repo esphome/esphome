@@ -146,19 +146,14 @@ void Lc709203f::update() {
 }
 
 void Lc709203f::dump_config() {
-  ESP_LOGCONFIG(TAG, "LC709203F:");
-  LOG_I2C_DEVICE(this);
-
-  LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG,
+                "LC709203F:\n"
                 "  Pack Size: %d mAH\n"
-                "  Pack APA: 0x%02X",
-                this->pack_size_, this->apa_);
-
-  // This is only true if the pack_voltage_ is either 0x0000 or 0x0001. The config validator
-  //  should have already verified this.
-  ESP_LOGCONFIG(TAG, "  Pack Rated Voltage: 3.%sV", this->pack_voltage_ == 0x0000 ? "8" : "7");
-
+                "  Pack APA: 0x%02X\n"
+                "  Pack Rated Voltage: 3.%sV",
+                this->pack_size_, this->apa_, this->pack_voltage_ == 0x0000 ? "8" : "7");
+  LOG_I2C_DEVICE(this);
+  LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Battery Remaining", this->battery_remaining_sensor_);
 

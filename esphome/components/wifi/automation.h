@@ -45,7 +45,8 @@ template<typename... Ts> class WiFiConfigureAction : public Action<Ts...>, publi
     if (this->connecting_)
       return;
     // If already connected to the same AP, do nothing
-    if (global_wifi_component->wifi_ssid() == ssid) {
+    char ssid_buf[SSID_BUFFER_SIZE];
+    if (strcmp(global_wifi_component->wifi_ssid_to(ssid_buf), ssid.c_str()) == 0) {
       // Callback to notify the user that the connection was successful
       this->connect_trigger_->trigger();
       return;
@@ -94,7 +95,8 @@ template<typename... Ts> class WiFiConfigureAction : public Action<Ts...>, publi
       this->cancel_timeout("wifi-connect-timeout");
       this->cancel_timeout("wifi-fallback-timeout");
       this->connecting_ = false;
-      if (global_wifi_component->wifi_ssid() == this->new_sta_.get_ssid()) {
+      char ssid_buf[SSID_BUFFER_SIZE];
+      if (strcmp(global_wifi_component->wifi_ssid_to(ssid_buf), this->new_sta_.get_ssid().c_str()) == 0) {
         // Callback to notify the user that the connection was successful
         this->connect_trigger_->trigger();
       } else {

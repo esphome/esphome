@@ -210,9 +210,11 @@ bool ES8388::set_dac_output(DacOutputLine line) {
       return false;
   };
 
-  ESP_LOGV(TAG, "Setting ES8388_DACPOWER to 0x%02X", dac_power);
-  ESP_LOGV(TAG, "Setting ES8388_DACCONTROL24 / ES8388_DACCONTROL25 to 0x%02X", reg_out1);
-  ESP_LOGV(TAG, "Setting ES8388_DACCONTROL26 / ES8388_DACCONTROL27  to 0x%02X", reg_out2);
+  ESP_LOGV(TAG,
+           "Setting ES8388_DACPOWER to 0x%02X\n"
+           "Setting ES8388_DACCONTROL24 / ES8388_DACCONTROL25 to 0x%02X\n"
+           "Setting ES8388_DACCONTROL26 / ES8388_DACCONTROL27  to 0x%02X",
+           dac_power, reg_out1, reg_out2);
 
   ES8388_ERROR_CHECK(this->write_byte(ES8388_DACCONTROL24, reg_out1));  // LOUT1VOL
   ES8388_ERROR_CHECK(this->write_byte(ES8388_DACCONTROL25, reg_out1));  // ROUT1VOL
