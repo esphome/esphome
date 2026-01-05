@@ -16,8 +16,8 @@ template<uint8_t N> bool MCP23XXXGPIOPin<N>::digital_read() {
 template<uint8_t N> void MCP23XXXGPIOPin<N>::digital_write(bool value) {
   this->parent_->digital_write(this->pin_, value != this->inverted_);
 }
-template<uint8_t N> std::string MCP23XXXGPIOPin<N>::dump_summary() const {
-  return str_snprintf("%u via MCP23XXX", 15, pin_);
+template<uint8_t N> size_t MCP23XXXGPIOPin<N>::dump_summary(char *buffer, size_t len) const {
+  return snprintf(buffer, len, "%u via MCP23XXX", this->pin_);
 }
 
 template class MCP23XXXGPIOPin<8>;

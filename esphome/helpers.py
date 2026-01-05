@@ -35,6 +35,10 @@ IS_MACOS = platform.system() == "Darwin"
 IS_WINDOWS = platform.system() == "Windows"
 IS_LINUX = platform.system() == "Linux"
 
+# FNV-1 hash constants (must match C++ in esphome/core/helpers.h)
+FNV1_OFFSET_BASIS = 2166136261
+FNV1_PRIME = 16777619
+
 
 def ensure_unique_string(preferred_string, current_strings):
     test_string = preferred_string
@@ -49,8 +53,17 @@ def ensure_unique_string(preferred_string, current_strings):
     return test_string
 
 
+def fnv1_hash(string: str) -> int:
+    """FNV-1 32-bit hash function (multiply then XOR)."""
+    hash_value = FNV1_OFFSET_BASIS
+    for char in string:
+        hash_value = (hash_value * FNV1_PRIME) & 0xFFFFFFFF
+        hash_value ^= ord(char)
+    return hash_value
+
+
 def fnv1a_32bit_hash(string: str) -> int:
-    """FNV-1a 32-bit hash function.
+    """FNV-1a 32-bit hash function (XOR then multiply).
 
     Note: This uses 32-bit hash instead of 64-bit for several reasons:
     1. ESPHome targets 32-bit microcontrollers with limited RAM (often <320KB)
@@ -63,11 +76,20 @@ def fnv1a_32bit_hash(string: str) -> int:
     a handful of area_ids and device_ids (typically <10 areas and <100
     devices), making collisions virtually impossible.
     """
-    hash_value = 2166136261
+    hash_value = FNV1_OFFSET_BASIS
     for char in string:
         hash_value ^= ord(char)
-        hash_value = (hash_value * 16777619) & 0xFFFFFFFF
+        hash_value = (hash_value * FNV1_PRIME) & 0xFFFFFFFF
     return hash_value
+
+
+def fnv1_hash_object_id(name: str) -> int:
+    """Compute FNV-1 hash of name with snake_case + sanitize transformations.
+
+    IMPORTANT: Must produce same result as C++ fnv1_hash_object_id() in helpers.h.
+    Used for pre-computing entity object_id hashes at code generation time.
+    """
+    return fnv1_hash(sanitize(snake_case(name)))
 
 
 def strip_accents(value: str) -> str:
