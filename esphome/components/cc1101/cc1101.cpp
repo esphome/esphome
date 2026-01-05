@@ -189,13 +189,15 @@ void CC1101Component::loop() {
   this->read_(Register::FIFO, this->packet_.data(), payload_length);
 
   // Read status from registers (more reliable than FIFO status bytes due to timing issues)
+  this->read_(Register::FREQEST);
   this->read_(Register::RSSI);
   this->read_(Register::LQI);
+  float freq_offset = static_cast<int8_t>(this->state_.FREQEST) * (XTAL_FREQUENCY / (1 << 14));
   float rssi = (this->state_.RSSI * RSSI_STEP) - RSSI_OFFSET;
   bool crc_ok = (this->state_.LQI & STATUS_CRC_OK_MASK) != 0;
   uint8_t lqi = this->state_.LQI & STATUS_LQI_MASK;
   if (this->state_.CRC_EN == 0 || crc_ok) {
-    this->packet_trigger_->trigger(this->packet_, rssi, lqi);
+    this->packet_trigger_->trigger(this->packet_, freq_offset, rssi, lqi);
   }
 
   // Return to rx
