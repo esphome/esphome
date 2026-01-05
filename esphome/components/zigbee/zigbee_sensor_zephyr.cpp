@@ -26,8 +26,10 @@ void ZigbeeSensor::setup() {
 }
 
 void ZigbeeSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Zigbee Sensor");
-  ESP_LOGCONFIG(TAG, "  end point: %d, present_value %f", this->endpoint_, this->cluster_attributes_->present_value);
+  ESP_LOGCONFIG(TAG,
+                "Zigbee Sensor"
+                "  end point: %d, present_value %f",
+                this->endpoint_, this->cluster_attributes_->present_value);
 }
 
 }  // namespace esphome::zigbee
