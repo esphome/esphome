@@ -9,82 +9,73 @@ params:
 
 ## Which ESP should I use for my project?
 
-We're asked this *all the time.* As with all things engineering, "it depends". Based on the current state of hardware
-support within ESPHome, here's what we suggest:
+We're asked this *all the time.* As with all things engineering, "it depends". ESP32 is the leading platform where
+most new development happens. Based on the current state of hardware support within ESPHome, here's what we suggest:
 
 ### Recommended
 
-- **ESP32**
+- **ESP32 (original, non-variant)**
 
-  - Best supported/most mature
+  - Best supported/most mature.
   - Includes a great set of built-in hardware peripherals, so it's very capable and very flexible.
+  - Best choice for wired Ethernet connections thanks to its built-in Ethernet MAC,
+    which connects directly to a PHY chip. Other variants require SPI-based Ethernet controllers, adding latency.
 
 - **ESP32-S3**
 
   - An update to the original ESP32 with a slightly modified set of hardware peripherals.
-  - Has a built-in USB peripheral/interface (as opposed to relying on an external USB-to-serial chip)
+  - Has a built-in USB peripheral/interface (as opposed to relying on an external USB-to-serial chip).
   - Has instruction set extensions which make it a better fit for applications which require some form of machine
-    learning ({{< docref "/components/micro_wake_word" >}}, for example).
+    learning ([Micro Wake Word](/components/micro_wake_word), for example).
+  - Best choice if you need raw compute power, with better overall performance and lower latency.
 
 - **ESP32-C3**
 
   - Generally intended ([per Espressif](https://www.espressif.com/en/news/ESP32_C3)) to replace the well-known ESP8266.
-  - Use if:
+  - A good choice for simpler projects: single-core RISC-V, fewer GPIO pins, but lower cost and power consumption
+    than the dual-core ESP32(-Sx) variants.
 
-    - You're worried that the ESP32(-Sx) is "too powerful".
-    - You need a lower-power device than the ESP32(-Sx) family offers.
+- **ESP32-C6**
 
-### Not Recommended
+  - Similar to the ESP32-C3 with additional connectivity options including Thread (via OpenThread).
+  - A good choice for new projects.
+
+### Not Recommended for New Projects
 
 - **ESP8266**
 
-  - It's over ten years old and is *quite lacking* in terms of built-in hardware peripherals.
-  - Use an ESP32-C3 when you're thinking you need to use an ESP8266 because the ESP32(-Sx) is "too powerful" or
-    "overkill".
+  For new projects, we recommend the ESP32-C3 instead at a similar price point. Compared with ESP8266, all ESP32
+  variants have:
 
-  - Does not meet the requirements of {{< docref "/guides/made_for_esphome" >}}.
-  - The original NodeMCU, D1-Mini and ESP-01 are examples of boards which utilize an ESP8266; note that there are
-    (pin-compatible) versions of these boards available which instead utilize a more modern ESP32 or variant.
+  - Roughly 5x the amount of RAM. Some components such as large displays and
+    [some sensors](/components/sensor/bme68x_bsec2) may not work well on ESP8266.
+  - Significantly more flash memory. Most ESP8266 boards have 1-2 MB, while most ESP32 variants have 4 MB or more.
+  - More GPIO pins and a better set of hardware peripherals.
 
-### Additional Considerations
+  The ESP8266 does not meet the requirements of [Made for ESPHome](/guides/made_for_esphome).
 
-- These recommendations are primarily for people who are starting from scratch and/or are new to ESPHome.
-- A lot of people already have a drawer full of ESP8266 boards -- we're not trying to stop you from using them! That
-  said, *don't buy any more of them* and *consider our recommendations above* as you buy new devices. 😉
+  The original NodeMCU, D1-Mini, and ESP-01 are examples of boards which utilize an ESP8266. Note that there are
+  pin-compatible versions of these boards available which use a more modern ESP32 variant instead.
 
-- *"...But the [ESP8266 board] is cheaper!!!"*...well, you get what you pay for. Compared with the ESP8266, all ESP32s
-  and variants have:
+  That said, **existing ESP8266 devices work well and will continue to be supported for years to come.** Recent
+  memory optimizations have significantly improved available heap on ESP8266, making devices that were previously
+  unreliable now stable. If your ESP8266 devices are working, there's no need to replace them.
 
-  - a better, more complete set of hardware peripherals, keeping the processor core(s) free to maximize performance.
-  - more GPIO pins.
-  - roughly 5x the amount of RAM.
+### LibreTiny (BK72xx, RTL87xx, LN882x)
 
-    - Some components require more RAM than is available on the ESP8266 -- (large) displays and
-      {{< docref "/components/sensor/bme68x_bsec2" "some sensors" >}} are known to regularly provoke issues/crashes
-      on ESP8266s.
+If you have an off-the-shelf smart home device with a Beken, Realtek, or Lightning Semi chip,
+[LibreTiny](/components/libretiny) makes it possible to run ESPHome on it. These chips are typically
+not purchased directly. Instead, users flash existing devices that contain them.
 
-    - Workarounds are often available, but it's not reasonable to assume that a given workaround will work forever,
-      especially if you *want* to update your devices regularly but depend on
-      {{< docref "/components/sensor/bme68x_bsec2" "vendor-provided/maintained libraries for some functionality" >}}.
+LibreTiny support has matured significantly and these devices generally work well. However, LibreTiny is not as
+mature as ESP8266 or ESP32 support.
 
-  - significantly more flash memory.
+### Other Microcontrollers
 
-    - Most ESP8266 boards have just 1 or 2 MBs; meanwhile...
-    - Most ESP32s and variants have at least 4 MBs, but some have 8, 16 or even 32 MBs!
+Support for ESP32-H2, RP2040, and other newer chips is less mature, so you're more likely to run into
+problems with these. We recommend the chips listed above for the best ESPHome experience.
 
-    More RAM and/or flash memory means you can have bigger/more complex ESPHome configurations.
-
-  If saving a dollar or so on a cheaper microcontroller is tempting, keep in mind that *you'll just have to buy yet
-  another, different/"better" board when you realize that the cheaper one doesn't meet the needs of your project(s).*
-  This approach ultimately ends up costing **more.** If you *can*, spend that little bit extra to get a board which
-  will have better longevity and work for more of your projects!
-
-- *What about the ESP32-C6/ESP32-H2/[latest Espressif chip]/RP2040/RP2350?*
-
-  - Support for these is less mature so you're more likely to run into problems with these devices.
-  - We recommend sticking to the microcontrollers we've recommended above for the best ESPHome experience.
-
-- We'll update our recommendations here as support is added/matures for newer microcontrollers.
+We'll update our recommendations here as support matures for newer microcontrollers.
 
 {{< anchor "faq-usb_installation" >}}
 
