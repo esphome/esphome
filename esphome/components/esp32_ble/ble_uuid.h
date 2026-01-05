@@ -7,6 +7,7 @@
 #ifdef USE_ESP32
 #ifdef USE_ESP32_BLE_UUID
 
+#include <initializer_list>
 #include <span>
 #include <string>
 #include <esp_bt_defs.h>
@@ -27,7 +28,10 @@ class ESPBTUUID {
   static ESPBTUUID from_raw(const uint8_t *data);
   static ESPBTUUID from_raw_reversed(const uint8_t *data);
 
-  static ESPBTUUID from_raw(const std::string &data);
+  static ESPBTUUID from_raw(const char *data, size_t length);
+  static ESPBTUUID from_raw(const char *data) { return from_raw(data, strlen(data)); }
+  static ESPBTUUID from_raw(const std::string &data) { return from_raw(data.c_str(), data.length()); }
+  static ESPBTUUID from_raw(std::initializer_list<char> data) { return from_raw(data.begin(), data.size()); }
 
   static ESPBTUUID from_uuid(esp_bt_uuid_t uuid);
 

@@ -39,36 +39,36 @@ ESPBTUUID ESPBTUUID::from_raw_reversed(const uint8_t *data) {
     ret.uuid_.uuid.uuid128[ESP_UUID_LEN_128 - 1 - i] = data[i];
   return ret;
 }
-ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
+ESPBTUUID ESPBTUUID::from_raw(const char *data, size_t length) {
   ESPBTUUID ret;
-  if (data.length() == 4) {
+  if (length == 4) {
     // 16-bit UUID as 4-character hex string
-    auto parsed = parse_hex<uint16_t>(data);
+    auto parsed = parse_hex<uint16_t>(data, length);
     if (parsed.has_value()) {
       ret.uuid_.len = ESP_UUID_LEN_16;
       ret.uuid_.uuid.uuid16 = parsed.value();
     }
-  } else if (data.length() == 8) {
+  } else if (length == 8) {
     // 32-bit UUID as 8-character hex string
-    auto parsed = parse_hex<uint32_t>(data);
+    auto parsed = parse_hex<uint32_t>(data, length);
     if (parsed.has_value()) {
       ret.uuid_.len = ESP_UUID_LEN_32;
       ret.uuid_.uuid.uuid32 = parsed.value();
     }
-  } else if (data.length() == 16) {  // how we can have 16 byte length string reprezenting 128 bit uuid??? needs to be
-                                     // investigated (lack of time)
+  } else if (length == 16) {  // how we can have 16 byte length string reprezenting 128 bit uuid??? needs to be
+                              // investigated (lack of time)
     ret.uuid_.len = ESP_UUID_LEN_128;
-    memcpy(ret.uuid_.uuid.uuid128, (uint8_t *) data.data(), 16);
-  } else if (data.length() == 36) {
+    memcpy(ret.uuid_.uuid.uuid128, reinterpret_cast<const uint8_t *>(data), 16);
+  } else if (length == 36) {
     // If the length of the string is 36 bytes then we will assume it is a long hex string in
     // UUID format.
     ret.uuid_.len = ESP_UUID_LEN_128;
     int n = 0;
-    for (uint i = 0; i < data.length(); i += 2) {
-      if (data.c_str()[i] == '-')
+    for (size_t i = 0; i < length; i += 2) {
+      if (data[i] == '-')
         i++;
-      uint8_t msb = data.c_str()[i];
-      uint8_t lsb = data.c_str()[i + 1];
+      uint8_t msb = data[i];
+      uint8_t lsb = data[i + 1];
 
       if (msb > '9')
         msb -= 7;
@@ -77,7 +77,7 @@ ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
       ret.uuid_.uuid.uuid128[15 - n++] = ((msb & 0x0F) << 4) | (lsb & 0x0F);
     }
   } else {
-    ESP_LOGE(TAG, "ERROR: UUID value not 2, 4, 16 or 36 bytes - %s", data.c_str());
+    ESP_LOGE(TAG, "ERROR: UUID value not 2, 4, 16 or 36 bytes - %s", data);
   }
   return ret;
 }
