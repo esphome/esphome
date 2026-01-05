@@ -5,6 +5,9 @@
 
 namespace esphome::ota {
 
+// Stub implementation - OTA is not supported on host platform.
+// All methods return error codes to allow compilation of configs with OTA triggers.
+
 std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::HostOTABackend>(); }
 
 OTAResponseTypes HostOTABackend::begin(size_t image_size) { return OTA_RESPONSE_ERROR_UPDATE_PREPARE; }

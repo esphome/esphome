@@ -4,6 +4,9 @@
 
 namespace esphome::ota {
 
+/// Stub OTA backend for host platform - allows compilation but does not implement OTA.
+/// All operations return error codes immediately. This enables configurations with
+/// OTA triggers to compile for host platform during development.
 class HostOTABackend : public OTABackend {
  public:
   OTAResponseTypes begin(size_t image_size) override;
