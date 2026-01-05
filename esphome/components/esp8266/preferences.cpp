@@ -208,8 +208,10 @@ class ESP8266Preferences : public ESPPreferences {
 
   ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) override {
     const uint32_t length_words = bytes_to_words(length);
-    if (length_words > MAX_PREFERENCE_WORDS)
-      return {};  // Preference too large
+    if (length_words > MAX_PREFERENCE_WORDS) {
+      ESP_LOGE(TAG, "Preference too large: %u words", static_cast<unsigned int>(length_words));
+      return {};
+    }
 
     const uint32_t total_words = length_words + 1;  // +1 for CRC
     uint16_t offset;
