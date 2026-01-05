@@ -227,6 +227,12 @@ The following options disable unused VFS features to save flash memory:
   This matches the default behavior in ESP-IDF 6.0 (see [migration guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/migration-guides/release-6.x/6.0/system.html#id1)).
   Set to `true` only if you encounter issues. Defaults to `false` (ring buffer functions in flash to save IRAM).
 
+- **heap_in_iram** (*Optional*, boolean): Keep heap functions (malloc, free, realloc, etc.) in IRAM instead of moving them
+  to flash. By default, heap functions are placed in flash to save ~4-6 KB of IRAM. This is safe because heap functions
+  should never be called from ISRs, and ESPHome's design minimizes heap churn during normal operation (allocations happen
+  primarily at setup, not in hot loops). Set to `true` only if you have a specific use case requiring faster heap operations.
+  Defaults to `false` (heap functions in flash to save IRAM).
+
 Some options can be disabled to save flash memory without affecting typical ESPHome functionality. The performance
 options (defaulting to `true`  ) improve socket operation performance but can be disabled if you need better
 multi-threaded scalability (which is uncommon since ESPHome uses an event loop).
