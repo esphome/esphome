@@ -21,14 +21,19 @@ void BLETextSensor::loop() {
 
 void BLETextSensor::dump_config() {
   LOG_TEXT_SENSOR("", "BLE Text Sensor", this);
+  char service_buf[esp32_ble::UUID_STR_LEN];
+  char char_buf[esp32_ble::UUID_STR_LEN];
+  char descr_buf[esp32_ble::UUID_STR_LEN];
+  this->service_uuid_.to_str(service_buf);
+  this->char_uuid_.to_str(char_buf);
+  this->descr_uuid_.to_str(descr_buf);
   ESP_LOGCONFIG(TAG,
                 "  MAC address        : %s\n"
                 "  Service UUID       : %s\n"
                 "  Characteristic UUID: %s\n"
                 "  Descriptor UUID    : %s\n"
                 "  Notifications      : %s",
-                this->parent()->address_str(), this->service_uuid_.to_string().c_str(),
-                this->char_uuid_.to_string().c_str(), this->descr_uuid_.to_string().c_str(), YESNO(this->notify_));
+                this->parent()->address_str(), service_buf, char_buf, descr_buf, YESNO(this->notify_));
   LOG_UPDATE_INTERVAL(this);
 }
 

@@ -9,12 +9,15 @@ static const char *const TAG = "ble_binary_output";
 
 void BLEBinaryOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Binary Output:");
+  char service_buf[esp32_ble::UUID_STR_LEN];
+  char char_buf[esp32_ble::UUID_STR_LEN];
+  this->service_uuid_.to_str(service_buf);
+  this->char_uuid_.to_str(char_buf);
   ESP_LOGCONFIG(TAG,
                 "  MAC address        : %s\n"
                 "  Service UUID       : %s\n"
                 "  Characteristic UUID: %s",
-                this->parent_->address_str(), this->service_uuid_.to_string().c_str(),
-                this->char_uuid_.to_string().c_str());
+                this->parent_->address_str(), service_buf, char_buf);
   LOG_BINARY_OUTPUT(this);
 }
 
