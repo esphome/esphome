@@ -112,6 +112,7 @@ ESPHome-specific components or components supporting ESPHome device provisioning
 "StatsD","components/statsd","connection.svg","dark-invert"
 "UDP","components/udp","udp.svg",""
 "Packet Transport","components/packet_transport/index","packet_transport.svg","dark-invert"
+"Zigbee End Device","components/zigbee","zigbee.svg",""
 {{< /imgtable >}}
 
 ## Bluetooth/BLE
