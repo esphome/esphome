@@ -1,3 +1,5 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
@@ -34,6 +36,8 @@ from esphome.const import (
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_PERCENT,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@ximex"]
 DEPENDENCIES = ["uart"]
@@ -299,7 +303,12 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_HUMIDITY])
         cg.add(var.set_humidity_sensor(sens))
 
+    # Remove before 2026.12.0
     if CONF_AQI in config:
+        _LOGGER.warning(
+            "The 'aqi' option in pmsx003 is deprecated, "
+            "please use the standalone 'aqi' sensor platform instead."
+        )
         sens = await sensor.new_sensor(config[CONF_AQI])
         cg.add(var.set_aqi_sensor(sens))
         cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))
