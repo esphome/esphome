@@ -145,6 +145,20 @@ esp32:
   address is not consistent with the burned-in CRC for that MAC address, resulting in an error like
   `Base MAC address from BLK0 of EFUSE CRC error`. **Valid only on original ESP32 with** `esp-idf` **framework.**
 
+- **minimum_chip_revision** (*Optional*, string): Sets the minimum ESP32 chip revision required for the firmware.
+  One of `0.0`, `1.0`, `1.1`, `2.0`, `3.0`, or `3.1`. **Valid only on original ESP32.**
+
+  Setting this to `3.0` or higher reduces flash size by excluding workaround code for older chip bugs. For PSRAM
+  users, it also saves significant IRAM by keeping C library functions in ROM instead of recompiling them with
+  the PSRAM cache bug workaround.
+
+  **Important:** The firmware will not boot on chips older than the specified revision. If OTA updating a device
+  with an older chip, the bootloader will reject the new firmware and roll back to the previous version (when
+  OTA rollback is enabled, which is the default).
+
+  To find your chip's revision, check the ESPHome boot logs for a line like `ESP32 Chip: ESP32 r3.0, 2 core(s)`
+  or use `esptool.py chip_id`.
+
 - **enable_idf_experimental_features** (*Optional*, boolean): Can be set to `true` to enable experimental features. Use of
   experimental features may cause instability or other issues.
 
