@@ -63,7 +63,7 @@ void SHT3XDComponent::dump_config() {
   ESP_LOGD(TAG,
            "  Serial Number: 0x%08" PRIX32 "\n"
            "  Heater Enabled: %s",
-           this->serial_number_, this->heater_enabled_ ? "true" : "false");
+           this->serial_number_, TRUEFALSE(this->heater_enabled_));
 
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
