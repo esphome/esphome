@@ -24,7 +24,7 @@ class AsyncClient {
 
   bool connect(const char *host, uint16_t port);
   void close();
-  bool connected() const { return connected_; }
+  [[nodiscard]] bool connected() const { return connected_; }
   size_t write(const char *data, size_t len);
 
   void onConnect(AcConnectHandler cb, void *arg = nullptr) {  // NOLINT(readability-identifier-naming)
