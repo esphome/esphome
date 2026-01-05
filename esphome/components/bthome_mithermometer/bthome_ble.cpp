@@ -4,6 +4,7 @@
 #include "esphome/core/log.h"
 
 #include <array>
+#include <span>
 
 #ifdef USE_ESP32
 
@@ -12,14 +13,14 @@ namespace bthome_mithermometer {
 
 static const char *const TAG = "bthome_mithermometer";
 
-static const char *format_mac_address(char *buffer, uint64_t address) {
+static const char *format_mac_address(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buffer, uint64_t address) {
   std::array<uint8_t, MAC_ADDRESS_SIZE> mac{};
   for (size_t i = 0; i < MAC_ADDRESS_SIZE; i++) {
     mac[i] = (address >> ((MAC_ADDRESS_SIZE - 1 - i) * 8)) & 0xFF;
   }
 
-  format_mac_addr_upper(mac.data(), buffer);
-  return buffer;
+  format_mac_addr_upper(mac.data(), buffer.data());
+  return buffer.data();
 }
 
 static bool get_bthome_value_length(uint8_t obj_type, size_t &value_length) {
