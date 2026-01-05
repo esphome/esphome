@@ -140,7 +140,10 @@ void CC1101Component::setup() {
     this->write_(static_cast<Register>(i));
   }
   this->set_output_power(this->output_power_requested_);
-  this->enter_rx_();
+  if (!this->enter_rx_()) {
+    this->mark_failed();
+    return;
+  }
 
   // Defer pin mode setup until after all components have completed setup()
   // This handles the case where remote_transmitter runs after CC1101 and changes pin mode
@@ -268,46 +271,31 @@ bool CC1101Component::wait_for_state_(State target_state, uint32_t timeout_ms) {
   return false;
 }
 
+bool CC1101Component::enter_calibrated_(State target_state, Command cmd) {
+  // The PLL must be recalibrated until PLL lock is achieved
+  for (uint8_t retries = PLL_LOCK_RETRIES; retries > 0; retries--) {
+    this->strobe_(cmd);
+    if (!this->wait_for_state_(target_state)) {
+      return false;
+    }
+    this->read_(Register::FSCAL1);
+    if (this->state_.FSCAL1 != FSCAL1_PLL_NOT_LOCKED) {
+      return true;
+    }
+    ESP_LOGW(TAG, "PLL lock failed, retrying calibration");
+    this->enter_idle_();
+  }
+  ESP_LOGE(TAG, "PLL lock failed after retries");
+  return false;
+}
+
 void CC1101Component::enter_idle_() {
   this->strobe_(Command::IDLE);
   this->wait_for_state_(State::IDLE);
 }
 
-bool CC1101Component::enter_rx_() {
-  // The PLL must be recalibrated until PLL lock is achieved
-  for (uint8_t retries = 3; retries > 0; retries--) {
-    this->strobe_(Command::RX);
-    if (!this->wait_for_state_(State::RX)) {
-      return false;
-    }
-    this->read_(Register::FSCAL1);
-    if (this->state_.FSCAL1 != FSCAL1_PLL_NOT_LOCKED) {
-      return true;
-    }
-    ESP_LOGW(TAG, "PLL lock failed, retrying calibration");
-    this->enter_idle_();
-  }
-  ESP_LOGE(TAG, "PLL lock failed after retries");
-  return false;
-}
-
-bool CC1101Component::enter_tx_() {
-  // The PLL must be recalibrated until PLL lock is achieved
-  for (uint8_t retries = 3; retries > 0; retries--) {
-    this->strobe_(Command::TX);
-    if (!this->wait_for_state_(State::TX)) {
-      return false;
-    }
-    this->read_(Register::FSCAL1);
-    if (this->state_.FSCAL1 != FSCAL1_PLL_NOT_LOCKED) {
-      return true;
-    }
-    ESP_LOGW(TAG, "PLL lock failed, retrying calibration");
-    this->enter_idle_();
-  }
-  ESP_LOGE(TAG, "PLL lock failed after retries");
-  return false;
-}
+bool CC1101Component::enter_rx_() { return this->enter_calibrated_(State::RX, Command::RX); }
+bool CC1101Component::enter_tx_() { return this->enter_calibrated_(State::TX, Command::TX); }
 
 uint8_t CC1101Component::strobe_(Command cmd) {
   uint8_t index = static_cast<uint8_t>(cmd);

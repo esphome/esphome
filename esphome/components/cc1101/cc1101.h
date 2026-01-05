@@ -102,6 +102,7 @@ class CC1101Component : public Component,
 
   // State Management
   bool wait_for_state_(State target_state, uint32_t timeout_ms = 100);
+  bool enter_calibrated_(State target_state, Command cmd);
   void enter_idle_();
   bool enter_rx_();
   bool enter_tx_();
