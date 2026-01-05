@@ -49,8 +49,6 @@ class AsyncClient {
 
  private:
   std::unique_ptr<esphome::socket::Socket> socket_;
-  bool connected_{false};
-  bool connecting_{false};
 
   AcConnectHandler connect_cb_{nullptr};
   void *connect_arg_{nullptr};
@@ -60,6 +58,9 @@ class AsyncClient {
   void *data_arg_{nullptr};
   AcErrorHandler error_cb_{nullptr};
   void *error_arg_{nullptr};
+
+  bool connected_{false};
+  bool connecting_{false};
 };
 
 }  // namespace esphome::async_tcp
