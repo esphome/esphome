@@ -292,10 +292,12 @@ void OpenThreadComponent::set_link_mode(otInstance *instance, bool keep_radio_on
     ESP_LOGE(TAG, "Failed to set OpenThread linkmode.");
   }
   link_mode_config = otThreadGetLinkMode(esp_openthread_get_instance());
-  ESP_LOGD(TAG, "Link Mode Device Type: %s", link_mode_config.mDeviceType ? "true" : "false");
-  ESP_LOGD(TAG, "Link Mode Network Data: %s", link_mode_config.mNetworkData ? "true" : "false");
-  ESP_LOGD(TAG, "Link Mode RX On When Idle: %s", link_mode_config.mRxOnWhenIdle ? "true" : "false");
-
+  ESP_LOGD(TAG,
+           "Link Mode Device Type: %s\n"
+           "Link Mode Network Data: %s\n"
+           "Link Mode RX On When Idle: %s",
+           link_mode_config.mDeviceType ? "true" : "false", link_mode_config.mNetworkData ? "true" : "false",
+           link_mode_config.mRxOnWhenIdle ? "true" : "false");
   if (wait_for_role) {
     otDeviceRole role = otThreadGetDeviceRole(instance);
     uint32_t now = millis();
