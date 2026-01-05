@@ -24,12 +24,26 @@ static const char *const PROLOGUE_INIT = "NoiseAPIInit";
 #endif
 static constexpr size_t PROLOGUE_INIT_LEN = 12;  // strlen("NoiseAPIInit")
 
+// Maximum bytes to log in hex format (168 * 3 = 504, under TX buffer size of 512)
+static constexpr size_t API_MAX_LOG_BYTES = 168;
+
 #define HELPER_LOG(msg, ...) \
   ESP_LOGVV(TAG, "%s (%s): " msg, this->client_info_->name.c_str(), this->client_info_->peername.c_str(), ##__VA_ARGS__)
 
 #ifdef HELPER_LOG_PACKETS
-#define LOG_PACKET_RECEIVED(buffer) ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(buffer).c_str())
-#define LOG_PACKET_SENDING(data, len) ESP_LOGVV(TAG, "Sending raw: %s", format_hex_pretty(data, len).c_str())
+#define LOG_PACKET_RECEIVED(buffer) \
+  do { \
+    char hex_buf_[format_hex_pretty_size(API_MAX_LOG_BYTES)]; \
+    ESP_LOGVV(TAG, "Received frame: %s", \
+              format_hex_pretty_to(hex_buf_, (buffer).data(), \
+                                   (buffer).size() < API_MAX_LOG_BYTES ? (buffer).size() : API_MAX_LOG_BYTES)); \
+  } while (0)
+#define LOG_PACKET_SENDING(data, len) \
+  do { \
+    char hex_buf_[format_hex_pretty_size(API_MAX_LOG_BYTES)]; \
+    ESP_LOGVV(TAG, "Sending raw: %s", \
+              format_hex_pretty_to(hex_buf_, data, (len) < API_MAX_LOG_BYTES ? (len) : API_MAX_LOG_BYTES)); \
+  } while (0)
 #else
 #define LOG_PACKET_RECEIVED(buffer) ((void) 0)
 #define LOG_PACKET_SENDING(data, len) ((void) 0)
@@ -239,12 +253,13 @@ APIError APINoiseFrameHelper::state_action_() {
   }
   if (state_ == State::SERVER_HELLO) {
     // send server hello
+    constexpr size_t mac_len = 13;  // 12 hex chars + null terminator
     const std::string &name = App.get_name();
-    const std::string &mac = get_mac_address();
+    char mac[mac_len];
+    get_mac_address_into_buffer(mac);
 
     // Calculate positions and sizes
     size_t name_len = name.size() + 1;  // including null terminator
-    size_t mac_len = mac.size() + 1;    // including null terminator
     size_t name_offset = 1;
     size_t mac_offset = name_offset + name_len;
     size_t total_size = 1 + name_len + mac_len;
@@ -257,7 +272,7 @@ APIError APINoiseFrameHelper::state_action_() {
     // node name, terminated by null byte
     std::memcpy(msg.get() + name_offset, name.c_str(), name_len);
     // node mac, terminated by null byte
-    std::memcpy(msg.get() + mac_offset, mac.c_str(), mac_len);
+    std::memcpy(msg.get() + mac_offset, mac, mac_len);
 
     aerr = write_frame_(msg.get(), total_size);
     if (aerr != APIError::OK)
@@ -406,8 +421,7 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
     return APIError::BAD_DATA_PACKET;
   }
 
-  buffer->container = std::move(this->rx_buf_);
-  buffer->data_offset = 4;
+  buffer->data = msg_data + 4;  // Skip 4-byte header (type + length)
   buffer->data_len = data_len;
   buffer->type = type;
   return APIError::OK;
@@ -415,12 +429,12 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
 APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
   // Resize to include MAC space (required for Noise encryption)
   buffer.get_buffer()->resize(buffer.get_buffer()->size() + frame_footer_size_);
-  PacketInfo packet{type, 0,
-                    static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_ - frame_footer_size_)};
-  return write_protobuf_packets(buffer, std::span<const PacketInfo>(&packet, 1));
+  MessageInfo msg{type, 0,
+                  static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_ - frame_footer_size_)};
+  return write_protobuf_messages(buffer, std::span<const MessageInfo>(&msg, 1));
 }
 
-APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) {
+APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) {
   APIError aerr = state_action_();
   if (aerr != APIError::OK) {
     return aerr;
@@ -430,20 +444,20 @@ APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, st
     return APIError::WOULD_BLOCK;
   }
 
-  if (packets.empty()) {
+  if (messages.empty()) {
     return APIError::OK;
   }
 
   uint8_t *buffer_data = buffer.get_buffer()->data();
 
-  this->reusable_iovs_.clear();
-  this->reusable_iovs_.reserve(packets.size());
+  // Stack-allocated iovec array - no heap allocation
+  StaticVector<struct iovec, MAX_MESSAGES_PER_BATCH> iovs;
   uint16_t total_write_len = 0;
 
-  // We need to encrypt each packet in place
-  for (const auto &packet : packets) {
+  // We need to encrypt each message in place
+  for (const auto &msg : messages) {
     // The buffer already has padding at offset
-    uint8_t *buf_start = buffer_data + packet.offset;
+    uint8_t *buf_start = buffer_data + msg.offset;
 
     // Write noise header
     buf_start[0] = 0x01;  // indicator
@@ -451,10 +465,10 @@ APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, st
 
     // Write message header (to be encrypted)
     const uint8_t msg_offset = 3;
-    buf_start[msg_offset] = static_cast<uint8_t>(packet.message_type >> 8);      // type high byte
-    buf_start[msg_offset + 1] = static_cast<uint8_t>(packet.message_type);       // type low byte
-    buf_start[msg_offset + 2] = static_cast<uint8_t>(packet.payload_size >> 8);  // data_len high byte
-    buf_start[msg_offset + 3] = static_cast<uint8_t>(packet.payload_size);       // data_len low byte
+    buf_start[msg_offset] = static_cast<uint8_t>(msg.message_type >> 8);      // type high byte
+    buf_start[msg_offset + 1] = static_cast<uint8_t>(msg.message_type);       // type low byte
+    buf_start[msg_offset + 2] = static_cast<uint8_t>(msg.payload_size >> 8);  // data_len high byte
+    buf_start[msg_offset + 3] = static_cast<uint8_t>(msg.payload_size);       // data_len low byte
     // payload data is already in the buffer starting at offset + 7
 
     // Make sure we have space for MAC
@@ -463,8 +477,8 @@ APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, st
     // Encrypt the message in place
     NoiseBuffer mbuf;
     noise_buffer_init(mbuf);
-    noise_buffer_set_inout(mbuf, buf_start + msg_offset, 4 + packet.payload_size,
-                           4 + packet.payload_size + frame_footer_size_);
+    noise_buffer_set_inout(mbuf, buf_start + msg_offset, 4 + msg.payload_size,
+                           4 + msg.payload_size + frame_footer_size_);
 
     int err = noise_cipherstate_encrypt(send_cipher_, &mbuf);
     APIError aerr =
@@ -476,14 +490,14 @@ APIError APINoiseFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, st
     buf_start[1] = static_cast<uint8_t>(mbuf.size >> 8);
     buf_start[2] = static_cast<uint8_t>(mbuf.size);
 
-    // Add iovec for this encrypted packet
-    size_t packet_len = static_cast<size_t>(3 + mbuf.size);  // indicator + size + encrypted data
-    this->reusable_iovs_.push_back({buf_start, packet_len});
-    total_write_len += packet_len;
+    // Add iovec for this encrypted message
+    size_t msg_len = static_cast<size_t>(3 + mbuf.size);  // indicator + size + encrypted data
+    iovs.push_back({buf_start, msg_len});
+    total_write_len += msg_len;
   }
 
-  // Send all encrypted packets in one writev call
-  return this->write_raw_(this->reusable_iovs_.data(), this->reusable_iovs_.size(), total_write_len);
+  // Send all encrypted messages in one writev call
+  return this->write_raw_(iovs.data(), iovs.size(), total_write_len);
 }
 
 APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
@@ -527,7 +541,7 @@ APIError APINoiseFrameHelper::init_handshake_() {
   if (aerr != APIError::OK)
     return aerr;
 
-  const auto &psk = ctx_->get_psk();
+  const auto &psk = this->ctx_.get_psk();
   err = noise_handshakestate_set_pre_shared_key(handshake_, psk.data(), psk.size());
   aerr = handle_noise_error_(err, LOG_STR("noise_handshakestate_set_pre_shared_key"),
                              APIError::HANDSHAKESTATE_SETUP_FAILED);
@@ -539,7 +553,8 @@ APIError APINoiseFrameHelper::init_handshake_() {
   if (aerr != APIError::OK)
     return aerr;
   // set_prologue copies it into handshakestate, so we can get rid of it now
-  prologue_ = {};
+  // Use swap idiom to actually release memory (= {} only clears size, not capacity)
+  std::vector<uint8_t>().swap(prologue_);
 
   err = noise_handshakestate_start(handshake_);
   aerr = handle_noise_error_(err, LOG_STR("noise_handshakestate_start"), APIError::HANDSHAKESTATE_SETUP_FAILED);

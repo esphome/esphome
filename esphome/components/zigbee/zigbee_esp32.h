@@ -79,7 +79,7 @@ class ZigbeeComponent : public Component {
   void search_bindings();
   static void binding_table_cb(const esp_zb_zdo_binding_table_info_t *table_info, void *user_ctx);
 
-  void reset() {
+  void factory_reset() {
     esp_zb_lock_acquire(portMAX_DELAY);
     esp_zb_factory_reset();
     esp_zb_lock_release();

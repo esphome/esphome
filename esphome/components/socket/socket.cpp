@@ -6,32 +6,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace socket {
+namespace esphome::socket {
 
 Socket::~Socket() {}
-
-bool Socket::ready() const {
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  if (!loop_monitored_) {
-    // Non-monitored sockets always return true (assume data may be available)
-    return true;
-  }
-
-  // For loop-monitored sockets, check with the Application's select() results
-  int fd = this->get_fd();
-  if (fd < 0) {
-    // No valid file descriptor, assume ready (fallback behavior)
-    return true;
-  }
-
-  return App.is_socket_ready(fd);
-#else
-  // Without select() support, we can't monitor sockets in the loop
-  // Always return true (assume data may be available)
-  return true;
-#endif
-}
 
 std::unique_ptr<Socket> socket_ip(int type, int protocol) {
 #if USE_NETWORK_IPV6
@@ -113,6 +90,5 @@ socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t po
   return sizeof(sockaddr_in);
 #endif /* USE_NETWORK_IPV6 */
 }
-}  // namespace socket
-}  // namespace esphome
+}  // namespace esphome::socket
 #endif

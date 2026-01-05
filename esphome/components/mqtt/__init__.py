@@ -55,6 +55,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_RTL87XX,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -232,11 +233,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
             cv.Optional(CONF_CLIENT_ID): cv.string,
-            cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
+            cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
             ),
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
-                cv.string, cv.only_with_esp_idf
+                cv.string, cv.only_on_esp32
             ),
             cv.Inclusive(CONF_CLIENT_CERTIFICATE, "cert-key-pair"): cv.All(
                 cv.string, cv.only_on_esp32
@@ -244,8 +245,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.All(
                 cv.string, cv.only_on_esp32
             ),
-            cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
+            cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
             ),
             cv.Optional(CONF_DISCOVERY, default=True): cv.Any(
                 cv.boolean, cv.one_of("CLEAN", upper=True)
@@ -316,7 +317,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
     _consume_mqtt_sockets,
 )
 

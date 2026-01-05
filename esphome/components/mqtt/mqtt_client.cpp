@@ -57,15 +57,7 @@ void MQTTClientComponent::setup() {
   });
 #ifdef USE_LOGGER
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
-    logger::global_logger->add_on_log_callback(
-        [this](int level, const char *tag, const char *message, size_t message_len) {
-          if (level <= this->log_level_ && this->is_connected()) {
-            this->publish({.topic = this->log_message_.topic,
-                           .payload = std::string(message, message_len),
-                           .qos = this->log_message_.qos,
-                           .retain = this->log_message_.retain});
-          }
-        });
+    logger::global_logger->add_log_listener(this);
   }
 #endif
 
@@ -140,7 +132,7 @@ void MQTTClientComponent::send_device_info_() {
 #endif
 
 #ifdef USE_API_NOISE
-        root[api::global_api_server->get_noise_ctx()->has_psk() ? "api_encryption" : "api_encryption_supported"] =
+        root[api::global_api_server->get_noise_ctx().has_psk() ? "api_encryption" : "api_encryption_supported"] =
             "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
 #endif
       },
@@ -148,16 +140,31 @@ void MQTTClientComponent::send_device_info_() {
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
+#ifdef USE_LOGGER
+void MQTTClientComponent::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
+  (void) tag;
+  if (level <= this->log_level_ && this->is_connected()) {
+    this->publish({.topic = this->log_message_.topic,
+                   .payload = std::string(message, message_len),
+                   .qos = this->log_message_.qos,
+                   .retain = this->log_message_.retain});
+  }
+}
+#endif
+
 void MQTTClientComponent::dump_config() {
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  // clang-format off
   ESP_LOGCONFIG(TAG,
                 "MQTT:\n"
                 "  Server Address: %s:%u (%s)\n"
                 "  Username: " LOG_SECRET("'%s'") "\n"
-                                                  "  Client ID: " LOG_SECRET("'%s'") "\n"
-                                                                                     "  Clean Session: %s",
-                this->credentials_.address.c_str(), this->credentials_.port, this->ip_.str().c_str(),
+                "  Client ID: " LOG_SECRET("'%s'") "\n"
+                "  Clean Session: %s",
+                this->credentials_.address.c_str(), this->credentials_.port, this->ip_.str_to(ip_buf),
                 this->credentials_.username.c_str(), this->credentials_.client_id.c_str(),
                 YESNO(this->credentials_.clean_session));
+  // clang-format on
   if (this->is_discovery_ip_enabled()) {
     ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
   }
@@ -242,7 +249,8 @@ void MQTTClientComponent::check_dnslookup_() {
     return;
   }
 
-  ESP_LOGD(TAG, "Resolved broker IP address to %s", this->ip_.str().c_str());
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  ESP_LOGD(TAG, "Resolved broker IP address to %s", this->ip_.str_to(ip_buf));
   this->start_connect_();
 }
 #if defined(USE_ESP8266) && LWIP_VERSION_MAJOR == 1

@@ -10,8 +10,7 @@
 
 #include "datetime_base.h"
 
-namespace esphome {
-namespace datetime {
+namespace esphome::datetime {
 
 #define LOG_DATETIME_DATE(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -111,7 +110,6 @@ template<typename... Ts> class DateSetAction : public Action<Ts...>, public Pare
   }
 };
 
-}  // namespace datetime
-}  // namespace esphome
+}  // namespace esphome::datetime
 
 #endif  // USE_DATETIME_DATE

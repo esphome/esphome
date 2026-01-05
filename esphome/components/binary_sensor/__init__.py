@@ -623,6 +623,8 @@ async def setup_binary_sensor_core_(var, config):
     if web_server_config := config.get(CONF_WEB_SERVER):
         await web_server.add_entity_config(var, web_server_config)
 
+    await zigbee.setup_binary_sensor(var, config)
+
 
 async def register_binary_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):

@@ -2,6 +2,7 @@
 #ifdef USE_WIFI
 #include <cassert>
 #include <cinttypes>
+#include <cmath>
 
 #ifdef USE_ESP32
 #if (ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 1)
@@ -37,8 +38,7 @@
 #include "esphome/components/esp32_improv/esp32_improv_component.h"
 #endif
 
-namespace esphome {
-namespace wifi {
+namespace esphome::wifi {
 
 static const char *const TAG = "wifi";
 
@@ -206,6 +206,21 @@ static constexpr uint32_t WIFI_COOLDOWN_DURATION_MS = 500;
 /// While connecting, WiFi can't beacon the AP properly, so needs longer cooldown
 static constexpr uint32_t WIFI_COOLDOWN_WITH_AP_ACTIVE_MS = 30000;
 
+/// Timeout for WiFi scan operations
+/// This is a fallback in case we don't receive a scan done callback from the WiFi driver.
+/// Normal scans complete via callback; this only triggers if something goes wrong.
+static constexpr uint32_t WIFI_SCAN_TIMEOUT_MS = 31000;
+
+/// Timeout for WiFi connection attempts
+/// This is a fallback in case we don't receive connection success/failure callbacks.
+/// Some platforms (especially LibreTiny/Beken) can take 30-60 seconds to connect,
+/// particularly with fast_connect enabled where no prior scan provides channel info.
+/// Do not lower this value - connection failures are detected via callbacks, not timeout.
+/// If this timeout fires prematurely while a connection is still in progress, it causes
+/// cascading failures: the subsequent scan will also fail because the WiFi driver is
+/// still busy with the previous connection attempt.
+static constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 46000;
+
 static constexpr uint8_t get_max_retries_for_phase(WiFiRetryPhase phase) {
   switch (phase) {
     case WiFiRetryPhase::INITIAL_CONNECT:
@@ -330,6 +345,19 @@ float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
 void WiFiComponent::setup() {
   this->wifi_pre_setup_();
+
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+  // Create semaphore for high-performance mode requests
+  // Start at 0, increment on request, decrement on release
+  this->high_performance_semaphore_ = xSemaphoreCreateCounting(UINT32_MAX, 0);
+  if (this->high_performance_semaphore_ == nullptr) {
+    ESP_LOGE(TAG, "Failed semaphore");
+  }
+
+  // Store the configured power save mode as baseline
+  this->configured_power_save_ = this->power_save_;
+#endif
+
   if (this->enable_on_boot_) {
     this->start();
   } else {
@@ -348,7 +376,7 @@ void WiFiComponent::start() {
                 get_mac_address_pretty_into_buffer(mac_s));
   this->last_connected_ = millis();
 
-  uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time()) : 88491487UL;
+  uint32_t hash = this->has_sta() ? App.get_config_version_hash() : 88491487UL;
 
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 #ifdef USE_WIFI_FAST_CONNECT
@@ -367,10 +395,23 @@ void WiFiComponent::start() {
 
   if (this->has_sta()) {
     this->wifi_sta_pre_setup_();
-    if (this->output_power_.has_value() && !this->wifi_apply_output_power_(*this->output_power_)) {
+    if (!std::isnan(this->output_power_) && !this->wifi_apply_output_power_(this->output_power_)) {
       ESP_LOGV(TAG, "Setting Output Power Option failed");
     }
 
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+    // Synchronize power_save_ with semaphore state before applying
+    if (this->high_performance_semaphore_ != nullptr) {
+      UBaseType_t semaphore_count = uxSemaphoreGetCount(this->high_performance_semaphore_);
+      if (semaphore_count > 0) {
+        this->power_save_ = WIFI_POWER_SAVE_NONE;
+        this->is_high_performance_mode_ = true;
+      } else {
+        this->power_save_ = this->configured_power_save_;
+        this->is_high_performance_mode_ = false;
+      }
+    }
+#endif
     if (!this->wifi_apply_power_save_()) {
       ESP_LOGV(TAG, "Setting Power Save Option failed");
     }
@@ -401,7 +442,7 @@ void WiFiComponent::start() {
 #ifdef USE_WIFI_AP
   } else if (this->has_ap()) {
     this->setup_ap_config_();
-    if (this->output_power_.has_value() && !this->wifi_apply_output_power_(*this->output_power_)) {
+    if (!std::isnan(this->output_power_) && !this->wifi_apply_output_power_(this->output_power_)) {
       ESP_LOGV(TAG, "Setting Output Power Option failed");
     }
 #ifdef USE_CAPTIVE_PORTAL
@@ -525,11 +566,37 @@ void WiFiComponent::loop() {
       }
     }
   }
+
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+  // Check if power save mode needs to be updated based on high-performance requests
+  if (this->high_performance_semaphore_ != nullptr) {
+    // Semaphore count directly represents active requests (starts at 0, increments on request)
+    UBaseType_t semaphore_count = uxSemaphoreGetCount(this->high_performance_semaphore_);
+
+    if (semaphore_count > 0 && !this->is_high_performance_mode_) {
+      // Transition to high-performance mode (no power save)
+      ESP_LOGV(TAG, "Switching to high-performance mode (%" PRIu32 " active %s)", (uint32_t) semaphore_count,
+               semaphore_count == 1 ? "request" : "requests");
+      this->power_save_ = WIFI_POWER_SAVE_NONE;
+      if (this->wifi_apply_power_save_()) {
+        this->is_high_performance_mode_ = true;
+      }
+    } else if (semaphore_count == 0 && this->is_high_performance_mode_) {
+      // Restore to configured power save mode
+      ESP_LOGV(TAG, "Restoring power save mode to configured setting");
+      this->power_save_ = this->configured_power_save_;
+      if (this->wifi_apply_power_save_()) {
+        this->is_high_performance_mode_ = false;
+      }
+    }
+  }
+#endif
 }
 
 WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 
 bool WiFiComponent::has_ap() const { return this->has_ap_; }
+bool WiFiComponent::is_ap_active() const { return this->ap_started_; }
 bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
 #ifdef USE_WIFI_11KV_SUPPORT
 void WiFiComponent::set_btm(bool btm) { this->btm_ = btm; }
@@ -588,12 +655,15 @@ void WiFiComponent::setup_ap_config_() {
 #ifdef USE_WIFI_MANUAL_IP
   auto manual_ip = this->ap_.get_manual_ip();
   if (manual_ip.has_value()) {
+    char static_ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
     ESP_LOGCONFIG(TAG,
                   "  AP Static IP: '%s'\n"
                   "  AP Gateway: '%s'\n"
                   "  AP Subnet: '%s'",
-                  manual_ip->static_ip.str().c_str(), manual_ip->gateway.str().c_str(),
-                  manual_ip->subnet.str().c_str());
+                  manual_ip->static_ip.str_to(static_ip_buf), manual_ip->gateway.str_to(gateway_buf),
+                  manual_ip->subnet.str_to(subnet_buf));
   }
 #endif
 
@@ -647,8 +717,8 @@ WiFiAP WiFiComponent::build_params_for_current_phase_() {
     case WiFiRetryPhase::RETRY_HIDDEN:
       // Hidden network mode: clear BSSID/channel to trigger probe request
       // (both explicit hidden and retry hidden use same behavior)
-      params.set_bssid(optional<bssid_t>{});
-      params.set_channel(optional<uint8_t>{});
+      params.clear_bssid();
+      params.clear_channel();
       break;
 
     case WiFiRetryPhase::SCAN_CONNECTING:
@@ -700,21 +770,22 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   char bssid_s[18];
   int8_t priority = 0;
 
-  if (ap.get_bssid().has_value()) {
-    format_mac_addr_upper(ap.get_bssid().value().data(), bssid_s);
-    priority = this->get_sta_priority(ap.get_bssid().value());
+  if (ap.has_bssid()) {
+    format_mac_addr_upper(ap.get_bssid().data(), bssid_s);
+    priority = this->get_sta_priority(ap.get_bssid());
   }
 
   ESP_LOGI(TAG,
            "Connecting to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " (priority %d, attempt %u/%u in phase %s)...",
-           ap.get_ssid().c_str(), ap.get_bssid().has_value() ? bssid_s : LOG_STR_LITERAL("any"), priority,
-           this->num_retried_ + 1, get_max_retries_for_phase(this->retry_phase_),
-           LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
+           ap.get_ssid().c_str(), ap.has_bssid() ? bssid_s : LOG_STR_LITERAL("any"), priority, this->num_retried_ + 1,
+           get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-  ESP_LOGV(TAG, "Connection Params:");
-  ESP_LOGV(TAG, "  SSID: '%s'", ap.get_ssid().c_str());
-  if (ap.get_bssid().has_value()) {
+  ESP_LOGV(TAG,
+           "Connection Params:\n"
+           "  SSID: '%s'",
+           ap.get_ssid().c_str());
+  if (ap.has_bssid()) {
     ESP_LOGV(TAG, "  BSSID: %s", bssid_s);
   } else {
     ESP_LOGV(TAG, "  BSSID: Not Set");
@@ -722,36 +793,50 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 
 #ifdef USE_WIFI_WPA2_EAP
   if (ap.get_eap().has_value()) {
-    ESP_LOGV(TAG, "  WPA2 Enterprise authentication configured:");
     EAPAuth eap_config = ap.get_eap().value();
-    ESP_LOGV(TAG, "    Identity: " LOG_SECRET("'%s'"), eap_config.identity.c_str());
-    ESP_LOGV(TAG, "    Username: " LOG_SECRET("'%s'"), eap_config.username.c_str());
-    ESP_LOGV(TAG, "    Password: " LOG_SECRET("'%s'"), eap_config.password.c_str());
+    // clang-format off
+    ESP_LOGV(
+        TAG,
+        "  WPA2 Enterprise authentication configured:\n"
+        "    Identity: " LOG_SECRET("'%s'") "\n"
+        "    Username: " LOG_SECRET("'%s'") "\n"
+        "    Password: " LOG_SECRET("'%s'"),
+        eap_config.identity.c_str(), eap_config.username.c_str(), eap_config.password.c_str());
+    // clang-format on
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP) && ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     ESP_LOGV(TAG, "    TTLS Phase 2: " LOG_SECRET("'%s'"), eap_phase2_to_str(eap_config.ttls_phase_2));
 #endif
     bool ca_cert_present = eap_config.ca_cert != nullptr && strlen(eap_config.ca_cert);
     bool client_cert_present = eap_config.client_cert != nullptr && strlen(eap_config.client_cert);
     bool client_key_present = eap_config.client_key != nullptr && strlen(eap_config.client_key);
-    ESP_LOGV(TAG, "    CA Cert:     %s", ca_cert_present ? "present" : "not present");
-    ESP_LOGV(TAG, "    Client Cert: %s", client_cert_present ? "present" : "not present");
-    ESP_LOGV(TAG, "    Client Key:  %s", client_key_present ? "present" : "not present");
+    ESP_LOGV(TAG,
+             "    CA Cert:     %s\n"
+             "    Client Cert: %s\n"
+             "    Client Key:  %s",
+             ca_cert_present ? "present" : "not present", client_cert_present ? "present" : "not present",
+             client_key_present ? "present" : "not present");
   } else {
 #endif
     ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.get_password().c_str());
 #ifdef USE_WIFI_WPA2_EAP
   }
 #endif
-  if (ap.get_channel().has_value()) {
-    ESP_LOGV(TAG, "  Channel: %u", *ap.get_channel());
+  if (ap.has_channel()) {
+    ESP_LOGV(TAG, "  Channel: %u", ap.get_channel());
   } else {
     ESP_LOGV(TAG, "  Channel not set");
   }
 #ifdef USE_WIFI_MANUAL_IP
   if (ap.get_manual_ip().has_value()) {
     ManualIP m = *ap.get_manual_ip();
-    ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.str().c_str(),
-             m.gateway.str().c_str(), m.subnet.str().c_str(), m.dns1.str().c_str(), m.dns2.str().c_str());
+    char static_ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.str_to(static_ip_buf),
+             m.gateway.str_to(gateway_buf), m.subnet.str_to(subnet_buf), m.dns1.str_to(dns1_buf),
+             m.dns2.str_to(dns2_buf));
   } else
 #endif
   {
@@ -833,28 +918,38 @@ void WiFiComponent::print_connect_params_() {
     ESP_LOGCONFIG(TAG, "  Disabled");
     return;
   }
+  // Use stack buffers for IP address formatting to avoid heap allocations
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
   for (auto &ip : wifi_sta_ip_addresses()) {
     if (ip.is_set()) {
-      ESP_LOGCONFIG(TAG, "  IP Address: %s", ip.str().c_str());
+      ESP_LOGCONFIG(TAG, "  IP Address: %s", ip.str_to(ip_buf));
     }
   }
   int8_t rssi = wifi_rssi();
+  // Use stack buffers for SSID and all IP addresses to avoid heap allocations
+  char ssid_buf[SSID_BUFFER_SIZE];
+  char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  // clang-format off
   ESP_LOGCONFIG(TAG,
                 "  SSID: " LOG_SECRET("'%s'") "\n"
-                                              "  BSSID: " LOG_SECRET("%s") "\n"
-                                                                           "  Hostname: '%s'\n"
-                                                                           "  Signal strength: %d dB %s\n"
-                                                                           "  Channel: %" PRId32 "\n"
-                                                                           "  Subnet: %s\n"
-                                                                           "  Gateway: %s\n"
-                                                                           "  DNS1: %s\n"
-                                                                           "  DNS2: %s",
-                wifi_ssid().c_str(), bssid_s, App.get_name().c_str(), rssi, LOG_STR_ARG(get_signal_bars(rssi)),
-                get_wifi_channel(), wifi_subnet_mask_().str().c_str(), wifi_gateway_ip_().str().c_str(),
-                wifi_dns_ip_(0).str().c_str(), wifi_dns_ip_(1).str().c_str());
+                "  BSSID: " LOG_SECRET("%s") "\n"
+                "  Hostname: '%s'\n"
+                "  Signal strength: %d dB %s\n"
+                "  Channel: %" PRId32 "\n"
+                "  Subnet: %s\n"
+                "  Gateway: %s\n"
+                "  DNS1: %s\n"
+                "  DNS2: %s",
+                wifi_ssid_to(ssid_buf), bssid_s, App.get_name().c_str(), rssi, LOG_STR_ARG(get_signal_bars(rssi)),
+                get_wifi_channel(), wifi_subnet_mask_().str_to(subnet_buf), wifi_gateway_ip_().str_to(gateway_buf),
+                wifi_dns_ip_(0).str_to(dns1_buf), wifi_dns_ip_(1).str_to(dns2_buf));
+  // clang-format on
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-  if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_bssid().has_value()) {
-    ESP_LOGV(TAG, "  Priority: %d", this->get_sta_priority(*config->get_bssid()));
+  if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_bssid()) {
+    ESP_LOGV(TAG, "  Priority: %d", this->get_sta_priority(config->get_bssid()));
   }
 #endif
 #ifdef USE_WIFI_11KV_SUPPORT
@@ -965,26 +1060,45 @@ template<typename VectorType> static void insertion_sort_scan_results(VectorType
   }
 }
 
-// Helper function to log scan results - marked noinline to prevent re-inlining into loop
+// Helper function to log matching scan results - marked noinline to prevent re-inlining into loop
+//
+// IMPORTANT: This function deliberately uses a SINGLE log call to minimize blocking.
+// In environments with many matching networks (e.g., 18+ mesh APs), multiple log calls
+// per network would block the main loop for an unacceptable duration. Each log call
+// has overhead from UART transmission, so combining INFO+DEBUG into one line halves
+// the blocking time. Do NOT split this into separate ESP_LOGI/ESP_LOGD calls.
 __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res) {
   char bssid_s[18];
   auto bssid = res.get_bssid();
   format_mac_addr_upper(bssid.data(), bssid_s);
 
-  if (res.get_matches()) {
-    ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
-             res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
-             LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-    ESP_LOGD(TAG, "  Channel: %2u, RSSI: %3d dB, Priority: %4d", res.get_channel(), res.get_rssi(), res.get_priority());
-  } else {
-    ESP_LOGD(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
-             LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-  }
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+  // Single combined log line with all details when DEBUG enabled
+  ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s Ch:%2u %3ddB P:%d", res.get_ssid().c_str(),
+           res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
+           LOG_STR_ARG(get_signal_bars(res.get_rssi())), res.get_channel(), res.get_rssi(), res.get_priority());
+#else
+  ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
+           res.get_is_hidden() ? LOG_STR_LITERAL("(HIDDEN) ") : LOG_STR_LITERAL(""), bssid_s,
+           LOG_STR_ARG(get_signal_bars(res.get_rssi())));
+#endif
 }
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+// Helper function to log non-matching scan results at verbose level
+__attribute__((noinline)) static void log_scan_result_non_matching(const WiFiScanResult &res) {
+  char bssid_s[18];
+  auto bssid = res.get_bssid();
+  format_mac_addr_upper(bssid.data(), bssid_s);
+
+  ESP_LOGV(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
+           LOG_STR_ARG(get_signal_bars(res.get_rssi())));
+}
+#endif
 
 void WiFiComponent::check_scanning_finished() {
   if (!this->scan_done_) {
-    if (millis() - this->action_started_ > 30000) {
+    if (millis() - this->action_started_ > WIFI_SCAN_TIMEOUT_MS) {
       ESP_LOGE(TAG, "Scan timeout");
       this->retry_connect();
     }
@@ -1018,8 +1132,20 @@ void WiFiComponent::check_scanning_finished() {
   // Sort scan results using insertion sort for better memory efficiency
   insertion_sort_scan_results(this->scan_result_);
 
+  size_t non_matching_count = 0;
   for (auto &res : this->scan_result_) {
-    log_scan_result(res);
+    if (res.get_matches()) {
+      log_scan_result(res);
+    } else {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      log_scan_result_non_matching(res);
+#else
+      non_matching_count++;
+#endif
+    }
+  }
+  if (non_matching_count > 0) {
+    ESP_LOGD(TAG, "- %zu non-matching (VERBOSE to show)", non_matching_count);
   }
 
   // SYNCHRONIZATION POINT: Establish link between scan_result_[0] and selected_sta_index_
@@ -1074,7 +1200,8 @@ void WiFiComponent::check_connecting_finished() {
   auto status = this->wifi_sta_connect_status_();
 
   if (status == WiFiSTAConnectStatus::CONNECTED) {
-    if (wifi_ssid().empty()) {
+    char ssid_buf[SSID_BUFFER_SIZE];
+    if (wifi_ssid_to(ssid_buf)[0] == '\0') {
       ESP_LOGW(TAG, "Connection incomplete");
       this->retry_connect();
       return;
@@ -1133,8 +1260,9 @@ void WiFiComponent::check_connecting_finished() {
   }
 
   uint32_t now = millis();
-  if (now - this->action_started_ > 30000) {
-    ESP_LOGW(TAG, "Connection timeout");
+  if (now - this->action_started_ > WIFI_CONNECT_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "Connection timeout, aborting connection attempt");
+    this->wifi_disconnect_();
     this->retry_connect();
     return;
   }
@@ -1213,8 +1341,8 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
     }
 
     case WiFiRetryPhase::SCAN_CONNECTING:
-      // If scan found no matching networks, skip to hidden network mode
-      if (!this->scan_result_.empty() && !this->scan_result_[0].get_matches()) {
+      // If scan found no networks or no matching networks, skip to hidden network mode
+      if (this->scan_result_.empty() || !this->scan_result_[0].get_matches()) {
         return WiFiRetryPhase::RETRY_HIDDEN;
       }
 
@@ -1354,6 +1482,10 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       // without disrupting the captive portal/improv connection
       if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_()) {
         this->restart_adapter();
+      } else {
+        // Even when skipping full restart, disconnect to clear driver state
+        // Without this, platforms like LibreTiny may think we're still connecting
+        this->wifi_disconnect_();
       }
       // Clear scan flag - we're starting a new retry cycle
       this->did_scan_this_cycle_ = false;
@@ -1424,21 +1556,21 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
     // Scan-based phase: always use best result (index 0)
     failed_bssid = this->scan_result_[0].get_bssid();
-  } else if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_bssid()) {
+  } else if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_bssid()) {
     // Config has specific BSSID (fast_connect or user-specified)
-    failed_bssid = *config->get_bssid();
+    failed_bssid = config->get_bssid();
   }
 
   if (!failed_bssid.has_value()) {
     return;  // No BSSID to penalize
   }
 
-  // Get SSID for logging
-  std::string ssid;
+  // Get SSID for logging (use pointer to avoid copy)
+  const std::string *ssid = nullptr;
   if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
-    ssid = this->scan_result_[0].get_ssid();
+    ssid = &this->scan_result_[0].get_ssid();
   } else if (const WiFiAP *config = this->get_selected_sta_()) {
-    ssid = config->get_ssid();
+    ssid = &config->get_ssid();
   }
 
   // Only decrease priority on the last attempt for this phase
@@ -1458,8 +1590,8 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   }
   char bssid_s[18];
   format_mac_addr_upper(failed_bssid.value().data(), bssid_s);
-  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid.c_str(), bssid_s,
-           old_priority, new_priority);
+  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d",
+           ssid != nullptr ? ssid->c_str() : "", bssid_s, old_priority, new_priority);
 
   // After adjusting priority, check if all priorities are now at minimum
   // If so, clear the vector to save memory and reset for fresh start
@@ -1561,12 +1693,31 @@ void WiFiComponent::retry_connect() {
   }
 }
 
+#ifdef USE_RP2040
+// RP2040's mDNS library (LEAmDNS) relies on LwipIntf::stateUpCB() to restart
+// mDNS when the network interface reconnects. However, this callback is disabled
+// in the arduino-pico framework. As a workaround, we block component setup until
+// WiFi is connected, ensuring mDNS.begin() is called with an active connection.
+
+bool WiFiComponent::can_proceed() {
+  if (!this->has_sta() || this->state_ == WIFI_COMPONENT_STATE_DISABLED || this->ap_setup_) {
+    return true;
+  }
+  return this->is_connected();
+}
+#endif
+
 void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 bool WiFiComponent::is_connected() {
   return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
          this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
 }
-void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) { this->power_save_ = power_save; }
+void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
+  this->power_save_ = power_save;
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+  this->configured_power_save_ = power_save;
+#endif
+}
 
 void WiFiComponent::set_passive_scan(bool passive) { this->passive_scan_ = passive; }
 
@@ -1584,6 +1735,38 @@ bool WiFiComponent::is_esp32_improv_active_() {
   return false;
 #endif
 }
+
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
+bool WiFiComponent::request_high_performance() {
+  // Already configured for high performance - request satisfied
+  if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE) {
+    return true;
+  }
+
+  // Semaphore initialization failed
+  if (this->high_performance_semaphore_ == nullptr) {
+    return false;
+  }
+
+  // Give the semaphore (non-blocking). This increments the count.
+  return xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
+}
+
+bool WiFiComponent::release_high_performance() {
+  // Already configured for high performance - nothing to release
+  if (this->configured_power_save_ == WIFI_POWER_SAVE_NONE) {
+    return true;
+  }
+
+  // Semaphore initialization failed
+  if (this->high_performance_semaphore_ == nullptr) {
+    return false;
+  }
+
+  // Take the semaphore (non-blocking). This decrements the count.
+  return xSemaphoreTake(this->high_performance_semaphore_, 0) == pdTRUE;
+}
+#endif  // USE_ESP32 && USE_WIFI_RUNTIME_POWER_SAVE
 
 #ifdef USE_WIFI_FAST_CONNECT
 bool WiFiComponent::load_fast_connect_settings_(WiFiAP &params) {
@@ -1643,24 +1826,27 @@ void WiFiComponent::save_fast_connect_settings_() {
 #endif
 
 void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }
-void WiFiAP::set_bssid(bssid_t bssid) { this->bssid_ = bssid; }
-void WiFiAP::set_bssid(optional<bssid_t> bssid) { this->bssid_ = bssid; }
+void WiFiAP::set_bssid(const bssid_t &bssid) { this->bssid_ = bssid; }
+void WiFiAP::clear_bssid() { this->bssid_ = {}; }
 void WiFiAP::set_password(const std::string &password) { this->password_ = password; }
 #ifdef USE_WIFI_WPA2_EAP
 void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
 #endif
-void WiFiAP::set_channel(optional<uint8_t> channel) { this->channel_ = channel; }
+void WiFiAP::set_channel(uint8_t channel) { this->channel_ = channel; }
+void WiFiAP::clear_channel() { this->channel_ = 0; }
 #ifdef USE_WIFI_MANUAL_IP
 void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
 #endif
 void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
 const std::string &WiFiAP::get_ssid() const { return this->ssid_; }
-const optional<bssid_t> &WiFiAP::get_bssid() const { return this->bssid_; }
+const bssid_t &WiFiAP::get_bssid() const { return this->bssid_; }
+bool WiFiAP::has_bssid() const { return this->bssid_ != bssid_t{}; }
 const std::string &WiFiAP::get_password() const { return this->password_; }
 #ifdef USE_WIFI_WPA2_EAP
 const optional<EAPAuth> &WiFiAP::get_eap() const { return this->eap_; }
 #endif
-const optional<uint8_t> &WiFiAP::get_channel() const { return this->channel_; }
+uint8_t WiFiAP::get_channel() const { return this->channel_; }
+bool WiFiAP::has_channel() const { return this->channel_ != 0; }
 #ifdef USE_WIFI_MANUAL_IP
 const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip_; }
 #endif
@@ -1688,7 +1874,7 @@ bool WiFiScanResult::matches(const WiFiAP &config) const {
     // network is configured without SSID - match other settings
   }
   // If BSSID configured, only match for correct BSSIDs
-  if (config.get_bssid().has_value() && *config.get_bssid() != this->bssid_)
+  if (config.has_bssid() && config.get_bssid() != this->bssid_)
     return false;
 
 #ifdef USE_WIFI_WPA2_EAP
@@ -1706,7 +1892,7 @@ bool WiFiScanResult::matches(const WiFiAP &config) const {
 #endif
 
   // If channel configured, only match networks on that channel.
-  if (config.get_channel().has_value() && *config.get_channel() != this->channel_) {
+  if (config.has_channel() && config.get_channel() != this->channel_) {
     return false;
   }
   return true;
@@ -1724,6 +1910,5 @@ bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->
 
 WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace wifi
-}  // namespace esphome
+}  // namespace esphome::wifi
 #endif
