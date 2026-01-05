@@ -19,9 +19,6 @@ from esphome.const import (
 
 from . import Alpha3
 
-# Re-export for other platform files
-CONF_ALPHA3_ID = "alpha3_id"
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {

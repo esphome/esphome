@@ -34,6 +34,7 @@ void Alpha3Select::control(const std::string &value) {
     this->parent_->set_mode_const_freq();
   } else {
     ESP_LOGW(TAG, "Unknown mode: %s", value.c_str());
+    return;
   }
 
   this->publish_state(value);

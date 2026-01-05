@@ -24,16 +24,19 @@ void Alpha3::setup() {}
 
 void Alpha3::extract_publish_sensor_value_(const uint8_t *response, int16_t length, int16_t response_offset,
                                            int16_t value_offset, sensor::Sensor *sensor, float factor) {
-  if (sensor == nullptr)
+  if (sensor == nullptr) {
     return;
+  }
   // we need to handle cases where a value is split over two packets
   const int16_t value_length = 4;  // 32bit float
   // offset inside current response packet
   auto rel_offset = value_offset - response_offset;
-  if (rel_offset <= -value_length)
-    return;  // aready passed the value completly
-  if (rel_offset >= length)
+  if (rel_offset <= -value_length) {
+    return;  // already passed the value completely
+  }
+  if (rel_offset >= length) {
     return;  // value not in this packet
+  }
 
   auto start_offset = std::max(0, rel_offset);
   auto end_offset = std::min((int16_t) (rel_offset + value_length), length);
@@ -86,6 +89,15 @@ void Alpha3::handle_geni_response_(const uint8_t *response, uint16_t length) {
     extract_publish_sensor_value(GENI_RESPONSE_CURRENT_OFFSET, this->current_sensor_, 1.0F);
     extract_publish_sensor_value(GENI_RESPONSE_MOTOR_SPEED_OFFSET, this->speed_sensor_, 1.0F);
     extract_publish_sensor_value(GENI_RESPONSE_VOLTAGE_AC_OFFSET, this->voltage_sensor_, 1.0F);
+  } else if (this->is_current_response_type_(GENI_RESPONSE_TYPE_MODE)) {
+    ESP_LOGD(TAG, "[%s] MODE Response", this->parent_->address_str());
+    // Mode is a single byte value at offset 0 after header
+    if (this->response_offset_ == -GENI_RESPONSE_HEADER_LENGTH && length > GENI_RESPONSE_HEADER_LENGTH) {
+      uint8_t mode_value = response[GENI_RESPONSE_HEADER_LENGTH + GENI_RESPONSE_MODE_OFFSET];
+      if (this->mode_text_sensor_ != nullptr) {
+        this->mode_text_sensor_->publish_state(this->get_mode_name_(mode_value));
+      }
+    }
   } else {
     ESP_LOGW(TAG, "unknown GENI response Type %d %d %d %d %d %d %d %d", this->response_type_[0],
              this->response_type_[1], this->response_type_[2], this->response_type_[3], this->response_type_[4],
@@ -115,18 +127,24 @@ void Alpha3::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
     }
     case ESP_GATTC_DISCONNECT_EVT: {
       this->node_state = espbt::ClientState::IDLE;
-      if (this->flow_sensor_ != nullptr)
+      if (this->flow_sensor_ != nullptr) {
         this->flow_sensor_->publish_state(NAN);
-      if (this->head_sensor_ != nullptr)
+      }
+      if (this->head_sensor_ != nullptr) {
         this->head_sensor_->publish_state(NAN);
-      if (this->power_sensor_ != nullptr)
+      }
+      if (this->power_sensor_ != nullptr) {
         this->power_sensor_->publish_state(NAN);
-      if (this->current_sensor_ != nullptr)
+      }
+      if (this->current_sensor_ != nullptr) {
         this->current_sensor_->publish_state(NAN);
-      if (this->speed_sensor_ != nullptr)
+      }
+      if (this->speed_sensor_ != nullptr) {
         this->speed_sensor_->publish_state(NAN);
-      if (this->speed_sensor_ != nullptr)
+      }
+      if (this->voltage_sensor_ != nullptr) {
         this->voltage_sensor_->publish_state(NAN);
+      }
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
@@ -168,16 +186,17 @@ void Alpha3::send_request_(uint8_t *request, size_t len) {
 }
 
 uint16_t Alpha3::calculate_crc_(const uint8_t *data, size_t len) {
-  // CRC-CCITT (polynomial 0x1021) with initial value 0xFFFF and final XOR 0xFFFF
-  // CRC is calculated from byte index 1 onwards (skips start delimiter)
+  // CRC-CCITT (polynomial 0x1021) with initial value 0xFFFF and final XOR 0xFFFF.
+  // Note: Caller must pass only the payload bytes (e.g. exclude start delimiter at byte 0).
   uint16_t crc = 0xFFFF;
   for (size_t i = 0; i < len; i++) {
     crc ^= static_cast<uint16_t>(data[i]) << 8;
     for (int j = 0; j < 8; j++) {
-      if (crc & 0x8000)
+      if (crc & 0x8000) {
         crc = (crc << 1) ^ 0x1021;
-      else
+      } else {
         crc <<= 1;
+      }
     }
   }
   return crc ^ 0xFFFF;
@@ -243,6 +262,8 @@ void Alpha3::send_commands_(const uint8_t *command_ids, size_t num_commands) {
   this->send_request_(packet, crc_offset + 2);
 }
 
+// Public API for advanced users: Send a raw GENIBus command ID.
+// Use with caution - only documented command IDs should be used.
 void Alpha3::send_command(uint8_t command_id) { this->send_command_(command_id); }
 
 void Alpha3::set_remote_mode() {
@@ -331,6 +352,16 @@ void Alpha3::update() {
       this->voltage_sensor_ != nullptr) {
     uint8_t geni_request_power[] = {39, 7, 231, 248, 10, 3, 87, 0, 69, 138, 205};
     this->send_request_(geni_request_power, sizeof(geni_request_power));
+  }
+  // Request current operating mode (act_mode1)
+  if (this->mode_text_sensor_ != nullptr) {
+    // GENIBus GET request for act_mode1 (ID 81) - Class 2 (MEASURED_DATA)
+    uint8_t geni_request_mode[] = {39, 7, 231, 248, 10, 2, 65, 81, 1, 0, 0};
+    // Calculate CRC for mode request
+    uint16_t crc = this->calculate_crc_(geni_request_mode + 1, 7);
+    geni_request_mode[8] = crc >> 8;
+    geni_request_mode[9] = crc & 0xFF;
+    this->send_request_(geni_request_mode, sizeof(geni_request_mode));
   }
 }
 
