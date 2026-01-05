@@ -2,9 +2,8 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 
-from . import Alpha3
+from . import CONF_ALPHA3_ID, Alpha3
 
-CONF_ALPHA3_ID = "alpha3_id"
 CONF_PUMP_MODE = "pump_mode"
 
 CONFIG_SCHEMA = cv.Schema(

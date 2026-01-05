@@ -24,7 +24,7 @@ class Alpha3Button : public button::Button, public Component {
  protected:
   void press_action() override;
   Alpha3 *parent_{nullptr};
-  Alpha3ButtonAction action_;
+  Alpha3ButtonAction action_{ACTION_START};
 };
 
 }  // namespace alpha3

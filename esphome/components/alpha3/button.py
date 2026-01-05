@@ -3,9 +3,7 @@ from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
 
-from . import Alpha3, alpha3_ns
-
-CONF_ALPHA3_ID = "alpha3_id"
+from . import CONF_ALPHA3_ID, Alpha3, alpha3_ns
 
 Alpha3Button = alpha3_ns.class_("Alpha3Button", button.Button, cg.Component)
 Alpha3ButtonAction = alpha3_ns.enum("Alpha3ButtonAction")
