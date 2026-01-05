@@ -1,0 +1,29 @@
+esphome:
+  name: test-web-server-idf
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+network:
+
+# Add some entities to test SSE event formatting
+sensor:
+  - platform: template
+    name: "Test Sensor"
+    id: test_sensor
+    update_interval: 60s
+    lambda: "return 42.5;"
+
+binary_sensor:
+  - platform: template
+    name: "Test Binary Sensor"
+    id: test_binary_sensor
+    lambda: "return true;"
+
+switch:
+  - platform: template
+    name: "Test Switch"
+    id: test_switch
+    optimistic: true

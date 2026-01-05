@@ -3,18 +3,19 @@ import logging
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
     add_idf_component,
     add_idf_sdkconfig_option,
     get_esp32_variant,
 )
-from esphome.components.esp32.const import (
-    VARIANT_ESP32,
-    VARIANT_ESP32C3,
-    VARIANT_ESP32P4,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
-)
-from esphome.components.network import IPAddress
+from esphome.components.network import ip_address_literal
 from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
 import esphome.config_validation as cv
 from esphome.const import (
@@ -32,6 +33,7 @@ from esphome.const import (
     CONF_MISO_PIN,
     CONF_MODE,
     CONF_MOSI_PIN,
+    CONF_NUMBER,
     CONF_PAGE_ID,
     CONF_PIN,
     CONF_POLLING_INTERVAL,
@@ -52,11 +54,35 @@ from esphome.core import (
     coroutine_with_priority,
 )
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["network"]
 LOGGER = logging.getLogger(__name__)
+
+# RMII pins that are hardcoded on ESP32 classic and cannot be changed
+# These pins are used by the internal Ethernet MAC when using RMII PHYs
+ESP32_RMII_FIXED_PINS = {
+    19: "EMAC_TXD0",
+    21: "EMAC_TX_EN",
+    22: "EMAC_TXD1",
+    25: "EMAC_RXD0",
+    26: "EMAC_RXD1",
+    27: "EMAC_RX_CRS_DV",
+}
+
+# RMII default pins for ESP32-P4
+# These are the default pins used by ESP-IDF and are configurable in principle,
+# but ESPHome's ethernet component currently has no way to change them
+ESP32P4_RMII_DEFAULT_PINS = {
+    34: "EMAC_TXD0",
+    35: "EMAC_TXD1",
+    28: "EMAC_RX_CRS_DV",
+    29: "EMAC_RXD0",
+    30: "EMAC_RXD1",
+    49: "EMAC_TX_EN",
+}
 
 ethernet_ns = cg.esphome_ns.namespace("ethernet")
 PHYRegister = ethernet_ns.struct("PHYRegister")
@@ -194,10 +220,6 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-        cv.Optional("enable_mdns"): cv.invalid(
-            "This option has been removed. Please use the [disabled] option under the "
-            "new mdns component instead."
-        ),
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -273,12 +295,19 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate_spi(config):
     if config[CONF_TYPE] not in SPI_ETHERNET_TYPES:
         return
     if spi_configs := fv.full_config.get().get(CONF_SPI):
         variant = get_esp32_variant()
-        if variant in (VARIANT_ESP32C3, VARIANT_ESP32S2, VARIANT_ESP32S3):
+        if variant in (
+            VARIANT_ESP32C3,
+            VARIANT_ESP32C5,
+            VARIANT_ESP32C6,
+            VARIANT_ESP32C61,
+            VARIANT_ESP32S2,
+            VARIANT_ESP32S3,
+        ):
             spi_host = "SPI2_HOST"
         else:
             spi_host = "SPI3_HOST"
@@ -292,17 +321,14 @@ def _final_validate(config):
                     )
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate
-
-
 def manual_ip(config):
     return cg.StructInitializer(
         ManualIP,
-        ("static_ip", IPAddress(str(config[CONF_STATIC_IP]))),
-        ("gateway", IPAddress(str(config[CONF_GATEWAY]))),
-        ("subnet", IPAddress(str(config[CONF_SUBNET]))),
-        ("dns1", IPAddress(str(config[CONF_DNS1]))),
-        ("dns2", IPAddress(str(config[CONF_DNS2]))),
+        ("static_ip", ip_address_literal(config[CONF_STATIC_IP])),
+        ("gateway", ip_address_literal(config[CONF_GATEWAY])),
+        ("subnet", ip_address_literal(config[CONF_SUBNET])),
+        ("dns1", ip_address_literal(config[CONF_DNS1])),
+        ("dns2", ip_address_literal(config[CONF_DNS2])),
     )
 
 
@@ -361,6 +387,7 @@ async def to_code(config):
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     if CONF_MANUAL_IP in config:
+        cg.add_define("USE_ETHERNET_MANUAL_IP")
         cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
 
     # Add compile-time define for PHY types with specific code
@@ -383,3 +410,60 @@ async def to_code(config):
 
     if CORE.using_arduino:
         cg.add_library("WiFi", None)
+
+
+def _final_validate_rmii_pins(config: ConfigType) -> None:
+    """Validate that RMII pins are not used by other components."""
+    # Only validate for RMII-based PHYs on ESP32/ESP32P4
+    if config[CONF_TYPE] in SPI_ETHERNET_TYPES or config[CONF_TYPE] == "OPENETH":
+        return  # SPI and OPENETH don't use RMII
+
+    variant = get_esp32_variant()
+    if variant == VARIANT_ESP32:
+        rmii_pins = ESP32_RMII_FIXED_PINS
+        is_configurable = False
+    elif variant == VARIANT_ESP32P4:
+        rmii_pins = ESP32P4_RMII_DEFAULT_PINS
+        is_configurable = True
+    else:
+        return  # No RMII validation needed for other variants
+
+    # Check all used pins against RMII reserved pins
+    for pin_list in pins.PIN_SCHEMA_REGISTRY.pins_used.values():
+        for pin_path, pin_device, pin_config in pin_list:
+            pin_num = pin_config.get(CONF_NUMBER)
+            if pin_num not in rmii_pins:
+                continue
+            # Skip if pin is not directly on ESP, but at some expander (device set to something else than 'None')
+            if pin_device is not None:
+                continue
+            # Found a conflict - show helpful error message
+            pin_function = rmii_pins[pin_num]
+            component_path = ".".join(str(p) for p in pin_path)
+            if is_configurable:
+                error_msg = (
+                    f"GPIO{pin_num} is used by Ethernet RMII "
+                    f"({pin_function}) with the current default "
+                    f"configuration. This conflicts with '{component_path}'. "
+                    f"Please choose a different GPIO pin for "
+                    f"'{component_path}'."
+                )
+            else:
+                error_msg = (
+                    f"GPIO{pin_num} is reserved for Ethernet RMII "
+                    f"({pin_function}) and cannot be used. This pin is "
+                    f"hardcoded by ESP-IDF and cannot be changed when using "
+                    f"RMII Ethernet PHYs. Please choose a different GPIO pin "
+                    f"for '{component_path}'."
+                )
+            raise cv.Invalid(error_msg, path=pin_path)
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    """Final validation for Ethernet component."""
+    _final_validate_spi(config)
+    _final_validate_rmii_pins(config)
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate

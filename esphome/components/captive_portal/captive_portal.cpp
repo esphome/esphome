@@ -13,14 +13,16 @@ static const char *const TAG = "captive_portal";
 void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("application/json"));
   stream->addHeader(ESPHOME_F("cache-control"), ESPHOME_F("public, max-age=0, must-revalidate"));
+  char mac_s[18];
+  const char *mac_str = get_mac_address_pretty_into_buffer(mac_s);
 #ifdef USE_ESP8266
   stream->print(ESPHOME_F("{\"mac\":\""));
-  stream->print(get_mac_address_pretty().c_str());
+  stream->print(mac_str);
   stream->print(ESPHOME_F("\",\"name\":\""));
   stream->print(App.get_name().c_str());
   stream->print(ESPHOME_F("\",\"aps\":[{}"));
 #else
-  stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", get_mac_address_pretty().c_str(), App.get_name().c_str());
+  stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", mac_str, App.get_name().c_str());
 #endif
 
   for (auto &scan : wifi::global_wifi_component->get_scan_result()) {
@@ -47,11 +49,18 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
 void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   std::string ssid = request->arg("ssid").c_str();  // NOLINT(readability-redundant-string-cstr)
   std::string psk = request->arg("psk").c_str();    // NOLINT(readability-redundant-string-cstr)
-  ESP_LOGI(TAG, "Requested WiFi Settings Change:");
-  ESP_LOGI(TAG, "  SSID='%s'", ssid.c_str());
-  ESP_LOGI(TAG, "  Password=" LOG_SECRET("'%s'"), psk.c_str());
+  ESP_LOGI(TAG,
+           "Requested WiFi Settings Change:\n"
+           "  SSID='%s'\n"
+           "  Password=" LOG_SECRET("'%s'"),
+           ssid.c_str(), psk.c_str());
+#ifdef USE_ESP8266
+  // ESP8266 is single-threaded, call directly
   wifi::global_wifi_component->save_wifi_sta(ssid, psk);
-  wifi::global_wifi_component->start_scanning();
+#else
+  // Defer save to main loop thread to avoid NVS operations from HTTP thread
+  this->defer([ssid, psk]() { wifi::global_wifi_component->save_wifi_sta(ssid, psk); });
+#endif
   request->redirect(ESPHOME_F("/?save"));
 }
 
@@ -67,12 +76,11 @@ void CaptivePortal::start() {
 
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
 
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP32)
   // Create DNS server instance for ESP-IDF
   this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->start(ip);
-#endif
-#ifdef USE_ARDUINO
+#elif defined(USE_ARDUINO)
   this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
   this->dns_server_->start(53, ESPHOME_F("*"), ip);

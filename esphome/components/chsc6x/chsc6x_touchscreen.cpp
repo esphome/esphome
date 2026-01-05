@@ -32,14 +32,14 @@ void CHSC6XTouchscreen::update_touches() {
 }
 
 void CHSC6XTouchscreen::dump_config() {
-  ESP_LOGCONFIG(TAG, "CHSC6X Touchscreen:");
-  LOG_I2C_DEVICE(this);
-  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   ESP_LOGCONFIG(TAG,
+                "CHSC6X Touchscreen:\n"
                 "  Touch timeout: %d\n"
                 "  x_raw_max_: %d\n"
                 "  y_raw_max_: %d",
                 this->touch_timeout_, this->x_raw_max_, this->y_raw_max_);
+  LOG_I2C_DEVICE(this);
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
 }
 
 }  // namespace chsc6x

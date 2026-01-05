@@ -5,11 +5,11 @@
 #include <zephyr/drivers/hwinfo.h>
 #include <hal/nrf_power.h>
 #include <cstdint>
+#include <zephyr/storage/flash_map.h>
 
 #define BOOTLOADER_VERSION_REGISTER NRF_TIMER2->CC[0]
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
 static const char *const TAG = "debug";
 constexpr std::uintptr_t MBR_PARAM_PAGE_ADDR = 0xFFC;
@@ -86,6 +86,37 @@ std::string DebugComponent::get_reset_reason_() {
 }
 
 uint32_t DebugComponent::get_free_heap_() { return INT_MAX; }
+
+static void fa_cb(const struct flash_area *fa, void *user_data) {
+#if CONFIG_FLASH_MAP_LABELS
+  const char *fa_label = flash_area_label(fa);
+
+  if (fa_label == nullptr) {
+    fa_label = "-";
+  }
+  ESP_LOGCONFIG(TAG, "%2d   0x%0*" PRIxPTR "   %-26s  %-24.24s  0x%-10x 0x%-12x", (int) fa->fa_id,
+                sizeof(uintptr_t) * 2, (uintptr_t) fa->fa_dev, fa->fa_dev->name, fa_label, (uint32_t) fa->fa_off,
+                fa->fa_size);
+#else
+  ESP_LOGCONFIG(TAG, "%2d   0x%0*" PRIxPTR "   %-26s  0x%-10x 0x%-12x", (int) fa->fa_id, sizeof(uintptr_t) * 2,
+                (uintptr_t) fa->fa_dev, fa->fa_dev->name, (uint32_t) fa->fa_off, fa->fa_size);
+#endif
+}
+
+void DebugComponent::log_partition_info_() {
+#if CONFIG_FLASH_MAP_LABELS
+  ESP_LOGCONFIG(TAG, "ID | Device     | Device Name               "
+                     "| Label                   | Offset     | Size\n"
+                     "--------------------------------------------"
+                     "-----------------------------------------------");
+#else
+  ESP_LOGCONFIG(TAG, "ID | Device     | Device Name               "
+                     "| Offset     | Size\n"
+                     "-----------------------------------------"
+                     "------------------------------");
+#endif
+  flash_area_foreach(fa_cb, nullptr);
+}
 
 void DebugComponent::get_device_info_(std::string &device_info) {
   std::string supply = "Main supply status: ";
@@ -269,34 +300,39 @@ void DebugComponent::get_device_info_(std::string &device_info) {
     return "Unspecified";
   };
 
-  ESP_LOGD(TAG, "Code page size: %u, code size: %u, device id: 0x%08x%08x", NRF_FICR->CODEPAGESIZE, NRF_FICR->CODESIZE,
-           NRF_FICR->DEVICEID[1], NRF_FICR->DEVICEID[0]);
-  ESP_LOGD(TAG, "Encryption root: 0x%08x%08x%08x%08x, Identity Root: 0x%08x%08x%08x%08x", NRF_FICR->ER[0],
+  ESP_LOGD(TAG,
+           "Code page size: %u, code size: %u, device id: 0x%08x%08x\n"
+           "Encryption root: 0x%08x%08x%08x%08x, Identity Root: 0x%08x%08x%08x%08x\n"
+           "Device address type: %s, address: %s\n"
+           "Part code: nRF%x, version: %c%c%c%c, package: %s\n"
+           "RAM: %ukB, Flash: %ukB, production test: %sdone",
+           NRF_FICR->CODEPAGESIZE, NRF_FICR->CODESIZE, NRF_FICR->DEVICEID[1], NRF_FICR->DEVICEID[0], NRF_FICR->ER[0],
            NRF_FICR->ER[1], NRF_FICR->ER[2], NRF_FICR->ER[3], NRF_FICR->IR[0], NRF_FICR->IR[1], NRF_FICR->IR[2],
-           NRF_FICR->IR[3]);
-  ESP_LOGD(TAG, "Device address type: %s, address: %s", (NRF_FICR->DEVICEADDRTYPE & 0x1 ? "Random" : "Public"),
-           get_mac_address_pretty().c_str());
-  ESP_LOGD(TAG, "Part code: nRF%x, version: %c%c%c%c, package: %s", NRF_FICR->INFO.PART,
-           NRF_FICR->INFO.VARIANT >> 24 & 0xFF, NRF_FICR->INFO.VARIANT >> 16 & 0xFF, NRF_FICR->INFO.VARIANT >> 8 & 0xFF,
-           NRF_FICR->INFO.VARIANT & 0xFF, package(NRF_FICR->INFO.PACKAGE));
-  ESP_LOGD(TAG, "RAM: %ukB, Flash: %ukB, production test: %sdone", NRF_FICR->INFO.RAM, NRF_FICR->INFO.FLASH,
-           (NRF_FICR->PRODTEST[0] == 0xBB42319F ? "" : "not "));
+           NRF_FICR->IR[3], (NRF_FICR->DEVICEADDRTYPE & 0x1 ? "Random" : "Public"), get_mac_address_pretty().c_str(),
+           NRF_FICR->INFO.PART, NRF_FICR->INFO.VARIANT >> 24 & 0xFF, NRF_FICR->INFO.VARIANT >> 16 & 0xFF,
+           NRF_FICR->INFO.VARIANT >> 8 & 0xFF, NRF_FICR->INFO.VARIANT & 0xFF, package(NRF_FICR->INFO.PACKAGE),
+           NRF_FICR->INFO.RAM, NRF_FICR->INFO.FLASH, (NRF_FICR->PRODTEST[0] == 0xBB42319F ? "" : "not "));
+  bool n_reset_enabled = NRF_UICR->PSELRESET[0] == NRF_UICR->PSELRESET[1] &&
+                         (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_CONNECT_Msk) == UICR_PSELRESET_CONNECT_Connected
+                                                                                      << UICR_PSELRESET_CONNECT_Pos;
   ESP_LOGD(
       TAG, "GPIO as NFC pins: %s, GPIO as nRESET pin: %s",
       YESNO((NRF_UICR->NFCPINS & UICR_NFCPINS_PROTECT_Msk) == (UICR_NFCPINS_PROTECT_NFC << UICR_NFCPINS_PROTECT_Pos)),
-      YESNO(((NRF_UICR->PSELRESET[0] & UICR_PSELRESET_CONNECT_Msk) !=
-             (UICR_PSELRESET_CONNECT_Connected << UICR_PSELRESET_CONNECT_Pos)) ||
-            ((NRF_UICR->PSELRESET[1] & UICR_PSELRESET_CONNECT_Msk) !=
-             (UICR_PSELRESET_CONNECT_Connected << UICR_PSELRESET_CONNECT_Pos))));
-
+      YESNO(n_reset_enabled));
+  if (n_reset_enabled) {
+    uint8_t port = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PORT_Msk) >> UICR_PSELRESET_PORT_Pos;
+    uint8_t pin = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PIN_Msk) >> UICR_PSELRESET_PIN_Pos;
+    ESP_LOGD(TAG, "nRESET port P%u.%02u", port, pin);
+  }
 #ifdef USE_BOOTLOADER_MCUBOOT
   ESP_LOGD(TAG, "bootloader: mcuboot");
 #else
   ESP_LOGD(TAG, "bootloader: Adafruit, version %u.%u.%u", (BOOTLOADER_VERSION_REGISTER >> 16) & 0xFF,
            (BOOTLOADER_VERSION_REGISTER >> 8) & 0xFF, BOOTLOADER_VERSION_REGISTER & 0xFF);
-  ESP_LOGD(TAG, "MBR bootloader addr 0x%08x, UICR bootloader addr 0x%08x", read_mem_u32(MBR_BOOTLOADER_ADDR),
-           NRF_UICR->NRFFW[0]);
-  ESP_LOGD(TAG, "MBR param page addr 0x%08x, UICR param page addr 0x%08x", read_mem_u32(MBR_PARAM_PAGE_ADDR),
+  ESP_LOGD(TAG,
+           "MBR bootloader addr 0x%08x, UICR bootloader addr 0x%08x\n"
+           "MBR param page addr 0x%08x, UICR param page addr 0x%08x",
+           read_mem_u32(MBR_BOOTLOADER_ADDR), NRF_UICR->NRFFW[0], read_mem_u32(MBR_PARAM_PAGE_ADDR),
            NRF_UICR->NRFFW[1]);
   if (is_sd_present()) {
     uint32_t const sd_id = sd_id_get();
@@ -322,10 +358,24 @@ void DebugComponent::get_device_info_(std::string &device_info) {
 #endif
   }
 #endif
+  auto uicr = [](volatile uint32_t *data, uint8_t size) {
+    std::string res;
+    char buf[sizeof(uint32_t) * 2 + 1];
+    for (size_t i = 0; i < size; i++) {
+      if (i > 0) {
+        res += ' ';
+      }
+      res += format_hex_pretty<uint32_t>(data[i], '\0', false);
+    }
+    return res;
+  };
+  ESP_LOGD(TAG,
+           "NRFFW %s\n"
+           "NRFHW %s",
+           uicr(NRF_UICR->NRFFW, 13).c_str(), uicr(NRF_UICR->NRFHW, 12).c_str());
 }
 
 void DebugComponent::update_platform_() {}
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug
 #endif

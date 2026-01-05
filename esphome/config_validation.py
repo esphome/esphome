@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime
@@ -18,6 +19,7 @@ import logging
 from pathlib import Path
 import re
 from string import ascii_letters, digits
+import typing
 import uuid as uuid_
 
 import voluptuous as vol
@@ -69,6 +71,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
     VALID_SUBSTITUTIONS_CHARACTERS,
@@ -694,7 +697,16 @@ only_on_esp32 = only_on(PLATFORM_ESP32)
 only_on_esp8266 = only_on(PLATFORM_ESP8266)
 only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework(Framework.ARDUINO)
-only_with_esp_idf = only_with_framework(Framework.ESP_IDF)
+
+
+def only_with_esp_idf(obj):
+    """Deprecated: use only_on_esp32 instead."""
+    _LOGGER.warning(
+        "cv.only_with_esp_idf was deprecated in 2026.1, will change behavior in 2026.6. "
+        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
+        "Use cv.only_on_esp32 and/or cv.only_with_arduino instead."
+    )
+    return only_with_framework(Framework.ESP_IDF)(obj)
 
 
 # Adapted from:
@@ -738,9 +750,10 @@ def has_at_most_one_key(*keys):
         if not isinstance(obj, dict):
             raise Invalid("expected dictionary")
 
-        number = sum(k in keys for k in obj)
-        if number > 1:
-            raise Invalid(f"Cannot specify more than one of {', '.join(keys)}.")
+        used = set(obj) & set(keys)
+        if len(used) > 1:
+            msg = "Cannot specify more than one of '" + "', '".join(used) + "'."
+            raise MultipleInvalid([Invalid(msg, path=[k]) for k in used])
         return obj
 
     return validate
@@ -891,7 +904,7 @@ def time_period_in_minutes_(value):
 
 def update_interval(value):
     if value == "never":
-        return 4294967295  # uint32_t max
+        return TimePeriodMilliseconds(milliseconds=SCHEDULER_DONT_RUN)
     return positive_time_period_milliseconds(value)
 
 
@@ -1741,8 +1754,7 @@ class SplitDefault(Optional):
     def default(self):
         keys = []
         if CORE.is_esp32:
-            from esphome.components.esp32 import get_esp32_variant
-            from esphome.components.esp32.const import VARIANT_ESP32
+            from esphome.components.esp32 import VARIANT_ESP32, get_esp32_variant
 
             variant = get_esp32_variant().replace(VARIANT_ESP32, "").lower()
             framework = CORE.target_framework.replace("esp-", "")
@@ -1763,16 +1775,37 @@ class SplitDefault(Optional):
 
 
 class OnlyWith(Optional):
-    """Set the default value only if the given component is loaded."""
+    """Set the default value only if the given component(s) is/are loaded.
 
-    def __init__(self, key, component, default=None):
+    This validator allows configuration keys to have defaults that are only applied
+    when specific component(s) are loaded. Supports both single component names and
+    lists of components.
+
+    Args:
+        key: Configuration key
+        component: Single component name (str) or list of component names.
+                  For lists, ALL components must be loaded for the default to apply.
+        default: Default value to use when condition is met
+
+    Example:
+        # Single component
+        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(MQTTComponent)
+
+        # Multiple components (all must be loaded)
+        cv.OnlyWith(CONF_ZIGBEE_ID, ["zigbee", "nrf52"]): cv.use_id(Zigbee)
+    """
+
+    def __init__(self, key, component: str | list[str], default=None) -> None:
         super().__init__(key)
         self._component = component
         self._default = vol.default_factory(default)
 
     @property
-    def default(self):
-        if self._component in CORE.loaded_integrations:
+    def default(self) -> Callable[[], typing.Any] | vol.Undefined:
+        if isinstance(self._component, list):
+            if all(c in CORE.loaded_integrations for c in self._component):
+                return self._default
+        elif self._component in CORE.loaded_integrations:
             return self._default
         return vol.UNDEFINED
 
@@ -1948,6 +1981,26 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
 )
 
 
+def _validate_no_slash(value):
+    """Validate that a name does not contain '/' characters.
+
+    The '/' character is used as a path separator in web server URLs,
+    so it cannot be used in entity or device names.
+    """
+    if "/" in value:
+        raise Invalid(
+            f"Name cannot contain '/' character (used as URL path separator): {value}"
+        )
+    return value
+
+
+# Maximum length for entity, device, and area names
+# This ensures web server URL IDs fit in a 280-byte buffer:
+# domain(20) + "/" + device(120) + "/" + name(120) + null = 263 bytes
+# Note: Must be < 255 because web_server UrlMatch uses uint8_t for length fields
+NAME_MAX_LENGTH = 120
+
+
 def _validate_entity_name(value):
     value = string(value)
     try:
@@ -1958,7 +2011,26 @@ def _validate_entity_name(value):
         requires_friendly_name(
             "Name cannot be None when esphome->friendly_name is not set!"
         )(value)
+    if value is not None:
+        # Validate length for web server URL compatibility
+        if len(value) > NAME_MAX_LENGTH:
+            raise Invalid(
+                f"Name is too long ({len(value)} chars). "
+                f"Maximum length is {NAME_MAX_LENGTH} characters."
+            )
+        # Validate no '/' in name for web server URL compatibility
+        _validate_no_slash(value)
     return value
+
+
+def string_no_slash(value):
+    """Validate a string that cannot contain '/' characters.
+
+    Used for device and area names where '/' is reserved as a URL path separator.
+    Use with cv.Length() to also enforce maximum length.
+    """
+    value = string(value)
+    return _validate_no_slash(value)
 
 
 ENTITY_BASE_SCHEMA = Schema(
@@ -1986,7 +2058,7 @@ def polling_component_schema(default_update_interval):
     if default_update_interval is None:
         return COMPONENT_SCHEMA.extend(
             {
-                Required(CONF_UPDATE_INTERVAL): default_update_interval,
+                Required(CONF_UPDATE_INTERVAL): update_interval,
             }
         )
     assert isinstance(default_update_interval, str)
@@ -2192,29 +2264,6 @@ def rename_key(old_key, new_key):
         config = config.copy()
         if old_key in config:
             config[new_key] = config.pop(old_key)
-        return config
-
-    return validator
-
-
-# Remove before 2025.11.0
-def deprecated_schema_constant(entity_type: str):
-    def validator(config):
-        type: str = "unknown"
-        if (id := config.get(CONF_ID)) is not None and isinstance(id, core.ID):
-            type = str(id.type).split("::", maxsplit=1)[0]
-        _LOGGER.warning(
-            "Using `%s.%s_SCHEMA` is deprecated and will be removed in ESPHome 2025.11.0. "
-            "Please use `%s.%s_schema(...)` instead. "
-            "If you are seeing this, report an issue to the external_component author and ask them to update it. "
-            "https://developers.esphome.io/blog/2025/05/14/_schema-deprecations/. "
-            "Component using this schema: %s",
-            entity_type,
-            entity_type.upper(),
-            entity_type,
-            entity_type,
-            type,
-        )
         return config
 
     return validator

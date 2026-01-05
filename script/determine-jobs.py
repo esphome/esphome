@@ -49,23 +49,35 @@ import sys
 from typing import Any
 
 from helpers import (
-    BASE_BUS_COMPONENTS,
     CPP_FILE_EXTENSIONS,
+    ESPHOME_TESTS_COMPONENTS_PATH,
     PYTHON_FILE_EXTENSIONS,
     changed_files,
+    core_changed,
+    filter_component_and_test_cpp_files,
+    filter_component_and_test_files,
     get_all_dependencies,
+    get_changed_components,
     get_component_from_path,
     get_component_test_files,
     get_components_from_integration_fixtures,
+    get_components_with_dependencies,
+    get_cpp_changed_components,
+    get_target_branch,
     git_ls_files,
     parse_test_filename,
     root_path,
 )
+from split_components_for_ci import create_intelligent_batches
 
 # Threshold for splitting clang-tidy jobs
 # For small PRs (< 65 files), use nosplit for faster CI
 # For large PRs (>= 65 files), use split for better parallelization
 CLANG_TIDY_SPLIT_THRESHOLD = 65
+
+# Component test batch size (weighted)
+# Isolated components count as 10x, groupable components count as 1x
+COMPONENT_TEST_BATCH_SIZE = 40
 
 
 class Platform(StrEnum):
@@ -77,11 +89,29 @@ class Platform(StrEnum):
     ESP32_C6_IDF = "esp32-c6-idf"
     ESP32_S2_IDF = "esp32-s2-idf"
     ESP32_S3_IDF = "esp32-s3-idf"
+    BK72XX_ARD = "bk72xx-ard"  # LibreTiny BK7231N
 
 
 # Memory impact analysis constants
 MEMORY_IMPACT_FALLBACK_COMPONENT = "api"  # Representative component for core changes
 MEMORY_IMPACT_FALLBACK_PLATFORM = Platform.ESP32_IDF  # Most representative platform
+MEMORY_IMPACT_MAX_COMPONENTS = 40  # Max components before results become nonsensical
+
+# Platform-specific components that can only be built on their respective platforms
+# These components contain platform-specific code and cannot be cross-compiled
+# Regular components (wifi, logger, api, etc.) are cross-platform and not listed here
+PLATFORM_SPECIFIC_COMPONENTS = frozenset(
+    {
+        "esp32",  # ESP32 platform implementation
+        "esp8266",  # ESP8266 platform implementation
+        "rp2040",  # Raspberry Pi Pico / RP2040 platform implementation
+        "bk72xx",  # Beken BK72xx platform implementation (uses LibreTiny)
+        "rtl87xx",  # Realtek RTL87xx platform implementation (uses LibreTiny)
+        "ln882x",  # Winner Micro LN882x platform implementation (uses LibreTiny)
+        "host",  # Host platform (for testing on development machine)
+        "nrf52",  # Nordic nRF52 platform implementation
+    }
+)
 
 # Platform preference order for memory impact analysis
 # This order is used when no platform-specific hints are detected from filenames
@@ -91,6 +121,7 @@ MEMORY_IMPACT_FALLBACK_PLATFORM = Platform.ESP32_IDF  # Most representative plat
 #                      fastest build times, most sensitive to code size changes
 # 3. ESP32 IDF - Primary ESP32 platform, most representative of modern ESPHome
 # 4-6. Other ESP32 variants - Less commonly used but still supported
+# 7. BK72XX - LibreTiny platform (good for detecting LibreTiny-specific changes)
 MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_C6_IDF,  # ESP32-C6 IDF (newest, supports Thread/Zigbee)
     Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained, fastest builds)
@@ -98,6 +129,7 @@ MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_C3_IDF,  # ESP32-C3 IDF
     Platform.ESP32_S2_IDF,  # ESP32-S2 IDF
     Platform.ESP32_S3_IDF,  # ESP32-S3 IDF
+    Platform.BK72XX_ARD,  # LibreTiny BK7231N
 ]
 
 
@@ -141,10 +173,9 @@ def should_run_integration_tests(branch: str | None = None) -> bool:
     """
     files = changed_files(branch)
 
-    # Check if any core files changed (esphome/core/*)
-    for file in files:
-        if file.startswith("esphome/core/"):
-            return True
+    if core_changed(files):
+        # If any core files changed, run integration tests
+        return True
 
     # Check if any integration test files changed
     if any("tests/integration" in file for file in files):
@@ -281,6 +312,40 @@ def should_run_python_linters(branch: str | None = None) -> bool:
     return _any_changed_file_endswith(branch, PYTHON_FILE_EXTENSIONS)
 
 
+def determine_cpp_unit_tests(
+    branch: str | None = None,
+) -> tuple[bool, list[str]]:
+    """Determine if C++ unit tests should run based on changed files.
+
+    This function is used by the CI workflow to skip C++ unit tests when
+    no relevant files have changed, saving CI time and resources.
+
+    C++ unit tests will run when any of the following conditions are met:
+
+    1. Any C++ core source files changed (esphome/core/*), in which case
+       all cpp unit tests run.
+    2. A test file for a component changed, which triggers tests for that
+       component.
+    3. The code for a component changed, which triggers tests for that
+       component and all components that depend on it.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        Tuple of (run_all, components) where:
+        - run_all: True if all tests should run, False otherwise
+        - components: List of specific components to test (empty if run_all)
+    """
+    files = changed_files(branch)
+    if core_changed(files):
+        return (True, [])
+
+    # Filter to only C++ files
+    cpp_files = list(filter(filter_component_and_test_cpp_files, files))
+    return (False, get_cpp_changed_components(cpp_files))
+
+
 def _any_changed_file_endswith(branch: str | None, extensions: tuple[str, ...]) -> bool:
     """Check if a changed file ends with any of the specified extensions."""
     return any(file.endswith(extensions) for file in changed_files(branch))
@@ -298,7 +363,7 @@ def _component_has_tests(component: str) -> bool:
     Returns:
         True if the component has test YAML files
     """
-    return bool(get_component_test_files(component))
+    return bool(get_component_test_files(component, all_variants=True))
 
 
 def _select_platform_by_preference(
@@ -342,7 +407,7 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     - wifi_component_esp_idf.cpp, *_idf.h -> ESP32 IDF variants
     - wifi_component_esp8266.cpp, *_esp8266.h -> ESP8266_ARD
     - *_esp32*.cpp -> ESP32 IDF (generic)
-    - *_libretiny.cpp, *_retiny.* -> LibreTiny (not in preference list)
+    - *_libretiny.cpp, *_bk72*.* -> BK72XX (LibreTiny)
     - *_pico.cpp, *_rp2040.* -> RP2040 (not in preference list)
 
     Args:
@@ -376,10 +441,11 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     if "esp32" in filename_lower:
         return Platform.ESP32_IDF
 
-    # LibreTiny and RP2040 are not in MEMORY_IMPACT_PLATFORM_PREFERENCE
-    # so we don't return them as hints
-    # if "retiny" in filename_lower or "libretiny" in filename_lower:
-    #     return None  # No specific LibreTiny platform preference
+    # LibreTiny (via 'libretiny' pattern or BK72xx-specific files)
+    if "libretiny" in filename_lower or "bk72" in filename_lower:
+        return Platform.BK72XX_ARD
+
+    # RP2040 is not in MEMORY_IMPACT_PLATFORM_PREFERENCE
     # if "pico" in filename_lower or "rp2040" in filename_lower:
     #     return None  # No RP2040 platform preference
 
@@ -411,11 +477,25 @@ def detect_memory_impact_config(
         - platform: platform name for the merged build
         - use_merged_config: "true" (always use merged config)
     """
+    # Skip memory impact analysis for release* or beta* branches
+    # These branches typically contain many merged changes from dev, and building
+    # all components at once would produce nonsensical memory impact results.
+    # Memory impact analysis is most useful for focused PRs targeting dev.
+    target_branch = get_target_branch()
+    if target_branch and (
+        target_branch.startswith("release") or target_branch.startswith("beta")
+    ):
+        print(
+            f"Memory impact: Skipping analysis for target branch {target_branch} "
+            f"(would try to build all components at once, giving nonsensical results)",
+            file=sys.stderr,
+        )
+        return {"should_run": "false"}
 
     # Get actually changed files (not dependencies)
     files = changed_files(branch)
 
-    # Find all changed components (excluding core and base bus components)
+    # Find all changed components (excluding core)
     # Also collect platform hints from platform-specific filenames
     changed_component_set: set[str] = set()
     has_core_cpp_changes = False
@@ -424,13 +504,13 @@ def detect_memory_impact_config(
     for file in files:
         component = get_component_from_path(file)
         if component:
-            # Skip base bus components as they're used across many builds
-            if component not in BASE_BUS_COMPONENTS:
-                changed_component_set.add(component)
-                # Check if this is a platform-specific file
-                platform_hint = _detect_platform_hint_from_filename(file)
-                if platform_hint:
-                    platform_hints.append(platform_hint)
+            # Add all changed components, including base bus components
+            # Base bus components (uart, i2c, spi, etc.) should still be analyzed
+            # when directly changed, even though they're also used as dependencies
+            changed_component_set.add(component)
+            # Check if this is a platform-specific file
+            if platform_hint := _detect_platform_hint_from_filename(file):
+                platform_hints.append(platform_hint)
         elif file.startswith("esphome/") and file.endswith(CPP_FILE_EXTENSIONS):
             # Core ESPHome C++ files changed (not component-specific)
             # Only C++ files affect memory usage
@@ -458,7 +538,7 @@ def detect_memory_impact_config(
 
     for component in sorted(changed_component_set):
         # Look for test files on preferred platforms
-        test_files = get_component_test_files(component)
+        test_files = get_component_test_files(component, all_variants=True)
         if not test_files:
             continue
 
@@ -478,6 +558,17 @@ def detect_memory_impact_config(
 
     # If no components have tests, don't run memory impact
     if not components_with_tests:
+        return {"should_run": "false"}
+
+    # Skip memory impact analysis if too many components changed
+    # Building 40+ components at once produces nonsensical memory impact results
+    # This typically happens with large refactorings or batch updates
+    if len(components_with_tests) > MEMORY_IMPACT_MAX_COMPONENTS:
+        print(
+            f"Memory impact: Skipping analysis for {len(components_with_tests)} components "
+            f"(limit is {MEMORY_IMPACT_MAX_COMPONENTS}, would give nonsensical results)",
+            file=sys.stderr,
+        )
         return {"should_run": "false"}
 
     # Find common platforms supported by ALL components
@@ -524,6 +615,20 @@ def detect_memory_impact_config(
         )
         platform = _select_platform_by_count(platform_counts)
 
+    # Filter out platform-specific components that are incompatible with selected platform
+    # Platform components (esp32, esp8266, rp2040, etc.) can only build on their own platform
+    # Other components (wifi, logger, etc.) are cross-platform and can build anywhere
+    compatible_components = [
+        component
+        for component in components_with_tests
+        if component not in PLATFORM_SPECIFIC_COMPONENTS
+        or platform in component_platforms_map.get(component, set())
+    ]
+
+    # If no components are compatible with the selected platform, don't run
+    if not compatible_components:
+        return {"should_run": "false"}
+
     # Debug output
     print("Memory impact analysis:", file=sys.stderr)
     print(f"  Changed components: {sorted(changed_component_set)}", file=sys.stderr)
@@ -535,10 +640,11 @@ def detect_memory_impact_config(
     print(f"  Platform hints from filenames: {platform_hints}", file=sys.stderr)
     print(f"  Common platforms: {sorted(common_platforms)}", file=sys.stderr)
     print(f"  Selected platform: {platform}", file=sys.stderr)
+    print(f"  Compatible components: {compatible_components}", file=sys.stderr)
 
     return {
         "should_run": "true",
-        "components": components_with_tests,
+        "components": compatible_components,
         "platform": platform,
         "use_merged_config": "true",
     }
@@ -561,16 +667,31 @@ def main() -> None:
     run_python_linters = should_run_python_linters(args.branch)
     changed_cpp_file_count = count_changed_cpp_files(args.branch)
 
-    # Get both directly changed and all changed components (with dependencies) in one call
-    script_path = Path(__file__).parent / "list-components.py"
-    cmd = [sys.executable, str(script_path), "--changed-with-deps"]
-    if args.branch:
-        cmd.extend(["-b", args.branch])
+    # Get changed components
+    # get_changed_components() returns:
+    #   None: Core files changed (need full scan)
+    #   []: No components changed
+    #   [list]: Changed components (already includes dependencies)
+    changed_components_result = get_changed_components()
 
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    component_data = json.loads(result.stdout)
-    directly_changed_components = component_data["directly_changed"]
-    changed_components = component_data["all_changed"]
+    # Always analyze component files, even if core files changed
+    # This is needed for component testing and memory impact analysis
+    changed = changed_files(args.branch)
+    component_files = [f for f in changed if filter_component_and_test_files(f)]
+
+    directly_changed_components = get_components_with_dependencies(
+        component_files, False
+    )
+
+    if changed_components_result is None:
+        # Core files changed - will trigger full clang-tidy scan
+        # But we still need to track changed components for testing and memory analysis
+        changed_components = get_components_with_dependencies(component_files, True)
+        is_core_change = True
+    else:
+        # Use the result from get_changed_components() which includes dependencies
+        changed_components = changed_components_result
+        is_core_change = False
 
     # Filter to only components that have test files
     # Components without tests shouldn't generate CI test jobs
@@ -581,11 +702,11 @@ def main() -> None:
     # Get directly changed components with tests (for isolated testing)
     # These will be tested WITHOUT --testing-mode in CI to enable full validation
     # (pin conflicts, etc.) since they contain the actual changes being reviewed
-    directly_changed_with_tests = [
+    directly_changed_with_tests = {
         component
         for component in directly_changed_components
         if _component_has_tests(component)
-    ]
+    }
 
     # Get dependency-only components (for grouped testing)
     dependency_only_components = [
@@ -599,7 +720,8 @@ def main() -> None:
 
     # Determine clang-tidy mode based on actual files that will be checked
     if run_clang_tidy:
-        is_full_scan = _is_clang_tidy_full_scan()
+        # Full scan needed if: hash changed OR core files changed
+        is_full_scan = _is_clang_tidy_full_scan() or is_core_change
 
         if is_full_scan:
             # Full scan checks all files - always use split mode for efficiency
@@ -630,6 +752,41 @@ def main() -> None:
         files_to_check_count = 0
 
     # Build output
+    # Determine which C++ unit tests to run
+    cpp_run_all, cpp_components = determine_cpp_unit_tests(args.branch)
+
+    # Split components into batches for CI testing
+    # This intelligently groups components with similar bus configurations
+    component_test_batches: list[str]
+    if changed_components_with_tests:
+        tests_dir = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
+
+        # For beta/release branches, group all components for faster CI
+        # (no isolation, all components are groupable)
+        target_branch = get_target_branch()
+        is_release_branch = target_branch and (
+            target_branch.startswith("release") or target_branch.startswith("beta")
+        )
+
+        if is_release_branch:
+            # For beta/release: Don't isolate any components - group everything
+            # This allows components to be merged into single builds
+            batch_directly_changed = set()  # Empty set - no isolation
+        else:
+            # Normal PR: only directly changed components are isolated
+            batch_directly_changed = directly_changed_with_tests
+
+        batches, _ = create_intelligent_batches(
+            components=changed_components_with_tests,
+            tests_dir=tests_dir,
+            batch_size=COMPONENT_TEST_BATCH_SIZE,
+            directly_changed=batch_directly_changed,
+        )
+        # Convert batches to space-separated strings for CI matrix
+        component_test_batches = [" ".join(batch) for batch in batches]
+    else:
+        component_test_batches = []
+
     output: dict[str, Any] = {
         "integration_tests": run_integration,
         "clang_tidy": run_clang_tidy,
@@ -638,13 +795,16 @@ def main() -> None:
         "python_linters": run_python_linters,
         "changed_components": changed_components,
         "changed_components_with_tests": changed_components_with_tests,
-        "directly_changed_components_with_tests": directly_changed_with_tests,
+        "directly_changed_components_with_tests": list(directly_changed_with_tests),
         "dependency_only_components_with_tests": dependency_only_components,
         "component_test_count": len(changed_components_with_tests),
         "directly_changed_count": len(directly_changed_with_tests),
         "dependency_only_count": len(dependency_only_components),
         "changed_cpp_file_count": changed_cpp_file_count,
         "memory_impact": memory_impact,
+        "cpp_unit_tests_run_all": cpp_run_all,
+        "cpp_unit_tests_components": cpp_components,
+        "component_test_batches": component_test_batches,
     }
 
     # Output as JSON

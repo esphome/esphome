@@ -40,9 +40,8 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_EMPTY,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(CONF_VERSION): sensor.sensor_schema(
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            accuracy_decimals=1,
+        cv.Optional(CONF_VERSION): cv.invalid(
+            "The 'version' option has been moved to the `text_sensor` component."
         ),
         cv.Optional(CONF_STATUS): sensor.sensor_schema(
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
@@ -70,10 +69,6 @@ async def to_code(config):
     if radiation_dose_per_10m := config.get(CONF_RADIATION_DOSE_PER_10M):
         sens = await sensor.new_sensor(radiation_dose_per_10m)
         cg.add(hub.set_rad_10m_sensor(sens))
-
-    if version_config := config.get(CONF_VERSION):
-        sens = await sensor.new_sensor(version_config)
-        cg.add(hub.set_fw_version_sensor(sens))
 
     if status_config := config.get(CONF_STATUS):
         sens = await sensor.new_sensor(status_config)

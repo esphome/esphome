@@ -2,10 +2,12 @@
 
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
+#include "esphome/core/defines.h"
 
 namespace esphome {
 namespace improv_base {
 
+#if defined(USE_ESP32_IMPROV_NEXT_URL) || defined(USE_IMPROV_SERIAL_NEXT_URL)
 static constexpr const char DEVICE_NAME_PLACEHOLDER[] = "{{device_name}}";
 static constexpr size_t DEVICE_NAME_PLACEHOLDER_LEN = sizeof(DEVICE_NAME_PLACEHOLDER) - 1;
 static constexpr const char IP_ADDRESS_PLACEHOLDER[] = "{{ip_address}}";
@@ -43,6 +45,7 @@ std::string ImprovBase::get_formatted_next_url_() {
 
   return formatted_url;
 }
+#endif
 
 }  // namespace improv_base
 }  // namespace esphome

@@ -14,13 +14,35 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace socket {
+#ifdef USE_ESP8266
+#include <coredecls.h>  // For esp_schedule()
+#endif
+
+namespace esphome::socket {
+
+#ifdef USE_ESP8266
+// Flag to signal socket activity - checked by socket_delay() to exit early
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static volatile bool s_socket_woke = false;
+
+void socket_delay(uint32_t ms) {
+  // Use esp_delay with a callback that checks if socket data arrived.
+  // This allows the delay to exit early when socket_wake() is called by
+  // lwip recv_fn/accept_fn callbacks, reducing socket latency.
+  s_socket_woke = false;
+  esp_delay(ms, []() { return !s_socket_woke; });
+}
+
+void socket_wake() {
+  s_socket_woke = true;
+  esp_schedule();
+}
+#endif
 
 static const char *const TAG = "socket.lwip";
 
 // set to 1 to enable verbose lwip logging
-#if 0
+#if 0  // NOLINT(readability-avoid-unconditional-preprocessor-if)
 #define LWIP_LOG(msg, ...) ESP_LOGVV(TAG, "socket %p: " msg, this, ##__VA_ARGS__)
 #else
 #define LWIP_LOG(msg, ...)
@@ -165,23 +187,14 @@ class LWIPRawImpl : public Socket {
       errno = EINVAL;
       return -1;
     }
-    return this->ip2sockaddr_(&pcb_->local_ip, pcb_->local_port, name, addrlen);
+    return this->ip2sockaddr_(&pcb_->remote_ip, pcb_->remote_port, name, addrlen);
   }
   std::string getpeername() override {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return "";
     }
-    char buffer[50] = {};
-    if (IP_IS_V4_VAL(pcb_->remote_ip)) {
-      inet_ntoa_r(pcb_->remote_ip, buffer, sizeof(buffer));
-    }
-#if LWIP_IPV6
-    else if (IP_IS_V6_VAL(pcb_->remote_ip)) {
-      inet6_ntoa_r(pcb_->remote_ip, buffer, sizeof(buffer));
-    }
-#endif
-    return std::string(buffer);
+    return this->format_ip_address_(pcb_->remote_ip);
   }
   int getsockname(struct sockaddr *name, socklen_t *addrlen) override {
     if (pcb_ == nullptr) {
@@ -199,16 +212,7 @@ class LWIPRawImpl : public Socket {
       errno = ECONNRESET;
       return "";
     }
-    char buffer[50] = {};
-    if (IP_IS_V4_VAL(pcb_->local_ip)) {
-      inet_ntoa_r(pcb_->local_ip, buffer, sizeof(buffer));
-    }
-#if LWIP_IPV6
-    else if (IP_IS_V6_VAL(pcb_->local_ip)) {
-      inet6_ntoa_r(pcb_->local_ip, buffer, sizeof(buffer));
-    }
-#endif
-    return std::string(buffer);
+    return this->format_ip_address_(pcb_->local_ip);
   }
   int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override {
     if (pcb_ == nullptr) {
@@ -341,9 +345,10 @@ class LWIPRawImpl : public Socket {
     for (int i = 0; i < iovcnt; i++) {
       ssize_t err = read(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
       if (err == -1) {
-        if (ret != 0)
+        if (ret != 0) {
           // if we already read some don't return an error
           break;
+        }
         return err;
       }
       ret += err;
@@ -352,6 +357,12 @@ class LWIPRawImpl : public Socket {
     }
     return ret;
   }
+
+  ssize_t recvfrom(void *buf, size_t len, sockaddr *addr, socklen_t *addr_len) override {
+    errno = ENOTSUP;
+    return -1;
+  }
+
   ssize_t internal_write(const void *buf, size_t len) {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
@@ -405,9 +416,10 @@ class LWIPRawImpl : public Socket {
     ssize_t written = internal_write(buf, len);
     if (written == -1)
       return -1;
-    if (written == 0)
+    if (written == 0) {
       // no need to output if nothing written
       return 0;
+    }
     if (nodelay_) {
       int err = internal_output();
       if (err == -1)
@@ -420,18 +432,20 @@ class LWIPRawImpl : public Socket {
     for (int i = 0; i < iovcnt; i++) {
       ssize_t err = internal_write(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
       if (err == -1) {
-        if (written != 0)
+        if (written != 0) {
           // if we already read some don't return an error
           break;
+        }
         return err;
       }
       written += err;
       if ((size_t) err != iov[i].iov_len)
         break;
     }
-    if (written == 0)
+    if (written == 0) {
       // no need to output if nothing written
       return 0;
+    }
     if (nodelay_) {
       int err = internal_output();
       if (err == -1)
@@ -485,6 +499,10 @@ class LWIPRawImpl : public Socket {
     } else {
       pbuf_cat(rx_buf_, pb);
     }
+#ifdef USE_ESP8266
+    // Wake the main loop immediately so it can process the received data.
+    socket_wake();
+#endif
     return ERR_OK;
   }
 
@@ -499,6 +517,19 @@ class LWIPRawImpl : public Socket {
   }
 
  protected:
+  std::string format_ip_address_(const ip_addr_t &ip) {
+    char buffer[50] = {};
+    if (IP_IS_V4_VAL(ip)) {
+      inet_ntoa_r(ip, buffer, sizeof(buffer));
+    }
+#if LWIP_IPV6
+    else if (IP_IS_V6_VAL(ip)) {
+      inet6_ntoa_r(ip, buffer, sizeof(buffer));
+    }
+#endif
+    return std::string(buffer);
+  }
+
   int ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen) {
     if (family_ == AF_INET) {
       if (*addrlen < sizeof(struct sockaddr_in)) {
@@ -611,7 +642,7 @@ class LWIPRawListenImpl : public LWIPRawImpl {
   }
 
  private:
-  err_t accept_fn(struct tcp_pcb *newpcb, err_t err) {
+  err_t accept_fn_(struct tcp_pcb *newpcb, err_t err) {
     LWIP_LOG("accept(newpcb=%p err=%d)", newpcb, err);
     if (err != ERR_OK || newpcb == nullptr) {
       // "An error code if there has been an error accepting. Only return ERR_ABRT if you have
@@ -632,12 +663,16 @@ class LWIPRawListenImpl : public LWIPRawImpl {
     sock->init();
     accepted_sockets_[accepted_socket_count_++] = std::move(sock);
     LWIP_LOG("Accepted connection, queue size: %d", accepted_socket_count_);
+#ifdef USE_ESP8266
+    // Wake the main loop immediately so it can accept the new connection.
+    socket_wake();
+#endif
     return ERR_OK;
   }
 
   static err_t s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err) {
     LWIPRawListenImpl *arg_this = reinterpret_cast<LWIPRawListenImpl *>(arg);
-    return arg_this->accept_fn(newpcb, err);
+    return arg_this->accept_fn_(newpcb, err);
   }
 
   // Accept queue - holds incoming connections briefly until the event loop calls accept()
@@ -675,7 +710,6 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
   return socket(domain, type, protocol);
 }
 
-}  // namespace socket
-}  // namespace esphome
+}  // namespace esphome::socket
 
 #endif  // USE_SOCKET_IMPL_LWIP_TCP

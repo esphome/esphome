@@ -1,8 +1,7 @@
 #include "template_select.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 static const char *const TAG = "template.select";
 
@@ -10,54 +9,45 @@ void TemplateSelect::setup() {
   if (this->f_.has_value())
     return;
 
-  std::string value;
-  if (!this->restore_value_) {
-    value = this->initial_option_;
-    ESP_LOGD(TAG, "State from initial: %s", value.c_str());
-  } else {
-    size_t index;
+  size_t index = this->initial_option_index_;
+  if (this->restore_value_) {
     this->pref_ = global_preferences->make_preference<size_t>(this->get_preference_hash());
-    if (!this->pref_.load(&index)) {
-      value = this->initial_option_;
-      ESP_LOGD(TAG, "State from initial (could not load stored index): %s", value.c_str());
-    } else if (!this->has_index(index)) {
-      value = this->initial_option_;
-      ESP_LOGD(TAG, "State from initial (restored index %d out of bounds): %s", index, value.c_str());
+    size_t restored_index;
+    if (this->pref_.load(&restored_index) && this->has_index(restored_index)) {
+      index = restored_index;
+      ESP_LOGD(TAG, "State from restore: %s", this->option_at(index));
     } else {
-      value = this->at(index).value();
-      ESP_LOGD(TAG, "State from restore: %s", value.c_str());
+      ESP_LOGD(TAG, "State from initial (could not load or invalid stored index): %s", this->option_at(index));
     }
+  } else {
+    ESP_LOGD(TAG, "State from initial: %s", this->option_at(index));
   }
 
-  this->publish_state(value);
+  this->publish_state(index);
 }
 
 void TemplateSelect::update() {
   if (!this->f_.has_value())
     return;
 
-  auto val = (*this->f_)();
-  if (!val.has_value())
-    return;
-
-  if (!this->has_option(*val)) {
-    ESP_LOGE(TAG, "Lambda returned an invalid option: %s", (*val).c_str());
-    return;
+  auto val = this->f_();
+  if (val.has_value()) {
+    if (!this->has_option(*val)) {
+      ESP_LOGE(TAG, "Lambda returned an invalid option: %s", (*val).c_str());
+      return;
+    }
+    this->publish_state(*val);
   }
-
-  this->publish_state(*val);
 }
 
-void TemplateSelect::control(const std::string &value) {
-  this->set_trigger_->trigger(value);
+void TemplateSelect::control(size_t index) {
+  this->set_trigger_->trigger(std::string(this->option_at(index)));
 
   if (this->optimistic_)
-    this->publish_state(value);
+    this->publish_state(index);
 
-  if (this->restore_value_) {
-    auto index = this->index_of(value);
-    this->pref_.save(&index.value());
-  }
+  if (this->restore_value_)
+    this->pref_.save(&index);
 }
 
 void TemplateSelect::dump_config() {
@@ -69,8 +59,7 @@ void TemplateSelect::dump_config() {
                 "  Optimistic: %s\n"
                 "  Initial Option: %s\n"
                 "  Restore Value: %s",
-                YESNO(this->optimistic_), this->initial_option_.c_str(), YESNO(this->restore_value_));
+                YESNO(this->optimistic_), this->option_at(this->initial_option_index_), YESNO(this->restore_value_));
 }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_
