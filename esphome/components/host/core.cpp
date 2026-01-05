@@ -2,8 +2,11 @@
 
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/application.h"
 #include "preferences.h"
 
+#include <atomic>
+#include <csignal>
 #include <sched.h>
 #include <time.h>
 #include <cmath>
@@ -62,16 +65,41 @@ uint32_t arch_get_cpu_cycle_count() {
 }
 uint32_t arch_get_cpu_freq_hz() { return 1000000000U; }
 
+namespace host {
+namespace {
+std::atomic<bool> shutdown_requested{false};
+
+void handle_signal(int) { shutdown_requested.store(true, std::memory_order_relaxed); }
+}  // namespace
+
+void install_signal_handlers() {
+  std::signal(SIGTERM, handle_signal);
+  std::signal(SIGINT, handle_signal);
+}
+
+bool is_shutdown_requested() { return shutdown_requested.load(std::memory_order_relaxed); }
+
+void shutdown() {
+  App.run_safe_shutdown_hooks();
+  App.teardown_components(TEARDOWN_TIMEOUT_REBOOT_MS);
+  if (global_preferences != nullptr) {
+    global_preferences->sync();
+  }
+}
+}  // namespace host
+
 }  // namespace esphome
 
 void setup();
 void loop();
 int main() {
   esphome::host::setup_preferences();
+  esphome::host::install_signal_handlers();
   setup();
-  while (true) {
+  while (!esphome::host::is_shutdown_requested()) {
     loop();
   }
+  esphome::host::shutdown();
 }
 
 #endif  // USE_HOST
