@@ -28,6 +28,9 @@ class EntityBase {
   // Get/set the name of this Entity
   const StringRef &get_name() const;
   void set_name(const char *name);
+  /// Set name with pre-computed object_id hash (avoids runtime hash calculation)
+  /// Use hash=0 for dynamic names that need runtime calculation
+  void set_name(const char *name, uint32_t object_id_hash);
 
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
@@ -43,10 +46,6 @@ class EntityBase {
                 "which will remain available longer. get_object_id() will be removed in 2026.7.0",
                 "2025.12.0")
   std::string get_object_id() const;
-  void set_object_id(const char *object_id);
-
-  // Set both name and object_id in one call (reduces generated code size)
-  void set_name_and_object_id(const char *name, const char *object_id);
 
   // Get the unique Object ID of this Entity
   uint32_t get_object_id_hash();
@@ -142,11 +141,7 @@ class EntityBase {
  protected:
   void calc_object_id_();
 
-  /// Check if the object_id is dynamic (changes with MAC suffix)
-  bool is_object_id_dynamic_() const;
-
   StringRef name_;
-  const char *object_id_c_str_{nullptr};
 #ifdef USE_ENTITY_ICON
   const char *icon_c_str_{nullptr};
 #endif

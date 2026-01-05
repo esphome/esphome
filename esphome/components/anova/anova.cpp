@@ -67,8 +67,10 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       auto *chr = this->parent_->get_characteristic(ANOVA_SERVICE_UUID, ANOVA_CHARACTERISTIC_UUID);
       if (chr == nullptr) {
-        ESP_LOGW(TAG, "[%s] No control service found at device, not an Anova..?", this->get_name().c_str());
-        ESP_LOGW(TAG, "[%s] Note, this component does not currently support Anova Nano.", this->get_name().c_str());
+        ESP_LOGW(TAG,
+                 "[%s] No control service found at device, not an Anova..?\n"
+                 "[%s] Note, this component does not currently support Anova Nano.",
+                 this->get_name().c_str(), this->get_name().c_str());
         break;
       }
       this->char_handle_ = chr->handle;

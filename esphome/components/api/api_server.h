@@ -60,10 +60,6 @@ class APIServer : public Component,
 #ifdef USE_CAMERA
   void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
 #endif
-#ifdef USE_API_PASSWORD
-  bool check_password(const uint8_t *password_data, size_t password_len) const;
-  void set_password(const std::string &password);
-#endif
   void set_port(uint16_t port);
   void set_reboot_timeout(uint32_t reboot_timeout);
   void set_batch_delay(uint16_t batch_delay);
@@ -256,9 +252,6 @@ class APIServer : public Component,
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;
-#ifdef USE_API_PASSWORD
-  std::string password_;
-#endif
   std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
 #ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;

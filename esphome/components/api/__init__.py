@@ -226,32 +226,6 @@ def _encryption_schema(config):
     return ENCRYPTION_SCHEMA(config)
 
 
-def _validate_api_config(config: ConfigType) -> ConfigType:
-    """Validate API configuration with mutual exclusivity check and deprecation warning."""
-    # Check if both password and encryption are configured
-    has_password = CONF_PASSWORD in config and config[CONF_PASSWORD]
-    has_encryption = CONF_ENCRYPTION in config
-
-    if has_password and has_encryption:
-        raise cv.Invalid(
-            "The 'password' and 'encryption' options are mutually exclusive. "
-            "The API client only supports one authentication method at a time. "
-            "Please remove one of them. "
-            "Note: 'password' authentication is deprecated and will be removed in version 2026.1.0. "
-            "We strongly recommend using 'encryption' instead for better security."
-        )
-
-    # Warn about password deprecation
-    if has_password:
-        _LOGGER.warning(
-            "API 'password' authentication has been deprecated since May 2022 and will be removed in version 2026.1.0. "
-            "Please migrate to the 'encryption' configuration. "
-            "See https://esphome.io/components/api/#configuration-variables"
-        )
-
-    return config
-
-
 def _consume_api_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for API component."""
     from esphome.components import socket
@@ -268,7 +242,17 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(APIServer),
             cv.Optional(CONF_PORT, default=6053): cv.port,
-            cv.Optional(CONF_PASSWORD, default=""): cv.string_strict,
+            # Removed in 2026.1.0 - kept to provide helpful error message
+            cv.Optional(CONF_PASSWORD): cv.invalid(
+                "The 'password' option has been removed in ESPHome 2026.1.0.\n"
+                "Password authentication was deprecated in May 2022.\n"
+                "Please migrate to encryption for secure API communication:\n\n"
+                "api:\n"
+                "  encryption:\n"
+                "    key: !secret api_encryption_key\n\n"
+                "Generate a key with: openssl rand -base64 32\n"
+                "Or visit https://esphome.io/components/api/#configuration-variables"
+            ),
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
             ): cv.positive_time_period_milliseconds,
@@ -330,7 +314,6 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
-    _validate_api_config,
     _consume_api_sockets,
 )
 
@@ -344,9 +327,6 @@ async def to_code(config: ConfigType) -> None:
     CORE.register_controller()
 
     cg.add(var.set_port(config[CONF_PORT]))
-    if config[CONF_PASSWORD]:
-        cg.add_define("USE_API_PASSWORD")
-        cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
     if CONF_LISTEN_BACKLOG in config:
