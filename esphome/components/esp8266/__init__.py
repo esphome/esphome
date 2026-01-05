@@ -23,6 +23,8 @@ from esphome.helpers import copy_file_if_changed
 from .boards import BOARDS, ESP8266_LD_SCRIPTS
 from .const import (
     CONF_EARLY_PIN_INIT,
+    CONF_ENABLE_SERIAL,
+    CONF_ENABLE_SERIAL1,
     CONF_RESTORE_FROM_FLASH,
     KEY_BOARD,
     KEY_ESP8266,
@@ -31,6 +33,8 @@ from .const import (
     KEY_SERIAL1_REQUIRED,
     KEY_SERIAL_REQUIRED,
     KEY_WAVEFORM_REQUIRED,
+    enable_serial,
+    enable_serial1,
     esp8266_ns,
 )
 from .gpio import PinInitialState, add_pin_initial_states_array
@@ -173,6 +177,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BOARD_FLASH_MODE, default="dout"): cv.one_of(
                 *BUILD_FLASH_MODES, lower=True
             ),
+            cv.Optional(CONF_ENABLE_SERIAL): cv.boolean,
+            cv.Optional(CONF_ENABLE_SERIAL1): cv.boolean,
         }
     ),
     set_core_data,
@@ -232,6 +238,12 @@ async def to_code(config):
 
     if config[CONF_EARLY_PIN_INIT]:
         cg.add_define("USE_ESP8266_EARLY_PIN_INIT")
+
+    # Allow users to force-enable Serial objects for use in lambdas or external libraries
+    if config.get(CONF_ENABLE_SERIAL):
+        enable_serial()
+    if config.get(CONF_ENABLE_SERIAL1):
+        enable_serial1()
 
     # Arduino 2 has a non-standards conformant new that returns a nullptr instead of failing when
     # out of memory and exceptions are disabled. Since Arduino 2.6.0, this flag can be used to make
