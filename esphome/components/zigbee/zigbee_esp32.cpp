@@ -58,7 +58,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
           esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING);
         } else {
           ESP_LOGD(TAG, "Device rebooted");
-          zigbeeC->search_bindings();
+          zigbeeC->connected_ = true;
         }
       } else {
         ESP_LOGE(TAG, "FIRST_START.  Device started up in %sfactory-reset mode with an error %d (%s)",
@@ -97,50 +97,6 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
                esp_err_to_name(err_status));
       break;
   }
-}
-
-void ZigbeeComponent::binding_table_cb(const esp_zb_zdo_binding_table_info_t *table_info, void *user_ctx) {
-  bool done = true;
-  esp_zb_zdo_mgmt_bind_param_t *req = (esp_zb_zdo_mgmt_bind_param_t *) user_ctx;
-  esp_zb_zdp_status_t zdo_status = (esp_zb_zdp_status_t) table_info->status;
-  if (zdo_status == ESP_ZB_ZDP_STATUS_SUCCESS) {
-    if (table_info->total == 0) {
-      free(req);
-      zigbeeC->connected_ = true;
-      return;
-    }
-    esp_zb_zdo_binding_table_record_t *record = table_info->record;
-    for (int i = 0; i < table_info->count; i++) {
-      ESP_LOGD(TAG, "Binding table record: src_endp %d, dst_endp %d, cluster_id 0x%04x, dst_addr_mode %d",
-               record->src_endp, record->dst_endp, record->cluster_id, record->dst_addr_mode);
-      zb_device_params_t *device = (zb_device_params_t *) calloc(1, sizeof(zb_device_params_t));
-      device->endpoint = record->dst_endp;
-      if (record->dst_addr_mode == ESP_ZB_APS_ADDR_MODE_16_ENDP_PRESENT ||
-          record->dst_addr_mode == ESP_ZB_APS_ADDR_MODE_16_GROUP_ENDP_NOT_PRESENT) {
-        device->short_addr = record->dst_address.addr_short;
-      } else {  // ESP_ZB_APS_ADDR_MODE_64_ENDP_PRESENT
-        memcpy(device->ieee_addr, record->dst_address.addr_long, sizeof(esp_zb_ieee_addr_t));
-      }
-      record = record->next;
-    }
-    if (table_info->index + table_info->count < table_info->total) {
-      req->start_index = table_info->index + table_info->count;
-      esp_zb_zdo_binding_table_req(req, binding_table_cb, req);
-      done = false;
-    }
-  }
-
-  if (done) {
-    free(req);
-    zigbeeC->connected_ = true;
-  }
-}
-
-void ZigbeeComponent::search_bindings() {
-  esp_zb_zdo_mgmt_bind_param_t *mb_req = (esp_zb_zdo_mgmt_bind_param_t *) malloc(sizeof(esp_zb_zdo_mgmt_bind_param_t));
-  mb_req->dst_addr = esp_zb_get_short_address();
-  mb_req->start_index = 0;
-  esp_zb_zdo_binding_table_req(mb_req, binding_table_cb, (void *) mb_req);
 }
 
 static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t *message) {

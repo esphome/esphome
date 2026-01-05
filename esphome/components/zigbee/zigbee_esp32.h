@@ -24,23 +24,6 @@ namespace esphome::zigbee {
 
 static const char *const TAG = "zigbee";
 
-using device_params_t = struct DeviceParamsS {
-  esp_zb_ieee_addr_t ieee_addr;
-  uint8_t endpoint;
-  uint16_t short_addr;
-};
-
-using zdo_info_user_ctx_t = struct ZdoInfoCtxS {
-  uint8_t endpoint;
-  uint16_t short_addr;
-};
-
-using zb_device_params_t = struct ZbDeviceParamsS {
-  esp_zb_ieee_addr_t ieee_addr;
-  uint8_t endpoint;
-  uint16_t short_addr;
-};
-
 enum ZigbeeReportT {
   ZIGBEE_REPORT_NO,
   ZIGBEE_REPORT_YES,

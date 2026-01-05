@@ -83,12 +83,15 @@ CONFIG_SCHEMA = cv.All(
     zigbee_require_vfs_select,
     zigbee_set_core_data,
     cv.Any(
-        only_on_variant(
-            supported=[
-                VARIANT_ESP32H2,
-                VARIANT_ESP32C5,
-                VARIANT_ESP32C6,
-            ]
+        cv.All(
+            cv.only_on_esp32,
+            only_on_variant(
+                supported=[
+                    VARIANT_ESP32H2,
+                    VARIANT_ESP32C5,
+                    VARIANT_ESP32C6,
+                ]
+            ),
         ),
         cv.only_with_framework("zephyr"),
     ),
@@ -96,16 +99,17 @@ CONFIG_SCHEMA = cv.All(
 
 
 def validate_number_of_ep(config: ConfigType) -> None:
-    if CORE.is_nrf52:
-        if KEY_ZIGBEE not in CORE.data:
-            raise cv.Invalid("At least one zigbee device need to be included")
-        count = len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])
-        if count == 1:
-            raise cv.Invalid(
-                "Single endpoint is not supported https://github.com/Koenkk/zigbee2mqtt/issues/29888"
-            )
-        if count > CONF_MAX_EP_NUMBER:
-            raise cv.Invalid(f"Maximum number of end points is {CONF_MAX_EP_NUMBER}")
+    if not CORE.is_nrf52:
+        return
+    if KEY_ZIGBEE not in CORE.data:
+        raise cv.Invalid("At least one zigbee device need to be included")
+    count = len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])
+    if count == 1:
+        raise cv.Invalid(
+            "Single endpoint is not supported https://github.com/Koenkk/zigbee2mqtt/issues/29888"
+        )
+    if count > CONF_MAX_EP_NUMBER:
+        raise cv.Invalid(f"Maximum number of end points is {CONF_MAX_EP_NUMBER}")
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(
