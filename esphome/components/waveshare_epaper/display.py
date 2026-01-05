@@ -123,6 +123,7 @@ WaveshareEPaper13P3InK = waveshare_epaper_ns.class_(
     "WaveshareEPaper13P3InK", WaveshareEPaper
 )
 GDEW0154M09 = waveshare_epaper_ns.class_("GDEW0154M09", WaveshareEPaper)
+GoodDisplayGdep073e01 = waveshare_epaper_ns.class_("GoodDisplayGdep073e01", WaveshareEPaper)
 
 WaveshareEPaperTypeAModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeAModel")
 WaveshareEPaperTypeBModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeBModel")
@@ -172,6 +173,7 @@ MODELS = {
     "2.13inv3": ("c", WaveshareEPaper2P13InV3),
     "1.54in-m5coreink-m09": ("b", GDEW0154M09),
     "13.3in-k": ("b", WaveshareEPaper13P3InK),
+    "gdep073e01": ("c", GoodDisplayGdep073e01),
 }
 
 RESET_PIN_REQUIRED_MODELS = ("2.13inv2", "2.13in-ttgo-b74")
@@ -235,6 +237,7 @@ async def to_code(config):
     elif model_type in ("b", "c"):
         rhs = model.new()
         var = cg.Pvariable(config[CONF_ID], rhs, model)
+
     else:
         raise NotImplementedError()
 
