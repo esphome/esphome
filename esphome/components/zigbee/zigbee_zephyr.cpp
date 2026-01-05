@@ -210,7 +210,7 @@ void ZigbeeComponent::dump_config() {
                 "  Long pan id: 0x%s\n"
                 "  Short pan id: 0x%04X",
                 wipe, YESNO(zb_zdo_joined()), zb_get_current_channel(), zb_get_current_page(), zb_get_sleep_threshold(),
-                role(), ieee_addr_buf, zb_get_short_address(), ieee_addr_buf, zb_get_pan_id());
+                role(), ieee_addr_buf, zb_get_short_address(), extended_pan_id_buf, zb_get_pan_id());
 }
 
 static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
