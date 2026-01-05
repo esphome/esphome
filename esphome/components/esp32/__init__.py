@@ -615,14 +615,11 @@ def final_validate(config):
                 )
             )
     if CONF_PARTITIONS in config and custom_partitions:
-        print("check part")
         with open(
             CORE.relative_config_path(config[CONF_PARTITIONS]), encoding="utf8"
         ) as f:
             partitions_tab = f.read()
-            print(partitions_tab)
             for partition, types in custom_partitions.items():
-                print(partition["name"])
                 if partition not in partitions_tab:
                     errs.append(
                         cv.Invalid(
