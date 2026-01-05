@@ -181,7 +181,6 @@ static const char *role() {
 }
 
 void ZigbeeComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Zigbee");
   const char *wipe = "NO";
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
 #if USE_ZIGBEE_WIPE_ON_BOOT
@@ -190,23 +189,28 @@ void ZigbeeComponent::dump_config() {
   wipe = "YES";
 #endif
 #endif
-  ESP_LOGCONFIG(TAG, "  Wipe on boot: %s", wipe);
-  ESP_LOGCONFIG(TAG, "  Device is joined to the network: %s", YESNO(zb_zdo_joined()));
-  ESP_LOGCONFIG(TAG, "  Current channel: %d", zb_get_current_channel());
-  ESP_LOGCONFIG(TAG, "  Current page: %d", zb_get_current_page());
-  ESP_LOGCONFIG(TAG, "  Sleep threshold: %ums", zb_get_sleep_threshold());
-  ESP_LOGCONFIG(TAG, "  Role: %s", role());
   char ieee_addr_buf[IEEE_ADDR_BUF_SIZE] = {0};
   zb_ieee_addr_t addr;
   zb_get_long_address(addr);
   ieee_addr_to_str(ieee_addr_buf, sizeof(ieee_addr_buf), addr);
-  ESP_LOGCONFIG(TAG, "  Long addr: 0x%s", ieee_addr_buf);
-  ESP_LOGCONFIG(TAG, "  Short addr: 0x%04X", zb_get_short_address());
   zb_ext_pan_id_t extended_pan_id;
+  char extended_pan_id_buf[IEEE_ADDR_BUF_SIZE] = {0};
   zb_get_extended_pan_id(extended_pan_id);
-  ieee_addr_to_str(ieee_addr_buf, sizeof(ieee_addr_buf), extended_pan_id);
-  ESP_LOGCONFIG(TAG, "  Long pan id: 0x%s", ieee_addr_buf);
-  ESP_LOGCONFIG(TAG, "  Short pan id: 0x%04X", zb_get_pan_id());
+  ieee_addr_to_str(extended_pan_id_buf, sizeof(extended_pan_id_buf), extended_pan_id);
+  ESP_LOGCONFIG(TAG,
+                "Zigbee\n"
+                "  Wipe on boot: %s\n"
+                "  Device is joined to the network: %s\n"
+                "  Current channel: %d\n"
+                "  Current page: %d\n"
+                "  Sleep threshold: %ums\n"
+                "  Role: %s\n"
+                "  Long addr: 0x%s\n"
+                "  Short addr: 0x%04X\n"
+                "  Long pan id: 0x%s\n"
+                "  Short pan id: 0x%04X",
+                wipe, YESNO(zb_zdo_joined()), zb_get_current_channel(), zb_get_current_page(), zb_get_sleep_threshold(),
+                role(), ieee_addr_buf, zb_get_short_address(), ieee_addr_buf, zb_get_pan_id());
 }
 
 static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {

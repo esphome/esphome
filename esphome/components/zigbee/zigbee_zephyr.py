@@ -313,7 +313,6 @@ async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    print(config)
     await _add_zigbee_input(
         entity,
         config,
