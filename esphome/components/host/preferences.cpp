@@ -36,6 +36,7 @@ void HostPreferences::setup_() {
   }
 
   fs::path prefs_dir = fs::path(root_path) / ".esphome" / "prefs";
+  ESP_LOGD(TAG, "Using host preferences directory: '%s'", prefs_dir.string().c_str());
   std::error_code ec;
   fs::create_directories(prefs_dir, ec);
   if (ec) {
