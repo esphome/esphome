@@ -8,9 +8,6 @@ namespace esphome::cc1101 {
 
 static const char *const TAG = "cc1101";
 
-// FSCAL1 register value when PLL is not locked (per datasheet)
-static constexpr uint8_t FSCAL1_PLL_NOT_LOCKED = 0x3F;
-
 static void split_float(float value, int mbits, uint8_t &e, uint32_t &m) {
   int e_tmp;
   float m_tmp = std::frexp(value, &e_tmp);
