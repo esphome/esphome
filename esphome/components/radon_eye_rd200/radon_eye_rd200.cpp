@@ -41,7 +41,7 @@ void RadonEyeRD200::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         char service_buf[esp32_ble::UUID_STR_LEN];
         char char_buf[esp32_ble::UUID_STR_LEN];
         ESP_LOGW(TAG, "No sensor write characteristic found at service %s char %s", service_uuid_.to_str(service_buf),
-                 sensors_read_characteristic_uuid_.to_str(char_buf));
+                 sensors_write_characteristic_uuid_.to_str(char_buf));
         break;
       }
       this->write_handle_ = write_chr->handle;
