@@ -19,8 +19,9 @@ bool RadonEyeListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device
     if (std::any_of(prefixes.begin(), prefixes.end(),
                     [&](const std::string &prefix) { return device.get_name().starts_with(prefix); })) {
       // Device found
+      char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       ESP_LOGD(TAG, "Found Radon Eye device Name: %s (MAC: %s)", device.get_name().c_str(),
-               device.address_str().c_str());
+               device.address_str_to(addr_buf));
     }
   }
   return false;
