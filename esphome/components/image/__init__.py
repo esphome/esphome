@@ -654,7 +654,7 @@ async def write_image(config, all_frames=False):
         if is_svg_file(path):
             from resvg_py import svg_to_bytes
 
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 svg_data = f.read()
 
             if resize:
