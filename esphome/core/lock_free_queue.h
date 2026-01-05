@@ -1,12 +1,12 @@
 #pragma once
 
-#if defined(USE_ESP32)
-
 #include <atomic>
 #include <cstddef>
 
+#ifdef USE_ESP32
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#endif
 
 /*
  * Lock-free queue for single-producer single-consumer scenarios.
@@ -95,7 +95,7 @@ template<class T, uint8_t SIZE> class LockFreeQueue {
   }
 
  protected:
-  T *buffer_[SIZE];
+  T *buffer_[SIZE]{};
   // Atomic: written by producer (push/increment), read+reset by consumer (get_and_reset)
   std::atomic<uint16_t> dropped_count_;  // 65535 max - more than enough for drop tracking
   // Atomic: written by consumer (pop), read by producer (push) to check if full
@@ -106,6 +106,7 @@ template<class T, uint8_t SIZE> class LockFreeQueue {
   std::atomic<uint8_t> tail_;
 };
 
+#ifdef USE_ESP32
 // Extended queue with task notification support
 template<class T, uint8_t SIZE> class NotifyingLockFreeQueue : public LockFreeQueue<T, SIZE> {
  public:
@@ -140,7 +141,6 @@ template<class T, uint8_t SIZE> class NotifyingLockFreeQueue : public LockFreeQu
  private:
   TaskHandle_t task_to_notify_;
 };
+#endif
 
 }  // namespace esphome
-
-#endif  // defined(USE_ESP32)

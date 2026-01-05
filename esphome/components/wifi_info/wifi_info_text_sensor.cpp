@@ -103,8 +103,8 @@ void SSIDWiFiInfo::setup() { wifi::global_wifi_component->add_connect_state_list
 
 void SSIDWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "SSID", this); }
 
-void SSIDWiFiInfo::on_wifi_connect_state(const std::string &ssid, const wifi::bssid_t &bssid) {
-  this->publish_state(ssid);
+void SSIDWiFiInfo::on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) {
+  this->publish_state(ssid.str());
 }
 
 /****************
@@ -115,7 +115,7 @@ void BSSIDWiFiInfo::setup() { wifi::global_wifi_component->add_connect_state_lis
 
 void BSSIDWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "BSSID", this); }
 
-void BSSIDWiFiInfo::on_wifi_connect_state(const std::string &ssid, const wifi::bssid_t &bssid) {
+void BSSIDWiFiInfo::on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) {
   char buf[18] = "unknown";
   if (mac_address_is_valid(bssid.data())) {
     format_mac_addr_upper(bssid.data(), buf);

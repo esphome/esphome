@@ -13,11 +13,16 @@ static const uint16_t SERVICE_UUID = 0xADA0;
 static const uint8_t MANUFACTURER_DATA_LENGTH = 23;
 static const uint16_t MANUFACTURER_ID = 0x000D;
 
+// Maximum bytes to log in very verbose hex output
+static constexpr size_t MOPEKA_MAX_LOG_BYTES = 32;
+
 void MopekaStdCheck::dump_config() {
-  ESP_LOGCONFIG(TAG, "Mopeka Std Check");
-  ESP_LOGCONFIG(TAG, "  Propane Butane mix: %.0f%%", this->propane_butane_mix_ * 100);
-  ESP_LOGCONFIG(TAG, "  Tank distance empty: %" PRIi32 "mm", this->empty_mm_);
-  ESP_LOGCONFIG(TAG, "  Tank distance full: %" PRIi32 "mm", this->full_mm_);
+  ESP_LOGCONFIG(TAG,
+                "Mopeka Std Check\n"
+                "  Propane Butane mix: %.0f%%\n"
+                "  Tank distance empty: %" PRIi32 "mm\n"
+                "  Tank distance full: %" PRIi32 "mm",
+                this->propane_butane_mix_ * 100, this->empty_mm_, this->full_mm_);
   LOG_SENSOR("  ", "Level", this->level_);
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
@@ -60,7 +65,11 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 
   const auto &manu_data = manu_datas[0];
 
-  ESP_LOGVV(TAG, "[%s] Manufacturer data: %s", device.address_str().c_str(), format_hex_pretty(manu_data.data).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+  char hex_buf[format_hex_pretty_size(MOPEKA_MAX_LOG_BYTES)];
+#endif
+  ESP_LOGVV(TAG, "[%s] Manufacturer data: %s", device.address_str().c_str(),
+            format_hex_pretty_to(hex_buf, manu_data.data.data(), manu_data.data.size()));
 
   if (manu_data.data.size() != MANUFACTURER_DATA_LENGTH) {
     ESP_LOGE(TAG, "[%s] Unexpected manu_data size (%d)", device.address_str().c_str(), manu_data.data.size());

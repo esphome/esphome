@@ -2,9 +2,11 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/wifi/wifi_component.h"
 #ifdef USE_WIFI
+#include <span>
 namespace esphome::wifi_signal {
 
 #ifdef USE_WIFI_LISTENERS
@@ -28,7 +30,7 @@ class WiFiSignalSensor : public sensor::Sensor, public PollingComponent {
 
 #ifdef USE_WIFI_LISTENERS
   // WiFiConnectStateListener interface - update RSSI immediately on connect
-  void on_wifi_connect_state(const std::string &ssid, const wifi::bssid_t &bssid) override { this->update(); }
+  void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) override { this->update(); }
 #endif
 };
 
