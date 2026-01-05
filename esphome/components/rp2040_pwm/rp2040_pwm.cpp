@@ -36,9 +36,11 @@ void RP2040PWM::setup_pwm_() {
 }
 
 void RP2040PWM::dump_config() {
-  ESP_LOGCONFIG(TAG, "RP2040 PWM:");
+  ESP_LOGCONFIG(TAG,
+                "RP2040 PWM:\n"
+                "  Frequency: %.1f Hz",
+                this->frequency_);
   LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Frequency: %.1f Hz", this->frequency_);
   LOG_FLOAT_OUTPUT(this);
 }
 void HOT RP2040PWM::write_state(float state) {
