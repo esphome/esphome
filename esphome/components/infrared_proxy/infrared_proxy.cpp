@@ -117,17 +117,9 @@ bool InfraredProxyComponent::on_receive(remote_base::RemoteReceiveData data) {
   return false;  // Return false to allow other listeners to process the data
 }
 
-void InfraredProxyComponent::encode_data_(const api::InfraredProxyTimingParams &timing,
-                                          const std::vector<uint8_t> &data,
+void InfraredProxyComponent::encode_bits_(const api::InfraredProxyTimingParams &timing,
+                                          const std::vector<uint8_t> &data, uint32_t total_bits,
                                           remote_base::RemoteTransmitData *transmit_data) {
-  // Send header if specified
-  if (timing.header_high_us > 0 || timing.header_low_us > 0) {
-    transmit_data->item(timing.header_high_us, timing.header_low_us);
-  }
-
-  // Calculate total number of bits to send
-  uint32_t total_bits = timing.length_in_bits > 0 ? timing.length_in_bits : (data.size() * 8);
-
   // Encode data bits
   for (uint32_t bit_index = 0; bit_index < total_bits; bit_index++) {
     // Calculate byte and bit position
@@ -160,57 +152,45 @@ void InfraredProxyComponent::encode_data_(const api::InfraredProxyTimingParams &
       transmit_data->item(timing.zero_high_us, timing.zero_low_us);
     }
   }
+}
 
-  // Send footer if specified
+void InfraredProxyComponent::encode_data_(const api::InfraredProxyTimingParams &timing,
+                                          const std::vector<uint8_t> &data,
+                                          remote_base::RemoteTransmitData *transmit_data) {
+  // Calculate total number of bits to send (needed for repeats)
+  uint32_t total_bits = timing.length_in_bits > 0 ? timing.length_in_bits : (data.size() * 8);
+
+  // Send initial transmission
+  if (timing.header_high_us > 0 || timing.header_low_us > 0) {
+    transmit_data->item(timing.header_high_us, timing.header_low_us);
+  }
+
+  this->encode_bits_(timing, data, total_bits, transmit_data);
+
   if (timing.footer_high_us > 0 || timing.footer_low_us > 0) {
     transmit_data->item(timing.footer_high_us, timing.footer_low_us);
   }
 
   // Handle repeat transmissions
-  if (timing.repeat_count > 1) {
-    for (uint32_t repeat = 1; repeat < timing.repeat_count; repeat++) {
-      // Add minimum idle time between repeats
-      if (timing.minimum_idle_time_us > 0) {
-        transmit_data->space(timing.minimum_idle_time_us);
-      }
+  for (uint32_t repeat = 1; repeat < timing.repeat_count; repeat++) {
+    // Add minimum idle time between repeats
+    if (timing.minimum_idle_time_us > 0) {
+      transmit_data->space(timing.minimum_idle_time_us);
+    }
 
-      // Send repeat header if specified
-      if (timing.repeat_high_us > 0 || timing.repeat_low_us > 0) {
-        transmit_data->item(timing.repeat_high_us, timing.repeat_low_us);
-      } else if (timing.header_high_us > 0 || timing.header_low_us > 0) {
-        // If no repeat header specified, use the normal header
-        transmit_data->item(timing.header_high_us, timing.header_low_us);
-      }
+    // Send repeat header if specified, otherwise use normal header
+    if (timing.repeat_high_us > 0 || timing.repeat_low_us > 0) {
+      transmit_data->item(timing.repeat_high_us, timing.repeat_low_us);
+    } else if (timing.header_high_us > 0 || timing.header_low_us > 0) {
+      transmit_data->item(timing.header_high_us, timing.header_low_us);
+    }
 
-      // Re-encode data bits for repeat
-      for (uint32_t bit_index = 0; bit_index < total_bits; bit_index++) {
-        uint32_t byte_index;
-        uint32_t bit_position;
+    // Re-encode data bits for repeat
+    this->encode_bits_(timing, data, total_bits, transmit_data);
 
-        if (timing.msb_first) {
-          byte_index = bit_index / 8;
-          bit_position = 7 - (bit_index % 8);
-        } else {
-          byte_index = bit_index / 8;
-          bit_position = bit_index % 8;
-        }
-
-        if (byte_index >= data.size())
-          break;
-
-        bool bit_value = (data[byte_index] >> bit_position) & 0x01;
-
-        if (bit_value) {
-          transmit_data->item(timing.one_high_us, timing.one_low_us);
-        } else {
-          transmit_data->item(timing.zero_high_us, timing.zero_low_us);
-        }
-      }
-
-      // Send footer for repeat
-      if (timing.footer_high_us > 0 || timing.footer_low_us > 0) {
-        transmit_data->item(timing.footer_high_us, timing.footer_low_us);
-      }
+    // Send footer for repeat
+    if (timing.footer_high_us > 0 || timing.footer_low_us > 0) {
+      transmit_data->item(timing.footer_high_us, timing.footer_low_us);
     }
   }
 }

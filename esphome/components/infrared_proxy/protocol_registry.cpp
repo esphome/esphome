@@ -96,6 +96,7 @@ static bool parse_abbwelcome(JsonObject root, remote_base::RemoteTransmitData *d
       return false;
     }
     std::vector<uint8_t> data_vec;
+    data_vec.reserve(data_arr.size());
     for (JsonVariant item : data_arr) {
       data_vec.push_back(item.as<uint8_t>());
     }
@@ -120,6 +121,7 @@ static bool parse_aeha(JsonObject root, remote_base::RemoteTransmitData *dst) {
 
   remote_base::AEHAData data{};
   data.address = root["address"].as<uint16_t>();
+  data.data.reserve(data_arr.size());
   for (JsonVariant item : data_arr) {
     data.data.push_back(item.as<uint8_t>());
   }
@@ -280,6 +282,7 @@ static bool parse_haier(JsonObject root, remote_base::RemoteTransmitData *dst) {
 
   remote_base::HaierData data{};
   JsonArray code_arr = root["code"].as<JsonArray>();
+  data.data.reserve(code_arr.size());
   for (JsonVariant item : code_arr) {
     data.data.push_back(item.as<uint8_t>());
   }
@@ -354,6 +357,7 @@ static bool parse_midea(JsonObject root, remote_base::RemoteTransmitData *dst) {
   }
 
   std::vector<uint8_t> code_vec;
+  code_vec.reserve(code_arr.size());
   for (JsonVariant item : code_arr) {
     code_vec.push_back(item.as<uint8_t>());
   }
@@ -377,6 +381,7 @@ static bool parse_mirage(JsonObject root, remote_base::RemoteTransmitData *dst) 
   }
 
   remote_base::MirageData data{};
+  data.data.reserve(code_arr.size());
   for (JsonVariant item : code_arr) {
     data.data.push_back(item.as<uint8_t>());
   }
@@ -764,7 +769,7 @@ struct ProtocolParser {
 };
 
 // Protocol lookup table - sorted alphabetically for readability
-static const ProtocolParser PROTOCOL_PARSERS[] = {
+static constexpr ProtocolParser PROTOCOL_PARSERS[] = {
     {"abbwelcome", parse_abbwelcome},
     {"aeha", parse_aeha},
     {"beo4", parse_beo4},

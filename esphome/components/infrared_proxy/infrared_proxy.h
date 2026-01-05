@@ -78,6 +78,10 @@ class InfraredProxyComponent : public Component, public EntityBase, public remot
   /// Encode data bytes into raw timings based on timing parameters
   void encode_data_(const api::InfraredProxyTimingParams &timing, const std::vector<uint8_t> &data,
                     remote_base::RemoteTransmitData *transmit_data);
+
+  /// Encode data bits into timings (helper for encode_data_)
+  void encode_bits_(const api::InfraredProxyTimingParams &timing, const std::vector<uint8_t> &data, uint32_t total_bits,
+                    remote_base::RemoteTransmitData *transmit_data);
 #endif
 
   // Targeted RF frequency in kHz (Hz / 1000); 0 = infrared, non-zero = RF
