@@ -27,7 +27,9 @@ extern "C" {
 #define ESPHOME_ZB_AF_SIMPLE_DESC_TYPE(ep_name, in_num, out_num) \
   ESPHOME_CAT7(zb_af_simple_desc_, ep_name, _, in_num, _, out_num, _t)
 
+// TODO pass ZB_HA_SIMPLE_SENSOR_DEVICE_ID from python
 // needed to use ESPHOME_ZB_DECLARE_SIMPLE_DESC
+
 #define ESPHOME_ZB_ZCL_DECLARE_SIMPLE_DESC(ep_name, ep_id, in_clust_num, out_clust_num, ...) \
   ESPHOME_ZB_DECLARE_SIMPLE_DESC(ep_name, in_clust_num, out_clust_num); \
   ESPHOME_ZB_AF_SIMPLE_DESC_TYPE(ep_name, in_clust_num, out_clust_num) \
@@ -93,10 +95,10 @@ class ZigbeeComponent : public Component {
 class ZigbeeEntity {
  public:
   void set_parent(ZigbeeComponent *parent) { this->parent_ = parent; }
-  void set_end_point(zb_uint8_t end_point) { this->end_point_ = end_point; }
+  void set_endpoint(zb_uint8_t endpoint) { this->endpoint_ = endpoint; }
 
  protected:
-  zb_uint8_t end_point_{0};
+  zb_uint8_t endpoint_{0};
   ZigbeeComponent *parent_{nullptr};
 };
 

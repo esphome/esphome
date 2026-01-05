@@ -1,4 +1,5 @@
 from datetime import datetime
+import random
 
 from esphome import automation
 import esphome.codegen as cg
@@ -15,28 +16,43 @@ from esphome.types import ConfigType
 
 from .const_zephyr import (
     CONF_ON_JOIN,
+    CONF_POWER_SOURCE,
     CONF_WIPE_ON_BOOT,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_SENSOR,
     KEY_EP_NUMBER,
     KEY_ZIGBEE,
+    POWER_SOURCE,
     ZB_ZCL_BASIC_ATTRS_EXT_T,
+    ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
     ZB_ZCL_CLUSTER_ID_BASIC,
     ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
     ZB_ZCL_CLUSTER_ID_IDENTIFY,
     ZB_ZCL_IDENTIFY_ATTRS_T,
+    AnalogAttrs,
     BinaryAttrs,
     ZigbeeComponent,
     zigbee_ns,
 )
 
 ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
+ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
 
 zephyr_binary_sensor = cv.Schema(
     {
         cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
         cv.OnlyWith(CONF_ZIGBEE_BINARY_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
             ZigbeeBinarySensor
+        ),
+    }
+)
+
+zephyr_sensor = cv.Schema(
+    {
+        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
+        cv.OnlyWith(CONF_ZIGBEE_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
+            ZigbeeSensor
         ),
     }
 )
@@ -56,7 +72,10 @@ async def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("NET_UDP", False)
 
     if config[CONF_WIPE_ON_BOOT]:
-        cg.add_define("USE_ZIGBEE_WIPE_ON_BOOT")
+        magic_numer = 0
+        if config[CONF_WIPE_ON_BOOT] == "once":
+            magic_numer = random.randint(0x000001, 0xFFFFFF)
+        cg.add_define("USE_ZIGBEE_WIPE_ON_BOOT", magic_numer)
     var = cg.new_Pvariable(config[CONF_ID])
 
     if on_join_config := config.get(CONF_ON_JOIN):
@@ -85,7 +104,7 @@ async def _attr_to_code(config: ConfigType) -> None:
         ),
         zigbee_assign(
             basic_attrs.power_source,
-            cg.RawExpression("ZB_ZCL_BASIC_POWER_SOURCE_DC_SOURCE"),
+            cg.RawExpression(POWER_SOURCE[config[CONF_POWER_SOURCE]]),
         ),
         zigbee_set_string(basic_attrs.location_id, ""),
         zigbee_assign(
@@ -224,12 +243,19 @@ async def zephyr_setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> 
     CORE.add_job(_add_binary_sensor, entity, config)
 
 
-async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
+async def zephyr_setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
+    CORE.add_job(_add_sensor, entity, config)
+
+
+def _slot_index() -> int | None:
     # Find the next available endpoint slot
-    slot_index = next(
+    return next(
         (i for i, v in enumerate(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER]) if v == ""), None
     )
 
+
+async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
+    slot_index = _slot_index()
     # Create unique names for this sensor's variables based on slot index
     prefix = f"zigbee_ep{slot_index + 1}"
     attrs_name = f"{prefix}_binary_attrs"
@@ -259,7 +285,43 @@ async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ZIGBEE_BINARY_SENSOR], entity)
     await cg.register_component(var, config)
 
-    cg.add(var.set_end_point(slot_index + 1))
+    cg.add(var.set_endpoint(slot_index + 1))
     cg.add(var.set_cluster_attributes(binary_attrs))
+    hub = await cg.get_variable(config[CONF_ZIGBEE_ID])
+    cg.add(var.set_parent(hub))
+
+
+async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
+    slot_index = _slot_index()
+    # Create unique names for this sensor's variables based on slot index
+    prefix = f"zigbee_ep{slot_index + 1}"
+    attrs_name = f"{prefix}_binary_attrs"
+    attr_list_name = f"{prefix}_binary_input_attrib_list"
+    cluster_list_name = f"{prefix}_cluster_list"
+    ep_name = f"{prefix}_ep"
+
+    analog_attrs = zigbee_new_variable(attrs_name, AnalogAttrs)
+    attr_list = zigbee_new_attr_list(
+        attr_list_name,
+        "ESPHOME_ZB_ZCL_DECLARE_ANALOG_INPUT_ATTRIB_LIST",
+        zigbee_assign(analog_attrs.out_of_service, 0),
+        zigbee_assign(analog_attrs.present_value, 0),
+        zigbee_assign(analog_attrs.status_flags, 0),
+        zigbee_set_string(analog_attrs.description, config[CONF_NAME]),
+    )
+
+    # Create cluster list and register endpoint
+    cluster_list_name, clusters = zigbee_new_cluster_list(
+        cluster_list_name,
+        [ZigbeeClusterDesc(ZB_ZCL_CLUSTER_ID_ANALOG_INPUT, attr_list)],
+    )
+    zigbee_register_ep(ep_name, cluster_list_name, 2, clusters, slot_index)
+
+    # Create the ZigbeeSensor component
+    var = cg.new_Pvariable(config[CONF_ZIGBEE_SENSOR], entity)
+    await cg.register_component(var, config)
+
+    cg.add(var.set_endpoint(slot_index + 1))
+    cg.add(var.set_cluster_attributes(analog_attrs))
     hub = await cg.get_variable(config[CONF_ZIGBEE_ID])
     cg.add(var.set_parent(hub))

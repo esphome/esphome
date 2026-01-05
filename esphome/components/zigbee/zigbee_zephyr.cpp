@@ -138,9 +138,25 @@ void ZigbeeComponent::setup() {
   }
 
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
-  erase_flash_(FIXED_PARTITION_ID(ZBOSS_NVRAM));
-  erase_flash_(FIXED_PARTITION_ID(ZBOSS_PRODUCT_CONFIG));
-  erase_flash_(FIXED_PARTITION_ID(SETTINGS_STORAGE));
+  bool wipe = true;
+#if USE_ZIGBEE_WIPE_ON_BOOT
+  uint32_t hash = 88498616UL;
+  uint32_t wipe_value = 0;
+  auto wipe_pref = global_preferences->make_preference<uint32_t>(hash, true);
+  if (wipe_pref.load(&wipe_value)) {
+    wipe = wipe_value != USE_ZIGBEE_WIPE_ON_BOOT;
+    ESP_LOGD(TAG, "Wipe value in preferences %u, in firmware %u\n", wipe_value, USE_ZIGBEE_WIPE_ON_BOOT);
+  }
+#endif
+  if (wipe) {
+    erase_flash_(FIXED_PARTITION_ID(ZBOSS_NVRAM));
+    erase_flash_(FIXED_PARTITION_ID(ZBOSS_PRODUCT_CONFIG));
+    erase_flash_(FIXED_PARTITION_ID(SETTINGS_STORAGE));
+#if USE_ZIGBEE_WIPE_ON_BOOT
+    wipe_value = USE_ZIGBEE_WIPE_ON_BOOT;
+    wipe_pref.save(&wipe_value);
+#endif
+  }
 #endif
 
   ZB_ZCL_REGISTER_DEVICE_CB(zcl_device_cb);
@@ -152,15 +168,45 @@ void ZigbeeComponent::setup() {
   zigbee_enable();
 }
 
+static const char *role() {
+  switch (zb_get_network_role()) {
+    case ZB_NWK_DEVICE_TYPE_COORDINATOR:
+      return "coordinator";
+    case ZB_NWK_DEVICE_TYPE_ROUTER:
+      return "router";
+    case ZB_NWK_DEVICE_TYPE_ED:
+      return "end device";
+  }
+  return "unknown";
+}
+
 void ZigbeeComponent::dump_config() {
-  bool wipe = false;
+  ESP_LOGCONFIG(TAG, "Zigbee");
+  const char *wipe = "NO";
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
-  wipe = true;
+#if USE_ZIGBEE_WIPE_ON_BOOT
+  wipe = "ONCE";
+#else
+  wipe = "YES";
 #endif
-  ESP_LOGCONFIG(TAG,
-                "Zigbee\n"
-                "  Wipe on boot: %s",
-                YESNO(wipe));
+#endif
+  ESP_LOGCONFIG(TAG, "  Wipe on boot: %s", wipe);
+  ESP_LOGCONFIG(TAG, "  Device is joined to the network: %s", YESNO(zb_zdo_joined()));
+  ESP_LOGCONFIG(TAG, "  Current channel: %d", zb_get_current_channel());
+  ESP_LOGCONFIG(TAG, "  Current page: %d", zb_get_current_page());
+  ESP_LOGCONFIG(TAG, "  Sleep threshold: %ums", zb_get_sleep_threshold());
+  ESP_LOGCONFIG(TAG, "  Role: %s", role());
+  char ieee_addr_buf[IEEE_ADDR_BUF_SIZE] = {0};
+  zb_ieee_addr_t addr;
+  zb_get_long_address(addr);
+  ieee_addr_to_str(ieee_addr_buf, sizeof(ieee_addr_buf), addr);
+  ESP_LOGCONFIG(TAG, "  Long addr: 0x%s", ieee_addr_buf);
+  ESP_LOGCONFIG(TAG, "  Short addr: 0x%04X", zb_get_short_address());
+  zb_ext_pan_id_t extended_pan_id;
+  zb_get_extended_pan_id(extended_pan_id);
+  ieee_addr_to_str(ieee_addr_buf, sizeof(ieee_addr_buf), extended_pan_id);
+  ESP_LOGCONFIG(TAG, "  Long pan id: 0x%s", ieee_addr_buf);
+  ESP_LOGCONFIG(TAG, "  Short pan id: 0x%04X", zb_get_pan_id());
 }
 
 static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
