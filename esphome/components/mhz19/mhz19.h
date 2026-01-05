@@ -52,45 +52,26 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
   MHZ19DetectionRange detection_range_{MHZ19_DETECTION_RANGE_DEFAULT};
 };
 
-template<typename... Ts> class MHZ19CalibrateZeroAction : public Action<Ts...> {
+template<typename... Ts> class MHZ19CalibrateZeroAction : public Action<Ts...>, public Parented<MHZ19Component> {
  public:
-  MHZ19CalibrateZeroAction(MHZ19Component *mhz19) : mhz19_(mhz19) {}
-
-  void play(const Ts &...x) override { this->mhz19_->calibrate_zero(); }
-
- protected:
-  MHZ19Component *mhz19_;
+  void play(const Ts &...x) override { this->parent_->calibrate_zero(); }
 };
 
-template<typename... Ts> class MHZ19ABCEnableAction : public Action<Ts...> {
+template<typename... Ts> class MHZ19ABCEnableAction : public Action<Ts...>, public Parented<MHZ19Component> {
  public:
-  MHZ19ABCEnableAction(MHZ19Component *mhz19) : mhz19_(mhz19) {}
-
-  void play(const Ts &...x) override { this->mhz19_->abc_enable(); }
-
- protected:
-  MHZ19Component *mhz19_;
+  void play(const Ts &...x) override { this->parent_->abc_enable(); }
 };
 
-template<typename... Ts> class MHZ19ABCDisableAction : public Action<Ts...> {
+template<typename... Ts> class MHZ19ABCDisableAction : public Action<Ts...>, public Parented<MHZ19Component> {
  public:
-  MHZ19ABCDisableAction(MHZ19Component *mhz19) : mhz19_(mhz19) {}
-
-  void play(const Ts &...x) override { this->mhz19_->abc_disable(); }
-
- protected:
-  MHZ19Component *mhz19_;
+  void play(const Ts &...x) override { this->parent_->abc_disable(); }
 };
 
-template<typename... Ts> class MHZ19DetectionRangeSetAction : public Action<Ts...> {
+template<typename... Ts> class MHZ19DetectionRangeSetAction : public Action<Ts...>, public Parented<MHZ19Component> {
  public:
-  MHZ19DetectionRangeSetAction(MHZ19Component *mhz19) : mhz19_(mhz19) {}
   TEMPLATABLE_VALUE(MHZ19DetectionRange, detection_range)
 
-  void play(const Ts &...x) override { this->mhz19_->range_set(this->detection_range_.value(x...)); }
-
- protected:
-  MHZ19Component *mhz19_;
+  void play(const Ts &...x) override { this->parent_->range_set(this->detection_range_.value(x...)); }
 };
 
 }  // namespace mhz19
