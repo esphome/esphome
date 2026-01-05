@@ -1,5 +1,16 @@
 import esphome.codegen as cg
 
+DEVICE_TYPE = "device_type"
+ROLE = "role"
+CONF_NUM = "num"
+CONF_CLUSTERS = "clusters"
+CONF_ATTRIBUTES = "attributes"
+CONF_ENDPOINT = "endpoint"
+CONF_CLUSTER = "cluster"
+CONF_SCALE = "scale"
+CONF_ATTRIBUTE_ID = "attribute_id"
+KEY_BS_EP = "binary_sensor_ep"
+
 ha_standard_devices = cg.esphome_ns.enum("esp_zb_ha_standard_devices_t")
 DEVICE_ID = {
     "SIMPLE_SENSOR": ha_standard_devices.ESP_ZB_HA_SIMPLE_SENSOR_DEVICE_ID,

@@ -13,21 +13,23 @@ from esphome.cpp_generator import (
 )
 from esphome.types import ConfigType
 
-from .const_zephyr import (
+from .const import (
     CONF_ON_JOIN,
     CONF_WIPE_ON_BOOT,
+    KEY_ZIGBEE,
+    BinaryAttrs,
+    ZigbeeComponent,
+    zigbee_ns,
+)
+from .const_zephyr import (
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
     KEY_EP_NUMBER,
-    KEY_ZIGBEE,
     ZB_ZCL_BASIC_ATTRS_EXT_T,
     ZB_ZCL_CLUSTER_ID_BASIC,
     ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
     ZB_ZCL_CLUSTER_ID_IDENTIFY,
     ZB_ZCL_IDENTIFY_ATTRS_T,
-    BinaryAttrs,
-    ZigbeeComponent,
-    zigbee_ns,
 )
 
 ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)

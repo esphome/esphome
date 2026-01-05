@@ -1,17 +1,16 @@
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICE, CONF_ID, CONF_TYPE
 
-from .const import (
+from .const import CONF_REPORT, REPORT
+from .const_esp32 import (
+    CLUSTER_ROLE,
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
     CONF_NUM,
-    CONF_REPORT,
     DEVICE_TYPE,
-    REPORT,
     ROLE,
 )
-from .const_esp32 import CLUSTER_ROLE
 
 # endpoint configs:
 ep_configs = {

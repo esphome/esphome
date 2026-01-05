@@ -2,16 +2,12 @@ import copy
 import datetime
 import re
 
-from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
-    only_on_variant,
     require_vfs_select,
-    validate_custom_partition,
 )
-from esphome.components.esp32.const import VARIANT_ESP32C6, VARIANT_ESP32H2
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
@@ -27,24 +23,21 @@ from esphome.const import (
 from esphome.core import CORE
 import esphome.final_validate as fv
 
-from .const import (
+from .const import CONF_REPORT, CONF_ROUTER, KEY_ZIGBEE, REPORT, ZigbeeAttribute
+from .const_esp32 import (
+    ATTR_TYPE,
+    CLUSTER_ID,
+    CLUSTER_ROLE,
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
     CONF_NUM,
-    CONF_REPORT,
-    CONF_ROUTER,
     CONF_SCALE,
+    DEVICE_ID,
     DEVICE_TYPE,
     KEY_BS_EP,
-    KEY_ZIGBEE,
-    REPORT,
     ROLE,
-    FactoryResetAction,
-    ZigbeeAttribute,
-    ZigbeeComponent,
 )
-from .const_esp32 import ATTR_TYPE, CLUSTER_ID, CLUSTER_ROLE, DEVICE_ID
 from .zigbee_ep_esp32 import create_ep, ep_configs
 
 
@@ -90,18 +83,13 @@ def validate_attributes(config):
     return config
 
 
-def final_validate(config):
+def final_validate_esp32(config):
     if CONF_WIFI in fv.full_config.get() and CONF_AP in fv.full_config.get()[CONF_WIFI]:
         raise cv.Invalid("Zigbee can't be used together with a Wifi Access Point.")
     return config
 
 
-FINAL_VALIDATE_SCHEMA = cv.Schema(final_validate)
-
-
-def validate_binary_sensor(config):
-    if "zigbee" not in CORE.loaded_integrations:
-        return config
+def validate_binary_sensor_esp32(config):
     if (CONF_NAME in config) and not config.get(CONF_INTERNAL):
         ep = copy.deepcopy(ep_configs["binary_input"])
         for cl in ep.get(CONF_CLUSTERS, []):
@@ -131,40 +119,12 @@ def validate_binary_sensor(config):
     return config
 
 
-BINARY_SENSOR_SCHEMA = {
-    cv.Optional(CONF_REPORT): cv.All(
-        cv.requires_component("zigbee"),
-        cv.enum(REPORT, lower=True),
-    )
-}
-
-
-def _require_vfs_select(config):
+def zigbee_require_vfs_select(config):
     """Register VFS select requirement during config validation."""
     # Zigbee uses esp_vfs_eventfd which requires VFS select support
-    require_vfs_select()
+    if CORE.is_esp32:
+        require_vfs_select()
     return config
-
-
-CONFIG_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(ZigbeeComponent),
-            cv.Optional(CONF_NAME): cv.string,
-            cv.Optional(CONF_ROUTER, default=False): cv.boolean,
-        }
-    ).extend(cv.COMPONENT_SCHEMA),
-    validate_custom_partition("zb_storage", "data", "fat", 0x4000),
-    validate_custom_partition("zb_fct", "data", "fat", 0x400),
-    cv.require_framework_version(esp_idf=cv.Version(5, 1, 2)),
-    only_on_variant(
-        supported=[
-            VARIANT_ESP32H2,
-            VARIANT_ESP32C6,
-        ]
-    ),
-    _require_vfs_select,
-)
 
 
 async def attributes_to_code(var, ep_num, cl):
@@ -192,15 +152,14 @@ async def attributes_to_code(var, ep_num, cl):
             cg.add(attr_var.connect(template_arg, device))
 
 
-async def to_code(config):
-    cg.add_define("USE_ZIGBEE")
+async def esp32_to_code(config):
     add_idf_component(
         name="espressif/esp-zboss-lib",
         ref="1.6.4",
     )
     add_idf_component(
         name="espressif/esp-zigbee-lib",
-        ref="1.6.7",
+        ref="1.6.8",
     )
     add_idf_sdkconfig_option("CONFIG_ZB_ENABLED", True)
     if config.get(CONF_ROUTER):
@@ -243,21 +202,3 @@ async def to_code(config):
                 )
             )
             await attributes_to_code(var, ep[CONF_NUM], cl)
-
-
-ZIGBEE_ACTION_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.use_id(ZigbeeComponent),
-    }
-)
-
-
-@automation.register_action(
-    "zigbee.factory_reset",
-    FactoryResetAction,
-    automation.maybe_simple_id(ZIGBEE_ACTION_SCHEMA),
-)
-async def reset_zigbee_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

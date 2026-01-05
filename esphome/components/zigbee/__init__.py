@@ -2,23 +2,35 @@ from typing import Any
 
 from esphome import automation, core
 import esphome.codegen as cg
+from esphome.components.esp32 import only_on_variant, validate_custom_partition
+from esphome.components.esp32.const import (
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+)
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG, Section
 from esphome.components.zephyr import zephyr_add_pm_static, zephyr_data
 from esphome.components.zephyr.const import KEY_BOOTLOADER
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INTERNAL
+from esphome.const import CONF_ID, CONF_INTERNAL, CONF_NAME
 from esphome.core import CORE
 from esphome.types import ConfigType
 
-from .const_zephyr import (
-    CONF_MAX_EP_NUMBER,
+from .const import (
     CONF_ON_JOIN,
+    CONF_REPORT,
+    CONF_ROUTER,
     CONF_WIPE_ON_BOOT,
-    CONF_ZIGBEE_ID,
-    KEY_EP_NUMBER,
     KEY_ZIGBEE,
+    REPORT,
     ZigbeeComponent,
     zigbee_ns,
+)
+from .const_zephyr import CONF_MAX_EP_NUMBER, CONF_ZIGBEE_ID, KEY_EP_NUMBER
+from .zigbee_esp32 import (
+    final_validate_esp32,
+    validate_binary_sensor_esp32,
+    zigbee_require_vfs_select,
 )
 from .zigbee_zephyr import zephyr_binary_sensor
 
@@ -26,7 +38,7 @@ CODEOWNERS = ["@luar123", "@tomaszduda23"]
 
 
 def zigbee_set_core_data(config: ConfigType) -> ConfigType:
-    if zephyr_data()[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
+    if CORE.is_nrf52 and zephyr_data()[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
         zephyr_add_pm_static(
             [Section("empty_after_zboss_offset", 0xF4000, 0xC000, "flash_primary")]
         )
@@ -34,38 +46,71 @@ def zigbee_set_core_data(config: ConfigType) -> ConfigType:
     return config
 
 
-BINARY_SENSOR_SCHEMA = cv.Schema({}).extend(zephyr_binary_sensor)
+BINARY_SENSOR_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_REPORT): cv.All(
+            cv.requires_component("zigbee"),
+            cv.requires_component("esp32"),
+            cv.enum(REPORT, lower=True),
+        )
+    }
+).extend(zephyr_binary_sensor)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(ZigbeeComponent),
-            cv.Optional(CONF_ON_JOIN): automation.validate_automation(single=True),
-            cv.Optional(CONF_WIPE_ON_BOOT, default=False): cv.All(
+            cv.Optional(CONF_NAME): cv.All(
+                cv.requires_component("esp32"),
+                cv.string,
+            ),
+            cv.OnlyWith(CONF_ROUTER, "esp32", default=False): cv.All(
+                cv.requires_component("esp32"),
+                cv.boolean,
+            ),
+            cv.Optional(CONF_ON_JOIN): cv.All(
+                cv.requires_component("nrf52"),
+                automation.validate_automation(single=True),
+            ),
+            cv.OnlyWith(CONF_WIPE_ON_BOOT, "nrf52", default=False): cv.All(
                 cv.boolean,
                 cv.requires_component("nrf52"),
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    validate_custom_partition("zb_storage", "data", "fat", 0x4000),
+    validate_custom_partition("zb_fct", "data", "fat", 0x400),
+    zigbee_require_vfs_select,
     zigbee_set_core_data,
-    cv.only_with_framework("zephyr"),
+    cv.Any(
+        only_on_variant(
+            supported=[
+                VARIANT_ESP32H2,
+                VARIANT_ESP32C5,
+                VARIANT_ESP32C6,
+            ]
+        ),
+        cv.only_with_framework("zephyr"),
+    ),
 )
 
 
 def validate_number_of_ep(config: ConfigType) -> None:
-    if KEY_ZIGBEE not in CORE.data:
-        raise cv.Invalid("At least one zigbee device need to be included")
-    count = len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])
-    if count == 1:
-        raise cv.Invalid(
-            "Single endpoint is not supported https://github.com/Koenkk/zigbee2mqtt/issues/29888"
-        )
-    if count > CONF_MAX_EP_NUMBER:
-        raise cv.Invalid(f"Maximum number of end points is {CONF_MAX_EP_NUMBER}")
+    if CORE.is_nrf52:
+        if KEY_ZIGBEE not in CORE.data:
+            raise cv.Invalid("At least one zigbee device need to be included")
+        count = len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])
+        if count == 1:
+            raise cv.Invalid(
+                "Single endpoint is not supported https://github.com/Koenkk/zigbee2mqtt/issues/29888"
+            )
+        if count > CONF_MAX_EP_NUMBER:
+            raise cv.Invalid(f"Maximum number of end points is {CONF_MAX_EP_NUMBER}")
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(
     validate_number_of_ep,
+    final_validate_esp32,
 )
 
 
@@ -75,6 +120,10 @@ async def to_code(config: ConfigType) -> None:
         from .zigbee_zephyr import zephyr_to_code
 
         await zephyr_to_code(config)
+    if CORE.is_esp32:
+        from .zigbee_esp32 import esp32_to_code
+
+        await esp32_to_code(config)
 
 
 async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
@@ -87,6 +136,10 @@ async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 def validate_binary_sensor(config: ConfigType) -> ConfigType:
+    if "zigbee" not in CORE.loaded_integrations:
+        return config
+    if CORE.is_esp32:
+        return validate_binary_sensor_esp32(config)
     if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
         return config
     data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
