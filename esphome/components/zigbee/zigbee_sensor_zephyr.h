@@ -9,11 +9,16 @@ extern "C" {
 #include <zboss_api_addons.h>
 }
 
+// workaround to bypass ZHA check
+// https://github.com/zigpy/zha/blob/cf2133e2ea09b82c111ab6db1eb9e09d5b85b8b7/zha/application/platforms/sensor/__init__.py#L624-L629
+static const uint32_t ApplicationType = (0x0C << 16) + 0xFFFF;
+
 enum {
   ZB_ZCL_ATTR_ANALOG_INPUT_DESCRIPTION_ID = 0x001C,
   ZB_ZCL_ATTR_ANALOG_INPUT_OUT_OF_SERVICE_ID = 0x0051,
   ZB_ZCL_ATTR_ANALOG_INPUT_PRESENT_VALUE_ID = 0x0055,
   ZB_ZCL_ATTR_ANALOG_INPUT_STATUS_FLAG_ID = 0x006F,
+  ZB_ZCL_ATTR_ANALOG_INPUT_APPLICATION_TYPE_ID = 0x0100,
 };
 
 #define ZB_ZCL_ANALOG_INPUT_CLUSTER_REVISION_DEFAULT ((zb_uint16_t) 0x0001u)
@@ -45,6 +50,12 @@ enum {
         (void *) (data_ptr) \
   }
 
+#define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_ANALOG_INPUT_APPLICATION_TYPE_ID(data_ptr) \
+  { \
+    ZB_ZCL_ATTR_ANALOG_INPUT_APPLICATION_TYPE_ID, ZB_ZCL_ATTR_TYPE_U32, ZB_ZCL_ATTR_ACCESS_READ_ONLY, \
+        (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), (void *) (data_ptr) \
+  }
+
 #define ESPHOME_ZB_ZCL_DECLARE_ANALOG_INPUT_ATTRIB_LIST(attr_list, out_of_service, present_value, status_flag, \
                                                         description) \
   ZB_ZCL_START_DECLARE_ATTRIB_LIST_CLUSTER_REVISION(attr_list, ZB_ZCL_ANALOG_INPUT) \
@@ -52,6 +63,7 @@ enum {
   ZB_ZCL_SET_ATTR_DESC(ZB_ZCL_ATTR_ANALOG_INPUT_PRESENT_VALUE_ID, (present_value)) \
   ZB_ZCL_SET_ATTR_DESC(ZB_ZCL_ATTR_ANALOG_INPUT_STATUS_FLAG_ID, (status_flag)) \
   ZB_ZCL_SET_ATTR_DESC(ZB_ZCL_ATTR_ANALOG_INPUT_DESCRIPTION_ID, (description)) \
+  ZB_ZCL_SET_ATTR_DESC(ZB_ZCL_ATTR_ANALOG_INPUT_APPLICATION_TYPE_ID, (&ApplicationType)) \
   ZB_ZCL_FINISH_DECLARE_ATTRIB_LIST
 
 void zb_zcl_analog_input_init_server();
