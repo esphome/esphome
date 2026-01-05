@@ -4,10 +4,83 @@
 #ifdef USE_ESP32_BLE_UUID
 
 #include <cstring>
+#include <cstdio>
+#include <cinttypes>
+#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::esp32_ble {
 
+static const char *const TAG = "esp32_ble";
+
+ESPBTUUID::ESPBTUUID() : uuid_() {}
+ESPBTUUID ESPBTUUID::from_uint16(uint16_t uuid) {
+  ESPBTUUID ret;
+  ret.uuid_.len = ESP_UUID_LEN_16;
+  ret.uuid_.uuid.uuid16 = uuid;
+  return ret;
+}
+ESPBTUUID ESPBTUUID::from_uint32(uint32_t uuid) {
+  ESPBTUUID ret;
+  ret.uuid_.len = ESP_UUID_LEN_32;
+  ret.uuid_.uuid.uuid32 = uuid;
+  return ret;
+}
+ESPBTUUID ESPBTUUID::from_raw(const uint8_t *data) {
+  ESPBTUUID ret;
+  ret.uuid_.len = ESP_UUID_LEN_128;
+  memcpy(ret.uuid_.uuid.uuid128, data, ESP_UUID_LEN_128);
+  return ret;
+}
+ESPBTUUID ESPBTUUID::from_raw_reversed(const uint8_t *data) {
+  ESPBTUUID ret;
+  ret.uuid_.len = ESP_UUID_LEN_128;
+  for (uint8_t i = 0; i < ESP_UUID_LEN_128; i++)
+    ret.uuid_.uuid.uuid128[ESP_UUID_LEN_128 - 1 - i] = data[i];
+  return ret;
+}
+ESPBTUUID ESPBTUUID::from_raw(const char *data, size_t length) {
+  ESPBTUUID ret;
+  if (length == 4) {
+    // 16-bit UUID as 4-character hex string
+    auto parsed = parse_hex<uint16_t>(data, length);
+    if (parsed.has_value()) {
+      ret.uuid_.len = ESP_UUID_LEN_16;
+      ret.uuid_.uuid.uuid16 = parsed.value();
+    }
+  } else if (length == 8) {
+    // 32-bit UUID as 8-character hex string
+    auto parsed = parse_hex<uint32_t>(data, length);
+    if (parsed.has_value()) {
+      ret.uuid_.len = ESP_UUID_LEN_32;
+      ret.uuid_.uuid.uuid32 = parsed.value();
+    }
+  } else if (length == 16) {  // how we can have 16 byte length string reprezenting 128 bit uuid??? needs to be
+                              // investigated (lack of time)
+    ret.uuid_.len = ESP_UUID_LEN_128;
+    memcpy(ret.uuid_.uuid.uuid128, reinterpret_cast<const uint8_t *>(data), 16);
+  } else if (length == 36) {
+    // If the length of the string is 36 bytes then we will assume it is a long hex string in
+    // UUID format.
+    ret.uuid_.len = ESP_UUID_LEN_128;
+    int n = 0;
+    for (size_t i = 0; i < length; i += 2) {
+      if (data[i] == '-')
+        i++;
+      uint8_t msb = data[i];
+      uint8_t lsb = data[i + 1];
+
+      if (msb > '9')
+        msb -= 7;
+      if (lsb > '9')
+        lsb -= 7;
+      ret.uuid_.uuid.uuid128[15 - n++] = ((msb & 0x0F) << 4) | (lsb & 0x0F);
+    }
+  } else {
+    ESP_LOGE(TAG, "ERROR: UUID value not 2, 4, 16 or 36 bytes - %s", data);
+  }
+  return ret;
+}
 ESPBTUUID ESPBTUUID::from_uuid(esp_bt_uuid_t uuid) {
   ESPBTUUID ret;
   ret.uuid_.len = uuid.len;
