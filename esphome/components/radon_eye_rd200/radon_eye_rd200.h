@@ -28,11 +28,7 @@ class RadonEyeRD200 : public PollingComponent, public ble_client::BLEClientNode 
   void set_radon_long_term(sensor::Sensor *radon_long_term) { radon_long_term_sensor_ = radon_long_term; }
 
  protected:
-  bool is_valid_radon_value_(float radon);
-
   void read_sensors_(uint8_t *value, uint16_t value_len);
-  void write_query_message_();
-  void request_read_values_();
 
   sensor::Sensor *radon_sensor_{nullptr};
   sensor::Sensor *radon_long_term_sensor_{nullptr};

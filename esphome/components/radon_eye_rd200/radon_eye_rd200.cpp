@@ -1,5 +1,7 @@
 #include "radon_eye_rd200.h"
 
+#include <cstring>
+
 #ifdef USE_ESP32
 
 namespace esphome {
@@ -138,27 +140,40 @@ void RadonEyeRD200::read_sensors_(uint8_t *value, uint16_t value_len) {
   float radon_day;    // in Bq/m³
   float radon_month;  // in Bq/m³
   if (command == WRITE_COMMAND_V1) {
-    radon_now = *(float *) (value + 2) * convert_to_bwpm3;
-    radon_day = *(float *) (value + 6) * convert_to_bwpm3;
-    radon_month = *(float *) (value + 10) * convert_to_bwpm3;
+    // Use memcpy to avoid unaligned memory access
+    float temp;
+    memcpy(&temp, value + 2, sizeof(float));
+    radon_now = temp * convert_to_bwpm3;
+    memcpy(&temp, value + 6, sizeof(float));
+    radon_day = temp * convert_to_bwpm3;
+    memcpy(&temp, value + 10, sizeof(float));
+    radon_month = temp * convert_to_bwpm3;
   } else if (command == WRITE_COMMAND_V2) {
-    radon_now = *(uint16_t *) (value + 33);
-    radon_day = *(uint16_t *) (value + 35);
-    radon_month = *(uint16_t *) (value + 37);
+    // Use memcpy to avoid unaligned memory access
+    uint16_t temp;
+    memcpy(&temp, value + 33, sizeof(uint16_t));
+    radon_now = temp;
+    memcpy(&temp, value + 35, sizeof(uint16_t));
+    radon_day = temp;
+    memcpy(&temp, value + 37, sizeof(uint16_t));
+    radon_month = temp;
   } else {
     ESP_LOGW(TAG, "Unexpected command value: 0x%02X", command);
     return;
   }
 
-  ESP_LOGV(TAG, "Radon now");
-  radon_sensor_->publish_state(radon_now);
+  if (this->radon_sensor_ != nullptr) {
+    this->radon_sensor_->publish_state(radon_now);
+  }
 
-  if (radon_month > 0) {
-    ESP_LOGV(TAG, "Radon Long Term based on month");
-    radon_long_term_sensor_->publish_state(radon_month);
-  } else {
-    ESP_LOGV(TAG, "Radon Long Term based on day");
-    radon_long_term_sensor_->publish_state(radon_day);
+  if (this->radon_long_term_sensor_ != nullptr) {
+    if (radon_month > 0) {
+      ESP_LOGV(TAG, "Radon Long Term based on month");
+      this->radon_long_term_sensor_->publish_state(radon_month);
+    } else {
+      ESP_LOGV(TAG, "Radon Long Term based on day");
+      this->radon_long_term_sensor_->publish_state(radon_day);
+    }
   }
 
   ESP_LOGV(TAG,
