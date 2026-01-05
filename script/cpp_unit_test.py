@@ -10,6 +10,7 @@ from helpers import get_all_components, get_all_dependencies, root_path
 
 from esphome.__main__ import command_compile, parse_args
 from esphome.config import validate_config
+from esphome.const import CONF_PLATFORM
 from esphome.core import CORE
 from esphome.platformio_api import get_idedata
 
@@ -34,7 +35,11 @@ def filter_components_without_tests(components: list[str]) -> list[str]:
     filtered_components: list[str] = []
     for component in components:
         test_dir = COMPONENTS_TESTS_DIR / component
-        if test_dir.is_dir() and any(test_dir.glob("*.cpp")):
+        if (
+            test_dir.is_dir()
+            and any(test_dir.glob("*.cpp"))
+            or any(test_dir.glob("*.h"))
+        ):
             filtered_components.append(component)
         else:
             print(
@@ -79,6 +84,18 @@ def create_test_config(config_name: str, includes: list[str]) -> dict:
     }
 
 
+def add_platform_components(config: dict, components: list[str]) -> None:
+    for component in components:
+        test_dir = COMPONENTS_TESTS_DIR / component
+        if test_dir.is_dir():
+            # Iterate all folders in test_dir
+            for platform_dir in test_dir.iterdir():
+                if platform_dir.is_dir():
+                    platform = platform_dir.name
+                    platform_component = config.setdefault(platform, [])
+                    platform_component.append({CONF_PLATFORM: component})
+
+
 def run_tests(selected_components: list[str]) -> int:
     # Skip tests on Windows
     if os.name == "nt":
@@ -112,6 +129,7 @@ def run_tests(selected_components: list[str]) -> int:
 
     CORE.config_path = COMPONENTS_TESTS_DIR / "dummy.yaml"
     CORE.dashboard = None
+    CORE.cpp_testing = True
 
     # Validate config will expand the above with defaults:
     config = validate_config(config, {})
@@ -119,6 +137,7 @@ def run_tests(selected_components: list[str]) -> int:
     # Add all components and dependencies to the base configuration after validation, so their files
     # are added to the build.
     config.update({key: {} for key in components_with_dependencies})
+    add_platform_components(config, components)
 
     print(f"Testing components: {', '.join(components)}")
     CORE.config = config

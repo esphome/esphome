@@ -71,6 +71,11 @@ class ComponentManifest:
 
     @property
     def to_code(self) -> Callable[[Any], None] | None:
+        # Return to_code_testing if compiling for C++ tests
+        # Most components don't need to emit code during tests so they
+        # don't need to define to_code_testing
+        if CORE.cpp_testing:
+            return getattr(self.module, "to_code_testing", None)
         return getattr(self.module, "to_code", None)
 
     @property
