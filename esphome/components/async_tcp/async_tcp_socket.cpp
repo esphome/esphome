@@ -11,6 +11,10 @@ namespace esphome::async_tcp {
 
 static const char *const TAG = "async_tcp";
 
+// Read buffer size matches TCP MSS (1500 MTU - 40 bytes IP/TCP headers).
+// This implementation only runs on ESP-IDF and host which have ample stack.
+static constexpr size_t READ_BUFFER_SIZE = 1460;
+
 bool AsyncClient::connect(const char *host, uint16_t port) {
   if (connected_ || connecting_) {
     ESP_LOGW(TAG, "Already connected/connecting");
@@ -134,8 +138,8 @@ void AsyncClient::loop() {
     if (!socket_->ready())
       return;
 
-    uint8_t buf[512];
-    ssize_t len = socket_->read(buf, sizeof(buf));
+    uint8_t buf[READ_BUFFER_SIZE];
+    ssize_t len = socket_->read(buf, READ_BUFFER_SIZE);
 
     if (len == 0) {
       ESP_LOGI(TAG, "Connection closed by peer");
