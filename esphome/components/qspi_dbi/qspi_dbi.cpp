@@ -220,7 +220,7 @@ void QspiDbi::dump_config() {
                 "  Height: %u\n"
                 "  Width: %u\n"
                 "  Draw rounding: %u\n"
-                "  SPI Data rate: %dMHz",
+                "  SPI Data rate: %uMHz",
                 this->height_, this->width_, this->draw_rounding_, (unsigned) (this->data_rate_ / 1000000));
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
