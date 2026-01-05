@@ -120,8 +120,8 @@ void OpenThreadComponent::ot_main() {
     // Make sure the length is 0 so we fallback to the configuration
     dataset.mLength = 0;
   } else {
-    ESP_LOGI(TAG, "Found OpenThread-managed dataset, ignoring esphome configuration");
-    ESP_LOGI(TAG, "(set force_dataset: true to override)");
+    ESP_LOGI(TAG, "Found OpenThread-managed dataset, ignoring esphome configuration\n"
+                  "(set force_dataset: true to override)");
   }
 #endif
 

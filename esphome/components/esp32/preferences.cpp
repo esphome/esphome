@@ -23,9 +23,11 @@ struct NVSData {
   size_t len;
 
   void set_data(const uint8_t *src, size_t size) {
-    this->data = std::make_unique<uint8_t[]>(size);
+    if (!this->data || this->len != size) {
+      this->data = std::make_unique<uint8_t[]>(size);
+      this->len = size;
+    }
     memcpy(this->data.get(), src, size);
-    this->len = size;
   }
 };
 
