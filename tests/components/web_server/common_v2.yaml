@@ -4,3 +4,5 @@ packages:
 web_server:
   port: 8080
   version: 2
+  local: true
+  compression: br
