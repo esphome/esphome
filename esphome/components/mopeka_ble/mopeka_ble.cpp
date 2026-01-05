@@ -62,7 +62,8 @@ bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     const bool sync_button_pressed = (manu_data.data[3] & 0x80) != 0;
 
     if (this->show_sensors_without_sync_ || sync_button_pressed) {
-      ESP_LOGI(TAG, "MOPEKA STD (CC2540) SENSOR FOUND: %s", device.address_str().c_str());
+      char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      ESP_LOGI(TAG, "MOPEKA STD (CC2540) SENSOR FOUND: %s", device.address_str_to(addr_buf));
     }
 
     // Is the device maybe a Mopeka Pro (NRF52) sensor.
@@ -78,7 +79,8 @@ bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     const bool sync_button_pressed = (manu_data.data[2] & 0x80) != 0;
 
     if (this->show_sensors_without_sync_ || sync_button_pressed) {
-      ESP_LOGI(TAG, "MOPEKA PRO (NRF52) SENSOR FOUND: %s", device.address_str().c_str());
+      char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      ESP_LOGI(TAG, "MOPEKA PRO (NRF52) SENSOR FOUND: %s", device.address_str_to(addr_buf));
     }
   }
 

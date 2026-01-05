@@ -31,7 +31,9 @@ class ESPBTUUID {
   static ESPBTUUID from_raw(const char *data, size_t length);
   static ESPBTUUID from_raw(const char *data) { return from_raw(data, strlen(data)); }
   static ESPBTUUID from_raw(const std::string &data) { return from_raw(data.c_str(), data.length()); }
-  static ESPBTUUID from_raw(std::initializer_list<char> data) { return from_raw(data.begin(), data.size()); }
+  static ESPBTUUID from_raw(std::initializer_list<uint8_t> data) {
+    return from_raw(reinterpret_cast<const char *>(data.begin()), data.size());
+  }
 
   static ESPBTUUID from_uuid(esp_bt_uuid_t uuid);
 
