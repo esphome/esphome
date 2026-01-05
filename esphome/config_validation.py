@@ -71,6 +71,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
     VALID_SUBSTITUTIONS_CHARACTERS,
@@ -696,7 +697,16 @@ only_on_esp32 = only_on(PLATFORM_ESP32)
 only_on_esp8266 = only_on(PLATFORM_ESP8266)
 only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework(Framework.ARDUINO)
-only_with_esp_idf = only_with_framework(Framework.ESP_IDF)
+
+
+def only_with_esp_idf(obj):
+    """Deprecated: use only_on_esp32 instead."""
+    _LOGGER.warning(
+        "cv.only_with_esp_idf was deprecated in 2026.1, will change behavior in 2026.6. "
+        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
+        "Use cv.only_on_esp32 and/or cv.only_with_arduino instead."
+    )
+    return only_with_framework(Framework.ESP_IDF)(obj)
 
 
 # Adapted from:
@@ -894,7 +904,7 @@ def time_period_in_minutes_(value):
 
 def update_interval(value):
     if value == "never":
-        return 4294967295  # uint32_t max
+        return TimePeriodMilliseconds(milliseconds=SCHEDULER_DONT_RUN)
     return positive_time_period_milliseconds(value)
 
 
@@ -1971,6 +1981,26 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
 )
 
 
+def _validate_no_slash(value):
+    """Validate that a name does not contain '/' characters.
+
+    The '/' character is used as a path separator in web server URLs,
+    so it cannot be used in entity or device names.
+    """
+    if "/" in value:
+        raise Invalid(
+            f"Name cannot contain '/' character (used as URL path separator): {value}"
+        )
+    return value
+
+
+# Maximum length for entity, device, and area names
+# This ensures web server URL IDs fit in a 280-byte buffer:
+# domain(20) + "/" + device(120) + "/" + name(120) + null = 263 bytes
+# Note: Must be < 255 because web_server UrlMatch uses uint8_t for length fields
+NAME_MAX_LENGTH = 120
+
+
 def _validate_entity_name(value):
     value = string(value)
     try:
@@ -1981,7 +2011,26 @@ def _validate_entity_name(value):
         requires_friendly_name(
             "Name cannot be None when esphome->friendly_name is not set!"
         )(value)
+    if value is not None:
+        # Validate length for web server URL compatibility
+        if len(value) > NAME_MAX_LENGTH:
+            raise Invalid(
+                f"Name is too long ({len(value)} chars). "
+                f"Maximum length is {NAME_MAX_LENGTH} characters."
+            )
+        # Validate no '/' in name for web server URL compatibility
+        _validate_no_slash(value)
     return value
+
+
+def string_no_slash(value):
+    """Validate a string that cannot contain '/' characters.
+
+    Used for device and area names where '/' is reserved as a URL path separator.
+    Use with cv.Length() to also enforce maximum length.
+    """
+    value = string(value)
+    return _validate_no_slash(value)
 
 
 ENTITY_BASE_SCHEMA = Schema(
@@ -2009,7 +2058,7 @@ def polling_component_schema(default_update_interval):
     if default_update_interval is None:
         return COMPONENT_SCHEMA.extend(
             {
-                Required(CONF_UPDATE_INTERVAL): default_update_interval,
+                Required(CONF_UPDATE_INTERVAL): update_interval,
             }
         )
     assert isinstance(default_update_interval, str)
