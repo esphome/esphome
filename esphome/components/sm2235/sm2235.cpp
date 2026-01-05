@@ -16,7 +16,7 @@ void SM2235::setup() {
 
 void SM2235::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "sm2235:\n"
+                "SM2235:\n"
                 "  Color Channels Max Power: %u\n"
                 "  White Channels Max Power: %u",
                 this->max_power_color_channels_, this->max_power_white_channels_);
