@@ -140,7 +140,7 @@ void CC1101Component::setup() {
     this->write_(static_cast<Register>(i));
   }
   this->set_output_power(this->output_power_requested_);
-  this->strobe_(Command::RX);
+  this->enter_rx_();
 
   // Defer pin mode setup until after all components have completed setup()
   // This handles the case where remote_transmitter runs after CC1101 and changes pin mode
@@ -163,8 +163,7 @@ void CC1101Component::loop() {
     ESP_LOGW(TAG, "RX FIFO overflow, flushing");
     this->enter_idle_();
     this->strobe_(Command::FRX);
-    this->strobe_(Command::RX);
-    this->wait_for_state_(State::RX);
+    this->enter_rx_();
     return;
   }
 
@@ -181,8 +180,7 @@ void CC1101Component::loop() {
     ESP_LOGW(TAG, "Invalid packet: rx_bytes %u, payload_length %u", rx_bytes, payload_length);
     this->enter_idle_();
     this->strobe_(Command::FRX);
-    this->strobe_(Command::RX);
-    this->wait_for_state_(State::RX);
+    this->enter_rx_();
     return;
   }
   this->packet_.resize(payload_length);
@@ -201,8 +199,7 @@ void CC1101Component::loop() {
   // Return to rx
   this->enter_idle_();
   this->strobe_(Command::FRX);
-  this->strobe_(Command::RX);
-  this->wait_for_state_(State::RX);
+  this->enter_rx_();
 }
 
 void CC1101Component::dump_config() {
@@ -233,9 +230,8 @@ void CC1101Component::begin_tx() {
   if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->pin_mode(gpio::FLAG_OUTPUT);
   }
-  this->strobe_(Command::TX);
-  if (!this->wait_for_state_(State::TX, 50)) {
-    ESP_LOGW(TAG, "Timed out waiting for TX state!");
+  if (!this->enter_tx_()) {
+    ESP_LOGW(TAG, "Failed to enter TX state!");
   }
 }
 
@@ -244,7 +240,9 @@ void CC1101Component::begin_rx() {
   if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
   }
-  this->strobe_(Command::RX);
+  if (!this->enter_rx_()) {
+    ESP_LOGW(TAG, "Failed to enter RX state!");
+  }
 }
 
 void CC1101Component::reset() {
@@ -273,6 +271,46 @@ bool CC1101Component::wait_for_state_(State target_state, uint32_t timeout_ms) {
 void CC1101Component::enter_idle_() {
   this->strobe_(Command::IDLE);
   this->wait_for_state_(State::IDLE);
+}
+
+bool CC1101Component::enter_rx_() {
+  // From datasheet: "The user can read register FSCAL1. The PLL is in lock if the register
+  // content is different from 0x3F. The PLL must be recalibrated until PLL lock is achieved
+  // if the PLL does not lock the first time."
+  for (uint8_t retries = 3; retries > 0; retries--) {
+    this->strobe_(Command::RX);
+    if (!this->wait_for_state_(State::RX)) {
+      return false;
+    }
+    this->read_(Register::FSCAL1);
+    if ((this->state_.FSCAL1 & 0x3F) != 0x3F) {
+      return true;
+    }
+    ESP_LOGW(TAG, "PLL lock failed, retrying calibration");
+    this->enter_idle_();
+  }
+  ESP_LOGE(TAG, "PLL lock failed after retries");
+  return false;
+}
+
+bool CC1101Component::enter_tx_() {
+  // From datasheet: "The user can read register FSCAL1. The PLL is in lock if the register
+  // content is different from 0x3F. The PLL must be recalibrated until PLL lock is achieved
+  // if the PLL does not lock the first time."
+  for (uint8_t retries = 3; retries > 0; retries--) {
+    this->strobe_(Command::TX);
+    if (!this->wait_for_state_(State::TX)) {
+      return false;
+    }
+    this->read_(Register::FSCAL1);
+    if ((this->state_.FSCAL1 & 0x3F) != 0x3F) {
+      return true;
+    }
+    ESP_LOGW(TAG, "PLL lock failed, retrying calibration");
+    this->enter_idle_();
+  }
+  ESP_LOGE(TAG, "PLL lock failed after retries");
+  return false;
 }
 
 uint8_t CC1101Component::strobe_(Command cmd) {
@@ -337,17 +375,24 @@ CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet)
   }
   this->write_(Register::FIFO, packet.data(), packet.size());
   this->strobe_(Command::TX);
+  this->wait_for_state_(State::TX);
   if (!this->wait_for_state_(State::IDLE, 1000)) {
     ESP_LOGW(TAG, "TX timeout");
     this->enter_idle_();
-    this->strobe_(Command::RX);
-    this->wait_for_state_(State::RX);
+    this->enter_rx_();
     return CC1101Error::TIMEOUT;
   }
 
+  // Check if PLL was locked during TX
+  this->read_(Register::FSCAL1);
+  if ((this->state_.FSCAL1 & 0x3F) == 0x3F) {
+    ESP_LOGW(TAG, "PLL lock failed during TX");
+    this->enter_rx_();
+    return CC1101Error::PLL_LOCK;
+  }
+
   // Return to rx
-  this->strobe_(Command::RX);
-  this->wait_for_state_(State::RX);
+  this->enter_rx_();
   return CC1101Error::NONE;
 }
 
@@ -404,7 +449,7 @@ void CC1101Component::set_frequency(float value) {
     this->write_(Register::FREQ2);
     this->write_(Register::FREQ1);
     this->write_(Register::FREQ0);
-    this->strobe_(Command::RX);
+    this->enter_rx_();
   }
 }
 
@@ -431,7 +476,7 @@ void CC1101Component::set_channel(uint8_t value) {
   if (this->initialized_) {
     this->enter_idle_();
     this->write_(Register::CHANNR);
-    this->strobe_(Command::RX);
+    this->enter_rx_();
   }
 }
 
@@ -500,7 +545,7 @@ void CC1101Component::set_modulation_type(Modulation value) {
     this->set_output_power(this->output_power_requested_);
     this->write_(Register::MDMCFG2);
     this->write_(Register::FREND0);
-    this->strobe_(Command::RX);
+    this->enter_rx_();
   }
 }
 
