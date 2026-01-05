@@ -18,7 +18,6 @@ HUB75 displays are RGB LED matrix panels that use parallel row updating to creat
 - ESP32 (original)
 - ESP32-S2
 - ESP32-S3
-- ESP32-C6
 - ESP32-P4
 
 > [!WARNING]
@@ -94,9 +93,10 @@ Board presets automatically configure all pin mappings for popular HUB75 control
 **Available Board Presets:**
 
 - **`adafruit-matrix-portal-s3`** - Adafruit Matrix Portal S3
-- **`apollo-automation-m1-rev4`** - Apollo Automation M1 Rev 4
-- **`apollo-automation-m1-rev6`** - Apollo Automation M1 Rev 6
+- **`apollo-automation-m1-rev4`** - Apollo Automation M1 (Rev 4)
+- **`apollo-automation-m1-rev6`** - Apollo Automation M1 (Rev 6)
 - **`huidu-hd-wf2`** - Huidu HD-WF2
+- **`esp32-trinity`** - ESP32-Trinity
 
 ### Using a Board Preset
 
@@ -200,7 +200,7 @@ For creating larger displays by chaining multiple panels:
 ### Display Configuration (Optional)
 
 - **brightness** (*Optional*, int): Initial brightness level (0-255). Defaults to `128`.
-- **bit_depth** (*Optional*, int): Color bit depth (6-12). Higher values = better color accuracy but slower refresh. Defaults to `8`.
+- **bit_depth** (*Optional*, int): Color bit depth (4-12). Higher values = better color accuracy but slower refresh. Defaults to `8`.
 - **gamma_correct** (*Optional*, enum): Gamma correction mode. One of:
   - `LINEAR` - No gamma correction (raw values)
   - `CIE1931` - CIE 1931 perceptual curve (recommended for most displays)
@@ -417,7 +417,7 @@ display:
 
 ## Important Notes
 
-- **ESP32 support**: This component works with ESP32, ESP32-S2, ESP32-S3, ESP32-C6, and ESP32-P4. It does NOT work with ESP32-C3, ESP32-C2, or ESP32-H2.
+- **ESP32 support**: This component works with ESP32, ESP32-S2, ESP32-S3, and ESP32-P4. It does NOT work with ESP32-C3, ESP32-C2, ESP32-C6, or ESP32-H2.
 - **Memory limitations**: The DMA buffer can consume significant RAM. Larger displays or longer panel chains may not fit in available memory. ESP32-S3 with PSRAM is recommended for large installations.
 - **Board presets**: Using a board preset is the easiest way to get started. It automatically configures all pins correctly for popular hardware.
 - **Pin configuration**: If not using a board preset, all pins (except `e_pin`) must be specified manually. There are no default pin values.
