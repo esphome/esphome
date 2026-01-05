@@ -51,7 +51,7 @@ def _ota_final_validate(config):
         )
     if CORE.is_host:
         _LOGGER.warning(
-            r"OTA not available for platform 'host'. OTA functionality disabled."
+            "OTA not available for platform 'host'. OTA functionality disabled."
         )
 
 

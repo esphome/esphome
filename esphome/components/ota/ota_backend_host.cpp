@@ -3,8 +3,7 @@
 
 #include "esphome/core/defines.h"
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::HostOTABackend>(); }
 
@@ -18,6 +17,5 @@ OTAResponseTypes HostOTABackend::end() { return OTA_RESPONSE_ERROR_UPDATE_END; }
 
 void HostOTABackend::abort() {}
 
-}  // namespace ota
-}  // namespace esphome
+}  // namespace esphome::ota
 #endif

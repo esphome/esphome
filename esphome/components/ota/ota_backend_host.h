@@ -2,8 +2,7 @@
 #ifdef USE_HOST
 #include "ota_backend.h"
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 class HostOTABackend : public OTABackend {
  public:
@@ -15,6 +14,5 @@ class HostOTABackend : public OTABackend {
   bool supports_compression() override { return false; }
 };
 
-}  // namespace ota
-}  // namespace esphome
+}  // namespace esphome::ota
 #endif
