@@ -556,7 +556,7 @@ def _detect_variant(value):
     return value
 
 
-custom_partitions = {}
+KEY_CUSTOM_PARTITIONS = "custom_partitions"
 
 
 def final_validate(config):
@@ -614,12 +614,12 @@ def final_validate(config):
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
                 )
             )
-    if CONF_PARTITIONS in config and custom_partitions:
+    if CONF_PARTITIONS in config and KEY_CUSTOM_PARTITIONS in CORE.data:
         with open(
             CORE.relative_config_path(config[CONF_PARTITIONS]), encoding="utf8"
         ) as f:
             partitions_tab = f.read()
-            for partition, types in custom_partitions.items():
+            for partition, types in CORE.data[KEY_CUSTOM_PARTITIONS].items():
                 if partition not in partitions_tab:
                     errs.append(
                         cv.Invalid(
@@ -1315,6 +1315,7 @@ def validate_custom_partition(
                     f"Subtype 0x{subtype_:X} is invalid. Only 0x0 - 0xFE are allowed"
                 )
             subtype_ = f"0x{subtype_:X}"
+        custom_partitions = CORE.data.setdefault(KEY_CUSTOM_PARTITIONS, {})
         custom_partitions[name] = {"type": p_type_, "subtype": subtype_, "size": size}
         return value
 
@@ -1323,7 +1324,7 @@ def validate_custom_partition(
 
 def _get_custom_partition_half_size() -> int:
     size = 0
-    for partition in custom_partitions.values():
+    for partition in CORE.data.get(KEY_CUSTOM_PARTITIONS, {}).values():
         if partition["type"] == "app":
             size = ceil(size / 0x10000) * 0x10000  # align to 64KB
         else:
@@ -1362,7 +1363,7 @@ app1,     app,  ota_1,   0x{app1_partition_start:X}, 0x{app_partition_size:X},
 eeprom,   data, 0x99,    0x{eeprom_partition_start:X}, 0x{eeprom_partition_size:X},
 spiffs,   data, spiffs,  0x{spiffs_partition_start:X}, 0x{spiffs_partition_size:X},
 """
-    for partition, types in custom_partitions.items():
+    for partition, types in CORE.data.get(KEY_CUSTOM_PARTITIONS, {}).items():
         if types["type"] == "app":
             custom_partition_start = (
                 ceil(custom_partition_start / 0x10000) * 0x10000
@@ -1388,7 +1389,7 @@ app0,     app,  ota_0,   ,        0x{app_partition_size:X},
 app1,     app,  ota_1,   ,        0x{app_partition_size:X},
 nvs,      data, nvs,     ,        0x6D000,
 """
-    for partition, types in custom_partitions.items():
+    for partition, types in CORE.data.get(KEY_CUSTOM_PARTITIONS, {}).items():
         partition_csv += f"{partition}, {types['type']},   {types['subtype']},    , 0x{types['size']:X},\n"
     return partition_csv
 
