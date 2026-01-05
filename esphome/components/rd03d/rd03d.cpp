@@ -1,9 +1,35 @@
 #include "rd03d.h"
 #include "esphome/core/log.h"
+#include <cmath>
 
 namespace esphome::rd03d {
 
 static const char *const TAG = "rd03d";
+
+// Delay before sending configuration commands to allow radar to initialize
+static constexpr uint32_t SETUP_TIMEOUT_MS = 100;
+
+// Data frame format (radar -> host)
+static constexpr uint8_t FRAME_HEADER[] = {0xAA, 0xFF, 0x03, 0x00};
+static constexpr uint8_t FRAME_FOOTER[] = {0x55, 0xCC};
+
+// Command frame format (host -> radar)
+static constexpr uint8_t CMD_FRAME_HEADER[] = {0xFD, 0xFC, 0xFB, 0xFA};
+static constexpr uint8_t CMD_FRAME_FOOTER[] = {0x04, 0x03, 0x02, 0x01};
+
+// RD-03D tracking mode commands
+static constexpr uint16_t CMD_SINGLE_TARGET = 0x0080;
+static constexpr uint16_t CMD_MULTI_TARGET = 0x0090;
+
+// Decode coordinate/speed value from RD-03D format
+// Per datasheet: MSB=1 means positive, MSB=0 means negative
+static constexpr int16_t decode_value(uint8_t low_byte, uint8_t high_byte) {
+  int16_t value = ((high_byte & 0x7F) << 8) | low_byte;
+  if ((high_byte & 0x80) == 0) {
+    value = -value;
+  }
+  return value;
+}
 
 void RD03DComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up RD-03D...");
@@ -156,7 +182,7 @@ void RD03DComponent::publish_target_(uint8_t target_num, int16_t x, int16_t y, i
 
   // Publish speed (convert from cm/s to mm/s)
   if (target.speed != nullptr) {
-    target.speed->publish_state(speed * 10);
+    target.speed->publish_state(static_cast<float>(speed) * 10.0f);
   }
 
   // Publish resolution (mm)
