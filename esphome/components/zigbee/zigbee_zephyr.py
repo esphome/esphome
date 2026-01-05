@@ -254,74 +254,71 @@ def _slot_index() -> int | None:
     )
 
 
-async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
+async def _add_zigbee_input(
+    entity: cg.MockObj,
+    config: ConfigType,
+    component_key,
+    attrs_type,
+    zcl_macro: str,
+    cluster_id: str,
+) -> None:
     slot_index = _slot_index()
-    # Create unique names for this sensor's variables based on slot index
+
     prefix = f"zigbee_ep{slot_index + 1}"
-    attrs_name = f"{prefix}_binary_attrs"
-    attr_list_name = f"{prefix}_binary_input_attrib_list"
+    attrs_name = f"{prefix}_attrs"
+    attr_list_name = f"{prefix}_attrib_list"
     cluster_list_name = f"{prefix}_cluster_list"
     ep_name = f"{prefix}_ep"
 
-    # Create the binary attributes structure
-    binary_attrs = zigbee_new_variable(attrs_name, BinaryAttrs)
+    # Create attribute struct
+    attrs = zigbee_new_variable(attrs_name, attrs_type)
+
+    # Create attribute list
     attr_list = zigbee_new_attr_list(
         attr_list_name,
-        "ESPHOME_ZB_ZCL_DECLARE_BINARY_INPUT_ATTRIB_LIST",
-        zigbee_assign(binary_attrs.out_of_service, 0),
-        zigbee_assign(binary_attrs.present_value, 0),
-        zigbee_assign(binary_attrs.status_flags, 0),
-        zigbee_set_string(binary_attrs.description, config[CONF_NAME]),
+        zcl_macro,
+        zigbee_assign(attrs.out_of_service, 0),
+        zigbee_assign(attrs.present_value, 0),
+        zigbee_assign(attrs.status_flags, 0),
+        zigbee_set_string(attrs.description, config[CONF_NAME]),
     )
 
     # Create cluster list and register endpoint
     cluster_list_name, clusters = zigbee_new_cluster_list(
         cluster_list_name,
-        [ZigbeeClusterDesc(ZB_ZCL_CLUSTER_ID_BINARY_INPUT, attr_list)],
+        [ZigbeeClusterDesc(cluster_id, attr_list)],
     )
     zigbee_register_ep(ep_name, cluster_list_name, 2, clusters, slot_index)
 
-    # Create the ZigbeeBinarySensor component
-    var = cg.new_Pvariable(config[CONF_ZIGBEE_BINARY_SENSOR], entity)
-    await cg.register_component(var, config)
+    # Create ESPHome component
+    var = cg.new_Pvariable(config[component_key], entity)
+    await cg.register_component(var, {})
 
     cg.add(var.set_endpoint(slot_index + 1))
-    cg.add(var.set_cluster_attributes(binary_attrs))
+    cg.add(var.set_cluster_attributes(attrs))
+
     hub = await cg.get_variable(config[CONF_ZIGBEE_ID])
     cg.add(var.set_parent(hub))
+
+
+async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
+    await _add_zigbee_input(
+        entity,
+        config,
+        CONF_ZIGBEE_BINARY_SENSOR,
+        BinaryAttrs,
+        "ESPHOME_ZB_ZCL_DECLARE_BINARY_INPUT_ATTRIB_LIST",
+        ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
+    )
 
 
 async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    slot_index = _slot_index()
-    # Create unique names for this sensor's variables based on slot index
-    prefix = f"zigbee_ep{slot_index + 1}"
-    attrs_name = f"{prefix}_binary_attrs"
-    attr_list_name = f"{prefix}_binary_input_attrib_list"
-    cluster_list_name = f"{prefix}_cluster_list"
-    ep_name = f"{prefix}_ep"
-
-    analog_attrs = zigbee_new_variable(attrs_name, AnalogAttrs)
-    attr_list = zigbee_new_attr_list(
-        attr_list_name,
+    print(config)
+    await _add_zigbee_input(
+        entity,
+        config,
+        CONF_ZIGBEE_SENSOR,
+        AnalogAttrs,
         "ESPHOME_ZB_ZCL_DECLARE_ANALOG_INPUT_ATTRIB_LIST",
-        zigbee_assign(analog_attrs.out_of_service, 0),
-        zigbee_assign(analog_attrs.present_value, 0),
-        zigbee_assign(analog_attrs.status_flags, 0),
-        zigbee_set_string(analog_attrs.description, config[CONF_NAME]),
+        ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
     )
-
-    # Create cluster list and register endpoint
-    cluster_list_name, clusters = zigbee_new_cluster_list(
-        cluster_list_name,
-        [ZigbeeClusterDesc(ZB_ZCL_CLUSTER_ID_ANALOG_INPUT, attr_list)],
-    )
-    zigbee_register_ep(ep_name, cluster_list_name, 2, clusters, slot_index)
-
-    # Create the ZigbeeSensor component
-    var = cg.new_Pvariable(config[CONF_ZIGBEE_SENSOR], entity)
-    await cg.register_component(var, config)
-
-    cg.add(var.set_endpoint(slot_index + 1))
-    cg.add(var.set_cluster_attributes(analog_attrs))
-    hub = await cg.get_variable(config[CONF_ZIGBEE_ID])
-    cg.add(var.set_parent(hub))

@@ -60,9 +60,6 @@ struct AnalogAttrs {
   float present_value;
   zb_uint8_t status_flags;
   zb_uchar_t description[ZB_ZCL_MAX_STRING_SIZE];
-  float max_present_value;
-  float min_present_value;
-  float resolution;
 };
 
 class ZigbeeComponent : public Component {
