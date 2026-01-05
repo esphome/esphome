@@ -123,7 +123,9 @@ WaveshareEPaper13P3InK = waveshare_epaper_ns.class_(
     "WaveshareEPaper13P3InK", WaveshareEPaper
 )
 GDEW0154M09 = waveshare_epaper_ns.class_("GDEW0154M09", WaveshareEPaper)
-GoodDisplayGdep073e01 = waveshare_epaper_ns.class_("GoodDisplayGdep073e01", WaveshareEPaper)
+GoodDisplayGdep073e01 = waveshare_epaper_ns.class_(
+    "GoodDisplayGdep073e01", WaveshareEPaper
+)
 
 WaveshareEPaperTypeAModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeAModel")
 WaveshareEPaperTypeBModel = waveshare_epaper_ns.enum("WaveshareEPaperTypeBModel")

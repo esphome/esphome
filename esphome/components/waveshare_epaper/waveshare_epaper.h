@@ -1099,74 +1099,68 @@ class WaveshareEPaper13P3InK : public WaveshareEPaper {
   uint32_t idle_timeout_() override;
 };
 
-    class GoodDisplayGdep073e01 : public WaveshareEPaper
-    {
-    public:
-      // EPD
-      struct ColorCount
-      {
-        uint8_t color;
-        int count;
-      };
+class GoodDisplayGdep073e01 : public WaveshareEPaper {
+ public:
+  // EPD
+  struct ColorCount {
+    uint8_t color;
+    int count;
+  };
 
-      void setup() override
-      {
-        ESP_LOGD("TAG", "setup() GoodDisplayGdep073e01");
-        this->setup_pins_();
-        this->initialize();
-      }
+  void setup() override {
+    ESP_LOGD("TAG", "setup() GoodDisplayGdep073e01");
+    this->setup_pins_();
+    this->initialize();
+  }
 
-      bool wait_until_idle_();
-      void initialize() override;
-      void fill(Color color) override;
-      void display() override;
+  bool wait_until_idle_();
+  void initialize() override;
+  void fill(Color color) override;
+  void display() override;
 
-      void dump_config() override;
+  void dump_config() override;
 
-      void deep_sleep() override
-      {
-        this->command(0x02); // Power off
-        this->data(0x00);
-        this->wait_until_idle_();
-        // this->command(0x07); // Deep sleep
-        // this->data(0xA5);
-      }
+  void deep_sleep() override {
+    this->command(0x02);  // Power off
+    this->data(0x00);
+    this->wait_until_idle_();
+    // this->command(0x07); // Deep sleep
+    // this->data(0xA5);
+  }
 
-      void clear_screen();
-      void display_buffer_();
-      void display_pic_(const unsigned char picData[], int size);
-      void display_fill_color_(unsigned char color);
+  void clear_screen();
+  void display_buffer_();
+  void display_pic_(const unsigned char picData[], int size);
+  void display_fill_color_(unsigned char color);
 
-      unsigned char get_color(Color color);
-      uint32_t idle_timeout_() override;
-      uint32_t get_buffer_length_() override;
-      void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  unsigned char get_color(Color color);
+  uint32_t idle_timeout_() override;
+  uint32_t get_buffer_length_() override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
-      void init_display_();
-      void init_display_fast_();
+  void init_display_();
+  void init_display_fast_();
 
-    protected:
-      int get_width_internal() override;
-      int get_height_internal() override;
-      void setup_pins_();
+ protected:
+  int get_width_internal() override;
+  int get_height_internal() override;
+  void setup_pins_();
 
-      void reset_()
-      {
-        if (this->reset_pin_ != nullptr)
-        {
-          this->reset_pin_->digital_write(true);
-          delay(10);
-          this->reset_pin_->digital_write(false);
-          delay(10); // NOLINT
-          this->reset_pin_->digital_write(true);
-          delay(10); // NOLINT
-        }
-      }
+  void reset_() {
+    if (this->reset_pin_ != nullptr) {
+      this->reset_pin_->digital_write(true);
+      delay(10);
+      this->reset_pin_->digital_write(false);
+      delay(10);  // NOLINT
+      this->reset_pin_->digital_write(true);
+      delay(10);  // NOLINT
+    }
+  }
 
-    private:
-      void init_internal(uint32_t buffer_length);
-      uint8_t *buffer_[4] = {nullptr};
-    };
+ private:
+  void init_internal(uint32_t buffer_length);
+  uint8_t *buffer_[4] = {nullptr};
+};
 
 }  // namespace waveshare_epaper
 }  // namespace esphome
