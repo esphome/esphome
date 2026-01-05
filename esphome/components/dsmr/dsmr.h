@@ -9,8 +9,7 @@
 #include <dsmr_parser/parser.h>
 #include <vector>
 
-namespace esphome {
-namespace dsmr {
+namespace esphome::dsmr {
 
 using namespace dsmr_parser::fields;
 
@@ -134,5 +133,4 @@ class Dsmr : public Component, public uart::UARTDevice {
   std::vector<uint8_t> decryption_key_{};
   bool crc_check_;
 };
-}  // namespace dsmr
-}  // namespace esphome
+}  // namespace esphome::dsmr

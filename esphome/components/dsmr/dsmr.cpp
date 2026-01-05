@@ -5,8 +5,7 @@
 #include <Crypto.h>
 #include <GCM.h>
 
-namespace esphome {
-namespace dsmr {
+namespace esphome::dsmr {
 
 static const char *const TAG = "dsmr";
 
@@ -327,5 +326,4 @@ void Dsmr::set_decryption_key(const std::string &decryption_key) {
   }
 }
 
-}  // namespace dsmr
-}  // namespace esphome
+}  // namespace esphome::dsmr
