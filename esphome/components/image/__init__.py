@@ -652,20 +652,20 @@ async def write_image(config, all_frames=False):
     resize = config.get(CONF_RESIZE)
     try:
         if is_svg_file(path):
-            from resvg_py import svg_to_bytes
+            import resvg_py
 
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 svg_data = f.read()
 
             if resize:
                 width, height = resize
                 # resvg-py allows rendering by width/height directly
-                image_data = svg_to_bytes(
+                image_data = resvg_py.svg_to_bytes(
                     svg_data, width=int(width), height=int(height)
                 )
             else:
                 # Default size
-                image_data = svg_to_bytes(svg_data)
+                image_data = resvg_py.svg_to_bytes(svg_data)
 
             # Convert bytes to Pillow Image
             image = Image.open(io.BytesIO(image_data))
