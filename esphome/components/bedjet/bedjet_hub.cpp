@@ -3,6 +3,7 @@
 #include "bedjet_hub.h"
 #include "bedjet_child.h"
 #include "bedjet_const.h"
+#include "esphome/components/esp32_ble/ble_uuid.h"
 #include "esphome/core/application.h"
 #include <cinttypes>
 
@@ -193,8 +194,9 @@ bool BedJetHub::discover_characteristics_() {
       result = false;
     } else if (descr->uuid.get_uuid().len != ESP_UUID_LEN_16 ||
                descr->uuid.get_uuid().uuid.uuid16 != ESP_GATT_UUID_CHAR_CLIENT_CONFIG) {
+      char uuid_buf[esp32_ble::UUID_STR_LEN];
       ESP_LOGW(TAG, "Config descriptor 0x%x (uuid %s) is not a client config char uuid", this->char_handle_status_,
-               descr->uuid.to_string().c_str());
+               descr->uuid.to_str(uuid_buf));
       result = false;
     } else {
       this->config_descr_status_ = descr->handle;
