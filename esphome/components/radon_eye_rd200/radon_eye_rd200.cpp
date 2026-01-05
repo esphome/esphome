@@ -87,8 +87,8 @@ void RadonEyeRD200::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGE(TAG, "write descr failed, error status = %x", param->write.status);
         break;
       }
-      ESP_LOGV(TAG, "write descr success");
-      ESP_LOGV(TAG, "writing 0x%02x at write_handle=%d", write_command_, this->write_handle_);
+      ESP_LOGV(TAG, "Write descr success, writing 0x%02X at write_handle=%d", this->write_command_,
+               this->write_handle_);
       esp_err_t status =
           esp_ble_gattc_write_char(gattc_if, this->parent()->get_conn_id(), this->write_handle_, sizeof(write_command_),
                                    (uint8_t *) &write_command_, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
