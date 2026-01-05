@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_UPDATE, CONF_TRIGGER_ID
 
 CODEOWNERS = ["@clydebarrow"]
-DEPENDENCIES = ["http_request", "json"]
+DEPENDENCIES = ["http_request"]
 AUTO_LOAD = ["json"]
 
 CONF_AMBER_API_ID = "amber_api_id"
