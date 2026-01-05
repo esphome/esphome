@@ -20,7 +20,7 @@ def AUTO_LOAD() -> list[str]:
     return []
 
 
-# Support all platforms - Arduino gets library, ESP-IDF/host get socket implementation
+# Support all platforms - Arduino/ESP-IDF get libraries, other platforms use socket implementation
 CONFIG_SCHEMA = cv.Schema({})
 
 
@@ -44,8 +44,7 @@ async def to_code(config):
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
-    # Only compile socket implementation for platforms that don't use AsyncTCP library
-    # ESP32, ESP8266, RP2040, and LibreTiny use the library, others use socket implementation
+    # Exclude socket implementation for platforms that use AsyncTCP libraries
     if CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2040 or CORE.is_libretiny:
         return ["async_tcp_socket.cpp"]
     return []

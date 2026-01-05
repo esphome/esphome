@@ -40,7 +40,14 @@ bool AsyncClient::connect(const char *host, uint16_t port) {
   socket_->setblocking(false);
 
   int err = socket_->connect((struct sockaddr *) &addr, addrlen);
-  if (err != 0 && errno != EINPROGRESS) {
+  if (err == 0) {
+    // Connection succeeded immediately (rare, but possible for localhost)
+    connected_ = true;
+    if (connect_cb_)
+      connect_cb_(connect_arg_, this);
+    return true;
+  }
+  if (errno != EINPROGRESS) {
     ESP_LOGE(TAG, "Connect failed: %d", errno);
     close();
     if (error_cb_)
@@ -65,11 +72,13 @@ size_t AsyncClient::write(const char *data, size_t len) {
   if (!socket_ || !connected_)
     return 0;
 
-  ssize_t sent = socket_->write(reinterpret_cast<const uint8_t *>(data), len);
+  ssize_t sent = socket_->write(data, len);
   if (sent < 0) {
     if (errno != EAGAIN && errno != EWOULDBLOCK) {
       ESP_LOGE(TAG, "Write error: %d", errno);
       close();
+      if (error_cb_)
+        error_cb_(error_arg_, this, errno);
     }
     return 0;
   }

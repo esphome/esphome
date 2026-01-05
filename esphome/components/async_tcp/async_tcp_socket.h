@@ -12,7 +12,8 @@
 
 namespace esphome::async_tcp {
 
-// Provide AsyncClient API for ESP-IDF and host platforms using sockets
+/// AsyncClient API for platforms using sockets (ESP-IDF, host, etc.)
+/// NOTE: This class is NOT thread-safe. All methods must be called from the main loop.
 class AsyncClient {
  public:
   using AcConnectHandler = std::function<void(void *, AsyncClient *)>;
@@ -35,6 +36,7 @@ class AsyncClient {
     disconnect_cb_ = std::move(cb);
     disconnect_arg_ = arg;
   }
+  /// Set data callback. NOTE: data pointer is only valid during callback execution.
   void onData(AcDataHandler cb, void *arg = nullptr) {  // NOLINT(readability-identifier-naming)
     data_cb_ = std::move(cb);
     data_arg_ = arg;
