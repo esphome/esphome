@@ -28,14 +28,9 @@ static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
 // TODO: Remove MAX_INITIAL_PER_BATCH_LEGACY before 2026.7.0 - all clients should support API 1.14 by then
 static constexpr size_t MAX_INITIAL_PER_BATCH_LEGACY = 24;  // For clients < API 1.14 (includes object_id)
 static constexpr size_t MAX_INITIAL_PER_BATCH = 34;         // For clients >= API 1.14 (no object_id)
-// Maximum number of packets to process in a single batch (platform-dependent)
-// This limit exists to prevent stack overflow from the PacketInfo array in process_batch_
-// Each PacketInfo is 8 bytes, so 64 * 8 = 512 bytes, 32 * 8 = 256 bytes
-#if defined(USE_ESP32) || defined(USE_HOST)
-static constexpr size_t MAX_PACKETS_PER_BATCH = 64;  // ESP32 has 8KB+ stack, HOST has plenty
-#else
-static constexpr size_t MAX_PACKETS_PER_BATCH = 32;  // ESP8266/RP2040/etc have smaller stacks
-#endif
+// Verify MAX_MESSAGES_PER_BATCH (defined in api_frame_helper.h) can hold the initial batch
+static_assert(MAX_MESSAGES_PER_BATCH >= MAX_INITIAL_PER_BATCH,
+              "MAX_MESSAGES_PER_BATCH must be >= MAX_INITIAL_PER_BATCH");
 
 class APIConnection final : public APIServerConnection {
  public:
