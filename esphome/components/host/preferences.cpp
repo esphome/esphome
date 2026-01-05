@@ -40,8 +40,7 @@ void HostPreferences::setup_() {
   std::error_code ec;
   fs::create_directories(prefs_dir, ec);
   if (ec) {
-    ESP_LOGE(TAG, "Failed to create preferences directory '%s': %s", prefs_dir.string().c_str(),
-             ec.message().c_str());
+    ESP_LOGE(TAG, "Failed to create preferences directory '%s': %s", prefs_dir.string().c_str(), ec.message().c_str());
     return;
   }
 
