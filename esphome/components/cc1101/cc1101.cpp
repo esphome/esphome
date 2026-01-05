@@ -274,9 +274,7 @@ void CC1101Component::enter_idle_() {
 }
 
 bool CC1101Component::enter_rx_() {
-  // From datasheet: "The user can read register FSCAL1. The PLL is in lock if the register
-  // content is different from 0x3F. The PLL must be recalibrated until PLL lock is achieved
-  // if the PLL does not lock the first time."
+  // The PLL must be recalibrated until PLL lock is achieved
   for (uint8_t retries = 3; retries > 0; retries--) {
     this->strobe_(Command::RX);
     if (!this->wait_for_state_(State::RX)) {
@@ -294,9 +292,7 @@ bool CC1101Component::enter_rx_() {
 }
 
 bool CC1101Component::enter_tx_() {
-  // From datasheet: "The user can read register FSCAL1. The PLL is in lock if the register
-  // content is different from 0x3F. The PLL must be recalibrated until PLL lock is achieved
-  // if the PLL does not lock the first time."
+  // The PLL must be recalibrated until PLL lock is achieved
   for (uint8_t retries = 3; retries > 0; retries--) {
     this->strobe_(Command::TX);
     if (!this->wait_for_state_(State::TX)) {
