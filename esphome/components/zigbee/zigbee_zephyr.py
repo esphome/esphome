@@ -210,6 +210,7 @@ def zigbee_register_ep(
     report_attr_count: int,
     clusters: list[ZigbeeClusterDesc],
     slot_index: int,
+    app_device_id: str,
 ) -> None:
     """Register a Zigbee endpoint."""
     in_cluster_num = sum(1 for c in clusters if c.has_attrs)
@@ -223,7 +224,7 @@ def zigbee_register_ep(
     ep_id = slot_index + 1  # Endpoints are 1-indexed
     obj = cg.RawExpression(
         f"ESPHOME_ZB_HA_DECLARE_EP({ep_name}, {ep_id}, {cluster_list_name}, "
-        f"{in_cluster_num}, {out_cluster_num}, {report_attr_count}, {', '.join(cluster_ids)})"
+        f"{in_cluster_num}, {out_cluster_num}, {report_attr_count}, {app_device_id}, {', '.join(cluster_ids)})"
     )
     CORE.add_global(obj)
 
@@ -261,6 +262,7 @@ async def _add_zigbee_input(
     attrs_type,
     zcl_macro: str,
     cluster_id: str,
+    app_device_id: str,
 ) -> None:
     slot_index = _slot_index()
 
@@ -288,7 +290,9 @@ async def _add_zigbee_input(
         cluster_list_name,
         [ZigbeeClusterDesc(cluster_id, attr_list)],
     )
-    zigbee_register_ep(ep_name, cluster_list_name, 2, clusters, slot_index)
+    zigbee_register_ep(
+        ep_name, cluster_list_name, 2, clusters, slot_index, app_device_id
+    )
 
     # Create ESPHome component
     var = cg.new_Pvariable(config[component_key], entity)
@@ -309,6 +313,7 @@ async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
         BinaryAttrs,
         "ESPHOME_ZB_ZCL_DECLARE_BINARY_INPUT_ATTRIB_LIST",
         ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
+        "ZB_HA_SIMPLE_SENSOR_DEVICE_ID",
     )
 
 
@@ -320,4 +325,5 @@ async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
         AnalogAttrs,
         "ESPHOME_ZB_ZCL_DECLARE_ANALOG_INPUT_ATTRIB_LIST",
         ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
+        "ZB_HA_CUSTOM_ATTR_DEVICE_ID",
     )
