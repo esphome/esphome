@@ -9,7 +9,20 @@ namespace libretiny {
 
 static const char *const TAG = "lt.component";
 
+// TODO: Remove after testing CI memory impact for BK72XX
+static uint8_t test_static_buffer[256];  // Test static RAM impact
+
+static void test_memory_impact_function() {
+  // Test code size impact
+  for (size_t i = 0; i < sizeof(test_static_buffer); i++) {
+    test_static_buffer[i] = static_cast<uint8_t>(i ^ 0xAA);
+  }
+}
+
 void LTComponent::dump_config() {
+  // TODO: Remove after testing CI memory impact for BK72XX
+  test_memory_impact_function();
+
   ESP_LOGCONFIG(TAG,
                 "LibreTiny:\n"
                 "  Version: %s\n"
