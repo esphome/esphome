@@ -87,9 +87,9 @@ void Alpha3::handle_geni_response_(const uint8_t *response, uint16_t length) {
     extract_publish_sensor_value(GENI_RESPONSE_MOTOR_SPEED_OFFSET, this->speed_sensor_, 1.0F);
     extract_publish_sensor_value(GENI_RESPONSE_VOLTAGE_AC_OFFSET, this->voltage_sensor_, 1.0F);
   } else {
-    ESP_LOGW(TAG, "unkown GENI response Type %d %d %d %d %d %d %d %d", this->response_type_[0], this->response_type_[1],
-             this->response_type_[2], this->response_type_[3], this->response_type_[4], this->response_type_[5],
-             this->response_type_[6], this->response_type_[7]);
+    ESP_LOGW(TAG, "unknown GENI response Type %d %d %d %d %d %d %d %d", this->response_type_[0],
+             this->response_type_[1], this->response_type_[2], this->response_type_[3], this->response_type_[4],
+             this->response_type_[5], this->response_type_[6], this->response_type_[7]);
   }
   this->response_offset_ += length;
 }
@@ -167,6 +167,156 @@ void Alpha3::send_request_(uint8_t *request, size_t len) {
     ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
 }
 
+uint16_t Alpha3::calculate_crc_(const uint8_t *data, size_t len) {
+  // CRC-CCITT (polynomial 0x1021) with initial value 0xFFFF and final XOR 0xFFFF
+  // CRC is calculated from byte index 1 onwards (skips start delimiter)
+  uint16_t crc = 0xFFFF;
+  for (size_t i = 0; i < len; i++) {
+    crc ^= static_cast<uint16_t>(data[i]) << 8;
+    for (int j = 0; j < 8; j++) {
+      if (crc & 0x8000)
+        crc = (crc << 1) ^ 0x1021;
+      else
+        crc <<= 1;
+    }
+  }
+  return crc ^ 0xFFFF;
+}
+
+void Alpha3::send_command_(uint8_t command_id) {
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
+    ESP_LOGW(TAG, "[%s] Cannot send command, not connected", this->parent_->address_str());
+    return;
+  }
+
+  uint8_t packet[10];
+  packet[0] = 0x27;  // Start delimiter (DATA_REQUEST)
+  packet[1] = 0x06;  // Length (6 bytes until CRC)
+  packet[2] = 0xF8;  // Dest address high (from response header check)
+  packet[3] = 0xE7;  // Dest address low
+  packet[4] = 0x0A;  // Source address (our address)
+  packet[5] = 0x03;  // APDU Class: COMMANDS
+  packet[6] = 0x81;  // Operation: SET (2 << 6) | num_commands (1)
+  packet[7] = command_id;
+
+  // Calculate CRC from byte 1 onwards
+  uint16_t crc = this->calculate_crc_(packet + 1, 7);
+  packet[8] = crc >> 8;
+  packet[9] = crc & 0xFF;
+
+  ESP_LOGD(TAG, "[%s] Sending command ID %d", this->parent_->address_str(), command_id);
+  this->send_request_(packet, sizeof(packet));
+}
+
+void Alpha3::send_commands_(const uint8_t *command_ids, size_t num_commands) {
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
+    ESP_LOGW(TAG, "[%s] Cannot send commands, not connected", this->parent_->address_str());
+    return;
+  }
+
+  if (num_commands == 0 || num_commands > 10) {
+    ESP_LOGW(TAG, "[%s] Invalid number of commands: %zu", this->parent_->address_str(), num_commands);
+    return;
+  }
+
+  uint8_t packet[20];
+  packet[0] = 0x27;                                       // Start delimiter
+  packet[1] = 5 + num_commands;                           // Length
+  packet[2] = 0xF8;                                       // Dest high
+  packet[3] = 0xE7;                                       // Dest low
+  packet[4] = 0x0A;                                       // Source
+  packet[5] = 0x03;                                       // Class: COMMANDS
+  packet[6] = 0x80 | static_cast<uint8_t>(num_commands);  // SET | num_commands
+
+  // Copy command IDs
+  for (size_t i = 0; i < num_commands; i++) {
+    packet[7 + i] = command_ids[i];
+  }
+
+  // Calculate CRC
+  size_t crc_offset = 7 + num_commands;
+  uint16_t crc = this->calculate_crc_(packet + 1, crc_offset - 1);
+  packet[crc_offset] = crc >> 8;
+  packet[crc_offset + 1] = crc & 0xFF;
+
+  ESP_LOGD(TAG, "[%s] Sending %zu commands", this->parent_->address_str(), num_commands);
+  this->send_request_(packet, crc_offset + 2);
+}
+
+void Alpha3::send_command(uint8_t command_id) { this->send_command_(command_id); }
+
+void Alpha3::set_remote_mode() {
+  ESP_LOGI(TAG, "[%s] Switching to remote mode", this->parent_->address_str());
+  this->send_command_(GENI_CMD_REMOTE);
+}
+
+void Alpha3::set_local_mode() {
+  ESP_LOGI(TAG, "[%s] Switching to local mode", this->parent_->address_str());
+  this->send_command_(GENI_CMD_LOCAL);
+}
+
+void Alpha3::set_mode_autoadapt() {
+  ESP_LOGI(TAG, "[%s] Setting mode to AutoAdapt", this->parent_->address_str());
+  const uint8_t commands[] = {GENI_CMD_REMOTE, GENI_CMD_AUTOADAPT};
+  this->send_commands_(commands, 2);
+}
+
+void Alpha3::set_mode_const_pressure(uint8_t level) {
+  ESP_LOGI(TAG, "[%s] Setting mode to Constant Pressure level %d", this->parent_->address_str(), level);
+  if (level == 1) {
+    const uint8_t commands[] = {GENI_CMD_REMOTE, GENI_CMD_CONST_PRESS, GENI_CMD_MIN};
+    this->send_commands_(commands, 3);
+  } else if (level == 3) {
+    const uint8_t commands[] = {GENI_CMD_REMOTE, GENI_CMD_CONST_PRESS, GENI_CMD_MAX};
+    this->send_commands_(commands, 3);
+  } else {
+    const uint8_t commands[] = {GENI_CMD_REMOTE, GENI_CMD_CONST_PRESS};
+    this->send_commands_(commands, 2);
+  }
+}
+
+void Alpha3::set_mode_prop_pressure(uint8_t level) {
+  ESP_LOGI(TAG, "[%s] Setting mode to Proportional Pressure level %d", this->parent_->address_str(), level);
+  if (level == 1) {
+    const uint8_t commands[] = {GENI_CMD_REMOTE, GENI_CMD_PROP_PRESS, GENI_CMD_MIN};
+    this->send_commands_(commands, 3);
+  } else if (level == 3) {
+    const uint8_t commands[] = {GENI_CMD_REMOTE, GENI_CMD_PROP_PRESS, GENI_CMD_MAX};
+    this->send_commands_(commands, 3);
+  } else {
+    const uint8_t commands[] = {GENI_CMD_REMOTE, GENI_CMD_PROP_PRESS};
+    this->send_commands_(commands, 2);
+  }
+}
+
+void Alpha3::set_mode_const_freq() {
+  ESP_LOGI(TAG, "[%s] Setting mode to Constant Frequency", this->parent_->address_str());
+  const uint8_t commands[] = {GENI_CMD_REMOTE, GENI_CMD_CONST_FREQ};
+  this->send_commands_(commands, 2);
+}
+
+void Alpha3::stop_pump() {
+  ESP_LOGI(TAG, "[%s] Stopping pump", this->parent_->address_str());
+  const uint8_t commands[] = {GENI_CMD_REMOTE, GENI_CMD_STOP};
+  this->send_commands_(commands, 2);
+}
+
+void Alpha3::start_pump() {
+  ESP_LOGI(TAG, "[%s] Starting pump", this->parent_->address_str());
+  const uint8_t commands[] = {GENI_CMD_REMOTE, GENI_CMD_START};
+  this->send_commands_(commands, 2);
+}
+
+void Alpha3::adjust_setpoint(int8_t delta) {
+  if (delta > 0) {
+    ESP_LOGI(TAG, "[%s] Increasing setpoint", this->parent_->address_str());
+    this->send_command_(GENI_CMD_REF_UP);
+  } else if (delta < 0) {
+    ESP_LOGI(TAG, "[%s] Decreasing setpoint", this->parent_->address_str());
+    this->send_command_(GENI_CMD_REF_DOWN);
+  }
+}
+
 void Alpha3::update() {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "[%s] Cannot poll, not connected", this->parent_->address_str());
@@ -176,13 +326,40 @@ void Alpha3::update() {
   if (this->flow_sensor_ != nullptr || this->head_sensor_ != nullptr) {
     uint8_t geni_request_flow_head[] = {39, 7, 231, 248, 10, 3, 93, 1, 33, 82, 31};
     this->send_request_(geni_request_flow_head, sizeof(geni_request_flow_head));
-    delay(25);  // need to wait between requests
   }
   if (this->power_sensor_ != nullptr || this->current_sensor_ != nullptr || this->speed_sensor_ != nullptr ||
       this->voltage_sensor_ != nullptr) {
     uint8_t geni_request_power[] = {39, 7, 231, 248, 10, 3, 87, 0, 69, 138, 205};
     this->send_request_(geni_request_power, sizeof(geni_request_power));
-    delay(25);  // need to wait between requests
+  }
+}
+
+const char *Alpha3::get_mode_name_(uint8_t mode) {
+  // Mode values from act_mode1 byte (GENIBus protocol)
+  // These may differ from the Alpha Reader broadcast protocol
+  switch (mode) {
+    case 0x00:
+      return "Constant Speed 3";
+    case 0x01:
+      return "Constant Speed 2";
+    case 0x02:
+      return "Constant Speed 1";
+    case 0x03:
+      return "AutoAdapt";
+    case 0x04:
+      return "Proportional Pressure 1";
+    case 0x05:
+      return "Proportional Pressure 2";
+    case 0x06:
+      return "Proportional Pressure 3";
+    case 0x07:
+      return "Constant Pressure 1";
+    case 0x08:
+      return "Constant Pressure 2";
+    case 0x09:
+      return "Constant Pressure 3";
+    default:
+      return "Unknown";
   }
 }
 }  // namespace alpha3

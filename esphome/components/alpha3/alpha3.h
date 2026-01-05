@@ -4,6 +4,7 @@
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/text_sensor/text_sensor.h"
 
 #ifdef USE_ESP32
 
@@ -32,6 +33,24 @@ static const int16_t GENI_RESPONSE_POWER_OFFSET = 12;
 static const int16_t GENI_RESPONSE_MOTOR_POWER_OFFSET = 16;  // not sure
 static const int16_t GENI_RESPONSE_MOTOR_SPEED_OFFSET = 20;
 
+// Additional response type for mode status (if available)
+static const uint8_t GENI_RESPONSE_TYPE_MODE[GENI_RESPONSE_TYPE_LENGTH] = {81, 0, 1, 0, 1, 0, 0, 0};  // act_mode1
+static const int16_t GENI_RESPONSE_MODE_OFFSET = 0;
+
+// Command IDs (Class 3 - COMMANDS)
+static const uint8_t GENI_CMD_STOP = 5;
+static const uint8_t GENI_CMD_START = 6;
+static const uint8_t GENI_CMD_REMOTE = 7;
+static const uint8_t GENI_CMD_LOCAL = 8;
+static const uint8_t GENI_CMD_CONST_FREQ = 22;
+static const uint8_t GENI_CMD_PROP_PRESS = 23;
+static const uint8_t GENI_CMD_CONST_PRESS = 24;
+static const uint8_t GENI_CMD_MIN = 25;
+static const uint8_t GENI_CMD_MAX = 26;
+static const uint8_t GENI_CMD_REF_UP = 33;
+static const uint8_t GENI_CMD_REF_DOWN = 34;
+static const uint8_t GENI_CMD_AUTOADAPT = 52;
+
 class Alpha3 : public esphome::ble_client::BLEClientNode, public PollingComponent {
  public:
   void setup() override;
@@ -45,6 +64,19 @@ class Alpha3 : public esphome::ble_client::BLEClientNode, public PollingComponen
   void set_current_sensor(sensor::Sensor *sensor) { this->current_sensor_ = sensor; }
   void set_speed_sensor(sensor::Sensor *sensor) { this->speed_sensor_ = sensor; }
   void set_voltage_sensor(sensor::Sensor *sensor) { this->voltage_sensor_ = sensor; }
+  void set_mode_text_sensor(text_sensor::TextSensor *sensor) { this->mode_text_sensor_ = sensor; }
+
+  // Control methods
+  void send_command(uint8_t command_id);
+  void set_remote_mode();
+  void set_local_mode();
+  void set_mode_autoadapt();
+  void set_mode_const_pressure(uint8_t level);  // 1=MIN, 2=MID, 3=MAX
+  void set_mode_prop_pressure(uint8_t level);
+  void set_mode_const_freq();
+  void stop_pump();
+  void start_pump();
+  void adjust_setpoint(int8_t delta);  // +1 or -1
 
  protected:
   sensor::Sensor *flow_sensor_{nullptr};
@@ -53,6 +85,7 @@ class Alpha3 : public esphome::ble_client::BLEClientNode, public PollingComponen
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *speed_sensor_{nullptr};
   sensor::Sensor *voltage_sensor_{nullptr};
+  text_sensor::TextSensor *mode_text_sensor_{nullptr};
   uint16_t geni_handle_;
   int16_t response_length_;
   int16_t response_offset_;
@@ -63,6 +96,10 @@ class Alpha3 : public esphome::ble_client::BLEClientNode, public PollingComponen
   void handle_geni_response_(const uint8_t *response, uint16_t length);
   void send_request_(uint8_t *request, size_t len);
   bool is_current_response_type_(const uint8_t *response_type);
+  uint16_t calculate_crc_(const uint8_t *data, size_t len);
+  void send_command_(uint8_t command_id);
+  void send_commands_(const uint8_t *command_ids, size_t num_commands);
+  const char *get_mode_name_(uint8_t mode);
 };
 }  // namespace alpha3
 }  // namespace esphome
