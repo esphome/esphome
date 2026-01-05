@@ -13,10 +13,10 @@ from esphome.core import CORE
 
 from .const import KEY_HOST
 
-CONF_PREFERENCES_PATH = "preferences_path"
-
 # force import gpio to register pin schema
 from .gpio import host_pin_to_code  # noqa
+
+CONF_PREFERENCES_PATH = "preferences_path"
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 AUTO_LOAD = ["network", "preferences"]
