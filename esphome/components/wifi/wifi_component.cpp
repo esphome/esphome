@@ -932,19 +932,21 @@ void WiFiComponent::print_connect_params_() {
   char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  // clang-format off
   ESP_LOGCONFIG(TAG,
                 "  SSID: " LOG_SECRET("'%s'") "\n"
-                                              "  BSSID: " LOG_SECRET("%s") "\n"
-                                                                           "  Hostname: '%s'\n"
-                                                                           "  Signal strength: %d dB %s\n"
-                                                                           "  Channel: %" PRId32 "\n"
-                                                                           "  Subnet: %s\n"
-                                                                           "  Gateway: %s\n"
-                                                                           "  DNS1: %s\n"
-                                                                           "  DNS2: %s",
+                "  BSSID: " LOG_SECRET("%s") "\n"
+                "  Hostname: '%s'\n"
+                "  Signal strength: %d dB %s\n"
+                "  Channel: %" PRId32 "\n"
+                "  Subnet: %s\n"
+                "  Gateway: %s\n"
+                "  DNS1: %s\n"
+                "  DNS2: %s",
                 wifi_ssid_to(ssid_buf), bssid_s, App.get_name().c_str(), rssi, LOG_STR_ARG(get_signal_bars(rssi)),
                 get_wifi_channel(), wifi_subnet_mask_().str_to(subnet_buf), wifi_gateway_ip_().str_to(gateway_buf),
                 wifi_dns_ip_(0).str_to(dns1_buf), wifi_dns_ip_(1).str_to(dns2_buf));
+  // clang-format on
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_bssid()) {
     ESP_LOGV(TAG, "  Priority: %d", this->get_sta_priority(config->get_bssid()));
