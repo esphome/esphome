@@ -6,6 +6,7 @@ ble_client:
 
 sensor:
   - platform: alpha3
+    id: my_alpha3
     ble_client_id: alpha3_blec
     flow:
       name: "Radiator Pump Flow"
@@ -18,19 +19,19 @@ sensor:
 
 text_sensor:
   - platform: alpha3
-    alpha3_id: alpha3_blec
+    alpha3_id: my_alpha3
     pump_mode:
       name: "Pump Mode"
 
 select:
   - platform: alpha3
-    alpha3_id: alpha3_blec
+    alpha3_id: my_alpha3
     pump_mode:
-      name: "Pump Mode"
+      name: "Pump Mode Select"
 
 button:
   - platform: alpha3
-    alpha3_id: alpha3_blec
+    alpha3_id: my_alpha3
     start_pump:
       name: "Start Pump"
     stop_pump:
