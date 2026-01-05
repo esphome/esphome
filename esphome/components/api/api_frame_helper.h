@@ -29,6 +29,10 @@ static constexpr uint16_t MAX_MESSAGE_SIZE = 8192;  // 8 KiB for ESP8266
 static constexpr uint16_t MAX_MESSAGE_SIZE = 32768;  // 32 KiB for ESP32 and other platforms
 #endif
 
+// Maximum number of messages to batch in a single write operation
+// Must be >= MAX_INITIAL_PER_BATCH in api_connection.h (enforced by static_assert there)
+static constexpr size_t MAX_MESSAGES_PER_BATCH = 34;
+
 // Forward declaration
 struct ClientInfo;
 
@@ -40,13 +44,13 @@ struct ReadPacketBuffer {
   uint16_t type;
 };
 
-// Packed packet info structure to minimize memory usage
-struct PacketInfo {
+// Packed message info structure to minimize memory usage
+struct MessageInfo {
   uint16_t offset;        // Offset in buffer where message starts
   uint16_t payload_size;  // Size of the message payload
   uint8_t message_type;   // Message type (0-255)
 
-  PacketInfo(uint8_t type, uint16_t off, uint16_t size) : offset(off), payload_size(size), message_type(type) {}
+  MessageInfo(uint8_t type, uint16_t off, uint16_t size) : offset(off), payload_size(size), message_type(type) {}
 };
 
 enum class APIError : uint16_t {
@@ -108,10 +112,10 @@ class APIFrameHelper {
     return APIError::OK;
   }
   virtual APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) = 0;
-  // Write multiple protobuf packets in a single operation
-  // packets contains (message_type, offset, length) for each message in the buffer
+  // Write multiple protobuf messages in a single operation
+  // messages contains (message_type, offset, length) for each message in the buffer
   // The buffer contains all messages with appropriate padding before each
-  virtual APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) = 0;
+  virtual APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) = 0;
   // Get the frame header padding required by this protocol
   uint8_t frame_header_padding() const { return frame_header_padding_; }
   // Get the frame footer size required by this protocol
@@ -127,12 +131,6 @@ class APIFrameHelper {
       // Use swap trick since shrink_to_fit() is non-binding and may be ignored
       std::vector<uint8_t>().swap(this->rx_buf_);
     }
-    // reusable_iovs_: Safe to release unconditionally.
-    // Only used within write_protobuf_packets() calls - cleared at start,
-    // populated with pointers, used for writev(), then function returns.
-    // The iovecs contain stale pointers after the call (data was either sent
-    // or copied to tx_buf_), and are cleared on next write_protobuf_packets().
-    std::vector<struct iovec>().swap(this->reusable_iovs_);
   }
 
  protected:
@@ -186,7 +184,6 @@ class APIFrameHelper {
 
   // Containers (size varies, but typically 12+ bytes on 32-bit)
   std::array<std::unique_ptr<SendBuffer>, API_MAX_SEND_QUEUE> tx_buf_;
-  std::vector<struct iovec> reusable_iovs_;
   std::vector<uint8_t> rx_buf_;
 
   // Pointer to client info (4 bytes on 32-bit)
