@@ -204,7 +204,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   for (uint8_t i = 14; i < 20; i++)
     checksum20 ^= remote_state[i];
 
-  if (checksum13 != remote_state[13] || checksum20 != remote_state[20]) {
+  if (checksum13 != remote_state[13] || (!skip_footer && checksum20 != remote_state[20])) {
     ESP_LOGVV(TAG, "Checksum fail");
     return false;
   }
