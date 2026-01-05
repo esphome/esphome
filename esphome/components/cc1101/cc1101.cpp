@@ -212,9 +212,8 @@ void CC1101Component::dump_config() {
                  XTAL_FREQUENCY / (1 << 16);
   float symbol_rate = (((256.0f + this->state_.DRATE_M) * (1 << this->state_.DRATE_E)) / (1 << 28)) * XTAL_FREQUENCY;
   float bw = XTAL_FREQUENCY / (8.0f * (4 + this->state_.CHANBW_M) * (1 << this->state_.CHANBW_E));
-  ESP_LOGCONFIG(TAG, "CC1101:");
-  LOG_PIN("  CS Pin: ", this->cs_);
   ESP_LOGCONFIG(TAG,
+                "CC1101:\n"
                 "  Chip ID: 0x%04X\n"
                 "  Frequency: %" PRId32 " Hz\n"
                 "  Channel: %u\n"
@@ -224,6 +223,7 @@ void CC1101Component::dump_config() {
                 "  Output Power: %.1f dBm",
                 this->chip_id_, freq, this->state_.CHANNR, MODULATION_NAMES[this->state_.MOD_FORMAT & 0x07],
                 symbol_rate, bw, this->output_power_effective_);
+  LOG_PIN("  CS Pin: ", this->cs_);
 }
 
 void CC1101Component::begin_tx() {
