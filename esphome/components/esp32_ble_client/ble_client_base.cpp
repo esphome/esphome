@@ -70,9 +70,9 @@ float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_B
 void BLEClientBase::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Address: %s\n"
-                "  Auto-Connect: %s",
-                this->address_str(), TRUEFALSE(this->auto_connect_));
-  ESP_LOGCONFIG(TAG, "  State: %s", espbt::client_state_to_string(this->state()));
+                "  Auto-Connect: %s\n"
+                "  State: %s",
+                this->address_str(), TRUEFALSE(this->auto_connect_), espbt::client_state_to_string(this->state()));
   if (this->status_ == ESP_GATT_NO_RESOURCES) {
     ESP_LOGE(TAG, "  Failed due to no resources. Try to reduce number of BLE clients in config.");
   } else if (this->status_ != ESP_GATT_OK) {
@@ -415,8 +415,10 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         for (auto &svc : this->services_) {
           char uuid_buf[espbt::UUID_STR_LEN];
           svc->uuid.to_str(uuid_buf);
-          ESP_LOGV(TAG, "[%d] [%s] Service UUID: %s", this->connection_index_, this->address_str_, uuid_buf);
-          ESP_LOGV(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_, this->address_str_,
+          ESP_LOGV(TAG,
+                   "[%d] [%s] Service UUID: %s\n"
+                   "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x",
+                   this->connection_index_, this->address_str_, uuid_buf, this->connection_index_, this->address_str_,
                    svc->start_handle, svc->end_handle);
         }
 #endif

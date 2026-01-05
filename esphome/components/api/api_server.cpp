@@ -224,38 +224,6 @@ void APIServer::dump_config() {
 #endif
 }
 
-#ifdef USE_API_PASSWORD
-bool APIServer::check_password(const uint8_t *password_data, size_t password_len) const {
-  // depend only on input password length
-  const char *a = this->password_.c_str();
-  uint32_t len_a = this->password_.length();
-  const char *b = reinterpret_cast<const char *>(password_data);
-  uint32_t len_b = password_len;
-
-  // disable optimization with volatile
-  volatile uint32_t length = len_b;
-  volatile const char *left = nullptr;
-  volatile const char *right = b;
-  uint8_t result = 0;
-
-  if (len_a == length) {
-    left = *((volatile const char **) &a);
-    result = 0;
-  }
-  if (len_a != length) {
-    left = b;
-    result = 1;
-  }
-
-  for (size_t i = 0; i < length; i++) {
-    result |= *left++ ^ *right++;  // NOLINT
-  }
-
-  return result == 0;
-}
-
-#endif
-
 void APIServer::handle_disconnect(APIConnection *conn) {}
 
 // Macro for controller update dispatch
@@ -376,10 +344,6 @@ API_DISPATCH_UPDATE(alarm_control_panel::AlarmControlPanel, alarm_control_panel)
 float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
 void APIServer::set_port(uint16_t port) { this->port_ = port; }
-
-#ifdef USE_API_PASSWORD
-void APIServer::set_password(const std::string &password) { this->password_ = password; }
-#endif
 
 void APIServer::set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = batch_delay; }
 

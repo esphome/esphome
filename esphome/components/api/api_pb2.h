@@ -393,39 +393,6 @@ class HelloResponse final : public ProtoMessage {
 
  protected:
 };
-#ifdef USE_API_PASSWORD
-class AuthenticationRequest final : public ProtoDecodableMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 3;
-  static constexpr uint8_t ESTIMATED_SIZE = 9;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "authentication_request"; }
-#endif
-  StringRef password{};
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-};
-class AuthenticationResponse final : public ProtoMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 4;
-  static constexpr uint8_t ESTIMATED_SIZE = 2;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "authentication_response"; }
-#endif
-  bool invalid_password{false};
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(ProtoSize &size) const override;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-};
-#endif
 class DisconnectRequest final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 5;
@@ -525,12 +492,9 @@ class DeviceInfo final : public ProtoMessage {
 class DeviceInfoResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 10;
-  static constexpr uint16_t ESTIMATED_SIZE = 257;
+  static constexpr uint8_t ESTIMATED_SIZE = 255;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "device_info_response"; }
-#endif
-#ifdef USE_API_PASSWORD
-  bool uses_password{false};
 #endif
   StringRef name_ref_{};
   void set_name(const StringRef &ref) { this->name_ref_ = ref; }

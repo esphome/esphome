@@ -230,29 +230,30 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   return APIError::OK;
 }
 APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
-  PacketInfo packet{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_)};
-  return write_protobuf_packets(buffer, std::span<const PacketInfo>(&packet, 1));
+  MessageInfo msg{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_)};
+  return write_protobuf_messages(buffer, std::span<const MessageInfo>(&msg, 1));
 }
 
-APIError APIPlaintextFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) {
+APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer,
+                                                          std::span<const MessageInfo> messages) {
   if (state_ != State::DATA) {
     return APIError::BAD_STATE;
   }
 
-  if (packets.empty()) {
+  if (messages.empty()) {
     return APIError::OK;
   }
 
   uint8_t *buffer_data = buffer.get_buffer()->data();
 
-  this->reusable_iovs_.clear();
-  this->reusable_iovs_.reserve(packets.size());
+  // Stack-allocated iovec array - no heap allocation
+  StaticVector<struct iovec, MAX_MESSAGES_PER_BATCH> iovs;
   uint16_t total_write_len = 0;
 
-  for (const auto &packet : packets) {
+  for (const auto &msg : messages) {
     // Calculate varint sizes for header layout
-    uint8_t size_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(packet.payload_size));
-    uint8_t type_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(packet.message_type));
+    uint8_t size_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(msg.payload_size));
+    uint8_t type_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(msg.message_type));
     uint8_t total_header_len = 1 + size_varint_len + type_varint_len;
 
     // Calculate where to start writing the header
@@ -280,25 +281,25 @@ APIError APIPlaintextFrameHelper::write_protobuf_packets(ProtoWriteBuffer buffer
     //
     // The message starts at offset + frame_header_padding_
     // So we write the header starting at offset + frame_header_padding_ - total_header_len
-    uint8_t *buf_start = buffer_data + packet.offset;
+    uint8_t *buf_start = buffer_data + msg.offset;
     uint32_t header_offset = frame_header_padding_ - total_header_len;
 
     // Write the plaintext header
     buf_start[header_offset] = 0x00;  // indicator
 
     // Encode varints directly into buffer
-    ProtoVarInt(packet.payload_size).encode_to_buffer_unchecked(buf_start + header_offset + 1, size_varint_len);
-    ProtoVarInt(packet.message_type)
+    ProtoVarInt(msg.payload_size).encode_to_buffer_unchecked(buf_start + header_offset + 1, size_varint_len);
+    ProtoVarInt(msg.message_type)
         .encode_to_buffer_unchecked(buf_start + header_offset + 1 + size_varint_len, type_varint_len);
 
-    // Add iovec for this packet (header + payload)
-    size_t packet_len = static_cast<size_t>(total_header_len + packet.payload_size);
-    this->reusable_iovs_.push_back({buf_start + header_offset, packet_len});
-    total_write_len += packet_len;
+    // Add iovec for this message (header + payload)
+    size_t msg_len = static_cast<size_t>(total_header_len + msg.payload_size);
+    iovs.push_back({buf_start + header_offset, msg_len});
+    total_write_len += msg_len;
   }
 
-  // Send all packets in one writev call
-  return write_raw_(this->reusable_iovs_.data(), this->reusable_iovs_.size(), total_write_len);
+  // Send all messages in one writev call
+  return write_raw_(iovs.data(), iovs.size(), total_write_len);
 }
 
 }  // namespace esphome::api
