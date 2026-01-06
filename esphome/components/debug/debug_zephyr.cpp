@@ -143,10 +143,9 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   pos = buf_append(buf, size, pos, "|Main supply status: %s", supply_status);
 
   // Regulator stage 0
-  const char *reg0_type = "";
-  const char *reg0_voltage = "";
   if (nrf_power_mainregstatus_get(NRF_POWER) == NRF_POWER_MAINREGSTATUS_HIGH) {
-    reg0_type = nrf_power_dcdcen_vddh_get(NRF_POWER) ? "DC/DC" : "LDO";
+    const char *reg0_type = nrf_power_dcdcen_vddh_get(NRF_POWER) ? "DC/DC" : "LDO";
+    const char *reg0_voltage;
     switch (NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) {
       case (UICR_REGOUT0_VOUT_DEFAULT << UICR_REGOUT0_VOUT_Pos):
         reg0_voltage = "1.8V (default)";
@@ -202,7 +201,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   bool enabled;
   nrf_power_pof_thr_t pof_thr = nrf_power_pofcon_get(NRF_POWER, &enabled);
   if (enabled) {
-    const char *pof_voltage = "";
+    const char *pof_voltage;
     switch (pof_thr) {
       case POWER_POFCON_THRESHOLD_V17:
         pof_voltage = "1.7V";
@@ -240,10 +239,13 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
       case POWER_POFCON_THRESHOLD_V28:
         pof_voltage = "2.8V";
         break;
+      default:
+        pof_voltage = "???V";
+        break;
     }
 
     if (nrf_power_mainregstatus_get(NRF_POWER) == NRF_POWER_MAINREGSTATUS_HIGH) {
-      const char *vddh_voltage = "";
+      const char *vddh_voltage;
       switch (nrf_power_pofcon_vddh_get(NRF_POWER)) {
         case NRF_POWER_POFTHRVDDH_V27:
           vddh_voltage = "2.7V";
@@ -292,6 +294,9 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
           break;
         case NRF_POWER_POFTHRVDDH_V42:
           vddh_voltage = "4.2V";
+          break;
+        default:
+          vddh_voltage = "???V";
           break;
       }
       ESP_LOGD(TAG, "Power-fail comparator: %s, VDDH: %s", pof_voltage, vddh_voltage);
