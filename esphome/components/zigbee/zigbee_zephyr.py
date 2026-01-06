@@ -5,7 +5,41 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NAME, __version__
+from esphome.const import (
+    CONF_ID,
+    CONF_NAME,
+    CONF_UNIT_OF_MEASUREMENT,
+    UNIT_AMPERE,
+    UNIT_CELSIUS,
+    UNIT_CENTIMETER,
+    UNIT_DECIBEL,
+    UNIT_HECTOPASCAL,
+    UNIT_HERTZ,
+    UNIT_HOUR,
+    UNIT_KELVIN,
+    UNIT_KILOMETER,
+    UNIT_KILOWATT,
+    UNIT_KILOWATT_HOURS,
+    UNIT_LUX,
+    UNIT_METER,
+    UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_MILLIAMP,
+    UNIT_MILLIGRAMS_PER_CUBIC_METER,
+    UNIT_MILLIMETER,
+    UNIT_MILLISECOND,
+    UNIT_MILLIVOLT,
+    UNIT_MINUTE,
+    UNIT_OHM,
+    UNIT_PARTS_PER_BILLION,
+    UNIT_PARTS_PER_MILLION,
+    UNIT_PASCAL,
+    UNIT_PERCENT,
+    UNIT_SECOND,
+    UNIT_VOLT,
+    UNIT_WATT,
+    UNIT_WATT_HOURS,
+    __version__,
+)
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import (
     AssignmentExpression,
@@ -38,6 +72,41 @@ from .const_zephyr import (
 
 ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
 ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
+
+# BACnet engineering units mapping (ZCL uses BACnet unit codes)
+# See: https://github.com/zigpy/zha/blob/dev/zha/application/platforms/number/bacnet.py
+BACNET_UNITS = {
+    UNIT_CELSIUS: 62,
+    UNIT_KELVIN: 63,
+    UNIT_VOLT: 5,
+    UNIT_MILLIVOLT: 124,
+    UNIT_AMPERE: 3,
+    UNIT_MILLIAMP: 2,
+    UNIT_OHM: 4,
+    UNIT_WATT: 47,
+    UNIT_KILOWATT: 48,
+    UNIT_WATT_HOURS: 18,
+    UNIT_KILOWATT_HOURS: 19,
+    UNIT_PASCAL: 53,
+    UNIT_HECTOPASCAL: 133,
+    UNIT_HERTZ: 27,
+    UNIT_MILLIMETER: 30,
+    UNIT_CENTIMETER: 118,
+    UNIT_METER: 31,
+    UNIT_KILOMETER: 193,
+    UNIT_MILLISECOND: 159,
+    UNIT_SECOND: 73,
+    UNIT_MINUTE: 72,
+    UNIT_HOUR: 71,
+    UNIT_PARTS_PER_MILLION: 96,
+    UNIT_PARTS_PER_BILLION: 97,
+    UNIT_MICROGRAMS_PER_CUBIC_METER: 219,
+    UNIT_MILLIGRAMS_PER_CUBIC_METER: 218,
+    UNIT_LUX: 37,
+    UNIT_DECIBEL: 199,
+    UNIT_PERCENT: 98,
+}
+BACNET_UNIT_NO_UNITS = 95
 
 zephyr_binary_sensor = cv.Schema(
     {
@@ -264,6 +333,7 @@ async def _add_zigbee_input(
     zcl_macro: str,
     cluster_id: str,
     app_device_id: str,
+    extra_field_values: dict[str, int] | None = None,
 ) -> None:
     slot_index = _slot_index()
 
@@ -276,15 +346,20 @@ async def _add_zigbee_input(
     # Create attribute struct
     attrs = zigbee_new_variable(attrs_name, attrs_type)
 
-    # Create attribute list
-    attr_list = zigbee_new_attr_list(
-        attr_list_name,
-        zcl_macro,
+    # Build attribute list args
+    attr_args = [
         zigbee_assign(attrs.out_of_service, 0),
         zigbee_assign(attrs.present_value, 0),
         zigbee_assign(attrs.status_flags, 0),
-        zigbee_set_string(attrs.description, config[CONF_NAME]),
-    )
+    ]
+    # Add extra field assignments (e.g., engineering_units for sensors)
+    if extra_field_values:
+        for field_name, value in extra_field_values.items():
+            attr_args.append(zigbee_assign(getattr(attrs, field_name), value))
+    attr_args.append(zigbee_set_string(attrs.description, config[CONF_NAME]))
+
+    # Create attribute list
+    attr_list = zigbee_new_attr_list(attr_list_name, zcl_macro, *attr_args)
 
     # Create cluster list and register endpoint
     cluster_list_name, clusters = zigbee_new_cluster_list(
@@ -319,6 +394,10 @@ async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
+    # Get BACnet engineering unit from unit_of_measurement
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT, "")
+    bacnet_unit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
+
     await _add_zigbee_input(
         entity,
         config,
@@ -327,4 +406,5 @@ async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
         "ESPHOME_ZB_ZCL_DECLARE_ANALOG_INPUT_ATTRIB_LIST",
         ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
         "ZB_HA_CUSTOM_ATTR_DEVICE_ID",
+        extra_field_values={"engineering_units": bacnet_unit},
     )

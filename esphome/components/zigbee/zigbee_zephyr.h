@@ -56,6 +56,7 @@ struct AnalogAttrs {
   zb_bool_t out_of_service;
   float present_value;
   zb_uint8_t status_flags;
+  zb_uint16_t engineering_units;
   zb_uchar_t description[ZB_ZCL_MAX_STRING_SIZE];
 };
 
