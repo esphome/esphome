@@ -20,8 +20,6 @@ static const char *const TAG = "tuya";
 static const int COMMAND_DELAY = 10;
 static const int RECEIVE_TIMEOUT = 300;
 static const int MAX_RETRIES = 5;
-// Max bytes to log for datapoint values (larger values are truncated)
-static constexpr size_t MAX_DATAPOINT_LOG_BYTES = 16;
 
 void TuyaUART::setup() {
   this->set_interval("heartbeat", 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });

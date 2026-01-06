@@ -10,6 +10,9 @@
 namespace esphome {
 namespace tuya {
 
+// Max bytes to log for datapoint values (larger values are truncated)
+static constexpr size_t MAX_DATAPOINT_LOG_BYTES = 16;
+
 enum class TuyaDatapointType : uint8_t {
   RAW = 0x00,      // variable length
   BOOLEAN = 0x01,  // 1 byte (0/1)
