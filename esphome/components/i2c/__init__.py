@@ -1,3 +1,4 @@
+from functools import partial
 import logging
 
 from esphome import pins
@@ -42,6 +43,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_NRF52,
     PLATFORM_RP2040,
+    Framework,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -110,11 +112,30 @@ def zephyr_device_name(value):
     return value
 
 
+def i2c_pin_validator(value, pin_name):
+    if value is None and CORE.is_nrf52:
+        raise cv.Invalid(f"'{pin_name}' is required for [i2c] on nrf52 platform")
+    return pins.internal_gpio_pin_number(value)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): _bus_declare_type,
-            cv.Optional(CONF_SDA): pins.internal_gpio_pin_number,
+            cv.SplitDefault(
+                CONF_SDA,
+                esp32="SDA",
+                esp8266="SDA",
+                rp2040="SDA",
+                nrf52=None,
+            ): partial(i2c_pin_validator, pin_name=CONF_SDA),
+            cv.SplitDefault(
+                CONF_SCL,
+                esp32="SDA",
+                esp8266="SDA",
+                rp2040="SDA",
+                nrf52=None,
+            ): partial(i2c_pin_validator, pin_name=CONF_SCL),
             cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32=True): cv.All(
                 cv.only_on_esp32, cv.boolean
             ),
@@ -144,11 +165,9 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 cv.boolean,
             ),
-            cv.Optional("device_name"): cv.All(
-                cv.only_with_zephyr,
-                cv.string_strict,
-                zephyr_device_name,
-            ),
+            cv.OnlyWith(
+                "device_name", Framework.ZEPHYR, default=None
+            ): zephyr_device_name,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_NRF52]),
@@ -158,20 +177,10 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(config):
     full_config = fv.full_config.get()[CONF_I2C]
-    if CORE.using_zephyr:
-        for i2c_config in full_config:
-            i2c_config["device_name"] = zephyr_device_name(
-                i2c_config.get("device_name")
-            )
-        if len({c["device_name"] for c in full_config}) != len(full_config):
-            raise cv.Invalid("Unique device_name properties are required")
-    else:
-        for i2c_config in full_config:
-            if CONF_SDA not in i2c_config:
-                i2c_config[CONF_SDA] = pins.internal_gpio_pin_number("SDA")
-            if CONF_SCL not in i2c_config:
-                i2c_config[CONF_SCL] = pins.internal_gpio_pin_number("SCL")
-
+    if CORE.using_zephyr and len({c["device_name"] for c in full_config}) != len(
+        full_config
+    ):
+        raise cv.Invalid("Unique device_name properties are required")
     if CORE.is_esp32 and get_esp32_variant() in ESP32_I2C_CAPABILITIES:
         variant = get_esp32_variant()
         max_num = ESP32_I2C_CAPABILITIES[variant]["NUM"]
