@@ -37,7 +37,12 @@ void DlmsMeterComponent::loop() {
   while (this->available()) {  // Read while data is available
     uint8_t c;
     this->read_byte(&c);
-    this->receive_buffer_.push_back(c);
+    // Bounds check to avoid unbounded growth
+    if (this->receive_buffer_.size() < MBUS_MAX_FRAME_LENGTH * 2) { // netznoe uses a second mbus frame directly following the first
+      this->receive_buffer_.push_back(c);
+    } else {
+      ESP_LOGW(TAG, "Receive buffer full, dropping byte");
+    }
 
     this->last_read_ = millis();
   }
