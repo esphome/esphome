@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_VALVE
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.valve";
 
@@ -89,8 +88,7 @@ bool MQTTValveComponent::publish_state() {
   return success;
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
