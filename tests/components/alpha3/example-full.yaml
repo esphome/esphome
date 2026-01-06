@@ -20,7 +20,7 @@ sensor:
     id: my_alpha3
     ble_client_id: alpha3_pump
     update_interval: 60s
-    
+
     # Optional sensors (remove any you don't need)
     flow:
       name: "Pump Flow"
