@@ -79,17 +79,7 @@ bool XiaomiRTCGQ02LM::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
   return success;
 }
 
-void XiaomiRTCGQ02LM::set_bindkey(const std::string &bindkey) {
-  memset(bindkey_, 0, 16);
-  if (bindkey.size() != 32) {
-    return;
-  }
-  char temp[3] = {0};
-  for (int i = 0; i < 16; i++) {
-    strncpy(temp, &(bindkey.c_str()[i * 2]), 2);
-    bindkey_[i] = std::strtoul(temp, nullptr, 16);
-  }
-}
+void XiaomiRTCGQ02LM::set_bindkey(const char *bindkey) { parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_)); }
 
 }  // namespace xiaomi_rtcgq02lm
 }  // namespace esphome
