@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from dataclasses import dataclass
+import json
 import logging
 from pathlib import Path
 import re
+import time
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
@@ -22,6 +24,7 @@ from esphome.__main__ import (
     command_rename,
     command_update_all,
     command_wizard,
+    compile_program,
     detect_external_components,
     get_port_type,
     has_ip_address,
@@ -35,7 +38,7 @@ from esphome.__main__ import (
     upload_program,
     upload_using_esptool,
 )
-from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
     CONF_API,
     CONF_BROKER,
@@ -265,6 +268,16 @@ def mock_memory_analyzer_cli() -> Generator[Mock]:
     with patch("esphome.analyze_memory.cli.MemoryAnalyzerCLI") as mock_class:
         mock_analyzer = MagicMock()
         mock_analyzer.generate_report.return_value = "Mock Memory Report"
+        mock_class.return_value = mock_analyzer
+        yield mock_class
+
+
+@pytest.fixture
+def mock_ram_strings_analyzer() -> Generator[Mock]:
+    """Mock RamStringsAnalyzer for testing."""
+    with patch("esphome.analyze_memory.ram_strings.RamStringsAnalyzer") as mock_class:
+        mock_analyzer = MagicMock()
+        mock_analyzer.generate_report.return_value = "Mock RAM Strings Report"
         mock_class.return_value = mock_analyzer
         yield mock_class
 
@@ -2424,6 +2437,7 @@ def test_command_analyze_memory_success(
     mock_get_idedata: Mock,
     mock_get_esphome_components: Mock,
     mock_memory_analyzer_cli: Mock,
+    mock_ram_strings_analyzer: Mock,
 ) -> None:
     """Test command_analyze_memory with successful compilation and analysis."""
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
@@ -2471,9 +2485,20 @@ def test_command_analyze_memory_success(
     mock_analyzer.analyze.assert_called_once()
     mock_analyzer.generate_report.assert_called_once()
 
-    # Verify report was printed
+    # Verify RAM strings analyzer was created and run
+    mock_ram_strings_analyzer.assert_called_once_with(
+        str(firmware_elf),
+        objdump_path="/path/to/objdump",
+        platform="esp32",
+    )
+    mock_ram_analyzer = mock_ram_strings_analyzer.return_value
+    mock_ram_analyzer.analyze.assert_called_once()
+    mock_ram_analyzer.generate_report.assert_called_once()
+
+    # Verify reports were printed
     captured = capfd.readouterr()
     assert "Mock Memory Report" in captured.out
+    assert "Mock RAM Strings Report" in captured.out
 
 
 def test_command_analyze_memory_with_external_components(
@@ -2483,6 +2508,7 @@ def test_command_analyze_memory_with_external_components(
     mock_get_idedata: Mock,
     mock_get_esphome_components: Mock,
     mock_memory_analyzer_cli: Mock,
+    mock_ram_strings_analyzer: Mock,
 ) -> None:
     """Test command_analyze_memory detects external components."""
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
@@ -2582,3 +2608,197 @@ def test_command_analyze_memory_no_idedata(
 
     assert result == 1
     assert "Failed to get IDE data for memory analysis" in caplog.text
+
+
+@pytest.fixture
+def mock_compile_build_info_run_compile() -> Generator[Mock]:
+    """Mock platformio_api.run_compile for build_info tests."""
+    with patch("esphome.platformio_api.run_compile", return_value=0) as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_compile_build_info_get_idedata() -> Generator[Mock]:
+    """Mock platformio_api.get_idedata for build_info tests."""
+    mock_idedata = MagicMock()
+    with patch("esphome.platformio_api.get_idedata", return_value=mock_idedata) as mock:
+        yield mock
+
+
+def _setup_build_info_test(
+    tmp_path: Path,
+    *,
+    create_firmware: bool = True,
+    create_build_info: bool = True,
+    build_info_content: str | None = None,
+    firmware_first: bool = False,
+) -> tuple[Path, Path]:
+    """Set up build directory structure for build_info tests.
+
+    Args:
+        tmp_path: Temporary directory path.
+        create_firmware: Whether to create firmware.bin file.
+        create_build_info: Whether to create build_info.json file.
+        build_info_content: Custom content for build_info.json, or None for default.
+        firmware_first: If True, create firmware before build_info (makes firmware older).
+
+    Returns:
+        Tuple of (build_info_path, firmware_path).
+    """
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+
+    build_path = tmp_path / ".esphome" / "build" / "test_device"
+    pioenvs_path = build_path / ".pioenvs" / "test_device"
+    pioenvs_path.mkdir(parents=True, exist_ok=True)
+
+    build_info_path = build_path / "build_info.json"
+    firmware_path = pioenvs_path / "firmware.bin"
+
+    default_build_info = json.dumps(
+        {
+            "config_hash": 0x12345678,
+            "build_time": int(time.time()),
+            "build_time_str": "Dec 13 2025, 12:00:00",
+            "esphome_version": "2025.1.0",
+        }
+    )
+
+    def create_build_info_file() -> None:
+        if create_build_info:
+            content = (
+                build_info_content
+                if build_info_content is not None
+                else default_build_info
+            )
+            build_info_path.write_text(content)
+
+    def create_firmware_file() -> None:
+        if create_firmware:
+            firmware_path.write_bytes(b"fake firmware")
+
+    if firmware_first:
+        create_firmware_file()
+        time.sleep(0.01)  # Ensure different timestamps
+        create_build_info_file()
+    else:
+        create_build_info_file()
+        time.sleep(0.01)  # Ensure different timestamps
+        create_firmware_file()
+
+    return build_info_path, firmware_path
+
+
+def test_compile_program_emits_build_info_when_firmware_rebuilt(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    mock_compile_build_info_run_compile: Mock,
+    mock_compile_build_info_get_idedata: Mock,
+) -> None:
+    """Test that compile_program logs build_info when firmware is rebuilt."""
+    _setup_build_info_test(tmp_path, firmware_first=False)
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    with caplog.at_level(logging.INFO):
+        result = compile_program(args, config)
+
+    assert result == 0
+    assert "Build Info: config_hash=0x12345678" in caplog.text
+
+
+def test_compile_program_no_build_info_when_firmware_not_rebuilt(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    mock_compile_build_info_run_compile: Mock,
+    mock_compile_build_info_get_idedata: Mock,
+) -> None:
+    """Test that compile_program doesn't log build_info when firmware wasn't rebuilt."""
+    _setup_build_info_test(tmp_path, firmware_first=True)
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    with caplog.at_level(logging.INFO):
+        result = compile_program(args, config)
+
+    assert result == 0
+    assert "Build Info:" not in caplog.text
+
+
+def test_compile_program_no_build_info_when_firmware_missing(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    mock_compile_build_info_run_compile: Mock,
+    mock_compile_build_info_get_idedata: Mock,
+) -> None:
+    """Test that compile_program doesn't log build_info when firmware.bin doesn't exist."""
+    _setup_build_info_test(tmp_path, create_firmware=False)
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    with caplog.at_level(logging.INFO):
+        result = compile_program(args, config)
+
+    assert result == 0
+    assert "Build Info:" not in caplog.text
+
+
+def test_compile_program_no_build_info_when_json_missing(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    mock_compile_build_info_run_compile: Mock,
+    mock_compile_build_info_get_idedata: Mock,
+) -> None:
+    """Test that compile_program doesn't log build_info when build_info.json doesn't exist."""
+    _setup_build_info_test(tmp_path, create_build_info=False)
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    with caplog.at_level(logging.INFO):
+        result = compile_program(args, config)
+
+    assert result == 0
+    assert "Build Info:" not in caplog.text
+
+
+def test_compile_program_no_build_info_when_json_invalid(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    mock_compile_build_info_run_compile: Mock,
+    mock_compile_build_info_get_idedata: Mock,
+) -> None:
+    """Test that compile_program doesn't log build_info when build_info.json is invalid."""
+    _setup_build_info_test(tmp_path, build_info_content="not valid json {{{")
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    with caplog.at_level(logging.DEBUG):
+        result = compile_program(args, config)
+
+    assert result == 0
+    assert "Build Info:" not in caplog.text
+
+
+def test_compile_program_no_build_info_when_json_missing_keys(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    mock_compile_build_info_run_compile: Mock,
+    mock_compile_build_info_get_idedata: Mock,
+) -> None:
+    """Test that compile_program doesn't log build_info when build_info.json is missing required keys."""
+    _setup_build_info_test(
+        tmp_path, build_info_content=json.dumps({"build_time": 1234567890})
+    )
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    args = MockArgs()
+
+    with caplog.at_level(logging.INFO):
+        result = compile_program(args, config)
+
+    assert result == 0
+    assert "Build Info:" not in caplog.text

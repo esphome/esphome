@@ -6,8 +6,7 @@
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 enum class MQTTClientDisconnectReason : int8_t {
   TCP_DISCONNECTED = 0,
@@ -67,6 +66,5 @@ class MQTTBackend {
   virtual void loop() {}
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 #endif

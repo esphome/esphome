@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_ALARM_CONTROL_PANEL
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.alarm_control_panel";
 
@@ -123,8 +122,7 @@ bool MQTTAlarmControlPanelComponent::publish_state() {
   return this->publish(this->get_state_topic_(), state_s);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

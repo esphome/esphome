@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_EVENT
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.event";
 
@@ -54,8 +53,7 @@ bool MQTTEventComponent::publish_event_(const std::string &event_type) {
 std::string MQTTEventComponent::component_type() const { return "event"; }
 const EntityBase *MQTTEventComponent::get_entity() const { return this->event_; }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
