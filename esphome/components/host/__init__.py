@@ -11,7 +11,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 
-from .const import KEY_HOST
+from .const import CONF_USE_SHELL, KEY_HOST
 
 # force import gpio to register pin schema
 from .gpio import host_pin_to_code  # noqa
@@ -33,6 +33,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_MAC_ADDRESS, default="98:35:69:ab:f6:79"): cv.mac_address,
+            cv.Optional(CONF_USE_SHELL, default=False): cv.boolean,
         }
     ),
     set_core_data,
@@ -42,6 +43,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     cg.add_build_flag("-DUSE_HOST")
     cg.add_define("USE_ESPHOME_HOST_MAC_ADDRESS", config[CONF_MAC_ADDRESS].parts)
+    cg.add_define("HOST_SHELL_COMMAND_USE_SHELL_DEFAULT", "1" if config[CONF_USE_SHELL] else "0")
     cg.add_build_flag("-std=gnu++20")
     cg.add_define("ESPHOME_BOARD", "host")
     cg.add_define(ThreadModel.MULTI_ATOMICS)

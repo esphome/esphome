@@ -6,6 +6,10 @@
 #include <utility>
 #include <vector>
 
+#ifndef HOST_SHELL_COMMAND_USE_SHELL_DEFAULT
+#define HOST_SHELL_COMMAND_USE_SHELL_DEFAULT 0
+#endif
+
 namespace esphome {
 namespace host {
 
@@ -18,9 +22,11 @@ struct ShellCommandResult {
 struct ShellCommandOptions {
   std::string shell{"/bin/sh"};
   std::vector<std::pair<std::string, std::string>> environment;
+  bool use_shell{HOST_SHELL_COMMAND_USE_SHELL_DEFAULT};
 };
 
 ShellCommandResult execute_shell_command(const std::string &command, const ShellCommandOptions &options = {});
+ShellCommandResult execute_command(const std::vector<std::string> &args, const ShellCommandOptions &options = {});
 
 }  // namespace host
 }  // namespace esphome
