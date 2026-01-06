@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_TEXT_SENSOR
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.text_sensor";
 
@@ -43,8 +42,7 @@ bool MQTTTextSensor::send_initial_state() {
 std::string MQTTTextSensor::component_type() const { return "sensor"; }
 const EntityBase *MQTTTextSensor::get_entity() const { return this->sensor_; }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
