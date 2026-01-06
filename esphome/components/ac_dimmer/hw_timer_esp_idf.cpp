@@ -83,7 +83,7 @@ bool IRAM_ATTR timer_fn_wrapper(gptimer_handle_t timer, const gptimer_alarm_even
   return false;
 }
 
-void timer_attach_interrupt_functional_arg(HWTimer *timer, void (*user_func)(void *), void *arg) {
+static void timer_attach_interrupt_functional_arg(HWTimer *timer, void (*user_func)(void *), void *arg) {
   if (timer == nullptr) {
     ESP_LOGE(TAG, "Timer handle is nullptr");
     return;
@@ -109,25 +109,8 @@ void timer_attach_interrupt_functional_arg(HWTimer *timer, void (*user_func)(voi
   }
 }
 
-void timer_attach_interrupt_arg(HWTimer *timer, void (*user_func)(void *), void *arg) {
-  timer_attach_interrupt_functional_arg(timer, user_func, arg);
-}
-
 void timer_attach_interrupt(HWTimer *timer, voidFuncPtr user_func) {
   timer_attach_interrupt_functional_arg(timer, (voidFuncPtrArg) user_func, nullptr);
-}
-
-void timer_detach_interrupt(HWTimer *timer) {
-  if (timer == nullptr) {
-    ESP_LOGE(TAG, "Timer handle is nullptr");
-    return;
-  }
-  esp_err_t err = gptimer_set_alarm_action(timer->timer_handle, nullptr);
-  timer->interrupt_handle.fn = nullptr;
-  timer->interrupt_handle.arg = nullptr;
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Timer Detach Interrupt failed; error %d", err);
-  }
 }
 
 void timer_alarm(HWTimer *timer, uint64_t alarm_value, bool autoreload, uint64_t reload_count) {
@@ -144,15 +127,6 @@ void timer_alarm(HWTimer *timer, uint64_t alarm_value, bool autoreload, uint64_t
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Timer Alarm Write failed; error %d", err);
   }
-}
-
-void timer_start(HWTimer *timer) {
-  if (timer == nullptr) {
-    ESP_LOGE(TAG, "Timer handle is nullptr");
-    return;
-  }
-  gptimer_start(timer->timer_handle);
-  timer->timer_started = true;
 }
 
 }  // namespace esphome::ac_dimmer
