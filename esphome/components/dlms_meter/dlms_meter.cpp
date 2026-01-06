@@ -9,6 +9,8 @@
 
 namespace esphome::dlms_meter {
 
+static constexpr const char *TAG = "dlms_meter";
+
 void DlmsMeterComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "DLMS Meter:\n"
