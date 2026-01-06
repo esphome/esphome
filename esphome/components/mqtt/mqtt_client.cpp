@@ -56,7 +56,10 @@ void MQTTClientComponent::setup() {
     this->disconnect_reason_ = reason;
     this->session_present_ = false;
   });
-  this->mqtt_backend_.set_on_connect([this](bool session_present) { this->session_present_ = session_present; });
+  this->mqtt_backend_.set_on_connect([this](bool session_present) {
+    this->session_present_ = session_present;
+    this->on_connect_received_ = true;
+  });
 #ifdef USE_LOGGER
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
     logger::global_logger->add_log_listener(this);
@@ -310,13 +313,16 @@ void MQTTClientComponent::check_connected() {
     }
     return;
   }
+  // Wait for on_connect callback, not just TCP connection
+  if (!this->on_connect_received_) {
+    return;
+  }
+  this->on_connect_received_ = false;
 
   this->state_ = MQTT_CLIENT_CONNECTED;
   this->sent_birth_message_ = false;
   this->status_clear_warning();
   ESP_LOGI(TAG, "Connected");
-  // MQTT Client needs some time to be fully set up.
-  delay(100);  // NOLINT
 
   // Startup subscriptions
   this->resubscribe_subscriptions_(this->session_present_ && !this->credentials_.clean_session);

@@ -352,6 +352,7 @@ class MQTTClientComponent : public Component
   bool publish_nan_as_none_{false};
   bool wait_for_connection_{false};
   bool session_present_{false};
+  bool on_connect_received_{false};
 
   static uint32_t hash_subscription(const MQTTSubscription &sub);
   static bool is_subscription_persisted(const MQTTSubscription &sub);
