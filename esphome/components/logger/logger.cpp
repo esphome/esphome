@@ -65,8 +65,8 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
     uint16_t buffer_at = 0;                         // Initialize buffer position
     this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, console_buffer, &buffer_at,
                                                 MAX_CONSOLE_LOG_MSG_SIZE);
-    // Add newline if platform needs it (ESP32 doesn't add via write_msg_)
-    this->add_newline_to_buffer_if_needed_(console_buffer, &buffer_at, MAX_CONSOLE_LOG_MSG_SIZE);
+    // Add newline before writing to console
+    this->add_newline_to_buffer_(console_buffer, &buffer_at, MAX_CONSOLE_LOG_MSG_SIZE);
     this->write_msg_(console_buffer, buffer_at);
   }
 
