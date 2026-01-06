@@ -38,7 +38,8 @@ void DlmsMeterComponent::loop() {
     uint8_t c;
     this->read_byte(&c);
     // Bounds check to avoid unbounded growth
-    if (this->receive_buffer_.size() < MBUS_MAX_FRAME_LENGTH * 2) { // netznoe uses a second mbus frame directly following the first
+    if (this->receive_buffer_.size() <
+        MBUS_MAX_FRAME_LENGTH * 2) {  // netznoe uses a second mbus frame directly following the first
       this->receive_buffer_.push_back(c);
     } else {
       ESP_LOGW(TAG, "Receive buffer full, dropping byte");
@@ -297,7 +298,7 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
       return;
     }
 
-    uint8_t obis_code[0x0C]; // max of the supported lengths above
+    uint8_t obis_code[0x0C];  // max of the supported lengths above
     memcpy(&obis_code[0], &plaintext[current_position + OBIS_CODE_OFFSET],
            obis_code_length);  // Copy OBIS code to array
 

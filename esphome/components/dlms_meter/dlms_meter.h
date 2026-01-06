@@ -55,8 +55,8 @@ struct MeterData {
   std::string timestamp;               // Text sensor for the timestamp value
 
   // Netz NOE
-  float power_factor = 0.0f;           // Power Factor
-  std::string meternumber;             // Text sensor for the meterNumber value
+  float power_factor = 0.0f;  // Power Factor
+  std::string meternumber;    // Text sensor for the meterNumber value
 };
 
 /*
