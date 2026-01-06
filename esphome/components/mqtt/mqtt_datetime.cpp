@@ -8,8 +8,7 @@
 #ifdef USE_MQTT
 #ifdef USE_DATETIME_DATETIME
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.datetime.datetime";
 
@@ -78,8 +77,7 @@ bool MQTTDateTimeComponent::publish_state(uint16_t year, uint8_t month, uint8_t 
   });
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_DATETIME_DATETIME
 #endif  // USE_MQTT

@@ -8,8 +8,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.idf";
 
@@ -270,7 +269,6 @@ bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos,
 }
 #endif  // USE_MQTT_IDF_ENQUEUE
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 #endif  // USE_ESP32
 #endif
