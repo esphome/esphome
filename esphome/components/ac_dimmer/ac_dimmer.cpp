@@ -1,4 +1,3 @@
-
 #include "ac_dimmer.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -13,8 +12,7 @@
 #include "hw_timer_esp_idf.h"
 #endif
 
-namespace esphome {
-namespace ac_dimmer {
+namespace esphome::ac_dimmer {
 
 static const char *const TAG = "ac_dimmer";
 
@@ -232,5 +230,4 @@ void AcDimmer::dump_config() {
   ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
 }
 
-}  // namespace ac_dimmer
-}  // namespace esphome
+}  // namespace esphome::ac_dimmer

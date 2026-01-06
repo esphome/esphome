@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace ac_dimmer {
+namespace esphome::ac_dimmer {
 
 enum DimMethod { DIM_METHOD_LEADING_PULSE = 0, DIM_METHOD_LEADING, DIM_METHOD_TRAILING };
 
@@ -62,5 +61,4 @@ class AcDimmer : public output::FloatOutput, public Component {
   DimMethod method_;
 };
 
-}  // namespace ac_dimmer
-}  // namespace esphome
+}  // namespace esphome::ac_dimmer
