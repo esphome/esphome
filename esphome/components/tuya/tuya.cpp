@@ -26,9 +26,12 @@ void Tuya::handle_datapoint_(const TuyaDatapoint &datapoint) {
     case TuyaDatapointType::BITMASK:
       ESP_LOGD(TAG, "Datapoint %u update to 0x%X", datapoint.id, datapoint.value_bitmask);
       break;
-    case TuyaDatapointType::RAW:
-      ESP_LOGD(TAG, "Datapoint %u update to %s", datapoint.id, format_hex_pretty(datapoint.value_raw).c_str());
+    case TuyaDatapointType::RAW: {
+      char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
+      ESP_LOGD(TAG, "Datapoint %u update to %s", datapoint.id,
+               format_hex_pretty_to(hex_buf, datapoint.value_raw.data(), datapoint.value_raw.size()));
       break;
+    }
     default:
       ESP_LOGD(TAG, "Datapoint %u update", datapoint.id);
       break;
@@ -107,7 +110,8 @@ void Tuya::set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType 
 }
 
 void Tuya::set_raw_datapoint_value_(uint8_t datapoint_id, const std::vector<uint8_t> &value, bool forced) {
-  ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, format_hex_pretty(value).c_str());
+  char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
+  ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, format_hex_pretty_to(hex_buf, value.data(), value.size()));
   optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
   if (!datapoint.has_value() || datapoint->type != TuyaDatapointType::RAW) {
     ESP_LOGW(TAG, "Datapoint %u not found or has incorrect type", datapoint_id);
