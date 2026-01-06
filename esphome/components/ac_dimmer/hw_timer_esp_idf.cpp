@@ -12,8 +12,7 @@
 
 static const char *const TAG = "hw_timer_esp_idf";
 
-namespace esphome {
-namespace ac_dimmer {
+namespace esphome::ac_dimmer {
 
 using voidFuncPtr = void (*)();
 using voidFuncPtrArg = void (*)(void *);
@@ -24,9 +23,9 @@ struct InterruptConfigT {
 };
 
 struct HWTimer {
-  gptimer_handle_t timer_handle;
-  InterruptConfigT interrupt_handle;
-  bool timer_started;
+  gptimer_handle_t timer_handle{nullptr};
+  InterruptConfigT interrupt_handle{};
+  bool timer_started{false};
 };
 
 HWTimer *timer_begin(uint32_t frequency) {
@@ -116,18 +115,17 @@ void timer_attach_interrupt_arg(HWTimer *timer, void (*user_func)(void *), void 
 }
 
 void timer_attach_interrupt(HWTimer *timer, voidFuncPtr user_func) {
-  timer_attach_interrupt_functional_arg(timer, (voidFuncPtrArg) user_func, NULL);
+  timer_attach_interrupt_functional_arg(timer, (voidFuncPtrArg) user_func, nullptr);
 }
 
 void timer_detach_interrupt(HWTimer *timer) {
-  if (timer == NULL) {
-    ESP_LOGE(TAG, "Timer handle is NULL");
+  if (timer == nullptr) {
+    ESP_LOGE(TAG, "Timer handle is nullptr");
     return;
   }
-  esp_err_t err = ESP_OK;
-  err = gptimer_set_alarm_action(timer->timer_handle, NULL);
-  timer->interrupt_handle.fn = NULL;
-  timer->interrupt_handle.arg = NULL;
+  esp_err_t err = gptimer_set_alarm_action(timer->timer_handle, nullptr);
+  timer->interrupt_handle.fn = nullptr;
+  timer->interrupt_handle.arg = nullptr;
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Timer Detach Interrupt failed; error %d", err);
   }
@@ -159,6 +157,5 @@ void timer_start(HWTimer *timer) {
   timer->timer_started = true;
 }
 
-}  // namespace ac_dimmer
-}  // namespace esphome
+}  // namespace esphome::ac_dimmer
 #endif
