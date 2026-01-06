@@ -103,7 +103,7 @@ def validate_config(config):
     return config
 
 
-def zephyr_device_name(value):
+def validate_zephyr_device_name(value):
     if value is None:
         if CORE.is_nrf52 and zephyr_data()[KEY_BOARD] not in ["xiao_ble"]:
             value = "i2c0"
@@ -112,9 +112,9 @@ def zephyr_device_name(value):
     return value
 
 
-def i2c_pin_validator(value, pin_name):
+def validate_i2c_pin(value, pin):
     if value is None and CORE.is_nrf52:
-        raise cv.Invalid(f"'{pin_name}' is required for [i2c] on nrf52 platform")
+        raise cv.Invalid(f"'{pin}' is required for [i2c] on nrf52 platform")
     return pins.internal_gpio_pin_number(value)
 
 
@@ -128,7 +128,7 @@ CONFIG_SCHEMA = cv.All(
                 esp8266="SDA",
                 rp2040="SDA",
                 nrf52=None,
-            ): partial(i2c_pin_validator, pin_name=CONF_SDA),
+            ): partial(validate_i2c_pin, pin=CONF_SDA),
             cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32=True): cv.All(
                 cv.only_on_esp32, cv.boolean
             ),
@@ -138,7 +138,7 @@ CONFIG_SCHEMA = cv.All(
                 esp8266="SDA",
                 rp2040="SDA",
                 nrf52=None,
-            ): partial(i2c_pin_validator, pin_name=CONF_SCL),
+            ): partial(validate_i2c_pin, pin=CONF_SCL),
             cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32=True): cv.All(
                 cv.only_on_esp32, cv.boolean
             ),
@@ -166,7 +166,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.OnlyWith(
                 "device_name", Framework.ZEPHYR, default=None
-            ): zephyr_device_name,
+            ): validate_zephyr_device_name,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_NRF52]),
