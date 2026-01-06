@@ -7,8 +7,7 @@
 #include "esphome/components/time/real_time_clock.h"
 
 #ifdef USE_NETWORK
-namespace esphome {
-namespace syslog {
+namespace esphome::syslog {
 class Syslog : public Component, public Parented<udp::UDPComponent>, public logger::LogListener {
  public:
   Syslog(int level, time::RealTimeClock *time) : log_level_(level), time_(time) {}
@@ -24,6 +23,5 @@ class Syslog : public Component, public Parented<udp::UDPComponent>, public logg
   bool strip_{true};
   int facility_{16};
 };
-}  // namespace syslog
-}  // namespace esphome
+}  // namespace esphome::syslog
 #endif

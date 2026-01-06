@@ -15,7 +15,7 @@ from esphome.const import (
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, add, get_variable
 import esphome.final_validate as fv
-from esphome.helpers import sanitize, snake_case
+from esphome.helpers import fnv1_hash_object_id, sanitize, snake_case
 from esphome.types import ConfigType, EntityMetadata
 
 _LOGGER = logging.getLogger(__name__)
@@ -75,34 +75,18 @@ async def setup_entity(var: MockObj, config: ConfigType, platform: str) -> None:
         config: Configuration dictionary containing entity settings
         platform: The platform name (e.g., "sensor", "binary_sensor")
     """
-    # Get device info
-    device_name: str | None = None
-    device_id_obj: ID | None
+    # Get device info if configured
     if device_id_obj := config.get(CONF_DEVICE_ID):
         device: MockObj = await get_variable(device_id_obj)
         add(var.set_device(device))
-        # Get device name for object ID calculation
-        device_name = device_id_obj.id
 
-    # Calculate base object_id using the same logic as C++
-    # This must match the C++ behavior in esphome/core/entity_base.cpp
-    base_object_id = get_base_entity_object_id(
-        config[CONF_NAME], CORE.friendly_name, device_name
-    )
-
-    if not config[CONF_NAME]:
-        _LOGGER.debug(
-            "Entity has empty name, using '%s' as object_id base", base_object_id
-        )
-
-    # Set both name and object_id in one call to reduce generated code size
-    add(var.set_name_and_object_id(config[CONF_NAME], base_object_id))
-    _LOGGER.debug(
-        "Setting object_id '%s' for entity '%s' on platform '%s'",
-        base_object_id,
-        config[CONF_NAME],
-        platform,
-    )
+    # Set the entity name with pre-computed object_id hash
+    # For named entities: pre-compute hash from entity name
+    # For empty-name entities: pass 0, C++ calculates hash at runtime from
+    # device name, friendly_name, or app name (bug-for-bug compatibility)
+    entity_name = config[CONF_NAME]
+    object_id_hash = fnv1_hash_object_id(entity_name) if entity_name else 0
+    add(var.set_name(entity_name, object_id_hash))
     # Only set disabled_by_default if True (default is False)
     if config[CONF_DISABLED_BY_DEFAULT]:
         add(var.set_disabled_by_default(True))

@@ -348,10 +348,6 @@ CONFIG_SCHEMA = cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
-            cv.Optional("enable_mdns"): cv.invalid(
-                "This option has been removed. Please use the [disabled] option under the "
-                "new mdns component instead."
-            ),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
@@ -468,7 +464,7 @@ async def to_code(config):
         )
         cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
         cg.add_define("USE_WIFI_AP")
-    elif CORE.is_esp32 and CORE.using_esp_idf:
+    elif CORE.is_esp32 and not CORE.using_arduino:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
         add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
 
@@ -513,7 +509,7 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
 
     # Apply high performance WiFi settings if high performance networking is enabled
-    if CORE.is_esp32 and CORE.using_esp_idf and has_high_performance_networking():
+    if CORE.is_esp32 and has_high_performance_networking():
         # Check if PSRAM is guaranteed (set by psram component during final validation)
         psram_guaranteed = psram_is_guaranteed()
 
