@@ -49,11 +49,18 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
 void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   std::string ssid = request->arg("ssid").c_str();  // NOLINT(readability-redundant-string-cstr)
   std::string psk = request->arg("psk").c_str();    // NOLINT(readability-redundant-string-cstr)
-  ESP_LOGI(TAG, "Requested WiFi Settings Change:");
-  ESP_LOGI(TAG, "  SSID='%s'", ssid.c_str());
-  ESP_LOGI(TAG, "  Password=" LOG_SECRET("'%s'"), psk.c_str());
+  ESP_LOGI(TAG,
+           "Requested WiFi Settings Change:\n"
+           "  SSID='%s'\n"
+           "  Password=" LOG_SECRET("'%s'"),
+           ssid.c_str(), psk.c_str());
+#ifdef USE_ESP8266
+  // ESP8266 is single-threaded, call directly
+  wifi::global_wifi_component->save_wifi_sta(ssid, psk);
+#else
   // Defer save to main loop thread to avoid NVS operations from HTTP thread
   this->defer([ssid, psk]() { wifi::global_wifi_component->save_wifi_sta(ssid, psk); });
+#endif
   request->redirect(ESPHOME_F("/?save"));
 }
 

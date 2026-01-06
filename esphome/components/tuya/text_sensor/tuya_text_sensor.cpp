@@ -33,8 +33,10 @@ void TuyaTextSensor::setup() {
 }
 
 void TuyaTextSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Tuya Text Sensor:");
-  ESP_LOGCONFIG(TAG, "  Text Sensor has datapoint ID %u", this->sensor_id_);
+  ESP_LOGCONFIG(TAG,
+                "Tuya Text Sensor:\n"
+                "  Text Sensor has datapoint ID %u",
+                this->sensor_id_);
 }
 
 }  // namespace tuya

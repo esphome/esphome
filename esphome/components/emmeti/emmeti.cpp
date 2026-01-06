@@ -153,8 +153,10 @@ void EmmetiClimate::reverse_add_(T val, size_t len, esphome::remote_base::Remote
 
 bool EmmetiClimate::check_checksum_(uint8_t checksum) {
   uint8_t expected = this->gen_checksum_();
-  ESP_LOGV(TAG, "Expected checksum: %X", expected);
-  ESP_LOGV(TAG, "Checksum received: %X", checksum);
+  ESP_LOGV(TAG,
+           "Expected checksum: %X\n"
+           "Checksum received: %X",
+           expected, checksum);
 
   return checksum == expected;
 }
@@ -264,8 +266,10 @@ bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
   }
 
-  ESP_LOGD(TAG, "Swing: %d", (curr_state.bitmap >> 1) & 0x01);
-  ESP_LOGD(TAG, "Sleep: %d", (curr_state.bitmap >> 2) & 0x01);
+  ESP_LOGD(TAG,
+           "Swing: %d\n"
+           "Sleep: %d",
+           (curr_state.bitmap >> 1) & 0x01, (curr_state.bitmap >> 2) & 0x01);
 
   for (size_t pos = 0; pos < 4; pos++) {
     if (data.expect_item(EMMETI_BIT_MARK, EMMETI_ONE_SPACE)) {
@@ -291,10 +295,13 @@ bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
   }
 
-  ESP_LOGD(TAG, "Turbo: %d", (curr_state.bitmap >> 3) & 0x01);
-  ESP_LOGD(TAG, "Light: %d", (curr_state.bitmap >> 4) & 0x01);
-  ESP_LOGD(TAG, "Tree: %d", (curr_state.bitmap >> 5) & 0x01);
-  ESP_LOGD(TAG, "Blow: %d", (curr_state.bitmap >> 6) & 0x01);
+  ESP_LOGD(TAG,
+           "Turbo: %d\n"
+           "Light: %d\n"
+           "Tree: %d\n"
+           "Blow: %d",
+           (curr_state.bitmap >> 3) & 0x01, (curr_state.bitmap >> 4) & 0x01, (curr_state.bitmap >> 5) & 0x01,
+           (curr_state.bitmap >> 6) & 0x01);
 
   uint16_t control_data = 0;
   for (size_t pos = 0; pos < 11; pos++) {
