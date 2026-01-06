@@ -6,8 +6,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ethernet_info {
+namespace esphome::ethernet_info {
 
 class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
@@ -40,21 +39,27 @@ class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextS
 class DNSAddressEthernetInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
   void update() override {
-    auto dns_one = ethernet::global_eth_component->get_dns_address(0);
-    auto dns_two = ethernet::global_eth_component->get_dns_address(1);
+    auto dns1 = ethernet::global_eth_component->get_dns_address(0);
+    auto dns2 = ethernet::global_eth_component->get_dns_address(1);
 
-    std::string dns_results = dns_one.str() + " " + dns_two.str();
-
-    if (dns_results != this->last_results_) {
-      this->last_results_ = dns_results;
-      this->publish_state(dns_results);
+    if (dns1 != this->last_dns1_ || dns2 != this->last_dns2_) {
+      this->last_dns1_ = dns1;
+      this->last_dns2_ = dns2;
+      // IP_ADDRESS_BUFFER_SIZE (40) = max IP (39) + null; space reuses first null's slot
+      char buf[network::IP_ADDRESS_BUFFER_SIZE * 2];
+      dns1.str_to(buf);
+      size_t len1 = strlen(buf);
+      buf[len1] = ' ';
+      dns2.str_to(buf + len1 + 1);
+      this->publish_state(buf);
     }
   }
   float get_setup_priority() const override { return setup_priority::ETHERNET; }
   void dump_config() override;
 
  protected:
-  std::string last_results_;
+  network::IPAddress last_dns1_;
+  network::IPAddress last_dns2_;
 };
 
 class MACAddressEthernetInfo : public Component, public text_sensor::TextSensor {
@@ -64,7 +69,6 @@ class MACAddressEthernetInfo : public Component, public text_sensor::TextSensor 
   void dump_config() override;
 };
 
-}  // namespace ethernet_info
-}  // namespace esphome
+}  // namespace esphome::ethernet_info
 
 #endif  // USE_ESP32

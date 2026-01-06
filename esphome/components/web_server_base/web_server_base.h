@@ -100,7 +100,7 @@ class WebServerBase : public Component {
     }
     this->server_ = std::make_unique<AsyncWebServer>(this->port_);
     // All content is controlled and created by user - so allowing all origins is fine here.
-    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
+    DefaultHeaders::Instance().addHeader(ESPHOME_F("Access-Control-Allow-Origin"), ESPHOME_F("*"));
     this->server_->begin();
 
     for (auto *handler : this->handlers_)
