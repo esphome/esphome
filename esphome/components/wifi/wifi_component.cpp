@@ -317,7 +317,6 @@ void WiFiComponent::start_initial_connection_() {
     WiFiAP params = this->build_params_for_current_phase_();
     this->start_connecting(params);
   } else {
-    ESP_LOGI(TAG, "Starting scan");
     this->start_scanning();
   }
 }
@@ -369,11 +368,7 @@ void WiFiComponent::setup() {
 }
 
 void WiFiComponent::start() {
-  char mac_s[18];
-  ESP_LOGCONFIG(TAG,
-                "Starting\n"
-                "  Local MAC: %s",
-                get_mac_address_pretty_into_buffer(mac_s));
+  ESP_LOGCONFIG(TAG, "Starting");
   this->last_connected_ = millis();
 
   uint32_t hash = this->has_sta() ? App.get_config_version_hash() : 88491487UL;
@@ -781,8 +776,10 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
            get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-  ESP_LOGV(TAG, "Connection Params:");
-  ESP_LOGV(TAG, "  SSID: '%s'", ap.get_ssid().c_str());
+  ESP_LOGV(TAG,
+           "Connection Params:\n"
+           "  SSID: '%s'",
+           ap.get_ssid().c_str());
   if (ap.has_bssid()) {
     ESP_LOGV(TAG, "  BSSID: %s", bssid_s);
   } else {
@@ -791,20 +788,28 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 
 #ifdef USE_WIFI_WPA2_EAP
   if (ap.get_eap().has_value()) {
-    ESP_LOGV(TAG, "  WPA2 Enterprise authentication configured:");
     EAPAuth eap_config = ap.get_eap().value();
-    ESP_LOGV(TAG, "    Identity: " LOG_SECRET("'%s'"), eap_config.identity.c_str());
-    ESP_LOGV(TAG, "    Username: " LOG_SECRET("'%s'"), eap_config.username.c_str());
-    ESP_LOGV(TAG, "    Password: " LOG_SECRET("'%s'"), eap_config.password.c_str());
+    // clang-format off
+    ESP_LOGV(
+        TAG,
+        "  WPA2 Enterprise authentication configured:\n"
+        "    Identity: " LOG_SECRET("'%s'") "\n"
+        "    Username: " LOG_SECRET("'%s'") "\n"
+        "    Password: " LOG_SECRET("'%s'"),
+        eap_config.identity.c_str(), eap_config.username.c_str(), eap_config.password.c_str());
+    // clang-format on
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP) && ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     ESP_LOGV(TAG, "    TTLS Phase 2: " LOG_SECRET("'%s'"), eap_phase2_to_str(eap_config.ttls_phase_2));
 #endif
     bool ca_cert_present = eap_config.ca_cert != nullptr && strlen(eap_config.ca_cert);
     bool client_cert_present = eap_config.client_cert != nullptr && strlen(eap_config.client_cert);
     bool client_key_present = eap_config.client_key != nullptr && strlen(eap_config.client_key);
-    ESP_LOGV(TAG, "    CA Cert:     %s", ca_cert_present ? "present" : "not present");
-    ESP_LOGV(TAG, "    Client Cert: %s", client_cert_present ? "present" : "not present");
-    ESP_LOGV(TAG, "    Client Key:  %s", client_key_present ? "present" : "not present");
+    ESP_LOGV(TAG,
+             "    CA Cert:     %s\n"
+             "    Client Cert: %s\n"
+             "    Client Key:  %s",
+             ca_cert_present ? "present" : "not present", client_cert_present ? "present" : "not present",
+             client_key_present ? "present" : "not present");
   } else {
 #endif
     ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.get_password().c_str());
@@ -847,14 +852,6 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 }
 
 const LogString *get_signal_bars(int8_t rssi) {
-  // Check for disconnected sentinel value first
-  if (rssi == WIFI_RSSI_DISCONNECTED) {
-    // MULTIPLICATION SIGN
-    // Unicode: U+00D7, UTF-8: C3 97
-    return LOG_STR("\033[0;31m"  // red
-                   "\xc3\x97\xc3\x97\xc3\x97\xc3\x97"
-                   "\033[0m");
-  }
   // LOWER ONE QUARTER BLOCK
   // Unicode: U+2582, UTF-8: E2 96 82
   // LOWER HALF BLOCK
@@ -899,15 +896,8 @@ const LogString *get_signal_bars(int8_t rssi) {
 
 void WiFiComponent::print_connect_params_() {
   bssid_t bssid = wifi_bssid();
-  char bssid_s[18];
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(bssid.data(), bssid_s);
-
-  char mac_s[18];
-  ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty_into_buffer(mac_s));
-  if (this->is_disabled()) {
-    ESP_LOGCONFIG(TAG, "  Disabled");
-    return;
-  }
   // Use stack buffers for IP address formatting to avoid heap allocations
   char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
   for (auto &ip : wifi_sta_ip_addresses()) {
@@ -922,19 +912,21 @@ void WiFiComponent::print_connect_params_() {
   char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  // clang-format off
   ESP_LOGCONFIG(TAG,
                 "  SSID: " LOG_SECRET("'%s'") "\n"
-                                              "  BSSID: " LOG_SECRET("%s") "\n"
-                                                                           "  Hostname: '%s'\n"
-                                                                           "  Signal strength: %d dB %s\n"
-                                                                           "  Channel: %" PRId32 "\n"
-                                                                           "  Subnet: %s\n"
-                                                                           "  Gateway: %s\n"
-                                                                           "  DNS1: %s\n"
-                                                                           "  DNS2: %s",
+                "  BSSID: " LOG_SECRET("%s") "\n"
+                "  Hostname: '%s'\n"
+                "  Signal strength: %d dB %s\n"
+                "  Channel: %" PRId32 "\n"
+                "  Subnet: %s\n"
+                "  Gateway: %s\n"
+                "  DNS1: %s\n"
+                "  DNS2: %s",
                 wifi_ssid_to(ssid_buf), bssid_s, App.get_name().c_str(), rssi, LOG_STR_ARG(get_signal_bars(rssi)),
                 get_wifi_channel(), wifi_subnet_mask_().str_to(subnet_buf), wifi_gateway_ip_().str_to(gateway_buf),
                 wifi_dns_ip_(0).str_to(dns1_buf), wifi_dns_ip_(1).str_to(dns2_buf));
+  // clang-format on
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_bssid()) {
     ESP_LOGV(TAG, "  Priority: %d", this->get_sta_priority(config->get_bssid()));
@@ -1177,11 +1169,19 @@ void WiFiComponent::check_scanning_finished() {
 }
 
 void WiFiComponent::dump_config() {
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "WiFi:\n"
+                "  Local MAC: %s\n"
                 "  Connected: %s",
-                YESNO(this->is_connected()));
-  this->print_connect_params_();
+                get_mac_address_pretty_into_buffer(mac_s), YESNO(this->is_connected()));
+  if (this->is_disabled()) {
+    ESP_LOGCONFIG(TAG, "  Disabled");
+    return;
+  }
+  if (this->is_connected()) {
+    this->print_connect_params_();
+  }
 }
 
 void WiFiComponent::check_connecting_finished() {
@@ -1211,8 +1211,6 @@ void WiFiComponent::check_connecting_finished() {
     // the first connection as a failure.
     this->error_from_callback_ = false;
 
-    this->print_connect_params_();
-
     if (this->has_ap()) {
 #ifdef USE_CAPTIVE_PORTAL
       if (this->is_captive_portal_active_()) {
@@ -1230,6 +1228,7 @@ void WiFiComponent::check_connecting_finished() {
 
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
+    this->print_connect_params_();
 
     // Clear priority tracking if all priorities are at minimum
     this->clear_priorities_if_all_min_();
