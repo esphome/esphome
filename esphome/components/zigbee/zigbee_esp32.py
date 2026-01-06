@@ -12,8 +12,8 @@ from esphome.const import (
     CONF_AP,
     CONF_DEVICE,
     CONF_ID,
-    CONF_INTERNAL,
     CONF_MAX_LENGTH,
+    CONF_MODEL,
     CONF_NAME,
     CONF_TYPE,
     CONF_VALUE,
@@ -96,32 +96,31 @@ def final_validate_esp32(config):
 
 
 def validate_binary_sensor_esp32(config):
-    if (CONF_NAME in config) and not config.get(CONF_INTERNAL):
-        ep = copy.deepcopy(ep_configs["binary_input"])
-        for cl in ep.get(CONF_CLUSTERS, []):
-            for attr in cl[CONF_ATTRIBUTES]:
-                if CONF_DEVICE in attr:  # connect device
-                    attr[CONF_DEVICE] = config[CONF_ID]
-                    if CONF_REPORT in config:
-                        attr[CONF_REPORT] = config[CONF_REPORT]
-                if (
-                    attr[CONF_ATTRIBUTE_ID] == 0x1C
-                    and CONF_VALUE not in attr
-                    and CONF_NAME in config
-                ):  # set name
-                    name = (
-                        config[CONF_NAME].encode("ascii", "ignore").decode()
-                    )  # use unidecode
-                    attr[CONF_VALUE] = str(name)
-                    attr[CONF_MAX_LENGTH] = len(str(name))
-                validate_attributes(attr)
-                attr[CONF_ID] = cv.declare_id(ZigbeeAttribute)(None)
-                if "zb_attr_ids" not in config:
-                    config["zb_attr_ids"] = []
-                config["zb_attr_ids"].append(attr[CONF_ID])
-        zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
-        binary_sensor_ep: list[dict] = zb_data.setdefault(KEY_BS_EP, [])
-        binary_sensor_ep.append(ep)
+    ep = copy.deepcopy(ep_configs["binary_input"])
+    for cl in ep.get(CONF_CLUSTERS, []):
+        for attr in cl[CONF_ATTRIBUTES]:
+            if CONF_DEVICE in attr:  # connect device
+                attr[CONF_DEVICE] = config[CONF_ID]
+                if CONF_REPORT in config:
+                    attr[CONF_REPORT] = config[CONF_REPORT]
+            if (
+                attr[CONF_ATTRIBUTE_ID] == 0x1C
+                and CONF_VALUE not in attr
+                and CONF_NAME in config
+            ):  # set name
+                name = (
+                    config[CONF_NAME].encode("ascii", "ignore").decode()
+                )  # use unidecode
+                attr[CONF_VALUE] = str(name)
+                attr[CONF_MAX_LENGTH] = len(str(name))
+            validate_attributes(attr)
+            attr[CONF_ID] = cv.declare_id(ZigbeeAttribute)(None)
+            if "zb_attr_ids" not in config:
+                config["zb_attr_ids"] = []
+            config["zb_attr_ids"].append(attr[CONF_ID])
+    zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
+    binary_sensor_ep: list[dict] = zb_data.setdefault(KEY_BS_EP, [])
+    binary_sensor_ep.append(ep)
     return config
 
 
@@ -185,11 +184,9 @@ async def esp32_to_code(config):
     # setup zigbee components
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    if CONF_NAME not in config:
-        config[CONF_NAME] = CORE.name
     cg.add(
         var.set_basic_cluster(
-            config[CONF_NAME],
+            config[CONF_MODEL],
             "esphome",
             ZIGBEE_DATE,
         )

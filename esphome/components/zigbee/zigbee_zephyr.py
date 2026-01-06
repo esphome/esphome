@@ -2,7 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NAME, __version__
+from esphome.const import CONF_ID, CONF_MODEL, CONF_NAME, __version__
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import (
     AssignmentExpression,
@@ -80,7 +80,7 @@ async def _attr_to_code(config: ConfigType) -> None:
         zigbee_assign(basic_attrs.stack_version, 0),
         zigbee_assign(basic_attrs.hw_version, 0),
         zigbee_set_string(basic_attrs.mf_name, "esphome"),
-        zigbee_set_string(basic_attrs.model_id, CORE.name),
+        zigbee_set_string(basic_attrs.model_id, config[CONF_MODEL]),
         zigbee_set_string(basic_attrs.date_code, ZIGBEE_DATE),
         zigbee_assign(
             basic_attrs.power_source,

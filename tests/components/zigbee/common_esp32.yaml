@@ -1,4 +1,5 @@
-<<: !include common.yaml
+packages:
+  - !include common.yaml
 
 binary_sensor:
   - platform: template
@@ -12,5 +13,5 @@ binary_sensor:
     report: "force"
 
 zigbee:
-  name: zigbee_test
+  model: zigbee_test
   router: true

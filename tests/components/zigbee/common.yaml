@@ -19,8 +19,6 @@ binary_sensor:
   - platform: template
     name: "Garage Door Open 9"
 
-zigbee:
-
 output:
   - platform: template
     id: output_factory

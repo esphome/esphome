@@ -12,7 +12,7 @@ from esphome.components.nrf52.boards import BOOTLOADER_CONFIG, Section
 from esphome.components.zephyr import zephyr_add_pm_static, zephyr_data
 from esphome.components.zephyr.const import KEY_BOOTLOADER
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INTERNAL, CONF_NAME
+from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -60,10 +60,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(ZigbeeComponent),
-            cv.Optional(CONF_NAME): cv.All(
-                cv.requires_component("esp32"),
-                cv.string,
-            ),
+            cv.Optional(CONF_MODEL, default=CORE.name): cv.string,
             cv.OnlyWith(CONF_ROUTER, "esp32", default=False): cv.All(
                 cv.requires_component("esp32"),
                 cv.boolean,
@@ -140,12 +137,10 @@ async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 def validate_binary_sensor(config: ConfigType) -> ConfigType:
-    if "zigbee" not in CORE.loaded_integrations:
+    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return config
     if CORE.is_esp32:
         return validate_binary_sensor_esp32(config)
-    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
-        return config
     data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
     slots: list[str] = data.setdefault(KEY_EP_NUMBER, [])
     slots.extend([""])
