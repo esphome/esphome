@@ -292,7 +292,7 @@ void Logger::dump_config() {
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   if (this->log_buffer_) {
-    ESP_LOGCONFIG(TAG, "  Task Log Buffer Size: %u", this->log_buffer_->size());
+    ESP_LOGCONFIG(TAG, "  Task Log Buffer Size: %u", static_cast<unsigned int>(this->log_buffer_->size()));
   }
 #endif
 

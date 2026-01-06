@@ -100,6 +100,7 @@ CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
 CONF_RUNTIME_TAG_LEVELS = "runtime_tag_levels"
 CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
+CONF_TASK_LOG_BUFFER_SLOTS = "task_log_buffer_slots"
 
 UART_SELECTION_ESP32 = {
     VARIANT_ESP32: [UART0, UART1, UART2],
@@ -227,12 +228,25 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_TASK_LOG_BUFFER_SIZE,
                 esp32=768,  # Default: 768 bytes (~5-6 messages with 70-byte text plus thread names)
-                host=64,  # Default: 64 slots (host uses slot count, not byte size)
             ): cv.All(
-                cv.only_on([PLATFORM_ESP32, PLATFORM_HOST]),
+                cv.only_on_esp32,
+                cv.validate_bytes,
                 cv.Any(
                     cv.int_(0),  # Disabled
-                    cv.int_range(min=4, max=32768),
+                    cv.int_range(
+                        min=640,  # Min: ~4-5 messages with 70-byte text plus thread names
+                        max=32768,  # Max: Depends on message sizes, typically ~300 messages with default size
+                    ),
+                ),
+            ),
+            cv.SplitDefault(
+                CONF_TASK_LOG_BUFFER_SLOTS,
+                host=64,  # Default: 64 message slots for host platform
+            ): cv.All(
+                cv.only_on(PLATFORM_HOST),
+                cv.Any(
+                    cv.int_(0),  # Disabled
+                    cv.int_range(min=4, max=256),  # 4-256 message slots
                 ),
             ),
             cv.SplitDefault(
@@ -302,12 +316,18 @@ async def to_code(config):
         baud_rate,
         config[CONF_TX_BUFFER_SIZE],
     )
-    if CORE.is_esp32 or CORE.is_host:
+    if CORE.is_esp32:
         cg.add(log.create_pthread_key())
         task_log_buffer_size = config.get(CONF_TASK_LOG_BUFFER_SIZE, 0)
         if task_log_buffer_size > 0:
             cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
             cg.add(log.init_log_buffer(task_log_buffer_size))
+    elif CORE.is_host:
+        cg.add(log.create_pthread_key())
+        task_log_buffer_slots = config.get(CONF_TASK_LOG_BUFFER_SLOTS, 0)
+        if task_log_buffer_slots > 0:
+            cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
+            cg.add(log.init_log_buffer(task_log_buffer_slots))
 
     cg.add(log.set_log_level(initial_level))
     if CONF_HARDWARE_UART in config:
