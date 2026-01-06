@@ -53,7 +53,7 @@ size_t ImprovBase::get_formatted_next_url_(char *buffer, size_t buffer_size) {
     if (strncmp(p, DEVICE_NAME_PLACEHOLDER, DEVICE_NAME_PLACEHOLDER_LEN) == 0) {
       out = copy_to_buffer(out, end, device_name);
       p += DEVICE_NAME_PLACEHOLDER_LEN;
-    } else if (strncmp(p, IP_ADDRESS_PLACEHOLDER, IP_ADDRESS_PLACEHOLDER_LEN) == 0) {
+    } else if (ip_str != nullptr && strncmp(p, IP_ADDRESS_PLACEHOLDER, IP_ADDRESS_PLACEHOLDER_LEN) == 0) {
       out = copy_to_buffer(out, end, ip_str);
       p += IP_ADDRESS_PLACEHOLDER_LEN;
     } else {
