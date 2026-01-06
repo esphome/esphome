@@ -23,6 +23,7 @@ from esphome.const import (
     CONF_MODE_COMMAND_TOPIC,
     CONF_MODE_STATE_TOPIC,
     CONF_MQTT_ID,
+    CONF_MQTT_SUBSCRIPTION_COUNT,
     CONF_ON_CONTROL,
     CONF_ON_STATE,
     CONF_PRESET,
@@ -229,6 +230,10 @@ _CLIMATE_SCHEMA = (
             ),
             cv.Optional(CONF_TARGET_HUMIDITY_STATE_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.publish_topic
+            ),
+            # Command, temperature (x2), humidity, preset, fan, swing (worst case scenario)
+            cv.Optional(CONF_MQTT_SUBSCRIPTION_COUNT, default=7): cv.All(
+                cv.requires_component("mqtt"), cv.positive_int
             ),
             cv.Optional(CONF_ON_CONTROL): automation.validate_automation(
                 {

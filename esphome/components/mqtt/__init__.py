@@ -1,4 +1,5 @@
 import re
+import logging
 
 from esphome import automation
 from esphome.automation import Condition
@@ -29,6 +30,7 @@ from esphome.const import (
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
+    CONF_MQTT_SUBSCRIPTION_COUNT,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_JSON_MESSAGE,
@@ -73,6 +75,9 @@ def AUTO_LOAD():
     if CORE.is_esp32:
         return ["json", "socket"]
     return ["json"]
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 CONF_DISCOVER_IP = "discover_ip"
@@ -164,52 +169,36 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    # Calculate the number of required space for subscriptions for RTC persistence
-    if CONF_RTC_MAX_SUBSCRIPTIONS in config:
+    # Only if using RTC persistence
+    clean_session = config[CONF_CLEAN_SESSION]
+    if not (CORE.is_esp32 and clean_session is True) and not (clean_session == "RTC"):
         return config
+    # Calculate the number of required space for subscriptions for RTC persistence
     subscription_count = 0
     fconf = full_config.get()
-    for conf in (
-        fconf.get("alarm_control_panel", [])
-        + fconf.get("button", [])
-        + fconf.get("datetime", [])
-        + fconf.get("light", [])
-        + fconf.get("lock", [])
-        + fconf.get("number", [])
-        + fconf.get("select", [])
-        + fconf.get("switch", [])
-        + fconf.get("text", [])
-        + fconf.get("time", [])
-        + fconf.get("update", [])
-    ):
-        if conf.get(CONF_INTERNAL, False):
+    for main_conf in fconf.values():
+        # Skip configs that are not iterable
+        if not hasattr(main_conf, "__iter__"):
             continue
-        subscription_count += 1
-    for conf in fconf.get("climate", []):
-        if conf.get(CONF_INTERNAL, False):
-            continue
-        # Command, temperature (x2), humidity, preset, fan, swing (worst case scenario)
-        subscription_count += 7
-    for conf in fconf.get("cover", []):
-        if conf.get(CONF_INTERNAL, False):
-            continue
-        # Command, tilt and position (worst case scenario)
-        subscription_count += 3
-    for conf in fconf.get("fan", []):
-        if conf.get(CONF_INTERNAL, False):
-            continue
-        # Command, speed, oscillation and direction (worst case scenario)
-        subscription_count += 4
-    for conf in fconf.get("valve", []):
-        if conf.get(CONF_INTERNAL, False):
-            continue
-        # Command and position (worst case scenario)
-        subscription_count += 2
-    # For MQTT subscribe sensor and text_sensor
-    for conf in fconf.get("sensor", []) + fconf.get("text_sensor", []):
-        if conf.get("platform") == "mqtt_subscribe":
-            subscription_count += 1
-    config[CONF_RTC_MAX_SUBSCRIPTIONS] = subscription_count
+        for conf in main_conf:
+            # Skip configs that cannot 'get'
+            if not hasattr(conf, "get") or conf.get(CONF_INTERNAL, False):
+                continue
+            subscription_count += conf.get(CONF_MQTT_SUBSCRIPTION_COUNT, 0)
+
+    if CONF_RTC_MAX_SUBSCRIPTIONS not in config:
+        config[CONF_RTC_MAX_SUBSCRIPTIONS] = subscription_count
+    elif config[CONF_RTC_MAX_SUBSCRIPTIONS] < subscription_count:
+            _LOGGER.warning(
+                "The configured %s (%d) is less than the required number of "
+                "subscriptions (%d). This may lead to lost subscriptions after "
+                "reboots/reconnections/deep sleeps. Consider increasing it to "
+                "at least %d.",
+                CONF_RTC_MAX_SUBSCRIPTIONS,
+                config[CONF_RTC_MAX_SUBSCRIPTIONS],
+                subscription_count,
+                subscription_count,
+            )
     return config
 
 

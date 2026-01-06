@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
+    CONF_MQTT_SUBSCRIPTION_COUNT,
     CONF_ON_OPEN,
     CONF_POSITION,
     CONF_POSITION_COMMAND_TOPIC,
@@ -110,6 +111,10 @@ _COVER_SCHEMA = (
             ),
             cv.Optional(CONF_TILT_STATE_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            # Command, tilt and position (worst case scenario)
+            cv.Optional(CONF_MQTT_SUBSCRIPTION_COUNT, default=3): cv.All(
+                cv.requires_component("mqtt"), cv.positive_int
             ),
             cv.Optional(CONF_ON_OPEN): automation.validate_automation(
                 {

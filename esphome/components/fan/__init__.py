@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
+    CONF_MQTT_SUBSCRIPTION_COUNT,
     CONF_OFF_SPEED_CYCLE,
     CONF_ON_DIRECTION_SET,
     CONF_ON_OSCILLATING_SET,
@@ -115,6 +116,10 @@ _FAN_SCHEMA = (
             ),
             cv.Optional(CONF_SPEED_COMMAND_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            # Command, speed, oscillation and direction (worst case scenario)
+            cv.Optional(CONF_MQTT_SUBSCRIPTION_COUNT, default=4): cv.All(
+                cv.requires_component("mqtt"), cv.positive_int
             ),
             cv.Optional(CONF_ON_STATE): automation.validate_automation(
                 {
