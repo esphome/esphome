@@ -12,10 +12,10 @@ CONF_PUMP_MODE = "pump_mode"
 MODE_OPTIONS = [
     "AutoAdapt",
     "Constant Pressure 1 (Min)",
-    "Constant Pressure 2",
+    "Constant Pressure 2 (Setpoint)",
     "Constant Pressure 3 (Max)",
     "Proportional Pressure 1 (Min)",
-    "Proportional Pressure 2",
+    "Proportional Pressure 2 (Setpoint)",
     "Proportional Pressure 3 (Max)",
     "Constant Frequency",
 ]

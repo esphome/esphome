@@ -20,13 +20,13 @@ void Alpha3Select::control(const std::string &value) {
     this->parent_->set_mode_autoadapt();
   } else if (value == "Constant Pressure 1 (Min)") {
     this->parent_->set_mode_const_pressure(1);
-  } else if (value == "Constant Pressure 2") {
+  } else if (value == "Constant Pressure 2 (Setpoint)") {
     this->parent_->set_mode_const_pressure(2);
   } else if (value == "Constant Pressure 3 (Max)") {
     this->parent_->set_mode_const_pressure(3);
   } else if (value == "Proportional Pressure 1 (Min)") {
     this->parent_->set_mode_prop_pressure(1);
-  } else if (value == "Proportional Pressure 2") {
+  } else if (value == "Proportional Pressure 2 (Setpoint)") {
     this->parent_->set_mode_prop_pressure(2);
   } else if (value == "Proportional Pressure 3 (Max)") {
     this->parent_->set_mode_prop_pressure(3);

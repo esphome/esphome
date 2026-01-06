@@ -22,20 +22,17 @@ void Alpha3::dump_config() {
 
 void Alpha3::setup() {}
 
-void Alpha3::extract_publish_sensor_value_(const uint8_t *response, int16_t length, int16_t response_offset,
-                                           int16_t value_offset, sensor::Sensor *sensor, float factor) {
-  if (sensor == nullptr) {
-    return;
-  }
-  // we need to handle cases where a value is split over two packets
+optional<float> Alpha3::extract_value_(const uint8_t *response, int16_t length, int16_t response_offset,
+                                       int16_t value_offset) {
+  // Handle cases where a value is split over two packets
   const int16_t value_length = 4;  // 32bit float
   // offset inside current response packet
   auto rel_offset = value_offset - response_offset;
   if (rel_offset <= -value_length) {
-    return;  // already passed the value completely
+    return {};  // already passed the value completely
   }
   if (rel_offset >= length) {
-    return;  // value not in this packet
+    return {};  // value not in this packet
   }
 
   auto start_offset = std::max(0, rel_offset);
@@ -48,8 +45,19 @@ void Alpha3::extract_publish_sensor_value_(const uint8_t *response, int16_t leng
     // we have the whole value
     void *buffer = this->buffer_;                          // to prevent warnings when casting the pointer
     *((int32_t *) buffer) = ntohl(*((int32_t *) buffer));  // values are big endian
-    float fvalue = *((float *) buffer);
-    sensor->publish_state(fvalue * factor);
+    return *((float *) buffer);
+  }
+  return {};
+}
+
+void Alpha3::extract_publish_sensor_value_(const uint8_t *response, int16_t length, int16_t response_offset,
+                                           int16_t value_offset, sensor::Sensor *sensor, float factor) {
+  if (sensor == nullptr) {
+    return;
+  }
+  auto value = this->extract_value_(response, length, response_offset, value_offset);
+  if (value.has_value()) {
+    sensor->publish_state(value.value() * factor);
   }
 }
 
@@ -203,28 +211,8 @@ uint16_t Alpha3::calculate_crc_(const uint8_t *data, size_t len) {
 }
 
 void Alpha3::send_command_(uint8_t command_id) {
-  if (this->node_state != espbt::ClientState::ESTABLISHED) {
-    ESP_LOGW(TAG, "[%s] Cannot send command, not connected", this->parent_->address_str());
-    return;
-  }
-
-  uint8_t packet[10];
-  packet[0] = 0x27;  // Start delimiter (DATA_REQUEST)
-  packet[1] = 0x06;  // Length (6 bytes until CRC)
-  packet[2] = 0xF8;  // Dest address high (from response header check)
-  packet[3] = 0xE7;  // Dest address low
-  packet[4] = 0x0A;  // Source address (our address)
-  packet[5] = 0x03;  // APDU Class: COMMANDS
-  packet[6] = 0x81;  // Operation: SET (2 << 6) | num_commands (1)
-  packet[7] = command_id;
-
-  // Calculate CRC from byte 1 onwards
-  uint16_t crc = this->calculate_crc_(packet + 1, 7);
-  packet[8] = crc >> 8;
-  packet[9] = crc & 0xFF;
-
-  ESP_LOGD(TAG, "[%s] Sending command ID %d", this->parent_->address_str(), command_id);
-  this->send_request_(packet, sizeof(packet));
+  // Use send_commands_ with a single command for code reuse
+  this->send_commands_(&command_id, 1);
 }
 
 void Alpha3::send_commands_(const uint8_t *command_ids, size_t num_commands) {
@@ -248,9 +236,7 @@ void Alpha3::send_commands_(const uint8_t *command_ids, size_t num_commands) {
   packet[6] = 0x80 | static_cast<uint8_t>(num_commands);  // SET | num_commands
 
   // Copy command IDs
-  for (size_t i = 0; i < num_commands; i++) {
-    packet[7 + i] = command_ids[i];
-  }
+  std::memcpy(packet + 7, command_ids, num_commands);
 
   // Calculate CRC
   size_t crc_offset = 7 + num_commands;
@@ -347,11 +333,13 @@ void Alpha3::update() {
   if (this->flow_sensor_ != nullptr || this->head_sensor_ != nullptr) {
     uint8_t geni_request_flow_head[] = {39, 7, 231, 248, 10, 3, 93, 1, 33, 82, 31};
     this->send_request_(geni_request_flow_head, sizeof(geni_request_flow_head));
+    delay(25);  // Necessary delay between requests for multi-pump setups
   }
   if (this->power_sensor_ != nullptr || this->current_sensor_ != nullptr || this->speed_sensor_ != nullptr ||
       this->voltage_sensor_ != nullptr) {
     uint8_t geni_request_power[] = {39, 7, 231, 248, 10, 3, 87, 0, 69, 138, 205};
     this->send_request_(geni_request_power, sizeof(geni_request_power));
+    delay(25);  // Necessary delay between requests for multi-pump setups
   }
   // Request current operating mode (act_mode1)
   if (this->mode_text_sensor_ != nullptr) {
