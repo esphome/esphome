@@ -409,6 +409,10 @@ async def to_code(config):
             zephyr_add_prj_conf("UART_LINE_CTRL", True)
             zephyr_add_cdc_acm(config, 0)
 
+    if CORE.target_platform == "stm32":
+        zephyr_add_prj_conf("UART_CONSOLE", True)
+        zephyr_add_prj_conf("CONSOLE", True)
+
     # Register at end for safe mode
     await cg.register_component(log, config)
 

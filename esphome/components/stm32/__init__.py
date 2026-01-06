@@ -73,12 +73,7 @@ async def to_code(config: ConfigType) -> None:
 
     zephyr_add_prj_conf("CPP", True)
     zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
-    zephyr_add_prj_conf("CONFIG_NEWLIB_LIBC_NANO", True)
-    zephyr_add_prj_conf("CONFIG_CBPRINTF_NANO", True)
-
-    zephyr_add_prj_conf("CONFIG_SERIAL", True)
-    zephyr_add_prj_conf("UART_CONSOLE", True)
-    zephyr_add_prj_conf("CONSOLE", True)
+    zephyr_add_prj_conf("NEWLIB_LIBC_NANO", True)
 
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_platformio_option("monitor_speed", "115200")
@@ -86,7 +81,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_STM32")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "STM52")
-    # nRF52 processors are single-core
+
     cg.add_define(ThreadModel.SINGLE)
     cg.add_platformio_option(CONF_FRAMEWORK, CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK])
     cg.add_platformio_option("platform", config[CONF_PLATFORM])
