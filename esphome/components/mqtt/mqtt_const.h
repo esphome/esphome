@@ -307,8 +307,9 @@ MQTT_KEYS_LIST(MQTT_DATA)
 #undef MQTT_DATA
 
 // Generate flash string pointers from the PROGMEM data
+// NOLINTNEXTLINE(bugprone-macro-parentheses)
 #define MQTT_PTR(name, abbr, full) \
-  static const __FlashStringHelper *const(name) = reinterpret_cast<const __FlashStringHelper *>(name##_data);
+  static const __FlashStringHelper *const name = reinterpret_cast<const __FlashStringHelper *>(name##_data);
 MQTT_KEYS_LIST(MQTT_PTR)
 #undef MQTT_PTR
 
@@ -318,9 +319,11 @@ using namespace esphome::mqtt;  // NOLINT
 // Other platforms: constexpr in namespace
 namespace esphome::mqtt {
 #ifdef USE_MQTT_ABBREVIATIONS
-#define MQTT_CONST(name, abbr, full) constexpr const char *(name) = abbr;
+// NOLINTNEXTLINE(bugprone-macro-parentheses)
+#define MQTT_CONST(name, abbr, full) constexpr const char *name = abbr;
 #else
-#define MQTT_CONST(name, abbr, full) constexpr const char *(name) = full;
+// NOLINTNEXTLINE(bugprone-macro-parentheses)
+#define MQTT_CONST(name, abbr, full) constexpr const char *name = full;
 #endif
 MQTT_KEYS_LIST(MQTT_CONST)
 #undef MQTT_CONST
