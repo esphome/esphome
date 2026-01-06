@@ -895,9 +895,6 @@ const LogString *get_signal_bars(int8_t rssi) {
 }
 
 void WiFiComponent::print_connect_params_() {
-  if (this->is_disabled() || !this->is_connected()) {
-    return;
-  }
   bssid_t bssid = wifi_bssid();
   char bssid_s[18];
   format_mac_addr_upper(bssid.data(), bssid_s);
@@ -1180,8 +1177,11 @@ void WiFiComponent::dump_config() {
                 get_mac_address_pretty_into_buffer(mac_s), YESNO(this->is_connected()));
   if (this->is_disabled()) {
     ESP_LOGCONFIG(TAG, "  Disabled");
+    return;
   }
-  this->print_connect_params_();
+  if (this->is_connected()) {
+    this->print_connect_params_();
+  }
 }
 
 void WiFiComponent::check_connecting_finished() {
