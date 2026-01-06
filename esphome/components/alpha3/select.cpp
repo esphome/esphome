@@ -1,9 +1,7 @@
 #include "select.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP32
-#ifdef USE_SELECT
-
-#include "esphome/core/log.h"
 
 namespace esphome {
 namespace alpha3 {
@@ -45,5 +43,4 @@ void Alpha3Select::control(const std::string &value) {
 }  // namespace alpha3
 }  // namespace esphome
 
-#endif  // USE_SELECT
-#endif  // USE_ESP32
+#endif
