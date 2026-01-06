@@ -73,7 +73,7 @@ class CC1101Component : public Component,
 
   // Packet mode operations
   CC1101Error transmit_packet(const std::vector<uint8_t> &packet);
-  Trigger<std::vector<uint8_t>, float, uint8_t> *get_packet_trigger() const { return this->packet_trigger_; }
+  Trigger<std::vector<uint8_t>, float, float, uint8_t> *get_packet_trigger() const { return this->packet_trigger_; }
 
  protected:
   uint16_t chip_id_{0};
@@ -89,7 +89,8 @@ class CC1101Component : public Component,
   InternalGPIOPin *gdo0_pin_{nullptr};
 
   // Packet handling
-  Trigger<std::vector<uint8_t>, float, uint8_t> *packet_trigger_{new Trigger<std::vector<uint8_t>, float, uint8_t>()};
+  Trigger<std::vector<uint8_t>, float, float, uint8_t> *packet_trigger_{
+      new Trigger<std::vector<uint8_t>, float, float, uint8_t>()};
   std::vector<uint8_t> packet_;
 
   // Low-level Helpers
