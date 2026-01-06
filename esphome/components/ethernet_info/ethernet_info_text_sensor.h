@@ -14,12 +14,15 @@ class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextS
     auto ips = ethernet::global_eth_component->get_ip_addresses();
     if (ips != this->last_ips_) {
       this->last_ips_ = ips;
-      this->publish_state(ips[0].str());
+      char buf[network::IP_ADDRESS_BUFFER_SIZE];
+      ips[0].str_to(buf);
+      this->publish_state(buf);
       uint8_t sensor = 0;
       for (auto &ip : ips) {
         if (ip.is_set()) {
           if (this->ip_sensors_[sensor] != nullptr) {
-            this->ip_sensors_[sensor]->publish_state(ip.str());
+            ip.str_to(buf);
+            this->ip_sensors_[sensor]->publish_state(buf);
           }
           sensor++;
         }
@@ -64,7 +67,10 @@ class DNSAddressEthernetInfo : public PollingComponent, public text_sensor::Text
 
 class MACAddressEthernetInfo : public Component, public text_sensor::TextSensor {
  public:
-  void setup() override { this->publish_state(ethernet::global_eth_component->get_eth_mac_address_pretty()); }
+  void setup() override {
+    char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+    this->publish_state(ethernet::global_eth_component->get_eth_mac_address_pretty_into_buffer(buf));
+  }
   float get_setup_priority() const override { return setup_priority::ETHERNET; }
   void dump_config() override;
 };
