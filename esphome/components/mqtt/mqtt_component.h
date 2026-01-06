@@ -11,8 +11,7 @@
 #include "esphome/core/string_ref.h"
 #include "mqtt_client.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 /// Simple Helper struct used for Home Assistant MQTT send_discovery().
 struct SendDiscoveryConfig {
@@ -205,7 +204,6 @@ class MQTTComponent : public Component {
   bool resend_state_{false};
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_MQTt

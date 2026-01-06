@@ -8,8 +8,7 @@
 
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTCoverComponent : public mqtt::MQTTComponent {
  public:
@@ -36,8 +35,7 @@ class MQTTCoverComponent : public mqtt::MQTTComponent {
   cover::Cover *cover_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

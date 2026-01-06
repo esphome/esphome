@@ -8,8 +8,7 @@
 #include "mqtt_component.h"
 #include "esphome/components/light/light_state.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTJSONLightComponent : public mqtt::MQTTComponent, public light::LightRemoteValuesListener {
  public:
@@ -37,8 +36,7 @@ class MQTTJSONLightComponent : public mqtt::MQTTComponent, public light::LightRe
   light::LightState *state_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
