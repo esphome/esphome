@@ -317,7 +317,6 @@ void WiFiComponent::start_initial_connection_() {
     WiFiAP params = this->build_params_for_current_phase_();
     this->start_connecting(params);
   } else {
-    ESP_LOGI(TAG, "Starting scan");
     this->start_scanning();
   }
 }
@@ -369,11 +368,7 @@ void WiFiComponent::setup() {
 }
 
 void WiFiComponent::start() {
-  char mac_s[18];
-  ESP_LOGCONFIG(TAG,
-                "Starting\n"
-                "  Local MAC: %s",
-                get_mac_address_pretty_into_buffer(mac_s));
+  ESP_LOGCONFIG(TAG, "Starting");
   this->last_connected_ = millis();
 
   uint32_t hash = this->has_sta() ? App.get_config_version_hash() : 88491487UL;
@@ -857,14 +852,6 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 }
 
 const LogString *get_signal_bars(int8_t rssi) {
-  // Check for disconnected sentinel value first
-  if (rssi == WIFI_RSSI_DISCONNECTED) {
-    // MULTIPLICATION SIGN
-    // Unicode: U+00D7, UTF-8: C3 97
-    return LOG_STR("\033[0;31m"  // red
-                   "\xc3\x97\xc3\x97\xc3\x97\xc3\x97"
-                   "\033[0m");
-  }
   // LOWER ONE QUARTER BLOCK
   // Unicode: U+2582, UTF-8: E2 96 82
   // LOWER HALF BLOCK
@@ -909,15 +896,8 @@ const LogString *get_signal_bars(int8_t rssi) {
 
 void WiFiComponent::print_connect_params_() {
   bssid_t bssid = wifi_bssid();
-  char bssid_s[18];
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(bssid.data(), bssid_s);
-
-  char mac_s[18];
-  ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty_into_buffer(mac_s));
-  if (this->is_disabled()) {
-    ESP_LOGCONFIG(TAG, "  Disabled");
-    return;
-  }
   // Use stack buffers for IP address formatting to avoid heap allocations
   char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
   for (auto &ip : wifi_sta_ip_addresses()) {
@@ -1189,11 +1169,19 @@ void WiFiComponent::check_scanning_finished() {
 }
 
 void WiFiComponent::dump_config() {
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "WiFi:\n"
+                "  Local MAC: %s\n"
                 "  Connected: %s",
-                YESNO(this->is_connected()));
-  this->print_connect_params_();
+                get_mac_address_pretty_into_buffer(mac_s), YESNO(this->is_connected()));
+  if (this->is_disabled()) {
+    ESP_LOGCONFIG(TAG, "  Disabled");
+    return;
+  }
+  if (this->is_connected()) {
+    this->print_connect_params_();
+  }
 }
 
 void WiFiComponent::check_connecting_finished() {
@@ -1223,8 +1211,6 @@ void WiFiComponent::check_connecting_finished() {
     // the first connection as a failure.
     this->error_from_callback_ = false;
 
-    this->print_connect_params_();
-
     if (this->has_ap()) {
 #ifdef USE_CAPTIVE_PORTAL
       if (this->is_captive_portal_active_()) {
@@ -1242,6 +1228,7 @@ void WiFiComponent::check_connecting_finished() {
 
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
+    this->print_connect_params_();
 
     // Clear priority tracking if all priorities are at minimum
     this->clear_priorities_if_all_min_();
