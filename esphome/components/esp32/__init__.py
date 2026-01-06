@@ -85,6 +85,7 @@ CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
+CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
 CONF_RELEASE = "release"
 
 LOG_LEVELS_IDF = [
@@ -107,6 +108,21 @@ COMPILER_OPTIMIZATIONS = {
     "NONE": "CONFIG_COMPILER_OPTIMIZATION_NONE",
     "PERF": "CONFIG_COMPILER_OPTIMIZATION_PERF",
     "SIZE": "CONFIG_COMPILER_OPTIMIZATION_SIZE",
+}
+
+# ESP32 (original) chip revision options
+# Setting minimum revision to 3.0 or higher:
+# - Reduces flash size by excluding workaround code for older chip bugs
+# - For PSRAM users: disables CONFIG_SPIRAM_CACHE_WORKAROUND, which saves significant
+#   IRAM by keeping C library functions in ROM instead of recompiling them
+# See: https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/chip_revision.html
+ESP32_CHIP_REVISIONS = {
+    "0.0": "CONFIG_ESP32_REV_MIN_0",
+    "1.0": "CONFIG_ESP32_REV_MIN_1",
+    "1.1": "CONFIG_ESP32_REV_MIN_1_1",
+    "2.0": "CONFIG_ESP32_REV_MIN_2",
+    "3.0": "CONFIG_ESP32_REV_MIN_3",
+    "3.1": "CONFIG_ESP32_REV_MIN_3_1",
 }
 
 # Socket limit configuration for ESP-IDF
@@ -566,6 +582,16 @@ def final_validate(config):
                 path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_IGNORE_EFUSE_MAC_CRC],
             )
         )
+    if (
+        config[CONF_VARIANT] != VARIANT_ESP32
+        and advanced.get(CONF_MINIMUM_CHIP_REVISION) is not None
+    ):
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_MINIMUM_CHIP_REVISION}' is only supported on {VARIANT_ESP32}",
+                path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_MINIMUM_CHIP_REVISION],
+            )
+        )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         if config[CONF_VARIANT] != VARIANT_ESP32S3:
             errs.append(
@@ -618,6 +644,7 @@ CONF_DISABLE_VFS_SUPPORT_SELECT = "disable_vfs_support_select"
 CONF_DISABLE_VFS_SUPPORT_DIR = "disable_vfs_support_dir"
 CONF_FREERTOS_IN_IRAM = "freertos_in_iram"
 CONF_RINGBUF_IN_IRAM = "ringbuf_in_iram"
+CONF_HEAP_IN_IRAM = "heap_in_iram"
 CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
 
 # VFS requirement tracking
@@ -694,6 +721,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_ENABLE_LWIP_ASSERT, default=True): cv.boolean,
                 cv.Optional(CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False): cv.boolean,
                 cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC, default=False): cv.boolean,
+                cv.Optional(CONF_MINIMUM_CHIP_REVISION): cv.one_of(
+                    *ESP32_CHIP_REVISIONS
+                ),
                 # DHCP server is needed for WiFi AP mode. When WiFi component is used,
                 # it will handle disabling DHCP server when AP is not configured.
                 # Default to false (disabled) when WiFi is not used.
@@ -716,6 +746,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
                 cv.Optional(CONF_FREERTOS_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_RINGBUF_IN_IRAM, default=False): cv.boolean,
+                cv.Optional(CONF_HEAP_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_EXECUTE_FROM_PSRAM, default=False): cv.boolean,
                 cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
                     min=8192, max=32768
@@ -1017,6 +1048,16 @@ async def to_code(config):
     add_idf_sdkconfig_option(
         f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
     )
+
+    # Set minimum chip revision for ESP32 variant
+    # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
+    # and for PSRAM users saves significant IRAM by keeping C library functions in ROM.
+    if variant == VARIANT_ESP32:
+        min_rev = conf[CONF_ADVANCED].get(CONF_MINIMUM_CHIP_REVISION)
+        if min_rev is not None:
+            for rev, flag in ESP32_CHIP_REVISIONS.items():
+                add_idf_sdkconfig_option(flag, rev == min_rev)
+            cg.add_define("USE_ESP32_MIN_CHIP_REVISION_SET")
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_SINGLE_APP", False)
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM", True)
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM_FILENAME", "partitions.csv")
@@ -1050,6 +1091,12 @@ async def to_code(config):
     else:
         # Place in flash to save IRAM (default)
         add_idf_sdkconfig_option("CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH", True)
+
+    # Place heap functions into flash to save IRAM (~4-6KB savings)
+    # Safe as long as heap functions are not called from ISRs (which they shouldn't be)
+    # Users can set heap_in_iram: true as an escape hatch if needed
+    if not conf[CONF_ADVANCED][CONF_HEAP_IN_IRAM]:
+        add_idf_sdkconfig_option("CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH", True)
 
     # Setup watchdog
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT", True)

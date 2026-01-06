@@ -721,6 +721,25 @@ class EsphomeCore:
     def config_filename(self) -> str:
         return self.config_path.name
 
+    def has_at_least_one_component(self, *components: str) -> bool:
+        """
+        Are any of the given components configured?
+        :param components: component names
+        :return: true if so
+        """
+        if self.config is None:
+            raise ValueError("Config has not been loaded yet")
+
+        return any(component in self.config for component in components)
+
+    @property
+    def has_networking(self) -> bool:
+        """
+        Is a network component configured?
+        :return: true if so
+        """
+        return self.has_at_least_one_component("wifi", "ethernet", "openthread")
+
     def relative_config_path(self, *path: str | Path) -> Path:
         path_ = Path(*path).expanduser()
         return self.config_dir / path_

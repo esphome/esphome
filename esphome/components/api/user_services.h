@@ -255,7 +255,7 @@ template<typename... Ts> class APIRespondAction : public Action<Ts...> {
             bool return_response = std::get<1>(args);
             if (!return_response) {
               // Client doesn't want response data, just send success/error
-              this->parent_->send_action_response(call_id, success, error_message);
+              this->parent_->send_action_response(call_id, success, StringRef(error_message));
               return;
             }
           }
@@ -265,12 +265,12 @@ template<typename... Ts> class APIRespondAction : public Action<Ts...> {
       json::JsonBuilder builder;
       this->json_builder_(x..., builder.root());
       std::string json_str = builder.serialize();
-      this->parent_->send_action_response(call_id, success, error_message,
+      this->parent_->send_action_response(call_id, success, StringRef(error_message),
                                           reinterpret_cast<const uint8_t *>(json_str.data()), json_str.size());
       return;
     }
 #endif
-    this->parent_->send_action_response(call_id, success, error_message);
+    this->parent_->send_action_response(call_id, success, StringRef(error_message));
   }
 
  protected:
