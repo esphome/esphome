@@ -558,13 +558,11 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
     //   [1+hex_size...1+2*hex_size-1]: cnonce (hex_size bytes) - client's nonce
     //   [1+2*hex_size...1+3*hex_size-1]: response (hex_size bytes) - client's hash
 
-    // CRITICAL ESP32-S3 HARDWARE SHA ACCELERATION: Hash object must stay in same stack frame
-    // (no passing to other functions). All hash operations must happen in this function.
-    sha256::SHA256 hasher;
-
-    const size_t hex_size = hasher.get_size() * 2;
-    const size_t nonce_len = hasher.get_size() / 4;
-    const size_t auth_buf_size = 1 + 3 * hex_size;
+    // Allocate auth buffer before creating SHA256 hasher to avoid potential
+    // heap/DMA interactions on ESP32-S3 with hardware SHA acceleration
+    constexpr size_t hex_size = SHA256_HEX_SIZE;
+    constexpr size_t nonce_len = 8;  // SHA256 digest size (32) / 4
+    constexpr size_t auth_buf_size = 1 + 3 * hex_size;
     this->auth_buf_ = std::make_unique<uint8_t[]>(auth_buf_size);
     this->auth_buf_pos_ = 0;
 
@@ -575,6 +573,10 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
       return false;
     }
 
+    // CRITICAL ESP32-S3 HARDWARE SHA ACCELERATION: Hash object must stay in same stack frame
+    // (no passing to other functions). All hash operations must happen in this function.
+    // Create hasher AFTER heap allocations to avoid potential cache/DMA interference.
+    sha256::SHA256 hasher;
     hasher.init();
     hasher.add(buf, nonce_len);
     hasher.calculate();
