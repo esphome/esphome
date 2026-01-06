@@ -14,7 +14,7 @@
 #include <fcntl.h>
 #include <map>
 #include <string>
-#include <string.h>
+#include <cstring>
 #include <sys/select.h>
 #include <sys/types.h>
 #include <sys/wait.h>
