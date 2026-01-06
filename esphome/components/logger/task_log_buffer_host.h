@@ -19,15 +19,19 @@ namespace esphome::logger {
 /**
  * @brief Lock-free task log buffer for host platform.
  *
- * This implements a Multi-Producer Single-Consumer (MPSC) lock-free ring buffer
- * for log messages on the host platform. It uses atomic operations for thread-safety
+ * Threading Model: Multi-Producer Single-Consumer (MPSC)
+ * - Multiple threads can safely call send_message_thread_safe() concurrently
+ * - Only the main loop thread calls get_message_main_loop() and release_message_main_loop()
+ *
+ * This implements a lock-free ring buffer for log messages on the host platform.
+ * It uses atomic compare-and-swap (CAS) operations for thread-safe slot reservation
  * without requiring mutexes in the hot path.
  *
  * Design:
  * - Fixed number of pre-allocated message slots to avoid dynamic allocation
  * - Each slot contains a header and fixed-size text buffer
- * - Atomic indices for lock-free push/pop operations
- * - Thread-safe for multiple producers, single consumer (main loop)
+ * - Atomic CAS for slot reservation allows multiple producers without locks
+ * - Single consumer (main loop) processes messages in order
  *
  * Host platform has much more memory than embedded devices, so we use larger
  * buffer sizes for better log message handling.
