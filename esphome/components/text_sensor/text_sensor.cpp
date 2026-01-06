@@ -41,10 +41,10 @@ void TextSensor::publish_state(const char *state, size_t len) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     this->raw_state.assign(state, len);
-#pragma GCC diagnostic pop
     this->raw_callback_.call(this->raw_state);
     ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), this->raw_state.c_str());
     this->filter_list_->input(this->raw_state);
+#pragma GCC diagnostic pop
   }
 }
 
