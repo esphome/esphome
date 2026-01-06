@@ -17,7 +17,7 @@ class HostGPIOPin : public InternalGPIOPin {
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  size_t dump_summary(char *buffer, size_t len) const override;
+  size_t dump_summary(char *buffer, size_t len) const;
   void detach_interrupt() const override;
   ISRInternalGPIOPin to_isr() const override;
   uint8_t get_pin() const override { return pin_; }
