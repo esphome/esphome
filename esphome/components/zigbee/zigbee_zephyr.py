@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
@@ -17,6 +15,7 @@ from .const import (
     CONF_ON_JOIN,
     CONF_WIPE_ON_BOOT,
     KEY_ZIGBEE,
+    ZIGBEE_DATE,
     BinaryAttrs,
     ZigbeeComponent,
     zigbee_ns,
@@ -82,9 +81,7 @@ async def _attr_to_code(config: ConfigType) -> None:
         zigbee_assign(basic_attrs.hw_version, 0),
         zigbee_set_string(basic_attrs.mf_name, "esphome"),
         zigbee_set_string(basic_attrs.model_id, CORE.name),
-        zigbee_set_string(
-            basic_attrs.date_code, datetime.now().strftime("%d/%m/%y %H:%M")
-        ),
+        zigbee_set_string(basic_attrs.date_code, ZIGBEE_DATE),
         zigbee_assign(
             basic_attrs.power_source,
             cg.RawExpression("ZB_ZCL_BASIC_POWER_SOURCE_DC_SOURCE"),

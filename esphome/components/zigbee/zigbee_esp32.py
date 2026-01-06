@@ -1,5 +1,4 @@
 import copy
-import datetime
 import re
 
 import esphome.codegen as cg
@@ -23,7 +22,14 @@ from esphome.const import (
 from esphome.core import CORE
 import esphome.final_validate as fv
 
-from .const import CONF_REPORT, CONF_ROUTER, KEY_ZIGBEE, REPORT, ZigbeeAttribute
+from .const import (
+    CONF_REPORT,
+    CONF_ROUTER,
+    KEY_ZIGBEE,
+    REPORT,
+    ZIGBEE_DATE,
+    ZigbeeAttribute,
+)
 from .const_esp32 import (
     ATTR_TYPE,
     CLUSTER_ID,
@@ -180,12 +186,12 @@ async def esp32_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     if CONF_NAME not in config:
-        config[CONF_NAME] = CORE.name or ""
+        config[CONF_NAME] = CORE.name
     cg.add(
         var.set_basic_cluster(
             config[CONF_NAME],
             "esphome",
-            datetime.datetime.now().strftime("%Y%m%d"),
+            ZIGBEE_DATE,
         )
     )
     for ep in ep_list:
