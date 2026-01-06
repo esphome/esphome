@@ -47,7 +47,6 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_HOST,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
     PLATFORM_RP2040,
@@ -100,7 +99,6 @@ CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
 CONF_RUNTIME_TAG_LEVELS = "runtime_tag_levels"
 CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
-CONF_TASK_LOG_BUFFER_SLOTS = "task_log_buffer_slots"
 
 UART_SELECTION_ESP32 = {
     VARIANT_ESP32: [UART0, UART1, UART2],
@@ -240,16 +238,6 @@ CONFIG_SCHEMA = cv.All(
                 ),
             ),
             cv.SplitDefault(
-                CONF_TASK_LOG_BUFFER_SLOTS,
-                host=64,  # Default: 64 message slots for host platform
-            ): cv.All(
-                cv.only_on(PLATFORM_HOST),
-                cv.Any(
-                    cv.int_(0),  # Disabled
-                    cv.int_range(min=4, max=256),  # 4-256 message slots
-                ),
-            ),
-            cv.SplitDefault(
                 CONF_HARDWARE_UART,
                 esp8266=UART0,
                 esp32=UART0,
@@ -324,10 +312,8 @@ async def to_code(config):
             cg.add(log.init_log_buffer(task_log_buffer_size))
     elif CORE.is_host:
         cg.add(log.create_pthread_key())
-        task_log_buffer_slots = config.get(CONF_TASK_LOG_BUFFER_SLOTS, 0)
-        if task_log_buffer_slots > 0:
-            cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
-            cg.add(log.init_log_buffer(task_log_buffer_slots))
+        cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
+        cg.add(log.init_log_buffer(64))  # Fixed 64 slots for host
 
     cg.add(log.set_log_level(initial_level))
     if CONF_HARDWARE_UART in config:
