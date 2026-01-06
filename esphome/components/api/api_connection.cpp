@@ -1535,27 +1535,11 @@ bool APIConnection::send_hello_response(const HelloRequest &msg) {
   resp.set_server_info(ESPHOME_VERSION_REF);
   resp.set_name(StringRef(App.get_name()));
 
-#ifdef USE_API_PASSWORD
-  // Password required - wait for authentication
-  this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::CONNECTED);
-#else
-  // No password configured - auto-authenticate
+  // Auto-authenticate - password auth was removed in ESPHome 2026.1.0
   this->complete_authentication_();
-#endif
 
   return this->send_message(resp, HelloResponse::MESSAGE_TYPE);
 }
-#ifdef USE_API_PASSWORD
-bool APIConnection::send_authenticate_response(const AuthenticationRequest &msg) {
-  AuthenticationResponse resp;
-  // bool invalid_password = 1;
-  resp.invalid_password = !this->parent_->check_password(msg.password.byte(), msg.password.size());
-  if (!resp.invalid_password) {
-    this->complete_authentication_();
-  }
-  return this->send_message(resp, AuthenticationResponse::MESSAGE_TYPE);
-}
-#endif  // USE_API_PASSWORD
 
 bool APIConnection::send_ping_response(const PingRequest &msg) {
   PingResponse resp;
@@ -1564,9 +1548,6 @@ bool APIConnection::send_ping_response(const PingRequest &msg) {
 
 bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   DeviceInfoResponse resp{};
-#ifdef USE_API_PASSWORD
-  resp.uses_password = true;
-#endif
   resp.set_name(StringRef(App.get_name()));
   resp.set_friendly_name(StringRef(App.get_friendly_name()));
 #ifdef USE_AREAS
@@ -1711,10 +1692,18 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
       continue;
     }
 
-    // Create temporary string for callback (callback takes const std::string &)
-    // Handle empty state
-    std::string state(!msg.state.empty() ? msg.state.c_str() : "", msg.state.size());
-    it.callback(state);
+    // Create null-terminated state for callback (parse_number needs null-termination)
+    // HA state max length is 255, so 256 byte buffer covers all cases
+    char state_buf[256];
+    size_t copy_len = msg.state.size();
+    if (copy_len >= sizeof(state_buf)) {
+      copy_len = sizeof(state_buf) - 1;  // Truncate to leave space for null terminator
+    }
+    if (copy_len > 0) {
+      memcpy(state_buf, msg.state.c_str(), copy_len);
+    }
+    state_buf[copy_len] = '\0';
+    it.callback(StringRef(state_buf, copy_len));
   }
 }
 #endif
@@ -1845,12 +1834,6 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   // Do not set last_traffic_ on send
   return true;
 }
-#ifdef USE_API_PASSWORD
-void APIConnection::on_unauthenticated_access() {
-  this->on_fatal_error();
-  ESP_LOGD(TAG, "%s (%s) no authentication", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
-}
-#endif
 void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
   ESP_LOGD(TAG, "%s (%s) no connection setup", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
@@ -1899,9 +1882,9 @@ bool APIConnection::schedule_batch_() {
 }
 
 void APIConnection::process_batch_() {
-  // Ensure PacketInfo remains trivially destructible for our placement new approach
-  static_assert(std::is_trivially_destructible<PacketInfo>::value,
-                "PacketInfo must remain trivially destructible with this placement-new approach");
+  // Ensure MessageInfo remains trivially destructible for our placement new approach
+  static_assert(std::is_trivially_destructible<MessageInfo>::value,
+                "MessageInfo must remain trivially destructible with this placement-new approach");
 
   if (this->deferred_batch_.empty()) {
     this->flags_.batch_scheduled = false;
@@ -1941,12 +1924,12 @@ void APIConnection::process_batch_() {
     return;
   }
 
-  size_t packets_to_process = std::min(num_items, MAX_PACKETS_PER_BATCH);
+  size_t messages_to_process = std::min(num_items, MAX_MESSAGES_PER_BATCH);
 
-  // Stack-allocated array for packet info
-  alignas(PacketInfo) char packet_info_storage[MAX_PACKETS_PER_BATCH * sizeof(PacketInfo)];
-  PacketInfo *packet_info = reinterpret_cast<PacketInfo *>(packet_info_storage);
-  size_t packet_count = 0;
+  // Stack-allocated array for message info
+  alignas(MessageInfo) char message_info_storage[MAX_MESSAGES_PER_BATCH * sizeof(MessageInfo)];
+  MessageInfo *message_info = reinterpret_cast<MessageInfo *>(message_info_storage);
+  size_t message_count = 0;
 
   // Cache these values to avoid repeated virtual calls
   const uint8_t header_padding = this->helper_->frame_header_padding();
@@ -1977,7 +1960,7 @@ void APIConnection::process_batch_() {
   uint32_t current_offset = 0;
 
   // Process items and encode directly to buffer (up to our limit)
-  for (size_t i = 0; i < packets_to_process; i++) {
+  for (size_t i = 0; i < messages_to_process; i++) {
     const auto &item = this->deferred_batch_[i];
     // Try to encode message
     // The creator will calculate overhead to determine if the message fits
@@ -1991,11 +1974,11 @@ void APIConnection::process_batch_() {
     // Message was encoded successfully
     // payload_size is header_padding + actual payload size + footer_size
     uint16_t proto_payload_size = payload_size - header_padding - footer_size;
-    // Use placement new to construct PacketInfo in pre-allocated stack array
-    // This avoids default-constructing all MAX_PACKETS_PER_BATCH elements
-    // Explicit destruction is not needed because PacketInfo is trivially destructible,
+    // Use placement new to construct MessageInfo in pre-allocated stack array
+    // This avoids default-constructing all MAX_MESSAGES_PER_BATCH elements
+    // Explicit destruction is not needed because MessageInfo is trivially destructible,
     // as ensured by the static_assert in its definition.
-    new (&packet_info[packet_count++]) PacketInfo(item.message_type, current_offset, proto_payload_size);
+    new (&message_info[message_count++]) MessageInfo(item.message_type, current_offset, proto_payload_size);
 
     // Update tracking variables
     items_processed++;
@@ -2019,9 +2002,9 @@ void APIConnection::process_batch_() {
     shared_buf.resize(shared_buf.size() + footer_size);
   }
 
-  // Send all collected packets
-  APIError err = this->helper_->write_protobuf_packets(ProtoWriteBuffer{&shared_buf},
-                                                       std::span<const PacketInfo>(packet_info, packet_count));
+  // Send all collected messages
+  APIError err = this->helper_->write_protobuf_messages(ProtoWriteBuffer{&shared_buf},
+                                                        std::span<const MessageInfo>(message_info, message_count));
   if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
     this->fatal_error_with_log_(LOG_STR("Batch write failed"), err);
   }

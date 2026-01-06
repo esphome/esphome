@@ -22,9 +22,6 @@ class UltrasonicSensorComponent : public sensor::Sensor, public PollingComponent
   void set_trigger_pin(InternalGPIOPin *trigger_pin) { this->trigger_pin_ = trigger_pin; }
   void set_echo_pin(InternalGPIOPin *echo_pin) { this->echo_pin_ = echo_pin; }
 
-  /// Set the timeout for waiting for the echo in µs.
-  void set_timeout_us(uint32_t timeout_us) { this->timeout_us_ = timeout_us; }
-
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -44,7 +41,6 @@ class UltrasonicSensorComponent : public sensor::Sensor, public PollingComponent
   ISRInternalGPIOPin trigger_pin_isr_;
   InternalGPIOPin *echo_pin_;
   UltrasonicSensorStore store_;
-  uint32_t timeout_us_{};
   uint32_t pulse_time_us_{};
 
   uint32_t measurement_start_us_{0};

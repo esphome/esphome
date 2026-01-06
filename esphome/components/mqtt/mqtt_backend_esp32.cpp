@@ -166,10 +166,12 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
     case MQTT_EVENT_ERROR:
       ESP_LOGE(TAG, "MQTT_EVENT_ERROR");
       if (event.error_handle.error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
-        ESP_LOGE(TAG, "Last error code reported from esp-tls: 0x%x", event.error_handle.esp_tls_last_esp_err);
-        ESP_LOGE(TAG, "Last tls stack error number: 0x%x", event.error_handle.esp_tls_stack_err);
-        ESP_LOGE(TAG, "Last captured errno : %d (%s)", event.error_handle.esp_transport_sock_errno,
-                 strerror(event.error_handle.esp_transport_sock_errno));
+        ESP_LOGE(TAG,
+                 "Last error code reported from esp-tls: 0x%x\n"
+                 "Last tls stack error number: 0x%x\n"
+                 "Last captured errno : %d (%s)",
+                 event.error_handle.esp_tls_last_esp_err, event.error_handle.esp_tls_stack_err,
+                 event.error_handle.esp_transport_sock_errno, strerror(event.error_handle.esp_transport_sock_errno));
       } else if (event.error_handle.error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
         ESP_LOGE(TAG, "Connection refused error: 0x%x", event.error_handle.connect_return_code);
       } else {

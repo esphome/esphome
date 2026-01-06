@@ -13,8 +13,10 @@ static constexpr size_t XMWSDJ04MMC_BINDKEY_SIZE = 16;
 
 void XiaomiXMWSDJ04MMC::dump_config() {
   char bindkey_hex[format_hex_pretty_size(XMWSDJ04MMC_BINDKEY_SIZE)];
-  ESP_LOGCONFIG(TAG, "Xiaomi XMWSDJ04MMC");
-  ESP_LOGCONFIG(TAG, "  Bindkey: %s", format_hex_pretty_to(bindkey_hex, this->bindkey_, XMWSDJ04MMC_BINDKEY_SIZE, '.'));
+  ESP_LOGCONFIG(TAG,
+                "Xiaomi XMWSDJ04MMC\n"
+                "  Bindkey: %s",
+                format_hex_pretty_to(bindkey_hex, this->bindkey_, XMWSDJ04MMC_BINDKEY_SIZE, '.'));
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
@@ -25,7 +27,9 @@ bool XiaomiXMWSDJ04MMC::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
   }
-  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  const char *addr_str = device.address_str_to(addr_buf);
+  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", addr_str);
 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
@@ -48,7 +52,7 @@ bool XiaomiXMWSDJ04MMC::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
       // see https://github.com/custom-components/sensor.mitemp_bt/issues/7#issuecomment-595948254
       *res->humidity = trunc(*res->humidity);
     }
-    if (!(xiaomi_ble::report_xiaomi_results(res, device.address_str()))) {
+    if (!(xiaomi_ble::report_xiaomi_results(res, addr_str))) {
       continue;
     }
     if (res->temperature.has_value() && this->temperature_ != nullptr)
