@@ -866,11 +866,12 @@ void VoiceAssistant::on_timer_event(const api::VoiceAssistantTimerEventResponse 
       .is_active = msg.is_active,
   };
   this->timers_[timer.id] = timer;
+  char timer_buf[Timer::TO_STR_BUFFER_SIZE];
   ESP_LOGD(TAG,
            "Timer Event\n"
            "  Type: %" PRId32 "\n"
            "  %s",
-           msg.event_type, timer.to_string().c_str());
+           msg.event_type, timer.to_str(timer_buf));
 
   switch (msg.event_type) {
     case api::enums::VOICE_ASSISTANT_TIMER_STARTED:
