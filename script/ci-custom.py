@@ -622,7 +622,7 @@ def lint_esphome_h(fname, line, col, content):
 @lint_content_find_check(
     "CORE.using_esp_idf",
     include=py_include,
-    exclude=["esphome/core/__init__.py"],
+    exclude=["esphome/core/__init__.py", "script/ci-custom.py"],
 )
 def lint_using_esp_idf_deprecated(fname, line, col, content):
     return (
