@@ -3,8 +3,7 @@
 
 #include "driver/gptimer_types.h"
 
-namespace esphome {
-namespace ac_dimmer {
+namespace esphome::ac_dimmer {
 
 struct HWTimer;
 
@@ -14,7 +13,6 @@ void timer_attach_interrupt(HWTimer *timer, void (*user_func)());
 void timer_alarm(HWTimer *timer, uint64_t alarm_value, bool autoreload, uint64_t reload_count);
 void timer_start(HWTimer *timer);
 
-}  // namespace ac_dimmer
-}  // namespace esphome
+}  // namespace esphome::ac_dimmer
 
 #endif

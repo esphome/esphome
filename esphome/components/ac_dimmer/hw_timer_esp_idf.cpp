@@ -18,8 +18,8 @@ using voidFuncPtr = void (*)();
 using voidFuncPtrArg = void (*)(void *);
 
 struct InterruptConfigT {
-  voidFuncPtr fn;
-  void *arg;
+  voidFuncPtr fn{nullptr};
+  void *arg{nullptr};
 };
 
 struct HWTimer {
@@ -84,11 +84,10 @@ bool IRAM_ATTR timer_fn_wrapper(gptimer_handle_t timer, const gptimer_alarm_even
 }
 
 void timer_attach_interrupt_functional_arg(HWTimer *timer, void (*user_func)(void *), void *arg) {
-  if (!timer) {
-    ESP_LOGE(TAG, "Timer handle is NULL");
+  if (timer == nullptr) {
+    ESP_LOGE(TAG, "Timer handle is nullptr");
     return;
   }
-  esp_err_t err = ESP_OK;
   gptimer_event_callbacks_t cbs = {
       .on_alarm = timer_fn_wrapper,
   };
@@ -100,7 +99,7 @@ void timer_attach_interrupt_functional_arg(HWTimer *timer, void (*user_func)(voi
     gptimer_stop(timer->timer_handle);
   }
   gptimer_disable(timer->timer_handle);
-  err = gptimer_register_event_callbacks(timer->timer_handle, &cbs, &timer->interrupt_handle);
+  esp_err_t err = gptimer_register_event_callbacks(timer->timer_handle, &cbs, &timer->interrupt_handle);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Timer Attach Interrupt failed; error %d", err);
   }
@@ -132,25 +131,24 @@ void timer_detach_interrupt(HWTimer *timer) {
 }
 
 void timer_alarm(HWTimer *timer, uint64_t alarm_value, bool autoreload, uint64_t reload_count) {
-  if (!timer) {
-    ESP_LOGE(TAG, "Timer handle is NULL");
+  if (timer == nullptr) {
+    ESP_LOGE(TAG, "Timer handle is nullptr");
     return;
   }
-  esp_err_t err = ESP_OK;
   gptimer_alarm_config_t alarm_cfg = {
       .alarm_count = alarm_value,
       .reload_count = reload_count,
       .flags = {.auto_reload_on_alarm = autoreload},
   };
-  err = gptimer_set_alarm_action(timer->timer_handle, &alarm_cfg);
+  esp_err_t err = gptimer_set_alarm_action(timer->timer_handle, &alarm_cfg);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Timer Alarm Write failed; error %d", err);
   }
 }
 
 void timer_start(HWTimer *timer) {
-  if (!timer) {
-    ESP_LOGE(TAG, "Timer handle is NULL");
+  if (timer == nullptr) {
+    ESP_LOGE(TAG, "Timer handle is nullptr");
     return;
   }
   gptimer_start(timer->timer_handle);
