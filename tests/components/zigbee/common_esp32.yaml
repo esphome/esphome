@@ -1,10 +1,10 @@
 binary_sensor:
   - platform: template
     name: "Garage Door Open 1"
-    report: true
+    report: "true"
   - platform: template
     name: "Garage Door Open 2"
-    report: false
+    report: "false"
   - platform: template
     name: "Garage Door Open 3"
     report: "force"
