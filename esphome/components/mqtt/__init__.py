@@ -1,5 +1,5 @@
-import re
 import logging
+import re
 
 from esphome import automation
 from esphome.automation import Condition
@@ -189,16 +189,16 @@ def _final_validate(config: ConfigType) -> ConfigType:
     if CONF_RTC_MAX_SUBSCRIPTIONS not in config:
         config[CONF_RTC_MAX_SUBSCRIPTIONS] = subscription_count
     elif config[CONF_RTC_MAX_SUBSCRIPTIONS] < subscription_count:
-            _LOGGER.warning(
-                "The configured %s (%d) is less than the required number of "
-                "subscriptions (%d). This may lead to lost subscriptions after "
-                "reboots/reconnections/deep sleeps. Consider increasing it to "
-                "at least %d.",
-                CONF_RTC_MAX_SUBSCRIPTIONS,
-                config[CONF_RTC_MAX_SUBSCRIPTIONS],
-                subscription_count,
-                subscription_count,
-            )
+        _LOGGER.warning(
+            "The configured %s (%d) is less than the required number of "
+            "subscriptions (%d). This may lead to lost subscriptions after "
+            "reboots/reconnections/deep sleeps. Consider increasing it to "
+            "at least %d.",
+            CONF_RTC_MAX_SUBSCRIPTIONS,
+            config[CONF_RTC_MAX_SUBSCRIPTIONS],
+            subscription_count,
+            subscription_count,
+        )
     return config
 
 
