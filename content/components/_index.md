@@ -234,6 +234,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 
 {{< imgtable >}}
 "AGS10","components/sensor/ags10","ags10.jpg","Volatile organics","",""
+"Air Quality Index","components/sensor/aqi","aqi.svg","AQI from PM sensors","",""
 "AirThings BLE","components/sensor/airthings_ble","airthings_logo.png","Radon","CO₂","Volatile organics"
 "CCS811","components/sensor/ccs811","ccs811.jpg","eCO₂ & Volatile organics","",""
 "CM1106","components/sensor/cm1106","cm1106.png","CO₂","",""
