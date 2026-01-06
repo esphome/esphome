@@ -1,8 +1,9 @@
 #pragma once
 
-#include "esphome/core/defines.h"
+#include "async_tcp.h"
 
-#if defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
+#if defined(ESPHOME_ASYNC_TCP_SOCKET_IMPL) && \
+    (defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS))
 
 #include "esphome/components/socket/socket.h"
 #include <functional>
@@ -69,5 +70,5 @@ class AsyncClient {
 
 // Expose AsyncClient in global namespace to match library behavior
 using esphome::async_tcp::AsyncClient;  // NOLINT(google-global-names-in-headers)
-#define ESPHOME_ASYNC_TCP_SOCKET_IMPL
-#endif  // defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
+#endif  //  defined(ESPHOME_ASYNC_TCP_SOCKET_IMPL) && (defined(USE_SOCKET_IMPL_LWIP_SOCKETS) ||
+        //  defined(USE_SOCKET_IMPL_BSD_SOCKETS))
