@@ -896,7 +896,7 @@ const LogString *get_signal_bars(int8_t rssi) {
 
 void WiFiComponent::print_connect_params_() {
   bssid_t bssid = wifi_bssid();
-  char bssid_s[18];
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(bssid.data(), bssid_s);
   // Use stack buffers for IP address formatting to avoid heap allocations
   char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
@@ -1169,7 +1169,7 @@ void WiFiComponent::check_scanning_finished() {
 }
 
 void WiFiComponent::dump_config() {
-  char mac_s[18];
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "WiFi:\n"
                 "  Local MAC: %s\n"
