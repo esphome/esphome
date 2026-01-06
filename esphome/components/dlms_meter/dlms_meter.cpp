@@ -502,7 +502,8 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
             this->abort_();
             return;
           }
-          sprintf(timestamp, "%04u-%02u-%02uT%02u:%02u:%02uZ", year, month, day, hour, minute, second);
+          snprintf(timestamp, sizeof(timestamp), "%04u-%02u-%02uT%02u:%02u:%02uZ", year, month, day, hour, minute,
+                   second);
 
           data.timestamp = timestamp;
         } else if (this->provider_ == PROVIDER_NETZNOE && code_type == CodeType::METER_NUMBER) {
