@@ -1,4 +1,5 @@
 #include "xiaomi_mjyd02yla.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -62,17 +63,7 @@ bool XiaomiMJYD02YLA::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
   return success;
 }
 
-void XiaomiMJYD02YLA::set_bindkey(const std::string &bindkey) {
-  memset(bindkey_, 0, 16);
-  if (bindkey.size() != 32) {
-    return;
-  }
-  char temp[3] = {0};
-  for (int i = 0; i < 16; i++) {
-    strncpy(temp, &(bindkey.c_str()[i * 2]), 2);
-    bindkey_[i] = std::strtoul(temp, nullptr, 16);
-  }
-}
+void XiaomiMJYD02YLA::set_bindkey(const char *bindkey) { parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_)); }
 
 }  // namespace xiaomi_mjyd02yla
 }  // namespace esphome

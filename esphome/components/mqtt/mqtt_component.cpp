@@ -9,8 +9,7 @@
 
 #include "mqtt_const.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.component";
 
@@ -306,7 +305,6 @@ bool MQTTComponent::is_internal() {
   return this->get_entity()->is_internal();
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_MQTT
