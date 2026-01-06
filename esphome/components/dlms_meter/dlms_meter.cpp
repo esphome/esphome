@@ -7,8 +7,7 @@
 #include "mbedtls/gcm.h"
 #endif
 
-namespace esphome {
-namespace dlms_meter {
+namespace esphome::dlms_meter {
 
 void DlmsMeterComponent::setup() { ESP_LOGI(TAG, "DLMS smart meter component v%s started", DLMS_METER_VERSION); }
 
@@ -570,5 +569,4 @@ void DlmsMeterComponent::log_packet_(const std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "%s", format_hex_pretty(data).c_str());
 }
 
-}  // namespace dlms_meter
-}  // namespace esphome
+}  // namespace esphome::dlms_meter

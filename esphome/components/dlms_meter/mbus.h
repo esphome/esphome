@@ -2,8 +2,7 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace dlms_meter {
+namespace esphome::dlms_meter {
 
 /*
  * Data structure
@@ -78,5 +77,4 @@ static constexpr uint8_t MBUS_START2_OFFSET = 3;   // Offset of (duplicated) sec
 
 static constexpr uint8_t STOP_BYTE = 0x16;
 
-}  // namespace dlms_meter
-}  // namespace esphome
+}  // namespace esphome::dlms_meter

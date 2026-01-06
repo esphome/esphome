@@ -13,8 +13,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace dlms_meter {
+namespace esphome::dlms_meter {
 
 static constexpr const char *DLMS_METER_VERSION = "1.0.0";
 static constexpr const char *TAG = "dlms_meter";
@@ -118,5 +117,4 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   void abort_();
 };
 
-}  // namespace dlms_meter
-}  // namespace esphome
+}  // namespace esphome::dlms_meter

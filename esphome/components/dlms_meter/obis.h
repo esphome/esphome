@@ -2,8 +2,7 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace dlms_meter {
+namespace esphome::dlms_meter {
 
 /*
  * Data types as per specification
@@ -151,5 +150,4 @@ static constexpr uint8_t ESPDM_REACTIVE_ENERGY_MINUS[]{0x04, 0x08};
 
 static constexpr uint8_t ESPDM_POWER_FACTOR[]{0x0D, 0x07};
 
-}  // namespace dlms_meter
-}  // namespace esphome
+}  // namespace esphome::dlms_meter

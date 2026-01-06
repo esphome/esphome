@@ -2,8 +2,7 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace dlms_meter {
+namespace esphome::dlms_meter {
 
 /*
  * Data structure
@@ -85,5 +84,4 @@ static constexpr uint8_t NETZ_NOE_MAGIC_BYTE = 0x81;  // Magic length byte used 
 static constexpr uint8_t NETZ_NOE_EXPECTED_MESSAGE_LENGTH = 0xF8;
 static constexpr uint8_t NETZ_NOE_EXPECTED_SECURITY_CONTROL_BYTE = 0x20;
 
-}  // namespace dlms_meter
-}  // namespace esphome
+}  // namespace esphome::dlms_meter
