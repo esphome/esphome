@@ -1829,6 +1829,10 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   // Toggle Nagle's algorithm based on message type to prevent log messages from
   // filling the TCP send buffer and crowding out important state updates.
   //
+  // This honors the `no_delay` proto option - SubscribeLogsResponse is the only
+  // message with `option (no_delay) = false;` in api.proto, indicating it should
+  // allow Nagle coalescing. This option existed since 2019 but was never implemented.
+  //
   // - Log messages: Enable Nagle (NODELAY=false) so small log packets coalesce
   //   into fewer, larger packets. They flush naturally via TCP delayed ACK timer
   //   (~200ms), buffer filling, or when a state update triggers a flush.
