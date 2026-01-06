@@ -18,14 +18,17 @@ void BLESensor::loop() {
 
 void BLESensor::dump_config() {
   LOG_SENSOR("", "BLE Sensor", this);
+  char service_buf[esp32_ble::UUID_STR_LEN];
+  char char_buf[esp32_ble::UUID_STR_LEN];
+  char descr_buf[esp32_ble::UUID_STR_LEN];
   ESP_LOGCONFIG(TAG,
                 "  MAC address        : %s\n"
                 "  Service UUID       : %s\n"
                 "  Characteristic UUID: %s\n"
                 "  Descriptor UUID    : %s\n"
                 "  Notifications      : %s",
-                this->parent()->address_str(), this->service_uuid_.to_string().c_str(),
-                this->char_uuid_.to_string().c_str(), this->descr_uuid_.to_string().c_str(), YESNO(this->notify_));
+                this->parent()->address_str(), this->service_uuid_.to_str(service_buf),
+                this->char_uuid_.to_str(char_buf), this->descr_uuid_.to_str(descr_buf), YESNO(this->notify_));
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -51,8 +54,10 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       if (chr == nullptr) {
         this->status_set_warning();
         this->publish_state(NAN);
-        ESP_LOGW(TAG, "No sensor characteristic found at service %s char %s", this->service_uuid_.to_string().c_str(),
-                 this->char_uuid_.to_string().c_str());
+        char service_buf[esp32_ble::UUID_STR_LEN];
+        char char_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGW(TAG, "No sensor characteristic found at service %s char %s", this->service_uuid_.to_str(service_buf),
+                 this->char_uuid_.to_str(char_buf));
         break;
       }
       this->handle = chr->handle;
@@ -61,9 +66,12 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         if (descr == nullptr) {
           this->status_set_warning();
           this->publish_state(NAN);
+          char service_buf[esp32_ble::UUID_STR_LEN];
+          char char_buf[esp32_ble::UUID_STR_LEN];
+          char descr_buf[esp32_ble::UUID_STR_LEN];
           ESP_LOGW(TAG, "No sensor descriptor found at service %s char %s descr %s",
-                   this->service_uuid_.to_string().c_str(), this->char_uuid_.to_string().c_str(),
-                   this->descr_uuid_.to_string().c_str());
+                   this->service_uuid_.to_str(service_buf), this->char_uuid_.to_str(char_buf),
+                   this->descr_uuid_.to_str(descr_buf));
           break;
         }
         this->handle = descr->handle;
@@ -109,7 +117,8 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
           break;
         }
         this->node_state = espbt::ClientState::ESTABLISHED;
-        ESP_LOGD(TAG, "Register for notify on %s complete", this->char_uuid_.to_string().c_str());
+        char char_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGD(TAG, "Register for notify on %s complete", this->char_uuid_.to_str(char_buf));
       }
       break;
     }

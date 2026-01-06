@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/network/ip_address.h"
 
 #ifdef USE_ESP32
@@ -93,6 +94,7 @@ class EthernetComponent : public Component {
   void set_use_address(const char *use_address);
   void get_eth_mac_address_raw(uint8_t *mac);
   std::string get_eth_mac_address_pretty();
+  const char *get_eth_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
   eth_duplex_t get_duplex_mode();
   eth_speed_t get_link_speed();
   bool powerdown();
