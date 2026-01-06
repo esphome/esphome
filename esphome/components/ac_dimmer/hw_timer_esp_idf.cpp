@@ -3,7 +3,6 @@
 #include "hw_timer_esp_idf.h"
 
 #include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
 #include "esphome/core/log.h"
 
 #include "driver/gptimer.h"
@@ -54,7 +53,7 @@ HWTimer *timer_begin(uint32_t frequency) {
   }
 
   gptimer_config_t config = {
-      .clk_src = (gptimer_clock_source_t) clk,
+      .clk_src = static_cast<gptimer_clock_source_t>(clk),
       .direction = GPTIMER_COUNT_UP,
       .resolution_hz = frequency,
       .flags = {.intr_shared = true},
@@ -91,10 +90,10 @@ HWTimer *timer_begin(uint32_t frequency) {
 }
 
 bool IRAM_ATTR timer_fn_wrapper(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *args) {
-  InterruptConfigT *isr = (InterruptConfigT *) args;
+  auto *isr = static_cast<InterruptConfigT *>(args);
   if (isr->fn) {
     if (isr->arg) {
-      ((voidFuncPtrArg) isr->fn)(isr->arg);
+      reinterpret_cast<voidFuncPtrArg>(isr->fn)(isr->arg);
     } else {
       isr->fn();
     }
@@ -112,7 +111,7 @@ static void timer_attach_interrupt_functional_arg(HWTimer *timer, void (*user_fu
       .on_alarm = timer_fn_wrapper,
   };
 
-  timer->interrupt_handle.fn = (voidFuncPtr) user_func;
+  timer->interrupt_handle.fn = reinterpret_cast<voidFuncPtr>(user_func);
   timer->interrupt_handle.arg = arg;
 
   if (timer->timer_started) {
@@ -130,7 +129,7 @@ static void timer_attach_interrupt_functional_arg(HWTimer *timer, void (*user_fu
 }
 
 void timer_attach_interrupt(HWTimer *timer, voidFuncPtr user_func) {
-  timer_attach_interrupt_functional_arg(timer, (voidFuncPtrArg) user_func, nullptr);
+  timer_attach_interrupt_functional_arg(timer, reinterpret_cast<voidFuncPtrArg>(user_func), nullptr);
 }
 
 void timer_alarm(HWTimer *timer, uint64_t alarm_value, bool autoreload, uint64_t reload_count) {
