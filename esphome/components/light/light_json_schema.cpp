@@ -160,7 +160,7 @@ void LightJSONSchema::parse_json(LightState &state, LightCall &call, JsonObject 
 
   if (root[ESPHOME_F("effect")].is<const char *>()) {
     const char *effect = root[ESPHOME_F("effect")];
-    call.set_effect(effect);
+    call.set_effect(effect, strlen(effect));
   }
 
   if (root[ESPHOME_F("effect_index")].is<uint32_t>()) {
