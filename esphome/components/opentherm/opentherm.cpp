@@ -21,7 +21,6 @@ namespace esphome {
 namespace opentherm {
 
 using std::string;
-using std::to_string;
 
 static const char *const TAG = "opentherm";
 
@@ -564,10 +563,9 @@ const char *OpenTherm::message_id_to_str(MessageId id) {
 void OpenTherm::debug_data(OpenthermData &data) {
   ESP_LOGD(TAG, "%s %s %s %s", format_bin(data.type).c_str(), format_bin(data.id).c_str(),
            format_bin(data.valueHB).c_str(), format_bin(data.valueLB).c_str());
-  ESP_LOGD(TAG, "type: %s; id: %s; HB: %s; LB: %s; uint_16: %s; float: %s",
-           this->message_type_to_str((MessageType) data.type), to_string(data.id).c_str(),
-           to_string(data.valueHB).c_str(), to_string(data.valueLB).c_str(), to_string(data.u16()).c_str(),
-           to_string(data.f88()).c_str());
+  ESP_LOGD(TAG, "type: %s; id: %u; HB: %u; LB: %u; uint_16: %u; float: %f",
+           this->message_type_to_str((MessageType) data.type), data.id, data.valueHB, data.valueLB, data.u16(),
+           data.f88());
 }
 void OpenTherm::debug_error(OpenThermError &error) const {
   ESP_LOGD(TAG, "data: 0x%08" PRIx32 "; clock: %u; capture: 0x%08" PRIx32 "; bit_pos: %u", error.data, this->clock_,

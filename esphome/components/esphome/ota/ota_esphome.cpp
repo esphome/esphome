@@ -560,7 +560,9 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
 
     // CRITICAL ESP32-S3 HARDWARE SHA ACCELERATION: Hash object must stay in same stack frame
     // (no passing to other functions). All hash operations must happen in this function.
-    sha256::SHA256 hasher;
+    // NOTE: On ESP32-S3 with IDF 5.5.x, the SHA256 context must be properly aligned for
+    // hardware SHA acceleration DMA operations.
+    alignas(32) sha256::SHA256 hasher;
 
     const size_t hex_size = hasher.get_size() * 2;
     const size_t nonce_len = hasher.get_size() / 4;
@@ -634,7 +636,9 @@ bool ESPHomeOTAComponent::handle_auth_read_() {
 
   // CRITICAL ESP32-S3 HARDWARE SHA ACCELERATION: Hash object must stay in same stack frame
   // (no passing to other functions). All hash operations must happen in this function.
-  sha256::SHA256 hasher;
+  // NOTE: On ESP32-S3 with IDF 5.5.x, the SHA256 context must be properly aligned for
+  // hardware SHA acceleration DMA operations.
+  alignas(32) sha256::SHA256 hasher;
 
   hasher.init();
   hasher.add(this->password_.c_str(), this->password_.length());

@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_FAN
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.fan";
 
@@ -182,8 +181,7 @@ bool MQTTFanComponent::publish_state() {
   return !failed;
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
