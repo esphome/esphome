@@ -70,8 +70,7 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
 #ifdef USE_HOST
   if (!message_sent) {
     // Host always has console output - no baud_rate check needed
-    // Use larger buffer for host since memory is plentiful
-    static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 1024;
+    static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 512;
 #else
   if (!message_sent && this->baud_rate_ > 0) {  // If logging is enabled, write to console
     // Maximum size for console log messages (includes null terminator)

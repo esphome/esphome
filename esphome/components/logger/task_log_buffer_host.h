@@ -43,9 +43,9 @@ class TaskLogBufferHost {
 
   // Structure for a log message (fixed size for lock-free operation)
   struct LogMessage {
-    // Size constants - host has plenty of memory, so use larger sizes
+    // Size constants
     static constexpr size_t MAX_THREAD_NAME_SIZE = 32;
-    static constexpr size_t MAX_TEXT_SIZE = 1024;
+    static constexpr size_t MAX_TEXT_SIZE = 512;
 
     const char *tag;                         // Pointer to static tag string
     char thread_name[MAX_THREAD_NAME_SIZE];  // Thread name (copied)
