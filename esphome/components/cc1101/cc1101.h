@@ -9,7 +9,7 @@
 
 namespace esphome::cc1101 {
 
-enum class CC1101Error { NONE = 0, TIMEOUT, PARAMS, CRC_ERROR, FIFO_OVERFLOW };
+enum class CC1101Error { NONE = 0, TIMEOUT, PARAMS, CRC_ERROR, FIFO_OVERFLOW, PLL_LOCK };
 
 class CC1101Component : public Component,
                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -73,7 +73,7 @@ class CC1101Component : public Component,
 
   // Packet mode operations
   CC1101Error transmit_packet(const std::vector<uint8_t> &packet);
-  Trigger<std::vector<uint8_t>, float, uint8_t> *get_packet_trigger() const { return this->packet_trigger_; }
+  Trigger<std::vector<uint8_t>, float, float, uint8_t> *get_packet_trigger() const { return this->packet_trigger_; }
 
  protected:
   uint16_t chip_id_{0};
@@ -89,7 +89,8 @@ class CC1101Component : public Component,
   InternalGPIOPin *gdo0_pin_{nullptr};
 
   // Packet handling
-  Trigger<std::vector<uint8_t>, float, uint8_t> *packet_trigger_{new Trigger<std::vector<uint8_t>, float, uint8_t>()};
+  Trigger<std::vector<uint8_t>, float, float, uint8_t> *packet_trigger_{
+      new Trigger<std::vector<uint8_t>, float, float, uint8_t>()};
   std::vector<uint8_t> packet_;
 
   // Low-level Helpers
@@ -102,7 +103,10 @@ class CC1101Component : public Component,
 
   // State Management
   bool wait_for_state_(State target_state, uint32_t timeout_ms = 100);
+  bool enter_calibrated_(State target_state, Command cmd);
   void enter_idle_();
+  bool enter_rx_();
+  bool enter_tx_();
 };
 
 // Action Wrappers

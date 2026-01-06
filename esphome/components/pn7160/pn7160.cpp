@@ -262,9 +262,12 @@ uint8_t PN7160::reset_core_(const bool reset_config, const bool power) {
     return nfc::STATUS_FAILED;
   }
 
-  ESP_LOGD(TAG, "Configuration %s", rx.get_message()[4] ? "reset" : "retained");
-  ESP_LOGD(TAG, "NCI version: %s", rx.get_message()[5] == 0x20 ? "2.0" : "1.0");
-  ESP_LOGD(TAG, "Manufacturer ID: 0x%02X", rx.get_message()[6]);
+  ESP_LOGD(TAG,
+           "Configuration %s\n"
+           "NCI version: %s\n"
+           "Manufacturer ID: 0x%02X",
+           rx.get_message()[4] ? "reset" : "retained", rx.get_message()[5] == 0x20 ? "2.0" : "1.0",
+           rx.get_message()[6]);
   rx.get_message().erase(rx.get_message().begin(), rx.get_message().begin() + 8);
   ESP_LOGD(TAG, "Manufacturer info: %s", nfc::format_bytes(rx.get_message()).c_str());
 
@@ -291,11 +294,13 @@ uint8_t PN7160::init_core_() {
   uint8_t flash_minor_version = rx.get_message()[20 + rx.get_message()[8]];
   std::vector<uint8_t> features(rx.get_message().begin() + 4, rx.get_message().begin() + 8);
 
-  ESP_LOGD(TAG, "Hardware version: %u", hw_version);
-  ESP_LOGD(TAG, "ROM code version: %u", rom_code_version);
-  ESP_LOGD(TAG, "FLASH major version: %u", flash_major_version);
-  ESP_LOGD(TAG, "FLASH minor version: %u", flash_minor_version);
-  ESP_LOGD(TAG, "Features: %s", nfc::format_bytes(features).c_str());
+  ESP_LOGD(TAG,
+           "Hardware version: %u\n"
+           "ROM code version: %u\n"
+           "FLASH major version: %u\n"
+           "FLASH minor version: %u\n"
+           "Features: %s",
+           hw_version, rom_code_version, flash_major_version, flash_minor_version, nfc::format_bytes(features).c_str());
 
   return rx.get_simple_status_response();
 }
@@ -871,8 +876,8 @@ void PN7160::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
 
       case EP_WRITE:
         if (this->next_task_message_to_write_ != nullptr) {
-          ESP_LOGD(TAG, "  Tag writing");
-          ESP_LOGD(TAG, "  Tag formatting");
+          ESP_LOGD(TAG, "  Tag writing\n"
+                        "  Tag formatting");
           if (this->format_endpoint_(working_endpoint.tag->get_uid()) != nfc::STATUS_OK) {
             ESP_LOGE(TAG, "  Tag could not be formatted for writing");
           } else {
