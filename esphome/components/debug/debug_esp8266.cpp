@@ -10,10 +10,9 @@ static const char *const TAG = "debug";
 
 const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
   char *buf = buffer.data();
-  const size_t size = RESET_REASON_BUFFER_SIZE;
 #if !defined(CLANG_TIDY)
   String reason = ESP.getResetReason();  // NOLINT
-  snprintf(buf, size, "%s", reason.c_str());
+  snprintf(buf, RESET_REASON_BUFFER_SIZE, "%s", reason.c_str());
   return buf;
 #else
   buf[0] = '\0';
