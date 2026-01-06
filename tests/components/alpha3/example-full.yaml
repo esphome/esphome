@@ -1,0 +1,63 @@
+# Example configuration for Grundfos Alpha3 pump
+# For use with ESP32 and ESP-IDF framework
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable BLE tracking
+esp32_ble_tracker:
+
+# Configure BLE client with your pump's MAC address
+ble_client:
+  - mac_address: AA:BB:CC:DD:EE:FF  # Replace with your Alpha3 MAC address
+    id: alpha3_pump
+
+# Sensor platform - original read-only functionality
+sensor:
+  - platform: alpha3
+    id: my_alpha3
+    ble_client_id: alpha3_pump
+    update_interval: 60s
+    
+    # Optional sensors (remove any you don't need)
+    flow:
+      name: "Pump Flow"
+    head:
+      name: "Pump Head"
+    power:
+      name: "Pump Power"
+    current:
+      name: "Pump Current"
+    speed:
+      name: "Pump Speed"
+    voltage:
+      name: "Pump Voltage"
+
+# Text sensor - displays current operating mode
+text_sensor:
+  - platform: alpha3
+    alpha3_id: my_alpha3
+    pump_mode:
+      name: "Pump Mode"
+
+# Select - change pump operating mode (EXPERIMENTAL - not hardware tested)
+select:
+  - platform: alpha3
+    alpha3_id: my_alpha3
+    pump_mode:
+      name: "Pump Mode Select"
+
+# Buttons - pump control (EXPERIMENTAL - not hardware tested)
+button:
+  - platform: alpha3
+    alpha3_id: my_alpha3
+    start_pump:
+      name: "Start Pump"
+    stop_pump:
+      name: "Stop Pump"
+    setpoint_up:
+      name: "Increase Setpoint"
+    setpoint_down:
+      name: "Decrease Setpoint"

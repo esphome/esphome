@@ -1,7 +1,9 @@
 #include "button.h"
-#include "esphome/core/log.h"
 
 #ifdef USE_ESP32
+#ifdef USE_BUTTON
+
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace alpha3 {
@@ -37,4 +39,5 @@ void Alpha3Button::press_action() {
 }  // namespace alpha3
 }  // namespace esphome
 
-#endif
+#endif  // USE_BUTTON
+#endif  // USE_ESP32

@@ -1,0 +1,25 @@
+# Minimal/Legacy configuration for Grundfos Alpha3 pump
+# Only sensors (original functionality from jan-hofmeier)
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: AA:BB:CC:DD:EE:FF  # Replace with your Alpha3 MAC address
+    id: alpha3_pump
+
+sensor:
+  - platform: alpha3
+    id: my_alpha3
+    ble_client_id: alpha3_pump
+    update_interval: 60s
+    flow:
+      name: "Pump Flow"
+    head:
+      name: "Pump Head"
+    power:
+      name: "Pump Power"

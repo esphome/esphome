@@ -1,0 +1,38 @@
+# Test config for control features only (no sensors)
+packages:
+  ble: !include ../../test_build_components/common/ble/esp32-idf.yaml
+
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: 01:02:03:04:05:06
+    id: alpha3_blec
+
+sensor:
+  - platform: alpha3
+    id: my_alpha3
+    ble_client_id: alpha3_blec
+
+text_sensor:
+  - platform: alpha3
+    alpha3_id: my_alpha3
+    pump_mode:
+      name: "Pump Mode"
+
+select:
+  - platform: alpha3
+    alpha3_id: my_alpha3
+    pump_mode:
+      name: "Pump Mode Select"
+
+button:
+  - platform: alpha3
+    alpha3_id: my_alpha3
+    start_pump:
+      name: "Start Pump"
+    stop_pump:
+      name: "Stop Pump"
+    setpoint_up:
+      name: "Increase Setpoint"
+    setpoint_down:
+      name: "Decrease Setpoint"
