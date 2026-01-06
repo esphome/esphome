@@ -12,7 +12,7 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
   char *buf = buffer.data();
 #if !defined(CLANG_TIDY)
   String reason = ESP.getResetReason();  // NOLINT
-  snprintf(buf, RESET_REASON_BUFFER_SIZE, "%s", reason.c_str());
+  snprintf_P(buf, RESET_REASON_BUFFER_SIZE, PSTR("%s"), reason.c_str());
   return buf;
 #else
   buf[0] = '\0';
