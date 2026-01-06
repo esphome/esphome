@@ -1820,9 +1820,16 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   return false;
 }
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
-  if (!this->try_to_clear_buffer(message_type != SubscribeLogsResponse::MESSAGE_TYPE)) {  // SubscribeLogsResponse
+  const bool is_log_message = (message_type == SubscribeLogsResponse::MESSAGE_TYPE);
+
+  if (!this->try_to_clear_buffer(!is_log_message)) {
     return false;
   }
+
+  // Toggle NODELAY based on message type:
+  // - Log messages: Enable Nagle (NODELAY=false) so they coalesce into fewer packets
+  // - All other messages: Disable Nagle (NODELAY=true) for immediate delivery
+  this->helper_->set_nodelay(!is_log_message);
 
   APIError err = this->helper_->write_protobuf_packet(message_type, buffer);
   if (err == APIError::WOULD_BLOCK)
