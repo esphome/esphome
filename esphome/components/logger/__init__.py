@@ -226,15 +226,12 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_TASK_LOG_BUFFER_SIZE,
                 esp32=768,  # Default: 768 bytes (~5-6 messages with 70-byte text plus thread names)
+                host=64,  # Default: 64 slots (host uses slot count, not byte size)
             ): cv.All(
-                cv.only_on_esp32,
-                cv.validate_bytes,
+                cv.only_on([PLATFORM_ESP32, "host"]),
                 cv.Any(
                     cv.int_(0),  # Disabled
-                    cv.int_range(
-                        min=640,  # Min: ~4-5 messages with 70-byte text plus thread names
-                        max=32768,  # Max: Depends on message sizes, typically ~300 messages with default size
-                    ),
+                    cv.int_range(min=4, max=32768),  # ESP32: bytes, Host: slot count
                 ),
             ),
             cv.SplitDefault(

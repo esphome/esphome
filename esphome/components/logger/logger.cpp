@@ -12,73 +12,13 @@ namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
-#ifdef USE_ESP32
-// Implementation for ESP32 (multi-task platform with task-specific tracking)
-// Main task always uses direct buffer access for console output and callbacks
+#if defined(USE_ESP32) || defined(USE_HOST)
+// Implementation for multi-threaded platforms (ESP32 with FreeRTOS, Host with pthreads)
+// Main thread/task always uses direct buffer access for console output and callbacks
 //
-// For non-main tasks:
+// For non-main threads/tasks:
 //  - WITH task log buffer: Prefer sending to ring buffer for async processing
 //    - Avoids allocating stack memory for console output in normal operation
-//    - Prevents console corruption from concurrent writes by multiple tasks
-//    - Messages are serialized through main loop for proper console output
-//    - Fallback to emergency console logging only if ring buffer is full
-//  - WITHOUT task log buffer: Only emergency console output, no callbacks
-void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
-  if (level > this->level_for(tag))
-    return;
-
-  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-  bool is_main_task = (current_task == main_task_);
-
-  // Check and set recursion guard - uses pthread TLS for per-task state
-  if (this->check_and_set_task_log_recursion_(is_main_task)) {
-    return;  // Recursion detected
-  }
-
-  // Main task uses the shared buffer for efficiency
-  if (is_main_task) {
-    this->log_message_to_buffer_and_send_(level, tag, line, format, args);
-    this->reset_task_log_recursion_(is_main_task);
-    return;
-  }
-
-  bool message_sent = false;
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  // For non-main tasks, queue the message for callbacks - but only if we have any callbacks registered
-  message_sent =
-      this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), current_task, format, args);
-  if (message_sent) {
-    // Enable logger loop to process the buffered message
-    // This is safe to call from any context including ISRs
-    this->enable_loop_soon_any_context();
-  }
-#endif  // USE_ESPHOME_TASK_LOG_BUFFER
-
-  // Emergency console logging for non-main tasks when ring buffer is full or disabled
-  // This is a fallback mechanism to ensure critical log messages are visible
-  // Note: This may cause interleaved/corrupted console output if multiple tasks
-  // log simultaneously, but it's better than losing important messages entirely
-  if (!message_sent && this->baud_rate_ > 0) {  // If logging is enabled, write to console
-    // Maximum size for console log messages (includes null terminator)
-    static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 144;
-    char console_buffer[MAX_CONSOLE_LOG_MSG_SIZE];  // MUST be stack allocated for thread safety
-    uint16_t buffer_at = 0;                         // Initialize buffer position
-    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, console_buffer, &buffer_at,
-                                                MAX_CONSOLE_LOG_MSG_SIZE);
-    // Add newline before writing to console
-    this->add_newline_to_buffer_(console_buffer, &buffer_at, MAX_CONSOLE_LOG_MSG_SIZE);
-    this->write_msg_(console_buffer, buffer_at);
-  }
-
-  // Reset the recursion guard for this task
-  this->reset_task_log_recursion_(is_main_task);
-}
-#elif defined(USE_HOST)
-// Implementation for host platform (multi-threaded with pthread support)
-// Main thread always uses direct buffer access for console output and callbacks
-//
-// For non-main threads:
-//  - WITH task log buffer: Queue message to lock-free ring buffer for async processing
 //    - Prevents console corruption from concurrent writes by multiple threads
 //    - Messages are serialized through main loop for proper console output
 //    - Fallback to emergency console logging only if ring buffer is full
@@ -87,27 +27,38 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   if (level > this->level_for(tag))
     return;
 
+#ifdef USE_ESP32
+  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  bool is_main_task = (current_task == main_task_);
+#else  // USE_HOST
   pthread_t current_thread = pthread_self();
-  bool is_main_thread = pthread_equal(current_thread, main_thread_);
+  bool is_main_task = pthread_equal(current_thread, main_thread_);
+#endif
 
-  // Check and set recursion guard - uses pthread TLS for per-thread state
-  if (this->check_and_set_task_log_recursion_(is_main_thread)) {
+  // Check and set recursion guard - uses pthread TLS for per-thread/task state
+  if (this->check_and_set_task_log_recursion_(is_main_task)) {
     return;  // Recursion detected
   }
 
-  // Main thread uses the shared buffer for efficiency
-  if (is_main_thread) {
+  // Main thread/task uses the shared buffer for efficiency
+  if (is_main_task) {
     this->log_message_to_buffer_and_send_(level, tag, line, format, args);
-    this->reset_task_log_recursion_(is_main_thread);
+    this->reset_task_log_recursion_(is_main_task);
     return;
   }
 
   bool message_sent = false;
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  // For non-main threads, queue the message for callbacks
+  // For non-main threads/tasks, queue the message for callbacks
+#ifdef USE_ESP32
+  message_sent =
+      this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), current_task, format, args);
+#else  // USE_HOST
   message_sent = this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), format, args);
+#endif
   if (message_sent) {
     // Enable logger loop to process the buffered message
+    // This is safe to call from any context including ISRs
     this->enable_loop_soon_any_context();
   }
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER
@@ -116,10 +67,16 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   // This is a fallback mechanism to ensure critical log messages are visible
   // Note: This may cause interleaved/corrupted console output if multiple threads
   // log simultaneously, but it's better than losing important messages entirely
+#ifdef USE_HOST
   if (!message_sent) {
     // Host always has console output - no baud_rate check needed
     // Use larger buffer for host since memory is plentiful
     static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 1024;
+#else
+  if (!message_sent && this->baud_rate_ > 0) {  // If logging is enabled, write to console
+    // Maximum size for console log messages (includes null terminator)
+    static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 144;
+#endif
     char console_buffer[MAX_CONSOLE_LOG_MSG_SIZE];  // MUST be stack allocated for thread safety
     uint16_t buffer_at = 0;                         // Initialize buffer position
     this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, console_buffer, &buffer_at,
@@ -129,8 +86,8 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
     this->write_msg_(console_buffer, buffer_at);
   }
 
-  // Reset the recursion guard for this thread
-  this->reset_task_log_recursion_(is_main_thread);
+  // Reset the recursion guard for this thread/task
+  this->reset_task_log_recursion_(is_main_task);
 }
 #else
 // Implementation for all other platforms
@@ -226,15 +183,24 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate
   this->main_task_ = xTaskGetCurrentTaskHandle();
 #elif defined(USE_ZEPHYR)
   this->main_task_ = k_current_get();
+#elif defined(USE_HOST)
+  this->main_thread_ = pthread_self();
 #endif
 }
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
 void Logger::init_log_buffer(size_t total_buffer_size) {
+#ifdef USE_HOST
+  // Host uses slot count instead of byte size
+  this->log_buffer_ = esphome::make_unique<logger::TaskLogBufferHost>(total_buffer_size);
+#else
   this->log_buffer_ = esphome::make_unique<logger::TaskLogBuffer>(total_buffer_size);
+#endif
 
+#ifdef USE_ESP32
   // Start with loop disabled when using task buffer (unless using USB CDC)
   // The loop will be enabled automatically when messages arrive
   this->disable_loop_when_buffer_empty_();
+#endif
 }
 #endif
 
@@ -246,41 +212,37 @@ void Logger::process_messages_() {
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // Process any buffered messages when available
   if (this->log_buffer_->has_messages()) {
+#ifdef USE_HOST
+    logger::TaskLogBufferHost::LogMessage *message;
+    while (this->log_buffer_->get_message_main_loop(&message)) {
+      const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
+      this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, message->text,
+                                                message->text_length);
+      this->log_buffer_->release_message_main_loop();
+      this->write_tx_buffer_to_console_();
+    }
+#else  // USE_ESP32
     logger::TaskLogBuffer::LogMessage *message;
     const char *text;
     void *received_token;
-
-    // Process messages from the buffer
     while (this->log_buffer_->borrow_message_main_loop(&message, &text, &received_token)) {
-      this->tx_buffer_at_ = 0;
-      // Use the thread name that was stored when the message was created
-      // This avoids potential crashes if the task no longer exists
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
-      this->write_header_to_buffer_(message->level, message->tag, message->line, thread_name, this->tx_buffer_,
-                                    &this->tx_buffer_at_, this->tx_buffer_size_);
-      this->write_body_to_buffer_(text, message->text_length, this->tx_buffer_, &this->tx_buffer_at_,
-                                  this->tx_buffer_size_);
-      this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
-      this->tx_buffer_[this->tx_buffer_at_] = '\0';
-      size_t msg_len = this->tx_buffer_at_;  // We already know the length from tx_buffer_at_
-      for (auto *listener : this->log_listeners_)
-        listener->on_log(message->level, message->tag, this->tx_buffer_, msg_len);
-      // At this point all the data we need from message has been transferred to the tx_buffer
-      // so we can release the message to allow other tasks to use it as soon as possible.
+      this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, text,
+                                                message->text_length);
+      // Release the message to allow other tasks to use it as soon as possible
       this->log_buffer_->release_message_main_loop(received_token);
-
-      // Write to console from the main loop to prevent corruption from concurrent writes
-      // This ensures all log messages appear on the console in a clean, serialized manner
-      // Note: Messages may appear slightly out of order due to async processing, but
-      // this is preferred over corrupted/interleaved console output
       this->write_tx_buffer_to_console_();
     }
-  } else {
+#endif
+  }
+#ifdef USE_ESP32
+  else {
     // No messages to process, disable loop if appropriate
     // This reduces overhead when there's no async logging activity
     this->disable_loop_when_buffer_empty_();
   }
 #endif
+#endif  // USE_ESPHOME_TASK_LOG_BUFFER
 }
 
 void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }

@@ -172,7 +172,7 @@ class Logger : public Component {
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   void init_log_buffer(size_t total_buffer_size);
 #endif
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC)) || defined(USE_HOST)
   void loop() override;
 #endif
   /// Manually set the baud rate for serial, set to 0 to disable.
@@ -297,6 +297,22 @@ class Logger : public Component {
     // Console gets message WITH newline (if platform needs it)
     this->write_tx_buffer_to_console_();
   }
+
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+  // Helper to format a pre-formatted message from the task log buffer and notify listeners
+  // Used by process_messages_ to avoid code duplication between ESP32 and host platforms
+  inline void HOT format_buffered_message_and_notify_(uint8_t level, const char *tag, uint16_t line,
+                                                      const char *thread_name, const char *text, size_t text_length) {
+    this->tx_buffer_at_ = 0;
+    this->write_header_to_buffer_(level, tag, line, thread_name, this->tx_buffer_, &this->tx_buffer_at_,
+                                  this->tx_buffer_size_);
+    this->write_body_to_buffer_(text, text_length, this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
+    this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
+    this->tx_buffer_[this->tx_buffer_at_] = '\0';
+    for (auto *listener : this->log_listeners_)
+      listener->on_log(level, tag, this->tx_buffer_, this->tx_buffer_at_);
+  }
+#endif
 
   // Write the body of the log message to the buffer
   inline void write_body_to_buffer_(const char *value, size_t length, char *buffer, uint16_t *buffer_at,
