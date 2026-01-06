@@ -6,7 +6,6 @@
 #include <cinttypes>
 #include <utility>
 #include <algorithm>
-#include <span>
 #include "lwip/ip_addr.h"
 #include "lwip/err.h"
 #include "lwip/dns.h"
