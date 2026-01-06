@@ -297,6 +297,7 @@ void CC1101Component::enter_idle_() {
 }
 
 bool CC1101Component::enter_rx_() { return this->enter_calibrated_(State::RX, Command::RX); }
+
 bool CC1101Component::enter_tx_() { return this->enter_calibrated_(State::TX, Command::TX); }
 
 uint8_t CC1101Component::strobe_(Command cmd) {
