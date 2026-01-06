@@ -40,23 +40,23 @@ namespace esphome::dlms_meter {
 #define DLMS_METER_COMMA ,
 
 struct MeterData {
-  float voltage_l1;             // Voltage L1
-  float voltage_l2;             // Voltage L2
-  float voltage_l3;             // Voltage L3
-  float current_l1;             // Current L1
-  float current_l2;             // Current L2
-  float current_l3;             // Current L3
-  float active_power_plus;      // Active power taken from grid
-  float active_power_minus;     // Active power put into grid
-  float active_energy_plus;     // Active energy taken from grid
-  float active_energy_minus;    // Active energy put into grid
-  float reactive_energy_plus;   // Reactive energy taken from grid
-  float reactive_energy_minus;  // Reactive energy put into grid
-  std::string timestamp;        // Text sensor for the timestamp value
+  float voltage_l1 = 0.0f;             // Voltage L1
+  float voltage_l2 = 0.0f;             // Voltage L2
+  float voltage_l3 = 0.0f;             // Voltage L3
+  float current_l1 = 0.0f;             // Current L1
+  float current_l2 = 0.0f;             // Current L2
+  float current_l3 = 0.0f;             // Current L3
+  float active_power_plus = 0.0f;      // Active power taken from grid
+  float active_power_minus = 0.0f;     // Active power put into grid
+  float active_energy_plus = 0.0f;     // Active energy taken from grid
+  float active_energy_minus = 0.0f;    // Active energy put into grid
+  float reactive_energy_plus = 0.0f;   // Reactive energy taken from grid
+  float reactive_energy_minus = 0.0f;  // Reactive energy put into grid
+  std::string timestamp;               // Text sensor for the timestamp value
 
   // Netz NOE
-  float power_factor;       // Power Factor
-  std::string meternumber;  // Text sensor for the meterNumber value
+  float power_factor = 0.0f;           // Power Factor
+  std::string meternumber;             // Text sensor for the meterNumber value
 };
 
 /*
