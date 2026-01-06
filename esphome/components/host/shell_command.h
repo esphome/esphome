@@ -11,8 +11,7 @@
 #define HOST_SHELL_COMMAND_USE_SHELL_DEFAULT 0
 #endif
 
-namespace esphome {
-namespace host {
+namespace esphome::host {
 
 struct ShellCommandResult {
   int exit_code{-1};
@@ -33,7 +32,6 @@ std::future<ShellCommandResult> execute_shell_command_async(const std::string &c
 std::future<ShellCommandResult> execute_command_async(const std::vector<std::string> &args,
                                                       const ShellCommandOptions &options = {});
 
-}  // namespace host
-}  // namespace esphome
+}  // namespace esphome::host
 
 #endif  // USE_HOST
