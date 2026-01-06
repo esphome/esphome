@@ -145,7 +145,7 @@ void ZigbeeComponent::setup() {
   auto wipe_pref = global_preferences->make_preference<uint32_t>(hash, true);
   if (wipe_pref.load(&wipe_value)) {
     wipe = wipe_value != USE_ZIGBEE_WIPE_ON_BOOT_MAGIC;
-    ESP_LOGD(TAG, "Wipe value in preferences %u, in firmware %u\n", wipe_value, USE_ZIGBEE_WIPE_ON_BOOT_MAGIC);
+    ESP_LOGD(TAG, "Wipe value in preferences %u, in firmware %u", wipe_value, USE_ZIGBEE_WIPE_ON_BOOT_MAGIC);
   }
 #endif
   if (wipe) {

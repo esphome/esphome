@@ -79,7 +79,7 @@ class ZigbeeSensor : public ZigbeeEntity, public Component {
 
  protected:
   AnalogAttrs *cluster_attributes_{nullptr};
-  sensor::Sensor *sensor_;
+  sensor::Sensor *sensor_{nullptr};
 };
 
 }  // namespace esphome::zigbee
