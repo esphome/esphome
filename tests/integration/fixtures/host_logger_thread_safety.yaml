@@ -3,7 +3,6 @@ esphome:
 host:
 api:
 logger:
-  task_log_buffer_slots: 64
 
 button:
   - platform: template
