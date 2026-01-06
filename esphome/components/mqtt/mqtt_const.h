@@ -314,7 +314,6 @@ MQTT_KEYS_LIST(MQTT_PTR)
 #undef MQTT_PTR
 
 }  // namespace esphome::mqtt
-using namespace esphome::mqtt;  // NOLINT
 #else
 // Other platforms: constexpr in namespace
 namespace esphome::mqtt {
@@ -328,7 +327,6 @@ namespace esphome::mqtt {
 MQTT_KEYS_LIST(MQTT_CONST)
 #undef MQTT_CONST
 }  // namespace esphome::mqtt
-using namespace esphome::mqtt;  // NOLINT
 #endif
 
 #endif  // USE_MQTT
