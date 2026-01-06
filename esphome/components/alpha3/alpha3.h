@@ -93,6 +93,8 @@ class Alpha3 : public esphome::ble_client::BLEClientNode, public PollingComponen
   int16_t response_offset_;
   uint8_t response_type_[GENI_RESPONSE_TYPE_LENGTH];
   uint8_t buffer_[4];
+  optional<float> extract_value_(const uint8_t *response, int16_t length, int16_t response_offset,
+                                 int16_t value_offset);
   void extract_publish_sensor_value_(const uint8_t *response, int16_t length, int16_t response_offset,
                                      int16_t value_offset, sensor::Sensor *sensor, float factor);
   void handle_geni_response_(const uint8_t *response, uint16_t length);
