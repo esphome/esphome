@@ -560,4 +560,8 @@
 
 #endif
 
+// Empty namespace to satisfy linter - macros above are preprocessor definitions
+// and don't belong to any namespace, but the linter requires one.
+namespace esphome::mqtt {}  // namespace esphome::mqtt
+
 #endif  // USE_MQTT
