@@ -420,7 +420,7 @@ float MQTTClientComponent::get_setup_priority() const { return setup_priority::A
  * @return A 32-bit hash value based on the topic.
  */
 uint32_t MQTTClientComponent::hash_subscription(const MQTTSubscription &sub) {
-  uint32_t hash = fnv1_hash(sub.topic.c_str());
+  uint32_t hash = fnv1a_hash(sub.topic.c_str());
   // Incorporate QoS by mixing it into the hash
   // Use a simple XOR with shifted QoS to avoid common patterns
   hash ^= (static_cast<uint32_t>(sub.qos) << 24);
