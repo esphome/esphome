@@ -9,7 +9,8 @@ static const char *const TAG = "entity_base";
 
 // Entity Name
 const StringRef &EntityBase::get_name() const { return this->name_; }
-void EntityBase::set_name(const char *name) {
+void EntityBase::set_name(const char *name) { this->set_name(name, 0); }
+void EntityBase::set_name(const char *name, uint32_t object_id_hash) {
   this->name_ = StringRef(name);
   if (this->name_.empty()) {
 #ifdef USE_DEVICES
@@ -18,11 +19,29 @@ void EntityBase::set_name(const char *name) {
     } else
 #endif
     {
-      this->name_ = StringRef(App.get_friendly_name());
+      // Bug-for-bug compatibility with OLD behavior:
+      // - With MAC suffix: OLD code used App.get_friendly_name() directly (no fallback)
+      // - Without MAC suffix: OLD code used pre-computed object_id with fallback to device name
+      const std::string &friendly = App.get_friendly_name();
+      if (App.is_name_add_mac_suffix_enabled()) {
+        // MAC suffix enabled - use friendly_name directly (even if empty) for compatibility
+        this->name_ = StringRef(friendly);
+      } else {
+        // No MAC suffix - fallback to device name if friendly_name is empty
+        this->name_ = StringRef(!friendly.empty() ? friendly : App.get_name());
+      }
     }
     this->flags_.has_own_name = false;
+    // Dynamic name - must calculate hash at runtime
+    this->calc_object_id_();
   } else {
     this->flags_.has_own_name = true;
+    // Static name - use pre-computed hash if provided
+    if (object_id_hash != 0) {
+      this->object_id_hash_ = object_id_hash;
+    } else {
+      this->calc_object_id_();
+    }
   }
 }
 
@@ -45,69 +64,30 @@ void EntityBase::set_icon(const char *icon) {
 #endif
 }
 
-// Check if the object_id is dynamic (changes with MAC suffix)
-bool EntityBase::is_object_id_dynamic_() const {
-  return !this->flags_.has_own_name && App.is_name_add_mac_suffix_enabled();
-}
-
-// Entity Object ID
+// Entity Object ID - computed on-demand from name
 std::string EntityBase::get_object_id() const {
-  // Check if `App.get_friendly_name()` is constant or dynamic.
-  if (this->is_object_id_dynamic_()) {
-    // `App.get_friendly_name()` is dynamic.
-    return str_sanitize(str_snake_case(App.get_friendly_name()));
-  }
-  // `App.get_friendly_name()` is constant.
-  return this->object_id_c_str_ == nullptr ? "" : this->object_id_c_str_;
-}
-void EntityBase::set_object_id(const char *object_id) {
-  this->object_id_c_str_ = object_id;
-  this->calc_object_id_();
-}
-
-void EntityBase::set_name_and_object_id(const char *name, const char *object_id) {
-  this->set_name(name);
-  this->object_id_c_str_ = object_id;
-  this->calc_object_id_();
-}
-
-// Calculate Object ID Hash from Entity Name
-void EntityBase::calc_object_id_() {
   char buf[OBJECT_ID_MAX_LEN];
-  StringRef object_id = this->get_object_id_to(buf);
-  this->object_id_hash_ = fnv1_hash(object_id.c_str());
+  size_t len = this->write_object_id_to(buf, sizeof(buf));
+  return std::string(buf, len);
 }
 
-// Format dynamic object_id: sanitized snake_case of friendly_name
-static size_t format_dynamic_object_id(char *buf, size_t buf_size) {
-  const std::string &name = App.get_friendly_name();
-  size_t len = std::min(name.size(), buf_size - 1);
-  for (size_t i = 0; i < len; i++) {
-    buf[i] = to_sanitized_char(to_snake_case_char(name[i]));
-  }
-  buf[len] = '\0';
-  return len;
+// Calculate Object ID Hash directly from name using snake_case + sanitize
+void EntityBase::calc_object_id_() {
+  this->object_id_hash_ = fnv1_hash_object_id(this->name_.c_str(), this->name_.size());
 }
 
 size_t EntityBase::write_object_id_to(char *buf, size_t buf_size) const {
-  if (this->is_object_id_dynamic_()) {
-    return format_dynamic_object_id(buf, buf_size);
+  size_t len = std::min(this->name_.size(), buf_size - 1);
+  for (size_t i = 0; i < len; i++) {
+    buf[i] = to_sanitized_char(to_snake_case_char(this->name_[i]));
   }
-  const char *src = this->object_id_c_str_ == nullptr ? "" : this->object_id_c_str_;
-  size_t len = strlen(src);
-  if (len >= buf_size)
-    len = buf_size - 1;
-  memcpy(buf, src, len);
   buf[len] = '\0';
   return len;
 }
 
 StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) const {
-  if (this->is_object_id_dynamic_()) {
-    size_t len = format_dynamic_object_id(buf.data(), buf.size());
-    return StringRef(buf.data(), len);
-  }
-  return this->object_id_c_str_ == nullptr ? StringRef() : StringRef(this->object_id_c_str_);
+  size_t len = this->write_object_id_to(buf.data(), buf.size());
+  return StringRef(buf.data(), len);
 }
 
 uint32_t EntityBase::get_object_id_hash() { return this->object_id_hash_; }

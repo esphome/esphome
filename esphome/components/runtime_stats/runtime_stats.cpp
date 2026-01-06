@@ -27,8 +27,10 @@ void RuntimeStatsCollector::record_component_time(Component *component, uint32_t
 }
 
 void RuntimeStatsCollector::log_stats_() {
-  ESP_LOGI(TAG, "Component Runtime Statistics");
-  ESP_LOGI(TAG, "Period stats (last %" PRIu32 "ms):", this->log_interval_);
+  ESP_LOGI(TAG,
+           "Component Runtime Statistics\n"
+           "Period stats (last %" PRIu32 "ms):",
+           this->log_interval_);
 
   // First collect stats we want to display
   std::vector<ComponentStatPair> stats_to_display;

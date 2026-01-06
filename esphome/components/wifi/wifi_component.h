@@ -12,12 +12,6 @@
 #include <string>
 #include <vector>
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#include <WiFi.h>
-#include <WiFiType.h>
-#include <esp_wifi.h>
-#endif
-
 #ifdef USE_LIBRETINY
 #include <WiFi.h>
 #endif
@@ -249,6 +243,10 @@ enum WifiMinAuthMode : uint8_t {
 
 #ifdef USE_ESP32
 struct IDFWiFiEvent;
+#endif
+
+#ifdef USE_LIBRETINY
+struct LTWiFiEvent;
 #endif
 
 /** Listener interface for WiFi IP state changes.
@@ -578,10 +576,6 @@ class WiFiComponent : public Component {
   static void s_wifi_scan_done_callback(void *arg, STATUS status);
 #endif
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-  void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
-  void wifi_scan_done_callback_();
-#endif
 #ifdef USE_ESP32
   void wifi_process_event_(IDFWiFiEvent *data);
 #endif
@@ -593,6 +587,7 @@ class WiFiComponent : public Component {
 
 #ifdef USE_LIBRETINY
   void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
+  void wifi_process_event_(LTWiFiEvent *event);
   void wifi_scan_done_callback_();
 #endif
 

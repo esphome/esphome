@@ -43,21 +43,6 @@ void HelloResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->server_info_ref_.size());
   size.add_length(1, this->name_ref_.size());
 }
-#ifdef USE_API_PASSWORD
-bool AuthenticationRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 1: {
-      this->password = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-void AuthenticationResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->invalid_password); }
-void AuthenticationResponse::calculate_size(ProtoSize &size) const { size.add_bool(1, this->invalid_password); }
-#endif
 #ifdef USE_AREAS
 void AreaInfo::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, this->area_id);
@@ -81,9 +66,6 @@ void DeviceInfo::calculate_size(ProtoSize &size) const {
 }
 #endif
 void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
-#ifdef USE_API_PASSWORD
-  buffer.encode_bool(1, this->uses_password);
-#endif
   buffer.encode_string(2, this->name_ref_);
   buffer.encode_string(3, this->mac_address_ref_);
   buffer.encode_string(4, this->esphome_version_ref_);
@@ -139,9 +121,6 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
-#ifdef USE_API_PASSWORD
-  size.add_bool(1, this->uses_password);
-#endif
   size.add_length(1, this->name_ref_.size());
   size.add_length(1, this->mac_address_ref_.size());
   size.add_length(1, this->esphome_version_ref_.size());
@@ -1710,8 +1689,8 @@ void ListEntitiesSirenResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(5, this->icon_ref_);
 #endif
   buffer.encode_bool(6, this->disabled_by_default);
-  for (auto &it : this->tones) {
-    buffer.encode_string(7, it, true);
+  for (const char *it : *this->tones) {
+    buffer.encode_string(7, it, strlen(it), true);
   }
   buffer.encode_bool(8, this->supports_duration);
   buffer.encode_bool(9, this->supports_volume);
@@ -1728,9 +1707,9 @@ void ListEntitiesSirenResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->icon_ref_.size());
 #endif
   size.add_bool(1, this->disabled_by_default);
-  if (!this->tones.empty()) {
-    for (const auto &it : this->tones) {
-      size.add_length_force(1, it.size());
+  if (!this->tones->empty()) {
+    for (const char *it : *this->tones) {
+      size.add_length_force(1, strlen(it));
     }
   }
   size.add_bool(1, this->supports_duration);
@@ -2527,20 +2506,22 @@ bool VoiceAssistantAudio::decode_varint(uint32_t field_id, ProtoVarInt value) {
 }
 bool VoiceAssistantAudio::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 1:
-      this->data = value.as_string();
+    case 1: {
+      this->data = value.data();
+      this->data_len = value.size();
       break;
+    }
     default:
       return false;
   }
   return true;
 }
 void VoiceAssistantAudio::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_bytes(1, this->data_ptr_, this->data_len_);
+  buffer.encode_bytes(1, this->data, this->data_len);
   buffer.encode_bool(2, this->end);
 }
 void VoiceAssistantAudio::calculate_size(ProtoSize &size) const {
-  size.add_length(1, this->data_len_);
+  size.add_length(1, this->data_len);
   size.add_bool(1, this->end);
 }
 bool VoiceAssistantTimerEventResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {

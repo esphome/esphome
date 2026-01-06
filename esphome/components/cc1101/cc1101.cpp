@@ -190,13 +190,15 @@ void CC1101Component::loop() {
   this->read_(Register::FIFO, this->packet_.data(), payload_length);
 
   // Read status from registers (more reliable than FIFO status bytes due to timing issues)
+  this->read_(Register::FREQEST);
   this->read_(Register::RSSI);
   this->read_(Register::LQI);
+  float freq_offset = static_cast<int8_t>(this->state_.FREQEST) * (XTAL_FREQUENCY / (1 << 14));
   float rssi = (this->state_.RSSI * RSSI_STEP) - RSSI_OFFSET;
   bool crc_ok = (this->state_.LQI & STATUS_CRC_OK_MASK) != 0;
   uint8_t lqi = this->state_.LQI & STATUS_LQI_MASK;
   if (this->state_.CRC_EN == 0 || crc_ok) {
-    this->packet_trigger_->trigger(this->packet_, rssi, lqi);
+    this->packet_trigger_->trigger(this->packet_, freq_offset, rssi, lqi);
   }
 
   // Return to rx
@@ -212,9 +214,8 @@ void CC1101Component::dump_config() {
                  XTAL_FREQUENCY / (1 << 16);
   float symbol_rate = (((256.0f + this->state_.DRATE_M) * (1 << this->state_.DRATE_E)) / (1 << 28)) * XTAL_FREQUENCY;
   float bw = XTAL_FREQUENCY / (8.0f * (4 + this->state_.CHANBW_M) * (1 << this->state_.CHANBW_E));
-  ESP_LOGCONFIG(TAG, "CC1101:");
-  LOG_PIN("  CS Pin: ", this->cs_);
   ESP_LOGCONFIG(TAG,
+                "CC1101:\n"
                 "  Chip ID: 0x%04X\n"
                 "  Frequency: %" PRId32 " Hz\n"
                 "  Channel: %u\n"
@@ -224,6 +225,7 @@ void CC1101Component::dump_config() {
                 "  Output Power: %.1f dBm",
                 this->chip_id_, freq, this->state_.CHANNR, MODULATION_NAMES[this->state_.MOD_FORMAT & 0x07],
                 symbol_rate, bw, this->output_power_effective_);
+  LOG_PIN("  CS Pin: ", this->cs_);
 }
 
 void CC1101Component::begin_tx() {

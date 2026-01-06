@@ -272,7 +272,8 @@ void VoiceAssistant::loop() {
         size_t read_bytes = this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
         if (this->audio_mode_ == AUDIO_MODE_API) {
           api::VoiceAssistantAudio msg;
-          msg.set_data(this->send_buffer_, read_bytes);
+          msg.data = this->send_buffer_;
+          msg.data_len = read_bytes;
           this->api_client_->send_message(msg, api::VoiceAssistantAudio::MESSAGE_TYPE);
         } else {
           if (!this->udp_socket_running_) {
@@ -428,10 +429,12 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
   }
 
   if (this->api_client_ != nullptr) {
-    ESP_LOGE(TAG, "Multiple API Clients attempting to connect to Voice Assistant");
-    ESP_LOGE(TAG, "Current client: %s (%s)", this->api_client_->get_name().c_str(),
-             this->api_client_->get_peername().c_str());
-    ESP_LOGE(TAG, "New client: %s (%s)", client->get_name().c_str(), client->get_peername().c_str());
+    ESP_LOGE(TAG,
+             "Multiple API Clients attempting to connect to Voice Assistant\n"
+             "Current client: %s (%s)\n"
+             "New client: %s (%s)",
+             this->api_client_->get_name().c_str(), this->api_client_->get_peername().c_str(),
+             client->get_name().c_str(), client->get_peername().c_str());
     return;
   }
 
@@ -841,12 +844,12 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 void VoiceAssistant::on_audio(const api::VoiceAssistantAudio &msg) {
 #ifdef USE_SPEAKER  // We should never get to this function if there is no speaker anyway
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
-    if (this->speaker_buffer_index_ + msg.data.length() < SPEAKER_BUFFER_SIZE) {
-      memcpy(this->speaker_buffer_ + this->speaker_buffer_index_, msg.data.data(), msg.data.length());
-      this->speaker_buffer_index_ += msg.data.length();
-      this->speaker_buffer_size_ += msg.data.length();
-      this->speaker_bytes_received_ += msg.data.length();
-      ESP_LOGV(TAG, "Received audio: %u bytes from API", msg.data.length());
+    if (this->speaker_buffer_index_ + msg.data_len < SPEAKER_BUFFER_SIZE) {
+      memcpy(this->speaker_buffer_ + this->speaker_buffer_index_, msg.data, msg.data_len);
+      this->speaker_buffer_index_ += msg.data_len;
+      this->speaker_buffer_size_ += msg.data_len;
+      this->speaker_bytes_received_ += msg.data_len;
+      ESP_LOGV(TAG, "Received audio: %u bytes from API", msg.data_len);
     } else {
       ESP_LOGE(TAG, "Cannot receive audio, buffer is full");
     }
@@ -863,9 +866,11 @@ void VoiceAssistant::on_timer_event(const api::VoiceAssistantTimerEventResponse 
       .is_active = msg.is_active,
   };
   this->timers_[timer.id] = timer;
-  ESP_LOGD(TAG, "Timer Event");
-  ESP_LOGD(TAG, "  Type: %" PRId32, msg.event_type);
-  ESP_LOGD(TAG, "  %s", timer.to_string().c_str());
+  ESP_LOGD(TAG,
+           "Timer Event\n"
+           "  Type: %" PRId32 "\n"
+           "  %s",
+           msg.event_type, timer.to_string().c_str());
 
   switch (msg.event_type) {
     case api::enums::VOICE_ASSISTANT_TIMER_STARTED:
