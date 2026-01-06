@@ -2104,6 +2104,10 @@ void APIConnection::infrared_proxy_transmit_protocol(const InfraredProxyTransmit
   this->parent_->on_infrared_proxy_transmit_protocol_request(msg);
 }
 
+void APIConnection::infrared_proxy_transmit_raw_timings(const InfraredProxyTransmitRawTimingsRequest &msg) {
+  this->parent_->on_infrared_proxy_transmit_raw_timings_request(msg);
+}
+
 void APIConnection::send_list_entities_infrared_proxy_response(const ListEntitiesInfraredProxyResponse &msg) {
   if (!this->send_message(msg, ListEntitiesInfraredProxyResponse::MESSAGE_TYPE)) {
     this->on_fatal_error();

@@ -69,6 +69,7 @@ service APIConnection {
 
   rpc infrared_proxy_transmit_pulse_width(InfraredProxyTransmitPulseWidthRequest) returns (void) {}
   rpc infrared_proxy_transmit_protocol(InfraredProxyTransmitProtocolRequest) returns (void) {}
+  rpc infrared_proxy_transmit_raw_timings(InfraredProxyTransmitRawTimingsRequest) returns (void) {}
 }
 
 
@@ -2506,6 +2507,18 @@ message InfraredProxyTransmitProtocolRequest {
 
   fixed32 key = 1;           // Key identifying the transmitter instance
   string protocol_json = 2;  // JSON string containing protocol name and parameters
+}
+
+// Command to transmit infrared/RF data using raw timings
+message InfraredProxyTransmitRawTimingsRequest {
+  option (id) = 139;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_INFRARED_PROXY";
+
+  fixed32 key = 1;                                       // Key identifying the transmitter instance
+  uint32 carrier_frequency = 2;                          // Carrier frequency in Hz (0 = no carrier)
+  uint32 repeat_count = 3;                               // Number of times to transmit (1 = once, 2 = twice, etc.)
+  repeated int32 timings = 4 [(fixed_vector) = true];    // Raw timings (alternating mark/space in microseconds)
 }
 
 // Event message for received infrared data

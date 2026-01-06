@@ -101,6 +101,41 @@ void InfraredProxyComponent::transmit_protocol(const api::InfraredProxyTransmitP
   call.perform();
 }
 
+void InfraredProxyComponent::transmit_raw_timings(const api::InfraredProxyTransmitRawTimingsRequest &msg) {
+  if (this->transmitter_ == nullptr) {
+    ESP_LOGW(TAG, "No transmitter configured");
+    return;
+  }
+
+  if (msg.timings.empty()) {
+    ESP_LOGE(TAG, "Raw timings array is empty");
+    return;
+  }
+
+  ESP_LOGD(TAG, "Transmitting raw timings: key=%u, carrier=%u Hz, timing_count=%u, repeat_count=%u", msg.key,
+           msg.carrier_frequency, msg.timings.size(), msg.repeat_count);
+
+  // Create transmit data object
+  auto call = this->transmitter_->transmit();
+  auto *transmit_data = call.get_data();
+
+  // Set carrier frequency (0 = no carrier for RF applications)
+  transmit_data->set_carrier_frequency(msg.carrier_frequency);
+
+  // Move raw timings to avoid copying - the remote_base protocol expects alternating mark/space
+  // Positive values = mark (LED on), negative values = space (LED off)
+  // FixedVector conversion operator creates a std::vector, which we move into transmit_data
+  transmit_data->set_data(std::move(static_cast<std::vector<int32_t>>(msg.timings)));
+
+  // Set repeat count (default to 1 if not specified or 0)
+  if (msg.repeat_count > 0) {
+    call.set_send_times(msg.repeat_count);
+  }
+
+  // Transmit the data
+  call.perform();
+}
+
 bool InfraredProxyComponent::on_receive(remote_base::RemoteReceiveData data) {
   if (this->receiver_ == nullptr) {
     return false;  // Not interested in receive data if no receiver configured

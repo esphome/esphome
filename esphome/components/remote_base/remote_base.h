@@ -31,6 +31,7 @@ class RemoteTransmitData {
   uint32_t get_carrier_frequency() const { return this->carrier_frequency_; }
   const RawTimings &get_data() const { return this->data_; }
   void set_data(const RawTimings &data) { this->data_ = data; }
+  void set_data(RawTimings &&data) { this->data_ = std::move(data); }
   void reset() {
     this->data_.clear();
     this->carrier_frequency_ = 0;

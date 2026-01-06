@@ -201,6 +201,7 @@ class APIServer : public Component,
   void register_infrared_proxy(infrared_proxy::InfraredProxyComponent *infrared_proxy);
   void on_infrared_proxy_transmit_pulse_width_request(const InfraredProxyTransmitPulseWidthRequest &msg);
   void on_infrared_proxy_transmit_protocol_request(const InfraredProxyTransmitProtocolRequest &msg);
+  void on_infrared_proxy_transmit_raw_timings_request(const InfraredProxyTransmitRawTimingsRequest &msg);
   void send_infrared_proxy_receive_event(uint32_t key, const remote_base::RawTimings &timings);
   void list_infrared_proxy_entities(APIConnection *conn);
   const std::vector<infrared_proxy::InfraredProxyComponent *> &get_infrared_proxies() const {

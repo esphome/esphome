@@ -2416,6 +2416,15 @@ void InfraredProxyTransmitProtocolRequest::dump_to(std::string &out) const {
   out.append("'").append(this->protocol_json.c_str(), this->protocol_json.size()).append("'");
   out.append("\n");
 }
+void InfraredProxyTransmitRawTimingsRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "InfraredProxyTransmitRawTimingsRequest");
+  dump_field(out, "key", this->key);
+  dump_field(out, "carrier_frequency", this->carrier_frequency);
+  dump_field(out, "repeat_count", this->repeat_count);
+  for (const auto &it : this->timings) {
+    dump_field(out, "timings", it, 4);
+  }
+}
 void InfraredProxyReceiveEvent::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "InfraredProxyReceiveEvent");
   dump_field(out, "key", this->key);

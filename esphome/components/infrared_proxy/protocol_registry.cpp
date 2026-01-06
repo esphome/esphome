@@ -571,7 +571,7 @@ static bool parse_rc_switch_type_a(JsonObject root, remote_base::RemoteTransmitD
 
   uint64_t code;
   uint8_t nbits;
-  proto.type_a_code(u_group, u_device, state, &code, &nbits);
+  esphome::remote_base::RCSwitchBase::type_a_code(u_group, u_device, state, &code, &nbits);
   proto.transmit(dst, code, nbits);
 
   return true;
@@ -598,7 +598,7 @@ static bool parse_rc_switch_type_b(JsonObject root, remote_base::RemoteTransmitD
   remote_base::RCSwitchBase proto = remote_base::RC_SWITCH_PROTOCOLS[protocol_num - 1];
   uint64_t code;
   uint8_t nbits;
-  proto.type_b_code(address, channel, state, &code, &nbits);
+  esphome::remote_base::RCSwitchBase::type_b_code(address, channel, state, &code, &nbits);
   proto.transmit(dst, code, nbits);
 
   return true;
@@ -632,7 +632,7 @@ static bool parse_rc_switch_type_c(JsonObject root, remote_base::RemoteTransmitD
   remote_base::RCSwitchBase proto = remote_base::RC_SWITCH_PROTOCOLS[protocol_num - 1];
   uint64_t code;
   uint8_t nbits;
-  proto.type_c_code(family[0], group, device, state, &code, &nbits);
+  esphome::remote_base::RCSwitchBase::type_c_code(family[0], group, device, state, &code, &nbits);
   proto.transmit(dst, code, nbits);
 
   return true;
@@ -664,7 +664,7 @@ static bool parse_rc_switch_type_d(JsonObject root, remote_base::RemoteTransmitD
   remote_base::RCSwitchBase proto = remote_base::RC_SWITCH_PROTOCOLS[protocol_num - 1];
   uint64_t code;
   uint8_t nbits;
-  proto.type_d_code(group[0], device, state, &code, &nbits);
+  esphome::remote_base::RCSwitchBase::type_d_code(group[0], device, state, &code, &nbits);
   proto.transmit(dst, code, nbits);
 
   return true;
@@ -827,9 +827,9 @@ bool encode_from_json(const std::string &protocol_json, remote_base::RemoteTrans
     const char *protocol = root["protocol"].as<const char *>();
 
     // Look up protocol in table
-    for (size_t i = 0; i < PROTOCOL_COUNT; i++) {
-      if (strcmp(protocol, PROTOCOL_PARSERS[i].name) == 0) {
-        return PROTOCOL_PARSERS[i].parser(root, transmit_data);
+    for (auto i : PROTOCOL_PARSERS) {
+      if (strcmp(protocol, i.name) == 0) {
+        return i.parser(root, transmit_data);
       }
     }
 
@@ -840,8 +840,8 @@ bool encode_from_json(const std::string &protocol_json, remote_base::RemoteTrans
              protocol);
     // This will generate a lot of logging calls but saves us from having to
     //  maintain a separate list of protocol names, reducing binary size.
-    for (size_t i = 0; i < PROTOCOL_COUNT; i++) {
-      ESP_LOGE(TAG, "  %s", PROTOCOL_PARSERS[i].name);
+    for (auto i : PROTOCOL_PARSERS) {
+      ESP_LOGE(TAG, "  %s", i.name);
     }
     return false;
   });

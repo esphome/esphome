@@ -69,6 +69,9 @@ class InfraredProxyComponent : public Component, public EntityBase, public remot
   /// Transmit IR/RF data using JSON protocol specification
   void transmit_protocol(const api::InfraredProxyTransmitProtocolRequest &msg);
 
+  /// Transmit IR/RF data using raw timings array
+  void transmit_raw_timings(const api::InfraredProxyTransmitRawTimingsRequest &msg);
+
   /// Called when IR data is received - implements RemoteReceiverListener interface
   bool on_receive(remote_base::RemoteReceiveData data) override;
 #endif

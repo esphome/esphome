@@ -3488,6 +3488,37 @@ bool InfraredProxyTransmitProtocolRequest::decode_32bit(uint32_t field_id, Proto
   }
   return true;
 }
+bool InfraredProxyTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2:
+      this->carrier_frequency = value.as_uint32();
+      break;
+    case 3:
+      this->repeat_count = value.as_uint32();
+      break;
+    case 4:
+      this->timings.push_back(value.as_int32());
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool InfraredProxyTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1:
+      this->key = value.as_fixed32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+void InfraredProxyTransmitRawTimingsRequest::decode(const uint8_t *buffer, size_t length) {
+  uint32_t count_timings = ProtoDecodableMessage::count_repeated_field(buffer, length, 4);
+  this->timings.init(count_timings);
+  ProtoDecodableMessage::decode(buffer, length);
+}
 void InfraredProxyReceiveEvent::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   for (auto &it : this->timings) {

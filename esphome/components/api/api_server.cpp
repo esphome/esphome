@@ -715,13 +715,23 @@ void APIServer::on_infrared_proxy_transmit_protocol_request(const InfraredProxyT
   ESP_LOGW(TAG, "Infrared proxy protocol transmit request for unknown key: %u", msg.key);
 }
 
+void APIServer::on_infrared_proxy_transmit_raw_timings_request(const InfraredProxyTransmitRawTimingsRequest &msg) {
+  for (auto *infrared_proxy : this->infrared_proxies_) {
+    if (infrared_proxy->get_object_id_hash() == msg.key) {
+      infrared_proxy->transmit_raw_timings(msg);
+      return;
+    }
+  }
+  ESP_LOGW(TAG, "Infrared proxy raw timings transmit request for unknown key: %u", msg.key);
+}
+
 void APIServer::send_infrared_proxy_receive_event(uint32_t key, const remote_base::RawTimings &timings) {
   InfraredProxyReceiveEvent event{};
   event.key = key;
   // Convert std::vector to FixedVector
   event.timings.init(timings.size());
-  for (size_t i = 0; i < timings.size(); i++) {
-    event.timings.push_back(timings[i]);
+  for (int timing : timings) {
+    event.timings.push_back(timing);
   }
 
   for (auto &client : this->clients_) {

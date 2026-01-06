@@ -644,6 +644,17 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
+#ifdef USE_INFRARED_PROXY
+    case InfraredProxyTransmitRawTimingsRequest::MESSAGE_TYPE: {
+      InfraredProxyTransmitRawTimingsRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_infrared_proxy_transmit_raw_timings_request: %s", msg.dump().c_str());
+#endif
+      this->on_infrared_proxy_transmit_raw_timings_request(msg);
+      break;
+    }
+#endif
     default:
       break;
   }
@@ -850,6 +861,12 @@ void APIServerConnection::on_infrared_proxy_transmit_pulse_width_request(
 #ifdef USE_INFRARED_PROXY
 void APIServerConnection::on_infrared_proxy_transmit_protocol_request(const InfraredProxyTransmitProtocolRequest &msg) {
   this->infrared_proxy_transmit_protocol(msg);
+}
+#endif
+#ifdef USE_INFRARED_PROXY
+void APIServerConnection::on_infrared_proxy_transmit_raw_timings_request(
+    const InfraredProxyTransmitRawTimingsRequest &msg) {
+  this->infrared_proxy_transmit_raw_timings(msg);
 }
 #endif
 

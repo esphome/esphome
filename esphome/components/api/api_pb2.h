@@ -3207,6 +3207,26 @@ class InfraredProxyTransmitProtocolRequest final : public ProtoDecodableMessage 
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
+class InfraredProxyTransmitRawTimingsRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 139;
+  static constexpr uint8_t ESTIMATED_SIZE = 21;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "infrared_proxy_transmit_raw_timings_request"; }
+#endif
+  uint32_t key{0};
+  uint32_t carrier_frequency{0};
+  uint32_t repeat_count{0};
+  FixedVector<int32_t> timings{};
+  void decode(const uint8_t *buffer, size_t length) override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
 class InfraredProxyReceiveEvent final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 138;
