@@ -98,7 +98,7 @@ bool IRAM_ATTR timer_fn_wrapper(gptimer_handle_t timer, const gptimer_alarm_even
       isr->fn();
     }
   }
-  // some additional logic or handling may be required here to appropriately yield or not
+  // Return false to indicate that no higher-priority task was woken and no context switch is requested.
   return false;
 }
 
