@@ -43,7 +43,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     cg.add_build_flag("-DUSE_HOST")
     cg.add_define("USE_ESPHOME_HOST_MAC_ADDRESS", config[CONF_MAC_ADDRESS].parts)
-    cg.add_define("HOST_SHELL_COMMAND_USE_SHELL_DEFAULT", "1" if config[CONF_USE_SHELL] else "0")
+    cg.add_define("HOST_SHELL_COMMAND_USE_SHELL_DEFAULT", config[CONF_USE_SHELL])
     cg.add_build_flag("-std=gnu++20")
     cg.add_define("ESPHOME_BOARD", "host")
     cg.add_define(ThreadModel.MULTI_ATOMICS)
