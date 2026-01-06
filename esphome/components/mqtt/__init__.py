@@ -278,10 +278,7 @@ def validate_clean_session(value):
     - RTC: Persistent session using RTC memory (ESP32 only)
     """
     if CORE.is_esp32:
-          return cv.Any(
-              cv.boolean,
-              cv.one_of("FLASH", "RTC", upper=True)
-          )(value)
+        return cv.Any(cv.boolean, cv.one_of("FLASH", "RTC", upper=True))(value)
     return cv.Any(cv.boolean, cv.one_of("FLASH"))(value)
 
 
