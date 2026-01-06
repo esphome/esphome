@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
@@ -65,3 +67,4 @@ class TaskLogBuffer {
 }  // namespace esphome::logger
 
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER
+#endif  // USE_ESP32

@@ -47,6 +47,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_HOST,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
     PLATFORM_RP2040,
@@ -228,10 +229,10 @@ CONFIG_SCHEMA = cv.All(
                 esp32=768,  # Default: 768 bytes (~5-6 messages with 70-byte text plus thread names)
                 host=64,  # Default: 64 slots (host uses slot count, not byte size)
             ): cv.All(
-                cv.only_on([PLATFORM_ESP32, "host"]),
+                cv.only_on([PLATFORM_ESP32, PLATFORM_HOST]),
                 cv.Any(
                     cv.int_(0),  # Disabled
-                    cv.int_range(min=4, max=32768),  # ESP32: bytes, Host: slot count
+                    cv.int_range(min=4, max=32768),
                 ),
             ),
             cv.SplitDefault(
@@ -301,9 +302,9 @@ async def to_code(config):
         baud_rate,
         config[CONF_TX_BUFFER_SIZE],
     )
-    if CORE.is_esp32:
+    if CORE.is_esp32 or CORE.is_host:
         cg.add(log.create_pthread_key())
-        task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
+        task_log_buffer_size = config.get(CONF_TASK_LOG_BUFFER_SIZE, 0)
         if task_log_buffer_size > 0:
             cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
             cg.add(log.init_log_buffer(task_log_buffer_size))
@@ -505,10 +506,11 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.LN882X_ARDUINO,
         },
         "logger_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
-        "task_log_buffer.cpp": {
+        "task_log_buffer_esp32.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
+        "task_log_buffer_host.cpp": {PlatformFramework.HOST_NATIVE},
     }
 )
 
