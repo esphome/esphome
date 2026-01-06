@@ -30,6 +30,13 @@ class MideaData {
   void finalize() { this->data_[OFFSET_CS] = this->calc_cs_(); }
   bool is_compliment(const MideaData &rhs) const;
   std::string to_string() const { return format_hex_pretty(this->data_.data(), this->data_.size()); }
+  /// Buffer size for to_str(): 6 bytes = "AA.BB.CC.DD.EE.FF\0"
+  static constexpr size_t TO_STR_BUFFER_SIZE = format_hex_pretty_size(6);
+  /// Format to buffer, returns pointer to buffer
+  const char *to_str(char *buffer) const {
+    format_hex_pretty_to(buffer, TO_STR_BUFFER_SIZE, this->data_.data(), this->data_.size(), '.');
+    return buffer;
+  }
   // compare only 40-bits
   bool operator==(const MideaData &rhs) const {
     return std::equal(this->data_.begin(), this->data_.begin() + OFFSET_CS, rhs.data_.begin());
