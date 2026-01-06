@@ -96,14 +96,12 @@ class TaskLogBufferHost {
   size_t slot_count_;                    // Number of slots
 
   // Lock-free indices using atomics
-  // We use a simple approach: write_index_ is where the next write will go,
-  // read_index_ is where the next read will come from
-  std::atomic<size_t> write_index_{0};   // Next slot to write to
-  std::atomic<size_t> read_index_{0};    // Next slot to read from
-  std::atomic<size_t> commit_index_{0};  // Last committed write
-
-  // For thread-safe slot acquisition
+  // - reserve_index_: Next slot to reserve (producers CAS this to claim slots)
+  // - write_index_: Boundary of committed/ready slots (consumer reads up to this)
+  // - read_index_: Next slot to read (only consumer modifies this)
   std::atomic<size_t> reserve_index_{0};  // Next slot to reserve for writing
+  std::atomic<size_t> write_index_{0};    // Last committed slot boundary
+  std::atomic<size_t> read_index_{0};     // Next slot to read from
 };
 
 }  // namespace esphome::logger
