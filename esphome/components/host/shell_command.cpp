@@ -23,8 +23,7 @@
 
 extern char **environ;  // Declare the global variable
 
-namespace esphome {
-namespace host {
+namespace esphome::host {
 
 static const char *const TAG = "host.shell";
 
@@ -197,7 +196,6 @@ ShellCommandResult execute_shell_command(const std::string &command, const Shell
   return result;
 }
 
-}  // namespace host
-}  // namespace esphome
+}  // namespace esphome::host
 
 #endif  // USE_HOST
