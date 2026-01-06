@@ -1819,9 +1819,25 @@ bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
   return false;
 }
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
-  if (!this->try_to_clear_buffer(message_type != SubscribeLogsResponse::MESSAGE_TYPE)) {  // SubscribeLogsResponse
+  const bool is_log_message = (message_type == SubscribeLogsResponse::MESSAGE_TYPE);
+
+  if (!this->try_to_clear_buffer(!is_log_message)) {
     return false;
   }
+
+  // Toggle Nagle's algorithm based on message type to prevent log messages from
+  // filling the TCP send buffer and crowding out important state updates.
+  //
+  // - Log messages: Enable Nagle (NODELAY=false) so small log packets coalesce
+  //   into fewer, larger packets. They flush naturally via TCP delayed ACK timer
+  //   (~200ms), buffer filling, or when a state update triggers a flush.
+  //
+  // - All other messages (state updates, responses): Disable Nagle (NODELAY=true)
+  //   for immediate delivery. These are time-sensitive and should not be delayed.
+  //
+  // This must be done proactively BEFORE the buffer fills up - checking buffer
+  // state here would be too late since we'd already be in a degraded state.
+  this->helper_->set_nodelay(!is_log_message);
 
   APIError err = this->helper_->write_protobuf_packet(message_type, buffer);
   if (err == APIError::WOULD_BLOCK)

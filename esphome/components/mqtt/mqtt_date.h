@@ -8,8 +8,7 @@
 #include "esphome/components/datetime/date_entity.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTDateComponent : public mqtt::MQTTComponent {
  public:
@@ -38,8 +37,7 @@ class MQTTDateComponent : public mqtt::MQTTComponent {
   datetime::DateEntity *date_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_DATETIME_DATE
 #endif  // USE_MQTT
