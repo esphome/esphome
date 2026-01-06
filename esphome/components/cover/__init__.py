@@ -113,9 +113,7 @@ _COVER_SCHEMA = (
                 cv.requires_component("mqtt"), cv.subscribe_topic
             ),
             # Command, tilt and position (worst case scenario)
-            cv.Optional(CONF_MQTT_SUBSCRIPTION_COUNT, default=3): cv.All(
-                cv.requires_component("mqtt"), cv.positive_int
-            ),
+            cv.Optional(CONF_MQTT_SUBSCRIPTION_COUNT, default=3): cv.positive_int,
             cv.Optional(CONF_ON_OPEN): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenTrigger),

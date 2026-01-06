@@ -232,9 +232,7 @@ _CLIMATE_SCHEMA = (
                 cv.requires_component("mqtt"), cv.publish_topic
             ),
             # Command, temperature (x2), humidity, preset, fan, swing (worst case scenario)
-            cv.Optional(CONF_MQTT_SUBSCRIPTION_COUNT, default=7): cv.All(
-                cv.requires_component("mqtt"), cv.positive_int
-            ),
+            cv.Optional(CONF_MQTT_SUBSCRIPTION_COUNT, default=7): cv.positive_int,
             cv.Optional(CONF_ON_CONTROL): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ControlTrigger),

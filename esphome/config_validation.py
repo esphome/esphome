@@ -1978,9 +1978,7 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     {
         Optional(CONF_COMMAND_TOPIC): All(requires_component("mqtt"), subscribe_topic),
         Optional(CONF_COMMAND_RETAIN): All(requires_component("mqtt"), boolean),
-        Optional(CONF_MQTT_SUBSCRIPTION_COUNT, default=1): All(
-            requires_component("mqtt"), positive_int
-        ),
+        Optional(CONF_MQTT_SUBSCRIPTION_COUNT, default=1): positive_int,
     }
 )
 

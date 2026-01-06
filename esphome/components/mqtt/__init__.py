@@ -171,7 +171,7 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
 def _final_validate(config: ConfigType) -> ConfigType:
     # Only if using RTC persistence
     clean_session = config[CONF_CLEAN_SESSION]
-    if not (CORE.is_esp32 and clean_session is True) and not (clean_session == "RTC"):
+    if not (CORE.is_esp32 and clean_session is True) and clean_session != "RTC":
         return config
     # Calculate the number of required space for subscriptions for RTC persistence
     subscription_count = 0

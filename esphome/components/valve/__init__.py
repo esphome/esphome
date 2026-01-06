@@ -90,9 +90,7 @@ _VALVE_SCHEMA = (
                 cv.requires_component("mqtt"), cv.subscribe_topic
             ),
             # Command and position (worst case scenario)
-            cv.Optional(CONF_MQTT_SUBSCRIPTION_COUNT, default=2): cv.All(
-                cv.requires_component("mqtt"), cv.positive_int
-            ),
+            cv.Optional(CONF_MQTT_SUBSCRIPTION_COUNT, default=2): cv.positive_int,
             cv.Optional(CONF_ON_OPEN): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValveOpenTrigger),
