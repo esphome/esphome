@@ -1,1 +1,1 @@
-<<: !include common.yaml
+<<: !include common_esp32.yaml

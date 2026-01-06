@@ -20,10 +20,10 @@ binary_sensor:
     name: "Garage Door Open 9"
 
 zigbee:
-  #wipe_on_boot: true
-  #on_join:
-  #  then:
-  #    - logger.log: "Joined network"
+  wipe_on_boot: true
+  on_join:
+    then:
+      - logger.log: "Joined network"
 
 output:
   - platform: template
