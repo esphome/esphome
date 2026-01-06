@@ -360,21 +360,22 @@ CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet)
     this->write_(Register::FIFO, static_cast<uint8_t>(packet.size()));
   }
   this->write_(Register::FIFO, packet.data(), packet.size());
+
+  // Calibrate PLL
+  if (!this->enter_calibrated_(State::FSTXON, Command::FSTXON)) {
+    ESP_LOGW(TAG, "PLL lock failed during TX");
+    this->enter_idle_();
+    this->enter_rx_();
+    return CC1101Error::PLL_LOCK;
+  }
+
+  // Transmit packet
   this->strobe_(Command::TX);
-  this->wait_for_state_(State::TX);
   if (!this->wait_for_state_(State::IDLE, 1000)) {
     ESP_LOGW(TAG, "TX timeout");
     this->enter_idle_();
     this->enter_rx_();
     return CC1101Error::TIMEOUT;
-  }
-
-  // Check if PLL was locked during TX
-  this->read_(Register::FSCAL1);
-  if (this->state_.FSCAL1 == FSCAL1_PLL_NOT_LOCKED) {
-    ESP_LOGW(TAG, "PLL lock failed during TX");
-    this->enter_rx_();
-    return CC1101Error::PLL_LOCK;
   }
 
   // Return to rx
