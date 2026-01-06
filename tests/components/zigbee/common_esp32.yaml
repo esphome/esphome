@@ -1,34 +1,16 @@
+<<: !include common.yaml
+
 binary_sensor:
   - platform: template
-    name: "Garage Door Open 1"
+    name: "Garage Door Open 10"
     report: "yes"
   - platform: template
-    name: "Garage Door Open 2"
+    name: "Garage Door Open 11"
     report: "no"
   - platform: template
-    name: "Garage Door Open 3"
+    name: "Garage Door Open 12"
     report: "force"
-  - platform: template
-    name: "Garage Door Open 4"
-  - platform: template
-    name: "Garage Door Open 5"
-  - platform: template
-    name: "Garage Door Open 6"
-  - platform: template
-    name: "Garage Door Open 7"
-    internal: True
-  - platform: template
-    name: "Garage Door Open 8"
-  - platform: template
-    name: "Garage Door Open 9"
 
 zigbee:
   name: zigbee_test
   router: true
-
-output:
-  - platform: template
-    id: output_factory
-    type: binary
-    write_action:
-      - zigbee.factory_reset
