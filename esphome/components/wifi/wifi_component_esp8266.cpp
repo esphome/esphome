@@ -8,7 +8,6 @@
 
 #include <utility>
 #include <algorithm>
-#include <span>
 #ifdef USE_WIFI_WPA2_EAP
 #include <wpa2_enterprise.h>
 #endif
@@ -415,20 +414,6 @@ const LogString *get_auth_mode_str(uint8_t mode) {
       return LOG_STR("UNKNOWN");
   }
 }
-// Format IP address to provided buffer, returns pointer to buf for convenience
-#ifdef ipv4_addr
-char *format_ip_addr_to(struct ipv4_addr ip, std::span<char, network::IP_ADDRESS_BUFFER_SIZE> buf) {
-  snprintf(buf.data(), buf.size(), "%u.%u.%u.%u", uint8_t(ip.addr >> 0), uint8_t(ip.addr >> 8), uint8_t(ip.addr >> 16),
-           uint8_t(ip.addr >> 24));
-  return buf.data();
-}
-#else
-char *format_ip_addr_to(struct ip_addr ip, std::span<char, network::IP_ADDRESS_BUFFER_SIZE> buf) {
-  snprintf(buf.data(), buf.size(), "%u.%u.%u.%u", uint8_t(ip.addr >> 0), uint8_t(ip.addr >> 8), uint8_t(ip.addr >> 16),
-           uint8_t(ip.addr >> 24));
-  return buf.data();
-}
-#endif
 const LogString *get_op_mode_str(uint8_t mode) {
   switch (mode) {
     case WIFI_OFF:
@@ -585,8 +570,8 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       auto it = event->event_info.got_ip;
       char ip_buf[network::IP_ADDRESS_BUFFER_SIZE], gw_buf[network::IP_ADDRESS_BUFFER_SIZE],
           mask_buf[network::IP_ADDRESS_BUFFER_SIZE];
-      ESP_LOGV(TAG, "static_ip=%s gateway=%s netmask=%s", format_ip_addr_to(it.ip, ip_buf),
-               format_ip_addr_to(it.gw, gw_buf), format_ip_addr_to(it.mask, mask_buf));
+      ESP_LOGV(TAG, "static_ip=%s gateway=%s netmask=%s", network::IPAddress(&it.ip).str_to(ip_buf),
+               network::IPAddress(&it.gw).str_to(gw_buf), network::IPAddress(&it.mask).str_to(mask_buf));
       s_sta_got_ip = true;
 #ifdef USE_WIFI_LISTENERS
       for (auto *listener : global_wifi_component->ip_state_listeners_) {
@@ -640,7 +625,8 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
       format_mac_addr_upper(it.mac, mac_buf);
-      ESP_LOGV(TAG, "AP Distribute Station IP MAC=%s IP=%s aid=%u", mac_buf, format_ip_addr_to(it.ip, ip_buf), it.aid);
+      ESP_LOGV(TAG, "AP Distribute Station IP MAC=%s IP=%s aid=%u", mac_buf, network::IPAddress(&it.ip).str_to(ip_buf),
+               it.aid);
 #endif
       break;
     }

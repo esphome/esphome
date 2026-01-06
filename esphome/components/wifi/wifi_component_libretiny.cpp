@@ -6,7 +6,6 @@
 #include <cinttypes>
 #include <utility>
 #include <algorithm>
-#include <span>
 #include "lwip/ip_addr.h"
 #include "lwip/err.h"
 #include "lwip/dns.h"
@@ -232,15 +231,6 @@ const char *get_auth_mode_str(uint8_t mode) {
   }
 }
 
-using esphome_ip4_addr_t = IPAddress;
-
-// Format IP address to provided buffer, returns pointer to buf for convenience
-char *format_ip4_addr_to(const esphome_ip4_addr_t &ip, std::span<char, network::IP_ADDRESS_BUFFER_SIZE> buf) {
-  uint32_t addr = ip;
-  snprintf(buf.data(), buf.size(), "%u.%u.%u.%u", uint8_t(addr >> 0), uint8_t(addr >> 8), uint8_t(addr >> 16),
-           uint8_t(addr >> 24));
-  return buf.data();
-}
 const char *get_op_mode_str(uint8_t mode) {
   switch (mode) {
     case WIFI_OFF:
@@ -533,8 +523,8 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
     }
     case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP: {
       char ip_buf[network::IP_ADDRESS_BUFFER_SIZE], gw_buf[network::IP_ADDRESS_BUFFER_SIZE];
-      ESP_LOGV(TAG, "static_ip=%s gateway=%s", format_ip4_addr_to(WiFi.localIP(), ip_buf),
-               format_ip4_addr_to(WiFi.gatewayIP(), gw_buf));
+      ESP_LOGV(TAG, "static_ip=%s gateway=%s", network::IPAddress(WiFi.localIP()).str_to(ip_buf),
+               network::IPAddress(WiFi.gatewayIP()).str_to(gw_buf));
       s_sta_state = LTWiFiSTAState::CONNECTED;
 #ifdef USE_WIFI_LISTENERS
       for (auto *listener : this->ip_state_listeners_) {
