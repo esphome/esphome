@@ -124,8 +124,8 @@ void InfraredProxyComponent::transmit_raw_timings(const api::InfraredProxyTransm
 
   // Move raw timings to avoid copying - the remote_base protocol expects alternating mark/space
   // Positive values = mark (LED on), negative values = space (LED off)
-  // FixedVector conversion operator creates a std::vector, which we move into transmit_data
-  transmit_data->set_data(std::move(static_cast<std::vector<int32_t>>(msg.timings)));
+  // FixedVector conversion operator creates a temporary std::vector which is automatically moved
+  transmit_data->set_data(static_cast<std::vector<int32_t>>(msg.timings));
 
   // Set repeat count (default to 1 if not specified or 0)
   if (msg.repeat_count > 0) {
