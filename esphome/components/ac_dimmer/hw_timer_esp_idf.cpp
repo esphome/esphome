@@ -14,6 +14,10 @@ static const char *const TAG = "hw_timer_esp_idf";
 
 namespace esphome::ac_dimmer {
 
+// GPTimer divider constraints from ESP-IDF documentation
+static constexpr uint32_t GPTIMER_DIVIDER_MIN = 2;
+static constexpr uint32_t GPTIMER_DIVIDER_MAX = 65536;
+
 using voidFuncPtr = void (*)();
 using voidFuncPtrArg = void (*)(void *);
 
@@ -37,7 +41,7 @@ HWTimer *timer_begin(uint32_t frequency) {
     clk = clk_candidate;
     esp_clk_tree_src_get_freq_hz(clk, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &counter_src_hz);
     divider = counter_src_hz / frequency;
-    if ((divider >= 2) && (divider <= 65536)) {
+    if ((divider >= GPTIMER_DIVIDER_MIN) && (divider <= GPTIMER_DIVIDER_MAX)) {
       break;
     } else {
       divider = 0;
