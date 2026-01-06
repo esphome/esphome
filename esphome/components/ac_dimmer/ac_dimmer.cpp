@@ -25,7 +25,14 @@ static AcDimmerDataStore *all_dimmers[32];  // NOLINT(cppcoreguidelines-avoid-no
 /// However other factors like gate driver propagation time
 /// are also considered and a really low value is not important
 /// See also: https://github.com/esphome/issues/issues/1632
-static const uint32_t GATE_ENABLE_TIME = 50;
+static constexpr uint32_t GATE_ENABLE_TIME = 50;
+
+#ifdef USE_ESP32
+/// Timer frequency in Hz (1 MHz = 1µs resolution)
+static constexpr uint32_t TIMER_FREQUENCY_HZ = 1000000;
+/// Timer interrupt interval in microseconds
+static constexpr uint64_t TIMER_INTERVAL_US = 50;
+#endif
 
 /// Function called from timer interrupt
 /// Input is current time in microseconds (micros())
@@ -192,13 +199,12 @@ void AcDimmer::setup() {
   setTimer1Callback(&timer_interrupt);
 #endif
 #ifdef USE_ESP32
-  // timer frequency of 1mhz
-  dimmer_timer = timer_begin(1000000);
+  dimmer_timer = timer_begin(TIMER_FREQUENCY_HZ);
   timer_attach_interrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr);
   // For ESP32, we can't use dynamic interval calculation because the timerX functions
   // are not callable from ISR (placed in flash storage).
   // Here we just use an interrupt firing every 50 µs.
-  timer_alarm(dimmer_timer, 50, true, 0);
+  timer_alarm(dimmer_timer, TIMER_INTERVAL_US, true, 0);
 #endif
 }
 
