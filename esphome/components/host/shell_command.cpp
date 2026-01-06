@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <map>
 #include <string>
+#include <future>
 #include <cstring>
 #include <sys/select.h>
 #include <sys/types.h>
@@ -196,6 +197,11 @@ ShellCommandResult execute_shell_command(const std::string &command, const Shell
   return result;
 }
 
+std::future<ShellCommandResult> execute_shell_command_async(const std::string &command,
+                                                            const ShellCommandOptions &options) {
+  return std::async(std::launch::async, [command, options]() { return execute_shell_command(command, options); });
+}
+
 ShellCommandResult execute_command(const std::vector<std::string> &args, const ShellCommandOptions &options) {
   ShellCommandResult result{};
 
@@ -364,6 +370,11 @@ ShellCommandResult execute_command(const std::vector<std::string> &args, const S
   ESP_LOGD(TAG, "Command finished with exit code %d", result.exit_code);
 
   return result;
+}
+
+std::future<ShellCommandResult> execute_command_async(const std::vector<std::string> &args,
+                                                      const ShellCommandOptions &options) {
+  return std::async(std::launch::async, [args, options]() { return execute_command(args, options); });
 }
 
 }  // namespace esphome::host
