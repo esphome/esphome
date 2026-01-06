@@ -308,7 +308,7 @@ MQTT_KEYS_LIST(MQTT_DATA)
 
 // Generate flash string pointers from the PROGMEM data
 #define MQTT_PTR(name, abbr, full) \
-  static const __FlashStringHelper *const name = reinterpret_cast<const __FlashStringHelper *>(name##_data);
+  static const __FlashStringHelper *const(name) = reinterpret_cast<const __FlashStringHelper *>(name##_data);
 MQTT_KEYS_LIST(MQTT_PTR)
 #undef MQTT_PTR
 
