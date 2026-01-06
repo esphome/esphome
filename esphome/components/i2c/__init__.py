@@ -129,6 +129,9 @@ CONFIG_SCHEMA = cv.All(
                 rp2040="SDA",
                 nrf52=None,
             ): partial(i2c_pin_validator, pin_name=CONF_SDA),
+            cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32=True): cv.All(
+                cv.only_on_esp32, cv.boolean
+            ),
             cv.SplitDefault(
                 CONF_SCL,
                 esp32="SDA",
@@ -136,9 +139,6 @@ CONFIG_SCHEMA = cv.All(
                 rp2040="SDA",
                 nrf52=None,
             ): partial(i2c_pin_validator, pin_name=CONF_SCL),
-            cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32=True): cv.All(
-                cv.only_on_esp32, cv.boolean
-            ),
             cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32=True): cv.All(
                 cv.only_on_esp32, cv.boolean
             ),
