@@ -13,7 +13,6 @@ from esphome.const import (
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
-    ICON_CHEMICAL_WEAPON,
     ICON_COUNTER,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
@@ -37,13 +36,14 @@ CONF_PMC_0_3 = "pmc_0_3"
 CONF_PMC_5_0 = "pmc_5_0"
 
 UNIT_COUNTS_PER_CUBIC_CENTIMETER = "#/cm³"
+ICON_MOLECULE = "mdi:molecule"
 
 
 def pm_sensor_schema(device_class=None):
     """Create sensor schema for PM mass concentration."""
     kwargs = {
         "unit_of_measurement": UNIT_MICROGRAMS_PER_CUBIC_METER,
-        "icon": ICON_CHEMICAL_WEAPON,
+        "icon": ICON_MOLECULE,
         "accuracy_decimals": 2,
         "state_class": STATE_CLASS_MEASUREMENT,
     }
