@@ -12,6 +12,9 @@ namespace esphome::zwave_proxy {
 
 static const char *const TAG = "zwave_proxy";
 
+// Maximum bytes to log in very verbose hex output (168 * 3 = 504, under TX buffer size of 512)
+static constexpr size_t ZWAVE_MAX_LOG_BYTES = 168;
+
 static constexpr uint8_t ZWAVE_COMMAND_GET_NETWORK_IDS = 0x20;
 // GET_NETWORK_IDS response: [SOF][LENGTH][TYPE][CMD][HOME_ID(4)][NODE_ID][...]
 static constexpr uint8_t ZWAVE_COMMAND_TYPE_RESPONSE = 0x01;    // Response type field value
@@ -179,7 +182,10 @@ void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {
     ESP_LOGV(TAG, "Skipping sending duplicate response: 0x%02X", data[0]);
     return;
   }
-  ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty(data, length).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+  char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
+#endif
+  ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty_to(hex_buf, data, length));
   this->write_array(data, length);
 }
 
@@ -252,7 +258,10 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_NAK;
       } else {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_ACK;
-        ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(this->buffer_.data(), this->buffer_index_).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+        char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
+#endif
+        ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty_to(hex_buf, this->buffer_.data(), this->buffer_index_));
         frame_completed = true;
       }
       this->response_handler_();

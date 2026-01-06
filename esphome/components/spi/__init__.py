@@ -49,21 +49,60 @@ SPIDevice = spi_ns.class_("SPIDevice")
 SPIDataRate = spi_ns.enum("SPIDataRate")
 SPIMode = spi_ns.enum("SPIMode")
 
-SPI_DATA_RATE_OPTIONS = {
-    80e6: SPIDataRate.DATA_RATE_80MHZ,
-    40e6: SPIDataRate.DATA_RATE_40MHZ,
-    20e6: SPIDataRate.DATA_RATE_20MHZ,
-    10e6: SPIDataRate.DATA_RATE_10MHZ,
-    8e6: SPIDataRate.DATA_RATE_8MHZ,
-    5e6: SPIDataRate.DATA_RATE_5MHZ,
-    4e6: SPIDataRate.DATA_RATE_4MHZ,
-    2e6: SPIDataRate.DATA_RATE_2MHZ,
-    1e6: SPIDataRate.DATA_RATE_1MHZ,
-    2e5: SPIDataRate.DATA_RATE_200KHZ,
-    75e3: SPIDataRate.DATA_RATE_75KHZ,
-    1e3: SPIDataRate.DATA_RATE_1KHZ,
+PLATFORM_SPI_CLOCKS = {
+    PLATFORM_ESP8266: 40e6,
+    PLATFORM_ESP32: 80e6,
+    PLATFORM_RP2040: 62.5e6,
 }
-SPI_DATA_RATE_SCHEMA = cv.All(cv.frequency, cv.enum(SPI_DATA_RATE_OPTIONS))
+
+MAX_DATA_RATE_ERROR = 0.05  # Max allowable actual data rate difference from requested
+
+
+def _render_hz(value: float) -> str:
+    """Render a frequency in Hz as a human-readable string using Hz, KHz or MHz.
+
+    Examples:
+      500 -> "500 Hz"
+      1500 -> "1.5 kHz"
+      2000000 -> "2 MHz"
+    """
+    if value >= 1e6:
+        unit = "MHz"
+        num = value / 1e6
+    elif value >= 1e3:
+        unit = "kHz"
+        num = value / 1e3
+    else:
+        unit = "Hz"
+        num = value
+
+    # Format with up to 2 decimal places, then strip unnecessary trailing zeros and dot
+    formatted = f"{int(num)}" if unit == "Hz" else f"{num:.2f}".rstrip("0").rstrip(".")
+    return formatted + unit
+
+
+def _frequency_validator(value):
+    platform = get_target_platform()
+    frequency = PLATFORM_SPI_CLOCKS[platform]
+    value = cv.frequency(value)
+    if value > frequency:
+        raise cv.Invalid(
+            f"The configured SPI data rate ({_render_hz(value)}) exceeds the maximum for this platform ({_render_hz(frequency)})"
+        )
+    if value < 1000:
+        raise cv.Invalid("The configured SPI data rate must be at least 1000Hz")
+    divisor = round(frequency / value)
+    actual = frequency / divisor
+    error = abs(actual - value) / value
+    if error > MAX_DATA_RATE_ERROR:
+        raise cv.Invalid(
+            f"The configured SPI data rate ({_render_hz(value)}) is not available for this chip - closest is {_render_hz(actual)}"
+        )
+    return value
+
+
+SPI_DATA_RATE_SCHEMA = _frequency_validator
+
 
 SPI_MODE_OPTIONS = {
     "MODE0": SPIMode.MODE0,
@@ -393,19 +432,20 @@ def spi_device_schema(
     :param mode Choose single, quad or octal mode.
     :return: The SPI device schema, `extend` this in your config schema.
     """
-    schema = {
-        cv.GenerateID(CONF_SPI_ID): cv.use_id(TYPE_CLASS[mode]),
-        cv.Optional(CONF_DATA_RATE, default=default_data_rate): SPI_DATA_RATE_SCHEMA,
-        cv.Optional(CONF_SPI_MODE, default=default_mode): cv.enum(
-            SPI_MODE_OPTIONS, upper=True
-        ),
-        cv.Optional(CONF_RELEASE_DEVICE): cv.All(cv.boolean, cv.only_on_esp32),
-    }
-    if cs_pin_required:
-        schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
-    else:
-        schema[cv.Optional(CONF_CS_PIN)] = pins.gpio_output_pin_schema
-    return cv.Schema(schema)
+    cs_pin_option = cv.Required if cs_pin_required else cv.Optional
+    return cv.Schema(
+        {
+            cv.GenerateID(CONF_SPI_ID): cv.use_id(TYPE_CLASS[mode]),
+            cv.Optional(
+                CONF_DATA_RATE, default=default_data_rate
+            ): SPI_DATA_RATE_SCHEMA,
+            cv.Optional(CONF_SPI_MODE, default=default_mode): cv.enum(
+                SPI_MODE_OPTIONS, upper=True
+            ),
+            cv.Optional(CONF_RELEASE_DEVICE): cv.All(cv.boolean, cv.only_on_esp32),
+            cs_pin_option(CONF_CS_PIN): pins.gpio_output_pin_schema,
+        }
+    )
 
 
 async def register_spi_device(var, config):

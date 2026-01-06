@@ -21,7 +21,7 @@ class ZephyrGPIOPin : public InternalGPIOPin {
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
   void detach_interrupt() const override;
   ISRInternalGPIOPin to_isr() const override;
   uint8_t get_pin() const override { return this->pin_; }
@@ -30,12 +30,12 @@ class ZephyrGPIOPin : public InternalGPIOPin {
 
  protected:
   void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
-  uint8_t pin_;
-  bool inverted_{};
-  gpio::Flags flags_{};
   const device *gpio_{nullptr};
-  uint8_t gpio_size_{};
   const char *pin_name_prefix_{nullptr};
+  gpio::Flags flags_{};
+  uint8_t pin_;
+  uint8_t gpio_size_{};
+  bool inverted_{};
   bool value_{false};
 };
 

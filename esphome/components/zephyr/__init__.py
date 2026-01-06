@@ -136,7 +136,7 @@ def zephyr_setup_preferences():
     zephyr_add_prj_conf("SETTINGS", True)
     zephyr_add_prj_conf("NVS", True)
     zephyr_add_prj_conf("FLASH_MAP", True)
-    zephyr_add_prj_conf("CONFIG_FLASH", True)
+    zephyr_add_prj_conf("FLASH", True)
 
 
 def _format_prj_conf_val(value: PrjConfValueType) -> str:

@@ -205,7 +205,13 @@ void Component::call() {
       this->call_setup();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
       uint32_t setup_time = millis() - start_time;
-      ESP_LOGCONFIG(TAG, "Setup %s took %ums", LOG_STR_ARG(this->get_component_log_str()), (unsigned) setup_time);
+      // Only log at CONFIG level if setup took longer than the blocking threshold
+      // to avoid spamming the log and blocking the event loop
+      if (setup_time >= WARN_IF_BLOCKING_OVER_MS) {
+        ESP_LOGCONFIG(TAG, "Setup %s took %ums", LOG_STR_ARG(this->get_component_log_str()), (unsigned) setup_time);
+      } else {
+        ESP_LOGV(TAG, "Setup %s took %ums", LOG_STR_ARG(this->get_component_log_str()), (unsigned) setup_time);
+      }
 #endif
       break;
     }
