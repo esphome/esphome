@@ -8,8 +8,7 @@
 #include "esphome/components/lock/lock.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTLockComponent : public mqtt::MQTTComponent {
  public:
@@ -34,8 +33,7 @@ class MQTTLockComponent : public mqtt::MQTTComponent {
   lock::Lock *lock_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

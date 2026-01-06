@@ -31,3 +31,5 @@ dependencies:
     version: 0.2.2
     rules:
       - if: "target in [esp32, esp32s2, esp32s3, esp32p4]"
+  esp32async/asynctcp:
+    version: 3.4.91

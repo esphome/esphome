@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_LOCK
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.lock";
 
@@ -58,8 +57,7 @@ bool MQTTLockComponent::publish_state() {
 #endif
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

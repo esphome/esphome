@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_UPDATE
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.update";
 
@@ -56,8 +55,7 @@ void MQTTUpdateComponent::dump_config() {
 std::string MQTTUpdateComponent::component_type() const { return "update"; }
 const EntityBase *MQTTUpdateComponent::get_entity() const { return this->update_; }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_UPDATE
 #endif  // USE_MQTT
