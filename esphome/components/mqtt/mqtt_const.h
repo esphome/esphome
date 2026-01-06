@@ -13,7 +13,7 @@
 //
 // Implementation:
 // - ESP8266: Stores strings in PROGMEM (flash) using __FlashStringHelper* pointers.
-//   ArduinoJson recognizes this type and uses pgm_read_byte for flash-aware reads.
+//   ArduinoJson recognizes this type and reads from flash memory.
 // - Other platforms: Uses constexpr const char* for compile-time optimization.
 // - USE_MQTT_ABBREVIATIONS: When defined, uses shortened key names to reduce message size.
 //
@@ -294,7 +294,7 @@
 
 #ifdef USE_ESP8266
 // ESP8266: Store strings in PROGMEM (flash) and expose as __FlashStringHelper* pointers.
-// ArduinoJson recognizes this type and uses pgm_read_byte for flash-aware reads.
+// ArduinoJson recognizes this type and reads from flash memory.
 namespace esphome::mqtt {
 
 // Generate PROGMEM data arrays
@@ -318,9 +318,9 @@ using namespace esphome::mqtt;  // NOLINT
 // Other platforms: constexpr in namespace
 namespace esphome::mqtt {
 #ifdef USE_MQTT_ABBREVIATIONS
-#define MQTT_CONST(name, abbr, full) constexpr const char *name = abbr;
+#define MQTT_CONST(name, abbr, full) constexpr const char *(name) = abbr;
 #else
-#define MQTT_CONST(name, abbr, full) constexpr const char *name = full;
+#define MQTT_CONST(name, abbr, full) constexpr const char *(name) = full;
 #endif
 MQTT_KEYS_LIST(MQTT_CONST)
 #undef MQTT_CONST
