@@ -1826,9 +1826,18 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
     return false;
   }
 
-  // Toggle NODELAY based on message type:
-  // - Log messages: Enable Nagle (NODELAY=false) so they coalesce into fewer packets
-  // - All other messages: Disable Nagle (NODELAY=true) for immediate delivery
+  // Toggle Nagle's algorithm based on message type to prevent log messages from
+  // filling the TCP send buffer and crowding out important state updates.
+  //
+  // - Log messages: Enable Nagle (NODELAY=false) so small log packets coalesce
+  //   into fewer, larger packets. They flush naturally via TCP delayed ACK timer
+  //   (~200ms), buffer filling, or when a state update triggers a flush.
+  //
+  // - All other messages (state updates, responses): Disable Nagle (NODELAY=true)
+  //   for immediate delivery. These are time-sensitive and should not be delayed.
+  //
+  // This must be done proactively BEFORE the buffer fills up - checking buffer
+  // state here would be too late since we'd already be in a degraded state.
   this->helper_->set_nodelay(!is_log_message);
 
   APIError err = this->helper_->write_protobuf_packet(message_type, buffer);

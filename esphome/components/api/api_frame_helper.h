@@ -111,7 +111,15 @@ class APIFrameHelper {
     }
     return APIError::OK;
   }
-  /// Set TCP_NODELAY option. Only calls setsockopt when state changes.
+  /// Toggle TCP_NODELAY socket option to control Nagle's algorithm.
+  ///
+  /// This is used to allow log messages to coalesce (Nagle enabled) while keeping
+  /// state updates low-latency (NODELAY enabled). Without this, many small log
+  /// packets fill the TCP send buffer, crowding out important state updates.
+  ///
+  /// State is tracked to minimize setsockopt() overhead - on lwip_raw (ESP8266/RP2040)
+  /// this is just a boolean assignment; on other platforms it's a lightweight syscall.
+  ///
   /// @param enable true to enable NODELAY (disable Nagle), false to enable Nagle
   /// @return true if successful or already in desired state
   bool set_nodelay(bool enable) {
@@ -211,7 +219,10 @@ class APIFrameHelper {
   uint8_t tx_buf_head_{0};
   uint8_t tx_buf_tail_{0};
   uint8_t tx_buf_count_{0};
-  bool nodelay_enabled_{true};  // Tracks current TCP_NODELAY state
+  // Tracks TCP_NODELAY state to minimize setsockopt() calls. Initialized to true
+  // since init_common_() enables NODELAY. Used by set_nodelay() to allow log
+  // messages to coalesce while keeping state updates low-latency.
+  bool nodelay_enabled_{true};
 
   // Common initialization for both plaintext and noise protocols
   APIError init_common_();
