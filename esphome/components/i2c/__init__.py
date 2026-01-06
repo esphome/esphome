@@ -1,4 +1,3 @@
-from functools import partial
 import logging
 
 from esphome import pins
@@ -43,7 +42,6 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_NRF52,
     PLATFORM_RP2040,
-    Framework,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -103,42 +101,15 @@ def validate_config(config):
     return config
 
 
-def validate_zephyr_device_name(value):
-    if value is None:
-        if CORE.is_nrf52 and zephyr_data()[KEY_BOARD] not in ["xiao_ble"]:
-            value = "i2c0"
-        else:
-            value = "i2c1"
-    return value
-
-
-def validate_i2c_pin(value, pin):
-    if value is None and CORE.is_nrf52:
-        raise cv.Invalid(f"'{pin}' is required for [i2c] on nrf52 platform")
-    return pins.internal_gpio_pin_number(value)
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): _bus_declare_type,
-            cv.SplitDefault(
-                CONF_SDA,
-                esp32="SDA",
-                esp8266="SDA",
-                rp2040="SDA",
-                nrf52=None,
-            ): partial(validate_i2c_pin, pin=CONF_SDA),
+            cv.Optional(CONF_SDA, default="SDA"): pins.internal_gpio_pin_number,
             cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32=True): cv.All(
                 cv.only_on_esp32, cv.boolean
             ),
-            cv.SplitDefault(
-                CONF_SCL,
-                esp32="SDA",
-                esp8266="SDA",
-                rp2040="SDA",
-                nrf52=None,
-            ): partial(validate_i2c_pin, pin=CONF_SCL),
+            cv.Optional(CONF_SCL, default="SCL"): pins.internal_gpio_pin_number,
             cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32=True): cv.All(
                 cv.only_on_esp32, cv.boolean
             ),
@@ -164,9 +135,6 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 cv.boolean,
             ),
-            cv.OnlyWith(
-                "device_name", Framework.ZEPHYR, default=None
-            ): validate_zephyr_device_name,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_NRF52]),
@@ -176,10 +144,8 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(config):
     full_config = fv.full_config.get()[CONF_I2C]
-    if CORE.using_zephyr and len({c["device_name"] for c in full_config}) != len(
-        full_config
-    ):
-        raise cv.Invalid("Unique device_name properties are required")
+    if CORE.using_zephyr and len(full_config) > 1:
+        raise cv.Invalid("Second i2c is not implemented on Zephyr yet")
     if CORE.is_esp32 and get_esp32_variant() in ESP32_I2C_CAPABILITIES:
         variant = get_esp32_variant()
         max_num = ESP32_I2C_CAPABILITIES[variant]["NUM"]
@@ -215,28 +181,29 @@ async def to_code(config):
     cg.add_global(i2c_ns.using)
     cg.add_define("USE_I2C")
     if CORE.using_zephyr:
-        i2c = config["device_name"]
         zephyr_add_prj_conf("I2C", True)
-        if CORE.is_nrf52:
-            zephyr_add_overlay(
-                f"""
-                    &pinctrl {{
-                        {i2c}_default: {i2c}_default {{
-                            group1 {{
-                                psels = <NRF_PSEL(TWIM_SDA, {config[CONF_SDA] // 32}, {config[CONF_SDA] % 32})>,
-                                    <NRF_PSEL(TWIM_SCL, {config[CONF_SCL] // 32}, {config[CONF_SCL] % 32})>;
-                            }};
-                        }};
-                        {i2c}_sleep: {i2c}_sleep {{
-                            group1 {{
-                                psels = <NRF_PSEL(TWIM_SDA, {config[CONF_SDA] // 32}, {config[CONF_SDA] % 32})>,
-                                    <NRF_PSEL(TWIM_SCL, {config[CONF_SCL] // 32}, {config[CONF_SCL] % 32})>;
-                                low-power-enable;
-                            }};
+        i2c = "i2c0"
+        if zephyr_data()[KEY_BOARD] in ["xiao_ble"]:
+            i2c = "i2c1"
+        zephyr_add_overlay(
+            f"""
+                &pinctrl {{
+                    {i2c}_default: {i2c}_default {{
+                        group1 {{
+                            psels = <NRF_PSEL(TWIM_SDA, {config[CONF_SDA] // 32}, {config[CONF_SDA] % 32})>,
+                                <NRF_PSEL(TWIM_SCL, {config[CONF_SCL] // 32}, {config[CONF_SCL] % 32})>;
                         }};
                     }};
-                """
-            )
+                    {i2c}_sleep: {i2c}_sleep {{
+                        group1 {{
+                            psels = <NRF_PSEL(TWIM_SDA, {config[CONF_SDA] // 32}, {config[CONF_SDA] % 32})>,
+                                <NRF_PSEL(TWIM_SCL, {config[CONF_SCL] // 32}, {config[CONF_SCL] % 32})>;
+                            low-power-enable;
+                        }};
+                    }};
+                }};
+            """
+        )
         var = cg.new_Pvariable(
             config[CONF_ID], MockObj(f"DEVICE_DT_GET(DT_NODELABEL({i2c}))")
         )
@@ -244,12 +211,10 @@ async def to_code(config):
         var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if CONF_SDA in config:
-        cg.add(var.set_sda_pin(config[CONF_SDA]))
+    cg.add(var.set_sda_pin(config[CONF_SDA]))
     if CONF_SDA_PULLUP_ENABLED in config:
         cg.add(var.set_sda_pullup_enabled(config[CONF_SDA_PULLUP_ENABLED]))
-    if CONF_SCL in config:
-        cg.add(var.set_scl_pin(config[CONF_SCL]))
+    cg.add(var.set_scl_pin(config[CONF_SCL]))
     if CONF_SCL_PULLUP_ENABLED in config:
         cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
 
