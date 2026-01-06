@@ -522,6 +522,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "LD2412","components/sensor/ld2412","ld2412.jpg","Motion & Presence"
 "LD2420","components/sensor/ld2420","ld2420.jpg","Motion & Presence"
 "LD2450","components/sensor/ld2450","ld2450.png","Motion & Presence"
+"RD-03D","components/sensor/rd03d","rd03d.webp","Motion & Presence"
 "MPU6050","components/sensor/mpu6050","mpu6050.jpg","Accelerometer & Gyroscope"
 "MPU6886","components/sensor/mpu6886","mpu6886.jpg","Accelerometer & Gyroscope"
 "MSA301","components/sensor/msa3xx","msa301.jpg","Accelerometer"
@@ -619,6 +620,7 @@ Often known as "tag" or "card" readers within the community.
 "LD2412","components/sensor/ld2412","ld2412.jpg"
 "LD2420","components/sensor/ld2420","ld2420.jpg"
 "LD2450","components/sensor/ld2450","ld2450.png"
+"RD-03D","components/sensor/rd03d","rd03d.webp"
 "Seeed Studio MR24HPC1 mmWave","components/seeed_mr24hpc1","seeed-mr24hpc1.jpg"
 {{< /imgtable >}}
 
