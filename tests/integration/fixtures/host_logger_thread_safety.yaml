@@ -22,10 +22,14 @@ button:
             static void *thread_func(void *arg) {
               int thread_id = *static_cast<int *>(arg);
 
-              // Set thread name (macOS only takes 1 arg)
+              // Set thread name (different signatures on macOS vs Linux)
               char thread_name[16];
               snprintf(thread_name, sizeof(thread_name), "LogThread%d", thread_id);
+              #ifdef __APPLE__
               pthread_setname_np(thread_name);
+              #else
+              pthread_setname_np(pthread_self(), thread_name);
+              #endif
 
               // Log messages with different log levels
               for (int i = 0; i < MESSAGES_PER_THREAD; i++) {
