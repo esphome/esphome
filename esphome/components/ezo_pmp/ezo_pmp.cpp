@@ -148,10 +148,13 @@ void EzoPMP::read_command_result_() {
     char current_char = response_buffer[i];
 
     if (current_char == '\0') {
-      ESP_LOGV(TAG, "Read Response from device: %s", (char *) response_buffer);
-      ESP_LOGV(TAG, "First Component: %s", (char *) first_parameter_buffer);
-      ESP_LOGV(TAG, "Second Component: %s", (char *) second_parameter_buffer);
-      ESP_LOGV(TAG, "Third Component: %s", (char *) third_parameter_buffer);
+      ESP_LOGV(TAG,
+               "Read Response from device: %s\n"
+               "First Component: %s\n"
+               "Second Component: %s\n"
+               "Third Component: %s",
+               (char *) response_buffer, (char *) first_parameter_buffer, (char *) second_parameter_buffer,
+               (char *) third_parameter_buffer);
 
       break;
     }
