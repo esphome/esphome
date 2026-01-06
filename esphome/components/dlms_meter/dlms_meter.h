@@ -72,7 +72,6 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
  public:
   DlmsMeterComponent() = default;
 
-  void setup() override;
   void dump_config() override;
   void loop() override;
 

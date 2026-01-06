@@ -9,8 +9,6 @@
 
 namespace esphome::dlms_meter {
 
-void DlmsMeterComponent::setup() { ESP_LOGI(TAG, "DLMS smart meter component v%s started", DLMS_METER_VERSION); }
-
 void DlmsMeterComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "DLMS Meter:\n"
