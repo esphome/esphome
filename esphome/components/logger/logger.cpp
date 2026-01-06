@@ -73,6 +73,65 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   // Reset the recursion guard for this task
   this->reset_task_log_recursion_(is_main_task);
 }
+#elif defined(USE_HOST)
+// Implementation for host platform (multi-threaded with pthread support)
+// Main thread always uses direct buffer access for console output and callbacks
+//
+// For non-main threads:
+//  - WITH task log buffer: Queue message to lock-free ring buffer for async processing
+//    - Prevents console corruption from concurrent writes by multiple threads
+//    - Messages are serialized through main loop for proper console output
+//    - Fallback to emergency console logging only if ring buffer is full
+//  - WITHOUT task log buffer: Only emergency console output, no callbacks
+void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
+  if (level > this->level_for(tag))
+    return;
+
+  pthread_t current_thread = pthread_self();
+  bool is_main_thread = pthread_equal(current_thread, main_thread_);
+
+  // Check and set recursion guard - uses pthread TLS for per-thread state
+  if (this->check_and_set_task_log_recursion_(is_main_thread)) {
+    return;  // Recursion detected
+  }
+
+  // Main thread uses the shared buffer for efficiency
+  if (is_main_thread) {
+    this->log_message_to_buffer_and_send_(level, tag, line, format, args);
+    this->reset_task_log_recursion_(is_main_thread);
+    return;
+  }
+
+  bool message_sent = false;
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+  // For non-main threads, queue the message for callbacks
+  message_sent = this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), format, args);
+  if (message_sent) {
+    // Enable logger loop to process the buffered message
+    this->enable_loop_soon_any_context();
+  }
+#endif  // USE_ESPHOME_TASK_LOG_BUFFER
+
+  // Emergency console logging for non-main threads when ring buffer is full or disabled
+  // This is a fallback mechanism to ensure critical log messages are visible
+  // Note: This may cause interleaved/corrupted console output if multiple threads
+  // log simultaneously, but it's better than losing important messages entirely
+  if (!message_sent) {
+    // Host always has console output - no baud_rate check needed
+    // Use larger buffer for host since memory is plentiful
+    static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 1024;
+    char console_buffer[MAX_CONSOLE_LOG_MSG_SIZE];  // MUST be stack allocated for thread safety
+    uint16_t buffer_at = 0;                         // Initialize buffer position
+    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, console_buffer, &buffer_at,
+                                                MAX_CONSOLE_LOG_MSG_SIZE);
+    // Add newline before writing to console
+    this->add_newline_to_buffer_(console_buffer, &buffer_at, MAX_CONSOLE_LOG_MSG_SIZE);
+    this->write_msg_(console_buffer, buffer_at);
+  }
+
+  // Reset the recursion guard for this thread
+  this->reset_task_log_recursion_(is_main_thread);
+}
 #else
 // Implementation for all other platforms
 void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
@@ -86,7 +145,7 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
 
   global_recursion_guard_ = false;
 }
-#endif  // !USE_ESP32
+#endif  // USE_ESP32 / USE_HOST
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 // Implementation for ESP8266 with flash string support.
