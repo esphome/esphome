@@ -23,6 +23,21 @@ namespace esphome::logger {
  * - Multiple threads can safely call send_message_thread_safe() concurrently
  * - Only the main loop thread calls get_message_main_loop() and release_message_main_loop()
  *
+ *   Producers (multiple threads)              Consumer (main loop only)
+ *            │                                        │
+ *            ▼                                        ▼
+ *     acquire_write_slot_()                  get_message_main_loop()
+ *       CAS on reserve_index_                  read write_index_
+ *            │                                   check ready flag
+ *            ▼                                        │
+ *     write to slot (exclusive)                       ▼
+ *            │                                  read slot data
+ *            ▼                                        │
+ *     commit_write_slot_()                            ▼
+ *       set ready=true                       release_message_main_loop()
+ *       advance write_index_                   set ready=false
+ *                                              advance read_index_
+ *
  * This implements a lock-free ring buffer for log messages on the host platform.
  * It uses atomic compare-and-swap (CAS) operations for thread-safe slot reservation
  * without requiring mutexes in the hot path.
@@ -32,9 +47,6 @@ namespace esphome::logger {
  * - Each slot contains a header and fixed-size text buffer
  * - Atomic CAS for slot reservation allows multiple producers without locks
  * - Single consumer (main loop) processes messages in order
- *
- * Host platform has much more memory than embedded devices, so we use larger
- * buffer sizes for better log message handling.
  */
 class TaskLogBufferHost {
  public:
