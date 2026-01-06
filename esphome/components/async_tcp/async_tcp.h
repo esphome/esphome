@@ -14,5 +14,4 @@
 #else
 // Use socket-based implementation for other platforms and clang-tidy
 #define ESPHOME_ASYNC_TCP_SOCKET_IMPL
-#include "async_tcp_socket.h"
 #endif
