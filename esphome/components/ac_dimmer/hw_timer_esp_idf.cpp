@@ -68,8 +68,24 @@ HWTimer *timer_begin(uint32_t frequency) {
     delete timer;
     return nullptr;
   }
-  gptimer_enable(timer->timer_handle);
-  gptimer_start(timer->timer_handle);
+
+  err = gptimer_enable(timer->timer_handle);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "GPTimer enable failed; error %d", err);
+    gptimer_del_timer(timer->timer_handle);
+    delete timer;
+    return nullptr;
+  }
+
+  err = gptimer_start(timer->timer_handle);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "GPTimer start failed; error %d", err);
+    gptimer_disable(timer->timer_handle);
+    gptimer_del_timer(timer->timer_handle);
+    delete timer;
+    return nullptr;
+  }
+
   timer->timer_started = true;
   return timer;
 }
