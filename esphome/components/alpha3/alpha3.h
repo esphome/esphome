@@ -1,10 +1,13 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
+#ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 #ifdef USE_ESP32
 
@@ -64,7 +67,9 @@ class Alpha3 : public esphome::ble_client::BLEClientNode, public PollingComponen
   void set_current_sensor(sensor::Sensor *sensor) { this->current_sensor_ = sensor; }
   void set_speed_sensor(sensor::Sensor *sensor) { this->speed_sensor_ = sensor; }
   void set_voltage_sensor(sensor::Sensor *sensor) { this->voltage_sensor_ = sensor; }
+#ifdef USE_TEXT_SENSOR
   void set_mode_text_sensor(text_sensor::TextSensor *sensor) { this->mode_text_sensor_ = sensor; }
+#endif
 
   // Control methods
   void send_command(uint8_t command_id);
@@ -85,7 +90,9 @@ class Alpha3 : public esphome::ble_client::BLEClientNode, public PollingComponen
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *speed_sensor_{nullptr};
   sensor::Sensor *voltage_sensor_{nullptr};
+#ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *mode_text_sensor_{nullptr};
+#endif
   uint16_t geni_handle_;
   int16_t response_length_;
   int16_t response_offset_;

@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_SELECT
+
 #include "esphome/core/component.h"
 #include "esphome/components/select/select.h"
 #include "alpha3.h"
@@ -21,4 +25,5 @@ class Alpha3Select : public select::Select, public Component {
 }  // namespace alpha3
 }  // namespace esphome
 
+#endif
 #endif

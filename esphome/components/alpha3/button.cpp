@@ -1,3 +1,7 @@
+#include "esphome/core/defines.h"
+
+#ifdef USE_BUTTON
+
 #include "button.h"
 #include "esphome/core/log.h"
 
@@ -37,4 +41,5 @@ void Alpha3Button::press_action() {
 }  // namespace alpha3
 }  // namespace esphome
 
+#endif
 #endif

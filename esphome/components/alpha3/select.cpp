@@ -1,3 +1,7 @@
+#include "esphome/core/defines.h"
+
+#ifdef USE_SELECT
+
 #include "select.h"
 #include "esphome/core/log.h"
 
@@ -43,4 +47,5 @@ void Alpha3Select::control(const std::string &value) {
 }  // namespace alpha3
 }  // namespace esphome
 
+#endif
 #endif

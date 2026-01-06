@@ -1,5 +1,6 @@
 #include "alpha3.h"
 #include "esphome/core/log.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/application.h"
 #include <lwip/sockets.h>  //gives ntohl
 
@@ -102,9 +103,11 @@ void Alpha3::handle_geni_response_(const uint8_t *response, uint16_t length) {
     // Mode is a single byte value at offset 0 after header
     if (this->response_offset_ == -GENI_RESPONSE_HEADER_LENGTH && length > GENI_RESPONSE_HEADER_LENGTH) {
       uint8_t mode_value = response[GENI_RESPONSE_HEADER_LENGTH + GENI_RESPONSE_MODE_OFFSET];
+#ifdef USE_TEXT_SENSOR
       if (this->mode_text_sensor_ != nullptr) {
         this->mode_text_sensor_->publish_state(this->get_mode_name_(mode_value));
       }
+#endif
     }
   } else {
     ESP_LOGW(TAG, "unknown GENI response Type %d %d %d %d %d %d %d %d", this->response_type_[0],
@@ -342,6 +345,7 @@ void Alpha3::update() {
     delay(25);  // Necessary delay between requests for multi-pump setups
   }
   // Request current operating mode (act_mode1)
+#ifdef USE_TEXT_SENSOR
   if (this->mode_text_sensor_ != nullptr) {
     // GENIBus GET request for act_mode1 (ID 81) - Class 2 (MEASURED_DATA)
     uint8_t geni_request_mode[] = {39, 7, 231, 248, 10, 2, 65, 81, 1, 0, 0};
@@ -351,6 +355,7 @@ void Alpha3::update() {
     geni_request_mode[9] = crc & 0xFF;
     this->send_request_(geni_request_mode, sizeof(geni_request_mode));
   }
+#endif
 }
 
 const char *Alpha3::get_mode_name_(uint8_t mode) {

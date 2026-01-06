@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_BUTTON
+
 #include "esphome/core/component.h"
 #include "esphome/components/button/button.h"
 #include "alpha3.h"
@@ -30,4 +34,5 @@ class Alpha3Button : public button::Button, public Component {
 }  // namespace alpha3
 }  // namespace esphome
 
+#endif
 #endif
