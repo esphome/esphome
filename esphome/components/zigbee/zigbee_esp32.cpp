@@ -264,9 +264,13 @@ void ZigbeeComponent::setup() {
 }
 
 void ZigbeeComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Zigbee:");
+  ESP_LOGCONFIG(TAG,
+                "Zigbee\n"
+                "  Model: %s\n"
+                "  Router: %s",
+                this->basic_cluster_data_.model, YESNO(this->device_role_ == ESP_ZB_DEVICE_TYPE_ROUTER));
   for (auto const &[key, val] : this->endpoint_list_) {
-    ESP_LOGCONFIG(TAG, "Endpoint: %u, %d", key, val);
+    ESP_LOGCONFIG(TAG, "  Endpoint: %u, %d", key, val);
   }
 }
 

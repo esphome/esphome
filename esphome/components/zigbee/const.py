@@ -20,4 +20,4 @@ CONF_REPORT = "report"
 CONF_ROUTER = "router"
 
 KEY_ZIGBEE = "zigbee"
-ZIGBEE_DATE = datetime.datetime.now().strftime("%Y%m%d %H:%M")
+ZIGBEE_DATE = datetime.datetime.now().strftime("%Y%m%d %H%M%S")
