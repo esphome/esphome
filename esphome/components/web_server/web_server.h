@@ -35,33 +35,29 @@ extern const size_t ESPHOME_WEBSERVER_JS_INCLUDE_SIZE;
 
 namespace esphome::web_server {
 
+/// Result of matching a URL against an entity
+struct EntityMatchResult {
+  bool matched;          ///< True if entity matched the URL
+  bool action_is_empty;  ///< True if no action/method segment in URL
+};
+
 /// Internal helper struct that is used to parse incoming URLs
 struct UrlMatch {
-  const char *domain;  ///< Pointer to domain within URL, for example "sensor"
-  const char *id;      ///< Pointer to id within URL, for example "living_room_fan"
-  const char *method;  ///< Pointer to method within URL, for example "turn_on"
-  uint8_t domain_len;  ///< Length of domain string
-  uint8_t id_len;      ///< Length of id string
-  uint8_t method_len;  ///< Length of method string
-  bool valid;          ///< Whether this match is valid
+  StringRef domain;  ///< Domain within URL, for example "sensor"
+  StringRef id;      ///< Entity name/id within URL, for example "Temperature"
+  StringRef method;  ///< Method within URL, for example "turn_on"
+#ifdef USE_DEVICES
+  StringRef device_name;  ///< Device name within URL, empty for main device
+#endif
+  bool valid{false};  ///< Whether this match is valid
 
   // Helper methods for string comparisons
-  bool domain_equals(const char *str) const {
-    return domain && domain_len == strlen(str) && memcmp(domain, str, domain_len) == 0;
-  }
+  bool domain_equals(const char *str) const { return this->domain == str; }
+  bool method_equals(const char *str) const { return this->method == str; }
 
-  bool id_equals_entity(EntityBase *entity) const {
-    // Get object_id with zero heap allocation
-    char object_id_buf[OBJECT_ID_MAX_LEN];
-    StringRef object_id = entity->get_object_id_to(object_id_buf);
-    return id && id_len == object_id.size() && memcmp(id, object_id.c_str(), id_len) == 0;
-  }
-
-  bool method_equals(const char *str) const {
-    return method && method_len == strlen(str) && memcmp(method, str, method_len) == 0;
-  }
-
-  bool method_empty() const { return method_len == 0; }
+  /// Match entity by name first, then fall back to object_id with deprecation warning
+  /// Returns EntityMatchResult with match status and whether action segment is empty
+  EntityMatchResult match_entity(EntityBase *entity) const;
 };
 
 #ifdef USE_WEBSERVER_SORTING
