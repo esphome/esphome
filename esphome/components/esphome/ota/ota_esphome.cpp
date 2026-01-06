@@ -1,6 +1,7 @@
 #include "ota_esphome.h"
 #ifdef USE_OTA
 #ifdef USE_OTA_PASSWORD
+#include "esphome/components/md5/md5.h"
 #include "esphome/components/sha256/sha256.h"
 #endif
 #include "esphome/components/network/util.h"
@@ -575,8 +576,11 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
 
     // CRITICAL ESP32-S3 HARDWARE SHA ACCELERATION: Hash object must stay in same stack frame
     // (no passing to other functions). All hash operations must happen in this function.
-    // Create hasher AFTER heap allocations to avoid potential cache/DMA interference.
+    // NOTE: On ESP32-S3 with IDF 5.5.x, having only SHA256 on the stack causes crashes with
+    // hardware SHA acceleration. Adding an MD5 object provides the necessary stack alignment.
     sha256::SHA256 hasher;
+    md5::MD5Digest md5_dummy;  // Required for ESP32-S3 IDF 5.5.x stack alignment
+    (void) md5_dummy;          // Suppress unused variable warning
     hasher.init();
     hasher.add(buf, nonce_len);
     hasher.calculate();
@@ -636,7 +640,11 @@ bool ESPHomeOTAComponent::handle_auth_read_() {
 
   // CRITICAL ESP32-S3 HARDWARE SHA ACCELERATION: Hash object must stay in same stack frame
   // (no passing to other functions). All hash operations must happen in this function.
+  // NOTE: On ESP32-S3 with IDF 5.5.x, having only SHA256 on the stack causes crashes with
+  // hardware SHA acceleration. Adding an MD5 object provides the necessary stack alignment.
   sha256::SHA256 hasher;
+  md5::MD5Digest md5_dummy;  // Required for ESP32-S3 IDF 5.5.x stack alignment
+  (void) md5_dummy;          // Suppress unused variable warning
 
   hasher.init();
   hasher.add(this->password_.c_str(), this->password_.length());
