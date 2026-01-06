@@ -8,6 +8,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
+#include "esphome/core/preferences.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -26,6 +27,11 @@ namespace esphome {
 namespace mqtt {
 
 static const char *const TAG = "mqtt";
+
+// Magic value added to QoS when persisting subscriptions to flash storage.
+// This distinguishes valid stored subscriptions (values 34-36 for QoS 0-2)
+// from uninitialized flash memory (typically 0x00 or 0xFF).
+static constexpr uint8_t SUBSCRIPTION_PERSISTENCE_MAGIC = 34;
 
 MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
@@ -452,7 +458,7 @@ bool MQTTClientComponent::is_subscription_persisted(const MQTTSubscription &sub)
   uint8_t stored_value = 0;
   if (!pref.load(&stored_value))
     return false;
-  return stored_value == (sub.qos + 34);
+  return stored_value == (sub.qos + SUBSCRIPTION_PERSISTENCE_MAGIC);
 #endif
 }
 
@@ -485,7 +491,7 @@ bool MQTTClientComponent::persist_subscription(const MQTTSubscription &sub) {
   if (is_subscription_persisted(sub)) {
     return true;
   }
-  uint8_t stored_value = sub.qos + 34;
+  uint8_t stored_value = sub.qos + SUBSCRIPTION_PERSISTENCE_MAGIC;
   auto pref = global_preferences->make_preference<uint8_t>(hash, true);
   return pref.save(&stored_value);
 #endif
