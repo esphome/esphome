@@ -12,300 +12,1102 @@
 //   root[MQTT_DEVICE_CLASS] = "temperature";
 //
 // Adding new keys:
-//   MQTT_CONST(MQTT_NEW_KEY, "abbr", "full_name");
-//   The macro handles platform differences automatically.
+//   Add to both ESP8266 section (MQTT_CONST_F) and other platforms section (MQTT_CONST).
+//   Or use the X-macro MQTT_KEYS_LIST if maintaining a single source of truth.
 //
 // Implementation:
-// - ESP8266: Uses F() macro to store strings in flash (PROGMEM), saving RAM.
-// - Other platforms: Uses constexpr for compile-time optimization.
+// - ESP8266: Uses F() macro via MQTT_CONST_F - must be macros since F() only works inside functions.
+// - Other platforms: Uses constexpr in namespace for compile-time optimization.
 // - USE_MQTT_ABBREVIATIONS: When defined, uses shortened key names to reduce message size.
 //
 // Note: Other MQTT_* constants (e.g., MQTT_CLIENT_CONNECTED, MQTT_LEGACY_UNIQUE_ID_GENERATOR)
 // are C++ enums defined in mqtt_client.h and mqtt_backend*.h - unrelated to these JSON keys.
 
-// Platform-specific constant generation - flash strings on ESP8266, constexpr elsewhere
-#ifdef USE_ESP8266
-#ifdef USE_MQTT_ABBREVIATIONS
-#define MQTT_CONST(name, abbr, full) static const __FlashStringHelper *const name = ESPHOME_F(abbr)
-#else
-#define MQTT_CONST(name, abbr, full) static const __FlashStringHelper *const name = ESPHOME_F(full)
-#endif
-#else
-#ifdef USE_MQTT_ABBREVIATIONS
-#define MQTT_CONST(name, abbr, full) constexpr const char *name = abbr
-#else
-#define MQTT_CONST(name, abbr, full) constexpr const char *name = full
-#endif
-#endif
-
-namespace esphome::mqtt {
-
+// X-macro list: MQTT_KEYS_LIST(X) calls X(name, abbr, full) for each key
 // clang-format off
-MQTT_CONST(MQTT_ACTION_TEMPLATE, "act_tpl", "action_template");
-MQTT_CONST(MQTT_ACTION_TOPIC, "act_t", "action_topic");
-MQTT_CONST(MQTT_AUTOMATION_TYPE, "atype", "automation_type");
-MQTT_CONST(MQTT_AUX_COMMAND_TOPIC, "aux_cmd_t", "aux_command_topic");
-MQTT_CONST(MQTT_AUX_STATE_TEMPLATE, "aux_stat_tpl", "aux_state_template");
-MQTT_CONST(MQTT_AUX_STATE_TOPIC, "aux_stat_t", "aux_state_topic");
-MQTT_CONST(MQTT_AVAILABILITY, "avty", "availability");
-MQTT_CONST(MQTT_AVAILABILITY_MODE, "avty_mode", "availability_mode");
-MQTT_CONST(MQTT_AVAILABILITY_TOPIC, "avty_t", "availability_topic");
-MQTT_CONST(MQTT_AWAY_MODE_COMMAND_TOPIC, "away_mode_cmd_t", "away_mode_command_topic");
-MQTT_CONST(MQTT_AWAY_MODE_STATE_TEMPLATE, "away_mode_stat_tpl", "away_mode_state_template");
-MQTT_CONST(MQTT_AWAY_MODE_STATE_TOPIC, "away_mode_stat_t", "away_mode_state_topic");
-MQTT_CONST(MQTT_BATTERY_LEVEL_TEMPLATE, "bat_lev_tpl", "battery_level_template");
-MQTT_CONST(MQTT_BATTERY_LEVEL_TOPIC, "bat_lev_t", "battery_level_topic");
-MQTT_CONST(MQTT_BLUE_TEMPLATE, "b_tpl", "blue_template");
-MQTT_CONST(MQTT_BRIGHTNESS_COMMAND_TOPIC, "bri_cmd_t", "brightness_command_topic");
-MQTT_CONST(MQTT_BRIGHTNESS_SCALE, "bri_scl", "brightness_scale");
-MQTT_CONST(MQTT_BRIGHTNESS_STATE_TOPIC, "bri_stat_t", "brightness_state_topic");
-MQTT_CONST(MQTT_BRIGHTNESS_TEMPLATE, "bri_tpl", "brightness_template");
-MQTT_CONST(MQTT_BRIGHTNESS_VALUE_TEMPLATE, "bri_val_tpl", "brightness_value_template");
-MQTT_CONST(MQTT_CHARGING_TEMPLATE, "chrg_tpl", "charging_template");
-MQTT_CONST(MQTT_CHARGING_TOPIC, "chrg_t", "charging_topic");
-MQTT_CONST(MQTT_CLEANING_TEMPLATE, "cln_tpl", "cleaning_template");
-MQTT_CONST(MQTT_CLEANING_TOPIC, "cln_t", "cleaning_topic");
-MQTT_CONST(MQTT_CODE_ARM_REQUIRED, "cod_arm_req", "code_arm_required");
-MQTT_CONST(MQTT_CODE_DISARM_REQUIRED, "cod_dis_req", "code_disarm_required");
-MQTT_CONST(MQTT_COLOR_MODE, "clrm", "color_mode");
-MQTT_CONST(MQTT_COLOR_MODE_STATE_TOPIC, "clrm_stat_t", "color_mode_state_topic");
-MQTT_CONST(MQTT_COLOR_MODE_VALUE_TEMPLATE, "clrm_val_tpl", "color_mode_value_template");
-MQTT_CONST(MQTT_COLOR_TEMP_COMMAND_TEMPLATE, "clr_temp_cmd_tpl", "color_temp_command_template");
-MQTT_CONST(MQTT_COLOR_TEMP_COMMAND_TOPIC, "clr_temp_cmd_t", "color_temp_command_topic");
-MQTT_CONST(MQTT_COLOR_TEMP_STATE_TOPIC, "clr_temp_stat_t", "color_temp_state_topic");
-MQTT_CONST(MQTT_COLOR_TEMP_TEMPLATE, "clr_temp_tpl", "color_temp_template");
-MQTT_CONST(MQTT_COLOR_TEMP_VALUE_TEMPLATE, "clr_temp_val_tpl", "color_temp_value_template");
-MQTT_CONST(MQTT_COMMAND_OFF_TEMPLATE, "cmd_off_tpl", "command_off_template");
-MQTT_CONST(MQTT_COMMAND_ON_TEMPLATE, "cmd_on_tpl", "command_on_template");
-MQTT_CONST(MQTT_COMMAND_RETAIN, "ret", "retain");
-MQTT_CONST(MQTT_COMMAND_TEMPLATE, "cmd_tpl", "command_template");
-MQTT_CONST(MQTT_COMMAND_TOPIC, "cmd_t", "command_topic");
-MQTT_CONST(MQTT_CONFIGURATION_URL, "cu", "configuration_url");
-MQTT_CONST(MQTT_CURRENT_HUMIDITY_TEMPLATE, "curr_hum_tpl", "current_humidity_template");
-MQTT_CONST(MQTT_CURRENT_HUMIDITY_TOPIC, "curr_hum_t", "current_humidity_topic");
-MQTT_CONST(MQTT_CURRENT_TEMPERATURE_STEP, "precision", "precision");
-MQTT_CONST(MQTT_CURRENT_TEMPERATURE_TEMPLATE, "curr_temp_tpl", "current_temperature_template");
-MQTT_CONST(MQTT_CURRENT_TEMPERATURE_TOPIC, "curr_temp_t", "current_temperature_topic");
-MQTT_CONST(MQTT_DEVICE, "dev", "device");
-MQTT_CONST(MQTT_DEVICE_CLASS, "dev_cla", "device_class");
-MQTT_CONST(MQTT_DEVICE_CONNECTIONS, "cns", "connections");
-MQTT_CONST(MQTT_DEVICE_IDENTIFIERS, "ids", "identifiers");
-MQTT_CONST(MQTT_DEVICE_MANUFACTURER, "mf", "manufacturer");
-MQTT_CONST(MQTT_DEVICE_MODEL, "mdl", "model");
-MQTT_CONST(MQTT_DEVICE_NAME, "name", "name");
-MQTT_CONST(MQTT_DEVICE_SUGGESTED_AREA, "sa", "suggested_area");
-MQTT_CONST(MQTT_DEVICE_SW_VERSION, "sw", "sw_version");
-MQTT_CONST(MQTT_DEVICE_HW_VERSION, "hw", "hw_version");
-MQTT_CONST(MQTT_DIRECTION_COMMAND_TOPIC, "dir_cmd_t", "direction_command_topic");
-MQTT_CONST(MQTT_DIRECTION_STATE_TOPIC, "dir_stat_t", "direction_state_topic");
-MQTT_CONST(MQTT_DOCKED_TEMPLATE, "dock_tpl", "docked_template");
-MQTT_CONST(MQTT_DOCKED_TOPIC, "dock_t", "docked_topic");
-MQTT_CONST(MQTT_EFFECT_COMMAND_TOPIC, "fx_cmd_t", "effect_command_topic");
-MQTT_CONST(MQTT_EFFECT_LIST, "fx_list", "effect_list");
-MQTT_CONST(MQTT_EFFECT_STATE_TOPIC, "fx_stat_t", "effect_state_topic");
-MQTT_CONST(MQTT_EFFECT_TEMPLATE, "fx_tpl", "effect_template");
-MQTT_CONST(MQTT_EFFECT_VALUE_TEMPLATE, "fx_val_tpl", "effect_value_template");
-MQTT_CONST(MQTT_ENABLED_BY_DEFAULT, "en", "enabled_by_default");
-MQTT_CONST(MQTT_ENTITY_CATEGORY, "ent_cat", "entity_category");
-MQTT_CONST(MQTT_ERROR_TEMPLATE, "err_tpl", "error_template");
-MQTT_CONST(MQTT_ERROR_TOPIC, "err_t", "error_topic");
-MQTT_CONST(MQTT_EVENT_TYPE, "event_type", "event_type");
-MQTT_CONST(MQTT_EVENT_TYPES, "evt_typ", "event_types");
-MQTT_CONST(MQTT_EXPIRE_AFTER, "exp_aft", "expire_after");
-MQTT_CONST(MQTT_FAN_MODE_COMMAND_TEMPLATE, "fan_mode_cmd_tpl", "fan_mode_command_template");
-MQTT_CONST(MQTT_FAN_MODE_COMMAND_TOPIC, "fan_mode_cmd_t", "fan_mode_command_topic");
-MQTT_CONST(MQTT_FAN_MODE_STATE_TEMPLATE, "fan_mode_stat_tpl", "fan_mode_state_template");
-MQTT_CONST(MQTT_FAN_MODE_STATE_TOPIC, "fan_mode_stat_t", "fan_mode_state_topic");
-MQTT_CONST(MQTT_FAN_SPEED_LIST, "fanspd_lst", "fan_speed_list");
-MQTT_CONST(MQTT_FAN_SPEED_TEMPLATE, "fanspd_tpl", "fan_speed_template");
-MQTT_CONST(MQTT_FAN_SPEED_TOPIC, "fanspd_t", "fan_speed_topic");
-MQTT_CONST(MQTT_FLASH_TIME_LONG, "flsh_tlng", "flash_time_long");
-MQTT_CONST(MQTT_FLASH_TIME_SHORT, "flsh_tsht", "flash_time_short");
-MQTT_CONST(MQTT_FORCE_UPDATE, "frc_upd", "force_update");
-MQTT_CONST(MQTT_GREEN_TEMPLATE, "g_tpl", "green_template");
-MQTT_CONST(MQTT_HOLD_COMMAND_TEMPLATE, "hold_cmd_tpl", "hold_command_template");
-MQTT_CONST(MQTT_HOLD_COMMAND_TOPIC, "hold_cmd_t", "hold_command_topic");
-MQTT_CONST(MQTT_HOLD_STATE_TEMPLATE, "hold_stat_tpl", "hold_state_template");
-MQTT_CONST(MQTT_HOLD_STATE_TOPIC, "hold_stat_t", "hold_state_topic");
-MQTT_CONST(MQTT_HS_COMMAND_TOPIC, "hs_cmd_t", "hs_command_topic");
-MQTT_CONST(MQTT_HS_STATE_TOPIC, "hs_stat_t", "hs_state_topic");
-MQTT_CONST(MQTT_HS_VALUE_TEMPLATE, "hs_val_tpl", "hs_value_template");
-MQTT_CONST(MQTT_ICON, "ic", "icon");
-MQTT_CONST(MQTT_INITIAL, "init", "initial");
-MQTT_CONST(MQTT_JSON_ATTRIBUTES, "json_attr", "json_attributes");
-MQTT_CONST(MQTT_JSON_ATTRIBUTES_TEMPLATE, "json_attr_tpl", "json_attributes_template");
-MQTT_CONST(MQTT_JSON_ATTRIBUTES_TOPIC, "json_attr_t", "json_attributes_topic");
-MQTT_CONST(MQTT_LAST_RESET_TOPIC, "lrst_t", "last_reset_topic");
-MQTT_CONST(MQTT_LAST_RESET_VALUE_TEMPLATE, "lrst_val_tpl", "last_reset_value_template");
-MQTT_CONST(MQTT_MAX, "max", "max");
-MQTT_CONST(MQTT_MAX_HUMIDITY, "max_hum", "max_humidity");
-MQTT_CONST(MQTT_MAX_MIREDS, "max_mirs", "max_mireds");
-MQTT_CONST(MQTT_MAX_TEMP, "max_temp", "max_temp");
-MQTT_CONST(MQTT_MIN, "min", "min");
-MQTT_CONST(MQTT_MIN_HUMIDITY, "min_hum", "min_humidity");
-MQTT_CONST(MQTT_MIN_MIREDS, "min_mirs", "min_mireds");
-MQTT_CONST(MQTT_MIN_TEMP, "min_temp", "min_temp");
-MQTT_CONST(MQTT_MODE, "mode", "mode");
-MQTT_CONST(MQTT_MODE_COMMAND_TEMPLATE, "mode_cmd_tpl", "mode_command_template");
-MQTT_CONST(MQTT_MODE_COMMAND_TOPIC, "mode_cmd_t", "mode_command_topic");
-MQTT_CONST(MQTT_MODE_STATE_TEMPLATE, "mode_stat_tpl", "mode_state_template");
-MQTT_CONST(MQTT_MODE_STATE_TOPIC, "mode_stat_t", "mode_state_topic");
-MQTT_CONST(MQTT_MODES, "modes", "modes");
-MQTT_CONST(MQTT_NAME, "name", "name");
-MQTT_CONST(MQTT_OBJECT_ID, "obj_id", "object_id");
-MQTT_CONST(MQTT_OFF_DELAY, "off_dly", "off_delay");
-MQTT_CONST(MQTT_ON_COMMAND_TYPE, "on_cmd_type", "on_command_type");
-MQTT_CONST(MQTT_OPTIMISTIC, "opt", "optimistic");
-MQTT_CONST(MQTT_OPTIONS, "ops", "options");
-MQTT_CONST(MQTT_OSCILLATION_COMMAND_TEMPLATE, "osc_cmd_tpl", "oscillation_command_template");
-MQTT_CONST(MQTT_OSCILLATION_COMMAND_TOPIC, "osc_cmd_t", "oscillation_command_topic");
-MQTT_CONST(MQTT_OSCILLATION_STATE_TOPIC, "osc_stat_t", "oscillation_state_topic");
-MQTT_CONST(MQTT_OSCILLATION_VALUE_TEMPLATE, "osc_val_tpl", "oscillation_value_template");
-MQTT_CONST(MQTT_PAYLOAD, "pl", "payload");
-MQTT_CONST(MQTT_PAYLOAD_ARM_AWAY, "pl_arm_away", "payload_arm_away");
-MQTT_CONST(MQTT_PAYLOAD_ARM_CUSTOM_BYPASS, "pl_arm_custom_b", "payload_arm_custom_bypass");
-MQTT_CONST(MQTT_PAYLOAD_ARM_HOME, "pl_arm_home", "payload_arm_home");
-MQTT_CONST(MQTT_PAYLOAD_ARM_NIGHT, "pl_arm_nite", "payload_arm_night");
-MQTT_CONST(MQTT_PAYLOAD_ARM_VACATION, "pl_arm_vacation", "payload_arm_vacation");
-MQTT_CONST(MQTT_PAYLOAD_AVAILABLE, "pl_avail", "payload_available");
-MQTT_CONST(MQTT_PAYLOAD_CLEAN_SPOT, "pl_cln_sp", "payload_clean_spot");
-MQTT_CONST(MQTT_PAYLOAD_CLOSE, "pl_cls", "payload_close");
-MQTT_CONST(MQTT_PAYLOAD_DISARM, "pl_disarm", "payload_disarm");
-MQTT_CONST(MQTT_PAYLOAD_HIGH_SPEED, "pl_hi_spd", "payload_high_speed");
-MQTT_CONST(MQTT_PAYLOAD_HOME, "pl_home", "payload_home");
-MQTT_CONST(MQTT_PAYLOAD_INSTALL, "pl_inst", "payload_install");
-MQTT_CONST(MQTT_PAYLOAD_LOCATE, "pl_loc", "payload_locate");
-MQTT_CONST(MQTT_PAYLOAD_LOCK, "pl_lock", "payload_lock");
-MQTT_CONST(MQTT_PAYLOAD_LOW_SPEED, "pl_lo_spd", "payload_low_speed");
-MQTT_CONST(MQTT_PAYLOAD_MEDIUM_SPEED, "pl_med_spd", "payload_medium_speed");
-MQTT_CONST(MQTT_PAYLOAD_NOT_AVAILABLE, "pl_not_avail", "payload_not_available");
-MQTT_CONST(MQTT_PAYLOAD_NOT_HOME, "pl_not_home", "payload_not_home");
-MQTT_CONST(MQTT_PAYLOAD_OFF, "pl_off", "payload_off");
-MQTT_CONST(MQTT_PAYLOAD_OFF_SPEED, "pl_off_spd", "payload_off_speed");
-MQTT_CONST(MQTT_PAYLOAD_ON, "pl_on", "payload_on");
-MQTT_CONST(MQTT_PAYLOAD_OPEN, "pl_open", "payload_open");
-MQTT_CONST(MQTT_PAYLOAD_OSCILLATION_OFF, "pl_osc_off", "payload_oscillation_off");
-MQTT_CONST(MQTT_PAYLOAD_OSCILLATION_ON, "pl_osc_on", "payload_oscillation_on");
-MQTT_CONST(MQTT_PAYLOAD_PAUSE, "pl_paus", "payload_pause");
-MQTT_CONST(MQTT_PAYLOAD_RESET, "pl_rst", "payload_reset");
-MQTT_CONST(MQTT_PAYLOAD_RESET_HUMIDITY, "pl_rst_hum", "payload_reset_humidity");
-MQTT_CONST(MQTT_PAYLOAD_RESET_MODE, "pl_rst_mode", "payload_reset_mode");
-MQTT_CONST(MQTT_PAYLOAD_RESET_PERCENTAGE, "pl_rst_pct", "payload_reset_percentage");
-MQTT_CONST(MQTT_PAYLOAD_RESET_PRESET_MODE, "pl_rst_pr_mode", "payload_reset_preset_mode");
-MQTT_CONST(MQTT_PAYLOAD_RETURN_TO_BASE, "pl_ret", "payload_return_to_base");
-MQTT_CONST(MQTT_PAYLOAD_START, "pl_strt", "payload_start");
-MQTT_CONST(MQTT_PAYLOAD_START_PAUSE, "pl_stpa", "payload_start_pause");
-MQTT_CONST(MQTT_PAYLOAD_STOP, "pl_stop", "payload_stop");
-MQTT_CONST(MQTT_PAYLOAD_TURN_OFF, "pl_toff", "payload_turn_off");
-MQTT_CONST(MQTT_PAYLOAD_TURN_ON, "pl_ton", "payload_turn_on");
-MQTT_CONST(MQTT_PAYLOAD_UNLOCK, "pl_unlk", "payload_unlock");
-MQTT_CONST(MQTT_PERCENTAGE_COMMAND_TEMPLATE, "pct_cmd_tpl", "percentage_command_template");
-MQTT_CONST(MQTT_PERCENTAGE_COMMAND_TOPIC, "pct_cmd_t", "percentage_command_topic");
-MQTT_CONST(MQTT_PERCENTAGE_STATE_TOPIC, "pct_stat_t", "percentage_state_topic");
-MQTT_CONST(MQTT_PERCENTAGE_VALUE_TEMPLATE, "pct_val_tpl", "percentage_value_template");
-MQTT_CONST(MQTT_POSITION_CLOSED, "pos_clsd", "position_closed");
-MQTT_CONST(MQTT_POSITION_OPEN, "pos_open", "position_open");
-MQTT_CONST(MQTT_POSITION_TEMPLATE, "pos_tpl", "position_template");
-MQTT_CONST(MQTT_POSITION_TOPIC, "pos_t", "position_topic");
-MQTT_CONST(MQTT_POWER_COMMAND_TOPIC, "pow_cmd_t", "power_command_topic");
-MQTT_CONST(MQTT_POWER_STATE_TEMPLATE, "pow_stat_tpl", "power_state_template");
-MQTT_CONST(MQTT_POWER_STATE_TOPIC, "pow_stat_t", "power_state_topic");
-MQTT_CONST(MQTT_PRESET_MODE_COMMAND_TEMPLATE, "pr_mode_cmd_tpl", "preset_mode_command_template");
-MQTT_CONST(MQTT_PRESET_MODE_COMMAND_TOPIC, "pr_mode_cmd_t", "preset_mode_command_topic");
-MQTT_CONST(MQTT_PRESET_MODE_STATE_TOPIC, "pr_mode_stat_t", "preset_mode_state_topic");
-MQTT_CONST(MQTT_PRESET_MODE_VALUE_TEMPLATE, "pr_mode_val_tpl", "preset_mode_value_template");
-MQTT_CONST(MQTT_PRESET_MODES, "pr_modes", "preset_modes");
-MQTT_CONST(MQTT_QOS, "qos", "qos");
-MQTT_CONST(MQTT_RED_TEMPLATE, "r_tpl", "red_template");
-MQTT_CONST(MQTT_RETAIN, "ret", "retain");
-MQTT_CONST(MQTT_RGB_COMMAND_TEMPLATE, "rgb_cmd_tpl", "rgb_command_template");
-MQTT_CONST(MQTT_RGB_COMMAND_TOPIC, "rgb_cmd_t", "rgb_command_topic");
-MQTT_CONST(MQTT_RGB_STATE_TOPIC, "rgb_stat_t", "rgb_state_topic");
-MQTT_CONST(MQTT_RGB_VALUE_TEMPLATE, "rgb_val_tpl", "rgb_value_template");
-MQTT_CONST(MQTT_RGBW_COMMAND_TEMPLATE, "rgbw_cmd_tpl", "rgbw_command_template");
-MQTT_CONST(MQTT_RGBW_COMMAND_TOPIC, "rgbw_cmd_t", "rgbw_command_topic");
-MQTT_CONST(MQTT_RGBW_STATE_TOPIC, "rgbw_stat_t", "rgbw_state_topic");
-MQTT_CONST(MQTT_RGBW_VALUE_TEMPLATE, "rgbw_val_tpl", "rgbw_value_template");
-MQTT_CONST(MQTT_RGBWW_COMMAND_TEMPLATE, "rgbww_cmd_tpl", "rgbww_command_template");
-MQTT_CONST(MQTT_RGBWW_COMMAND_TOPIC, "rgbww_cmd_t", "rgbww_command_topic");
-MQTT_CONST(MQTT_RGBWW_STATE_TOPIC, "rgbww_stat_t", "rgbww_state_topic");
-MQTT_CONST(MQTT_RGBWW_VALUE_TEMPLATE, "rgbww_val_tpl", "rgbww_value_template");
-MQTT_CONST(MQTT_SEND_COMMAND_TOPIC, "send_cmd_t", "send_command_topic");
-MQTT_CONST(MQTT_SEND_IF_OFF, "send_if_off", "send_if_off");
-MQTT_CONST(MQTT_SET_FAN_SPEED_TOPIC, "set_fan_spd_t", "set_fan_speed_topic");
-MQTT_CONST(MQTT_SET_POSITION_TEMPLATE, "set_pos_tpl", "set_position_template");
-MQTT_CONST(MQTT_SET_POSITION_TOPIC, "set_pos_t", "set_position_topic");
-MQTT_CONST(MQTT_SOURCE_TYPE, "src_type", "source_type");
-MQTT_CONST(MQTT_SPEED_COMMAND_TOPIC, "spd_cmd_t", "speed_command_topic");
-MQTT_CONST(MQTT_SPEED_RANGE_MAX, "spd_rng_max", "speed_range_max");
-MQTT_CONST(MQTT_SPEED_RANGE_MIN, "spd_rng_min", "speed_range_min");
-MQTT_CONST(MQTT_SPEED_STATE_TOPIC, "spd_stat_t", "speed_state_topic");
-MQTT_CONST(MQTT_SPEED_VALUE_TEMPLATE, "spd_val_tpl", "speed_value_template");
-MQTT_CONST(MQTT_SPEEDS, "spds", "speeds");
-MQTT_CONST(MQTT_STATE_CLASS, "stat_cla", "state_class");
-MQTT_CONST(MQTT_STATE_CLOSED, "stat_clsd", "state_closed");
-MQTT_CONST(MQTT_STATE_CLOSING, "stat_closing", "state_closing");
-MQTT_CONST(MQTT_STATE_LOCKED, "stat_locked", "state_locked");
-MQTT_CONST(MQTT_STATE_OFF, "stat_off", "state_off");
-MQTT_CONST(MQTT_STATE_ON, "stat_on", "state_on");
-MQTT_CONST(MQTT_STATE_OPEN, "stat_open", "state_open");
-MQTT_CONST(MQTT_STATE_OPENING, "stat_opening", "state_opening");
-MQTT_CONST(MQTT_STATE_STOPPED, "stat_stopped", "state_stopped");
-MQTT_CONST(MQTT_STATE_TEMPLATE, "stat_tpl", "state_template");
-MQTT_CONST(MQTT_STATE_TOPIC, "stat_t", "state_topic");
-MQTT_CONST(MQTT_STATE_UNLOCKED, "stat_unlocked", "state_unlocked");
-MQTT_CONST(MQTT_STATE_VALUE_TEMPLATE, "stat_val_tpl", "state_value_template");
-MQTT_CONST(MQTT_STEP, "step", "step");
-MQTT_CONST(MQTT_SUBTYPE, "stype", "subtype");
-MQTT_CONST(MQTT_SUPPORTED_COLOR_MODES, "sup_clrm", "supported_color_modes");
-MQTT_CONST(MQTT_SUPPORTED_FEATURES, "sup_feat", "supported_features");
-MQTT_CONST(MQTT_SWING_MODE_COMMAND_TEMPLATE, "swing_mode_cmd_tpl", "swing_mode_command_template");
-MQTT_CONST(MQTT_SWING_MODE_COMMAND_TOPIC, "swing_mode_cmd_t", "swing_mode_command_topic");
-MQTT_CONST(MQTT_SWING_MODE_STATE_TEMPLATE, "swing_mode_stat_tpl", "swing_mode_state_template");
-MQTT_CONST(MQTT_SWING_MODE_STATE_TOPIC, "swing_mode_stat_t", "swing_mode_state_topic");
-MQTT_CONST(MQTT_TARGET_HUMIDITY_COMMAND_TEMPLATE, "hum_cmd_tpl", "target_humidity_command_template");
-MQTT_CONST(MQTT_TARGET_HUMIDITY_COMMAND_TOPIC, "hum_cmd_t", "target_humidity_command_topic");
-MQTT_CONST(MQTT_TARGET_HUMIDITY_STATE_TEMPLATE, "hum_state_tpl", "target_humidity_state_template");
-MQTT_CONST(MQTT_TARGET_HUMIDITY_STATE_TOPIC, "hum_stat_t", "target_humidity_state_topic");
-MQTT_CONST(MQTT_TARGET_TEMPERATURE_STEP, "temp_step", "temp_step");
-MQTT_CONST(MQTT_TEMPERATURE_COMMAND_TEMPLATE, "temp_cmd_tpl", "temperature_command_template");
-MQTT_CONST(MQTT_TEMPERATURE_COMMAND_TOPIC, "temp_cmd_t", "temperature_command_topic");
-MQTT_CONST(MQTT_TEMPERATURE_HIGH_COMMAND_TEMPLATE, "temp_hi_cmd_tpl", "temperature_high_command_template");
-MQTT_CONST(MQTT_TEMPERATURE_HIGH_COMMAND_TOPIC, "temp_hi_cmd_t", "temperature_high_command_topic");
-MQTT_CONST(MQTT_TEMPERATURE_HIGH_STATE_TEMPLATE, "temp_hi_stat_tpl", "temperature_high_state_template");
-MQTT_CONST(MQTT_TEMPERATURE_HIGH_STATE_TOPIC, "temp_hi_stat_t", "temperature_high_state_topic");
-MQTT_CONST(MQTT_TEMPERATURE_LOW_COMMAND_TEMPLATE, "temp_lo_cmd_tpl", "temperature_low_command_template");
-MQTT_CONST(MQTT_TEMPERATURE_LOW_COMMAND_TOPIC, "temp_lo_cmd_t", "temperature_low_command_topic");
-MQTT_CONST(MQTT_TEMPERATURE_LOW_STATE_TEMPLATE, "temp_lo_stat_tpl", "temperature_low_state_template");
-MQTT_CONST(MQTT_TEMPERATURE_LOW_STATE_TOPIC, "temp_lo_stat_t", "temperature_low_state_topic");
-MQTT_CONST(MQTT_TEMPERATURE_STATE_TEMPLATE, "temp_stat_tpl", "temperature_state_template");
-MQTT_CONST(MQTT_TEMPERATURE_STATE_TOPIC, "temp_stat_t", "temperature_state_topic");
-MQTT_CONST(MQTT_TEMPERATURE_UNIT, "temp_unit", "temperature_unit");
-MQTT_CONST(MQTT_TILT_CLOSED_VALUE, "tilt_clsd_val", "tilt_closed_value");
-MQTT_CONST(MQTT_TILT_COMMAND_TEMPLATE, "tilt_cmd_tpl", "tilt_command_template");
-MQTT_CONST(MQTT_TILT_COMMAND_TOPIC, "tilt_cmd_t", "tilt_command_topic");
-MQTT_CONST(MQTT_TILT_INVERT_STATE, "tilt_inv_stat", "tilt_invert_state");
-MQTT_CONST(MQTT_TILT_MAX, "tilt_max", "tilt_max");
-MQTT_CONST(MQTT_TILT_MIN, "tilt_min", "tilt_min");
-MQTT_CONST(MQTT_TILT_OPENED_VALUE, "tilt_opnd_val", "tilt_opened_value");
-MQTT_CONST(MQTT_TILT_OPTIMISTIC, "tilt_opt", "tilt_optimistic");
-MQTT_CONST(MQTT_TILT_STATUS_TEMPLATE, "tilt_status_tpl", "tilt_status_template");
-MQTT_CONST(MQTT_TILT_STATUS_TOPIC, "tilt_status_t", "tilt_status_topic");
-MQTT_CONST(MQTT_TOPIC, "t", "topic");
-MQTT_CONST(MQTT_UNIQUE_ID, "uniq_id", "unique_id");
-MQTT_CONST(MQTT_UNIT_OF_MEASUREMENT, "unit_of_meas", "unit_of_measurement");
-MQTT_CONST(MQTT_VALUE_TEMPLATE, "val_tpl", "value_template");
-MQTT_CONST(MQTT_WHITE_COMMAND_TOPIC, "whit_cmd_t", "white_command_topic");
-MQTT_CONST(MQTT_WHITE_SCALE, "whit_scl", "white_scale");
-MQTT_CONST(MQTT_WHITE_VALUE_COMMAND_TOPIC, "whit_val_cmd_t", "white_value_command_topic");
-MQTT_CONST(MQTT_WHITE_VALUE_SCALE, "whit_val_scl", "white_value_scale");
-MQTT_CONST(MQTT_WHITE_VALUE_STATE_TOPIC, "whit_val_stat_t", "white_value_state_topic");
-MQTT_CONST(MQTT_WHITE_VALUE_TEMPLATE, "whit_val_tpl", "white_value_template");
-MQTT_CONST(MQTT_XY_COMMAND_TOPIC, "xy_cmd_t", "xy_command_topic");
-MQTT_CONST(MQTT_XY_STATE_TOPIC, "xy_stat_t", "xy_state_topic");
-MQTT_CONST(MQTT_XY_VALUE_TEMPLATE, "xy_val_tpl", "xy_value_template");
+#define MQTT_KEYS_LIST(X) \
+  X(MQTT_ACTION_TEMPLATE, "act_tpl", "action_template") \
+  X(MQTT_ACTION_TOPIC, "act_t", "action_topic") \
+  X(MQTT_AUTOMATION_TYPE, "atype", "automation_type") \
+  X(MQTT_AUX_COMMAND_TOPIC, "aux_cmd_t", "aux_command_topic") \
+  X(MQTT_AUX_STATE_TEMPLATE, "aux_stat_tpl", "aux_state_template") \
+  X(MQTT_AUX_STATE_TOPIC, "aux_stat_t", "aux_state_topic") \
+  X(MQTT_AVAILABILITY, "avty", "availability") \
+  X(MQTT_AVAILABILITY_MODE, "avty_mode", "availability_mode") \
+  X(MQTT_AVAILABILITY_TOPIC, "avty_t", "availability_topic") \
+  X(MQTT_AWAY_MODE_COMMAND_TOPIC, "away_mode_cmd_t", "away_mode_command_topic") \
+  X(MQTT_AWAY_MODE_STATE_TEMPLATE, "away_mode_stat_tpl", "away_mode_state_template") \
+  X(MQTT_AWAY_MODE_STATE_TOPIC, "away_mode_stat_t", "away_mode_state_topic") \
+  X(MQTT_BATTERY_LEVEL_TEMPLATE, "bat_lev_tpl", "battery_level_template") \
+  X(MQTT_BATTERY_LEVEL_TOPIC, "bat_lev_t", "battery_level_topic") \
+  X(MQTT_BLUE_TEMPLATE, "b_tpl", "blue_template") \
+  X(MQTT_BRIGHTNESS_COMMAND_TOPIC, "bri_cmd_t", "brightness_command_topic") \
+  X(MQTT_BRIGHTNESS_SCALE, "bri_scl", "brightness_scale") \
+  X(MQTT_BRIGHTNESS_STATE_TOPIC, "bri_stat_t", "brightness_state_topic") \
+  X(MQTT_BRIGHTNESS_TEMPLATE, "bri_tpl", "brightness_template") \
+  X(MQTT_BRIGHTNESS_VALUE_TEMPLATE, "bri_val_tpl", "brightness_value_template") \
+  X(MQTT_CHARGING_TEMPLATE, "chrg_tpl", "charging_template") \
+  X(MQTT_CHARGING_TOPIC, "chrg_t", "charging_topic") \
+  X(MQTT_CLEANING_TEMPLATE, "cln_tpl", "cleaning_template") \
+  X(MQTT_CLEANING_TOPIC, "cln_t", "cleaning_topic") \
+  X(MQTT_CODE_ARM_REQUIRED, "cod_arm_req", "code_arm_required") \
+  X(MQTT_CODE_DISARM_REQUIRED, "cod_dis_req", "code_disarm_required") \
+  X(MQTT_COLOR_MODE, "clrm", "color_mode") \
+  X(MQTT_COLOR_MODE_STATE_TOPIC, "clrm_stat_t", "color_mode_state_topic") \
+  X(MQTT_COLOR_MODE_VALUE_TEMPLATE, "clrm_val_tpl", "color_mode_value_template") \
+  X(MQTT_COLOR_TEMP_COMMAND_TEMPLATE, "clr_temp_cmd_tpl", "color_temp_command_template") \
+  X(MQTT_COLOR_TEMP_COMMAND_TOPIC, "clr_temp_cmd_t", "color_temp_command_topic") \
+  X(MQTT_COLOR_TEMP_STATE_TOPIC, "clr_temp_stat_t", "color_temp_state_topic") \
+  X(MQTT_COLOR_TEMP_TEMPLATE, "clr_temp_tpl", "color_temp_template") \
+  X(MQTT_COLOR_TEMP_VALUE_TEMPLATE, "clr_temp_val_tpl", "color_temp_value_template") \
+  X(MQTT_COMMAND_OFF_TEMPLATE, "cmd_off_tpl", "command_off_template") \
+  X(MQTT_COMMAND_ON_TEMPLATE, "cmd_on_tpl", "command_on_template") \
+  X(MQTT_COMMAND_RETAIN, "ret", "retain") \
+  X(MQTT_COMMAND_TEMPLATE, "cmd_tpl", "command_template") \
+  X(MQTT_COMMAND_TOPIC, "cmd_t", "command_topic") \
+  X(MQTT_CONFIGURATION_URL, "cu", "configuration_url") \
+  X(MQTT_CURRENT_HUMIDITY_TEMPLATE, "curr_hum_tpl", "current_humidity_template") \
+  X(MQTT_CURRENT_HUMIDITY_TOPIC, "curr_hum_t", "current_humidity_topic") \
+  X(MQTT_CURRENT_TEMPERATURE_STEP, "precision", "precision") \
+  X(MQTT_CURRENT_TEMPERATURE_TEMPLATE, "curr_temp_tpl", "current_temperature_template") \
+  X(MQTT_CURRENT_TEMPERATURE_TOPIC, "curr_temp_t", "current_temperature_topic") \
+  X(MQTT_DEVICE, "dev", "device") \
+  X(MQTT_DEVICE_CLASS, "dev_cla", "device_class") \
+  X(MQTT_DEVICE_CONNECTIONS, "cns", "connections") \
+  X(MQTT_DEVICE_IDENTIFIERS, "ids", "identifiers") \
+  X(MQTT_DEVICE_MANUFACTURER, "mf", "manufacturer") \
+  X(MQTT_DEVICE_MODEL, "mdl", "model") \
+  X(MQTT_DEVICE_NAME, "name", "name") \
+  X(MQTT_DEVICE_SUGGESTED_AREA, "sa", "suggested_area") \
+  X(MQTT_DEVICE_SW_VERSION, "sw", "sw_version") \
+  X(MQTT_DEVICE_HW_VERSION, "hw", "hw_version") \
+  X(MQTT_DIRECTION_COMMAND_TOPIC, "dir_cmd_t", "direction_command_topic") \
+  X(MQTT_DIRECTION_STATE_TOPIC, "dir_stat_t", "direction_state_topic") \
+  X(MQTT_DOCKED_TEMPLATE, "dock_tpl", "docked_template") \
+  X(MQTT_DOCKED_TOPIC, "dock_t", "docked_topic") \
+  X(MQTT_EFFECT_COMMAND_TOPIC, "fx_cmd_t", "effect_command_topic") \
+  X(MQTT_EFFECT_LIST, "fx_list", "effect_list") \
+  X(MQTT_EFFECT_STATE_TOPIC, "fx_stat_t", "effect_state_topic") \
+  X(MQTT_EFFECT_TEMPLATE, "fx_tpl", "effect_template") \
+  X(MQTT_EFFECT_VALUE_TEMPLATE, "fx_val_tpl", "effect_value_template") \
+  X(MQTT_ENABLED_BY_DEFAULT, "en", "enabled_by_default") \
+  X(MQTT_ENTITY_CATEGORY, "ent_cat", "entity_category") \
+  X(MQTT_ERROR_TEMPLATE, "err_tpl", "error_template") \
+  X(MQTT_ERROR_TOPIC, "err_t", "error_topic") \
+  X(MQTT_EVENT_TYPE, "event_type", "event_type") \
+  X(MQTT_EVENT_TYPES, "evt_typ", "event_types") \
+  X(MQTT_EXPIRE_AFTER, "exp_aft", "expire_after") \
+  X(MQTT_FAN_MODE_COMMAND_TEMPLATE, "fan_mode_cmd_tpl", "fan_mode_command_template") \
+  X(MQTT_FAN_MODE_COMMAND_TOPIC, "fan_mode_cmd_t", "fan_mode_command_topic") \
+  X(MQTT_FAN_MODE_STATE_TEMPLATE, "fan_mode_stat_tpl", "fan_mode_state_template") \
+  X(MQTT_FAN_MODE_STATE_TOPIC, "fan_mode_stat_t", "fan_mode_state_topic") \
+  X(MQTT_FAN_SPEED_LIST, "fanspd_lst", "fan_speed_list") \
+  X(MQTT_FAN_SPEED_TEMPLATE, "fanspd_tpl", "fan_speed_template") \
+  X(MQTT_FAN_SPEED_TOPIC, "fanspd_t", "fan_speed_topic") \
+  X(MQTT_FLASH_TIME_LONG, "flsh_tlng", "flash_time_long") \
+  X(MQTT_FLASH_TIME_SHORT, "flsh_tsht", "flash_time_short") \
+  X(MQTT_FORCE_UPDATE, "frc_upd", "force_update") \
+  X(MQTT_GREEN_TEMPLATE, "g_tpl", "green_template") \
+  X(MQTT_HOLD_COMMAND_TEMPLATE, "hold_cmd_tpl", "hold_command_template") \
+  X(MQTT_HOLD_COMMAND_TOPIC, "hold_cmd_t", "hold_command_topic") \
+  X(MQTT_HOLD_STATE_TEMPLATE, "hold_stat_tpl", "hold_state_template") \
+  X(MQTT_HOLD_STATE_TOPIC, "hold_stat_t", "hold_state_topic") \
+  X(MQTT_HS_COMMAND_TOPIC, "hs_cmd_t", "hs_command_topic") \
+  X(MQTT_HS_STATE_TOPIC, "hs_stat_t", "hs_state_topic") \
+  X(MQTT_HS_VALUE_TEMPLATE, "hs_val_tpl", "hs_value_template") \
+  X(MQTT_ICON, "ic", "icon") \
+  X(MQTT_INITIAL, "init", "initial") \
+  X(MQTT_JSON_ATTRIBUTES, "json_attr", "json_attributes") \
+  X(MQTT_JSON_ATTRIBUTES_TEMPLATE, "json_attr_tpl", "json_attributes_template") \
+  X(MQTT_JSON_ATTRIBUTES_TOPIC, "json_attr_t", "json_attributes_topic") \
+  X(MQTT_LAST_RESET_TOPIC, "lrst_t", "last_reset_topic") \
+  X(MQTT_LAST_RESET_VALUE_TEMPLATE, "lrst_val_tpl", "last_reset_value_template") \
+  X(MQTT_MAX, "max", "max") \
+  X(MQTT_MAX_HUMIDITY, "max_hum", "max_humidity") \
+  X(MQTT_MAX_MIREDS, "max_mirs", "max_mireds") \
+  X(MQTT_MAX_TEMP, "max_temp", "max_temp") \
+  X(MQTT_MIN, "min", "min") \
+  X(MQTT_MIN_HUMIDITY, "min_hum", "min_humidity") \
+  X(MQTT_MIN_MIREDS, "min_mirs", "min_mireds") \
+  X(MQTT_MIN_TEMP, "min_temp", "min_temp") \
+  X(MQTT_MODE, "mode", "mode") \
+  X(MQTT_MODE_COMMAND_TEMPLATE, "mode_cmd_tpl", "mode_command_template") \
+  X(MQTT_MODE_COMMAND_TOPIC, "mode_cmd_t", "mode_command_topic") \
+  X(MQTT_MODE_STATE_TEMPLATE, "mode_stat_tpl", "mode_state_template") \
+  X(MQTT_MODE_STATE_TOPIC, "mode_stat_t", "mode_state_topic") \
+  X(MQTT_MODES, "modes", "modes") \
+  X(MQTT_NAME, "name", "name") \
+  X(MQTT_OBJECT_ID, "obj_id", "object_id") \
+  X(MQTT_OFF_DELAY, "off_dly", "off_delay") \
+  X(MQTT_ON_COMMAND_TYPE, "on_cmd_type", "on_command_type") \
+  X(MQTT_OPTIMISTIC, "opt", "optimistic") \
+  X(MQTT_OPTIONS, "ops", "options") \
+  X(MQTT_OSCILLATION_COMMAND_TEMPLATE, "osc_cmd_tpl", "oscillation_command_template") \
+  X(MQTT_OSCILLATION_COMMAND_TOPIC, "osc_cmd_t", "oscillation_command_topic") \
+  X(MQTT_OSCILLATION_STATE_TOPIC, "osc_stat_t", "oscillation_state_topic") \
+  X(MQTT_OSCILLATION_VALUE_TEMPLATE, "osc_val_tpl", "oscillation_value_template") \
+  X(MQTT_PAYLOAD, "pl", "payload") \
+  X(MQTT_PAYLOAD_ARM_AWAY, "pl_arm_away", "payload_arm_away") \
+  X(MQTT_PAYLOAD_ARM_CUSTOM_BYPASS, "pl_arm_custom_b", "payload_arm_custom_bypass") \
+  X(MQTT_PAYLOAD_ARM_HOME, "pl_arm_home", "payload_arm_home") \
+  X(MQTT_PAYLOAD_ARM_NIGHT, "pl_arm_nite", "payload_arm_night") \
+  X(MQTT_PAYLOAD_ARM_VACATION, "pl_arm_vacation", "payload_arm_vacation") \
+  X(MQTT_PAYLOAD_AVAILABLE, "pl_avail", "payload_available") \
+  X(MQTT_PAYLOAD_CLEAN_SPOT, "pl_cln_sp", "payload_clean_spot") \
+  X(MQTT_PAYLOAD_CLOSE, "pl_cls", "payload_close") \
+  X(MQTT_PAYLOAD_DISARM, "pl_disarm", "payload_disarm") \
+  X(MQTT_PAYLOAD_HIGH_SPEED, "pl_hi_spd", "payload_high_speed") \
+  X(MQTT_PAYLOAD_HOME, "pl_home", "payload_home") \
+  X(MQTT_PAYLOAD_INSTALL, "pl_inst", "payload_install") \
+  X(MQTT_PAYLOAD_LOCATE, "pl_loc", "payload_locate") \
+  X(MQTT_PAYLOAD_LOCK, "pl_lock", "payload_lock") \
+  X(MQTT_PAYLOAD_LOW_SPEED, "pl_lo_spd", "payload_low_speed") \
+  X(MQTT_PAYLOAD_MEDIUM_SPEED, "pl_med_spd", "payload_medium_speed") \
+  X(MQTT_PAYLOAD_NOT_AVAILABLE, "pl_not_avail", "payload_not_available") \
+  X(MQTT_PAYLOAD_NOT_HOME, "pl_not_home", "payload_not_home") \
+  X(MQTT_PAYLOAD_OFF, "pl_off", "payload_off") \
+  X(MQTT_PAYLOAD_OFF_SPEED, "pl_off_spd", "payload_off_speed") \
+  X(MQTT_PAYLOAD_ON, "pl_on", "payload_on") \
+  X(MQTT_PAYLOAD_OPEN, "pl_open", "payload_open") \
+  X(MQTT_PAYLOAD_OSCILLATION_OFF, "pl_osc_off", "payload_oscillation_off") \
+  X(MQTT_PAYLOAD_OSCILLATION_ON, "pl_osc_on", "payload_oscillation_on") \
+  X(MQTT_PAYLOAD_PAUSE, "pl_paus", "payload_pause") \
+  X(MQTT_PAYLOAD_RESET, "pl_rst", "payload_reset") \
+  X(MQTT_PAYLOAD_RESET_HUMIDITY, "pl_rst_hum", "payload_reset_humidity") \
+  X(MQTT_PAYLOAD_RESET_MODE, "pl_rst_mode", "payload_reset_mode") \
+  X(MQTT_PAYLOAD_RESET_PERCENTAGE, "pl_rst_pct", "payload_reset_percentage") \
+  X(MQTT_PAYLOAD_RESET_PRESET_MODE, "pl_rst_pr_mode", "payload_reset_preset_mode") \
+  X(MQTT_PAYLOAD_RETURN_TO_BASE, "pl_ret", "payload_return_to_base") \
+  X(MQTT_PAYLOAD_START, "pl_strt", "payload_start") \
+  X(MQTT_PAYLOAD_START_PAUSE, "pl_stpa", "payload_start_pause") \
+  X(MQTT_PAYLOAD_STOP, "pl_stop", "payload_stop") \
+  X(MQTT_PAYLOAD_TURN_OFF, "pl_toff", "payload_turn_off") \
+  X(MQTT_PAYLOAD_TURN_ON, "pl_ton", "payload_turn_on") \
+  X(MQTT_PAYLOAD_UNLOCK, "pl_unlk", "payload_unlock") \
+  X(MQTT_PERCENTAGE_COMMAND_TEMPLATE, "pct_cmd_tpl", "percentage_command_template") \
+  X(MQTT_PERCENTAGE_COMMAND_TOPIC, "pct_cmd_t", "percentage_command_topic") \
+  X(MQTT_PERCENTAGE_STATE_TOPIC, "pct_stat_t", "percentage_state_topic") \
+  X(MQTT_PERCENTAGE_VALUE_TEMPLATE, "pct_val_tpl", "percentage_value_template") \
+  X(MQTT_POSITION_CLOSED, "pos_clsd", "position_closed") \
+  X(MQTT_POSITION_OPEN, "pos_open", "position_open") \
+  X(MQTT_POSITION_TEMPLATE, "pos_tpl", "position_template") \
+  X(MQTT_POSITION_TOPIC, "pos_t", "position_topic") \
+  X(MQTT_POWER_COMMAND_TOPIC, "pow_cmd_t", "power_command_topic") \
+  X(MQTT_POWER_STATE_TEMPLATE, "pow_stat_tpl", "power_state_template") \
+  X(MQTT_POWER_STATE_TOPIC, "pow_stat_t", "power_state_topic") \
+  X(MQTT_PRESET_MODE_COMMAND_TEMPLATE, "pr_mode_cmd_tpl", "preset_mode_command_template") \
+  X(MQTT_PRESET_MODE_COMMAND_TOPIC, "pr_mode_cmd_t", "preset_mode_command_topic") \
+  X(MQTT_PRESET_MODE_STATE_TOPIC, "pr_mode_stat_t", "preset_mode_state_topic") \
+  X(MQTT_PRESET_MODE_VALUE_TEMPLATE, "pr_mode_val_tpl", "preset_mode_value_template") \
+  X(MQTT_PRESET_MODES, "pr_modes", "preset_modes") \
+  X(MQTT_QOS, "qos", "qos") \
+  X(MQTT_RED_TEMPLATE, "r_tpl", "red_template") \
+  X(MQTT_RETAIN, "ret", "retain") \
+  X(MQTT_RGB_COMMAND_TEMPLATE, "rgb_cmd_tpl", "rgb_command_template") \
+  X(MQTT_RGB_COMMAND_TOPIC, "rgb_cmd_t", "rgb_command_topic") \
+  X(MQTT_RGB_STATE_TOPIC, "rgb_stat_t", "rgb_state_topic") \
+  X(MQTT_RGB_VALUE_TEMPLATE, "rgb_val_tpl", "rgb_value_template") \
+  X(MQTT_RGBW_COMMAND_TEMPLATE, "rgbw_cmd_tpl", "rgbw_command_template") \
+  X(MQTT_RGBW_COMMAND_TOPIC, "rgbw_cmd_t", "rgbw_command_topic") \
+  X(MQTT_RGBW_STATE_TOPIC, "rgbw_stat_t", "rgbw_state_topic") \
+  X(MQTT_RGBW_VALUE_TEMPLATE, "rgbw_val_tpl", "rgbw_value_template") \
+  X(MQTT_RGBWW_COMMAND_TEMPLATE, "rgbww_cmd_tpl", "rgbww_command_template") \
+  X(MQTT_RGBWW_COMMAND_TOPIC, "rgbww_cmd_t", "rgbww_command_topic") \
+  X(MQTT_RGBWW_STATE_TOPIC, "rgbww_stat_t", "rgbww_state_topic") \
+  X(MQTT_RGBWW_VALUE_TEMPLATE, "rgbww_val_tpl", "rgbww_value_template") \
+  X(MQTT_SEND_COMMAND_TOPIC, "send_cmd_t", "send_command_topic") \
+  X(MQTT_SEND_IF_OFF, "send_if_off", "send_if_off") \
+  X(MQTT_SET_FAN_SPEED_TOPIC, "set_fan_spd_t", "set_fan_speed_topic") \
+  X(MQTT_SET_POSITION_TEMPLATE, "set_pos_tpl", "set_position_template") \
+  X(MQTT_SET_POSITION_TOPIC, "set_pos_t", "set_position_topic") \
+  X(MQTT_SOURCE_TYPE, "src_type", "source_type") \
+  X(MQTT_SPEED_COMMAND_TOPIC, "spd_cmd_t", "speed_command_topic") \
+  X(MQTT_SPEED_RANGE_MAX, "spd_rng_max", "speed_range_max") \
+  X(MQTT_SPEED_RANGE_MIN, "spd_rng_min", "speed_range_min") \
+  X(MQTT_SPEED_STATE_TOPIC, "spd_stat_t", "speed_state_topic") \
+  X(MQTT_SPEED_VALUE_TEMPLATE, "spd_val_tpl", "speed_value_template") \
+  X(MQTT_SPEEDS, "spds", "speeds") \
+  X(MQTT_STATE_CLASS, "stat_cla", "state_class") \
+  X(MQTT_STATE_CLOSED, "stat_clsd", "state_closed") \
+  X(MQTT_STATE_CLOSING, "stat_closing", "state_closing") \
+  X(MQTT_STATE_LOCKED, "stat_locked", "state_locked") \
+  X(MQTT_STATE_OFF, "stat_off", "state_off") \
+  X(MQTT_STATE_ON, "stat_on", "state_on") \
+  X(MQTT_STATE_OPEN, "stat_open", "state_open") \
+  X(MQTT_STATE_OPENING, "stat_opening", "state_opening") \
+  X(MQTT_STATE_STOPPED, "stat_stopped", "state_stopped") \
+  X(MQTT_STATE_TEMPLATE, "stat_tpl", "state_template") \
+  X(MQTT_STATE_TOPIC, "stat_t", "state_topic") \
+  X(MQTT_STATE_UNLOCKED, "stat_unlocked", "state_unlocked") \
+  X(MQTT_STATE_VALUE_TEMPLATE, "stat_val_tpl", "state_value_template") \
+  X(MQTT_STEP, "step", "step") \
+  X(MQTT_SUBTYPE, "stype", "subtype") \
+  X(MQTT_SUPPORTED_COLOR_MODES, "sup_clrm", "supported_color_modes") \
+  X(MQTT_SUPPORTED_FEATURES, "sup_feat", "supported_features") \
+  X(MQTT_SWING_MODE_COMMAND_TEMPLATE, "swing_mode_cmd_tpl", "swing_mode_command_template") \
+  X(MQTT_SWING_MODE_COMMAND_TOPIC, "swing_mode_cmd_t", "swing_mode_command_topic") \
+  X(MQTT_SWING_MODE_STATE_TEMPLATE, "swing_mode_stat_tpl", "swing_mode_state_template") \
+  X(MQTT_SWING_MODE_STATE_TOPIC, "swing_mode_stat_t", "swing_mode_state_topic") \
+  X(MQTT_TARGET_HUMIDITY_COMMAND_TEMPLATE, "hum_cmd_tpl", "target_humidity_command_template") \
+  X(MQTT_TARGET_HUMIDITY_COMMAND_TOPIC, "hum_cmd_t", "target_humidity_command_topic") \
+  X(MQTT_TARGET_HUMIDITY_STATE_TEMPLATE, "hum_state_tpl", "target_humidity_state_template") \
+  X(MQTT_TARGET_HUMIDITY_STATE_TOPIC, "hum_stat_t", "target_humidity_state_topic") \
+  X(MQTT_TARGET_TEMPERATURE_STEP, "temp_step", "temp_step") \
+  X(MQTT_TEMPERATURE_COMMAND_TEMPLATE, "temp_cmd_tpl", "temperature_command_template") \
+  X(MQTT_TEMPERATURE_COMMAND_TOPIC, "temp_cmd_t", "temperature_command_topic") \
+  X(MQTT_TEMPERATURE_HIGH_COMMAND_TEMPLATE, "temp_hi_cmd_tpl", "temperature_high_command_template") \
+  X(MQTT_TEMPERATURE_HIGH_COMMAND_TOPIC, "temp_hi_cmd_t", "temperature_high_command_topic") \
+  X(MQTT_TEMPERATURE_HIGH_STATE_TEMPLATE, "temp_hi_stat_tpl", "temperature_high_state_template") \
+  X(MQTT_TEMPERATURE_HIGH_STATE_TOPIC, "temp_hi_stat_t", "temperature_high_state_topic") \
+  X(MQTT_TEMPERATURE_LOW_COMMAND_TEMPLATE, "temp_lo_cmd_tpl", "temperature_low_command_template") \
+  X(MQTT_TEMPERATURE_LOW_COMMAND_TOPIC, "temp_lo_cmd_t", "temperature_low_command_topic") \
+  X(MQTT_TEMPERATURE_LOW_STATE_TEMPLATE, "temp_lo_stat_tpl", "temperature_low_state_template") \
+  X(MQTT_TEMPERATURE_LOW_STATE_TOPIC, "temp_lo_stat_t", "temperature_low_state_topic") \
+  X(MQTT_TEMPERATURE_STATE_TEMPLATE, "temp_stat_tpl", "temperature_state_template") \
+  X(MQTT_TEMPERATURE_STATE_TOPIC, "temp_stat_t", "temperature_state_topic") \
+  X(MQTT_TEMPERATURE_UNIT, "temp_unit", "temperature_unit") \
+  X(MQTT_TILT_CLOSED_VALUE, "tilt_clsd_val", "tilt_closed_value") \
+  X(MQTT_TILT_COMMAND_TEMPLATE, "tilt_cmd_tpl", "tilt_command_template") \
+  X(MQTT_TILT_COMMAND_TOPIC, "tilt_cmd_t", "tilt_command_topic") \
+  X(MQTT_TILT_INVERT_STATE, "tilt_inv_stat", "tilt_invert_state") \
+  X(MQTT_TILT_MAX, "tilt_max", "tilt_max") \
+  X(MQTT_TILT_MIN, "tilt_min", "tilt_min") \
+  X(MQTT_TILT_OPENED_VALUE, "tilt_opnd_val", "tilt_opened_value") \
+  X(MQTT_TILT_OPTIMISTIC, "tilt_opt", "tilt_optimistic") \
+  X(MQTT_TILT_STATUS_TEMPLATE, "tilt_status_tpl", "tilt_status_template") \
+  X(MQTT_TILT_STATUS_TOPIC, "tilt_status_t", "tilt_status_topic") \
+  X(MQTT_TOPIC, "t", "topic") \
+  X(MQTT_UNIQUE_ID, "uniq_id", "unique_id") \
+  X(MQTT_UNIT_OF_MEASUREMENT, "unit_of_meas", "unit_of_measurement") \
+  X(MQTT_VALUE_TEMPLATE, "val_tpl", "value_template") \
+  X(MQTT_WHITE_COMMAND_TOPIC, "whit_cmd_t", "white_command_topic") \
+  X(MQTT_WHITE_SCALE, "whit_scl", "white_scale") \
+  X(MQTT_WHITE_VALUE_COMMAND_TOPIC, "whit_val_cmd_t", "white_value_command_topic") \
+  X(MQTT_WHITE_VALUE_SCALE, "whit_val_scl", "white_value_scale") \
+  X(MQTT_WHITE_VALUE_STATE_TOPIC, "whit_val_stat_t", "white_value_state_topic") \
+  X(MQTT_WHITE_VALUE_TEMPLATE, "whit_val_tpl", "white_value_template") \
+  X(MQTT_XY_COMMAND_TOPIC, "xy_cmd_t", "xy_command_topic") \
+  X(MQTT_XY_STATE_TOPIC, "xy_stat_t", "xy_state_topic") \
+  X(MQTT_XY_VALUE_TEMPLATE, "xy_val_tpl", "xy_value_template")
 // clang-format on
 
+#ifdef USE_ESP8266
+// ESP8266: F() macro only works inside functions, so we use macros that expand at call site.
+// These are global preprocessor macros (MQTT_ prefix serves as pseudo-namespace).
+// The MQTT_* macros expand to ESPHOME_F(MQTT_STR_*) which becomes F("...") on ESP8266,
+// storing strings in PROGMEM (flash) rather than RAM.
+// clang-format off
+#define MQTT_ACTION_TEMPLATE ESPHOME_F(MQTT_STR_ACTION_TEMPLATE)
+#define MQTT_ACTION_TOPIC ESPHOME_F(MQTT_STR_ACTION_TOPIC)
+#define MQTT_AUTOMATION_TYPE ESPHOME_F(MQTT_STR_AUTOMATION_TYPE)
+#define MQTT_AUX_COMMAND_TOPIC ESPHOME_F(MQTT_STR_AUX_COMMAND_TOPIC)
+#define MQTT_AUX_STATE_TEMPLATE ESPHOME_F(MQTT_STR_AUX_STATE_TEMPLATE)
+#define MQTT_AUX_STATE_TOPIC ESPHOME_F(MQTT_STR_AUX_STATE_TOPIC)
+#define MQTT_AVAILABILITY ESPHOME_F(MQTT_STR_AVAILABILITY)
+#define MQTT_AVAILABILITY_MODE ESPHOME_F(MQTT_STR_AVAILABILITY_MODE)
+#define MQTT_AVAILABILITY_TOPIC ESPHOME_F(MQTT_STR_AVAILABILITY_TOPIC)
+#define MQTT_AWAY_MODE_COMMAND_TOPIC ESPHOME_F(MQTT_STR_AWAY_MODE_COMMAND_TOPIC)
+#define MQTT_AWAY_MODE_STATE_TEMPLATE ESPHOME_F(MQTT_STR_AWAY_MODE_STATE_TEMPLATE)
+#define MQTT_AWAY_MODE_STATE_TOPIC ESPHOME_F(MQTT_STR_AWAY_MODE_STATE_TOPIC)
+#define MQTT_BATTERY_LEVEL_TEMPLATE ESPHOME_F(MQTT_STR_BATTERY_LEVEL_TEMPLATE)
+#define MQTT_BATTERY_LEVEL_TOPIC ESPHOME_F(MQTT_STR_BATTERY_LEVEL_TOPIC)
+#define MQTT_BLUE_TEMPLATE ESPHOME_F(MQTT_STR_BLUE_TEMPLATE)
+#define MQTT_BRIGHTNESS_COMMAND_TOPIC ESPHOME_F(MQTT_STR_BRIGHTNESS_COMMAND_TOPIC)
+#define MQTT_BRIGHTNESS_SCALE ESPHOME_F(MQTT_STR_BRIGHTNESS_SCALE)
+#define MQTT_BRIGHTNESS_STATE_TOPIC ESPHOME_F(MQTT_STR_BRIGHTNESS_STATE_TOPIC)
+#define MQTT_BRIGHTNESS_TEMPLATE ESPHOME_F(MQTT_STR_BRIGHTNESS_TEMPLATE)
+#define MQTT_BRIGHTNESS_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_BRIGHTNESS_VALUE_TEMPLATE)
+#define MQTT_CHARGING_TEMPLATE ESPHOME_F(MQTT_STR_CHARGING_TEMPLATE)
+#define MQTT_CHARGING_TOPIC ESPHOME_F(MQTT_STR_CHARGING_TOPIC)
+#define MQTT_CLEANING_TEMPLATE ESPHOME_F(MQTT_STR_CLEANING_TEMPLATE)
+#define MQTT_CLEANING_TOPIC ESPHOME_F(MQTT_STR_CLEANING_TOPIC)
+#define MQTT_CODE_ARM_REQUIRED ESPHOME_F(MQTT_STR_CODE_ARM_REQUIRED)
+#define MQTT_CODE_DISARM_REQUIRED ESPHOME_F(MQTT_STR_CODE_DISARM_REQUIRED)
+#define MQTT_COLOR_MODE ESPHOME_F(MQTT_STR_COLOR_MODE)
+#define MQTT_COLOR_MODE_STATE_TOPIC ESPHOME_F(MQTT_STR_COLOR_MODE_STATE_TOPIC)
+#define MQTT_COLOR_MODE_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_COLOR_MODE_VALUE_TEMPLATE)
+#define MQTT_COLOR_TEMP_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_COLOR_TEMP_COMMAND_TEMPLATE)
+#define MQTT_COLOR_TEMP_COMMAND_TOPIC ESPHOME_F(MQTT_STR_COLOR_TEMP_COMMAND_TOPIC)
+#define MQTT_COLOR_TEMP_STATE_TOPIC ESPHOME_F(MQTT_STR_COLOR_TEMP_STATE_TOPIC)
+#define MQTT_COLOR_TEMP_TEMPLATE ESPHOME_F(MQTT_STR_COLOR_TEMP_TEMPLATE)
+#define MQTT_COLOR_TEMP_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_COLOR_TEMP_VALUE_TEMPLATE)
+#define MQTT_COMMAND_OFF_TEMPLATE ESPHOME_F(MQTT_STR_COMMAND_OFF_TEMPLATE)
+#define MQTT_COMMAND_ON_TEMPLATE ESPHOME_F(MQTT_STR_COMMAND_ON_TEMPLATE)
+#define MQTT_COMMAND_RETAIN ESPHOME_F(MQTT_STR_COMMAND_RETAIN)
+#define MQTT_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_COMMAND_TEMPLATE)
+#define MQTT_COMMAND_TOPIC ESPHOME_F(MQTT_STR_COMMAND_TOPIC)
+#define MQTT_CONFIGURATION_URL ESPHOME_F(MQTT_STR_CONFIGURATION_URL)
+#define MQTT_CURRENT_HUMIDITY_TEMPLATE ESPHOME_F(MQTT_STR_CURRENT_HUMIDITY_TEMPLATE)
+#define MQTT_CURRENT_HUMIDITY_TOPIC ESPHOME_F(MQTT_STR_CURRENT_HUMIDITY_TOPIC)
+#define MQTT_CURRENT_TEMPERATURE_STEP ESPHOME_F(MQTT_STR_CURRENT_TEMPERATURE_STEP)
+#define MQTT_CURRENT_TEMPERATURE_TEMPLATE ESPHOME_F(MQTT_STR_CURRENT_TEMPERATURE_TEMPLATE)
+#define MQTT_CURRENT_TEMPERATURE_TOPIC ESPHOME_F(MQTT_STR_CURRENT_TEMPERATURE_TOPIC)
+#define MQTT_DEVICE ESPHOME_F(MQTT_STR_DEVICE)
+#define MQTT_DEVICE_CLASS ESPHOME_F(MQTT_STR_DEVICE_CLASS)
+#define MQTT_DEVICE_CONNECTIONS ESPHOME_F(MQTT_STR_DEVICE_CONNECTIONS)
+#define MQTT_DEVICE_IDENTIFIERS ESPHOME_F(MQTT_STR_DEVICE_IDENTIFIERS)
+#define MQTT_DEVICE_MANUFACTURER ESPHOME_F(MQTT_STR_DEVICE_MANUFACTURER)
+#define MQTT_DEVICE_MODEL ESPHOME_F(MQTT_STR_DEVICE_MODEL)
+#define MQTT_DEVICE_NAME ESPHOME_F(MQTT_STR_DEVICE_NAME)
+#define MQTT_DEVICE_SUGGESTED_AREA ESPHOME_F(MQTT_STR_DEVICE_SUGGESTED_AREA)
+#define MQTT_DEVICE_SW_VERSION ESPHOME_F(MQTT_STR_DEVICE_SW_VERSION)
+#define MQTT_DEVICE_HW_VERSION ESPHOME_F(MQTT_STR_DEVICE_HW_VERSION)
+#define MQTT_DIRECTION_COMMAND_TOPIC ESPHOME_F(MQTT_STR_DIRECTION_COMMAND_TOPIC)
+#define MQTT_DIRECTION_STATE_TOPIC ESPHOME_F(MQTT_STR_DIRECTION_STATE_TOPIC)
+#define MQTT_DOCKED_TEMPLATE ESPHOME_F(MQTT_STR_DOCKED_TEMPLATE)
+#define MQTT_DOCKED_TOPIC ESPHOME_F(MQTT_STR_DOCKED_TOPIC)
+#define MQTT_EFFECT_COMMAND_TOPIC ESPHOME_F(MQTT_STR_EFFECT_COMMAND_TOPIC)
+#define MQTT_EFFECT_LIST ESPHOME_F(MQTT_STR_EFFECT_LIST)
+#define MQTT_EFFECT_STATE_TOPIC ESPHOME_F(MQTT_STR_EFFECT_STATE_TOPIC)
+#define MQTT_EFFECT_TEMPLATE ESPHOME_F(MQTT_STR_EFFECT_TEMPLATE)
+#define MQTT_EFFECT_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_EFFECT_VALUE_TEMPLATE)
+#define MQTT_ENABLED_BY_DEFAULT ESPHOME_F(MQTT_STR_ENABLED_BY_DEFAULT)
+#define MQTT_ENTITY_CATEGORY ESPHOME_F(MQTT_STR_ENTITY_CATEGORY)
+#define MQTT_ERROR_TEMPLATE ESPHOME_F(MQTT_STR_ERROR_TEMPLATE)
+#define MQTT_ERROR_TOPIC ESPHOME_F(MQTT_STR_ERROR_TOPIC)
+#define MQTT_EVENT_TYPE ESPHOME_F(MQTT_STR_EVENT_TYPE)
+#define MQTT_EVENT_TYPES ESPHOME_F(MQTT_STR_EVENT_TYPES)
+#define MQTT_EXPIRE_AFTER ESPHOME_F(MQTT_STR_EXPIRE_AFTER)
+#define MQTT_FAN_MODE_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_FAN_MODE_COMMAND_TEMPLATE)
+#define MQTT_FAN_MODE_COMMAND_TOPIC ESPHOME_F(MQTT_STR_FAN_MODE_COMMAND_TOPIC)
+#define MQTT_FAN_MODE_STATE_TEMPLATE ESPHOME_F(MQTT_STR_FAN_MODE_STATE_TEMPLATE)
+#define MQTT_FAN_MODE_STATE_TOPIC ESPHOME_F(MQTT_STR_FAN_MODE_STATE_TOPIC)
+#define MQTT_FAN_SPEED_LIST ESPHOME_F(MQTT_STR_FAN_SPEED_LIST)
+#define MQTT_FAN_SPEED_TEMPLATE ESPHOME_F(MQTT_STR_FAN_SPEED_TEMPLATE)
+#define MQTT_FAN_SPEED_TOPIC ESPHOME_F(MQTT_STR_FAN_SPEED_TOPIC)
+#define MQTT_FLASH_TIME_LONG ESPHOME_F(MQTT_STR_FLASH_TIME_LONG)
+#define MQTT_FLASH_TIME_SHORT ESPHOME_F(MQTT_STR_FLASH_TIME_SHORT)
+#define MQTT_FORCE_UPDATE ESPHOME_F(MQTT_STR_FORCE_UPDATE)
+#define MQTT_GREEN_TEMPLATE ESPHOME_F(MQTT_STR_GREEN_TEMPLATE)
+#define MQTT_HOLD_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_HOLD_COMMAND_TEMPLATE)
+#define MQTT_HOLD_COMMAND_TOPIC ESPHOME_F(MQTT_STR_HOLD_COMMAND_TOPIC)
+#define MQTT_HOLD_STATE_TEMPLATE ESPHOME_F(MQTT_STR_HOLD_STATE_TEMPLATE)
+#define MQTT_HOLD_STATE_TOPIC ESPHOME_F(MQTT_STR_HOLD_STATE_TOPIC)
+#define MQTT_HS_COMMAND_TOPIC ESPHOME_F(MQTT_STR_HS_COMMAND_TOPIC)
+#define MQTT_HS_STATE_TOPIC ESPHOME_F(MQTT_STR_HS_STATE_TOPIC)
+#define MQTT_HS_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_HS_VALUE_TEMPLATE)
+#define MQTT_ICON ESPHOME_F(MQTT_STR_ICON)
+#define MQTT_INITIAL ESPHOME_F(MQTT_STR_INITIAL)
+#define MQTT_JSON_ATTRIBUTES ESPHOME_F(MQTT_STR_JSON_ATTRIBUTES)
+#define MQTT_JSON_ATTRIBUTES_TEMPLATE ESPHOME_F(MQTT_STR_JSON_ATTRIBUTES_TEMPLATE)
+#define MQTT_JSON_ATTRIBUTES_TOPIC ESPHOME_F(MQTT_STR_JSON_ATTRIBUTES_TOPIC)
+#define MQTT_LAST_RESET_TOPIC ESPHOME_F(MQTT_STR_LAST_RESET_TOPIC)
+#define MQTT_LAST_RESET_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_LAST_RESET_VALUE_TEMPLATE)
+#define MQTT_MAX ESPHOME_F(MQTT_STR_MAX)
+#define MQTT_MAX_HUMIDITY ESPHOME_F(MQTT_STR_MAX_HUMIDITY)
+#define MQTT_MAX_MIREDS ESPHOME_F(MQTT_STR_MAX_MIREDS)
+#define MQTT_MAX_TEMP ESPHOME_F(MQTT_STR_MAX_TEMP)
+#define MQTT_MIN ESPHOME_F(MQTT_STR_MIN)
+#define MQTT_MIN_HUMIDITY ESPHOME_F(MQTT_STR_MIN_HUMIDITY)
+#define MQTT_MIN_MIREDS ESPHOME_F(MQTT_STR_MIN_MIREDS)
+#define MQTT_MIN_TEMP ESPHOME_F(MQTT_STR_MIN_TEMP)
+#define MQTT_MODE ESPHOME_F(MQTT_STR_MODE)
+#define MQTT_MODE_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_MODE_COMMAND_TEMPLATE)
+#define MQTT_MODE_COMMAND_TOPIC ESPHOME_F(MQTT_STR_MODE_COMMAND_TOPIC)
+#define MQTT_MODE_STATE_TEMPLATE ESPHOME_F(MQTT_STR_MODE_STATE_TEMPLATE)
+#define MQTT_MODE_STATE_TOPIC ESPHOME_F(MQTT_STR_MODE_STATE_TOPIC)
+#define MQTT_MODES ESPHOME_F(MQTT_STR_MODES)
+#define MQTT_NAME ESPHOME_F(MQTT_STR_NAME)
+#define MQTT_OBJECT_ID ESPHOME_F(MQTT_STR_OBJECT_ID)
+#define MQTT_OFF_DELAY ESPHOME_F(MQTT_STR_OFF_DELAY)
+#define MQTT_ON_COMMAND_TYPE ESPHOME_F(MQTT_STR_ON_COMMAND_TYPE)
+#define MQTT_OPTIMISTIC ESPHOME_F(MQTT_STR_OPTIMISTIC)
+#define MQTT_OPTIONS ESPHOME_F(MQTT_STR_OPTIONS)
+#define MQTT_OSCILLATION_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_OSCILLATION_COMMAND_TEMPLATE)
+#define MQTT_OSCILLATION_COMMAND_TOPIC ESPHOME_F(MQTT_STR_OSCILLATION_COMMAND_TOPIC)
+#define MQTT_OSCILLATION_STATE_TOPIC ESPHOME_F(MQTT_STR_OSCILLATION_STATE_TOPIC)
+#define MQTT_OSCILLATION_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_OSCILLATION_VALUE_TEMPLATE)
+#define MQTT_PAYLOAD ESPHOME_F(MQTT_STR_PAYLOAD)
+#define MQTT_PAYLOAD_ARM_AWAY ESPHOME_F(MQTT_STR_PAYLOAD_ARM_AWAY)
+#define MQTT_PAYLOAD_ARM_CUSTOM_BYPASS ESPHOME_F(MQTT_STR_PAYLOAD_ARM_CUSTOM_BYPASS)
+#define MQTT_PAYLOAD_ARM_HOME ESPHOME_F(MQTT_STR_PAYLOAD_ARM_HOME)
+#define MQTT_PAYLOAD_ARM_NIGHT ESPHOME_F(MQTT_STR_PAYLOAD_ARM_NIGHT)
+#define MQTT_PAYLOAD_ARM_VACATION ESPHOME_F(MQTT_STR_PAYLOAD_ARM_VACATION)
+#define MQTT_PAYLOAD_AVAILABLE ESPHOME_F(MQTT_STR_PAYLOAD_AVAILABLE)
+#define MQTT_PAYLOAD_CLEAN_SPOT ESPHOME_F(MQTT_STR_PAYLOAD_CLEAN_SPOT)
+#define MQTT_PAYLOAD_CLOSE ESPHOME_F(MQTT_STR_PAYLOAD_CLOSE)
+#define MQTT_PAYLOAD_DISARM ESPHOME_F(MQTT_STR_PAYLOAD_DISARM)
+#define MQTT_PAYLOAD_HIGH_SPEED ESPHOME_F(MQTT_STR_PAYLOAD_HIGH_SPEED)
+#define MQTT_PAYLOAD_HOME ESPHOME_F(MQTT_STR_PAYLOAD_HOME)
+#define MQTT_PAYLOAD_INSTALL ESPHOME_F(MQTT_STR_PAYLOAD_INSTALL)
+#define MQTT_PAYLOAD_LOCATE ESPHOME_F(MQTT_STR_PAYLOAD_LOCATE)
+#define MQTT_PAYLOAD_LOCK ESPHOME_F(MQTT_STR_PAYLOAD_LOCK)
+#define MQTT_PAYLOAD_LOW_SPEED ESPHOME_F(MQTT_STR_PAYLOAD_LOW_SPEED)
+#define MQTT_PAYLOAD_MEDIUM_SPEED ESPHOME_F(MQTT_STR_PAYLOAD_MEDIUM_SPEED)
+#define MQTT_PAYLOAD_NOT_AVAILABLE ESPHOME_F(MQTT_STR_PAYLOAD_NOT_AVAILABLE)
+#define MQTT_PAYLOAD_NOT_HOME ESPHOME_F(MQTT_STR_PAYLOAD_NOT_HOME)
+#define MQTT_PAYLOAD_OFF ESPHOME_F(MQTT_STR_PAYLOAD_OFF)
+#define MQTT_PAYLOAD_OFF_SPEED ESPHOME_F(MQTT_STR_PAYLOAD_OFF_SPEED)
+#define MQTT_PAYLOAD_ON ESPHOME_F(MQTT_STR_PAYLOAD_ON)
+#define MQTT_PAYLOAD_OPEN ESPHOME_F(MQTT_STR_PAYLOAD_OPEN)
+#define MQTT_PAYLOAD_OSCILLATION_OFF ESPHOME_F(MQTT_STR_PAYLOAD_OSCILLATION_OFF)
+#define MQTT_PAYLOAD_OSCILLATION_ON ESPHOME_F(MQTT_STR_PAYLOAD_OSCILLATION_ON)
+#define MQTT_PAYLOAD_PAUSE ESPHOME_F(MQTT_STR_PAYLOAD_PAUSE)
+#define MQTT_PAYLOAD_RESET ESPHOME_F(MQTT_STR_PAYLOAD_RESET)
+#define MQTT_PAYLOAD_RESET_HUMIDITY ESPHOME_F(MQTT_STR_PAYLOAD_RESET_HUMIDITY)
+#define MQTT_PAYLOAD_RESET_MODE ESPHOME_F(MQTT_STR_PAYLOAD_RESET_MODE)
+#define MQTT_PAYLOAD_RESET_PERCENTAGE ESPHOME_F(MQTT_STR_PAYLOAD_RESET_PERCENTAGE)
+#define MQTT_PAYLOAD_RESET_PRESET_MODE ESPHOME_F(MQTT_STR_PAYLOAD_RESET_PRESET_MODE)
+#define MQTT_PAYLOAD_RETURN_TO_BASE ESPHOME_F(MQTT_STR_PAYLOAD_RETURN_TO_BASE)
+#define MQTT_PAYLOAD_START ESPHOME_F(MQTT_STR_PAYLOAD_START)
+#define MQTT_PAYLOAD_START_PAUSE ESPHOME_F(MQTT_STR_PAYLOAD_START_PAUSE)
+#define MQTT_PAYLOAD_STOP ESPHOME_F(MQTT_STR_PAYLOAD_STOP)
+#define MQTT_PAYLOAD_TURN_OFF ESPHOME_F(MQTT_STR_PAYLOAD_TURN_OFF)
+#define MQTT_PAYLOAD_TURN_ON ESPHOME_F(MQTT_STR_PAYLOAD_TURN_ON)
+#define MQTT_PAYLOAD_UNLOCK ESPHOME_F(MQTT_STR_PAYLOAD_UNLOCK)
+#define MQTT_PERCENTAGE_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_PERCENTAGE_COMMAND_TEMPLATE)
+#define MQTT_PERCENTAGE_COMMAND_TOPIC ESPHOME_F(MQTT_STR_PERCENTAGE_COMMAND_TOPIC)
+#define MQTT_PERCENTAGE_STATE_TOPIC ESPHOME_F(MQTT_STR_PERCENTAGE_STATE_TOPIC)
+#define MQTT_PERCENTAGE_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_PERCENTAGE_VALUE_TEMPLATE)
+#define MQTT_POSITION_CLOSED ESPHOME_F(MQTT_STR_POSITION_CLOSED)
+#define MQTT_POSITION_OPEN ESPHOME_F(MQTT_STR_POSITION_OPEN)
+#define MQTT_POSITION_TEMPLATE ESPHOME_F(MQTT_STR_POSITION_TEMPLATE)
+#define MQTT_POSITION_TOPIC ESPHOME_F(MQTT_STR_POSITION_TOPIC)
+#define MQTT_POWER_COMMAND_TOPIC ESPHOME_F(MQTT_STR_POWER_COMMAND_TOPIC)
+#define MQTT_POWER_STATE_TEMPLATE ESPHOME_F(MQTT_STR_POWER_STATE_TEMPLATE)
+#define MQTT_POWER_STATE_TOPIC ESPHOME_F(MQTT_STR_POWER_STATE_TOPIC)
+#define MQTT_PRESET_MODE_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_PRESET_MODE_COMMAND_TEMPLATE)
+#define MQTT_PRESET_MODE_COMMAND_TOPIC ESPHOME_F(MQTT_STR_PRESET_MODE_COMMAND_TOPIC)
+#define MQTT_PRESET_MODE_STATE_TOPIC ESPHOME_F(MQTT_STR_PRESET_MODE_STATE_TOPIC)
+#define MQTT_PRESET_MODE_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_PRESET_MODE_VALUE_TEMPLATE)
+#define MQTT_PRESET_MODES ESPHOME_F(MQTT_STR_PRESET_MODES)
+#define MQTT_QOS ESPHOME_F(MQTT_STR_QOS)
+#define MQTT_RED_TEMPLATE ESPHOME_F(MQTT_STR_RED_TEMPLATE)
+#define MQTT_RETAIN ESPHOME_F(MQTT_STR_RETAIN)
+#define MQTT_RGB_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_RGB_COMMAND_TEMPLATE)
+#define MQTT_RGB_COMMAND_TOPIC ESPHOME_F(MQTT_STR_RGB_COMMAND_TOPIC)
+#define MQTT_RGB_STATE_TOPIC ESPHOME_F(MQTT_STR_RGB_STATE_TOPIC)
+#define MQTT_RGB_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_RGB_VALUE_TEMPLATE)
+#define MQTT_RGBW_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_RGBW_COMMAND_TEMPLATE)
+#define MQTT_RGBW_COMMAND_TOPIC ESPHOME_F(MQTT_STR_RGBW_COMMAND_TOPIC)
+#define MQTT_RGBW_STATE_TOPIC ESPHOME_F(MQTT_STR_RGBW_STATE_TOPIC)
+#define MQTT_RGBW_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_RGBW_VALUE_TEMPLATE)
+#define MQTT_RGBWW_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_RGBWW_COMMAND_TEMPLATE)
+#define MQTT_RGBWW_COMMAND_TOPIC ESPHOME_F(MQTT_STR_RGBWW_COMMAND_TOPIC)
+#define MQTT_RGBWW_STATE_TOPIC ESPHOME_F(MQTT_STR_RGBWW_STATE_TOPIC)
+#define MQTT_RGBWW_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_RGBWW_VALUE_TEMPLATE)
+#define MQTT_SEND_COMMAND_TOPIC ESPHOME_F(MQTT_STR_SEND_COMMAND_TOPIC)
+#define MQTT_SEND_IF_OFF ESPHOME_F(MQTT_STR_SEND_IF_OFF)
+#define MQTT_SET_FAN_SPEED_TOPIC ESPHOME_F(MQTT_STR_SET_FAN_SPEED_TOPIC)
+#define MQTT_SET_POSITION_TEMPLATE ESPHOME_F(MQTT_STR_SET_POSITION_TEMPLATE)
+#define MQTT_SET_POSITION_TOPIC ESPHOME_F(MQTT_STR_SET_POSITION_TOPIC)
+#define MQTT_SOURCE_TYPE ESPHOME_F(MQTT_STR_SOURCE_TYPE)
+#define MQTT_SPEED_COMMAND_TOPIC ESPHOME_F(MQTT_STR_SPEED_COMMAND_TOPIC)
+#define MQTT_SPEED_RANGE_MAX ESPHOME_F(MQTT_STR_SPEED_RANGE_MAX)
+#define MQTT_SPEED_RANGE_MIN ESPHOME_F(MQTT_STR_SPEED_RANGE_MIN)
+#define MQTT_SPEED_STATE_TOPIC ESPHOME_F(MQTT_STR_SPEED_STATE_TOPIC)
+#define MQTT_SPEED_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_SPEED_VALUE_TEMPLATE)
+#define MQTT_SPEEDS ESPHOME_F(MQTT_STR_SPEEDS)
+#define MQTT_STATE_CLASS ESPHOME_F(MQTT_STR_STATE_CLASS)
+#define MQTT_STATE_CLOSED ESPHOME_F(MQTT_STR_STATE_CLOSED)
+#define MQTT_STATE_CLOSING ESPHOME_F(MQTT_STR_STATE_CLOSING)
+#define MQTT_STATE_LOCKED ESPHOME_F(MQTT_STR_STATE_LOCKED)
+#define MQTT_STATE_OFF ESPHOME_F(MQTT_STR_STATE_OFF)
+#define MQTT_STATE_ON ESPHOME_F(MQTT_STR_STATE_ON)
+#define MQTT_STATE_OPEN ESPHOME_F(MQTT_STR_STATE_OPEN)
+#define MQTT_STATE_OPENING ESPHOME_F(MQTT_STR_STATE_OPENING)
+#define MQTT_STATE_STOPPED ESPHOME_F(MQTT_STR_STATE_STOPPED)
+#define MQTT_STATE_TEMPLATE ESPHOME_F(MQTT_STR_STATE_TEMPLATE)
+#define MQTT_STATE_TOPIC ESPHOME_F(MQTT_STR_STATE_TOPIC)
+#define MQTT_STATE_UNLOCKED ESPHOME_F(MQTT_STR_STATE_UNLOCKED)
+#define MQTT_STATE_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_STATE_VALUE_TEMPLATE)
+#define MQTT_STEP ESPHOME_F(MQTT_STR_STEP)
+#define MQTT_SUBTYPE ESPHOME_F(MQTT_STR_SUBTYPE)
+#define MQTT_SUPPORTED_COLOR_MODES ESPHOME_F(MQTT_STR_SUPPORTED_COLOR_MODES)
+#define MQTT_SUPPORTED_FEATURES ESPHOME_F(MQTT_STR_SUPPORTED_FEATURES)
+#define MQTT_SWING_MODE_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_SWING_MODE_COMMAND_TEMPLATE)
+#define MQTT_SWING_MODE_COMMAND_TOPIC ESPHOME_F(MQTT_STR_SWING_MODE_COMMAND_TOPIC)
+#define MQTT_SWING_MODE_STATE_TEMPLATE ESPHOME_F(MQTT_STR_SWING_MODE_STATE_TEMPLATE)
+#define MQTT_SWING_MODE_STATE_TOPIC ESPHOME_F(MQTT_STR_SWING_MODE_STATE_TOPIC)
+#define MQTT_TARGET_HUMIDITY_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_TARGET_HUMIDITY_COMMAND_TEMPLATE)
+#define MQTT_TARGET_HUMIDITY_COMMAND_TOPIC ESPHOME_F(MQTT_STR_TARGET_HUMIDITY_COMMAND_TOPIC)
+#define MQTT_TARGET_HUMIDITY_STATE_TEMPLATE ESPHOME_F(MQTT_STR_TARGET_HUMIDITY_STATE_TEMPLATE)
+#define MQTT_TARGET_HUMIDITY_STATE_TOPIC ESPHOME_F(MQTT_STR_TARGET_HUMIDITY_STATE_TOPIC)
+#define MQTT_TARGET_TEMPERATURE_STEP ESPHOME_F(MQTT_STR_TARGET_TEMPERATURE_STEP)
+#define MQTT_TEMPERATURE_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_TEMPERATURE_COMMAND_TEMPLATE)
+#define MQTT_TEMPERATURE_COMMAND_TOPIC ESPHOME_F(MQTT_STR_TEMPERATURE_COMMAND_TOPIC)
+#define MQTT_TEMPERATURE_HIGH_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_TEMPERATURE_HIGH_COMMAND_TEMPLATE)
+#define MQTT_TEMPERATURE_HIGH_COMMAND_TOPIC ESPHOME_F(MQTT_STR_TEMPERATURE_HIGH_COMMAND_TOPIC)
+#define MQTT_TEMPERATURE_HIGH_STATE_TEMPLATE ESPHOME_F(MQTT_STR_TEMPERATURE_HIGH_STATE_TEMPLATE)
+#define MQTT_TEMPERATURE_HIGH_STATE_TOPIC ESPHOME_F(MQTT_STR_TEMPERATURE_HIGH_STATE_TOPIC)
+#define MQTT_TEMPERATURE_LOW_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_TEMPERATURE_LOW_COMMAND_TEMPLATE)
+#define MQTT_TEMPERATURE_LOW_COMMAND_TOPIC ESPHOME_F(MQTT_STR_TEMPERATURE_LOW_COMMAND_TOPIC)
+#define MQTT_TEMPERATURE_LOW_STATE_TEMPLATE ESPHOME_F(MQTT_STR_TEMPERATURE_LOW_STATE_TEMPLATE)
+#define MQTT_TEMPERATURE_LOW_STATE_TOPIC ESPHOME_F(MQTT_STR_TEMPERATURE_LOW_STATE_TOPIC)
+#define MQTT_TEMPERATURE_STATE_TEMPLATE ESPHOME_F(MQTT_STR_TEMPERATURE_STATE_TEMPLATE)
+#define MQTT_TEMPERATURE_STATE_TOPIC ESPHOME_F(MQTT_STR_TEMPERATURE_STATE_TOPIC)
+#define MQTT_TEMPERATURE_UNIT ESPHOME_F(MQTT_STR_TEMPERATURE_UNIT)
+#define MQTT_TILT_CLOSED_VALUE ESPHOME_F(MQTT_STR_TILT_CLOSED_VALUE)
+#define MQTT_TILT_COMMAND_TEMPLATE ESPHOME_F(MQTT_STR_TILT_COMMAND_TEMPLATE)
+#define MQTT_TILT_COMMAND_TOPIC ESPHOME_F(MQTT_STR_TILT_COMMAND_TOPIC)
+#define MQTT_TILT_INVERT_STATE ESPHOME_F(MQTT_STR_TILT_INVERT_STATE)
+#define MQTT_TILT_MAX ESPHOME_F(MQTT_STR_TILT_MAX)
+#define MQTT_TILT_MIN ESPHOME_F(MQTT_STR_TILT_MIN)
+#define MQTT_TILT_OPENED_VALUE ESPHOME_F(MQTT_STR_TILT_OPENED_VALUE)
+#define MQTT_TILT_OPTIMISTIC ESPHOME_F(MQTT_STR_TILT_OPTIMISTIC)
+#define MQTT_TILT_STATUS_TEMPLATE ESPHOME_F(MQTT_STR_TILT_STATUS_TEMPLATE)
+#define MQTT_TILT_STATUS_TOPIC ESPHOME_F(MQTT_STR_TILT_STATUS_TOPIC)
+#define MQTT_TOPIC ESPHOME_F(MQTT_STR_TOPIC)
+#define MQTT_UNIQUE_ID ESPHOME_F(MQTT_STR_UNIQUE_ID)
+#define MQTT_UNIT_OF_MEASUREMENT ESPHOME_F(MQTT_STR_UNIT_OF_MEASUREMENT)
+#define MQTT_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_VALUE_TEMPLATE)
+#define MQTT_WHITE_COMMAND_TOPIC ESPHOME_F(MQTT_STR_WHITE_COMMAND_TOPIC)
+#define MQTT_WHITE_SCALE ESPHOME_F(MQTT_STR_WHITE_SCALE)
+#define MQTT_WHITE_VALUE_COMMAND_TOPIC ESPHOME_F(MQTT_STR_WHITE_VALUE_COMMAND_TOPIC)
+#define MQTT_WHITE_VALUE_SCALE ESPHOME_F(MQTT_STR_WHITE_VALUE_SCALE)
+#define MQTT_WHITE_VALUE_STATE_TOPIC ESPHOME_F(MQTT_STR_WHITE_VALUE_STATE_TOPIC)
+#define MQTT_WHITE_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_WHITE_VALUE_TEMPLATE)
+#define MQTT_XY_COMMAND_TOPIC ESPHOME_F(MQTT_STR_XY_COMMAND_TOPIC)
+#define MQTT_XY_STATE_TOPIC ESPHOME_F(MQTT_STR_XY_STATE_TOPIC)
+#define MQTT_XY_VALUE_TEMPLATE ESPHOME_F(MQTT_STR_XY_VALUE_TEMPLATE)
+// clang-format on
+
+// String literals for the macros above (selected by USE_MQTT_ABBREVIATIONS)
+// clang-format off
+#ifdef USE_MQTT_ABBREVIATIONS
+#define MQTT_STR_ACTION_TEMPLATE "act_tpl"
+#define MQTT_STR_ACTION_TOPIC "act_t"
+#define MQTT_STR_AUTOMATION_TYPE "atype"
+#define MQTT_STR_AUX_COMMAND_TOPIC "aux_cmd_t"
+#define MQTT_STR_AUX_STATE_TEMPLATE "aux_stat_tpl"
+#define MQTT_STR_AUX_STATE_TOPIC "aux_stat_t"
+#define MQTT_STR_AVAILABILITY "avty"
+#define MQTT_STR_AVAILABILITY_MODE "avty_mode"
+#define MQTT_STR_AVAILABILITY_TOPIC "avty_t"
+#define MQTT_STR_AWAY_MODE_COMMAND_TOPIC "away_mode_cmd_t"
+#define MQTT_STR_AWAY_MODE_STATE_TEMPLATE "away_mode_stat_tpl"
+#define MQTT_STR_AWAY_MODE_STATE_TOPIC "away_mode_stat_t"
+#define MQTT_STR_BATTERY_LEVEL_TEMPLATE "bat_lev_tpl"
+#define MQTT_STR_BATTERY_LEVEL_TOPIC "bat_lev_t"
+#define MQTT_STR_BLUE_TEMPLATE "b_tpl"
+#define MQTT_STR_BRIGHTNESS_COMMAND_TOPIC "bri_cmd_t"
+#define MQTT_STR_BRIGHTNESS_SCALE "bri_scl"
+#define MQTT_STR_BRIGHTNESS_STATE_TOPIC "bri_stat_t"
+#define MQTT_STR_BRIGHTNESS_TEMPLATE "bri_tpl"
+#define MQTT_STR_BRIGHTNESS_VALUE_TEMPLATE "bri_val_tpl"
+#define MQTT_STR_CHARGING_TEMPLATE "chrg_tpl"
+#define MQTT_STR_CHARGING_TOPIC "chrg_t"
+#define MQTT_STR_CLEANING_TEMPLATE "cln_tpl"
+#define MQTT_STR_CLEANING_TOPIC "cln_t"
+#define MQTT_STR_CODE_ARM_REQUIRED "cod_arm_req"
+#define MQTT_STR_CODE_DISARM_REQUIRED "cod_dis_req"
+#define MQTT_STR_COLOR_MODE "clrm"
+#define MQTT_STR_COLOR_MODE_STATE_TOPIC "clrm_stat_t"
+#define MQTT_STR_COLOR_MODE_VALUE_TEMPLATE "clrm_val_tpl"
+#define MQTT_STR_COLOR_TEMP_COMMAND_TEMPLATE "clr_temp_cmd_tpl"
+#define MQTT_STR_COLOR_TEMP_COMMAND_TOPIC "clr_temp_cmd_t"
+#define MQTT_STR_COLOR_TEMP_STATE_TOPIC "clr_temp_stat_t"
+#define MQTT_STR_COLOR_TEMP_TEMPLATE "clr_temp_tpl"
+#define MQTT_STR_COLOR_TEMP_VALUE_TEMPLATE "clr_temp_val_tpl"
+#define MQTT_STR_COMMAND_OFF_TEMPLATE "cmd_off_tpl"
+#define MQTT_STR_COMMAND_ON_TEMPLATE "cmd_on_tpl"
+#define MQTT_STR_COMMAND_RETAIN "ret"
+#define MQTT_STR_COMMAND_TEMPLATE "cmd_tpl"
+#define MQTT_STR_COMMAND_TOPIC "cmd_t"
+#define MQTT_STR_CONFIGURATION_URL "cu"
+#define MQTT_STR_CURRENT_HUMIDITY_TEMPLATE "curr_hum_tpl"
+#define MQTT_STR_CURRENT_HUMIDITY_TOPIC "curr_hum_t"
+#define MQTT_STR_CURRENT_TEMPERATURE_STEP "precision"
+#define MQTT_STR_CURRENT_TEMPERATURE_TEMPLATE "curr_temp_tpl"
+#define MQTT_STR_CURRENT_TEMPERATURE_TOPIC "curr_temp_t"
+#define MQTT_STR_DEVICE "dev"
+#define MQTT_STR_DEVICE_CLASS "dev_cla"
+#define MQTT_STR_DEVICE_CONNECTIONS "cns"
+#define MQTT_STR_DEVICE_IDENTIFIERS "ids"
+#define MQTT_STR_DEVICE_MANUFACTURER "mf"
+#define MQTT_STR_DEVICE_MODEL "mdl"
+#define MQTT_STR_DEVICE_NAME "name"
+#define MQTT_STR_DEVICE_SUGGESTED_AREA "sa"
+#define MQTT_STR_DEVICE_SW_VERSION "sw"
+#define MQTT_STR_DEVICE_HW_VERSION "hw"
+#define MQTT_STR_DIRECTION_COMMAND_TOPIC "dir_cmd_t"
+#define MQTT_STR_DIRECTION_STATE_TOPIC "dir_stat_t"
+#define MQTT_STR_DOCKED_TEMPLATE "dock_tpl"
+#define MQTT_STR_DOCKED_TOPIC "dock_t"
+#define MQTT_STR_EFFECT_COMMAND_TOPIC "fx_cmd_t"
+#define MQTT_STR_EFFECT_LIST "fx_list"
+#define MQTT_STR_EFFECT_STATE_TOPIC "fx_stat_t"
+#define MQTT_STR_EFFECT_TEMPLATE "fx_tpl"
+#define MQTT_STR_EFFECT_VALUE_TEMPLATE "fx_val_tpl"
+#define MQTT_STR_ENABLED_BY_DEFAULT "en"
+#define MQTT_STR_ENTITY_CATEGORY "ent_cat"
+#define MQTT_STR_ERROR_TEMPLATE "err_tpl"
+#define MQTT_STR_ERROR_TOPIC "err_t"
+#define MQTT_STR_EVENT_TYPE "event_type"
+#define MQTT_STR_EVENT_TYPES "evt_typ"
+#define MQTT_STR_EXPIRE_AFTER "exp_aft"
+#define MQTT_STR_FAN_MODE_COMMAND_TEMPLATE "fan_mode_cmd_tpl"
+#define MQTT_STR_FAN_MODE_COMMAND_TOPIC "fan_mode_cmd_t"
+#define MQTT_STR_FAN_MODE_STATE_TEMPLATE "fan_mode_stat_tpl"
+#define MQTT_STR_FAN_MODE_STATE_TOPIC "fan_mode_stat_t"
+#define MQTT_STR_FAN_SPEED_LIST "fanspd_lst"
+#define MQTT_STR_FAN_SPEED_TEMPLATE "fanspd_tpl"
+#define MQTT_STR_FAN_SPEED_TOPIC "fanspd_t"
+#define MQTT_STR_FLASH_TIME_LONG "flsh_tlng"
+#define MQTT_STR_FLASH_TIME_SHORT "flsh_tsht"
+#define MQTT_STR_FORCE_UPDATE "frc_upd"
+#define MQTT_STR_GREEN_TEMPLATE "g_tpl"
+#define MQTT_STR_HOLD_COMMAND_TEMPLATE "hold_cmd_tpl"
+#define MQTT_STR_HOLD_COMMAND_TOPIC "hold_cmd_t"
+#define MQTT_STR_HOLD_STATE_TEMPLATE "hold_stat_tpl"
+#define MQTT_STR_HOLD_STATE_TOPIC "hold_stat_t"
+#define MQTT_STR_HS_COMMAND_TOPIC "hs_cmd_t"
+#define MQTT_STR_HS_STATE_TOPIC "hs_stat_t"
+#define MQTT_STR_HS_VALUE_TEMPLATE "hs_val_tpl"
+#define MQTT_STR_ICON "ic"
+#define MQTT_STR_INITIAL "init"
+#define MQTT_STR_JSON_ATTRIBUTES "json_attr"
+#define MQTT_STR_JSON_ATTRIBUTES_TEMPLATE "json_attr_tpl"
+#define MQTT_STR_JSON_ATTRIBUTES_TOPIC "json_attr_t"
+#define MQTT_STR_LAST_RESET_TOPIC "lrst_t"
+#define MQTT_STR_LAST_RESET_VALUE_TEMPLATE "lrst_val_tpl"
+#define MQTT_STR_MAX "max"
+#define MQTT_STR_MAX_HUMIDITY "max_hum"
+#define MQTT_STR_MAX_MIREDS "max_mirs"
+#define MQTT_STR_MAX_TEMP "max_temp"
+#define MQTT_STR_MIN "min"
+#define MQTT_STR_MIN_HUMIDITY "min_hum"
+#define MQTT_STR_MIN_MIREDS "min_mirs"
+#define MQTT_STR_MIN_TEMP "min_temp"
+#define MQTT_STR_MODE "mode"
+#define MQTT_STR_MODE_COMMAND_TEMPLATE "mode_cmd_tpl"
+#define MQTT_STR_MODE_COMMAND_TOPIC "mode_cmd_t"
+#define MQTT_STR_MODE_STATE_TEMPLATE "mode_stat_tpl"
+#define MQTT_STR_MODE_STATE_TOPIC "mode_stat_t"
+#define MQTT_STR_MODES "modes"
+#define MQTT_STR_NAME "name"
+#define MQTT_STR_OBJECT_ID "obj_id"
+#define MQTT_STR_OFF_DELAY "off_dly"
+#define MQTT_STR_ON_COMMAND_TYPE "on_cmd_type"
+#define MQTT_STR_OPTIMISTIC "opt"
+#define MQTT_STR_OPTIONS "ops"
+#define MQTT_STR_OSCILLATION_COMMAND_TEMPLATE "osc_cmd_tpl"
+#define MQTT_STR_OSCILLATION_COMMAND_TOPIC "osc_cmd_t"
+#define MQTT_STR_OSCILLATION_STATE_TOPIC "osc_stat_t"
+#define MQTT_STR_OSCILLATION_VALUE_TEMPLATE "osc_val_tpl"
+#define MQTT_STR_PAYLOAD "pl"
+#define MQTT_STR_PAYLOAD_ARM_AWAY "pl_arm_away"
+#define MQTT_STR_PAYLOAD_ARM_CUSTOM_BYPASS "pl_arm_custom_b"
+#define MQTT_STR_PAYLOAD_ARM_HOME "pl_arm_home"
+#define MQTT_STR_PAYLOAD_ARM_NIGHT "pl_arm_nite"
+#define MQTT_STR_PAYLOAD_ARM_VACATION "pl_arm_vacation"
+#define MQTT_STR_PAYLOAD_AVAILABLE "pl_avail"
+#define MQTT_STR_PAYLOAD_CLEAN_SPOT "pl_cln_sp"
+#define MQTT_STR_PAYLOAD_CLOSE "pl_cls"
+#define MQTT_STR_PAYLOAD_DISARM "pl_disarm"
+#define MQTT_STR_PAYLOAD_HIGH_SPEED "pl_hi_spd"
+#define MQTT_STR_PAYLOAD_HOME "pl_home"
+#define MQTT_STR_PAYLOAD_INSTALL "pl_inst"
+#define MQTT_STR_PAYLOAD_LOCATE "pl_loc"
+#define MQTT_STR_PAYLOAD_LOCK "pl_lock"
+#define MQTT_STR_PAYLOAD_LOW_SPEED "pl_lo_spd"
+#define MQTT_STR_PAYLOAD_MEDIUM_SPEED "pl_med_spd"
+#define MQTT_STR_PAYLOAD_NOT_AVAILABLE "pl_not_avail"
+#define MQTT_STR_PAYLOAD_NOT_HOME "pl_not_home"
+#define MQTT_STR_PAYLOAD_OFF "pl_off"
+#define MQTT_STR_PAYLOAD_OFF_SPEED "pl_off_spd"
+#define MQTT_STR_PAYLOAD_ON "pl_on"
+#define MQTT_STR_PAYLOAD_OPEN "pl_open"
+#define MQTT_STR_PAYLOAD_OSCILLATION_OFF "pl_osc_off"
+#define MQTT_STR_PAYLOAD_OSCILLATION_ON "pl_osc_on"
+#define MQTT_STR_PAYLOAD_PAUSE "pl_paus"
+#define MQTT_STR_PAYLOAD_RESET "pl_rst"
+#define MQTT_STR_PAYLOAD_RESET_HUMIDITY "pl_rst_hum"
+#define MQTT_STR_PAYLOAD_RESET_MODE "pl_rst_mode"
+#define MQTT_STR_PAYLOAD_RESET_PERCENTAGE "pl_rst_pct"
+#define MQTT_STR_PAYLOAD_RESET_PRESET_MODE "pl_rst_pr_mode"
+#define MQTT_STR_PAYLOAD_RETURN_TO_BASE "pl_ret"
+#define MQTT_STR_PAYLOAD_START "pl_strt"
+#define MQTT_STR_PAYLOAD_START_PAUSE "pl_stpa"
+#define MQTT_STR_PAYLOAD_STOP "pl_stop"
+#define MQTT_STR_PAYLOAD_TURN_OFF "pl_toff"
+#define MQTT_STR_PAYLOAD_TURN_ON "pl_ton"
+#define MQTT_STR_PAYLOAD_UNLOCK "pl_unlk"
+#define MQTT_STR_PERCENTAGE_COMMAND_TEMPLATE "pct_cmd_tpl"
+#define MQTT_STR_PERCENTAGE_COMMAND_TOPIC "pct_cmd_t"
+#define MQTT_STR_PERCENTAGE_STATE_TOPIC "pct_stat_t"
+#define MQTT_STR_PERCENTAGE_VALUE_TEMPLATE "pct_val_tpl"
+#define MQTT_STR_POSITION_CLOSED "pos_clsd"
+#define MQTT_STR_POSITION_OPEN "pos_open"
+#define MQTT_STR_POSITION_TEMPLATE "pos_tpl"
+#define MQTT_STR_POSITION_TOPIC "pos_t"
+#define MQTT_STR_POWER_COMMAND_TOPIC "pow_cmd_t"
+#define MQTT_STR_POWER_STATE_TEMPLATE "pow_stat_tpl"
+#define MQTT_STR_POWER_STATE_TOPIC "pow_stat_t"
+#define MQTT_STR_PRESET_MODE_COMMAND_TEMPLATE "pr_mode_cmd_tpl"
+#define MQTT_STR_PRESET_MODE_COMMAND_TOPIC "pr_mode_cmd_t"
+#define MQTT_STR_PRESET_MODE_STATE_TOPIC "pr_mode_stat_t"
+#define MQTT_STR_PRESET_MODE_VALUE_TEMPLATE "pr_mode_val_tpl"
+#define MQTT_STR_PRESET_MODES "pr_modes"
+#define MQTT_STR_QOS "qos"
+#define MQTT_STR_RED_TEMPLATE "r_tpl"
+#define MQTT_STR_RETAIN "ret"
+#define MQTT_STR_RGB_COMMAND_TEMPLATE "rgb_cmd_tpl"
+#define MQTT_STR_RGB_COMMAND_TOPIC "rgb_cmd_t"
+#define MQTT_STR_RGB_STATE_TOPIC "rgb_stat_t"
+#define MQTT_STR_RGB_VALUE_TEMPLATE "rgb_val_tpl"
+#define MQTT_STR_RGBW_COMMAND_TEMPLATE "rgbw_cmd_tpl"
+#define MQTT_STR_RGBW_COMMAND_TOPIC "rgbw_cmd_t"
+#define MQTT_STR_RGBW_STATE_TOPIC "rgbw_stat_t"
+#define MQTT_STR_RGBW_VALUE_TEMPLATE "rgbw_val_tpl"
+#define MQTT_STR_RGBWW_COMMAND_TEMPLATE "rgbww_cmd_tpl"
+#define MQTT_STR_RGBWW_COMMAND_TOPIC "rgbww_cmd_t"
+#define MQTT_STR_RGBWW_STATE_TOPIC "rgbww_stat_t"
+#define MQTT_STR_RGBWW_VALUE_TEMPLATE "rgbww_val_tpl"
+#define MQTT_STR_SEND_COMMAND_TOPIC "send_cmd_t"
+#define MQTT_STR_SEND_IF_OFF "send_if_off"
+#define MQTT_STR_SET_FAN_SPEED_TOPIC "set_fan_spd_t"
+#define MQTT_STR_SET_POSITION_TEMPLATE "set_pos_tpl"
+#define MQTT_STR_SET_POSITION_TOPIC "set_pos_t"
+#define MQTT_STR_SOURCE_TYPE "src_type"
+#define MQTT_STR_SPEED_COMMAND_TOPIC "spd_cmd_t"
+#define MQTT_STR_SPEED_RANGE_MAX "spd_rng_max"
+#define MQTT_STR_SPEED_RANGE_MIN "spd_rng_min"
+#define MQTT_STR_SPEED_STATE_TOPIC "spd_stat_t"
+#define MQTT_STR_SPEED_VALUE_TEMPLATE "spd_val_tpl"
+#define MQTT_STR_SPEEDS "spds"
+#define MQTT_STR_STATE_CLASS "stat_cla"
+#define MQTT_STR_STATE_CLOSED "stat_clsd"
+#define MQTT_STR_STATE_CLOSING "stat_closing"
+#define MQTT_STR_STATE_LOCKED "stat_locked"
+#define MQTT_STR_STATE_OFF "stat_off"
+#define MQTT_STR_STATE_ON "stat_on"
+#define MQTT_STR_STATE_OPEN "stat_open"
+#define MQTT_STR_STATE_OPENING "stat_opening"
+#define MQTT_STR_STATE_STOPPED "stat_stopped"
+#define MQTT_STR_STATE_TEMPLATE "stat_tpl"
+#define MQTT_STR_STATE_TOPIC "stat_t"
+#define MQTT_STR_STATE_UNLOCKED "stat_unlocked"
+#define MQTT_STR_STATE_VALUE_TEMPLATE "stat_val_tpl"
+#define MQTT_STR_STEP "step"
+#define MQTT_STR_SUBTYPE "stype"
+#define MQTT_STR_SUPPORTED_COLOR_MODES "sup_clrm"
+#define MQTT_STR_SUPPORTED_FEATURES "sup_feat"
+#define MQTT_STR_SWING_MODE_COMMAND_TEMPLATE "swing_mode_cmd_tpl"
+#define MQTT_STR_SWING_MODE_COMMAND_TOPIC "swing_mode_cmd_t"
+#define MQTT_STR_SWING_MODE_STATE_TEMPLATE "swing_mode_stat_tpl"
+#define MQTT_STR_SWING_MODE_STATE_TOPIC "swing_mode_stat_t"
+#define MQTT_STR_TARGET_HUMIDITY_COMMAND_TEMPLATE "hum_cmd_tpl"
+#define MQTT_STR_TARGET_HUMIDITY_COMMAND_TOPIC "hum_cmd_t"
+#define MQTT_STR_TARGET_HUMIDITY_STATE_TEMPLATE "hum_state_tpl"
+#define MQTT_STR_TARGET_HUMIDITY_STATE_TOPIC "hum_stat_t"
+#define MQTT_STR_TARGET_TEMPERATURE_STEP "temp_step"
+#define MQTT_STR_TEMPERATURE_COMMAND_TEMPLATE "temp_cmd_tpl"
+#define MQTT_STR_TEMPERATURE_COMMAND_TOPIC "temp_cmd_t"
+#define MQTT_STR_TEMPERATURE_HIGH_COMMAND_TEMPLATE "temp_hi_cmd_tpl"
+#define MQTT_STR_TEMPERATURE_HIGH_COMMAND_TOPIC "temp_hi_cmd_t"
+#define MQTT_STR_TEMPERATURE_HIGH_STATE_TEMPLATE "temp_hi_stat_tpl"
+#define MQTT_STR_TEMPERATURE_HIGH_STATE_TOPIC "temp_hi_stat_t"
+#define MQTT_STR_TEMPERATURE_LOW_COMMAND_TEMPLATE "temp_lo_cmd_tpl"
+#define MQTT_STR_TEMPERATURE_LOW_COMMAND_TOPIC "temp_lo_cmd_t"
+#define MQTT_STR_TEMPERATURE_LOW_STATE_TEMPLATE "temp_lo_stat_tpl"
+#define MQTT_STR_TEMPERATURE_LOW_STATE_TOPIC "temp_lo_stat_t"
+#define MQTT_STR_TEMPERATURE_STATE_TEMPLATE "temp_stat_tpl"
+#define MQTT_STR_TEMPERATURE_STATE_TOPIC "temp_stat_t"
+#define MQTT_STR_TEMPERATURE_UNIT "temp_unit"
+#define MQTT_STR_TILT_CLOSED_VALUE "tilt_clsd_val"
+#define MQTT_STR_TILT_COMMAND_TEMPLATE "tilt_cmd_tpl"
+#define MQTT_STR_TILT_COMMAND_TOPIC "tilt_cmd_t"
+#define MQTT_STR_TILT_INVERT_STATE "tilt_inv_stat"
+#define MQTT_STR_TILT_MAX "tilt_max"
+#define MQTT_STR_TILT_MIN "tilt_min"
+#define MQTT_STR_TILT_OPENED_VALUE "tilt_opnd_val"
+#define MQTT_STR_TILT_OPTIMISTIC "tilt_opt"
+#define MQTT_STR_TILT_STATUS_TEMPLATE "tilt_status_tpl"
+#define MQTT_STR_TILT_STATUS_TOPIC "tilt_status_t"
+#define MQTT_STR_TOPIC "t"
+#define MQTT_STR_UNIQUE_ID "uniq_id"
+#define MQTT_STR_UNIT_OF_MEASUREMENT "unit_of_meas"
+#define MQTT_STR_VALUE_TEMPLATE "val_tpl"
+#define MQTT_STR_WHITE_COMMAND_TOPIC "whit_cmd_t"
+#define MQTT_STR_WHITE_SCALE "whit_scl"
+#define MQTT_STR_WHITE_VALUE_COMMAND_TOPIC "whit_val_cmd_t"
+#define MQTT_STR_WHITE_VALUE_SCALE "whit_val_scl"
+#define MQTT_STR_WHITE_VALUE_STATE_TOPIC "whit_val_stat_t"
+#define MQTT_STR_WHITE_VALUE_TEMPLATE "whit_val_tpl"
+#define MQTT_STR_XY_COMMAND_TOPIC "xy_cmd_t"
+#define MQTT_STR_XY_STATE_TOPIC "xy_stat_t"
+#define MQTT_STR_XY_VALUE_TEMPLATE "xy_val_tpl"
+#else  // !USE_MQTT_ABBREVIATIONS
+#define MQTT_STR_ACTION_TEMPLATE "action_template"
+#define MQTT_STR_ACTION_TOPIC "action_topic"
+#define MQTT_STR_AUTOMATION_TYPE "automation_type"
+#define MQTT_STR_AUX_COMMAND_TOPIC "aux_command_topic"
+#define MQTT_STR_AUX_STATE_TEMPLATE "aux_state_template"
+#define MQTT_STR_AUX_STATE_TOPIC "aux_state_topic"
+#define MQTT_STR_AVAILABILITY "availability"
+#define MQTT_STR_AVAILABILITY_MODE "availability_mode"
+#define MQTT_STR_AVAILABILITY_TOPIC "availability_topic"
+#define MQTT_STR_AWAY_MODE_COMMAND_TOPIC "away_mode_command_topic"
+#define MQTT_STR_AWAY_MODE_STATE_TEMPLATE "away_mode_state_template"
+#define MQTT_STR_AWAY_MODE_STATE_TOPIC "away_mode_state_topic"
+#define MQTT_STR_BATTERY_LEVEL_TEMPLATE "battery_level_template"
+#define MQTT_STR_BATTERY_LEVEL_TOPIC "battery_level_topic"
+#define MQTT_STR_BLUE_TEMPLATE "blue_template"
+#define MQTT_STR_BRIGHTNESS_COMMAND_TOPIC "brightness_command_topic"
+#define MQTT_STR_BRIGHTNESS_SCALE "brightness_scale"
+#define MQTT_STR_BRIGHTNESS_STATE_TOPIC "brightness_state_topic"
+#define MQTT_STR_BRIGHTNESS_TEMPLATE "brightness_template"
+#define MQTT_STR_BRIGHTNESS_VALUE_TEMPLATE "brightness_value_template"
+#define MQTT_STR_CHARGING_TEMPLATE "charging_template"
+#define MQTT_STR_CHARGING_TOPIC "charging_topic"
+#define MQTT_STR_CLEANING_TEMPLATE "cleaning_template"
+#define MQTT_STR_CLEANING_TOPIC "cleaning_topic"
+#define MQTT_STR_CODE_ARM_REQUIRED "code_arm_required"
+#define MQTT_STR_CODE_DISARM_REQUIRED "code_disarm_required"
+#define MQTT_STR_COLOR_MODE "color_mode"
+#define MQTT_STR_COLOR_MODE_STATE_TOPIC "color_mode_state_topic"
+#define MQTT_STR_COLOR_MODE_VALUE_TEMPLATE "color_mode_value_template"
+#define MQTT_STR_COLOR_TEMP_COMMAND_TEMPLATE "color_temp_command_template"
+#define MQTT_STR_COLOR_TEMP_COMMAND_TOPIC "color_temp_command_topic"
+#define MQTT_STR_COLOR_TEMP_STATE_TOPIC "color_temp_state_topic"
+#define MQTT_STR_COLOR_TEMP_TEMPLATE "color_temp_template"
+#define MQTT_STR_COLOR_TEMP_VALUE_TEMPLATE "color_temp_value_template"
+#define MQTT_STR_COMMAND_OFF_TEMPLATE "command_off_template"
+#define MQTT_STR_COMMAND_ON_TEMPLATE "command_on_template"
+#define MQTT_STR_COMMAND_RETAIN "retain"
+#define MQTT_STR_COMMAND_TEMPLATE "command_template"
+#define MQTT_STR_COMMAND_TOPIC "command_topic"
+#define MQTT_STR_CONFIGURATION_URL "configuration_url"
+#define MQTT_STR_CURRENT_HUMIDITY_TEMPLATE "current_humidity_template"
+#define MQTT_STR_CURRENT_HUMIDITY_TOPIC "current_humidity_topic"
+#define MQTT_STR_CURRENT_TEMPERATURE_STEP "precision"
+#define MQTT_STR_CURRENT_TEMPERATURE_TEMPLATE "current_temperature_template"
+#define MQTT_STR_CURRENT_TEMPERATURE_TOPIC "current_temperature_topic"
+#define MQTT_STR_DEVICE "device"
+#define MQTT_STR_DEVICE_CLASS "device_class"
+#define MQTT_STR_DEVICE_CONNECTIONS "connections"
+#define MQTT_STR_DEVICE_IDENTIFIERS "identifiers"
+#define MQTT_STR_DEVICE_MANUFACTURER "manufacturer"
+#define MQTT_STR_DEVICE_MODEL "model"
+#define MQTT_STR_DEVICE_NAME "name"
+#define MQTT_STR_DEVICE_SUGGESTED_AREA "suggested_area"
+#define MQTT_STR_DEVICE_SW_VERSION "sw_version"
+#define MQTT_STR_DEVICE_HW_VERSION "hw_version"
+#define MQTT_STR_DIRECTION_COMMAND_TOPIC "direction_command_topic"
+#define MQTT_STR_DIRECTION_STATE_TOPIC "direction_state_topic"
+#define MQTT_STR_DOCKED_TEMPLATE "docked_template"
+#define MQTT_STR_DOCKED_TOPIC "docked_topic"
+#define MQTT_STR_EFFECT_COMMAND_TOPIC "effect_command_topic"
+#define MQTT_STR_EFFECT_LIST "effect_list"
+#define MQTT_STR_EFFECT_STATE_TOPIC "effect_state_topic"
+#define MQTT_STR_EFFECT_TEMPLATE "effect_template"
+#define MQTT_STR_EFFECT_VALUE_TEMPLATE "effect_value_template"
+#define MQTT_STR_ENABLED_BY_DEFAULT "enabled_by_default"
+#define MQTT_STR_ENTITY_CATEGORY "entity_category"
+#define MQTT_STR_ERROR_TEMPLATE "error_template"
+#define MQTT_STR_ERROR_TOPIC "error_topic"
+#define MQTT_STR_EVENT_TYPE "event_type"
+#define MQTT_STR_EVENT_TYPES "event_types"
+#define MQTT_STR_EXPIRE_AFTER "expire_after"
+#define MQTT_STR_FAN_MODE_COMMAND_TEMPLATE "fan_mode_command_template"
+#define MQTT_STR_FAN_MODE_COMMAND_TOPIC "fan_mode_command_topic"
+#define MQTT_STR_FAN_MODE_STATE_TEMPLATE "fan_mode_state_template"
+#define MQTT_STR_FAN_MODE_STATE_TOPIC "fan_mode_state_topic"
+#define MQTT_STR_FAN_SPEED_LIST "fan_speed_list"
+#define MQTT_STR_FAN_SPEED_TEMPLATE "fan_speed_template"
+#define MQTT_STR_FAN_SPEED_TOPIC "fan_speed_topic"
+#define MQTT_STR_FLASH_TIME_LONG "flash_time_long"
+#define MQTT_STR_FLASH_TIME_SHORT "flash_time_short"
+#define MQTT_STR_FORCE_UPDATE "force_update"
+#define MQTT_STR_GREEN_TEMPLATE "green_template"
+#define MQTT_STR_HOLD_COMMAND_TEMPLATE "hold_command_template"
+#define MQTT_STR_HOLD_COMMAND_TOPIC "hold_command_topic"
+#define MQTT_STR_HOLD_STATE_TEMPLATE "hold_state_template"
+#define MQTT_STR_HOLD_STATE_TOPIC "hold_state_topic"
+#define MQTT_STR_HS_COMMAND_TOPIC "hs_command_topic"
+#define MQTT_STR_HS_STATE_TOPIC "hs_state_topic"
+#define MQTT_STR_HS_VALUE_TEMPLATE "hs_value_template"
+#define MQTT_STR_ICON "icon"
+#define MQTT_STR_INITIAL "initial"
+#define MQTT_STR_JSON_ATTRIBUTES "json_attributes"
+#define MQTT_STR_JSON_ATTRIBUTES_TEMPLATE "json_attributes_template"
+#define MQTT_STR_JSON_ATTRIBUTES_TOPIC "json_attributes_topic"
+#define MQTT_STR_LAST_RESET_TOPIC "last_reset_topic"
+#define MQTT_STR_LAST_RESET_VALUE_TEMPLATE "last_reset_value_template"
+#define MQTT_STR_MAX "max"
+#define MQTT_STR_MAX_HUMIDITY "max_humidity"
+#define MQTT_STR_MAX_MIREDS "max_mireds"
+#define MQTT_STR_MAX_TEMP "max_temp"
+#define MQTT_STR_MIN "min"
+#define MQTT_STR_MIN_HUMIDITY "min_humidity"
+#define MQTT_STR_MIN_MIREDS "min_mireds"
+#define MQTT_STR_MIN_TEMP "min_temp"
+#define MQTT_STR_MODE "mode"
+#define MQTT_STR_MODE_COMMAND_TEMPLATE "mode_command_template"
+#define MQTT_STR_MODE_COMMAND_TOPIC "mode_command_topic"
+#define MQTT_STR_MODE_STATE_TEMPLATE "mode_state_template"
+#define MQTT_STR_MODE_STATE_TOPIC "mode_state_topic"
+#define MQTT_STR_MODES "modes"
+#define MQTT_STR_NAME "name"
+#define MQTT_STR_OBJECT_ID "object_id"
+#define MQTT_STR_OFF_DELAY "off_delay"
+#define MQTT_STR_ON_COMMAND_TYPE "on_command_type"
+#define MQTT_STR_OPTIMISTIC "optimistic"
+#define MQTT_STR_OPTIONS "options"
+#define MQTT_STR_OSCILLATION_COMMAND_TEMPLATE "oscillation_command_template"
+#define MQTT_STR_OSCILLATION_COMMAND_TOPIC "oscillation_command_topic"
+#define MQTT_STR_OSCILLATION_STATE_TOPIC "oscillation_state_topic"
+#define MQTT_STR_OSCILLATION_VALUE_TEMPLATE "oscillation_value_template"
+#define MQTT_STR_PAYLOAD "payload"
+#define MQTT_STR_PAYLOAD_ARM_AWAY "payload_arm_away"
+#define MQTT_STR_PAYLOAD_ARM_CUSTOM_BYPASS "payload_arm_custom_bypass"
+#define MQTT_STR_PAYLOAD_ARM_HOME "payload_arm_home"
+#define MQTT_STR_PAYLOAD_ARM_NIGHT "payload_arm_night"
+#define MQTT_STR_PAYLOAD_ARM_VACATION "payload_arm_vacation"
+#define MQTT_STR_PAYLOAD_AVAILABLE "payload_available"
+#define MQTT_STR_PAYLOAD_CLEAN_SPOT "payload_clean_spot"
+#define MQTT_STR_PAYLOAD_CLOSE "payload_close"
+#define MQTT_STR_PAYLOAD_DISARM "payload_disarm"
+#define MQTT_STR_PAYLOAD_HIGH_SPEED "payload_high_speed"
+#define MQTT_STR_PAYLOAD_HOME "payload_home"
+#define MQTT_STR_PAYLOAD_INSTALL "payload_install"
+#define MQTT_STR_PAYLOAD_LOCATE "payload_locate"
+#define MQTT_STR_PAYLOAD_LOCK "payload_lock"
+#define MQTT_STR_PAYLOAD_LOW_SPEED "payload_low_speed"
+#define MQTT_STR_PAYLOAD_MEDIUM_SPEED "payload_medium_speed"
+#define MQTT_STR_PAYLOAD_NOT_AVAILABLE "payload_not_available"
+#define MQTT_STR_PAYLOAD_NOT_HOME "payload_not_home"
+#define MQTT_STR_PAYLOAD_OFF "payload_off"
+#define MQTT_STR_PAYLOAD_OFF_SPEED "payload_off_speed"
+#define MQTT_STR_PAYLOAD_ON "payload_on"
+#define MQTT_STR_PAYLOAD_OPEN "payload_open"
+#define MQTT_STR_PAYLOAD_OSCILLATION_OFF "payload_oscillation_off"
+#define MQTT_STR_PAYLOAD_OSCILLATION_ON "payload_oscillation_on"
+#define MQTT_STR_PAYLOAD_PAUSE "payload_pause"
+#define MQTT_STR_PAYLOAD_RESET "payload_reset"
+#define MQTT_STR_PAYLOAD_RESET_HUMIDITY "payload_reset_humidity"
+#define MQTT_STR_PAYLOAD_RESET_MODE "payload_reset_mode"
+#define MQTT_STR_PAYLOAD_RESET_PERCENTAGE "payload_reset_percentage"
+#define MQTT_STR_PAYLOAD_RESET_PRESET_MODE "payload_reset_preset_mode"
+#define MQTT_STR_PAYLOAD_RETURN_TO_BASE "payload_return_to_base"
+#define MQTT_STR_PAYLOAD_START "payload_start"
+#define MQTT_STR_PAYLOAD_START_PAUSE "payload_start_pause"
+#define MQTT_STR_PAYLOAD_STOP "payload_stop"
+#define MQTT_STR_PAYLOAD_TURN_OFF "payload_turn_off"
+#define MQTT_STR_PAYLOAD_TURN_ON "payload_turn_on"
+#define MQTT_STR_PAYLOAD_UNLOCK "payload_unlock"
+#define MQTT_STR_PERCENTAGE_COMMAND_TEMPLATE "percentage_command_template"
+#define MQTT_STR_PERCENTAGE_COMMAND_TOPIC "percentage_command_topic"
+#define MQTT_STR_PERCENTAGE_STATE_TOPIC "percentage_state_topic"
+#define MQTT_STR_PERCENTAGE_VALUE_TEMPLATE "percentage_value_template"
+#define MQTT_STR_POSITION_CLOSED "position_closed"
+#define MQTT_STR_POSITION_OPEN "position_open"
+#define MQTT_STR_POSITION_TEMPLATE "position_template"
+#define MQTT_STR_POSITION_TOPIC "position_topic"
+#define MQTT_STR_POWER_COMMAND_TOPIC "power_command_topic"
+#define MQTT_STR_POWER_STATE_TEMPLATE "power_state_template"
+#define MQTT_STR_POWER_STATE_TOPIC "power_state_topic"
+#define MQTT_STR_PRESET_MODE_COMMAND_TEMPLATE "preset_mode_command_template"
+#define MQTT_STR_PRESET_MODE_COMMAND_TOPIC "preset_mode_command_topic"
+#define MQTT_STR_PRESET_MODE_STATE_TOPIC "preset_mode_state_topic"
+#define MQTT_STR_PRESET_MODE_VALUE_TEMPLATE "preset_mode_value_template"
+#define MQTT_STR_PRESET_MODES "preset_modes"
+#define MQTT_STR_QOS "qos"
+#define MQTT_STR_RED_TEMPLATE "red_template"
+#define MQTT_STR_RETAIN "retain"
+#define MQTT_STR_RGB_COMMAND_TEMPLATE "rgb_command_template"
+#define MQTT_STR_RGB_COMMAND_TOPIC "rgb_command_topic"
+#define MQTT_STR_RGB_STATE_TOPIC "rgb_state_topic"
+#define MQTT_STR_RGB_VALUE_TEMPLATE "rgb_value_template"
+#define MQTT_STR_RGBW_COMMAND_TEMPLATE "rgbw_command_template"
+#define MQTT_STR_RGBW_COMMAND_TOPIC "rgbw_command_topic"
+#define MQTT_STR_RGBW_STATE_TOPIC "rgbw_state_topic"
+#define MQTT_STR_RGBW_VALUE_TEMPLATE "rgbw_value_template"
+#define MQTT_STR_RGBWW_COMMAND_TEMPLATE "rgbww_command_template"
+#define MQTT_STR_RGBWW_COMMAND_TOPIC "rgbww_command_topic"
+#define MQTT_STR_RGBWW_STATE_TOPIC "rgbww_state_topic"
+#define MQTT_STR_RGBWW_VALUE_TEMPLATE "rgbww_value_template"
+#define MQTT_STR_SEND_COMMAND_TOPIC "send_command_topic"
+#define MQTT_STR_SEND_IF_OFF "send_if_off"
+#define MQTT_STR_SET_FAN_SPEED_TOPIC "set_fan_speed_topic"
+#define MQTT_STR_SET_POSITION_TEMPLATE "set_position_template"
+#define MQTT_STR_SET_POSITION_TOPIC "set_position_topic"
+#define MQTT_STR_SOURCE_TYPE "source_type"
+#define MQTT_STR_SPEED_COMMAND_TOPIC "speed_command_topic"
+#define MQTT_STR_SPEED_RANGE_MAX "speed_range_max"
+#define MQTT_STR_SPEED_RANGE_MIN "speed_range_min"
+#define MQTT_STR_SPEED_STATE_TOPIC "speed_state_topic"
+#define MQTT_STR_SPEED_VALUE_TEMPLATE "speed_value_template"
+#define MQTT_STR_SPEEDS "speeds"
+#define MQTT_STR_STATE_CLASS "state_class"
+#define MQTT_STR_STATE_CLOSED "state_closed"
+#define MQTT_STR_STATE_CLOSING "state_closing"
+#define MQTT_STR_STATE_LOCKED "state_locked"
+#define MQTT_STR_STATE_OFF "state_off"
+#define MQTT_STR_STATE_ON "state_on"
+#define MQTT_STR_STATE_OPEN "state_open"
+#define MQTT_STR_STATE_OPENING "state_opening"
+#define MQTT_STR_STATE_STOPPED "state_stopped"
+#define MQTT_STR_STATE_TEMPLATE "state_template"
+#define MQTT_STR_STATE_TOPIC "state_topic"
+#define MQTT_STR_STATE_UNLOCKED "state_unlocked"
+#define MQTT_STR_STATE_VALUE_TEMPLATE "state_value_template"
+#define MQTT_STR_STEP "step"
+#define MQTT_STR_SUBTYPE "subtype"
+#define MQTT_STR_SUPPORTED_COLOR_MODES "supported_color_modes"
+#define MQTT_STR_SUPPORTED_FEATURES "supported_features"
+#define MQTT_STR_SWING_MODE_COMMAND_TEMPLATE "swing_mode_command_template"
+#define MQTT_STR_SWING_MODE_COMMAND_TOPIC "swing_mode_command_topic"
+#define MQTT_STR_SWING_MODE_STATE_TEMPLATE "swing_mode_state_template"
+#define MQTT_STR_SWING_MODE_STATE_TOPIC "swing_mode_state_topic"
+#define MQTT_STR_TARGET_HUMIDITY_COMMAND_TEMPLATE "target_humidity_command_template"
+#define MQTT_STR_TARGET_HUMIDITY_COMMAND_TOPIC "target_humidity_command_topic"
+#define MQTT_STR_TARGET_HUMIDITY_STATE_TEMPLATE "target_humidity_state_template"
+#define MQTT_STR_TARGET_HUMIDITY_STATE_TOPIC "target_humidity_state_topic"
+#define MQTT_STR_TARGET_TEMPERATURE_STEP "temp_step"
+#define MQTT_STR_TEMPERATURE_COMMAND_TEMPLATE "temperature_command_template"
+#define MQTT_STR_TEMPERATURE_COMMAND_TOPIC "temperature_command_topic"
+#define MQTT_STR_TEMPERATURE_HIGH_COMMAND_TEMPLATE "temperature_high_command_template"
+#define MQTT_STR_TEMPERATURE_HIGH_COMMAND_TOPIC "temperature_high_command_topic"
+#define MQTT_STR_TEMPERATURE_HIGH_STATE_TEMPLATE "temperature_high_state_template"
+#define MQTT_STR_TEMPERATURE_HIGH_STATE_TOPIC "temperature_high_state_topic"
+#define MQTT_STR_TEMPERATURE_LOW_COMMAND_TEMPLATE "temperature_low_command_template"
+#define MQTT_STR_TEMPERATURE_LOW_COMMAND_TOPIC "temperature_low_command_topic"
+#define MQTT_STR_TEMPERATURE_LOW_STATE_TEMPLATE "temperature_low_state_template"
+#define MQTT_STR_TEMPERATURE_LOW_STATE_TOPIC "temperature_low_state_topic"
+#define MQTT_STR_TEMPERATURE_STATE_TEMPLATE "temperature_state_template"
+#define MQTT_STR_TEMPERATURE_STATE_TOPIC "temperature_state_topic"
+#define MQTT_STR_TEMPERATURE_UNIT "temperature_unit"
+#define MQTT_STR_TILT_CLOSED_VALUE "tilt_closed_value"
+#define MQTT_STR_TILT_COMMAND_TEMPLATE "tilt_command_template"
+#define MQTT_STR_TILT_COMMAND_TOPIC "tilt_command_topic"
+#define MQTT_STR_TILT_INVERT_STATE "tilt_invert_state"
+#define MQTT_STR_TILT_MAX "tilt_max"
+#define MQTT_STR_TILT_MIN "tilt_min"
+#define MQTT_STR_TILT_OPENED_VALUE "tilt_opened_value"
+#define MQTT_STR_TILT_OPTIMISTIC "tilt_optimistic"
+#define MQTT_STR_TILT_STATUS_TEMPLATE "tilt_status_template"
+#define MQTT_STR_TILT_STATUS_TOPIC "tilt_status_topic"
+#define MQTT_STR_TOPIC "topic"
+#define MQTT_STR_UNIQUE_ID "unique_id"
+#define MQTT_STR_UNIT_OF_MEASUREMENT "unit_of_measurement"
+#define MQTT_STR_VALUE_TEMPLATE "value_template"
+#define MQTT_STR_WHITE_COMMAND_TOPIC "white_command_topic"
+#define MQTT_STR_WHITE_SCALE "white_scale"
+#define MQTT_STR_WHITE_VALUE_COMMAND_TOPIC "white_value_command_topic"
+#define MQTT_STR_WHITE_VALUE_SCALE "white_value_scale"
+#define MQTT_STR_WHITE_VALUE_STATE_TOPIC "white_value_state_topic"
+#define MQTT_STR_WHITE_VALUE_TEMPLATE "white_value_template"
+#define MQTT_STR_XY_COMMAND_TOPIC "xy_command_topic"
+#define MQTT_STR_XY_STATE_TOPIC "xy_state_topic"
+#define MQTT_STR_XY_VALUE_TEMPLATE "xy_value_template"
+#endif  // USE_MQTT_ABBREVIATIONS
+// Empty namespace to satisfy linter
+namespace esphome::mqtt {}  // namespace esphome::mqtt
+#else
+// Other platforms: constexpr in namespace
+namespace esphome::mqtt {
+#ifdef USE_MQTT_ABBREVIATIONS
+#define MQTT_CONST(name, abbr, full) constexpr const char *name = abbr;
+#else
+#define MQTT_CONST(name, abbr, full) constexpr const char *name = full;
+#endif
+MQTT_KEYS_LIST(MQTT_CONST)
+#undef MQTT_CONST
 }  // namespace esphome::mqtt
+// Bring into global scope for compatibility
+using namespace esphome::mqtt;  // NOLINT
+#endif
 
 #endif  // USE_MQTT
