@@ -639,13 +639,13 @@ void WiFiComponent::setup_ap_config_() {
   }
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
 
-  auto ip_address = this->wifi_soft_ap_ip().str();
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "Setting up AP:\n"
                 "  AP SSID: '%s'\n"
                 "  AP Password: '%s'\n"
                 "  IP Address: %s",
-                this->ap_.get_ssid().c_str(), this->ap_.get_password().c_str(), ip_address.c_str());
+                this->ap_.get_ssid().c_str(), this->ap_.get_password().c_str(), this->wifi_soft_ap_ip().str_to(ip_buf));
 
 #ifdef USE_WIFI_MANUAL_IP
   auto manual_ip = this->ap_.get_manual_ip();
