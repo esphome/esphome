@@ -162,6 +162,10 @@ template<typename T, size_t N> class StaticVector {
   size_t size() const { return count_; }
   bool empty() const { return count_ == 0; }
 
+  // Direct access to underlying data
+  T *data() { return data_.data(); }
+  const T *data() const { return data_.data(); }
+
   T &operator[](size_t i) { return data_[i]; }
   const T &operator[](size_t i) const { return data_[i]; }
 

@@ -331,20 +331,21 @@ void HOT EPaperBase::draw_pixel_at(int x, int y, Color color) {
 
 void EPaperBase::dump_config() {
   LOG_DISPLAY("", "E-Paper SPI", this);
-  ESP_LOGCONFIG(TAG, "  Model: %s", this->name_);
-  LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  LOG_PIN("  DC Pin: ", this->dc_pin_);
-  LOG_PIN("  Busy Pin: ", this->busy_pin_);
-  LOG_PIN("  CS Pin: ", this->cs_);
-  LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG,
+                "  Model: %s\n"
                 "  SPI Data Rate: %uMHz\n"
                 "  Full update every: %d\n"
                 "  Swap X/Y: %s\n"
                 "  Mirror X: %s\n"
                 "  Mirror Y: %s",
-                (unsigned) (this->data_rate_ / 1000000), this->full_update_every_, YESNO(this->transform_ & SWAP_XY),
-                YESNO(this->transform_ & MIRROR_X), YESNO(this->transform_ & MIRROR_Y));
+                this->name_, (unsigned) (this->data_rate_ / 1000000), this->full_update_every_,
+                YESNO(this->transform_ & SWAP_XY), YESNO(this->transform_ & MIRROR_X),
+                YESNO(this->transform_ & MIRROR_Y));
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_PIN("  CS Pin: ", this->cs_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 }  // namespace esphome::epaper_spi

@@ -30,8 +30,8 @@ static bool was_power_cycled() {
 void FactoryResetComponent::dump_config() {
   uint8_t count = 0;
   this->flash_.load(&count);
-  ESP_LOGCONFIG(TAG, "Factory Reset by Reset:");
   ESP_LOGCONFIG(TAG,
+                "Factory Reset by Reset:\n"
                 "  Max interval between resets: %u seconds\n"
                 "  Current count: %u\n"
                 "  Factory reset after %u resets",

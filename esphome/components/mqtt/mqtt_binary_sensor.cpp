@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_BINARY_SENSOR
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.binary_sensor";
 
@@ -57,8 +56,7 @@ bool MQTTBinarySensorComponent::publish_state(bool state) {
   return this->publish(this->get_state_topic_(), state_s);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
