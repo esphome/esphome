@@ -60,7 +60,13 @@ void DlmsMeterComponent::loop() {
     if (!this->parse_dlms_(mbus_payload, message_length, systitle_length, header_offset))
       return;
 
-    uint8_t plaintext[message_length];
+    if (message_length == 0 || message_length > MAX_MESSAGE_LENGTH) {
+      ESP_LOGE(TAG, "DLMS: Message length invalid: %u", message_length);
+      this->abort_();
+      return;
+    }
+
+    uint8_t plaintext[MAX_MESSAGE_LENGTH];
     if (!this->decrypt_(mbus_payload, message_length, systitle_length, header_offset, plaintext))
       return;
 
@@ -291,7 +297,7 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
       return;
     }
 
-    uint8_t obis_code[obis_code_length];
+    uint8_t obis_code[0x0C]; // max of the supported lengths above
     memcpy(&obis_code[0], &plaintext[current_position + OBIS_CODE_OFFSET],
            obis_code_length);  // Copy OBIS code to array
 

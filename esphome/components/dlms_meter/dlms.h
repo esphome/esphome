@@ -76,6 +76,8 @@ static constexpr uint8_t GLO_CIPHERING = 0xDB;
 static constexpr uint8_t DATA_NOTIFICATION = 0x0F;
 static constexpr uint8_t TIMESTAMP_DATETIME = 0x0C;
 
+static constexpr uint8_t MAX_MESSAGE_LENGTH = 0xFFFF;  // Maximum size of message (when having 2 bytes length in header)
+
 /*
  * provider specific quirks
  */
