@@ -8,8 +8,7 @@
 #ifdef USE_LIGHT
 
 #include "esphome/components/light/light_json_schema.h"
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.light";
 
@@ -92,8 +91,7 @@ void MQTTJSONLightComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, true)
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
