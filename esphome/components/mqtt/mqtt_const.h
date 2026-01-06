@@ -12,27 +12,17 @@
 //   root[MQTT_DEVICE_CLASS] = "temperature";
 //
 // Implementation:
-// - ESP8266: Stores strings in PROGMEM (flash) using FlashKey wrapper class
-// - Other platforms: Uses constexpr const char* for compile-time optimization
-// - USE_MQTT_ABBREVIATIONS: When defined, uses shortened key names to reduce message size
+// - ESP8266: Stores strings in PROGMEM (flash) using __FlashStringHelper* pointers.
+//   ArduinoJson recognizes this type and uses pgm_read_byte for flash-aware reads.
+// - Other platforms: Uses constexpr const char* for compile-time optimization.
+// - USE_MQTT_ABBREVIATIONS: When defined, uses shortened key names to reduce message size.
 //
 // Adding new keys:
 //   Add a single line to MQTT_KEYS_LIST: X(MQTT_NEW_KEY, "abbr", "full_name")
+//   The X-macro will generate the appropriate constants for each platform.
 //
 // Note: Other MQTT_* constants (e.g., MQTT_CLIENT_CONNECTED, MQTT_LEGACY_UNIQUE_ID_GENERATOR)
 // are C++ enums defined in mqtt_client.h and mqtt_backend*.h - unrelated to these JSON keys.
-
-#ifdef USE_ESP8266
-// Helper class that wraps a PROGMEM string pointer and provides implicit conversion
-// to __FlashStringHelper* for use with ArduinoJson
-class FlashKey {
-  const char *ptr_;
-
- public:
-  constexpr FlashKey(const char *p) : ptr_(p) {}
-  operator const __FlashStringHelper *() const { return reinterpret_cast<const __FlashStringHelper *>(ptr_); }
-};
-#endif
 
 // X-macro list: MQTT_KEYS_LIST(X) calls X(name, abbr, full) for each key
 // clang-format off
@@ -303,19 +293,25 @@ class FlashKey {
 // clang-format on
 
 #ifdef USE_ESP8266
-// ESP8266: Use FlashKey wrapper with PROGMEM strings for flash storage
+// ESP8266: Store strings in PROGMEM (flash) and expose as __FlashStringHelper* pointers.
+// ArduinoJson recognizes this type and uses pgm_read_byte for flash-aware reads.
 namespace esphome::mqtt {
+
+// Generate PROGMEM data arrays
 #ifdef USE_MQTT_ABBREVIATIONS
-#define MQTT_FLASH_KEY(name, abbr, full) \
-  static const char name##_data[] PROGMEM = abbr; \
-  static const FlashKey name{name##_data};
+#define MQTT_DATA(name, abbr, full) static const char name##_data[] PROGMEM = abbr;
 #else
-#define MQTT_FLASH_KEY(name, abbr, full) \
-  static const char name##_data[] PROGMEM = full; \
-  static const FlashKey name{name##_data};
+#define MQTT_DATA(name, abbr, full) static const char name##_data[] PROGMEM = full;
 #endif
-MQTT_KEYS_LIST(MQTT_FLASH_KEY)
-#undef MQTT_FLASH_KEY
+MQTT_KEYS_LIST(MQTT_DATA)
+#undef MQTT_DATA
+
+// Generate flash string pointers from the PROGMEM data
+#define MQTT_PTR(name, abbr, full) \
+  static const __FlashStringHelper *const name = reinterpret_cast<const __FlashStringHelper *>(name##_data);
+MQTT_KEYS_LIST(MQTT_PTR)
+#undef MQTT_PTR
+
 }  // namespace esphome::mqtt
 using namespace esphome::mqtt;  // NOLINT
 #else
