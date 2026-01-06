@@ -387,14 +387,14 @@ bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
   while (len - at > 0) {
     uint32_t now = millis();
     if (now - start > OTA_SOCKET_TIMEOUT_DATA) {
-      ESP_LOGW(TAG, "Timeout reading %d bytes", len);
+      ESP_LOGW(TAG, "Timeout reading %zu bytes", len);
       return false;
     }
 
     ssize_t read = this->client_->read(buf + at, len - at);
     if (read == -1) {
       if (!this->would_block_(errno)) {
-        ESP_LOGW(TAG, "Read err %d bytes, errno %d", len, errno);
+        ESP_LOGW(TAG, "Read err %zu bytes, errno %d", len, errno);
         return false;
       }
     } else if (read == 0) {
@@ -414,14 +414,14 @@ bool ESPHomeOTAComponent::writeall_(const uint8_t *buf, size_t len) {
   while (len - at > 0) {
     uint32_t now = millis();
     if (now - start > OTA_SOCKET_TIMEOUT_DATA) {
-      ESP_LOGW(TAG, "Timeout writing %d bytes", len);
+      ESP_LOGW(TAG, "Timeout writing %zu bytes", len);
       return false;
     }
 
     ssize_t written = this->client_->write(buf + at, len - at);
     if (written == -1) {
       if (!this->would_block_(errno)) {
-        ESP_LOGW(TAG, "Write err %d bytes, errno %d", len, errno);
+        ESP_LOGW(TAG, "Write err %zu bytes, errno %d", len, errno);
         return false;
       }
     } else {
