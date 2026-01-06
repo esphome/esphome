@@ -1,8 +1,9 @@
 #pragma once
 
-#include "async_tcp.h"
+#include "esphome/core/defines.h"
 
-#if defined(ESPHOME_ASYNC_TCP_SOCKET_IMPL) && \
+// Only use socket implementation for platforms that don't have AsyncTCP libraries
+#if !defined(USE_ESP32) && !defined(USE_ESP8266) && !defined(USE_RP2040) && !defined(USE_LIBRETINY) && \
     (defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS))
 
 #include "esphome/components/socket/socket.h"
@@ -70,5 +71,4 @@ class AsyncClient {
 
 // Expose AsyncClient in global namespace to match library behavior
 using esphome::async_tcp::AsyncClient;  // NOLINT(google-global-names-in-headers)
-#endif  //  defined(ESPHOME_ASYNC_TCP_SOCKET_IMPL) && (defined(USE_SOCKET_IMPL_LWIP_SOCKETS) ||
-        //  defined(USE_SOCKET_IMPL_BSD_SOCKETS))
+#endif
