@@ -28,7 +28,7 @@ CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
 
 
-AUTO_LOAD = ["md5", "sha256", "socket"]
+AUTO_LOAD = ["sha256", "socket"]
 
 
 esphome = cg.esphome_ns.namespace("esphome")
