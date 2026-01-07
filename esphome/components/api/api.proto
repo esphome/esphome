@@ -2518,7 +2518,7 @@ message InfraredProxyTransmitRawTimingsRequest {
   fixed32 key = 1;                                       // Key identifying the transmitter instance
   uint32 carrier_frequency = 2;                          // Carrier frequency in Hz (0 = no carrier)
   uint32 repeat_count = 3;                               // Number of times to transmit (1 = once, 2 = twice, etc.)
-  repeated int32 timings = 4 [(fixed_vector) = true];    // Raw timings (alternating mark/space in microseconds)
+  repeated int32 timings = 4 [packed=false, (fixed_vector) = true];    // Raw timings (alternating mark/space in microseconds)
 }
 
 // Event message for received infrared data
@@ -2529,5 +2529,5 @@ message InfraredProxyReceiveEvent {
   option (no_delay) = true;
 
   fixed32 key = 1;                                    // Key identifying the receiver instance
-  repeated int32 timings = 2 [(fixed_vector) = true]; // Raw timings (alternating on/off in microseconds)
+  repeated int32 timings = 2 [packed=false, (fixed_vector) = true]; // Raw timings (alternating on/off in microseconds)
 }
