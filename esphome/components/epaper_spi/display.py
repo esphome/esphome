@@ -36,7 +36,6 @@ from esphome.cpp_generator import RawExpression
 from esphome.final_validate import full_config
 
 from . import models
-from .models.e2271ks0c1 import CONF_TEMPERATURE_C
 
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
