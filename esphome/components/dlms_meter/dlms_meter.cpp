@@ -67,10 +67,11 @@ void DlmsMeterComponent::loop() {
       return;
     }
 
-    uint8_t plaintext[MAX_MESSAGE_LENGTH];
-    if (!this->decrypt_(mbus_payload, message_length, systitle_length, header_offset, plaintext))
+    // Decrypt in place inside mbus_payload
+    if (!this->decrypt_(mbus_payload, message_length, systitle_length, header_offset))
       return;
 
+    uint8_t *plaintext = &mbus_payload[header_offset + DLMS_PAYLOAD_OFFSET];
     this->decode_obis_(plaintext, message_length);
   }
 }
@@ -231,8 +232,8 @@ bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, u
   return true;
 }
 
-bool DlmsMeterComponent::decrypt_(const std::vector<uint8_t> &mbus_payload, uint16_t message_length,
-                                  uint8_t systitle_length, uint16_t header_offset, uint8_t *plaintext) {
+bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t message_length,
+                                  uint8_t systitle_length, uint16_t header_offset) {
   // Decryption
   ESP_LOGV(TAG, "Decrypting payload");
 
@@ -243,22 +244,23 @@ bool DlmsMeterComponent::decrypt_(const std::vector<uint8_t> &mbus_payload, uint
   memcpy(&iv[8], &mbus_payload[header_offset + DLMS_FRAMECOUNTER_OFFSET],
          DLMS_FRAMECOUNTER_LENGTH);  // Copy frame counter to IV
 
+  uint8_t *payload_ptr = &mbus_payload[header_offset + DLMS_PAYLOAD_OFFSET];
+
 #if defined(USE_ESP8266_FRAMEWORK_ARDUINO)
-  memcpy(plaintext, &mbus_payload[header_offset + DLMS_PAYLOAD_OFFSET], message_length);
   br_gcm_context gcm_ctx;
   br_aes_ct_ctr_keys bc;
   br_aes_ct_ctr_init(&bc, this->decryption_key_, this->decryption_key_length_);
   br_gcm_init(&gcm_ctx, &bc.vtable, br_ghash_ctmul32);
   br_gcm_reset(&gcm_ctx, iv, sizeof(iv));
   br_gcm_flip(&gcm_ctx);
-  br_gcm_run(&gcm_ctx, 0, plaintext, message_length);
+  br_gcm_run(&gcm_ctx, 0, payload_ptr, message_length);
 #elif defined(USE_ESP32)
   mbedtls_gcm_context gcm_ctx;
   mbedtls_gcm_init(&gcm_ctx);
   mbedtls_gcm_setkey(&gcm_ctx, MBEDTLS_CIPHER_ID_AES, this->decryption_key_, this->decryption_key_length_ * 8);
 
   mbedtls_gcm_auth_decrypt(&gcm_ctx, message_length, iv, sizeof(iv), NULL, 0, NULL, 0,
-                           &mbus_payload[header_offset + DLMS_PAYLOAD_OFFSET], plaintext);
+                           payload_ptr, payload_ptr);
 
   mbedtls_gcm_free(&gcm_ctx);
 #else
@@ -266,9 +268,9 @@ bool DlmsMeterComponent::decrypt_(const std::vector<uint8_t> &mbus_payload, uint
 #endif
 
   ESP_LOGV(TAG, "Decrypted payload: %d", message_length);
-  ESP_LOGV(TAG, "%s", format_hex_pretty(&plaintext[0], message_length).c_str());
+  ESP_LOGV(TAG, "%s", format_hex_pretty(&payload_ptr[0], message_length).c_str());
 
-  if (plaintext[0] != DATA_NOTIFICATION || plaintext[5] != TIMESTAMP_DATETIME) {
+  if (payload_ptr[0] != DATA_NOTIFICATION || payload_ptr[5] != TIMESTAMP_DATETIME) {
     ESP_LOGE(TAG, "OBIS: Packet was decrypted but data is invalid");
     this->abort_();
     return false;

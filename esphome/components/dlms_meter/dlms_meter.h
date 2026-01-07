@@ -95,8 +95,8 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   bool parse_mbus_(std::vector<uint8_t> &mbus_payload);
   bool parse_dlms_(const std::vector<uint8_t> &mbus_payload, uint16_t &message_length, uint8_t &systitle_length,
                    uint16_t &header_offset);
-  bool decrypt_(const std::vector<uint8_t> &mbus_payload, uint16_t message_length, uint8_t systitle_length,
-                uint16_t header_offset, uint8_t *plaintext);
+  bool decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t message_length, uint8_t systitle_length,
+                uint16_t header_offset);
   void decode_obis_(uint8_t *plaintext, uint16_t message_length);
 
   std::vector<uint8_t> receive_buffer_;  // Stores the packet currently being received
