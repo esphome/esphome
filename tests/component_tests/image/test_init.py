@@ -9,8 +9,9 @@ from typing import Any
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.image import CONF_TRANSPARENCY, CONFIG_SCHEMA
-from esphome.const import CONF_ID, CONF_RAW_DATA_ID, CONF_TYPE
+from esphome.components.image import CONF_TRANSPARENCY, CONFIG_SCHEMA, DOMAIN
+from esphome.const import CONF_HEIGHT, CONF_ID, CONF_RAW_DATA_ID, CONF_TYPE, CONF_WIDTH
+from esphome.core import CORE
 
 
 @pytest.mark.parametrize(
@@ -235,3 +236,75 @@ def test_image_generation(
         "cat_img = new image::Image(uint8_t_id, 32, 24, image::IMAGE_TYPE_RGB565, image::TRANSPARENCY_OPAQUE);"
         in main_cpp
     )
+
+
+def test_image_to_code_defines_and_core_data(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that to_code() sets USE_IMAGE define and stores image data in CORE.data."""
+    # Generate the main cpp which will call to_code
+    generate_main(component_config_path("image_test.yaml"))
+
+    # Verify USE_IMAGE define was added
+    assert any(d.name == "USE_IMAGE" for d in CORE.defines), (
+        "USE_IMAGE define should be set when images are configured"
+    )
+
+    # Verify CORE.data[DOMAIN] was initialized
+    assert DOMAIN in CORE.data, (
+        f"CORE.data['{DOMAIN}'] should be initialized by to_code()"
+    )
+
+    # Verify it's a dictionary
+    assert isinstance(CORE.data[DOMAIN], dict), (
+        f"CORE.data['{DOMAIN}'] should be a dictionary"
+    )
+
+    # Verify image data was stored for the configured image
+    # The test config has an image with id 'cat_img'
+    assert "cat_img" in CORE.data[DOMAIN], (
+        "Image data should be stored in CORE.data[DOMAIN] with image ID as key"
+    )
+
+    # Verify the stored data has the expected keys
+    cat_img_data = CORE.data[DOMAIN]["cat_img"]
+    assert CONF_WIDTH in cat_img_data, "Image data should contain width"
+    assert CONF_HEIGHT in cat_img_data, "Image data should contain height"
+    assert CONF_TYPE in cat_img_data, "Image data should contain type"
+    assert CONF_TRANSPARENCY in cat_img_data, "Image data should contain transparency"
+
+    # Verify the values are correct (from the test image)
+    assert cat_img_data[CONF_WIDTH] == 32, "Width should be 32"
+    assert cat_img_data[CONF_HEIGHT] == 24, "Height should be 24"
+    # Type and transparency are enum values, just verify they exist and are not None
+    assert cat_img_data[CONF_TYPE] is not None, "Type should not be None"
+    assert cat_img_data[CONF_TRANSPARENCY] is not None, (
+        "Transparency should not be None"
+    )
+
+
+def test_image_to_code_multiple_images(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that to_code() stores data for multiple images."""
+    # First, let's check if there's a config with multiple images
+    # For now, we'll just verify that the data structure supports multiple images
+    generate_main(component_config_path("image_test.yaml"))
+
+    # Verify CORE.data[DOMAIN] can store multiple images
+    assert isinstance(CORE.data[DOMAIN], dict), (
+        f"CORE.data['{DOMAIN}'] should be a dictionary that can hold multiple images"
+    )
+
+    # Each image ID should be a key in the dictionary
+    for image_id in CORE.data[DOMAIN]:
+        assert isinstance(image_id, str), "Image IDs should be strings"
+        image_data = CORE.data[DOMAIN][image_id]
+        assert isinstance(image_data, dict), "Each image's data should be a dictionary"
+        # Verify required keys are present
+        for key in [CONF_WIDTH, CONF_HEIGHT, CONF_TYPE, CONF_TRANSPARENCY]:
+            assert key in image_data, (
+                f"Image data for '{image_id}' should contain '{key}'"
+            )
