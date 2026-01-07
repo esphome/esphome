@@ -17,7 +17,7 @@ static inline uint8_t encode_temp(float temp_c, bool fast) {
 
 bool HOT EPaperE2271KS0C1::transfer_data() {
   const uint32_t start_time = millis();
-  const bool partial = this->update_count_ != 0;
+  const bool partial = this->update_count_ != 0 && this->temperature_c_ >= 0;
   const size_t buffer_length = this->buffer_length_;
 
   // Phase 0: Initialization (soft reset for full updates, configure registers)
