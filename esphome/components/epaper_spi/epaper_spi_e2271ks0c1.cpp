@@ -30,35 +30,7 @@ bool EPaperE2271KS0C1::transfer_data() {
   this->soft_reset_pending_ = false;
   ESP_LOGV(TAG, "Transfer data, partial=%s", YESNO(partial));
 
-  // Build rotated buffer (90 degrees clockwise)
-  // Source: 264x176, Panel expects: 176x264
-  const int src_width = this->width_;
-  const int src_height = this->height_;
-  const int dst_width = this->height_;
-  const int dst_height = this->width_;
-  const size_t n = dst_width * dst_height / 8;
-
-  if (this->tx_.size() != n) {
-    this->tx_.assign(n, 0x00);
-    this->prev_.assign(n, 0x00);
-  }
-
-  std::fill(this->tx_.begin(), this->tx_.end(), 0x00);
-
-  // Rotate pixels: source(x,y) -> dest(src_height-1-y, x)
-  for (int sy = 0; sy < src_height; sy++) {
-    for (int sx = 0; sx < src_width; sx++) {
-      int src_byte = sy * (src_width / 8) + sx / 8;
-      int src_bit = 7 - (sx % 8);
-      if ((this->buffer_[src_byte] >> src_bit) & 1) {
-        int dx = src_height - 1 - sy;
-        int dy = sx;
-        int dst_byte = dy * (dst_width / 8) + dx / 8;
-        int dst_bit = 7 - (dx % 8);
-        this->tx_[dst_byte] |= (1 << dst_bit);
-      }
     }
-  }
 
   // Temperature configuration
   uint8_t ts = encode_temp(this->temperature_c_, partial);
