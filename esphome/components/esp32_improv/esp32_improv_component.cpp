@@ -4,6 +4,7 @@
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble_server/ble_2902.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -14,6 +15,7 @@ namespace esp32_improv {
 using namespace bytebuffer;
 
 static const char *const TAG = "esp32_improv.component";
+static constexpr size_t IMPROV_MAX_LOG_BYTES = 128;
 static const char *const ESPHOME_MY_LINK = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
 static constexpr uint16_t STOP_ADVERTISING_DELAY =
     10000;  // Delay (ms) before stopping service to allow BLE clients to read the final state
@@ -314,7 +316,11 @@ void ESP32ImprovComponent::dump_config() {
 void ESP32ImprovComponent::process_incoming_data_() {
   uint8_t length = this->incoming_data_[1];
 
-  ESP_LOGV(TAG, "Processing bytes - %s", format_hex_pretty(this->incoming_data_).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(IMPROV_MAX_LOG_BYTES)];
+  ESP_LOGV(TAG, "Processing bytes - %s",
+           format_hex_pretty_to(hex_buf, this->incoming_data_.data(), this->incoming_data_.size()));
+#endif
   if (this->incoming_data_.size() - 3 == length) {
     this->set_error_(improv::ERROR_NONE);
     improv::ImprovCommand command = improv::parse_improv_data(this->incoming_data_);
@@ -392,9 +398,12 @@ void ESP32ImprovComponent::check_wifi_connection_() {
 
 #ifdef USE_ESP32_IMPROV_NEXT_URL
     // Add next_url if configured (should be first per Improv BLE spec)
-    std::string next_url = this->get_formatted_next_url_();
-    if (!next_url.empty()) {
-      url_strings[url_count++] = std::move(next_url);
+    {
+      char url_buffer[384];
+      size_t len = this->get_formatted_next_url_(url_buffer, sizeof(url_buffer));
+      if (len > 0) {
+        url_strings[url_count++] = std::string(url_buffer, len);
+      }
     }
 #endif
 
@@ -403,8 +412,12 @@ void ESP32ImprovComponent::check_wifi_connection_() {
 #ifdef USE_WEBSERVER
     for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
       if (ip.is_ip4()) {
-        char url_buffer[64];
-        snprintf(url_buffer, sizeof(url_buffer), "http://%s:%d", ip.str().c_str(), USE_WEBSERVER_PORT);
+        // "http://" (7) + IPv4 max (15) + ":" (1) + port max (5) + null = 29
+        char url_buffer[32];
+        memcpy(url_buffer, "http://", 7);  // NOLINT(bugprone-not-null-terminated-result) - str_to null-terminates
+        ip.str_to(url_buffer + 7);
+        size_t len = strlen(url_buffer);
+        snprintf(url_buffer + len, sizeof(url_buffer) - len, ":%d", USE_WEBSERVER_PORT);
         url_strings[url_count++] = url_buffer;
         break;
       }

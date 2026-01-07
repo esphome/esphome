@@ -7,8 +7,7 @@
 #include "mqtt_component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTBinarySensorComponent : public mqtt::MQTTComponent {
  public:
@@ -36,8 +35,7 @@ class MQTTBinarySensorComponent : public mqtt::MQTTComponent {
   binary_sensor::BinarySensor *binary_sensor_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

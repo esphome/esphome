@@ -334,7 +334,7 @@ class ProtoWriteBuffer {
   void encode_sint64(uint32_t field_id, int64_t value, bool force = false) {
     this->encode_uint64(field_id, encode_zigzag64(value), force);
   }
-  void encode_message(uint32_t field_id, const ProtoMessage &value, bool force = false);
+  void encode_message(uint32_t field_id, const ProtoMessage &value);
   std::vector<uint8_t> *get_buffer() const { return buffer_; }
 
  protected:
@@ -795,7 +795,7 @@ class ProtoSize {
 };
 
 // Implementation of encode_message - must be after ProtoMessage is defined
-inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessage &value, bool force) {
+inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessage &value) {
   this->encode_field_raw(field_id, 2);  // type 2: Length-delimited message
 
   // Calculate the message size first
@@ -833,9 +833,6 @@ class ProtoService {
   virtual bool is_authenticated() = 0;
   virtual bool is_connection_setup() = 0;
   virtual void on_fatal_error() = 0;
-#ifdef USE_API_PASSWORD
-  virtual void on_unauthenticated_access() = 0;
-#endif
   virtual void on_no_setup_connection() = 0;
   /**
    * Create a buffer with a reserved size.
@@ -846,7 +843,7 @@ class ProtoService {
    */
   virtual ProtoWriteBuffer create_buffer(uint32_t reserve_size) = 0;
   virtual bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) = 0;
-  virtual void read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) = 0;
+  virtual void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) = 0;
 
   // Optimized method that pre-allocates buffer based on message size
   bool send_message_(const ProtoMessage &msg, uint8_t message_type) {
@@ -873,20 +870,7 @@ class ProtoService {
     return true;
   }
 
-  inline bool check_authenticated_() {
-#ifdef USE_API_PASSWORD
-    if (!this->check_connection_setup_()) {
-      return false;
-    }
-    if (!this->is_authenticated()) {
-      this->on_unauthenticated_access();
-      return false;
-    }
-    return true;
-#else
-    return this->check_connection_setup_();
-#endif
-  }
+  inline bool check_authenticated_() { return this->check_connection_setup_(); }
 };
 
 }  // namespace esphome::api

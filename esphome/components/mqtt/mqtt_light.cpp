@@ -8,8 +8,7 @@
 #ifdef USE_LIGHT
 
 #include "esphome/components/light/light_json_schema.h"
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.light";
 
@@ -25,8 +24,11 @@ void MQTTJSONLightComponent::setup() {
     call.perform();
   });
 
-  auto f = std::bind(&MQTTJSONLightComponent::publish_state_, this);
-  this->state_->add_new_remote_values_callback([this, f]() { this->defer("send", f); });
+  this->state_->add_remote_values_listener(this);
+}
+
+void MQTTJSONLightComponent::on_light_remote_values_update() {
+  this->defer("send", [this]() { this->publish_state_(); });
 }
 
 MQTTJSONLightComponent::MQTTJSONLightComponent(LightState *state) : state_(state) {}
@@ -89,8 +91,7 @@ void MQTTJSONLightComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, true)
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

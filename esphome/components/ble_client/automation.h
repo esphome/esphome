@@ -7,10 +7,13 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/components/ble_client/ble_client.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ble_client {
+// Maximum bytes to log in hex format for BLE writes (many logging buffers are 256 chars)
+static constexpr size_t BLE_WRITE_MAX_LOG_BYTES = 64;
+
+namespace esphome::ble_client {
 
 // placeholder class for static TAG .
 class Automation {
@@ -152,7 +155,10 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
       esph_log_w(Automation::TAG, "Cannot write to BLE characteristic - not connected");
       return false;
     }
-    esph_log_vv(Automation::TAG, "Will write %d bytes: %s", len, format_hex_pretty(data, len).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+    char hex_buf[format_hex_pretty_size(BLE_WRITE_MAX_LOG_BYTES)];
+    esph_log_vv(Automation::TAG, "Will write %d bytes: %s", len, format_hex_pretty_to(hex_buf, data, len));
+#endif
     esp_err_t err =
         esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_, len,
                                  const_cast<uint8_t *>(data), this->write_type_, ESP_GATT_AUTH_REQ_NONE);
@@ -180,8 +186,10 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
       case ESP_GATTC_SEARCH_CMPL_EVT: {
         auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
         if (chr == nullptr) {
+          char char_buf[esp32_ble::UUID_STR_LEN];
+          char service_buf[esp32_ble::UUID_STR_LEN];
           esph_log_w("ble_write_action", "Characteristic %s was not found in service %s",
-                     this->char_uuid_.to_string().c_str(), this->service_uuid_.to_string().c_str());
+                     this->char_uuid_.to_str(char_buf), this->service_uuid_.to_str(service_buf));
           break;
         }
         this->char_handle_ = chr->handle;
@@ -193,11 +201,13 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
           this->write_type_ = ESP_GATT_WRITE_TYPE_NO_RSP;
           esph_log_d(Automation::TAG, "Write type: ESP_GATT_WRITE_TYPE_NO_RSP");
         } else {
-          esph_log_e(Automation::TAG, "Characteristic %s does not allow writing", this->char_uuid_.to_string().c_str());
+          char char_buf[esp32_ble::UUID_STR_LEN];
+          esph_log_e(Automation::TAG, "Characteristic %s does not allow writing", this->char_uuid_.to_str(char_buf));
           break;
         }
         this->node_state = espbt::ClientState::ESTABLISHED;
-        esph_log_d(Automation::TAG, "Found characteristic %s on device %s", this->char_uuid_.to_string().c_str(),
+        char char_buf[esp32_ble::UUID_STR_LEN];
+        esph_log_d(Automation::TAG, "Found characteristic %s on device %s", this->char_uuid_.to_str(char_buf),
                    ble_client_->address_str());
         break;
       }
@@ -391,7 +401,6 @@ template<typename... Ts> class BLEClientDisconnectAction : public Action<Ts...>,
   BLEClient *ble_client_;
   std::tuple<Ts...> var_{};
 };
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 
 #endif
