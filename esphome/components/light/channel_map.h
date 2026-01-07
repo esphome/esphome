@@ -21,7 +21,7 @@ class ChannelMap {
 
   // Save as string for logging purposes. Don't use *_ptr<char[]> because it is incompatible with the embedded gcc
   // toolchain.
-  std::string channel_map_str_ = "undefined";
+  std::string channel_map_str_ = "";
 
   // Save color mode pre-computed by python to free up runtime resources
   ColorMode color_mode_ = ColorMode::UNKNOWN;
@@ -31,18 +31,16 @@ class ChannelMap {
   ChannelMap(const std::array<int8_t, static_cast<size_t>(ChannelName::SIZE)> channels, const uint8_t channel_count,
              const char *channel_map_str, ColorMode color_mode) {
     // Initialize all channels with sentinel value
-    // std::fill(this->channels_.begin(), this->channels_.end(), -1);
-
-    channels_ = {1, 0, 2, -1, -1, -1};
+    std::fill(this->channels_.begin(), this->channels_.end(), -1);
 
     // Copy channel orders
     std::copy(channels.begin(), channels.end(), this->channels_.begin());
 
-    // Copy existing channels
+    // Copy number of existing channels
     this->channel_count_ = channel_count;
 
     // Copy channel map string if provided, otherwise set as "undefined"
-    channel_map_str_ = std::string((channel_map_str) ? channel_map_str : "undefined");
+    channel_map_str_ = (channel_map_str) ? std::string(channel_map_str) : "undefined";
 
     this->color_mode_ = color_mode;
   }
