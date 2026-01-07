@@ -220,8 +220,12 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                     # Show top symbols from this library
                     for sym in sorted(syms, key=lambda s: s.size, reverse=True)[:3]:
                         section_label = sym.section.lstrip(".")
+                        # Use demangled name (falls back to original if not demangled)
+                        display_name = sym.demangled or sym.name
+                        if len(display_name) > 50:
+                            display_name = f"{display_name[:47]}..."
                         lines.append(
-                            f"    {sym.size:>6,} B [{section_label}] {sym.name[:50]}"
+                            f"    {sym.size:>6,} B [{section_label}] {display_name}"
                         )
 
         # Top consumers

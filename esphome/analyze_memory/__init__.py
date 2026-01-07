@@ -77,6 +77,7 @@ class SDKSymbol:
     library: str  # Name of the .a file (e.g., "libpp.a")
     section: str  # ".bss" or ".data"
     is_local: bool  # True if static/local symbol (lowercase in nm output)
+    demangled: str = ""  # Demangled name (populated after analysis)
 
 
 @dataclass
@@ -519,6 +520,13 @@ class MemoryAnalyzer:
                             )
                         )
                         seen_symbols.add(name)
+
+        # Demangle SDK symbols for better readability
+        if self._sdk_symbols:
+            sdk_names = [sym.name for sym in self._sdk_symbols]
+            demangled_map = batch_demangle(sdk_names, objdump_path=self.objdump_path)
+            for sym in self._sdk_symbols:
+                sym.demangled = demangled_map.get(sym.name, sym.name)
 
         # Sort by size descending for reporting
         self._sdk_symbols.sort(key=lambda s: s.size, reverse=True)
