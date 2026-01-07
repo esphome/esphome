@@ -241,9 +241,12 @@ CONFIG_SCHEMA = cv.All(
                 CONF_HARDWARE_UART,
                 esp8266=UART0,
                 esp32=UART0,
+                esp32_c2=UART0,
                 esp32_c3=USB_SERIAL_JTAG,
                 esp32_c5=USB_SERIAL_JTAG,
                 esp32_c6=USB_SERIAL_JTAG,
+                esp32_c61=USB_SERIAL_JTAG,
+                esp32_h2=USB_SERIAL_JTAG,
                 esp32_p4=USB_SERIAL_JTAG,
                 esp32_s2=USB_CDC,
                 esp32_s3=USB_SERIAL_JTAG,
@@ -334,6 +337,18 @@ async def to_code(config):
     is_at_least_very_verbose = this_severity >= very_verbose_severity
     has_serial_logging = baud_rate != 0
 
+    # Add defines for which Serial object is needed (allows linker to exclude unused)
+    if CORE.is_esp8266:
+        from esphome.components.esp8266.const import enable_serial, enable_serial1
+
+        hw_uart = config.get(CONF_HARDWARE_UART, UART0)
+        if has_serial_logging and hw_uart in (UART0, UART0_SWAP):
+            cg.add_define("USE_ESP8266_LOGGER_SERIAL")
+            enable_serial()
+        elif has_serial_logging and hw_uart == UART1:
+            cg.add_define("USE_ESP8266_LOGGER_SERIAL1")
+            enable_serial1()
+
     if (
         (CORE.is_esp8266 or CORE.is_rp2040)
         and has_serial_logging
@@ -383,7 +398,7 @@ async def to_code(config):
     except cv.Invalid:
         pass
 
-    if CORE.using_zephyr:
+    if CORE.is_nrf52:
         if config[CONF_HARDWARE_UART] == UART0:
             zephyr_add_overlay("""&uart0 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == UART1:

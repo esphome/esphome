@@ -20,6 +20,7 @@ from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
 from .helpers import requires_component
+from .lvcode import CodeContext, LambdaContext
 
 LOGGER = logging.getLogger(__name__)
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
@@ -137,7 +138,6 @@ class LValidator:
             return None
         if isinstance(value, Lambda):
             # Local import to avoid circular import
-            from .lvcode import CodeContext, LambdaContext
 
             if TYPE_CHECKING:
                 # CodeContext does not have get_automation_parameters

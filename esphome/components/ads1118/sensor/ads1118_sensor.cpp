@@ -9,8 +9,10 @@ static const char *const TAG = "ads1118.sensor";
 
 void ADS1118Sensor::dump_config() {
   LOG_SENSOR("  ", "ADS1118 Sensor", this);
-  ESP_LOGCONFIG(TAG, "    Multiplexer: %u", this->multiplexer_);
-  ESP_LOGCONFIG(TAG, "    Gain: %u", this->gain_);
+  ESP_LOGCONFIG(TAG,
+                "    Multiplexer: %u\n"
+                "    Gain: %u",
+                this->multiplexer_, this->gain_);
 }
 
 float ADS1118Sensor::sample() {

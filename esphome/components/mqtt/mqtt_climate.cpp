@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_CLIMATE
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.climate";
 
@@ -460,8 +459,7 @@ bool MQTTClimateComponent::publish_state_() {
   return success;
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
