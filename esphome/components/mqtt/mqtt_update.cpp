@@ -29,20 +29,20 @@ void MQTTUpdateComponent::setup() {
 
 bool MQTTUpdateComponent::publish_state() {
   return this->publish_json(this->get_state_topic_(), [this](JsonObject root) {
-    root["installed_version"] = this->update_->update_info.current_version;
-    root["latest_version"] = this->update_->update_info.latest_version;
-    root["title"] = this->update_->update_info.title;
+    root[ESPHOME_F("installed_version")] = this->update_->update_info.current_version;
+    root[ESPHOME_F("latest_version")] = this->update_->update_info.latest_version;
+    root[ESPHOME_F("title")] = this->update_->update_info.title;
     if (!this->update_->update_info.summary.empty())
-      root["release_summary"] = this->update_->update_info.summary;
+      root[ESPHOME_F("release_summary")] = this->update_->update_info.summary;
     if (!this->update_->update_info.release_url.empty())
-      root["release_url"] = this->update_->update_info.release_url;
+      root[ESPHOME_F("release_url")] = this->update_->update_info.release_url;
   });
 }
 
 void MQTTUpdateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  root["schema"] = "json";
-  root[MQTT_PAYLOAD_INSTALL] = "INSTALL";
+  root[ESPHOME_F("schema")] = ESPHOME_F("json");
+  root[MQTT_PAYLOAD_INSTALL] = ESPHOME_F("INSTALL");
 }
 
 bool MQTTUpdateComponent::send_initial_state() { return this->publish_state(); }
