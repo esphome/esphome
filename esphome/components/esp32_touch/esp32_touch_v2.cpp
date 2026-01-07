@@ -325,6 +325,7 @@ void ESP32TouchComponent::loop() {
 
   size_t pads_off = 0;
   for (auto *child : this->children_) {
+    child->ensure_benchmark_read();
     // Handle initial state publication after startup
     this->publish_initial_state_if_needed_(child, now);
 
