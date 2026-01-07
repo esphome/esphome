@@ -1,7 +1,14 @@
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INDEX, CONF_NAME, CONF_POSITION, CONF_SIZE
+from esphome.const import (
+    CONF_ID,
+    CONF_INDEX,
+    CONF_ITEMS,
+    CONF_NAME,
+    CONF_POSITION,
+    CONF_SIZE,
+)
 
 from ..automation import action_to_code
 from ..defines import (
@@ -14,10 +21,11 @@ from ..defines import (
     literal,
 )
 from ..lv_validation import animated, lv_int, size
-from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
+from ..lvcode import LocalVariable, lv, lv_assign, lv_expr, lv_obj
 from ..schemas import container_schema, part_schema
 from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr
 from . import Widget, WidgetType, add_widgets, get_widgets, set_obj_properties
+from .button import button_spec
 from .buttonmatrix import buttonmatrix_spec
 from .obj import obj_spec
 
@@ -68,10 +76,10 @@ class TabviewType(WidgetType):
         return "btnmatrix", TYPE_FLEX
 
     async def to_code(self, w: Widget, config: dict):
-        await w.set_property("tab_bar_size", await size.process(config[CONF_SIZE]))
         await w.set_property(
             "tab_bar_position", await DIRECTIONS.process(config[CONF_POSITION])
         )
+        await w.set_property("tab_bar_size", await size.process(config[CONF_SIZE]))
         for tab_conf in config[CONF_TABS]:
             w_id = tab_conf[CONF_ID]
             tab_obj = cg.Pvariable(w_id, cg.nullptr, type_=lv_tab_t)
@@ -79,11 +87,21 @@ class TabviewType(WidgetType):
             lv_assign(tab_obj, lv_expr.tabview_add_tab(w.obj, tab_conf[CONF_NAME]))
             await set_obj_properties(tab_widget, tab_conf)
             await add_widgets(tab_widget, tab_conf)
-        if button_style := config.get(CONF_TAB_STYLE):
+        tab_style = config.get(CONF_TAB_STYLE, {})
+        tab_items_style = tab_style.get(CONF_ITEMS, {})
+        if tab_style:
             with LocalVariable(
-                "tabview_btnmatrix", lv_obj_t, rhs=lv_expr.tabview_get_tab_btns(w.obj)
-            ) as btnmatrix_obj:
-                await set_obj_properties(Widget(btnmatrix_obj, obj_spec), button_style)
+                "tabview_bar", lv_obj_t, rhs=lv_expr.tabview_get_tab_bar(w.obj)
+            ) as bar_obj:
+                tab_bar = Widget(bar_obj, obj_spec)
+                await set_obj_properties(tab_bar, tab_style)
+                if tab_items_style:
+                    for index, tab_conf in enumerate(config[CONF_TABS]):
+                        await set_obj_properties(
+                            Widget(lv_obj.get_child(bar_obj, index), button_spec),
+                            tab_items_style,
+                        )
+
         if content_style := config.get(CONF_CONTENT_STYLE):
             with LocalVariable(
                 "tabview_content", lv_obj_t, rhs=lv_expr.tabview_get_content(w.obj)

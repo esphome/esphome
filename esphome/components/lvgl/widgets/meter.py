@@ -43,7 +43,6 @@ from ..defines import (
     LV_PART,
     LV_SCALE_MODE,
     get_remapped_uses,
-    literal,
 )
 from ..helpers import add_lv_use, lvgl_components_required
 from ..lv_validation import (
@@ -349,9 +348,9 @@ class MeterType(WidgetType):
             percent100 = await pixels_or_percent.process(1.0)
             lv_obj.set_style_height(scale_var, percent100, LV_PART.MAIN)
             lv_obj.set_style_width(scale_var, percent100, LV_PART.MAIN)
-            lv_obj.set_style_align(scale_var, literal("LV_ALIGN_CENTER"), LV_PART.MAIN)
-            lv_obj.set_style_bg_opa(scale_var, literal("LV_OPA_TRANSP"), LV_PART.MAIN)
-            lv_obj.set_style_radius(scale_var, literal("LV_RADIUS_CIRCLE"), 0)
+            lv_obj.set_style_align(scale_var, CHILD_ALIGNMENTS.CENTER, LV_PART.MAIN)
+            lv_obj.set_style_bg_opa(scale_var, LV_OPA.TRANSP, LV_PART.MAIN)
+            lv_obj.set_style_radius(scale_var, LV_RADIUS.CIRCLE, 0)
             await set_obj_properties(Widget(scale_var, scale_spec), indicator_config)
 
             lv.scale_set_mode(scale_var, LV_SCALE_MODE.ROUND_INNER)
@@ -462,7 +461,7 @@ class MeterType(WidgetType):
                             [(lv_event_t.operator("ptr"), "e")]
                         ) as lambda_:
                             lv.scale_draw_event_cb(
-                                literal("e"),
+                                lambda_.get_parameter(0),
                                 start_value,
                                 end_value,
                                 color_start,
