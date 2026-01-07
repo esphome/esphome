@@ -25,9 +25,9 @@ size_t ESPTime::strftime_to(std::span<char, STRFTIME_BUFFER_SIZE> buffer, const 
     return len;
   }
   // Write "ERROR" to buffer on failure for consistent behavior
-  constexpr char ERROR_STR[] = "ERROR";
-  std::copy_n(ERROR_STR, sizeof(ERROR_STR), buffer.data());
-  return sizeof(ERROR_STR) - 1;  // Length excluding null terminator
+  constexpr char error_str[] = "ERROR";
+  std::copy_n(error_str, sizeof(error_str), buffer.data());
+  return sizeof(error_str) - 1;  // Length excluding null terminator
 }
 
 ESPTime ESPTime::from_c_tm(struct tm *c_tm, time_t c_time) {
