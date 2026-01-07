@@ -11,8 +11,7 @@
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
 #endif
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.sensor";
 
@@ -86,8 +85,7 @@ bool MQTTSensorComponent::publish_state(float value) {
   return this->publish(this->get_state_topic_(), value_accuracy_to_string(value, accuracy));
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

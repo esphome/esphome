@@ -18,11 +18,15 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional("electricity_failure_log"): text_sensor.text_sensor_schema(),
         cv.Optional("message_short"): text_sensor.text_sensor_schema(),
         cv.Optional("message_long"): text_sensor.text_sensor_schema(),
+        cv.Optional("equipment_id"): text_sensor.text_sensor_schema(),
         cv.Optional("gas_equipment_id"): text_sensor.text_sensor_schema(),
+        cv.Optional("gas_equipment_id_be"): text_sensor.text_sensor_schema(),
         cv.Optional("thermal_equipment_id"): text_sensor.text_sensor_schema(),
         cv.Optional("water_equipment_id"): text_sensor.text_sensor_schema(),
         cv.Optional("sub_equipment_id"): text_sensor.text_sensor_schema(),
         cv.Optional("gas_delivered_text"): text_sensor.text_sensor_schema(),
+        cv.Optional("fw_core_checksum"): text_sensor.text_sensor_schema(),
+        cv.Optional("fw_module_checksum"): text_sensor.text_sensor_schema(),
         cv.Optional("telegram"): text_sensor.text_sensor_schema().extend(
             {cv.Optional(CONF_INTERNAL, default=True): cv.boolean}
         ),
