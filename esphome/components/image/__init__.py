@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_DEFAULTS,
     CONF_DITHER,
     CONF_FILE,
+    CONF_HEIGHT,
     CONF_ICON,
     CONF_ID,
     CONF_PATH,
@@ -25,6 +26,7 @@ from esphome.const import (
     CONF_SOURCE,
     CONF_TYPE,
     CONF_URL,
+    CONF_WIDTH,
 )
 from esphome.core import CORE, HexInt
 
@@ -724,9 +726,17 @@ async def write_image(config, all_frames=False):
 
 
 async def to_code(config):
+    cg.add_define("USE_IMAGE")
+    CORE.data[DOMAIN] = {}
     # By now the config should be a simple list.
     for entry in config:
         prog_arr, width, height, image_type, trans_value, _ = await write_image(entry)
         cg.new_Pvariable(
             entry[CONF_ID], prog_arr, width, height, image_type, trans_value
         )
+        CORE.data[DOMAIN][entry[CONF_ID].id] = {
+            CONF_WIDTH: width,
+            CONF_HEIGHT: height,
+            CONF_TYPE: image_type,
+            CONF_TRANSPARENCY: trans_value,
+        }
