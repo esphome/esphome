@@ -233,8 +233,8 @@ bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, u
   return true;
 }
 
-bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t message_length,
-                                  uint8_t systitle_length, uint16_t header_offset) {
+bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t message_length, uint8_t systitle_length,
+                                  uint16_t header_offset) {
   // Decryption
   ESP_LOGV(TAG, "Decrypting payload");
 
@@ -260,8 +260,7 @@ bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t m
   mbedtls_gcm_init(&gcm_ctx);
   mbedtls_gcm_setkey(&gcm_ctx, MBEDTLS_CIPHER_ID_AES, this->decryption_key_, this->decryption_key_length_ * 8);
 
-  mbedtls_gcm_auth_decrypt(&gcm_ctx, message_length, iv, sizeof(iv), NULL, 0, NULL, 0,
-                           payload_ptr, payload_ptr);
+  mbedtls_gcm_auth_decrypt(&gcm_ctx, message_length, iv, sizeof(iv), NULL, 0, NULL, 0, payload_ptr, payload_ptr);
 
   mbedtls_gcm_free(&gcm_ctx);
 #else
