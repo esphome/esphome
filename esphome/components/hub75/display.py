@@ -549,7 +549,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_library(
         "hub75",
         None,
-        "https://github.com/stuartparmenter/esp-hub75.git#claude/revert-pr-35-c6-support-w3q4Q",
+        "https://github.com/esphome-libs/esp-hub75.git#claude/revert-pr-35-c6-support-w3q4Q",
     )
 
     # Set compile-time configuration via defines
