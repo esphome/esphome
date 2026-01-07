@@ -106,7 +106,6 @@ static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t 
                       "Received message: error status(%d)", message->info.status);
   ESP_LOGD(TAG, "Received message: endpoint(%d), cluster(0x%x), attribute(0x%x), data size(%d)",
            message->info.dst_endpoint, message->info.cluster, message->attribute.id, message->attribute.data.size);
-  zigbeeC->handle_attribute(message->info, message->attribute);
   return ret;
 }
 
@@ -123,16 +122,8 @@ static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id,
   return ret;
 }
 
-void ZigbeeComponent::handle_attribute(esp_zb_device_cb_common_info_t info, esp_zb_zcl_attribute_t attribute) {
-  if (this->attributes_.find({info.dst_endpoint, info.cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, attribute.id}) !=
-      this->attributes_.end()) {
-    this->attributes_[{info.dst_endpoint, info.cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, attribute.id}]->on_value(
-        attribute);
-  }
-}
-
-void ZigbeeComponent::create_default_cluster(uint8_t endpoint_id, esp_zb_ha_standard_devices_t device_id) {
-  this->cluster_list_[endpoint_id] = esphome_zb_default_clusters_create(device_id);
+void ZigbeeComponent::create_default_cluster(uint8_t endpoint_id, zb_ha_standard_devs_e device_id) {
+  this->cluster_list_[endpoint_id] = esphome_zb_default_clusters_create((esp_zb_ha_standard_devices_t) device_id);
   this->endpoint_list_[endpoint_id] = device_id;
 }
 
@@ -172,7 +163,7 @@ esp_zb_attribute_list_t *ZigbeeComponent::create_basic_cluster_() {
   return attr_list;
 }
 
-esp_err_t ZigbeeComponent::create_endpoint(uint8_t endpoint_id, esp_zb_ha_standard_devices_t device_id) {
+esp_err_t ZigbeeComponent::create_endpoint(uint8_t endpoint_id, zb_ha_standard_devs_e device_id) {
   esp_zb_cluster_list_t *esp_zb_cluster_list = this->cluster_list_[endpoint_id];
   esp_zb_endpoint_config_t endpoint_config = {.endpoint = endpoint_id,
                                               .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
@@ -268,7 +259,7 @@ void ZigbeeComponent::dump_config() {
                 "Zigbee\n"
                 "  Model: %s\n"
                 "  Router: %s",
-                this->basic_cluster_data_.model, YESNO(this->device_role_ == ESP_ZB_DEVICE_TYPE_ROUTER));
+                this->basic_cluster_data_.model.c_str(), YESNO(this->device_role_ == ESP_ZB_DEVICE_TYPE_ROUTER));
   for (auto const &[key, val] : this->endpoint_list_) {
     ESP_LOGCONFIG(TAG, "  Endpoint: %u, %d", key, val);
   }

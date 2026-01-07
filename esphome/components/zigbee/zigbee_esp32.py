@@ -1,5 +1,6 @@
 import copy
 import re
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components.esp32 import (
@@ -21,6 +22,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from .const import (
     CONF_REPORT,
@@ -47,11 +49,11 @@ from .const_esp32 import (
 from .zigbee_ep_esp32 import create_ep, ep_configs
 
 
-def get_c_size(bits, options):
+def get_c_size(bits: str, options: list[int]) -> str:
     return str([n for n in options if n >= int(bits)][0])
 
 
-def get_c_type(attr_type):
+def get_c_type(attr_type: str) -> Any | None:
     if attr_type == "BOOL":
         return cg.bool_
     if "STRING" in attr_type:
@@ -62,7 +64,7 @@ def get_c_type(attr_type):
     return None
 
 
-def get_cv_by_type(attr_type):
+def get_cv_by_type(attr_type: str) -> Any | None:
     if attr_type == "BOOL":
         return cv.boolean
     if "STRING" in attr_type:
@@ -73,7 +75,7 @@ def get_cv_by_type(attr_type):
     return None
 
 
-def get_default_by_type(attr_type):
+def get_default_by_type(attr_type: str) -> str | bool | int:
     if attr_type == "CHAR_STRING":
         return ""
     if attr_type == "BOOL":
@@ -81,7 +83,7 @@ def get_default_by_type(attr_type):
     return 0
 
 
-def validate_attributes(config):
+def validate_attributes(config: ConfigType) -> ConfigType:
     if CONF_VALUE not in config:
         config[CONF_VALUE] = get_default_by_type(config[CONF_TYPE])
     config[CONF_VALUE] = get_cv_by_type(config[CONF_TYPE])(config[CONF_VALUE])
@@ -89,13 +91,13 @@ def validate_attributes(config):
     return config
 
 
-def final_validate_esp32(config):
+def final_validate_esp32(config: ConfigType) -> ConfigType:
     if CONF_WIFI in fv.full_config.get() and CONF_AP in fv.full_config.get()[CONF_WIFI]:
         raise cv.Invalid("Zigbee can't be used together with a Wifi Access Point.")
     return config
 
 
-def validate_binary_sensor_esp32(config):
+def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
     ep = copy.deepcopy(ep_configs["binary_input"])
     for cl in ep.get(CONF_CLUSTERS, []):
         for attr in cl[CONF_ATTRIBUTES]:
@@ -124,7 +126,7 @@ def validate_binary_sensor_esp32(config):
     return config
 
 
-def zigbee_require_vfs_select(config):
+def zigbee_require_vfs_select(config: ConfigType) -> ConfigType:
     """Register VFS select requirement during config validation."""
     # Zigbee uses esp_vfs_eventfd which requires VFS select support
     if CORE.is_esp32:
@@ -132,7 +134,9 @@ def zigbee_require_vfs_select(config):
     return config
 
 
-async def attributes_to_code(var, ep_num, cl):
+async def attributes_to_code(
+    var: cg.Pvariable, ep_num: int, cl: dict[str, Any]
+) -> None:
     for attr in cl.get(CONF_ATTRIBUTES, []):
         attr_var = cg.new_Pvariable(
             attr[CONF_ID],
@@ -157,7 +161,7 @@ async def attributes_to_code(var, ep_num, cl):
             cg.add(attr_var.connect(template_arg, device))
 
 
-async def esp32_to_code(config):
+async def esp32_to_code(config: ConfigType) -> None:
     add_idf_component(
         name="espressif/esp-zboss-lib",
         ref="1.6.4",
@@ -179,7 +183,7 @@ async def esp32_to_code(config):
     # create endpoints
     zb_data = CORE.data.get(KEY_ZIGBEE, {})
     binary_sensor_ep: list[dict] = zb_data.get(KEY_BS_EP, [])
-    ep_list = create_ep(binary_sensor_ep)
+    ep_list = create_ep(binary_sensor_ep, config.get(CONF_ROUTER))
 
     # setup zigbee components
     var = cg.new_Pvariable(config[CONF_ID])

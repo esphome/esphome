@@ -35,10 +35,6 @@ class ZigbeeAttribute : public Component {
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
   void set_report(bool force);
-  void add_on_value_callback(std::function<void(esp_zb_zcl_attribute_t attribute)> callback) {
-    on_value_callback_.add(std::move(callback));
-  }
-  void on_value(esp_zb_zcl_attribute_t attribute) { this->on_value_callback_.call(attribute); }
 #ifdef USE_BINARY_SENSOR
   template<typename T> void connect(binary_sensor::BinarySensor *sensor);
 #endif
@@ -54,7 +50,6 @@ class ZigbeeAttribute : public Component {
   uint8_t attr_type_;
   uint8_t max_size_;
   float scale_;
-  CallbackManager<void(esp_zb_zcl_attribute_t attribute)> on_value_callback_{};
   void *value_p_{nullptr};
   bool set_attr_requested_{false};
   bool report_requested_{false};

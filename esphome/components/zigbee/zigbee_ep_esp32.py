@@ -1,4 +1,5 @@
-import esphome.config_validation as cv
+from typing import Any
+
 from esphome.const import CONF_DEVICE, CONF_ID, CONF_TYPE
 
 from .const import CONF_REPORT, REPORT
@@ -13,7 +14,7 @@ from .const_esp32 import (
 )
 
 # endpoint configs:
-ep_configs = {
+ep_configs: dict[str, dict[str, Any]] = {
     "binary_input": {
         DEVICE_TYPE: "SIMPLE_SENSOR",
         CONF_CLUSTERS: [
@@ -46,24 +47,15 @@ ep_configs = {
 }
 
 
-def get_next_ep_num(ep_nums):
-    # get next free number
-    try:
-        ep_num = [i for i in range(1, 240) if i not in ep_nums][0]
-        ep_nums.append(ep_num)
-    except IndexError as e:
-        raise cv.Invalid(
-            "Too many devices. Zigbee can define only 240 endpoints."
-        ) from e
-    return ep_num
-
-
-def create_ep(ep_list):
+def create_ep(ep_list: list[dict[str, Any]], router: bool) -> list[dict[str, Any]]:
     # create dummy endpoint if list is empty
     if not ep_list:
+        ep_type = "CUSTOM_ATTR"
+        if router:
+            ep_type = "RANGE_EXTENDER"
         ep_list = [
             {
-                DEVICE_TYPE: "CUSTOM_ATTR",
+                DEVICE_TYPE: ep_type,
             }
         ]
     # enumerate endpoints

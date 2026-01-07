@@ -11,10 +11,11 @@ CONF_SCALE = "scale"
 CONF_ATTRIBUTE_ID = "attribute_id"
 KEY_BS_EP = "binary_sensor_ep"
 
-ha_standard_devices = cg.esphome_ns.enum("esp_zb_ha_standard_devices_t")
+ha_standard_devices = cg.esphome_ns.enum("zb_ha_standard_devs_e")
 DEVICE_ID = {
-    "SIMPLE_SENSOR": ha_standard_devices.ESP_ZB_HA_SIMPLE_SENSOR_DEVICE_ID,
-    "CUSTOM_ATTR": ha_standard_devices.ESP_ZB_HA_CUSTOM_ATTR_DEVICE_ID,
+    "RANGE_EXTENDER": ha_standard_devices.ZB_HA_RANGE_EXTENDER_DEVICE_ID,
+    "SIMPLE_SENSOR": ha_standard_devices.ZB_HA_SIMPLE_SENSOR_DEVICE_ID,
+    "CUSTOM_ATTR": ha_standard_devices.ZB_HA_CUSTOM_ATTR_DEVICE_ID,
 }
 cluster_id = cg.esphome_ns.enum("esp_zb_zcl_cluster_id_t")
 CLUSTER_ID = {
