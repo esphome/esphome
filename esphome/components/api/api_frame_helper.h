@@ -120,6 +120,27 @@ class APIFrameHelper {
     }
     return APIError::OK;
   }
+  /// Toggle TCP_NODELAY socket option to control Nagle's algorithm.
+  ///
+  /// This is used to allow log messages to coalesce (Nagle enabled) while keeping
+  /// state updates low-latency (NODELAY enabled). Without this, many small log
+  /// packets fill the TCP send buffer, crowding out important state updates.
+  ///
+  /// State is tracked to minimize setsockopt() overhead - on lwip_raw (ESP8266/RP2040)
+  /// this is just a boolean assignment; on other platforms it's a lightweight syscall.
+  ///
+  /// @param enable true to enable NODELAY (disable Nagle), false to enable Nagle
+  /// @return true if successful or already in desired state
+  bool set_nodelay(bool enable) {
+    if (this->nodelay_enabled_ == enable)
+      return true;
+    int val = enable ? 1 : 0;
+    int err = this->socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &val, sizeof(int));
+    if (err == 0) {
+      this->nodelay_enabled_ = enable;
+    }
+    return err == 0;
+  }
   virtual APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) = 0;
   // Write multiple protobuf messages in a single operation
   // messages contains (message_type, offset, length) for each message in the buffer
@@ -208,7 +229,10 @@ class APIFrameHelper {
   uint8_t tx_buf_head_{0};
   uint8_t tx_buf_tail_{0};
   uint8_t tx_buf_count_{0};
-  // 8 bytes total, 0 bytes padding
+  // Tracks TCP_NODELAY state to minimize setsockopt() calls. Initialized to true
+  // since init_common_() enables NODELAY. Used by set_nodelay() to allow log
+  // messages to coalesce while keeping state updates low-latency.
+  bool nodelay_enabled_{true};
 
   // Common initialization for both plaintext and noise protocols
   APIError init_common_();

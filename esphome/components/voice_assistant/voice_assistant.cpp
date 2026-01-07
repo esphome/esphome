@@ -239,10 +239,10 @@ void VoiceAssistant::loop() {
 
       api::VoiceAssistantRequest msg;
       msg.start = true;
-      msg.set_conversation_id(StringRef(this->conversation_id_));
+      msg.conversation_id = StringRef(this->conversation_id_);
       msg.flags = flags;
       msg.audio_settings = audio_settings;
-      msg.set_wake_word_phrase(StringRef(this->wake_word_));
+      msg.wake_word_phrase = StringRef(this->wake_word_);
 
       // Reset media player state tracking
 #ifdef USE_MEDIA_PLAYER
