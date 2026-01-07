@@ -428,23 +428,72 @@ class MemoryAnalyzer:
                 )
 
         # For ESP32 IDF framework
-        # CC is like: ~/.platformio/packages/toolchain-xtensa-esp32/bin/xtensa-esp32-elf-gcc
-        elif "xtensa-esp32" in str(cc_path) or "riscv32-esp" in str(cc_path):
-            # ESP-IDF libraries are more complex, skip for now
-            pass
+        # CC is like: ~/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32-elf-gcc
+        # or: ~/.platformio/packages/toolchain-riscv32-esp/bin/riscv32-esp-elf-gcc
+        elif "xtensa-esp" in str(cc_path) or "riscv32-esp" in str(cc_path):
+            # Detect ESP32 variant from CC path or defines
+            variant = self._detect_esp32_variant()
+            if variant:
+                platformio_dir = cc_path.parent.parent.parent
+                espidf_dir = platformio_dir / "framework-espidf" / "components"
+                if espidf_dir.exists():
+                    # Search for closed-source libraries in components/*/lib/<variant>/
+                    for component_dir in espidf_dir.iterdir():
+                        if not component_dir.is_dir():
+                            continue
+                        # Check for lib/<variant> subdirectory
+                        variant_lib_dir = component_dir / "lib" / variant
+                        if variant_lib_dir.exists() and variant_lib_dir.is_dir():
+                            sdk_dirs.append(variant_lib_dir)
+                        # Also check lib/lib/<variant> (used by esp_ble_mesh)
+                        variant_lib_lib_dir = component_dir / "lib" / "lib" / variant
+                        if (
+                            variant_lib_lib_dir.exists()
+                            and variant_lib_lib_dir.is_dir()
+                        ):
+                            sdk_dirs.append(variant_lib_lib_dir)
 
         return sdk_dirs
 
-    def _parse_sdk_library(self, lib_path: Path) -> list[tuple[str, int, str, bool]]:
-        """Parse a single SDK library for BSS/DATA symbols.
+    def _detect_esp32_variant(self) -> str | None:
+        """Detect ESP32 variant from idedata defines.
+
+        Returns:
+            Variant string like 'esp32', 'esp32s2', 'esp32c3', etc. or None.
+        """
+        if self._idedata is None:
+            return None
+
+        defines = getattr(self._idedata, "defines", [])
+        if not defines:
+            return None
+
+        # ESPHome always adds USE_ESP32_VARIANT_xxx defines
+        variant_prefix = "USE_ESP32_VARIANT_"
+        for define in defines:
+            if define.startswith(variant_prefix):
+                # Extract variant name and convert to lowercase
+                # USE_ESP32_VARIANT_ESP32 -> esp32
+                # USE_ESP32_VARIANT_ESP32S3 -> esp32s3
+                return define[len(variant_prefix) :].lower()
+
+        return None
+
+    def _parse_sdk_library(
+        self, lib_path: Path
+    ) -> tuple[list[tuple[str, int, str, bool]], set[str]]:
+        """Parse a single SDK library for symbols.
 
         Args:
             lib_path: Path to the .a library file
 
         Returns:
-            List of (symbol_name, size, section, is_local) tuples
+            Tuple of:
+            - List of BSS/DATA symbols: (symbol_name, size, section, is_local)
+            - Set of all global symbol names (for checking if library is linked)
         """
-        symbols: list[tuple[str, int, str, bool]] = []
+        ram_symbols: list[tuple[str, int, str, bool]] = []
+        all_global_symbols: set[str] = set()
 
         try:
             result = subprocess.run(
@@ -465,28 +514,34 @@ class MemoryAnalyzer:
                     sym_type = parts[1]
                     name = parts[2]
 
-                    # Only interested in BSS (b/B) and DATA (d/D) symbols
+                    # Track all global symbols (uppercase = global, lowercase = local)
+                    if sym_type.isupper():
+                        all_global_symbols.add(name)
+
+                    # Only collect BSS (b/B) and DATA (d/D) for RAM analysis
                     if sym_type in ("b", "B"):
                         section = ".bss"
                         is_local = sym_type == "b"
-                        symbols.append((name, size, section, is_local))
+                        ram_symbols.append((name, size, section, is_local))
                     elif sym_type in ("d", "D"):
                         section = ".data"
                         is_local = sym_type == "d"
-                        symbols.append((name, size, section, is_local))
+                        ram_symbols.append((name, size, section, is_local))
                 except (ValueError, IndexError):
                     continue
 
         except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError) as e:
             _LOGGER.debug("Failed to parse SDK library %s: %s", lib_path, e)
 
-        return symbols
+        return ram_symbols, all_global_symbols
 
     def _analyze_sdk_libraries(self) -> None:
         """Analyze SDK libraries to find symbols not in the ELF.
 
         This finds static/local symbols from closed-source SDK libraries
         that consume RAM but don't appear in the final ELF symbol table.
+        Only includes symbols from libraries that are actually linked
+        (have at least one global symbol in the ELF).
         """
         sdk_dirs = self._find_sdk_library_dirs()
         if not sdk_dirs:
@@ -501,9 +556,15 @@ class MemoryAnalyzer:
         for sdk_dir in sdk_dirs:
             for lib_path in sorted(sdk_dir.glob("*.a")):
                 lib_name = lib_path.name
-                symbols = self._parse_sdk_library(lib_path)
+                ram_symbols, global_symbols = self._parse_sdk_library(lib_path)
 
-                for name, size, section, is_local in symbols:
+                # Check if this library is actually linked by seeing if any
+                # of its global symbols appear in the ELF
+                if not global_symbols & self._elf_symbol_names:
+                    # No symbols from this library are in the ELF - skip it
+                    continue
+
+                for name, size, section, is_local in ram_symbols:
                     # Skip if already in ELF or already seen from another lib
                     if name in self._elf_symbol_names or name in seen_symbols:
                         continue
