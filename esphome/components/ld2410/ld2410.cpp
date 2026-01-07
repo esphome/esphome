@@ -117,6 +117,8 @@ constexpr Uint8ToString OUT_PIN_LEVELS_BY_UINT[] = {
     {OUT_PIN_LEVEL_HIGH, "high"},
 };
 
+constexpr uint32_t BAUD_RATES[] = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
+
 // Helper functions for lookups
 template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const char *str) {
   for (const auto &entry : arr) {
@@ -258,9 +260,10 @@ void LD2410Component::read_all_info() {
   this->query_parameters_();
   this->set_config_mode_(false);
 #ifdef USE_SELECT
-  const auto baud_rate = std::to_string(this->parent_->get_baud_rate());
   if (this->baud_rate_select_ != nullptr) {
-    this->baud_rate_select_->publish_state(baud_rate);
+    if (auto index = ld24xx::find_index(BAUD_RATES, this->parent_->get_baud_rate())) {
+      this->baud_rate_select_->publish_state(*index);
+    }
   }
 #endif
 }
