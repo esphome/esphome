@@ -1,5 +1,6 @@
 #include "improv_base.h"
 
+#include <cstring>
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
@@ -13,37 +14,54 @@ static constexpr size_t DEVICE_NAME_PLACEHOLDER_LEN = sizeof(DEVICE_NAME_PLACEHO
 static constexpr const char IP_ADDRESS_PLACEHOLDER[] = "{{ip_address}}";
 static constexpr size_t IP_ADDRESS_PLACEHOLDER_LEN = sizeof(IP_ADDRESS_PLACEHOLDER) - 1;
 
-static void replace_all_in_place(std::string &str, const char *placeholder, size_t placeholder_len,
-                                 const std::string &replacement) {
-  size_t pos = 0;
-  const size_t replacement_len = replacement.length();
-  while ((pos = str.find(placeholder, pos)) != std::string::npos) {
-    str.replace(pos, placeholder_len, replacement);
-    pos += replacement_len;
+/// Copy src to dest, returning pointer past last written char. Stops at end or if src is null.
+static char *copy_to_buffer(char *dest, const char *end, const char *src) {
+  if (src == nullptr) {
+    return dest;
   }
+  while (*src != '\0' && dest < end) {
+    *dest++ = *src++;
+  }
+  return dest;
 }
 
-std::string ImprovBase::get_formatted_next_url_() {
-  if (this->next_url_.empty()) {
-    return "";
+size_t ImprovBase::get_formatted_next_url_(char *buffer, size_t buffer_size) {
+  if (this->next_url_ == nullptr || buffer_size == 0) {
+    if (buffer_size > 0) {
+      buffer[0] = '\0';
+    }
+    return 0;
   }
 
-  std::string formatted_url = this->next_url_;
-
-  // Replace all occurrences of {{device_name}}
-  replace_all_in_place(formatted_url, DEVICE_NAME_PLACEHOLDER, DEVICE_NAME_PLACEHOLDER_LEN, App.get_name());
-
-  // Replace all occurrences of {{ip_address}}
+  // Get IP address once for replacement
+  const char *ip_str = nullptr;
+  char ip_buffer[network::IP_ADDRESS_BUFFER_SIZE];
   for (auto &ip : network::get_ip_addresses()) {
     if (ip.is_ip4()) {
-      replace_all_in_place(formatted_url, IP_ADDRESS_PLACEHOLDER, IP_ADDRESS_PLACEHOLDER_LEN, ip.str());
+      ip.str_to(ip_buffer);
+      ip_str = ip_buffer;
       break;
     }
   }
 
-  // Note: {{esphome_version}} is replaced at code generation time in Python
+  const char *device_name = App.get_name().c_str();
+  char *out = buffer;
+  const char *end = buffer + buffer_size - 1;
 
-  return formatted_url;
+  // Note: {{esphome_version}} is replaced at code generation time in Python
+  for (const char *p = this->next_url_; *p != '\0' && out < end;) {
+    if (strncmp(p, DEVICE_NAME_PLACEHOLDER, DEVICE_NAME_PLACEHOLDER_LEN) == 0) {
+      out = copy_to_buffer(out, end, device_name);
+      p += DEVICE_NAME_PLACEHOLDER_LEN;
+    } else if (ip_str != nullptr && strncmp(p, IP_ADDRESS_PLACEHOLDER, IP_ADDRESS_PLACEHOLDER_LEN) == 0) {
+      out = copy_to_buffer(out, end, ip_str);
+      p += IP_ADDRESS_PLACEHOLDER_LEN;
+    } else {
+      *out++ = *p++;
+    }
+  }
+  *out = '\0';
+  return out - buffer;
 }
 #endif
 

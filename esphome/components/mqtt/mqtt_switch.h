@@ -8,8 +8,7 @@
 #include "esphome/components/switch/switch.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTSwitchComponent : public mqtt::MQTTComponent {
  public:
@@ -34,8 +33,7 @@ class MQTTSwitchComponent : public mqtt::MQTTComponent {
   switch_::Switch *switch_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
