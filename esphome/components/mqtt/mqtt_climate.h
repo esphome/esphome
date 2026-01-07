@@ -8,8 +8,7 @@
 #include "esphome/components/climate/climate.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTClimateComponent : public mqtt::MQTTComponent {
  public:
@@ -49,8 +48,7 @@ class MQTTClimateComponent : public mqtt::MQTTComponent {
   climate::Climate *device_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

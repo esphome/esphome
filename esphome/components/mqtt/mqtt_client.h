@@ -24,8 +24,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 /** Callback for MQTT events.
  */
@@ -462,7 +461,6 @@ template<typename... Ts> class MQTTDisableAction : public Action<Ts...> {
   MQTTClientComponent *parent_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_MQTT
