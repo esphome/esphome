@@ -56,6 +56,11 @@ bool TaskLogBufferLibreTiny::borrow_message_main_loop(LogMessage **message, cons
     return false;
   }
 
+  // Check if buffer was initialized successfully
+  if (this->mutex_ == nullptr || this->storage_ == nullptr) {
+    return false;
+  }
+
   // Try to take mutex without blocking - if busy, we'll get messages next loop iteration
   if (xSemaphoreTake(this->mutex_, 0) != pdTRUE) {
     return false;
@@ -117,6 +122,11 @@ bool TaskLogBufferLibreTiny::send_message_thread_safe(uint8_t level, const char 
 
   // Calculate total size needed (header + text length + null terminator)
   size_t total_size = message_total_size(text_length);
+
+  // Check if buffer was initialized successfully
+  if (this->mutex_ == nullptr || this->storage_ == nullptr) {
+    return false;  // Buffer not initialized, fall back to direct output
+  }
 
   // Try to acquire mutex without blocking - don't block logging tasks
   if (xSemaphoreTake(this->mutex_, 0) != pdTRUE) {
