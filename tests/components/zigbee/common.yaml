@@ -15,10 +15,14 @@ binary_sensor:
   - platform: template
     name: "Garage Door Open 7"
     internal: True
+
+sensor:
   - platform: template
-    name: "Garage Door Open 8"
+    name: "Analog 1"
+    lambda: return 10.0;
   - platform: template
-    name: "Garage Door Open 9"
+    name: "Analog 2"
+    lambda: return 11.0;
 
 zigbee:
   wipe_on_boot: true
