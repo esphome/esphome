@@ -404,6 +404,16 @@ constexpr uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
 inline uint32_t fnv1a_hash_extend(uint32_t hash, const std::string &str) {
   return fnv1a_hash_extend(hash, str.c_str());
 }
+/// Extend a FNV-1a hash with an integer (hashes each byte).
+template<std::integral T> constexpr uint32_t fnv1a_hash_extend(uint32_t hash, T value) {
+  using UnsignedT = std::make_unsigned_t<T>;
+  UnsignedT uvalue = static_cast<UnsignedT>(value);
+  for (size_t i = 0; i < sizeof(T); i++) {
+    hash ^= (uvalue >> (i * 8)) & 0xFF;
+    hash *= FNV1_PRIME;
+  }
+  return hash;
+}
 /// Calculate a FNV-1a hash of \p str.
 constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
 inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }

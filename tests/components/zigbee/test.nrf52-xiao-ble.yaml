@@ -1,1 +1,5 @@
 <<: !include common_nrf52.yaml
+
+zigbee:
+  wipe_on_boot: once
+  power_source: battery

@@ -18,10 +18,12 @@ from esphome.types import ConfigType
 
 from .const import (
     CONF_ON_JOIN,
+    CONF_POWER_SOURCE,
     CONF_REPORT,
     CONF_ROUTER,
     CONF_WIPE_ON_BOOT,
     KEY_ZIGBEE,
+    POWER_SOURCE,
     REPORT,
     ZigbeeComponent,
     zigbee_ns,
@@ -32,7 +34,7 @@ from .zigbee_esp32 import (
     validate_binary_sensor_esp32,
     zigbee_require_vfs_select,
 )
-from .zigbee_zephyr import zephyr_binary_sensor
+from .zigbee_zephyr import zephyr_binary_sensor, zephyr_sensor
 
 CODEOWNERS = ["@luar123", "@tomaszduda23"]
 
@@ -55,6 +57,7 @@ BINARY_SENSOR_SCHEMA = cv.Schema(
         )
     }
 ).extend(zephyr_binary_sensor)
+SENSOR_SCHEMA = cv.Schema({}).extend(zephyr_sensor)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -70,8 +73,14 @@ CONFIG_SCHEMA = cv.All(
                 automation.validate_automation(single=True),
             ),
             cv.OnlyWith(CONF_WIPE_ON_BOOT, "nrf52", default=False): cv.All(
-                cv.boolean,
+                cv.Any(
+                    cv.boolean,
+                    cv.one_of(*["once"], lower=True),
+                ),
                 cv.requires_component("nrf52"),
+            ),
+            cv.Optional(CONF_POWER_SOURCE, default="DC_SOURCE"): cv.enum(
+                POWER_SOURCE, upper=True
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -136,15 +145,34 @@ async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
         await zephyr_setup_binary_sensor(entity, config)
 
 
+async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
+    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
+        return
+    if CORE.using_zephyr:
+        from .zigbee_zephyr import zephyr_setup_sensor
+
+        await zephyr_setup_sensor(entity, config)
+
+
+def consume_endpoint(config: ConfigType) -> ConfigType:
+    data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
+    slots: list[str] = data.setdefault(KEY_EP_NUMBER, [])
+    slots.extend([""])
+    return config
+
+
 def validate_binary_sensor(config: ConfigType) -> ConfigType:
     if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return config
     if CORE.is_esp32:
         return validate_binary_sensor_esp32(config)
-    data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
-    slots: list[str] = data.setdefault(KEY_EP_NUMBER, [])
-    slots.extend([""])
-    return config
+    return consume_endpoint(config)
+
+
+def validate_sensor(config: ConfigType) -> ConfigType:
+    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+        return config
+    return consume_endpoint(config)
 
 
 ZIGBEE_ACTION_SCHEMA = automation.maybe_simple_id(

@@ -19,14 +19,14 @@ MQTTDateComponent::MQTTDateComponent(DateEntity *date) : date_(date) {}
 void MQTTDateComponent::setup() {
   this->subscribe_json(this->get_command_topic_(), [this](const std::string &topic, JsonObject root) {
     auto call = this->date_->make_call();
-    if (root["year"].is<uint16_t>()) {
-      call.set_year(root["year"]);
+    if (root[ESPHOME_F("year")].is<uint16_t>()) {
+      call.set_year(root[ESPHOME_F("year")]);
     }
-    if (root["month"].is<uint8_t>()) {
-      call.set_month(root["month"]);
+    if (root[ESPHOME_F("month")].is<uint8_t>()) {
+      call.set_month(root[ESPHOME_F("month")]);
     }
-    if (root["day"].is<uint8_t>()) {
-      call.set_day(root["day"]);
+    if (root[ESPHOME_F("day")].is<uint8_t>()) {
+      call.set_day(root[ESPHOME_F("day")]);
     }
     call.perform();
   });
@@ -55,9 +55,9 @@ bool MQTTDateComponent::send_initial_state() {
 bool MQTTDateComponent::publish_state(uint16_t year, uint8_t month, uint8_t day) {
   return this->publish_json(this->get_state_topic_(), [year, month, day](JsonObject root) {
     // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-    root["year"] = year;
-    root["month"] = month;
-    root["day"] = day;
+    root[ESPHOME_F("year")] = year;
+    root[ESPHOME_F("month")] = month;
+    root[ESPHOME_F("day")] = day;
   });
 }
 

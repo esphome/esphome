@@ -5,6 +5,10 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 import subprocess
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,3 +59,35 @@ def find_tool(
 
     _LOGGER.warning("Could not find %s tool", tool_name)
     return None
+
+
+def run_tool(
+    cmd: Sequence[str],
+    timeout: int = 30,
+) -> subprocess.CompletedProcess[str] | None:
+    """Run a toolchain command and return the result.
+
+    Args:
+        cmd: Command and arguments to run
+        timeout: Timeout in seconds
+
+    Returns:
+        CompletedProcess on success, None on failure
+    """
+    try:
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        _LOGGER.warning("Command timed out: %s", " ".join(cmd))
+        return None
+    except FileNotFoundError:
+        _LOGGER.warning("Command not found: %s", cmd[0])
+        return None
+    except OSError as e:
+        _LOGGER.warning("Failed to run command %s: %s", cmd[0], e)
+        return None
