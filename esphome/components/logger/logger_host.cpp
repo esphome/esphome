@@ -10,8 +10,9 @@ void HOT Logger::write_msg_(const char *msg, size_t len) {
 
   time_t rawtime;
   time(&rawtime);
-  struct tm *timeinfo = localtime(&rawtime);
-  size_t pos = strftime(buffer, TIMESTAMP_LEN + 1, "[%H:%M:%S]", timeinfo);
+  struct tm timeinfo;
+  localtime_r(&rawtime, &timeinfo);  // Thread-safe version
+  size_t pos = strftime(buffer, TIMESTAMP_LEN + 1, "[%H:%M:%S]", &timeinfo);
 
   // Copy message (with newline already included by caller)
   size_t copy_len = std::min(len, sizeof(buffer) - pos);
