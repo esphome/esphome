@@ -18,6 +18,14 @@ namespace esphome::logger {
 /**
  * @brief Task log buffer for LibreTiny platform using mutex-protected circular buffer.
  *
+ * Why This Is Critical:
+ * Without thread-safe logging, when a non-main task logs a message, it would directly
+ * call the logger which builds a protobuf message in a shared buffer. If this happens
+ * while the main loop is also using that buffer (e.g., sending API responses), the
+ * buffer gets corrupted, sending garbage to all connected API clients and breaking
+ * their connections. This buffer ensures log messages from other tasks are queued
+ * safely and processed only from the main loop.
+ *
  * Threading Model: Multi-Producer Single-Consumer (MPSC)
  * - Multiple FreeRTOS tasks can safely call send_message_thread_safe() concurrently
  * - Only the main loop task calls borrow_message_main_loop() and release_message_main_loop()
