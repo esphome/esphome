@@ -1,5 +1,6 @@
 from typing import Any
 
+import esphome.config_validation as cv
 from esphome.const import CONF_DEVICE, CONF_ID, CONF_TYPE
 
 from .const import CONF_REPORT, REPORT
@@ -8,6 +9,7 @@ from .const_esp32 import (
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
+    CONF_MAX_EP_NUMBER,
     CONF_NUM,
     DEVICE_TYPE,
     ROLE,
@@ -58,7 +60,20 @@ def create_ep(ep_list: list[dict[str, Any]], router: bool) -> list[dict[str, Any
                 DEVICE_TYPE: ep_type,
             }
         ]
+    # second dummy endpoint if only one sensor exists
+    elif len(ep_list) == 1:
+        ep_list.extend(
+            [
+                {
+                    DEVICE_TYPE: "CUSTOM_ATTR",
+                }
+            ]
+        )
     # enumerate endpoints
     for i, ep in enumerate(ep_list, 1):
         ep[CONF_NUM] = i
+    if len(ep_list) > CONF_MAX_EP_NUMBER:
+        raise cv.Invalid(
+            f"Too many devices. Zigbee can define only {CONF_MAX_EP_NUMBER} endpoints."
+        )
     return ep_list
