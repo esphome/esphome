@@ -9,8 +9,13 @@ from typing import Any
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.image import CONF_TRANSPARENCY, CONFIG_SCHEMA, DOMAIN
-from esphome.const import CONF_HEIGHT, CONF_ID, CONF_RAW_DATA_ID, CONF_TYPE, CONF_WIDTH
+from esphome.components.image import (
+    CONF_TRANSPARENCY,
+    CONFIG_SCHEMA,
+    get_all_image_metadata,
+    get_image_metadata,
+)
+from esphome.const import CONF_ID, CONF_RAW_DATA_ID, CONF_TYPE
 from esphome.core import CORE
 
 
@@ -242,7 +247,7 @@ def test_image_to_code_defines_and_core_data(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Test that to_code() sets USE_IMAGE define and stores image data in CORE.data."""
+    """Test that to_code() sets USE_IMAGE define and stores image metadata."""
     # Generate the main cpp which will call to_code
     generate_main(component_config_path("image_test.yaml"))
 
@@ -251,60 +256,97 @@ def test_image_to_code_defines_and_core_data(
         "USE_IMAGE define should be set when images are configured"
     )
 
-    # Verify CORE.data[DOMAIN] was initialized
-    assert DOMAIN in CORE.data, (
-        f"CORE.data['{DOMAIN}'] should be initialized by to_code()"
-    )
-
-    # Verify it's a dictionary
-    assert isinstance(CORE.data[DOMAIN], dict), (
-        f"CORE.data['{DOMAIN}'] should be a dictionary"
-    )
-
-    # Verify image data was stored for the configured image
+    # Use the public API to get image metadata
     # The test config has an image with id 'cat_img'
-    assert "cat_img" in CORE.data[DOMAIN], (
-        "Image data should be stored in CORE.data[DOMAIN] with image ID as key"
+    cat_img_metadata = get_image_metadata("cat_img")
+
+    assert cat_img_metadata is not None, (
+        "Image metadata should be retrievable via get_image_metadata()"
     )
 
-    # Verify the stored data has the expected keys
-    cat_img_data = CORE.data[DOMAIN]["cat_img"]
-    assert CONF_WIDTH in cat_img_data, "Image data should contain width"
-    assert CONF_HEIGHT in cat_img_data, "Image data should contain height"
-    assert CONF_TYPE in cat_img_data, "Image data should contain type"
-    assert CONF_TRANSPARENCY in cat_img_data, "Image data should contain transparency"
+    # Verify the metadata has the expected attributes
+    assert hasattr(cat_img_metadata, "width"), "Metadata should have width attribute"
+    assert hasattr(cat_img_metadata, "height"), "Metadata should have height attribute"
+    assert hasattr(cat_img_metadata, "image_type"), (
+        "Metadata should have image_type attribute"
+    )
+    assert hasattr(cat_img_metadata, "transparency"), (
+        "Metadata should have transparency attribute"
+    )
 
     # Verify the values are correct (from the test image)
-    assert cat_img_data[CONF_WIDTH] == 32, "Width should be 32"
-    assert cat_img_data[CONF_HEIGHT] == 24, "Height should be 24"
-    # Type and transparency are enum values, just verify they exist and are not None
-    assert cat_img_data[CONF_TYPE] is not None, "Type should not be None"
-    assert cat_img_data[CONF_TRANSPARENCY] is not None, (
-        "Transparency should not be None"
-    )
+    assert cat_img_metadata.width == 32, "Width should be 32"
+    assert cat_img_metadata.height == 24, "Height should be 24"
+    assert cat_img_metadata.image_type == "RGB565", "Type should be RGB565"
+    assert cat_img_metadata.transparency == "opaque", "Transparency should be opaque"
 
 
 def test_image_to_code_multiple_images(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Test that to_code() stores data for multiple images."""
-    # First, let's check if there's a config with multiple images
-    # For now, we'll just verify that the data structure supports multiple images
+    """Test that to_code() stores metadata for multiple images."""
     generate_main(component_config_path("image_test.yaml"))
 
-    # Verify CORE.data[DOMAIN] can store multiple images
-    assert isinstance(CORE.data[DOMAIN], dict), (
-        f"CORE.data['{DOMAIN}'] should be a dictionary that can hold multiple images"
+    # Use the public API to get all image metadata
+    all_metadata = get_all_image_metadata()
+
+    assert isinstance(all_metadata, dict), (
+        "get_all_image_metadata() should return a dictionary"
     )
 
-    # Each image ID should be a key in the dictionary
-    for image_id in CORE.data[DOMAIN]:
+    # Verify that at least one image is present
+    assert len(all_metadata) > 0, "Should have at least one image metadata entry"
+
+    # Each image ID should map to an ImageMetaData object
+    for image_id, metadata in all_metadata.items():
         assert isinstance(image_id, str), "Image IDs should be strings"
-        image_data = CORE.data[DOMAIN][image_id]
-        assert isinstance(image_data, dict), "Each image's data should be a dictionary"
-        # Verify required keys are present
-        for key in [CONF_WIDTH, CONF_HEIGHT, CONF_TYPE, CONF_TRANSPARENCY]:
-            assert key in image_data, (
-                f"Image data for '{image_id}' should contain '{key}'"
-            )
+
+        # Verify it's an ImageMetaData object with all required attributes
+        assert hasattr(metadata, "width"), (
+            f"Metadata for '{image_id}' should have width"
+        )
+        assert hasattr(metadata, "height"), (
+            f"Metadata for '{image_id}' should have height"
+        )
+        assert hasattr(metadata, "image_type"), (
+            f"Metadata for '{image_id}' should have image_type"
+        )
+        assert hasattr(metadata, "transparency"), (
+            f"Metadata for '{image_id}' should have transparency"
+        )
+
+        # Verify values are valid
+        assert isinstance(metadata.width, int), (
+            f"Width for '{image_id}' should be an integer"
+        )
+        assert isinstance(metadata.height, int), (
+            f"Height for '{image_id}' should be an integer"
+        )
+        assert isinstance(metadata.image_type, str), (
+            f"Type for '{image_id}' should be a string"
+        )
+        assert isinstance(metadata.transparency, str), (
+            f"Transparency for '{image_id}' should be a string"
+        )
+        assert metadata.width > 0, f"Width for '{image_id}' should be positive"
+        assert metadata.height > 0, f"Height for '{image_id}' should be positive"
+
+
+def test_get_image_metadata_nonexistent() -> None:
+    """Test that get_image_metadata returns None for non-existent image IDs."""
+    # This should return None when no images are configured or ID doesn't exist
+    metadata = get_image_metadata("nonexistent_image_id")
+    assert metadata is None, (
+        "get_image_metadata should return None for non-existent IDs"
+    )
+
+
+def test_get_all_image_metadata_empty() -> None:
+    """Test that get_all_image_metadata returns empty dict when no images configured."""
+    # When CORE hasn't been initialized with images, should return empty dict
+    all_metadata = get_all_image_metadata()
+    assert isinstance(all_metadata, dict), (
+        "get_all_image_metadata should always return a dict"
+    )
+    # Length could be 0 or more depending on what's in CORE at test time
