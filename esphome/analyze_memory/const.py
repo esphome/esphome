@@ -7,11 +7,13 @@ ESPHOME_COMPONENT_PATTERN = re.compile(r"esphome::([a-zA-Z0-9_]+)::")
 
 # Section mapping for ELF file sections
 # Maps standard section names to their various platform-specific variants
+# Note: Order matters! More specific patterns (.bss) must come before general ones (.dram)
+# because ESP-IDF uses names like ".dram0.bss" which would match ".dram" otherwise
 SECTION_MAPPING = {
     ".text": frozenset([".text", ".iram"]),
     ".rodata": frozenset([".rodata"]),
+    ".bss": frozenset([".bss"]),  # Must be before .data to catch ".dram0.bss"
     ".data": frozenset([".data", ".dram"]),
-    ".bss": frozenset([".bss"]),
 }
 
 # Section to ComponentMemory attribute mapping

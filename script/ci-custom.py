@@ -619,6 +619,19 @@ def lint_esphome_h(fname, line, col, content):
     )
 
 
+@lint_content_find_check(
+    "CORE.using_esp_idf",
+    include=py_include,
+    exclude=["esphome/core/__init__.py", "script/ci-custom.py"],
+)
+def lint_using_esp_idf_deprecated(fname, line, col, content):
+    return (
+        f"{highlight('CORE.using_esp_idf')} is deprecated and will change behavior in 2026.6. "
+        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
+        f"Please use {highlight('CORE.is_esp32')} and/or {highlight('CORE.using_arduino')} instead."
+    )
+
+
 @lint_content_check(include=["*.h"])
 def lint_pragma_once(fname, content):
     if "#pragma once" not in content:
