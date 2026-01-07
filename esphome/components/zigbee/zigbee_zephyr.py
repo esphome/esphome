@@ -318,11 +318,16 @@ async def zephyr_setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     CORE.add_job(_add_sensor, entity, config)
 
 
-def _slot_index() -> int | None:
-    # Find the next available endpoint slot
-    return next(
+def _slot_index() -> int:
+    """Find the next available endpoint slot"""
+    slot = next(
         (i for i, v in enumerate(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER]) if v == ""), None
     )
+    if slot is None:
+        raise cv.Invalid(
+            f"Maximum number of endpoints ({len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])}) exceeded"
+        )
+    return slot
 
 
 async def _add_zigbee_input(

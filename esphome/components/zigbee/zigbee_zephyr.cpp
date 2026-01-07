@@ -140,6 +140,7 @@ void ZigbeeComponent::setup() {
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
   bool wipe = true;
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT_MAGIC
+  // unique hash to store preferences for this component
   uint32_t hash = 88498616UL;
   uint32_t wipe_value = 0;
   auto wipe_pref = global_preferences->make_preference<uint32_t>(hash, true);
