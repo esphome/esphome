@@ -59,8 +59,10 @@ light::LightTraits SpiLedStrip::get_traits() {
   return traits;
 }
 void SpiLedStrip::dump_config() {
-  ESP_LOGCONFIG(TAG, "SPI LED Strip:\n"
-                     "  LEDs: %d", this->num_leds_);
+  ESP_LOGCONFIG(TAG,
+                "SPI LED Strip:\n"
+                "  LEDs: %d",
+                this->num_leds_);
   ESP_LOGCONFIG(TAG, "  Protocol: %s",
                 this->protocol_ == APA102 ? "APA102"
                 : this->protocol_ == RAW  ? "RAW"
