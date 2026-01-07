@@ -58,13 +58,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
-    pass
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
-
-
 @coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
