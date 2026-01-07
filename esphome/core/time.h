@@ -47,9 +47,10 @@ struct ESPTime {
    */
   size_t strftime(char *buffer, size_t buffer_len, const char *format);
 
-  /** Format time into a fixed-size buffer, returns length written (0 on error).
+  /** Format time into a fixed-size buffer, returns length written.
    *
    * This is the preferred method for avoiding heap allocations. The buffer size is enforced at compile-time.
+   * On format error, writes "ERROR" to the buffer and returns 5.
    * @see https://www.gnu.org/software/libc/manual/html_node/Formatting-Calendar-Time.html#index-strftime
    */
   size_t strftime_to(std::span<char, STRFTIME_BUFFER_SIZE> buffer, const char *format);

@@ -1,6 +1,7 @@
 #include "time.h"  // NOLINT
 #include "helpers.h"
 
+#include <algorithm>
 #include <cinttypes>
 
 namespace esphome {
@@ -19,7 +20,14 @@ size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
 
 size_t ESPTime::strftime_to(std::span<char, STRFTIME_BUFFER_SIZE> buffer, const char *format) {
   struct tm c_tm = this->to_c_tm();
-  return ::strftime(buffer.data(), buffer.size(), format, &c_tm);
+  size_t len = ::strftime(buffer.data(), buffer.size(), format, &c_tm);
+  if (len > 0) {
+    return len;
+  }
+  // Write "ERROR" to buffer on failure for consistent behavior
+  constexpr char ERROR_STR[] = "ERROR";
+  std::copy_n(ERROR_STR, sizeof(ERROR_STR), buffer.data());
+  return sizeof(ERROR_STR) - 1;  // Length excluding null terminator
 }
 
 ESPTime ESPTime::from_c_tm(struct tm *c_tm, time_t c_time) {
@@ -54,10 +62,7 @@ struct tm ESPTime::to_c_tm() {
 std::string ESPTime::strftime(const char *format) {
   char buf[STRFTIME_BUFFER_SIZE];
   size_t len = this->strftime_to(buf, format);
-  if (len > 0) {
-    return std::string(buf, len);
-  }
-  return "ERROR";
+  return std::string(buf, len);
 }
 
 std::string ESPTime::strftime(const std::string &format) { return this->strftime(format.c_str()); }
