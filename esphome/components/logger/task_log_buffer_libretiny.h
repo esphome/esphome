@@ -75,10 +75,10 @@ class TaskLogBufferLibreTiny {
 
   // Fast check using volatile counter - no lock needed
   // Worst case: miss a message for one loop iteration (~8ms at 7000 loops/min)
-  inline bool HOT has_messages() const { return message_count_ != 0; }
+  inline bool HOT has_messages() const { return this->message_count_ != 0; }
 
   // Get the total buffer size in bytes
-  inline size_t size() const { return size_; }
+  inline size_t size() const { return this->size_; }
 
  private:
   // Calculate total size needed for a message (header + text + null terminator)
@@ -86,9 +86,6 @@ class TaskLogBufferLibreTiny {
 
   // Calculate available contiguous space at write position
   size_t available_contiguous_space() const;
-
-  // Calculate total available space (may wrap)
-  size_t available_space() const;
 
   uint8_t *storage_{nullptr};  // Pointer to allocated memory
   size_t size_{0};             // Size of allocated memory

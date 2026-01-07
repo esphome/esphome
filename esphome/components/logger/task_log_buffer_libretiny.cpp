@@ -47,10 +47,6 @@ size_t TaskLogBufferLibreTiny::available_contiguous_space() const {
   }
 }
 
-size_t TaskLogBufferLibreTiny::available_space() const {
-  return (this->head_ >= this->tail_) ? (this->size_ - this->head_ + this->tail_ - 1) : (this->tail_ - this->head_ - 1);
-}
-
 bool TaskLogBufferLibreTiny::borrow_message_main_loop(LogMessage **message, const char **text) {
   if (message == nullptr || text == nullptr) {
     return false;
