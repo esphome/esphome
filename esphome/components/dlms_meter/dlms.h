@@ -77,7 +77,8 @@ static constexpr uint8_t DATA_NOTIFICATION = 0x0F;
 static constexpr uint8_t TIMESTAMP_DATETIME = 0x0C;
 
 static constexpr uint16_t MAX_MESSAGE_LENGTH =
-    0xFFFF;  // Maximum size of message (when having 2 bytes length in header)
+    512;  // Maximum size of message (when having 2 bytes length in header).
+          // Technically max possible with 2 bytes would be 0xFFFF, but yet to see a message this large in practice and 64k would overflow stack
 
 /*
  * provider specific quirks
