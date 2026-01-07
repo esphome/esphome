@@ -32,7 +32,9 @@ void BME68xBSEC2I2CComponent::dump_config() {
 }
 
 uint32_t BME68xBSEC2I2CComponent::get_hash() {
-  return fnv1_hash_extend(fnv1_hash("bme68x_bsec_state_"), static_cast<uint32_t>(this->address_));
+  char buf[22];  // "bme68x_bsec_state_" (18) + uint8_t max (3) + null
+  snprintf(buf, sizeof(buf), "bme68x_bsec_state_%u", this->address_);
+  return fnv1_hash(buf);
 }
 
 int8_t BME68xBSEC2I2CComponent::read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intfPtr) {

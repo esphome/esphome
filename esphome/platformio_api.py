@@ -430,6 +430,11 @@ class IDEData:
             else f"{path[:-3]}readelf"
         )
 
+    @property
+    def defines(self) -> list[str]:
+        """Return the list of preprocessor defines from idedata."""
+        return self.raw.get("defines", [])
+
 
 def analyze_memory_usage(config: dict[str, Any]) -> None:
     """Analyze memory usage by component after compilation."""
