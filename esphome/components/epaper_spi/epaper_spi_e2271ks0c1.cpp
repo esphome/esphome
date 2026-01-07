@@ -113,12 +113,10 @@ bool EPaperE2271KS0C1::transfer_data() {
 void EPaperE2271KS0C1::power_on() {
   ESP_LOGV(TAG, "Power on");
   this->command(CMD_PWR_ON);
-  this->command(CMD_PWR_ON);
 }
 
 void EPaperE2271KS0C1::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "Refresh");
-  this->command(CMD_REFRESH);
   this->command(CMD_REFRESH);
   // Store current frame for next partial update
   this->prev_ = this->tx_;
@@ -126,7 +124,6 @@ void EPaperE2271KS0C1::refresh_screen(bool partial) {
 
 void EPaperE2271KS0C1::power_off() {
   ESP_LOGV(TAG, "Power off");
-  this->command(CMD_PWR_OFF);
   this->command(CMD_PWR_OFF);
 }
 
