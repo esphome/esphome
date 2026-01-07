@@ -105,9 +105,10 @@ void ESP32TouchComponent::setup() {
   touch_pad_set_charge_discharge_times(this->meas_cycle_);
   touch_pad_set_measurement_interval(this->sleep_cycle_);
 
-  // Remove explicit hardware timeout enable command, it is enabled by
-  // default and it seems that calling it again with a threshold causes
-  // issues with continuous interrupts.
+  // Disable hardware timeout - it causes continuous interrupts with high-capacitance
+  // setups (e.g., pressure sensors under cushions). The periodic release check in
+  // loop() handles state detection reliably without needing hardware timeout.
+  touch_pad_timeout_set(false, TOUCH_PAD_THRESHOLD_MAX);
 
   // Register ISR handler with interrupt mask
   esp_err_t err =
