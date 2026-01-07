@@ -182,11 +182,15 @@ void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {
     ESP_LOGV(TAG, "Skipping sending duplicate response: 0x%02X", data[0]);
     return;
   }
+  if (length && data != nullptr) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
+    char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
 #endif
-  ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty_to(hex_buf, data, length));
-  this->write_array(data, length);
+    ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty_to(hex_buf, data, length));
+    this->write_array(data, length);
+  } else {
+    ESP_LOGE(TAG, "Null pointer or length 0");
+  }
 }
 
 void ZWaveProxy::send_homeid_changed_msg_(api::APIConnection *conn) {
