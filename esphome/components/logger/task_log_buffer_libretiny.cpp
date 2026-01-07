@@ -48,11 +48,7 @@ size_t TaskLogBufferLibreTiny::available_contiguous_space() const {
 }
 
 size_t TaskLogBufferLibreTiny::available_space() const {
-  if (this->head_ >= this->tail_) {
-    return this->size_ - this->head_ + this->tail_ - 1;
-  } else {
-    return this->tail_ - this->head_ - 1;
-  }
+  return (this->head_ >= this->tail_) ? (this->size_ - this->head_ + this->tail_ - 1) : (this->tail_ - this->head_ - 1);
 }
 
 bool TaskLogBufferLibreTiny::borrow_message_main_loop(LogMessage **message, const char **text) {
@@ -60,8 +56,8 @@ bool TaskLogBufferLibreTiny::borrow_message_main_loop(LogMessage **message, cons
     return false;
   }
 
-  // Take mutex - main loop can wait
-  if (xSemaphoreTake(this->mutex_, portMAX_DELAY) != pdTRUE) {
+  // Try to take mutex without blocking - if busy, we'll get messages next loop iteration
+  if (xSemaphoreTake(this->mutex_, 0) != pdTRUE) {
     return false;
   }
 
@@ -138,13 +134,16 @@ bool TaskLogBufferLibreTiny::send_message_thread_safe(uint8_t level, const char 
       space_at_start--;  // Leave 1 byte gap to distinguish full from empty
     }
 
-    if (space_at_start >= total_size && this->head_ > 0) {
+    // Need at least enough space to safely write padding marker (level field is at end of struct)
+    constexpr size_t PADDING_MARKER_MIN_SPACE = offsetof(LogMessage, level) + 1;
+
+    if (space_at_start >= total_size && this->head_ > 0 && contiguous >= PADDING_MARKER_MIN_SPACE) {
       // Add padding marker (set level field to indicate this is padding, not a real message)
       LogMessage *padding = reinterpret_cast<LogMessage *>(this->storage_ + this->head_);
       padding->level = PADDING_MARKER_LEVEL;
       this->head_ = 0;
     } else {
-      // Not enough space anywhere
+      // Not enough space anywhere, or can't safely write padding marker
       xSemaphoreGive(this->mutex_);
       return false;
     }
