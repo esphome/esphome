@@ -317,16 +317,16 @@ class APIConnection final : public APIServerConnection {
     // Buffer must remain in scope until encode_message_to_buffer is called
     char object_id_buf[OBJECT_ID_MAX_LEN];
     if (!conn->client_supports_api_version(1, 14)) {
-      msg.set_object_id(entity->get_object_id_to(object_id_buf));
+      msg.object_id = entity->get_object_id_to(object_id_buf);
     }
 
     if (entity->has_own_name()) {
-      msg.set_name(entity->get_name());
+      msg.name = entity->get_name();
     }
 
     // Set common EntityBase properties
 #ifdef USE_ENTITY_ICON
-    msg.set_icon(entity->get_icon_ref());
+    msg.icon = entity->get_icon_ref();
 #endif
     msg.disabled_by_default = entity->is_disabled_by_default();
     msg.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
