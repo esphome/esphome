@@ -16,6 +16,8 @@
 #include "task_log_buffer_host.h"
 #elif defined(USE_ESP32)
 #include "task_log_buffer_esp32.h"
+#elif defined(USE_LIBRETINY)
+#include "task_log_buffer_libretiny.h"
 #endif
 #endif
 
@@ -376,6 +378,8 @@ class Logger : public Component {
   std::unique_ptr<logger::TaskLogBufferHost> log_buffer_;  // Will be initialized with init_log_buffer
 #elif defined(USE_ESP32)
   std::unique_ptr<logger::TaskLogBuffer> log_buffer_;  // Will be initialized with init_log_buffer
+#elif defined(USE_LIBRETINY)
+  std::unique_ptr<logger::TaskLogBufferLibreTiny> log_buffer_;  // Will be initialized with init_log_buffer
 #endif
 #endif
 
@@ -389,8 +393,11 @@ class Logger : public Component {
 #ifdef USE_LIBRETINY
   UARTSelection uart_{UART_SELECTION_DEFAULT};
 #endif
-#if defined(USE_ESP32) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
   bool main_task_recursion_guard_{false};
+#ifdef USE_LIBRETINY
+  bool non_main_task_recursion_guard_{false};  // Shared guard for all non-main tasks on LibreTiny
+#endif
 #else
   bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
 #endif
@@ -449,6 +456,38 @@ class Logger : public Component {
     }
 
     pthread_setspecific(log_recursion_key_, (void *) 0);
+  }
+#elif defined(USE_LIBRETINY)
+  // LibreTiny doesn't have FreeRTOS TLS, so use a simple approach:
+  // - Main task uses dedicated boolean (same as ESP32)
+  // - Non-main tasks share a single recursion guard
+  // This is safe because:
+  // - Recursion from logging within logging is the main concern
+  // - Cross-task "recursion" is prevented by the buffer mutex anyway
+  // - Missing a recursive call from another task is acceptable (falls back to direct output)
+
+  inline bool HOT check_and_set_task_log_recursion_(bool is_main_task) {
+    if (is_main_task) {
+      const bool was_recursive = main_task_recursion_guard_;
+      main_task_recursion_guard_ = true;
+      return was_recursive;
+    }
+
+    // For non-main tasks, use a simple shared guard
+    // This may block legitimate concurrent logs from different tasks,
+    // but that's acceptable - they'll fall back to direct console output
+    const bool was_recursive = non_main_task_recursion_guard_;
+    non_main_task_recursion_guard_ = true;
+    return was_recursive;
+  }
+
+  inline void HOT reset_task_log_recursion_(bool is_main_task) {
+    if (is_main_task) {
+      main_task_recursion_guard_ = false;
+      return;
+    }
+
+    non_main_task_recursion_guard_ = false;
   }
 #endif
 

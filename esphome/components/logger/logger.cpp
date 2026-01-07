@@ -12,8 +12,8 @@ namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
-#if defined(USE_ESP32) || defined(USE_HOST)
-// Implementation for multi-threaded platforms (ESP32 with FreeRTOS, Host with pthreads)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
+// Implementation for multi-threaded platforms (ESP32 with FreeRTOS, Host with pthreads, LibreTiny with FreeRTOS)
 // Main thread/task always uses direct buffer access for console output and callbacks
 //
 // For non-main threads/tasks:
@@ -27,7 +27,7 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   if (level > this->level_for(tag))
     return;
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
   bool is_main_task = (current_task == main_task_);
 #else  // USE_HOST
@@ -50,7 +50,7 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   bool message_sent = false;
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // For non-main threads/tasks, queue the message for callbacks
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   message_sent =
       this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), current_task, format, args);
 #else  // USE_HOST
@@ -101,7 +101,7 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
 
   global_recursion_guard_ = false;
 }
-#endif  // USE_ESP32 / USE_HOST
+#endif  // USE_ESP32 / USE_HOST / USE_LIBRETINY
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 // Implementation for ESP8266 with flash string support.
@@ -191,8 +191,10 @@ void Logger::init_log_buffer(size_t total_buffer_size) {
 #ifdef USE_HOST
   // Host uses slot count instead of byte size
   this->log_buffer_ = esphome::make_unique<logger::TaskLogBufferHost>(total_buffer_size);
-#else
+#elif defined(USE_ESP32)
   this->log_buffer_ = esphome::make_unique<logger::TaskLogBuffer>(total_buffer_size);
+#elif defined(USE_LIBRETINY)
+  this->log_buffer_ = esphome::make_unique<logger::TaskLogBufferLibreTiny>(total_buffer_size);
 #endif
 
 #ifdef USE_ESP32
@@ -220,7 +222,7 @@ void Logger::process_messages_() {
       this->log_buffer_->release_message_main_loop();
       this->write_tx_buffer_to_console_();
     }
-#else  // USE_ESP32
+#elif defined(USE_ESP32)
     logger::TaskLogBuffer::LogMessage *message;
     const char *text;
     void *received_token;
@@ -230,6 +232,17 @@ void Logger::process_messages_() {
                                                 message->text_length);
       // Release the message to allow other tasks to use it as soon as possible
       this->log_buffer_->release_message_main_loop(received_token);
+      this->write_tx_buffer_to_console_();
+    }
+#elif defined(USE_LIBRETINY)
+    logger::TaskLogBufferLibreTiny::LogMessage *message;
+    const char *text;
+    while (this->log_buffer_->borrow_message_main_loop(&message, &text)) {
+      const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
+      this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, text,
+                                                message->text_length);
+      // Release the message to allow other tasks to use it as soon as possible
+      this->log_buffer_->release_message_main_loop();
       this->write_tx_buffer_to_console_();
     }
 #endif
