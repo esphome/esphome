@@ -8,6 +8,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_NAME,
+    CONF_RANDOM,
     CONF_UNIT_OF_MEASUREMENT,
     UNIT_AMPERE,
     UNIT_CELSIUS,
@@ -49,6 +50,7 @@ from esphome.cpp_generator import (
 from esphome.types import ConfigType
 
 from .const_zephyr import (
+    CONF_IEEE802154_VENDOR_OUI,
     CONF_ON_JOIN,
     CONF_POWER_SOURCE,
     CONF_WIPE_ON_BOOT,
@@ -139,6 +141,13 @@ async def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("NET_IPV6", False)
     zephyr_add_prj_conf("NET_IP_ADDR_CHECK", False)
     zephyr_add_prj_conf("NET_UDP", False)
+
+    if CONF_IEEE802154_VENDOR_OUI in config:
+        zephyr_add_prj_conf("IEEE802154_VENDOR_OUI_ENABLE", True)
+        random_number = config[CONF_IEEE802154_VENDOR_OUI]
+        if random_number == CONF_RANDOM:
+            random_number = random.randint(0x000000, 0xFFFFFF)
+        zephyr_add_prj_conf("IEEE802154_VENDOR_OUI", random_number)
 
     if config[CONF_WIPE_ON_BOOT]:
         if config[CONF_WIPE_ON_BOOT] == "once":
@@ -318,8 +327,8 @@ async def zephyr_setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     CORE.add_job(_add_sensor, entity, config)
 
 
-def _slot_index() -> int:
-    """Find the next available endpoint slot"""
+def get_slot_index() -> int:
+    """Find the next available endpoint slot."""
     slot = next(
         (i for i, v in enumerate(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER]) if v == ""), None
     )
@@ -340,7 +349,7 @@ async def _add_zigbee_input(
     app_device_id: str,
     extra_field_values: dict[str, int] | None = None,
 ) -> None:
-    slot_index = _slot_index()
+    slot_index = get_slot_index()
 
     prefix = f"zigbee_ep{slot_index + 1}"
     attrs_name = f"{prefix}_attrs"
