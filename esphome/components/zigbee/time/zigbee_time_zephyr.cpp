@@ -16,7 +16,7 @@ void ZigbeeTime::sync_time(zb_ret_t status, zb_uint32_t auth_level, zb_uint16_t 
                            zb_uint32_t nw_time) {
   if (status == RET_OK && auth_level >= ZB_ZCL_TIME_HAS_SYNCHRONIZED_BIT) {
     global_time->set_epoch_time(nw_time + EPOCH_2000);
-  } else if (status != RET_TIMEOUT || global_time->has_time_ == false) {
+  } else if (status != RET_TIMEOUT || !global_time->has_time_) {
     ESP_LOGE(TAG, "Status: %d, auth_level: %u, short_addr: %d, endpoint: %d, nw_time: %u", status, auth_level,
              short_addr, ep, nw_time);
   }
