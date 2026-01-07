@@ -39,7 +39,7 @@ void DebugComponent::dump_config() {
 
 #ifdef USE_TEXT_SENSOR
   if (this->device_info_ != nullptr) {
-    this->device_info_->publish_state(std::string(device_info_buffer, pos));
+    this->device_info_->publish_state(device_info_buffer, pos);
   }
   if (this->reset_reason_ != nullptr) {
     char reset_reason_buffer[RESET_REASON_BUFFER_SIZE];
