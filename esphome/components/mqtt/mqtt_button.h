@@ -8,8 +8,7 @@
 #include "esphome/components/button/button.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTButtonComponent : public mqtt::MQTTComponent {
  public:
@@ -33,8 +32,7 @@ class MQTTButtonComponent : public mqtt::MQTTComponent {
   button::Button *button_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
