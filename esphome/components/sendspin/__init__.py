@@ -47,7 +47,6 @@ def _request_high_performance_networking(config):
     from background threads (WebSocket handler, image decoder).
     """
     network.require_high_performance_networking()
-    socket.require_wake_loop_threadsafe()
     # Sendspin needs 1 listening socket and up to 2 client connections
     socket.consume_sockets(3, "sendspin_websocket_server")(
         config
@@ -77,6 +76,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    socket.require_wake_loop_threadsafe()
+
     cg.add_define("USE_SENDSPIN", True)  # for MDNS
 
     # TODO: Opus should be included with the audio component. We should also only define FLAC support if we have components that require the audio stream
