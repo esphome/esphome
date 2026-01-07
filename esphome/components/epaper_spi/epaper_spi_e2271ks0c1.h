@@ -17,7 +17,6 @@ class EPaperE2271KS0C1 : public EPaperBase {
   void set_temperature_c(float t) { this->temperature_c_ = t; }
 
  protected:
-  bool reset() override { return true; }  // Hardware reset done in setup()
   bool transfer_data() override;
   void power_on() override;
   void refresh_screen(bool partial) override;
@@ -37,8 +36,9 @@ class EPaperE2271KS0C1 : public EPaperBase {
 
   static constexpr uint8_t PSR_DEFAULT[2] = {0xCF, 0x8D};
 
+  // Transfer state: 0=init, 1=frame1, 2=frame2, 3=done
+  uint8_t transfer_phase_{0};
   float temperature_c_{25.0f};
-  std::vector<uint8_t> tx_;
   std::vector<uint8_t> prev_;
   bool soft_reset_pending_{false};
 };
