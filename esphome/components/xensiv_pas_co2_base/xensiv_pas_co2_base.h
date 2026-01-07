@@ -22,6 +22,7 @@ class XensivPasCO2 : public Component {
   void set_pressure_compensation(uint16_t pressure_ref);
   void set_pressure_compensation_source(sensor::Sensor *sensor) { pressure_compensation_source_ = sensor; }
   bool measure_now();
+  void reset_ABOC();
 
  protected:
   sensor::Sensor *co2_sensor_{nullptr};
@@ -40,6 +41,11 @@ class XensivPasCO2 : public Component {
   bool update_sensor_rate_();
   bool check_sensor_ready_();
   bool setup_interrupt_();
+  bool write_with_retry_(uint8_t reg, uint8_t value, int retries = 2, uint32_t delay_ms = 5);
+
+  // Pending pressure compensation write to align with measurement cycle
+  bool pending_pressure_update_{false};
+  uint16_t pending_pressure_ref_{0};
 
   virtual bool read_byte(uint8_t reg, uint8_t *data) = 0;
   virtual bool read_bytes(uint8_t reg, uint8_t *data, size_t len) = 0;

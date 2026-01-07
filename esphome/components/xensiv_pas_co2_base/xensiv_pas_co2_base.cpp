@@ -8,6 +8,15 @@ static const char *const TAG = "xensiv_pas_co2.component";
 void XensivPasCO2::setup() {
   ESP_LOGCONFIG(TAG, "Setting up XensivPasCO2 component");
 
+  // Set up pressure compensation source callback early if configured
+  if (this->pressure_compensation_source_ != nullptr) {
+    this->pressure_compensation_source_->add_on_state_callback([this](float pressure_hpa) {
+      ESP_LOGD(TAG, "Pressure compensation source updated: %.2f hPa", pressure_hpa);
+      this->set_pressure_compensation((uint16_t) pressure_hpa);
+    });
+    ESP_LOGCONFIG(TAG, "Pressure compensation source callback registered");
+  }
+
   // Test I2C communication first using scratch register
   if (!this->test_scratch_register_()) {
     ESP_LOGE(TAG, "I2C communication test failed");
@@ -47,6 +56,32 @@ void XensivPasCO2::loop() {
 
     // Update operation mode if needed
     this->update_operation_mode_();
+
+    // Apply pending pressure compensation immediately after a DRDY cycle boundary
+    if (this->pending_pressure_update_) {
+      uint16_t ref = this->pending_pressure_ref_;
+      this->pending_pressure_update_ = false;
+      // Skip if default requested
+      if (ref == 0) {
+        ESP_LOGD(TAG, "Pressure compensation pending was 0 (default), skipping");
+      } else {
+        uint8_t press_h = (ref >> 8) & 0xFF;
+        uint8_t press_l = ref & 0xFF;
+        // ESP_LOGD(TAG, "Applying pending pressure compensation: %d hPa", ref);
+        if (!this->write_with_retry_(XENSIV_PAS_CO2_REG_PRESS_REF_H, press_h)) {
+          ESP_LOGW(TAG, "Retry write failed for PRESS_REF_H, re-queueing");
+          // Re-queue once; avoid tight loops
+          this->pending_pressure_update_ = true;
+          this->pending_pressure_ref_ = ref;
+        } else if (!this->write_with_retry_(XENSIV_PAS_CO2_REG_PRESS_REF_L, press_l)) {
+          ESP_LOGW(TAG, "Retry write failed for PRESS_REF_L, re-queueing");
+          this->pending_pressure_update_ = true;
+          this->pending_pressure_ref_ = ref;
+        } else {
+          // ESP_LOGD(TAG, "Pending pressure compensation applied successfully");
+        }
+      }
+    }
   }
 }
 
@@ -57,22 +92,8 @@ void XensivPasCO2::setup_sensor(XensivPasCO2 *arg) {
     ESP_LOGE(TAG, "Failed to set sensor rate");
   }
 
-  // Set pressure compensation if configured
-  if (arg->pressure_ref_ > 0) {
-    uint8_t press_h = (arg->pressure_ref_ >> 8) & 0xFF;
-    uint8_t press_l = arg->pressure_ref_ & 0xFF;
-
-    ESP_LOGD(TAG, "Setting pressure compensation to %d Pa", arg->pressure_ref_);
-
-    if (!arg->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_H, press_h)) {
-      ESP_LOGE(TAG, "Failed to write PRESS_REF_H");
-    }
-    if (!arg->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_L, press_l)) {
-      ESP_LOGE(TAG, "Failed to write PRESS_REF_L");
-    }
-  } else {
-    ESP_LOGD(TAG, "Pressure compensation not configured, using sensor default");
-  }
+  // Apply pressure compensation using common setter (handles 0/default internally)
+  arg->set_pressure_compensation(arg->pressure_ref_);
 
   // Configure sensor interrupt register and GPIO pin if configured
   if (!arg->setup_interrupt_()) {
@@ -158,11 +179,11 @@ bool XensivPasCO2::update_operation_mode_() {
     xensiv_pas_co2_measurement_config_t current_meas_cfg;
     if (this->read_bytes(XENSIV_PAS_CO2_REG_MEAS_CFG, &current_meas_cfg.u, 1)) {
       if (current_meas_cfg.b.op_mode != XENSIV_PAS_CO2_OP_MODE_CONTINUOUS) {
-        // Set to continuous measurement mode with automatic baseline offset compensation
+        // Set to continuous measurement mode without baseline offset compensation
         xensiv_pas_co2_measurement_config_t meas_cfg;
         meas_cfg.u = 0;
         meas_cfg.b.op_mode = XENSIV_PAS_CO2_OP_MODE_CONTINUOUS;
-        meas_cfg.b.boc_cfg = XENSIV_PAS_CO2_BOC_CFG_AUTOMATIC;
+        meas_cfg.b.boc_cfg = XENSIV_PAS_CO2_BOC_CFG_DISABLE;
         meas_cfg.b.pwm_mode = XENSIV_PAS_CO2_PWM_MODE_SINGLE_PULSE;
         meas_cfg.b.pwm_outen = 0;  // PWM output disabled
 
@@ -209,31 +230,36 @@ bool XensivPasCO2::update_sensor_rate_() {
 
 void XensivPasCO2::set_pressure_compensation(uint16_t pressure_ref) {
   this->pressure_ref_ = pressure_ref;
+  // If pressure_ref is 0, skip setting (use sensor default)
+  if (pressure_ref == 0) {
+    ESP_LOGD(TAG, "Pressure compensation set to 0, using sensor default");
+    // Clear any pending
+    this->pending_pressure_update_ = false;
+    this->pending_pressure_ref_ = 0;
+    return;
+  }
 
-  // If sensor is already initialized, write the value immediately
-  if (this->initialized_) {
-    // If pressure_ref is 0, skip setting (use sensor default)
-    if (pressure_ref == 0) {
-      ESP_LOGD(TAG, "Pressure compensation set to 0, using sensor default");
-      return;
+  // Pressure reference is stored as 16-bit value in hPa units (1 bit = 1 hPa)
+  uint8_t press_h = (pressure_ref >> 8) & 0xFF;  // Upper byte
+  uint8_t press_l = pressure_ref & 0xFF;         // Lower byte
+
+  ESP_LOGD(TAG, "Setting pressure compensation to %d hPa", pressure_ref);
+
+  // If we're inside a measurement cycle, writes can sporadically fail.
+  // Queue the update to be applied right after next DRDY handling.
+  this->pending_pressure_update_ = true;
+  this->pending_pressure_ref_ = pressure_ref;
+}
+bool XensivPasCO2::write_with_retry_(uint8_t reg, uint8_t value, int retries, uint32_t delay_ms) {
+  for (int attempt = 0; attempt <= retries; attempt++) {
+    if (this->write_byte(reg, value)) {
+      return true;
     }
-
-    // Pressure reference is stored as 16-bit value in Pascal units
-    uint8_t press_h = (pressure_ref >> 8) & 0xFF;  // Upper byte
-    uint8_t press_l = pressure_ref & 0xFF;         // Lower byte
-
-    ESP_LOGD(TAG, "Setting pressure compensation to %d Pa", pressure_ref);
-
-    if (!this->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_H, press_h)) {
-      ESP_LOGE(TAG, "Failed to write PRESS_REF_H");
-      return;
-    }
-    if (!this->write_byte(XENSIV_PAS_CO2_REG_PRESS_REF_L, press_l)) {
-      ESP_LOGE(TAG, "Failed to write PRESS_REF_L");
-      return;
+    if (attempt < retries) {
+      ESP_LOGD(TAG, "I2C write 0x%02X failed (attempt %d), retrying after %d ms", reg, attempt + 1, (int) delay_ms);
     }
   }
-  // If not initialized yet, value will be written during setup_sensor_()
+  return false;
 }
 
 bool XensivPasCO2::check_sensor_ready_() {
@@ -267,11 +293,11 @@ bool XensivPasCO2::check_sensor_ready_() {
 }
 
 bool XensivPasCO2::measure_now() {
-  // Start single-shot measurement with automatic baseline offset compensation
+  // Start single-shot measurement without automatic baseline offset compensation
   xensiv_pas_co2_measurement_config_t meas_cfg;
   meas_cfg.u = 0;
   meas_cfg.b.op_mode = XENSIV_PAS_CO2_OP_MODE_SINGLE;
-  meas_cfg.b.boc_cfg = XENSIV_PAS_CO2_BOC_CFG_AUTOMATIC;
+  meas_cfg.b.boc_cfg = XENSIV_PAS_CO2_BOC_CFG_DISABLE;
   meas_cfg.b.pwm_mode = XENSIV_PAS_CO2_PWM_MODE_SINGLE_PULSE;
   meas_cfg.b.pwm_outen = 0;  // PWM output disabled
 
@@ -281,6 +307,15 @@ bool XensivPasCO2::measure_now() {
   } else {
     ESP_LOGW(TAG, "Failed to start single-shot measurement");
     return false;
+  }
+}
+
+void XensivPasCO2::reset_ABOC() {
+  // Reset Automatic Baseline Offset Compensation (ABOC)
+  if (this->write_byte(XENSIV_PAS_CO2_REG_SENS_RST, XENSIV_PAS_CO2_CMD_RESET_ABOC)) {
+    ESP_LOGD(TAG, "ABOC reset command sent");
+  } else {
+    ESP_LOGW(TAG, "Failed to send ABOC reset command");
   }
 }
 
@@ -339,10 +374,11 @@ void XensivPasCO2::dump_config() {
   ESP_LOGCONFIG(TAG, "  Measurement Rate: %d seconds", this->sensor_rate_);
 
   if (this->pressure_ref_ > 0) {
-    ESP_LOGCONFIG(TAG, "  Pressure Compensation: %d Pa (%.2f hPa)", this->pressure_ref_, this->pressure_ref_ / 100.0f);
+    ESP_LOGCONFIG(TAG, "  Pressure Compensation: %d hPa", this->pressure_ref_);
   } else {
-    ESP_LOGCONFIG(TAG, "  Pressure Compensation: Using sensor default : 1015 hPa");
+    ESP_LOGCONFIG(TAG, "  Pressure Compensation: Using sensor default (1015 hPa)");
   }
 }
+
 }  // namespace xensiv_pas_co2_base
 }  // namespace esphome
