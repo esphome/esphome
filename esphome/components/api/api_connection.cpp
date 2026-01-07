@@ -101,16 +101,14 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
 #if defined(USE_API_PLAINTEXT) && defined(USE_API_NOISE)
   auto &noise_ctx = parent->get_noise_ctx();
   if (noise_ctx.has_psk()) {
-    this->helper_ =
-        std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), noise_ctx, &this->client_info_)};
+    this->helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), noise_ctx)};
   } else {
-    this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock), &this->client_info_)};
+    this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
   }
 #elif defined(USE_API_PLAINTEXT)
-  this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock), &this->client_info_)};
+  this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
 #elif defined(USE_API_NOISE)
-  this->helper_ = std::unique_ptr<APIFrameHelper>{
-      new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx(), &this->client_info_)};
+  this->helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
 #else
 #error "No frame helper defined"
 #endif
@@ -131,8 +129,9 @@ void APIConnection::start() {
     this->fatal_error_with_log_(LOG_STR("Helper init failed"), err);
     return;
   }
-  this->client_info_.peername = helper_->getpeername();
-  this->client_info_.name = this->client_info_.peername;
+  // Initialize client name with peername (IP address) until Hello message provides actual name
+  const char *peername = this->helper_->get_client_peername();
+  this->helper_->set_client_name(peername, strlen(peername));
 }
 
 APIConnection::~APIConnection() {
@@ -252,8 +251,7 @@ void APIConnection::loop() {
     // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > KEEPALIVE_DISCONNECT_TIMEOUT) {
       on_fatal_error();
-      ESP_LOGW(TAG, "%s (%s) is unresponsive; disconnecting", this->client_info_.name.c_str(),
-               this->client_info_.peername.c_str());
+      this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("is unresponsive; disconnecting"));
     }
   } else if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS && !this->flags_.remove) {
     // Only send ping if we're not disconnecting
@@ -287,7 +285,7 @@ bool APIConnection::send_disconnect_response(const DisconnectRequest &msg) {
   // remote initiated disconnect_client
   // don't close yet, we still need to send the disconnect response
   // close will happen on next loop
-  ESP_LOGD(TAG, "%s (%s) disconnected", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
+  this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("disconnected"));
   this->flags_.next_close = true;
   DisconnectResponse resp;
   return this->send_message(resp, DisconnectResponse::MESSAGE_TYPE);
@@ -1504,9 +1502,10 @@ void APIConnection::complete_authentication_() {
   }
 
   this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::AUTHENTICATED);
-  ESP_LOGD(TAG, "%s (%s) connected", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
+  this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("connected"));
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  this->parent_->get_client_connected_trigger()->trigger(this->client_info_.name, this->client_info_.peername);
+  this->parent_->get_client_connected_trigger()->trigger(std::string(this->helper_->get_client_name()),
+                                                         std::string(this->helper_->get_client_peername()));
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   if (homeassistant::global_homeassistant_time != nullptr) {
@@ -1521,12 +1520,12 @@ void APIConnection::complete_authentication_() {
 }
 
 bool APIConnection::send_hello_response(const HelloRequest &msg) {
-  this->client_info_.name.assign(msg.client_info.c_str(), msg.client_info.size());
-  this->client_info_.peername = this->helper_->getpeername();
+  // Copy client name with truncation if needed (set_client_name handles truncation)
+  this->helper_->set_client_name(msg.client_info.c_str(), msg.client_info.size());
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
-  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->client_info_.name.c_str(),
-           this->client_info_.peername.c_str(), this->client_api_version_major_, this->client_api_version_minor_);
+  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->helper_->get_client_name(),
+           this->helper_->get_client_peername(), this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;
   resp.api_version_major = 1;
@@ -1836,7 +1835,7 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
 }
 void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s (%s) no connection setup", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
+  this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("no connection setup"));
 }
 void APIConnection::on_fatal_error() {
   this->helper_->close();
@@ -2084,8 +2083,13 @@ void APIConnection::process_state_subscriptions_() {
 }
 #endif  // USE_API_HOMEASSISTANT_STATES
 
+void APIConnection::log_client_(int level, const LogString *message) {
+  esp_log_printf_(level, TAG, __LINE__, ESPHOME_LOG_FORMAT("%s (%s): %s"), this->helper_->get_client_name(),
+                  this->helper_->get_client_peername(), LOG_STR_ARG(message));
+}
+
 void APIConnection::log_warning_(const LogString *message, APIError err) {
-  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->client_info_.name.c_str(), this->client_info_.peername.c_str(),
+  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->helper_->get_client_name(), this->helper_->get_client_peername(),
            LOG_STR_ARG(message), LOG_STR_ARG(api_error_to_logstr(err)), errno);
 }
 
