@@ -22,7 +22,7 @@ from .helpers import (
     map_section_name,
     parse_symbol_line,
 )
-from .toolchain import find_tool
+from .toolchain import find_tool, run_tool
 
 if TYPE_CHECKING:
     from esphome.platformio_api import IDEData
@@ -491,44 +491,36 @@ class MemoryAnalyzer:
         ram_symbols: list[tuple[str, int, str, bool]] = []
         global_ram_symbols: set[str] = set()
 
-        try:
-            result = subprocess.run(
-                [self.nm_path, "--size-sort", str(lib_path)],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
+        result = run_tool([self.nm_path, "--size-sort", str(lib_path)], timeout=10)
+        if result is None:
+            return ram_symbols, global_ram_symbols
 
-            for line in result.stdout.splitlines():
-                parts = line.split()
-                if len(parts) < 3:
-                    continue
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            if len(parts) < 3:
+                continue
 
-                try:
-                    size = int(parts[0], 16)
-                    sym_type = parts[1]
-                    name = parts[2]
+            try:
+                size = int(parts[0], 16)
+                sym_type = parts[1]
+                name = parts[2]
 
-                    # Only collect BSS (b/B) and DATA (d/D) for RAM analysis
-                    if sym_type in ("b", "B"):
-                        section = ".bss"
-                        is_local = sym_type == "b"
-                        ram_symbols.append((name, size, section, is_local))
-                        # Track global RAM symbols (B/D) for linking check
-                        if sym_type == "B":
-                            global_ram_symbols.add(name)
-                    elif sym_type in ("d", "D"):
-                        section = ".data"
-                        is_local = sym_type == "d"
-                        ram_symbols.append((name, size, section, is_local))
-                        if sym_type == "D":
-                            global_ram_symbols.add(name)
-                except (ValueError, IndexError):
-                    continue
-
-        except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError) as e:
-            _LOGGER.debug("Failed to parse SDK library %s: %s", lib_path, e)
+                # Only collect BSS (b/B) and DATA (d/D) for RAM analysis
+                if sym_type in ("b", "B"):
+                    section = ".bss"
+                    is_local = sym_type == "b"
+                    ram_symbols.append((name, size, section, is_local))
+                    # Track global RAM symbols (B/D) for linking check
+                    if sym_type == "B":
+                        global_ram_symbols.add(name)
+                elif sym_type in ("d", "D"):
+                    section = ".data"
+                    is_local = sym_type == "d"
+                    ram_symbols.append((name, size, section, is_local))
+                    if sym_type == "D":
+                        global_ram_symbols.add(name)
+            except (ValueError, IndexError):
+                continue
 
         return ram_symbols, global_ram_symbols
 

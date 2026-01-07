@@ -2478,6 +2478,7 @@ def test_command_analyze_memory_success(
         "/path/to/objdump",
         "/path/to/readelf",
         set(),  # No external components
+        idedata=mock_get_idedata.return_value,
     )
 
     # Verify analysis was run
@@ -2547,6 +2548,7 @@ def test_command_analyze_memory_with_external_components(
         "/path/to/objdump",
         "/path/to/readelf",
         {"my_custom_component"},  # External component detected
+        idedata=mock_get_idedata.return_value,
     )
 
 
