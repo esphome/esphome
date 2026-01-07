@@ -2,22 +2,26 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
+#include <cstring>
 
 namespace esphome {
 namespace text {
 
 static const char *const TAG = "text";
 
-void Text::publish_state(const std::string &state) {
-  this->set_has_state(true);
-  this->state = state;
-  if (this->traits.get_mode() == TEXT_MODE_PASSWORD) {
-    ESP_LOGD(TAG, "'%s': Sending state " LOG_SECRET("'%s'"), this->get_name().c_str(), state.c_str());
+void Text::publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
 
+void Text::publish_state(const char *state) { this->publish_state(state, strlen(state)); }
+
+void Text::publish_state(const char *state, size_t len) {
+  this->set_has_state(true);
+  this->state.assign(state, len);
+  if (this->traits.get_mode() == TEXT_MODE_PASSWORD) {
+    ESP_LOGD(TAG, "'%s': Sending state " LOG_SECRET("'%s'"), this->get_name().c_str(), this->state.c_str());
   } else {
-    ESP_LOGD(TAG, "'%s': Sending state %s", this->get_name().c_str(), state.c_str());
+    ESP_LOGD(TAG, "'%s': Sending state %s", this->get_name().c_str(), this->state.c_str());
   }
-  this->state_callback_.call(state);
+  this->state_callback_.call(this->state);
 #if defined(USE_TEXT) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_text_update(this);
 #endif

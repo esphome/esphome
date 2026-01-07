@@ -2,6 +2,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
+#include <cstring>
 
 namespace esphome {
 namespace text_sensor {
@@ -24,20 +25,26 @@ void log_text_sensor(const char *tag, const char *prefix, const char *type, Text
   }
 }
 
-void TextSensor::publish_state(const std::string &state) {
-// Suppress deprecation warning - we need to populate raw_state for backwards compatibility
+void TextSensor::publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
+
+void TextSensor::publish_state(const char *state) { this->publish_state(state, strlen(state)); }
+
+void TextSensor::publish_state(const char *state, size_t len) {
+  if (this->filter_list_ == nullptr) {
+    // No filters: raw_state == state, store once and use for both callbacks
+    this->state.assign(state, len);
+    this->raw_callback_.call(this->state);
+    ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), this->state.c_str());
+    this->notify_frontend_();
+  } else {
+    // Has filters: need separate raw storage
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  this->raw_state = state;
+    this->raw_state.assign(state, len);
+    this->raw_callback_.call(this->raw_state);
+    ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), this->raw_state.c_str());
+    this->filter_list_->input(this->raw_state);
 #pragma GCC diagnostic pop
-  this->raw_callback_.call(state);
-
-  ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), state.c_str());
-
-  if (this->filter_list_ == nullptr) {
-    this->internal_send_state_to_frontend(state);
-  } else {
-    this->filter_list_->input(state);
   }
 }
 
@@ -80,6 +87,9 @@ void TextSensor::add_on_raw_state_callback(std::function<void(const std::string 
 
 const std::string &TextSensor::get_state() const { return this->state; }
 const std::string &TextSensor::get_raw_state() const {
+  if (this->filter_list_ == nullptr) {
+    return this->state;  // No filters, raw == filtered
+  }
 // Suppress deprecation warning - get_raw_state() is the replacement API
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
@@ -87,10 +97,18 @@ const std::string &TextSensor::get_raw_state() const {
 #pragma GCC diagnostic pop
 }
 void TextSensor::internal_send_state_to_frontend(const std::string &state) {
-  this->state = state;
+  this->internal_send_state_to_frontend(state.data(), state.size());
+}
+
+void TextSensor::internal_send_state_to_frontend(const char *state, size_t len) {
+  this->state.assign(state, len);
+  this->notify_frontend_();
+}
+
+void TextSensor::notify_frontend_() {
   this->set_has_state(true);
-  ESP_LOGD(TAG, "'%s': Sending state '%s'", this->name_.c_str(), state.c_str());
-  this->callback_.call(state);
+  ESP_LOGD(TAG, "'%s': Sending state '%s'", this->name_.c_str(), this->state.c_str());
+  this->callback_.call(this->state);
 #if defined(USE_TEXT_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_text_sensor_update(this);
 #endif
