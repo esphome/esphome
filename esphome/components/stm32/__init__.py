@@ -22,8 +22,6 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
-from .const import PLATFORM_STM32
-
 # force import gpio to register pin schema
 from .gpio import stm32_pin_to_code  # noqa
 
@@ -36,7 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def set_core_data(config: ConfigType) -> ConfigType:
     zephyr_set_core_data(config)
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_STM32
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "stm32"
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version(4, 2, 1)
 
