@@ -53,6 +53,9 @@ _NAMESPACE_STD = "std::"
 # Type alias for symbol information: (symbol_name, size, component)
 SymbolInfoType = tuple[str, int, str]
 
+# RAM sections - symbols in these sections consume RAM
+RAM_SECTIONS = frozenset([".data", ".bss"])
+
 
 @dataclass
 class MemorySection:
@@ -128,9 +131,14 @@ class MemoryAnalyzer:
         self._esphome_core_symbols: list[
             tuple[str, str, int]
         ] = []  # Track core symbols
-        self._component_symbols: dict[str, list[tuple[str, str, int]]] = defaultdict(
+        # Track symbols for all components: (symbol_name, demangled, size, section)
+        self._component_symbols: dict[str, list[tuple[str, str, int, str]]] = (
+            defaultdict(list)
+        )
+        # Track RAM symbols separately for detailed analysis: (symbol_name, demangled, size, section)
+        self._ram_symbols: dict[str, list[tuple[str, str, int, str]]] = defaultdict(
             list
-        )  # Track symbols for all components
+        )
 
     def analyze(self) -> dict[str, ComponentMemory]:
         """Analyze the ELF file and return component memory usage."""
@@ -233,8 +241,13 @@ class MemoryAnalyzer:
                 if size > 0:
                     demangled = self._demangle_symbol(symbol_name)
                     self._component_symbols[component].append(
-                        (symbol_name, demangled, size)
+                        (symbol_name, demangled, size, section_name)
                     )
+                    # Track RAM symbols separately for detailed RAM analysis
+                    if section_name in RAM_SECTIONS:
+                        self._ram_symbols[component].append(
+                            (symbol_name, demangled, size, section_name)
+                        )
 
     def _identify_component(self, symbol_name: str) -> str:
         """Identify which component a symbol belongs to."""
