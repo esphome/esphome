@@ -103,8 +103,10 @@ void BLENUS::on_log(uint8_t level, const char *tag, const char *message, size_t 
 #endif
 
 void BLENUS::dump_config() {
-  ESP_LOGCONFIG(TAG, "ble nus:");
-  ESP_LOGCONFIG(TAG, "  log: %s", YESNO(this->expose_log_));
+  ESP_LOGCONFIG(TAG,
+                "ble nus:\n"
+                "  log: %s",
+                YESNO(this->expose_log_));
   uint32_t mtu = 0;
   bt_conn *conn = this->conn_.load();
   if (conn) {

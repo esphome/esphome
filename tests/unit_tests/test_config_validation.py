@@ -502,3 +502,77 @@ def test_only_with_user_value_overrides_default() -> None:
 
     result = schema({"mqtt_id": "custom_id"})
     assert result.get("mqtt_id") == "custom_id"
+
+
+@pytest.mark.parametrize("value", ("hello", "Hello World", "test_name", "温度"))
+def test_string_no_slash__valid(value: str) -> None:
+    actual = config_validation.string_no_slash(value)
+    assert actual == value
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        ("has/slash", "has⁄slash"),
+        ("a/b/c", "a⁄b⁄c"),
+        ("/leading", "⁄leading"),
+        ("trailing/", "trailing⁄"),
+    ),
+)
+def test_string_no_slash__slash_replaced_with_warning(
+    value: str, expected: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test that '/' is auto-replaced with fraction slash and warning is logged."""
+    actual = config_validation.string_no_slash(value)
+    assert actual == expected
+    assert "reserved as a URL path separator" in caplog.text
+    assert "will become an error in ESPHome 2026.7.0" in caplog.text
+
+
+def test_string_no_slash__long_string_allowed() -> None:
+    # string_no_slash doesn't enforce length - use cv.Length() separately
+    long_value = "x" * 200
+    assert config_validation.string_no_slash(long_value) == long_value
+
+
+def test_string_no_slash__empty() -> None:
+    assert config_validation.string_no_slash("") == ""
+
+
+@pytest.mark.parametrize("value", ("Temperature", "Living Room Light", "温度传感器"))
+def test_validate_entity_name__valid(value: str) -> None:
+    actual = config_validation._validate_entity_name(value)
+    assert actual == value
+
+
+def test_validate_entity_name__slash_replaced_with_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that '/' in entity names is auto-replaced with fraction slash."""
+    actual = config_validation._validate_entity_name("has/slash")
+    assert actual == "has⁄slash"
+    assert "reserved as a URL path separator" in caplog.text
+
+
+def test_validate_entity_name__max_length() -> None:
+    # 120 chars should pass
+    assert config_validation._validate_entity_name("x" * 120) == "x" * 120
+
+    # 121 chars should fail
+    with pytest.raises(Invalid, match="too long.*121 chars.*Maximum.*120"):
+        config_validation._validate_entity_name("x" * 121)
+
+
+def test_validate_entity_name__none_without_friendly_name() -> None:
+    # When name is "None" and friendly_name is not set, it should fail
+    CORE.friendly_name = None
+    with pytest.raises(Invalid, match="friendly_name is not set"):
+        config_validation._validate_entity_name("None")
+
+
+def test_validate_entity_name__none_with_friendly_name() -> None:
+    # When name is "None" but friendly_name is set, it should return None
+    CORE.friendly_name = "My Device"
+    result = config_validation._validate_entity_name("None")
+    assert result is None
+    CORE.friendly_name = None  # Reset

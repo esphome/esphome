@@ -101,16 +101,14 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
 #if defined(USE_API_PLAINTEXT) && defined(USE_API_NOISE)
   auto &noise_ctx = parent->get_noise_ctx();
   if (noise_ctx.has_psk()) {
-    this->helper_ =
-        std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), noise_ctx, &this->client_info_)};
+    this->helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), noise_ctx)};
   } else {
-    this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock), &this->client_info_)};
+    this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
   }
 #elif defined(USE_API_PLAINTEXT)
-  this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock), &this->client_info_)};
+  this->helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
 #elif defined(USE_API_NOISE)
-  this->helper_ = std::unique_ptr<APIFrameHelper>{
-      new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx(), &this->client_info_)};
+  this->helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
 #else
 #error "No frame helper defined"
 #endif
@@ -131,8 +129,9 @@ void APIConnection::start() {
     this->fatal_error_with_log_(LOG_STR("Helper init failed"), err);
     return;
   }
-  this->client_info_.peername = helper_->getpeername();
-  this->client_info_.name = this->client_info_.peername;
+  // Initialize client name with peername (IP address) until Hello message provides actual name
+  const char *peername = this->helper_->get_client_peername();
+  this->helper_->set_client_name(peername, strlen(peername));
 }
 
 APIConnection::~APIConnection() {
@@ -252,8 +251,7 @@ void APIConnection::loop() {
     // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > KEEPALIVE_DISCONNECT_TIMEOUT) {
       on_fatal_error();
-      ESP_LOGW(TAG, "%s (%s) is unresponsive; disconnecting", this->client_info_.name.c_str(),
-               this->client_info_.peername.c_str());
+      this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("is unresponsive; disconnecting"));
     }
   } else if (now - this->last_traffic_ > KEEPALIVE_TIMEOUT_MS && !this->flags_.remove) {
     // Only send ping if we're not disconnecting
@@ -287,7 +285,7 @@ bool APIConnection::send_disconnect_response(const DisconnectRequest &msg) {
   // remote initiated disconnect_client
   // don't close yet, we still need to send the disconnect response
   // close will happen on next loop
-  ESP_LOGD(TAG, "%s (%s) disconnected", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
+  this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("disconnected"));
   this->flags_.next_close = true;
   DisconnectResponse resp;
   return this->send_message(resp, DisconnectResponse::MESSAGE_TYPE);
@@ -473,7 +471,7 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
   if (msg.has_direction)
     call.set_direction(static_cast<fan::FanDirection>(msg.direction));
   if (msg.has_preset_mode)
-    call.set_preset_mode(reinterpret_cast<const char *>(msg.preset_mode), msg.preset_mode_len);
+    call.set_preset_mode(msg.preset_mode.c_str(), msg.preset_mode.size());
   call.perform();
 }
 #endif
@@ -559,7 +557,7 @@ void APIConnection::light_command(const LightCommandRequest &msg) {
   if (msg.has_flash_length)
     call.set_flash_length(msg.flash_length);
   if (msg.has_effect)
-    call.set_effect(reinterpret_cast<const char *>(msg.effect), msg.effect_len);
+    call.set_effect(msg.effect.c_str(), msg.effect.size());
   call.perform();
 }
 #endif
@@ -738,11 +736,11 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
   if (msg.has_fan_mode)
     call.set_fan_mode(static_cast<climate::ClimateFanMode>(msg.fan_mode));
   if (msg.has_custom_fan_mode)
-    call.set_fan_mode(reinterpret_cast<const char *>(msg.custom_fan_mode), msg.custom_fan_mode_len);
+    call.set_fan_mode(msg.custom_fan_mode.c_str(), msg.custom_fan_mode.size());
   if (msg.has_preset)
     call.set_preset(static_cast<climate::ClimatePreset>(msg.preset));
   if (msg.has_custom_preset)
-    call.set_preset(reinterpret_cast<const char *>(msg.custom_preset), msg.custom_preset_len);
+    call.set_preset(msg.custom_preset.c_str(), msg.custom_preset.size());
   if (msg.has_swing_mode)
     call.set_swing_mode(static_cast<climate::ClimateSwingMode>(msg.swing_mode));
   call.perform();
@@ -931,7 +929,7 @@ uint16_t APIConnection::try_send_select_info(EntityBase *entity, APIConnection *
 }
 void APIConnection::select_command(const SelectCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(select::Select, select, select)
-  call.set_option(reinterpret_cast<const char *>(msg.state), msg.state_len);
+  call.set_option(msg.state.c_str(), msg.state.size());
   call.perform();
 }
 #endif
@@ -1153,9 +1151,8 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #ifdef USE_TIME_TIMEZONE
-    if (value.timezone_len > 0) {
-      homeassistant::global_homeassistant_time->set_timezone(reinterpret_cast<const char *>(value.timezone),
-                                                             value.timezone_len);
+    if (!value.timezone.empty()) {
+      homeassistant::global_homeassistant_time->set_timezone(value.timezone.c_str(), value.timezone.size());
     }
 #endif
   }
@@ -1505,9 +1502,10 @@ void APIConnection::complete_authentication_() {
   }
 
   this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::AUTHENTICATED);
-  ESP_LOGD(TAG, "%s (%s) connected", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
+  this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("connected"));
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  this->parent_->get_client_connected_trigger()->trigger(this->client_info_.name, this->client_info_.peername);
+  this->parent_->get_client_connected_trigger()->trigger(std::string(this->helper_->get_client_name()),
+                                                         std::string(this->helper_->get_client_peername()));
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   if (homeassistant::global_homeassistant_time != nullptr) {
@@ -1522,41 +1520,25 @@ void APIConnection::complete_authentication_() {
 }
 
 bool APIConnection::send_hello_response(const HelloRequest &msg) {
-  this->client_info_.name.assign(reinterpret_cast<const char *>(msg.client_info), msg.client_info_len);
-  this->client_info_.peername = this->helper_->getpeername();
+  // Copy client name with truncation if needed (set_client_name handles truncation)
+  this->helper_->set_client_name(msg.client_info.c_str(), msg.client_info.size());
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
-  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->client_info_.name.c_str(),
-           this->client_info_.peername.c_str(), this->client_api_version_major_, this->client_api_version_minor_);
+  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu32 ".%" PRIu32, this->helper_->get_client_name(),
+           this->helper_->get_client_peername(), this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 13;
+  resp.api_version_minor = 14;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.set_server_info(ESPHOME_VERSION_REF);
   resp.set_name(StringRef(App.get_name()));
 
-#ifdef USE_API_PASSWORD
-  // Password required - wait for authentication
-  this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::CONNECTED);
-#else
-  // No password configured - auto-authenticate
+  // Auto-authenticate - password auth was removed in ESPHome 2026.1.0
   this->complete_authentication_();
-#endif
 
   return this->send_message(resp, HelloResponse::MESSAGE_TYPE);
 }
-#ifdef USE_API_PASSWORD
-bool APIConnection::send_authenticate_response(const AuthenticationRequest &msg) {
-  AuthenticationResponse resp;
-  // bool invalid_password = 1;
-  resp.invalid_password = !this->parent_->check_password(msg.password, msg.password_len);
-  if (!resp.invalid_password) {
-    this->complete_authentication_();
-  }
-  return this->send_message(resp, AuthenticationResponse::MESSAGE_TYPE);
-}
-#endif  // USE_API_PASSWORD
 
 bool APIConnection::send_ping_response(const PingRequest &msg) {
   PingResponse resp;
@@ -1565,9 +1547,6 @@ bool APIConnection::send_ping_response(const PingRequest &msg) {
 
 bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   DeviceInfoResponse resp{};
-#ifdef USE_API_PASSWORD
-  resp.uses_password = true;
-#endif
   resp.set_name(StringRef(App.get_name()));
   resp.set_friendly_name(StringRef(App.get_friendly_name()));
 #ifdef USE_AREAS
@@ -1693,28 +1672,37 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
   // Skip if entity_id is empty (invalid message)
-  if (msg.entity_id_len == 0) {
+  if (msg.entity_id.empty()) {
     return;
   }
 
   for (auto &it : this->parent_->get_state_subs()) {
     // Compare entity_id: check length matches and content matches
     size_t entity_id_len = strlen(it.entity_id);
-    if (entity_id_len != msg.entity_id_len || memcmp(it.entity_id, msg.entity_id, msg.entity_id_len) != 0) {
+    if (entity_id_len != msg.entity_id.size() ||
+        memcmp(it.entity_id, msg.entity_id.c_str(), msg.entity_id.size()) != 0) {
       continue;
     }
 
     // Compare attribute: either both have matching attribute, or both have none
     size_t sub_attr_len = it.attribute != nullptr ? strlen(it.attribute) : 0;
-    if (sub_attr_len != msg.attribute_len ||
-        (sub_attr_len > 0 && memcmp(it.attribute, msg.attribute, sub_attr_len) != 0)) {
+    if (sub_attr_len != msg.attribute.size() ||
+        (sub_attr_len > 0 && memcmp(it.attribute, msg.attribute.c_str(), sub_attr_len) != 0)) {
       continue;
     }
 
-    // Create temporary string for callback (callback takes const std::string &)
-    // Handle empty state (nullptr with len=0)
-    std::string state(msg.state_len > 0 ? reinterpret_cast<const char *>(msg.state) : "", msg.state_len);
-    it.callback(state);
+    // Create null-terminated state for callback (parse_number needs null-termination)
+    // HA state max length is 255, so 256 byte buffer covers all cases
+    char state_buf[256];
+    size_t copy_len = msg.state.size();
+    if (copy_len >= sizeof(state_buf)) {
+      copy_len = sizeof(state_buf) - 1;  // Truncate to leave space for null terminator
+    }
+    if (copy_len > 0) {
+      memcpy(state_buf, msg.state.c_str(), copy_len);
+    }
+    state_buf[copy_len] = '\0';
+    it.callback(StringRef(state_buf, copy_len));
   }
 }
 #endif
@@ -1749,20 +1737,20 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   // the action list. This ensures async actions (delays, waits) complete first.
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-void APIConnection::send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message) {
+void APIConnection::send_execute_service_response(uint32_t call_id, bool success, StringRef error_message) {
   ExecuteServiceResponse resp;
   resp.call_id = call_id;
   resp.success = success;
-  resp.set_error_message(StringRef(error_message));
+  resp.set_error_message(error_message);
   this->send_message(resp, ExecuteServiceResponse::MESSAGE_TYPE);
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-void APIConnection::send_execute_service_response(uint32_t call_id, bool success, const std::string &error_message,
+void APIConnection::send_execute_service_response(uint32_t call_id, bool success, StringRef error_message,
                                                   const uint8_t *response_data, size_t response_data_len) {
   ExecuteServiceResponse resp;
   resp.call_id = call_id;
   resp.success = success;
-  resp.set_error_message(StringRef(error_message));
+  resp.set_error_message(error_message);
   resp.response_data = response_data;
   resp.response_data_len = response_data_len;
   this->send_message(resp, ExecuteServiceResponse::MESSAGE_TYPE);
@@ -1845,15 +1833,9 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   // Do not set last_traffic_ on send
   return true;
 }
-#ifdef USE_API_PASSWORD
-void APIConnection::on_unauthenticated_access() {
-  this->on_fatal_error();
-  ESP_LOGD(TAG, "%s (%s) no authentication", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
-}
-#endif
 void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
-  ESP_LOGD(TAG, "%s (%s) no connection setup", this->client_info_.name.c_str(), this->client_info_.peername.c_str());
+  this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("no connection setup"));
 }
 void APIConnection::on_fatal_error() {
   this->helper_->close();
@@ -1899,9 +1881,9 @@ bool APIConnection::schedule_batch_() {
 }
 
 void APIConnection::process_batch_() {
-  // Ensure PacketInfo remains trivially destructible for our placement new approach
-  static_assert(std::is_trivially_destructible<PacketInfo>::value,
-                "PacketInfo must remain trivially destructible with this placement-new approach");
+  // Ensure MessageInfo remains trivially destructible for our placement new approach
+  static_assert(std::is_trivially_destructible<MessageInfo>::value,
+                "MessageInfo must remain trivially destructible with this placement-new approach");
 
   if (this->deferred_batch_.empty()) {
     this->flags_.batch_scheduled = false;
@@ -1941,12 +1923,12 @@ void APIConnection::process_batch_() {
     return;
   }
 
-  size_t packets_to_process = std::min(num_items, MAX_PACKETS_PER_BATCH);
+  size_t messages_to_process = std::min(num_items, MAX_MESSAGES_PER_BATCH);
 
-  // Stack-allocated array for packet info
-  alignas(PacketInfo) char packet_info_storage[MAX_PACKETS_PER_BATCH * sizeof(PacketInfo)];
-  PacketInfo *packet_info = reinterpret_cast<PacketInfo *>(packet_info_storage);
-  size_t packet_count = 0;
+  // Stack-allocated array for message info
+  alignas(MessageInfo) char message_info_storage[MAX_MESSAGES_PER_BATCH * sizeof(MessageInfo)];
+  MessageInfo *message_info = reinterpret_cast<MessageInfo *>(message_info_storage);
+  size_t message_count = 0;
 
   // Cache these values to avoid repeated virtual calls
   const uint8_t header_padding = this->helper_->frame_header_padding();
@@ -1977,7 +1959,7 @@ void APIConnection::process_batch_() {
   uint32_t current_offset = 0;
 
   // Process items and encode directly to buffer (up to our limit)
-  for (size_t i = 0; i < packets_to_process; i++) {
+  for (size_t i = 0; i < messages_to_process; i++) {
     const auto &item = this->deferred_batch_[i];
     // Try to encode message
     // The creator will calculate overhead to determine if the message fits
@@ -1991,11 +1973,11 @@ void APIConnection::process_batch_() {
     // Message was encoded successfully
     // payload_size is header_padding + actual payload size + footer_size
     uint16_t proto_payload_size = payload_size - header_padding - footer_size;
-    // Use placement new to construct PacketInfo in pre-allocated stack array
-    // This avoids default-constructing all MAX_PACKETS_PER_BATCH elements
-    // Explicit destruction is not needed because PacketInfo is trivially destructible,
+    // Use placement new to construct MessageInfo in pre-allocated stack array
+    // This avoids default-constructing all MAX_MESSAGES_PER_BATCH elements
+    // Explicit destruction is not needed because MessageInfo is trivially destructible,
     // as ensured by the static_assert in its definition.
-    new (&packet_info[packet_count++]) PacketInfo(item.message_type, current_offset, proto_payload_size);
+    new (&message_info[message_count++]) MessageInfo(item.message_type, current_offset, proto_payload_size);
 
     // Update tracking variables
     items_processed++;
@@ -2019,9 +2001,9 @@ void APIConnection::process_batch_() {
     shared_buf.resize(shared_buf.size() + footer_size);
   }
 
-  // Send all collected packets
-  APIError err = this->helper_->write_protobuf_packets(ProtoWriteBuffer{&shared_buf},
-                                                       std::span<const PacketInfo>(packet_info, packet_count));
+  // Send all collected messages
+  APIError err = this->helper_->write_protobuf_messages(ProtoWriteBuffer{&shared_buf},
+                                                        std::span<const MessageInfo>(message_info, message_count));
   if (err != APIError::OK && err != APIError::WOULD_BLOCK) {
     this->fatal_error_with_log_(LOG_STR("Batch write failed"), err);
   }
@@ -2101,8 +2083,13 @@ void APIConnection::process_state_subscriptions_() {
 }
 #endif  // USE_API_HOMEASSISTANT_STATES
 
+void APIConnection::log_client_(int level, const LogString *message) {
+  esp_log_printf_(level, TAG, __LINE__, ESPHOME_LOG_FORMAT("%s (%s): %s"), this->helper_->get_client_name(),
+                  this->helper_->get_client_peername(), LOG_STR_ARG(message));
+}
+
 void APIConnection::log_warning_(const LogString *message, APIError err) {
-  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->client_info_.name.c_str(), this->client_info_.peername.c_str(),
+  ESP_LOGW(TAG, "%s (%s): %s %s errno=%d", this->helper_->get_client_name(), this->helper_->get_client_peername(),
            LOG_STR_ARG(message), LOG_STR_ARG(api_error_to_logstr(err)), errno);
 }
 

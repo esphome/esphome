@@ -8,8 +8,7 @@
 
 #include "esphome/components/valve/valve.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTValveComponent : public mqtt::MQTTComponent {
  public:
@@ -34,8 +33,7 @@ class MQTTValveComponent : public mqtt::MQTTComponent {
   valve::Valve *valve_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
