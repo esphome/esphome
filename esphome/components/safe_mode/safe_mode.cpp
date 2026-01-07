@@ -150,6 +150,16 @@ void SafeModeComponent::clean_rtc() {
   // remain incremented.
   uint32_t val = 0;
   this->rtc_.save(&val);
+#ifdef USE_LIBRETINY
+  // On LibreTiny (BK72xx, RTL87xx), preferences queued during shutdown are not
+  // reliably persisted to flash. This was observed on TuyaMCU devices where:
+  // 1. Safe mode button pressed or boot loop detected -> clean_rtc() queues counter=0
+  // 2. OTA completes -> safe_reboot() triggers IntervalSyncer::on_shutdown() -> sync()
+  // 3. After reboot, counter is NOT cleared -> device stuck in safe mode loop
+  // The FlashDB layer appears to fail silently when writing during shutdown.
+  // Sync immediately to ensure the boot counter is actually persisted.
+  global_preferences->sync();
+#endif
 }
 
 void SafeModeComponent::on_safe_shutdown() {
