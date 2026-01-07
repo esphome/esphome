@@ -5,7 +5,7 @@ Constants already defined in esphome.const are not duplicated here and must be i
 """
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
@@ -20,7 +20,6 @@ from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
 from .helpers import requires_component
-from .lvcode import CodeContext, LambdaContext
 
 LOGGER = logging.getLogger(__name__)
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
@@ -138,12 +137,10 @@ class LValidator:
             return None
         if isinstance(value, Lambda):
             # Local import to avoid circular import
+            from .lvcode import get_lambda_context_args
 
-            if TYPE_CHECKING:
-                # CodeContext does not have get_automation_parameters
-                # so we need to assert the type here
-                assert isinstance(CodeContext.code_context, LambdaContext)
-            args = args or CodeContext.code_context.get_automation_parameters()
+            args = args or get_lambda_context_args()
+
             return call_lambda(
                 await cg.process_lambda(value, args, return_type=self.rtype)
             )
