@@ -1,6 +1,6 @@
 #include "heatpumpir.h"
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) || defined(USE_ESP32)
 
 #include <map>
 #include "ir_sender_esphome.h"
