@@ -23,13 +23,6 @@ void EPaperE2271KS0C1::setup() {
   }
 }
 
-bool EPaperE2271KS0C1::is_idle() const {
-  if (this->busy_pin_ == nullptr) {
-    return true;
-  }
-  // E2271KS0C1 has active-low busy: HIGH = idle
-  return this->busy_pin_->digital_read();
-}
 
 static inline uint8_t encode_temp(float temp_c, bool fast) {
   uint8_t ts = static_cast<uint8_t>(static_cast<int>(lroundf(temp_c)) & 0xFF);

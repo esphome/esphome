@@ -25,8 +25,6 @@ class EPaperE2271KS0C1 : public EPaperBase {
   void refresh_screen(bool partial) override;
   void power_off() override;
   void deep_sleep() override;
-  // E2271KS0C1 has active-low busy pin (LOW=busy, HIGH=idle)
-  bool is_idle() const override;
 
  private:
   static constexpr uint8_t CMD_PSR = 0x00;
