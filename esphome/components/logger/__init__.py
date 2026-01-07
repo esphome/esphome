@@ -310,6 +310,10 @@ async def to_code(config):
         if task_log_buffer_size > 0:
             cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
             cg.add(log.init_log_buffer(task_log_buffer_size))
+    elif CORE.is_host:
+        cg.add(log.create_pthread_key())
+        cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
+        cg.add(log.init_log_buffer(64))  # Fixed 64 slots for host
 
     cg.add(log.set_log_level(initial_level))
     if CONF_HARDWARE_UART in config:
@@ -520,10 +524,11 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.LN882X_ARDUINO,
         },
         "logger_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
-        "task_log_buffer.cpp": {
+        "task_log_buffer_esp32.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
+        "task_log_buffer_host.cpp": {PlatformFramework.HOST_NATIVE},
     }
 )
 
