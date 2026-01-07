@@ -382,7 +382,7 @@ async def set_obj_properties(w: Widget, config):
         clrs = join_enums(flag_clr, "LV_OBJ_FLAG_")
         w.clear_flag(clrs)
     for key, value in lambs.items():
-        lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
+        lamb = await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
         flag = f"LV_OBJ_FLAG_{key.upper()}"
         with LvConditional(call_lambda(lamb)) as cond:
             w.add_flag(flag)
@@ -407,7 +407,7 @@ async def set_obj_properties(w: Widget, config):
             clears = join_enums(clears, "LV_STATE_")
             w.clear_state(clears)
         for key, value in lambs.items():
-            lamb = await cg.process_lambda(value, [], return_type=cg.bool_)
+            lamb = await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
             state = f"LV_STATE_{key.upper()}"
             with LvConditional(call_lambda(lamb)) as cond:
                 w.add_state(state)

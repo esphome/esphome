@@ -12,8 +12,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 static const char *const TAG = "http_request.host";
 
@@ -139,7 +138,6 @@ void HttpContainerHost::end() {
   this->bytes_read_ = 0;
 }
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request
 
 #endif  // USE_HOST

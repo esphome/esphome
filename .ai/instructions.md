@@ -276,12 +276,12 @@ This document provides essential context for AI models interacting with this pro
 ## 7. Specific Instructions for AI Collaboration
 
 *   **Contribution Workflow (Pull Request Process):**
-    1.  **Fork & Branch:** Create a new branch in your fork.
+    1.  **Fork & Branch:** Create a new branch based on the `dev` branch (always use `git checkout -b <branch-name> dev` to ensure you're branching from `dev`, not the currently checked out branch).
     2.  **Make Changes:** Adhere to all coding conventions and patterns.
     3.  **Test:** Create component tests for all supported platforms and run the full test suite locally.
     4.  **Lint:** Run `pre-commit` to ensure code is compliant.
     5.  **Commit:** Commit your changes. There is no strict format for commit messages.
-    6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title should have a prefix of the component being worked on (e.g., `[display] Fix bug`, `[abc123] Add new component`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made with the PULL_REQUEST_TEMPLATE.md template filled out correctly.
+    6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title should have a prefix of the component being worked on (e.g., `[display] Fix bug`, `[abc123] Add new component`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
 
 *   **Documentation Contributions:**
     *   Documentation is hosted in the separate `esphome/esphome-docs` repository.
@@ -402,35 +402,45 @@ This document provides essential context for AI models interacting with this pro
             _use_feature = True
         ```
 
-        **Good Pattern (CORE.data with Helpers):**
+        **Bad Pattern (Flat Keys):**
         ```python
+        # Don't do this - keys should be namespaced under component domain
+        MY_FEATURE_KEY = "my_component_feature"
+        CORE.data[MY_FEATURE_KEY] = True
+        ```
+
+        **Good Pattern (dataclass):**
+        ```python
+        from dataclasses import dataclass, field
         from esphome.core import CORE
 
-        # Keys for CORE.data storage
-        COMPONENT_STATE_KEY = "my_component_state"
-        USE_FEATURE_KEY = "my_component_use_feature"
+        DOMAIN = "my_component"
 
-        def _get_component_state() -> list:
-            """Get component state from CORE.data."""
-            return CORE.data.setdefault(COMPONENT_STATE_KEY, [])
+        @dataclass
+        class MyComponentData:
+            feature_enabled: bool = False
+            item_count: int = 0
+            items: list[str] = field(default_factory=list)
 
-        def _get_use_feature() -> bool | None:
-            """Get feature flag from CORE.data."""
-            return CORE.data.get(USE_FEATURE_KEY)
+        def _get_data() -> MyComponentData:
+            if DOMAIN not in CORE.data:
+                CORE.data[DOMAIN] = MyComponentData()
+            return CORE.data[DOMAIN]
 
-        def _set_use_feature(value: bool) -> None:
-            """Set feature flag in CORE.data."""
-            CORE.data[USE_FEATURE_KEY] = value
+        def request_feature() -> None:
+            _get_data().feature_enabled = True
 
-        def enable_feature():
-            _set_use_feature(True)
+        def add_item(item: str) -> None:
+            _get_data().items.append(item)
         ```
+
+        If you need a real-world example, search for components that use `@dataclass` with `CORE.data` in the codebase. Note: Some components may use `TypedDict` for dictionary-based storage; both patterns are acceptable depending on your needs.
 
         **Why this matters:**
         - Module-level globals persist between compilation runs if the dashboard doesn't fork/exec
         - `CORE.data` automatically clears between runs
-        - Typed helper functions provide better IDE support and maintainability
-        - Encapsulation makes state management explicit and testable
+        - Namespacing under `DOMAIN` prevents key collisions between components
+        - `@dataclass` provides type safety and cleaner attribute access
 
 *   **Security:** Be mindful of security when making changes to the API, web server, or any other network-related code. Do not hardcode secrets or keys.
 

@@ -8,8 +8,7 @@
 #include "esphome/components/number/number.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTNumberComponent : public mqtt::MQTTComponent {
  public:
@@ -39,8 +38,7 @@ class MQTTNumberComponent : public mqtt::MQTTComponent {
   number::Number *number_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

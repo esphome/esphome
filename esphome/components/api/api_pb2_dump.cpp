@@ -179,6 +179,8 @@ template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::Sens
       return "STATE_CLASS_TOTAL_INCREASING";
     case enums::STATE_CLASS_TOTAL:
       return "STATE_CLASS_TOTAL";
+    case enums::STATE_CLASS_MEASUREMENT_ANGLE:
+      return "STATE_CLASS_MEASUREMENT_ANGLE";
     default:
       return "UNKNOWN";
   }
@@ -225,6 +227,20 @@ template<> const char *proto_enum_to_string<enums::ServiceArgType>(enums::Servic
       return "SERVICE_ARG_TYPE_FLOAT_ARRAY";
     case enums::SERVICE_ARG_TYPE_STRING_ARRAY:
       return "SERVICE_ARG_TYPE_STRING_ARRAY";
+    default:
+      return "UNKNOWN";
+  }
+}
+template<> const char *proto_enum_to_string<enums::SupportsResponseType>(enums::SupportsResponseType value) {
+  switch (value) {
+    case enums::SUPPORTS_RESPONSE_NONE:
+      return "SUPPORTS_RESPONSE_NONE";
+    case enums::SUPPORTS_RESPONSE_OPTIONAL:
+      return "SUPPORTS_RESPONSE_OPTIONAL";
+    case enums::SUPPORTS_RESPONSE_ONLY:
+      return "SUPPORTS_RESPONSE_ONLY";
+    case enums::SUPPORTS_RESPONSE_STATUS:
+      return "SUPPORTS_RESPONSE_STATUS";
     default:
       return "UNKNOWN";
   }
@@ -332,6 +348,47 @@ template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::Climate
   }
 }
 #endif
+#ifdef USE_WATER_HEATER
+template<> const char *proto_enum_to_string<enums::WaterHeaterMode>(enums::WaterHeaterMode value) {
+  switch (value) {
+    case enums::WATER_HEATER_MODE_OFF:
+      return "WATER_HEATER_MODE_OFF";
+    case enums::WATER_HEATER_MODE_ECO:
+      return "WATER_HEATER_MODE_ECO";
+    case enums::WATER_HEATER_MODE_ELECTRIC:
+      return "WATER_HEATER_MODE_ELECTRIC";
+    case enums::WATER_HEATER_MODE_PERFORMANCE:
+      return "WATER_HEATER_MODE_PERFORMANCE";
+    case enums::WATER_HEATER_MODE_HIGH_DEMAND:
+      return "WATER_HEATER_MODE_HIGH_DEMAND";
+    case enums::WATER_HEATER_MODE_HEAT_PUMP:
+      return "WATER_HEATER_MODE_HEAT_PUMP";
+    case enums::WATER_HEATER_MODE_GAS:
+      return "WATER_HEATER_MODE_GAS";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+template<>
+const char *proto_enum_to_string<enums::WaterHeaterCommandHasField>(enums::WaterHeaterCommandHasField value) {
+  switch (value) {
+    case enums::WATER_HEATER_COMMAND_HAS_NONE:
+      return "WATER_HEATER_COMMAND_HAS_NONE";
+    case enums::WATER_HEATER_COMMAND_HAS_MODE:
+      return "WATER_HEATER_COMMAND_HAS_MODE";
+    case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE:
+      return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE";
+    case enums::WATER_HEATER_COMMAND_HAS_STATE:
+      return "WATER_HEATER_COMMAND_HAS_STATE";
+    case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW:
+      return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW";
+    case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH:
+      return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH";
+    default:
+      return "UNKNOWN";
+  }
+}
 #ifdef USE_NUMBER
 template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode value) {
   switch (value) {
@@ -678,9 +735,7 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums:
 
 void HelloRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HelloRequest");
-  out.append("  client_info: ");
-  out.append(format_hex_pretty(this->client_info, this->client_info_len));
-  out.append("\n");
+  dump_field(out, "client_info", this->client_info);
   dump_field(out, "api_version_major", this->api_version_major);
   dump_field(out, "api_version_minor", this->api_version_minor);
 }
@@ -688,21 +743,9 @@ void HelloResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HelloResponse");
   dump_field(out, "api_version_major", this->api_version_major);
   dump_field(out, "api_version_minor", this->api_version_minor);
-  dump_field(out, "server_info", this->server_info_ref_);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "server_info", this->server_info);
+  dump_field(out, "name", this->name);
 }
-#ifdef USE_API_PASSWORD
-void AuthenticationRequest::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "AuthenticationRequest");
-  out.append("  password: ");
-  out.append(format_hex_pretty(this->password, this->password_len));
-  out.append("\n");
-}
-void AuthenticationResponse::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "AuthenticationResponse");
-  dump_field(out, "invalid_password", this->invalid_password);
-}
-#endif
 void DisconnectRequest::dump_to(std::string &out) const { out.append("DisconnectRequest {}"); }
 void DisconnectResponse::dump_to(std::string &out) const { out.append("DisconnectResponse {}"); }
 void PingRequest::dump_to(std::string &out) const { out.append("PingRequest {}"); }
@@ -712,35 +755,32 @@ void DeviceInfoRequest::dump_to(std::string &out) const { out.append("DeviceInfo
 void AreaInfo::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "AreaInfo");
   dump_field(out, "area_id", this->area_id);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 }
 #endif
 #ifdef USE_DEVICES
 void DeviceInfo::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "DeviceInfo");
   dump_field(out, "device_id", this->device_id);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
   dump_field(out, "area_id", this->area_id);
 }
 #endif
 void DeviceInfoResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "DeviceInfoResponse");
-#ifdef USE_API_PASSWORD
-  dump_field(out, "uses_password", this->uses_password);
-#endif
-  dump_field(out, "name", this->name_ref_);
-  dump_field(out, "mac_address", this->mac_address_ref_);
-  dump_field(out, "esphome_version", this->esphome_version_ref_);
-  dump_field(out, "compilation_time", this->compilation_time_ref_);
-  dump_field(out, "model", this->model_ref_);
+  dump_field(out, "name", this->name);
+  dump_field(out, "mac_address", this->mac_address);
+  dump_field(out, "esphome_version", this->esphome_version);
+  dump_field(out, "compilation_time", this->compilation_time);
+  dump_field(out, "model", this->model);
 #ifdef USE_DEEP_SLEEP
   dump_field(out, "has_deep_sleep", this->has_deep_sleep);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  dump_field(out, "project_name", this->project_name_ref_);
+  dump_field(out, "project_name", this->project_name);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  dump_field(out, "project_version", this->project_version_ref_);
+  dump_field(out, "project_version", this->project_version);
 #endif
 #ifdef USE_WEBSERVER
   dump_field(out, "webserver_port", this->webserver_port);
@@ -748,16 +788,16 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 #ifdef USE_BLUETOOTH_PROXY
   dump_field(out, "bluetooth_proxy_feature_flags", this->bluetooth_proxy_feature_flags);
 #endif
-  dump_field(out, "manufacturer", this->manufacturer_ref_);
-  dump_field(out, "friendly_name", this->friendly_name_ref_);
+  dump_field(out, "manufacturer", this->manufacturer);
+  dump_field(out, "friendly_name", this->friendly_name);
 #ifdef USE_VOICE_ASSISTANT
   dump_field(out, "voice_assistant_feature_flags", this->voice_assistant_feature_flags);
 #endif
 #ifdef USE_AREAS
-  dump_field(out, "suggested_area", this->suggested_area_ref_);
+  dump_field(out, "suggested_area", this->suggested_area);
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  dump_field(out, "bluetooth_mac_address", this->bluetooth_mac_address_ref_);
+  dump_field(out, "bluetooth_mac_address", this->bluetooth_mac_address);
 #endif
 #ifdef USE_API_NOISE
   dump_field(out, "api_encryption_supported", this->api_encryption_supported);
@@ -794,14 +834,14 @@ void SubscribeStatesRequest::dump_to(std::string &out) const { out.append("Subsc
 #ifdef USE_BINARY_SENSOR
 void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesBinarySensorResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
-  dump_field(out, "device_class", this->device_class_ref_);
+  dump_field(out, "name", this->name);
+  dump_field(out, "device_class", this->device_class);
   dump_field(out, "is_status_binary_sensor", this->is_status_binary_sensor);
   dump_field(out, "disabled_by_default", this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
 #ifdef USE_DEVICES
@@ -821,16 +861,16 @@ void BinarySensorStateResponse::dump_to(std::string &out) const {
 #ifdef USE_COVER
 void ListEntitiesCoverResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesCoverResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
   dump_field(out, "assumed_state", this->assumed_state);
   dump_field(out, "supports_position", this->supports_position);
   dump_field(out, "supports_tilt", this->supports_tilt);
-  dump_field(out, "device_class", this->device_class_ref_);
+  dump_field(out, "device_class", this->device_class);
   dump_field(out, "disabled_by_default", this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
   dump_field(out, "supports_stop", this->supports_stop);
@@ -864,16 +904,16 @@ void CoverCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_FAN
 void ListEntitiesFanResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesFanResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
   dump_field(out, "supports_oscillation", this->supports_oscillation);
   dump_field(out, "supports_speed", this->supports_speed);
   dump_field(out, "supports_direction", this->supports_direction);
   dump_field(out, "supported_speed_count", this->supported_speed_count);
   dump_field(out, "disabled_by_default", this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
   for (const auto &it : *this->supported_preset_modes) {
@@ -890,7 +930,7 @@ void FanStateResponse::dump_to(std::string &out) const {
   dump_field(out, "oscillating", this->oscillating);
   dump_field(out, "direction", static_cast<enums::FanDirection>(this->direction));
   dump_field(out, "speed_level", this->speed_level);
-  dump_field(out, "preset_mode", this->preset_mode_ref_);
+  dump_field(out, "preset_mode", this->preset_mode);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -916,9 +956,9 @@ void FanCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_LIGHT
 void ListEntitiesLightResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesLightResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
   for (const auto &it : *this->supported_color_modes) {
     dump_field(out, "supported_color_modes", static_cast<enums::ColorMode>(it), 4);
   }
@@ -929,7 +969,7 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
   }
   dump_field(out, "disabled_by_default", this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
 #ifdef USE_DEVICES
@@ -950,7 +990,7 @@ void LightStateResponse::dump_to(std::string &out) const {
   dump_field(out, "color_temperature", this->color_temperature);
   dump_field(out, "cold_white", this->cold_white);
   dump_field(out, "warm_white", this->warm_white);
-  dump_field(out, "effect", this->effect_ref_);
+  dump_field(out, "effect", this->effect);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -992,16 +1032,16 @@ void LightCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_SENSOR
 void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesSensorResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
-  dump_field(out, "unit_of_measurement", this->unit_of_measurement_ref_);
+  dump_field(out, "unit_of_measurement", this->unit_of_measurement);
   dump_field(out, "accuracy_decimals", this->accuracy_decimals);
   dump_field(out, "force_update", this->force_update);
-  dump_field(out, "device_class", this->device_class_ref_);
+  dump_field(out, "device_class", this->device_class);
   dump_field(out, "state_class", static_cast<enums::SensorStateClass>(this->state_class));
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
@@ -1022,16 +1062,16 @@ void SensorStateResponse::dump_to(std::string &out) const {
 #ifdef USE_SWITCH
 void ListEntitiesSwitchResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesSwitchResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "assumed_state", this->assumed_state);
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, "device_class", this->device_class_ref_);
+  dump_field(out, "device_class", this->device_class);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1056,15 +1096,15 @@ void SwitchCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_TEXT_SENSOR
 void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesTextSensorResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, "device_class", this->device_class_ref_);
+  dump_field(out, "device_class", this->device_class);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1072,7 +1112,7 @@ void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
 void TextSensorStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "TextSensorStateResponse");
   dump_field(out, "key", this->key);
-  dump_field(out, "state", this->state_ref_);
+  dump_field(out, "state", this->state);
   dump_field(out, "missing_state", this->missing_state);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
@@ -1095,10 +1135,13 @@ void SubscribeLogsResponse::dump_to(std::string &out) const {
 void NoiseEncryptionSetKeyRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "NoiseEncryptionSetKeyRequest");
   out.append("  key: ");
-  out.append(format_hex_pretty(reinterpret_cast<const uint8_t *>(this->key.data()), this->key.size()));
+  out.append(format_hex_pretty(this->key, this->key_len));
   out.append("\n");
 }
-void NoiseEncryptionSetKeyResponse::dump_to(std::string &out) const { dump_field(out, "success", this->success); }
+void NoiseEncryptionSetKeyResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "NoiseEncryptionSetKeyResponse");
+  dump_field(out, "success", this->success);
+}
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 void SubscribeHomeassistantServicesRequest::dump_to(std::string &out) const {
@@ -1106,12 +1149,12 @@ void SubscribeHomeassistantServicesRequest::dump_to(std::string &out) const {
 }
 void HomeassistantServiceMap::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HomeassistantServiceMap");
-  dump_field(out, "key", this->key_ref_);
+  dump_field(out, "key", this->key);
   dump_field(out, "value", this->value);
 }
 void HomeassistantActionRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "HomeassistantActionRequest");
-  dump_field(out, "service", this->service_ref_);
+  dump_field(out, "service", this->service);
   for (const auto &it : this->data) {
     out.append("  data: ");
     it.dump_to(out);
@@ -1158,8 +1201,8 @@ void SubscribeHomeAssistantStatesRequest::dump_to(std::string &out) const {
 }
 void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "SubscribeHomeAssistantStateResponse");
-  dump_field(out, "entity_id", this->entity_id_ref_);
-  dump_field(out, "attribute", this->attribute_ref_);
+  dump_field(out, "entity_id", this->entity_id);
+  dump_field(out, "attribute", this->attribute);
   dump_field(out, "once", this->once);
 }
 void HomeAssistantStateResponse::dump_to(std::string &out) const {
@@ -1173,25 +1216,24 @@ void GetTimeRequest::dump_to(std::string &out) const { out.append("GetTimeReques
 void GetTimeResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "GetTimeResponse");
   dump_field(out, "epoch_seconds", this->epoch_seconds);
-  out.append("  timezone: ");
-  out.append(format_hex_pretty(this->timezone, this->timezone_len));
-  out.append("\n");
+  dump_field(out, "timezone", this->timezone);
 }
 #ifdef USE_API_USER_DEFINED_ACTIONS
 void ListEntitiesServicesArgument::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesServicesArgument");
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
   dump_field(out, "type", static_cast<enums::ServiceArgType>(this->type));
 }
 void ListEntitiesServicesResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesServicesResponse");
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
   dump_field(out, "key", this->key);
   for (const auto &it : this->args) {
     out.append("  args: ");
     it.dump_to(out);
     out.append("\n");
   }
+  dump_field(out, "supports_response", static_cast<enums::SupportsResponseType>(this->supports_response));
 }
 void ExecuteServiceArgument::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ExecuteServiceArgument");
@@ -1221,17 +1263,36 @@ void ExecuteServiceRequest::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  dump_field(out, "call_id", this->call_id);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  dump_field(out, "return_response", this->return_response);
+#endif
+}
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+void ExecuteServiceResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ExecuteServiceResponse");
+  dump_field(out, "call_id", this->call_id);
+  dump_field(out, "success", this->success);
+  dump_field(out, "error_message", this->error_message);
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  out.append("  response_data: ");
+  out.append(format_hex_pretty(this->response_data, this->response_data_len));
+  out.append("\n");
+#endif
 }
 #endif
 #ifdef USE_CAMERA
 void ListEntitiesCameraResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesCameraResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
   dump_field(out, "disabled_by_default", this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
 #ifdef USE_DEVICES
@@ -1258,9 +1319,9 @@ void CameraImageRequest::dump_to(std::string &out) const {
 #ifdef USE_CLIMATE
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesClimateResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
   dump_field(out, "supports_current_temperature", this->supports_current_temperature);
   dump_field(out, "supports_two_point_target_temperature", this->supports_two_point_target_temperature);
   for (const auto &it : *this->supported_modes) {
@@ -1287,7 +1348,7 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   }
   dump_field(out, "disabled_by_default", this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
   dump_field(out, "visual_current_temperature_step", this->visual_current_temperature_step);
@@ -1311,9 +1372,9 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   dump_field(out, "action", static_cast<enums::ClimateAction>(this->action));
   dump_field(out, "fan_mode", static_cast<enums::ClimateFanMode>(this->fan_mode));
   dump_field(out, "swing_mode", static_cast<enums::ClimateSwingMode>(this->swing_mode));
-  dump_field(out, "custom_fan_mode", this->custom_fan_mode_ref_);
+  dump_field(out, "custom_fan_mode", this->custom_fan_mode);
   dump_field(out, "preset", static_cast<enums::ClimatePreset>(this->preset));
-  dump_field(out, "custom_preset", this->custom_preset_ref_);
+  dump_field(out, "custom_preset", this->custom_preset);
   dump_field(out, "current_humidity", this->current_humidity);
   dump_field(out, "target_humidity", this->target_humidity);
 #ifdef USE_DEVICES
@@ -1348,23 +1409,72 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
 #endif
 }
 #endif
+#ifdef USE_WATER_HEATER
+void ListEntitiesWaterHeaterResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ListEntitiesWaterHeaterResponse");
+  dump_field(out, "object_id", this->object_id);
+  dump_field(out, "key", this->key);
+  dump_field(out, "name", this->name);
+#ifdef USE_ENTITY_ICON
+  dump_field(out, "icon", this->icon);
+#endif
+  dump_field(out, "disabled_by_default", this->disabled_by_default);
+  dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+  dump_field(out, "min_temperature", this->min_temperature);
+  dump_field(out, "max_temperature", this->max_temperature);
+  dump_field(out, "target_temperature_step", this->target_temperature_step);
+  for (const auto &it : *this->supported_modes) {
+    dump_field(out, "supported_modes", static_cast<enums::WaterHeaterMode>(it), 4);
+  }
+  dump_field(out, "supported_features", this->supported_features);
+}
+void WaterHeaterStateResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "WaterHeaterStateResponse");
+  dump_field(out, "key", this->key);
+  dump_field(out, "current_temperature", this->current_temperature);
+  dump_field(out, "target_temperature", this->target_temperature);
+  dump_field(out, "mode", static_cast<enums::WaterHeaterMode>(this->mode));
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+  dump_field(out, "state", this->state);
+  dump_field(out, "target_temperature_low", this->target_temperature_low);
+  dump_field(out, "target_temperature_high", this->target_temperature_high);
+}
+void WaterHeaterCommandRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "WaterHeaterCommandRequest");
+  dump_field(out, "key", this->key);
+  dump_field(out, "has_fields", this->has_fields);
+  dump_field(out, "mode", static_cast<enums::WaterHeaterMode>(this->mode));
+  dump_field(out, "target_temperature", this->target_temperature);
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+  dump_field(out, "state", this->state);
+  dump_field(out, "target_temperature_low", this->target_temperature_low);
+  dump_field(out, "target_temperature_high", this->target_temperature_high);
+}
+#endif
 #ifdef USE_NUMBER
 void ListEntitiesNumberResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesNumberResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "min_value", this->min_value);
   dump_field(out, "max_value", this->max_value);
   dump_field(out, "step", this->step);
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, "unit_of_measurement", this->unit_of_measurement_ref_);
+  dump_field(out, "unit_of_measurement", this->unit_of_measurement);
   dump_field(out, "mode", static_cast<enums::NumberMode>(this->mode));
-  dump_field(out, "device_class", this->device_class_ref_);
+  dump_field(out, "device_class", this->device_class);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1390,11 +1500,11 @@ void NumberCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_SELECT
 void ListEntitiesSelectResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesSelectResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   for (const auto &it : *this->options) {
     dump_field(out, "options", it, 4);
@@ -1408,7 +1518,7 @@ void ListEntitiesSelectResponse::dump_to(std::string &out) const {
 void SelectStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "SelectStateResponse");
   dump_field(out, "key", this->key);
-  dump_field(out, "state", this->state_ref_);
+  dump_field(out, "state", this->state);
   dump_field(out, "missing_state", this->missing_state);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
@@ -1426,14 +1536,14 @@ void SelectCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_SIREN
 void ListEntitiesSirenResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesSirenResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
-  for (const auto &it : this->tones) {
+  for (const auto &it : *this->tones) {
     dump_field(out, "tones", it, 4);
   }
   dump_field(out, "supports_duration", this->supports_duration);
@@ -1470,18 +1580,18 @@ void SirenCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_LOCK
 void ListEntitiesLockResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesLockResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
   dump_field(out, "assumed_state", this->assumed_state);
   dump_field(out, "supports_open", this->supports_open);
   dump_field(out, "requires_code", this->requires_code);
-  dump_field(out, "code_format", this->code_format_ref_);
+  dump_field(out, "code_format", this->code_format);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1508,15 +1618,15 @@ void LockCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_BUTTON
 void ListEntitiesButtonResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesButtonResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, "device_class", this->device_class_ref_);
+  dump_field(out, "device_class", this->device_class);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -1532,7 +1642,7 @@ void ButtonCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_MEDIA_PLAYER
 void MediaPlayerSupportedFormat::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "MediaPlayerSupportedFormat");
-  dump_field(out, "format", this->format_ref_);
+  dump_field(out, "format", this->format);
   dump_field(out, "sample_rate", this->sample_rate);
   dump_field(out, "num_channels", this->num_channels);
   dump_field(out, "purpose", static_cast<enums::MediaPlayerFormatPurpose>(this->purpose));
@@ -1540,11 +1650,11 @@ void MediaPlayerSupportedFormat::dump_to(std::string &out) const {
 }
 void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesMediaPlayerResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
@@ -1621,7 +1731,10 @@ void BluetoothDeviceConnectionResponse::dump_to(std::string &out) const {
   dump_field(out, "mtu", this->mtu);
   dump_field(out, "error", this->error);
 }
-void BluetoothGATTGetServicesRequest::dump_to(std::string &out) const { dump_field(out, "address", this->address); }
+void BluetoothGATTGetServicesRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "BluetoothGATTGetServicesRequest");
+  dump_field(out, "address", this->address);
+}
 void BluetoothGATTDescriptor::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTDescriptor");
   for (const auto &it : this->uuid) {
@@ -1793,12 +1906,12 @@ void VoiceAssistantAudioSettings::dump_to(std::string &out) const {
 void VoiceAssistantRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantRequest");
   dump_field(out, "start", this->start);
-  dump_field(out, "conversation_id", this->conversation_id_ref_);
+  dump_field(out, "conversation_id", this->conversation_id);
   dump_field(out, "flags", this->flags);
   out.append("  audio_settings: ");
   this->audio_settings.dump_to(out);
   out.append("\n");
-  dump_field(out, "wake_word_phrase", this->wake_word_phrase_ref_);
+  dump_field(out, "wake_word_phrase", this->wake_word_phrase);
 }
 void VoiceAssistantResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantResponse");
@@ -1822,11 +1935,7 @@ void VoiceAssistantEventResponse::dump_to(std::string &out) const {
 void VoiceAssistantAudio::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantAudio");
   out.append("  data: ");
-  if (this->data_ptr_ != nullptr) {
-    out.append(format_hex_pretty(this->data_ptr_, this->data_len_));
-  } else {
-    out.append(format_hex_pretty(reinterpret_cast<const uint8_t *>(this->data.data()), this->data.size()));
-  }
+  out.append(format_hex_pretty(this->data, this->data_len));
   out.append("\n");
   dump_field(out, "end", this->end);
 }
@@ -1846,11 +1955,14 @@ void VoiceAssistantAnnounceRequest::dump_to(std::string &out) const {
   dump_field(out, "preannounce_media_id", this->preannounce_media_id);
   dump_field(out, "start_conversation", this->start_conversation);
 }
-void VoiceAssistantAnnounceFinished::dump_to(std::string &out) const { dump_field(out, "success", this->success); }
+void VoiceAssistantAnnounceFinished::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "VoiceAssistantAnnounceFinished");
+  dump_field(out, "success", this->success);
+}
 void VoiceAssistantWakeWord::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantWakeWord");
-  dump_field(out, "id", this->id_ref_);
-  dump_field(out, "wake_word", this->wake_word_ref_);
+  dump_field(out, "id", this->id);
+  dump_field(out, "wake_word", this->wake_word);
   for (const auto &it : this->trained_languages) {
     dump_field(out, "trained_languages", it, 4);
   }
@@ -1897,11 +2009,11 @@ void VoiceAssistantSetConfiguration::dump_to(std::string &out) const {
 #ifdef USE_ALARM_CONTROL_PANEL
 void ListEntitiesAlarmControlPanelResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesAlarmControlPanelResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
@@ -1933,17 +2045,17 @@ void AlarmControlPanelCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_TEXT
 void ListEntitiesTextResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesTextResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
   dump_field(out, "min_length", this->min_length);
   dump_field(out, "max_length", this->max_length);
-  dump_field(out, "pattern", this->pattern_ref_);
+  dump_field(out, "pattern", this->pattern);
   dump_field(out, "mode", static_cast<enums::TextMode>(this->mode));
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
@@ -1952,7 +2064,7 @@ void ListEntitiesTextResponse::dump_to(std::string &out) const {
 void TextStateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "TextStateResponse");
   dump_field(out, "key", this->key);
-  dump_field(out, "state", this->state_ref_);
+  dump_field(out, "state", this->state);
   dump_field(out, "missing_state", this->missing_state);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
@@ -1970,11 +2082,11 @@ void TextCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_DATETIME_DATE
 void ListEntitiesDateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesDateResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
@@ -2007,11 +2119,11 @@ void DateCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_DATETIME_TIME
 void ListEntitiesTimeResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesTimeResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
@@ -2044,15 +2156,15 @@ void TimeCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_EVENT
 void ListEntitiesEventResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesEventResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, "device_class", this->device_class_ref_);
+  dump_field(out, "device_class", this->device_class);
   for (const auto &it : *this->event_types) {
     dump_field(out, "event_types", it, 4);
   }
@@ -2063,7 +2175,7 @@ void ListEntitiesEventResponse::dump_to(std::string &out) const {
 void EventResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "EventResponse");
   dump_field(out, "key", this->key);
-  dump_field(out, "event_type", this->event_type_ref_);
+  dump_field(out, "event_type", this->event_type);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -2072,15 +2184,15 @@ void EventResponse::dump_to(std::string &out) const {
 #ifdef USE_VALVE
 void ListEntitiesValveResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesValveResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, "device_class", this->device_class_ref_);
+  dump_field(out, "device_class", this->device_class);
   dump_field(out, "assumed_state", this->assumed_state);
   dump_field(out, "supports_position", this->supports_position);
   dump_field(out, "supports_stop", this->supports_stop);
@@ -2111,11 +2223,11 @@ void ValveCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_DATETIME_DATETIME
 void ListEntitiesDateTimeResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesDateTimeResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
@@ -2144,15 +2256,15 @@ void DateTimeCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_UPDATE
 void ListEntitiesUpdateResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesUpdateResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, "device_class", this->device_class_ref_);
+  dump_field(out, "device_class", this->device_class);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -2164,11 +2276,11 @@ void UpdateStateResponse::dump_to(std::string &out) const {
   dump_field(out, "in_progress", this->in_progress);
   dump_field(out, "has_progress", this->has_progress);
   dump_field(out, "progress", this->progress);
-  dump_field(out, "current_version", this->current_version_ref_);
-  dump_field(out, "latest_version", this->latest_version_ref_);
-  dump_field(out, "title", this->title_ref_);
-  dump_field(out, "release_summary", this->release_summary_ref_);
-  dump_field(out, "release_url", this->release_url_ref_);
+  dump_field(out, "current_version", this->current_version);
+  dump_field(out, "latest_version", this->latest_version);
+  dump_field(out, "title", this->title);
+  dump_field(out, "release_summary", this->release_summary);
+  dump_field(out, "release_url", this->release_url);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
