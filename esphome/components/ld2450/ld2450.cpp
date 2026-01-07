@@ -714,7 +714,7 @@ bool LD2450Component::handle_ack_data_() {
 
     case CMD_QUERY_ZONE:
       ESP_LOGV(TAG, "Query zone conf");
-      this->zone_type_ = std::stoi(std::to_string(this->buffer_data_[10]), nullptr, 16);
+      this->zone_type_ = this->buffer_data_[10];
       this->publish_zone_type();
 #ifdef USE_SELECT
       if (this->zone_type_select_ != nullptr) {
