@@ -22,8 +22,7 @@
 #include "esphome/components/dashboard_import/dashboard_import.h"
 #endif
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt";
 
@@ -154,15 +153,17 @@ void MQTTClientComponent::on_log(uint8_t level, const char *tag, const char *mes
 
 void MQTTClientComponent::dump_config() {
   char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  // clang-format off
   ESP_LOGCONFIG(TAG,
                 "MQTT:\n"
                 "  Server Address: %s:%u (%s)\n"
                 "  Username: " LOG_SECRET("'%s'") "\n"
-                                                  "  Client ID: " LOG_SECRET("'%s'") "\n"
-                                                                                     "  Clean Session: %s",
+                "  Client ID: " LOG_SECRET("'%s'") "\n"
+                "  Clean Session: %s",
                 this->credentials_.address.c_str(), this->credentials_.port, this->ip_.str_to(ip_buf),
                 this->credentials_.username.c_str(), this->credentials_.client_id.c_str(),
                 YESNO(this->credentials_.clean_session));
+  // clang-format on
   if (this->is_discovery_ip_enabled()) {
     ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
   }
@@ -749,7 +750,6 @@ void MQTTMessageTrigger::dump_config() {
 }
 float MQTTMessageTrigger::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_MQTT

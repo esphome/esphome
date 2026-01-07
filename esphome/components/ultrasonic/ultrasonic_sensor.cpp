@@ -6,8 +6,8 @@ namespace esphome::ultrasonic {
 
 static const char *const TAG = "ultrasonic.sensor";
 
-static constexpr uint32_t DEBOUNCE_US = 50;          // Ignore edges within 50us (noise filtering)
-static constexpr uint32_t TIMEOUT_MARGIN_US = 1000;  // Extra margin for sensor processing time
+static constexpr uint32_t DEBOUNCE_US = 50;                // Ignore edges within 50us (noise filtering)
+static constexpr uint32_t MEASUREMENT_TIMEOUT_US = 80000;  // Maximum time to wait for measurement completion
 
 void IRAM_ATTR UltrasonicSensorStore::gpio_intr(UltrasonicSensorStore *arg) {
   uint32_t now = micros();
@@ -64,12 +64,8 @@ void UltrasonicSensorComponent::loop() {
   }
 
   uint32_t elapsed = micros() - this->measurement_start_us_;
-  if (elapsed >= this->timeout_us_ + TIMEOUT_MARGIN_US) {
-    ESP_LOGD(TAG,
-             "'%s' - Timeout after %" PRIu32 "us (measurement_start=%" PRIu32 ", echo_start=%" PRIu32
-             ", echo_end=%" PRIu32 ")",
-             this->name_.c_str(), elapsed, this->measurement_start_us_, this->store_.echo_start_us,
-             this->store_.echo_end_us);
+  if (elapsed >= MEASUREMENT_TIMEOUT_US) {
+    ESP_LOGD(TAG, "'%s' - Measurement timed out after %" PRIu32 "us", this->name_.c_str(), elapsed);
     this->publish_state(NAN);
     this->measurement_pending_ = false;
   }
@@ -79,10 +75,7 @@ void UltrasonicSensorComponent::dump_config() {
   LOG_SENSOR("", "Ultrasonic Sensor", this);
   LOG_PIN("  Echo Pin: ", this->echo_pin_);
   LOG_PIN("  Trigger Pin: ", this->trigger_pin_);
-  ESP_LOGCONFIG(TAG,
-                "  Pulse time: %" PRIu32 " us\n"
-                "  Timeout: %" PRIu32 " us",
-                this->pulse_time_us_, this->timeout_us_);
+  ESP_LOGCONFIG(TAG, "  Pulse time: %" PRIu32 " us", this->pulse_time_us_);
   LOG_UPDATE_INTERVAL(this);
 }
 

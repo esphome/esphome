@@ -245,6 +245,10 @@ enum WifiMinAuthMode : uint8_t {
 struct IDFWiFiEvent;
 #endif
 
+#ifdef USE_LIBRETINY
+struct LTWiFiEvent;
+#endif
+
 /** Listener interface for WiFi IP state changes.
  *
  * Components can implement this interface to receive IP address updates
@@ -583,6 +587,7 @@ class WiFiComponent : public Component {
 
 #ifdef USE_LIBRETINY
   void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
+  void wifi_process_event_(LTWiFiEvent *event);
   void wifi_scan_done_callback_();
 #endif
 

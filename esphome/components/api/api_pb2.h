@@ -393,39 +393,6 @@ class HelloResponse final : public ProtoMessage {
 
  protected:
 };
-#ifdef USE_API_PASSWORD
-class AuthenticationRequest final : public ProtoDecodableMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 3;
-  static constexpr uint8_t ESTIMATED_SIZE = 9;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "authentication_request"; }
-#endif
-  StringRef password{};
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-};
-class AuthenticationResponse final : public ProtoMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 4;
-  static constexpr uint8_t ESTIMATED_SIZE = 2;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "authentication_response"; }
-#endif
-  bool invalid_password{false};
-  void encode(ProtoWriteBuffer buffer) const override;
-  void calculate_size(ProtoSize &size) const override;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  void dump_to(std::string &out) const override;
-#endif
-
- protected:
-};
-#endif
 class DisconnectRequest final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 5;
@@ -525,12 +492,9 @@ class DeviceInfo final : public ProtoMessage {
 class DeviceInfoResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 10;
-  static constexpr uint16_t ESTIMATED_SIZE = 257;
+  static constexpr uint8_t ESTIMATED_SIZE = 255;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "device_info_response"; }
-#endif
-#ifdef USE_API_PASSWORD
-  bool uses_password{false};
 #endif
   StringRef name_ref_{};
   void set_name(const StringRef &ref) { this->name_ref_ = ref; }
@@ -1046,7 +1010,7 @@ class SubscribeLogsRequest final : public ProtoDecodableMessage {
 class SubscribeLogsResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 29;
-  static constexpr uint8_t ESTIMATED_SIZE = 11;
+  static constexpr uint8_t ESTIMATED_SIZE = 21;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "subscribe_logs_response"; }
 #endif
@@ -1069,7 +1033,7 @@ class SubscribeLogsResponse final : public ProtoMessage {
 class NoiseEncryptionSetKeyRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 124;
-  static constexpr uint8_t ESTIMATED_SIZE = 9;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "noise_encryption_set_key_request"; }
 #endif
@@ -1161,7 +1125,7 @@ class HomeassistantActionRequest final : public ProtoMessage {
 class HomeassistantActionResponse final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 130;
-  static constexpr uint8_t ESTIMATED_SIZE = 24;
+  static constexpr uint8_t ESTIMATED_SIZE = 34;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "homeassistant_action_response"; }
 #endif
@@ -1388,7 +1352,7 @@ class ListEntitiesCameraResponse final : public InfoResponseProtoMessage {
 class CameraImageResponse final : public StateResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 44;
-  static constexpr uint8_t ESTIMATED_SIZE = 20;
+  static constexpr uint8_t ESTIMATED_SIZE = 30;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "camera_image_response"; }
 #endif
@@ -2123,7 +2087,7 @@ class BluetoothGATTReadRequest final : public ProtoDecodableMessage {
 class BluetoothGATTReadResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 74;
-  static constexpr uint8_t ESTIMATED_SIZE = 17;
+  static constexpr uint8_t ESTIMATED_SIZE = 27;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_gatt_read_response"; }
 #endif
@@ -2146,7 +2110,7 @@ class BluetoothGATTReadResponse final : public ProtoMessage {
 class BluetoothGATTWriteRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 75;
-  static constexpr uint8_t ESTIMATED_SIZE = 19;
+  static constexpr uint8_t ESTIMATED_SIZE = 29;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_gatt_write_request"; }
 #endif
@@ -2182,7 +2146,7 @@ class BluetoothGATTReadDescriptorRequest final : public ProtoDecodableMessage {
 class BluetoothGATTWriteDescriptorRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 77;
-  static constexpr uint8_t ESTIMATED_SIZE = 17;
+  static constexpr uint8_t ESTIMATED_SIZE = 27;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_gatt_write_descriptor_request"; }
 #endif
@@ -2218,7 +2182,7 @@ class BluetoothGATTNotifyRequest final : public ProtoDecodableMessage {
 class BluetoothGATTNotifyDataResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 79;
-  static constexpr uint8_t ESTIMATED_SIZE = 17;
+  static constexpr uint8_t ESTIMATED_SIZE = 27;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "bluetooth_gatt_notify_data_response"; }
 #endif

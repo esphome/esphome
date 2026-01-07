@@ -15,8 +15,7 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 struct Event {
   esp_mqtt_event_id_t event_id;
@@ -273,8 +272,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
 #endif
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif
