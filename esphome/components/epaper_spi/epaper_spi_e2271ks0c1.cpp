@@ -7,7 +7,6 @@
 namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.e2271ks0c1";
 
-
 static inline uint8_t encode_temp(float temp_c, bool fast) {
   uint8_t ts = static_cast<uint8_t>(static_cast<int>(lroundf(temp_c)) & 0xFF);
   if (fast)
