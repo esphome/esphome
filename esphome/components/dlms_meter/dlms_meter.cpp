@@ -43,6 +43,7 @@ void DlmsMeterComponent::loop() {
       this->receive_buffer_.push_back(c);
     } else {
       ESP_LOGW(TAG, "Receive buffer full, dropping byte");
+      break;
     }
 
     this->last_read_ = millis();
