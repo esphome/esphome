@@ -51,6 +51,7 @@ from .effects import (
     validate_effects,
 )
 from .types import (  # noqa
+    CHANNEL_NAME,
     AddressableLight,
     AddressableLightState,
     ChannelMap,

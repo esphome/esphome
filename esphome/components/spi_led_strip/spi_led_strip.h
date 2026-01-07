@@ -22,13 +22,6 @@ class SpiLedStrip : public light::AddressableLight,
   ~SpiLedStrip() = default;
   void setup() override;
 
-  void set_cold_white_color_temperature(uint16_t cold_white_color_temperature) {
-    this->cold_white_color_temperature_ = cold_white_color_temperature;
-  }
-  void set_warm_white_color_temperature(uint16_t warm_white_color_temperature) {
-    this->warm_white_color_temperature_ = warm_white_color_temperature;
-  }
-
   float get_setup_priority() const override { return setup_priority::IO; }
 
   int32_t size() const override { return this->num_leds_; }
@@ -52,8 +45,6 @@ class SpiLedStrip : public light::AddressableLight,
   uint8_t *base_{nullptr};  // Raw SPI frame with offset to start of color data
   uint8_t address_multiplier_{};
   uint8_t *effect_data_{nullptr};
-  uint16_t cold_white_color_temperature_{};
-  uint16_t warm_white_color_temperature_{};
 };
 
 }  // namespace spi_led_strip
