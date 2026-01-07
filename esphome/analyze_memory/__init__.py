@@ -437,21 +437,17 @@ class MemoryAnalyzer:
                 platformio_dir = cc_path.parent.parent.parent
                 espidf_dir = platformio_dir / "framework-espidf" / "components"
                 if espidf_dir.exists():
-                    # Search for closed-source libraries in components/*/lib/<variant>/
-                    for component_dir in espidf_dir.iterdir():
-                        if not component_dir.is_dir():
-                            continue
-                        # Check for lib/<variant> subdirectory
-                        variant_lib_dir = component_dir / "lib" / variant
-                        if variant_lib_dir.exists() and variant_lib_dir.is_dir():
-                            sdk_dirs.append(variant_lib_dir)
-                        # Also check lib/lib/<variant> (used by esp_ble_mesh)
-                        variant_lib_lib_dir = component_dir / "lib" / "lib" / variant
-                        if (
-                            variant_lib_lib_dir.exists()
-                            and variant_lib_lib_dir.is_dir()
-                        ):
-                            sdk_dirs.append(variant_lib_lib_dir)
+                    # Find all directories named after the variant that contain .a files
+                    # This handles various ESP-IDF library layouts:
+                    # - components/*/lib/<variant>/
+                    # - components/*/<variant>/
+                    # - components/*/lib/lib/<variant>/
+                    # - components/*/*/lib_*/<variant>/
+                    sdk_dirs.extend(
+                        variant_dir
+                        for variant_dir in espidf_dir.rglob(variant)
+                        if variant_dir.is_dir() and any(variant_dir.glob("*.a"))
+                    )
 
         return sdk_dirs
 
