@@ -34,12 +34,20 @@ binary_sensor:
 
 ## Configuration variables
 
-- **wipe_on_boot** (*Optional*, boolean): Erases all non-volatile memory data on boot.
-  Use only if the device is in a boot loop crash. Defaults to `false`.
+- **wipe_on_boot** (*Optional*): Erases all non-volatile memory data on boot, including
+  Zigbee network pairing and preferences (e.g., last switch state). One of:
+  - `false` (default): Preserve data across reboots.
+  - `true`: Erase all data on every boot. Use only for recovery from boot loops when
+    you don't have an SWD programmer.
+  - `once`: Erase data only on first boot after flashing new firmware, then preserve.
 
 - **on_join** (*Optional*, [Automation](/automations#automation)): Automation to run when the device joins the network.
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): The ID to use for this `zigbee` component.
+
+- **power_source** (*Optional*, enum): Indicates what kind of power the device uses. Affects
+  sleep behavior. One of `UNKNOWN`, `MAINS_SINGLE_PHASE`, `MAINS_THREE_PHASE`, `BATTERY`,
+  `DC_SOURCE`, `EMERGENCY_MAINS_CONST`, or `EMERGENCY_MAINS_TRANSF`. Defaults to `DC_SOURCE`.
 
 ## Actions
 
@@ -80,6 +88,39 @@ binary_sensor:
 - **internal** (*Optional*, boolean): Mark this component as internal. Internal components will
   not be exposed over Zigbee. Only specifying an `id` without a `name` will implicitly set this to true.
   Use this if you run out of Zigbee endpoints.
+
+### Sensor Configuration
+
+All sensors with a `name` are automatically exposed over Zigbee.
+
+```yaml
+sensor:
+  - platform: template
+    name: "Analog 1"
+    lambda: return 10.0;
+    unit_of_measurement: "°C"
+  - platform: template
+    name: "Analog 2"
+    lambda: return 11.0;
+  - platform: template
+    id: internal_sensor
+    lambda: return 9.0;
+  - platform: template
+    name: "Another internal sensor"
+    internal: true
+    lambda: return 8.0;
+```
+
+#### Configuration variables
+
+- **name** (**Required**, string): The name for the sensor. This is exposed as the
+  Zigbee endpoint description.
+- **internal** (*Optional*, boolean): Mark this component as internal. Internal components will
+  not be exposed over Zigbee. Only specifying an `id` without a `name` will implicitly set this to true.
+  Use this if you run out of Zigbee endpoints.
+- **unit_of_measurement** (*Optional*, string): Manually set the unit. By default, values are unitless.
+  Only a limited set of units is supported. Unsupported units will revert to unitless.
+  This is exposed as the Zigbee endpoint engineering units.
 
 ## See Also
 
