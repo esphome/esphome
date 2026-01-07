@@ -201,6 +201,29 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                     f"  .bss: {unattributed_bss:,} B | .data: {unattributed_data:,} B"
                 )
 
+            # Show SDK symbol breakdown if available
+            sdk_by_lib = self.get_sdk_ram_by_library()
+            if sdk_by_lib:
+                lines.append("")
+                lines.append("SDK library breakdown (static symbols not in ELF):")
+                # Sort libraries by total size
+                lib_totals = [
+                    (lib, sum(s.size for s in syms), syms)
+                    for lib, syms in sdk_by_lib.items()
+                ]
+                lib_totals.sort(key=lambda x: x[1], reverse=True)
+
+                for lib_name, lib_total, syms in lib_totals:
+                    if lib_total == 0:
+                        continue
+                    lines.append(f"  {lib_name}: {lib_total:,} B")
+                    # Show top symbols from this library
+                    for sym in sorted(syms, key=lambda s: s.size, reverse=True)[:3]:
+                        section_label = sym.section.lstrip(".")
+                        lines.append(
+                            f"    {sym.size:>6,} B [{section_label}] {sym.name[:50]}"
+                        )
+
         # Top consumers
         self._add_top_consumers(
             lines,

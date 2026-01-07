@@ -1017,6 +1017,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
         idedata.objdump_path,
         idedata.readelf_path,
         external_components,
+        idedata=idedata,
     )
     analyzer.analyze()
 
