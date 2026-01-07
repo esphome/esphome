@@ -195,11 +195,9 @@ void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {
   }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  // Only allocate buffer if actually logging (size optimization)
-  const size_t log_len = std::min(length, ZWAVE_MAX_LOG_BYTES);
   char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
-  ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty_to(hex_buf, data, log_len));
 #endif
+  ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty_to(hex_buf, data, length));
 
   this->write_array(data, length);
 }
