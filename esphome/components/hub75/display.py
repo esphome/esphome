@@ -547,9 +547,9 @@ async def to_code(config: ConfigType) -> None:
     # Temporary: using PR branch for testing
     # https://github.com/esphome-libs/esp-hub75/pull/52
     cg.add_library(
+        "hub75",
         None,
-        None,
-        "https://github.com/esphome-libs/esp-hub75.git#claude/revert-pr-35-c6-support-w3q4Q",
+        "https://github.com/esphome-libs/esp-hub75.git",
     )
 
     # Set compile-time configuration via defines
