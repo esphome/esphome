@@ -622,7 +622,9 @@ def final_validate(config):
         )
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
         # "disabled: false" means safe mode *is* enabled.
-        safe_mode_enabled = not full_config.get(CONF_SAFE_MODE, {CONF_DISABLED: True})
+        safe_mode_enabled = not full_config.get(CONF_SAFE_MODE, {CONF_DISABLED: True})[
+            CONF_DISABLED
+        ]
         ota_enabled = CONF_OTA in full_config
         # Both need to be enabled for rollback to work
         if not (ota_enabled and safe_mode_enabled):
