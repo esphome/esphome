@@ -28,8 +28,8 @@ class SunTextSensor : public text_sensor::TextSensor, public PollingComponent {
       return;
     }
 
-    char buf[128];
-    size_t len = res->strftime(buf, sizeof(buf), this->format_.c_str());
+    char buf[ESPTime::STRFTIME_BUFFER_SIZE];
+    size_t len = res->strftime_to(buf, this->format_.c_str());
     if (len > 0) {
       this->publish_state(buf, len);
     } else {

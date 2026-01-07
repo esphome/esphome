@@ -17,6 +17,11 @@ size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
   return ::strftime(buffer, buffer_len, format, &c_tm);
 }
 
+size_t ESPTime::strftime_to(std::span<char, STRFTIME_BUFFER_SIZE> buffer, const char *format) {
+  struct tm c_tm = this->to_c_tm();
+  return ::strftime(buffer.data(), buffer.size(), format, &c_tm);
+}
+
 ESPTime ESPTime::from_c_tm(struct tm *c_tm, time_t c_time) {
   ESPTime res{};
   res.second = uint8_t(c_tm->tm_sec);
@@ -47,9 +52,8 @@ struct tm ESPTime::to_c_tm() {
 }
 
 std::string ESPTime::strftime(const char *format) {
-  struct tm c_tm = this->to_c_tm();
-  char buf[128];
-  size_t len = ::strftime(buf, sizeof(buf), format, &c_tm);
+  char buf[STRFTIME_BUFFER_SIZE];
+  size_t len = this->strftime_to(buf, format);
   if (len > 0) {
     return std::string(buf, len);
   }
