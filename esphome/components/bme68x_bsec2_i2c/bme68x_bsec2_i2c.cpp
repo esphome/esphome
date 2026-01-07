@@ -31,7 +31,9 @@ void BME68xBSEC2I2CComponent::dump_config() {
   BME68xBSEC2Component::dump_config();
 }
 
-uint32_t BME68xBSEC2I2CComponent::get_hash() { return fnv1_hash("bme68x_bsec_state_" + to_string(this->address_)); }
+uint32_t BME68xBSEC2I2CComponent::get_hash() {
+  return fnv1_hash_extend(fnv1_hash("bme68x_bsec_state_"), static_cast<uint32_t>(this->address_));
+}
 
 int8_t BME68xBSEC2I2CComponent::read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intfPtr) {
   ESP_LOGVV(TAG, "read_bytes_wrapper: reg = %u", a_register);
