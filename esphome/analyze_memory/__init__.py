@@ -63,7 +63,8 @@ class MemorySection:
 
     name: str
     symbols: list[SymbolInfoType] = field(default_factory=list)
-    total_size: int = 0
+    total_size: int = 0  # Actual section size from ELF headers
+    symbol_size: int = 0  # Sum of symbol sizes (may be less than total_size)
 
 
 @dataclass
@@ -198,6 +199,7 @@ class MemoryAnalyzer:
                 continue
 
             self.sections[section].symbols.append((name, size, ""))
+            self.sections[section].symbol_size += size
             seen_addresses.add(address)
 
     def _categorize_symbols(self) -> None:
@@ -340,6 +342,28 @@ class MemoryAnalyzer:
                 return category
 
         return "Other Core"
+
+    def get_unattributed_ram(self) -> tuple[int, int, int]:
+        """Get unattributed RAM sizes (SDK/framework overhead).
+
+        Returns:
+            Tuple of (unattributed_bss, unattributed_data, total_unattributed)
+            These are bytes in RAM sections that have no corresponding symbols.
+        """
+        bss_section = self.sections.get(".bss")
+        data_section = self.sections.get(".data")
+
+        unattributed_bss = 0
+        unattributed_data = 0
+
+        if bss_section:
+            unattributed_bss = max(0, bss_section.total_size - bss_section.symbol_size)
+        if data_section:
+            unattributed_data = max(
+                0, data_section.total_size - data_section.symbol_size
+            )
+
+        return unattributed_bss, unattributed_data, unattributed_bss + unattributed_data
 
 
 if __name__ == "__main__":

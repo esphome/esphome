@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 import sys
 from typing import TYPE_CHECKING
 
@@ -26,6 +27,8 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
     SYMBOL_SIZE_THRESHOLD: int = (
         100  # Show symbols larger than this in detailed analysis
     )
+    # Lower threshold for RAM symbols (RAM is more constrained)
+    RAM_SYMBOL_SIZE_THRESHOLD: int = 24
 
     # Column width constants
     COL_COMPONENT: int = 29
@@ -103,12 +106,23 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         lines: list[str],
         title: str,
         components: list[tuple[str, ComponentMemory]],
-        get_size: callable,
+        get_size: Callable[[ComponentMemory], int],
         total: int,
         memory_type: str,
         limit: int = 25,
     ) -> None:
-        """Add a top consumers list for flash or RAM."""
+        """Add a formatted list of top memory consumers to the report.
+
+        Args:
+            lines: List of report lines to append the output to.
+            title: Section title to print before the list.
+            components: Sequence of (name, ComponentMemory) tuples to analyze.
+            get_size: Callable that takes a ComponentMemory and returns the
+                size in bytes to use for ranking and display.
+            total: Total size in bytes for computing percentage usage.
+            memory_type: Label for the memory region (e.g., "flash" or "RAM").
+            limit: Maximum number of components to include in the list.
+        """
         lines.append("")
         lines.append(f"{title}:")
         for i, (name, mem) in enumerate(components[:limit]):
@@ -122,7 +136,12 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
     def _format_symbol_with_section(
         self, demangled: str, size: int, section: str | None = None
     ) -> str:
-        """Format a symbol entry, optionally with section label for RAM symbols."""
+        """Format a symbol entry, optionally adding a RAM section label.
+
+        If section is one of the RAM sections (.data or .bss), a label like
+        " [data]" or " [bss]" is appended. For non-RAM sections or when
+        section is None, no section label is added.
+        """
         section_label = ""
         if section in RAM_SECTIONS:
             section_label = f" [{section[1:]}]"  # .data -> [data], .bss -> [bss]
@@ -167,6 +186,20 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             f"{' ':>{self.COL_RAM_DATA}} | {' ':>{self.COL_RAM_BSS}} | "
             f"{total_flash:>{self.COL_TOTAL_FLASH - 2},} B | {total_ram:>{self.COL_TOTAL_RAM - 2},} B"
         )
+
+        # Show unattributed RAM (SDK/framework overhead)
+        unattributed_bss, unattributed_data, unattributed_total = (
+            self.get_unattributed_ram()
+        )
+        if unattributed_total > 0:
+            lines.append("")
+            lines.append(
+                f"Unattributed RAM: {unattributed_total:,} B (SDK/framework overhead)"
+            )
+            if unattributed_bss > 0 and unattributed_data > 0:
+                lines.append(
+                    f"  .bss: {unattributed_bss:,} B | .data: {unattributed_data:,} B"
+                )
 
         # Top consumers
         self._add_top_consumers(
@@ -242,6 +275,8 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 f"{_COMPONENT_CORE} Symbols > {self.SYMBOL_SIZE_THRESHOLD} B ({len(large_core_symbols)} symbols):"
             )
             for i, (symbol, demangled, size) in enumerate(large_core_symbols):
+                # Core symbols only track (symbol, demangled, size) without section info,
+                # so we don't show section labels here
                 lines.append(
                     f"{i + 1}. {self._format_symbol_with_section(demangled, size)}"
                 )
@@ -339,7 +374,9 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
 
             # Sort by size descending
             sorted_ram_syms = sorted(ram_syms, key=lambda x: x[2], reverse=True)
-            large_ram_syms = [s for s in sorted_ram_syms if s[2] > 50]
+            large_ram_syms = [
+                s for s in sorted_ram_syms if s[2] > self.RAM_SYMBOL_SIZE_THRESHOLD
+            ]
 
             lines.append(f"{name} ({mem.ram_total:,} B total RAM):")
 
@@ -350,10 +387,19 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             lines.append(f"  .bss (uninitialized): {bss_size:,} B")
 
             if large_ram_syms:
-                lines.append(f"  Symbols > 50 B ({len(large_ram_syms)}):")
+                lines.append(
+                    f"  Symbols > {self.RAM_SYMBOL_SIZE_THRESHOLD} B ({len(large_ram_syms)}):"
+                )
                 for symbol, demangled, size, section in large_ram_syms[:10]:
-                    section_label = "data" if section == ".data" else "bss"
-                    lines.append(f"    {size:>6,} B [{section_label}] {demangled[:70]}")
+                    # Format section label consistently by stripping leading dot
+                    section_label = section.lstrip(".") if section else ""
+                    # Add ellipsis if name is truncated
+                    demangled_display = (
+                        f"{demangled[:70]}..." if len(demangled) > 70 else demangled
+                    )
+                    lines.append(
+                        f"    {size:>6,} B [{section_label}] {demangled_display}"
+                    )
                 if len(large_ram_syms) > 10:
                     lines.append(f"    ... and {len(large_ram_syms) - 10} more")
             lines.append("")
