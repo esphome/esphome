@@ -490,10 +490,10 @@ class MemoryAnalyzer:
         Returns:
             Tuple of:
             - List of BSS/DATA symbols: (symbol_name, size, section, is_local)
-            - Set of all global symbol names (for checking if library is linked)
+            - Set of global BSS/DATA symbol names (for checking if RAM is linked)
         """
         ram_symbols: list[tuple[str, int, str, bool]] = []
-        all_global_symbols: set[str] = set()
+        global_ram_symbols: set[str] = set()
 
         try:
             result = subprocess.run(
@@ -514,34 +514,35 @@ class MemoryAnalyzer:
                     sym_type = parts[1]
                     name = parts[2]
 
-                    # Track all global symbols (uppercase = global, lowercase = local)
-                    if sym_type.isupper():
-                        all_global_symbols.add(name)
-
                     # Only collect BSS (b/B) and DATA (d/D) for RAM analysis
                     if sym_type in ("b", "B"):
                         section = ".bss"
                         is_local = sym_type == "b"
                         ram_symbols.append((name, size, section, is_local))
+                        # Track global RAM symbols (B/D) for linking check
+                        if sym_type == "B":
+                            global_ram_symbols.add(name)
                     elif sym_type in ("d", "D"):
                         section = ".data"
                         is_local = sym_type == "d"
                         ram_symbols.append((name, size, section, is_local))
+                        if sym_type == "D":
+                            global_ram_symbols.add(name)
                 except (ValueError, IndexError):
                     continue
 
         except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError) as e:
             _LOGGER.debug("Failed to parse SDK library %s: %s", lib_path, e)
 
-        return ram_symbols, all_global_symbols
+        return ram_symbols, global_ram_symbols
 
     def _analyze_sdk_libraries(self) -> None:
         """Analyze SDK libraries to find symbols not in the ELF.
 
         This finds static/local symbols from closed-source SDK libraries
         that consume RAM but don't appear in the final ELF symbol table.
-        Only includes symbols from libraries that are actually linked
-        (have at least one global symbol in the ELF).
+        Only includes symbols from libraries that have RAM actually linked
+        (at least one global BSS/DATA symbol in the ELF).
         """
         sdk_dirs = self._find_sdk_library_dirs()
         if not sdk_dirs:
@@ -556,12 +557,12 @@ class MemoryAnalyzer:
         for sdk_dir in sdk_dirs:
             for lib_path in sorted(sdk_dir.glob("*.a")):
                 lib_name = lib_path.name
-                ram_symbols, global_symbols = self._parse_sdk_library(lib_path)
+                ram_symbols, global_ram_symbols = self._parse_sdk_library(lib_path)
 
-                # Check if this library is actually linked by seeing if any
-                # of its global symbols appear in the ELF
-                if not global_symbols & self._elf_symbol_names:
-                    # No symbols from this library are in the ELF - skip it
+                # Check if this library's RAM is actually linked by seeing if any
+                # of its global BSS/DATA symbols appear in the ELF
+                if not global_ram_symbols & self._elf_symbol_names:
+                    # No RAM from this library is in the ELF - skip it
                     continue
 
                 for name, size, section, is_local in ram_symbols:
