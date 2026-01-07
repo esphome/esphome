@@ -7,22 +7,6 @@
 namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.e2271ks0c1";
 
-void EPaperE2271KS0C1::setup() {
-  EPaperBase::setup();
-  // Hardware reset: double-toggle sequence per datasheet
-  if (this->reset_pin_ != nullptr) {
-    ESP_LOGV(TAG, "Hardware reset");
-    this->reset_pin_->digital_write(false);
-    delay(50);  // NOLINT
-    this->reset_pin_->digital_write(true);
-    delay(50);  // NOLINT
-    this->reset_pin_->digital_write(false);
-    delay(50);  // NOLINT
-    this->reset_pin_->digital_write(true);
-    delay(50);  // NOLINT
-  }
-}
-
 
 static inline uint8_t encode_temp(float temp_c, bool fast) {
   uint8_t ts = static_cast<uint8_t>(static_cast<int>(lroundf(temp_c)) & 0xFF);

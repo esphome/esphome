@@ -14,7 +14,6 @@ class EPaperE2271KS0C1 : public EPaperBase {
     this->buffer_length_ = width * height / 8;  // 1bpp, 8 pixels per byte
   }
 
-  void setup() override;
   void set_temperature_c(float t) { this->temperature_c_ = t; }
   void force_full_update() { this->update_count_ = 0; }
 
