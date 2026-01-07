@@ -36,8 +36,7 @@ from esphome.cpp_generator import RawExpression
 from esphome.final_validate import full_config
 
 from . import models
-
-CONF_TEMPERATURE_C = "temperature_c"
+from .models.e2271ks0c1 import CONF_TEMPERATURE_C
 
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
@@ -122,7 +121,7 @@ def model_schema(config):
                     cv.positive_time_period_milliseconds,
                     cv.Range(max=core.TimePeriod(milliseconds=500)),
                 ),
-                model.option(CONF_TEMPERATURE_C, cv.UNDEFINED): cv.float_,
+                model.option(CONF_TEMPERATURE_C, cv.UNDEFINED): cv.temperature,
             }
         )
     )
