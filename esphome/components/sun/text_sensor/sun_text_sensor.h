@@ -28,7 +28,13 @@ class SunTextSensor : public text_sensor::TextSensor, public PollingComponent {
       return;
     }
 
-    this->publish_state(res->strftime(this->format_));
+    char buf[128];
+    size_t len = res->strftime(buf, sizeof(buf), this->format_.c_str());
+    if (len > 0) {
+      this->publish_state(buf, len);
+    } else {
+      this->publish_state("ERROR");
+    }
   }
 
   void dump_config() override;
