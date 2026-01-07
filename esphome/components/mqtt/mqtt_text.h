@@ -8,8 +8,7 @@
 #include "esphome/components/text/text.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTTextComponent : public mqtt::MQTTComponent {
  public:
@@ -39,8 +38,7 @@ class MQTTTextComponent : public mqtt::MQTTComponent {
   text::Text *text_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

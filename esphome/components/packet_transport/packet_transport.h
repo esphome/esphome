@@ -91,6 +91,7 @@ class PacketTransport : public PollingComponent {
     }
   }
 
+  void set_is_provider(bool is_provider) { this->is_provider_ = is_provider; }
   void set_encryption_key(std::vector<uint8_t> key) { this->encryption_key_ = std::move(key); }
   void set_rolling_code_enable(bool enable) { this->rolling_code_enable_ = enable; }
   void set_ping_pong_enable(bool enable) { this->ping_pong_enable_ = enable; }
@@ -129,7 +130,7 @@ class PacketTransport : public PollingComponent {
   uint32_t ping_pong_recyle_time_{};
   uint32_t last_key_time_{};
   bool resend_ping_key_{};
-  bool resend_data_{};
+  bool is_provider_{};
   const char *name_{};
   ESPPreferenceObject pref_{};
 

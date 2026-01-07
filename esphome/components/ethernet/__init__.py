@@ -3,16 +3,17 @@ import logging
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.esp32 import (
-    add_idf_component,
-    add_idf_sdkconfig_option,
-    get_esp32_variant,
-)
-from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    add_idf_component,
+    add_idf_sdkconfig_option,
+    get_esp32_variant,
 )
 from esphome.components.network import ip_address_literal
 from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
@@ -219,10 +220,6 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-        cv.Optional("enable_mdns"): cv.invalid(
-            "This option has been removed. Please use the [disabled] option under the "
-            "new mdns component instead."
-        ),
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -303,7 +300,14 @@ def _final_validate_spi(config):
         return
     if spi_configs := fv.full_config.get().get(CONF_SPI):
         variant = get_esp32_variant()
-        if variant in (VARIANT_ESP32C3, VARIANT_ESP32S2, VARIANT_ESP32S3):
+        if variant in (
+            VARIANT_ESP32C3,
+            VARIANT_ESP32C5,
+            VARIANT_ESP32C6,
+            VARIANT_ESP32C61,
+            VARIANT_ESP32S2,
+            VARIANT_ESP32S3,
+        ):
             spi_host = "SPI2_HOST"
         else:
             spi_host = "SPI3_HOST"
@@ -383,6 +387,7 @@ async def to_code(config):
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     if CONF_MANUAL_IP in config:
+        cg.add_define("USE_ETHERNET_MANUAL_IP")
         cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
 
     # Add compile-time define for PHY types with specific code
@@ -425,9 +430,12 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
 
     # Check all used pins against RMII reserved pins
     for pin_list in pins.PIN_SCHEMA_REGISTRY.pins_used.values():
-        for pin_path, _, pin_config in pin_list:
+        for pin_path, pin_device, pin_config in pin_list:
             pin_num = pin_config.get(CONF_NUMBER)
             if pin_num not in rmii_pins:
+                continue
+            # Skip if pin is not directly on ESP, but at some expander (device set to something else than 'None')
+            if pin_device is not None:
                 continue
             # Found a conflict - show helpful error message
             pin_function = rmii_pins[pin_num]

@@ -87,6 +87,29 @@ int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_
 }
 }  // namespace
 
+void AsyncWebServer::safe_close_with_shutdown(httpd_handle_t hd, int sockfd) {
+  // CRITICAL: Shut down receive BEFORE closing to prevent lwIP race conditions
+  //
+  // The race condition occurs because close() initiates lwIP teardown while
+  // the TCP/IP thread can still receive packets, causing assertions when
+  // recv_tcp() sees partially-torn-down state.
+  //
+  // By shutting down receive first, we tell lwIP to stop accepting new data BEFORE
+  // the teardown begins, eliminating the race window. We only shutdown RD (not RDWR)
+  // to allow the FIN packet to be sent cleanly during close().
+  //
+  // Note: This function may be called with an already-closed socket if the network
+  // stack closed it. In that case, shutdown() will fail but close() is safe to call.
+  //
+  // See: https://github.com/esphome/esphome-webserver/issues/163
+
+  // Attempt shutdown - ignore errors as socket may already be closed
+  shutdown(sockfd, SHUT_RD);
+
+  // Always close - safe even if socket is already closed by network stack
+  close(sockfd);
+}
+
 void AsyncWebServer::end() {
   if (this->server_) {
     httpd_stop(this->server_);
@@ -101,6 +124,13 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
+  // Always enable LRU purging to handle socket exhaustion gracefully.
+  // When max sockets is reached, the oldest connection is closed to make room for new ones.
+  // This prevents "httpd_accept_conn: error in accept (23)" errors.
+  // See: https://github.com/esphome/esphome/issues/12464
+  config.lru_purge_enable = true;
+  // Use custom close function that shuts down before closing to prevent lwIP race conditions
+  config.close_fn = AsyncWebServer::safe_close_with_shutdown;
   if (httpd_start(&this->server_, &config) == ESP_OK) {
     const httpd_uri_t handler_get = {
         .uri = "",
@@ -217,11 +247,20 @@ optional<std::string> AsyncWebServerRequest::get_header(const char *name) const 
 }
 
 std::string AsyncWebServerRequest::url() const {
-  auto *str = strchr(this->req_->uri, '?');
-  if (str == nullptr) {
-    return this->req_->uri;
+  auto *query_start = strchr(this->req_->uri, '?');
+  std::string result;
+  if (query_start == nullptr) {
+    result = this->req_->uri;
+  } else {
+    result = std::string(this->req_->uri, query_start - this->req_->uri);
   }
-  return std::string(this->req_->uri, str - this->req_->uri);
+  // Decode URL-encoded characters in-place (e.g., %20 -> space)
+  // This matches AsyncWebServer behavior on Arduino
+  if (!result.empty()) {
+    size_t new_len = url_decode(&result[0]);
+    result.resize(new_len);
+  }
+  return result;
 }
 
 std::string AsyncWebServerRequest::host() const { return this->get_header("Host").value(); }
@@ -242,6 +281,7 @@ void AsyncWebServerRequest::send(int code, const char *content_type, const char 
 void AsyncWebServerRequest::redirect(const std::string &url) {
   httpd_resp_set_status(*this, "302 Found");
   httpd_resp_set_hdr(*this, "Location", url.c_str());
+  httpd_resp_set_hdr(*this, "Connection", "close");
   httpd_resp_send(*this, nullptr, 0);
 }
 
@@ -312,8 +352,9 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
 
 void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
   httpd_resp_set_hdr(*this, "Connection", "keep-alive");
-  auto auth_val = str_sprintf("Basic realm=\"%s\"", realm ? realm : "Login Required");
-  httpd_resp_set_hdr(*this, "WWW-Authenticate", auth_val.c_str());
+  // Note: realm is never configured in ESPHome, always nullptr -> "Login Required"
+  (void) realm;  // Unused - always use default
+  httpd_resp_set_hdr(*this, "WWW-Authenticate", "Basic realm=\"Login Required\"");
   httpd_resp_send_err(*this, HTTPD_401_UNAUTHORIZED, nullptr);
 }
 #endif
@@ -490,17 +531,11 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 void AsyncEventSourceResponse::destroy(void *ptr) {
   auto *rsp = static_cast<AsyncEventSourceResponse *>(ptr);
   int fd = rsp->fd_.exchange(0);  // Atomically get and clear fd
-
-  if (fd > 0) {
-    ESP_LOGD(TAG, "Event source connection closed (fd: %d)", fd);
-    // Immediately shut down the socket to prevent lwIP from delivering more data
-    // This prevents "recv_tcp: recv for wrong pcb!" assertions when the TCP stack
-    // tries to deliver queued data after the session is marked as dead
-    // See: https://github.com/esphome/esphome/issues/11936
-    shutdown(fd, SHUT_RDWR);
-    // Note: We don't close() the socket - httpd owns it and will close it
-  }
-  // Session will be cleaned up in the main loop to avoid race conditions
+  ESP_LOGD(TAG, "Event source connection closed (fd: %d)", fd);
+  // Mark as dead - will be cleaned up in the main loop
+  // Note: We don't delete or remove from set here to avoid race conditions
+  // httpd will call our custom close_fn (safe_close_with_shutdown) which handles
+  // shutdown() before close() to prevent lwIP race conditions
 }
 
 // helper for allowing only unique entries in the queue
@@ -630,17 +665,92 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
     event_buffer_.append(CRLF_STR, CRLF_LEN);
   }
 
-  if (message && *message) {
-    event_buffer_.append("data: ", sizeof("data: ") - 1);
-    event_buffer_.append(message);
-    event_buffer_.append(CRLF_STR, CRLF_LEN);
+  // Match ESPAsyncWebServer: null message means no data lines and no terminating blank line
+  if (message) {
+    // SSE spec requires each line of a multi-line message to have its own "data:" prefix
+    // Handle \n, \r, and \r\n line endings (matching ESPAsyncWebServer behavior)
+
+    // Fast path: check if message contains any newlines at all
+    // Most SSE messages (JSON state updates) have no newlines
+    const char *first_n = strchr(message, '\n');
+    const char *first_r = strchr(message, '\r');
+
+    if (first_n == nullptr && first_r == nullptr) {
+      // No newlines - fast path (most common case)
+      event_buffer_.append("data: ", sizeof("data: ") - 1);
+      event_buffer_.append(message);
+      event_buffer_.append(CRLF_STR CRLF_STR, CRLF_LEN * 2);  // data line + blank line terminator
+    } else {
+      // Has newlines - handle multi-line message
+      const char *line_start = message;
+      size_t msg_len = strlen(message);
+      const char *msg_end = message + msg_len;
+
+      // Reuse the first search results
+      const char *next_n = first_n;
+      const char *next_r = first_r;
+
+      while (line_start <= msg_end) {
+        const char *line_end;
+        const char *next_line;
+
+        if (next_n == nullptr && next_r == nullptr) {
+          // No more line breaks - output remaining text as final line
+          event_buffer_.append("data: ", sizeof("data: ") - 1);
+          event_buffer_.append(line_start);
+          event_buffer_.append(CRLF_STR, CRLF_LEN);
+          break;
+        }
+
+        // Determine line ending type and next line start
+        if (next_n != nullptr && next_r != nullptr) {
+          if (next_r + 1 == next_n) {
+            // \r\n sequence
+            line_end = next_r;
+            next_line = next_n + 1;
+          } else {
+            // Mixed \n and \r - use whichever comes first
+            line_end = (next_r < next_n) ? next_r : next_n;
+            next_line = line_end + 1;
+          }
+        } else if (next_n != nullptr) {
+          // Unix LF
+          line_end = next_n;
+          next_line = next_n + 1;
+        } else {
+          // Old Mac CR
+          line_end = next_r;
+          next_line = next_r + 1;
+        }
+
+        // Output this line
+        event_buffer_.append("data: ", sizeof("data: ") - 1);
+        event_buffer_.append(line_start, line_end - line_start);
+        event_buffer_.append(CRLF_STR, CRLF_LEN);
+
+        line_start = next_line;
+
+        // Check if we've consumed all content
+        if (line_start >= msg_end) {
+          break;
+        }
+
+        // Search for next newlines only in remaining string
+        next_n = strchr(line_start, '\n');
+        next_r = strchr(line_start, '\r');
+      }
+
+      // Terminate message with blank line
+      event_buffer_.append(CRLF_STR, CRLF_LEN);
+    }
   }
 
-  if (event_buffer_.empty()) {
+  if (event_buffer_.size() == static_cast<size_t>(chunk_len_header_len)) {
+    // Nothing was added, reset buffer
+    event_buffer_.resize(0);
     return true;
   }
 
-  event_buffer_.append(CRLF_STR, CRLF_LEN);
   event_buffer_.append(CRLF_STR, CRLF_LEN);
 
   // chunk length header itself and the final chunk terminating CRLF are not counted as part of the chunk

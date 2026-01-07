@@ -64,10 +64,17 @@ _LOGGER = logging.getLogger(__name__)
 NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
 CONF_SAVE = "save"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
+CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
 
 # Maximum number of WiFi networks that can be configured
 # Limited to 127 because selected_sta_index_ is int8_t in C++
 MAX_WIFI_NETWORKS = 127
+
+# Default AP timeout - allows sufficient time to try all BSSIDs during initial connection
+# After AP starts, WiFi scanning is skipped to avoid disrupting the AP, so we only
+# get best-effort connection attempts. Longer timeout ensures we exhaust all options
+# before falling back to AP mode. Aligned with improv wifi_timeout default.
+DEFAULT_AP_TIMEOUT = "90s"
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
@@ -91,6 +98,7 @@ WIFI_MIN_AUTH_MODES = {
 VALIDATE_WIFI_MIN_AUTH_MODE = cv.enum(WIFI_MIN_AUTH_MODES, upper=True)
 WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
 WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
+WiFiAPActiveCondition = wifi_ns.class_("WiFiAPActiveCondition", Condition)
 WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
 WiFiDisableAction = wifi_ns.class_("WiFiDisableAction", automation.Action)
 WiFiConfigureAction = wifi_ns.class_(
@@ -177,7 +185,7 @@ CONF_AP_TIMEOUT = "ap_timeout"
 WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
     {
         cv.Optional(
-            CONF_AP_TIMEOUT, default="1min"
+            CONF_AP_TIMEOUT, default=DEFAULT_AP_TIMEOUT
         ): cv.positive_time_period_milliseconds,
     }
 )
@@ -341,11 +349,8 @@ CONFIG_SCHEMA = cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
-            cv.Optional("enable_mdns"): cv.invalid(
-                "This option has been removed. Please use the [disabled] option under the "
-                "new mdns component instead."
-            ),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
+            cv.Optional(CONF_POST_CONNECT_ROAMING, default=True): cv.boolean,
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
                 single=True
@@ -461,7 +466,7 @@ async def to_code(config):
         )
         cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
         cg.add_define("USE_WIFI_AP")
-    elif CORE.is_esp32 and CORE.using_esp_idf:
+    elif CORE.is_esp32 and not CORE.using_arduino:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
         add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
 
@@ -479,11 +484,23 @@ async def to_code(config):
         cg.add(var.set_min_auth_mode(config[CONF_MIN_AUTH_MODE]))
     if config[CONF_FAST_CONNECT]:
         cg.add_define("USE_WIFI_FAST_CONNECT")
-    cg.add(var.set_passive_scan(config[CONF_PASSIVE_SCAN]))
+    # passive_scan defaults to false in C++ - only set if true
+    if config[CONF_PASSIVE_SCAN]:
+        cg.add(var.set_passive_scan(True))
     if CONF_OUTPUT_POWER in config:
         cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
+    # enable_on_boot defaults to true in C++ - only set if false
+    if not config[CONF_ENABLE_ON_BOOT]:
+        cg.add(var.set_enable_on_boot(False))
 
-    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
+    # post_connect_roaming defaults to true in C++ - disable if user disabled it
+    # or if 802.11k/v is enabled (driver handles roaming natively)
+    if (
+        not config[CONF_POST_CONNECT_ROAMING]
+        or config.get(CONF_ENABLE_BTM)
+        or config.get(CONF_ENABLE_RRM)
+    ):
+        cg.add(var.set_post_connect_roaming(False))
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
@@ -503,7 +520,7 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
 
     # Apply high performance WiFi settings if high performance networking is enabled
-    if CORE.is_esp32 and CORE.using_esp_idf and has_high_performance_networking():
+    if CORE.is_esp32 and has_high_performance_networking():
         # Check if PSRAM is guaranteed (set by psram component during final validation)
         psram_guaranteed = psram_is_guaranteed()
 
@@ -581,6 +598,11 @@ async def wifi_enabled_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg)
 
 
+@automation.register_condition("wifi.ap_active", WiFiAPActiveCondition, cv.Schema({}))
+async def wifi_ap_active_to_code(config, condition_id, template_arg, args):
+    return cg.new_Pvariable(condition_id, template_arg)
+
+
 @automation.register_action("wifi.enable", WiFiEnableAction, cv.Schema({}))
 async def wifi_enable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
@@ -592,6 +614,8 @@ async def wifi_disable_to_code(config, action_id, template_arg, args):
 
 
 KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
+RUNTIME_POWER_SAVE_KEY = "wifi_runtime_power_save"
+WIFI_LISTENERS_KEY = "wifi_listeners"
 
 
 def request_wifi_scan_results():
@@ -604,13 +628,41 @@ def request_wifi_scan_results():
     CORE.data[KEEP_SCAN_RESULTS_KEY] = True
 
 
+def enable_runtime_power_save_control():
+    """Enable runtime WiFi power save control.
+
+    Components that need to dynamically switch WiFi power saving on/off for latency
+    performance (e.g., audio streaming, large data transfers) should call this
+    function during their code generation. This enables the request_high_performance()
+    and release_high_performance() APIs.
+
+    Only supported on ESP32.
+    """
+    CORE.data[RUNTIME_POWER_SAVE_KEY] = True
+
+
+def request_wifi_listeners() -> None:
+    """Request that WiFi state listeners be compiled in.
+
+    Components that need to be notified about WiFi state changes (IP address changes,
+    scan results, connection state) should call this function during their code generation.
+    This enables the add_ip_state_listener(), add_scan_results_listener(),
+    and add_connect_state_listener() APIs.
+    """
+    CORE.data[WIFI_LISTENERS_KEY] = True
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
-    """Final code generation step to configure scan result retention."""
+    """Final code generation step to configure optional WiFi features."""
     if CORE.data.get(KEEP_SCAN_RESULTS_KEY, False):
         cg.add(
             cg.RawExpression("wifi::global_wifi_component->set_keep_scan_results(true)")
         )
+    if CORE.data.get(RUNTIME_POWER_SAVE_KEY, False):
+        cg.add_define("USE_WIFI_RUNTIME_POWER_SAVE")
+    if CORE.data.get(WIFI_LISTENERS_KEY, False):
+        cg.add_define("USE_WIFI_LISTENERS")
 
 
 @automation.register_action(

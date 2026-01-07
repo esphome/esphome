@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
 #include "valve_traits.h"
 
@@ -81,7 +82,7 @@ enum ValveOperation : uint8_t {
   VALVE_OPERATION_CLOSING,
 };
 
-const char *valve_operation_to_str(ValveOperation op);
+const LogString *valve_operation_to_str(ValveOperation op);
 
 /** Base class for all valve devices.
  *
@@ -143,7 +144,7 @@ class Valve : public EntityBase, public EntityBase_DeviceClass {
 
   optional<ValveRestoreState> restore_state_();
 
-  CallbackManager<void()> state_callback_{};
+  LazyCallbackManager<void()> state_callback_{};
 
   ESPPreferenceObject rtc_;
 };
