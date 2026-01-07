@@ -58,22 +58,22 @@ void MQTTAlarmControlPanelComponent::send_discovery(JsonObject root, mqtt::SendD
   JsonArray supported_features = root[MQTT_SUPPORTED_FEATURES].to<JsonArray>();
   const uint32_t acp_supported_features = this->alarm_control_panel_->get_supported_features();
   if (acp_supported_features & ACP_FEAT_ARM_AWAY) {
-    supported_features.add("arm_away");
+    supported_features.add(ESPHOME_F("arm_away"));
   }
   if (acp_supported_features & ACP_FEAT_ARM_HOME) {
-    supported_features.add("arm_home");
+    supported_features.add(ESPHOME_F("arm_home"));
   }
   if (acp_supported_features & ACP_FEAT_ARM_NIGHT) {
-    supported_features.add("arm_night");
+    supported_features.add(ESPHOME_F("arm_night"));
   }
   if (acp_supported_features & ACP_FEAT_ARM_VACATION) {
-    supported_features.add("arm_vacation");
+    supported_features.add(ESPHOME_F("arm_vacation"));
   }
   if (acp_supported_features & ACP_FEAT_ARM_CUSTOM_BYPASS) {
-    supported_features.add("arm_custom_bypass");
+    supported_features.add(ESPHOME_F("arm_custom_bypass"));
   }
   if (acp_supported_features & ACP_FEAT_TRIGGER) {
-    supported_features.add("trigger");
+    supported_features.add(ESPHOME_F("trigger"));
   }
   root[MQTT_CODE_DISARM_REQUIRED] = this->alarm_control_panel_->get_requires_code();
   root[MQTT_CODE_ARM_REQUIRED] = this->alarm_control_panel_->get_requires_code_to_arm();
