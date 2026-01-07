@@ -4,6 +4,7 @@
 #include "esphome/core/log.h"
 
 #include <array>
+#include <span>
 
 #ifdef USE_ESP32
 
@@ -12,15 +13,14 @@ namespace bthome_mithermometer {
 
 static const char *const TAG = "bthome_mithermometer";
 
-static std::string format_mac_address(uint64_t address) {
+static const char *format_mac_address(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buffer, uint64_t address) {
   std::array<uint8_t, MAC_ADDRESS_SIZE> mac{};
   for (size_t i = 0; i < MAC_ADDRESS_SIZE; i++) {
     mac[i] = (address >> ((MAC_ADDRESS_SIZE - 1 - i) * 8)) & 0xFF;
   }
 
-  char buffer[MAC_ADDRESS_SIZE * 3];
-  format_mac_addr_upper(mac.data(), buffer);
-  return buffer;
+  format_mac_addr_upper(mac.data(), buffer.data());
+  return buffer.data();
 }
 
 static bool get_bthome_value_length(uint8_t obj_type, size_t &value_length) {
@@ -127,8 +127,9 @@ static bool get_bthome_value_length(uint8_t obj_type, size_t &value_length) {
 }
 
 void BTHomeMiThermometer::dump_config() {
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG, "BTHome MiThermometer");
-  ESP_LOGCONFIG(TAG, "  MAC Address: %s", format_mac_address(this->address_).c_str());
+  ESP_LOGCONFIG(TAG, "  MAC Address: %s", format_mac_address(addr_buf, this->address_));
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
@@ -172,8 +173,9 @@ bool BTHomeMiThermometer::handle_service_data_(const esp32_ble_tracker::ServiceD
     return false;
   }
 
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   if (is_encrypted) {
-    ESP_LOGV(TAG, "Ignoring encrypted BTHome frame from %s", device.address_str().c_str());
+    ESP_LOGV(TAG, "Ignoring encrypted BTHome frame from %s", device.address_str_to(addr_buf));
     return false;
   }
 
@@ -193,7 +195,7 @@ bool BTHomeMiThermometer::handle_service_data_(const esp32_ble_tracker::ServiceD
   }
 
   if (source_address != this->address_) {
-    ESP_LOGVV(TAG, "BTHome frame from unexpected device %s", format_mac_address(source_address).c_str());
+    ESP_LOGVV(TAG, "BTHome frame from unexpected device %s", format_mac_address(addr_buf, source_address));
     return false;
   }
 
@@ -286,7 +288,7 @@ bool BTHomeMiThermometer::handle_service_data_(const esp32_ble_tracker::ServiceD
   }
 
   if (reported) {
-    ESP_LOGD(TAG, "BTHome data%sfrom %s", is_trigger_based ? " (triggered) " : " ", device.address_str().c_str());
+    ESP_LOGD(TAG, "BTHome data%sfrom %s", is_trigger_based ? " (triggered) " : " ", device.address_str_to(addr_buf));
   }
 
   return reported;

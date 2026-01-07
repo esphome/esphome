@@ -24,12 +24,15 @@ void IPAddressWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "IP Address", this);
 
 void IPAddressWiFiInfo::on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
                                     const network::IPAddress &dns2) {
-  this->publish_state(ips[0].str());
+  char buf[network::IP_ADDRESS_BUFFER_SIZE];
+  ips[0].str_to(buf);
+  this->publish_state(buf);
   uint8_t sensor = 0;
   for (const auto &ip : ips) {
     if (ip.is_set()) {
       if (this->ip_sensors_[sensor] != nullptr) {
-        this->ip_sensors_[sensor]->publish_state(ip.str());
+        ip.str_to(buf);
+        this->ip_sensors_[sensor]->publish_state(buf);
       }
       sensor++;
     }
@@ -104,7 +107,7 @@ void SSIDWiFiInfo::setup() { wifi::global_wifi_component->add_connect_state_list
 void SSIDWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "SSID", this); }
 
 void SSIDWiFiInfo::on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) {
-  this->publish_state(ssid.str());
+  this->publish_state(ssid.c_str(), ssid.size());
 }
 
 /****************

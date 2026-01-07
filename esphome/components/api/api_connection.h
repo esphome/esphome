@@ -9,17 +9,12 @@
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/string_ref.h"
 
 #include <functional>
 #include <vector>
 
 namespace esphome::api {
-
-// Client information structure
-struct ClientInfo {
-  std::string name;      // Client name from Hello message
-  std::string peername;  // IP:port from socket
-};
 
 // Keepalive timeout in milliseconds
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
@@ -279,8 +274,9 @@ class APIConnection final : public APIServerConnection {
   bool try_to_clear_buffer(bool log_out_of_space);
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
-  const std::string &get_name() const { return this->client_info_.name; }
-  const std::string &get_peername() const { return this->client_info_.peername; }
+  const char *get_name() const { return this->helper_->get_client_name(); }
+  /// Get peer name (IP address) - cached at connection init time
+  const char *get_peername() const { return this->helper_->get_client_peername(); }
 
  protected:
   // Helper function to handle authentication completion
@@ -526,10 +522,7 @@ class APIConnection final : public APIServerConnection {
   std::unique_ptr<camera::CameraImageReader> image_reader_;
 #endif
 
-  // Group 3: Client info struct (24 bytes on 32-bit: 2 strings × 12 bytes each)
-  ClientInfo client_info_;
-
-  // Group 4: 4-byte types
+  // Group 3: 4-byte types
   uint32_t last_traffic_;
 #ifdef USE_API_HOMEASSISTANT_STATES
   int state_subs_at_ = -1;
@@ -756,6 +749,8 @@ class APIConnection final : public APIServerConnection {
     return this->schedule_batch_();
   }
 
+  // Helper function to log client messages with name and peername
+  void log_client_(int level, const LogString *message);
   // Helper function to log API errors with errno
   void log_warning_(const LogString *message, APIError err);
   // Helper to handle fatal errors with logging

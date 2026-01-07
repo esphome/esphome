@@ -1,3 +1,5 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
@@ -15,6 +17,8 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["aqi"]
@@ -99,7 +103,12 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_PM_10_0])
         cg.add(var.set_pm_10_0_sensor(sens))
 
+    # Remove before 2026.12.0
     if CONF_AQI in config:
+        _LOGGER.warning(
+            "The 'aqi' option in hm3301 is deprecated, "
+            "please use the standalone 'aqi' sensor platform instead."
+        )
         sens = await sensor.new_sensor(config[CONF_AQI])
         cg.add(var.set_aqi_sensor(sens))
         cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))
