@@ -22,8 +22,7 @@
 #include "esphome/components/dashboard_import/dashboard_import.h"
 #endif
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt";
 
@@ -751,7 +750,6 @@ void MQTTMessageTrigger::dump_config() {
 }
 float MQTTMessageTrigger::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_MQTT
