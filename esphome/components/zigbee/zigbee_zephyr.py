@@ -325,7 +325,7 @@ def _slot_index() -> int:
     )
     if slot is None:
         raise cv.Invalid(
-            f"Maximum number of endpoints ({len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])}) exceeded"
+            f"Not found empty slot, size ({len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])})"
         )
     return slot
 
