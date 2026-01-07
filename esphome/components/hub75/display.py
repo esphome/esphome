@@ -3,7 +3,6 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import display
-from esphome.components.esp32 import add_idf_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
@@ -545,9 +544,12 @@ def _build_config_struct(
 
 
 async def to_code(config: ConfigType) -> None:
-    add_idf_component(
-        name="esphome/esp-hub75",
-        ref="0.2.2",
+    # Temporary: using PR branch for testing
+    # https://github.com/esphome-libs/esp-hub75/pull/52
+    cg.add_library(
+        None,
+        None,
+        "https://github.com/esphome-libs/esp-hub75.git#claude/revert-pr-35-c6-support-w3q4Q",
     )
 
     # Set compile-time configuration via defines
