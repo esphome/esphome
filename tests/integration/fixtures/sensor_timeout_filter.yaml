@@ -1,0 +1,150 @@
+esphome:
+  name: test-timeout-filters
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+# Template sensors that we'll use to publish values
+sensor:
+  - platform: template
+    name: "Source Timeout Last"
+    id: source_timeout_last
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Source Timeout Reset"
+    id: source_timeout_reset
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Source Timeout Static"
+    id: source_timeout_static
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Source Timeout Lambda"
+    id: source_timeout_lambda
+    accuracy_decimals: 1
+
+  # Test 1: TimeoutFilter - "last" mode (outputs last received value)
+  - platform: copy
+    source_id: source_timeout_last
+    name: "Timeout Last Sensor"
+    id: timeout_last_sensor
+    filters:
+      - timeout:
+          timeout: 100ms
+          value: last  # Explicitly specify "last" mode to use TimeoutFilter class
+
+  # Test 2: TimeoutFilter - reset behavior (same filter, different source)
+  - platform: copy
+    source_id: source_timeout_reset
+    name: "Timeout Reset Sensor"
+    id: timeout_reset_sensor
+    filters:
+      - timeout:
+          timeout: 100ms
+          value: last  # Explicitly specify "last" mode
+
+  # Test 3: TimeoutFilterConfigured - static value mode
+  - platform: copy
+    source_id: source_timeout_static
+    name: "Timeout Static Sensor"
+    id: timeout_static_sensor
+    filters:
+      - timeout:
+          timeout: 100ms
+          value: 99.9
+
+  # Test 4: TimeoutFilterConfigured - lambda mode
+  - platform: copy
+    source_id: source_timeout_lambda
+    name: "Timeout Lambda Sensor"
+    id: timeout_lambda_sensor
+    filters:
+      - timeout:
+          timeout: 100ms
+          value: !lambda "return -1.0;"
+
+# Scripts to publish values with controlled timing
+script:
+  # Test 1: Single value followed by timeout
+  - id: test_timeout_last_script
+    then:
+      # Publish initial value
+      - sensor.template.publish:
+          id: source_timeout_last
+          state: 42.0
+      # Wait for timeout to fire (100ms + margin)
+      - delay: 150ms
+
+  # Test 2: Multiple values before timeout (should reset timer)
+  - id: test_timeout_reset_script
+    then:
+      # Publish first value
+      - sensor.template.publish:
+          id: source_timeout_reset
+          state: 10.0
+      # Wait 50ms (halfway to timeout)
+      - delay: 50ms
+      # Publish second value (resets timeout)
+      - sensor.template.publish:
+          id: source_timeout_reset
+          state: 20.0
+      # Wait 50ms (halfway to timeout again)
+      - delay: 50ms
+      # Publish third value (resets timeout)
+      - sensor.template.publish:
+          id: source_timeout_reset
+          state: 30.0
+      # Wait for timeout to fire (100ms + margin)
+      - delay: 150ms
+
+  # Test 3: Static value timeout
+  - id: test_timeout_static_script
+    then:
+      # Publish initial value
+      - sensor.template.publish:
+          id: source_timeout_static
+          state: 55.5
+      # Wait for timeout to fire
+      - delay: 150ms
+
+  # Test 4: Lambda value timeout
+  - id: test_timeout_lambda_script
+    then:
+      # Publish initial value
+      - sensor.template.publish:
+          id: source_timeout_lambda
+          state: 77.7
+      # Wait for timeout to fire
+      - delay: 150ms
+
+# Buttons to trigger each test scenario
+button:
+  - platform: template
+    name: "Test Timeout Last Button"
+    id: test_timeout_last_button
+    on_press:
+      - script.execute: test_timeout_last_script
+
+  - platform: template
+    name: "Test Timeout Reset Button"
+    id: test_timeout_reset_button
+    on_press:
+      - script.execute: test_timeout_reset_script
+
+  - platform: template
+    name: "Test Timeout Static Button"
+    id: test_timeout_static_button
+    on_press:
+      - script.execute: test_timeout_static_script
+
+  - platform: template
+    name: "Test Timeout Lambda Button"
+    id: test_timeout_lambda_button
+    on_press:
+      - script.execute: test_timeout_lambda_script

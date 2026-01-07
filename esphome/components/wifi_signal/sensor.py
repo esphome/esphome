@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import sensor
+from esphome.components import sensor, wifi
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -25,5 +25,6 @@ CONFIG_SCHEMA = sensor.sensor_schema(
 
 
 async def to_code(config):
+    wifi.request_wifi_listeners()
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)

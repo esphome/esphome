@@ -1,4 +1,5 @@
 from pathlib import Path
+import textwrap
 from typing import TypedDict
 
 import esphome.codegen as cg
@@ -20,7 +21,6 @@ from .const import (
 )
 
 CODEOWNERS = ["@tomaszduda23"]
-AUTO_LOAD = ["preferences"]
 
 PrjConfValueType = bool | str | int
 
@@ -90,7 +90,7 @@ def zephyr_add_prj_conf(
 
 
 def zephyr_add_overlay(content):
-    zephyr_data()[KEY_OVERLAY] += content
+    zephyr_data()[KEY_OVERLAY] += textwrap.dedent(content)
 
 
 def add_extra_build_file(filename: str, path: Path) -> bool:
@@ -110,32 +110,15 @@ def add_extra_script(stage: str, filename: str, path: Path) -> None:
 
 
 def zephyr_to_code(config):
-    cg.add(zephyr_ns.setup_preferences())
     cg.add_build_flag("-DUSE_ZEPHYR")
     cg.set_cpp_standard("gnu++20")
     # build is done by west so bypass board checking in platformio
     cg.add_platformio_option("boards_dir", CORE.relative_build_path("boards"))
-
     # c++ support
     zephyr_add_prj_conf("NEWLIB_LIBC", True)
-    zephyr_add_prj_conf("CONFIG_FPU", True)
+    zephyr_add_prj_conf("FPU", True)
     zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
-    zephyr_add_prj_conf("CPLUSPLUS", True)
-    zephyr_add_prj_conf("CONFIG_STD_CPP20", True)
-    zephyr_add_prj_conf("LIB_CPLUSPLUS", True)
-    # preferences
-    zephyr_add_prj_conf("SETTINGS", True)
-    zephyr_add_prj_conf("NVS", True)
-    zephyr_add_prj_conf("FLASH_MAP", True)
-    zephyr_add_prj_conf("CONFIG_FLASH", True)
-    # watchdog
-    zephyr_add_prj_conf("WATCHDOG", True)
-    zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
-    # disable console
-    zephyr_add_prj_conf("UART_CONSOLE", False)
-    zephyr_add_prj_conf("CONSOLE", False, False)
-    # use NFC pins as GPIO
-    zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
+    zephyr_add_prj_conf("STD_CPP20", True)
 
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
@@ -146,6 +129,14 @@ def zephyr_to_code(config):
         "pre_build.py",
         Path(__file__).parent / "pre_build.py.script",
     )
+
+
+def zephyr_setup_preferences():
+    cg.add(zephyr_ns.setup_preferences())
+    zephyr_add_prj_conf("SETTINGS", True)
+    zephyr_add_prj_conf("NVS", True)
+    zephyr_add_prj_conf("FLASH_MAP", True)
+    zephyr_add_prj_conf("FLASH", True)
 
 
 def _format_prj_conf_val(value: PrjConfValueType) -> str:

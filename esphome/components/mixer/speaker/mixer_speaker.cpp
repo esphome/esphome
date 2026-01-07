@@ -78,19 +78,20 @@ void SourceSpeaker::loop() {
       } else {
         switch (err) {
           case ESP_ERR_NO_MEM:
-            this->status_set_error("Failed to start mixer: not enough memory");
+            this->status_set_error(LOG_STR("Failed to start mixer: not enough memory"));
             break;
           case ESP_ERR_NOT_SUPPORTED:
-            this->status_set_error("Failed to start mixer: unsupported bits per sample");
+            this->status_set_error(LOG_STR("Failed to start mixer: unsupported bits per sample"));
             break;
           case ESP_ERR_INVALID_ARG:
-            this->status_set_error("Failed to start mixer: audio stream isn't compatible with the other audio stream.");
+            this->status_set_error(
+                LOG_STR("Failed to start mixer: audio stream isn't compatible with the other audio stream."));
             break;
           case ESP_ERR_INVALID_STATE:
-            this->status_set_error("Failed to start mixer: mixer task failed to start");
+            this->status_set_error(LOG_STR("Failed to start mixer: mixer task failed to start"));
             break;
           default:
-            this->status_set_error("Failed to start mixer");
+            this->status_set_error(LOG_STR("Failed to start mixer"));
             break;
         }
 
@@ -317,7 +318,7 @@ void MixerSpeaker::loop() {
     xEventGroupClearBits(this->event_group_, MixerEventGroupBits::STATE_STARTING);
   }
   if (event_group_bits & MixerEventGroupBits::ERR_ESP_NO_MEM) {
-    this->status_set_error("Failed to allocate the mixer's internal buffer");
+    this->status_set_error(LOG_STR("Failed to allocate the mixer's internal buffer"));
     xEventGroupClearBits(this->event_group_, MixerEventGroupBits::ERR_ESP_NO_MEM);
   }
   if (event_group_bits & MixerEventGroupBits::STATE_RUNNING) {

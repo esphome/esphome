@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_SWITCH
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.switch";
 
@@ -29,7 +28,7 @@ void MQTTSwitchComponent::setup() {
         break;
       case PARSE_NONE:
       default:
-        ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name().c_str(), payload.c_str());
+        ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name_().c_str(), payload.c_str());
         this->status_momentary_warning("state", 5000);
         break;
     }
@@ -57,8 +56,7 @@ bool MQTTSwitchComponent::publish_state(bool state) {
   return this->publish(this->get_state_topic_(), state_s);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

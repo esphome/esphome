@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_SELECT
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.select";
 
@@ -21,7 +20,7 @@ void MQTTSelectComponent::setup() {
     call.set_option(state);
     call.perform();
   });
-  this->select_->add_on_state_callback([this](const std::string &state, size_t index) { this->publish_state(state); });
+  this->select_->add_on_state_callback([this](size_t index) { this->publish_state(this->select_->option_at(index)); });
 }
 
 void MQTTSelectComponent::dump_config() {
@@ -44,7 +43,7 @@ void MQTTSelectComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
 }
 bool MQTTSelectComponent::send_initial_state() {
   if (this->select_->has_state()) {
-    return this->publish_state(this->select_->state);
+    return this->publish_state(this->select_->current_option());
   } else {
     return true;
   }
@@ -53,8 +52,7 @@ bool MQTTSelectComponent::publish_state(const std::string &value) {
   return this->publish(this->get_state_topic_(), value);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
