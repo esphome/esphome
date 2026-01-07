@@ -391,6 +391,15 @@ constexpr uint32_t FNV1_OFFSET_BASIS = 2166136261UL;
 /// FNV-1 32-bit prime
 constexpr uint32_t FNV1_PRIME = 16777619UL;
 
+/// Extend a FNV-1 hash with an integer (hashes each byte).
+template<std::integral T> constexpr uint32_t fnv1_hash_extend(uint32_t hash, T value) {
+  for (size_t i = 0; i < sizeof(T); i++) {
+    hash *= FNV1_PRIME;
+    hash ^= (value >> (i * 8)) & 0xFF;
+  }
+  return hash;
+}
+
 /// Extend a FNV-1a hash with additional string data.
 constexpr uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
   if (str) {
@@ -403,6 +412,14 @@ constexpr uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
 }
 inline uint32_t fnv1a_hash_extend(uint32_t hash, const std::string &str) {
   return fnv1a_hash_extend(hash, str.c_str());
+}
+/// Extend a FNV-1a hash with an integer (hashes each byte).
+template<std::integral T> constexpr uint32_t fnv1a_hash_extend(uint32_t hash, T value) {
+  for (size_t i = 0; i < sizeof(T); i++) {
+    hash ^= (value >> (i * 8)) & 0xFF;
+    hash *= FNV1_PRIME;
+  }
+  return hash;
 }
 /// Calculate a FNV-1a hash of \p str.
 constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
