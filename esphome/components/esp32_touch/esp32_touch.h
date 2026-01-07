@@ -171,6 +171,9 @@ class ESP32TouchComponent : public Component {
   // based on the filter configuration
   uint32_t read_touch_value(touch_pad_t pad) const;
 
+  // Helper to read floating benchmark (continuously updated by hardware)
+  uint32_t read_floating_benchmark_(touch_pad_t pad) const;
+
   // Helper to update touch state with a known state and value
   void update_touch_state_(ESP32TouchBinarySensor *child, bool is_touched, uint32_t value);
 

@@ -24,24 +24,35 @@ void ESP32TouchComponent::update_touch_state_(ESP32TouchBinarySensor *child, boo
     child->last_state_ = is_touched;
     child->publish_state(is_touched);
     if (is_touched) {
+      // Read floating benchmark for logging
+      uint32_t benchmark = this->read_floating_benchmark_(child->touch_pad_);
       ESP_LOGV(TAG, "Touch Pad '%s' state: ON (value: %" PRIu32 " > threshold: %" PRIu32 ")", child->get_name().c_str(),
-               value, child->threshold_ + child->benchmark_);
+               value, child->threshold_ + benchmark);
     } else {
       ESP_LOGV(TAG, "Touch Pad '%s' state: OFF", child->get_name().c_str());
     }
   }
 }
 
+// Helper to read floating benchmark value
+uint32_t ESP32TouchComponent::read_floating_benchmark_(touch_pad_t pad) const {
+  uint32_t benchmark = 0;
+  touch_pad_read_benchmark(pad, &benchmark);
+  return benchmark;
+}
+
 // Helper to read touch value and update state for a given child (used for timeout events)
 bool ESP32TouchComponent::check_and_update_touch_state_(ESP32TouchBinarySensor *child) {
   // Read current touch value
   uint32_t value = this->read_touch_value(child->touch_pad_);
+  // Read floating benchmark (continuously updated by hardware)
+  uint32_t benchmark = this->read_floating_benchmark_(child->touch_pad_);
 
   // ESP32-S2/S3 v2: Touch is detected when value > threshold + benchmark
   ESP_LOGV(TAG,
            "Checking touch state for '%s' (T%d): value = %" PRIu32 ", threshold = %" PRIu32 ", benchmark = %" PRIu32,
-           child->get_name().c_str(), child->touch_pad_, value, child->threshold_, child->benchmark_);
-  bool is_touched = value > child->benchmark_ + child->threshold_;
+           child->get_name().c_str(), child->touch_pad_, value, child->threshold_, benchmark);
+  bool is_touched = value > benchmark + child->threshold_;
 
   this->update_touch_state_(child, is_touched, value);
   return is_touched;
@@ -314,8 +325,6 @@ void ESP32TouchComponent::loop() {
 
   size_t pads_off = 0;
   for (auto *child : this->children_) {
-    if (child->benchmark_ == 0)
-      touch_pad_read_benchmark(child->touch_pad_, &child->benchmark_);
     // Handle initial state publication after startup
     this->publish_initial_state_if_needed_(child, now);
 

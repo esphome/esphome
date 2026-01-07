@@ -31,11 +31,20 @@ void ESP32TouchComponent::dump_config_base_() {
 void ESP32TouchComponent::dump_config_sensors_() {
   for (auto *child : this->children_) {
     LOG_BINARY_SENSOR("  ", "Touch Pad", child);
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+    // Read floating benchmark (continuously updated by hardware)
+    uint32_t benchmark = this->read_floating_benchmark_(child->touch_pad_);
     ESP_LOGCONFIG(TAG,
                   "    Pad: T%u\n"
                   "    Threshold: %" PRIu32 "\n"
-                  "    Benchmark: %" PRIu32,
-                  (unsigned) child->touch_pad_, child->threshold_, child->benchmark_);
+                  "    Benchmark (floating): %" PRIu32,
+                  (unsigned) child->touch_pad_, child->threshold_, benchmark);
+#else
+    ESP_LOGCONFIG(TAG,
+                  "    Pad: T%u\n"
+                  "    Threshold: %" PRIu32,
+                  (unsigned) child->touch_pad_, child->threshold_);
+#endif
   }
 }
 
@@ -102,7 +111,13 @@ void ESP32TouchComponent::process_setup_mode_logging_(uint32_t now) {
       uint32_t value = this->read_touch_value(child->get_touch_pad());
       // Store the value for get_value() access in lambdas
       child->value_ = value;
-      ESP_LOGD(TAG, "Touch Pad '%s' (T%d): %d", child->get_name().c_str(), child->get_touch_pad(), value);
+      // Read floating benchmark (continuously updated by hardware)
+      uint32_t benchmark = this->read_floating_benchmark_(child->get_touch_pad());
+      int32_t difference = static_cast<int32_t>(value) - static_cast<int32_t>(benchmark);
+      ESP_LOGD(TAG,
+               "Touch Pad '%s' (T%d): value=%d, benchmark=%" PRIu32 ", difference=%" PRId32 " (set threshold < %" PRId32
+               " to detect touch)",
+               child->get_name().c_str(), child->get_touch_pad(), value, benchmark, difference, difference);
 #endif
     }
     this->setup_mode_last_log_print_ = now;
