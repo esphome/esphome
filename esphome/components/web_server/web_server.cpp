@@ -422,7 +422,11 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #else
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
 #endif
+#ifdef USE_WEBSERVER_GZIP
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
+#else
+  response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("br"));
+#endif
   request->send(response);
 }
 #elif USE_WEBSERVER_VERSION >= 2
