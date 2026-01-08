@@ -26,7 +26,7 @@ class MQTTButtonComponent : public mqtt::MQTTComponent {
 
  protected:
   /// "button" component type.
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   button::Button *button_;
