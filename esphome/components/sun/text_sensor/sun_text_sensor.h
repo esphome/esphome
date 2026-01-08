@@ -28,7 +28,9 @@ class SunTextSensor : public text_sensor::TextSensor, public PollingComponent {
       return;
     }
 
-    this->publish_state(res->strftime(this->format_));
+    char buf[ESPTime::STRFTIME_BUFFER_SIZE];
+    size_t len = res->strftime_to(buf, this->format_.c_str());
+    this->publish_state(buf, len);
   }
 
   void dump_config() override;

@@ -54,16 +54,16 @@ inline constexpr int64_t decode_zigzag64(uint64_t value) {
  * 3. Global/static strings: StringRef(GLOBAL_CONSTANT) - Always safe
  * 4. Local variables: Safe ONLY if encoding happens before function returns:
  *    std::string temp = compute_value();
- *    msg.set_field(StringRef(temp));
+ *    msg.field = StringRef(temp);
  *    return this->send_message(msg);  // temp is valid during encoding
  *
  * Unsafe Patterns (WILL cause crashes/corruption):
- * 1. Temporaries: msg.set_field(StringRef(obj.get_string())) // get_string() returns by value
- * 2. Concatenation: msg.set_field(StringRef(str1 + str2)) // Result is temporary
+ * 1. Temporaries: msg.field = StringRef(obj.get_string()) // get_string() returns by value
+ * 2. Concatenation: msg.field = StringRef(str1 + str2) // Result is temporary
  *
  * For unsafe patterns, store in a local variable first:
  *    std::string temp = get_string();  // or str1 + str2
- *    msg.set_field(StringRef(temp));
+ *    msg.field = StringRef(temp);
  *
  * The send_*_response pattern ensures proper lifetime management by encoding
  * within the same function scope where temporaries are created.
