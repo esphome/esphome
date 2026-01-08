@@ -15,6 +15,9 @@ namespace i2c {
 
 static const char *const TAG = "i2c.idf";
 
+// Maximum bytes to log in hex format (truncates larger transfers)
+static constexpr size_t I2C_MAX_LOG_BYTES = 32;
+
 void IDFI2CBus::setup() {
   static i2c_port_t next_hp_port = I2C_NUM_0;
 #if SOC_LP_I2C_SUPPORTED
@@ -147,7 +150,10 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
     jobs[num_jobs++].write.total_bytes = 1;
   } else {
     if (write_count != 0) {
-      ESP_LOGV(TAG, "0x%02X TX %s", address, format_hex_pretty(write_buffer, write_count).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      char hex_buf[format_hex_pretty_size(I2C_MAX_LOG_BYTES)];
+      ESP_LOGV(TAG, "0x%02X TX %s", address, format_hex_pretty_to(hex_buf, write_buffer, write_count));
+#endif
       jobs[num_jobs++].command = I2C_MASTER_CMD_START;
       jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
       jobs[num_jobs].write.ack_check = true;

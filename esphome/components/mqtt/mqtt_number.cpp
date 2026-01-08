@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_NUMBER
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.number";
 
@@ -80,8 +79,7 @@ bool MQTTNumberComponent::publish_state(float value) {
   return this->publish(this->get_state_topic_(), buffer);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

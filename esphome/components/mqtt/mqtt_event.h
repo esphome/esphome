@@ -8,8 +8,7 @@
 #include "esphome/components/event/event.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTEventComponent : public mqtt::MQTTComponent {
  public:
@@ -32,8 +31,7 @@ class MQTTEventComponent : public mqtt::MQTTComponent {
   event::Event *event_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
