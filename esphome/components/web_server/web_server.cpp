@@ -499,9 +499,10 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
   // Build id into stack buffer - ArduinoJson copies the string
   // Format: {prefix}/{device?}/{name}
   // Buffer sizes use constants from entity_base.h validated in core/config.py
+  // Note: Device name (USE_DEVICES) uses ESPHOME_FRIENDLY_NAME_MAX_LEN, not ESPHOME_DEVICE_NAME_MAX_LEN
 #ifdef USE_DEVICES
   static constexpr size_t ID_BUF_SIZE =
-      ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
+      ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
 #else
   static constexpr size_t ID_BUF_SIZE = ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
 #endif
