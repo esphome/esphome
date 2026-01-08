@@ -31,18 +31,18 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
   JsonArray modes = root[MQTT_MODES].to<JsonArray>();
   // sort array for nice UI in HA
   if (traits.supports_mode(CLIMATE_MODE_AUTO))
-    modes.add("auto");
-  modes.add("off");
+    modes.add(ESPHOME_F("auto"));
+  modes.add(ESPHOME_F("off"));
   if (traits.supports_mode(CLIMATE_MODE_COOL))
-    modes.add("cool");
+    modes.add(ESPHOME_F("cool"));
   if (traits.supports_mode(CLIMATE_MODE_HEAT))
-    modes.add("heat");
+    modes.add(ESPHOME_F("heat"));
   if (traits.supports_mode(CLIMATE_MODE_FAN_ONLY))
-    modes.add("fan_only");
+    modes.add(ESPHOME_F("fan_only"));
   if (traits.supports_mode(CLIMATE_MODE_DRY))
-    modes.add("dry");
+    modes.add(ESPHOME_F("dry"));
   if (traits.supports_mode(CLIMATE_MODE_HEAT_COOL))
-    modes.add("heat_cool");
+    modes.add(ESPHOME_F("heat_cool"));
 
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
@@ -90,21 +90,21 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
     // preset_mode_state_topic
     root[MQTT_PRESET_MODE_STATE_TOPIC] = this->get_preset_state_topic();
     // presets
-    JsonArray presets = root["preset_modes"].to<JsonArray>();
+    JsonArray presets = root[ESPHOME_F("preset_modes")].to<JsonArray>();
     if (traits.supports_preset(CLIMATE_PRESET_HOME))
-      presets.add("home");
+      presets.add(ESPHOME_F("home"));
     if (traits.supports_preset(CLIMATE_PRESET_AWAY))
-      presets.add("away");
+      presets.add(ESPHOME_F("away"));
     if (traits.supports_preset(CLIMATE_PRESET_BOOST))
-      presets.add("boost");
+      presets.add(ESPHOME_F("boost"));
     if (traits.supports_preset(CLIMATE_PRESET_COMFORT))
-      presets.add("comfort");
+      presets.add(ESPHOME_F("comfort"));
     if (traits.supports_preset(CLIMATE_PRESET_ECO))
-      presets.add("eco");
+      presets.add(ESPHOME_F("eco"));
     if (traits.supports_preset(CLIMATE_PRESET_SLEEP))
-      presets.add("sleep");
+      presets.add(ESPHOME_F("sleep"));
     if (traits.supports_preset(CLIMATE_PRESET_ACTIVITY))
-      presets.add("activity");
+      presets.add(ESPHOME_F("activity"));
     for (const auto &preset : traits.get_supported_custom_presets())
       presets.add(preset);
   }
@@ -120,27 +120,27 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
     // fan_mode_state_topic
     root[MQTT_FAN_MODE_STATE_TOPIC] = this->get_fan_mode_state_topic();
     // fan_modes
-    JsonArray fan_modes = root["fan_modes"].to<JsonArray>();
+    JsonArray fan_modes = root[ESPHOME_F("fan_modes")].to<JsonArray>();
     if (traits.supports_fan_mode(CLIMATE_FAN_ON))
-      fan_modes.add("on");
+      fan_modes.add(ESPHOME_F("on"));
     if (traits.supports_fan_mode(CLIMATE_FAN_OFF))
-      fan_modes.add("off");
+      fan_modes.add(ESPHOME_F("off"));
     if (traits.supports_fan_mode(CLIMATE_FAN_AUTO))
-      fan_modes.add("auto");
+      fan_modes.add(ESPHOME_F("auto"));
     if (traits.supports_fan_mode(CLIMATE_FAN_LOW))
-      fan_modes.add("low");
+      fan_modes.add(ESPHOME_F("low"));
     if (traits.supports_fan_mode(CLIMATE_FAN_MEDIUM))
-      fan_modes.add("medium");
+      fan_modes.add(ESPHOME_F("medium"));
     if (traits.supports_fan_mode(CLIMATE_FAN_HIGH))
-      fan_modes.add("high");
+      fan_modes.add(ESPHOME_F("high"));
     if (traits.supports_fan_mode(CLIMATE_FAN_MIDDLE))
-      fan_modes.add("middle");
+      fan_modes.add(ESPHOME_F("middle"));
     if (traits.supports_fan_mode(CLIMATE_FAN_FOCUS))
-      fan_modes.add("focus");
+      fan_modes.add(ESPHOME_F("focus"));
     if (traits.supports_fan_mode(CLIMATE_FAN_DIFFUSE))
-      fan_modes.add("diffuse");
+      fan_modes.add(ESPHOME_F("diffuse"));
     if (traits.supports_fan_mode(CLIMATE_FAN_QUIET))
-      fan_modes.add("quiet");
+      fan_modes.add(ESPHOME_F("quiet"));
     for (const auto &fan_mode : traits.get_supported_custom_fan_modes())
       fan_modes.add(fan_mode);
   }
@@ -151,15 +151,15 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
     // swing_mode_state_topic
     root[MQTT_SWING_MODE_STATE_TOPIC] = this->get_swing_mode_state_topic();
     // swing_modes
-    JsonArray swing_modes = root["swing_modes"].to<JsonArray>();
+    JsonArray swing_modes = root[ESPHOME_F("swing_modes")].to<JsonArray>();
     if (traits.supports_swing_mode(CLIMATE_SWING_OFF))
-      swing_modes.add("off");
+      swing_modes.add(ESPHOME_F("off"));
     if (traits.supports_swing_mode(CLIMATE_SWING_BOTH))
-      swing_modes.add("both");
+      swing_modes.add(ESPHOME_F("both"));
     if (traits.supports_swing_mode(CLIMATE_SWING_VERTICAL))
-      swing_modes.add("vertical");
+      swing_modes.add(ESPHOME_F("vertical"));
     if (traits.supports_swing_mode(CLIMATE_SWING_HORIZONTAL))
-      swing_modes.add("horizontal");
+      swing_modes.add(ESPHOME_F("horizontal"));
   }
 
   config.state_topic = false;

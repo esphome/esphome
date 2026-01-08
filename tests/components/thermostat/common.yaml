@@ -41,6 +41,7 @@ climate:
       - logger.log: dry_mode
     fan_only_mode:
       - logger.log: fan_only_mode
+    heat_cool_mode: true
     fan_mode_auto_action:
       - logger.log: fan_mode_auto_action
     fan_mode_on_action:
