@@ -161,7 +161,7 @@ static const char *const TAG = "wifi";
 /// │                              ↓                                       │
 /// │    ┌─────────────────────────────────────────────────────────────┐   │
 /// │    │                       SCANNING                              │   │
-/// │    │  (check_roaming_ starts scan, attempts++)                   │   │
+/// │    │  (attempts++ in check_roaming_ before entering this state)  │   │
 /// │    └─────────────────────────┬───────────────────────────────────┘   │
 /// │                              │                                       │
 /// │               ┌──────────────┼──────────────┐                        │
@@ -2035,7 +2035,8 @@ void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: skip scan if signal is already good (no meaningful improvement possible)
   int8_t rssi = this->wifi_rssi();
   if (rssi > ROAMING_GOOD_RSSI) {
-    ESP_LOGV(TAG, "Roam check skipped, signal good (%d dBm)", rssi);
+    ESP_LOGV(TAG, "Roam check skipped, signal good (%d dBm, attempt %u/%u)", rssi, this->roaming_attempts_,
+             ROAMING_MAX_ATTEMPTS);
     return;
   }
 
