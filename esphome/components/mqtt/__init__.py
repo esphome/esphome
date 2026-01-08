@@ -77,6 +77,13 @@ CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 
+# Max lengths for stack-based topic building.
+# These values are used in cv.Length() validators below to ensure the C++ code
+# in mqtt_component.cpp can safely use fixed-size stack buffers without overflow.
+# If you change these, update the corresponding constants in mqtt_component.cpp.
+TOPIC_PREFIX_MAX_LEN = 64  # Default is device name, typically short
+DISCOVERY_PREFIX_MAX_LEN = 64  # Default is "homeassistant" (13 chars)
+
 
 def validate_message_just_topic(value):
     value = cv.publish_topic(value)
@@ -253,9 +260,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
             cv.Optional(CONF_DISCOVER_IP, default=True): cv.boolean,
-            cv.Optional(
-                CONF_DISCOVERY_PREFIX, default="homeassistant"
-            ): cv.publish_topic,
+            cv.Optional(CONF_DISCOVERY_PREFIX, default="homeassistant"): cv.All(
+                cv.publish_topic, cv.Length(max=DISCOVERY_PREFIX_MAX_LEN)
+            ),
             cv.Optional(CONF_DISCOVERY_UNIQUE_ID_GENERATOR, default="legacy"): cv.enum(
                 MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS
             ),
@@ -266,7 +273,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
-            cv.Optional(CONF_TOPIC_PREFIX, default=lambda: CORE.name): cv.publish_topic,
+            cv.Optional(CONF_TOPIC_PREFIX, default=lambda: CORE.name): cv.All(
+                cv.publish_topic, cv.Length(max=TOPIC_PREFIX_MAX_LEN)
+            ),
             cv.Optional(CONF_LOG_TOPIC): cv.Any(
                 None,
                 MQTT_MESSAGE_BASE.extend(

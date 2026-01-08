@@ -14,7 +14,7 @@ static const char *const TAG = "mqtt.light";
 
 using namespace esphome::light;
 
-std::string MQTTJSONLightComponent::component_type() const { return "light"; }
+MQTT_COMPONENT_TYPE(MQTTJSONLightComponent, "light")
 const EntityBase *MQTTJSONLightComponent::get_entity() const { return this->state_; }
 
 void MQTTJSONLightComponent::setup() {
