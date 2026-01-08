@@ -18,7 +18,6 @@ namespace esphome::infrared_proxy {
 /// Feature flags for infrared proxy component availability
 enum InfraredProxyFeature : uint32_t {
   FEATURE_INFRARED_PROXY_ENABLED = 1 << 0,
-  FEATURE_INFRARED_PROXY_SUPPORTS_GENERIC_PULSE_WIDTH = 1 << 1,
 };
 
 /// Capability flags for individual infrared proxy instances
@@ -29,10 +28,7 @@ enum InfraredProxyCapability : uint32_t {
 
 #ifdef USE_API
 /// Get global feature flags for infrared proxy component (not instance-specific)
-inline uint32_t get_infrared_proxy_feature_flags() {
-  return InfraredProxyFeature::FEATURE_INFRARED_PROXY_ENABLED |
-         InfraredProxyFeature::FEATURE_INFRARED_PROXY_SUPPORTS_GENERIC_PULSE_WIDTH;
-}
+inline uint32_t get_infrared_proxy_feature_flags() { return InfraredProxyFeature::FEATURE_INFRARED_PROXY_ENABLED; }
 #endif
 
 class InfraredProxyComponent : public Component, public EntityBase, public remote_base::RemoteReceiverListener {
