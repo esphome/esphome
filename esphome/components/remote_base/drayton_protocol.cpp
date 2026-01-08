@@ -15,10 +15,8 @@ static const uint8_t NBITS_SYNC = 4;
 static const uint8_t NBITS_ADDRESS = 16;
 static const uint8_t NBITS_DATA = 4;
 static const uint8_t NBITS_CHECKSUM = 8;
-/* depreciated */
 static const uint8_t NBITS_COMMAND = 7;
 static const uint8_t NBITS_CHANNEL = 5;
-/* */
 static const uint8_t NBITS_PKT = NBITS_ADDRESS + NBITS_DATA + NBITS_CHECKSUM;
 static const uint8_t MIN_RX_SRC = (NBITS_PKT + NBITS_SYNC / 2);
 
@@ -107,7 +105,6 @@ To maintain backward compatibility with the initial revision of this module the 
 is reported without taking the endianness of the address nibbles.
 
 --------------------
-// Depreciated
 
 Initially I had used 'RFLink' software (RLink Firmware Version: 1.1 Revision: 48) to
 capture and retransmit the Digistat packets. RFLink splits each packet into an
@@ -136,7 +133,6 @@ maintain compatability with the initial version of this module the address, chan
 and command are calculated in the same way, even though they are incorrect. They
 will be depreciated and removed at some point.
 
-// End Depreciation
 --------------------
 
 Any suggestions or corrections would be gratefully received.
@@ -236,10 +232,8 @@ void DraytonProtocol::encode(RemoteTransmitData *dst, const DraytonData &data) {
 
   ESP_LOGV(TAG, "out_data %07" PRIx32, out_data);
 
-  /* Depreciated
-   */
   /* At this point, if address and data are all 0 (default) the packet & crc will be all zeros
-     and the depreciated values can be or'd into the data
+     and the depreciated 'channel' and 'command' values can be or'd into the data
   */
   if (data.channel || data.command) {
     ESP_LOGD(TAG, "addr=%04" PRIx16 " channel=%03" PRIx8 " cmd=%02" PRIx8, data.address, data.channel, data.command);
@@ -252,7 +246,6 @@ void DraytonProtocol::encode(RemoteTransmitData *dst, const DraytonData &data) {
 
     ESP_LOGV(TAG, "out_data %07" PRIx32, out_data);
   }
-  /* */
 
   for (uint32_t mask = 1UL << (NBITS_PKT - 1); mask != 0; mask >>= 1) {
     if (out_data & mask) {
@@ -355,10 +348,8 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
 
     out.data = (uint8_t) ((out_data >> NBITS_CHECKSUM) & 0x0F);
     out.address = (uint16_t) ((out_data >> (NBITS_CHECKSUM + NBITS_DATA)) & 0xFFFF);
-    /* Depreciated */
     out.channel = (uint8_t) (out_data & 0x1F);
     out.command = (uint8_t) ((out_data >> NBITS_CHANNEL) & 0x7F);
-    /* */
 
     return out;
   }
