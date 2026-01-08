@@ -232,6 +232,8 @@ def validate_use_legacy(value):
         if (not value[CONF_USE_LEGACY]) and (CORE.using_arduino):
             raise cv.Invalid("Arduino supports only the legacy i2s driver")
         _set_use_legacy_driver(value[CONF_USE_LEGACY])
+    elif CORE.using_arduino:
+        _set_use_legacy_driver(True)
     return value
 
 
@@ -261,8 +263,7 @@ def _final_validate(_):
 
 
 def use_legacy():
-    legacy_driver = _get_use_legacy_driver()
-    return not (CORE.using_esp_idf and not legacy_driver)
+    return _get_use_legacy_driver()
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

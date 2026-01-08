@@ -117,18 +117,6 @@ void AsyncWebServer::end() {
   }
 }
 
-void AsyncWebServer::set_lru_purge_enable(bool enable) {
-  if (this->lru_purge_enable_ == enable) {
-    return;  // No change needed
-  }
-  this->lru_purge_enable_ = enable;
-  // If server is already running, restart it with new config
-  if (this->server_) {
-    this->end();
-    this->begin();
-  }
-}
-
 void AsyncWebServer::begin() {
   if (this->server_) {
     this->end();
@@ -136,8 +124,11 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
-  // Enable LRU purging if requested (e.g., by captive portal to handle probe bursts)
-  config.lru_purge_enable = this->lru_purge_enable_;
+  // Always enable LRU purging to handle socket exhaustion gracefully.
+  // When max sockets is reached, the oldest connection is closed to make room for new ones.
+  // This prevents "httpd_accept_conn: error in accept (23)" errors.
+  // See: https://github.com/esphome/esphome/issues/12464
+  config.lru_purge_enable = true;
   // Use custom close function that shuts down before closing to prevent lwIP race conditions
   config.close_fn = AsyncWebServer::safe_close_with_shutdown;
   if (httpd_start(&this->server_, &config) == ESP_OK) {
@@ -256,11 +247,20 @@ optional<std::string> AsyncWebServerRequest::get_header(const char *name) const 
 }
 
 std::string AsyncWebServerRequest::url() const {
-  auto *str = strchr(this->req_->uri, '?');
-  if (str == nullptr) {
-    return this->req_->uri;
+  auto *query_start = strchr(this->req_->uri, '?');
+  std::string result;
+  if (query_start == nullptr) {
+    result = this->req_->uri;
+  } else {
+    result = std::string(this->req_->uri, query_start - this->req_->uri);
   }
-  return std::string(this->req_->uri, str - this->req_->uri);
+  // Decode URL-encoded characters in-place (e.g., %20 -> space)
+  // This matches AsyncWebServer behavior on Arduino
+  if (!result.empty()) {
+    size_t new_len = url_decode(&result[0]);
+    result.resize(new_len);
+  }
+  return result;
 }
 
 std::string AsyncWebServerRequest::host() const { return this->get_header("Host").value(); }
@@ -352,8 +352,9 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
 
 void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
   httpd_resp_set_hdr(*this, "Connection", "keep-alive");
-  auto auth_val = str_sprintf("Basic realm=\"%s\"", realm ? realm : "Login Required");
-  httpd_resp_set_hdr(*this, "WWW-Authenticate", auth_val.c_str());
+  // Note: realm is never configured in ESPHome, always nullptr -> "Login Required"
+  (void) realm;  // Unused - always use default
+  httpd_resp_set_hdr(*this, "WWW-Authenticate", "Basic realm=\"Login Required\"");
   httpd_resp_send_err(*this, HTTPD_401_UNAUTHORIZED, nullptr);
 }
 #endif
