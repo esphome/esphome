@@ -1,0 +1,35 @@
+ch423:
+  - id: ch423_hub
+    i2c_id: i2c_bus
+
+binary_sensor:
+  - platform: gpio
+    id: ch423_input
+    name: CH423 Binary Sensor
+    pin:
+      ch423: ch423_hub
+      number: 1
+      mode: INPUT
+      inverted: true
+output:
+  - platform: gpio
+    id: ch423_out_0
+    pin:
+      ch423: ch423_hub
+      number: 0
+      mode: OUTPUT
+      inverted: false
+  - platform: gpio
+    id: ch423_out_11
+    pin:
+      ch423: ch423_hub
+      number: 11
+      mode: OUTPUT_OPEN_DRAIN
+      inverted: true
+  - platform: gpio
+    id: ch423_out_23
+    pin:
+      ch423: ch423_hub
+      number: 23
+      mode: OUTPUT_OPEN_DRAIN
+      inverted: false
