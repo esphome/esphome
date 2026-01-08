@@ -161,7 +161,7 @@ static const char *const TAG = "wifi";
 /// │                              ↓                                       │
 /// │    ┌─────────────────────────────────────────────────────────────┐   │
 /// │    │                       SCANNING                              │   │
-/// │    │  (check_roaming_ starts scan, attempts++)                   │   │
+/// │    │  (attempts++ in check_roaming_ before entering this state)  │   │
 /// │    └─────────────────────────┬───────────────────────────────────┘   │
 /// │                              │                                       │
 /// │               ┌──────────────┼──────────────┐                        │
