@@ -15,7 +15,6 @@ namespace esphome::zigbee {
 class ZigbeeTime : public time::RealTimeClock, public ZigbeeEntity {
  public:
   void setup() override;
-  float get_setup_priority() const override { return setup_priority::HARDWARE - 1.0f; }
   void dump_config() override;
   void update() override;
 
