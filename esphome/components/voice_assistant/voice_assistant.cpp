@@ -3,6 +3,7 @@
 
 #ifdef USE_VOICE_ASSISTANT
 
+#include "esphome/components/socket/socket.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -238,10 +239,10 @@ void VoiceAssistant::loop() {
 
       api::VoiceAssistantRequest msg;
       msg.start = true;
-      msg.set_conversation_id(StringRef(this->conversation_id_));
+      msg.conversation_id = StringRef(this->conversation_id_);
       msg.flags = flags;
       msg.audio_settings = audio_settings;
-      msg.set_wake_word_phrase(StringRef(this->wake_word_));
+      msg.wake_word_phrase = StringRef(this->wake_word_);
 
       // Reset media player state tracking
 #ifdef USE_MEDIA_PLAYER
@@ -433,8 +434,8 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
              "Multiple API Clients attempting to connect to Voice Assistant\n"
              "Current client: %s (%s)\n"
              "New client: %s (%s)",
-             this->api_client_->get_name().c_str(), this->api_client_->get_peername().c_str(),
-             client->get_name().c_str(), client->get_peername().c_str());
+             this->api_client_->get_name(), this->api_client_->get_peername(), client->get_name(),
+             client->get_peername());
     return;
   }
 

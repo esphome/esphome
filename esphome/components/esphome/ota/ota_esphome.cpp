@@ -4,6 +4,7 @@
 #include "esphome/components/sha256/sha256.h"
 #endif
 #include "esphome/components/network/util.h"
+#include "esphome/components/socket/socket.h"
 #include "esphome/components/ota/ota_backend.h"
 #include "esphome/components/ota/ota_backend_esp8266.h"
 #include "esphome/components/ota/ota_backend_arduino_libretiny.h"
@@ -443,7 +444,9 @@ void ESPHomeOTAComponent::log_socket_error_(const LogString *msg) {
 void ESPHomeOTAComponent::log_read_error_(const LogString *what) { ESP_LOGW(TAG, "Read %s failed", LOG_STR_ARG(what)); }
 
 void ESPHomeOTAComponent::log_start_(const LogString *phase) {
-  ESP_LOGD(TAG, "Starting %s from %s", LOG_STR_ARG(phase), this->client_->getpeername().c_str());
+  char peername[socket::SOCKADDR_STR_LEN];
+  this->client_->getpeername_to(peername);
+  ESP_LOGD(TAG, "Starting %s from %s", LOG_STR_ARG(phase), peername);
 }
 
 void ESPHomeOTAComponent::log_remote_closed_(const LogString *during) {
