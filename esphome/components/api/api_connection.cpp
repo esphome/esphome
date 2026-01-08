@@ -1647,10 +1647,6 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #ifdef USE_INFRARED_PROXY
   // Get global feature flags for the infrared_proxy component
   resp.infrared_proxy_feature_flags = infrared_proxy::get_infrared_proxy_feature_flags();
-  // Get supported protocols as JSON - write directly to local string to avoid intermediate allocations
-  std::string supported_protocols;
-  infrared_proxy::get_infrared_proxy_supported_protocols(supported_protocols);
-  resp.infrared_proxy_supported_protocols = StringRef(supported_protocols);
 #endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;
@@ -2115,14 +2111,6 @@ void APIConnection::process_state_subscriptions_() {
 #endif  // USE_API_HOMEASSISTANT_STATES
 
 #ifdef USE_INFRARED_PROXY
-void APIConnection::infrared_proxy_transmit_pulse_width(const InfraredProxyTransmitPulseWidthRequest &msg) {
-  this->parent_->on_infrared_proxy_transmit_pulse_width_request(msg);
-}
-
-void APIConnection::infrared_proxy_transmit_protocol(const InfraredProxyTransmitProtocolRequest &msg) {
-  this->parent_->on_infrared_proxy_transmit_protocol_request(msg);
-}
-
 void APIConnection::infrared_proxy_transmit_raw_timings(const InfraredProxyTransmitRawTimingsRequest &msg) {
   this->parent_->on_infrared_proxy_transmit_raw_timings_request(msg);
 }

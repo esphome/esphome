@@ -219,12 +219,6 @@ class APIServerConnectionBase : public ProtoService {
 #endif
 
 #ifdef USE_INFRARED_PROXY
-  virtual void on_infrared_proxy_transmit_pulse_width_request(const InfraredProxyTransmitPulseWidthRequest &value){};
-#endif
-#ifdef USE_INFRARED_PROXY
-  virtual void on_infrared_proxy_transmit_protocol_request(const InfraredProxyTransmitProtocolRequest &value){};
-#endif
-#ifdef USE_INFRARED_PROXY
   virtual void on_infrared_proxy_transmit_raw_timings_request(const InfraredProxyTransmitRawTimingsRequest &value){};
 #endif
 
@@ -360,12 +354,6 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void zwave_proxy_request(const ZWaveProxyRequest &msg) = 0;
 #endif
 #ifdef USE_INFRARED_PROXY
-  virtual void infrared_proxy_transmit_pulse_width(const InfraredProxyTransmitPulseWidthRequest &msg) = 0;
-#endif
-#ifdef USE_INFRARED_PROXY
-  virtual void infrared_proxy_transmit_protocol(const InfraredProxyTransmitProtocolRequest &msg) = 0;
-#endif
-#ifdef USE_INFRARED_PROXY
   virtual void infrared_proxy_transmit_raw_timings(const InfraredProxyTransmitRawTimingsRequest &msg) = 0;
 #endif
  protected:
@@ -493,12 +481,6 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_ZWAVE_PROXY
   void on_z_wave_proxy_request(const ZWaveProxyRequest &msg) override;
-#endif
-#ifdef USE_INFRARED_PROXY
-  void on_infrared_proxy_transmit_pulse_width_request(const InfraredProxyTransmitPulseWidthRequest &msg) override;
-#endif
-#ifdef USE_INFRARED_PROXY
-  void on_infrared_proxy_transmit_protocol_request(const InfraredProxyTransmitProtocolRequest &msg) override;
 #endif
 #ifdef USE_INFRARED_PROXY
   void on_infrared_proxy_transmit_raw_timings_request(const InfraredProxyTransmitRawTimingsRequest &msg) override;

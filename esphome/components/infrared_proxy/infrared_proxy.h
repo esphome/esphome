@@ -33,10 +33,6 @@ inline uint32_t get_infrared_proxy_feature_flags() {
   return InfraredProxyFeature::FEATURE_INFRARED_PROXY_ENABLED |
          InfraredProxyFeature::FEATURE_INFRARED_PROXY_SUPPORTS_GENERIC_PULSE_WIDTH;
 }
-
-/// Write JSON-formatted list of all supported infrared/RF protocols to output string
-/// @param out Output string to write JSON array to (avoids intermediate allocations)
-void get_infrared_proxy_supported_protocols(std::string &out);
 #endif
 
 class InfraredProxyComponent : public Component, public EntityBase, public remote_base::RemoteReceiverListener {
@@ -63,12 +59,6 @@ class InfraredProxyComponent : public Component, public EntityBase, public remot
   /// Get capability flags for this infrared proxy instance
   uint32_t get_capability_flags() const;
 
-  /// Transmit IR/RF data using pulse width encoding parameters
-  void transmit_pulse_width(const api::InfraredProxyTransmitPulseWidthRequest &msg);
-
-  /// Transmit IR/RF data using JSON protocol specification
-  void transmit_protocol(const api::InfraredProxyTransmitProtocolRequest &msg);
-
   /// Transmit IR/RF data using raw timings array
   void transmit_raw_timings(const api::InfraredProxyTransmitRawTimingsRequest &msg);
 
@@ -77,16 +67,6 @@ class InfraredProxyComponent : public Component, public EntityBase, public remot
 #endif
 
  protected:
-#ifdef USE_API
-  /// Encode data bytes into raw timings based on timing parameters
-  void encode_data_(const api::InfraredProxyTimingParams &timing, const std::vector<uint8_t> &data,
-                    remote_base::RemoteTransmitData *transmit_data);
-
-  /// Encode data bits into timings (helper for encode_data_)
-  void encode_bits_(const api::InfraredProxyTimingParams &timing, const std::vector<uint8_t> &data, uint32_t total_bits,
-                    remote_base::RemoteTransmitData *transmit_data);
-#endif
-
   // Targeted RF frequency in kHz (Hz / 1000); 0 = infrared, non-zero = RF
   uint32_t frequency_{0};
   // Underlying hardware components

@@ -163,8 +163,6 @@ class APIConnection final : public APIServerConnection {
 #endif
 
 #ifdef USE_INFRARED_PROXY
-  void infrared_proxy_transmit_pulse_width(const InfraredProxyTransmitPulseWidthRequest &msg) override;
-  void infrared_proxy_transmit_protocol(const InfraredProxyTransmitProtocolRequest &msg) override;
   void infrared_proxy_transmit_raw_timings(const InfraredProxyTransmitRawTimingsRequest &msg) override;
   void send_list_entities_infrared_proxy_response(const ListEntitiesInfraredProxyResponse &msg);
   void send_infrared_proxy_receive_event(const InfraredProxyReceiveEvent &msg);

@@ -830,9 +830,6 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 #ifdef USE_INFRARED_PROXY
   dump_field(out, "infrared_proxy_feature_flags", this->infrared_proxy_feature_flags);
 #endif
-#ifdef USE_INFRARED_PROXY
-  dump_field(out, "infrared_proxy_supported_protocols", this->infrared_proxy_supported_protocols);
-#endif
 }
 void ListEntitiesRequest::dump_to(std::string &out) const { out.append("ListEntitiesRequest {}"); }
 void ListEntitiesDoneResponse::dump_to(std::string &out) const { out.append("ListEntitiesDoneResponse {}"); }
@@ -2331,39 +2328,6 @@ void ListEntitiesInfraredProxyResponse::dump_to(std::string &out) const {
 #endif
   dump_field(out, "capabilities", this->capabilities);
   dump_field(out, "frequency", this->frequency);
-}
-void InfraredProxyTimingParams::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "InfraredProxyTimingParams");
-  dump_field(out, "frequency", this->frequency);
-  dump_field(out, "length_in_bits", this->length_in_bits);
-  dump_field(out, "header_high_us", this->header_high_us);
-  dump_field(out, "header_low_us", this->header_low_us);
-  dump_field(out, "one_high_us", this->one_high_us);
-  dump_field(out, "one_low_us", this->one_low_us);
-  dump_field(out, "zero_high_us", this->zero_high_us);
-  dump_field(out, "zero_low_us", this->zero_low_us);
-  dump_field(out, "footer_high_us", this->footer_high_us);
-  dump_field(out, "footer_low_us", this->footer_low_us);
-  dump_field(out, "repeat_high_us", this->repeat_high_us);
-  dump_field(out, "repeat_low_us", this->repeat_low_us);
-  dump_field(out, "minimum_idle_time_us", this->minimum_idle_time_us);
-  dump_field(out, "msb_first", this->msb_first);
-  dump_field(out, "repeat_count", this->repeat_count);
-}
-void InfraredProxyTransmitPulseWidthRequest::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "InfraredProxyTransmitPulseWidthRequest");
-  dump_field(out, "key", this->key);
-  out.append("  timing: ");
-  this->timing.dump_to(out);
-  out.append("\n");
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data, this->data_len));
-  out.append("\n");
-}
-void InfraredProxyTransmitProtocolRequest::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "InfraredProxyTransmitProtocolRequest");
-  dump_field(out, "key", this->key);
-  dump_field(out, "protocol_json", this->protocol_json);
 }
 void InfraredProxyTransmitRawTimingsRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "InfraredProxyTransmitRawTimingsRequest");

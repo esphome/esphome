@@ -122,9 +122,6 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_INFRARED_PROXY
   buffer.encode_uint32(25, this->infrared_proxy_feature_flags);
 #endif
-#ifdef USE_INFRARED_PROXY
-  buffer.encode_string(26, this->infrared_proxy_supported_protocols);
-#endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->name.size());
@@ -182,9 +179,6 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #endif
 #ifdef USE_INFRARED_PROXY
   size.add_uint32(2, this->infrared_proxy_feature_flags);
-#endif
-#ifdef USE_INFRARED_PROXY
-  size.add_length(2, this->infrared_proxy_supported_protocols.size());
 #endif
 }
 #ifdef USE_BINARY_SENSOR
@@ -3389,104 +3383,6 @@ void ListEntitiesInfraredProxyResponse::calculate_size(ProtoSize &size) const {
 #endif
   size.add_uint32(1, this->capabilities);
   size.add_uint32(1, this->frequency);
-}
-bool InfraredProxyTimingParams::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 1:
-      this->frequency = value.as_uint32();
-      break;
-    case 2:
-      this->length_in_bits = value.as_uint32();
-      break;
-    case 3:
-      this->header_high_us = value.as_uint32();
-      break;
-    case 4:
-      this->header_low_us = value.as_uint32();
-      break;
-    case 5:
-      this->one_high_us = value.as_uint32();
-      break;
-    case 6:
-      this->one_low_us = value.as_uint32();
-      break;
-    case 7:
-      this->zero_high_us = value.as_uint32();
-      break;
-    case 8:
-      this->zero_low_us = value.as_uint32();
-      break;
-    case 9:
-      this->footer_high_us = value.as_uint32();
-      break;
-    case 10:
-      this->footer_low_us = value.as_uint32();
-      break;
-    case 11:
-      this->repeat_high_us = value.as_uint32();
-      break;
-    case 12:
-      this->repeat_low_us = value.as_uint32();
-      break;
-    case 13:
-      this->minimum_idle_time_us = value.as_uint32();
-      break;
-    case 14:
-      this->msb_first = value.as_bool();
-      break;
-    case 15:
-      this->repeat_count = value.as_uint32();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool InfraredProxyTransmitPulseWidthRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 2:
-      value.decode_to_message(this->timing);
-      break;
-    case 3: {
-      this->data = value.data();
-      this->data_len = value.size();
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-bool InfraredProxyTransmitPulseWidthRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool InfraredProxyTransmitProtocolRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 2: {
-      this->protocol_json = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-bool InfraredProxyTransmitProtocolRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
-  switch (field_id) {
-    case 1:
-      this->key = value.as_fixed32();
-      break;
-    default:
-      return false;
-  }
-  return true;
 }
 bool InfraredProxyTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
