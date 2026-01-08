@@ -839,7 +839,7 @@ async def to_code(config):
         )
         cg.add(var.set_supports_heat(True))
     if CONF_HEAT_COOL_MODE in config:
-        # Only build automation if it's not an empty list (user provided automation actions)
+        # Build automation only if user provided actions (not just `true`)
         if config[CONF_HEAT_COOL_MODE]:
             await automation.build_automation(
                 var.get_heat_cool_mode_trigger(), [], config[CONF_HEAT_COOL_MODE]
