@@ -32,7 +32,6 @@ from esphome.const import (
     CONF_TIME_CONSTANT,
     CONF_VALUE,
     CONF_VOC,
-    CONF_VOC_BASELINE,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
@@ -71,12 +70,14 @@ CONF_HCHO = "hcho"
 ICON_MOLECULE = "mdi:molecule"
 
 # Actions
-StartFanAction = sen5x_ns.class_("StartFanAction", automation.Action)
+StartFanCleaningAction = sen5x_ns.class_("StartFanCleaningAction", automation.Action)
 ActivateHeaterAction = sen5x_ns.class_("ActivateHeaterAction", automation.Action)
 PerformForcedCo2CalibrationAction = sen5x_ns.class_(
     "PerformForcedCo2CalibrationAction", automation.Action
 )
-SetAmbientPressurehPa = sen5x_ns.class_("SetAmbientPressurehPa", automation.Action)
+SetAmbientPressureCompensationAction = sen5x_ns.class_(
+    "SetAmbientPressureCompensationAction", automation.Action
+)
 
 MODEL_SEN50 = "SEN50"
 MODEL_SEN54 = "SEN54"
@@ -149,20 +150,6 @@ def _gas_sensor(
     )
 
 
-CO2_SENSOR = cv.Schema(
-    {
-        cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
-        cv.Optional(CONF_ALTITUDE_COMPENSATION, default="0m"): cv.All(
-            cv.float_with_unit("altitude", "(m|m a.s.l.|MAMSL|MASL)"),
-            cv.int_range(min=0, max=0xFFFF, max_included=False),
-        ),
-        cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
-            sensor.Sensor
-        ),
-    }
-)
-
-
 def float_previously_pct(value):
     if isinstance(value, str) and "%" in value:
         raise cv.Invalid(
@@ -179,15 +166,17 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES),
             cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval,
             cv.Optional(CONF_STORE_BASELINE): cv.boolean,
-            # CONF_VOC_BASELINE defined in config but never used in original sen5x component
-            cv.Optional(CONF_VOC_BASELINE): cv.hex_uint16_t,
             cv.Optional(CONF_TEMPERATURE_COMPENSATION): cv.Schema(
                 {
-                    cv.Optional(CONF_OFFSET, default=0): cv.float_,
-                    cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0): cv.All(
-                        float_previously_pct, cv.float_
+                    cv.Optional(CONF_OFFSET, default=0): cv.float_range(
+                        min=-100.0, max=100.0
                     ),
-                    cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_,
+                    cv.Optional(
+                        CONF_NORMALIZED_OFFSET_SLOPE, default=0
+                    ): cv.float_range(min=-3.0, max=3.0),
+                    cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_range(
+                        min=0, max=65535
+                    ),
                 }
             ),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
@@ -239,7 +228,24 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(CO2_SENSOR),
+            ).extend(
+                cv.Schema(
+                    {
+                        cv.Optional(
+                            CONF_AUTOMATIC_SELF_CALIBRATION, default=True
+                        ): cv.boolean,
+                        cv.Optional(
+                            CONF_ALTITUDE_COMPENSATION, default=0
+                        ): cv.int_range(min=0, max=3000),
+                        cv.Optional(
+                            CONF_AMBIENT_PRESSURE_COMPENSATION, default=1013
+                        ): cv.int_range(min=700, max=1200),
+                        cv.Optional(
+                            CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE
+                        ): cv.use_id(sensor.Sensor),
+                    }
+                )
+            ),
             cv.Optional(CONF_HCHO): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 icon=ICON_MOLECULE,
@@ -286,9 +292,9 @@ SETTING_MAP = {
 }
 
 CO2_SETTING_MAP = {
-    CONF_AUTOMATIC_SELF_CALIBRATION: "set_co2_auto_calibrate",
-    CONF_ALTITUDE_COMPENSATION: "set_co2_altitude_compensation",
-    CONF_AMBIENT_PRESSURE_COMPENSATION: "set_co2_ambient_pressure_compensation",
+    CONF_AUTOMATIC_SELF_CALIBRATION: "set_automatic_self_calibrate",
+    CONF_ALTITUDE_COMPENSATION: "set_altitude_compensation",
+    CONF_AMBIENT_PRESSURE_COMPENSATION: "set_ambient_pressure_compensation",
 }
 
 
@@ -321,15 +327,7 @@ def final_validate(config):
         MODEL_SEN63C,
     }:
         raise cv.Invalid(f"Model {model} does not support '{CONF_STORE_BASELINE}'.")
-    if CONF_TEMPERATURE_COMPENSATION in config and model in {
-        MODEL_SEN50,
-        MODEL_SEN62,
-        MODEL_SEN63C,
-        MODEL_SEN65,
-        MODEL_SEN66,
-        MODEL_SEN68,
-        MODEL_SEN69C,
-    }:
+    if CONF_TEMPERATURE_COMPENSATION in config and model in {MODEL_SEN50}:
         raise cv.Invalid(
             f"Model {model} does not support '{CONF_TEMPERATURE_COMPENSATION}'."
         )
@@ -433,7 +431,7 @@ SEN5X_ACTION_SCHEMA = maybe_simple_id(
 
 
 @automation.register_action(
-    "sen5x.start_fan_autoclean", StartFanAction, SEN5X_ACTION_SCHEMA
+    "sen5x.start_fan_cleaning", StartFanCleaningAction, SEN5X_ACTION_SCHEMA
 )
 async def sen5x_fan_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -471,17 +469,9 @@ async def sen5x_pfcc_to_code(config, action_id, template_arg, args):
     return var
 
 
-SEN5X_PRESSURE_ACTION_SCHEMA = maybe_simple_id(
-    {
-        cv.GenerateID(): cv.use_id(SEN5XComponent),
-        cv.Required(CONF_VALUE): cv.templatable(cv.positive_int),
-    }
-)
-
-
 @automation.register_action(
-    "sen5x.set_ambient_pressure_hpa",
-    SetAmbientPressurehPa,
+    "sen5x.set_ambient_pressure_compensation",
+    SetAmbientPressureCompensationAction,
     SEN5X_VALUE_ACTION_SCHEMA,
 )
 async def sen5x_saph_to_code(config, action_id, template_arg, args):
