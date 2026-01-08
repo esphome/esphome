@@ -747,15 +747,15 @@ void APIServer::list_infrared_proxy_entities(APIConnection *conn) {
     msg.key = infrared_proxy->get_object_id_hash();
 
     char object_id_buf[OBJECT_ID_MAX_LEN];
-    msg.set_object_id(infrared_proxy->get_object_id_to(object_id_buf));
+    msg.object_id = infrared_proxy->get_object_id_to(object_id_buf);
 
     if (infrared_proxy->has_own_name()) {
-      msg.set_name(infrared_proxy->get_name());
+      msg.name = StringRef(infrared_proxy->get_name());
     }
 
     // Set common EntityBase properties
 #ifdef USE_ENTITY_ICON
-    msg.set_icon(infrared_proxy->get_icon_ref());
+    msg.icon = infrared_proxy->get_icon_ref();
 #endif
     msg.disabled_by_default = infrared_proxy->is_disabled_by_default();
     msg.entity_category = static_cast<enums::EntityCategory>(infrared_proxy->get_entity_category());

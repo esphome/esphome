@@ -1650,7 +1650,7 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   // Get supported protocols as JSON - write directly to local string to avoid intermediate allocations
   std::string supported_protocols;
   infrared_proxy::get_infrared_proxy_supported_protocols(supported_protocols);
-  resp.set_infrared_proxy_supported_protocols(StringRef(supported_protocols));
+  resp.infrared_proxy_supported_protocols = StringRef(supported_protocols);
 #endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;
