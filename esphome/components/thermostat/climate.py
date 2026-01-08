@@ -153,7 +153,7 @@ def generate_comparable_preset(config, name):
     return comparable_preset
 
 
-def validate_heat_cool_mode(value):
+def validate_heat_cool_mode(value) -> list:
     """Validate heat_cool_mode - accepts either True or an automation."""
     if value is True:
         # Convert True to empty automation list
