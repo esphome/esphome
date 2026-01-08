@@ -500,15 +500,12 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
   // Format: {prefix}/{device?}/{name}
   // Buffer sizes use constants from entity_base.h validated in core/config.py
 #ifdef USE_DEVICES
-  // domain + "/" + device + "/" + name + null
   static constexpr size_t ID_BUF_SIZE =
       ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
-  char id_buf[ID_BUF_SIZE];
 #else
-  // domain + "/" + name + null
   static constexpr size_t ID_BUF_SIZE = ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
-  char id_buf[ID_BUF_SIZE];
 #endif
+  char id_buf[ID_BUF_SIZE];
   char *p = id_buf;
   memcpy(p, prefix, prefix_len);
   p += prefix_len;

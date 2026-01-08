@@ -22,7 +22,7 @@ static constexpr size_t ESPHOME_FRIENDLY_NAME_MAX_LEN = 120;
 // Maximum domain length (longest: "alarm_control_panel" = 19)
 static constexpr size_t ESPHOME_DOMAIN_MAX_LEN = 20;
 
-// Maximum size for object_id buffer (friendly_name + margin for sanitization)
+// Maximum size for object_id buffer (friendly_name + null + margin)
 static constexpr size_t OBJECT_ID_MAX_LEN = 128;
 
 enum EntityCategory : uint8_t {
