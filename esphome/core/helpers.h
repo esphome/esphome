@@ -404,6 +404,16 @@ constexpr uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
 inline uint32_t fnv1a_hash_extend(uint32_t hash, const std::string &str) {
   return fnv1a_hash_extend(hash, str.c_str());
 }
+/// Extend a FNV-1a hash with an integer (hashes each byte).
+template<std::integral T> constexpr uint32_t fnv1a_hash_extend(uint32_t hash, T value) {
+  using UnsignedT = std::make_unsigned_t<T>;
+  UnsignedT uvalue = static_cast<UnsignedT>(value);
+  for (size_t i = 0; i < sizeof(T); i++) {
+    hash ^= (uvalue >> (i * 8)) & 0xFF;
+    hash *= FNV1_PRIME;
+  }
+  return hash;
+}
 /// Calculate a FNV-1a hash of \p str.
 constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
 inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }
@@ -769,6 +779,31 @@ char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data
 template<size_t N>
 inline char *format_hex_pretty_to(char (&buffer)[N], const uint8_t *data, size_t length, char separator = ':') {
   static_assert(N >= 3, "Buffer must hold at least one hex byte");
+  return format_hex_pretty_to(buffer, N, data, length, separator);
+}
+
+/// Calculate buffer size needed for format_hex_pretty_to with uint16_t data: "XXXX:XXXX:...:XXXX\0"
+constexpr size_t format_hex_pretty_uint16_size(size_t count) { return count * 5; }
+
+/**
+ * Format uint16_t array as uppercase hex with separator to pre-allocated buffer.
+ * Each uint16_t is formatted as 4 hex chars in big-endian order.
+ *
+ * @param buffer Output buffer to write to.
+ * @param buffer_size Size of the output buffer.
+ * @param data Pointer to uint16_t array.
+ * @param length Number of uint16_t values.
+ * @param separator Character to use between values, or '\0' for no separator.
+ * @return Pointer to buffer.
+ *
+ * Buffer size needed: length * 5 with separator (for "XXXX:XXXX\0"), length * 4 + 1 without.
+ */
+char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint16_t *data, size_t length, char separator = ':');
+
+/// Format uint16_t array as uppercase hex with separator to buffer. Automatically deduces buffer size.
+template<size_t N>
+inline char *format_hex_pretty_to(char (&buffer)[N], const uint16_t *data, size_t length, char separator = ':') {
+  static_assert(N >= 5, "Buffer must hold at least one hex uint16_t");
   return format_hex_pretty_to(buffer, N, data, length, separator);
 }
 

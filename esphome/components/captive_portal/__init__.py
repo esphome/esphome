@@ -7,6 +7,7 @@ from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
+    CONF_COMPRESSION,
     CONF_ID,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
@@ -43,6 +44,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
                 web_server_base.WebServerBase
             ),
+            cv.Optional(CONF_COMPRESSION, default="br"): cv.one_of("br", "gzip"),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on(
@@ -95,6 +97,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
     cg.add_define("USE_CAPTIVE_PORTAL")
+
+    if config[CONF_COMPRESSION] == "gzip":
+        cg.add_define("USE_CAPTIVE_PORTAL_GZIP")
 
     if CORE.using_arduino:
         if CORE.is_esp8266:
