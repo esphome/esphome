@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+from dataclasses import dataclass
 import hashlib
 import io
 import logging
@@ -37,11 +38,21 @@ image_ns = cg.esphome_ns.namespace("image")
 
 ImageType = image_ns.enum("ImageType")
 
+
+@dataclass(frozen=True)
+class ImageMetaData:
+    width: int
+    height: int
+    image_type: str
+    transparency: str
+
+
 CONF_OPAQUE = "opaque"
 CONF_CHROMA_KEY = "chroma_key"
 CONF_ALPHA_CHANNEL = "alpha_channel"
 CONF_INVERT_ALPHA = "invert_alpha"
 CONF_IMAGES = "images"
+KEY_METADATA = "metadata"
 
 TRANSPARENCY_TYPES = (
     CONF_OPAQUE,
@@ -374,23 +385,6 @@ def is_svg_file(file):
         return "<svg" in str(f.read(1024))
 
 
-def validate_cairosvg_installed():
-    try:
-        import cairosvg
-    except ImportError as err:
-        raise cv.Invalid(
-            "Please install the cairosvg python package to use this feature. "
-            "(pip install cairosvg)"
-        ) from err
-
-    major, minor, _ = cairosvg.__version__.split(".")
-    if major < "2" or major == "2" and minor < "2":
-        raise cv.Invalid(
-            "Please update your cairosvg installation to at least 2.2.0. "
-            "(pip install -U cairosvg)"
-        )
-
-
 def validate_file_shorthand(value):
     value = cv.string_strict(value)
     parts = value.strip().split(":")
@@ -490,9 +484,7 @@ def validate_settings(value, path=()):
         )
     if file := value.get(CONF_FILE):
         file = Path(file)
-        if is_svg_file(file):
-            validate_cairosvg_installed()
-        else:
+        if not is_svg_file(file):
             try:
                 Image.open(file)
             except UnidentifiedImageError as exc:
@@ -669,44 +661,35 @@ async def write_image(config, all_frames=False):
         raise core.EsphomeError(f"Could not load image file {path}")
 
     resize = config.get(CONF_RESIZE)
-    if is_svg_file(path):
-        # Local import so use of non-SVG files needn't require cairosvg installed
-        from pyexpat import ExpatError
-        from xml.etree.ElementTree import ParseError
+    try:
+        if is_svg_file(path):
+            import resvg_py
 
-        from cairosvg import svg2png
-        from cairosvg.helpers import PointError
-
-        if not resize:
-            resize = (None, None)
-        try:
-            with open(path, "rb") as file:
-                image = svg2png(
-                    file_obj=file,
-                    output_width=resize[0],
-                    output_height=resize[1],
+            if resize:
+                width, height = resize
+                # resvg-py allows rendering by width/height directly
+                image_data = resvg_py.svg_to_bytes(
+                    svg_path=str(path), width=int(width), height=int(height)
                 )
-            image = Image.open(io.BytesIO(image))
+            else:
+                # Default size
+                image_data = resvg_py.svg_to_bytes(svg_path=str(path))
+
+            # Convert bytes to Pillow Image
+            image = Image.open(io.BytesIO(image_data))
             width, height = image.size
-        except (
-            ValueError,
-            ParseError,
-            IndexError,
-            ExpatError,
-            AttributeError,
-            TypeError,
-            PointError,
-        ) as e:
-            raise core.EsphomeError(f"Could not load SVG image {path}: {e}") from e
-    else:
-        image = Image.open(path)
-        width, height = image.size
-        if resize:
-            # Preserve aspect ratio
-            new_width_max = min(width, resize[0])
-            new_height_max = min(height, resize[1])
-            ratio = min(new_width_max / width, new_height_max / height)
-            width, height = int(width * ratio), int(height * ratio)
+
+        else:
+            image = Image.open(path)
+            width, height = image.size
+            if resize:
+                # Preserve aspect ratio
+                new_width_max = min(width, resize[0])
+                new_height_max = min(height, resize[1])
+                ratio = min(new_width_max / width, new_height_max / height)
+                width, height = int(width * ratio), int(height * ratio)
+    except (OSError, UnidentifiedImageError, ValueError) as exc:
+        raise core.EsphomeError(f"Could not read image file {path}: {exc}") from exc
 
     if not resize and (width > 500 or height > 500):
         _LOGGER.warning(
@@ -751,10 +734,38 @@ async def write_image(config, all_frames=False):
     return prog_arr, width, height, image_type, trans_value, frame_count
 
 
+async def _image_to_code(entry):
+    """
+    Convert a single image entry to code and return its metadata.
+    :param entry: The config entry for the image.
+    :return: An ImageMetaData object
+    """
+    prog_arr, width, height, image_type, trans_value, _ = await write_image(entry)
+    cg.new_Pvariable(entry[CONF_ID], prog_arr, width, height, image_type, trans_value)
+    return ImageMetaData(
+        width,
+        height,
+        entry[CONF_TYPE],
+        entry[CONF_TRANSPARENCY],
+    )
+
+
 async def to_code(config):
-    # By now the config should be a simple list.
-    for entry in config:
-        prog_arr, width, height, image_type, trans_value, _ = await write_image(entry)
-        cg.new_Pvariable(
-            entry[CONF_ID], prog_arr, width, height, image_type, trans_value
-        )
+    cg.add_define("USE_IMAGE")
+    # By now the config will be a simple list.
+    # Use a subkey to allow for other data in the future
+    CORE.data[DOMAIN] = {
+        KEY_METADATA: {
+            entry[CONF_ID].id: await _image_to_code(entry) for entry in config
+        }
+    }
+
+
+def get_all_image_metadata() -> dict[str, ImageMetaData]:
+    """Get all image metadata."""
+    return CORE.data.get(DOMAIN, {}).get(KEY_METADATA, {})
+
+
+def get_image_metadata(image_id: str) -> ImageMetaData | None:
+    """Get image metadata by ID for use by other components."""
+    return get_all_image_metadata().get(image_id)

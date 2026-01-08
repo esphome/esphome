@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_COVER
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.cover";
 
@@ -119,8 +118,7 @@ bool MQTTCoverComponent::publish_state() {
   return success;
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

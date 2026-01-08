@@ -20,7 +20,7 @@ cc1101:
   on_packet:
     then:
       - lambda: |-
-          ESP_LOGD("cc1101", "packet %s rssi %.1f dBm lqi %u", format_hex(x).c_str(), rssi, lqi);
+          ESP_LOGD("cc1101", "packet %s freq_offset %.0f Hz rssi %.1f dBm lqi %u", format_hex(x).c_str(), freq_offset, rssi, lqi);
 
 button:
   - platform: template
