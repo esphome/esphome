@@ -609,8 +609,8 @@ class Logger : public Component {
     this->write_body_to_buffer_(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN, buffer, buffer_at, buffer_size);
   }
 
-#ifdef USE_ESP32
-  // Disable loop when task buffer is empty (with USB CDC check)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // Disable loop when task buffer is empty (with USB CDC check on ESP32)
   inline void disable_loop_when_buffer_empty_() {
     // Thread safety note: This is safe even if another task calls enable_loop_soon_any_context()
     // concurrently. If that happens between our check and disable_loop(), the enable request
