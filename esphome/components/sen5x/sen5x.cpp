@@ -812,19 +812,18 @@ bool SEN5XComponent::perform_forced_co2_calibration(uint16_t co2) {
         this->set_timeout(50, [this]() { this->busy_ = false; });
       } else {
         this->set_timeout(500, [this]() {
-          uint16_t correction = 0;
-          if (!this->read_data(correction)) {
-            this->start_measurements_();
+          uint16_t frc = 0;
+          if (!this->read_data(frc)) {
             ESP_LOGE(TAG, "Forced CO₂ recalibration failed");
           } else {
-            if (!this->start_measurements_()) {
-              ESP_LOGE(TAG, "Forced CO₂ recalibration failed");
-            }
-            if (correction == 0xFFFF) {
+            if (frc == 0xFFFF) {
               ESP_LOGE(TAG, "Forced CO₂ recalibration failed");
             } else {
-              ESP_LOGD(TAG, "Forced CO₂ recalibration correction=%d", reinterpret_cast<int16_t>(correction - 0x8000));
+              ESP_LOGD(TAG, "Forced CO₂ recalibration finished, frc=%+d", static_cast<int32_t>(frc) - 0x8000);
             }
+          }
+          if (!this->start_measurements_()) {
+            ESP_LOGE(TAG, "Forced CO₂ recalibration failed");
           }
           this->set_timeout(50, [this]() { this->busy_ = false; });
         });
