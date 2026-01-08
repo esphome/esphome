@@ -2038,7 +2038,7 @@ void WiFiComponent::check_roaming_(uint32_t now) {
     return;
   }
 
-  ESP_LOGD(TAG, "Roam scan (%d dBm)", rssi);
+  ESP_LOGD(TAG, "Roam scan (%d dBm, attempt %u/%u)", rssi, this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
   this->roaming_state_ = RoamingState::SCANNING;
   this->wifi_scan_start_(this->passive_scan_);
 }
@@ -2084,7 +2084,8 @@ void WiFiComponent::process_roaming_scan_() {
   const WiFiAP *selected = this->get_selected_sta_();
   int8_t improvement = (best == nullptr) ? 0 : best->get_rssi() - current_rssi;
   if (selected == nullptr || improvement < ROAMING_MIN_IMPROVEMENT) {
-    ESP_LOGV(TAG, "Roam best %+d dB (need +%d)", improvement, ROAMING_MIN_IMPROVEMENT);
+    ESP_LOGV(TAG, "Roam best %+d dB (need +%d), attempt %u/%u", improvement, ROAMING_MIN_IMPROVEMENT,
+             this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
     this->release_scan_results_();
     return;
   }
