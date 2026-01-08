@@ -16,7 +16,8 @@ namespace esphome {
 // Maximum device name length - keep in sync with validate_hostname() in esphome/core/config.py
 static constexpr size_t ESPHOME_DEVICE_NAME_MAX_LEN = 31;
 
-// Maximum friendly name length - keep in sync with friendly_name cv.Length(max=120) in esphome/core/config.py
+// Maximum friendly name length for entities and sub-devices - keep in sync with cv.Length(max=120) in
+// esphome/core/config.py
 static constexpr size_t ESPHOME_FRIENDLY_NAME_MAX_LEN = 120;
 
 // Maximum domain length (longest: "alarm_control_panel" = 19)
