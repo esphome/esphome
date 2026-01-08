@@ -9,8 +9,10 @@ namespace update {
 static const char *const TAG = "update";
 
 void UpdateEntity::publish_state() {
-  ESP_LOGD(TAG, "'%s' - Publishing:", this->name_.c_str());
-  ESP_LOGD(TAG, "  Current Version: %s", this->update_info_.current_version.c_str());
+  ESP_LOGD(TAG,
+           "'%s' - Publishing:\n"
+           "  Current Version: %s",
+           this->name_.c_str(), this->update_info_.current_version.c_str());
 
   if (!this->update_info_.md5.empty()) {
     ESP_LOGD(TAG, "  Latest Version: %s", this->update_info_.latest_version.c_str());

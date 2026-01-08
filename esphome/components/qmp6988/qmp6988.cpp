@@ -127,9 +127,11 @@ bool QMP6988Component::get_calibration_data_() {
   qmp6988_data_.qmp6988_cali.COE_b21 = (int16_t) encode_uint16(a_data_uint8_tr[14], a_data_uint8_tr[15]);
   qmp6988_data_.qmp6988_cali.COE_bp3 = (int16_t) encode_uint16(a_data_uint8_tr[16], a_data_uint8_tr[17]);
 
-  ESP_LOGV(TAG, "<-----------calibration data-------------->\r\n");
-  ESP_LOGV(TAG, "COE_a0[%d] COE_a1[%d] COE_a2[%d] COE_b00[%d]\r\n", qmp6988_data_.qmp6988_cali.COE_a0,
-           qmp6988_data_.qmp6988_cali.COE_a1, qmp6988_data_.qmp6988_cali.COE_a2, qmp6988_data_.qmp6988_cali.COE_b00);
+  ESP_LOGV(TAG,
+           "<-----------calibration data-------------->\n"
+           "COE_a0[%d] COE_a1[%d] COE_a2[%d] COE_b00[%d]",
+           qmp6988_data_.qmp6988_cali.COE_a0, qmp6988_data_.qmp6988_cali.COE_a1, qmp6988_data_.qmp6988_cali.COE_a2,
+           qmp6988_data_.qmp6988_cali.COE_b00);
   ESP_LOGV(TAG, "COE_bt1[%d] COE_bt2[%d] COE_bp1[%d] COE_b11[%d]\r\n", qmp6988_data_.qmp6988_cali.COE_bt1,
            qmp6988_data_.qmp6988_cali.COE_bt2, qmp6988_data_.qmp6988_cali.COE_bp1, qmp6988_data_.qmp6988_cali.COE_b11);
   ESP_LOGV(TAG, "COE_bp2[%d] COE_b12[%d] COE_b21[%d] COE_bp3[%d]\r\n", qmp6988_data_.qmp6988_cali.COE_bp2,
@@ -150,9 +152,10 @@ bool QMP6988Component::get_calibration_data_() {
   qmp6988_data_.ik.b12 = 6846L * (int64_t) qmp6988_data_.qmp6988_cali.COE_b12 + 85590281L;     // 29Q53
   qmp6988_data_.ik.b21 = 13836L * (int64_t) qmp6988_data_.qmp6988_cali.COE_b21 + 79333336L;    // 29Q60
   qmp6988_data_.ik.bp3 = 2915L * (int64_t) qmp6988_data_.qmp6988_cali.COE_bp3 + 157155561L;    // 28Q65
-  ESP_LOGV(TAG, "<----------- int calibration data -------------->\r\n");
-  ESP_LOGV(TAG, "a0[%d] a1[%d] a2[%d] b00[%d]\r\n", qmp6988_data_.ik.a0, qmp6988_data_.ik.a1, qmp6988_data_.ik.a2,
-           qmp6988_data_.ik.b00);
+  ESP_LOGV(TAG,
+           "<----------- int calibration data -------------->\n"
+           "a0[%d] a1[%d] a2[%d] b00[%d]",
+           qmp6988_data_.ik.a0, qmp6988_data_.ik.a1, qmp6988_data_.ik.a2, qmp6988_data_.ik.b00);
   ESP_LOGV(TAG, "bt1[%lld] bt2[%lld] bp1[%lld] b11[%lld]\r\n", qmp6988_data_.ik.bt1, qmp6988_data_.ik.bt2,
            qmp6988_data_.ik.bp1, qmp6988_data_.ik.b11);
   ESP_LOGV(TAG, "bp2[%lld] b12[%lld] b21[%lld] bp3[%lld]\r\n", qmp6988_data_.ik.bp2, qmp6988_data_.ik.b12,
@@ -330,8 +333,10 @@ void QMP6988Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   ESP_LOGCONFIG(TAG, "    Temperature Oversampling: %s", oversampling_to_str(this->temperature_oversampling_));
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
-  ESP_LOGCONFIG(TAG, "    Pressure Oversampling: %s", oversampling_to_str(this->pressure_oversampling_));
-  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", iir_filter_to_str(this->iir_filter_));
+  ESP_LOGCONFIG(TAG,
+                "    Pressure Oversampling: %s\n"
+                "  IIR Filter: %s",
+                oversampling_to_str(this->pressure_oversampling_), iir_filter_to_str(this->iir_filter_));
 }
 
 void QMP6988Component::update() {

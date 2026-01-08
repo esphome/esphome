@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_OE_PIN,
+    CONF_ROTATION,
     CONF_UPDATE_INTERVAL,
 )
 from esphome.core import ID
@@ -132,6 +133,14 @@ CLOCK_SPEEDS = {
     "10MHZ": Hub75ClockSpeed.HZ_10M,
     "16MHZ": Hub75ClockSpeed.HZ_16M,
     "20MHZ": Hub75ClockSpeed.HZ_20M,
+}
+
+Hub75Rotation = cg.global_ns.enum("Hub75Rotation", is_class=True)
+ROTATIONS = {
+    0: Hub75Rotation.ROTATE_0,
+    90: Hub75Rotation.ROTATE_90,
+    180: Hub75Rotation.ROTATE_180,
+    270: Hub75Rotation.ROTATE_270,
 }
 
 HUB75Display = hub75_ns.class_("HUB75Display", cg.PollingComponent, display.Display)
@@ -361,6 +370,8 @@ CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(HUB75Display),
+            # Override rotation - store Hub75Rotation directly (driver handles rotation)
+            cv.Optional(CONF_ROTATION): cv.enum(ROTATIONS, int=True),
             # Board preset (optional - provides default pin mappings)
             cv.Optional(CONF_BOARD): cv.one_of(*BOARDS.keys(), lower=True),
             # Panel dimensions
@@ -378,7 +389,7 @@ CONFIG_SCHEMA = cv.All(
             # Display configuration
             cv.Optional(CONF_DOUBLE_BUFFER): cv.boolean,
             cv.Optional(CONF_BRIGHTNESS): cv.int_range(min=0, max=255),
-            cv.Optional(CONF_BIT_DEPTH): cv.int_range(min=6, max=12),
+            cv.Optional(CONF_BIT_DEPTH): cv.int_range(min=4, max=12),
             cv.Optional(CONF_GAMMA_CORRECT): cv.enum(
                 {"LINEAR": 0, "CIE1931": 1, "GAMMA_2_2": 2}, upper=True
             ),
@@ -490,10 +501,11 @@ def _build_config_struct(
     Fields must be added in declaration order (see hub75_types.h) to satisfy
     C++ designated initializer requirements. The order is:
       1. fields_before_pins (panel_width through layout)
-      2. pins
-      3. output_clock_speed
-      4. min_refresh_rate
-      5. fields_after_min_refresh (latch_blanking through brightness)
+      2. rotation
+      3. pins
+      4. output_clock_speed
+      5. min_refresh_rate
+      6. fields_after_min_refresh (latch_blanking through brightness)
     """
     fields_before_pins = [
         (CONF_PANEL_WIDTH, "panel_width"),
@@ -516,6 +528,10 @@ def _build_config_struct(
 
     _append_config_fields(config, fields_before_pins, config_fields)
 
+    # Rotation - config already contains Hub75Rotation enum from cv.enum
+    if CONF_ROTATION in config:
+        config_fields.append(("rotation", config[CONF_ROTATION]))
+
     config_fields.append(("pins", pins_struct))
 
     if CONF_CLOCK_SPEED in config:
@@ -531,7 +547,7 @@ def _build_config_struct(
 async def to_code(config: ConfigType) -> None:
     add_idf_component(
         name="esphome/esp-hub75",
-        ref="0.1.7",
+        ref="0.2.2",
     )
 
     # Set compile-time configuration via defines
@@ -569,6 +585,11 @@ async def to_code(config: ConfigType) -> None:
     min_refresh = _calculate_min_refresh_rate(config)
     pins_struct = _build_pins_struct(pin_expressions, e_pin_num)
     hub75_config = _build_config_struct(config, pins_struct, min_refresh)
+
+    # Rotation is handled by the hub75 driver (config_.rotation already set above).
+    # Force rotation to 0 for ESPHome's Display base class to avoid double-rotation.
+    if CONF_ROTATION in config:
+        config[CONF_ROTATION] = 0
 
     # Create display and register
     var = cg.new_Pvariable(config[CONF_ID], hub75_config)

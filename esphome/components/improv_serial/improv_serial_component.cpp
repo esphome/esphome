@@ -182,8 +182,12 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
 std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv::Command command) {
   std::vector<std::string> urls;
 #ifdef USE_IMPROV_SERIAL_NEXT_URL
-  if (!this->next_url_.empty()) {
-    urls.push_back(this->get_formatted_next_url_());
+  {
+    char url_buffer[384];
+    size_t len = this->get_formatted_next_url_(url_buffer, sizeof(url_buffer));
+    if (len > 0) {
+      urls.emplace_back(url_buffer, len);
+    }
   }
 #endif
 #ifdef USE_WEBSERVER

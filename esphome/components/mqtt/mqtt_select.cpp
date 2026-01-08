@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_SELECT
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.select";
 
@@ -53,8 +52,7 @@ bool MQTTSelectComponent::publish_state(const std::string &value) {
   return this->publish(this->get_state_topic_(), value);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

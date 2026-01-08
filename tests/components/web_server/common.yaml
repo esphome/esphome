@@ -36,3 +36,4 @@ datetime:
     optimistic: yes
 event:
 update:
+water_heater:
