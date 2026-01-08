@@ -1305,14 +1305,17 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 
     // Reset roaming state on successful connection
     this->roaming_last_check_ = now;
-    // Only reset attempts if this wasn't a roaming-triggered connection
-    // (CONNECTING = roam attempt, RECONNECTING = failed roam, reconnecting)
+    // Only preserve attempts if reconnecting after a failed roam attempt
     // This prevents ping-pong between APs when a roam target is unreachable
     if (this->roaming_state_ == RoamingState::CONNECTING) {
+      // Successful roam to better AP - reset attempts so we can roam again later
       ESP_LOGD(TAG, "Roam successful");
+      this->roaming_attempts_ = 0;
     } else if (this->roaming_state_ == RoamingState::RECONNECTING) {
+      // Failed roam, reconnected via normal recovery - keep attempts to prevent ping-pong
       ESP_LOGD(TAG, "Reconnected after failed roam (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
     } else {
+      // Normal connection (boot, credentials changed, etc.)
       this->roaming_attempts_ = 0;
     }
     this->roaming_state_ = RoamingState::IDLE;
