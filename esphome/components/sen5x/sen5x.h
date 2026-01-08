@@ -59,6 +59,15 @@ struct TemperatureCompensation {
   int16_t offset;
   int16_t normalized_offset_slope;
   uint16_t time_constant;
+  uint8_t slot;
+
+  TemperatureCompensation() : offset(0), normalized_offset_slope(0), time_constant(0), slot(0) {}
+  TemperatureCompensation(float offset, float normalized_offset_slope, uint16_t time_constant, uint8_t slot = 0) {
+    this->offset = static_cast<int16_t>(offset * 200.0);
+    this->normalized_offset_slope = static_cast<int16_t>(normalized_offset_slope * 10000.0);
+    this->time_constant = time_constant;
+    this->slot = slot;
+  }
 };
 
 // Shortest time interval of 3H for storing baseline values.
@@ -114,15 +123,10 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
     tuning_params.gain_factor = gain_factor;
     this->nox_tuning_params_ = tuning_params;
   }
-  void set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant) {
-    TemperatureCompensation temp_comp;
-    temp_comp.offset = offset * 200;
-    temp_comp.normalized_offset_slope = normalized_offset_slope * 10000;
-    temp_comp.time_constant = time_constant;
-    this->temperature_compensation_ = temp_comp;
-  }
-  void set_co2_auto_calibrate(bool value) { this->co2_auto_calibrate_ = value; }
-  void set_co2_altitude_compensation(uint16_t altitude) { this->co2_altitude_compensation_ = altitude; }
+  bool set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant,
+                                    uint8_t slot = 0);
+  void set_automatic_self_calibrate(bool value) { this->co2_auto_calibrate_ = value; }
+  void set_altitude_compensation(uint16_t altitude) { this->co2_altitude_compensation_ = altitude; }
   void set_ambient_pressure_source(sensor::Sensor *pressure) { this->co2_ambient_pressure_source_ = pressure; }
   bool start_fan_cleaning();
   bool activate_heater();
@@ -136,7 +140,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool stop_measurements_();
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
-  bool update_co2_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
+  bool write_co2_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
 
   uint32_t seconds_since_last_store_;
   uint16_t co2_ambient_pressure_{0};
@@ -145,6 +149,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   uint8_t firmware_minor_{0xFF};
   bool initialized_{false};
   bool running_{false};
+  bool busy_{false};
   bool store_baseline_;
 
   sensor::Sensor *pm_1_0_sensor_{nullptr};

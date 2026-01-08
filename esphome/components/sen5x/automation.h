@@ -32,7 +32,7 @@ class PerformForcedCo2CalibrationAction : public Action<Ts...>, public Parented<
   TEMPLATABLE_VALUE(uint16_t, value)
 };
 
-template<typename... Ts> class StartFanAction : public Action<Ts...>, public Parented<SEN5XComponent> {
+template<typename... Ts> class StartFanCleaningAction : public Action<Ts...>, public Parented<SEN5XComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->start_fan_cleaning(); }
 };
