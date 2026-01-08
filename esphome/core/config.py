@@ -184,17 +184,24 @@ if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
 else:
     _compile_process_limit_default = cv.UNDEFINED
 
+# Keep in sync with ESPHOME_FRIENDLY_NAME_MAX_LEN in esphome/core/entity_base.h
+FRIENDLY_NAME_MAX_LEN = 120
+
 AREA_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Area),
-        cv.Required(CONF_NAME): cv.All(cv.string_no_slash, cv.Length(max=120)),
+        cv.Required(CONF_NAME): cv.All(
+            cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+        ),
     }
 )
 
 DEVICE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Device),
-        cv.Required(CONF_NAME): cv.All(cv.string_no_slash, cv.Length(max=120)),
+        cv.Required(CONF_NAME): cv.All(
+            cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+        ),
         cv.Optional(CONF_AREA_ID): cv.use_id(Area),
     }
 )
