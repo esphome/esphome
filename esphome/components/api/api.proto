@@ -2450,6 +2450,7 @@ message ZWaveProxyRequest {
 // Listing of infrared proxy instances
 message ListEntitiesInfraredProxyResponse {
   option (id) = 135;
+  option (base_class) = "InfoResponseProtoMessage";
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_INFRARED_PROXY";
 
