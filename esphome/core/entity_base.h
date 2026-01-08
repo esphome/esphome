@@ -13,7 +13,10 @@
 
 namespace esphome {
 
-// Maximum size for object_id buffer (friendly_name max ~120 + margin)
+// Maximum device name length - keep in sync with validate_hostname() in esphome/core/config.py
+static constexpr size_t ESPHOME_DEVICE_NAME_MAX_LEN = 31;
+
+// Maximum size for object_id buffer - keep in sync with friendly_name cv.Length(max=120) in esphome/core/config.py
 static constexpr size_t OBJECT_ID_MAX_LEN = 128;
 
 enum EntityCategory : uint8_t {

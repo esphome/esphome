@@ -28,10 +28,9 @@ inline char *append_char(char *p, char c) {
 // These limits are enforced at Python config validation time in mqtt/__init__.py
 // using cv.Length() validators for topic_prefix and discovery_prefix.
 // MQTT_COMPONENT_TYPE_MAX_LEN and MQTT_SUFFIX_MAX_LEN are defined in mqtt_component.h.
-// OBJECT_ID_MAX_LEN is defined in entity_base.h and derived from friendly_name limits.
+// ESPHOME_DEVICE_NAME_MAX_LEN and OBJECT_ID_MAX_LEN are defined in entity_base.h.
 // This ensures the stack buffers below are always large enough.
 static constexpr size_t TOPIC_PREFIX_MAX_LEN = 64;      // Validated in Python: cv.Length(max=64)
-static constexpr size_t SANITIZED_NAME_MAX_LEN = 64;    // Safe: hostname validation limits to 31 chars
 static constexpr size_t DISCOVERY_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
 
 // Stack buffer sizes - safe because all inputs are length-validated at config time
@@ -40,7 +39,7 @@ static constexpr size_t DEFAULT_TOPIC_MAX_LEN =
     TOPIC_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1 + MQTT_SUFFIX_MAX_LEN + 1;
 // Format: prefix + "/" + type + "/" + name + "/" + object_id + "/config" + null
 static constexpr size_t DISCOVERY_TOPIC_MAX_LEN = DISCOVERY_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 +
-                                                  SANITIZED_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 7 + 1;
+                                                  ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 7 + 1;
 
 void MQTTComponent::set_qos(uint8_t qos) { this->qos_ = qos; }
 
