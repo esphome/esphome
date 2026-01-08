@@ -552,6 +552,8 @@ def convert_path_to_relative(abspath, current):
     exclude=[
         "esphome/components/libretiny/generate_components.py",
         "esphome/components/web_server/__init__.py",
+        # const.py has absolute import in docstring example for external components
+        "esphome/components/esp8266/const.py",
     ],
 )
 def lint_relative_py_import(fname: Path, line, col, content):
@@ -578,6 +580,7 @@ def lint_relative_py_import(fname: Path, line, col, content):
     ],
     exclude=[
         "esphome/components/socket/headers.h",
+        "esphome/components/async_tcp/async_tcp.h",
         "esphome/components/esp32/core.cpp",
         "esphome/components/esp8266/core.cpp",
         "esphome/components/rp2040/core.cpp",
@@ -613,6 +616,19 @@ def lint_esphome_h(fname, line, col, content):
         "File contains reference to 'esphome.h' - This file is "
         "auto-generated and should only be used for *custom* "
         "components. Please replace with references to the direct files."
+    )
+
+
+@lint_content_find_check(
+    "CORE.using_esp_idf",
+    include=py_include,
+    exclude=["esphome/core/__init__.py", "script/ci-custom.py"],
+)
+def lint_using_esp_idf_deprecated(fname, line, col, content):
+    return (
+        f"{highlight('CORE.using_esp_idf')} is deprecated and will change behavior in 2026.6. "
+        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
+        f"Please use {highlight('CORE.is_esp32')} and/or {highlight('CORE.using_arduino')} instead."
     )
 
 
