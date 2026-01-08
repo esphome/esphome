@@ -7,7 +7,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ANALOG, CONF_ID, CONF_INVERTED, CONF_MODE, CONF_NUMBER
 
 ZephyrGPIOPin = zephyr_ns.class_("ZephyrGPIOPin", cg.InternalGPIOPin)
-PIN_RE = re.compile("^P([A-P])(0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15)$", re.IGNORECASE)
+PIN_RE = re.compile(r"^P([A-P])(1[0-5]|[0-9])$", re.IGNORECASE)
 
 
 def _translate_pin(value):
