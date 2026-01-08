@@ -1,13 +1,22 @@
 #pragma once
 #include <memory>
+#include <span>
 #include <string>
 
 #include "esphome/core/optional.h"
 #include "headers.h"
 
 #if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
-namespace esphome {
-namespace socket {
+namespace esphome::socket {
+
+// Maximum length for formatted socket address string (IP address without port)
+// IPv4: "255.255.255.255" = 15 chars + null = 16
+// IPv6: full address = 45 chars + null = 46
+#if USE_NETWORK_IPV6
+static constexpr size_t SOCKADDR_STR_LEN = 46;  // INET6_ADDRSTRLEN
+#else
+static constexpr size_t SOCKADDR_STR_LEN = 16;  // INET_ADDRSTRLEN
+#endif
 
 class Socket {
  public:
@@ -32,9 +41,15 @@ class Socket {
   virtual int shutdown(int how) = 0;
 
   virtual int getpeername(struct sockaddr *addr, socklen_t *addrlen) = 0;
-  virtual std::string getpeername() = 0;
   virtual int getsockname(struct sockaddr *addr, socklen_t *addrlen) = 0;
-  virtual std::string getsockname() = 0;
+
+  /// Format peer address into a fixed-size buffer (no heap allocation)
+  /// Non-virtual wrapper around getpeername() - can be optimized away if unused
+  /// Returns number of characters written (excluding null terminator), or 0 on error
+  size_t getpeername_to(std::span<char, SOCKADDR_STR_LEN> buf);
+  /// Format local address into a fixed-size buffer (no heap allocation)
+  /// Non-virtual wrapper around getsockname() - can be optimized away if unused
+  size_t getsockname_to(std::span<char, SOCKADDR_STR_LEN> buf);
   virtual int getsockopt(int level, int optname, void *optval, socklen_t *optlen) = 0;
   virtual int setsockopt(int level, int optname, const void *optval, socklen_t optlen) = 0;
   virtual int listen(int backlog) = 0;
@@ -54,12 +69,7 @@ class Socket {
   /// Check if socket has data ready to read
   /// For loop-monitored sockets, checks with the Application's select() results
   /// For non-monitored sockets, always returns true (assumes data may be available)
-  bool ready() const;
-
- protected:
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  bool loop_monitored_{false};  ///< Whether this socket is monitored by the event loop
-#endif
+  virtual bool ready() const { return true; }
 };
 
 /// Create a socket of the given domain, type and protocol.
@@ -91,6 +101,5 @@ void socket_delay(uint32_t ms);
 void socket_wake();
 #endif
 
-}  // namespace socket
-}  // namespace esphome
+}  // namespace esphome::socket
 #endif
