@@ -1308,7 +1308,11 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     // Only reset attempts if this wasn't a roaming-triggered connection
     // (CONNECTING = roam attempt, RECONNECTING = failed roam, reconnecting)
     // This prevents ping-pong between APs when a roam target is unreachable
-    if (this->roaming_state_ == RoamingState::IDLE) {
+    if (this->roaming_state_ == RoamingState::CONNECTING) {
+      ESP_LOGD(TAG, "Roam successful");
+    } else if (this->roaming_state_ == RoamingState::RECONNECTING) {
+      ESP_LOGD(TAG, "Reconnected after failed roam (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+    } else {
       this->roaming_attempts_ = 0;
     }
     this->roaming_state_ = RoamingState::IDLE;
@@ -1741,6 +1745,7 @@ void WiFiComponent::retry_connect() {
   // (preserves roaming_attempts_ so we stop roaming after ROAMING_MAX_ATTEMPTS failures)
   // Otherwise reset all roaming state
   if (this->roaming_state_ == RoamingState::CONNECTING) {
+    ESP_LOGD(TAG, "Roam failed, reconnecting (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
     this->roaming_state_ = RoamingState::RECONNECTING;
     // Keep roaming_attempts_ - will prevent further roaming after max failures
   } else if (this->roaming_state_ != RoamingState::RECONNECTING) {
@@ -2021,8 +2026,10 @@ void WiFiComponent::check_roaming_(uint32_t now) {
 
   // Guard: skip scan if signal is already good (no meaningful improvement possible)
   int8_t rssi = this->wifi_rssi();
-  if (rssi > ROAMING_GOOD_RSSI)
+  if (rssi > ROAMING_GOOD_RSSI) {
+    ESP_LOGV(TAG, "Roam check skipped, signal good (%d dBm)", rssi);
     return;
+  }
 
   ESP_LOGD(TAG, "Roam scan (%d dBm)", rssi);
   this->roaming_state_ = RoamingState::SCANNING;
