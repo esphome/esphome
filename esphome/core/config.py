@@ -215,9 +215,8 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_NAME): cv.valid_name,
-            # Keep max=120 in sync with OBJECT_ID_MAX_LEN in esphome/core/entity_base.h
             cv.Optional(CONF_FRIENDLY_NAME, ""): cv.All(
-                cv.string_no_slash, cv.Length(max=120)
+                cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
             ),
             cv.Optional(CONF_AREA): validate_area_config,
             cv.Optional(CONF_COMMENT): cv.All(cv.string, cv.Length(max=255)),
