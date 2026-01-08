@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "sml_text_sensor.h"
 #include "../sml_parser.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace sml {
@@ -21,22 +22,33 @@ void SmlTextSensor::publish_val(const ObisInfo &obis_info) {
 
   switch (value_type) {
     case SML_HEX: {
-      publish_state("0x" + bytes_repr(obis_info.value));
+      // Buffer for "0x" + up to 32 bytes as hex + null
+      char buf[67];
+      buf[0] = '0';
+      buf[1] = 'x';
+      // Max 32 bytes of data fit in remaining buffer ((65-1)/2)
+      size_t hex_bytes = std::min(obis_info.value.size(), size_t(32));
+      format_hex_to(buf + 2, sizeof(buf) - 2, obis_info.value.begin(), hex_bytes);
+      publish_state(buf, 2 + hex_bytes * 2);
       break;
     }
     case SML_INT: {
-      publish_state(to_string(bytes_to_int(obis_info.value)));
+      char buf[21];  // Enough for int64_t (-9223372036854775808)
+      int len = snprintf(buf, sizeof(buf), "%" PRId64, bytes_to_int(obis_info.value));
+      publish_state(buf, static_cast<size_t>(len));
       break;
     }
     case SML_BOOL:
       publish_state(bytes_to_uint(obis_info.value) ? "True" : "False");
       break;
     case SML_UINT: {
-      publish_state(to_string(bytes_to_uint(obis_info.value)));
+      char buf[21];  // Enough for uint64_t (18446744073709551615)
+      int len = snprintf(buf, sizeof(buf), "%" PRIu64, bytes_to_uint(obis_info.value));
+      publish_state(buf, static_cast<size_t>(len));
       break;
     }
     case SML_OCTET: {
-      publish_state(std::string(obis_info.value.begin(), obis_info.value.end()));
+      publish_state(reinterpret_cast<const char *>(obis_info.value.begin()), obis_info.value.size());
       break;
     }
   }

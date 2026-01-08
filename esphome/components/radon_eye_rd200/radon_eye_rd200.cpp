@@ -1,4 +1,5 @@
 #include "radon_eye_rd200.h"
+#include "esphome/components/esp32_ble/ble_uuid.h"
 
 #include <cstring>
 
@@ -60,16 +61,20 @@ void RadonEyeRD200::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       this->read_handle_ = 0;
       auto *chr = this->parent()->get_characteristic(service_uuid_, sensors_read_characteristic_uuid_);
       if (chr == nullptr) {
-        ESP_LOGW(TAG, "No sensor read characteristic found at service %s char %s", service_uuid_.to_string().c_str(),
-                 sensors_read_characteristic_uuid_.to_string().c_str());
+        char service_buf[esp32_ble::UUID_STR_LEN];
+        char char_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGW(TAG, "No sensor read characteristic found at service %s char %s", service_uuid_.to_str(service_buf),
+                 sensors_read_characteristic_uuid_.to_str(char_buf));
         break;
       }
       this->read_handle_ = chr->handle;
 
       auto *write_chr = this->parent()->get_characteristic(service_uuid_, sensors_write_characteristic_uuid_);
       if (write_chr == nullptr) {
-        ESP_LOGW(TAG, "No sensor write characteristic found at service %s char %s", service_uuid_.to_string().c_str(),
-                 sensors_write_characteristic_uuid_.to_string().c_str());
+        char service_buf[esp32_ble::UUID_STR_LEN];
+        char char_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGW(TAG, "No sensor write characteristic found at service %s char %s", service_uuid_.to_str(service_buf),
+                 sensors_write_characteristic_uuid_.to_str(char_buf));
         break;
       }
       this->write_handle_ = write_chr->handle;

@@ -240,7 +240,7 @@ class CustomAPIDevice {
    */
   void call_homeassistant_service(const std::string &service_name) {
     HomeassistantActionRequest resp;
-    resp.set_service(StringRef(service_name));
+    resp.service = StringRef(service_name);
     global_api_server->send_homeassistant_action(resp);
   }
 
@@ -260,12 +260,12 @@ class CustomAPIDevice {
    */
   void call_homeassistant_service(const std::string &service_name, const std::map<std::string, std::string> &data) {
     HomeassistantActionRequest resp;
-    resp.set_service(StringRef(service_name));
+    resp.service = StringRef(service_name);
     resp.data.init(data.size());
     for (auto &it : data) {
       auto &kv = resp.data.emplace_back();
-      kv.set_key(StringRef(it.first));
-      kv.value = it.second;
+      kv.key = StringRef(it.first);
+      kv.value = it.second;  // value is std::string (no_zero_copy), assign directly
     }
     global_api_server->send_homeassistant_action(resp);
   }
@@ -282,7 +282,7 @@ class CustomAPIDevice {
    */
   void fire_homeassistant_event(const std::string &event_name) {
     HomeassistantActionRequest resp;
-    resp.set_service(StringRef(event_name));
+    resp.service = StringRef(event_name);
     resp.is_event = true;
     global_api_server->send_homeassistant_action(resp);
   }
@@ -302,13 +302,13 @@ class CustomAPIDevice {
    */
   void fire_homeassistant_event(const std::string &service_name, const std::map<std::string, std::string> &data) {
     HomeassistantActionRequest resp;
-    resp.set_service(StringRef(service_name));
+    resp.service = StringRef(service_name);
     resp.is_event = true;
     resp.data.init(data.size());
     for (auto &it : data) {
       auto &kv = resp.data.emplace_back();
-      kv.set_key(StringRef(it.first));
-      kv.value = it.second;
+      kv.key = StringRef(it.first);
+      kv.value = it.second;  // value is std::string (no_zero_copy), assign directly
     }
     global_api_server->send_homeassistant_action(resp);
   }

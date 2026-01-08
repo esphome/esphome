@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_COVER
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.cover";
 
@@ -91,7 +90,7 @@ void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
   }
 }
 
-std::string MQTTCoverComponent::component_type() const { return "cover"; }
+MQTT_COMPONENT_TYPE(MQTTCoverComponent, "cover")
 const EntityBase *MQTTCoverComponent::get_entity() const { return this->cover_; }
 
 bool MQTTCoverComponent::send_initial_state() { return this->publish_state(); }
@@ -119,8 +118,7 @@ bool MQTTCoverComponent::publish_state() {
   return success;
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

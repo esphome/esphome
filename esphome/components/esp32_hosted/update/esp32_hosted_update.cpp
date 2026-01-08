@@ -90,7 +90,8 @@ void Esp32HostedUpdate::perform(bool force) {
     return;
   }
 
-  sha256::SHA256 hasher;
+  // ESP32-S3 hardware SHA acceleration requires 32-byte DMA alignment (IDF 5.5.x+)
+  alignas(32) sha256::SHA256 hasher;
   hasher.init();
   hasher.add(this->firmware_data_, this->firmware_size_);
   hasher.calculate();
