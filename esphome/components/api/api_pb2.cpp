@@ -123,7 +123,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(25, this->infrared_proxy_feature_flags);
 #endif
 #ifdef USE_INFRARED_PROXY
-  buffer.encode_string(26, this->infrared_proxy_supported_protocols_ref_);
+  buffer.encode_string(26, this->infrared_proxy_supported_protocols);
 #endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
@@ -184,7 +184,7 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
   size.add_uint32(2, this->infrared_proxy_feature_flags);
 #endif
 #ifdef USE_INFRARED_PROXY
-  size.add_length(2, this->infrared_proxy_supported_protocols_ref_.size());
+  size.add_length(2, this->infrared_proxy_supported_protocols.size());
 #endif
 }
 #ifdef USE_BINARY_SENSOR
@@ -3361,11 +3361,11 @@ void ZWaveProxyRequest::calculate_size(ProtoSize &size) const {
 #endif
 #ifdef USE_INFRARED_PROXY
 void ListEntitiesInfraredProxyResponse::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_string(1, this->object_id_ref_);
+  buffer.encode_string(1, this->object_id);
   buffer.encode_fixed32(2, this->key);
-  buffer.encode_string(3, this->name_ref_);
+  buffer.encode_string(3, this->name);
 #ifdef USE_ENTITY_ICON
-  buffer.encode_string(4, this->icon_ref_);
+  buffer.encode_string(4, this->icon);
 #endif
   buffer.encode_bool(5, this->disabled_by_default);
   buffer.encode_uint32(6, static_cast<uint32_t>(this->entity_category));
@@ -3376,11 +3376,11 @@ void ListEntitiesInfraredProxyResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(9, this->frequency);
 }
 void ListEntitiesInfraredProxyResponse::calculate_size(ProtoSize &size) const {
-  size.add_length(1, this->object_id_ref_.size());
+  size.add_length(1, this->object_id.size());
   size.add_fixed32(1, this->key);
-  size.add_length(1, this->name_ref_.size());
+  size.add_length(1, this->name.size());
 #ifdef USE_ENTITY_ICON
-  size.add_length(1, this->icon_ref_.size());
+  size.add_length(1, this->icon.size());
 #endif
   size.add_bool(1, this->disabled_by_default);
   size.add_uint32(1, static_cast<uint32_t>(this->entity_category));

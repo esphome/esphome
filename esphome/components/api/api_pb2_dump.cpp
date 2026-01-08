@@ -831,7 +831,7 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
   dump_field(out, "infrared_proxy_feature_flags", this->infrared_proxy_feature_flags);
 #endif
 #ifdef USE_INFRARED_PROXY
-  dump_field(out, "infrared_proxy_supported_protocols", this->infrared_proxy_supported_protocols_ref_);
+  dump_field(out, "infrared_proxy_supported_protocols", this->infrared_proxy_supported_protocols);
 #endif
 }
 void ListEntitiesRequest::dump_to(std::string &out) const { out.append("ListEntitiesRequest {}"); }
@@ -2318,11 +2318,11 @@ void ZWaveProxyRequest::dump_to(std::string &out) const {
 #ifdef USE_INFRARED_PROXY
 void ListEntitiesInfraredProxyResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ListEntitiesInfraredProxyResponse");
-  dump_field(out, "object_id", this->object_id_ref_);
+  dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
-  dump_field(out, "name", this->name_ref_);
+  dump_field(out, "name", this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, "icon", this->icon_ref_);
+  dump_field(out, "icon", this->icon);
 #endif
   dump_field(out, "disabled_by_default", this->disabled_by_default);
   dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
@@ -2363,9 +2363,7 @@ void InfraredProxyTransmitPulseWidthRequest::dump_to(std::string &out) const {
 void InfraredProxyTransmitProtocolRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "InfraredProxyTransmitProtocolRequest");
   dump_field(out, "key", this->key);
-  out.append("  protocol_json: ");
-  out.append("'").append(this->protocol_json.c_str(), this->protocol_json.size()).append("'");
-  out.append("\n");
+  dump_field(out, "protocol_json", this->protocol_json);
 }
 void InfraredProxyTransmitRawTimingsRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "InfraredProxyTransmitRawTimingsRequest");

@@ -542,10 +542,7 @@ class DeviceInfoResponse final : public ProtoMessage {
   uint32_t infrared_proxy_feature_flags{0};
 #endif
 #ifdef USE_INFRARED_PROXY
-  StringRef infrared_proxy_supported_protocols_ref_{};
-  void set_infrared_proxy_supported_protocols(const StringRef &ref) {
-    this->infrared_proxy_supported_protocols_ref_ = ref;
-  }
+  StringRef infrared_proxy_supported_protocols{};
 #endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -3066,14 +3063,11 @@ class ListEntitiesInfraredProxyResponse final : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_infrared_proxy_response"; }
 #endif
-  StringRef object_id_ref_{};
-  void set_object_id(const StringRef &ref) { this->object_id_ref_ = ref; }
+  StringRef object_id{};
   uint32_t key{0};
-  StringRef name_ref_{};
-  void set_name(const StringRef &ref) { this->name_ref_ = ref; }
+  StringRef name{};
 #ifdef USE_ENTITY_ICON
-  StringRef icon_ref_{};
-  void set_icon(const StringRef &ref) { this->icon_ref_ = ref; }
+  StringRef icon{};
 #endif
   bool disabled_by_default{false};
   enums::EntityCategory entity_category{};
