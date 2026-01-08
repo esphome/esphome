@@ -230,8 +230,10 @@ indication of the current climate mode.
   its fan either immediately or, when `fan_only_cooling` is `true`, as needed based on the upper
   target temperature value).
 
-- **heat_cool_mode** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
-  the climate device is placed into "heat/cool" mode (it may both cool and heat as required).
+- **heat_cool_mode** (*Optional*, [Action](/automations/actions#all-actions) or boolean): The action to call when
+  the climate device is placed into "heat/cool" mode (it may both cool and heat as required). If no action is desired,
+  may be set to `true` to enable the mode without a related automation. Note that **both** `heat_action` **and**
+  `cool_action` ([see above](#heating-and-cooling-actions)) must be defined to enable this mode.
 
 - **auto_mode** (*Optional*, [Action](/automations/actions#all-actions)): The action to call when
   the climate device is placed into "auto" mode (it may both cool and heat as required). This mode is
