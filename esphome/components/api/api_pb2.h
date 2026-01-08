@@ -3053,23 +3053,12 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
 };
 #endif
 #ifdef USE_INFRARED_PROXY
-class ListEntitiesInfraredProxyResponse final : public ProtoMessage {
+class ListEntitiesInfraredProxyResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 135;
   static constexpr uint8_t ESTIMATED_SIZE = 48;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_infrared_proxy_response"; }
-#endif
-  StringRef object_id{};
-  uint32_t key{0};
-  StringRef name{};
-#ifdef USE_ENTITY_ICON
-  StringRef icon{};
-#endif
-  bool disabled_by_default{false};
-  enums::EntityCategory entity_category{};
-#ifdef USE_DEVICES
-  uint32_t device_id{0};
 #endif
   uint32_t capabilities{0};
   uint32_t frequency{0};
