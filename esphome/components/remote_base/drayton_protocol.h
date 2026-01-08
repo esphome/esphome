@@ -11,6 +11,8 @@ namespace remote_base {
 struct DraytonData {
   uint16_t address;
   uint8_t data;
+  uint8_t channel;
+  uint8_t command;
 
   bool operator==(const DraytonData &rhs) const {
     return address == rhs.address && channel == rhs.channel && command == rhs.command && data == rhs.data;
