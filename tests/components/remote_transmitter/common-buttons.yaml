@@ -15,6 +15,13 @@ button:
         source: 0x01
         command: 0x0C
   - platform: template
+    name: Drayton Thermostat On
+    id: drayton_thermostat_on
+    on_press:
+      remote_transmitter.transmit_drayton:
+        address: 0x1230
+        data: 0x8
+  - platform: template
     name: Dyson fan up
     id: dyson_fan_up
     on_press:
