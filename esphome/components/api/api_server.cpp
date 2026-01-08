@@ -125,15 +125,18 @@ void APIServer::loop() {
       if (!sock)
         break;
 
+      char peername[socket::SOCKADDR_STR_LEN];
+      sock->getpeername_to(peername);
+
       // Check if we're at the connection limit
       if (this->clients_.size() >= this->max_connections_) {
-        ESP_LOGW(TAG, "Max connections (%d), rejecting %s", this->max_connections_, sock->getpeername().c_str());
+        ESP_LOGW(TAG, "Max connections (%d), rejecting %s", this->max_connections_, peername);
         // Immediately close - socket destructor will handle cleanup
         sock.reset();
         continue;
       }
 
-      ESP_LOGD(TAG, "Accept %s", sock->getpeername().c_str());
+      ESP_LOGD(TAG, "Accept %s", peername);
 
       auto *conn = new APIConnection(std::move(sock), this);
       this->clients_.emplace_back(conn);
@@ -166,8 +169,7 @@ void APIServer::loop() {
     // Network is down - disconnect all clients
     for (auto &client : this->clients_) {
       client->on_fatal_error();
-      ESP_LOGW(TAG, "%s (%s): Network down; disconnect", client->client_info_.name.c_str(),
-               client->client_info_.peername.c_str());
+      client->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("Network down; disconnect"));
     }
     // Continue to process and clean up the clients below
   }
@@ -185,12 +187,12 @@ void APIServer::loop() {
 
     // Rare case: handle disconnection
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-    this->client_disconnected_trigger_->trigger(client->client_info_.name, client->client_info_.peername);
+    this->client_disconnected_trigger_->trigger(std::string(client->get_name()), std::string(client->get_peername()));
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
     this->unregister_active_action_calls_for_connection(client.get());
 #endif
-    ESP_LOGV(TAG, "Remove connection %s", client->client_info_.name.c_str());
+    ESP_LOGV(TAG, "Remove connection %s", client->get_name());
 
     // Swap with the last element and pop (avoids expensive vector shifts)
     if (client_index < this->clients_.size() - 1) {
