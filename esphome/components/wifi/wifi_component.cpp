@@ -151,48 +151,51 @@ static const char *const TAG = "wifi";
 /// │  Purpose: Handle AP reboot or power loss scenarios where device      │
 /// │           connects to suboptimal AP and never switches back          │
 /// │                                                                      │
-/// │  Loop call site: roaming enabled && attempts < 3 && 5 min elapsed    │
-/// │           ↓                                                          │
-/// │  ┌─────────────────┐  Hidden?   ┌──────────────────────────┐         │
-/// │  │ check_roaming_  ├───────────→│ attempts = MAX, stop     │         │
-/// │  └────────┬────────┘            └──────────────────────────┘         │
-/// │           ↓                                                          │
-/// │    attempts++, update last_check                                     │
-/// │           ↓                                                          │
-/// │    RSSI > -49 dBm? ────Yes────→ Skip scan (excellent signal)─┐       │
-/// │           ↓ No                                               │       │
-/// │  ┌─────────────────┐                                         │       │
-/// │  │ Start scan      │                                         │       │
-/// │  └────────┬────────┘                                         │       │
-/// │           ↓                                                  │       │
-/// │  ┌────────────────────────┐                                  │       │
-/// │  │ process_roaming_scan_  │                                  │       │
-/// │  └────────┬───────────────┘                                  │       │
-/// │           ↓                                                  │       │
-/// │  ┌─────────────────┐  No     ┌───────────────┐               │       │
-/// │  │ +10 dB better AP├────────→│ Stay connected│───────────────┤       │
-/// │  └────────┬────────┘         └───────────────┘               │       │
-/// │           │ Yes                                              │       │
-/// │           ↓                                                  │       │
-/// │  ┌─────────────────┐                                         │       │
-/// │  │ start_connecting│ (roaming_connect_active_ = true)        │       │
-/// │  └────────┬────────┘                                         │       │
-/// │           ↓                                                  │       │
-/// │      ┌────┴────┐                                             │       │
-/// │      ↓         ↓                                             │       │
-/// │  ┌───────┐ ┌───────┐                                         │       │
-/// │  │SUCCESS│ │FAILED │                                         │       │
-/// │  └───┬───┘ └───┬───┘                                         │       │
-/// │      ↓         ↓                                             │       │
-/// │  Keep counter  retry_connect() → normal reconnect flow       │       │
-/// │  (no reset)    (keeps counter, handles retries)              │       │
-/// │      │              │                                        │       │
-/// │      └──────────────┴────────────────────────────────────────┘       │
+/// │  State Machine (RoamingState):                                       │
 /// │                                                                      │
-/// │  After 3 checks: attempts >= 3, stop checking                        │
-/// │  Non-roaming disconnect: clear_roaming_state_() resets counter       │
-/// │  Roaming success: counter preserved (prevents ping-pong)             │
-/// │  Roaming fail: normal flow handles reconnection, counter preserved   │
+/// │    ┌─────────────────────────────────────────────────────────────┐   │
+/// │    │                         IDLE                                │   │
+/// │    │  (waiting for 5 min timer, attempts < 3)                    │   │
+/// │    └─────────────────────────┬───────────────────────────────────┘   │
+/// │                              │ 5 min elapsed, RSSI < -49 dBm         │
+/// │                              ↓                                       │
+/// │    ┌─────────────────────────────────────────────────────────────┐   │
+/// │    │                       SCANNING                              │   │
+/// │    │  (check_roaming_ starts scan, attempts++)                   │   │
+/// │    └─────────────────────────┬───────────────────────────────────┘   │
+/// │                              │ scan done                             │
+/// │               ┌──────────────┴──────────────┐                        │
+/// │               ↓                             ↓                        │
+/// │     No better AP found            +10 dB better AP found             │
+/// │               │                             │                        │
+/// │               ↓                             ↓                        │
+/// │    ┌──────────────────┐    ┌─────────────────────────────────────┐   │
+/// │    │  → IDLE          │    │              CONNECTING             │   │
+/// │    │  (stay connected)│    │  (process_roaming_scan_ connects)   │   │
+/// │    └──────────────────┘    └─────────────────────┬───────────────┘   │
+/// │                                                  │                   │
+/// │                              ┌───────────────────┴───────────────┐   │
+/// │                              ↓                                   ↓   │
+/// │                        SUCCESS                              FAILED   │
+/// │                              │                                   │   │
+/// │                              ↓                                   ↓   │
+/// │    ┌──────────────────────────────────┐    ┌─────────────────────────┐
+/// │    │  → IDLE                          │    │      RECONNECTING       │
+/// │    │  (counter preserved, no reset)   │    │  (retry_connect called) │
+/// │    └──────────────────────────────────┘    └───────────┬─────────────┘
+/// │                                                        │             │
+/// │                                                        ↓             │
+/// │                                            ┌───────────────────────┐ │
+/// │                                            │  → IDLE               │ │
+/// │                                            │  (counter preserved!) │ │
+/// │                                            └───────────────────────┘ │
+/// │                                                                      │
+/// │  Key behaviors:                                                      │
+/// │  - After 3 checks: attempts >= 3, stop checking                      │
+/// │  - Non-roaming disconnect: clear_roaming_state_() resets counter     │
+/// │  - Roaming success (CONNECTING→IDLE): counter preserved              │
+/// │  - Roaming fail (RECONNECTING→IDLE): counter preserved               │
+/// │  - This prevents ping-pong when roam target AP is unreachable        │
 /// └──────────────────────────────────────────────────────────────────────┘
 
 static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
@@ -574,12 +577,12 @@ void WiFiComponent::loop() {
 
           // Post-connect roaming: check for better AP
           if (this->post_connect_roaming_) {
-            if (this->roaming_scan_active_) {
+            if (this->roaming_state_ == RoamingState::SCANNING) {
               if (this->scan_done_) {
                 this->process_roaming_scan_();
               }
               // else: scan in progress, wait
-            } else if (this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
+            } else if (this->roaming_state_ == RoamingState::IDLE && this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
                        now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL) {
               this->check_roaming_(now);
             }
@@ -1303,11 +1306,16 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     // Reset roaming state on successful connection
     this->roaming_last_check_ = now;
     // Only reset attempts if this wasn't a roaming-triggered connection
-    // (prevents ping-pong between APs)
-    if (!this->roaming_connect_active_) {
+    // (CONNECTING = roam attempt, RECONNECTING = failed roam, reconnecting)
+    // This prevents ping-pong between APs when a roam target is unreachable
+    if (this->roaming_state_ == RoamingState::CONNECTING) {
+      ESP_LOGD(TAG, "Roam successful");
+    } else if (this->roaming_state_ == RoamingState::RECONNECTING) {
+      ESP_LOGD(TAG, "Reconnected after failed roam (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+    } else {
       this->roaming_attempts_ = 0;
     }
-    this->roaming_connect_active_ = false;
+    this->roaming_state_ = RoamingState::IDLE;
 
     // Clear all priority penalties - the next reconnect will happen when an AP disconnects,
     // which means the landscape has likely changed and previous tracked failures are stale
@@ -1734,14 +1742,15 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
 }
 
 void WiFiComponent::retry_connect() {
-  // If this was a roaming attempt, preserve roaming_attempts_ count
-  // (so we stop roaming after ROAMING_MAX_ATTEMPTS failures)
+  // If this was a roaming attempt, transition to RECONNECTING state
+  // (preserves roaming_attempts_ so we stop roaming after ROAMING_MAX_ATTEMPTS failures)
   // Otherwise reset all roaming state
-  if (this->roaming_connect_active_) {
-    this->roaming_connect_active_ = false;
-    this->roaming_scan_active_ = false;
+  if (this->roaming_state_ == RoamingState::CONNECTING) {
+    ESP_LOGD(TAG, "Roam failed, reconnecting (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+    this->roaming_state_ = RoamingState::RECONNECTING;
     // Keep roaming_attempts_ - will prevent further roaming after max failures
-  } else {
+  } else if (this->roaming_state_ != RoamingState::RECONNECTING) {
+    // Not a roaming-triggered reconnect, reset state
     this->clear_roaming_state_();
   }
 
@@ -1990,8 +1999,7 @@ bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->
 void WiFiComponent::clear_roaming_state_() {
   this->roaming_attempts_ = 0;
   this->roaming_last_check_ = 0;
-  this->roaming_scan_active_ = false;
-  this->roaming_connect_active_ = false;
+  this->roaming_state_ = RoamingState::IDLE;
 }
 
 void WiFiComponent::release_scan_results_() {
@@ -2019,17 +2027,20 @@ void WiFiComponent::check_roaming_(uint32_t now) {
 
   // Guard: skip scan if signal is already good (no meaningful improvement possible)
   int8_t rssi = this->wifi_rssi();
-  if (rssi > ROAMING_GOOD_RSSI)
+  if (rssi > ROAMING_GOOD_RSSI) {
+    ESP_LOGV(TAG, "Roam check skipped, signal good (%d dBm)", rssi);
     return;
+  }
 
   ESP_LOGD(TAG, "Roam scan (%d dBm)", rssi);
-  this->roaming_scan_active_ = true;
+  this->roaming_state_ = RoamingState::SCANNING;
   this->wifi_scan_start_(this->passive_scan_);
 }
 
 void WiFiComponent::process_roaming_scan_() {
   this->scan_done_ = false;
-  this->roaming_scan_active_ = false;
+  // Default to IDLE - will be set to CONNECTING if we find a better AP
+  this->roaming_state_ = RoamingState::IDLE;
 
   // Get current connection info
   int8_t current_rssi = this->wifi_rssi();
@@ -2080,7 +2091,7 @@ void WiFiComponent::process_roaming_scan_() {
   this->release_scan_results_();
 
   // Mark as roaming attempt - affects retry behavior if connection fails
-  this->roaming_connect_active_ = true;
+  this->roaming_state_ = RoamingState::CONNECTING;
 
   // Connect directly - wifi_sta_connect_ handles disconnect internally
   this->error_from_callback_ = false;
