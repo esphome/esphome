@@ -159,7 +159,8 @@ static const char *const TAG = "wifi";
 /// │                                                                      │
 /// │  Flow with RetryHiddenMode::BLIND_RETRY:                             │
 /// │                                                                      │
-/// │  1. RESTARTING_ADAPTER → Skip actual restart, just disconnect        │
+/// │  1. RESTARTING_ADAPTER → In this mode, skip adapter restart and      │
+/// │     just disconnect (normal mode restarts the adapter)               │
 /// │     - Sets retry_hidden_mode_ = BLIND_RETRY                          │
 /// │     - Enter extended cooldown (30s vs normal 500ms)                  │
 /// │                          ↓                                           │
