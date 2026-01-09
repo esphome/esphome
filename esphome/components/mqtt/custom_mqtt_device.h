@@ -6,8 +6,7 @@
 #include "esphome/core/component.h"
 #include "mqtt_client.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 /** This class is a helper class for custom components that communicate using
  * MQTT. It has 5 helper functions that you can use (square brackets indicate optional):
@@ -214,7 +213,6 @@ void CustomMQTTDevice::subscribe_json(const std::string &topic, void (T::*callba
   global_mqtt_client->subscribe_json(topic, f, qos);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_MQTT

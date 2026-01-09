@@ -93,35 +93,36 @@ void HttpRequestUpdate::update_task(void *params) {
     container.reset();  // Release ownership of the container's shared_ptr
 
     valid = json::parse_json(response, [this_update](JsonObject root) -> bool {
-      if (!root["name"].is<const char *>() || !root["version"].is<const char *>() || !root["builds"].is<JsonArray>()) {
+      if (!root[ESPHOME_F("name")].is<const char *>() || !root[ESPHOME_F("version")].is<const char *>() ||
+          !root[ESPHOME_F("builds")].is<JsonArray>()) {
         ESP_LOGE(TAG, "Manifest does not contain required fields");
         return false;
       }
-      this_update->update_info_.title = root["name"].as<std::string>();
-      this_update->update_info_.latest_version = root["version"].as<std::string>();
+      this_update->update_info_.title = root[ESPHOME_F("name")].as<std::string>();
+      this_update->update_info_.latest_version = root[ESPHOME_F("version")].as<std::string>();
 
-      for (auto build : root["builds"].as<JsonArray>()) {
-        if (!build["chipFamily"].is<const char *>()) {
+      for (auto build : root[ESPHOME_F("builds")].as<JsonArray>()) {
+        if (!build[ESPHOME_F("chipFamily")].is<const char *>()) {
           ESP_LOGE(TAG, "Manifest does not contain required fields");
           return false;
         }
-        if (build["chipFamily"] == ESPHOME_VARIANT) {
-          if (!build["ota"].is<JsonObject>()) {
+        if (build[ESPHOME_F("chipFamily")] == ESPHOME_VARIANT) {
+          if (!build[ESPHOME_F("ota")].is<JsonObject>()) {
             ESP_LOGE(TAG, "Manifest does not contain required fields");
             return false;
           }
-          JsonObject ota = build["ota"].as<JsonObject>();
-          if (!ota["path"].is<const char *>() || !ota["md5"].is<const char *>()) {
+          JsonObject ota = build[ESPHOME_F("ota")].as<JsonObject>();
+          if (!ota[ESPHOME_F("path")].is<const char *>() || !ota[ESPHOME_F("md5")].is<const char *>()) {
             ESP_LOGE(TAG, "Manifest does not contain required fields");
             return false;
           }
-          this_update->update_info_.firmware_url = ota["path"].as<std::string>();
-          this_update->update_info_.md5 = ota["md5"].as<std::string>();
+          this_update->update_info_.firmware_url = ota[ESPHOME_F("path")].as<std::string>();
+          this_update->update_info_.md5 = ota[ESPHOME_F("md5")].as<std::string>();
 
-          if (ota["summary"].is<const char *>())
-            this_update->update_info_.summary = ota["summary"].as<std::string>();
-          if (ota["release_url"].is<const char *>())
-            this_update->update_info_.release_url = ota["release_url"].as<std::string>();
+          if (ota[ESPHOME_F("summary")].is<const char *>())
+            this_update->update_info_.summary = ota[ESPHOME_F("summary")].as<std::string>();
+          if (ota[ESPHOME_F("release_url")].is<const char *>())
+            this_update->update_info_.release_url = ota[ESPHOME_F("release_url")].as<std::string>();
 
           return true;
         }

@@ -718,3 +718,65 @@ class TestEsphomeCore:
         # Even though "web_server" is in loaded_integrations due to the platform,
         # web_port must return None because the full web_server component is not configured
         assert target.web_port is None
+
+    def test_has_at_least_one_component__none_configured(self, target):
+        """Test has_at_least_one_component returns False when none of the components are configured."""
+        target.config = {const.CONF_ESPHOME: {"name": "test"}, "logger": {}}
+
+        assert target.has_at_least_one_component("wifi", "ethernet") is False
+
+    def test_has_at_least_one_component__one_configured(self, target):
+        """Test has_at_least_one_component returns True when one component is configured."""
+        target.config = {const.CONF_WIFI: {}, "logger": {}}
+
+        assert target.has_at_least_one_component("wifi", "ethernet") is True
+
+    def test_has_at_least_one_component__multiple_configured(self, target):
+        """Test has_at_least_one_component returns True when multiple components are configured."""
+        target.config = {
+            const.CONF_WIFI: {},
+            const.CONF_ETHERNET: {},
+            "logger": {},
+        }
+
+        assert (
+            target.has_at_least_one_component("wifi", "ethernet", "bluetooth") is True
+        )
+
+    def test_has_at_least_one_component__single_component(self, target):
+        """Test has_at_least_one_component works with a single component."""
+        target.config = {const.CONF_MQTT: {}}
+
+        assert target.has_at_least_one_component("mqtt") is True
+        assert target.has_at_least_one_component("wifi") is False
+
+    def test_has_at_least_one_component__config_not_loaded(self, target):
+        """Test has_at_least_one_component raises ValueError when config is not loaded."""
+        target.config = None
+
+        with pytest.raises(ValueError, match="Config has not been loaded yet"):
+            target.has_at_least_one_component("wifi")
+
+    def test_has_networking__with_wifi(self, target):
+        """Test has_networking returns True when wifi is configured."""
+        target.config = {const.CONF_WIFI: {}}
+
+        assert target.has_networking is True
+
+    def test_has_networking__with_ethernet(self, target):
+        """Test has_networking returns True when ethernet is configured."""
+        target.config = {const.CONF_ETHERNET: {}}
+
+        assert target.has_networking is True
+
+    def test_has_networking__with_openthread(self, target):
+        """Test has_networking returns True when openthread is configured."""
+        target.config = {const.CONF_OPENTHREAD: {}}
+
+        assert target.has_networking is True
+
+    def test_has_networking__without_networking(self, target):
+        """Test has_networking returns False when no networking component is configured."""
+        target.config = {const.CONF_ESPHOME: {"name": "test"}, "logger": {}}
+
+        assert target.has_networking is False
