@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "esphome/core/component.h"
@@ -44,8 +45,13 @@ class Event : public EntityBase, public EntityBase_DeviceClass {
   /// Return the event types supported by this event.
   const FixedVector<const char *> &get_event_types() const { return this->types_; }
 
-  /// Return the last triggered event type (pointer to string in types_), or nullptr if no event triggered yet.
-  const char *get_last_event_type() const { return this->last_event_type_; }
+  /// Return the last triggered event type, or empty string_view if no event triggered yet.
+  std::string_view get_last_event_type() const {
+    return this->last_event_type_ != nullptr ? std::string_view(this->last_event_type_) : std::string_view();
+  }
+
+  /// Check if an event has been triggered.
+  bool has_event() const { return this->last_event_type_ != nullptr; }
 
   void add_on_event_callback(std::function<void(const std::string &event_type)> &&callback);
 

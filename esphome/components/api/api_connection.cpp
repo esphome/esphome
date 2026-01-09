@@ -1414,14 +1414,15 @@ void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequ
 #endif
 
 #ifdef USE_EVENT
-void APIConnection::send_event(event::Event *event, const char *event_type) {
-  this->send_message_smart_(event, MessageCreator(event_type), EventResponse::MESSAGE_TYPE,
+void APIConnection::send_event(event::Event *event, std::string_view event_type) {
+  // MessageCreator stores const char* - data() is safe as event types are null-terminated from codegen
+  this->send_message_smart_(event, MessageCreator(event_type.data()), EventResponse::MESSAGE_TYPE,
                             EventResponse::ESTIMATED_SIZE);
 }
-uint16_t APIConnection::try_send_event_response(event::Event *event, const char *event_type, APIConnection *conn,
+uint16_t APIConnection::try_send_event_response(event::Event *event, std::string_view event_type, APIConnection *conn,
                                                 uint32_t remaining_size, bool is_single) {
   EventResponse resp;
-  resp.event_type = StringRef(event_type);
+  resp.event_type = StringRef(event_type.data(), event_type.size());
   return fill_and_encode_entity_state(event, resp, EventResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 
