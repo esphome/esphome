@@ -83,7 +83,7 @@ void FanCall::validate_() {
       *this->binary_state_
       // ..,and no preset mode will be active...
       && !this->has_preset_mode() &&
-      this->parent_.get_preset_mode() == nullptr
+      !this->parent_.has_preset_mode()
       // ...and neither current nor new speed is available...
       && traits.supports_speed() && this->parent_.speed == 0 && !this->speed_.has_value()) {
     // ...set speed to 100%
@@ -175,6 +175,15 @@ bool Fan::set_preset_mode_(const std::string &preset_mode) { return this->set_pr
 
 void Fan::clear_preset_mode_() { this->preset_mode_ = nullptr; }
 
+void Fan::apply_preset_mode_(const FanCall &call) {
+  if (call.has_preset_mode()) {
+    this->set_preset_mode_(call.get_preset_mode());
+  } else if (call.get_speed().has_value()) {
+    // Manually setting speed clears preset (per Home Assistant convention)
+    this->clear_preset_mode_();
+  }
+}
+
 void Fan::add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
 void Fan::publish_state() {
   auto traits = this->get_traits();
@@ -192,9 +201,8 @@ void Fan::publish_state() {
   if (traits.supports_direction()) {
     ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(this->direction)));
   }
-  const char *preset = this->get_preset_mode();
-  if (preset != nullptr) {
-    ESP_LOGD(TAG, "  Preset Mode: %s", preset);
+  if (this->has_preset_mode()) {
+    ESP_LOGD(TAG, "  Preset Mode: %s", this->get_preset_mode());
   }
   this->state_callback_.call();
 #if defined(USE_FAN) && defined(USE_CONTROLLER_REGISTRY)
@@ -249,12 +257,11 @@ void Fan::save_state_() {
   state.speed = this->speed;
   state.direction = this->direction;
 
-  const char *preset = this->get_preset_mode();
-  if (preset != nullptr) {
+  if (this->has_preset_mode()) {
     const auto &preset_modes = traits.supported_preset_modes();
     // Find index of current preset mode (pointer comparison is safe since preset is from traits)
     for (size_t i = 0; i < preset_modes.size(); i++) {
-      if (preset_modes[i] == preset) {
+      if (preset_modes[i] == this->preset_mode_) {
         state.preset_mode = i;
         break;
       }
