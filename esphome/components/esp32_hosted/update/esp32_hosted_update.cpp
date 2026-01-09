@@ -24,6 +24,12 @@ static const char *const TAG = "esp32_hosted.update";
 // older coprocessor firmware versions have a 1500-byte limit per RPC call
 constexpr size_t CHUNK_SIZE = 1500;
 
+// Compile-time version string from esp_hosted_host_fw_ver.h macros
+#define STRINGIFY_(x) #x
+#define STRINGIFY(x) STRINGIFY_(x)
+static const char *const ESP_HOSTED_VERSION_STR = STRINGIFY(ESP_HOSTED_VERSION_MAJOR_1) "." STRINGIFY(
+    ESP_HOSTED_VERSION_MINOR_1) "." STRINGIFY(ESP_HOSTED_VERSION_PATCH_1);
+
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
 // Parse version string "major.minor.patch" into components
 // Returns true if parsing succeeded
@@ -52,8 +58,6 @@ static int compare_versions(int major1, int minor1, int patch1, int major2, int 
 
 void Esp32HostedUpdate::setup() {
   this->update_info_.title = "ESP32 Hosted Coprocessor";
-  this->host_version_ =
-      str_sprintf("%d.%d.%d", ESP_HOSTED_VERSION_MAJOR_1, ESP_HOSTED_VERSION_MINOR_1, ESP_HOSTED_VERSION_PATCH_1);
 
   // if wifi is not present, connect to the coprocessor
 #ifndef USE_WIFI
@@ -106,7 +110,7 @@ void Esp32HostedUpdate::setup() {
 
 void Esp32HostedUpdate::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP32 Hosted Update:");
-  ESP_LOGCONFIG(TAG, "  Host Library Version: %s", this->host_version_.c_str());
+  ESP_LOGCONFIG(TAG, "  Host Library Version: %s", ESP_HOSTED_VERSION_STR);
   ESP_LOGCONFIG(TAG, "  Coprocessor Version: %s", this->update_info_.current_version.c_str());
   ESP_LOGCONFIG(TAG, "  Latest Version: %s", this->update_info_.latest_version.c_str());
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
@@ -199,7 +203,7 @@ bool Esp32HostedUpdate::fetch_manifest_() {
       // Check if this version is compatible (not newer than host)
       if (compare_versions(major, minor, patch, ESP_HOSTED_VERSION_MAJOR_1, ESP_HOSTED_VERSION_MINOR_1,
                            ESP_HOSTED_VERSION_PATCH_1) > 0) {
-        ESP_LOGD(TAG, "Skipping version %s (newer than host %s)", ver_str.c_str(), this->host_version_.c_str());
+        ESP_LOGD(TAG, "Skipping version %s (newer than host %s)", ver_str.c_str(), ESP_HOSTED_VERSION_STR);
         continue;
       }
 
@@ -215,7 +219,7 @@ bool Esp32HostedUpdate::fetch_manifest_() {
     }
 
     if (best_major < 0) {
-      ESP_LOGW(TAG, "No compatible firmware version found (host is %s)", this->host_version_.c_str());
+      ESP_LOGW(TAG, "No compatible firmware version found (host is %s)", ESP_HOSTED_VERSION_STR);
       return false;
     }
 

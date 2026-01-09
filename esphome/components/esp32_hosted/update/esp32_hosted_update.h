@@ -35,7 +35,6 @@ class Esp32HostedUpdate : public update::UpdateEntity, public PollingComponent {
 #endif
 
  protected:
-  std::string host_version_;
   std::array<uint8_t, 32> firmware_sha256_{};
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
