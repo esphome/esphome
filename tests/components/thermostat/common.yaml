@@ -16,21 +16,15 @@ climate:
       - name: Away
         default_target_temperature_low: 16°C
         default_target_temperature_high: 20°C
-    custom_preset:
-      - name: Eco Mode
-        default_target_temperature_low: 16°C
-        default_target_temperature_high: 22°C
-      - name: Sleep Mode
-        default_target_temperature_low: 17°C
-        default_target_temperature_high: 21°C
     on_state:
       - lambda: |-
           // Test get_custom_preset() returns std::string_view
+          // "Default Preset" is a custom preset (not a standard ClimatePreset name)
           if (id(test_thermostat).has_custom_preset()) {
             auto preset = id(test_thermostat).get_custom_preset();
             // Compare with string literal using ==
-            if (preset == "Eco Mode") {
-              ESP_LOGD("test", "Preset is Eco Mode");
+            if (preset == "Default Preset") {
+              ESP_LOGD("test", "Preset is Default Preset");
             }
             // Log using %.*s format for string_view
             ESP_LOGD("test", "Custom preset: %.*s", (int) preset.size(), preset.data());
