@@ -156,7 +156,7 @@ const char *Fan::find_preset_mode_(const char *preset_mode, size_t len) {
 
 bool Fan::set_preset_mode_(const char *preset_mode, size_t len) {
   if (preset_mode == nullptr || len == 0) {
-    // Treat nullptr/empty as clearing the preset mode
+    // Treat nullptr or empty string as clearing the preset mode (no valid preset is "")
     if (this->preset_mode_ == nullptr) {
       return false;  // No change
     }
@@ -180,6 +180,8 @@ bool Fan::set_preset_mode_(const std::string &preset_mode) {
 }
 
 bool Fan::set_preset_mode_(std::string_view preset_mode) {
+  // Safe: find_preset_mode_ only uses the input for comparison and returns
+  // a pointer from traits, so the input string_view's lifetime doesn't matter.
   return this->set_preset_mode_(preset_mode.data(), preset_mode.size());
 }
 

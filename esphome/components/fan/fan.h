@@ -131,8 +131,9 @@ class Fan : public EntityBase {
   void set_restore_mode(FanRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 
   /// Get the current preset mode.
-  /// Returns a view of the string stored in traits (static storage), or empty view if not set.
-  /// Safe to use as the underlying string has static lifetime.
+  /// Returns a view of the string stored in traits, or empty view if not set.
+  /// The returned view points to string literals from codegen (static storage).
+  /// Traits are set once at startup and valid for the lifetime of the program.
   std::string_view get_preset_mode() const {
     return this->preset_mode_ != nullptr ? std::string_view(this->preset_mode_) : std::string_view();
   }
