@@ -5,7 +5,6 @@ from esphome.const import CONF_CARRIER_DUTY_PERCENT, CONF_FREQUENCY, CONF_ID
 from esphome.core.entity_helpers import setup_entity
 import esphome.final_validate as fv
 
-AUTO_LOAD = ["json"]
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["api"]
 MULTI_CONF = True

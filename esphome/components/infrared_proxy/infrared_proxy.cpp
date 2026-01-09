@@ -65,9 +65,9 @@ void InfraredProxyComponent::transmit_raw_timings(const api::InfraredProxyTransm
   // Set carrier frequency (0 = no carrier for RF applications)
   transmit_data->set_carrier_frequency(msg.carrier_frequency);
 
-  // Move raw timings to avoid copying - the remote_base protocol expects alternating mark/space
-  // Positive values = mark (LED on), negative values = space (LED off)
-  // FixedVector conversion operator creates a temporary std::vector which is automatically moved
+  // Convert FixedVector to std::vector for remote_base API compatibility
+  // FixedVector conversion operator copies data to a temporary std::vector, then moves it to set_data()
+  // Timings format: positive values = mark (LED/TX on), negative values = space (LED/TX off)
   transmit_data->set_data(static_cast<std::vector<int32_t>>(msg.timings));
 
   // Set repeat count (default to 1 if not specified or 0)
@@ -90,7 +90,9 @@ bool InfraredProxyComponent::on_receive(remote_base::RemoteReceiveData data) {
   ESP_LOGD(TAG, "Measured %u timings", raw_data.size());
 
   // Send the raw timings to the API
-  api::global_api_server->send_infrared_proxy_receive_event(this->get_object_id_hash(), raw_data);
+  if (api::global_api_server != nullptr) {
+    api::global_api_server->send_infrared_proxy_receive_event(this->get_object_id_hash(), raw_data);
+  }
 
   return false;  // Return false to allow other listeners to process the data
 }

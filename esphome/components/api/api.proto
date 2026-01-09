@@ -2462,7 +2462,7 @@ message ListEntitiesInfraredProxyResponse {
   EntityCategory entity_category = 6;
   uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];
   uint32 capabilities = 8;  // Bitfield of InfraredProxyCapabilityFlags
-  uint32 frequency = 9;  // Defines supported frequency for RF (0 = infrared only)
+  uint32 frequency = 9;  // RF frequency in kHz (0 = infrared only, non-zero = RF mode)
 }
 
 // Command to transmit infrared/RF data using raw timings
@@ -2472,9 +2472,9 @@ message InfraredProxyTransmitRawTimingsRequest {
   option (ifdef) = "USE_INFRARED_PROXY";
 
   fixed32 key = 1;                                       // Key identifying the transmitter instance
-  uint32 carrier_frequency = 2;                          // Carrier frequency in Hz (0 = no carrier)
+  uint32 carrier_frequency = 2;                          // Carrier frequency in Hz (0 = no carrier for RF)
   uint32 repeat_count = 3;                               // Number of times to transmit (1 = once, 2 = twice, etc.)
-  repeated int32 timings = 4 [packed=false, (fixed_vector) = true];    // Raw timings (alternating mark/space in microseconds)
+  repeated int32 timings = 4 [packed=false, (fixed_vector) = true];    // Raw timings in microseconds: positive = mark (LED/TX on), negative = space (LED/TX off)
 }
 
 // Event message for received infrared data
@@ -2485,5 +2485,5 @@ message InfraredProxyReceiveEvent {
   option (no_delay) = true;
 
   fixed32 key = 1;                                    // Key identifying the receiver instance
-  repeated int32 timings = 2 [packed=false, (fixed_vector) = true]; // Raw timings (alternating on/off in microseconds)
+  repeated int32 timings = 2 [packed=false, (fixed_vector) = true]; // Raw timings in microseconds: alternating mark/space periods
 }
