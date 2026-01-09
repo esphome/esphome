@@ -36,13 +36,13 @@ class Esp32HostedUpdate : public update::UpdateEntity, public PollingComponent {
 
  protected:
   std::string host_version_;
+  std::array<uint8_t, 32> firmware_sha256_{};
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
   // HTTP mode members
   http_request::HttpRequestComponent *http_request_parent_{nullptr};
   std::string source_url_;
   std::string firmware_url_;
-  std::string firmware_sha256_str_;
 
   // HTTP mode helpers
   bool fetch_manifest_();
@@ -51,7 +51,6 @@ class Esp32HostedUpdate : public update::UpdateEntity, public PollingComponent {
   // Embedded mode members
   const uint8_t *firmware_data_{nullptr};
   size_t firmware_size_{0};
-  std::array<uint8_t, 32> firmware_sha256_;
 #endif
 };
 

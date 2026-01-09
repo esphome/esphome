@@ -221,7 +221,12 @@ bool Esp32HostedUpdate::fetch_manifest_() {
 
     this->update_info_.latest_version = best_version;
     this->firmware_url_ = best_url;
-    this->firmware_sha256_str_ = best_sha256;
+
+    // Parse SHA256 hex string to bytes
+    if (!parse_hex(best_sha256, this->firmware_sha256_.data(), 32)) {
+      ESP_LOGE(TAG, "Invalid SHA256: %s", best_sha256.c_str());
+      return false;
+    }
 
     ESP_LOGD(TAG, "Best compatible version: %s", this->update_info_.latest_version.c_str());
     ESP_LOGD(TAG, "Firmware URL: %s", this->firmware_url_.c_str());
@@ -292,11 +297,8 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
 
   // Verify SHA256
   hasher.calculate();
-  if (!hasher.equals_hex(this->firmware_sha256_str_.c_str())) {
-    char calculated[65];
-    hasher.get_hex(calculated);
-    calculated[64] = '\0';
-    ESP_LOGE(TAG, "SHA256 mismatch: expected %s, got %s", this->firmware_sha256_str_.c_str(), calculated);
+  if (!hasher.equals_bytes(this->firmware_sha256_.data())) {
+    ESP_LOGE(TAG, "SHA256 mismatch");
     esp_hosted_slave_ota_end();  // NOLINT
     this->status_set_error(LOG_STR("SHA256 verification failed"));
     return false;
@@ -318,9 +320,9 @@ void Esp32HostedUpdate::perform(bool force) {
   this->update_info_.has_progress = false;
   this->publish_state();
 
-#ifdef USE_ESP32_HOSTED_HTTP_UPDATE
-  watchdog::WatchdogManager watchdog(60000);  // 60 seconds for HTTP downloads
+  watchdog::WatchdogManager watchdog(60000);
 
+#ifdef USE_ESP32_HOSTED_HTTP_UPDATE
   // HTTP mode: stream firmware from URL
   if (!this->stream_firmware_to_coprocessor_()) {
     this->state_ = prev_state;
@@ -328,8 +330,6 @@ void Esp32HostedUpdate::perform(bool force) {
     return;
   }
 #else
-  watchdog::WatchdogManager watchdog(20000);
-
   // Embedded mode: use firmware embedded in binary
   if (this->firmware_data_ == nullptr || this->firmware_size_ == 0) {
     ESP_LOGE(TAG, "No firmware data available");
