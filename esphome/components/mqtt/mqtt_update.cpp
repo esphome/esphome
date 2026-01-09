@@ -52,7 +52,7 @@ void MQTTUpdateComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, true);
 }
 
-std::string MQTTUpdateComponent::component_type() const { return "update"; }
+MQTT_COMPONENT_TYPE(MQTTUpdateComponent, "update")
 const EntityBase *MQTTUpdateComponent::get_entity() const { return this->update_; }
 
 }  // namespace esphome::mqtt
