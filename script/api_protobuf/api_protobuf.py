@@ -1009,9 +1009,23 @@ class PackedBufferTypeInfo(TypeInfo):
             + 'out.append(" bytes]\\n");'
         )
 
+    def dump(self, name: str) -> str:
+        """Dump method for packed buffer - not typically used but required by abstract base."""
+        return 'out.append("packed buffer");'
+
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         """No size calculation needed - decode-only."""
         return ""
+
+    def get_estimated_size(self) -> int:
+        """Estimate size for packed buffer field.
+
+        Typical IR/RF timing array has ~50-200 values, each encoded as 1-3 bytes.
+        Estimate 100 values * 2 bytes = 200 bytes typical.
+        """
+        return (
+            self.calculate_field_id_size() + 2 + 200
+        )  # field ID + length varint + data
 
     @classmethod
     def can_use_dump_field(cls) -> bool:
