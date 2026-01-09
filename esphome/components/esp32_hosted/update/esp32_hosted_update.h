@@ -48,6 +48,9 @@ class Esp32HostedUpdate : public update::UpdateEntity, public PollingComponent {
   // Embedded mode members
   const uint8_t *firmware_data_{nullptr};
   size_t firmware_size_{0};
+
+  // Embedded mode helper
+  bool write_embedded_firmware_to_coprocessor_();
 #endif
 
   std::array<uint8_t, 32> firmware_sha256_{};

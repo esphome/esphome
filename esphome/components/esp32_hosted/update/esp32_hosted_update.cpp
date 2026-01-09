@@ -311,6 +311,54 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
   ESP_LOGI(TAG, "SHA256 verified successfully");
   return true;
 }
+#else
+bool Esp32HostedUpdate::write_embedded_firmware_to_coprocessor_() {
+  if (this->firmware_data_ == nullptr || this->firmware_size_ == 0) {
+    ESP_LOGE(TAG, "No firmware data available");
+    this->status_set_error(LOG_STR("No firmware data available"));
+    return false;
+  }
+
+  // Verify SHA256 before writing
+  sha256::SHA256 hasher;
+  hasher.init();
+  hasher.add(this->firmware_data_, this->firmware_size_);
+  hasher.calculate();
+  if (!hasher.equals_bytes(this->firmware_sha256_.data())) {
+    ESP_LOGE(TAG, "SHA256 mismatch");
+    this->status_set_error(LOG_STR("SHA256 verification failed"));
+    return false;
+  }
+
+  ESP_LOGI(TAG, "Starting OTA update (%zu bytes)", this->firmware_size_);
+
+  esp_err_t err = esp_hosted_slave_ota_begin();  // NOLINT
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to begin OTA: %s", esp_err_to_name(err));
+    this->status_set_error(LOG_STR("Failed to begin OTA"));
+    return false;
+  }
+
+  uint8_t chunk[CHUNK_SIZE];
+  const uint8_t *data_ptr = this->firmware_data_;
+  size_t remaining = this->firmware_size_;
+  while (remaining > 0) {
+    size_t chunk_size = std::min(remaining, static_cast<size_t>(CHUNK_SIZE));
+    memcpy(chunk, data_ptr, chunk_size);
+    err = esp_hosted_slave_ota_write(chunk, chunk_size);  // NOLINT
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
+      esp_hosted_slave_ota_end();  // NOLINT
+      this->status_set_error(LOG_STR("Failed to write OTA data"));
+      return false;
+    }
+    data_ptr += chunk_size;
+    remaining -= chunk_size;
+    App.feed_wdt();
+  }
+
+  return true;
+}
 #endif
 
 void Esp32HostedUpdate::perform(bool force) {
@@ -327,65 +375,15 @@ void Esp32HostedUpdate::perform(bool force) {
   watchdog::WatchdogManager watchdog(60000);
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
-  // HTTP mode: stream firmware from URL
-  if (!this->stream_firmware_to_coprocessor_()) {
-    this->state_ = prev_state;
-    this->publish_state();
-    return;
-  }
+  if (!this->stream_firmware_to_coprocessor_())
 #else
-  // Embedded mode: use firmware embedded in binary
-  if (this->firmware_data_ == nullptr || this->firmware_size_ == 0) {
-    ESP_LOGE(TAG, "No firmware data available");
-    this->state_ = prev_state;
-    this->status_set_error(LOG_STR("No firmware data available"));
-    this->publish_state();
-    return;
-  }
-
-  // ESP32-S3 hardware SHA acceleration requires 32-byte DMA alignment (IDF 5.5.x+)
-  alignas(32) sha256::SHA256 hasher;
-  hasher.init();
-  hasher.add(this->firmware_data_, this->firmware_size_);
-  hasher.calculate();
-  if (!hasher.equals_bytes(this->firmware_sha256_.data())) {
-    this->state_ = prev_state;
-    this->status_set_error(LOG_STR("SHA256 verification failed"));
-    this->publish_state();
-    return;
-  }
-
-  ESP_LOGI(TAG, "Starting OTA update (%zu bytes)", this->firmware_size_);
-
-  esp_err_t begin_err = esp_hosted_slave_ota_begin();  // NOLINT
-  if (begin_err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to begin OTA: %s", esp_err_to_name(begin_err));
-    this->state_ = prev_state;
-    this->status_set_error(LOG_STR("Failed to begin OTA"));
-    this->publish_state();
-    return;
-  }
-
-  uint8_t chunk[CHUNK_SIZE];
-  const uint8_t *data_ptr = this->firmware_data_;
-  size_t remaining = this->firmware_size_;
-  while (remaining > 0) {
-    size_t chunk_size = std::min(remaining, static_cast<size_t>(CHUNK_SIZE));
-    memcpy(chunk, data_ptr, chunk_size);
-    esp_err_t write_err = esp_hosted_slave_ota_write(chunk, chunk_size);  // NOLINT
-    if (write_err != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(write_err));
-      esp_hosted_slave_ota_end();  // NOLINT
-      this->state_ = prev_state;
-      this->status_set_error(LOG_STR("Failed to write OTA data"));
-      this->publish_state();
-      return;
-    }
-    data_ptr += chunk_size;
-    remaining -= chunk_size;
-    App.feed_wdt();
-  }
+  if (!this->write_embedded_firmware_to_coprocessor_())
 #endif
+  {
+    this->state_ = prev_state;
+    this->publish_state();
+    return;
+  }
 
   // End OTA and activate new firmware
   esp_err_t end_err = esp_hosted_slave_ota_end();  // NOLINT
