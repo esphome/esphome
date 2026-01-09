@@ -22,7 +22,7 @@ namespace esphome::esp32_hosted {
 
 static const char *const TAG = "esp32_hosted.update";
 
-// older coprocessor firmware versions have a 1500-byte limit per RPC call
+// Older coprocessor firmware versions have a 1500-byte limit per RPC call
 constexpr size_t CHUNK_SIZE = 1500;
 
 // Compile-time version string from esp_hosted_host_fw_ver.h macros
@@ -60,12 +60,12 @@ static int compare_versions(int major1, int minor1, int patch1, int major2, int 
 void Esp32HostedUpdate::setup() {
   this->update_info_.title = "ESP32 Hosted Coprocessor";
 
-  // if wifi is not present, connect to the coprocessor
 #ifndef USE_WIFI
+  // If WiFi is not present, connect to the coprocessor
   esp_hosted_connect_to_slave();  // NOLINT
 #endif
 
-  // get coprocessor version
+  // Get coprocessor version
   esp_hosted_coprocessor_fwver_t ver_info;
   if (esp_hosted_get_coprocessor_fwversion(&ver_info) == ESP_OK) {
     this->update_info_.current_version = str_sprintf("%d.%d.%d", ver_info.major1, ver_info.minor1, ver_info.patch1);
@@ -103,7 +103,7 @@ void Esp32HostedUpdate::setup() {
     this->state_ = update::UPDATE_STATE_NO_UPDATE;
   }
 
-  // publish state
+  // Publish state
   this->status_clear_error();
   this->publish_state();
 #endif
