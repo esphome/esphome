@@ -1,3 +1,8 @@
+uart:
+  - id: !extend uart_bus
+    data_bits: 7
+    stop_bits: 1
+
 mk2pvrouter:
   id: test_mk2pvrouter
   update_interval: 60s
