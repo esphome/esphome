@@ -334,6 +334,24 @@ class ProtoWriteBuffer {
   void encode_sint64(uint32_t field_id, int64_t value, bool force = false) {
     this->encode_uint64(field_id, encode_zigzag64(value), force);
   }
+  /// Encode a packed repeated sint32 field (zero-copy from vector)
+  void encode_packed_sint32(uint32_t field_id, const std::vector<int32_t> &values) {
+    if (values.empty())
+      return;
+
+    // Calculate packed size
+    size_t packed_size = 0;
+    for (size_t i = 0; i < values.size(); i++) {
+      packed_size += ProtoSize::varint(encode_zigzag32(values[i]));
+    }
+
+    // Write tag (LENGTH_DELIMITED) + length + all zigzag-encoded values
+    this->encode_field_raw(field_id, WIRE_TYPE_LENGTH_DELIMITED);
+    this->encode_varint_raw(packed_size);
+    for (size_t i = 0; i < values.size(); i++) {
+      this->encode_varint_raw(encode_zigzag32(values[i]));
+    }
+  }
   void encode_message(uint32_t field_id, const ProtoMessage &value);
   std::vector<uint8_t> *get_buffer() const { return buffer_; }
 
@@ -791,6 +809,22 @@ class ProtoSize {
         add_message_object_force(field_id_size, message);
       }
     }
+  }
+
+  /**
+   * @brief Calculate size of a packed repeated sint32 field
+   */
+  inline void add_packed_sint32(uint32_t field_id_size, const std::vector<int32_t> &values) {
+    if (values.empty())
+      return;
+
+    size_t packed_size = 0;
+    for (size_t i = 0; i < values.size(); i++) {
+      packed_size += varint(encode_zigzag32(values[i]));
+    }
+
+    // field_id + length varint + packed data
+    total_size_ += field_id_size + varint(static_cast<uint32_t>(packed_size)) + static_cast<uint32_t>(packed_size);
   }
 };
 
