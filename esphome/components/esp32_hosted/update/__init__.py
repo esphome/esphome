@@ -118,15 +118,10 @@ async def to_code(config: dict[str, Any]) -> None:
         if CONF_HTTP_REQUEST_ID in config:
             http_request_var = await cg.get_variable(config[CONF_HTTP_REQUEST_ID])
         else:
-            # Auto-find the http_request component
             http_request_var = await cg.get_variable(
                 CORE.config["http_request"][cv.CONF_ID]
             )
         cg.add(var.set_http_request_parent(http_request_var))
-
-        # ESP32-P4's hardware SHA has issues with mbedTLS during TLS operations
-        # Disable hardware SHA acceleration to use software fallback
-        esp32.add_idf_sdkconfig_option("CONFIG_MBEDTLS_HARDWARE_SHA", False)
 
         cg.add_define("USE_ESP32_HOSTED_HTTP_UPDATE")
 
