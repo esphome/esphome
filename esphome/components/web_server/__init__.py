@@ -351,7 +351,7 @@ async def to_code(config):
             except Exception:  # pylint: disable=broad-except
                 pass
 
-    # Generate defines for each CDN domain
+    # Generate defines for each CDN domain (used by captive_portal DNS whitelist)
     for i, domain in enumerate(sorted(cdn_domains)):
         cg.add_define(f"WEBSERVER_CDN_DOMAIN_{i}", domain)
     cg.add_define("WEBSERVER_CDN_DOMAIN_COUNT", len(cdn_domains))

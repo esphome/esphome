@@ -10,9 +10,11 @@
 #define ESPHOME_PGM_P PGM_P
 #define ESPHOME_strncpy_P strncpy_P
 #define ESPHOME_strncat_P strncat_P
+#define ESPHOME_strcasecmp_P strcasecmp_P
 #else
 #define ESPHOME_F(string_literal) (string_literal)
 #define ESPHOME_PGM_P const char *
 #define ESPHOME_strncpy_P strncpy
 #define ESPHOME_strncat_P strncat
+#define ESPHOME_strcasecmp_P strcasecmp
 #endif
