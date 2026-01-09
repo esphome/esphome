@@ -12,9 +12,11 @@ static const char *const TAG = "ips7100";
 static const uint8_t IPS7100_CMD_READ_PC = 0x11;  // Read particle count data
 static const uint8_t IPS7100_CMD_READ_PM = 0x12;  // Read PM mass data
 
-// Data sizes (with checksum bytes)
-static const uint8_t PC_DATA_SIZE = 30;  // 7 x 4 bytes + 2 bytes CRC16
-static const uint8_t PM_DATA_SIZE = 30;  // 7 x 4 bytes + 2 bytes CRC16
+// Data sizes - actual bytes returned by sensor over I2C
+// Note: Datasheet specifies 28 data bytes + 1 checksum byte (29 total)
+// but sensor actually sends 30 bytes over I2C (possibly 2-byte CRC16)
+static const uint8_t PC_DATA_SIZE = 30;  // 7 x 4 bytes + 2 bytes
+static const uint8_t PM_DATA_SIZE = 30;  // 7 x 4 bytes + 2 bytes
 
 void IPS7100Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up IPS7100...");
@@ -189,14 +191,6 @@ bool IPS7100Component::read_pc_data_() {
            this->pc_values_[3], this->pc_values_[4], this->pc_values_[5], this->pc_values_[6]);
 
   return true;
-}
-
-uint8_t IPS7100Component::calc_checksum_(const uint8_t *data, size_t len) {
-  uint8_t checksum = 0;
-  for (size_t i = 0; i < len; i++) {
-    checksum ^= data[i];
-  }
-  return checksum;
 }
 
 }  // namespace ips7100

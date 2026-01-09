@@ -34,7 +34,6 @@ class IPS7100Component : public PollingComponent, public i2c::I2CDevice {
  protected:
   bool read_pm_data_();
   bool read_pc_data_();
-  uint8_t calc_checksum_(const uint8_t *data, size_t len);
 
   // PM mass concentration sensors
   sensor::Sensor *pm_0_1_sensor_{nullptr};
