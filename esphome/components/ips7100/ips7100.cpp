@@ -17,33 +17,7 @@ static const uint8_t IPS7100_CMD_READ_PM = 0x12;  // Read PM mass data
 static const uint8_t PC_DATA_SIZE = 28;  // 7 x 4 bytes
 static const uint8_t PM_DATA_SIZE = 28;  // 7 x 4 bytes
 
-void IPS7100Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up IPS7100...");
-
-  // Wait for sensor to be ready after power-up
-  // The sensor needs time to initialize and start measuring
-  delay(1000);
-
-  // Try to read data to verify sensor is responding
-  // The first read may fail if sensor is still initializing, so retry a few times
-  bool success = false;
-  for (int attempt = 0; attempt < 3; attempt++) {
-    if (this->read_pm_data_()) {
-      success = true;
-      break;
-    }
-    ESP_LOGD(TAG, "Read attempt %d failed, retrying...", attempt + 1);
-    delay(500);
-  }
-
-  if (!success) {
-    ESP_LOGE(TAG, "Failed to communicate with IPS7100 sensor after 3 attempts");
-    this->mark_failed();
-    return;
-  }
-
-  ESP_LOGCONFIG(TAG, "IPS7100 sensor initialized successfully");
-}
+void IPS7100Component::setup() { ESP_LOGCONFIG(TAG, "Setting up IPS7100..."); }
 
 void IPS7100Component::dump_config() {
   ESP_LOGCONFIG(TAG, "IPS7100:");
@@ -70,8 +44,8 @@ void IPS7100Component::dump_config() {
 void IPS7100Component::update() {
   bool pm_success = this->read_pm_data_();
 
-  // Longer delay between reading PM and PC data to allow sensor to prepare next data
-  delay(50);
+  // Delay between reading PM and PC data to allow sensor to prepare next data
+  delayMicroseconds(50000);  // 50ms
 
   bool pc_success = this->read_pc_data_();
 
