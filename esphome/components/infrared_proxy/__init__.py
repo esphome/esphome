@@ -1,8 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import remote_receiver, remote_transmitter
 import esphome.config_validation as cv
-from esphome.const import CONF_FREQUENCY, CONF_ID
+from esphome.const import CONF_CARRIER_DUTY_PERCENT, CONF_FREQUENCY, CONF_ID
 from esphome.core.entity_helpers import setup_entity
+import esphome.final_validate as fv
 
 AUTO_LOAD = ["json"]
 CODEOWNERS = ["@kbx81"]
@@ -34,6 +35,32 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.ENTITY_BASE_SCHEMA),
     cv.has_exactly_one_key(CONF_REMOTE_TRANSMITTER_ID, CONF_REMOTE_RECEIVER_ID),
 )
+
+
+def _final_validate(config):
+    """Validate that transmitters have a proper carrier duty cycle."""
+    # Only validate if this is an infrared (not RF) configuration with a transmitter
+    if config.get(CONF_FREQUENCY, 0) == 0 and CONF_REMOTE_TRANSMITTER_ID in config:
+        # Get the transmitter configuration
+        transmitter_id = config[CONF_REMOTE_TRANSMITTER_ID]
+        full_config = fv.full_config.get()
+        transmitter_path = full_config.get_path_for_id(transmitter_id)[:-1]
+        transmitter_config = full_config.get_config_for_path(transmitter_path)
+
+        # Check if carrier_duty_percent set to 0 or 100
+        # Note: remote_transmitter schema requires this field and validates 1-100%,
+        # but we double-check here for infrared to provide a helpful error message
+        duty_percent = transmitter_config.get(CONF_CARRIER_DUTY_PERCENT)
+        if duty_percent in {0, 100}:
+            raise cv.Invalid(
+                f"Transmitter '{transmitter_id}' must have '{CONF_CARRIER_DUTY_PERCENT}' configured with "
+                "an intermediate value (typically 30-50%) for infrared transmission. If this is an RF "
+                f"transmitter, configure this infrared_proxy with a '{CONF_FREQUENCY}' value greater than "
+                "0 and less than 100"
+            )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
