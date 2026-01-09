@@ -91,7 +91,6 @@ bool Mk2PVRouter::read_chars_until_(bool drop, uint8_t c) {
 
   while (available() > 0 && j++ < MAX_ITERATIONS) {
     const auto received = read();
-    ESP_LOGVV(TAG, "Received byte: 0x%02X '%c'", received, (received >= 32 && received < 127) ? received : '.');
     if (received == c)
       return true;
     if (drop)
