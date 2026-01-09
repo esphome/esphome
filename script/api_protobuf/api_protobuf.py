@@ -373,13 +373,11 @@ def create_field_type_info(
 
         return BytesType(field, needs_decode, needs_encode)
 
-    # Special handling for string fields
+    # Special handling for string fields - use StringRef for zero-copy unless no_zero_copy is set
     if field.type == 9:
-        # For SOURCE_CLIENT only messages (decode but no encode), use StringRef
-        # for zero-copy access to the receive buffer
-        if needs_decode and not needs_encode:
-            return PointerToStringBufferType(field, None)
-        return StringType(field, needs_decode, needs_encode)
+        if get_field_opt(field, pb.no_zero_copy, False):
+            return StringType(field, needs_decode, needs_encode)
+        return PointerToStringBufferType(field, None)
 
     validate_field_type(field.type, field.name)
     return TYPE_INFO[field.type](field)
@@ -915,6 +913,10 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
     reference_type = "StringRef &"
     const_reference_type = "const StringRef &"
 
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return True
+
     @property
     def public_content(self) -> list[str]:
         return [f"StringRef {self.field_name}{{}};"]
@@ -931,18 +933,18 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
     }}"""
 
     def dump(self, name: str) -> str:
-        return f'out.append("\'").append(this->{self.field_name}.c_str(), this->{self.field_name}.size()).append("\'");'
+        # Not used since we use dump_field, but required by abstract base class
+        return f'out.append("\'").append({name}.c_str(), {name}.size()).append("\'");'
 
     @property
     def dump_content(self) -> str:
-        return (
-            f'out.append("  {self.name}: ");\n'
-            + f"{self.dump(self.field_name)}\n"
-            + 'out.append("\\n");'
-        )
+        return f'dump_field(out, "{self.name}", this->{self.field_name});'
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return f"size.add_length({self.calculate_field_id_size()}, this->{self.field_name}.size());"
+
+    def get_estimated_size(self) -> int:
+        return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
 
 
 class FixedArrayBytesType(TypeInfo):
@@ -2149,12 +2151,10 @@ def build_message_type(
     # dump_to implementation will go in dump_cpp
     dump_impl = f"void {desc.name}::dump_to(std::string &out) const {{"
     if dump:
-        if len(dump) == 1 and len(dump[0]) + len(dump_impl) + 3 < 120:
-            dump_impl += f" {dump[0]} "
-        else:
-            dump_impl += "\n"
-            dump_impl += f'  MessageDumpHelper helper(out, "{desc.name}");\n'
-            dump_impl += indent("\n".join(dump)) + "\n"
+        # Always use MessageDumpHelper for consistent output formatting
+        dump_impl += "\n"
+        dump_impl += f'  MessageDumpHelper helper(out, "{desc.name}");\n'
+        dump_impl += indent("\n".join(dump)) + "\n"
     else:
         o2 = f'out.append("{desc.name} {{}}");'
         if len(dump_impl) + len(o2) + 3 < 120:
