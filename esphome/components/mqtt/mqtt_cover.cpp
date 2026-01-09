@@ -90,7 +90,7 @@ void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
   }
 }
 
-std::string MQTTCoverComponent::component_type() const { return "cover"; }
+MQTT_COMPONENT_TYPE(MQTTCoverComponent, "cover")
 const EntityBase *MQTTCoverComponent::get_entity() const { return this->cover_; }
 
 bool MQTTCoverComponent::send_initial_state() { return this->publish_state(); }

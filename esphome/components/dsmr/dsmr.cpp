@@ -268,7 +268,7 @@ bool Dsmr::parse_telegram() {
 
     // publish the telegram, after publishing the sensors so it can also trigger action based on latest values
     if (this->s_telegram_ != nullptr) {
-      this->s_telegram_->publish_state(std::string(this->telegram_, this->bytes_read_));
+      this->s_telegram_->publish_state(this->telegram_, this->bytes_read_);
     }
     return true;
   }

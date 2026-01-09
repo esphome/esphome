@@ -28,7 +28,7 @@ void MQTTSelectComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, false)
 }
 
-std::string MQTTSelectComponent::component_type() const { return "select"; }
+MQTT_COMPONENT_TYPE(MQTTSelectComponent, "select")
 const EntityBase *MQTTSelectComponent::get_entity() const { return this->select_; }
 
 void MQTTSelectComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {

@@ -10,6 +10,87 @@ namespace esphome::socket {
 
 Socket::~Socket() {}
 
+// Platform-specific inet_ntop wrappers
+#if defined(USE_SOCKET_IMPL_LWIP_TCP)
+// LWIP raw TCP (ESP8266) uses inet_ntoa_r which takes struct by value
+static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
+  inet_ntoa_r(*reinterpret_cast<const struct in_addr *>(addr), buf, size);
+  return buf;
+}
+#if USE_NETWORK_IPV6
+static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
+  inet6_ntoa_r(*reinterpret_cast<const ip6_addr_t *>(addr), buf, size);
+  return buf;
+}
+#endif
+#elif defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+// LWIP sockets (LibreTiny, ESP32 Arduino)
+static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
+  return lwip_inet_ntop(AF_INET, addr, buf, size);
+}
+#if USE_NETWORK_IPV6
+static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
+  return lwip_inet_ntop(AF_INET6, addr, buf, size);
+}
+#endif
+#else
+// BSD sockets (host, ESP32-IDF)
+static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
+  return inet_ntop(AF_INET, addr, buf, size);
+}
+#if USE_NETWORK_IPV6
+static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
+  return inet_ntop(AF_INET6, addr, buf, size);
+}
+#endif
+#endif
+
+// Format sockaddr into caller-provided buffer, returns length written (excluding null)
+static size_t format_sockaddr_to(const struct sockaddr_storage &storage, std::span<char, SOCKADDR_STR_LEN> buf) {
+  if (storage.ss_family == AF_INET) {
+    const auto *addr = reinterpret_cast<const struct sockaddr_in *>(&storage);
+    if (esphome_inet_ntop4(&addr->sin_addr, buf.data(), buf.size()) != nullptr)
+      return strlen(buf.data());
+  }
+#if USE_NETWORK_IPV6
+  else if (storage.ss_family == AF_INET6) {
+    const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(&storage);
+#ifndef USE_SOCKET_IMPL_LWIP_TCP
+    // Format IPv4-mapped IPv6 addresses as regular IPv4 (not supported on ESP8266 raw TCP)
+    if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
+        addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
+        esphome_inet_ntop4(&addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {
+      return strlen(buf.data());
+    }
+#endif
+    if (esphome_inet_ntop6(&addr->sin6_addr, buf.data(), buf.size()) != nullptr)
+      return strlen(buf.data());
+  }
+#endif
+  buf[0] = '\0';
+  return 0;
+}
+
+size_t Socket::getpeername_to(std::span<char, SOCKADDR_STR_LEN> buf) {
+  struct sockaddr_storage storage;
+  socklen_t len = sizeof(storage);
+  if (this->getpeername(reinterpret_cast<struct sockaddr *>(&storage), &len) != 0) {
+    buf[0] = '\0';
+    return 0;
+  }
+  return format_sockaddr_to(storage, buf);
+}
+
+size_t Socket::getsockname_to(std::span<char, SOCKADDR_STR_LEN> buf) {
+  struct sockaddr_storage storage;
+  socklen_t len = sizeof(storage);
+  if (this->getsockname(reinterpret_cast<struct sockaddr *>(&storage), &len) != 0) {
+    buf[0] = '\0';
+    return 0;
+  }
+  return format_sockaddr_to(storage, buf);
+}
+
 std::unique_ptr<Socket> socket_ip(int type, int protocol) {
 #if USE_NETWORK_IPV6
   return socket(AF_INET6, type, protocol);
