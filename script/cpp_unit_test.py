@@ -93,6 +93,8 @@ def add_platform_components(config: dict, components: list[str]) -> None:
                 if platform_dir.is_dir():
                     platform = platform_dir.name
                     platform_component = config.setdefault(platform, [])
+                    if not platform_component:
+                        CORE.register_platform_component(platform, "dummy")
                     platform_component.append({CONF_PLATFORM: component})
 
 
