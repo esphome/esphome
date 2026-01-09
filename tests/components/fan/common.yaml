@@ -9,3 +9,27 @@ fan:
     has_oscillating: true
     has_direction: true
     speed_count: 3
+
+# Test lambdas using get_preset_mode() which returns std::string_view
+binary_sensor:
+  - platform: template
+    id: fan_has_preset
+    name: "Fan Has Preset"
+    lambda: |-
+      // Test has_preset_mode() method
+      if (!id(test_fan).has_preset_mode()) {
+        return false;
+      }
+      // Test .empty() on string_view
+      if (id(test_fan).get_preset_mode().empty()) {
+        return false;
+      }
+      // Test == comparison with string literal
+      if (id(test_fan).get_preset_mode() == "Eco") {
+        return true;
+      }
+      // Test != comparison
+      if (id(test_fan).get_preset_mode() != "Sleep") {
+        return true;
+      }
+      return false;
