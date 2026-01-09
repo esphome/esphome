@@ -31,7 +31,7 @@ void MQTTSensorComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, false)
 }
 
-std::string MQTTSensorComponent::component_type() const { return "sensor"; }
+MQTT_COMPONENT_TYPE(MQTTSensorComponent, "sensor")
 const EntityBase *MQTTSensorComponent::get_entity() const { return this->sensor_; }
 
 uint32_t MQTTSensorComponent::get_expire_after() const {
