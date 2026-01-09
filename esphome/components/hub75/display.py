@@ -550,12 +550,12 @@ async def to_code(config: ConfigType) -> None:
         ref="0.2.2",
     )
 
-    # Set compile-time configuration via defines
+    # Set compile-time configuration via build flags (so external library sees them)
     if CONF_BIT_DEPTH in config:
-        cg.add_define("HUB75_BIT_DEPTH", config[CONF_BIT_DEPTH])
+        cg.add_build_flag(f"-DHUB75_BIT_DEPTH={config[CONF_BIT_DEPTH]}")
 
     if CONF_GAMMA_CORRECT in config:
-        cg.add_define("HUB75_GAMMA_MODE", config[CONF_GAMMA_CORRECT])
+        cg.add_build_flag(f"-DHUB75_GAMMA_MODE={config[CONF_GAMMA_CORRECT]}")
 
     # Await all pin expressions
     pin_expressions = {
