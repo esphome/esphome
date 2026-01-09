@@ -13,10 +13,9 @@ static const uint8_t IPS7100_CMD_READ_PC = 0x11;  // Read particle count data
 static const uint8_t IPS7100_CMD_READ_PM = 0x12;  // Read PM mass data
 
 // Data sizes - actual bytes returned by sensor over I2C
-// Note: Datasheet specifies 28 data bytes + 1 checksum byte (29 total)
-// but sensor actually sends 30 bytes over I2C (possibly 2-byte CRC16)
-static const uint8_t PC_DATA_SIZE = 30;  // 7 x 4 bytes + 2 bytes
-static const uint8_t PM_DATA_SIZE = 30;  // 7 x 4 bytes + 2 bytes
+// Note: Sensor sends only 28 data bytes without CRC (7 x 4 bytes)
+static const uint8_t PC_DATA_SIZE = 28;  // 7 x 4 bytes
+static const uint8_t PM_DATA_SIZE = 28;  // 7 x 4 bytes
 
 void IPS7100Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up IPS7100...");
@@ -71,8 +70,8 @@ void IPS7100Component::dump_config() {
 void IPS7100Component::update() {
   bool pm_success = this->read_pm_data_();
 
-  // Small delay between reading PM and PC data
-  delay(10);
+  // Longer delay between reading PM and PC data to allow sensor to prepare next data
+  delay(50);
 
   bool pc_success = this->read_pc_data_();
 
@@ -151,14 +150,6 @@ bool IPS7100Component::read_pm_data_() {
     this->pm_values_[i] = converter.value;
   }
 
-  // Validate PM values are within reasonable range (0-1000 µg/m³)
-  // Values outside this range indicate communication errors
-  for (int i = 0; i < 7; i++) {
-    if (!std::isfinite(this->pm_values_[i]) || this->pm_values_[i] < 0.0f || this->pm_values_[i] > 1000.0f) {
-      ESP_LOGD(TAG, "Invalid PM data detected, skipping update");
-      return false;
-    }
-  }
 
   ESP_LOGV(TAG, "PM values: %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f", this->pm_values_[0], this->pm_values_[1],
            this->pm_values_[2], this->pm_values_[3], this->pm_values_[4], this->pm_values_[5], this->pm_values_[6]);
@@ -186,6 +177,7 @@ bool IPS7100Component::read_pc_data_() {
                           (static_cast<uint32_t>(buffer[i * 4 + 1]) << 16) |
                           (static_cast<uint32_t>(buffer[i * 4 + 2]) << 8) | static_cast<uint32_t>(buffer[i * 4 + 3]);
   }
+
 
   ESP_LOGV(TAG, "PC values: %u, %u, %u, %u, %u, %u, %u", this->pc_values_[0], this->pc_values_[1], this->pc_values_[2],
            this->pc_values_[3], this->pc_values_[4], this->pc_values_[5], this->pc_values_[6]);
