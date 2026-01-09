@@ -193,11 +193,11 @@ class LightState : public EntityBase, public Component {
 
   /// Get effect index by name. Returns 0 if effect not found.
   uint32_t get_effect_index(const std::string &effect_name) const {
-    if (str_equals_case_insensitive(effect_name, std::string("none"))) {
+    if (str_equals_case_insensitive(effect_name, "none")) {
       return 0;
     }
     for (size_t i = 0; i < this->effects_.size(); i++) {
-      if (str_equals_case_insensitive(std::string_view(effect_name), this->effects_[i]->get_name())) {
+      if (str_equals_case_insensitive(effect_name, this->effects_[i]->get_name())) {
         return i + 1;  // Effects are 1-indexed in active_effect_index_
       }
     }
