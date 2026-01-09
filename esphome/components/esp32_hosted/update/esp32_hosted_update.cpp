@@ -109,26 +109,23 @@ void Esp32HostedUpdate::setup() {
 }
 
 void Esp32HostedUpdate::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "ESP32 Hosted Update:\n"
+                "  Host Library Version: %s\n"
+                "  Coprocessor Version: %s\n"
+                "  Latest Version: %s",
+                ESP_HOSTED_VERSION_STR, this->update_info_.current_version.c_str(),
+                this->update_info_.latest_version.c_str());
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
   ESP_LOGCONFIG(TAG,
-                "ESP32 Hosted Update:\n"
-                "  Host Library Version: %s\n"
-                "  Coprocessor Version: %s\n"
-                "  Latest Version: %s\n"
                 "  Mode: HTTP\n"
                 "  Source URL: %s",
-                ESP_HOSTED_VERSION_STR, this->update_info_.current_version.c_str(),
-                this->update_info_.latest_version.c_str(), this->source_url_.c_str());
+                this->source_url_.c_str());
 #else
   ESP_LOGCONFIG(TAG,
-                "ESP32 Hosted Update:\n"
-                "  Host Library Version: %s\n"
-                "  Coprocessor Version: %s\n"
-                "  Latest Version: %s\n"
                 "  Mode: Embedded\n"
                 "  Firmware Size: %zu bytes",
-                ESP_HOSTED_VERSION_STR, this->update_info_.current_version.c_str(),
-                this->update_info_.latest_version.c_str(), this->firmware_size_);
+                this->firmware_size_);
 #endif
 }
 
