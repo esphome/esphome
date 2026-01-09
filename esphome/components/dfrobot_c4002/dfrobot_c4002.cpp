@@ -962,7 +962,7 @@ float C4002Component::get_area_range(RangValue range_value) { return current_are
  * Enable the door according to the current area range.
  */
 bool C4002Component::joint_enable_door() {
-  int door_count = 15;
+  // int door_count = 15;
 
   for (auto &v : enable_door_) {
     v = 1;
