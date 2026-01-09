@@ -338,7 +338,7 @@ async def to_code(config):
     if config[CONF_COMPRESSION] == "gzip":
         cg.add_define("USE_WEBSERVER_GZIP")
 
-    # Extract domains from CDN URLs for DNS whitelisting (used by captive_portal)
+    # Extract domains from CDN URLs for DNS allowlisting (used by captive_portal)
     # This handles both default URLs (using CDN_HOST) and custom user URLs
     cdn_domains: set[str] = set()
     for url_key in (CONF_CSS_URL, CONF_JS_URL):

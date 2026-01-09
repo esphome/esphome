@@ -67,13 +67,13 @@ class CoroPriority(enum.IntEnum):
     # Examples: esp32, esp8266, rp2040
     PLATFORM = 1000
 
-    # Network infrastructure setup - must run after CORE which adds 'using namespace esphome;'
-    # Examples: network (99)
-    NETWORK = 99
-
     # Network transport layer
     # Examples: async_tcp (200)
     NETWORK_TRANSPORT = 200
+
+    # Network infrastructure setup - must run after CORE which adds 'using namespace esphome;'
+    # Examples: network (99)
+    NETWORK = 99
 
     # Core system components
     # Examples: esphome core, most entity base components (cover, update, datetime,

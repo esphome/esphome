@@ -8,9 +8,9 @@ from esphome.coroutine import CoroPriority, FakeEventLoop, coroutine_with_priori
 def test_coro_priority_enum_values() -> None:
     """Test that CoroPriority enum values match expected priorities."""
     assert CoroPriority.PLATFORM == 1000
-    assert CoroPriority.NETWORK == 201
     assert CoroPriority.NETWORK_TRANSPORT == 200
     assert CoroPriority.CORE == 100
+    assert CoroPriority.NETWORK == 99
     assert CoroPriority.DIAGNOSTICS == 90
     assert CoroPriority.STATUS == 80
     assert CoroPriority.WEB_SERVER_BASE == 65
@@ -70,9 +70,9 @@ def test_float_and_enum_are_interchangeable() -> None:
     ("enum_value", "float_value"),
     [
         (CoroPriority.PLATFORM, 1000.0),
-        (CoroPriority.NETWORK, 201.0),
         (CoroPriority.NETWORK_TRANSPORT, 200.0),
         (CoroPriority.CORE, 100.0),
+        (CoroPriority.NETWORK, 99.0),
         (CoroPriority.DIAGNOSTICS, 90.0),
         (CoroPriority.STATUS, 80.0),
         (CoroPriority.WEB_SERVER_BASE, 65.0),
@@ -169,10 +169,10 @@ def test_mixed_float_and_enum_priorities() -> None:
 
 def test_enum_priority_comparison() -> None:
     """Test that enum priorities can be compared directly."""
-    assert CoroPriority.PLATFORM > CoroPriority.NETWORK
-    assert CoroPriority.NETWORK > CoroPriority.NETWORK_TRANSPORT
+    assert CoroPriority.PLATFORM > CoroPriority.NETWORK_TRANSPORT
     assert CoroPriority.NETWORK_TRANSPORT > CoroPriority.CORE
-    assert CoroPriority.CORE > CoroPriority.DIAGNOSTICS
+    assert CoroPriority.CORE > CoroPriority.NETWORK
+    assert CoroPriority.NETWORK > CoroPriority.DIAGNOSTICS
     assert CoroPriority.DIAGNOSTICS > CoroPriority.STATUS
     assert CoroPriority.STATUS > CoroPriority.WEB_SERVER_BASE
     assert CoroPriority.WEB_SERVER_BASE > CoroPriority.CAPTIVE_PORTAL
