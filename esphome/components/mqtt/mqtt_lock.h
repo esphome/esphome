@@ -8,8 +8,7 @@
 #include "esphome/components/lock/lock.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTLockComponent : public mqtt::MQTTComponent {
  public:
@@ -28,14 +27,13 @@ class MQTTLockComponent : public mqtt::MQTTComponent {
 
  protected:
   /// "lock" component type.
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   lock::Lock *lock_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

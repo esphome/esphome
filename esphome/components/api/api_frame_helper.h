@@ -29,10 +29,14 @@ static constexpr uint16_t MAX_MESSAGE_SIZE = 8192;  // 8 KiB for ESP8266
 static constexpr uint16_t MAX_MESSAGE_SIZE = 32768;  // 32 KiB for ESP32 and other platforms
 #endif
 
-// Forward declaration
-struct ClientInfo;
+// Maximum number of messages to batch in a single write operation
+// Must be >= MAX_INITIAL_PER_BATCH in api_connection.h (enforced by static_assert there)
+static constexpr size_t MAX_MESSAGES_PER_BATCH = 34;
 
 class ProtoWriteBuffer;
+
+// Max client name length (e.g., "Home Assistant 2026.1.0.dev0" = 28 chars)
+static constexpr size_t CLIENT_INFO_NAME_MAX_LEN = 32;
 
 struct ReadPacketBuffer {
   const uint8_t *data;  // Points directly into frame helper's rx_buf_ (valid until next read_packet call)
@@ -40,13 +44,13 @@ struct ReadPacketBuffer {
   uint16_t type;
 };
 
-// Packed packet info structure to minimize memory usage
-struct PacketInfo {
+// Packed message info structure to minimize memory usage
+struct MessageInfo {
   uint16_t offset;        // Offset in buffer where message starts
   uint16_t payload_size;  // Size of the message payload
   uint8_t message_type;   // Message type (0-255)
 
-  PacketInfo(uint8_t type, uint16_t off, uint16_t size) : offset(off), payload_size(size), message_type(type) {}
+  MessageInfo(uint8_t type, uint16_t off, uint16_t size) : offset(off), payload_size(size), message_type(type) {}
 };
 
 enum class APIError : uint16_t {
@@ -82,14 +86,23 @@ const LogString *api_error_to_logstr(APIError err);
 class APIFrameHelper {
  public:
   APIFrameHelper() = default;
-  explicit APIFrameHelper(std::unique_ptr<socket::Socket> socket, const ClientInfo *client_info)
-      : socket_(std::move(socket)), client_info_(client_info) {}
+  explicit APIFrameHelper(std::unique_ptr<socket::Socket> socket) : socket_(std::move(socket)) {}
+
+  // Get client name (null-terminated)
+  const char *get_client_name() const { return this->client_name_; }
+  // Get client peername/IP (null-terminated, cached at init time for availability after socket failure)
+  const char *get_client_peername() const { return this->client_peername_; }
+  // Set client name from buffer with length (truncates if needed)
+  void set_client_name(const char *name, size_t len) {
+    size_t copy_len = std::min(len, sizeof(this->client_name_) - 1);
+    memcpy(this->client_name_, name, copy_len);
+    this->client_name_[copy_len] = '\0';
+  }
   virtual ~APIFrameHelper() = default;
   virtual APIError init() = 0;
   virtual APIError loop();
   virtual APIError read_packet(ReadPacketBuffer *buffer) = 0;
   bool can_write_without_blocking() { return this->state_ == State::DATA && this->tx_buf_count_ == 0; }
-  std::string getpeername() { return socket_->getpeername(); }
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) { return socket_->getpeername(addr, addrlen); }
   APIError close() {
     state_ = State::CLOSED;
@@ -107,11 +120,32 @@ class APIFrameHelper {
     }
     return APIError::OK;
   }
+  /// Toggle TCP_NODELAY socket option to control Nagle's algorithm.
+  ///
+  /// This is used to allow log messages to coalesce (Nagle enabled) while keeping
+  /// state updates low-latency (NODELAY enabled). Without this, many small log
+  /// packets fill the TCP send buffer, crowding out important state updates.
+  ///
+  /// State is tracked to minimize setsockopt() overhead - on lwip_raw (ESP8266/RP2040)
+  /// this is just a boolean assignment; on other platforms it's a lightweight syscall.
+  ///
+  /// @param enable true to enable NODELAY (disable Nagle), false to enable Nagle
+  /// @return true if successful or already in desired state
+  bool set_nodelay(bool enable) {
+    if (this->nodelay_enabled_ == enable)
+      return true;
+    int val = enable ? 1 : 0;
+    int err = this->socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &val, sizeof(int));
+    if (err == 0) {
+      this->nodelay_enabled_ = enable;
+    }
+    return err == 0;
+  }
   virtual APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) = 0;
-  // Write multiple protobuf packets in a single operation
-  // packets contains (message_type, offset, length) for each message in the buffer
+  // Write multiple protobuf messages in a single operation
+  // messages contains (message_type, offset, length) for each message in the buffer
   // The buffer contains all messages with appropriate padding before each
-  virtual APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) = 0;
+  virtual APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) = 0;
   // Get the frame header padding required by this protocol
   uint8_t frame_header_padding() const { return frame_header_padding_; }
   // Get the frame footer size required by this protocol
@@ -127,12 +161,6 @@ class APIFrameHelper {
       // Use swap trick since shrink_to_fit() is non-binding and may be ignored
       std::vector<uint8_t>().swap(this->rx_buf_);
     }
-    // reusable_iovs_: Safe to release unconditionally.
-    // Only used within write_protobuf_packets() calls - cleared at start,
-    // populated with pointers, used for writev(), then function returns.
-    // The iovecs contain stale pointers after the call (data was either sent
-    // or copied to tx_buf_), and are cleared on next write_protobuf_packets().
-    std::vector<struct iovec>().swap(this->reusable_iovs_);
   }
 
  protected:
@@ -186,12 +214,12 @@ class APIFrameHelper {
 
   // Containers (size varies, but typically 12+ bytes on 32-bit)
   std::array<std::unique_ptr<SendBuffer>, API_MAX_SEND_QUEUE> tx_buf_;
-  std::vector<struct iovec> reusable_iovs_;
   std::vector<uint8_t> rx_buf_;
 
-  // Pointer to client info (4 bytes on 32-bit)
-  // Note: The pointed-to ClientInfo object must outlive this APIFrameHelper instance.
-  const ClientInfo *client_info_{nullptr};
+  // Client name buffer - stores name from Hello message or initial peername
+  char client_name_[CLIENT_INFO_NAME_MAX_LEN]{};
+  // Cached peername/IP address - captured at init time for availability after socket failure
+  char client_peername_[socket::SOCKADDR_STR_LEN]{};
 
   // Group smaller types together
   uint16_t rx_buf_len_ = 0;
@@ -201,7 +229,10 @@ class APIFrameHelper {
   uint8_t tx_buf_head_{0};
   uint8_t tx_buf_tail_{0};
   uint8_t tx_buf_count_{0};
-  // 8 bytes total, 0 bytes padding
+  // Tracks TCP_NODELAY state to minimize setsockopt() calls. Initialized to true
+  // since init_common_() enables NODELAY. Used by set_nodelay() to allow log
+  // messages to coalesce while keeping state updates low-latency.
+  bool nodelay_enabled_{true};
 
   // Common initialization for both plaintext and noise protocols
   APIError init_common_();
