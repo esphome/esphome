@@ -105,9 +105,11 @@ async def to_code(config):
 
 
 # Compile platform-specific DNS server implementations
+# ESP32 Arduino uses IDF components, so both use dns_server_esp32_idf.cpp
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "dns_server_esp32_idf.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
         "dns_server_arduino.cpp": {
