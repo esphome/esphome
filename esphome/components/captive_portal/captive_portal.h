@@ -4,8 +4,8 @@
 #include <memory>
 #if defined(USE_ESP32)
 #include "dns_server_esp32_idf.h"
-#elif defined(USE_ARDUINO)
-#include <DNSServer.h>
+#elif defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+#include "dns_server_arduino.h"
 #endif
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -22,15 +22,9 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   void setup() override;
   void dump_config() override;
   void loop() override {
-#if defined(USE_ESP32)
     if (this->dns_server_ != nullptr) {
       this->dns_server_->process_next_request();
     }
-#elif defined(USE_ARDUINO)
-    if (this->dns_server_ != nullptr) {
-      this->dns_server_->processNextRequest();
-    }
-#endif
   }
   float get_setup_priority() const override;
   void start();
@@ -45,14 +39,7 @@ class CaptivePortal : public AsyncWebHandler, public Component {
     }
   }
 
-  bool canHandle(AsyncWebServerRequest *request) const override {
-    // Handle all GET requests when captive portal is active.
-    // This allows us to respond with the portal page for any URL,
-    // triggering OS captive portal detection.
-    // Note: web_server registers its handlers first, so it will handle
-    // /?web_server before captive_portal sees the request.
-    return this->active_ && request->method() == HTTP_GET;
-  }
+  bool canHandle(AsyncWebServerRequest *request) const override;
 
   void handle_config(AsyncWebServerRequest *request);
 

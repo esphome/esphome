@@ -101,19 +101,21 @@ async def to_code(config):
     if config[CONF_COMPRESSION] == "gzip":
         cg.add_define("USE_CAPTIVE_PORTAL_GZIP")
 
-    if CORE.using_arduino:
-        if CORE.is_esp8266:
-            cg.add_library("DNSServer", None)
-        if CORE.is_libretiny:
-            cg.add_library("DNSServer", None)
+    # All platforms now use our custom DNS server implementations
 
 
-# Only compile the ESP-IDF DNS server when using ESP-IDF framework
+# Compile platform-specific DNS server implementations
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "dns_server_esp32_idf.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
+        },
+        "dns_server_arduino.cpp": {
+            PlatformFramework.ESP8266_ARDUINO,
+            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
         },
     }
 )

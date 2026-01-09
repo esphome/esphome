@@ -80,15 +80,9 @@ void CaptivePortal::start() {
 
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
 
-#if defined(USE_ESP32)
-  // Create DNS server instance for ESP-IDF
+  // Create DNS server instance with domain whitelisting support
   this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->start(ip);
-#elif defined(USE_ARDUINO)
-  this->dns_server_ = make_unique<DNSServer>();
-  this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
-  this->dns_server_->start(53, ESPHOME_F("*"), ip);
-#endif
 
   this->initialized_ = true;
   this->active_ = true;
@@ -130,6 +124,13 @@ float CaptivePortal::get_setup_priority() const {
   return setup_priority::WIFI + 1.0f;
 }
 void CaptivePortal::dump_config() { ESP_LOGCONFIG(TAG, "Captive Portal:"); }
+
+bool CaptivePortal::canHandle(AsyncWebServerRequest *request) const {
+  bool result = this->active_ && request->method() == HTTP_GET;
+  ESP_LOGD(TAG, "canHandle called: url=%s method=%d active=%d result=%d", request->url().c_str(), request->method(),
+           this->active_, result);
+  return result;
+}
 
 CaptivePortal *global_captive_portal = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

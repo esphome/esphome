@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gzip
+from urllib.parse import urlparse
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
@@ -334,6 +335,23 @@ async def to_code(config):
         cg.add_define("USE_WEBSERVER_LOCAL")
     if config[CONF_COMPRESSION] == "gzip":
         cg.add_define("USE_WEBSERVER_GZIP")
+
+    # Extract domains from CDN URLs for DNS whitelisting (used by captive_portal)
+    cdn_domains: set[str] = set()
+    for url_key in (CONF_CSS_URL, CONF_JS_URL):
+        url = config.get(url_key, "")
+        if url:
+            try:
+                parsed = urlparse(url)
+                if parsed.netloc:
+                    cdn_domains.add(parsed.netloc.lower())
+            except Exception:  # pylint: disable=broad-except
+                pass
+
+    # Generate defines for each CDN domain
+    for i, domain in enumerate(sorted(cdn_domains)):
+        cg.add_define(f"WEBSERVER_CDN_DOMAIN_{i}", domain)
+    cg.add_define("WEBSERVER_CDN_DOMAIN_COUNT", len(cdn_domains))
 
     if (sorting_group_config := config.get(CONF_SORTING_GROUPS)) is not None:
         cg.add_define("USE_WEBSERVER_SORTING")

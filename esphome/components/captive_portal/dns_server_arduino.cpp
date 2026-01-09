@@ -1,12 +1,9 @@
-#include "dns_server_esp32_idf.h"
-#ifdef USE_ESP32
+#include "dns_server_arduino.h"
+#if defined(USE_ARDUINO) && (defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY))
 
 #include <cstring>
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
-#include "esphome/components/socket/socket.h"
-#include <lwip/sockets.h>
-#include <lwip/inet.h>
+#include <lwip/def.h>
 
 namespace esphome::captive_portal {
 
@@ -48,70 +45,45 @@ struct DNSAnswer {
 
 void DNSServer::start(const network::IPAddress &ip) {
   this->server_ip_ = ip;
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
-  ESP_LOGV(TAG, "Starting DNS server on %s", ip.str_to(ip_buf));
-#endif
+  ESP_LOGV(TAG, "Starting DNS server");
 
-  // Create loop-monitored UDP socket
-  this->socket_ = socket::socket_ip_loop_monitored(SOCK_DGRAM, IPPROTO_UDP);
-  if (this->socket_ == nullptr) {
-    ESP_LOGE(TAG, "Socket create failed");
-    return;
-  }
-
-  // Set socket options
-  int enable = 1;
-  this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
-
-  // Bind to port 53
-  struct sockaddr_storage server_addr = {};
-  socklen_t addr_len = socket::set_sockaddr_any((struct sockaddr *) &server_addr, sizeof(server_addr), DNS_PORT);
-
-  int err = this->socket_->bind((struct sockaddr *) &server_addr, addr_len);
-  if (err != 0) {
-    ESP_LOGE(TAG, "Bind failed: %d", errno);
-    this->socket_ = nullptr;
+  this->udp_ = make_unique<WiFiUDP>();
+  if (!this->udp_->begin(DNS_PORT)) {
+    ESP_LOGE(TAG, "Failed to start UDP on port %d", DNS_PORT);
+    this->udp_ = nullptr;
     return;
   }
   ESP_LOGV(TAG, "Bound to port %d", DNS_PORT);
 }
 
 void DNSServer::stop() {
-  if (this->socket_ != nullptr) {
-    this->socket_->close();
-    this->socket_ = nullptr;
+  if (this->udp_ != nullptr) {
+    this->udp_->stop();
+    this->udp_ = nullptr;
   }
   ESP_LOGV(TAG, "Stopped");
 }
 
 void DNSServer::process_next_request() {
-  // Process one request if socket is valid and data is available
-  if (this->socket_ == nullptr || !this->socket_->ready()) {
-    return;
-  }
-  struct sockaddr_in client_addr;
-  socklen_t client_addr_len = sizeof(client_addr);
-
-  // Receive DNS request using raw fd for recvfrom
-  int fd = this->socket_->get_fd();
-  if (fd < 0) {
+  if (this->udp_ == nullptr) {
     return;
   }
 
-  ssize_t len = recvfrom(fd, this->buffer_, sizeof(this->buffer_), MSG_DONTWAIT, (struct sockaddr *) &client_addr,
-                         &client_addr_len);
+  int packet_size = this->udp_->parsePacket();
+  if (packet_size == 0) {
+    return;
+  }
 
-  if (len < 0) {
-    if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
-      ESP_LOGE(TAG, "recvfrom failed: %d", errno);
+  if (packet_size > static_cast<int>(sizeof(this->buffer_))) {
+    // Packet too large, skip it
+    while (this->udp_->available()) {
+      this->udp_->read();
     }
     return;
   }
 
-  ESP_LOGVV(TAG, "Received %d bytes from %s:%d", len, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-
-  if (len < static_cast<ssize_t>(sizeof(DNSHeader) + 1)) {
+  int len = this->udp_->read(this->buffer_, sizeof(this->buffer_));
+  if (len < static_cast<int>(sizeof(DNSHeader) + 1)) {
     ESP_LOGV(TAG, "Request too short: %d", len);
     return;
   }
@@ -124,7 +96,7 @@ void DNSServer::process_next_request() {
   // Check if it's a standard query
   if ((flags & DNS_QR_FLAG) || (flags & DNS_OPCODE_MASK) || qd_count != 1) {
     ESP_LOGV(TAG, "Not a standard query: flags=0x%04X, qd_count=%d", flags, qd_count);
-    return;  // Not a standard query
+    return;
   }
 
   // Parse domain name and check for whitelisted domains
@@ -138,18 +110,15 @@ void DNSServer::process_next_request() {
 
   while (name_ptr < end && *name_ptr != 0) {
     uint8_t label_len = *name_ptr;
-    if (label_len > 63) {  // Check for invalid label length
+    if (label_len > 63) {
       return;
     }
-    // Check if we have room for this label plus the length byte
     if (name_ptr + label_len + 1 > end) {
-      return;  // Would overflow
+      return;
     }
-    // Add dot separator if not first label
     if (domain_len > 0 && domain_len < sizeof(domain) - 1) {
       domain[domain_len++] = '.';
     }
-    // Copy label to domain string
     for (uint8_t i = 0; i < label_len && domain_len < sizeof(domain) - 1; i++) {
       domain[domain_len++] = name_ptr[1 + i];
     }
@@ -157,38 +126,26 @@ void DNSServer::process_next_request() {
   }
   domain[domain_len] = '\0';
 
-  // Check if we reached a proper null terminator
   if (name_ptr >= end || *name_ptr != 0) {
-    return;  // Name not terminated or truncated
+    return;
   }
-  ptr = name_ptr + 1;  // Skip the null terminator
+  ptr = name_ptr + 1;
 
 #ifdef USE_WEBSERVER
-  // Whitelist: don't redirect web_server's CDN domains
+  // Whitelist: don't redirect web_server's CDN domain
   // Respond with REFUSED to tell client to try another DNS server (e.g., cellular)
-  {
-    bool is_whitelisted = false;
-    // Check against configured CDN domains from web_server config
-#ifdef WEBSERVER_CDN_DOMAIN_0
-    if (strcasecmp(domain, WEBSERVER_CDN_DOMAIN_0) == 0)
-      is_whitelisted = true;
-#endif
-#ifdef WEBSERVER_CDN_DOMAIN_1
-    if (strcasecmp(domain, WEBSERVER_CDN_DOMAIN_1) == 0)
-      is_whitelisted = true;
-#endif
-
-    if (is_whitelisted) {
+  if (domain_len >= 11) {
+    const char *suffix = domain + domain_len - 11;
+    if (strcmp(suffix, ".esphome.io") == 0 || strcmp(domain, "esphome.io") == 0) {
       ESP_LOGD(TAG, "Whitelisted domain, sending REFUSED: %s", domain);
       // Send REFUSED response (RCODE=5) to trigger fallback to other DNS
       header->flags = htons(DNS_QR_FLAG | 0x8005);  // Response + REFUSED
       header->an_count = 0;
       header->ns_count = 0;
       header->ar_count = 0;
-      ssize_t sent = this->socket_->sendto(this->buffer_, len, 0, (struct sockaddr *) &client_addr, client_addr_len);
-      if (sent < 0) {
-        ESP_LOGV(TAG, "Send REFUSED failed: %d", errno);
-      }
+      this->udp_->beginPacket(this->udp_->remoteIP(), this->udp_->remotePort());
+      this->udp_->write(this->buffer_, len);
+      this->udp_->endPacket();
       return;
     }
   }
@@ -198,7 +155,7 @@ void DNSServer::process_next_request() {
 
   // Check we have room for the question
   if (ptr + sizeof(DNSQuestion) > end) {
-    return;  // Request truncated
+    return;
   }
 
   // Parse DNS question
@@ -206,51 +163,43 @@ void DNSServer::process_next_request() {
   uint16_t qtype = ntohs(question->type);
   uint16_t qclass = ntohs(question->dns_class);
 
-  // We only handle A queries
   if (qtype != DNS_QTYPE_A || qclass != DNS_QCLASS_IN) {
     ESP_LOGV(TAG, "Not an A query: type=0x%04X, class=0x%04X", qtype, qclass);
-    return;  // Not an A query
+    return;
   }
 
-  // Build DNS response by modifying the request in-place
-  header->flags = htons(DNS_QR_FLAG | 0x8000);  // Response + Authoritative
-  header->an_count = htons(1);                  // One answer
+  // Build DNS response
+  header->flags = htons(DNS_QR_FLAG | 0x8000);
+  header->an_count = htons(1);
 
-  // Add answer section after the question
   size_t question_len = (ptr + sizeof(DNSQuestion)) - this->buffer_ - sizeof(DNSHeader);
   size_t answer_offset = sizeof(DNSHeader) + question_len;
 
-  // Check if we have room for the answer
   if (answer_offset + sizeof(DNSAnswer) > sizeof(this->buffer_)) {
     ESP_LOGW(TAG, "Response too large");
     return;
   }
 
   DNSAnswer *answer = (DNSAnswer *) (this->buffer_ + answer_offset);
-
-  // Pointer to name in question (offset from start of packet)
   answer->ptr_offset = htons(0xC000 | sizeof(DNSHeader));
   answer->type = htons(DNS_QTYPE_A);
   answer->dns_class = htons(DNS_QCLASS_IN);
   answer->ttl = htonl(DNS_ANSWER_TTL);
   answer->addr_len = htons(4);
-
-  // Get the raw IP address
-  ip4_addr_t addr = this->server_ip_;
-  answer->ip_addr = addr.addr;
+  answer->ip_addr = static_cast<uint32_t>(this->server_ip_);
 
   size_t response_len = answer_offset + sizeof(DNSAnswer);
 
   // Send response
-  ssize_t sent =
-      this->socket_->sendto(this->buffer_, response_len, 0, (struct sockaddr *) &client_addr, client_addr_len);
-  if (sent < 0) {
-    ESP_LOGV(TAG, "Send failed: %d", errno);
+  this->udp_->beginPacket(this->udp_->remoteIP(), this->udp_->remotePort());
+  this->udp_->write(this->buffer_, response_len);
+  if (!this->udp_->endPacket()) {
+    ESP_LOGV(TAG, "Send failed");
   } else {
-    ESP_LOGV(TAG, "Sent %d bytes", sent);
+    ESP_LOGV(TAG, "Sent %d bytes", response_len);
   }
 }
 
 }  // namespace esphome::captive_portal
 
-#endif  // USE_ESP32
+#endif  // USE_ARDUINO
