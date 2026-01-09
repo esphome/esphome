@@ -1966,20 +1966,15 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   const auto &url = request->url();
   const auto method = request->method();
 
-  ESP_LOGD(TAG, "canHandle called: url=%s method=%d", url.c_str(), method);
-
   // Handle root URL
   if (url == ESPHOME_F("/")) {
 #ifdef USE_CAPTIVE_PORTAL
     // When captive portal is active, only handle "/" if ?web_server param is present
     // This lets captive_portal show its page at "/" while web_server handles /?web_server
     if (captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active()) {
-      bool has_param = request->hasParam(ESPHOME_F("web_server"));
-      ESP_LOGD(TAG, "canHandle: captive_portal active, hasParam(web_server)=%d", has_param);
-      return has_param;
+      return request->hasParam(ESPHOME_F("web_server"));
     }
 #endif
-    ESP_LOGD(TAG, "canHandle: returning true for /");
     return true;
   }
 
