@@ -170,7 +170,7 @@ void Esp32HostedUpdate::check() {
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
 bool Esp32HostedUpdate::fetch_manifest_() {
-  ESP_LOGD(TAG, "Fetching manifest from %s", this->source_url_.c_str());
+  ESP_LOGD(TAG, "Fetching manifest");
 
   auto container = this->http_request_parent_->get(this->source_url_);
   if (container == nullptr || container->status_code != 200) {
@@ -257,7 +257,6 @@ bool Esp32HostedUpdate::fetch_manifest_() {
     }
 
     ESP_LOGD(TAG, "Best compatible version: %s", this->update_info_.latest_version.c_str());
-    ESP_LOGD(TAG, "Firmware URL: %s", this->firmware_url_.c_str());
 
     return true;
   });
@@ -272,7 +271,7 @@ bool Esp32HostedUpdate::fetch_manifest_() {
 }
 
 bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
-  ESP_LOGI(TAG, "Downloading firmware from %s", this->firmware_url_.c_str());
+  ESP_LOGI(TAG, "Downloading firmware");
 
   auto container = this->http_request_parent_->get(this->firmware_url_);
   if (container == nullptr || container->status_code != 200) {
@@ -301,26 +300,33 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
   uint8_t buffer[CHUNK_SIZE];
   while (container->get_bytes_read() < total_size) {
     int read = container->read(buffer, sizeof(buffer));
-    if (read < 0) {
-      ESP_LOGE(TAG, "Download failed");
-      esp_hosted_slave_ota_end();  // NOLINT
-      container->end();
-      this->status_set_error(LOG_STR("Download failed"));
-      return false;
-    }
-    if (read > 0) {
-      hasher.add(buffer, read);
-      err = esp_hosted_slave_ota_write(buffer, read);  // NOLINT
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
-        esp_hosted_slave_ota_end();  // NOLINT
-        container->end();
-        this->status_set_error(LOG_STR("Failed to write OTA data"));
-        return false;
-      }
-    }
+
+    // Feed watchdog and give other tasks a chance to run
     App.feed_wdt();
     yield();
+
+    // Exit loop if no data available (stream closed or end of data)
+    if (read <= 0) {
+      if (read < 0) {
+        ESP_LOGE(TAG, "Stream closed with error");
+        esp_hosted_slave_ota_end();  // NOLINT
+        container->end();
+        this->status_set_error(LOG_STR("Download failed"));
+        return false;
+      }
+      // read == 0: no more data available, exit loop
+      break;
+    }
+
+    hasher.add(buffer, read);
+    err = esp_hosted_slave_ota_write(buffer, read);  // NOLINT
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
+      esp_hosted_slave_ota_end();  // NOLINT
+      container->end();
+      this->status_set_error(LOG_STR("Failed to write OTA data"));
+      return false;
+    }
   }
   container->end();
 
