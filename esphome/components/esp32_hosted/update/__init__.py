@@ -36,14 +36,18 @@ def _validate_sha256(value: Any) -> str:
     return value
 
 
-EMBEDDED_SCHEMA = cv.Schema(
+BASE_SCHEMA = update.update_schema(Esp32HostedUpdate, device_class="firmware").extend(
+    cv.polling_component_schema("6h")
+)
+
+EMBEDDED_SCHEMA = BASE_SCHEMA.extend(
     {
         cv.Required(CONF_PATH): cv.file_,
         cv.Required(CONF_SHA256): _validate_sha256,
     }
 )
 
-HTTP_SCHEMA = cv.Schema(
+HTTP_SCHEMA = BASE_SCHEMA.extend(
     {
         cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
         cv.Required(CONF_SOURCE): cv.url,
@@ -51,16 +55,12 @@ HTTP_SCHEMA = cv.Schema(
 )
 
 CONFIG_SCHEMA = cv.All(
-    update.update_schema(Esp32HostedUpdate, device_class="firmware")
-    .extend(
-        cv.typed_schema(
-            {
-                TYPE_EMBEDDED: EMBEDDED_SCHEMA,
-                TYPE_HTTP: HTTP_SCHEMA,
-            }
-        )
-    )
-    .extend(cv.polling_component_schema("6h")),
+    cv.typed_schema(
+        {
+            TYPE_EMBEDDED: EMBEDDED_SCHEMA,
+            TYPE_HTTP: HTTP_SCHEMA,
+        }
+    ),
     esp32.only_on_variant(
         supported=[
             esp32.VARIANT_ESP32H2,
