@@ -555,7 +555,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_build_flag(f"-DHUB75_BIT_DEPTH={config[CONF_BIT_DEPTH]}")
 
     if CONF_GAMMA_CORRECT in config:
-        cg.add_build_flag(f"-DHUB75_GAMMA_MODE={config[CONF_GAMMA_CORRECT]}")
+        cg.add_build_flag(f"-DHUB75_GAMMA_MODE={config[CONF_GAMMA_CORRECT].enum_value}")
 
     # Await all pin expressions
     pin_expressions = {
