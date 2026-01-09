@@ -198,9 +198,10 @@ class ProtoVarInt {
   uint64_t value_;
 };
 
-// Forward declaration for decode_to_message and encode_to_writer
-class ProtoMessage;
+// Forward declarations for decode_to_message, encode_message and encode_packed_sint32
 class ProtoDecodableMessage;
+class ProtoMessage;
+class ProtoSize;
 
 class ProtoLengthDelimited {
  public:
@@ -376,9 +377,6 @@ class ProtoWriteBuffer {
  protected:
   std::vector<uint8_t> *buffer_;
 };
-
-// Forward declaration
-class ProtoSize;
 
 class ProtoMessage {
  public:
