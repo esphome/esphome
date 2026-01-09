@@ -238,11 +238,20 @@ def _apply_min_auth_mode_default(config):
 def final_validate(config):
     has_sta = bool(config.get(CONF_NETWORKS, True))
     has_ap = CONF_AP in config
-    has_improv = "esp32_improv" in fv.full_config.get()
-    has_improv_serial = "improv_serial" in fv.full_config.get()
+    full_config = fv.full_config.get()
+    has_improv = "esp32_improv" in full_config
+    has_improv_serial = "improv_serial" in full_config
+    has_captive_portal = "captive_portal" in full_config
+    has_web_server = "web_server" in full_config
     if not (has_sta or has_ap or has_improv or has_improv_serial):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create."
+        )
+    if has_ap and not has_captive_portal and not has_web_server:
+        _LOGGER.warning(
+            "WiFi AP is configured but neither captive_portal nor web_server is enabled. "
+            "The AP will not be usable for configuration or monitoring. "
+            "Add 'captive_portal:' or 'web_server:' to your configuration."
         )
 
 

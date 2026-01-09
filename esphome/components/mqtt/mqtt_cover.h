@@ -29,7 +29,7 @@ class MQTTCoverComponent : public mqtt::MQTTComponent {
   void dump_config() override;
 
  protected:
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   cover::Cover *cover_;

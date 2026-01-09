@@ -112,6 +112,18 @@ enum class WiFiRetryPhase : uint8_t {
   RESTARTING_ADAPTER,
 };
 
+/// Tracks post-connect roaming state machine
+enum class RoamingState : uint8_t {
+  /// Not roaming, waiting for next check interval
+  IDLE,
+  /// Scanning for better AP
+  SCANNING,
+  /// Attempting to connect to better AP found in scan
+  CONNECTING,
+  /// Roam connection failed, reconnecting to any available AP
+  RECONNECTING,
+};
+
 /// Struct for setting static IPs in WiFiComponent.
 struct ManualIP {
   network::IPAddress static_ip;
@@ -667,8 +679,7 @@ class WiFiComponent : public Component {
   bool did_scan_this_cycle_{false};
   bool skip_cooldown_next_cycle_{false};
   bool post_connect_roaming_{true};  // Enabled by default
-  bool roaming_scan_active_{false};
-  bool roaming_connect_active_{false};  // True during roaming connection attempt (preserves roaming_attempts_)
+  RoamingState roaming_state_{RoamingState::IDLE};
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
   bool is_high_performance_mode_{false};
