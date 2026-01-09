@@ -153,6 +153,7 @@ class Fan : public EntityBase {
   void dump_traits_(const char *tag, const char *prefix);
 
   /// Set the preset mode (finds and stores pointer from traits). Returns true if changed.
+  /// Passing nullptr or empty string clears the preset mode.
   bool set_preset_mode_(const char *preset_mode, size_t len);
   bool set_preset_mode_(const char *preset_mode);
   bool set_preset_mode_(const std::string &preset_mode);
