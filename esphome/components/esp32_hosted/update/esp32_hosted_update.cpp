@@ -109,16 +109,26 @@ void Esp32HostedUpdate::setup() {
 }
 
 void Esp32HostedUpdate::dump_config() {
-  ESP_LOGCONFIG(TAG, "ESP32 Hosted Update:");
-  ESP_LOGCONFIG(TAG, "  Host Library Version: %s", ESP_HOSTED_VERSION_STR);
-  ESP_LOGCONFIG(TAG, "  Coprocessor Version: %s", this->update_info_.current_version.c_str());
-  ESP_LOGCONFIG(TAG, "  Latest Version: %s", this->update_info_.latest_version.c_str());
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
-  ESP_LOGCONFIG(TAG, "  Mode: HTTP");
-  ESP_LOGCONFIG(TAG, "  Source URL: %s", this->source_url_.c_str());
+  ESP_LOGCONFIG(TAG,
+                "ESP32 Hosted Update:\n"
+                "  Host Library Version: %s\n"
+                "  Coprocessor Version: %s\n"
+                "  Latest Version: %s\n"
+                "  Mode: HTTP\n"
+                "  Source URL: %s",
+                ESP_HOSTED_VERSION_STR, this->update_info_.current_version.c_str(),
+                this->update_info_.latest_version.c_str(), this->source_url_.c_str());
 #else
-  ESP_LOGCONFIG(TAG, "  Mode: Embedded");
-  ESP_LOGCONFIG(TAG, "  Firmware Size: %zu bytes", this->firmware_size_);
+  ESP_LOGCONFIG(TAG,
+                "ESP32 Hosted Update:\n"
+                "  Host Library Version: %s\n"
+                "  Coprocessor Version: %s\n"
+                "  Latest Version: %s\n"
+                "  Mode: Embedded\n"
+                "  Firmware Size: %zu bytes",
+                ESP_HOSTED_VERSION_STR, this->update_info_.current_version.c_str(),
+                this->update_info_.latest_version.c_str(), this->firmware_size_);
 #endif
 }
 
@@ -270,7 +280,8 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
   }
 
   // Stream firmware to coprocessor while computing SHA256
-  sha256::SHA256 hasher;
+  // Hardware SHA acceleration requires 32-byte alignment on some chips (ESP32-S3 with IDF 5.5.x+)
+  alignas(32) sha256::SHA256 hasher;
   hasher.init();
 
   uint8_t buffer[CHUNK_SIZE];
@@ -320,7 +331,8 @@ bool Esp32HostedUpdate::write_embedded_firmware_to_coprocessor_() {
   }
 
   // Verify SHA256 before writing
-  sha256::SHA256 hasher;
+  // Hardware SHA acceleration requires 32-byte alignment on some chips (ESP32-S3 with IDF 5.5.x+)
+  alignas(32) sha256::SHA256 hasher;
   hasher.init();
   hasher.add(this->firmware_data_, this->firmware_size_);
   hasher.calculate();
