@@ -1,5 +1,5 @@
 #include "dns_server_arduino.h"
-#if defined(USE_ARDUINO) && (defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY))
+#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
 
 #include "dns_server_common.h"
 #include "esphome/core/log.h"
@@ -127,4 +127,4 @@ void DNSServer::process_next_request() {
 
 }  // namespace esphome::captive_portal
 
-#endif  // USE_ARDUINO
+#endif  // USE_ESP8266 || USE_RP2040 || USE_LIBRETINY

@@ -1,5 +1,5 @@
 #pragma once
-#if defined(USE_ARDUINO) && (defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY))
+#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
 
 #include <memory>
 #include "dns_server_common.h"
@@ -23,4 +23,4 @@ class DNSServer {
 
 }  // namespace esphome::captive_portal
 
-#endif  // USE_ARDUINO && (USE_ESP8266 || USE_RP2040 || USE_LIBRETINY)
+#endif  // USE_ESP8266 || USE_RP2040 || USE_LIBRETINY
