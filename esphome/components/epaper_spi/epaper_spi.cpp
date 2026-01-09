@@ -54,20 +54,14 @@ void EPaperBase::setup_pins_() const {
 float EPaperBase::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void EPaperBase::command(uint8_t value) {
-  this->start_command_();
+  ESP_LOGV(TAG, "Command: 0x%02X", value);
+  this->dc_pin_->digital_write(false);
+  this->enable();
   this->write_byte(value);
-  this->end_command_();
-}
-
-void EPaperBase::data(uint8_t value) {
-  this->start_data_();
-  this->write_byte(value);
-  this->end_data_();
+  this->disable();
 }
 
 // write a command followed by zero or more bytes of data.
-// The command is the first byte, length is the length of data only in the second byte, followed by the data.
-// [COMMAND, LENGTH, DATA...]
 void EPaperBase::cmd_data(uint8_t command, const uint8_t *ptr, size_t length) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf[format_hex_pretty_size(EPAPER_MAX_CMD_LOG_BYTES)];
@@ -157,6 +151,8 @@ void EPaperBase::loop() {
   this->process_state_();
 }
 
+EPaperState operator+(EPaperState lhs, int rhs) { return static_cast<EPaperState>(static_cast<int>(lhs) + rhs); }
+
 /**
  * Process the state machine.
  * Typical state sequence:
@@ -192,7 +188,7 @@ void EPaperBase::process_state_() {
       this->set_state_(EPaperState::RESET);
       break;
     case EPaperState::INITIALISE:
-      this->initialise_();
+      this->initialise(this->update_count_ != 0);
       this->set_state_(EPaperState::TRANSFER_DATA);
       break;
     case EPaperState::TRANSFER_DATA:
@@ -233,7 +229,10 @@ void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
   if (delay != 0) {
     this->delay_until_ = millis() + delay;
   } else {
-    this->delay_until_ = 0;
+    // delay_until_ should be 0, unless a subclass has set it for its own purposes
+    if (this->delay_until_ != 0) {
+      this->delay_until_ += millis();
+    }
   }
   ESP_LOGV(TAG, "Enter state %s, delay %u, wait_for_idle=%s", this->epaper_state_to_string_(), delay,
            TRUEFALSE(this->waiting_for_idle_));
@@ -242,22 +241,14 @@ void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
   }
 }
 
-void EPaperBase::start_command_() {
-  this->dc_pin_->digital_write(false);
-  this->enable();
-}
-
-void EPaperBase::end_command_() { this->disable(); }
-
 void EPaperBase::start_data_() {
   this->dc_pin_->digital_write(true);
   this->enable();
 }
-void EPaperBase::end_data_() { this->disable(); }
 
 void EPaperBase::on_safe_shutdown() { this->deep_sleep(); }
 
-void EPaperBase::initialise_() {
+void EPaperBase::initialise(bool partial) {
   size_t index = 0;
 
   auto *sequence = this->init_sequence_;

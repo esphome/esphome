@@ -4,10 +4,9 @@ from . import EpaperModel
 
 
 class SSD1677(EpaperModel):
-    def __init__(self, name, class_name="EPaperSSD1677", **kwargs):
-        if CONF_DATA_RATE not in kwargs:
-            kwargs[CONF_DATA_RATE] = "20MHz"
-        super().__init__(name, class_name, **kwargs)
+    def __init__(self, name, class_name="EPaperSSD1677", data_rate="20MHz", **defaults):
+        defaults[CONF_DATA_RATE] = data_rate
+        super().__init__(name, class_name, **defaults)
 
     # fmt: off
     def get_init_sequence(self, config: dict):
