@@ -21,14 +21,29 @@ static const uint16_t CRC16_POLYNOMIAL = 0x8408;
 void IPS7100Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up IPS7100...");
 
+  // Wait for sensor to be ready after power-up
+  // The sensor needs time to initialize and start measuring
+  delay(1000);
+
   // Try to read data to verify sensor is responding
-  if (!this->read_pm_data_()) {
-    ESP_LOGE(TAG, "Failed to communicate with IPS7100 sensor");
+  // The first read may fail if sensor is still initializing, so retry a few times
+  bool success = false;
+  for (int attempt = 0; attempt < 3; attempt++) {
+    if (this->read_pm_data_()) {
+      success = true;
+      break;
+    }
+    ESP_LOGD(TAG, "Read attempt %d failed, retrying...", attempt + 1);
+    delay(500);
+  }
+
+  if (!success) {
+    ESP_LOGE(TAG, "Failed to communicate with IPS7100 sensor after 3 attempts");
     this->mark_failed();
     return;
   }
 
-  ESP_LOGD(TAG, "IPS7100 sensor initialized successfully");
+  ESP_LOGCONFIG(TAG, "IPS7100 sensor initialized successfully");
 }
 
 void IPS7100Component::dump_config() {
@@ -111,8 +126,8 @@ bool IPS7100Component::read_pm_data_() {
     return false;
   }
 
-  // Small delay for sensor to prepare data
-  delay(10);
+  // Delay for sensor to prepare data (sensor may need time to process measurement)
+  delay(50);
 
   if (this->read(buffer, PM_DATA_SIZE) != i2c::ERROR_OK) {
     ESP_LOGD(TAG, "Failed to read PM data");
@@ -159,8 +174,8 @@ bool IPS7100Component::read_pc_data_() {
     return false;
   }
 
-  // Small delay for sensor to prepare data
-  delay(10);
+  // Delay for sensor to prepare data (sensor may need time to process measurement)
+  delay(50);
 
   if (this->read(buffer, PC_DATA_SIZE) != i2c::ERROR_OK) {
     ESP_LOGD(TAG, "Failed to read PC data");
