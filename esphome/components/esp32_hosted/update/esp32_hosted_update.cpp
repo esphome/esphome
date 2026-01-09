@@ -106,6 +106,18 @@ void Esp32HostedUpdate::setup() {
   // Publish state
   this->status_clear_error();
   this->publish_state();
+#else
+  // HTTP mode: retry initial check every 10s until network is ready (max 6 attempts)
+  // Only if update interval is > 1 minute to avoid redundant checks
+  if (this->get_update_interval() > 60000) {
+    this->set_retry("initial_check", 10000, 6, [this](uint8_t) {
+      if (!network::is_connected()) {
+        return RetryResult::RETRY;
+      }
+      this->check();
+      return RetryResult::DONE;
+    });
+  }
 #endif
 }
 
@@ -216,7 +228,6 @@ bool Esp32HostedUpdate::fetch_manifest_() {
       // Check if this version is compatible (not newer than host)
       if (compare_versions(major, minor, patch, ESP_HOSTED_VERSION_MAJOR_1, ESP_HOSTED_VERSION_MINOR_1,
                            ESP_HOSTED_VERSION_PATCH_1) > 0) {
-        ESP_LOGD(TAG, "Skipping version %s (newer than host %s)", ver_str.c_str(), ESP_HOSTED_VERSION_STR);
         continue;
       }
 
