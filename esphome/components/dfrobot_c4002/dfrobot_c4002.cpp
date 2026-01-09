@@ -485,7 +485,10 @@ int8_t C4002Component::restart(void) {
   } else {
     ret = -1;
   }
-  delay(500);
+
+  for(int i= 0;i<10;i++){
+    delay(50);
+  }
   update_config_param();
   delay(10);
   return ret;
