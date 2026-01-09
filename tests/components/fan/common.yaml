@@ -11,23 +11,47 @@ fan:
     speed_count: 3
 
 # Test lambdas using get_preset_mode() which returns std::string_view
+# These examples match the migration guide in the PR description
 binary_sensor:
   - platform: template
     id: fan_has_preset
     name: "Fan Has Preset"
     lambda: |-
-      // Test has_preset_mode() method
-      if (!id(test_fan).has_preset_mode()) {
-        return false;
+      // Migration guide: Checking if preset mode is set
+      // Use empty() or has_preset_mode()
+      if (!id(test_fan).get_preset_mode().empty()) {
+        // preset is set
       }
-      // Test .empty() on string_view
-      if (id(test_fan).get_preset_mode().empty()) {
-        return false;
+      if (id(test_fan).has_preset_mode()) {
+        // preset is set
       }
-      // Test == comparison with string literal
+
+      // Migration guide: Comparing preset mode
+      // Use == operator directly (safe, works even when empty)
       if (id(test_fan).get_preset_mode() == "Eco") {
         return true;
       }
+
+      // Migration guide: Checking for no preset
+      if (id(test_fan).get_preset_mode().empty()) {
+        // no preset
+      }
+      if (!id(test_fan).has_preset_mode()) {
+        // no preset
+      }
+
+      // Migration guide: Getting as std::string
+      std::string preset = std::string(id(test_fan).get_preset_mode());
+
+      // Migration guide: Logging option 1
+      // Use .data() - works because string_view points to null-terminated string in traits
+      ESP_LOGD("test", "Preset: %s", id(test_fan).get_preset_mode().data());
+
+      // Migration guide: Logging option 2
+      // Use %.*s format (safer, no null-termination assumption)
+      auto preset_view = id(test_fan).get_preset_mode();
+      ESP_LOGD("test", "Preset: %.*s", (int)preset_view.size(), preset_view.data());
+
       // Test != comparison
       if (id(test_fan).get_preset_mode() != "Sleep") {
         return true;
