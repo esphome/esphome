@@ -23,24 +23,19 @@ class Esp32HostedUpdate : public update::UpdateEntity, public PollingComponent {
   void perform(bool force) override;
   void check() override;
 
-  // Embedded mode setters
-  void set_firmware_data(const uint8_t *data) { this->firmware_data_ = data; }
-  void set_firmware_size(size_t size) { this->firmware_size_ = size; }
-  void set_firmware_sha256(const std::array<uint8_t, 32> &sha256) { this->firmware_sha256_ = sha256; }
-
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
   // HTTP mode setters
   void set_source_url(const std::string &url) { this->source_url_ = url; }
   void set_http_request_parent(http_request::HttpRequestComponent *parent) { this->http_request_parent_ = parent; }
+#else
+  // Embedded mode setters
+  void set_firmware_data(const uint8_t *data) { this->firmware_data_ = data; }
+  void set_firmware_size(size_t size) { this->firmware_size_ = size; }
+  void set_firmware_sha256(const std::array<uint8_t, 32> &sha256) { this->firmware_sha256_ = sha256; }
 #endif
 
  protected:
   std::string host_version_;
-
-  // Embedded mode members
-  const uint8_t *firmware_data_{nullptr};
-  size_t firmware_size_{0};
-  std::array<uint8_t, 32> firmware_sha256_;
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
   // HTTP mode members
@@ -52,6 +47,11 @@ class Esp32HostedUpdate : public update::UpdateEntity, public PollingComponent {
   // HTTP mode helpers
   bool fetch_manifest_();
   bool stream_firmware_to_coprocessor_();
+#else
+  // Embedded mode members
+  const uint8_t *firmware_data_{nullptr};
+  size_t firmware_size_{0};
+  std::array<uint8_t, 32> firmware_sha256_;
 #endif
 };
 

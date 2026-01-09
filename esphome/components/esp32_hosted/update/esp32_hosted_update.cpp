@@ -24,6 +24,7 @@ static const char *const TAG = "esp32_hosted.update";
 // older coprocessor firmware versions have a 1500-byte limit per RPC call
 constexpr size_t CHUNK_SIZE = 1500;
 
+#ifdef USE_ESP32_HOSTED_HTTP_UPDATE
 // Parse version string "major.minor.patch" into components
 // Returns true if parsing succeeded
 static bool parse_version(const std::string &version_str, int &major, int &minor, int &patch) {
@@ -47,6 +48,7 @@ static int compare_versions(int major1, int minor1, int patch1, int major2, int 
     return patch1 < patch2 ? -1 : 1;
   return 0;
 }
+#endif
 
 void Esp32HostedUpdate::setup() {
   this->update_info_.title = "ESP32 Hosted Coprocessor";
@@ -67,13 +69,7 @@ void Esp32HostedUpdate::setup() {
   }
   ESP_LOGD(TAG, "Coprocessor version: %s", this->update_info_.current_version.c_str());
 
-#ifdef USE_ESP32_HOSTED_HTTP_UPDATE
-  if (this->http_request_parent_ != nullptr) {
-    // HTTP mode: stay in UNKNOWN state until check() fetches the manifest
-    return;
-  }
-#endif
-
+#ifndef USE_ESP32_HOSTED_HTTP_UPDATE
   // Embedded mode: get image version from embedded firmware
   const int app_desc_offset = sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t);
   if (this->firmware_size_ >= app_desc_offset + sizeof(esp_app_desc_t)) {
@@ -105,6 +101,7 @@ void Esp32HostedUpdate::setup() {
   // publish state
   this->status_clear_error();
   this->publish_state();
+#endif
 }
 
 void Esp32HostedUpdate::dump_config() {
@@ -113,24 +110,16 @@ void Esp32HostedUpdate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Coprocessor Version: %s", this->update_info_.current_version.c_str());
   ESP_LOGCONFIG(TAG, "  Latest Version: %s", this->update_info_.latest_version.c_str());
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
-  if (this->http_request_parent_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Mode: HTTP");
-    ESP_LOGCONFIG(TAG, "  Source URL: %s", this->source_url_.c_str());
-  } else
+  ESP_LOGCONFIG(TAG, "  Mode: HTTP");
+  ESP_LOGCONFIG(TAG, "  Source URL: %s", this->source_url_.c_str());
+#else
+  ESP_LOGCONFIG(TAG, "  Mode: Embedded");
+  ESP_LOGCONFIG(TAG, "  Firmware Size: %zu bytes", this->firmware_size_);
 #endif
-  {
-    ESP_LOGCONFIG(TAG, "  Mode: Embedded");
-    ESP_LOGCONFIG(TAG, "  Firmware Size: %zu bytes", this->firmware_size_);
-  }
 }
 
 void Esp32HostedUpdate::check() {
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
-  if (this->http_request_parent_ == nullptr) {
-    // Embedded mode: no periodic updates needed
-    return;
-  }
-
   if (!this->fetch_manifest_()) {
     return;
   }
@@ -324,75 +313,75 @@ void Esp32HostedUpdate::perform(bool force) {
     return;
   }
 
-  watchdog::WatchdogManager watchdog(60000);  // 60 seconds for HTTP downloads
   update::UpdateState prev_state = this->state_;
   this->state_ = update::UPDATE_STATE_INSTALLING;
   this->update_info_.has_progress = false;
   this->publish_state();
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
-  if (this->http_request_parent_ != nullptr) {
-    // HTTP mode: stream firmware from URL
-    if (!this->stream_firmware_to_coprocessor_()) {
-      this->state_ = prev_state;
-      this->publish_state();
-      return;
-    }
-  } else
-#endif
-  {
-    // Embedded mode: use firmware embedded in binary
-    if (this->firmware_data_ == nullptr || this->firmware_size_ == 0) {
-      ESP_LOGE(TAG, "No firmware data available");
-      this->state_ = prev_state;
-      this->status_set_error(LOG_STR("No firmware data available"));
-      this->publish_state();
-      return;
-    }
+  watchdog::WatchdogManager watchdog(60000);  // 60 seconds for HTTP downloads
 
-    // ESP32-S3 hardware SHA acceleration requires 32-byte DMA alignment (IDF 5.5.x+)
-    alignas(32) sha256::SHA256 hasher;
-    hasher.init();
-    hasher.add(this->firmware_data_, this->firmware_size_);
-    hasher.calculate();
-    if (!hasher.equals_bytes(this->firmware_sha256_.data())) {
-      this->state_ = prev_state;
-      this->status_set_error(LOG_STR("SHA256 verification failed"));
-      this->publish_state();
-      return;
-    }
-
-    ESP_LOGI(TAG, "Starting OTA update (%zu bytes)", this->firmware_size_);
-
-    esp_err_t begin_err = esp_hosted_slave_ota_begin();  // NOLINT
-    if (begin_err != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to begin OTA: %s", esp_err_to_name(begin_err));
-      this->state_ = prev_state;
-      this->status_set_error(LOG_STR("Failed to begin OTA"));
-      this->publish_state();
-      return;
-    }
-
-    uint8_t chunk[CHUNK_SIZE];
-    const uint8_t *data_ptr = this->firmware_data_;
-    size_t remaining = this->firmware_size_;
-    while (remaining > 0) {
-      size_t chunk_size = std::min(remaining, static_cast<size_t>(CHUNK_SIZE));
-      memcpy(chunk, data_ptr, chunk_size);
-      esp_err_t write_err = esp_hosted_slave_ota_write(chunk, chunk_size);  // NOLINT
-      if (write_err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(write_err));
-        esp_hosted_slave_ota_end();  // NOLINT
-        this->state_ = prev_state;
-        this->status_set_error(LOG_STR("Failed to write OTA data"));
-        this->publish_state();
-        return;
-      }
-      data_ptr += chunk_size;
-      remaining -= chunk_size;
-      App.feed_wdt();
-    }
+  // HTTP mode: stream firmware from URL
+  if (!this->stream_firmware_to_coprocessor_()) {
+    this->state_ = prev_state;
+    this->publish_state();
+    return;
   }
+#else
+  watchdog::WatchdogManager watchdog(20000);
+
+  // Embedded mode: use firmware embedded in binary
+  if (this->firmware_data_ == nullptr || this->firmware_size_ == 0) {
+    ESP_LOGE(TAG, "No firmware data available");
+    this->state_ = prev_state;
+    this->status_set_error(LOG_STR("No firmware data available"));
+    this->publish_state();
+    return;
+  }
+
+  // ESP32-S3 hardware SHA acceleration requires 32-byte DMA alignment (IDF 5.5.x+)
+  alignas(32) sha256::SHA256 hasher;
+  hasher.init();
+  hasher.add(this->firmware_data_, this->firmware_size_);
+  hasher.calculate();
+  if (!hasher.equals_bytes(this->firmware_sha256_.data())) {
+    this->state_ = prev_state;
+    this->status_set_error(LOG_STR("SHA256 verification failed"));
+    this->publish_state();
+    return;
+  }
+
+  ESP_LOGI(TAG, "Starting OTA update (%zu bytes)", this->firmware_size_);
+
+  esp_err_t begin_err = esp_hosted_slave_ota_begin();  // NOLINT
+  if (begin_err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to begin OTA: %s", esp_err_to_name(begin_err));
+    this->state_ = prev_state;
+    this->status_set_error(LOG_STR("Failed to begin OTA"));
+    this->publish_state();
+    return;
+  }
+
+  uint8_t chunk[CHUNK_SIZE];
+  const uint8_t *data_ptr = this->firmware_data_;
+  size_t remaining = this->firmware_size_;
+  while (remaining > 0) {
+    size_t chunk_size = std::min(remaining, static_cast<size_t>(CHUNK_SIZE));
+    memcpy(chunk, data_ptr, chunk_size);
+    esp_err_t write_err = esp_hosted_slave_ota_write(chunk, chunk_size);  // NOLINT
+    if (write_err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(write_err));
+      esp_hosted_slave_ota_end();  // NOLINT
+      this->state_ = prev_state;
+      this->status_set_error(LOG_STR("Failed to write OTA data"));
+      this->publish_state();
+      return;
+    }
+    data_ptr += chunk_size;
+    remaining -= chunk_size;
+    App.feed_wdt();
+  }
+#endif
 
   // End OTA and activate new firmware
   esp_err_t end_err = esp_hosted_slave_ota_end();  // NOLINT
