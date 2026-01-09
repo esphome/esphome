@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string_view>
+
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -128,8 +130,10 @@ class Fan : public EntityBase {
   /// Set the restore mode of this fan.
   void set_restore_mode(FanRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 
-  /// Get the current preset mode (returns pointer to string stored in traits, or empty string if not set)
-  const char *get_preset_mode() const { return this->preset_mode_ != nullptr ? this->preset_mode_ : ""; }
+  /// Get the current preset mode (returns view of string stored in traits, or empty view if not set)
+  std::string_view get_preset_mode() const {
+    return this->preset_mode_ != nullptr ? std::string_view(this->preset_mode_) : std::string_view();
+  }
 
   /// Check if a preset mode is currently active
   bool has_preset_mode() const { return this->preset_mode_ != nullptr; }

@@ -61,7 +61,7 @@ void FanCall::perform() {
   if (this->direction_.has_value()) {
     ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(*this->direction_)));
   }
-  if (this->has_preset_mode()) {
+  if (this->preset_mode_ != nullptr) {
     ESP_LOGD(TAG, "  Preset Mode: %s", this->preset_mode_);
   }
   this->parent_.control(*this);
@@ -201,8 +201,8 @@ void Fan::publish_state() {
   if (traits.supports_direction()) {
     ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(this->direction)));
   }
-  if (this->has_preset_mode()) {
-    ESP_LOGD(TAG, "  Preset Mode: %s", this->get_preset_mode());
+  if (this->preset_mode_ != nullptr) {
+    ESP_LOGD(TAG, "  Preset Mode: %s", this->preset_mode_);
   }
   this->state_callback_.call();
 #if defined(USE_FAN) && defined(USE_CONTROLLER_REGISTRY)
