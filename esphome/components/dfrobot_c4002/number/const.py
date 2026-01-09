@@ -1,0 +1,7 @@
+CONF_LIGHT_THRESHOLD_1 = "light_threshold_1"
+CONF_AREA1_MIN = "area1_min"
+CONF_AREA1_MAX = "area1_max"
+CONF_AREA2_MIN = "area2_min"
+CONF_AREA2_MAX = "area2_max"
+CONF_AREA3_MIN = "area3_min"
+CONF_AREA3_MAX = "area3_max"
