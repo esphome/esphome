@@ -12,9 +12,9 @@ static const char *const TAG = "ips7100";
 static const uint8_t IPS7100_CMD_READ_PC = 0x11;  // Read particle count data
 static const uint8_t IPS7100_CMD_READ_PM = 0x12;  // Read PM mass data
 
-// Data sizes (without checksum byte - sensor doesn't send it over I2C)
-static const uint8_t PC_DATA_SIZE = 28;  // 7 x 4 bytes
-static const uint8_t PM_DATA_SIZE = 28;  // 7 x 4 bytes
+// Data sizes (with checksum bytes)
+static const uint8_t PC_DATA_SIZE = 30;  // 7 x 4 bytes + 2 bytes CRC16
+static const uint8_t PM_DATA_SIZE = 30;  // 7 x 4 bytes + 2 bytes CRC16
 
 void IPS7100Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up IPS7100...");
@@ -101,21 +101,20 @@ void IPS7100Component::update() {
   }
 
   // Publish particle count values (convert from #/L to #/cm³)
-  // Skip values of 0xFFFFFFFF as they indicate invalid/unavailable data
   if (pc_success) {
-    if (this->pmc_0_1_sensor_ != nullptr && this->pc_values_[0] != 0xFFFFFFFF)
+    if (this->pmc_0_1_sensor_ != nullptr)
       this->pmc_0_1_sensor_->publish_state(this->pc_values_[0] / 1000.0f);
-    if (this->pmc_0_3_sensor_ != nullptr && this->pc_values_[1] != 0xFFFFFFFF)
+    if (this->pmc_0_3_sensor_ != nullptr)
       this->pmc_0_3_sensor_->publish_state(this->pc_values_[1] / 1000.0f);
-    if (this->pmc_0_5_sensor_ != nullptr && this->pc_values_[2] != 0xFFFFFFFF)
+    if (this->pmc_0_5_sensor_ != nullptr)
       this->pmc_0_5_sensor_->publish_state(this->pc_values_[2] / 1000.0f);
-    if (this->pmc_1_0_sensor_ != nullptr && this->pc_values_[3] != 0xFFFFFFFF)
+    if (this->pmc_1_0_sensor_ != nullptr)
       this->pmc_1_0_sensor_->publish_state(this->pc_values_[3] / 1000.0f);
-    if (this->pmc_2_5_sensor_ != nullptr && this->pc_values_[4] != 0xFFFFFFFF)
+    if (this->pmc_2_5_sensor_ != nullptr)
       this->pmc_2_5_sensor_->publish_state(this->pc_values_[4] / 1000.0f);
-    if (this->pmc_5_0_sensor_ != nullptr && this->pc_values_[5] != 0xFFFFFFFF)
+    if (this->pmc_5_0_sensor_ != nullptr)
       this->pmc_5_0_sensor_->publish_state(this->pc_values_[5] / 1000.0f);
-    if (this->pmc_10_0_sensor_ != nullptr && this->pc_values_[6] != 0xFFFFFFFF)
+    if (this->pmc_10_0_sensor_ != nullptr)
       this->pmc_10_0_sensor_->publish_state(this->pc_values_[6] / 1000.0f);
   }
 }
@@ -179,11 +178,11 @@ bool IPS7100Component::read_pc_data_() {
     return false;
   }
 
-  // Parse PC values (7 x 4-byte unsigned longs, little-endian)
+  // Parse PC values (7 x 4-byte unsigned longs, big-endian)
   for (int i = 0; i < 7; i++) {
-    this->pc_values_[i] = static_cast<uint32_t>(buffer[i * 4]) | (static_cast<uint32_t>(buffer[i * 4 + 1]) << 8) |
-                          (static_cast<uint32_t>(buffer[i * 4 + 2]) << 16) |
-                          (static_cast<uint32_t>(buffer[i * 4 + 3]) << 24);
+    this->pc_values_[i] = (static_cast<uint32_t>(buffer[i * 4]) << 24) |
+                          (static_cast<uint32_t>(buffer[i * 4 + 1]) << 16) |
+                          (static_cast<uint32_t>(buffer[i * 4 + 2]) << 8) | static_cast<uint32_t>(buffer[i * 4 + 3]);
   }
 
   ESP_LOGV(TAG, "PC values: %u, %u, %u, %u, %u, %u, %u", this->pc_values_[0], this->pc_values_[1], this->pc_values_[2],
