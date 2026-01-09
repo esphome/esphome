@@ -1,12 +1,11 @@
 import ipaddress
 import logging
 
-from esphome import core
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 import esphome.config_validation as cv
-from esphome.const import CONF_ENABLE_IPV6, CONF_MIN_IPV6_ADDR_COUNT
+from esphome.const import CONF_ENABLE_IPV6, CONF_ID, CONF_MIN_IPV6_ADDR_COUNT
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
@@ -109,6 +108,7 @@ def has_high_performance_networking() -> bool:
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(): cv.declare_id(NetworkComponent),
         cv.SplitDefault(
             CONF_ENABLE_IPV6,
             esp8266=False,
@@ -145,12 +145,8 @@ async def to_code(config):
     # Register NetworkComponent to initialize network stack early (ESP32 only)
     # This ensures esp_netif_init() is called before web_server binds
     if CORE.is_esp32:
-        component_id = core.ID(
-            "network_component", is_declaration=True, type=NetworkComponent
-        )
-        CORE.component_ids.add(component_id.id)
-        var = cg.new_Pvariable(component_id)
-        await cg.register_component(var, {})
+        var = cg.new_Pvariable(config[CONF_ID])
+        await cg.register_component(var, config)
 
     # Apply high performance networking settings
     # Config can explicitly enable/disable, or default to component-driven behavior
