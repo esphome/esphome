@@ -10,4 +10,3 @@ uart:
     rx_pin: ${rx_pin}
     baud_rate: 9600
     parity: EVEN
-    data_bits: 7
