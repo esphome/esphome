@@ -127,6 +127,7 @@ void ESP32ImprovComponent::loop() {
           // Set initial state based on whether we have an authorizer
           this->set_state_(this->get_initial_state_(), false);
           this->set_error_(improv::ERROR_NONE);
+          this->should_start_ = false;  // Clear flag after starting
           ESP_LOGD(TAG, "Service started!");
         }
       }

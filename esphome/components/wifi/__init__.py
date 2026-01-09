@@ -69,6 +69,12 @@ CONF_MIN_AUTH_MODE = "min_auth_mode"
 # Limited to 127 because selected_sta_index_ is int8_t in C++
 MAX_WIFI_NETWORKS = 127
 
+# Default AP timeout - allows sufficient time to try all BSSIDs during initial connection
+# After AP starts, WiFi scanning is skipped to avoid disrupting the AP, so we only
+# get best-effort connection attempts. Longer timeout ensures we exhaust all options
+# before falling back to AP mode. Aligned with improv wifi_timeout default.
+DEFAULT_AP_TIMEOUT = "90s"
+
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
 ManualIP = wifi_ns.struct("ManualIP")
@@ -177,7 +183,7 @@ CONF_AP_TIMEOUT = "ap_timeout"
 WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
     {
         cv.Optional(
-            CONF_AP_TIMEOUT, default="1min"
+            CONF_AP_TIMEOUT, default=DEFAULT_AP_TIMEOUT
         ): cv.positive_time_period_milliseconds,
     }
 )
