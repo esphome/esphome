@@ -1,4 +1,6 @@
 #include <cinttypes>
+#include <string_view>
+
 #include "light_call.h"
 #include "light_state.h"
 #include "esphome/core/log.h"
@@ -153,7 +155,7 @@ void LightCall::perform() {
 
   } else if (this->has_effect_()) {
     // EFFECT
-    const char *effect_s;
+    std::string_view effect_s;
     if (this->effect_ == 0u) {
       effect_s = "None";
     } else {
@@ -161,7 +163,7 @@ void LightCall::perform() {
     }
 
     if (publish) {
-      ESP_LOGD(TAG, "  Effect: '%s'", effect_s);
+      ESP_LOGD(TAG, "  Effect: '%.*s'", (int) effect_s.size(), effect_s.data());
     }
 
     this->parent_->start_effect_(this->effect_);
@@ -511,11 +513,9 @@ LightCall &LightCall::set_effect(const char *effect, size_t len) {
   }
 
   bool found = false;
+  std::string_view effect_sv(effect, len);
   for (uint32_t i = 0; i < this->parent_->effects_.size(); i++) {
-    LightEffect *e = this->parent_->effects_[i];
-    const char *name = e->get_name();
-
-    if (strncasecmp(effect, name, len) == 0 && name[len] == '\0') {
+    if (str_equals_case_insensitive(effect_sv, this->parent_->effects_[i]->get_name())) {
       this->set_effect(i + 1);
       found = true;
       break;

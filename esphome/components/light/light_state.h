@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string_view>
+
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/optional.h"
@@ -140,7 +142,7 @@ class LightState : public EntityBase, public Component {
   LightOutput *get_output() const;
 
   /// Return the name of the current effect, or if no effect is active "None".
-  std::string get_effect_name();
+  std::string_view get_effect_name();
   /// Return the name of the current effect as StringRef (for API usage)
   StringRef get_effect_name_ref();
 
@@ -191,11 +193,11 @@ class LightState : public EntityBase, public Component {
 
   /// Get effect index by name. Returns 0 if effect not found.
   uint32_t get_effect_index(const std::string &effect_name) const {
-    if (strcasecmp(effect_name.c_str(), "none") == 0) {
+    if (str_equals_case_insensitive(effect_name, std::string("none"))) {
       return 0;
     }
     for (size_t i = 0; i < this->effects_.size(); i++) {
-      if (strcasecmp(effect_name.c_str(), this->effects_[i]->get_name()) == 0) {
+      if (str_equals_case_insensitive(std::string_view(effect_name), this->effects_[i]->get_name())) {
         return i + 1;  // Effects are 1-indexed in active_effect_index_
       }
     }
@@ -218,7 +220,7 @@ class LightState : public EntityBase, public Component {
     if (index > this->effects_.size()) {
       return "";  // Invalid index
     }
-    return this->effects_[index - 1]->get_name();
+    return std::string(this->effects_[index - 1]->get_name());
   }
 
   /// The result of all the current_values_as_* methods have gamma correction applied.

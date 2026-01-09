@@ -1,6 +1,21 @@
 esphome:
   on_boot:
     then:
+      # Test LightEffect::get_name() returns string_view
+      - lambda: |-
+          // Test get_name() returns string_view
+          auto &effects = id(test_monochromatic_light).get_effects();
+          if (!effects.empty()) {
+            std::string_view name = effects[0]->get_name();
+            // Test comparison with string literal
+            if (name == "Strobe") {
+              ESP_LOGI("test", "Found Strobe effect");
+            }
+            // Safe logging with size-limited format
+            ESP_LOGI("test", "Effect name: %.*s", (int) name.size(), name.data());
+            // Test .data() for null-terminated functions (safe because names are from codegen)
+            ESP_LOGI("test", "Effect: %s", name.data());
+          }
       - light.toggle: test_binary_light
       - light.turn_off: test_rgb_light
       - light.turn_on:

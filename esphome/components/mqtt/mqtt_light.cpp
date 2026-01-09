@@ -81,7 +81,8 @@ void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
     root[ESPHOME_F("effect")] = true;
     JsonArray effect_list = root[MQTT_EFFECT_LIST].to<JsonArray>();
     for (auto *effect : this->state_->get_effects())
-      effect_list.add(effect->get_name());
+      // data() is safe as effect names are null-terminated strings from codegen
+      effect_list.add(effect->get_name().data());
     effect_list.add(ESPHOME_F("None"));
   }
 }
