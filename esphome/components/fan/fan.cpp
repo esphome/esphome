@@ -154,16 +154,16 @@ const char *Fan::find_preset_mode_(const char *preset_mode, size_t len) {
   return this->get_traits().find_preset_mode(preset_mode, len);
 }
 
-bool Fan::set_preset_mode_(const char *preset_mode) {
-  if (preset_mode == nullptr) {
-    // Treat nullptr as clearing the preset mode
+bool Fan::set_preset_mode_(const char *preset_mode, size_t len) {
+  if (preset_mode == nullptr || len == 0) {
+    // Treat nullptr/empty as clearing the preset mode
     if (this->preset_mode_ == nullptr) {
       return false;  // No change
     }
     this->clear_preset_mode_();
     return true;
   }
-  const char *validated = this->find_preset_mode_(preset_mode);
+  const char *validated = this->find_preset_mode_(preset_mode, len);
   if (validated == nullptr || this->preset_mode_ == validated) {
     return false;  // Preset mode not supported or no change
   }
@@ -171,7 +171,17 @@ bool Fan::set_preset_mode_(const char *preset_mode) {
   return true;
 }
 
-bool Fan::set_preset_mode_(const std::string &preset_mode) { return this->set_preset_mode_(preset_mode.c_str()); }
+bool Fan::set_preset_mode_(const char *preset_mode) {
+  return this->set_preset_mode_(preset_mode, preset_mode ? strlen(preset_mode) : 0);
+}
+
+bool Fan::set_preset_mode_(const std::string &preset_mode) {
+  return this->set_preset_mode_(preset_mode.data(), preset_mode.size());
+}
+
+bool Fan::set_preset_mode_(std::string_view preset_mode) {
+  return this->set_preset_mode_(preset_mode.data(), preset_mode.size());
+}
 
 void Fan::clear_preset_mode_() { this->preset_mode_ = nullptr; }
 
