@@ -11,6 +11,7 @@
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
 #include "esphome/components/json/json_util.h"
+#include "esphome/components/network/util.h"
 #endif
 
 extern "C" {
@@ -131,6 +132,11 @@ void Esp32HostedUpdate::dump_config() {
 
 void Esp32HostedUpdate::check() {
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
+  if (!network::is_connected()) {
+    ESP_LOGD(TAG, "Network not connected, skipping update check");
+    return;
+  }
+
   if (!this->fetch_manifest_()) {
     return;
   }
