@@ -2115,10 +2115,14 @@ void APIConnection::infrared_proxy_transmit_raw_timings(const InfraredProxyTrans
   this->parent_->on_infrared_proxy_transmit_raw_timings_request(msg);
 }
 
-void APIConnection::send_list_entities_infrared_proxy_response(const ListEntitiesInfraredProxyResponse &msg) {
-  if (!this->send_message(msg, ListEntitiesInfraredProxyResponse::MESSAGE_TYPE)) {
-    this->on_fatal_error();
-  }
+uint16_t APIConnection::try_send_infrared_proxy_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                                     bool is_single) {
+  auto *infrared_proxy = static_cast<infrared_proxy::InfraredProxyComponent *>(entity);
+  ListEntitiesInfraredProxyResponse msg{};
+  msg.capabilities = infrared_proxy->get_capability_flags();
+  msg.frequency = infrared_proxy->get_frequency();
+  return fill_and_encode_entity_info(infrared_proxy, msg, ListEntitiesInfraredProxyResponse::MESSAGE_TYPE, conn,
+                                     remaining_size, is_single);
 }
 
 void APIConnection::send_infrared_proxy_receive_event(const InfraredProxyReceiveEvent &msg) {

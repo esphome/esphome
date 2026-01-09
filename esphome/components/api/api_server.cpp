@@ -723,30 +723,9 @@ void APIServer::send_infrared_proxy_receive_event(uint32_t key, const remote_bas
 
 void APIServer::list_infrared_proxy_entities(APIConnection *conn) {
   for (auto *infrared_proxy : this->infrared_proxies_) {
-    ListEntitiesInfraredProxyResponse msg{};
-    msg.key = infrared_proxy->get_object_id_hash();
-
-    char object_id_buf[OBJECT_ID_MAX_LEN];
-    msg.object_id = infrared_proxy->get_object_id_to(object_id_buf);
-
-    if (infrared_proxy->has_own_name()) {
-      msg.name = StringRef(infrared_proxy->get_name());
-    }
-
-    // Set common EntityBase properties
-#ifdef USE_ENTITY_ICON
-    msg.icon = infrared_proxy->get_icon_ref();
-#endif
-    msg.disabled_by_default = infrared_proxy->is_disabled_by_default();
-    msg.entity_category = static_cast<enums::EntityCategory>(infrared_proxy->get_entity_category());
-#ifdef USE_DEVICES
-    msg.device_id = infrared_proxy->get_device_id();
-#endif
-
-    msg.capabilities = infrared_proxy->get_capability_flags();
-    msg.frequency = infrared_proxy->get_frequency();
-
-    conn->send_list_entities_infrared_proxy_response(msg);
+    conn->schedule_message_(infrared_proxy, &APIConnection::try_send_infrared_proxy_info,
+                            ListEntitiesInfraredProxyResponse::MESSAGE_TYPE,
+                            ListEntitiesInfraredProxyResponse::ESTIMATED_SIZE);
   }
 }
 #endif  // USE_INFRARED_PROXY

@@ -164,7 +164,8 @@ class APIConnection final : public APIServerConnection {
 
 #ifdef USE_INFRARED_PROXY
   void infrared_proxy_transmit_raw_timings(const InfraredProxyTransmitRawTimingsRequest &msg) override;
-  void send_list_entities_infrared_proxy_response(const ListEntitiesInfraredProxyResponse &msg);
+  static uint16_t try_send_infrared_proxy_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                               bool is_single);
   void send_infrared_proxy_receive_event(const InfraredProxyReceiveEvent &msg);
 #endif
 
