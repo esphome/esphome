@@ -351,18 +351,7 @@ advanced stuff (see the full API Reference for more info).
     }
 ```
 
-- `preset_mode`  : Retrieve the current preset mode of the fan.
-
-```yaml
-    // Within lambda, get the fan preset mode and conditionally do something
-    if (id(my_fan).preset_mode == "auto") {
-      // Fan preset mode is "auto", do something here
-    } else {
-      // Fan preset mode is not "auto", do something else here
-    }
-```
-
-- `turn_off()`  /`turn_on()`  /`toggle()`  : Manually turn the fan ON/OFF from code.
+- `turn_off()` / `turn_on()` / `toggle()`  : Manually turn the fan ON/OFF from code.
   Similar to the `fan.turn_on`, `fan.turn_off`, and `fan.toggle` actions,
   but can be used in complex lambda expressions.
 
@@ -378,16 +367,29 @@ advanced stuff (see the full API Reference for more info).
     call.set_direction(FanDirection::REVERSE);
     call.perform();
 
-    // Set a preset mode
-    auto call = id(my_fan).turn_on();
-    call.set_preset_mode("auto");
-    call.perform();
-
     // Toggle the fan on/off
     auto call = id(my_fan).toggle();
     call.perform();
 ```
 
-## Full Fan Index
+- `get_preset_mode()` / `set_preset_mode()` / `has_preset_mode()`  : Retrieve or set the preset mode of the fan.
 
-- {{< apiref "fan/fan_state.h" "fan/fan_state.h" >}}
+```yaml
+    // Within lambda, get the fan preset mode and conditionally do something.
+    // get_preset_mode() will return a null pointer when a value is not set,
+    // so check has_preset_mode() before using where a string is expected.
+    if (id(my_fan).has_preset_mode() && strcmp(id(my_fan).get_preset_mode(), "auto") == 0) {
+      // Fan preset mode is "auto", do something here.
+    } else {
+      // Fan preset mode is not set, or is not "auto". Do something else here.
+    }
+
+    // Turn the fan on and set a preset mode
+    auto call = id(my_fan).turn_on();
+    call.set_preset_mode("auto");
+    call.perform();
+```
+
+## See Also
+
+- {{< apiref "fan/fan.h" "fan/fan.h" >}}
