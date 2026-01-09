@@ -23,6 +23,7 @@ void C4002Component::setup() {
  */
 void C4002Component::print_config() { ESP_LOGD(TAG, "run print config"); }
 
+
 /**
  * loop
  * Main periodic loop called frequently by ESPHome.
