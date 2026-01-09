@@ -39,13 +39,12 @@ void C4002Switch2::write_state(bool state) {
 void C4002SwitchFactoryReset::write_state(bool state) {
   if (this->parent_) {
     if (state) {
+      this->publish_state(true);
       bool send_flag = this->parent_->factory_reset();
-
       ESP_LOGW("C4002SwitchFactoryReset", "bool: %d", send_flag);
 
       if (send_flag) {
-        this->publish_state(true);
-        this->set_timeout(2000, [this]() {  // 2000ms = 2秒
+        this->set_timeout(1500, [this]() {  // 2000ms = 2秒
           this->publish_state(false);
           ESP_LOGD("C4002SwitchFactoryReset", "Factory reset completed, switch auto-reset to OFF");
         });

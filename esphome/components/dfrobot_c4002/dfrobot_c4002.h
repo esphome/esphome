@@ -6,9 +6,6 @@
 #include <string>
 #include <stdint.h>
 
-#ifdef USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
@@ -21,6 +18,9 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 namespace esphome {
 namespace dfrobot_c4002 {
@@ -32,7 +32,7 @@ class C4002Listener {
   virtual void on_movement_speed(float speed){};
   virtual void on_movement_direction(float direction){};
   virtual void on_existing_distance(float distance){};
-  virtual void on_target_state(bool presence){};
+  virtual void on_target_status(uint8_t state){};
 };
 
 static const uint8_t TIME_OUT = 0x64;  ///< time out
@@ -62,12 +62,15 @@ static const uint8_t CMD_GET_VERSION = 0x82;
 static const uint8_t CMD_GET_AND_SET_RESOLUTION_MODE = 0x66;
 static const uint8_t CMD_SET_DISTANCE_DOOR_THRESHOLD = 0x63;
 static const uint8_t CMD_SET_BAUDRATE = 0x21;
+static const uint8_t CMD_TARGET_DISAPPEAR_DELAY_TIME = 0x84;
+static const uint8_t CMD_FACTORY_RESET_USER = 0x02;
 
 static const uint8_t NOTE_RESULT_CMD = 0x60;
 static const uint8_t NOTE_ENVIRNMENT_CALIBRATION_CMD = 0x03;
 
 static const uint8_t SOFTWARE_VERSION = 0x01;
 static const uint8_t HARDWARE_VERSION = 0x00;
+static const int DOOR_COUNT = 15;
 
 /**
  * @enum ResolutionMode
@@ -269,8 +272,12 @@ class C4002Component : public Component, public uart::UARTDevice {
   bool set_out_mode(OutMode out_mode);
   bool set_report_period(uint8_t period);
   bool joint_enable_door();
+  bool set_target_disappear_delay(uint16_t delay_time);
 
   // ** param getters ** //
+  void analysis_text_report(void);
+  void get_distance_presence_threshold(DistanceDoorType door_type, uint8_t *gate_data);
+  uint16_t get_target_disappear_delay(void);
   TargetState get_target_state();
   float get_light();
   uint32_t get_exist_dist_index();
@@ -283,6 +290,7 @@ class C4002Component : public Component, public uart::UARTDevice {
   float get_light_threshold();
 
   // ** data getters ** //
+  int8_t restart(void);
   void send_pack(void *pdata, uint16_t len, uint8_t msg_type);
   RecvPck recv_pack();
   bool check_sum(const uint8_t *pdata, uint8_t len);
@@ -316,10 +324,13 @@ class C4002Component : public Component, public uart::UARTDevice {
   void set_area2_max_range_number(number::Number *number) { this->area2_max_range_number_ = number; }
   void set_area3_min_range_number(number::Number *number) { this->area3_min_range_number_ = number; }
   void set_area3_max_range_number(number::Number *number) { this->area3_max_range_number_ = number; }
+  void set_target_disappeard_delay_time_number(number::Number *number) {
+    this->target_disappeard_delay_time_number_ = number;
+  }
 
   //** number getters **//
-  float get_min_detect_range_number() { return (float) this->min_detect_range_; };
-  float get_max_detect_range_number() { return (float) this->max_detect_range_; };
+  float get_min_detect_range_number() { return (float) this->current_detection_range_min_; };
+  float get_max_detect_range_number() { return (float) this->current_detection_range_max_; };
 
   //** detect range **//
   bool set_min_range(float range);
@@ -329,6 +340,11 @@ class C4002Component : public Component, public uart::UARTDevice {
   float get_area_range(RangValue range_value);
   void set_area_range(RangValue range_value, float range);
 #endif
+
+#ifdef USE_TEXT_SENSOR
+  void set_text_sensor(text_sensor::TextSensor *ts) { this->text_sensor_ = ts; }
+#endif
+  void publish_text_(const std::string &msg);
 
  protected:
   //**all data param **//
@@ -343,15 +359,16 @@ class C4002Component : public Component, public uart::UARTDevice {
   //** detect range **//
   float min_detect_range_ = 0;
   float max_detect_range_ = 11;
-
-  //** area range **//
   float current_detection_range_min_ = 0;
   float current_detection_range_max_ = 11;
-  float current_area_[6] = {0, 10, 0, 10, 0, 10};
-  uint8_t enable_door_[11] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+
+  //** area range **//
+  float current_area_[6] = {0, 0, 0, 0, 0, 0};
+  uint8_t enable_door_[15] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
   //** light threshold **//
   uint16_t light_threshold_;
+  uint8_t reset_flag_ = 0;
 
 #ifdef USE_SELECT
   // ** USE_SELECT **//
@@ -377,6 +394,14 @@ class C4002Component : public Component, public uart::UARTDevice {
   number::Number *area2_max_range_number_{nullptr};
   number::Number *area3_min_range_number_{nullptr};
   number::Number *area3_max_range_number_{nullptr};
+  number::Number *target_disappeard_delay_time_number_{nullptr};
+#endif
+
+#ifdef USE_TEXT_SENSOR
+  text_sensor::TextSensor *text_sensor_{nullptr};
+
+  float Interval_point[15] = {0.2, 0.8, 1.6, 2.4, 3.2, 4, 4.8, 5.6, 6.4, 7.2, 8, 8.8, 9.6, 10.4, 11.2};
+
 #endif
 
   std::vector<C4002Listener *> listeners_{};

@@ -16,10 +16,11 @@ void MinDetectRangeNumber::control(float value) {
         this->publish_state(value);
       } else {
         ESP_LOGD(TAG, "Set min range failed");
-        this->publish_state(NAN);
+        this->publish_state(min_range);
       }
     } else {
-      this->publish_state(min_range);
+      this->publish_state(NAN);
+      // this->parent_->publish_text_("The maximum must be greater than the minimum.")
     }
   }
 }
@@ -35,13 +36,15 @@ void MaxDetectRangeNumber::control(float value) {
         this->publish_state(value);
       } else {
         ESP_LOGD(TAG, "Set max range failed");
-        this->publish_state(NAN);
+        this->publish_state(max_range);
       }
     } else {
-      this->publish_state(max_range);
+      this->publish_state(NAN);
+      // this->parent_->publish_text_("The maximum must be greater than the minimum.")
     }
   }
 }
+// -------- Light Threshold --------
 void LightThresholdNumber::control(float value) {
   if (this->parent_) {
     ESP_LOGD(TAG, "Set light threshold to %.1f", value);
@@ -61,37 +64,44 @@ void Area1MinRangeNumber::control(float value) {
   float area1_min = this->parent_->get_area_range(AREA1_DOOR_MIN);
   float area1_max = this->parent_->get_area_range(AREA1_DOOR_MAX);
 
-  if (value < area1_max) {
+  if (value <= area1_max) {
+    this->parent_->set_area_range(AREA1_DOOR_MIN, value);
+    ESP_LOGD(TAG, "Set area 1 min range to %.1f", this->parent_->get_area_range(AREA1_DOOR_MIN));
+
     if (this->parent_->joint_enable_door()) {
-      ESP_LOGD(TAG, "Set area 1 min range to %.1f", value);
       this->parent_->set_area_range(AREA1_DOOR_MIN, value);
       this->publish_state(value);
+
     } else {
-      ESP_LOGD(TAG, "Set area 1 min range failed");
-      this->publish_state(NAN);
+      this->publish_state(area1_min);
+      this->parent_->set_area_range(AREA1_DOOR_MIN, area1_min);
     }
   } else {
-    this->publish_state(area1_min);
+    this->publish_state(NAN);
+    this->parent_->set_area_range(AREA1_DOOR_MIN, area1_min);
+    // this->parent_->publish_text_("The maximum must be greater than the minimum.")
   }
 }
 
 void Area1MaxRangeNumber::control(float value) {
   float area1_min = this->parent_->get_area_range(AREA1_DOOR_MIN);
   float area1_max = this->parent_->get_area_range(AREA1_DOOR_MAX);
-  if (value > area1_min) {
+
+  if (value >= area1_min) {
+    this->parent_->set_area_range(AREA1_DOOR_MAX, value);
+    ESP_LOGD(TAG, "Set area 1 max range to %.1f", this->parent_->get_area_range(AREA1_DOOR_MAX));
+
     if (this->parent_->joint_enable_door()) {
-      ESP_LOGD(TAG, "Set area 1 max range to %.1f", value);
-      this->parent_->set_area_range(AREA1_DOOR_MAX, value);
       this->publish_state(value);
     } else {
       ESP_LOGD(TAG, "Set area 1 max range failed");
-      this->publish_state(NAN);
+      this->publish_state(area1_max);
     }
   } else {
-    this->publish_state(area1_max);
+    this->publish_state(NAN);
+    this->parent_->set_area_range(AREA1_DOOR_MAX, area1_max);
+    // this->parent_->publish_text_("The maximum must be greater than the minimum.")
   }
-
-  this->publish_state(value);
 }
 
 // ===== 区域 2 =====
@@ -99,17 +109,20 @@ void Area2MinRangeNumber::control(float value) {
   float area2_min = this->parent_->get_area_range(AREA2_DOOR_MIN);
   float area2_max = this->parent_->get_area_range(AREA2_DOOR_MAX);
 
-  if (value < area2_max) {
+  if (value <= area2_max) {
+    this->parent_->set_area_range(AREA2_DOOR_MIN, value);
+    ESP_LOGD(TAG, "Set area 2 min range to %.1f", this->parent_->get_area_range(AREA2_DOOR_MIN));
+
     if (this->parent_->joint_enable_door()) {
-      ESP_LOGD(TAG, "Set area 2 min range to %.1f", value);
-      this->parent_->set_area_range(AREA2_DOOR_MIN, value);
       this->publish_state(value);
     } else {
       ESP_LOGD(TAG, "Set area 2 min range failed");
-      this->publish_state(NAN);
+      this->publish_state(area2_min);
     }
   } else {
-    this->publish_state(area2_min);
+    this->publish_state(NAN);
+    this->parent_->set_area_range(AREA2_DOOR_MIN, area2_min);
+    // this->parent_->publish_text_("The maximum must be greater than the minimum.")
   }
 }
 
@@ -117,17 +130,20 @@ void Area2MaxRangeNumber::control(float value) {
   float area2_min = this->parent_->get_area_range(AREA2_DOOR_MIN);
   float area2_max = this->parent_->get_area_range(AREA2_DOOR_MAX);
 
-  if (value > area2_min) {
+  if (value >= area2_min) {
+    ESP_LOGD(TAG, "Set area 2 max range to %.1f", value);
+    this->parent_->set_area_range(AREA2_DOOR_MAX, value);
+
     if (this->parent_->joint_enable_door()) {
-      ESP_LOGD(TAG, "Set area 2 max range to %.1f", value);
-      this->parent_->set_area_range(AREA2_DOOR_MAX, value);
       this->publish_state(value);
     } else {
       ESP_LOGD(TAG, "Set area 2 max range failed");
-      this->publish_state(NAN);
+      this->publish_state(area2_max);
     }
   } else {
-    this->publish_state(area2_max);
+    this->publish_state(NAN);
+    this->parent_->set_area_range(AREA2_DOOR_MAX, area2_max);
+    // this->parent_->publish_text_("The maximum must be greater than the minimum.")
   }
 }
 
@@ -136,17 +152,21 @@ void Area3MinRangeNumber::control(float value) {
   float area3_min = this->parent_->get_area_range(AREA3_DOOR_MIN);
   float area3_max = this->parent_->get_area_range(AREA3_DOOR_MAX);
 
-  if (value < area3_max) {
+  if (value <= area3_max) {
+    this->parent_->set_area_range(AREA3_DOOR_MIN, value);
+    ESP_LOGD(TAG, "Set area 3 min range to %.1f", this->parent_->get_area_range(AREA3_DOOR_MIN));
+
     if (this->parent_->joint_enable_door()) {
       ESP_LOGD(TAG, "Set area 3 min range to %.1f", value);
-      this->parent_->set_area_range(AREA3_DOOR_MIN, value);
       this->publish_state(value);
     } else {
       ESP_LOGD(TAG, "Set area 3 min range failed");
-      this->publish_state(NAN);
+      this->publish_state(area3_min);
     }
   } else {
-    this->publish_state(area3_min);
+    this->publish_state(NAN);
+    this->parent_->set_area_range(AREA3_DOOR_MIN, area3_min);
+    // this->parent_->publish_text_("The maximum must be greater than the minimum.")
   }
 }
 
@@ -154,17 +174,30 @@ void Area3MaxRangeNumber::control(float value) {
   float area3_min = this->parent_->get_area_range(AREA3_DOOR_MIN);
   float area3_max = this->parent_->get_area_range(AREA3_DOOR_MAX);
 
-  if (value > area3_min) {
+  if (value >= area3_min) {
+    this->parent_->set_area_range(AREA3_DOOR_MAX, value);
+    ESP_LOGD(TAG, "Set area 3 max range to %.1f", this->parent_->get_area_range(AREA3_DOOR_MAX));
+
     if (this->parent_->joint_enable_door()) {
-      ESP_LOGD(TAG, "Set area 3 max range to %.1f", value);
-      this->parent_->set_area_range(AREA3_DOOR_MAX, value);
       this->publish_state(value);
     } else {
       ESP_LOGD(TAG, "Set area 3 max range failed");
-      this->publish_state(NAN);
+      this->publish_state(area3_max);
     }
   } else {
-    this->publish_state(area3_max);
+    this->publish_state(NAN);
+    this->parent_->set_area_range(AREA3_DOOR_MAX, area3_max);
+    // this->parent_->publish_text_("The maximum must be greater than the minimum.")
+  }
+}
+
+void TargetDisappeardDelayTimeNumber::control(float value) {
+  if (this->parent_->set_target_disappear_delay(value)) {
+    ESP_LOGD(TAG, "Set target disappear delay time success");
+    this->publish_state(value);
+  } else {
+    this->publish_state(NAN);
+    ESP_LOGD(TAG, "Set target disappear delay time failed");
   }
 }
 

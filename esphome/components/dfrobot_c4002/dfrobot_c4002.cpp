@@ -1,5 +1,6 @@
 #include "dfrobot_c4002.h"
 #include <string>
+#include <cstdio>
 
 namespace esphome {
 namespace dfrobot_c4002 {
@@ -11,7 +12,10 @@ static const char *const TAG = "dfrobot_c4002: ";
  * Called once when the component is initialized.
  * We call update_config_param() to load device configuration and publish initial values.
  */
-void C4002Component::setup() { update_config_param(); }
+void C4002Component::setup() {
+  update_config_param();
+  this->publish_text_("The initialization of c4002 was successful!");
+}
 
 /**
  * print_config
@@ -37,12 +41,20 @@ void C4002Component::loop() {
     ESP_LOGD(TAG, "********Calibration countdown: %2d s**********", ret.calibCountdown);
     if (ret.calibCountdown == 0) {
       ESP_LOGD(TAG, "Calibration complete!");
+      this->publish_text_("Calibration complete!");
+      analysis_text_report();
     }
   }
 
   if (now - last_time >= 1000) {  // Execute every 1000ms
     last_time = now;
     get_data();
+  }
+
+  if (reset_flag_ == 1) {
+    reset_flag_ = 0;
+    restart();
+    this->publish_text_("Reset the device to factory complete!");
   }
 }
 
@@ -65,11 +77,7 @@ void C4002Component::get_data() {
       listener->on_movement_speed(move_taget_data.speed);
       listener->on_movement_direction(static_cast<float>(move_taget_data.direction));
       listener->on_existing_distance(exit_taget_data.distance);
-      if (target_state == NO_BODY) {
-        listener->on_target_state(false);
-      } else {
-        listener->on_target_state(true);
-      }
+      listener->on_target_status((uint8_t) target_state);
     }
   }
 }
@@ -94,6 +102,7 @@ void C4002Component::update_config_param() {
 
   //** read config param **//
   float current_light_threshold = get_light_threshold();
+  float current_delay_time = get_target_disappear_delay();
 
   if (min_range_number_ != nullptr) {
     min_range_number_->publish_state(current_detection_range_min_);
@@ -107,24 +116,35 @@ void C4002Component::update_config_param() {
     light_threshold_number_->publish_state(current_light_threshold);
     ESP_LOGD(TAG, "Publishing light_threshold_: %.2f", current_light_threshold);
   }
+
+  for (int i = 0; i < 6; i++) {
+    current_area_[i] = 0;
+  }
+  joint_enable_door();
+
   if (area1_min_range_number_ != nullptr) {
-    area1_min_range_number_->publish_state(current_area_[AREA1_DOOR_MIN] + 1);
+    area1_min_range_number_->publish_state(current_area_[AREA1_DOOR_MIN]);
   }
   if (area2_min_range_number_ != nullptr) {
-    area2_min_range_number_->publish_state(current_area_[AREA2_DOOR_MIN] + 1);
+    area2_min_range_number_->publish_state(current_area_[AREA2_DOOR_MIN]);
   }
   if (area3_min_range_number_ != nullptr) {
-    area3_min_range_number_->publish_state(current_area_[AREA3_DOOR_MIN] + 1);
+    area3_min_range_number_->publish_state(current_area_[AREA3_DOOR_MIN]);
   }
   if (area1_max_range_number_ != nullptr) {
-    area1_max_range_number_->publish_state(current_area_[AREA1_DOOR_MAX] + 1);
+    area1_max_range_number_->publish_state(current_area_[AREA1_DOOR_MAX]);
   }
   if (area2_max_range_number_ != nullptr) {
-    area2_max_range_number_->publish_state(current_area_[AREA2_DOOR_MAX] + 1);
+    area2_max_range_number_->publish_state(current_area_[AREA2_DOOR_MAX]);
   }
   if (area3_max_range_number_ != nullptr) {
-    area3_max_range_number_->publish_state(current_area_[AREA3_DOOR_MAX] + 1);
+    area3_max_range_number_->publish_state(current_area_[AREA3_DOOR_MAX]);
   }
+
+  if (target_disappeard_delay_time_number_ != nullptr) {
+    target_disappeard_delay_time_number_->publish_state(current_delay_time);
+  }
+
   if (run_led_switch_ != nullptr) {
     set_run_led(LED_ON);
     run_led_switch_->publish_state((bool) LED_ON);
@@ -229,7 +249,20 @@ bool C4002Component::factory_reset() {
   send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
 
   RecvPack rec_pack = recv_pack();
-  return (SUCCEED == rec_pack.resPonCode);
+  if (SUCCEED != rec_pack.resPonCode) {
+    return false;
+  }
+  delay(10);
+
+  send_date[0] = CMD_FACTORY_RESET_USER;
+  send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
+  rec_pack = recv_pack();
+  if (SUCCEED != rec_pack.resPonCode) {
+    return false;
+  }
+  reset_flag_ = 1;
+
+  return true;
 }
 
 /**
@@ -384,6 +417,167 @@ bool C4002Component::set_out_led(LedMode out_led) {
 
   RecvPack rec_pack = recv_pack();
   return (SUCCEED == rec_pack.resPonCode);
+}
+
+/**
+ * set_target_disappear_delay
+ * Set the delay time of the target disappear.
+ * Returns true if successful, false otherwise.
+ */
+bool C4002Component::set_target_disappear_delay(uint16_t delay_time) {
+  uint8_t send_date[10];
+  uint16_t data_len = 0;
+  uint16_t temp = 6;
+
+  send_date[data_len++] = CMD_TARGET_DISAPPEAR_DELAY_TIME;
+  send_date[data_len++] = READ_AND_WRITE_REQ;
+  send_date[data_len++] = temp >> 0 & 0xFF;
+  send_date[data_len++] = temp >> 8 & 0xFF;
+  send_date[data_len++] = delay_time >> 0 & 0xFF;
+  send_date[data_len++] = delay_time >> 8 & 0xFF;
+  send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
+
+  RecvPack rec_pack = recv_pack();
+  return (SUCCEED == rec_pack.resPonCode);
+}
+
+/**
+ * get_target_disappear_delay
+ * Get the delay time of the target disappear.
+ * Returns the delay time in ms.
+ */
+uint16_t C4002Component::get_target_disappear_delay(void) {
+  uint8_t send_date[10];
+  uint16_t data_len = 0;
+  uint16_t temp = 4;
+  send_date[data_len++] = CMD_TARGET_DISAPPEAR_DELAY_TIME;
+  send_date[data_len++] = READ_AND_WRITE_REQ;
+  send_date[data_len++] = temp >> 0 & 0xFF;
+  send_date[data_len++] = temp >> 8 & 0xFF;
+  send_pack(send_date, data_len, FRAME_TYPE_READ_REQUSET);
+
+  RecvPack rec_pack = recv_pack();
+  if (SUCCEED == rec_pack.resPonCode) {
+    uint16_t delay_time = (rec_pack.data[1] << 8) | rec_pack.data[0];
+    return delay_time;
+  }
+  return 0;
+}
+
+/**
+ * restart
+ * Restart the device.
+ */
+int8_t C4002Component::restart(void) {
+  int8_t ret = 0;
+  uint8_t send_date[10];
+  uint16_t data_len = 5;
+  send_date[0] = CMD_RESTART;
+  send_date[1] = READ_AND_WRITE_REQ;
+  send_date[2] = data_len >> 0 & 0xFF;
+  send_date[3] = data_len >> 8 & 0xFF;
+  send_date[4] = 0x00;
+  send_pack(send_date, data_len, FRAME_TYPE_WRITE_REQUSET);
+
+  RecvPack rec_pack = recv_pack();
+  if (SUCCEED == rec_pack.resPonCode) {
+    ret = 0;
+  } else {
+    ret = -1;
+  }
+  delay(500);
+  update_config_param();
+  delay(10);
+  return ret;
+}
+
+/**
+ * get_distance_presence_threshold
+ * Get the distance presence threshold of the device.
+ * Returns true if successful, false otherwise.
+ */
+void C4002Component::get_distance_presence_threshold(DistanceDoorType door_type, uint8_t *gate_data) {
+  uint8_t send_data[10];
+  uint16_t data_len = 0;
+  uint16_t temp = 7;
+  uint8_t door_num = 15;
+  uint8_t i = 0;
+
+  send_data[data_len++] = CMD_SET_DISTANCE_DOOR_THRESHOLD;
+  send_data[data_len++] = READ_AND_WRITE_REQ;
+  send_data[data_len++] = temp >> 0 & 0xFF;
+  send_data[data_len++] = temp >> 8 & 0xFF;
+  send_data[data_len++] = door_type;
+  send_data[data_len++] = 0xff;
+  send_data[data_len++] = 0x00;
+
+  RecvPack rec_pack;
+  rec_pack.resPonCode = CMD_ERR;
+
+  while (SUCCEED != rec_pack.resPonCode) {
+    send_pack(send_data, data_len, FRAME_TYPE_READ_REQUSET);
+    rec_pack = recv_pack();
+    if (SUCCEED == rec_pack.resPonCode) {
+      memcpy(gate_data, &rec_pack.data[3], door_num);
+      return;
+    }
+    if (i++ > 5) {
+      return;
+    }
+    delay(20);
+  }
+}
+
+/**
+ * analysis gate data
+ * Analysis the gate data,send the result.
+ */
+void C4002Component::analysis_text_report(void) {
+  uint8_t move_data[15], exist_data[15];
+  uint8_t thld = 80;
+  std::vector<uint8_t> over_indices;
+  uint8_t flag = 0;
+
+  get_distance_presence_threshold(MOVE_DIST_DOOR, move_data);
+  get_distance_presence_threshold(EXIST_DIST_DOOR, exist_data);
+
+  for (int8_t i = 0; i < 15; i++) {
+    if (move_data[i] < exist_data[i]) {
+      move_data[i] = exist_data[i];
+    }
+
+    if (move_data[i] > thld) {
+      over_indices.push_back(i);
+    }
+
+    if (move_data[i] > thld && flag != 1) {
+      flag = 1;
+    }
+  }
+
+  if (flag == 0) {
+    this->publish_text_("The calibration threshold is effective!");
+    return;
+  }
+
+  char data_str[180];
+  int offset = 0;
+
+  offset += snprintf(data_str + offset, sizeof(data_str) - offset,
+                     "Calibration failed:Interference is detected at a distance of ");
+
+  for (size_t i = 0; i < over_indices.size(); i++) {
+    uint8_t idx = over_indices[i];
+
+    offset += snprintf(data_str + offset, sizeof(data_str) - offset, "%.1f%s", Interval_point[idx],
+                       (i < over_indices.size() - 1) ? ", " : "");
+  }
+
+  offset += snprintf(data_str + offset, sizeof(data_str) - offset,
+                     " m, Please clear all interference sources within this range and recalibrate.");
+
+  this->publish_text_(data_str);
+  return;
 }
 
 /**
@@ -589,7 +783,7 @@ void C4002Component::send_pack(void *pdata, uint16_t len, uint8_t msg_type) {
 }
 
 /**
- * recvPack
+ * recv_pack
  * Read a data frame from the UART and parse it.
  * Returns a RecvPack struct with the parsed data.
  */
@@ -739,6 +933,9 @@ bool C4002Component::get_detect_range() {
   if (SUCCEED == rec_pack.resPonCode) {
     this->current_detection_range_min_ = (float) ((rec_pack.data[1] << 8) | rec_pack.data[0]) * 0.01;
     this->current_detection_range_max_ = (float) ((rec_pack.data[3] << 8) | rec_pack.data[2]) * 0.01;
+    ESP_LOGD(TAG, "get detect range min %f max %f", this->current_detection_range_min_,
+             this->current_detection_range_max_);
+
     return true;
   } else {
     return false;
@@ -749,48 +946,67 @@ bool C4002Component::get_detect_range() {
  * set_area_range
  * Set the area range of the device.
  */
-void C4002Component::set_area_range(RangValue range_value, float range) { current_area_[range_value] = range - 1; }
+void C4002Component::set_area_range(RangValue range_value, float range) { current_area_[range_value] = range; }
 
 /**
  * get_area_range
  * Get the area range of the device.
  */
-float C4002Component::get_area_range(RangValue range_value) { return current_area_[range_value] + 1; }
+float C4002Component::get_area_range(RangValue range_value) { return current_area_[range_value]; }
 
 /**
  * joint_enable_door
  * Enable the door according to the current area range.
  */
-bool C4002Component::joint_enable_door() {
-  for (auto &element : enable_door_) {
-    element = 0;
+bool C4002Component::joint_enable_door(void) {
+  constexpr int DOOR_COUNT = 15;
+
+  float current_area[6] = {0};
+
+  for (int i = 0; i < DOOR_COUNT; ++i) {
+    enable_door_[i] = 1;
   }
 
   auto apply_range = [this](int min_index, int max_index) {
-    int start = static_cast<int>(this->current_area_[min_index]);
-    int end = static_cast<int>(this->current_area_[max_index]);
+    float min = current_area_[min_index];
+    float max = current_area_[max_index];
 
-    if (start > end) {
-      std::swap(start, end);
-    }
-    if (start < 0)
-      start = 0;
-    if (end < 0)
-      end = 0;
-    if (start > 10)
-      start = 10;
-    if (end > 10)
-      end = 10;
-    // key: door index, value: 1 enable, 0 disable,[0,10]
-    for (int door = start; door <= end && door < 11; ++door) {
-      this->enable_door_[door] = 1;
+    if (min == -1 || max == -1)
+      return;
+    if (min > max)
+      std::swap(min, max);
+
+    if (min < 0)
+      min = 0;
+    if (max < 0)
+      max = 0;
+
+    for (int door = 0; door < 15; door++) {
+      if (Interval_point[door] > min && max > Interval_point[door]) {
+        enable_door_[door] = 0;
+      }
     }
   };
-  apply_range(AREA1_DOOR_MIN, AREA1_DOOR_MAX);  // 第 1 个区域
-  apply_range(AREA2_DOOR_MIN, AREA2_DOOR_MAX);  // 第 2 个区域
-  apply_range(AREA3_DOOR_MIN, AREA3_DOOR_MAX);  // 第 3 个区域
+
+  apply_range(AREA1_DOOR_MIN, AREA1_DOOR_MAX);
+  apply_range(AREA2_DOOR_MIN, AREA2_DOOR_MAX);
+  apply_range(AREA3_DOOR_MIN, AREA3_DOOR_MAX);
+
+  // for (int i = 0; i < DOOR_COUNT; ++i) {
+  //   ESP_LOGD(TAG, "door %d enable %d", i, enable_door_[i]);
+  // }
 
   return enable_all_distance_door(enable_door_);
+}
+
+void C4002Component::publish_text_(const std::string &msg) {
+#ifdef USE_TEXT_SENSOR
+  if (this->text_sensor_ != nullptr) {
+    this->text_sensor_->publish_state(msg);
+  }
+#else
+  (void) msg;
+#endif
 }
 
 /**
@@ -800,11 +1016,6 @@ bool C4002Component::joint_enable_door() {
 void C4002Component::setup_number() {
   bool ret;
   ret = get_detect_range();
-  if (ret) {
-    ESP_LOGD(TAG, "get detect range success");
-  } else {
-    ESP_LOGD(TAG, "get detect range failed");
-  }
 }
 
 /**

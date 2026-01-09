@@ -19,6 +19,8 @@ from .const import (
     CONF_LIGHT_THRESHOLD_1,
 )
 
+CONF_TARGET_DISAPPEARD_Delay_TIME = "target_disappeard_delay_time"
+
 MinDetectRangeNumber = dfrobot_c4002_ns.class_("MinDetectRangeNumber", number.Number)
 MaxRDetectangeNumber = dfrobot_c4002_ns.class_("MaxDetectRangeNumber", number.Number)
 LightThresholdNumber = dfrobot_c4002_ns.class_("LightThresholdNumber", number.Number)
@@ -31,6 +33,9 @@ Area2MaxRangeNumber = dfrobot_c4002_ns.class_("Area2MaxRangeNumber", number.Numb
 
 Area3MinRangeNumber = dfrobot_c4002_ns.class_("Area3MinRangeNumber", number.Number)
 Area3MaxRangeNumber = dfrobot_c4002_ns.class_("Area3MaxRangeNumber", number.Number)
+TargetDisappeardDelayTimeNumber = dfrobot_c4002_ns.class_(
+    "TargetDisappeardDelayTimeNumber", number.Number
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -61,36 +66,49 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:counter",
+            unit_of_measurement="m",
         ),
         cv.Optional(CONF_AREA1_MAX): number.number_schema(
             Area1MaxRangeNumber,
             device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:counter",
+            unit_of_measurement="m",
         ),
         cv.Optional(CONF_AREA2_MIN): number.number_schema(
             Area2MinRangeNumber,
             device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:counter",
+            unit_of_measurement="m",
         ),
         cv.Optional(CONF_AREA2_MAX): number.number_schema(
             Area2MaxRangeNumber,
             device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:counter",
+            unit_of_measurement="m",
         ),
         cv.Optional(CONF_AREA3_MIN): number.number_schema(
             Area3MinRangeNumber,
             device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:counter",
+            unit_of_measurement="m",
         ),
         cv.Optional(CONF_AREA3_MAX): number.number_schema(
             Area3MaxRangeNumber,
             device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:counter",
+            unit_of_measurement="m",
+        ),
+        cv.Optional(CONF_TARGET_DISAPPEARD_Delay_TIME): number.number_schema(
+            TargetDisappeardDelayTimeNumber,
+            device_class=DEVICE_CLASS_DISTANCE,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+            icon="mdi:account-clock",
+            unit_of_measurement="s",
         ),
     }
 )
@@ -117,36 +135,57 @@ async def to_code(config):
         cg.add(number_component.set_light_threshold_number(light_threshold))
     # 区域 1 最小范围
     if area1_min_config := config.get(CONF_AREA1_MIN):
-        n = await number.new_number(area1_min_config, min_value=1, max_value=11, step=1)
+        n = await number.new_number(
+            area1_min_config, min_value=0, max_value=11.6, step=0.8
+        )
         await cg.register_parented(n, config[CONF_C4002_ID])
         cg.add(number_component.set_area1_min_range_number(n))
 
     # 区域 1 最大范围
     if area1_max_config := config.get(CONF_AREA1_MAX):
-        n = await number.new_number(area1_max_config, min_value=1, max_value=11, step=1)
+        n = await number.new_number(
+            area1_max_config, min_value=0, max_value=11.6, step=0.8
+        )
         await cg.register_parented(n, config[CONF_C4002_ID])
         cg.add(number_component.set_area1_max_range_number(n))
 
     # 区域 2 最小范围
     if area2_min_config := config.get(CONF_AREA2_MIN):
-        n = await number.new_number(area2_min_config, min_value=1, max_value=11, step=1)
+        n = await number.new_number(
+            area2_min_config, min_value=0, max_value=11.6, step=0.8
+        )
         await cg.register_parented(n, config[CONF_C4002_ID])
         cg.add(number_component.set_area2_min_range_number(n))
 
     # 区域 2 最大范围
     if area2_max_config := config.get(CONF_AREA2_MAX):
-        n = await number.new_number(area2_max_config, min_value=1, max_value=11, step=1)
+        n = await number.new_number(
+            area2_max_config, min_value=0, max_value=11.6, step=0.8
+        )
         await cg.register_parented(n, config[CONF_C4002_ID])
         cg.add(number_component.set_area2_max_range_number(n))
 
     # 区域 3 最小范围
     if area3_min_config := config.get(CONF_AREA3_MIN):
-        n = await number.new_number(area3_min_config, min_value=1, max_value=11, step=1)
+        n = await number.new_number(
+            area3_min_config, min_value=0, max_value=11.6, step=0.8
+        )
         await cg.register_parented(n, config[CONF_C4002_ID])
         cg.add(number_component.set_area3_min_range_number(n))
 
     # 区域 3 最大范围
     if area3_max_config := config.get(CONF_AREA3_MAX):
-        n = await number.new_number(area3_max_config, min_value=1, max_value=11, step=1)
+        n = await number.new_number(
+            area3_max_config, min_value=0, max_value=11.6, step=0.8
+        )
         await cg.register_parented(n, config[CONF_C4002_ID])
         cg.add(number_component.set_area3_max_range_number(n))
+
+    if target_disappeard_delay_time_config := config.get(
+        CONF_TARGET_DISAPPEARD_Delay_TIME
+    ):
+        n = await number.new_number(
+            target_disappeard_delay_time_config, min_value=0, max_value=100, step=1
+        )
+        await cg.register_parented(n, config[CONF_C4002_ID])
+        cg.add(number_component.set_target_disappeard_delay_time_number(n))

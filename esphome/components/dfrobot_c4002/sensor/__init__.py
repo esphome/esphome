@@ -17,6 +17,7 @@ CONF_MOVEMENT_DISTANCE = "movement_distance"
 CONF_EXISTING_DISTANCE = "existing_distance"
 CONF_MOVEMENT_SPEED = "movement_speed"
 CONF_MOVEMENT_DIRECTION = "movement_direction"
+CONF_TARGET_STATUS = "target_status"
 
 
 CONFIG_SCHEMA = cv.Schema(
@@ -44,6 +45,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MOVEMENT_DIRECTION): sensor.sensor_schema(
             icon="mdi:compass",
             accuracy_decimals=1,
+        ),
+        cv.Optional(CONF_TARGET_STATUS): sensor.sensor_schema(
+            icon="mdi:target",
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -76,6 +80,12 @@ async def to_code(config):
         sens_conf = config[CONF_MOVEMENT_DIRECTION]
         sens = await sensor.new_sensor(sens_conf)
         cg.add(c4002_sensor.set_movement_direction_sensor(sens))
+
+    # 目标状态传感器
+    if CONF_TARGET_STATUS in config:
+        sens_conf = config[CONF_TARGET_STATUS]
+        sens = await sensor.new_sensor(sens_conf)
+        cg.add(c4002_sensor.set_target_status_sensor(sens))
 
     c4002_component = await cg.get_variable(config[CONF_C4002_ID])
     cg.add(c4002_component.register_listener(c4002_sensor))
