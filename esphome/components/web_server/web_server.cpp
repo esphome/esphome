@@ -413,7 +413,10 @@ void WebServer::dump_config() {
                 "  Address: %s:%u",
                 network::get_use_address(), this->base_->get_port());
 }
-float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
+float WebServer::get_setup_priority() const {
+  // Run before WiFi so handlers are registered before captive_portal
+  return setup_priority::WIFI + 0.5f;
+}
 
 #ifdef USE_WEBSERVER_LOCAL
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
