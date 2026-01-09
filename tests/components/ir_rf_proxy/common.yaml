@@ -14,7 +14,7 @@ remote_receiver:
   pin: ${rx_pin}
 
 # Test various hardware types with transmitter/receiver
-infrared_proxy:
+ir_rf_proxy:
   # Infrared transmitter
   - id: ir_tx
     name: "IR Transmitter"

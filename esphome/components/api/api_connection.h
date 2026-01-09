@@ -162,11 +162,11 @@ class APIConnection final : public APIServerConnection {
   void zwave_proxy_request(const ZWaveProxyRequest &msg) override;
 #endif
 
-#ifdef USE_INFRARED_PROXY
-  void infrared_proxy_transmit_raw_timings(const InfraredProxyTransmitRawTimingsRequest &msg) override;
-  static uint16_t try_send_infrared_proxy_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                               bool is_single);
-  void send_infrared_proxy_receive_event(const InfraredProxyReceiveEvent &msg);
+#ifdef USE_IR_RF_PROXY
+  void ir_rf_proxy_transmit_raw_timings(const IrRfProxyTransmitRawTimingsRequest &msg) override;
+  static uint16_t try_send_ir_rf_proxy_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                            bool is_single);
+  void send_ir_rf_proxy_receive_event(const IrRfProxyReceiveEvent &msg);
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL

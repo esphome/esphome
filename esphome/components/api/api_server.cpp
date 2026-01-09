@@ -18,8 +18,8 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
-#ifdef USE_INFRARED_PROXY
-#include "esphome/components/infrared_proxy/infrared_proxy.h"
+#ifdef USE_IR_RF_PROXY
+#include "esphome/components/ir_rf_proxy/ir_rf_proxy.h"
 #endif
 
 #include <algorithm>
@@ -692,23 +692,23 @@ void APIServer::send_action_response(uint32_t action_call_id, bool success, Stri
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 
-#ifdef USE_INFRARED_PROXY
-void APIServer::register_infrared_proxy(infrared_proxy::InfraredProxyComponent *infrared_proxy) {
-  this->infrared_proxies_.push_back(infrared_proxy);
+#ifdef USE_IR_RF_PROXY
+void APIServer::register_ir_rf_proxy(ir_rf_proxy::IrRfProxyComponent *ir_rf_proxy) {
+  this->ir_rf_proxies_.push_back(ir_rf_proxy);
 }
 
-void APIServer::on_infrared_proxy_transmit_raw_timings_request(const InfraredProxyTransmitRawTimingsRequest &msg) {
-  for (auto *infrared_proxy : this->infrared_proxies_) {
-    if (infrared_proxy->get_object_id_hash() == msg.key) {
-      infrared_proxy->transmit_raw_timings(msg);
+void APIServer::on_ir_rf_proxy_transmit_raw_timings_request(const IrRfProxyTransmitRawTimingsRequest &msg) {
+  for (auto *ir_rf_proxy : this->ir_rf_proxies_) {
+    if (ir_rf_proxy->get_object_id_hash() == msg.key) {
+      ir_rf_proxy->transmit_raw_timings(msg);
       return;
     }
   }
-  ESP_LOGW(TAG, "Infrared proxy raw timings transmit request for unknown key: %u", msg.key);
+  ESP_LOGW(TAG, "IR/RF proxy raw timings transmit request for unknown key: %u", msg.key);
 }
 
-void APIServer::send_infrared_proxy_receive_event(uint32_t key, const remote_base::RawTimings &timings) {
-  InfraredProxyReceiveEvent event{};
+void APIServer::send_ir_rf_proxy_receive_event(uint32_t key, const remote_base::RawTimings &timings) {
+  IrRfProxyReceiveEvent event{};
   event.key = key;
   // Convert std::vector to FixedVector
   event.timings.init(timings.size());
@@ -717,18 +717,17 @@ void APIServer::send_infrared_proxy_receive_event(uint32_t key, const remote_bas
   }
 
   for (auto &client : this->clients_) {
-    client->send_infrared_proxy_receive_event(event);
+    client->send_ir_rf_proxy_receive_event(event);
   }
 }
 
-void APIServer::list_infrared_proxy_entities(APIConnection *conn) {
-  for (auto *infrared_proxy : this->infrared_proxies_) {
-    conn->schedule_message_(infrared_proxy, &APIConnection::try_send_infrared_proxy_info,
-                            ListEntitiesInfraredProxyResponse::MESSAGE_TYPE,
-                            ListEntitiesInfraredProxyResponse::ESTIMATED_SIZE);
+void APIServer::list_ir_rf_proxy_entities(APIConnection *conn) {
+  for (auto *ir_rf_proxy : this->ir_rf_proxies_) {
+    conn->schedule_message_(ir_rf_proxy, &APIConnection::try_send_ir_rf_proxy_info,
+                            ListEntitiesIrRfProxyResponse::MESSAGE_TYPE, ListEntitiesIrRfProxyResponse::ESTIMATED_SIZE);
   }
 }
-#endif  // USE_INFRARED_PROXY
+#endif  // USE_IR_RF_PROXY
 
 }  // namespace esphome::api
 #endif

@@ -67,7 +67,7 @@ service APIConnection {
   rpc zwave_proxy_frame(ZWaveProxyFrame) returns (void) {}
   rpc zwave_proxy_request(ZWaveProxyRequest) returns (void) {}
 
-  rpc infrared_proxy_transmit_raw_timings(InfraredProxyTransmitRawTimingsRequest) returns (void) {}
+  rpc ir_rf_proxy_transmit_raw_timings(IrRfProxyTransmitRawTimingsRequest) returns (void) {}
 }
 
 
@@ -260,8 +260,8 @@ message DeviceInfoResponse {
   uint32 zwave_proxy_feature_flags = 23 [(field_ifdef) = "USE_ZWAVE_PROXY"];
   uint32 zwave_home_id = 24 [(field_ifdef) = "USE_ZWAVE_PROXY"];
 
-  // Indicates if infrared proxy support is available and features supported
-  uint32 infrared_proxy_feature_flags = 25 [(field_ifdef) = "USE_INFRARED_PROXY"];
+  // Indicates if IR/RF proxy support is available and features supported
+  uint32 ir_rf_proxy_feature_flags = 25 [(field_ifdef) = "USE_IR_RF_PROXY"];
 }
 
 message ListEntitiesRequest {
@@ -2443,16 +2443,16 @@ message ZWaveProxyRequest {
   bytes data = 2;
 }
 
-// ==================== INFRARED PROXY ====================
+// ==================== IR/RF PROXY ====================
 // Note: Feature and capability flag enums are defined in
-// esphome/components/infrared_proxy/infrared_proxy.h
+// esphome/components/ir_rf_proxy/ir_rf_proxy.h
 
-// Listing of infrared proxy instances
-message ListEntitiesInfraredProxyResponse {
+// Listing of IR/RF proxy instances
+message ListEntitiesIrRfProxyResponse {
   option (id) = 135;
   option (base_class) = "InfoResponseProtoMessage";
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_INFRARED_PROXY";
+  option (ifdef) = "USE_IR_RF_PROXY";
 
   string object_id = 1;
   fixed32 key = 2;
@@ -2461,15 +2461,15 @@ message ListEntitiesInfraredProxyResponse {
   bool disabled_by_default = 5;
   EntityCategory entity_category = 6;
   uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];
-  uint32 capabilities = 8;  // Bitfield of InfraredProxyCapabilityFlags
+  uint32 capabilities = 8;  // Bitfield of IrRfProxyCapabilityFlags
   uint32 frequency = 9;  // RF frequency in kHz (0 = infrared only, non-zero = RF mode)
 }
 
 // Command to transmit infrared/RF data using raw timings
-message InfraredProxyTransmitRawTimingsRequest {
+message IrRfProxyTransmitRawTimingsRequest {
   option (id) = 136;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_INFRARED_PROXY";
+  option (ifdef) = "USE_IR_RF_PROXY";
 
   fixed32 key = 1;                                       // Key identifying the transmitter instance
   uint32 carrier_frequency = 2;                          // Carrier frequency in Hz (0 = no carrier for RF)
@@ -2477,11 +2477,11 @@ message InfraredProxyTransmitRawTimingsRequest {
   repeated int32 timings = 4 [packed=false, (fixed_vector) = true];    // Raw timings in microseconds: positive = mark (LED/TX on), negative = space (LED/TX off)
 }
 
-// Event message for received infrared data
-message InfraredProxyReceiveEvent {
+// Event message for received IR/RF data
+message IrRfProxyReceiveEvent {
   option (id) = 137;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_INFRARED_PROXY";
+  option (ifdef) = "USE_IR_RF_PROXY";
   option (no_delay) = true;
 
   fixed32 key = 1;                                    // Key identifying the receiver instance

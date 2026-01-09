@@ -622,14 +622,14 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
-#ifdef USE_INFRARED_PROXY
-    case InfraredProxyTransmitRawTimingsRequest::MESSAGE_TYPE: {
-      InfraredProxyTransmitRawTimingsRequest msg;
+#ifdef USE_IR_RF_PROXY
+    case IrRfProxyTransmitRawTimingsRequest::MESSAGE_TYPE: {
+      IrRfProxyTransmitRawTimingsRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_infrared_proxy_transmit_raw_timings_request: %s", msg.dump().c_str());
+      ESP_LOGVV(TAG, "on_ir_rf_proxy_transmit_raw_timings_request: %s", msg.dump().c_str());
 #endif
-      this->on_infrared_proxy_transmit_raw_timings_request(msg);
+      this->on_ir_rf_proxy_transmit_raw_timings_request(msg);
       break;
     }
 #endif
@@ -830,10 +830,9 @@ void APIServerConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) { th
 #ifdef USE_ZWAVE_PROXY
 void APIServerConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) { this->zwave_proxy_request(msg); }
 #endif
-#ifdef USE_INFRARED_PROXY
-void APIServerConnection::on_infrared_proxy_transmit_raw_timings_request(
-    const InfraredProxyTransmitRawTimingsRequest &msg) {
-  this->infrared_proxy_transmit_raw_timings(msg);
+#ifdef USE_IR_RF_PROXY
+void APIServerConnection::on_ir_rf_proxy_transmit_raw_timings_request(const IrRfProxyTransmitRawTimingsRequest &msg) {
+  this->ir_rf_proxy_transmit_raw_timings(msg);
 }
 #endif
 

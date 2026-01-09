@@ -13,27 +13,27 @@
 
 #include <vector>
 
-namespace esphome::infrared_proxy {
+namespace esphome::ir_rf_proxy {
 
-/// Feature flags for infrared proxy component availability
-enum InfraredProxyFeature : uint32_t {
-  FEATURE_INFRARED_PROXY_ENABLED = 1 << 0,
+/// Feature flags for IR/RF proxy component availability
+enum IrRfProxyFeature : uint32_t {
+  FEATURE_IR_RF_PROXY_ENABLED = 1 << 0,
 };
 
-/// Capability flags for individual infrared proxy instances
-enum InfraredProxyCapability : uint32_t {
+/// Capability flags for individual IR/RF proxy instances
+enum IrRfProxyCapability : uint32_t {
   CAPABILITY_TRANSMITTER = 1 << 0,  // Can transmit signals
   CAPABILITY_RECEIVER = 1 << 1,     // Can receive signals
 };
 
 #ifdef USE_API
-/// Get global feature flags for infrared proxy component (not instance-specific)
-inline uint32_t get_infrared_proxy_feature_flags() { return InfraredProxyFeature::FEATURE_INFRARED_PROXY_ENABLED; }
+/// Get global feature flags for IR/RF proxy component (not instance-specific)
+inline uint32_t get_ir_rf_proxy_feature_flags() { return IrRfProxyFeature::FEATURE_IR_RF_PROXY_ENABLED; }
 #endif
 
-class InfraredProxyComponent : public Component, public EntityBase, public remote_base::RemoteReceiverListener {
+class IrRfProxyComponent : public Component, public EntityBase, public remote_base::RemoteReceiverListener {
  public:
-  InfraredProxyComponent() = default;
+  IrRfProxyComponent() = default;
 
   void setup() override;
   void dump_config() override;
@@ -52,11 +52,11 @@ class InfraredProxyComponent : public Component, public EntityBase, public remot
   bool has_receiver() const { return this->receiver_ != nullptr; }
 
 #ifdef USE_API
-  /// Get capability flags for this infrared proxy instance
+  /// Get capability flags for this IR/RF proxy instance
   uint32_t get_capability_flags() const;
 
   /// Transmit IR/RF data using raw timings array
-  void transmit_raw_timings(const api::InfraredProxyTransmitRawTimingsRequest &msg);
+  void transmit_raw_timings(const api::IrRfProxyTransmitRawTimingsRequest &msg);
 
   /// Called when IR data is received - implements RemoteReceiverListener interface
   bool on_receive(remote_base::RemoteReceiveData data) override;
@@ -70,4 +70,4 @@ class InfraredProxyComponent : public Component, public EntityBase, public remot
   remote_transmitter::RemoteTransmitterComponent *transmitter_{nullptr};
 };
 
-}  // namespace esphome::infrared_proxy
+}  // namespace esphome::ir_rf_proxy

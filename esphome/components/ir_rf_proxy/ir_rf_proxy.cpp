@@ -1,26 +1,26 @@
-#include "infrared_proxy.h"
+#include "ir_rf_proxy.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_API
 #include "esphome/components/api/api_server.h"
 #endif
 
-namespace esphome::infrared_proxy {
+namespace esphome::ir_rf_proxy {
 
-static const char *const TAG = "infrared_proxy";
+static const char *const TAG = "ir_rf_proxy";
 
-void InfraredProxyComponent::setup() {
+void IrRfProxyComponent::setup() {
 #ifdef USE_API
   // Register with API server
   if (api::global_api_server != nullptr) {
-    api::global_api_server->register_infrared_proxy(this);
+    api::global_api_server->register_ir_rf_proxy(this);
   }
 #endif
 }
 
-void InfraredProxyComponent::dump_config() {
+void IrRfProxyComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "Infrared Proxy:\n"
+                "IR/RF Proxy:\n"
                 "  Has Transmitter: %s\n"
                 "  Has Receiver: %s",
                 YESNO(this->has_transmitter()), YESNO(this->has_receiver()));
@@ -32,19 +32,19 @@ void InfraredProxyComponent::dump_config() {
 }
 
 #ifdef USE_API
-uint32_t InfraredProxyComponent::get_capability_flags() const {
+uint32_t IrRfProxyComponent::get_capability_flags() const {
   uint32_t flags = 0;
 
   // Add transmit/receive capability based on configuration
   if (this->has_transmitter())
-    flags |= InfraredProxyCapability::CAPABILITY_TRANSMITTER;
+    flags |= IrRfProxyCapability::CAPABILITY_TRANSMITTER;
   if (this->has_receiver())
-    flags |= InfraredProxyCapability::CAPABILITY_RECEIVER;
+    flags |= IrRfProxyCapability::CAPABILITY_RECEIVER;
 
   return flags;
 }
 
-void InfraredProxyComponent::transmit_raw_timings(const api::InfraredProxyTransmitRawTimingsRequest &msg) {
+void IrRfProxyComponent::transmit_raw_timings(const api::IrRfProxyTransmitRawTimingsRequest &msg) {
   if (this->transmitter_ == nullptr) {
     ESP_LOGW(TAG, "No transmitter configured");
     return;
@@ -79,7 +79,7 @@ void InfraredProxyComponent::transmit_raw_timings(const api::InfraredProxyTransm
   call.perform();
 }
 
-bool InfraredProxyComponent::on_receive(remote_base::RemoteReceiveData data) {
+bool IrRfProxyComponent::on_receive(remote_base::RemoteReceiveData data) {
   if (this->receiver_ == nullptr) {
     return false;  // Not interested in receive data if no receiver configured
   }
@@ -91,11 +91,11 @@ bool InfraredProxyComponent::on_receive(remote_base::RemoteReceiveData data) {
 
   // Send the raw timings to the API
   if (api::global_api_server != nullptr) {
-    api::global_api_server->send_infrared_proxy_receive_event(this->get_object_id_hash(), raw_data);
+    api::global_api_server->send_ir_rf_proxy_receive_event(this->get_object_id_hash(), raw_data);
   }
 
   return false;  // Return false to allow other listeners to process the data
 }
 #endif  // USE_API
 
-}  // namespace esphome::infrared_proxy
+}  // namespace esphome::ir_rf_proxy

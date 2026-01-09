@@ -538,8 +538,8 @@ class DeviceInfoResponse final : public ProtoMessage {
 #ifdef USE_ZWAVE_PROXY
   uint32_t zwave_home_id{0};
 #endif
-#ifdef USE_INFRARED_PROXY
-  uint32_t infrared_proxy_feature_flags{0};
+#ifdef USE_IR_RF_PROXY
+  uint32_t ir_rf_proxy_feature_flags{0};
 #endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -3052,13 +3052,13 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif
-#ifdef USE_INFRARED_PROXY
-class ListEntitiesInfraredProxyResponse final : public InfoResponseProtoMessage {
+#ifdef USE_IR_RF_PROXY
+class ListEntitiesIrRfProxyResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 135;
   static constexpr uint8_t ESTIMATED_SIZE = 48;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "list_entities_infrared_proxy_response"; }
+  const char *message_name() const override { return "list_entities_ir_rf_proxy_response"; }
 #endif
   uint32_t capabilities{0};
   uint32_t frequency{0};
@@ -3070,12 +3070,12 @@ class ListEntitiesInfraredProxyResponse final : public InfoResponseProtoMessage 
 
  protected:
 };
-class InfraredProxyTransmitRawTimingsRequest final : public ProtoDecodableMessage {
+class IrRfProxyTransmitRawTimingsRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 136;
   static constexpr uint8_t ESTIMATED_SIZE = 21;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "infrared_proxy_transmit_raw_timings_request"; }
+  const char *message_name() const override { return "ir_rf_proxy_transmit_raw_timings_request"; }
 #endif
   uint32_t key{0};
   uint32_t carrier_frequency{0};
@@ -3090,12 +3090,12 @@ class InfraredProxyTransmitRawTimingsRequest final : public ProtoDecodableMessag
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class InfraredProxyReceiveEvent final : public ProtoMessage {
+class IrRfProxyReceiveEvent final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 137;
   static constexpr uint8_t ESTIMATED_SIZE = 13;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "infrared_proxy_receive_event"; }
+  const char *message_name() const override { return "ir_rf_proxy_receive_event"; }
 #endif
   uint32_t key{0};
   FixedVector<int32_t> timings{};

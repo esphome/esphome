@@ -9,9 +9,9 @@ CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["api"]
 MULTI_CONF = True
 
-infrared_proxy_ns = cg.esphome_ns.namespace("infrared_proxy")
-InfraredProxyComponent = infrared_proxy_ns.class_(
-    "InfraredProxyComponent", cg.Component, cg.EntityBase
+ir_rf_proxy_ns = cg.esphome_ns.namespace("ir_rf_proxy")
+IrRfProxyComponent = ir_rf_proxy_ns.class_(
+    "IrRfProxyComponent", cg.Component, cg.EntityBase
 )
 
 CONF_REMOTE_RECEIVER_ID = "remote_receiver_id"
@@ -20,7 +20,7 @@ CONF_REMOTE_TRANSMITTER_ID = "remote_transmitter_id"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(InfraredProxyComponent),
+            cv.GenerateID(): cv.declare_id(IrRfProxyComponent),
             cv.Optional(CONF_FREQUENCY, default=0): cv.frequency,
             cv.Optional(CONF_REMOTE_RECEIVER_ID): cv.use_id(
                 remote_receiver.RemoteReceiverComponent
@@ -54,7 +54,7 @@ def _final_validate(config):
             raise cv.Invalid(
                 f"Transmitter '{transmitter_id}' must have '{CONF_CARRIER_DUTY_PERCENT}' configured with "
                 "an intermediate value (typically 30-50%) for infrared transmission. If this is an RF "
-                f"transmitter, configure this infrared_proxy with an appropriate '{CONF_FREQUENCY}'"
+                f"transmitter, configure this ir_rf_proxy with an appropriate '{CONF_FREQUENCY}'"
             )
 
 
@@ -64,7 +64,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await setup_entity(var, config, "infrared_proxy")
+    await setup_entity(var, config, "ir_rf_proxy")
 
     # Set frequency / 1000; zero indicates infrared hardware
     cg.add(var.set_frequency(config[CONF_FREQUENCY] / 1000))
@@ -78,8 +78,8 @@ async def to_code(config):
     if CONF_REMOTE_RECEIVER_ID in config:
         receiver = await cg.get_variable(config[CONF_REMOTE_RECEIVER_ID])
         cg.add(var.set_receiver(receiver))
-        # Register the infrared_proxy component as a listener to the receiver
+        # Register the ir_rf_proxy component as a listener to the receiver
         cg.add(receiver.register_listener(var))
 
-    # Add the global infrared_proxy define
-    cg.add_define("USE_INFRARED_PROXY")
+    # Add the global ir_rf_proxy define
+    cg.add_define("USE_IR_RF_PROXY")

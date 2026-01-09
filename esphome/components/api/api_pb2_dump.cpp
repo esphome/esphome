@@ -827,8 +827,8 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 #ifdef USE_ZWAVE_PROXY
   dump_field(out, "zwave_home_id", this->zwave_home_id);
 #endif
-#ifdef USE_INFRARED_PROXY
-  dump_field(out, "infrared_proxy_feature_flags", this->infrared_proxy_feature_flags);
+#ifdef USE_IR_RF_PROXY
+  dump_field(out, "ir_rf_proxy_feature_flags", this->ir_rf_proxy_feature_flags);
 #endif
 }
 void ListEntitiesRequest::dump_to(std::string &out) const { out.append("ListEntitiesRequest {}"); }
@@ -2312,9 +2312,9 @@ void ZWaveProxyRequest::dump_to(std::string &out) const {
   out.append("\n");
 }
 #endif
-#ifdef USE_INFRARED_PROXY
-void ListEntitiesInfraredProxyResponse::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "ListEntitiesInfraredProxyResponse");
+#ifdef USE_IR_RF_PROXY
+void ListEntitiesIrRfProxyResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ListEntitiesIrRfProxyResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
   dump_field(out, "name", this->name);
@@ -2329,8 +2329,8 @@ void ListEntitiesInfraredProxyResponse::dump_to(std::string &out) const {
   dump_field(out, "capabilities", this->capabilities);
   dump_field(out, "frequency", this->frequency);
 }
-void InfraredProxyTransmitRawTimingsRequest::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "InfraredProxyTransmitRawTimingsRequest");
+void IrRfProxyTransmitRawTimingsRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "IrRfProxyTransmitRawTimingsRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "carrier_frequency", this->carrier_frequency);
   dump_field(out, "repeat_count", this->repeat_count);
@@ -2338,8 +2338,8 @@ void InfraredProxyTransmitRawTimingsRequest::dump_to(std::string &out) const {
     dump_field(out, "timings", it, 4);
   }
 }
-void InfraredProxyReceiveEvent::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "InfraredProxyReceiveEvent");
+void IrRfProxyReceiveEvent::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "IrRfProxyReceiveEvent");
   dump_field(out, "key", this->key);
   for (const auto &it : this->timings) {
     dump_field(out, "timings", it, 4);

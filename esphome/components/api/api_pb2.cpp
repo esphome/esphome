@@ -119,8 +119,8 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_ZWAVE_PROXY
   buffer.encode_uint32(24, this->zwave_home_id);
 #endif
-#ifdef USE_INFRARED_PROXY
-  buffer.encode_uint32(25, this->infrared_proxy_feature_flags);
+#ifdef USE_IR_RF_PROXY
+  buffer.encode_uint32(25, this->ir_rf_proxy_feature_flags);
 #endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
@@ -177,8 +177,8 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #ifdef USE_ZWAVE_PROXY
   size.add_uint32(2, this->zwave_home_id);
 #endif
-#ifdef USE_INFRARED_PROXY
-  size.add_uint32(2, this->infrared_proxy_feature_flags);
+#ifdef USE_IR_RF_PROXY
+  size.add_uint32(2, this->ir_rf_proxy_feature_flags);
 #endif
 }
 #ifdef USE_BINARY_SENSOR
@@ -3353,8 +3353,8 @@ void ZWaveProxyRequest::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->data_len);
 }
 #endif
-#ifdef USE_INFRARED_PROXY
-void ListEntitiesInfraredProxyResponse::encode(ProtoWriteBuffer buffer) const {
+#ifdef USE_IR_RF_PROXY
+void ListEntitiesIrRfProxyResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->object_id);
   buffer.encode_fixed32(2, this->key);
   buffer.encode_string(3, this->name);
@@ -3369,7 +3369,7 @@ void ListEntitiesInfraredProxyResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(8, this->capabilities);
   buffer.encode_uint32(9, this->frequency);
 }
-void ListEntitiesInfraredProxyResponse::calculate_size(ProtoSize &size) const {
+void ListEntitiesIrRfProxyResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->object_id.size());
   size.add_fixed32(1, this->key);
   size.add_length(1, this->name.size());
@@ -3384,7 +3384,7 @@ void ListEntitiesInfraredProxyResponse::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, this->capabilities);
   size.add_uint32(1, this->frequency);
 }
-bool InfraredProxyTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool IrRfProxyTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2:
       this->carrier_frequency = value.as_uint32();
@@ -3400,7 +3400,7 @@ bool InfraredProxyTransmitRawTimingsRequest::decode_varint(uint32_t field_id, Pr
   }
   return true;
 }
-bool InfraredProxyTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+bool IrRfProxyTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1:
       this->key = value.as_fixed32();
@@ -3410,18 +3410,18 @@ bool InfraredProxyTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Pro
   }
   return true;
 }
-void InfraredProxyTransmitRawTimingsRequest::decode(const uint8_t *buffer, size_t length) {
+void IrRfProxyTransmitRawTimingsRequest::decode(const uint8_t *buffer, size_t length) {
   uint32_t count_timings = ProtoDecodableMessage::count_repeated_field(buffer, length, 4);
   this->timings.init(count_timings);
   ProtoDecodableMessage::decode(buffer, length);
 }
-void InfraredProxyReceiveEvent::encode(ProtoWriteBuffer buffer) const {
+void IrRfProxyReceiveEvent::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   for (auto &it : this->timings) {
     buffer.encode_int32(2, it, true);
   }
 }
-void InfraredProxyReceiveEvent::calculate_size(ProtoSize &size) const {
+void IrRfProxyReceiveEvent::calculate_size(ProtoSize &size) const {
   size.add_fixed32(1, this->key);
   if (!this->timings.empty()) {
     for (const auto &it : this->timings) {
