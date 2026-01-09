@@ -3393,7 +3393,7 @@ bool IrRfProxyTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoV
       this->repeat_count = value.as_uint32();
       break;
     case 4:
-      this->timings.push_back(value.as_int32());
+      this->timings.push_back(value.as_sint32());
       break;
     default:
       return false;
@@ -3410,22 +3410,17 @@ bool IrRfProxyTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Proto32
   }
   return true;
 }
-void IrRfProxyTransmitRawTimingsRequest::decode(const uint8_t *buffer, size_t length) {
-  uint32_t count_timings = ProtoDecodableMessage::count_repeated_field(buffer, length, 4);
-  this->timings.init(count_timings);
-  ProtoDecodableMessage::decode(buffer, length);
-}
 void IrRfProxyReceiveEvent::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   for (auto &it : this->timings) {
-    buffer.encode_int32(2, it, true);
+    buffer.encode_sint32(2, it, true);
   }
 }
 void IrRfProxyReceiveEvent::calculate_size(ProtoSize &size) const {
   size.add_fixed32(1, this->key);
   if (!this->timings.empty()) {
     for (const auto &it : this->timings) {
-      size.add_int32_force(1, it);
+      size.add_sint32_force(1, it);
     }
   }
 }

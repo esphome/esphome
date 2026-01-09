@@ -3080,8 +3080,7 @@ class IrRfProxyTransmitRawTimingsRequest final : public ProtoDecodableMessage {
   uint32_t key{0};
   uint32_t carrier_frequency{0};
   uint32_t repeat_count{0};
-  FixedVector<int32_t> timings{};
-  void decode(const uint8_t *buffer, size_t length) override;
+  std::vector<int32_t> timings{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
@@ -3098,7 +3097,7 @@ class IrRfProxyReceiveEvent final : public ProtoMessage {
   const char *message_name() const override { return "ir_rf_proxy_receive_event"; }
 #endif
   uint32_t key{0};
-  FixedVector<int32_t> timings{};
+  std::vector<int32_t> timings{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
