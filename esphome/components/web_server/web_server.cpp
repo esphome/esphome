@@ -1420,6 +1420,7 @@ std::string WebServer::select_json_(select::Select *obj, std::string_view value,
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
+  // value points to null-terminated string literals from codegen (via current_option())
   set_json_icon_state_value(root, obj, "select", value.data(), value.data(), start_config);
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root[ESPHOME_F("option")].to<JsonArray>();
