@@ -1,17 +1,17 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import spi
-from esphome.components import display
+import esphome.codegen as cg
+from esphome.components import display, spi
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DC_PIN,
     CONF_ID,
+    CONF_INVERT_COLORS,
     CONF_LAMBDA,
     CONF_MODEL,
-    CONF_RESET_PIN,
     CONF_PAGES,
-    CONF_INVERT_COLORS,
+    CONF_RESET_PIN,
 )
+
 from . import st7735_ns
 
 CODEOWNERS = ["@SenexCrenshaw"]
@@ -65,6 +65,11 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.COMPONENT_SCHEMA)
     .extend(spi.spi_device_schema()),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
+)
+
+
+FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
+    "st7735", require_miso=False, require_mosi=True
 )
 
 

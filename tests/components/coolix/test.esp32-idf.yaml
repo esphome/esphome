@@ -1,7 +1,4 @@
-remote_transmitter:
-  pin: 2
-  carrier_duty_percent: 50%
+packages:
+  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp32-idf.yaml
 
-climate:
-  - platform: coolix
-    name: Coolix Climate
+<<: !include common.yaml

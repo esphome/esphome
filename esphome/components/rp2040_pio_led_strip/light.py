@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import light, rp2040
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
     CONF_ID,
@@ -11,10 +13,6 @@ from esphome.const import (
     CONF_PIN,
     CONF_RGB_ORDER,
 )
-
-import esphome.codegen as cg
-import esphome.config_validation as cv
-
 from esphome.util import _LOGGER
 
 
@@ -127,8 +125,7 @@ writezero:
 
 def time_to_cycles(time_us):
     cycles_per_us = 57.5
-    cycles = round(float(time_us) * cycles_per_us)
-    return cycles
+    return round(float(time_us) * cycles_per_us)
 
 
 CONF_PIO = "pio"
@@ -175,7 +172,7 @@ RGB_ORDERS = {
 CHIPSET_TIMINGS = {
     "WS2812": LEDStripTimings(20, 40, 46, 34),
     "WS2812B": LEDStripTimings(23, 49, 46, 26),
-    "SK6812": LEDStripTimings(17, 52, 34, 34),
+    "SK6812": LEDStripTimings(20, 54, 38, 38),
     "SM16703": LEDStripTimings(17, 52, 52, 17),
 }
 

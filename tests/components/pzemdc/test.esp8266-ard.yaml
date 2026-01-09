@@ -1,23 +1,8 @@
-esphome:
-  on_boot:
-    then:
-      - pzemdc.reset_energy: pzemdc1
+substitutions:
+  tx_pin: GPIO0
+  rx_pin: GPIO2
 
-uart:
-  - id: uart_pzemdc
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 9600
-    stop_bits: 2
+packages:
+  modbus: !include ../../test_build_components/common/modbus/esp8266-ard.yaml
 
-sensor:
-  - platform: pzemdc
-    id: pzemdc1
-    voltage:
-      name: PZEMDC Voltage
-    current:
-      name: PZEMDC Current
-    power:
-      name: PZEMDC Power
-    energy:
-      name: PZEMDC Energy
+<<: !include common.yaml

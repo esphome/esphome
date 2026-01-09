@@ -1,8 +1,4 @@
-i2c:
-  - id: i2c_mcp9808
-    scl: 5
-    sda: 4
+packages:
+  i2c: !include ../../test_build_components/common/i2c/rp2040-ard.yaml
 
-sensor:
-  - platform: mcp9808
-    name: MCP9808 Temperature
+<<: !include common.yaml

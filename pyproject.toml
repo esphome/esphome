@@ -1,34 +1,35 @@
 [build-system]
-requires = ["setuptools==69.2.0", "wheel~=0.43.0"]
+requires = ["setuptools==80.9.0", "wheel>=0.43,<0.46"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name        = "esphome"
-license     = {text = "MIT"}
-description = "Make creating custom firmwares for ESP32/ESP8266 super easy."
+license     = "MIT"
+description = "ESPHome is a system to configure your microcontrollers by simple yet powerful configuration files and control them remotely through Home Automation systems."
 readme      = "README.md"
 authors     = [
-  {name = "The ESPHome Authors", email = "esphome@nabucasa.com"}
+  {name = "The ESPHome Authors", email = "esphome@openhomefoundation.org"}
 ]
 keywords    = ["home", "automation"]
 classifiers = [
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: C++",
     "Programming Language :: Python :: 3",
     "Topic :: Home Automation",
 ]
-requires-python = ">=3.9.0"
+
+# Python 3.14 is currently not supported by IDF <= 5.5.1, see https://github.com/esphome/esphome/issues/11502
+requires-python = ">=3.11.0,<3.14"
 
 dynamic = ["dependencies", "optional-dependencies", "version"]
 
 [project.urls]
 "Documentation"           = "https://esphome.io"
 "Source Code"             = "https://github.com/esphome/esphome"
-"Bug Tracker"             = "https://github.com/esphome/issues/issues"
-"Feature Request Tracker" = "https://github.com/esphome/feature-requests/issues"
+"Bug Tracker"             = "https://github.com/esphome/esphome/issues"
+"Feature Request Tracker" = "https://github.com/orgs/esphome/discussions"
 "Discord"                 = "https://discord.gg/KhAMKrd"
 "Forum"                   = "https://community.home-assistant.io/c/esphome"
 "Twitter"                 = "https://twitter.com/esphome_"
@@ -43,17 +44,14 @@ include-package-data = true
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
-optional-dependencies.dev = { file = ["requirements_dev.txt"] }
-optional-dependencies.test = { file = ["requirements_test.txt"] }
-optional-dependencies.displays = { file = ["requirements_optional.txt"] }
 version = {attr = "esphome.const.__version__"}
+
+[tool.setuptools.dynamic.optional-dependencies]
+dev = { file = ["requirements_dev.txt"] }
+test = { file = ["requirements_test.txt"] }
 
 [tool.setuptools.packages.find]
 include = ["esphome*"]
-
-[tool.black]
-target-version = ["py39", "py310"]
-exclude = 'generated'
 
 [tool.pytest.ini_options]
 testpaths = [
@@ -65,7 +63,7 @@ addopts = [
 ]
 
 [tool.pylint.MAIN]
-py-version = "3.9"
+py-version = "3.11"
 ignore = [
   "api_pb2.py",
 ]
@@ -88,6 +86,7 @@ disable = [
   "too-many-branches",
   "too-many-statements",
   "too-many-arguments",
+  "too-many-positional-arguments",
   "too-many-return-statements",
   "too-many-instance-attributes",
   "duplicate-code",
@@ -108,22 +107,30 @@ expected-line-ending-format = "LF"
 
 [tool.ruff]
 required-version = ">=0.5.0"
+target-version = "py311"
+exclude = ['generated']
 
 [tool.ruff.lint]
 select = [
-  "E", # pycodestyle
-  "F", # pyflakes/autoflake
-  "I", # isort
-  "PL", # pylint
-  "UP", # pyupgrade
+  "E",    # pycodestyle
+  "F",    # pyflakes/autoflake
+  "FURB", # refurb
+  "I",    # isort
+  "PERF", # performance
+  "PL",   # pylint
+  "SIM",  # flake8-simplify
+  "RET",  # flake8-ret
+  "UP",   # pyupgrade
 ]
 
 ignore = [
   "E501", # line too long
+  "PLC0415", # `import` should be at the top-level of a file
   "PLR0911", # Too many return statements ({returns} > {max_returns})
   "PLR0912", # Too many branches ({branches} > {max_branches})
   "PLR0913", # Too many arguments to function call ({c_args} > {max_args})
   "PLR0915", # Too many statements ({statements} > {max_statements})
+  "PLW1641", # Object does not implement `__hash__` method
   "PLR2004", # Magic value used in comparison, consider replacing {value} with a constant variable
   "PLW2901", # Outer {outer_kind} variable {name} overwritten by inner {inner_kind} target
 ]

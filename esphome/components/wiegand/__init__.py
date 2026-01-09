@@ -1,8 +1,8 @@
+from esphome import automation, pins
 import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome import pins, automation
 from esphome.components import key_provider
-from esphome.const import CONF_ID, CONF_ON_TAG, CONF_TRIGGER_ID
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_ON_KEY, CONF_ON_TAG, CONF_TRIGGER_ID
 
 CODEOWNERS = ["@ssieb"]
 
@@ -25,7 +25,6 @@ WiegandKeyTrigger = wiegand_ns.class_(
 
 CONF_D0 = "d0"
 CONF_D1 = "d1"
-CONF_ON_KEY = "on_key"
 CONF_ON_RAW = "on_raw"
 
 CONFIG_SCHEMA = cv.Schema(

@@ -1,0 +1,6 @@
+sensor:
+  - platform: fs3000
+    i2c_id: i2c_bus
+    name: Air Velocity
+    model: 1005
+    update_interval: 60s

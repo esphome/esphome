@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import output
-from esphome.const import CONF_CHANNEL, CONF_ID, CONF_GAIN
-from .. import MCP4728Component, CONF_MCP4728_ID, mcp4728_ns
+import esphome.config_validation as cv
+from esphome.const import CONF_CHANNEL, CONF_GAIN, CONF_ID
+
+from .. import CONF_MCP4728_ID, MCP4728Component, mcp4728_ns
 
 DEPENDENCIES = ["mcp4728"]
 

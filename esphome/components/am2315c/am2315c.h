@@ -21,9 +21,9 @@
 // SOFTWARE.
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace am2315c {
@@ -39,7 +39,6 @@ class AM2315C : public PollingComponent, public i2c::I2CDevice {
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
 
  protected:
-  uint8_t crc8_(uint8_t *data, uint8_t len);
   bool convert_(uint8_t *data, float &humidity, float &temperature);
   bool reset_register_(uint8_t reg);
 

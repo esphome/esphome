@@ -1,0 +1,12 @@
+esphome:
+  on_boot:
+    then:
+      - audio_adc.set_mic_gain: 0db
+      - audio_adc.set_mic_gain: !lambda 'return 4;'
+
+audio_adc:
+  - platform: es7210
+    i2c_id: i2c_bus
+    id: es7210_adc
+    bits_per_sample: 16bit
+    sample_rate: 16000

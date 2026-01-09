@@ -1,19 +1,5 @@
-esphome:
-  on_boot:
-    then:
-      - servo.write:
-          id: test_servo
-          level: -100.0%
-      - servo.detach: test_servo
+substitutions:
+  output_platform: ledc
+  pin: GPIO14
 
-output:
-  - platform: ledc
-    id: servo_output_1
-    pin: 12
-
-servo:
-  id: test_servo
-  output: servo_output_1
-  restore: true
-  min_level: 4%
-  max_level: 8%
+<<: !include common.yaml

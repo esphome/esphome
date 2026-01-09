@@ -1,0 +1,11 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+binary_sensor:
+  - platform: gpio
+    pin: 5
+    name: "Test GPIO Binary Sensor"
+    id: bs_gpio

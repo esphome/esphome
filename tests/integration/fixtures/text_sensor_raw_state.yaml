@@ -1,0 +1,181 @@
+esphome:
+  name: test-text-sensor-raw-state
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+# Text sensor WITHOUT filters - get_raw_state() should return same as state
+text_sensor:
+  - platform: template
+    name: "No Filter Sensor"
+    id: no_filter_sensor
+
+  # Text sensor WITH filter - get_raw_state() should return original value
+  - platform: template
+    name: "With Filter Sensor"
+    id: with_filter_sensor
+    filters:
+      - to_upper
+
+  # StringRef-based filters (append, prepend, substitute, map)
+  - platform: template
+    name: "Append Sensor"
+    id: append_sensor
+    filters:
+      - append: " suffix"
+
+  - platform: template
+    name: "Prepend Sensor"
+    id: prepend_sensor
+    filters:
+      - prepend: "prefix "
+
+  - platform: template
+    name: "Substitute Sensor"
+    id: substitute_sensor
+    filters:
+      - substitute:
+          - foo -> bar
+          - hello -> world
+
+  - platform: template
+    name: "Map Sensor"
+    id: map_sensor
+    filters:
+      - map:
+          - ON -> Active
+          - OFF -> Inactive
+
+  - platform: template
+    name: "Chained Sensor"
+    id: chained_sensor
+    filters:
+      - prepend: "["
+      - append: "]"
+
+# Button to publish values and log raw_state vs state
+button:
+  - platform: template
+    name: "Test No Filter Button"
+    id: test_no_filter_button
+    on_press:
+      - text_sensor.template.publish:
+          id: no_filter_sensor
+          state: "hello world"
+      - delay: 50ms
+      # Log both state and get_raw_state() to verify they match
+      - logger.log:
+          format: "NO_FILTER: state='%s' raw_state='%s'"
+          args:
+            - id(no_filter_sensor).state.c_str()
+            - id(no_filter_sensor).get_raw_state().c_str()
+
+  - platform: template
+    name: "Test With Filter Button"
+    id: test_with_filter_button
+    on_press:
+      - text_sensor.template.publish:
+          id: with_filter_sensor
+          state: "hello world"
+      - delay: 50ms
+      # Log both state and get_raw_state() to verify filter works
+      # state should be "HELLO WORLD" (filtered), raw_state should be "hello world" (original)
+      - logger.log:
+          format: "WITH_FILTER: state='%s' raw_state='%s'"
+          args:
+            - id(with_filter_sensor).state.c_str()
+            - id(with_filter_sensor).get_raw_state().c_str()
+
+  - platform: template
+    name: "Test Append Button"
+    id: test_append_button
+    on_press:
+      - text_sensor.template.publish:
+          id: append_sensor
+          state: "test"
+      - delay: 50ms
+      - logger.log:
+          format: "APPEND: state='%s'"
+          args:
+            - id(append_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Prepend Button"
+    id: test_prepend_button
+    on_press:
+      - text_sensor.template.publish:
+          id: prepend_sensor
+          state: "test"
+      - delay: 50ms
+      - logger.log:
+          format: "PREPEND: state='%s'"
+          args:
+            - id(prepend_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Substitute Button"
+    id: test_substitute_button
+    on_press:
+      - text_sensor.template.publish:
+          id: substitute_sensor
+          state: "foo says hello"
+      - delay: 50ms
+      - logger.log:
+          format: "SUBSTITUTE: state='%s'"
+          args:
+            - id(substitute_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Map ON Button"
+    id: test_map_on_button
+    on_press:
+      - text_sensor.template.publish:
+          id: map_sensor
+          state: "ON"
+      - delay: 50ms
+      - logger.log:
+          format: "MAP_ON: state='%s'"
+          args:
+            - id(map_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Map OFF Button"
+    id: test_map_off_button
+    on_press:
+      - text_sensor.template.publish:
+          id: map_sensor
+          state: "OFF"
+      - delay: 50ms
+      - logger.log:
+          format: "MAP_OFF: state='%s'"
+          args:
+            - id(map_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Map Unknown Button"
+    id: test_map_unknown_button
+    on_press:
+      - text_sensor.template.publish:
+          id: map_sensor
+          state: "UNKNOWN"
+      - delay: 50ms
+      - logger.log:
+          format: "MAP_UNKNOWN: state='%s'"
+          args:
+            - id(map_sensor).state.c_str()
+
+  - platform: template
+    name: "Test Chained Button"
+    id: test_chained_button
+    on_press:
+      - text_sensor.template.publish:
+          id: chained_sensor
+          state: "value"
+      - delay: 50ms
+      - logger.log:
+          format: "CHAINED: state='%s'"
+          args:
+            - id(chained_sensor).state.c_str()

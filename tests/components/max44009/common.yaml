@@ -1,0 +1,8 @@
+sensor:
+  - platform: max44009
+    i2c_id: i2c_bus
+    name: MAX44009 Brightness
+    internal: true
+    mode: low_power
+    address: 0x4A
+    update_interval: 30s

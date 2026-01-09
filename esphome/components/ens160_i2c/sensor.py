@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c
-from ..ens160_base import to_code_base, cv, CONFIG_SCHEMA_BASE
+
+from ..ens160_base import CONFIG_SCHEMA_BASE, cv, to_code_base
 
 AUTO_LOAD = ["ens160_base"]
 CODEOWNERS = ["@latonita"]

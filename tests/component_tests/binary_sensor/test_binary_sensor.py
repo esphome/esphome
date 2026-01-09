@@ -29,7 +29,7 @@ def test_binary_sensor_sets_mandatory_fields(generate_main):
     )
 
     # Then
-    assert 'bs_1->set_name("test bs1");' in main_cpp
+    assert 'bs_1->set_name_and_object_id("test bs1", "test_bs1");' in main_cpp
     assert "bs_1->set_pin(" in main_cpp
 
 
@@ -47,3 +47,19 @@ def test_binary_sensor_config_value_internal_set(generate_main):
     # Then
     assert "bs_1->set_internal(true);" in main_cpp
     assert "bs_2->set_internal(false);" in main_cpp
+
+
+def test_binary_sensor_config_value_use_raw_set(generate_main):
+    """
+    Test that the "use_raw" config value is correctly set
+    """
+    # Given
+
+    # When
+    main_cpp = generate_main(
+        "tests/component_tests/binary_sensor/test_binary_sensor.yaml"
+    )
+
+    # Then
+    assert "bs_3->set_use_raw(true);" in main_cpp
+    assert "bs_4->set_use_raw(false);" in main_cpp

@@ -1,0 +1,9 @@
+substitutions:
+  scl_pin: GPIO2
+  sda_pin: GPIO3
+  i2s_bclk_pin: GPIO4
+  i2s_lrclk_pin: GPIO5
+  i2s_mclk_pin: GPIO6
+  i2s_dout_pin: GPIO7
+
+<<: !include common-media_player.yaml

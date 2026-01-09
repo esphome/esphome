@@ -1,0 +1,24 @@
+esphome:
+  on_boot:
+    then:
+      - at581x.settings:
+          id: waveradar
+          hw_frontend_reset: false
+          frequency: 5800MHz
+          sensing_distance: 200
+          poweron_selfcheck_time: 2s
+          protect_time: 1s
+          trigger_base: 500ms
+          trigger_keep: 10s
+          stage_gain: 3
+          power_consumption: 70uA
+      - at581x.reset:
+          id: waveradar
+
+at581x:
+  i2c_id: i2c_bus
+  id: waveradar
+
+switch:
+  - platform: at581x
+    name: Enable Radar

@@ -1,10 +1,13 @@
 import logging
-import os
+from pathlib import Path
 
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
     CONF_BOARD_FLASH_MODE,
     CONF_FRAMEWORK,
+    CONF_PLATFORM_VERSION,
     CONF_SOURCE,
     CONF_VERSION,
     KEY_CORE,
@@ -12,30 +15,27 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP8266,
-    CONF_PLATFORM_VERSION,
+    ThreadModel,
 )
-from esphome.core import CORE, coroutine_with_priority
-import esphome.config_validation as cv
-import esphome.codegen as cg
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed
 
+from .boards import BOARDS, ESP8266_LD_SCRIPTS
 from .const import (
-    CONF_RESTORE_FROM_FLASH,
     CONF_EARLY_PIN_INIT,
+    CONF_RESTORE_FROM_FLASH,
     KEY_BOARD,
     KEY_ESP8266,
     KEY_FLASH_SIZE,
     KEY_PIN_INITIAL_STATES,
     esp8266_ns,
 )
-from .boards import BOARDS, ESP8266_LD_SCRIPTS
-
 from .gpio import PinInitialState, add_pin_initial_states_array
-
 
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
+IS_TARGET_PLATFORM = True
 
 
 def set_core_data(config):
@@ -176,18 +176,23 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(1000)
+@coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config):
     cg.add(esp8266_ns.setup_preferences())
 
     cg.add_platformio_option("lib_ldf_mode", "off")
+    cg.add_platformio_option("lib_compat_mode", "strict")
 
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_ESP8266")
+    cg.set_cpp_standard("gnu++20")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "ESP8266")
+    cg.add_define(ThreadModel.SINGLE)
 
-    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
+    cg.add_platformio_option(
+        "extra_scripts", ["pre:testing_mode.py", "post:post_build.py"]
+    )
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
@@ -227,6 +232,12 @@ async def to_code(config):
     # For cases where nullptrs can be handled, use nothrow: `new (std::nothrow) T;`
     cg.add_build_flag("-DNEW_OOM_ABORT")
 
+    # In testing mode, fake larger memory to allow linking grouped component tests
+    # Real ESP8266 hardware only has 32KB IRAM and ~80KB RAM, but for CI testing
+    # we pretend it has much larger memory to test that components compile together
+    if CORE.testing_mode:
+        cg.add_build_flag("-DESPHOME_TESTING_MODE")
+
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
     ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
@@ -242,7 +253,7 @@ async def to_code(config):
         if ver <= cv.Version(2, 3, 0):
             # No ld script support
             ld_script = None
-        if ver <= cv.Version(2, 4, 2):
+        elif ver <= cv.Version(2, 4, 2):
             # Old ld script path
             ld_script = ld_scripts[0]
         else:
@@ -256,9 +267,14 @@ async def to_code(config):
 
 # Called by writer.py
 def copy_files():
-    dir = os.path.dirname(__file__)
-    post_build_file = os.path.join(dir, "post_build.py.script")
+    dir = Path(__file__).parent
+    post_build_file = dir / "post_build.py.script"
     copy_file_if_changed(
         post_build_file,
         CORE.relative_build_path("post_build.py"),
+    )
+    testing_mode_file = dir / "testing_mode.py.script"
+    copy_file_if_changed(
+        testing_mode_file,
+        CORE.relative_build_path("testing_mode.py"),
     )

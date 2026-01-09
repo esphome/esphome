@@ -7,7 +7,6 @@
 #include "esphome/components/md5/md5.h"
 #include "esphome/components/watchdog/watchdog.h"
 #include "esphome/components/ota/ota_backend.h"
-#include "esphome/components/ota/ota_backend_arduino_esp32.h"
 #include "esphome/components/ota/ota_backend_arduino_esp8266.h"
 #include "esphome/components/ota/ota_backend_arduino_rp2040.h"
 #include "esphome/components/ota/ota_backend_esp_idf.h"
@@ -48,7 +47,7 @@ void OtaHttpRequestComponent::flash() {
     return;
   }
 
-  ESP_LOGI(TAG, "Starting update...");
+  ESP_LOGI(TAG, "Starting update");
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(ota::OTA_STARTED, 0.0f, 0);
 #endif
@@ -106,7 +105,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   auto container = this->parent_->get(url_with_auth);
 
-  if (container == nullptr) {
+  if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
     return OTA_CONNECTION_ERROR;
   }
 
@@ -133,11 +132,18 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
     App.feed_wdt();
     yield();
 
-    if (bufsize < 0) {
-      ESP_LOGE(TAG, "Stream closed");
-      this->cleanup_(std::move(backend), container);
-      return OTA_CONNECTION_ERROR;
-    } else if (bufsize > 0 && bufsize <= OtaHttpRequestComponent::HTTP_RECV_BUFFER) {
+    // Exit loop if no data available (stream closed or end of data)
+    if (bufsize <= 0) {
+      if (bufsize < 0) {
+        ESP_LOGE(TAG, "Stream closed with error");
+        this->cleanup_(std::move(backend), container);
+        return OTA_CONNECTION_ERROR;
+      }
+      // bufsize == 0: no more data available, exit loop
+      break;
+    }
+
+    if (bufsize <= OtaHttpRequestComponent::HTTP_RECV_BUFFER) {
       // add read bytes to MD5
       md5_receive.add(buf, bufsize);
 
@@ -248,6 +254,9 @@ bool OtaHttpRequestComponent::http_get_md5_() {
   int read_len = 0;
   while (container->get_bytes_read() < MD5_SIZE) {
     read_len = container->read((uint8_t *) this->md5_expected_.data(), MD5_SIZE);
+    if (read_len <= 0) {
+      break;
+    }
     App.feed_wdt();
     yield();
   }
@@ -258,7 +267,7 @@ bool OtaHttpRequestComponent::http_get_md5_() {
 }
 
 bool OtaHttpRequestComponent::validate_url_(const std::string &url) {
-  if ((url.length() < 8) || (url.find("http") != 0) || (url.find("://") == std::string::npos)) {
+  if ((url.length() < 8) || !url.starts_with("http") || (url.find("://") == std::string::npos)) {
     ESP_LOGE(TAG, "URL is invalid and/or must be prefixed with 'http://' or 'https://'");
     return false;
   }

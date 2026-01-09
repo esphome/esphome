@@ -1,26 +1,29 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import i2c, sensor
-from esphome.components import sensirion_common
 from esphome import automation
 from esphome.automation import maybe_simple_id
-
+import esphome.codegen as cg
+from esphome.components import i2c, sensirion_common, sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
+    CONF_ALTITUDE_COMPENSATION,
+    CONF_AMBIENT_PRESSURE_COMPENSATION,
+    CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
+    CONF_AUTOMATIC_SELF_CALIBRATION,
     CONF_CO2,
     CONF_HUMIDITY,
+    CONF_ID,
+    CONF_MEASUREMENT_MODE,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_OFFSET,
     CONF_VALUE,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
     ICON_MOLECULE_CO2,
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
+    UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
 
@@ -46,14 +49,6 @@ PerformForcedCalibrationAction = scd4x_ns.class_(
     "PerformForcedCalibrationAction", automation.Action
 )
 FactoryResetAction = scd4x_ns.class_("FactoryResetAction", automation.Action)
-
-
-CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
-CONF_AMBIENT_PRESSURE_COMPENSATION = "ambient_pressure_compensation"
-CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE = "ambient_pressure_compensation_source"
-CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
-CONF_MEASUREMENT_MODE = "measurement_mode"
-
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -86,7 +81,7 @@ CONFIG_SCHEMA = (
                 cv.int_range(min=0, max=0xFFFF, max_included=False),
             ),
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.pressure,
-            cv.Optional(CONF_TEMPERATURE_OFFSET, default="4°C"): cv.temperature,
+            cv.Optional(CONF_TEMPERATURE_OFFSET, default="4°C"): cv.temperature_delta,
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
                 sensor.Sensor
             ),

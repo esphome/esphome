@@ -6,15 +6,14 @@ namespace esphome {
 namespace sdl {
 
 void Sdl::setup() {
-  ESP_LOGD(TAG, "Starting setup");
   SDL_Init(SDL_INIT_VIDEO);
-  this->window_ = SDL_CreateWindow(App.get_name().c_str(), SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-                                   this->width_, this->height_, 0);
+  this->window_ = SDL_CreateWindow(App.get_name().c_str(), this->pos_x_, this->pos_y_, this->width_, this->height_,
+                                   this->window_options_);
   this->renderer_ = SDL_CreateRenderer(this->window_, -1, SDL_RENDERER_SOFTWARE);
+  SDL_RenderSetLogicalSize(this->renderer_, this->width_, this->height_);
   this->texture_ =
       SDL_CreateTexture(this->renderer_, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STATIC, this->width_, this->height_);
   SDL_SetTextureBlendMode(this->texture_, SDL_BLENDMODE_BLEND);
-  ESP_LOGD(TAG, "Setup Complete");
 }
 void Sdl::update() {
   this->do_update_();
@@ -25,6 +24,10 @@ void Sdl::update() {
   this->y_low_ = this->height_;
   this->x_high_ = 0;
   this->y_high_ = 0;
+  this->redraw_(rect);
+}
+
+void Sdl::redraw_(SDL_Rect &rect) {
   SDL_RenderCopy(this->renderer_, this->texture_, &rect, &rect);
   SDL_RenderPresent(this->renderer_);
 }
@@ -33,18 +36,19 @@ void Sdl::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *
                          display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   SDL_Rect rect{x_start, y_start, w, h};
   if (this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || bitness != display::COLOR_BITNESS_565 || big_endian) {
-    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                     x_pad);
+    Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
   } else {
     auto stride = x_offset + w + x_pad;
     auto data = ptr + (stride * y_offset + x_offset) * 2;
     SDL_UpdateTexture(this->texture_, &rect, data, stride * 2);
   }
-  SDL_RenderCopy(this->renderer_, this->texture_, &rect, &rect);
-  SDL_RenderPresent(this->renderer_);
+  this->redraw_(rect);
 }
 
 void Sdl::draw_pixel_at(int x, int y, Color color) {
+  if (!this->get_clipping().inside(x, y))
+    return;
+
   SDL_Rect rect{x, y, 1, 1};
   auto data = (display::ColorUtil::color_to_565(color, display::COLOR_ORDER_RGB));
   SDL_UpdateTexture(this->texture_, &rect, &data, 2);
@@ -56,6 +60,12 @@ void Sdl::draw_pixel_at(int x, int y, Color color) {
     this->x_high_ = x;
   if (y > this->y_high_)
     this->y_high_ = y;
+}
+
+void Sdl::process_key(uint32_t keycode, bool down) {
+  auto callback = this->key_callbacks_.find(keycode);
+  if (callback != this->key_callbacks_.end())
+    callback->second(down);
 }
 
 void Sdl::loop() {
@@ -81,6 +91,30 @@ void Sdl::loop() {
           this->mouse_down = true;
         } else {
           this->mouse_down = false;
+        }
+        break;
+
+      case SDL_KEYDOWN:
+        ESP_LOGD(TAG, "keydown %d", e.key.keysym.sym);
+        this->process_key(e.key.keysym.sym, true);
+        break;
+
+      case SDL_KEYUP:
+        ESP_LOGD(TAG, "keyup %d", e.key.keysym.sym);
+        this->process_key(e.key.keysym.sym, false);
+        break;
+
+      case SDL_WINDOWEVENT:
+        switch (e.window.event) {
+          case SDL_WINDOWEVENT_SIZE_CHANGED:
+          case SDL_WINDOWEVENT_EXPOSED:
+          case SDL_WINDOWEVENT_RESIZED: {
+            SDL_Rect rect{0, 0, this->width_, this->height_};
+            this->redraw_(rect);
+            break;
+          }
+          default:
+            break;
         }
         break;
 

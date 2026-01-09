@@ -11,10 +11,9 @@ class CopySelect : public select::Select, public Component {
   void set_source(select::Select *source) { source_ = source; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
-  void control(const std::string &value) override;
+  void control(size_t index) override;
 
   select::Select *source_;
 };

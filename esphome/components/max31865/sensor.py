@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, spi
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAINS_FILTER,
     CONF_REFERENCE_RESISTANCE,

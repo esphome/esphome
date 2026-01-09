@@ -1,0 +1,13 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+  map: !include common.yaml
+
+display:
+  spi_id: spi_bus
+  platform: ili9xxx
+  id: main_lcd
+  model: ili9342
+  cs_pin: 5
+  dc_pin: 15
+  reset_pin: 16
+  invert_colors: false

@@ -2,8 +2,7 @@
 #include "logger.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace logger {
+namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
@@ -34,12 +33,22 @@ void Logger::pre_setup() {
   ESP_LOGI(TAG, "Log initialized");
 }
 
-void HOT Logger::write_msg_(const char *msg) { this->hw_serial_->println(msg); }
+void HOT Logger::write_msg_(const char *msg, size_t len) {
+  // Single write with newline already in buffer (added by caller)
+  this->hw_serial_->write(msg, len);
+}
 
-const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
+const LogString *Logger::get_uart_selection_() {
+  switch (this->uart_) {
+    case UART_SELECTION_UART0:
+      return LOG_STR("UART0");
+    case UART_SELECTION_UART1:
+      return LOG_STR("UART1");
+    case UART_SELECTION_UART0_SWAP:
+    default:
+      return LOG_STR("UART0_SWAP");
+  }
+}
 
-const char *Logger::get_uart_selection_() { return UART_SELECTIONS[this->uart_]; }
-
-}  // namespace logger
-}  // namespace esphome
+}  // namespace esphome::logger
 #endif

@@ -34,8 +34,6 @@ void X9cOutput::trim_value(int change_amount) {
 }
 
 void X9cOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up X9C Potentiometer with initial value of %f", this->initial_value_);
-
   this->inc_pin_->get_pin();
   this->inc_pin_->setup();
   this->inc_pin_->digital_write(false);
@@ -68,8 +66,10 @@ void X9cOutput::dump_config() {
   LOG_PIN("  Chip Select Pin: ", this->cs_pin_);
   LOG_PIN("  Increment Pin: ", this->inc_pin_);
   LOG_PIN("  Up/Down Pin: ", this->ud_pin_);
-  ESP_LOGCONFIG(TAG, "  Initial Value: %f", this->initial_value_);
-  ESP_LOGCONFIG(TAG, "  Step Delay: %d", this->step_delay_);
+  ESP_LOGCONFIG(TAG,
+                "  Initial Value: %f\n"
+                "  Step Delay: %d",
+                this->initial_value_, this->step_delay_);
   LOG_FLOAT_OUTPUT(this);
 }
 

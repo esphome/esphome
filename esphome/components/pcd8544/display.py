@@ -1,15 +1,15 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import display, spi
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CONTRAST,
+    CONF_CS_PIN,
     CONF_DC_PIN,
     CONF_ID,
     CONF_LAMBDA,
     CONF_PAGES,
     CONF_RESET_PIN,
-    CONF_CS_PIN,
-    CONF_CONTRAST,
 )
 
 DEPENDENCIES = ["spi"]
@@ -33,6 +33,10 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("1s"))
     .extend(spi.spi_device_schema()),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
+)
+
+FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
+    "pcd8544", require_miso=False, require_mosi=True
 )
 
 

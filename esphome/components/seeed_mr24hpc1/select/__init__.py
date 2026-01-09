@@ -1,9 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
-from esphome.const import (
-    ENTITY_CATEGORY_CONFIG,
-)
+from esphome.const import ENTITY_CATEGORY_CONFIG
+
 from .. import CONF_MR24HPC1_ID, MR24HPC1Component, mr24hpc1_ns
 
 SceneModeSelect = mr24hpc1_ns.class_("SceneModeSelect", select.Select)

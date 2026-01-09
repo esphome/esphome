@@ -1,8 +1,8 @@
 #ifdef USE_ARDUINO
 
 #include "wled_light_effect.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP32
 #include <WiFi.h>
@@ -28,7 +28,7 @@ const int DEFAULT_BLANK_TIME = 1000;
 
 static const char *const TAG = "wled_light_effect";
 
-WLEDLightEffect::WLEDLightEffect(const std::string &name) : AddressableLightEffect(name) {}
+WLEDLightEffect::WLEDLightEffect(const char *name) : AddressableLightEffect(name) {}
 
 void WLEDLightEffect::start() {
   AddressableLightEffect::start();

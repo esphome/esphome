@@ -1,0 +1,51 @@
+esphome:
+  name: scheduler-defer-cancel
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+  services:
+    - service: test_defer_cancel
+      then:
+        - lambda: |-
+            // Schedule 10 defers with the same name
+            // Only the last one should execute
+            for (int i = 1; i <= 10; i++) {
+              App.scheduler.set_timeout(nullptr, "test_defer", 0, [i]() {
+                ESP_LOGI("TEST", "Defer executed: %d", i);
+                // Fire event with the defer number
+                std::string event_type = "defer_executed_" + std::to_string(i);
+                id(test_result)->trigger(event_type);
+              });
+            }
+
+            // Schedule completion notification after all defers
+            App.scheduler.set_timeout(nullptr, "completion", 0, []() {
+              ESP_LOGI("TEST", "Test complete");
+              id(test_complete)->trigger("test_finished");
+            });
+
+event:
+  - platform: template
+    id: test_result
+    name: "Test Result"
+    event_types:
+      - "defer_executed_1"
+      - "defer_executed_2"
+      - "defer_executed_3"
+      - "defer_executed_4"
+      - "defer_executed_5"
+      - "defer_executed_6"
+      - "defer_executed_7"
+      - "defer_executed_8"
+      - "defer_executed_9"
+      - "defer_executed_10"
+
+  - platform: template
+    id: test_complete
+    name: "Test Complete"
+    event_types:
+      - "test_finished"

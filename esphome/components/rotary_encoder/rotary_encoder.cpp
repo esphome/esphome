@@ -1,6 +1,6 @@
 #include "rotary_encoder.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace rotary_encoder {
@@ -93,13 +93,17 @@ void IRAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore 
   int8_t rotation_dir = 0;
   uint16_t new_state = STATE_LOOKUP_TABLE[input_state];
   if ((new_state & arg->resolution & STATE_HAS_INCREMENTED) != 0) {
-    if (arg->counter < arg->max_value)
-      arg->counter++;
+    if (arg->counter < arg->max_value) {
+      auto x = arg->counter + 1;
+      arg->counter = x;
+    }
     rotation_dir = 1;
   }
   if ((new_state & arg->resolution & STATE_HAS_DECREMENTED) != 0) {
-    if (arg->counter > arg->min_value)
-      arg->counter--;
+    if (arg->counter > arg->min_value) {
+      auto x = arg->counter - 1;
+      arg->counter = x;
+    }
     rotation_dir = -1;
   }
 
@@ -125,12 +129,10 @@ void IRAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore 
 }
 
 void RotaryEncoderSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Rotary Encoder '%s'...", this->name_.c_str());
-
   int32_t initial_value = 0;
   switch (this->restore_mode_) {
     case ROTARY_ENCODER_RESTORE_DEFAULT_ZERO:
-      this->rtc_ = global_preferences->make_preference<int32_t>(this->get_object_id_hash());
+      this->rtc_ = global_preferences->make_preference<int32_t>(this->get_preference_hash());
       if (!this->rtc_.load(&initial_value)) {
         initial_value = 0;
       }
@@ -162,7 +164,7 @@ void RotaryEncoderSensor::dump_config() {
   LOG_PIN("  Pin B: ", this->pin_b_);
   LOG_PIN("  Pin I: ", this->pin_i_);
 
-  const LogString *restore_mode = LOG_STR("");
+  const LogString *restore_mode;
   switch (this->restore_mode_) {
     case ROTARY_ENCODER_RESTORE_DEFAULT_ZERO:
       restore_mode = LOG_STR("Restore (Defaults to zero)");
@@ -170,6 +172,8 @@ void RotaryEncoderSensor::dump_config() {
     case ROTARY_ENCODER_ALWAYS_ZERO:
       restore_mode = LOG_STR("Always zero");
       break;
+    default:
+      restore_mode = LOG_STR("");
   }
   ESP_LOGCONFIG(TAG, "  Restore Mode: %s", LOG_STR_ARG(restore_mode));
 

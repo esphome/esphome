@@ -9,8 +9,6 @@ namespace ufire_ise {
 static const char *const TAG = "ufire_ise";
 
 void UFireISEComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up uFire_ise...");
-
   uint8_t version;
   if (!this->read_byte(REGISTER_VERSION, &version) && version != 0xFF) {
     this->mark_failed();
@@ -143,10 +141,10 @@ void UFireISEComponent::write_data_(uint8_t reg, float data) {
 void UFireISEComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "uFire-ISE");
   LOG_I2C_DEVICE(this)
-  LOG_UPDATE_INTERVAL(this)
-  LOG_SENSOR("  ", "PH Sensor", this->ph_sensor_)
-  LOG_SENSOR("  ", "Temperature Sensor", this->temperature_sensor_)
-  LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_)
+  LOG_UPDATE_INTERVAL(this);
+  LOG_SENSOR("  ", "PH Sensor", this->ph_sensor_);
+  LOG_SENSOR("  ", "Temperature Sensor", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_);
 }
 
 }  // namespace ufire_ise

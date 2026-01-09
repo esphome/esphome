@@ -1,13 +1,8 @@
-from esphome import pins, automation
+from esphome import automation, pins
+import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome.const import (
-    CONF_FREQUENCY,
-    CONF_ID,
-    CONF_NUMBER,
-    CONF_PIN,
-)
+from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_NUMBER, CONF_PIN
 
 DEPENDENCIES = ["esp8266"]
 
@@ -21,7 +16,7 @@ def valid_pwm_pin(value):
 esp8266_pwm_ns = cg.esphome_ns.namespace("esp8266_pwm")
 ESP8266PWM = esp8266_pwm_ns.class_("ESP8266PWM", output.FloatOutput, cg.Component)
 SetFrequencyAction = esp8266_pwm_ns.class_("SetFrequencyAction", automation.Action)
-validate_frequency = cv.All(cv.frequency, cv.Range(min=1.0e-6))
+validate_frequency = cv.All(cv.frequency, cv.float_range(min=1.0e-6))
 
 CONFIG_SCHEMA = cv.All(
     output.FLOAT_OUTPUT_SCHEMA.extend(

@@ -1,0 +1,8 @@
+sensor:
+  - platform: mhz19
+    co2:
+      name: MH-Z19 CO2 Value
+    temperature:
+      name: MH-Z19 Temperature
+    automatic_baseline_calibration: false
+    update_interval: 15s

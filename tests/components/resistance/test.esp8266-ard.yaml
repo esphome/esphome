@@ -1,11 +1,4 @@
-sensor:
-  - platform: adc
-    id: my_sensor
-    pin: VCC
-  - platform: resistance
-    sensor: my_sensor
-    configuration: DOWNSTREAM
-    resistor: 10kΩ
-    reference_voltage: 3.3V
-    name: Resistance
-    id: resist
+substitutions:
+  pin: VCC
+
+<<: !include common.yaml

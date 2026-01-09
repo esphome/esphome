@@ -1,10 +1,4 @@
-i2c:
-  - id: i2c_ezo
-    scl: 5
-    sda: 4
+packages:
+  i2c: !include ../../test_build_components/common/i2c/rp2040-ard.yaml
 
-sensor:
-  - platform: ezo
-    id: ph_ezo
-    address: 99
-    unit_of_measurement: pH
+<<: !include common.yaml

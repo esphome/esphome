@@ -91,6 +91,13 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
   // MiaoMiaoce humidity, 1 byte, 8-bit unsigned integer, 1 %
   else if ((value_type == 0x4C02) && (value_length == 1)) {
     result.humidity = data[0];
+  }
+  // XMWSDJ04MMC humidity, 4 bytes, float, 0.1 °C
+  else if ((value_type == 0x4C08) && (value_length == 4)) {
+    const uint32_t int_number = encode_uint32(data[3], data[2], data[1], data[0]);
+    float humidity;
+    std::memcpy(&humidity, &int_number, sizeof(humidity));
+    result.humidity = humidity;
   } else {
     return false;
   }
@@ -219,6 +226,11 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if (device_uuid == 0x055b) {  // small square body, segment LCD, encrypted
     result.type = XiaomiParseResult::TYPE_LYWSD03MMC;
     result.name = "LYWSD03MMC";
+  } else if (device_uuid == 0x1203) {  // small square body, e-ink display, encrypted
+    result.type = XiaomiParseResult::TYPE_XMWSDJ04MMC;
+    result.name = "XMWSDJ04MMC";
+    if (raw.size() == 19)
+      result.raw_offset -= 6;
   } else if (device_uuid == 0x07f6) {  // Xiaomi-Yeelight BLE nightlight
     result.type = XiaomiParseResult::TYPE_MJYD02YLA;
     result.name = "MJYD02YLA";
@@ -249,7 +261,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
 }
 
 bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, const uint64_t &address) {
-  if (!((raw.size() == 19) || ((raw.size() >= 22) && (raw.size() <= 24)))) {
+  if ((raw.size() != 19) && ((raw.size() < 22) || (raw.size() > 24))) {
     ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): data packet has wrong size (%d)!", raw.size());
     ESP_LOGVV(TAG, "  Packet : %s", format_hex_pretty(raw.data(), raw.size()).c_str());
     return false;
@@ -308,7 +320,7 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
     memcpy(mac_address + 4, mac_reverse + 1, 1);
     memcpy(mac_address + 5, mac_reverse, 1);
     ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): authenticated decryption failed.");
-    ESP_LOGVV(TAG, "  MAC address : %s", format_hex_pretty(mac_address, 6).c_str());
+    ESP_LOGVV(TAG, "  MAC address : %s", format_mac_address_pretty(mac_address).c_str());
     ESP_LOGVV(TAG, "       Packet : %s", format_hex_pretty(raw.data(), raw.size()).c_str());
     ESP_LOGVV(TAG, "          Key : %s", format_hex_pretty(vector.key, vector.keysize).c_str());
     ESP_LOGVV(TAG, "           Iv : %s", format_hex_pretty(vector.iv, vector.ivsize).c_str());

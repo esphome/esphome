@@ -1,0 +1,8 @@
+sensor:
+  - platform: ens210
+    i2c_id: i2c_bus
+    temperature:
+      name: ENS210 Temperature
+    humidity:
+      name: ENS210 Humidity
+    update_interval: 15s

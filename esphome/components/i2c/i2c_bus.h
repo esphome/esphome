@@ -1,11 +1,31 @@
 #pragma once
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <memory>
 #include <utility>
 #include <vector>
 
+#include "esphome/core/helpers.h"
+
 namespace esphome {
 namespace i2c {
+
+/// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
+template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
+ public:
+  uint8_t *get(size_t size) {
+    if (size <= STACK_SIZE) {
+      return this->stack_buffer_;
+    }
+    this->heap_buffer_ = std::unique_ptr<uint8_t[]>(new uint8_t[size]);
+    return this->heap_buffer_.get();
+  }
+
+ private:
+  uint8_t stack_buffer_[STACK_SIZE];
+  std::unique_ptr<uint8_t[]> heap_buffer_;
+};
 
 /// @brief Error codes returned by I2CBus and I2CDevice methods
 enum ErrorCode {
@@ -39,73 +59,88 @@ struct WriteBuffer {
 /// note https://www.nxp.com/docs/en/application-note/AN10216.pdf
 class I2CBus {
  public:
-  /// @brief Creates a ReadBuffer and calls the virtual readv() method to read bytes into this buffer
-  /// @param address address of the I²C component on the i2c bus
-  /// @param buffer pointer to an array of bytes that will be used to store the data received
-  /// @param len length of the buffer = number of bytes to read
-  /// @return an i2c::ErrorCode
-  virtual ErrorCode read(uint8_t address, uint8_t *buffer, size_t len) {
-    ReadBuffer buf;
-    buf.data = buffer;
-    buf.len = len;
-    return readv(address, &buf, 1);
-  }
+  virtual ~I2CBus() = default;
 
-  /// @brief This virtual method reads bytes from an I2CBus into an array of ReadBuffer.
-  /// @param address address of the I²C component on the i2c bus
-  /// @param buffers pointer to an array of ReadBuffer
-  /// @param count number of ReadBuffer to read
-  /// @return an i2c::ErrorCode
-  /// @details This is a pure virtual method that must be implemented in a subclass.
-  virtual ErrorCode readv(uint8_t address, ReadBuffer *buffers, size_t count) = 0;
-
-  virtual ErrorCode write(uint8_t address, const uint8_t *buffer, size_t len) {
-    return write(address, buffer, len, true);
-  }
-
-  /// @brief Creates a WriteBuffer and calls the writev() method to send the bytes from this buffer
-  /// @param address address of the I²C component on the i2c bus
-  /// @param buffer pointer to an array of bytes that contains the data to be sent
-  /// @param len length of the buffer = number of bytes to write
-  /// @param stop true or false: True will send a stop message, releasing the bus after
-  /// transmission. False will send a restart, keeping the connection active.
-  /// @return an i2c::ErrorCode
-  virtual ErrorCode write(uint8_t address, const uint8_t *buffer, size_t len, bool stop) {
-    WriteBuffer buf;
-    buf.data = buffer;
-    buf.len = len;
-    return writev(address, &buf, 1, stop);
-  }
-
-  virtual ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
-    return writev(address, buffers, cnt, true);
-  }
-
-  /// @brief This virtual method writes bytes to an I2CBus from an array of WriteBuffer.
-  /// @param address address of the I²C component on the i2c bus
-  /// @param buffers pointer to an array of WriteBuffer
-  /// @param count number of WriteBuffer to write
-  /// @param stop true or false: True will send a stop message, releasing the bus after
+  /// @brief This virtual method writes bytes to an I2CBus from an array,
+  /// then reads bytes into an array of ReadBuffer.
+  /// @param address address of the I²C device on the i2c bus
+  /// @param write_buffer pointer to data
+  /// @param write_count number of bytes to write
+  /// @param read_buffer pointer to an array to receive data
+  /// @param read_count number of bytes to read
   /// transmission. False will send a restart, keeping the connection active.
   /// @return an i2c::ErrorCode
   /// @details This is a pure virtual method that must be implemented in the subclass.
-  virtual ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t count, bool stop) = 0;
+  virtual ErrorCode write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
+                                size_t read_count) = 0;
+
+  // Legacy functions for compatibility
+
+  ErrorCode read(uint8_t address, uint8_t *buffer, size_t len) {
+    return this->write_readv(address, nullptr, 0, buffer, len);
+  }
+
+  ErrorCode write(uint8_t address, const uint8_t *buffer, size_t len, bool stop = true) {
+    return this->write_readv(address, buffer, len, nullptr, 0);
+  }
+
+  ESPDEPRECATED("This method is deprecated and will be removed in ESPHome 2026.3.0. Use write_readv() instead.",
+                "2025.9.0")
+  ErrorCode readv(uint8_t address, ReadBuffer *read_buffers, size_t count) {
+    size_t total_len = 0;
+    for (size_t i = 0; i != count; i++) {
+      total_len += read_buffers[i].len;
+    }
+
+    SmallBufferWithHeapFallback<128> buffer_alloc;  // Most I2C reads are small
+    uint8_t *buffer = buffer_alloc.get(total_len);
+
+    auto err = this->write_readv(address, nullptr, 0, buffer, total_len);
+    if (err != ERROR_OK)
+      return err;
+    size_t pos = 0;
+    for (size_t i = 0; i != count; i++) {
+      if (read_buffers[i].len != 0) {
+        std::memcpy(read_buffers[i].data, buffer + pos, read_buffers[i].len);
+        pos += read_buffers[i].len;
+      }
+    }
+    return ERROR_OK;
+  }
+
+  ESPDEPRECATED("This method is deprecated and will be removed in ESPHome 2026.3.0. Use write_readv() instead.",
+                "2025.9.0")
+  ErrorCode writev(uint8_t address, const WriteBuffer *write_buffers, size_t count, bool stop = true) {
+    size_t total_len = 0;
+    for (size_t i = 0; i != count; i++) {
+      total_len += write_buffers[i].len;
+    }
+
+    SmallBufferWithHeapFallback<128> buffer_alloc;  // Most I2C writes are small
+    uint8_t *buffer = buffer_alloc.get(total_len);
+
+    size_t pos = 0;
+    for (size_t i = 0; i != count; i++) {
+      std::memcpy(buffer + pos, write_buffers[i].data, write_buffers[i].len);
+      pos += write_buffers[i].len;
+    }
+
+    return this->write_readv(address, buffer, total_len, nullptr, 0);
+  }
 
  protected:
   /// @brief Scans the I2C bus for devices. Devices presence is kept in an array of std::pair
   /// that contains the address and the corresponding bool presence flag.
-  void i2c_scan_() {
-    for (uint8_t address = 8; address < 120; address++) {
-      auto err = writev(address, nullptr, 0);
-      if (err == ERROR_OK) {
-        scan_results_.emplace_back(address, true);
-      } else if (err == ERROR_UNKNOWN) {
-        scan_results_.emplace_back(address, false);
-      }
-    }
-  }
+  void i2c_scan_();
   std::vector<std::pair<uint8_t, bool>> scan_results_;  ///< array containing scan results
   bool scan_{false};                                    ///< Should we scan ? Can be set in the yaml
+};
+
+class InternalI2CBus : public I2CBus {
+ public:
+  /// @brief Returns the I2C port number.
+  /// @return the port number of the internal I2C bus
+  virtual int get_port() const = 0;
 };
 
 }  // namespace i2c
