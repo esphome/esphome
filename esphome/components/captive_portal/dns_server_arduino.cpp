@@ -1,47 +1,13 @@
 #include "dns_server_arduino.h"
 #if defined(USE_ARDUINO) && (defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY))
 
-#include <cstring>
+#include "dns_server_common.h"
 #include "esphome/core/log.h"
 #include <lwip/def.h>
 
 namespace esphome::captive_portal {
 
 static const char *const TAG = "captive_portal.dns";
-
-// DNS constants
-static constexpr uint16_t DNS_PORT = 53;
-static constexpr uint16_t DNS_QR_FLAG = 1 << 15;
-static constexpr uint16_t DNS_OPCODE_MASK = 0x7800;
-static constexpr uint16_t DNS_QTYPE_A = 0x0001;
-static constexpr uint16_t DNS_QCLASS_IN = 0x0001;
-static constexpr uint16_t DNS_ANSWER_TTL = 300;
-
-// DNS Header structure
-struct DNSHeader {
-  uint16_t id;
-  uint16_t flags;
-  uint16_t qd_count;
-  uint16_t an_count;
-  uint16_t ns_count;
-  uint16_t ar_count;
-} __attribute__((packed));
-
-// DNS Question structure
-struct DNSQuestion {
-  uint16_t type;
-  uint16_t dns_class;
-} __attribute__((packed));
-
-// DNS Answer structure
-struct DNSAnswer {
-  uint16_t ptr_offset;
-  uint16_t type;
-  uint16_t dns_class;
-  uint32_t ttl;
-  uint16_t addr_len;
-  uint32_t ip_addr;
-} __attribute__((packed));
 
 void DNSServer::start(const network::IPAddress &ip) {
   this->server_ip_ = ip;
@@ -99,57 +65,25 @@ void DNSServer::process_next_request() {
     return;
   }
 
-  // Parse domain name and check for whitelisted domains
+  // Parse domain name
   uint8_t *ptr = this->buffer_ + sizeof(DNSHeader);
   uint8_t *end = this->buffer_ + len;
-
-  // Build domain name string for whitelist checking
   char domain[128];
-  size_t domain_len = 0;
-  uint8_t *name_ptr = ptr;
 
-  while (name_ptr < end && *name_ptr != 0) {
-    uint8_t label_len = *name_ptr;
-    if (label_len > 63) {
-      return;
-    }
-    if (name_ptr + label_len + 1 > end) {
-      return;
-    }
-    if (domain_len > 0 && domain_len < sizeof(domain) - 1) {
-      domain[domain_len++] = '.';
-    }
-    for (uint8_t i = 0; i < label_len && domain_len < sizeof(domain) - 1; i++) {
-      domain[domain_len++] = name_ptr[1 + i];
-    }
-    name_ptr += label_len + 1;
+  ptr = parse_dns_domain(ptr, end, domain, sizeof(domain));
+  if (ptr == nullptr) {
+    return;  // Invalid domain name
   }
-  domain[domain_len] = '\0';
 
-  if (name_ptr >= end || *name_ptr != 0) {
+  // Check whitelist and send REFUSED if needed
+  if (is_whitelisted_domain(domain)) {
+    ESP_LOGD(TAG, "Whitelisted domain, sending REFUSED: %s", domain);
+    build_dns_refused_header(header);
+    this->udp_->beginPacket(this->udp_->remoteIP(), this->udp_->remotePort());
+    this->udp_->write(this->buffer_, len);
+    this->udp_->endPacket();
     return;
   }
-  ptr = name_ptr + 1;
-
-#ifdef USE_WEBSERVER
-  // Whitelist: don't redirect web_server's CDN domain
-  // Respond with REFUSED to tell client to try another DNS server (e.g., cellular)
-  if (domain_len >= 11) {
-    const char *suffix = domain + domain_len - 11;
-    if (strcmp(suffix, ".esphome.io") == 0 || strcmp(domain, "esphome.io") == 0) {
-      ESP_LOGD(TAG, "Whitelisted domain, sending REFUSED: %s", domain);
-      // Send REFUSED response (RCODE=5) to trigger fallback to other DNS
-      header->flags = htons(DNS_QR_FLAG | 0x8005);  // Response + REFUSED
-      header->an_count = 0;
-      header->ns_count = 0;
-      header->ar_count = 0;
-      this->udp_->beginPacket(this->udp_->remoteIP(), this->udp_->remotePort());
-      this->udp_->write(this->buffer_, len);
-      this->udp_->endPacket();
-      return;
-    }
-  }
-#endif
 
   ESP_LOGV(TAG, "Redirecting DNS query for: %s", domain);
 
@@ -169,26 +103,17 @@ void DNSServer::process_next_request() {
   }
 
   // Build DNS response
-  header->flags = htons(DNS_QR_FLAG | 0x8000);
-  header->an_count = htons(1);
+  build_dns_response_header(header);
 
-  size_t question_len = (ptr + sizeof(DNSQuestion)) - this->buffer_ - sizeof(DNSHeader);
-  size_t answer_offset = sizeof(DNSHeader) + question_len;
-
-  if (answer_offset + sizeof(DNSAnswer) > sizeof(this->buffer_)) {
+  // Add answer section after the question
+  size_t question_end_offset = (ptr + sizeof(DNSQuestion)) - this->buffer_;
+  if (build_dns_answer(this->buffer_, sizeof(this->buffer_), question_end_offset,
+                       static_cast<uint32_t>(this->server_ip_)) == nullptr) {
     ESP_LOGW(TAG, "Response too large");
     return;
   }
 
-  DNSAnswer *answer = (DNSAnswer *) (this->buffer_ + answer_offset);
-  answer->ptr_offset = htons(0xC000 | sizeof(DNSHeader));
-  answer->type = htons(DNS_QTYPE_A);
-  answer->dns_class = htons(DNS_QCLASS_IN);
-  answer->ttl = htonl(DNS_ANSWER_TTL);
-  answer->addr_len = htons(4);
-  answer->ip_addr = static_cast<uint32_t>(this->server_ip_);
-
-  size_t response_len = answer_offset + sizeof(DNSAnswer);
+  size_t response_len = question_end_offset + sizeof(DNSAnswer);
 
   // Send response
   this->udp_->beginPacket(this->udp_->remoteIP(), this->udp_->remotePort());

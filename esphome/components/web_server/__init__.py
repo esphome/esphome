@@ -43,6 +43,8 @@ CONF_SORTING_GROUP_ID = "sorting_group_id"
 CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
 
+# CDN host for web_server assets - used for default URLs and DNS whitelisting
+CDN_HOST = "oi.esphome.io"
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
@@ -54,19 +56,19 @@ def default_url(config: ConfigType) -> ConfigType:
     config = config.copy()
     if config[CONF_VERSION] == 1:
         if CONF_CSS_URL not in config:
-            config[CONF_CSS_URL] = "https://oi.esphome.io/v1/webserver-v1.min.css"
+            config[CONF_CSS_URL] = f"https://{CDN_HOST}/v1/webserver-v1.min.css"
         if CONF_JS_URL not in config:
-            config[CONF_JS_URL] = "https://oi.esphome.io/v1/webserver-v1.min.js"
+            config[CONF_JS_URL] = f"https://{CDN_HOST}/v1/webserver-v1.min.js"
     if config[CONF_VERSION] == 2:
         if CONF_CSS_URL not in config:
             config[CONF_CSS_URL] = ""
         if CONF_JS_URL not in config:
-            config[CONF_JS_URL] = "https://oi.esphome.io/v2/www.js"
+            config[CONF_JS_URL] = f"https://{CDN_HOST}/v2/www.js"
     if config[CONF_VERSION] == 3:
         if CONF_CSS_URL not in config:
             config[CONF_CSS_URL] = ""
         if CONF_JS_URL not in config:
-            config[CONF_JS_URL] = "https://oi.esphome.io/v3/www.js"
+            config[CONF_JS_URL] = f"https://{CDN_HOST}/v3/www.js"
     return config
 
 

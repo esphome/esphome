@@ -1,9 +1,8 @@
 #include "dns_server_esp32_idf.h"
 #ifdef USE_ESP32
 
-#include <cstring>
+#include "dns_server_common.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
 #include "esphome/components/socket/socket.h"
 #include <lwip/sockets.h>
 #include <lwip/inet.h>
@@ -11,40 +10,6 @@
 namespace esphome::captive_portal {
 
 static const char *const TAG = "captive_portal.dns";
-
-// DNS constants
-static constexpr uint16_t DNS_PORT = 53;
-static constexpr uint16_t DNS_QR_FLAG = 1 << 15;
-static constexpr uint16_t DNS_OPCODE_MASK = 0x7800;
-static constexpr uint16_t DNS_QTYPE_A = 0x0001;
-static constexpr uint16_t DNS_QCLASS_IN = 0x0001;
-static constexpr uint16_t DNS_ANSWER_TTL = 300;
-
-// DNS Header structure
-struct DNSHeader {
-  uint16_t id;
-  uint16_t flags;
-  uint16_t qd_count;
-  uint16_t an_count;
-  uint16_t ns_count;
-  uint16_t ar_count;
-} __attribute__((packed));
-
-// DNS Question structure
-struct DNSQuestion {
-  uint16_t type;
-  uint16_t dns_class;
-} __attribute__((packed));
-
-// DNS Answer structure
-struct DNSAnswer {
-  uint16_t ptr_offset;
-  uint16_t type;
-  uint16_t dns_class;
-  uint32_t ttl;
-  uint16_t addr_len;
-  uint32_t ip_addr;
-} __attribute__((packed));
 
 void DNSServer::start(const network::IPAddress &ip) {
   this->server_ip_ = ip;
@@ -127,72 +92,26 @@ void DNSServer::process_next_request() {
     return;  // Not a standard query
   }
 
-  // Parse domain name and check for whitelisted domains
+  // Parse domain name
   uint8_t *ptr = this->buffer_ + sizeof(DNSHeader);
   uint8_t *end = this->buffer_ + len;
-
-  // Build domain name string for whitelist checking
   char domain[128];
-  size_t domain_len = 0;
-  uint8_t *name_ptr = ptr;
 
-  while (name_ptr < end && *name_ptr != 0) {
-    uint8_t label_len = *name_ptr;
-    if (label_len > 63) {  // Check for invalid label length
-      return;
-    }
-    // Check if we have room for this label plus the length byte
-    if (name_ptr + label_len + 1 > end) {
-      return;  // Would overflow
-    }
-    // Add dot separator if not first label
-    if (domain_len > 0 && domain_len < sizeof(domain) - 1) {
-      domain[domain_len++] = '.';
-    }
-    // Copy label to domain string
-    for (uint8_t i = 0; i < label_len && domain_len < sizeof(domain) - 1; i++) {
-      domain[domain_len++] = name_ptr[1 + i];
-    }
-    name_ptr += label_len + 1;
+  ptr = parse_dns_domain(ptr, end, domain, sizeof(domain));
+  if (ptr == nullptr) {
+    return;  // Invalid domain name
   }
-  domain[domain_len] = '\0';
 
-  // Check if we reached a proper null terminator
-  if (name_ptr >= end || *name_ptr != 0) {
-    return;  // Name not terminated or truncated
-  }
-  ptr = name_ptr + 1;  // Skip the null terminator
-
-#ifdef USE_WEBSERVER
-  // Whitelist: don't redirect web_server's CDN domains
-  // Respond with REFUSED to tell client to try another DNS server (e.g., cellular)
-  {
-    bool is_whitelisted = false;
-    // Check against configured CDN domains from web_server config
-#ifdef WEBSERVER_CDN_DOMAIN_0
-    if (strcasecmp(domain, WEBSERVER_CDN_DOMAIN_0) == 0)
-      is_whitelisted = true;
-#endif
-#ifdef WEBSERVER_CDN_DOMAIN_1
-    if (strcasecmp(domain, WEBSERVER_CDN_DOMAIN_1) == 0)
-      is_whitelisted = true;
-#endif
-
-    if (is_whitelisted) {
-      ESP_LOGD(TAG, "Whitelisted domain, sending REFUSED: %s", domain);
-      // Send REFUSED response (RCODE=5) to trigger fallback to other DNS
-      header->flags = htons(DNS_QR_FLAG | 0x8005);  // Response + REFUSED
-      header->an_count = 0;
-      header->ns_count = 0;
-      header->ar_count = 0;
-      ssize_t sent = this->socket_->sendto(this->buffer_, len, 0, (struct sockaddr *) &client_addr, client_addr_len);
-      if (sent < 0) {
-        ESP_LOGV(TAG, "Send REFUSED failed: %d", errno);
-      }
-      return;
+  // Check whitelist and send REFUSED if needed
+  if (is_whitelisted_domain(domain)) {
+    ESP_LOGD(TAG, "Whitelisted domain, sending REFUSED: %s", domain);
+    build_dns_refused_header(header);
+    ssize_t sent = this->socket_->sendto(this->buffer_, len, 0, (struct sockaddr *) &client_addr, client_addr_len);
+    if (sent < 0) {
+      ESP_LOGV(TAG, "Send REFUSED failed: %d", errno);
     }
+    return;
   }
-#endif
 
   ESP_LOGV(TAG, "Redirecting DNS query for: %s", domain);
 
@@ -212,34 +131,18 @@ void DNSServer::process_next_request() {
     return;  // Not an A query
   }
 
-  // Build DNS response by modifying the request in-place
-  header->flags = htons(DNS_QR_FLAG | 0x8000);  // Response + Authoritative
-  header->an_count = htons(1);                  // One answer
+  // Build DNS response
+  build_dns_response_header(header);
 
   // Add answer section after the question
-  size_t question_len = (ptr + sizeof(DNSQuestion)) - this->buffer_ - sizeof(DNSHeader);
-  size_t answer_offset = sizeof(DNSHeader) + question_len;
-
-  // Check if we have room for the answer
-  if (answer_offset + sizeof(DNSAnswer) > sizeof(this->buffer_)) {
+  size_t question_end_offset = (ptr + sizeof(DNSQuestion)) - this->buffer_;
+  ip4_addr_t addr = this->server_ip_;
+  if (build_dns_answer(this->buffer_, sizeof(this->buffer_), question_end_offset, addr.addr) == nullptr) {
     ESP_LOGW(TAG, "Response too large");
     return;
   }
 
-  DNSAnswer *answer = (DNSAnswer *) (this->buffer_ + answer_offset);
-
-  // Pointer to name in question (offset from start of packet)
-  answer->ptr_offset = htons(0xC000 | sizeof(DNSHeader));
-  answer->type = htons(DNS_QTYPE_A);
-  answer->dns_class = htons(DNS_QCLASS_IN);
-  answer->ttl = htonl(DNS_ANSWER_TTL);
-  answer->addr_len = htons(4);
-
-  // Get the raw IP address
-  ip4_addr_t addr = this->server_ip_;
-  answer->ip_addr = addr.addr;
-
-  size_t response_len = answer_offset + sizeof(DNSAnswer);
+  size_t response_len = question_end_offset + sizeof(DNSAnswer);
 
   // Send response
   ssize_t sent =
