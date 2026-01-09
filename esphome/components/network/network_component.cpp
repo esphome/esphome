@@ -1,19 +1,14 @@
 #include "network_component.h"
-#ifdef USE_NETWORK
-#include "esphome/core/log.h"
-
 #ifdef USE_ESP32
+#include "esphome/core/log.h"
 #include "esp_event.h"
 #include "esp_netif.h"
-#endif
 
-namespace esphome {
-namespace network {
+namespace esphome::network {
 
 static const char *const TAG = "network";
 
 void NetworkComponent::setup() {
-#ifdef USE_ESP32
   // Initialize network stack early - required before web_server can bind.
   // This must run before WiFi/Ethernet setup so web_server can register
   // its handlers before captive_portal.
@@ -26,7 +21,6 @@ void NetworkComponent::setup() {
     // ESP_ERR_INVALID_STATE means it was already created
     ESP_LOGE(TAG, "esp_event_loop_create_default failed: %s", esp_err_to_name(err));
   }
-#endif
 }
 
 float NetworkComponent::get_setup_priority() const {
@@ -34,6 +28,5 @@ float NetworkComponent::get_setup_priority() const {
   return setup_priority::WIFI + 2.0f;
 }
 
-}  // namespace network
-}  // namespace esphome
+}  // namespace esphome::network
 #endif

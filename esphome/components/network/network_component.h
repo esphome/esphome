@@ -1,10 +1,9 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#ifdef USE_ESP32
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace network {
+namespace esphome::network {
 
 /// Component that initializes the network stack early.
 /// This allows web_server to bind before WiFi/Ethernet setup.
@@ -14,6 +13,5 @@ class NetworkComponent : public Component {
   float get_setup_priority() const override;
 };
 
-}  // namespace network
-}  // namespace esphome
+}  // namespace esphome::network
 #endif

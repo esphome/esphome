@@ -75,8 +75,7 @@ void CaptivePortal::setup() {
 void CaptivePortal::start() {
   this->base_->init();
   if (!this->initialized_) {
-    // Use fallback position so web_server handlers are checked first
-    this->base_->add_handler(this, web_server_base::HandlerPosition::FALLBACK);
+    this->base_->add_handler(this);
   }
 
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();

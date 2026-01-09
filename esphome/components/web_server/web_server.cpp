@@ -24,6 +24,10 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
+#ifdef USE_CAPTIVE_PORTAL
+#include "esphome/components/captive_portal/captive_portal.h"
+#endif
+
 #ifdef USE_CLIMATE
 #include "esphome/components/climate/climate.h"
 #endif
@@ -1966,6 +1970,7 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   if (url == ESPHOME_F("/")) {
 #ifdef USE_CAPTIVE_PORTAL
     // When captive portal is active, only handle "/" if ?web_server param is present
+    // This lets captive_portal show its page at "/" while web_server handles /?web_server
     if (captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active()) {
       return request->hasParam(ESPHOME_F("web_server"));
     }

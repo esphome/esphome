@@ -137,11 +137,6 @@ void WiFiComponent::wifi_pre_setup_() {
     get_mac_address_raw(mac);
     set_mac_address(mac);
   }
-  esp_err_t err = esp_netif_init();
-  if (err != ERR_OK) {
-    ESP_LOGE(TAG, "esp_netif_init failed: %s", esp_err_to_name(err));
-    return;
-  }
   s_wifi_event_group = xEventGroupCreate();
   if (s_wifi_event_group == nullptr) {
     ESP_LOGE(TAG, "xEventGroupCreate failed");
@@ -153,11 +148,7 @@ void WiFiComponent::wifi_pre_setup_() {
     ESP_LOGE(TAG, "xQueueCreate failed");
     return;
   }
-  err = esp_event_loop_create_default();
-  if (err != ERR_OK) {
-    ESP_LOGE(TAG, "esp_event_loop_create_default failed: %s", esp_err_to_name(err));
-    return;
-  }
+  esp_err_t err;
   esp_event_handler_instance_t instance_wifi_id, instance_ip_id;
   err = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, nullptr, &instance_wifi_id);
   if (err != ERR_OK) {

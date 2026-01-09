@@ -102,11 +102,6 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "SPI bus initialize error");
 #endif
 
-  err = esp_netif_init();
-  ESPHL_ERROR_CHECK(err, "ETH netif init error");
-  err = esp_event_loop_create_default();
-  ESPHL_ERROR_CHECK(err, "ETH event loop error");
-
   esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
   this->eth_netif_ = esp_netif_new(&cfg);
 
