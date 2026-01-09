@@ -12,6 +12,7 @@ from esphome.__main__ import command_compile, parse_args
 from esphome.config import validate_config
 from esphome.const import CONF_PLATFORM
 from esphome.core import CORE
+from esphome.loader import get_component
 from esphome.platformio_api import get_idedata
 
 # This must coincide with the version in /platformio.ini
@@ -94,6 +95,15 @@ def add_platform_components(config: dict, components: list[str]) -> None:
                     platform = platform_dir.name
                     platform_component = config.setdefault(platform, [])
                     if not platform_component:
+                        component_module = get_component(platform)
+                        if (
+                            component_module is None
+                            or not component_module.is_platform_component
+                        ):
+                            raise Exception(
+                                f"Component tests for '{component}' reference non-existing or invalid platform component '{platform}'"
+                                f" in its directory structure. See ({COMPONENTS_TESTS_DIR / component / platform})."
+                            )
                         CORE.register_platform_component(platform, "dummy")
                     platform_component.append({CONF_PLATFORM: component})
 
@@ -139,7 +149,11 @@ def run_tests(selected_components: list[str]) -> int:
     # Add all components and dependencies to the base configuration after validation, so their files
     # are added to the build.
     config.update({key: [] for key in components_with_dependencies})
-    add_platform_components(config, components)
+    try:
+        add_platform_components(config, components)
+    except Exception as e:
+        print(f"Error adding platform components: {e}")
+        return 3
 
     print(f"Testing components: {', '.join(components)}")
     CORE.config = config
