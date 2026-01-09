@@ -136,7 +136,7 @@ def run_tests(selected_components: list[str]) -> int:
 
     # Add all components and dependencies to the base configuration after validation, so their files
     # are added to the build.
-    config.update({key: {} for key in components_with_dependencies})
+    config.update({key: [] for key in components_with_dependencies})
     add_platform_components(config, components)
 
     print(f"Testing components: {', '.join(components)}")
