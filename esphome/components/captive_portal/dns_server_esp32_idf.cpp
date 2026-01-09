@@ -102,9 +102,9 @@ void DNSServer::process_next_request() {
     return;  // Invalid domain name
   }
 
-  // Check whitelist and send REFUSED if needed
-  if (is_whitelisted_domain(domain)) {
-    ESP_LOGD(TAG, "Whitelisted domain, sending REFUSED: %s", domain);
+  // Check allowlist and send REFUSED if needed
+  if (is_allowlisted_domain(domain)) {
+    ESP_LOGV(TAG, "Allowlisted domain, sending REFUSED: %s", domain);
     build_dns_refused_header(header);
     ssize_t sent = this->socket_->sendto(this->buffer_, len, 0, (struct sockaddr *) &client_addr, client_addr_len);
     if (sent < 0) {

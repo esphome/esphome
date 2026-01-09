@@ -80,7 +80,7 @@ void CaptivePortal::start() {
 
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
 
-  // Create DNS server instance with domain whitelisting support
+  // Create DNS server instance with domain allowlisting support
   this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->start(ip);
 
@@ -126,10 +126,7 @@ float CaptivePortal::get_setup_priority() const {
 void CaptivePortal::dump_config() { ESP_LOGCONFIG(TAG, "Captive Portal:"); }
 
 bool CaptivePortal::canHandle(AsyncWebServerRequest *request) const {
-  bool result = this->active_ && request->method() == HTTP_GET;
-  ESP_LOGD(TAG, "canHandle called: url=%s method=%d active=%d result=%d", request->url().c_str(), request->method(),
-           this->active_, result);
-  return result;
+  return this->active_ && request->method() == HTTP_GET;
 }
 
 CaptivePortal *global_captive_portal = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

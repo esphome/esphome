@@ -43,7 +43,7 @@ CONF_SORTING_GROUP_ID = "sorting_group_id"
 CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
 
-# CDN host for web_server assets - used for default URLs and DNS whitelisting
+# CDN host for web_server assets - used for default URLs and DNS allowlisting
 CDN_HOST = "oi.esphome.io"
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
@@ -351,7 +351,7 @@ async def to_code(config):
             except Exception:  # pylint: disable=broad-except
                 pass
 
-    # Generate defines for each CDN domain (used by captive_portal DNS whitelist)
+    # Generate defines for each CDN domain (used by captive_portal DNS allowlist)
     for i, domain in enumerate(sorted(cdn_domains)):
         cg.add_define(f"WEBSERVER_CDN_DOMAIN_{i}", domain)
     cg.add_define("WEBSERVER_CDN_DOMAIN_COUNT", len(cdn_domains))

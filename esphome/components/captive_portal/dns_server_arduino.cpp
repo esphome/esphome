@@ -75,9 +75,9 @@ void DNSServer::process_next_request() {
     return;  // Invalid domain name
   }
 
-  // Check whitelist and send REFUSED if needed
-  if (is_whitelisted_domain(domain)) {
-    ESP_LOGD(TAG, "Whitelisted domain, sending REFUSED: %s", domain);
+  // Check allowlist and send REFUSED if needed
+  if (is_allowlisted_domain(domain)) {
+    ESP_LOGV(TAG, "Allowlisted domain, sending REFUSED: %s", domain);
     build_dns_refused_header(header);
     this->udp_->beginPacket(this->udp_->remoteIP(), this->udp_->remotePort());
     this->udp_->write(this->buffer_, len);

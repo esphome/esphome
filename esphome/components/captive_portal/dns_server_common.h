@@ -42,9 +42,9 @@ struct DNSAnswer {
   uint32_t ip_addr;
 } __attribute__((packed));
 
-/// Check if domain is whitelisted (web_server CDN domains)
+/// Check if domain is allowlisted (web_server CDN domains)
 /// Returns true if the domain should NOT be redirected
-inline bool is_whitelisted_domain([[maybe_unused]] const char *domain) {
+inline bool is_allowlisted_domain([[maybe_unused]] const char *domain) {
 #ifdef USE_WEBSERVER
 #ifdef WEBSERVER_CDN_DOMAIN_0
   if (ESPHOME_strcasecmp_P(domain, ESPHOME_F(WEBSERVER_CDN_DOMAIN_0)) == 0)
@@ -99,7 +99,7 @@ inline void build_dns_response_header(DNSHeader *header) {
 }
 
 /// Build DNS REFUSED response header
-/// Used when domain is whitelisted to trigger fallback to other DNS
+/// Used when domain is allowlisted to trigger fallback to other DNS
 inline void build_dns_refused_header(DNSHeader *header) {
   header->flags = htons(DNS_QR_FLAG | 0x8005);  // Response + REFUSED
   header->an_count = 0;
