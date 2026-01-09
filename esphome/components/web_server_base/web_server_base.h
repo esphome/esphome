@@ -91,6 +91,11 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
 
 }  // namespace internal
 
+enum class HandlerPosition : uint8_t {
+  NORMAL,   ///< Before fallback handlers (default)
+  FALLBACK  ///< After normal handlers (catch-all)
+};
+
 class WebServerBase : public Component {
  public:
   void init() {
@@ -122,7 +127,7 @@ class WebServerBase : public Component {
   void set_auth_password(std::string auth_password) { credentials_.password = std::move(auth_password); }
 #endif
 
-  void add_handler(AsyncWebHandler *handler);
+  void add_handler(AsyncWebHandler *handler, HandlerPosition position = HandlerPosition::NORMAL);
 
   void set_port(uint16_t port) { port_ = port; }
   uint16_t get_port() const { return port_; }
@@ -132,6 +137,7 @@ class WebServerBase : public Component {
   uint16_t port_{80};
   std::unique_ptr<AsyncWebServer> server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
+  size_t fallback_start_{0};  ///< Index where fallback handlers begin
 #ifdef USE_WEBSERVER_AUTH
   internal::Credentials credentials_;
 #endif

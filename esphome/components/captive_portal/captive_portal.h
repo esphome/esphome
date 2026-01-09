@@ -46,9 +46,10 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   }
 
   bool canHandle(AsyncWebServerRequest *request) const override {
-    // Handle all GET requests when captive portal is active
+    // Handle all GET requests when captive portal is active.
     // This allows us to respond with the portal page for any URL,
-    // triggering OS captive portal detection
+    // triggering OS captive portal detection.
+    // We use add_fallback_handler() so web_server handlers are checked first.
     return this->active_ && request->method() == HTTP_GET;
   }
 

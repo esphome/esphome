@@ -43,7 +43,11 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
                    scan.get_with_auth());
 #endif
   }
+#ifdef USE_WEBSERVER
+  stream->print(ESPHOME_F("],\"web_server\":true}"));
+#else
   stream->print(ESPHOME_F("]}"));
+#endif
   request->send(stream);
 }
 void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
@@ -71,7 +75,8 @@ void CaptivePortal::setup() {
 void CaptivePortal::start() {
   this->base_->init();
   if (!this->initialized_) {
-    this->base_->add_handler(this);
+    // Use fallback position so web_server handlers are checked first
+    this->base_->add_handler(this, web_server_base::HandlerPosition::FALLBACK);
   }
 
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
