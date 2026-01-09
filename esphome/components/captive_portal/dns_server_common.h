@@ -60,7 +60,7 @@ inline bool is_allowlisted_domain([[maybe_unused]] const char *domain) {
 
 /// Parse DNS domain name from packet into string buffer
 /// Returns pointer past the domain name (after null terminator), or nullptr on error
-inline uint8_t *parse_dns_domain(uint8_t *ptr, uint8_t *end, char *domain, size_t domain_size) {
+inline uint8_t *parse_dns_domain(uint8_t *ptr, const uint8_t *end, char *domain, size_t domain_size) {
   size_t domain_len = 0;
 
   while (ptr < end && *ptr != 0) {
