@@ -379,8 +379,8 @@ int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
   //    as candidates, cycling through them sequentially. This allows the device
   //    to keep trying all networks while users configure WiFi via captive portal.
   //
-  // In both modes, networks already tried in EXPLICIT_HIDDEN phase are skipped
-  // (those marked hidden:true at the start of the config).
+  // Additionally, if EXPLICIT_HIDDEN phase was executed (first network marked hidden:true),
+  // those networks are skipped here since they were already tried.
   //
   bool include_explicit_hidden = !this->went_through_explicit_hidden_phase_();
   // Start searching from start_index + 1
