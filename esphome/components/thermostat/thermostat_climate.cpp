@@ -222,7 +222,7 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
   if (call.has_custom_preset()) {
     // setup_complete_ blocks modifying/resetting the temps immediately after boot
     if (this->setup_complete_) {
-      this->change_custom_preset_(call.get_custom_preset());
+      this->change_custom_preset_(call.get_custom_preset().data());
     } else {
       // Use the base class method which handles pointer lookup internally
       this->set_custom_preset_(call.get_custom_preset());
@@ -1231,7 +1231,7 @@ void ThermostatClimate::change_custom_preset_(const char *custom_preset) {
   if (config != nullptr) {
     ESP_LOGV(TAG, "Custom preset %s requested", custom_preset);
     if (this->change_preset_internal_(*config) || !this->has_custom_preset() ||
-        strcmp(this->get_custom_preset(), custom_preset) != 0) {
+        this->get_custom_preset() != custom_preset) {
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
       // Use the base class method which handles pointer lookup and preset reset internally

@@ -12,6 +12,25 @@ climate:
           x.set_mode(CLIMATE_MODE_FAN_ONLY);
     on_state:
       - logger.log: State changed!
+      - lambda: |-
+          // Test get_custom_fan_mode() returns std::string_view
+          if (id(midea_unit).has_custom_fan_mode()) {
+            auto fan_mode = id(midea_unit).get_custom_fan_mode();
+            // Compare with string literal using ==
+            if (fan_mode == "SILENT") {
+              ESP_LOGD("test", "Fan mode is SILENT");
+            }
+            // Log using %.*s format for string_view
+            ESP_LOGD("test", "Custom fan mode: %.*s", (int) fan_mode.size(), fan_mode.data());
+          }
+          // Test get_custom_preset() returns std::string_view
+          if (id(midea_unit).has_custom_preset()) {
+            auto preset = id(midea_unit).get_custom_preset();
+            // Check if empty
+            if (!preset.empty()) {
+              ESP_LOGD("test", "Custom preset: %.*s", (int) preset.size(), preset.data());
+            }
+          }
     transmitter_id: xmitr
     period: 1s
     num_attempts: 5
