@@ -400,7 +400,7 @@ class C4002Component : public Component, public uart::UARTDevice {
 #ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *text_sensor_{nullptr};
 
-  float Interval_point_[15] = {0.2, 0.8, 1.6, 2.4, 3.2, 4, 4.8, 5.6, 6.4, 7.2, 8, 8.8, 9.6, 10.4, 11.2};
+  float interval_point_[15] = {0.2, 0.8, 1.6, 2.4, 3.2, 4, 4.8, 5.6, 6.4, 7.2, 8, 8.8, 9.6, 10.4, 11.2};
 
 #endif
 

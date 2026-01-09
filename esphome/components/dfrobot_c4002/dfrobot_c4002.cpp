@@ -572,7 +572,7 @@ void C4002Component::analysis_text_report(void) {
   for (size_t i = 0; i < over_indices.size(); i++) {
     uint8_t idx = over_indices[i];
 
-    offset += snprintf(data_str + offset, sizeof(data_str) - offset, "%.1f%s", Interval_point_[idx],
+    offset += snprintf(data_str + offset, sizeof(data_str) - offset, "%.1f%s", interval_point_[idx],
                        (i < over_indices.size() - 1) ? ", " : "");
   }
 
@@ -985,7 +985,7 @@ bool C4002Component::joint_enable_door(void) {
       max = 0;
 
     for (int door = 0; door < 15; door++) {
-      if (Interval_point_[door] > min && max > Interval_point_[door]) {
+      if (interval_point_[door] > min && max > interval_point_[door]) {
         enable_door_[door] = 0;
       }
     }
