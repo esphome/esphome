@@ -1,8 +1,7 @@
 #include "onkyori_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.onkyori";
 
@@ -52,5 +51,4 @@ optional<OnkyoRIData> OnkyoRIProtocol::decode(RemoteReceiveData src) {
 }
 void OnkyoRIProtocol::dump(const OnkyoRIData &data) { ESP_LOGI(TAG, "Received OnkyoRI: data=0x%04" PRIX32, data.data); }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base
