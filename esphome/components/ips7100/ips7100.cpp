@@ -150,7 +150,6 @@ bool IPS7100Component::read_pm_data_() {
     this->pm_values_[i] = converter.value;
   }
 
-
   ESP_LOGV(TAG, "PM values: %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f", this->pm_values_[0], this->pm_values_[1],
            this->pm_values_[2], this->pm_values_[3], this->pm_values_[4], this->pm_values_[5], this->pm_values_[6]);
 
@@ -177,7 +176,6 @@ bool IPS7100Component::read_pc_data_() {
                           (static_cast<uint32_t>(buffer[i * 4 + 1]) << 16) |
                           (static_cast<uint32_t>(buffer[i * 4 + 2]) << 8) | static_cast<uint32_t>(buffer[i * 4 + 3]);
   }
-
 
   ESP_LOGV(TAG, "PC values: %u, %u, %u, %u, %u, %u, %u", this->pc_values_[0], this->pc_values_[1], this->pc_values_[2],
            this->pc_values_[3], this->pc_values_[4], this->pc_values_[5], this->pc_values_[6]);
