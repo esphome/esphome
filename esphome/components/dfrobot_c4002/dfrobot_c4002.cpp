@@ -14,7 +14,7 @@ static const char *const TAG = "dfrobot_c4002: ";
  */
 void C4002Component::setup() {
   update_config_param();
-  this->publish_text_("The initialization of c4002 was successful!");
+  this->publish_text("The initialization of c4002 was successful!");
 }
 
 /**
@@ -41,7 +41,7 @@ void C4002Component::loop() {
     ESP_LOGD(TAG, "********Calibration countdown: %2d s**********", ret.calibCountdown);
     if (ret.calibCountdown == 0) {
       ESP_LOGD(TAG, "Calibration complete!");
-      this->publish_text_("Calibration complete!");
+      this->publish_text("Calibration complete!");
       analysis_text_report();
     }
   }
@@ -54,7 +54,7 @@ void C4002Component::loop() {
   if (reset_flag_ == 1) {
     reset_flag_ = 0;
     restart();
-    this->publish_text_("Reset the device to factory complete!");
+    this->publish_text("Reset the device to factory complete!");
   }
 }
 
@@ -486,8 +486,8 @@ int8_t C4002Component::restart(void) {
     ret = -1;
   }
 
-  for(int i= 0;i<10;i++){
-    delay(50);
+  for (int i = 0; i < 50; i++) {
+    delay(10);
   }
   update_config_param();
   delay(10);
@@ -559,7 +559,7 @@ void C4002Component::analysis_text_report(void) {
   }
 
   if (flag == 0) {
-    this->publish_text_("The calibration threshold is effective!");
+    this->publish_text("The calibration threshold is effective!");
     return;
   }
 
@@ -572,14 +572,14 @@ void C4002Component::analysis_text_report(void) {
   for (size_t i = 0; i < over_indices.size(); i++) {
     uint8_t idx = over_indices[i];
 
-    offset += snprintf(data_str + offset, sizeof(data_str) - offset, "%.1f%s", Interval_point[idx],
+    offset += snprintf(data_str + offset, sizeof(data_str) - offset, "%.1f%s", Interval_point_[idx],
                        (i < over_indices.size() - 1) ? ", " : "");
   }
 
   offset += snprintf(data_str + offset, sizeof(data_str) - offset,
                      " m, Please clear all interference sources within this range and recalibrate.");
 
-  this->publish_text_(data_str);
+  this->publish_text(data_str);
   return;
 }
 
@@ -985,7 +985,7 @@ bool C4002Component::joint_enable_door(void) {
       max = 0;
 
     for (int door = 0; door < 15; door++) {
-      if (Interval_point[door] > min && max > Interval_point[door]) {
+      if (Interval_point_[door] > min && max > Interval_point_[door]) {
         enable_door_[door] = 0;
       }
     }
@@ -1002,7 +1002,7 @@ bool C4002Component::joint_enable_door(void) {
   return enable_all_distance_door(enable_door_);
 }
 
-void C4002Component::publish_text_(const std::string &msg) {
+void C4002Component::publish_text(const std::string &msg) {
 #ifdef USE_TEXT_SENSOR
   if (this->text_sensor_ != nullptr) {
     this->text_sensor_->publish_state(msg);
