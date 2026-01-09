@@ -15,6 +15,7 @@
 #include <list>
 #include <map>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -588,7 +589,7 @@ class WebServer : public Controller,
   std::string text_json_(text::Text *obj, const std::string &value, JsonDetail start_config);
 #endif
 #ifdef USE_SELECT
-  std::string select_json_(select::Select *obj, const char *value, JsonDetail start_config);
+  std::string select_json_(select::Select *obj, std::string_view value, JsonDetail start_config);
 #endif
 #ifdef USE_CLIMATE
   std::string climate_json_(climate::Climate *obj, JsonDetail start_config);

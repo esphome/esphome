@@ -43,7 +43,7 @@ void MQTTSelectComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
 }
 bool MQTTSelectComponent::send_initial_state() {
   if (this->select_->has_state()) {
-    return this->publish_state(this->select_->current_option());
+    return this->publish_state(std::string(this->select_->current_option()));
   } else {
     return true;
   }

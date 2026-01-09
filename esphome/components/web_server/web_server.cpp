@@ -1416,11 +1416,11 @@ std::string WebServer::select_all_json_generator(WebServer *web_server, void *so
   auto *obj = (select::Select *) (source);
   return web_server->select_json_(obj, obj->has_state() ? obj->current_option() : "", DETAIL_ALL);
 }
-std::string WebServer::select_json_(select::Select *obj, const char *value, JsonDetail start_config) {
+std::string WebServer::select_json_(select::Select *obj, std::string_view value, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "select", value, value, start_config);
+  set_json_icon_state_value(root, obj, "select", value.data(), value.data(), start_config);
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root[ESPHOME_F("option")].to<JsonArray>();
     for (auto &option : obj->traits.get_options()) {

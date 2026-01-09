@@ -709,7 +709,7 @@ void PrometheusHandler::select_row_(AsyncResponseStream *stream, select::Select 
     stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\",value=\""));
-    stream->print(obj->current_option());
+    stream->print(obj->current_option().data());
     stream->print(ESPHOME_F("\"} "));
     stream->print(ESPHOME_F("1.0"));
     stream->print(ESPHOME_F("\n"));
