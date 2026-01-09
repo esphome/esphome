@@ -33,6 +33,7 @@ COLOR_TYPES = {
     "RGB": TuyaColorType.RGB,
     "HSV": TuyaColorType.HSV,
     "RGBHSV": TuyaColorType.RGBHSV,
+    "RGB_LOWERCASE": TuyaColorType.RGB_LOWERCASE,
 }
 
 TuyaLight = tuya_ns.class_("TuyaLight", light.LightOutput, cg.Component)

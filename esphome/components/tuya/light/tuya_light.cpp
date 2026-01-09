@@ -60,6 +60,7 @@ void TuyaLight::setup() {
       float red, green, blue;
       switch (*this->color_type_) {
         case TuyaColorType::RGBHSV:
+        case TuyaColorType::RGB_LOWERCASE:
         case TuyaColorType::RGB: {
           auto rgb = parse_hex<uint32_t>(datapoint.value_string.substr(0, 6));
           if (!rgb.has_value())
@@ -191,6 +192,12 @@ void TuyaLight::write_state(light::LightState *state) {
       case TuyaColorType::RGB: {
         char buffer[7];
         sprintf(buffer, "%02X%02X%02X", int(red * 255), int(green * 255), int(blue * 255));
+        color_value = buffer;
+        break;
+      }
+      case TuyaColorType::RGB_LOWERCASE: {
+        char buffer[7];
+        sprintf(buffer, "%02x%02x%02x", int(red * 255), int(green * 255), int(blue * 255));
         color_value = buffer;
         break;
       }
