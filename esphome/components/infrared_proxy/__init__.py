@@ -54,8 +54,7 @@ def _final_validate(config):
             raise cv.Invalid(
                 f"Transmitter '{transmitter_id}' must have '{CONF_CARRIER_DUTY_PERCENT}' configured with "
                 "an intermediate value (typically 30-50%) for infrared transmission. If this is an RF "
-                f"transmitter, configure this infrared_proxy with a '{CONF_FREQUENCY}' value greater than "
-                "0 and less than 100"
+                f"transmitter, configure this infrared_proxy with an appropriate '{CONF_FREQUENCY}'"
             )
 
 
