@@ -186,13 +186,16 @@ void APIServer::loop() {
     }
 
     // Rare case: handle disconnection
-#ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-    this->client_disconnected_trigger_->trigger(std::string(client->get_name()), std::string(client->get_peername()));
-#endif
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
     this->unregister_active_action_calls_for_connection(client.get());
 #endif
     ESP_LOGV(TAG, "Remove connection %s", client->get_name());
+
+#ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
+    // Save client info before removal for the trigger
+    std::string client_name(client->get_name());
+    std::string client_peername(client->get_peername());
+#endif
 
     // Swap with the last element and pop (avoids expensive vector shifts)
     if (client_index < this->clients_.size() - 1) {
@@ -205,6 +208,11 @@ void APIServer::loop() {
       this->status_set_warning();
       this->last_connected_ = App.get_loop_component_start_time();
     }
+
+#ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
+    // Fire trigger after client is removed so api.connected reflects the true state
+    this->client_disconnected_trigger_->trigger(client_name, client_peername);
+#endif
     // Don't increment client_index since we need to process the swapped element
   }
 }
