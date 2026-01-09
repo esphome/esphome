@@ -3073,20 +3073,23 @@ class ListEntitiesIrRfProxyResponse final : public InfoResponseProtoMessage {
 class IrRfProxyTransmitRawTimingsRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 136;
-  static constexpr uint8_t ESTIMATED_SIZE = 21;
+  static constexpr uint8_t ESTIMATED_SIZE = 216;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "ir_rf_proxy_transmit_raw_timings_request"; }
 #endif
   uint32_t key{0};
   uint32_t carrier_frequency{0};
   uint32_t repeat_count{0};
-  std::vector<int32_t> timings{};
+  const uint8_t *timings_data_{nullptr};
+  uint16_t timings_length_{0};
+  uint16_t timings_count_{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class IrRfProxyReceiveEvent final : public ProtoMessage {

@@ -2125,8 +2125,21 @@ uint16_t APIConnection::try_send_ir_rf_proxy_info(EntityBase *entity, APIConnect
                                      remaining_size, is_single);
 }
 
-void APIConnection::send_ir_rf_proxy_receive_event(const IrRfProxyReceiveEvent &msg) {
-  if (!this->send_message(msg, IrRfProxyReceiveEvent::MESSAGE_TYPE)) {
+void APIConnection::send_ir_rf_proxy_receive_event(uint32_t key, const remote_base::RawTimings &timings) {
+  // Calculate message size using manual packed encoding
+  ProtoSize size;
+  size.add_fixed32(1, key);            // key field (field_id=1, wire_type=5, tag=(1<<3)|5=13)
+  size.add_packed_sint32(1, timings);  // timings field (field_id=2, wire_type=2, tag=(2<<3)|2=18)
+
+  // Allocate buffer with exact size
+  auto buffer = this->create_buffer(size.get_size());
+
+  // Encode directly from receiver's vector - zero copy!
+  buffer.encode_fixed32(1, key);
+  buffer.encode_packed_sint32(2, timings);
+
+  // Send the buffer
+  if (!this->send_buffer(buffer, IrRfProxyReceiveEvent::MESSAGE_TYPE)) {
     this->on_fatal_error();
   }
 }

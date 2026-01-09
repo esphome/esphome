@@ -50,13 +50,13 @@ void IrRfProxyComponent::transmit_raw_timings(const api::IrRfProxyTransmitRawTim
     return;
   }
 
-  if (msg.timings.empty()) {
+  if (msg.timings_length_ == 0) {
     ESP_LOGE(TAG, "Raw timings array is empty");
     return;
   }
 
   ESP_LOGD(TAG, "Transmitting raw timings: key=%u, carrier=%u Hz, timing_count=%u, repeat_count=%u", msg.key,
-           msg.carrier_frequency, msg.timings.size(), msg.repeat_count);
+           msg.carrier_frequency, msg.timings_count_, msg.repeat_count);
 
   // Create transmit data object
   auto call = this->transmitter_->transmit();
@@ -65,10 +65,10 @@ void IrRfProxyComponent::transmit_raw_timings(const api::IrRfProxyTransmitRawTim
   // Set carrier frequency (0 = no carrier for RF applications)
   transmit_data->set_carrier_frequency(msg.carrier_frequency);
 
-  // Convert FixedVector to std::vector for remote_base API compatibility
-  // FixedVector conversion operator copies data to a temporary std::vector, then moves it to set_data()
+  // Zero-copy: decode directly from protobuf packed buffer into remote_base's reusable vector
+  // The packed buffer contains zigzag-varint-encoded sint32 values
   // Timings format: positive values = mark (LED/TX on), negative values = space (LED/TX off)
-  transmit_data->set_data(static_cast<std::vector<int32_t>>(msg.timings));
+  transmit_data->set_data_from_packed_sint32(msg.timings_data_, msg.timings_length_, msg.timings_count_);
 
   // Set repeat count (default to 1 if not specified or 0)
   if (msg.repeat_count > 0) {

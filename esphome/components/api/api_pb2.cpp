@@ -3392,9 +3392,19 @@ bool IrRfProxyTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoV
     case 3:
       this->repeat_count = value.as_uint32();
       break;
-    case 4:
-      this->timings.push_back(value.as_sint32());
+    default:
+      return false;
+  }
+  return true;
+}
+bool IrRfProxyTransmitRawTimingsRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 4: {
+      this->timings_data_ = value.data();
+      this->timings_length_ = value.size();
+      this->timings_count_ = count_packed_varints(value.data(), value.size());
       break;
+    }
     default:
       return false;
   }

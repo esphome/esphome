@@ -2474,7 +2474,7 @@ message IrRfProxyTransmitRawTimingsRequest {
   fixed32 key = 1;                                       // Key identifying the transmitter instance
   uint32 carrier_frequency = 2;                          // Carrier frequency in Hz (0 = no carrier for RF)
   uint32 repeat_count = 3;                               // Number of times to transmit (1 = once, 2 = twice, etc.)
-  repeated sint32 timings = 4 [packed = true];           // Raw timings in microseconds (zigzag-encoded): positive = mark (LED/TX on), negative = space (LED/TX off)
+  repeated sint32 timings = 4 [packed = true, (packed_buffer) = true];  // Raw timings in microseconds (zigzag-encoded): positive = mark (LED/TX on), negative = space (LED/TX off)
 }
 
 // Event message for received IR/RF data

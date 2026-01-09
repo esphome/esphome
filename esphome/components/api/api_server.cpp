@@ -716,16 +716,9 @@ void APIServer::on_ir_rf_proxy_transmit_raw_timings_request(const IrRfProxyTrans
 }
 
 void APIServer::send_ir_rf_proxy_receive_event(uint32_t key, const remote_base::RawTimings &timings) {
-  IrRfProxyReceiveEvent event{};
-  event.key = key;
-  // Convert std::vector to FixedVector
-  event.timings.init(timings.size());
-  for (int timing : timings) {
-    event.timings.push_back(timing);
-  }
-
+  // Zero-copy: pass reference directly to each connection for packed encoding
   for (auto &client : this->clients_) {
-    client->send_ir_rf_proxy_receive_event(event);
+    client->send_ir_rf_proxy_receive_event(key, timings);
   }
 }
 
