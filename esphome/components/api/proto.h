@@ -39,6 +39,24 @@ inline constexpr int64_t decode_zigzag64(uint64_t value) {
   return (value & 1) ? static_cast<int64_t>(~(value >> 1)) : static_cast<int64_t>(value >> 1);
 }
 
+/// Count number of varints in a packed buffer
+inline uint16_t count_packed_varints(const uint8_t *data, size_t len) {
+  uint16_t count = 0;
+  while (len > 0) {
+    // Skip varint bytes until we find one without continuation bit
+    while (len > 0 && (*data & 0x80)) {
+      data++;
+      len--;
+    }
+    if (len > 0) {
+      data++;
+      len--;
+      count++;
+    }
+  }
+  return count;
+}
+
 /*
  * StringRef Ownership Model for API Protocol Messages
  * ===================================================
@@ -348,8 +366,8 @@ class ProtoWriteBuffer {
     // Write tag (LENGTH_DELIMITED) + length + all zigzag-encoded values
     this->encode_field_raw(field_id, WIRE_TYPE_LENGTH_DELIMITED);
     this->encode_varint_raw(packed_size);
-    for (size_t i = 0; i < values.size(); i++) {
-      this->encode_varint_raw(encode_zigzag32(values[i]));
+    for (int value : values) {
+      this->encode_varint_raw(encode_zigzag32(value));
     }
   }
   void encode_message(uint32_t field_id, const ProtoMessage &value);
@@ -819,8 +837,8 @@ class ProtoSize {
       return;
 
     size_t packed_size = 0;
-    for (size_t i = 0; i < values.size(); i++) {
-      packed_size += varint(encode_zigzag32(values[i]));
+    for (int value : values) {
+      packed_size += varint(encode_zigzag32(value));
     }
 
     // field_id + length varint + packed data
