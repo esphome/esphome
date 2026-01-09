@@ -80,4 +80,15 @@ extend google.protobuf.FieldOptions {
     // Example: [(container_pointer_no_template) = "light::ColorModeMask"]
     //   generates: const light::ColorModeMask *supported_color_modes{};
     optional string container_pointer_no_template = 50014;
+
+    // packed_buffer: Expose raw packed buffer instead of decoding into container
+    // When set on a packed repeated field, the generated code stores a pointer
+    // to the raw protobuf buffer instead of decoding values. This enables
+    // zero-copy passthrough when the consumer can decode on-demand.
+    // The field must be a packed repeated field (packed=true).
+    // Generates three fields:
+    //   - const uint8_t *<field>_data_{nullptr};
+    //   - uint16_t <field>_length_{0};
+    //   - uint16_t <field>_count_{0};
+    optional bool packed_buffer = 50015 [default=false];
 }
