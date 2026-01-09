@@ -1,6 +1,7 @@
 import ipaddress
 import logging
 
+from esphome import core
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
@@ -144,7 +145,11 @@ async def to_code(config):
     # Register NetworkComponent to initialize network stack early (ESP32 only)
     # This ensures esp_netif_init() is called before web_server binds
     if CORE.is_esp32:
-        var = cg.new_Pvariable(cg.new_id("network_component"))
+        component_id = core.ID(
+            "network_component", is_declaration=True, type=NetworkComponent
+        )
+        CORE.component_ids.add(component_id.id)
+        var = cg.new_Pvariable(component_id)
         await cg.register_component(var, {})
 
     # Apply high performance networking settings
