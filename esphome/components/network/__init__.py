@@ -20,6 +20,7 @@ CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
 
 network_ns = cg.esphome_ns.namespace("network")
 IPAddress = network_ns.class_("IPAddress")
+NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
 
 
 def ip_address_literal(ip: str | int | None) -> cg.MockObj:
@@ -139,6 +140,12 @@ async def to_code(config):
     cg.add_define("USE_NETWORK")
     if CORE.using_arduino and CORE.is_esp32:
         cg.add_library("Networking", None)
+
+    # Register NetworkComponent to initialize network stack early (ESP32 only)
+    # This ensures esp_netif_init() is called before web_server binds
+    if CORE.is_esp32:
+        var = cg.new_Pvariable(cg.new_id("network_component"))
+        await cg.register_component(var, {})
 
     # Apply high performance networking settings
     # Config can explicitly enable/disable, or default to component-driven behavior

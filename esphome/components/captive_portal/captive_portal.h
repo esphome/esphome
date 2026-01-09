@@ -49,8 +49,14 @@ class CaptivePortal : public AsyncWebHandler, public Component {
     // Handle all GET requests when captive portal is active.
     // This allows us to respond with the portal page for any URL,
     // triggering OS captive portal detection.
-    // We use add_fallback_handler() so web_server handlers are checked first.
-    return this->active_ && request->method() == HTTP_GET;
+    if (!this->active_ || request->method() != HTTP_GET)
+      return false;
+#ifdef USE_WEBSERVER
+    // Let web_server handle root URL when ?web_server param is present
+    if (request->url() == "/" && request->hasParam("web_server"))
+      return false;
+#endif
+    return true;
   }
 
   void handle_config(AsyncWebServerRequest *request);

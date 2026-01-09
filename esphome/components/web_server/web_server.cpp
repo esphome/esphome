@@ -28,10 +28,6 @@
 #include "esphome/components/climate/climate.h"
 #endif
 
-#ifdef USE_CAPTIVE_PORTAL
-#include "esphome/components/captive_portal/captive_portal.h"
-#endif
-
 #ifdef USE_WEBSERVER_LOCAL
 #if USE_WEBSERVER_VERSION == 2
 #include "server_index_v2.h"
