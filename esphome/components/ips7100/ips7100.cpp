@@ -1,6 +1,7 @@
 #include "ips7100.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include <cmath>
 
 namespace esphome {
 namespace ips7100 {
@@ -8,15 +9,12 @@ namespace ips7100 {
 static const char *const TAG = "ips7100";
 
 // I2C commands
-static const uint8_t IPS7100_CMD_READ_PC = 0x11;  // Read particle count data (30 bytes)
-static const uint8_t IPS7100_CMD_READ_PM = 0x12;  // Read PM mass data (32 bytes)
+static const uint8_t IPS7100_CMD_READ_PC = 0x11;  // Read particle count data
+static const uint8_t IPS7100_CMD_READ_PM = 0x12;  // Read PM mass data
 
-// Data sizes
-static const uint8_t PC_DATA_SIZE = 30;  // 7 x 4 bytes + 2 bytes checksum
-static const uint8_t PM_DATA_SIZE = 32;  // 7 x 4 bytes + 2 bytes event status + 2 bytes checksum
-
-// CRC16 polynomial
-static const uint16_t CRC16_POLYNOMIAL = 0x8408;
+// Data sizes (without checksum byte - sensor doesn't send it over I2C)
+static const uint8_t PC_DATA_SIZE = 28;  // 7 x 4 bytes
+static const uint8_t PM_DATA_SIZE = 28;  // 7 x 4 bytes
 
 void IPS7100Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up IPS7100...");
@@ -70,6 +68,10 @@ void IPS7100Component::dump_config() {
 
 void IPS7100Component::update() {
   bool pm_success = this->read_pm_data_();
+
+  // Small delay between reading PM and PC data
+  delay(10);
+
   bool pc_success = this->read_pc_data_();
 
   if (!pm_success && !pc_success) {
@@ -98,22 +100,23 @@ void IPS7100Component::update() {
       this->pm_10_0_sensor_->publish_state(this->pm_values_[6]);
   }
 
-  // Publish particle count values
+  // Publish particle count values (convert from #/L to #/cm³)
+  // Skip values of 0xFFFFFFFF as they indicate invalid/unavailable data
   if (pc_success) {
-    if (this->pmc_0_1_sensor_ != nullptr)
-      this->pmc_0_1_sensor_->publish_state(this->pc_values_[0]);
-    if (this->pmc_0_3_sensor_ != nullptr)
-      this->pmc_0_3_sensor_->publish_state(this->pc_values_[1]);
-    if (this->pmc_0_5_sensor_ != nullptr)
-      this->pmc_0_5_sensor_->publish_state(this->pc_values_[2]);
-    if (this->pmc_1_0_sensor_ != nullptr)
-      this->pmc_1_0_sensor_->publish_state(this->pc_values_[3]);
-    if (this->pmc_2_5_sensor_ != nullptr)
-      this->pmc_2_5_sensor_->publish_state(this->pc_values_[4]);
-    if (this->pmc_5_0_sensor_ != nullptr)
-      this->pmc_5_0_sensor_->publish_state(this->pc_values_[5]);
-    if (this->pmc_10_0_sensor_ != nullptr)
-      this->pmc_10_0_sensor_->publish_state(this->pc_values_[6]);
+    if (this->pmc_0_1_sensor_ != nullptr && this->pc_values_[0] != 0xFFFFFFFF)
+      this->pmc_0_1_sensor_->publish_state(this->pc_values_[0] / 1000.0f);
+    if (this->pmc_0_3_sensor_ != nullptr && this->pc_values_[1] != 0xFFFFFFFF)
+      this->pmc_0_3_sensor_->publish_state(this->pc_values_[1] / 1000.0f);
+    if (this->pmc_0_5_sensor_ != nullptr && this->pc_values_[2] != 0xFFFFFFFF)
+      this->pmc_0_5_sensor_->publish_state(this->pc_values_[2] / 1000.0f);
+    if (this->pmc_1_0_sensor_ != nullptr && this->pc_values_[3] != 0xFFFFFFFF)
+      this->pmc_1_0_sensor_->publish_state(this->pc_values_[3] / 1000.0f);
+    if (this->pmc_2_5_sensor_ != nullptr && this->pc_values_[4] != 0xFFFFFFFF)
+      this->pmc_2_5_sensor_->publish_state(this->pc_values_[4] / 1000.0f);
+    if (this->pmc_5_0_sensor_ != nullptr && this->pc_values_[5] != 0xFFFFFFFF)
+      this->pmc_5_0_sensor_->publish_state(this->pc_values_[5] / 1000.0f);
+    if (this->pmc_10_0_sensor_ != nullptr && this->pc_values_[6] != 0xFFFFFFFF)
+      this->pmc_10_0_sensor_->publish_state(this->pc_values_[6] / 1000.0f);
   }
 }
 
@@ -126,37 +129,34 @@ bool IPS7100Component::read_pm_data_() {
     return false;
   }
 
-  // Delay for sensor to prepare data (sensor may need time to process measurement)
-  delay(50);
-
   if (this->read(buffer, PM_DATA_SIZE) != i2c::ERROR_OK) {
     ESP_LOGD(TAG, "Failed to read PM data");
     return false;
   }
 
-  // Validate CRC16 checksum (last 2 bytes)
-  uint16_t received_crc = (buffer[PM_DATA_SIZE - 2] << 8) | buffer[PM_DATA_SIZE - 1];
-  uint16_t calculated_crc = this->calc_crc16_(buffer, PM_DATA_SIZE - 2);
-
-  if (received_crc != calculated_crc) {
-    ESP_LOGW(TAG, "PM data CRC mismatch: received 0x%04X, calculated 0x%04X", received_crc, calculated_crc);
-    return false;
-  }
-
-  // Parse PM values (7 x 4-byte floats, big-endian)
+  // Parse PM values (7 x 4-byte floats, little-endian)
   for (int i = 0; i < 7; i++) {
     union {
       uint8_t bytes[4];
       float value;
     } converter;
 
-    // Big-endian to little-endian conversion
-    converter.bytes[3] = buffer[i * 4];
-    converter.bytes[2] = buffer[i * 4 + 1];
-    converter.bytes[1] = buffer[i * 4 + 2];
-    converter.bytes[0] = buffer[i * 4 + 3];
+    // Little-endian byte order
+    converter.bytes[0] = buffer[i * 4];
+    converter.bytes[1] = buffer[i * 4 + 1];
+    converter.bytes[2] = buffer[i * 4 + 2];
+    converter.bytes[3] = buffer[i * 4 + 3];
 
     this->pm_values_[i] = converter.value;
+  }
+
+  // Validate PM values are within reasonable range (0-1000 µg/m³)
+  // Values outside this range indicate communication errors
+  for (int i = 0; i < 7; i++) {
+    if (!std::isfinite(this->pm_values_[i]) || this->pm_values_[i] < 0.0f || this->pm_values_[i] > 1000.0f) {
+      ESP_LOGD(TAG, "Invalid PM data detected, skipping update");
+      return false;
+    }
   }
 
   ESP_LOGV(TAG, "PM values: %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f", this->pm_values_[0], this->pm_values_[1],
@@ -174,28 +174,16 @@ bool IPS7100Component::read_pc_data_() {
     return false;
   }
 
-  // Delay for sensor to prepare data (sensor may need time to process measurement)
-  delay(50);
-
   if (this->read(buffer, PC_DATA_SIZE) != i2c::ERROR_OK) {
     ESP_LOGD(TAG, "Failed to read PC data");
     return false;
   }
 
-  // Validate CRC16 checksum (last 2 bytes)
-  uint16_t received_crc = (buffer[PC_DATA_SIZE - 2] << 8) | buffer[PC_DATA_SIZE - 1];
-  uint16_t calculated_crc = this->calc_crc16_(buffer, PC_DATA_SIZE - 2);
-
-  if (received_crc != calculated_crc) {
-    ESP_LOGW(TAG, "PC data CRC mismatch: received 0x%04X, calculated 0x%04X", received_crc, calculated_crc);
-    return false;
-  }
-
-  // Parse PC values (7 x 4-byte unsigned longs, big-endian)
+  // Parse PC values (7 x 4-byte unsigned longs, little-endian)
   for (int i = 0; i < 7; i++) {
-    this->pc_values_[i] = (static_cast<uint32_t>(buffer[i * 4]) << 24) |
-                          (static_cast<uint32_t>(buffer[i * 4 + 1]) << 16) |
-                          (static_cast<uint32_t>(buffer[i * 4 + 2]) << 8) | static_cast<uint32_t>(buffer[i * 4 + 3]);
+    this->pc_values_[i] = static_cast<uint32_t>(buffer[i * 4]) | (static_cast<uint32_t>(buffer[i * 4 + 1]) << 8) |
+                          (static_cast<uint32_t>(buffer[i * 4 + 2]) << 16) |
+                          (static_cast<uint32_t>(buffer[i * 4 + 3]) << 24);
   }
 
   ESP_LOGV(TAG, "PC values: %u, %u, %u, %u, %u, %u, %u", this->pc_values_[0], this->pc_values_[1], this->pc_values_[2],
@@ -204,21 +192,12 @@ bool IPS7100Component::read_pc_data_() {
   return true;
 }
 
-uint16_t IPS7100Component::calc_crc16_(const uint8_t *data, size_t len) {
-  uint16_t crc = 0xFFFF;
-
+uint8_t IPS7100Component::calc_checksum_(const uint8_t *data, size_t len) {
+  uint8_t checksum = 0;
   for (size_t i = 0; i < len; i++) {
-    crc ^= data[i];
-    for (int j = 0; j < 8; j++) {
-      if (crc & 0x0001) {
-        crc = (crc >> 1) ^ CRC16_POLYNOMIAL;
-      } else {
-        crc >>= 1;
-      }
-    }
+    checksum ^= data[i];
   }
-
-  return crc;
+  return checksum;
 }
 
 }  // namespace ips7100
