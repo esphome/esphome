@@ -226,8 +226,13 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_TASK_LOG_BUFFER_SIZE,
                 esp32=768,  # Default: 768 bytes (~5-6 messages with 70-byte text plus thread names)
+                bk72xx=768,
+                ln882x=768,
+                rtl87xx=768,
             ): cv.All(
-                cv.only_on_esp32,
+                cv.only_on(
+                    [PLATFORM_ESP32, PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RTL87XX]
+                ),
                 cv.validate_bytes,
                 cv.Any(
                     cv.int_(0),  # Disabled
@@ -306,6 +311,7 @@ async def to_code(config):
     )
     if CORE.is_esp32:
         cg.add(log.create_pthread_key())
+    if CORE.is_esp32 or CORE.is_libretiny:
         task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
         if task_log_buffer_size > 0:
             cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
@@ -529,6 +535,11 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_IDF,
         },
         "task_log_buffer_host.cpp": {PlatformFramework.HOST_NATIVE},
+        "task_log_buffer_libretiny.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
     }
 )
 

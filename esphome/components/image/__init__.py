@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+from dataclasses import dataclass
 import hashlib
 import io
 import logging
@@ -37,11 +38,21 @@ image_ns = cg.esphome_ns.namespace("image")
 
 ImageType = image_ns.enum("ImageType")
 
+
+@dataclass(frozen=True)
+class ImageMetaData:
+    width: int
+    height: int
+    image_type: str
+    transparency: str
+
+
 CONF_OPAQUE = "opaque"
 CONF_CHROMA_KEY = "chroma_key"
 CONF_ALPHA_CHANNEL = "alpha_channel"
 CONF_INVERT_ALPHA = "invert_alpha"
 CONF_IMAGES = "images"
+KEY_METADATA = "metadata"
 
 TRANSPARENCY_TYPES = (
     CONF_OPAQUE,
@@ -723,10 +734,38 @@ async def write_image(config, all_frames=False):
     return prog_arr, width, height, image_type, trans_value, frame_count
 
 
+async def _image_to_code(entry):
+    """
+    Convert a single image entry to code and return its metadata.
+    :param entry: The config entry for the image.
+    :return: An ImageMetaData object
+    """
+    prog_arr, width, height, image_type, trans_value, _ = await write_image(entry)
+    cg.new_Pvariable(entry[CONF_ID], prog_arr, width, height, image_type, trans_value)
+    return ImageMetaData(
+        width,
+        height,
+        entry[CONF_TYPE],
+        entry[CONF_TRANSPARENCY],
+    )
+
+
 async def to_code(config):
-    # By now the config should be a simple list.
-    for entry in config:
-        prog_arr, width, height, image_type, trans_value, _ = await write_image(entry)
-        cg.new_Pvariable(
-            entry[CONF_ID], prog_arr, width, height, image_type, trans_value
-        )
+    cg.add_define("USE_IMAGE")
+    # By now the config will be a simple list.
+    # Use a subkey to allow for other data in the future
+    CORE.data[DOMAIN] = {
+        KEY_METADATA: {
+            entry[CONF_ID].id: await _image_to_code(entry) for entry in config
+        }
+    }
+
+
+def get_all_image_metadata() -> dict[str, ImageMetaData]:
+    """Get all image metadata."""
+    return CORE.data.get(DOMAIN, {}).get(KEY_METADATA, {})
+
+
+def get_image_metadata(image_id: str) -> ImageMetaData | None:
+    """Get image metadata by ID for use by other components."""
+    return get_all_image_metadata().get(image_id)
