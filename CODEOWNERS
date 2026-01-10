@@ -249,6 +249,7 @@ esphome/components/ina260/* @mreditor97
 esphome/components/ina2xx_base/* @latonita
 esphome/components/ina2xx_i2c/* @latonita
 esphome/components/ina2xx_spi/* @latonita
+esphome/components/infrared/* @kbx81
 esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate/* @jesserockz @JosipKuci
 esphome/components/integration/* @OttoWinter
@@ -540,7 +541,6 @@ esphome/components/version/* @esphome/core
 esphome/components/voice_assistant/* @jesserockz @kahrendt
 esphome/components/wake_on_lan/* @clydebarrow @willwill2will54
 esphome/components/watchdog/* @oarcher
-esphome/components/infrared/* @kbx81
 esphome/components/water_heater/* @dhoeben
 esphome/components/waveshare_epaper/* @clydebarrow
 esphome/components/web_server/ota/* @esphome/core
