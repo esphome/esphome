@@ -155,7 +155,7 @@ MODELS = {
     "2.90in-dke": ("c", WaveshareEPaper2P9InDKE),
     "2.90inv2": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN_V2),
     "2.90inv2-r2": ("c", WaveshareEPaper2P9InV2R2),
-    "3.7in": ("c", WaveshareEPaper3P7In),
+    "3.70in": ("c", WaveshareEPaper3P7In),
     "4.20in": ("b", WaveshareEPaper4P2In),
     "4.20in-bv2": ("b", WaveshareEPaper4P2InBV2),
     "4.20in-bv2-bwr": ("b", WaveshareEPaper4P2InBV2BWR),

@@ -112,7 +112,6 @@ static const uint8_t PARTIAL_UPD_2IN9_LUT[PARTIAL_UPD_2IN9_LUT_SIZE] =
 
 static const uint8_t LUT_3IN7_SIZE = 105;
 
-// Full refresh LUT (Ghost Clear)
 static const uint8_t LUT_1GRAY_GC_3IN7[LUT_3IN7_SIZE] = {
     0x2A, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x05, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -127,7 +126,6 @@ static const uint8_t LUT_1GRAY_GC_3IN7[LUT_3IN7_SIZE] = {
     0x22, 0x22, 0x22, 0x22, 0x22
 };
 
-// Partial refresh LUT (Direct Update)
 static const uint8_t LUT_1GRAY_DU_3IN7[LUT_3IN7_SIZE] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x01, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -4794,7 +4792,7 @@ void WaveshareEPaper13P3InK::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-// ========== 3.7in ==========
+// ========== 3.70in ==========
 void WaveshareEPaper3P7In::initialize() {
   this->reset_();
 
@@ -4951,7 +4949,7 @@ void WaveshareEPaper3P7In::set_full_update_every(uint32_t full_update_every) {
 
 void WaveshareEPaper3P7In::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
-  ESP_LOGCONFIG(TAG, "  Model: 3.7in");
+  ESP_LOGCONFIG(TAG, "  Model: 3.70in");
   ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
