@@ -308,9 +308,8 @@ bool EPaperBase::rotate_coordinates_(int &x, int &y) {
 void HOT EPaperBase::draw_pixel_at(int x, int y, Color color) {
   if (!rotate_coordinates_(x, y))
     return;
-  const size_t pixel_position = y * this->width_ + x;
-  const size_t byte_position = pixel_position / 8;
-  const uint8_t bit_position = pixel_position % 8;
+  const size_t byte_position = y * this->row_width_ + x / 8;
+  const uint8_t bit_position = x % 8;
   const uint8_t pixel_bit = 0x80 >> bit_position;
   const auto original = this->buffer_[byte_position];
   if ((color_to_bit(color) == 0)) {

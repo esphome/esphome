@@ -43,7 +43,9 @@ class EPaperBase : public Display,
         height_(height),
         init_sequence_(init_sequence),
         init_sequence_length_(init_sequence_length),
-        display_type_(display_type) {}
+        display_type_(display_type) {
+    this->row_width_ = (this->width_ + 7) / 8;  // width of a row in bytes
+  }
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
@@ -54,7 +56,6 @@ class EPaperBase : public Display,
   void dump_config() override;
 
   void command(uint8_t value);
-  void data(uint8_t value);
   void cmd_data(uint8_t command, const uint8_t *ptr, size_t length);
 
   // variant with in-place initializer list
@@ -153,6 +154,7 @@ class EPaperBase : public Display,
   // properties initialised in the constructor
   const char *name_;
   uint16_t width_;
+  uint16_t row_width_;  // width of a row in bytes
   uint16_t height_;
   const uint8_t *init_sequence_;
   size_t init_sequence_length_;

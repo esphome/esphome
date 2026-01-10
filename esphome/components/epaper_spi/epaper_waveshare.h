@@ -19,6 +19,8 @@ class EpaperWaveshare : public EPaperSSD1677 {
 
  protected:
   bool reset() override;
+  void initialise(bool partial) override;
+  void set_window_() override;
   void refresh_screen(bool partial) override;
   void deep_sleep() override;
   const uint8_t *lut_;

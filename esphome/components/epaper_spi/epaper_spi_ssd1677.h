@@ -18,6 +18,7 @@ class EPaperSSD1677 : public EPaperBase {
   void power_off() override{};
   void deep_sleep() override;
   bool reset() override;
+  virtual void set_window_();
   bool transfer_data() override;
   bool send_red_{true};
 };

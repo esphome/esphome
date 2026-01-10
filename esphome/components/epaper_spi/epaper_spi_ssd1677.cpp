@@ -26,26 +26,23 @@ bool EPaperSSD1677::reset() {
   return false;
 }
 
-bool EPaperSSD1677::transfer_data() {
+void EPaperSSD1677::set_window_() {
+  this->x_low_ &= ~7;
+  this->x_high_ += 7;
+  this->x_high_ &= ~7;
+  cmd_data(0x44, {(uint8_t) this->x_low_, (uint8_t) (this->x_low_ / 256), (uint8_t) (this->x_high_ - 1),
+                  (uint8_t) ((this->x_high_ - 1) / 256)});
+  cmd_data(0x4E, {(uint8_t) this->x_low_, (uint8_t) (this->x_low_ / 256)});
+  cmd_data(0x45, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256), (uint8_t) (this->y_high_ - 1),
+                  (uint8_t) ((this->y_high_ - 1) / 256)});
+  cmd_data(0x4F, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256)});
+}
+
+bool HOT EPaperSSD1677::transfer_data() {
   auto start_time = millis();
   if (this->current_data_index_ == 0) {
-    if (this->width_ <= 256) {
-      this->cmd_data(0x4E, {(uint8_t) this->x_low_});
-      this->cmd_data(0x44, {(uint8_t) this->x_low_, (uint8_t) (this->x_high_ - 1)});
-    } else {
-      this->cmd_data(0x4E, {(uint8_t) this->x_low_, (uint8_t) (this->x_low_ / 256)});
-      this->cmd_data(0x44, {(uint8_t) this->x_low_, (uint8_t) (this->x_low_ / 256), (uint8_t) (this->x_high_ - 1),
-                            (uint8_t) ((this->x_high_ - 1) / 256)});
-    }
-    this->cmd_data(0x4F, {0, 0});
-    this->cmd_data(0x45, {0, 0, (uint8_t) (this->x_high_ - 1), (uint8_t) ((this->x_high_ - 1) / 256)});
-    // round to byte boundaries for data transmission
-    this->x_low_ &= ~7;
-    this->y_low_ &= ~7;
-    this->x_high_ += 7;
-    this->x_high_ &= ~7;
-    this->y_high_ += 7;
-    this->y_high_ &= ~7;
+    // round to byte boundaries
+    set_window_();
     // for monochrome, we still need to clear the red data buffer at least once to prevent it
     // causing dirty pixels after partial refresh.
     this->command(this->send_red_ ? 0x26 : 0x24);
@@ -54,15 +51,15 @@ bool EPaperSSD1677::transfer_data() {
   size_t row_length = (this->x_high_ - this->x_low_) / 8;
   FixedVector<uint8_t> bytes_to_send{};
   bytes_to_send.init(row_length);
-  ESP_LOGV(TAG, "Writing bytes at line %zu at %ums", this->current_data_index_, (unsigned) millis());
+  ESP_LOGV(TAG, "Writing %u bytes at line %zu at %ums", row_length, this->current_data_index_, (unsigned) millis());
   this->start_data_();
   while (this->current_data_index_ != this->y_high_) {
-    size_t data_idx = (this->current_data_index_ * this->width_ + this->x_low_) / 8;
+    size_t data_idx = this->current_data_index_ * this->row_width_ + this->x_low_ / 8;
     for (size_t i = 0; i != row_length; i++) {
       bytes_to_send[i] = this->send_red_ ? 0 : this->buffer_[data_idx++];
     }
     ++this->current_data_index_;
-    this->write_array(&bytes_to_send.front(), row_length);  // NOLINT
+    this->write_array(&bytes_to_send.front(), this->row_width_);  // NOLINT
     if (millis() - start_time > MAX_TRANSFER_TIME) {
       // Let the main loop run and come back next loop
       this->disable();
