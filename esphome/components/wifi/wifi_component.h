@@ -6,15 +6,11 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
+#include <span>
 #include <string>
 #include <vector>
-
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#include <WiFi.h>
-#include <WiFiType.h>
-#include <esp_wifi.h>
-#endif
 
 #ifdef USE_LIBRETINY
 #include <WiFi.h>
@@ -58,6 +54,9 @@ namespace esphome::wifi {
 
 /// Sentinel value for RSSI when WiFi is not connected
 static constexpr int8_t WIFI_RSSI_DISCONNECTED = -127;
+
+/// Buffer size for SSID (IEEE 802.11 max 32 bytes + null terminator)
+static constexpr size_t SSID_BUFFER_SIZE = 33;
 
 struct SavedWifiSettings {
   char ssid[33];
@@ -111,6 +110,18 @@ enum class WiFiRetryPhase : uint8_t {
   RETRY_HIDDEN,
   /// Restarting WiFi adapter to clear stuck state
   RESTARTING_ADAPTER,
+};
+
+/// Tracks post-connect roaming state machine
+enum class RoamingState : uint8_t {
+  /// Not roaming, waiting for next check interval
+  IDLE,
+  /// Scanning for better AP
+  SCANNING,
+  /// Attempting to connect to better AP found in scan
+  CONNECTING,
+  /// Roam connection failed, reconnecting to any available AP
+  RECONNECTING,
 };
 
 /// Struct for setting static IPs in WiFiComponent.
@@ -246,6 +257,10 @@ enum WifiMinAuthMode : uint8_t {
 struct IDFWiFiEvent;
 #endif
 
+#ifdef USE_LIBRETINY
+struct LTWiFiEvent;
+#endif
+
 /** Listener interface for WiFi IP state changes.
  *
  * Components can implement this interface to receive IP address updates
@@ -274,7 +289,7 @@ class WiFiScanResultsListener {
  */
 class WiFiConnectStateListener {
  public:
-  virtual void on_wifi_connect_state(const std::string &ssid, const bssid_t &bssid) = 0;
+  virtual void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) = 0;
 };
 
 /** Listener interface for WiFi power save mode changes.
@@ -298,10 +313,7 @@ class WiFiComponent : public Component {
   WiFiAP get_sta() const;
   void init_sta(size_t count);
   void add_sta(const WiFiAP &ap);
-  void clear_sta() {
-    this->sta_.clear();
-    this->selected_sta_index_ = -1;
-  }
+  void clear_sta();
 
 #ifdef USE_WIFI_AP
   /** Setup an Access Point that should be created if no connection to a station can be made.
@@ -325,7 +337,7 @@ class WiFiComponent : public Component {
   // Backward compatibility overload - ignores 'two' parameter
   void start_connecting(const WiFiAP &ap, bool /* two */) { this->start_connecting(ap); }
 
-  void check_connecting_finished();
+  void check_connecting_finished(uint32_t now);
 
   void retry_connect();
 
@@ -406,12 +418,16 @@ class WiFiComponent : public Component {
 
   network::IPAddresses wifi_sta_ip_addresses();
   std::string wifi_ssid();
+  /// Write SSID to buffer without heap allocation.
+  /// Returns pointer to buffer, or empty string if not connected.
+  const char *wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer);
   bssid_t wifi_bssid();
 
   int8_t wifi_rssi();
 
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
   void set_keep_scan_results(bool keep_scan_results) { this->keep_scan_results_ = keep_scan_results; }
+  void set_post_connect_roaming(bool enabled) { this->post_connect_roaming_ = enabled; }
 
   Trigger<> *get_connect_trigger() const { return this->connect_trigger_; };
   Trigger<> *get_disconnect_trigger() const { return this->disconnect_trigger_; };
@@ -501,6 +517,8 @@ class WiFiComponent : public Component {
   int8_t find_next_hidden_sta_(int8_t start_index);
   /// Log failed connection and decrease BSSID priority to avoid repeated attempts
   void log_and_adjust_priority_for_failed_connect_();
+  /// Clear all BSSID priority penalties after successful connection (stale after disconnect)
+  void clear_all_bssid_priorities_();
   /// Clear BSSID priority tracking if all priorities are at minimum (saves memory)
   void clear_priorities_if_all_min_();
   /// Advance to next target (AP/SSID) within current phase, or increment retry counter
@@ -564,16 +582,20 @@ class WiFiComponent : public Component {
   void save_fast_connect_settings_();
 #endif
 
+  // Post-connect roaming methods
+  void check_roaming_(uint32_t now);
+  void process_roaming_scan_();
+  void clear_roaming_state_();
+
+  /// Free scan results memory unless a component needs them
+  void release_scan_results_();
+
 #ifdef USE_ESP8266
   static void wifi_event_callback(System_Event_t *event);
   void wifi_scan_done_callback_(void *arg, STATUS status);
   static void s_wifi_scan_done_callback(void *arg, STATUS status);
 #endif
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-  void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
-  void wifi_scan_done_callback_();
-#endif
 #ifdef USE_ESP32
   void wifi_process_event_(IDFWiFiEvent *data);
 #endif
@@ -585,6 +607,7 @@ class WiFiComponent : public Component {
 
 #ifdef USE_LIBRETINY
   void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
+  void wifi_process_event_(LTWiFiEvent *event);
   void wifi_scan_done_callback_();
 #endif
 
@@ -606,10 +629,17 @@ class WiFiComponent : public Component {
   ESPPreferenceObject fast_connect_pref_;
 #endif
 
+  // Post-connect roaming constants
+  static constexpr uint32_t ROAMING_CHECK_INTERVAL = 5 * 60 * 1000;  // 5 minutes
+  static constexpr int8_t ROAMING_MIN_IMPROVEMENT = 10;              // dB
+  static constexpr int8_t ROAMING_GOOD_RSSI = -49;                   // Skip scan if signal is excellent
+  static constexpr uint8_t ROAMING_MAX_ATTEMPTS = 3;
+
   // Group all 32-bit integers together
   uint32_t action_started_;
   uint32_t last_connected_{0};
   uint32_t reboot_timeout_{};
+  uint32_t roaming_last_check_{0};
 #ifdef USE_WIFI_AP
   uint32_t ap_timeout_{};
 #endif
@@ -624,6 +654,7 @@ class WiFiComponent : public Component {
   // Used to access password, manual_ip, priority, EAP settings, and hidden flag
   // int8_t limits to 127 APs (enforced in __init__.py via MAX_WIFI_NETWORKS)
   int8_t selected_sta_index_{-1};
+  uint8_t roaming_attempts_{0};
 
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
@@ -647,6 +678,8 @@ class WiFiComponent : public Component {
   bool keep_scan_results_{false};
   bool did_scan_this_cycle_{false};
   bool skip_cooldown_next_cycle_{false};
+  bool post_connect_roaming_{true};  // Enabled by default
+  RoamingState roaming_state_{RoamingState::IDLE};
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
   bool is_high_performance_mode_{false};

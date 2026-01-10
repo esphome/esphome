@@ -62,6 +62,9 @@ from esphome.util import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Maximum buffer size for serial log reading to prevent unbounded memory growth
+SERIAL_BUFFER_MAX_SIZE = 65536
+
 # Special non-component keys that appear in configs
 _NON_COMPONENT_KEYS = frozenset(
     {
@@ -431,25 +434,37 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     while tries < 5:
         try:
             with ser:
+                buffer = b""
+                ser.timeout = 0.1  # 100ms timeout for non-blocking reads
                 while True:
                     try:
-                        raw = ser.readline()
+                        # Read all available data and timestamp it
+                        chunk = ser.read(ser.in_waiting or 1)
+                        if not chunk:
+                            continue
+                        time_ = datetime.now()
+                        milliseconds = time_.microsecond // 1000
+                        time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{milliseconds:03}]"
+
+                        # Add to buffer and process complete lines
+                        # Limit buffer size to prevent unbounded memory growth
+                        # if device sends data without newlines
+                        buffer += chunk
+                        if len(buffer) > SERIAL_BUFFER_MAX_SIZE:
+                            buffer = buffer[-SERIAL_BUFFER_MAX_SIZE:]
+                        while b"\n" in buffer:
+                            raw_line, buffer = buffer.split(b"\n", 1)
+                            line = raw_line.replace(b"\r", b"").decode(
+                                "utf8", "backslashreplace"
+                            )
+                            safe_print(parser.parse_line(line, time_str))
+
+                            backtrace_state = platformio_api.process_stacktrace(
+                                config, line, backtrace_state=backtrace_state
+                            )
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
-                    line = (
-                        raw.replace(b"\r", b"")
-                        .replace(b"\n", b"")
-                        .decode("utf8", "backslashreplace")
-                    )
-                    time_ = datetime.now()
-                    nanoseconds = time_.microsecond // 1000
-                    time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{nanoseconds:03}]"
-                    safe_print(parser.parse_line(line, time_str))
-
-                    backtrace_state = platformio_api.process_stacktrace(
-                        config, line, backtrace_state=backtrace_state
-                    )
         except serial.SerialException:
             tries += 1
             time.sleep(1)
@@ -789,7 +804,13 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     exit_code = compile_program(args, config)
     if exit_code != 0:
         return exit_code
-    _LOGGER.info("Successfully compiled program.")
+    if CORE.is_host:
+        from esphome.platformio_api import get_idedata
+
+        program_path = str(get_idedata(config).firmware_elf_path)
+        _LOGGER.info("Successfully compiled program to path '%s'", program_path)
+    else:
+        _LOGGER.info("Successfully compiled program.")
     return 0
 
 
@@ -839,10 +860,8 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     if CORE.is_host:
         from esphome.platformio_api import get_idedata
 
-        idedata = get_idedata(config)
-        if idedata is None:
-            return 1
-        program_path = idedata.raw["prog_path"]
+        program_path = str(get_idedata(config).firmware_elf_path)
+        _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
     # Get devices, resolving special identifiers like OTA
@@ -1013,6 +1032,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
         idedata.objdump_path,
         idedata.readelf_path,
         external_components,
+        idedata=idedata,
     )
     analyzer.analyze()
 

@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_TEXT
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.text";
 
@@ -30,7 +29,7 @@ void MQTTTextComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, true)
 }
 
-std::string MQTTTextComponent::component_type() const { return "text"; }
+MQTT_COMPONENT_TYPE(MQTTTextComponent, "text")
 const EntityBase *MQTTTextComponent::get_entity() const { return this->text_; }
 
 void MQTTTextComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
@@ -57,8 +56,7 @@ bool MQTTTextComponent::publish_state(const std::string &value) {
   return this->publish(this->get_state_topic_(), value);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

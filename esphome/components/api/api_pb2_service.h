@@ -26,10 +26,6 @@ class APIServerConnectionBase : public ProtoService {
 
   virtual void on_hello_request(const HelloRequest &value){};
 
-#ifdef USE_API_PASSWORD
-  virtual void on_authentication_request(const AuthenticationRequest &value){};
-#endif
-
   virtual void on_disconnect_request(const DisconnectRequest &value){};
   virtual void on_disconnect_response(const DisconnectResponse &value){};
   virtual void on_ping_request(const PingRequest &value){};
@@ -89,6 +85,10 @@ class APIServerConnectionBase : public ProtoService {
 
 #ifdef USE_CLIMATE
   virtual void on_climate_command_request(const ClimateCommandRequest &value){};
+#endif
+
+#ifdef USE_WATER_HEATER
+  virtual void on_water_heater_command_request(const WaterHeaterCommandRequest &value){};
 #endif
 
 #ifdef USE_NUMBER
@@ -224,9 +224,6 @@ class APIServerConnectionBase : public ProtoService {
 class APIServerConnection : public APIServerConnectionBase {
  public:
   virtual bool send_hello_response(const HelloRequest &msg) = 0;
-#ifdef USE_API_PASSWORD
-  virtual bool send_authenticate_response(const AuthenticationRequest &msg) = 0;
-#endif
   virtual bool send_disconnect_response(const DisconnectRequest &msg) = 0;
   virtual bool send_ping_response(const PingRequest &msg) = 0;
   virtual bool send_device_info_response(const DeviceInfoRequest &msg) = 0;
@@ -353,9 +350,6 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
-#ifdef USE_API_PASSWORD
-  void on_authentication_request(const AuthenticationRequest &msg) override;
-#endif
   void on_disconnect_request(const DisconnectRequest &msg) override;
   void on_ping_request(const PingRequest &msg) override;
   void on_device_info_request(const DeviceInfoRequest &msg) override;

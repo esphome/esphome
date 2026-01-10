@@ -224,7 +224,7 @@ def model_schema(config):
             }
         )
     if bus_mode != TYPE_SINGLE:
-        return cv.All(schema, cv.only_with_esp_idf)
+        return cv.All(schema, cv.only_on_esp32)
     return schema
 
 

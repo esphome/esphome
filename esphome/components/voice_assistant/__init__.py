@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_ON_CLIENT_DISCONNECTED,
     CONF_ON_ERROR,
     CONF_ON_IDLE,
+    CONF_ON_START,
     CONF_SPEAKER,
 )
 
@@ -24,7 +25,6 @@ CONF_ON_INTENT_END = "on_intent_end"
 CONF_ON_INTENT_PROGRESS = "on_intent_progress"
 CONF_ON_INTENT_START = "on_intent_start"
 CONF_ON_LISTENING = "on_listening"
-CONF_ON_START = "on_start"
 CONF_ON_STT_END = "on_stt_end"
 CONF_ON_STT_VAD_END = "on_stt_vad_end"
 CONF_ON_STT_VAD_START = "on_stt_vad_start"
