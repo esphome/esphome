@@ -1,7 +1,6 @@
 sensor:
   - platform: bmp581_spi
     cs_pin: ${cs_pin}
-    spi_id: spi_bus
     temperature:
       name: BMP581 Temperature
       iir_filter: 2x
