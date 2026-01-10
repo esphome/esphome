@@ -1894,7 +1894,7 @@ std::string WebServer::water_heater_json_(water_heater::WaterHeater *obj, JsonDe
   const auto mode = obj->get_mode();
   const char *mode_s = PSTR_LOCAL(water_heater::water_heater_mode_to_string(mode));
 
-  set_json_icon_state_value(root, obj, "water-heater", mode_s, mode, start_config);
+  set_json_icon_state_value(root, obj, "water_heater", mode_s, mode, start_config);
 
   auto traits = obj->get_traits();
 
