@@ -35,6 +35,13 @@ extern const size_t ESPHOME_WEBSERVER_JS_INCLUDE_SIZE;
 
 namespace esphome::web_server {
 
+// Type for parameter names that can be stored in flash on ESP8266
+#ifdef USE_ESP8266
+using ParamNameType = const __FlashStringHelper *;
+#else
+using ParamNameType = const char *;
+#endif
+
 /// Result of matching a URL against an entity
 struct EntityMatchResult {
   bool matched;          ///< True if entity matched the URL
@@ -482,7 +489,7 @@ class WebServer : public Controller,
 #ifdef USE_LIGHT
   // Helper to parse and apply a float parameter with optional scaling
   template<typename T, typename Ret>
-  void parse_light_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(float),
+  void parse_light_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(float),
                           float scale = 1.0f) {
     if (request->hasParam(param_name)) {
       auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
@@ -494,7 +501,7 @@ class WebServer : public Controller,
 
   // Helper to parse and apply a uint32_t parameter with optional scaling
   template<typename T, typename Ret>
-  void parse_light_param_uint_(AsyncWebServerRequest *request, const char *param_name, T &call,
+  void parse_light_param_uint_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
                                Ret (T::*setter)(uint32_t), uint32_t scale = 1) {
     if (request->hasParam(param_name)) {
       auto value = parse_number<uint32_t>(request->getParam(param_name)->value().c_str());
@@ -507,7 +514,7 @@ class WebServer : public Controller,
 
   // Generic helper to parse and apply a float parameter
   template<typename T, typename Ret>
-  void parse_float_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(float)) {
+  void parse_float_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(float)) {
     if (request->hasParam(param_name)) {
       auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
       if (value.has_value()) {
@@ -518,7 +525,7 @@ class WebServer : public Controller,
 
   // Generic helper to parse and apply an int parameter
   template<typename T, typename Ret>
-  void parse_int_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(int)) {
+  void parse_int_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(int)) {
     if (request->hasParam(param_name)) {
       auto value = parse_number<int>(request->getParam(param_name)->value().c_str());
       if (value.has_value()) {
@@ -529,11 +536,21 @@ class WebServer : public Controller,
 
   // Generic helper to parse and apply a string parameter
   template<typename T, typename Ret>
-  void parse_string_param_(AsyncWebServerRequest *request, const char *param_name, T &call,
+  void parse_string_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
                            Ret (T::*setter)(const std::string &)) {
     if (request->hasParam(param_name)) {
       // .c_str() is required for Arduino framework where value() returns Arduino String instead of std::string
       std::string value = request->getParam(param_name)->value().c_str();  // NOLINT(readability-redundant-string-cstr)
+      (call.*setter)(value);
+    }
+  }
+
+  // Generic helper to parse and apply a bool parameter
+  template<typename T, typename Ret>
+  void parse_bool_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(bool)) {
+    if (request->hasParam(param_name)) {
+      auto param_value = request->getParam(param_name)->value();
+      bool value = param_value == "true" || param_value == "1";
       (call.*setter)(value);
     }
   }
