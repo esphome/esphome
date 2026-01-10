@@ -232,6 +232,13 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   }
 #endif
 
+#ifdef USE_WATER_HEATER
+  for (auto *obj : App.get_water_heaters()) {
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "water_heater", "");
+  }
+#endif
+
   stream->print(ESPHOME_F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/\">ESPHome Web API</a> for "
                           "REST API documentation.</p>"));
 #if defined(USE_WEBSERVER_OTA) && !defined(USE_WEBSERVER_OTA_DISABLED)
