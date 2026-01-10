@@ -42,6 +42,10 @@ template<int... S> struct gens<0, S...> { using type = seq<S...>; };
 #define TEMPLATABLE_VALUE(type, name) TEMPLATABLE_VALUE_(type, name)
 
 template<typename T, typename... X> class TemplatableValue {
+  // For std::string, store pointer to heap-allocated string to keep union pointer-sized.
+  // For other types, store value inline.
+  static constexpr bool UseHeapStorage = std::same_as<T, std::string>;
+
  public:
   TemplatableValue() : type_(NONE) {}
 
@@ -52,7 +56,11 @@ template<typename T, typename... X> class TemplatableValue {
   }
 
   template<typename F> TemplatableValue(F value) requires(!std::invocable<F, X...>) : type_(VALUE) {
-    new (&this->value_) T(std::move(value));
+    if constexpr (UseHeapStorage) {
+      this->value_ = new T(std::move(value));
+    } else {
+      new (&this->value_) T(std::move(value));
+    }
   }
 
   // For stateless lambdas (convertible to function pointer): use function pointer
@@ -71,7 +79,11 @@ template<typename T, typename... X> class TemplatableValue {
   // Copy constructor
   TemplatableValue(const TemplatableValue &other) : type_(other.type_) {
     if (this->type_ == VALUE) {
-      new (&this->value_) T(other.value_);
+      if constexpr (UseHeapStorage) {
+        this->value_ = new T(*other.value_);
+      } else {
+        new (&this->value_) T(other.value_);
+      }
     } else if (this->type_ == LAMBDA) {
       this->f_ = new std::function<T(X...)>(*other.f_);
     } else if (this->type_ == STATELESS_LAMBDA) {
@@ -84,7 +96,12 @@ template<typename T, typename... X> class TemplatableValue {
   // Move constructor
   TemplatableValue(TemplatableValue &&other) noexcept : type_(other.type_) {
     if (this->type_ == VALUE) {
-      new (&this->value_) T(std::move(other.value_));
+      if constexpr (UseHeapStorage) {
+        this->value_ = other.value_;
+        other.value_ = nullptr;
+      } else {
+        new (&this->value_) T(std::move(other.value_));
+      }
     } else if (this->type_ == LAMBDA) {
       this->f_ = other.f_;
       other.f_ = nullptr;
@@ -115,7 +132,11 @@ template<typename T, typename... X> class TemplatableValue {
 
   ~TemplatableValue() {
     if (this->type_ == VALUE) {
-      this->value_.~T();
+      if constexpr (UseHeapStorage) {
+        delete this->value_;
+      } else {
+        this->value_.~T();
+      }
     } else if (this->type_ == LAMBDA) {
       delete this->f_;
     }
@@ -131,7 +152,11 @@ template<typename T, typename... X> class TemplatableValue {
       case LAMBDA:
         return (*this->f_)(x...);  // std::function call
       case VALUE:
-        return this->value_;
+        if constexpr (UseHeapStorage) {
+          return *this->value_;
+        } else {
+          return this->value_;
+        }
       case STATIC_STRING:
         // if constexpr required: code must compile for all T, but STATIC_STRING
         // can only be set when T is std::string (enforced by constructor constraint)
@@ -168,8 +193,11 @@ template<typename T, typename... X> class TemplatableValue {
     STATIC_STRING,  // For const char* when T is std::string - avoids heap allocation
   } type_;
 
+  // For std::string, use heap pointer to minimize union size (4 bytes vs 12+).
+  // For other types, store value inline as before.
+  using ValueStorage = std::conditional_t<UseHeapStorage, T *, T>;
   union {
-    T value_;
+    ValueStorage value_;  // T for inline storage, T* for heap storage
     std::function<T(X...)> *f_;
     T (*stateless_f_)(X...);
     const char *static_str_;  // For STATIC_STRING type
