@@ -618,8 +618,8 @@ void PrometheusHandler::event_row_(AsyncResponseStream *stream, event::Event *ob
     stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\",last_event_type=\""));
-    // get_last_event_type() returns string_view; data() is safe as event types are null-terminated
-    stream->print(obj->get_last_event_type().data());
+    // get_last_event_type() returns StringRef pointing to null-terminated string literals from codegen
+    stream->print(obj->get_last_event_type().c_str());
     stream->print(ESPHOME_F("\"} "));
     stream->print(ESPHOME_F("1.0"));
     stream->print(ESPHOME_F("\n"));

@@ -2,12 +2,12 @@
 
 #include <cstring>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome {
 namespace event {
@@ -45,10 +45,8 @@ class Event : public EntityBase, public EntityBase_DeviceClass {
   /// Return the event types supported by this event.
   const FixedVector<const char *> &get_event_types() const { return this->types_; }
 
-  /// Return the last triggered event type, or empty string_view if no event triggered yet.
-  std::string_view get_last_event_type() const {
-    return this->last_event_type_ != nullptr ? std::string_view(this->last_event_type_) : std::string_view();
-  }
+  /// Return the last triggered event type, or empty StringRef if no event triggered yet.
+  StringRef get_last_event_type() const { return StringRef::from_maybe_nullptr(this->last_event_type_); }
 
   /// Check if an event has been triggered.
   bool has_event() const { return this->last_event_type_ != nullptr; }
