@@ -44,7 +44,7 @@ template<int... S> struct gens<0, S...> { using type = seq<S...>; };
 template<typename T, typename... X> class TemplatableValue {
   // For std::string, store pointer to heap-allocated string to keep union pointer-sized.
   // For other types, store value inline.
-  static constexpr bool UseHeapStorage = std::same_as<T, std::string>;
+  static constexpr bool USE_HEAP_STORAGE = std::same_as<T, std::string>;
 
  public:
   TemplatableValue() : type_(NONE) {}
@@ -56,7 +56,7 @@ template<typename T, typename... X> class TemplatableValue {
   }
 
   template<typename F> TemplatableValue(F value) requires(!std::invocable<F, X...>) : type_(VALUE) {
-    if constexpr (UseHeapStorage) {
+    if constexpr (USE_HEAP_STORAGE) {
       this->value_ = new T(std::move(value));
     } else {
       new (&this->value_) T(std::move(value));
@@ -79,7 +79,7 @@ template<typename T, typename... X> class TemplatableValue {
   // Copy constructor
   TemplatableValue(const TemplatableValue &other) : type_(other.type_) {
     if (this->type_ == VALUE) {
-      if constexpr (UseHeapStorage) {
+      if constexpr (USE_HEAP_STORAGE) {
         this->value_ = new T(*other.value_);
       } else {
         new (&this->value_) T(other.value_);
@@ -96,7 +96,7 @@ template<typename T, typename... X> class TemplatableValue {
   // Move constructor
   TemplatableValue(TemplatableValue &&other) noexcept : type_(other.type_) {
     if (this->type_ == VALUE) {
-      if constexpr (UseHeapStorage) {
+      if constexpr (USE_HEAP_STORAGE) {
         this->value_ = other.value_;
         other.value_ = nullptr;
       } else {
@@ -132,7 +132,7 @@ template<typename T, typename... X> class TemplatableValue {
 
   ~TemplatableValue() {
     if (this->type_ == VALUE) {
-      if constexpr (UseHeapStorage) {
+      if constexpr (USE_HEAP_STORAGE) {
         delete this->value_;
       } else {
         this->value_.~T();
@@ -152,7 +152,7 @@ template<typename T, typename... X> class TemplatableValue {
       case LAMBDA:
         return (*this->f_)(x...);  // std::function call
       case VALUE:
-        if constexpr (UseHeapStorage) {
+        if constexpr (USE_HEAP_STORAGE) {
           return *this->value_;
         } else {
           return this->value_;
@@ -195,7 +195,7 @@ template<typename T, typename... X> class TemplatableValue {
 
   // For std::string, use heap pointer to minimize union size (4 bytes vs 12+).
   // For other types, store value inline as before.
-  using ValueStorage = std::conditional_t<UseHeapStorage, T *, T>;
+  using ValueStorage = std::conditional_t<USE_HEAP_STORAGE, T *, T>;
   union {
     ValueStorage value_;  // T for inline storage, T* for heap storage
     std::function<T(X...)> *f_;
