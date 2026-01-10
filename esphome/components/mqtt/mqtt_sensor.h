@@ -43,7 +43,7 @@ class MQTTSensorComponent : public mqtt::MQTTComponent {
 
  protected:
   /// Override for MQTTComponent, returns "sensor".
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   sensor::Sensor *sensor_;

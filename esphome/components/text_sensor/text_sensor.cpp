@@ -32,7 +32,10 @@ void TextSensor::publish_state(const char *state) { this->publish_state(state, s
 void TextSensor::publish_state(const char *state, size_t len) {
   if (this->filter_list_ == nullptr) {
     // No filters: raw_state == state, store once and use for both callbacks
-    this->state.assign(state, len);
+    // Only assign if changed to avoid heap allocation
+    if (len != this->state.size() || memcmp(state, this->state.data(), len) != 0) {
+      this->state.assign(state, len);
+    }
     this->raw_callback_.call(this->state);
     ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), this->state.c_str());
     this->notify_frontend_();
@@ -40,7 +43,10 @@ void TextSensor::publish_state(const char *state, size_t len) {
     // Has filters: need separate raw storage
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    this->raw_state.assign(state, len);
+    // Only assign if changed to avoid heap allocation
+    if (len != this->raw_state.size() || memcmp(state, this->raw_state.data(), len) != 0) {
+      this->raw_state.assign(state, len);
+    }
     this->raw_callback_.call(this->raw_state);
     ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), this->raw_state.c_str());
     this->filter_list_->input(this->raw_state);
@@ -101,7 +107,10 @@ void TextSensor::internal_send_state_to_frontend(const std::string &state) {
 }
 
 void TextSensor::internal_send_state_to_frontend(const char *state, size_t len) {
-  this->state.assign(state, len);
+  // Only assign if changed to avoid heap allocation
+  if (len != this->state.size() || memcmp(state, this->state.data(), len) != 0) {
+    this->state.assign(state, len);
+  }
   this->notify_frontend_();
 }
 

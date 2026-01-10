@@ -64,6 +64,7 @@ _LOGGER = logging.getLogger(__name__)
 NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
 CONF_SAVE = "save"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
+CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
 
 # Maximum number of WiFi networks that can be configured
 # Limited to 127 because selected_sta_index_ is int8_t in C++
@@ -237,11 +238,20 @@ def _apply_min_auth_mode_default(config):
 def final_validate(config):
     has_sta = bool(config.get(CONF_NETWORKS, True))
     has_ap = CONF_AP in config
-    has_improv = "esp32_improv" in fv.full_config.get()
-    has_improv_serial = "improv_serial" in fv.full_config.get()
+    full_config = fv.full_config.get()
+    has_improv = "esp32_improv" in full_config
+    has_improv_serial = "improv_serial" in full_config
+    has_captive_portal = "captive_portal" in full_config
+    has_web_server = "web_server" in full_config
     if not (has_sta or has_ap or has_improv or has_improv_serial):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create."
+        )
+    if has_ap and not has_captive_portal and not has_web_server:
+        _LOGGER.warning(
+            "WiFi AP is configured but neither captive_portal nor web_server is enabled. "
+            "The AP will not be usable for configuration or monitoring. "
+            "Add 'captive_portal:' or 'web_server:' to your configuration."
         )
 
 
@@ -349,6 +359,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
+            cv.Optional(CONF_POST_CONNECT_ROAMING, default=True): cv.boolean,
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
                 single=True
@@ -490,6 +501,15 @@ async def to_code(config):
     # enable_on_boot defaults to true in C++ - only set if false
     if not config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.set_enable_on_boot(False))
+
+    # post_connect_roaming defaults to true in C++ - disable if user disabled it
+    # or if 802.11k/v is enabled (driver handles roaming natively)
+    if (
+        not config[CONF_POST_CONNECT_ROAMING]
+        or config.get(CONF_ENABLE_BTM)
+        or config.get(CONF_ENABLE_RRM)
+    ):
+        cg.add(var.set_post_connect_roaming(False))
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)

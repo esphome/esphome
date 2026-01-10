@@ -128,6 +128,39 @@ void RemoteReceiverBase::call_dumpers_() {
 
 void RemoteReceiverBinarySensorBase::dump_config() { LOG_BINARY_SENSOR("", "Remote Receiver Binary Sensor", this); }
 
+/* RemoteTransmitData */
+
+void RemoteTransmitData::set_data_from_packed_sint32(const uint8_t *data, size_t len, size_t count) {
+  this->data_.clear();
+  this->data_.reserve(count);
+
+  while (len > 0) {
+    // Parse varint (inline, no dependency on api component)
+    uint32_t raw = 0;
+    uint32_t shift = 0;
+    uint32_t consumed = 0;
+    for (; consumed < len && consumed < 5; consumed++) {
+      uint8_t byte = data[consumed];
+      raw |= (byte & 0x7F) << shift;
+      if ((byte & 0x80) == 0) {
+        consumed++;
+        break;
+      }
+      shift += 7;
+    }
+    if (consumed == 0)
+      break;  // Parse error
+
+    // Zigzag decode: (n >> 1) ^ -(n & 1)
+    int32_t decoded = static_cast<int32_t>((raw >> 1) ^ (~(raw & 1) + 1));
+    this->data_.push_back(decoded);
+    data += consumed;
+    len -= consumed;
+  }
+}
+
+/* RemoteTransmitterBase */
+
 void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   const auto &vec = this->temp_.get_data();
