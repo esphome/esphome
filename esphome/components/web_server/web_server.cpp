@@ -1853,23 +1853,25 @@ void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, cons
       return;
     }
     auto call = obj->make_call();
+    // Use base class reference for template deduction (make_call returns WaterHeaterCallInternal)
+    water_heater::WaterHeaterCall &base_call = call;
 
     // Parse mode parameter
-    parse_string_param_(request, ESPHOME_F("mode"), call, &water_heater::WaterHeaterCall::set_mode);
+    parse_string_param_(request, ESPHOME_F("mode"), base_call, &water_heater::WaterHeaterCall::set_mode);
 
     // Parse temperature parameters
-    parse_float_param_(request, ESPHOME_F("target_temperature"), call,
+    parse_float_param_(request, ESPHOME_F("target_temperature"), base_call,
                        &water_heater::WaterHeaterCall::set_target_temperature);
-    parse_float_param_(request, ESPHOME_F("target_temperature_low"), call,
+    parse_float_param_(request, ESPHOME_F("target_temperature_low"), base_call,
                        &water_heater::WaterHeaterCall::set_target_temperature_low);
-    parse_float_param_(request, ESPHOME_F("target_temperature_high"), call,
+    parse_float_param_(request, ESPHOME_F("target_temperature_high"), base_call,
                        &water_heater::WaterHeaterCall::set_target_temperature_high);
 
     // Parse away mode parameter
-    parse_bool_param_(request, ESPHOME_F("away"), call, &water_heater::WaterHeaterCall::set_away);
+    parse_bool_param_(request, ESPHOME_F("away"), base_call, &water_heater::WaterHeaterCall::set_away);
 
     // Parse on/off parameter
-    parse_bool_param_(request, ESPHOME_F("is_on"), call, &water_heater::WaterHeaterCall::set_on);
+    parse_bool_param_(request, ESPHOME_F("is_on"), base_call, &water_heater::WaterHeaterCall::set_on);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
