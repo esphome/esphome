@@ -709,8 +709,8 @@ void PrometheusHandler::select_row_(AsyncResponseStream *stream, select::Select 
     stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\",value=\""));
-    // current_option() returns string_view pointing to null-terminated string literals from codegen
-    stream->print(obj->current_option().data());
+    auto option = obj->current_option();
+    stream->write(option.c_str(), option.size());
     stream->print(ESPHOME_F("\"} "));
     stream->print(ESPHOME_F("1.0"));
     stream->print(ESPHOME_F("\n"));

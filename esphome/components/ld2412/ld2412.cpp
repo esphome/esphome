@@ -487,7 +487,7 @@ bool LD2412Component::handle_ack_data_() {
 #ifdef USE_SELECT
       if (this->baud_rate_select_ != nullptr) {
         auto baud = this->baud_rate_select_->current_option();
-        ESP_LOGW(TAG, "Change baud rate to %.*s and reinstall", (int) baud.size(), baud.data());
+        ESP_LOGW(TAG, "Change baud rate to %.*s and reinstall", (int) baud.size(), baud.c_str());
       }
 #endif
       break;
@@ -791,7 +791,7 @@ void LD2412Component::set_basic_config() {
       1,    TOTAL_GATES, DEFAULT_PRESENCE_TIMEOUT, 0,
 #endif
 #ifdef USE_SELECT
-      find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option().data()),
+      find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option().c_str()),
 #else
       0x01,  // Default value if not using select
 #endif
@@ -845,7 +845,7 @@ void LD2412Component::set_light_out_control() {
 #endif
 #ifdef USE_SELECT
   if (this->light_function_select_ != nullptr && this->light_function_select_->has_state()) {
-    this->light_function_ = find_uint8(LIGHT_FUNCTIONS_BY_STR, this->light_function_select_->current_option().data());
+    this->light_function_ = find_uint8(LIGHT_FUNCTIONS_BY_STR, this->light_function_select_->current_option().c_str());
   }
 #endif
   uint8_t value[2] = {this->light_function_, this->light_threshold_};

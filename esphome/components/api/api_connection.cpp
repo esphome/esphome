@@ -914,8 +914,7 @@ uint16_t APIConnection::try_send_select_state(EntityBase *entity, APIConnection 
                                               bool is_single) {
   auto *select = static_cast<select::Select *>(entity);
   SelectStateResponse resp;
-  auto state = select->current_option();
-  resp.state = StringRef(state.data(), state.size());
+  resp.state = select->current_option();
   resp.missing_state = !select->has_state();
   return fill_and_encode_entity_state(select, resp, SelectStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }

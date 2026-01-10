@@ -38,8 +38,8 @@ void Select::publish_state(size_t index) {
 #endif
 }
 
-std::string_view Select::current_option() const {
-  return this->has_state() ? std::string_view(this->option_at(this->active_index_)) : std::string_view();
+StringRef Select::current_option() const {
+  return this->has_state() ? StringRef(this->option_at(this->active_index_)) : StringRef();
 }
 
 void Select::add_on_state_callback(std::function<void(size_t)> &&callback) {

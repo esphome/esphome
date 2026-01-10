@@ -1,10 +1,9 @@
 #pragma once
 
-#include <string_view>
-
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "select_call.h"
 #include "select_traits.h"
 
@@ -47,10 +46,10 @@ class Select : public EntityBase {
   void publish_state(const char *state);
   void publish_state(size_t index);
 
-  /// Return the currently selected option, or empty view if no state.
-  /// The returned view points to string literals from codegen (static storage).
+  /// Return the currently selected option, or empty StringRef if no state.
+  /// The returned StringRef points to string literals from codegen (static storage).
   /// Traits are set once at startup and valid for the lifetime of the program.
-  std::string_view current_option() const;
+  StringRef current_option() const;
 
   /// Instantiate a SelectCall object to modify this select component's state.
   SelectCall make_call() { return SelectCall(this); }
