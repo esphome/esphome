@@ -272,12 +272,12 @@ select:
           }
 
           // Migration guide: Logging options
-          // Option 1: Using .data() - relies on null-termination from traits (safe for codegen strings)
-          ESP_LOGI("test", "Current option (data): %s", id(template_select).current_option().data());
+          // Option 1: Using .c_str() - StringRef guarantees null-termination
+          ESP_LOGI("test", "Current option: %s", id(template_select).current_option().c_str());
 
-          // Option 2: Using %.*s format with size - safer, doesn't assume null-termination
+          // Option 2: Using %.*s format with size
           auto option = id(template_select).current_option();
-          ESP_LOGI("test", "Current option (safe): %.*s", (int) option.size(), option.data());
+          ESP_LOGI("test", "Current option (safe): %.*s", (int) option.size(), option.c_str());
 
           // Migration guide: Store in std::string
           std::string stored_option(id(template_select).current_option());
