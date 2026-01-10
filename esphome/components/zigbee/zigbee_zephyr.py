@@ -346,7 +346,7 @@ def _slot_index() -> int:
     return slot
 
 
-async def _add_zigbee_input(
+async def _add_zigbee_ep(
     entity: cg.MockObj,
     config: ConfigType,
     component_key,
@@ -403,7 +403,7 @@ async def _add_zigbee_input(
 
 
 async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    await _add_zigbee_input(
+    await _add_zigbee_ep(
         entity,
         config,
         CONF_ZIGBEE_BINARY_SENSOR,
@@ -419,7 +419,7 @@ async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     unit = config.get(CONF_UNIT_OF_MEASUREMENT, "")
     bacnet_unit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
 
-    await _add_zigbee_input(
+    await _add_zigbee_ep(
         entity,
         config,
         CONF_ZIGBEE_SENSOR,
@@ -432,7 +432,7 @@ async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 async def _add_switch(entity: cg.MockObj, config: ConfigType) -> None:
-    await _add_zigbee_input(
+    await _add_zigbee_ep(
         entity,
         config,
         CONF_ZIGBEE_SWITCH,
