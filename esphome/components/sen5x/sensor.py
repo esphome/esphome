@@ -158,6 +158,8 @@ def float_previously_pct(value):
     return value
 
 
+GROUP_COMPENSATION = "Compensation Group: 'altitude_compensation' and 'ambient_pressure_compensation_source'"
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -234,14 +236,12 @@ CONFIG_SCHEMA = (
                         cv.Optional(
                             CONF_AUTOMATIC_SELF_CALIBRATION, default=True
                         ): cv.boolean,
-                        cv.Optional(
-                            CONF_ALTITUDE_COMPENSATION, default=0
+                        cv.Exclusive(
+                            CONF_ALTITUDE_COMPENSATION, GROUP_COMPENSATION
                         ): cv.int_range(min=0, max=3000),
-                        cv.Optional(
-                            CONF_AMBIENT_PRESSURE_COMPENSATION, default=1013
-                        ): cv.int_range(min=700, max=1200),
-                        cv.Optional(
-                            CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE
+                        cv.Exclusive(
+                            CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
+                            GROUP_COMPENSATION,
                         ): cv.use_id(sensor.Sensor),
                     }
                 )
@@ -292,7 +292,7 @@ SETTING_MAP = {
 }
 
 CO2_SETTING_MAP = {
-    CONF_AUTOMATIC_SELF_CALIBRATION: "set_automatic_self_calibrate",
+    CONF_AUTOMATIC_SELF_CALIBRATION: "set_automatic_self_calibration",
     CONF_ALTITUDE_COMPENSATION: "set_altitude_compensation",
     CONF_AMBIENT_PRESSURE_COMPENSATION: "set_ambient_pressure_compensation",
 }
@@ -420,14 +420,10 @@ async def to_code(config):
                 sens = await cg.get_variable(
                     config[CONF_CO2][CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE]
                 )
-                cg.add(var.set_ambient_pressure_source(sens))
+                cg.add(var.set_ambient_pressure_compensation_source(sens))
 
 
-SEN5X_ACTION_SCHEMA = maybe_simple_id(
-    {
-        cv.GenerateID(): cv.use_id(SEN5XComponent),
-    }
-)
+SEN5X_ACTION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(SEN5XComponent)})
 
 
 @automation.register_action(

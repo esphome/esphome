@@ -21,24 +21,23 @@ enum ERRORCODE : uint8_t {
 
 enum Sen5xType { SEN50, SEN54, SEN55, SEN62, SEN63C, SEN65, SEN66, SEN68, SEN69C, UNKNOWN_MODEL };
 enum RhtAccelerationMode : uint16_t { LOW_ACCELERATION = 0, MEDIUM_ACCELERATION = 1, HIGH_ACCELERATION = 2 };
-enum SetupStates {
-  SM_START,
-  SM_START_1,
-  SM_START_2,
-  SM_GET_SN,
-  SM_GET_PN,
-  SM_GET_FW,
-  SM_SET_VOCB,
-  SM_SET_ACI,
-  SM_SET_RHTAM,
-  SM_SET_VOCT,
-  SM_SET_NOXT,
-  SM_SET_TP,
-  SM_SET_CO2ASC,
-  SM_SET_CO2AC,
-  SM_SENSOR_CHECK,
-  SM_START_MEAS,
-  SM_DONE
+enum Sen5xSetupStates {
+  SEN5X_SM_START,
+  SEN5X_SM_START_1,
+  SEN5X_SM_START_2,
+  SEN5X_SM_GET_SN,
+  SEN5X_SM_GET_PN,
+  SEN5X_SM_GET_FW,
+  SEN5X_SM_SET_VOCB,
+  SEN5X_SM_SET_ACI,
+  SEN5X_SM_SET_ACCEL,
+  SEN5X_SM_SET_VOCT,
+  SEN5X_SM_SET_NOXT,
+  SEN5X_SM_SET_TP,
+  SEN5X_SM_SET_CO2ASC,
+  SEN5X_SM_SET_CO2AC,
+  SEN5X_SM_START_MEAS,
+  SEN5X_SM_DONE
 };
 
 struct Sen5xBaselines {
@@ -125,25 +124,26 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   }
   bool set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant,
                                     uint8_t slot = 0);
-  void set_automatic_self_calibrate(bool value) { this->co2_auto_calibrate_ = value; }
-  void set_altitude_compensation(uint16_t altitude) { this->co2_altitude_compensation_ = altitude; }
-  void set_ambient_pressure_source(sensor::Sensor *pressure) { this->co2_ambient_pressure_source_ = pressure; }
+  void set_automatic_self_calibration(bool value) { this->auto_self_calibration_ = value; }
+  void set_altitude_compensation(uint16_t altitude) { this->altitude_compensation_ = altitude; }
+  void set_ambient_pressure_compensation_source(sensor::Sensor *pressure) {
+    this->ambient_pressure_compensation_source_ = pressure;
+  }
+  bool set_ambient_pressure_compensation(float pressure_in_hpa);
   bool start_fan_cleaning();
   bool activate_heater();
   bool perform_forced_co2_calibration(uint16_t co2);
-  bool set_ambient_pressure_compensation(float pressure_in_hpa);
 
  protected:
   bool is_sen6x_();
-  void internal_setup_(SetupStates state);
+  void internal_setup_(Sen5xSetupStates state);
   bool start_measurements_();
   bool stop_measurements_();
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
-  bool write_co2_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
+  bool write_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
 
   uint32_t seconds_since_last_store_;
-  uint16_t co2_ambient_pressure_{0};
   ERRORCODE error_code_;
   uint8_t firmware_major_{0xFF};
   uint8_t firmware_minor_{0xFF};
@@ -159,10 +159,10 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
   sensor::Sensor *voc_sensor_{nullptr};
-  sensor::Sensor *hcho_sensor_{nullptr};
   sensor::Sensor *nox_sensor_{nullptr};
+  sensor::Sensor *hcho_sensor_{nullptr};
   sensor::Sensor *co2_sensor_{nullptr};
-  sensor::Sensor *co2_ambient_pressure_source_{nullptr};
+  sensor::Sensor *ambient_pressure_compensation_source_{nullptr};
 
   optional<Sen5xType> model_;
   optional<RhtAccelerationMode> acceleration_mode_;
@@ -170,8 +170,9 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureCompensation> temperature_compensation_;
-  optional<bool> co2_auto_calibrate_;
-  optional<uint16_t> co2_altitude_compensation_;
+  optional<bool> auto_self_calibration_;
+  optional<uint16_t> altitude_compensation_;
+  optional<uint16_t> ambient_pressure_compensation_;
 
   ESPPreferenceObject pref_;
   std::string product_name_ = "Unknown";

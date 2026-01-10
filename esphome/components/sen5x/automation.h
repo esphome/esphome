@@ -7,12 +7,12 @@
 namespace esphome {
 namespace sen5x {
 
-template<typename... Ts> class SetAmbientPressurehPa : public Action<Ts...>, public Parented<SEN5XComponent> {
+template<typename... Ts>
+class SetAmbientPressureCompensationAction : public Action<Ts...>, public Parented<SEN5XComponent> {
  public:
   void play(const Ts &...x) override {
-    if (this->value_.has_value()) {
-      this->parent_->set_ambient_pressure_compensation(this->value_.value(x...));
-    }
+    auto value = this->value_.value(x...);
+    this->parent_->set_ambient_pressure_compensation(value);
   }
 
  protected:
@@ -23,9 +23,8 @@ template<typename... Ts>
 class PerformForcedCo2CalibrationAction : public Action<Ts...>, public Parented<SEN5XComponent> {
  public:
   void play(const Ts &...x) override {
-    if (this->value_.has_value()) {
-      this->parent_->perform_forced_co2_calibration(this->value_.value(x...));
-    }
+    auto value = this->value_.value(x...);
+    this->parent_->perform_forced_co2_calibration(value);
   }
 
  protected:
