@@ -1884,6 +1884,7 @@ std::string WebServer::water_heater_state_json_generator(WebServer *web_server, 
   return web_server->water_heater_json_(static_cast<water_heater::WaterHeater *>(source), DETAIL_STATE);
 }
 std::string WebServer::water_heater_all_json_generator(WebServer *web_server, void *source) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return web_server->water_heater_json_(static_cast<water_heater::WaterHeater *>(source), DETAIL_ALL);
 }
 std::string WebServer::water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config) {
