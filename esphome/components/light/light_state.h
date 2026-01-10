@@ -1,7 +1,5 @@
 #pragma once
 
-#include <string_view>
-
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/optional.h"
@@ -142,9 +140,7 @@ class LightState : public EntityBase, public Component {
   LightOutput *get_output() const;
 
   /// Return the name of the current effect, or if no effect is active "None".
-  std::string_view get_effect_name();
-  /// Return the name of the current effect as StringRef (for API usage)
-  StringRef get_effect_name_ref();
+  StringRef get_effect_name();
 
   /** Add a listener for remote values changes.
    * Listener is notified when the light's remote values change (state, brightness, color, etc.)

@@ -1,5 +1,4 @@
 #include <cinttypes>
-#include <string_view>
 
 #include "light_call.h"
 #include "light_state.h"
@@ -155,15 +154,15 @@ void LightCall::perform() {
 
   } else if (this->has_effect_()) {
     // EFFECT
-    std::string_view effect_s;
+    StringRef effect_s;
     if (this->effect_ == 0u) {
-      effect_s = "None";
+      effect_s = StringRef::from_lit("None");
     } else {
       effect_s = this->parent_->effects_[this->effect_ - 1]->get_name();
     }
 
     if (publish) {
-      ESP_LOGD(TAG, "  Effect: '%.*s'", (int) effect_s.size(), effect_s.data());
+      ESP_LOGD(TAG, "  Effect: '%.*s'", (int) effect_s.size(), effect_s.c_str());
     }
 
     this->parent_->start_effect_(this->effect_);
@@ -513,9 +512,9 @@ LightCall &LightCall::set_effect(const char *effect, size_t len) {
   }
 
   bool found = false;
-  std::string_view effect_sv(effect, len);
+  StringRef effect_ref(effect, len);
   for (uint32_t i = 0; i < this->parent_->effects_.size(); i++) {
-    if (str_equals_case_insensitive(effect_sv, this->parent_->effects_[i]->get_name())) {
+    if (str_equals_case_insensitive(effect_ref, this->parent_->effects_[i]->get_name())) {
       this->set_effect(i + 1);
       found = true;
       break;

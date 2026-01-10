@@ -83,7 +83,7 @@ void E131Component::add_effect(E131AddressableLightEffect *light_effect) {
   }
 
   auto effect_name = light_effect->get_name();
-  ESP_LOGD(TAG, "Registering '%.*s' for universes %d-%d.", (int) effect_name.size(), effect_name.data(),
+  ESP_LOGD(TAG, "Registering '%.*s' for universes %d-%d.", (int) effect_name.size(), effect_name.c_str(),
            light_effect->get_first_universe(), light_effect->get_last_universe());
 
   light_effects_.push_back(light_effect);
@@ -100,7 +100,7 @@ void E131Component::remove_effect(E131AddressableLightEffect *light_effect) {
   }
 
   auto effect_name = light_effect->get_name();
-  ESP_LOGD(TAG, "Unregistering '%.*s' for universes %d-%d.", (int) effect_name.size(), effect_name.data(),
+  ESP_LOGD(TAG, "Unregistering '%.*s' for universes %d-%d.", (int) effect_name.size(), effect_name.c_str(),
            light_effect->get_first_universe(), light_effect->get_last_universe());
 
   // Swap with last element and pop for O(1) removal (order doesn't matter)

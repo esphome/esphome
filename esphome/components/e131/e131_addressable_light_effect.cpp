@@ -60,7 +60,7 @@ bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet
 
   auto effect_name = get_name();
   ESP_LOGV(TAG, "Applying data for '%.*s' on %d universe, for %" PRId32 "-%d.", (int) effect_name.size(),
-           effect_name.data(), universe, output_offset, output_end);
+           effect_name.c_str(), universe, output_offset, output_end);
 
   switch (channels_) {
     case E131_MONO:
