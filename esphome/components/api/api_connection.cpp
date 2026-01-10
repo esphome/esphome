@@ -2056,7 +2056,7 @@ uint16_t APIConnection::MessageCreator::operator()(EntityBase *entity, APIConnec
   // Special case: EventResponse uses const char * pointer
   if (message_type == EventResponse::MESSAGE_TYPE) {
     auto *e = static_cast<event::Event *>(entity);
-    return APIConnection::try_send_event_response(e, data_.const_char_ptr, conn, remaining_size, is_single);
+    return APIConnection::try_send_event_response(e, StringRef(data_.const_char_ptr), conn, remaining_size, is_single);
   }
 #endif
 
