@@ -8,10 +8,7 @@ static const char *const TAG = "one_wire";
 const std::string &OneWireDevice::get_address_name() {
   if (this->address_name_.empty()) {
     char hex_buf[19];  // "0x" + 16 hex chars + null
-    hex_buf[0] = '0';
-    hex_buf[1] = 'x';
-    uint64_t be_address = convert_big_endian(this->address_);
-    format_hex_to(hex_buf + 2, 17, reinterpret_cast<const uint8_t *>(&be_address), sizeof(be_address));
+    format_hex_prefixed_to(hex_buf, this->address_);
     this->address_name_ = hex_buf;
   }
   return this->address_name_;
