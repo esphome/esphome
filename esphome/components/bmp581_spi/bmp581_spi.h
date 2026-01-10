@@ -3,8 +3,7 @@
 #include "esphome/components/bmp581_base/bmp581_base.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace bmp581_spi {
+namespace esphome::bmp581_spi {
 
 class BMP581SPIComponent : public esphome::bmp581_base::BMP581Component,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -19,5 +18,4 @@ class BMP581SPIComponent : public esphome::bmp581_base::BMP581Component,
   bool reset_() override;
 };
 
-}  // namespace bmp581_spi
-}  // namespace esphome
+}  // namespace esphome::bmp581_spi

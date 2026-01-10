@@ -4,8 +4,7 @@
 #include "bmp581_spi.h"
 #include <esphome/components/bmp581_base/bmp581_base.h>
 
-namespace esphome {
-namespace bmp581_spi {
+namespace esphome::bmp581_spi {
 
 static const uint8_t DUMMY_SPI_DATA[2] = {0x00, 0x00};
 static const char *const TAG = "bmp581_spi";
@@ -91,5 +90,4 @@ bool BMP581SPIComponent::bmp_write_bytes(uint8_t a_register, uint8_t *data, size
   return true;
 }
 
-}  // namespace bmp581_spi
-}  // namespace esphome
+}  // namespace esphome::bmp581_spi
