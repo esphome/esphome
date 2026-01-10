@@ -136,7 +136,7 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
 
 #ifdef USE_WATER_HEATER
 bool ListEntitiesIterator::on_water_heater(water_heater::WaterHeater *obj) {
-  // Water heater web_server support not yet implemented - this stub acknowledges the entity
+  this->events_->deferrable_send_state(obj, "state_detail_all", WebServer::water_heater_all_json_generator);
   return true;
 }
 #endif
