@@ -22,8 +22,7 @@
 #include "esphome/components/dashboard_import/dashboard_import.h"
 #endif
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt";
 
@@ -95,45 +94,46 @@ void MQTTClientComponent::send_device_info_() {
             index++;
           }
         }
-        root["name"] = App.get_name();
+        root[ESPHOME_F("name")] = App.get_name();
         if (!App.get_friendly_name().empty()) {
-          root["friendly_name"] = App.get_friendly_name();
+          root[ESPHOME_F("friendly_name")] = App.get_friendly_name();
         }
 #ifdef USE_API
-        root["port"] = api::global_api_server->get_port();
+        root[ESPHOME_F("port")] = api::global_api_server->get_port();
 #endif
-        root["version"] = ESPHOME_VERSION;
-        root["mac"] = get_mac_address();
+        root[ESPHOME_F("version")] = ESPHOME_VERSION;
+        root[ESPHOME_F("mac")] = get_mac_address();
 
 #ifdef USE_ESP8266
-        root["platform"] = "ESP8266";
+        root[ESPHOME_F("platform")] = ESPHOME_F("ESP8266");
 #endif
 #ifdef USE_ESP32
-        root["platform"] = "ESP32";
+        root[ESPHOME_F("platform")] = ESPHOME_F("ESP32");
 #endif
 #ifdef USE_LIBRETINY
-        root["platform"] = lt_cpu_get_model_name();
+        root[ESPHOME_F("platform")] = lt_cpu_get_model_name();
 #endif
 
-        root["board"] = ESPHOME_BOARD;
+        root[ESPHOME_F("board")] = ESPHOME_BOARD;
 #if defined(USE_WIFI)
-        root["network"] = "wifi";
+        root[ESPHOME_F("network")] = ESPHOME_F("wifi");
 #elif defined(USE_ETHERNET)
-        root["network"] = "ethernet";
+        root[ESPHOME_F("network")] = ESPHOME_F("ethernet");
 #endif
 
 #ifdef ESPHOME_PROJECT_NAME
-        root["project_name"] = ESPHOME_PROJECT_NAME;
-        root["project_version"] = ESPHOME_PROJECT_VERSION;
+        root[ESPHOME_F("project_name")] = ESPHOME_PROJECT_NAME;
+        root[ESPHOME_F("project_version")] = ESPHOME_PROJECT_VERSION;
 #endif  // ESPHOME_PROJECT_NAME
 
 #ifdef USE_DASHBOARD_IMPORT
-        root["package_import_url"] = dashboard_import::get_package_import_url();
+        root[ESPHOME_F("package_import_url")] = dashboard_import::get_package_import_url();
 #endif
 
 #ifdef USE_API_NOISE
-        root[api::global_api_server->get_noise_ctx().has_psk() ? "api_encryption" : "api_encryption_supported"] =
-            "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
+        root[api::global_api_server->get_noise_ctx().has_psk() ? ESPHOME_F("api_encryption")
+                                                               : ESPHOME_F("api_encryption_supported")] =
+            ESPHOME_F("Noise_NNpsk0_25519_ChaChaPoly_SHA256");
 #endif
       },
       2, this->discovery_info_.retain);
@@ -154,15 +154,17 @@ void MQTTClientComponent::on_log(uint8_t level, const char *tag, const char *mes
 
 void MQTTClientComponent::dump_config() {
   char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  // clang-format off
   ESP_LOGCONFIG(TAG,
                 "MQTT:\n"
                 "  Server Address: %s:%u (%s)\n"
                 "  Username: " LOG_SECRET("'%s'") "\n"
-                                                  "  Client ID: " LOG_SECRET("'%s'") "\n"
-                                                                                     "  Clean Session: %s",
+                "  Client ID: " LOG_SECRET("'%s'") "\n"
+                "  Clean Session: %s",
                 this->credentials_.address.c_str(), this->credentials_.port, this->ip_.str_to(ip_buf),
                 this->credentials_.username.c_str(), this->credentials_.client_id.c_str(),
                 YESNO(this->credentials_.clean_session));
+  // clang-format on
   if (this->is_discovery_ip_enabled()) {
     ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
   }
@@ -749,7 +751,6 @@ void MQTTMessageTrigger::dump_config() {
 }
 float MQTTMessageTrigger::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_MQTT

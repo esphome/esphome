@@ -93,8 +93,10 @@ bool SonoffD1Output::read_command_(uint8_t *cmd, size_t &len) {
   if (this->read_array(cmd, 6)) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_size(6)];
-    ESP_LOGV(TAG, "[%04d] Reading from dimmer:", this->write_count_);
-    ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty_to(hex_buf, cmd, 6));
+    ESP_LOGV(TAG,
+             "[%04d] Reading from dimmer:\n"
+             "[%04d] %s",
+             this->write_count_, this->write_count_, format_hex_pretty_to(hex_buf, cmd, 6));
 #endif
 
     if (cmd[0] != 0xAA || cmd[1] != 0x55) {
@@ -188,8 +190,10 @@ bool SonoffD1Output::write_command_(uint8_t *cmd, const size_t len, bool needs_a
   do {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_size(SONOFF_D1_MAX_CMD_SIZE)];
-    ESP_LOGV(TAG, "[%04d] Writing to the dimmer:", this->write_count_);
-    ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty_to(hex_buf, cmd, len));
+    ESP_LOGV(TAG,
+             "[%04d] Writing to the dimmer:\n"
+             "[%04d] %s",
+             this->write_count_, this->write_count_, format_hex_pretty_to(hex_buf, cmd, len));
 #endif
     this->write_array(cmd, len);
     this->write_count_++;
