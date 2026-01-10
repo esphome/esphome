@@ -3,13 +3,13 @@
 
 namespace esphome::ch423 {
 
-static const uint8_t CH423_REG_SYS = 0x48;    // Set system parameters
+static const uint8_t CH423_REG_SYS = 0x24;    // Set system parameters (0x48 >> 1)
 static const uint8_t CH423_SYS_IO_OE = 0x01;  // IO output enable
 static const uint8_t CH423_SYS_OD_EN = 0x04;  // Open drain enable for OC pins
-static const uint8_t CH423_REG_IO = 0x60;     // Write/read IO7-IO0
-static const uint8_t CH423_REG_IO_RD = 0x4D;  // Read IO7-IO0
-static const uint8_t CH423_REG_OCL = 0x44;    // Write OC7-OC0
-static const uint8_t CH423_REG_OCH = 0x46;    // Write OC15-OC8
+static const uint8_t CH423_REG_IO = 0x30;     // Write/read IO7-IO0 (0x60 >> 1)
+static const uint8_t CH423_REG_IO_RD = 0x26;  // Read IO7-IO0 (0x4D >> 1, rounded down)
+static const uint8_t CH423_REG_OCL = 0x22;    // Write OC7-OC0 (0x44 >> 1)
+static const uint8_t CH423_REG_OCH = 0x23;    // Write OC15-OC8 (0x46 >> 1)
 
 static const char *const TAG = "ch423";
 
