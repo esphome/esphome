@@ -1957,7 +1957,7 @@ void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMa
     // Note: request->method() is always HTTP_GET here (canHandle ensures this)
     if (entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
-      std::string data = this->event_json_(obj, "", detail);
+      std::string data = this->event_json_(obj, StringRef(), detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1965,10 +1965,7 @@ void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMa
   request->send(404);
 }
 
-static std::string get_event_type(event::Event *event) {
-  const char *last_type = event ? event->get_last_event_type() : nullptr;
-  return last_type ? last_type : "";
-}
+static StringRef get_event_type(event::Event *event) { return event ? event->get_last_event_type() : StringRef(); }
 
 std::string WebServer::event_state_json_generator(WebServer *web_server, void *source) {
   auto *event = static_cast<event::Event *>(source);
@@ -1979,7 +1976,7 @@ std::string WebServer::event_all_json_generator(WebServer *web_server, void *sou
   auto *event = static_cast<event::Event *>(source);
   return web_server->event_json_(event, get_event_type(event), DETAIL_ALL);
 }
-std::string WebServer::event_json_(event::Event *obj, const std::string &event_type, JsonDetail start_config) {
+std::string WebServer::event_json_(event::Event *obj, StringRef event_type, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 

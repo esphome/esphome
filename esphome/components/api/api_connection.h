@@ -173,7 +173,7 @@ class APIConnection final : public APIServerConnection {
 #endif
 
 #ifdef USE_EVENT
-  void send_event(event::Event *event, const char *event_type);
+  void send_event(event::Event *event, StringRef event_type);
 #endif
 
 #ifdef USE_UPDATE
@@ -469,7 +469,7 @@ class APIConnection final : public APIServerConnection {
                                              bool is_single);
 #endif
 #ifdef USE_EVENT
-  static uint16_t try_send_event_response(event::Event *event, const char *event_type, APIConnection *conn,
+  static uint16_t try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,
                                           uint32_t remaining_size, bool is_single);
   static uint16_t try_send_event_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
 #endif
