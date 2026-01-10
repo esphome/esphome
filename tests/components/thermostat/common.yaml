@@ -26,8 +26,8 @@ climate:
             if (preset == "Default Preset") {
               ESP_LOGD("test", "Preset is Default Preset");
             }
-            // Log using %.*s format for string_view
-            ESP_LOGD("test", "Custom preset: %.*s", (int) preset.size(), preset.data());
+            // Log using %.*s format for StringRef
+            ESP_LOGD("test", "Custom preset: %.*s", (int) preset.size(), preset.c_str());
           }
     idle_action:
       - logger.log: idle_action

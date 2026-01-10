@@ -65,14 +65,14 @@ void AirConditioner::control(const ClimateCall &call) {
   if (call.get_preset().has_value()) {
     ctrl.preset = Converters::to_midea_preset(call.get_preset().value());
   } else if (call.has_custom_preset()) {
-    // get_custom_preset() returns string_view; Converters expects null-terminated const char*
-    ctrl.preset = Converters::to_midea_preset(call.get_custom_preset().data());
+    // c_str() is safe as custom presets are null-terminated strings from codegen
+    ctrl.preset = Converters::to_midea_preset(call.get_custom_preset().c_str());
   }
   if (call.get_fan_mode().has_value()) {
     ctrl.fanMode = Converters::to_midea_fan_mode(call.get_fan_mode().value());
   } else if (call.has_custom_fan_mode()) {
-    // get_custom_fan_mode() returns string_view; Converters expects null-terminated const char*
-    ctrl.fanMode = Converters::to_midea_fan_mode(call.get_custom_fan_mode().data());
+    // c_str() is safe as custom fan modes are null-terminated strings from codegen
+    ctrl.fanMode = Converters::to_midea_fan_mode(call.get_custom_fan_mode().c_str());
   }
   this->base_.control(ctrl);
 }

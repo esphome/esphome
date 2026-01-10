@@ -178,7 +178,7 @@ void BedJetClimate::control(const ClimateCall &call) {
     } else if (preset == "EXT HT") {
       result = this->parent_->button_ext_heat();
     } else {
-      ESP_LOGW(TAG, "Unsupported preset: %.*s", (int) preset.size(), preset.data());
+      ESP_LOGW(TAG, "Unsupported preset: %.*s", (int) preset.size(), preset.c_str());
       return;
     }
 
@@ -209,10 +209,10 @@ void BedJetClimate::control(const ClimateCall &call) {
     }
   } else if (call.has_custom_fan_mode()) {
     auto fan_mode = call.get_custom_fan_mode();
-    auto fan_index = bedjet_fan_speed_to_step(fan_mode.data());
+    auto fan_index = bedjet_fan_speed_to_step(fan_mode.c_str());
     if (fan_index <= 19) {
       ESP_LOGV(TAG, "[%s] Converted fan mode %.*s to bedjet fan step %d", this->get_name().c_str(),
-               (int) fan_mode.size(), fan_mode.data(), fan_index);
+               (int) fan_mode.size(), fan_mode.c_str(), fan_index);
       bool result = this->parent_->set_fan_index(fan_index);
       if (result) {
         this->set_custom_fan_mode_(fan_mode);

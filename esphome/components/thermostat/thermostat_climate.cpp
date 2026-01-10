@@ -222,7 +222,7 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
   if (call.has_custom_preset()) {
     // setup_complete_ blocks modifying/resetting the temps immediately after boot
     if (this->setup_complete_) {
-      this->change_custom_preset_(call.get_custom_preset().data());
+      this->change_custom_preset_(call.get_custom_preset());
     } else {
       // Use the base class method which handles pointer lookup internally
       this->set_custom_preset_(call.get_custom_preset());
@@ -1218,11 +1218,12 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   }
 }
 
-void ThermostatClimate::change_custom_preset_(const char *custom_preset) {
+void ThermostatClimate::change_custom_preset_(const char *custom_preset, size_t len) {
   // Linear search through custom preset configurations
   const ThermostatClimateTargetTempConfig *config = nullptr;
   for (const auto &entry : this->custom_preset_config_) {
-    if (strcmp(entry.name, custom_preset) == 0) {
+    // Compare first len chars, then verify entry.name ends there (same length)
+    if (strncmp(entry.name, custom_preset, len) == 0 && entry.name[len] == '\0') {
       config = &entry.config;
       break;
     }

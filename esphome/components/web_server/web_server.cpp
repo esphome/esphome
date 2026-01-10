@@ -1543,15 +1543,15 @@ std::string WebServer::climate_json_(climate::Climate *obj, JsonDetail start_con
     root[ESPHOME_F("fan_mode")] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
   }
   if (!traits.get_supported_custom_fan_modes().empty() && obj->has_custom_fan_mode()) {
-    // get_custom_fan_mode() returns string_view pointing to null-terminated string literals from codegen
-    root[ESPHOME_F("custom_fan_mode")] = obj->get_custom_fan_mode().data();
+    // c_str() is safe as custom fan modes are null-terminated strings from codegen
+    root[ESPHOME_F("custom_fan_mode")] = obj->get_custom_fan_mode().c_str();
   }
   if (traits.get_supports_presets() && obj->preset.has_value()) {
     root[ESPHOME_F("preset")] = PSTR_LOCAL(climate_preset_to_string(obj->preset.value()));
   }
   if (!traits.get_supported_custom_presets().empty() && obj->has_custom_preset()) {
-    // get_custom_preset() returns string_view pointing to null-terminated string literals from codegen
-    root[ESPHOME_F("custom_preset")] = obj->get_custom_preset().data();
+    // c_str() is safe as custom presets are null-terminated strings from codegen
+    root[ESPHOME_F("custom_preset")] = obj->get_custom_preset().c_str();
   }
   if (traits.get_supports_swing_modes()) {
     root[ESPHOME_F("swing_mode")] = PSTR_LOCAL(climate_swing_mode_to_string(obj->swing_mode));

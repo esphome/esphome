@@ -675,15 +675,13 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
   if (traits.get_supports_fan_modes() && climate->fan_mode.has_value())
     resp.fan_mode = static_cast<enums::ClimateFanMode>(climate->fan_mode.value());
   if (!traits.get_supported_custom_fan_modes().empty() && climate->has_custom_fan_mode()) {
-    auto mode = climate->get_custom_fan_mode();
-    resp.custom_fan_mode = StringRef(mode.data(), mode.size());
+    resp.custom_fan_mode = climate->get_custom_fan_mode();
   }
   if (traits.get_supports_presets() && climate->preset.has_value()) {
     resp.preset = static_cast<enums::ClimatePreset>(climate->preset.value());
   }
   if (!traits.get_supported_custom_presets().empty() && climate->has_custom_preset()) {
-    auto preset = climate->get_custom_preset();
-    resp.custom_preset = StringRef(preset.data(), preset.size());
+    resp.custom_preset = climate->get_custom_preset();
   }
   if (traits.get_supports_swing_modes())
     resp.swing_mode = static_cast<enums::ClimateSwingMode>(climate->swing_mode);

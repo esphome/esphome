@@ -1,12 +1,11 @@
 #pragma once
 
-#include <string_view>
-
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/string_ref.h"
 #include "climate_mode.h"
 #include "climate_traits.h"
 
@@ -112,12 +111,8 @@ class ClimateCall {
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
   const optional<ClimatePreset> &get_preset() const;
-  std::string_view get_custom_fan_mode() const {
-    return this->custom_fan_mode_ != nullptr ? std::string_view(this->custom_fan_mode_) : std::string_view();
-  }
-  std::string_view get_custom_preset() const {
-    return this->custom_preset_ != nullptr ? std::string_view(this->custom_preset_) : std::string_view();
-  }
+  StringRef get_custom_fan_mode() const { return StringRef::from_maybe_nullptr(this->custom_fan_mode_); }
+  StringRef get_custom_preset() const { return StringRef::from_maybe_nullptr(this->custom_preset_); }
   bool has_custom_fan_mode() const { return this->custom_fan_mode_ != nullptr; }
   bool has_custom_preset() const { return this->custom_preset_ != nullptr; }
 
@@ -272,15 +267,11 @@ class Climate : public EntityBase {
   /// The active swing mode of the climate device.
   ClimateSwingMode swing_mode{CLIMATE_SWING_OFF};
 
-  /// Get the active custom fan mode (read-only access). Returns std::string_view.
-  std::string_view get_custom_fan_mode() const {
-    return this->custom_fan_mode_ != nullptr ? std::string_view(this->custom_fan_mode_) : std::string_view();
-  }
+  /// Get the active custom fan mode (read-only access). Returns StringRef.
+  StringRef get_custom_fan_mode() const { return StringRef::from_maybe_nullptr(this->custom_fan_mode_); }
 
-  /// Get the active custom preset (read-only access). Returns std::string_view.
-  std::string_view get_custom_preset() const {
-    return this->custom_preset_ != nullptr ? std::string_view(this->custom_preset_) : std::string_view();
-  }
+  /// Get the active custom preset (read-only access). Returns StringRef.
+  StringRef get_custom_preset() const { return StringRef::from_maybe_nullptr(this->custom_preset_); }
 
  protected:
   friend ClimateCall;
@@ -292,7 +283,7 @@ class Climate : public EntityBase {
   /// Set custom fan mode. Reset primary fan mode. Return true if fan mode has been changed.
   bool set_custom_fan_mode_(const char *mode) { return this->set_custom_fan_mode_(mode, strlen(mode)); }
   bool set_custom_fan_mode_(const char *mode, size_t len);
-  bool set_custom_fan_mode_(std::string_view mode) { return this->set_custom_fan_mode_(mode.data(), mode.size()); }
+  bool set_custom_fan_mode_(StringRef mode) { return this->set_custom_fan_mode_(mode.c_str(), mode.size()); }
   /// Clear custom fan mode.
   void clear_custom_fan_mode_();
 
@@ -302,7 +293,7 @@ class Climate : public EntityBase {
   /// Set custom preset. Reset primary preset. Return true if preset has been changed.
   bool set_custom_preset_(const char *preset) { return this->set_custom_preset_(preset, strlen(preset)); }
   bool set_custom_preset_(const char *preset, size_t len);
-  bool set_custom_preset_(std::string_view preset) { return this->set_custom_preset_(preset.data(), preset.size()); }
+  bool set_custom_preset_(StringRef preset) { return this->set_custom_preset_(preset.c_str(), preset.size()); }
   /// Clear custom preset.
   void clear_custom_preset_();
 
