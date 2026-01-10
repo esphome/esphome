@@ -162,6 +162,9 @@ float random_float() { return static_cast<float>(random_uint32()) / static_cast<
 bool str_equals_case_insensitive(const std::string &a, const std::string &b) {
   return strcasecmp(a.c_str(), b.c_str()) == 0;
 }
+bool str_equals_case_insensitive(StringRef a, StringRef b) {
+  return a.size() == b.size() && strncasecmp(a.c_str(), b.c_str(), a.size()) == 0;
+}
 #if __cplusplus >= 202002L
 bool str_startswith(const std::string &str, const std::string &start) { return str.starts_with(start); }
 bool str_endswith(const std::string &str, const std::string &end) { return str.ends_with(end); }

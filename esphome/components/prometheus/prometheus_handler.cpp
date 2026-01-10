@@ -363,13 +363,14 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
   // Skip effect metrics if light has no effects
   if (!obj->get_effects().empty()) {
     // Effect
-    std::string effect = obj->get_effect_name();
+    StringRef effect = obj->get_effect_name();
     print_metric_labels_(stream, ESPHOME_F("esphome_light_effect_active"), obj, area, node, friendly_name);
     stream->print(ESPHOME_F("\",effect=\""));
     // Only vary based on effect
     if (effect == "None") {
       stream->print(ESPHOME_F("None\"} 0\n"));
     } else {
+      // c_str() is safe as effect names are null-terminated strings from codegen
       stream->print(effect.c_str());
       stream->print(ESPHOME_F("\"} 1\n"));
     }

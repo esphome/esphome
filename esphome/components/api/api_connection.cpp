@@ -499,7 +499,7 @@ uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *
   resp.cold_white = values.get_cold_white();
   resp.warm_white = values.get_warm_white();
   if (light->supports_effects()) {
-    resp.effect = light->get_effect_name_ref();
+    resp.effect = light->get_effect_name();
   }
   return fill_and_encode_entity_state(light, resp, LightStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
@@ -522,7 +522,8 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
     effects_list.init(light_effects.size() + 1);
     effects_list.push_back("None");
     for (auto *effect : light_effects) {
-      effects_list.push_back(effect->get_name());
+      // c_str() is safe as effect names are null-terminated strings from codegen
+      effects_list.push_back(effect->get_name().c_str());
     }
   }
   msg.effects = &effects_list;
