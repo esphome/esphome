@@ -546,18 +546,24 @@ class WebServer : public Controller,
   }
 
   // Generic helper to parse and apply a bool parameter
-  // Accepts: on/off, true/false, 1/0 (case-insensitive for text values)
+  // Accepts: "on", "true", "1" (case-insensitive) as true
+  // Accepts: "off", "false", "0" (case-insensitive) as false
+  // Invalid values are ignored (setter not called)
   template<typename T, typename Ret>
   void parse_bool_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(bool)) {
     if (request->hasParam(param_name)) {
       auto param_value = request->getParam(param_name)->value();
-      auto state = parse_on_off(param_value.c_str(), "true", "false");
-      if (state == PARSE_ON || param_value == "1") {
+      // First check on/off (default), then true/false (custom)
+      auto val = parse_on_off(param_value.c_str());
+      if (val == PARSE_NONE) {
+        val = parse_on_off(param_value.c_str(), "true", "false");
+      }
+      if (val == PARSE_ON || param_value == "1") {
         (call.*setter)(true);
-      } else if (state == PARSE_OFF || param_value == "0") {
+      } else if (val == PARSE_OFF || param_value == "0") {
         (call.*setter)(false);
       }
-      // If neither matched, don't call setter (invalid value)
+      // PARSE_NONE/PARSE_TOGGLE: ignore invalid values
     }
   }
 
