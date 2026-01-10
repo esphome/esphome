@@ -2471,10 +2471,11 @@ message IrRfProxyTransmitRawTimingsRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_IR_RF_PROXY";
 
-  fixed32 key = 1;                                       // Key identifying the transmitter instance
-  uint32 carrier_frequency = 2;                          // Carrier frequency in Hz (0 = no carrier for RF)
-  uint32 repeat_count = 3;                               // Number of times to transmit (1 = once, 2 = twice, etc.)
-  repeated sint32 timings = 4 [packed = true, (packed_buffer) = true];  // Raw timings in microseconds (zigzag-encoded): positive = mark (LED/TX on), negative = space (LED/TX off)
+  uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
+  fixed32 key = 2;                                       // Key identifying the transmitter instance
+  uint32 carrier_frequency = 3;                          // Carrier frequency in Hz (0 = no carrier for RF)
+  uint32 repeat_count = 4;                               // Number of times to transmit (1 = once, 2 = twice, etc.)
+  repeated sint32 timings = 5 [packed = true, (packed_buffer) = true];  // Raw timings in microseconds (zigzag-encoded): positive = mark (LED/TX on), negative = space (LED/TX off)
 }
 
 // Event message for received IR/RF data
@@ -2484,6 +2485,7 @@ message IrRfProxyReceiveEvent {
   option (ifdef) = "USE_IR_RF_PROXY";
   option (no_delay) = true;
 
-  fixed32 key = 1;                                    // Key identifying the receiver instance
-  repeated sint32 timings = 2 [packed = true];        // Raw timings in microseconds (zigzag-encoded): alternating mark/space periods
+  uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
+  fixed32 key = 2;                                    // Key identifying the receiver instance
+  repeated sint32 timings = 3 [packed = true];        // Raw timings in microseconds (zigzag-encoded): alternating mark/space periods
 }

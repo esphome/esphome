@@ -715,10 +715,11 @@ void APIServer::on_ir_rf_proxy_transmit_raw_timings_request(const IrRfProxyTrans
   ESP_LOGW(TAG, "IR/RF proxy raw timings transmit request for unknown key: %u", msg.key);
 }
 
-void APIServer::send_ir_rf_proxy_receive_event(uint32_t key, const remote_base::RawTimings &timings) {
+void APIServer::send_ir_rf_proxy_receive_event(uint32_t device_id, uint32_t key,
+                                               const remote_base::RawTimings &timings) {
   // Zero-copy: pass reference directly to each connection for packed encoding
   for (auto &client : this->clients_) {
-    client->send_ir_rf_proxy_receive_event(key, timings);
+    client->send_ir_rf_proxy_receive_event(device_id, key, timings);
   }
 }
 

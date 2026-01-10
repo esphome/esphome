@@ -2331,6 +2331,9 @@ void ListEntitiesIrRfProxyResponse::dump_to(std::string &out) const {
 }
 void IrRfProxyTransmitRawTimingsRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "IrRfProxyTransmitRawTimingsRequest");
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
   dump_field(out, "key", this->key);
   dump_field(out, "carrier_frequency", this->carrier_frequency);
   dump_field(out, "repeat_count", this->repeat_count);
@@ -2343,6 +2346,9 @@ void IrRfProxyTransmitRawTimingsRequest::dump_to(std::string &out) const {
 }
 void IrRfProxyReceiveEvent::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "IrRfProxyReceiveEvent");
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
   dump_field(out, "key", this->key);
   for (const auto &it : this->timings) {
     dump_field(out, "timings", it, 4);

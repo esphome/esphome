@@ -3073,9 +3073,12 @@ class ListEntitiesIrRfProxyResponse final : public InfoResponseProtoMessage {
 class IrRfProxyTransmitRawTimingsRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 136;
-  static constexpr uint8_t ESTIMATED_SIZE = 216;
+  static constexpr uint8_t ESTIMATED_SIZE = 220;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "ir_rf_proxy_transmit_raw_timings_request"; }
+#endif
+#ifdef USE_DEVICES
+  uint32_t device_id{0};
 #endif
   uint32_t key{0};
   uint32_t carrier_frequency{0};
@@ -3095,9 +3098,12 @@ class IrRfProxyTransmitRawTimingsRequest final : public ProtoDecodableMessage {
 class IrRfProxyReceiveEvent final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 137;
-  static constexpr uint8_t ESTIMATED_SIZE = 13;
+  static constexpr uint8_t ESTIMATED_SIZE = 17;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "ir_rf_proxy_receive_event"; }
+#endif
+#ifdef USE_DEVICES
+  uint32_t device_id{0};
 #endif
   uint32_t key{0};
   std::vector<int32_t> timings{};

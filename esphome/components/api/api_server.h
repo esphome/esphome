@@ -200,7 +200,7 @@ class APIServer : public Component,
 #ifdef USE_IR_RF_PROXY
   void register_ir_rf_proxy(ir_rf_proxy::IrRfProxyComponent *ir_rf_proxy);
   void on_ir_rf_proxy_transmit_raw_timings_request(const IrRfProxyTransmitRawTimingsRequest &msg);
-  void send_ir_rf_proxy_receive_event(uint32_t key, const remote_base::RawTimings &timings);
+  void send_ir_rf_proxy_receive_event(uint32_t device_id, uint32_t key, const remote_base::RawTimings &timings);
   void list_ir_rf_proxy_entities(APIConnection *conn);
   const std::vector<ir_rf_proxy::IrRfProxyComponent *> &get_ir_rf_proxies() const { return this->ir_rf_proxies_; }
 #endif

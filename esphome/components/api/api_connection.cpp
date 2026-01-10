@@ -2125,18 +2125,25 @@ uint16_t APIConnection::try_send_ir_rf_proxy_info(EntityBase *entity, APIConnect
                                      remaining_size, is_single);
 }
 
-void APIConnection::send_ir_rf_proxy_receive_event(uint32_t key, const remote_base::RawTimings &timings) {
+void APIConnection::send_ir_rf_proxy_receive_event(uint32_t device_id, uint32_t key,
+                                                   const remote_base::RawTimings &timings) {
   // Calculate message size using manual packed encoding
   ProtoSize size;
-  size.add_fixed32(1, key);            // key field (field_id=1, wire_type=5, tag=(1<<3)|5=13)
-  size.add_packed_sint32(1, timings);  // timings field (field_id=2, wire_type=2, tag=(2<<3)|2=18)
+#ifdef USE_DEVICES
+  size.add_uint32(1, device_id);  // device_id field (field_id=1, wire_type=0)
+#endif
+  size.add_fixed32(1, key);            // key field (field_id=2, wire_type=5, tag=(2<<3)|5=21)
+  size.add_packed_sint32(1, timings);  // timings field (field_id=3, wire_type=2, tag=(3<<3)|2=26)
 
   // Allocate buffer with exact size
   auto buffer = this->create_buffer(size.get_size());
 
   // Encode directly from receiver's vector - zero copy!
-  buffer.encode_fixed32(1, key);
-  buffer.encode_packed_sint32(2, timings);
+#ifdef USE_DEVICES
+  buffer.encode_uint32(1, device_id);
+#endif
+  buffer.encode_fixed32(2, key);
+  buffer.encode_packed_sint32(3, timings);
 
   // Send the buffer
   if (!this->send_buffer(buffer, IrRfProxyReceiveEvent::MESSAGE_TYPE)) {

@@ -166,7 +166,7 @@ class APIConnection final : public APIServerConnection {
   void ir_rf_proxy_transmit_raw_timings(const IrRfProxyTransmitRawTimingsRequest &msg) override;
   static uint16_t try_send_ir_rf_proxy_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                             bool is_single);
-  void send_ir_rf_proxy_receive_event(uint32_t key, const remote_base::RawTimings &timings);
+  void send_ir_rf_proxy_receive_event(uint32_t device_id, uint32_t key, const remote_base::RawTimings &timings);
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL

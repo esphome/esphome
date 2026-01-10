@@ -3386,10 +3386,15 @@ void ListEntitiesIrRfProxyResponse::calculate_size(ProtoSize &size) const {
 }
 bool IrRfProxyTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
-    case 2:
+#ifdef USE_DEVICES
+    case 1:
+      this->device_id = value.as_uint32();
+      break;
+#endif
+    case 3:
       this->carrier_frequency = value.as_uint32();
       break;
-    case 3:
+    case 4:
       this->repeat_count = value.as_uint32();
       break;
     default:
@@ -3399,7 +3404,7 @@ bool IrRfProxyTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoV
 }
 bool IrRfProxyTransmitRawTimingsRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 4: {
+    case 5: {
       this->timings_data_ = value.data();
       this->timings_length_ = value.size();
       this->timings_count_ = count_packed_varints(value.data(), value.size());
@@ -3412,7 +3417,7 @@ bool IrRfProxyTransmitRawTimingsRequest::decode_length(uint32_t field_id, ProtoL
 }
 bool IrRfProxyTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
-    case 1:
+    case 2:
       this->key = value.as_fixed32();
       break;
     default:
@@ -3421,12 +3426,18 @@ bool IrRfProxyTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Proto32
   return true;
 }
 void IrRfProxyReceiveEvent::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_fixed32(1, this->key);
+#ifdef USE_DEVICES
+  buffer.encode_uint32(1, this->device_id);
+#endif
+  buffer.encode_fixed32(2, this->key);
   for (auto &it : this->timings) {
-    buffer.encode_sint32(2, it, true);
+    buffer.encode_sint32(3, it, true);
   }
 }
 void IrRfProxyReceiveEvent::calculate_size(ProtoSize &size) const {
+#ifdef USE_DEVICES
+  size.add_uint32(1, this->device_id);
+#endif
   size.add_fixed32(1, this->key);
   if (!this->timings.empty()) {
     for (const auto &it : this->timings) {

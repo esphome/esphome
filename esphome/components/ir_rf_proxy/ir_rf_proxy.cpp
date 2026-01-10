@@ -91,7 +91,12 @@ bool IrRfProxyComponent::on_receive(remote_base::RemoteReceiveData data) {
 
   // Send the raw timings to the API
   if (api::global_api_server != nullptr) {
-    api::global_api_server->send_ir_rf_proxy_receive_event(this->get_object_id_hash(), raw_data);
+#ifdef USE_DEVICES
+    uint32_t device_id = this->get_device_id();
+#else
+    uint32_t device_id = 0;
+#endif
+    api::global_api_server->send_ir_rf_proxy_receive_event(device_id, this->get_object_id_hash(), raw_data);
   }
 
   return false;  // Return false to allow other listeners to process the data
