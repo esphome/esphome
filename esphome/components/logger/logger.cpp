@@ -197,8 +197,8 @@ void Logger::init_log_buffer(size_t total_buffer_size) {
   this->log_buffer_ = esphome::make_unique<logger::TaskLogBufferLibreTiny>(total_buffer_size);
 #endif
 
-#ifdef USE_ESP32
-  // Start with loop disabled when using task buffer (unless using USB CDC)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // Start with loop disabled when using task buffer (unless using USB CDC on ESP32)
   // The loop will be enabled automatically when messages arrive
   this->disable_loop_when_buffer_empty_();
 #endif
@@ -247,7 +247,7 @@ void Logger::process_messages_() {
     }
 #endif
   }
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   else {
     // No messages to process, disable loop if appropriate
     // This reduces overhead when there's no async logging activity

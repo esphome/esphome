@@ -39,7 +39,7 @@ void MQTTDateComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, true)
 }
 
-std::string MQTTDateComponent::component_type() const { return "date"; }
+MQTT_COMPONENT_TYPE(MQTTDateComponent, "date")
 const EntityBase *MQTTDateComponent::get_entity() const { return this->date_; }
 
 void MQTTDateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
