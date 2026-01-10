@@ -618,9 +618,8 @@ void PrometheusHandler::event_row_(AsyncResponseStream *stream, event::Event *ob
     stream->print(ESPHOME_F("\",name=\""));
     stream->print(relabel_name_(obj).c_str());
     stream->print(ESPHOME_F("\",last_event_type=\""));
-    // get_last_event_type() returns StringRef
-    auto event_type = obj->get_last_event_type();
-    stream->print(event_type.c_str(), event_type.size());
+    // get_last_event_type() returns StringRef (null-terminated)
+    stream->print(obj->get_last_event_type().c_str());
     stream->print(ESPHOME_F("\"} "));
     stream->print(ESPHOME_F("1.0"));
     stream->print(ESPHOME_F("\n"));
