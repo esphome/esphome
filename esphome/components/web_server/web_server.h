@@ -546,12 +546,18 @@ class WebServer : public Controller,
   }
 
   // Generic helper to parse and apply a bool parameter
+  // Accepts: on/off, true/false, 1/0 (case-insensitive for text values)
   template<typename T, typename Ret>
   void parse_bool_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(bool)) {
     if (request->hasParam(param_name)) {
       auto param_value = request->getParam(param_name)->value();
-      bool value = param_value == "true" || param_value == "1";
-      (call.*setter)(value);
+      auto state = parse_on_off(param_value.c_str(), "true", "false");
+      if (state == PARSE_ON || param_value == "1") {
+        (call.*setter)(true);
+      } else if (state == PARSE_OFF || param_value == "0") {
+        (call.*setter)(false);
+      }
+      // If neither matched, don't call setter (invalid value)
     }
   }
 
