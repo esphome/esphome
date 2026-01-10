@@ -111,11 +111,11 @@ class MQTTComponent : public Component {
   virtual const char *component_type() const = 0;
 
   /// Set a custom state topic. Do not set for default behavior.
-  template<typename T> void set_custom_state_topic(T custom_state_topic) {
-    this->custom_state_topic_ = custom_state_topic;
+  template<typename T> void set_custom_state_topic(T &&custom_state_topic) {
+    this->custom_state_topic_ = std::forward<T>(custom_state_topic);
   }
-  template<typename T> void set_custom_command_topic(T custom_command_topic) {
-    this->custom_command_topic_ = custom_command_topic;
+  template<typename T> void set_custom_command_topic(T &&custom_command_topic) {
+    this->custom_command_topic_ = std::forward<T>(custom_command_topic);
   }
   /// Set whether command message should be retained.
   void set_command_retain(bool command_retain);
