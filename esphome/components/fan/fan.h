@@ -1,12 +1,11 @@
 #pragma once
 
-#include <string_view>
-
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/string_ref.h"
 #include "fan_traits.h"
 
 namespace esphome {
@@ -131,12 +130,10 @@ class Fan : public EntityBase {
   void set_restore_mode(FanRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 
   /// Get the current preset mode.
-  /// Returns a view of the string stored in traits, or empty view if not set.
-  /// The returned view points to string literals from codegen (static storage).
+  /// Returns a StringRef of the string stored in traits, or empty ref if not set.
+  /// The returned ref points to string literals from codegen (static storage).
   /// Traits are set once at startup and valid for the lifetime of the program.
-  std::string_view get_preset_mode() const {
-    return this->preset_mode_ != nullptr ? std::string_view(this->preset_mode_) : std::string_view();
-  }
+  StringRef get_preset_mode() const { return StringRef::from_maybe_nullptr(this->preset_mode_); }
 
   /// Check if a preset mode is currently active
   bool has_preset_mode() const { return this->preset_mode_ != nullptr; }
@@ -157,7 +154,7 @@ class Fan : public EntityBase {
   bool set_preset_mode_(const char *preset_mode, size_t len);
   bool set_preset_mode_(const char *preset_mode);
   bool set_preset_mode_(const std::string &preset_mode);
-  bool set_preset_mode_(std::string_view preset_mode);
+  bool set_preset_mode_(StringRef preset_mode);
   /// Clear the preset mode
   void clear_preset_mode_();
   /// Apply preset mode from a FanCall (handles speed-clears-preset convention)

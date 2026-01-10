@@ -223,7 +223,7 @@ class FanPresetSetTrigger : public Trigger<std::string> {
   }
 
  protected:
-  std::string_view last_preset_mode_{};
+  StringRef last_preset_mode_{};
 };
 
 }  // namespace fan

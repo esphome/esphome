@@ -179,10 +179,10 @@ bool Fan::set_preset_mode_(const std::string &preset_mode) {
   return this->set_preset_mode_(preset_mode.data(), preset_mode.size());
 }
 
-bool Fan::set_preset_mode_(std::string_view preset_mode) {
+bool Fan::set_preset_mode_(StringRef preset_mode) {
   // Safe: find_preset_mode_ only uses the input for comparison and returns
-  // a pointer from traits, so the input string_view's lifetime doesn't matter.
-  return this->set_preset_mode_(preset_mode.data(), preset_mode.size());
+  // a pointer from traits, so the input StringRef's lifetime doesn't matter.
+  return this->set_preset_mode_(preset_mode.c_str(), preset_mode.size());
 }
 
 void Fan::clear_preset_mode_() { this->preset_mode_ = nullptr; }
