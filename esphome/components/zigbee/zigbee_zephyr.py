@@ -363,11 +363,7 @@ async def _add_zigbee_input(
     if extra_field_values:
         for field_name, value in extra_field_values.items():
             attr_args.append(zigbee_assign(getattr(attrs, field_name), value))
-    # there is bug somewhere in integration between z2m and HA.
-    # entities with space in description do not show up.
-    attr_args.append(
-        zigbee_set_string(attrs.description, config[CONF_NAME].replace(" ", "_"))
-    )
+    attr_args.append(zigbee_set_string(attrs.description, config[CONF_NAME]))
 
     # Create attribute list
     attr_list = zigbee_new_attr_list(attr_list_name, zcl_macro, *attr_args)
