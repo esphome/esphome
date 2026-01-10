@@ -338,7 +338,6 @@ async def _add_zigbee_input(
     zcl_macro: str,
     cluster_id: str,
     app_device_id: str,
-    name: str,
     extra_field_values: dict[str, int] | None = None,
 ) -> None:
     slot_index = _slot_index()
@@ -362,7 +361,11 @@ async def _add_zigbee_input(
     if extra_field_values:
         for field_name, value in extra_field_values.items():
             attr_args.append(zigbee_assign(getattr(attrs, field_name), value))
-    attr_args.append(zigbee_set_string(attrs.description, name))
+    # there is bug somewhere in integration between z2m and HA.
+    # entities with space in description do not show up.
+    attr_args.append(
+        zigbee_set_string(attrs.description, config[CONF_NAME].replace(" ", "_"))
+    )
 
     # Create attribute list
     attr_list = zigbee_new_attr_list(attr_list_name, zcl_macro, *attr_args)
@@ -396,9 +399,6 @@ async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
         "ESPHOME_ZB_ZCL_DECLARE_BINARY_INPUT_ATTRIB_LIST",
         ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
         "ZB_HA_SIMPLE_SENSOR_DEVICE_ID",
-        # there is bug somewhere in integration between z2m and HA.
-        # binary sensors with space in description do not show up.
-        config[CONF_NAME].replace(" ", "_"),
     )
 
 
@@ -415,6 +415,5 @@ async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
         "ESPHOME_ZB_ZCL_DECLARE_ANALOG_INPUT_ATTRIB_LIST",
         ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
         "ZB_HA_CUSTOM_ATTR_DEVICE_ID",
-        config[CONF_NAME],
         extra_field_values={"engineering_units": bacnet_unit},
     )
