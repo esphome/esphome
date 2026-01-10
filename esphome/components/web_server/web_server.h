@@ -35,6 +35,13 @@ extern const size_t ESPHOME_WEBSERVER_JS_INCLUDE_SIZE;
 
 namespace esphome::web_server {
 
+// Type for parameter names that can be stored in flash on ESP8266
+#ifdef USE_ESP8266
+using ParamNameType = const __FlashStringHelper *;
+#else
+using ParamNameType = const char *;
+#endif
+
 /// Result of matching a URL against an entity
 struct EntityMatchResult {
   bool matched;          ///< True if entity matched the URL
@@ -429,6 +436,16 @@ class WebServer : public Controller,
   static std::string alarm_control_panel_all_json_generator(WebServer *web_server, void *source);
 #endif
 
+#ifdef USE_WATER_HEATER
+  void on_water_heater_update(water_heater::WaterHeater *obj) override;
+
+  /// Handle a water_heater request under '/water_heater/<id>/<mode/set>'.
+  void handle_water_heater_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  static std::string water_heater_state_json_generator(WebServer *web_server, void *source);
+  static std::string water_heater_all_json_generator(WebServer *web_server, void *source);
+#endif
+
 #ifdef USE_EVENT
   void on_event(event::Event *obj) override;
 
@@ -472,7 +489,7 @@ class WebServer : public Controller,
 #ifdef USE_LIGHT
   // Helper to parse and apply a float parameter with optional scaling
   template<typename T, typename Ret>
-  void parse_light_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(float),
+  void parse_light_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(float),
                           float scale = 1.0f) {
     if (request->hasParam(param_name)) {
       auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
@@ -484,7 +501,7 @@ class WebServer : public Controller,
 
   // Helper to parse and apply a uint32_t parameter with optional scaling
   template<typename T, typename Ret>
-  void parse_light_param_uint_(AsyncWebServerRequest *request, const char *param_name, T &call,
+  void parse_light_param_uint_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
                                Ret (T::*setter)(uint32_t), uint32_t scale = 1) {
     if (request->hasParam(param_name)) {
       auto value = parse_number<uint32_t>(request->getParam(param_name)->value().c_str());
@@ -497,7 +514,7 @@ class WebServer : public Controller,
 
   // Generic helper to parse and apply a float parameter
   template<typename T, typename Ret>
-  void parse_float_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(float)) {
+  void parse_float_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(float)) {
     if (request->hasParam(param_name)) {
       auto value = parse_number<float>(request->getParam(param_name)->value().c_str());
       if (value.has_value()) {
@@ -508,7 +525,7 @@ class WebServer : public Controller,
 
   // Generic helper to parse and apply an int parameter
   template<typename T, typename Ret>
-  void parse_int_param_(AsyncWebServerRequest *request, const char *param_name, T &call, Ret (T::*setter)(int)) {
+  void parse_int_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(int)) {
     if (request->hasParam(param_name)) {
       auto value = parse_number<int>(request->getParam(param_name)->value().c_str());
       if (value.has_value()) {
@@ -519,12 +536,34 @@ class WebServer : public Controller,
 
   // Generic helper to parse and apply a string parameter
   template<typename T, typename Ret>
-  void parse_string_param_(AsyncWebServerRequest *request, const char *param_name, T &call,
+  void parse_string_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
                            Ret (T::*setter)(const std::string &)) {
     if (request->hasParam(param_name)) {
       // .c_str() is required for Arduino framework where value() returns Arduino String instead of std::string
       std::string value = request->getParam(param_name)->value().c_str();  // NOLINT(readability-redundant-string-cstr)
       (call.*setter)(value);
+    }
+  }
+
+  // Generic helper to parse and apply a bool parameter
+  // Accepts: "on", "true", "1" (case-insensitive) as true
+  // Accepts: "off", "false", "0" (case-insensitive) as false
+  // Invalid values are ignored (setter not called)
+  template<typename T, typename Ret>
+  void parse_bool_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call, Ret (T::*setter)(bool)) {
+    if (request->hasParam(param_name)) {
+      auto param_value = request->getParam(param_name)->value();
+      // First check on/off (default), then true/false (custom)
+      auto val = parse_on_off(param_value.c_str());
+      if (val == PARSE_NONE) {
+        val = parse_on_off(param_value.c_str(), "true", "false");
+      }
+      if (val == PARSE_ON || param_value == "1") {
+        (call.*setter)(true);
+      } else if (val == PARSE_OFF || param_value == "0") {
+        (call.*setter)(false);
+      }
+      // PARSE_NONE/PARSE_TOGGLE: ignore invalid values
     }
   }
 
@@ -605,6 +644,9 @@ class WebServer : public Controller,
 #endif
 #ifdef USE_EVENT
   std::string event_json_(event::Event *obj, const std::string &event_type, JsonDetail start_config);
+#endif
+#ifdef USE_WATER_HEATER
+  std::string water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config);
 #endif
 #ifdef USE_UPDATE
   std::string update_json_(update::UpdateEntity *obj, JsonDetail start_config);
