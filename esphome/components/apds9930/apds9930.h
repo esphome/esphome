@@ -38,20 +38,20 @@ static const uint8_t APDS9930_ID_1 = 0x12;
 static const uint8_t APDS9930_ID_2 = 0x39;
 
 // Enable register bits
-static const uint8_t APDS9930_PON = 0x01;   // Power on
-static const uint8_t APDS9930_AEN = 0x02;   // Ambient light enable
-static const uint8_t APDS9930_PEN = 0x04;   // Proximity enable
-static const uint8_t APDS9930_WEN = 0x08;   // Wait enable
+static const uint8_t APDS9930_PON = 0x01;  // Power on
+static const uint8_t APDS9930_AEN = 0x02;  // Ambient light enable
+static const uint8_t APDS9930_PEN = 0x04;  // Proximity enable
+static const uint8_t APDS9930_WEN = 0x08;  // Wait enable
 
 // Status register bits
 static const uint8_t APDS9930_AVALID = 0x01;  // Ambient light data valid
 static const uint8_t APDS9930_PVALID = 0x02;  // Proximity data valid
 
 // Default values
-static const uint8_t APDS9930_DEFAULT_ATIME = 0xED;    // 103ms integration time
-static const uint8_t APDS9930_DEFAULT_WTIME = 0xFF;    // 27ms wait time
-static const uint8_t APDS9930_DEFAULT_PTIME = 0xFF;    // 2.73ms proximity time
-static const uint8_t APDS9930_DEFAULT_PPULSE = 0x08;   // 8 proximity pulses
+static const uint8_t APDS9930_DEFAULT_ATIME = 0xED;   // 103ms integration time
+static const uint8_t APDS9930_DEFAULT_WTIME = 0xFF;   // 27ms wait time
+static const uint8_t APDS9930_DEFAULT_PTIME = 0xFF;   // 2.73ms proximity time
+static const uint8_t APDS9930_DEFAULT_PPULSE = 0x08;  // 8 proximity pulses
 static const uint8_t APDS9930_DEFAULT_CONFIG = 0x00;
 static const uint8_t APDS9930_DEFAULT_POFFSET = 0x00;
 
@@ -64,7 +64,7 @@ static const float APDS9930_ALS_D = 1.291f;
 
 class APDS9930 : public PollingComponent, public i2c::I2CDevice {
 #ifdef USE_SENSOR
-  SUB_SENSOR(ambient_light)
+  SUB_SENSOR(illuminance)
   SUB_SENSOR(proximity)
 #endif
 

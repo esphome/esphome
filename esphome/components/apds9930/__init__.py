@@ -17,8 +17,8 @@ DRIVE_LEVELS = {"100ma": 0, "50ma": 1, "25ma": 2, "12.5ma": 3}
 PROXIMITY_LEVELS = {"1x": 0, "2x": 1, "4x": 2, "8x": 3}
 AMBIENT_LEVELS = {"1x": 0, "8x": 1, "16x": 2, "120x": 3}
 
-apds9930_ns = cg.esphome_ns.namespace("apds9930")
-APDS9930 = apds9930_ns.class_("APDS9930", cg.PollingComponent, i2c.I2CDevice)
+apds9930_nds = cg.esphome_ns.namespace("apds9930")
+APDS9930 = apds9930_nds.class_("APDS9930", cg.PollingComponent, i2c.I2CDevice)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -33,9 +33,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_AMBIENT_LIGHT_GAIN, default="1x"): cv.enum(
                 AMBIENT_LEVELS, lower=True
             ),
-            cv.Optional(CONF_PROXIMITY_DIODE, default=2): cv.int_range(
-                min=0, max=3
-            ),
+            cv.Optional(CONF_PROXIMITY_DIODE, default=2): cv.int_range(min=0, max=3),
         }
     )
     .extend(cv.polling_component_schema("60s"))

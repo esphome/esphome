@@ -76,7 +76,7 @@ void APDS9930::setup() {
 
 bool APDS9930::is_ambient_enabled_() const {
 #ifdef USE_SENSOR
-  return this->ambient_light_sensor_ != nullptr;
+  return this->illuminance_sensor_ != nullptr;
 #else
   return false;
 #endif
@@ -96,7 +96,7 @@ void APDS9930::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 
 #ifdef USE_SENSOR
-  LOG_SENSOR("  ", "Ambient Light", this->ambient_light_sensor_);
+  LOG_SENSOR("  ", "Ambient Light", this->illuminance_sensor_);
   LOG_SENSOR("  ", "Proximity", this->proximity_sensor_);
 #endif
 
@@ -140,7 +140,7 @@ void APDS9930::read_ambient_data_(uint8_t status) {
 #ifndef USE_SENSOR
   return;
 #else
-  if (this->ambient_light_sensor_ == nullptr)
+  if (this->illuminance_sensor_ == nullptr)
     return;
 
   // Check if ambient light data is valid (AVALID bit)
@@ -159,7 +159,7 @@ void APDS9930::read_ambient_data_(uint8_t status) {
   float lux = this->calculate_lux_(ch0, ch1);
 
   ESP_LOGD(TAG, "Got Ch0=%u Ch1=%u Lux=%.0f", ch0, ch1, lux);
-  this->ambient_light_sensor_->publish_state(lux);
+  this->illuminance_sensor_->publish_state(lux);
 #endif
 }
 
@@ -189,7 +189,7 @@ void APDS9930::read_proximity_data_(uint8_t status) {
 
 float APDS9930::calculate_lux_(uint16_t ch0, uint16_t ch1) {
   // Gain multiplier values: 1x, 8x, 16x, 120x
-  static const uint8_t gain_values[4] = {1, 8, 16, 120};
+  static const uint8_t GAIN_VALUES[4] = {1, 8, 16, 120};
 
   // Calculate integration time in milliseconds
   float alsit = 2.73f * (256.0f - this->atime_);
@@ -202,7 +202,7 @@ float APDS9930::calculate_lux_(uint16_t ch0, uint16_t ch1) {
     iac = 0;
 
   // Calculate lux per count
-  float lpc = (APDS9930_GA * APDS9930_DF) / (alsit * gain_values[this->ambient_gain_]);
+  float lpc = (APDS9930_GA * APDS9930_DF) / (alsit * GAIN_VALUES[this->ambient_gain_]);
 
   // Calculate final lux value
   float lux = iac * lpc;

@@ -12,9 +12,13 @@ sensor:
   - platform: apds9930
     apds9930_id: apds9930_hub
     type: illuminance
-    name: APDS9930 Ambient Light
+    illuminance:
+      name: APDS9930 Ambient Light
+      id: apds9930_ambilight
 
   - platform: apds9930
     apds9930_id: apds9930_hub
     type: proximity
-    name: APDS9930 Proximity
+    proximity:
+      name: APDS9930 Proximity
+      id: apds9930_proximity
