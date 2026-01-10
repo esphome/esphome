@@ -119,6 +119,9 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_ZWAVE_PROXY
   buffer.encode_uint32(24, this->zwave_home_id);
 #endif
+#ifdef USE_INFRARED
+  buffer.encode_uint32(25, this->infrared_feature_flags);
+#endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->name.size());
@@ -173,6 +176,9 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #endif
 #ifdef USE_ZWAVE_PROXY
   size.add_uint32(2, this->zwave_home_id);
+#endif
+#ifdef USE_INFRARED
+  size.add_uint32(2, this->infrared_feature_flags);
 #endif
 }
 #ifdef USE_BINARY_SENSOR
@@ -3345,6 +3351,87 @@ void ZWaveProxyRequest::encode(ProtoWriteBuffer buffer) const {
 void ZWaveProxyRequest::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, static_cast<uint32_t>(this->type));
   size.add_length(1, this->data_len);
+}
+#endif
+#ifdef USE_INFRARED
+void ListEntitiesInfraredResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name);
+#ifdef USE_ENTITY_ICON
+  buffer.encode_string(4, this->icon);
+#endif
+  buffer.encode_bool(5, this->disabled_by_default);
+  buffer.encode_uint32(6, static_cast<uint32_t>(this->entity_category));
+#ifdef USE_DEVICES
+  buffer.encode_uint32(7, this->device_id);
+#endif
+  buffer.encode_uint32(8, this->capabilities);
+}
+void ListEntitiesInfraredResponse::calculate_size(ProtoSize &size) const {
+  size.add_length(1, this->object_id.size());
+  size.add_fixed32(1, this->key);
+  size.add_length(1, this->name.size());
+#ifdef USE_ENTITY_ICON
+  size.add_length(1, this->icon.size());
+#endif
+  size.add_bool(1, this->disabled_by_default);
+  size.add_uint32(1, static_cast<uint32_t>(this->entity_category));
+#ifdef USE_DEVICES
+  size.add_uint32(1, this->device_id);
+#endif
+  size.add_uint32(1, this->capabilities);
+}
+bool InfraredTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+#ifdef USE_DEVICES
+    case 1:
+      this->device_id = value.as_uint32();
+      break;
+#endif
+    case 3:
+      this->carrier_frequency = value.as_uint32();
+      break;
+    case 4:
+      this->repeat_count = value.as_uint32();
+      break;
+    case 5:
+      this->timings.push_back(value.as_sint32());
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool InfraredTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 2:
+      this->key = value.as_fixed32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+void InfraredReceiveEvent::encode(ProtoWriteBuffer buffer) const {
+#ifdef USE_DEVICES
+  buffer.encode_uint32(1, this->device_id);
+#endif
+  buffer.encode_fixed32(2, this->key);
+  for (auto &it : this->timings) {
+    buffer.encode_sint32(3, it, true);
+  }
+}
+void InfraredReceiveEvent::calculate_size(ProtoSize &size) const {
+#ifdef USE_DEVICES
+  size.add_uint32(1, this->device_id);
+#endif
+  size.add_fixed32(1, this->key);
+  if (!this->timings.empty()) {
+    for (const auto &it : this->timings) {
+      size.add_sint32_force(1, it);
+    }
+  }
 }
 #endif
 

@@ -827,6 +827,9 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 #ifdef USE_ZWAVE_PROXY
   dump_field(out, "zwave_home_id", this->zwave_home_id);
 #endif
+#ifdef USE_INFRARED
+  dump_field(out, "infrared_feature_flags", this->infrared_feature_flags);
+#endif
 }
 void ListEntitiesRequest::dump_to(std::string &out) const { out.append("ListEntitiesRequest {}"); }
 void ListEntitiesDoneResponse::dump_to(std::string &out) const { out.append("ListEntitiesDoneResponse {}"); }
@@ -2307,6 +2310,45 @@ void ZWaveProxyRequest::dump_to(std::string &out) const {
   out.append("  data: ");
   out.append(format_hex_pretty(this->data, this->data_len));
   out.append("\n");
+}
+#endif
+#ifdef USE_INFRARED
+void ListEntitiesInfraredResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ListEntitiesInfraredResponse");
+  dump_field(out, "object_id", this->object_id);
+  dump_field(out, "key", this->key);
+  dump_field(out, "name", this->name);
+#ifdef USE_ENTITY_ICON
+  dump_field(out, "icon", this->icon);
+#endif
+  dump_field(out, "disabled_by_default", this->disabled_by_default);
+  dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+  dump_field(out, "capabilities", this->capabilities);
+}
+void InfraredTransmitRawTimingsRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "InfraredTransmitRawTimingsRequest");
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+  dump_field(out, "key", this->key);
+  dump_field(out, "carrier_frequency", this->carrier_frequency);
+  dump_field(out, "repeat_count", this->repeat_count);
+  for (const auto &it : this->timings) {
+    dump_field(out, "timings", it, 4);
+  }
+}
+void InfraredReceiveEvent::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "InfraredReceiveEvent");
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+  dump_field(out, "key", this->key);
+  for (const auto &it : this->timings) {
+    dump_field(out, "timings", it, 4);
+  }
 }
 #endif
 

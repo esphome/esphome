@@ -61,6 +61,9 @@
 #ifdef USE_WATER_HEATER
 #include "esphome/components/water_heater/water_heater.h"
 #endif
+#ifdef USE_INFRARED
+#include "esphome/components/infrared/infrared.h"
+#endif
 #ifdef USE_EVENT
 #include "esphome/components/event/event.h"
 #endif

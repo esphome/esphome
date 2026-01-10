@@ -1436,6 +1436,16 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
 }
 #endif
 
+#ifdef USE_INFRARED
+void APIConnection::infrared_transmit_raw_timings(const InfraredTransmitRawTimingsRequest &msg) {
+  if (global_api_server != nullptr) {
+    global_api_server->on_infrared_transmit_raw_timings_request(msg);
+  }
+}
+
+void APIConnection::send_infrared_receive_event(const InfraredReceiveEvent &msg) { this->send_message(msg); }
+#endif
+
 #ifdef USE_UPDATE
 bool APIConnection::send_update_state(update::UpdateEntity *update) {
   return this->send_message_smart_(update, &APIConnection::try_send_update_state, UpdateStateResponse::MESSAGE_TYPE,
@@ -1640,6 +1650,9 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
 #ifdef USE_ZWAVE_PROXY
   resp.zwave_proxy_feature_flags = zwave_proxy::global_zwave_proxy->get_feature_flags();
   resp.zwave_home_id = zwave_proxy::global_zwave_proxy->get_home_id();
+#endif
+#ifdef USE_INFRARED
+  resp.infrared_feature_flags = infrared::get_infrared_feature_flags();
 #endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;

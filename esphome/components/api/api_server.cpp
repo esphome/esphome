@@ -347,6 +347,34 @@ void APIServer::on_zwave_proxy_request(const esphome::api::ProtoMessage &msg) {
 }
 #endif
 
+#ifdef USE_INFRARED
+void APIServer::on_infrared_transmit_raw_timings_request(const InfraredTransmitRawTimingsRequest &msg) {
+#ifdef USE_DEVICES
+  infrared::Infrared *infrared = App.get_infrared_by_key(msg.key, msg.device_id);
+#else
+  infrared::Infrared *infrared = App.get_infrared_by_key(msg.key);
+#endif
+  if (infrared == nullptr)
+    return;
+
+  infrared->transmit_raw_timings(msg);
+}
+
+void APIServer::send_infrared_receive_event(uint32_t device_id, uint32_t key, const remote_base::RawTimings &timings) {
+  InfraredReceiveEvent resp{};
+  resp.device_id = device_id;
+  resp.key = key;
+  // Convert RawTimings to sint32 array for protobuf
+  resp.timings.reserve(timings.size());
+  for (const auto &timing : timings) {
+    resp.timings.push_back(static_cast<int32_t>(timing));
+  }
+
+  for (auto &c : this->clients_)
+    c->send_infrared_receive_event(resp);
+}
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
 API_DISPATCH_UPDATE(alarm_control_panel::AlarmControlPanel, alarm_control_panel)
 #endif
