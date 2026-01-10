@@ -112,7 +112,9 @@ def consume_endpoint(config: ConfigType) -> ConfigType:
         return config
     if " " in config[CONF_NAME]:
         _LOGGER.warning(
-            f"'{config[CONF_NAME]}' won't work in Zigbee2MQTT. Please change name to '{config[CONF_NAME].replace(' ', '_')}'"
+            "'%s' won't work in Zigbee2MQTT. Please change name to '%s'",
+            config[CONF_NAME],
+            config[CONF_NAME].replace(" ", "_"),
         )
     data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
     slots: list[str] = data.setdefault(KEY_EP_NUMBER, [])
