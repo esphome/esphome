@@ -364,8 +364,10 @@ bool INA2XX::configure_shunt_() {
     ESP_LOGW(TAG, "Shunt value too high");
   }
   this->shunt_cal_ &= 0x7FFF;
-  ESP_LOGV(TAG, "Given Rshunt=%f Ohm and Max_current=%.3f", this->shunt_resistance_ohm_, this->max_current_a_);
-  ESP_LOGV(TAG, "New CURRENT_LSB=%f, SHUNT_CAL=%u", this->current_lsb_, this->shunt_cal_);
+  ESP_LOGV(TAG,
+           "Given Rshunt=%f Ohm and Max_current=%.3f\n"
+           "New CURRENT_LSB=%f, SHUNT_CAL=%u",
+           this->shunt_resistance_ohm_, this->max_current_a_, this->current_lsb_, this->shunt_cal_);
   return this->write_unsigned_16_(RegisterMap::REG_SHUNT_CAL, this->shunt_cal_);
 }
 

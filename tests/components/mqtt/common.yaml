@@ -57,10 +57,14 @@ mqtt:
     - mqtt.publish:
         topic: some/topic
         payload: Hello
+    - lambda: |-
+        ESP_LOGD("MQTT", "Session present %d", session_present);
   on_disconnect:
     - mqtt.publish:
         topic: some/topic
         payload: Good-bye
+    - lambda: |-
+        ESP_LOGD("MQTT", "Disconnect reason %d", reason);
   publish_nan_as_none: false
 
 binary_sensor:

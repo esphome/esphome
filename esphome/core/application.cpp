@@ -1,5 +1,15 @@
 #include "esphome/core/application.h"
+#include "esphome/core/build_info_data.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
+#include <cstring>
+
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif
+#ifdef USE_ESP32
+#include <esp_chip_info.h>
+#endif
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
@@ -191,9 +201,29 @@ void Application::loop() {
 
   if (this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
-      ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_);
+      char build_time_str[Application::BUILD_TIME_STR_SIZE];
+      this->get_build_time_string(build_time_str);
+      ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", build_time_str);
 #ifdef ESPHOME_PROJECT_NAME
       ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
+#endif
+#ifdef USE_ESP32
+      esp_chip_info_t chip_info;
+      esp_chip_info(&chip_info);
+      ESP_LOGI(TAG, "ESP32 Chip: %s r%d.%d, %d core(s)", ESPHOME_VARIANT, chip_info.revision / 100,
+               chip_info.revision % 100, chip_info.cores);
+#if defined(USE_ESP32_VARIANT_ESP32) && !defined(USE_ESP32_MIN_CHIP_REVISION_SET)
+      // Suggest optimization for chips that don't need the PSRAM cache workaround
+      if (chip_info.revision >= 300) {
+#ifdef USE_PSRAM
+        ESP_LOGW(TAG, "Set minimum_chip_revision: \"%d.%d\" to save ~10KB IRAM", chip_info.revision / 100,
+                 chip_info.revision % 100);
+#else
+        ESP_LOGW(TAG, "Set minimum_chip_revision: \"%d.%d\" to reduce binary size", chip_info.revision / 100,
+                 chip_info.revision % 100);
+#endif
+      }
+#endif
 #endif
     }
 
@@ -710,5 +740,10 @@ void Application::wake_loop_threadsafe() {
   }
 }
 #endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+
+void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer) {
+  ESPHOME_strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());
+  buffer[buffer.size() - 1] = '\0';
+}
 
 }  // namespace esphome

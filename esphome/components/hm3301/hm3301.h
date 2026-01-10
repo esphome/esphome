@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
-#include "aqi_calculator_factory.h"
+#include "esphome/components/aqi/aqi_calculator_factory.h"
 
 namespace esphome {
 namespace hm3301 {
@@ -19,7 +19,7 @@ class HM3301Component : public PollingComponent, public i2c::I2CDevice {
   void set_pm_10_0_sensor(sensor::Sensor *pm_10_0_sensor) { pm_10_0_sensor_ = pm_10_0_sensor; }
   void set_aqi_sensor(sensor::Sensor *aqi_sensor) { aqi_sensor_ = aqi_sensor; }
 
-  void set_aqi_calculation_type(AQICalculatorType aqi_calc_type) { aqi_calc_type_ = aqi_calc_type; }
+  void set_aqi_calculation_type(aqi::AQICalculatorType aqi_calc_type) { aqi_calc_type_ = aqi_calc_type; }
 
   void setup() override;
   void dump_config() override;
@@ -41,8 +41,8 @@ class HM3301Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *pm_10_0_sensor_{nullptr};
   sensor::Sensor *aqi_sensor_{nullptr};
 
-  AQICalculatorType aqi_calc_type_;
-  AQICalculatorFactory aqi_calculator_factory_ = AQICalculatorFactory();
+  aqi::AQICalculatorType aqi_calc_type_;
+  aqi::AQICalculatorFactory aqi_calculator_factory_ = aqi::AQICalculatorFactory();
 
   bool validate_checksum_(const uint8_t *data);
   uint16_t get_sensor_value_(const uint8_t *data, uint8_t i);

@@ -76,6 +76,7 @@ VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
 
 
 def validate_hostname(config):
+    # Keep in sync with ESPHOME_DEVICE_NAME_MAX_LEN in esphome/core/entity_base.h
     max_length = 31
     if config[CONF_NAME_ADD_MAC_SUFFIX]:
         max_length -= 7  # "-AABBCC" is appended when add mac suffix option is used
@@ -183,17 +184,24 @@ if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
 else:
     _compile_process_limit_default = cv.UNDEFINED
 
+# Keep in sync with ESPHOME_FRIENDLY_NAME_MAX_LEN in esphome/core/entity_base.h
+FRIENDLY_NAME_MAX_LEN = 120
+
 AREA_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Area),
-        cv.Required(CONF_NAME): cv.string,
+        cv.Required(CONF_NAME): cv.All(
+            cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+        ),
     }
 )
 
 DEVICE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Device),
-        cv.Required(CONF_NAME): cv.string,
+        cv.Required(CONF_NAME): cv.All(
+            cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+        ),
         cv.Optional(CONF_AREA_ID): cv.use_id(Area),
     }
 )
@@ -207,9 +215,12 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_NAME): cv.valid_name,
-            cv.Optional(CONF_FRIENDLY_NAME, ""): cv.All(cv.string, cv.Length(max=120)),
+            # Keep max=120 in sync with OBJECT_ID_MAX_LEN in esphome/core/entity_base.h
+            cv.Optional(CONF_FRIENDLY_NAME, ""): cv.All(
+                cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+            ),
             cv.Optional(CONF_AREA): validate_area_config,
-            cv.Optional(CONF_COMMENT): cv.string,
+            cv.Optional(CONF_COMMENT): cv.All(cv.string, cv.Length(max=255)),
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
                 {
@@ -382,10 +393,15 @@ def include_file(path: Path, basename: Path, is_c_header: bool = False):
 
 
 ARDUINO_GLUE_CODE = """\
+#undef yield
 #define yield() esphome::yield()
+#undef millis
 #define millis() esphome::millis()
+#undef micros
 #define micros() esphome::micros()
+#undef delay
 #define delay(x) esphome::delay(x)
+#undef delayMicroseconds
 #define delayMicroseconds(x) esphome::delayMicroseconds(x)
 """
 
@@ -500,8 +516,6 @@ async def to_code(config: ConfigType) -> None:
         cg.App.pre_setup(
             config[CONF_NAME],
             config[CONF_FRIENDLY_NAME],
-            config.get(CONF_COMMENT, ""),
-            cg.RawExpression('__DATE__ ", " __TIME__'),
             config[CONF_NAME_ADD_MAC_SUFFIX],
         )
     )
@@ -537,7 +551,7 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_DEBUG_SCHEDULER]:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
 
-    if CORE.using_arduino and not CORE.is_bk72xx:
+    if CORE.using_arduino:
         CORE.add_job(add_arduino_global_workaround)
 
     if config[CONF_INCLUDES]:
