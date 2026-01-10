@@ -1,7 +1,6 @@
 #include "ips7100.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include <cmath>
 
 namespace esphome {
 namespace ips7100 {
@@ -13,9 +12,9 @@ static const uint8_t IPS7100_CMD_READ_PC = 0x11;  // Read particle count data
 static const uint8_t IPS7100_CMD_READ_PM = 0x12;  // Read PM mass data
 
 // Data sizes - actual bytes returned by sensor over I2C
-// Note: Sensor sends only 28 data bytes without CRC (7 x 4 bytes)
+// Note: Sensor sends data bytes without CRC
 static const uint8_t PC_DATA_SIZE = 28;  // 7 x 4 bytes
-static const uint8_t PM_DATA_SIZE = 28;  // 7 x 4 bytes
+static const uint8_t PM_DATA_SIZE = 30;  // 7 x 4 bytes + 2 event status bytes
 
 void IPS7100Component::setup() { ESP_LOGCONFIG(TAG, "Setting up IPS7100..."); }
 
