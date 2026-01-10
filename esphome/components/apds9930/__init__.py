@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
+CODEOWNERS = ["@iyesin"]
 
 CONF_APDS9930_ID = "apds9930_id"
 CONF_LED_DRIVE = "led_drive"
