@@ -46,7 +46,7 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
 
   ListEntitiesServicesResponse encode_list_service_response() override {
     ListEntitiesServicesResponse msg;
-    msg.set_name(StringRef(this->name_));
+    msg.name = StringRef(this->name_);
     msg.key = this->key_;
     msg.supports_response = this->supports_response_;
     std::array<enums::ServiceArgType, sizeof...(Ts)> arg_types = {to_service_arg_type<Ts>()...};
@@ -54,7 +54,7 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
     for (size_t i = 0; i < sizeof...(Ts); i++) {
       auto &arg = msg.args.emplace_back();
       arg.type = arg_types[i];
-      arg.set_name(StringRef(this->arg_names_[i]));
+      arg.name = StringRef(this->arg_names_[i]);
     }
     return msg;
   }
@@ -108,7 +108,7 @@ template<typename... Ts> class UserServiceDynamic : public UserServiceDescriptor
 
   ListEntitiesServicesResponse encode_list_service_response() override {
     ListEntitiesServicesResponse msg;
-    msg.set_name(StringRef(this->name_));
+    msg.name = StringRef(this->name_);
     msg.key = this->key_;
     msg.supports_response = enums::SUPPORTS_RESPONSE_NONE;  // Dynamic services don't support responses yet
     std::array<enums::ServiceArgType, sizeof...(Ts)> arg_types = {to_service_arg_type<Ts>()...};
@@ -116,7 +116,7 @@ template<typename... Ts> class UserServiceDynamic : public UserServiceDescriptor
     for (size_t i = 0; i < sizeof...(Ts); i++) {
       auto &arg = msg.args.emplace_back();
       arg.type = arg_types[i];
-      arg.set_name(StringRef(this->arg_names_[i]));
+      arg.name = StringRef(this->arg_names_[i]);
     }
     return msg;
   }
@@ -255,7 +255,7 @@ template<typename... Ts> class APIRespondAction : public Action<Ts...> {
             bool return_response = std::get<1>(args);
             if (!return_response) {
               // Client doesn't want response data, just send success/error
-              this->parent_->send_action_response(call_id, success, error_message);
+              this->parent_->send_action_response(call_id, success, StringRef(error_message));
               return;
             }
           }
@@ -265,12 +265,12 @@ template<typename... Ts> class APIRespondAction : public Action<Ts...> {
       json::JsonBuilder builder;
       this->json_builder_(x..., builder.root());
       std::string json_str = builder.serialize();
-      this->parent_->send_action_response(call_id, success, error_message,
+      this->parent_->send_action_response(call_id, success, StringRef(error_message),
                                           reinterpret_cast<const uint8_t *>(json_str.data()), json_str.size());
       return;
     }
 #endif
-    this->parent_->send_action_response(call_id, success, error_message);
+    this->parent_->send_action_response(call_id, success, StringRef(error_message));
   }
 
  protected:

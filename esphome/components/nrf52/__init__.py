@@ -12,6 +12,7 @@ from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_data,
     zephyr_set_core_data,
+    zephyr_setup_preferences,
     zephyr_to_code,
 )
 from esphome.components.zephyr.const import (
@@ -49,7 +50,7 @@ from .const import (
 from .gpio import nrf52_pin_to_code  # noqa
 
 CODEOWNERS = ["@tomaszduda23"]
-AUTO_LOAD = ["zephyr"]
+AUTO_LOAD = ["zephyr", "preferences"]
 IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
 
@@ -194,6 +195,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_platformio_option("board_upload.require_upload_port", "true")
         cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
 
+    zephyr_setup_preferences()
     zephyr_to_code(config)
 
     if dfu_config := config.get(CONF_DFU):
@@ -205,6 +207,18 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_NRF52_REG0_VOUT", value)
         if reg0_config[CONF_UICR_ERASE]:
             cg.add_define("USE_NRF52_UICR_ERASE")
+
+    # c++ support
+    zephyr_add_prj_conf("CPLUSPLUS", True)
+    zephyr_add_prj_conf("LIB_CPLUSPLUS", True)
+    # watchdog
+    zephyr_add_prj_conf("WATCHDOG", True)
+    zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
+    # disable console
+    zephyr_add_prj_conf("UART_CONSOLE", False)
+    zephyr_add_prj_conf("CONSOLE", False)
+    # use NFC pins as GPIO
+    zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)

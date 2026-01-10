@@ -12,6 +12,9 @@ static const uint8_t WAIT_I_RQ = 0x30;  // RxIRq and IdleIRq
 
 static const char *const TAG = "rc522";
 
+// Max UID size for RFID tags (4, 7, or 10 bytes)
+static constexpr size_t RC522_MAX_UID_SIZE = 10;
+
 static const uint8_t RESET_COUNT = 5;
 
 void RC522::setup() {
@@ -191,8 +194,9 @@ void RC522::loop() {
         if (status == STATUS_TIMEOUT) {
           ESP_LOGV(TAG, "STATE_READ_SERIAL_DONE -> TIMEOUT (no tag present) %d", status);
         } else {
+          char hex_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
           ESP_LOGW(TAG, "Unexpected response. Read status is %d. Read bytes: %d (%s)", status, back_length_,
-                   format_hex_pretty(buffer_, back_length_, '-', false).c_str());
+                   format_hex_pretty_to(hex_buf, buffer_, back_length_, '-'));
         }
 
         state_ = STATE_DONE;
@@ -237,13 +241,18 @@ void RC522::loop() {
         trigger->process(rfid_uid);
 
       if (report) {
-        ESP_LOGD(TAG, "Found new tag '%s'", format_hex_pretty(rfid_uid, '-', false).c_str());
+        char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
+        ESP_LOGD(TAG, "Found new tag '%s'", format_hex_pretty_to(uid_buf, rfid_uid.data(), rfid_uid.size(), '-'));
       }
       break;
     }
     case STATE_DONE: {
       if (!this->current_uid_.empty()) {
-        ESP_LOGV(TAG, "Tag '%s' removed", format_hex_pretty(this->current_uid_, '-', false).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+        char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
+        ESP_LOGV(TAG, "Tag '%s' removed",
+                 format_hex_pretty_to(uid_buf, this->current_uid_.data(), this->current_uid_.size(), '-'));
+#endif
         for (auto *trigger : this->triggers_ontagremoved_)
           trigger->process(this->current_uid_);
       }
@@ -338,7 +347,10 @@ void RC522::pcd_clear_register_bit_mask_(PcdRegister reg,  ///< The register to 
  * @return STATUS_OK on success, STATUS_??? otherwise.
  */
 void RC522::pcd_transceive_data_(uint8_t send_len) {
-  ESP_LOGV(TAG, "PCD TRANSCEIVE: RX: %s", format_hex_pretty(buffer_, send_len, '-', false).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
+  ESP_LOGV(TAG, "PCD TRANSCEIVE: RX: %s", format_hex_pretty_to(hex_buf, buffer_, send_len, '-'));
+#endif
   delayMicroseconds(1000);  // we need 1 ms delay between antenna on and those communication commands
   send_len_ = send_len;
   // Prepare values for BitFramingReg
@@ -412,8 +424,11 @@ RC522::StatusCode RC522::await_transceive_() {
              error_reg_value);  // TODO: is this always due to collissions?
     return STATUS_ERROR;
   }
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
   ESP_LOGV(TAG, "received %d bytes: %s", back_length_,
-           format_hex_pretty(buffer_ + send_len_, back_length_, '-', false).c_str());
+           format_hex_pretty_to(hex_buf, buffer_ + send_len_, back_length_, '-'));
+#endif
 
   return STATUS_OK;
 }

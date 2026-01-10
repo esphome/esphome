@@ -64,6 +64,7 @@ _LOGGER = logging.getLogger(__name__)
 NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
 CONF_SAVE = "save"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
+CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
 
 # Maximum number of WiFi networks that can be configured
 # Limited to 127 because selected_sta_index_ is int8_t in C++
@@ -348,11 +349,8 @@ CONFIG_SCHEMA = cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
-            cv.Optional("enable_mdns"): cv.invalid(
-                "This option has been removed. Please use the [disabled] option under the "
-                "new mdns component instead."
-            ),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
+            cv.Optional(CONF_POST_CONNECT_ROAMING, default=True): cv.boolean,
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
                 single=True
@@ -468,7 +466,7 @@ async def to_code(config):
         )
         cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
         cg.add_define("USE_WIFI_AP")
-    elif CORE.is_esp32 and CORE.using_esp_idf:
+    elif CORE.is_esp32 and not CORE.using_arduino:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
         add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
 
@@ -495,6 +493,15 @@ async def to_code(config):
     if not config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.set_enable_on_boot(False))
 
+    # post_connect_roaming defaults to true in C++ - disable if user disabled it
+    # or if 802.11k/v is enabled (driver handles roaming natively)
+    if (
+        not config[CONF_POST_CONNECT_ROAMING]
+        or config.get(CONF_ENABLE_BTM)
+        or config.get(CONF_ENABLE_RRM)
+    ):
+        cg.add(var.set_post_connect_roaming(False))
+
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
     elif CORE.is_rp2040:
@@ -513,7 +520,7 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
 
     # Apply high performance WiFi settings if high performance networking is enabled
-    if CORE.is_esp32 and CORE.using_esp_idf and has_high_performance_networking():
+    if CORE.is_esp32 and has_high_performance_networking():
         # Check if PSRAM is guaranteed (set by psram component during final validation)
         psram_guaranteed = psram_is_guaranteed()
 

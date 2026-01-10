@@ -14,8 +14,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace bmp581_base {
+namespace esphome::bmp581_base {
 
 static const char *const TAG = "bmp581";
 
@@ -595,5 +594,4 @@ bool BMP581Component::write_power_mode_(OperationMode mode) {
   return this->bmp_write_byte(BMP581_ODR, this->odr_config_.reg);
 }
 
-}  // namespace bmp581_base
-}  // namespace esphome
+}  // namespace esphome::bmp581_base

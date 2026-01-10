@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace bmp581_base {
+namespace esphome::bmp581_base {
 
 static const uint8_t BMP581_ASIC_ID = 0x50;  // BMP581's ASIC chip ID (page 51 of datasheet)
 static const uint8_t RESET_COMMAND = 0xB6;   // Soft reset command
@@ -220,5 +219,4 @@ class BMP581Component : public PollingComponent {
   } odr_config_ = {.reg = 0};
 };
 
-}  // namespace bmp581_base
-}  // namespace esphome
+}  // namespace esphome::bmp581_base
