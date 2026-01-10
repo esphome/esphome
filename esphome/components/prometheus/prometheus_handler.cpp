@@ -370,7 +370,8 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
     if (effect == "None") {
       stream->print(ESPHOME_F("None\"} 0\n"));
     } else {
-      stream->write(effect.c_str(), effect.size());
+      // c_str() is safe as effect names are null-terminated strings from codegen
+      stream->print(effect.c_str());
       stream->print(ESPHOME_F("\"} 1\n"));
     }
   }
