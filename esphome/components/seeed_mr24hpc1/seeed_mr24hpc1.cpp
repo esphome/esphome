@@ -359,8 +359,8 @@ void MR24HPC1Component::r24_split_data_frame_(uint8_t value) {
 
 // Parses data frames related to product information
 void MR24HPC1Component::r24_frame_parse_product_information_(uint8_t *data) {
-  uint16_t product_len = encode_uint16(data[FRAME_COMMAND_WORD_INDEX + 1], data[FRAME_COMMAND_WORD_INDEX + 2]);
 #ifdef USE_TEXT_SENSOR
+  uint16_t product_len = encode_uint16(data[FRAME_COMMAND_WORD_INDEX + 1], data[FRAME_COMMAND_WORD_INDEX + 2]);
   if (data[FRAME_COMMAND_WORD_INDEX] == COMMAND_PRODUCT_MODE) {
     if ((this->product_model_text_sensor_ != nullptr) && (product_len < PRODUCT_BUF_MAX_SIZE)) {
       memset(this->c_product_mode_, 0, PRODUCT_BUF_MAX_SIZE);
@@ -395,8 +395,6 @@ void MR24HPC1Component::r24_frame_parse_product_information_(uint8_t *data) {
       ESP_LOGD(TAG, "Reply: get firmwareVersion error!");
     }
   }
-#else
-  (void) product_len;
 #endif
 }
 
