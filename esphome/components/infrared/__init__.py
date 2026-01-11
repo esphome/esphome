@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["remote_base"]
@@ -39,12 +40,12 @@ def infrared_schema(class_: type[cg.MockObjClass]) -> cv.Schema:
     )
 
 
-async def setup_infrared_core_(var, config):
+async def setup_infrared_core_(var: cg.Pvariable, config: ConfigType) -> None:
     """Set up core infrared configuration."""
     await setup_entity(var, config, "infrared")
 
 
-async def register_infrared(var, config):
+async def register_infrared(var: cg.Pvariable, config: ConfigType) -> None:
     """Register an infrared device with the core."""
     await cg.register_component(var, config)
     await setup_infrared_core_(var, config)
@@ -52,7 +53,7 @@ async def register_infrared(var, config):
     CORE.register_platform_component("infrared", var)
 
 
-async def new_infrared(config, *args):
+async def new_infrared(config: ConfigType, *args) -> cg.Pvariable:
     """Create a new Infrared instance.
 
     :param config: Configuration dictionary.
@@ -64,5 +65,5 @@ async def new_infrared(config, *args):
     return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_INFRARED")

@@ -146,29 +146,6 @@ void Infrared::transmit_raw_timings(const api::InfraredTransmitRawTimingsRequest
   // Transmit the data
   call.perform();
 }
-
-bool Infrared::on_receive(remote_base::RemoteReceiveData data) {
-  if (this->receiver_ == nullptr) {
-    return false;  // Not interested in receive data if no receiver configured
-  }
-
-  // Get the raw timings
-  const auto &raw_data = data.get_raw_data();
-
-  ESP_LOGD(TAG, "Received %u timings", raw_data.size());
-
-  // Send the raw timings to the API
-  if (api::global_api_server != nullptr) {
-#ifdef USE_DEVICES
-    uint32_t device_id = this->get_device_id();
-#else
-    uint32_t device_id = 0;
-#endif
-    api::global_api_server->send_infrared_receive_event(device_id, this->get_object_id_hash(), raw_data);
-  }
-
-  return false;  // Return false to allow other listeners to process the data
-}
 #endif  // USE_API
 
 }  // namespace esphome::infrared

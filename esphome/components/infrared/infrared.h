@@ -73,7 +73,7 @@ class InfraredTraits {
 };
 
 /// Infrared - Base class for infrared remote control implementations
-class Infrared : public Component, public EntityBase, public remote_base::RemoteReceiverListener {
+class Infrared : public Component, public EntityBase {
  public:
   Infrared() = default;
 
@@ -106,9 +106,6 @@ class Infrared : public Component, public EntityBase, public remote_base::Remote
 
   /// Transmit infrared data using raw timings array
   void transmit_raw_timings(const api::InfraredTransmitRawTimingsRequest &msg);
-
-  /// Called when infrared data is received - implements RemoteReceiverListener interface
-  bool on_receive(remote_base::RemoteReceiveData data) override;
 #endif
 
  protected:

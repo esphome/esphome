@@ -1443,9 +1443,7 @@ void APIConnection::infrared_transmit_raw_timings(const InfraredTransmitRawTimin
   }
 }
 
-void APIConnection::send_infrared_receive_event(const InfraredReceiveEvent &msg) {
-  this->send_message(msg, InfraredReceiveEvent::MESSAGE_TYPE);
-}
+void APIConnection::send_infrared_receive_event(const InfraredReceiveEvent &msg) { this->send_message(msg); }
 #endif
 
 #ifdef USE_UPDATE

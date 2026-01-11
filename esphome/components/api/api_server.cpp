@@ -362,7 +362,9 @@ void APIServer::on_infrared_transmit_raw_timings_request(const InfraredTransmitR
 
 void APIServer::send_infrared_receive_event(uint32_t device_id, uint32_t key, const remote_base::RawTimings &timings) {
   InfraredReceiveEvent resp{};
+#ifdef USE_DEVICES
   resp.device_id = device_id;
+#endif
   resp.key = key;
   // Convert RawTimings to sint32 array for protobuf
   resp.timings.reserve(timings.size());
