@@ -410,8 +410,8 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
 #endif
       this->s_output_info_switch_flag_ = data[FRAME_DATA_INDEX] ? OUTPUT_SWITCH_ON : OUTPUT_SWTICH_OFF;
       break;
-    case 0x01:
 #ifdef USE_SENSOR
+    case 0x01:
       if (this->custom_spatial_static_value_sensor_ != nullptr) {
         this->custom_spatial_static_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
       }
@@ -427,127 +427,105 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
       if (this->custom_motion_speed_sensor_ != nullptr) {
         this->custom_motion_speed_sensor_->publish_state((data[FRAME_DATA_INDEX + 4] - 10) * 0.5f);
       }
-#endif
-      break;
-    case 0x06:
-    case 0x86:
-      // none:0x00  close_to:0x01  far_away:0x02
-#ifdef USE_TEXT_SENSOR
-      if ((this->keep_away_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < 3)) {
-        this->keep_away_text_sensor_->publish_state(S_KEEP_AWAY_STR[data[FRAME_DATA_INDEX]]);
-      }
-#endif
       break;
     case 0x07:
     case 0x87:
-#ifdef USE_SENSOR
       if (this->movement_signs_sensor_ != nullptr) {
         this->movement_signs_sensor_->publish_state(data[FRAME_DATA_INDEX]);
       }
-#endif
       break;
+    case 0x81:
+      if (this->custom_spatial_static_value_sensor_ != nullptr) {
+        this->custom_spatial_static_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
+      }
+      break;
+    case 0x82:
+      if (this->custom_spatial_motion_value_sensor_ != nullptr) {
+        this->custom_spatial_motion_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
+      }
+      break;
+    case 0x83:
+      if (this->custom_presence_of_detection_sensor_ != nullptr) {
+        this->custom_presence_of_detection_sensor_->publish_state(
+            S_PRESENCE_OF_DETECTION_RANGE_STR[data[FRAME_DATA_INDEX]]);
+      }
+      break;
+    case 0x84:
+      if (this->custom_motion_distance_sensor_ != nullptr) {
+        this->custom_motion_distance_sensor_->publish_state(data[FRAME_DATA_INDEX] * 0.5f);
+      }
+      break;
+    case 0x85:
+      if (this->custom_motion_speed_sensor_ != nullptr) {
+        this->custom_motion_speed_sensor_->publish_state((data[FRAME_DATA_INDEX] - 10) * 0.5f);
+      }
+      break;
+#endif
+#ifdef USE_TEXT_SENSOR
+    case 0x06:
+    case 0x86:
+      // none:0x00  close_to:0x01  far_away:0x02
+      if ((this->keep_away_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < 3)) {
+        this->keep_away_text_sensor_->publish_state(S_KEEP_AWAY_STR[data[FRAME_DATA_INDEX]]);
+      }
+      break;
+#endif
+#ifdef USE_NUMBER
     case 0x08:
     case 0x88:
-#ifdef USE_NUMBER
       if (this->existence_threshold_number_ != nullptr) {
         this->existence_threshold_number_->publish_state(data[FRAME_DATA_INDEX]);
       }
-#endif
       break;
     case 0x09:
     case 0x89:
-#ifdef USE_NUMBER
       if (this->motion_threshold_number_ != nullptr) {
         this->motion_threshold_number_->publish_state(data[FRAME_DATA_INDEX]);
       }
-#endif
-      break;
-    case 0x0a:
-    case 0x8a:
-#ifdef USE_SELECT
-      if (this->existence_boundary_select_ != nullptr) {
-        if (this->existence_boundary_select_->has_index(data[FRAME_DATA_INDEX] - 1)) {
-          this->existence_boundary_select_->publish_state(data[FRAME_DATA_INDEX] - 1);
-        }
-      }
-#endif
-      break;
-    case 0x0b:
-    case 0x8b:
-#ifdef USE_SELECT
-      if (this->motion_boundary_select_ != nullptr) {
-        if (this->motion_boundary_select_->has_index(data[FRAME_DATA_INDEX] - 1)) {
-          this->motion_boundary_select_->publish_state(data[FRAME_DATA_INDEX] - 1);
-        }
-      }
-#endif
       break;
     case 0x0c:
     case 0x8c:
-#ifdef USE_NUMBER
       if (this->motion_trigger_number_ != nullptr) {
         uint32_t motion_trigger_time = encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1],
                                                      data[FRAME_DATA_INDEX + 2], data[FRAME_DATA_INDEX + 3]);
         this->motion_trigger_number_->publish_state(motion_trigger_time);
       }
-#endif
       break;
     case 0x0d:
     case 0x8d:
-#ifdef USE_NUMBER
       if (this->motion_to_rest_number_ != nullptr) {
         uint32_t move_to_rest_time = encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1],
                                                    data[FRAME_DATA_INDEX + 2], data[FRAME_DATA_INDEX + 3]);
         this->motion_to_rest_number_->publish_state(move_to_rest_time);
       }
-#endif
       break;
     case 0x0e:
     case 0x8e:
-#ifdef USE_NUMBER
       if (this->custom_unman_time_number_ != nullptr) {
         uint32_t enter_unmanned_time = encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1],
                                                      data[FRAME_DATA_INDEX + 2], data[FRAME_DATA_INDEX + 3]);
         this->custom_unman_time_number_->publish_state(enter_unmanned_time / 1000.0f);
       }
-#endif
       break;
-    case 0x81:
-#ifdef USE_SENSOR
-      if (this->custom_spatial_static_value_sensor_ != nullptr) {
-        this->custom_spatial_static_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
+#endif
+#ifdef USE_SELECT
+    case 0x0a:
+    case 0x8a:
+      if (this->existence_boundary_select_ != nullptr) {
+        if (this->existence_boundary_select_->has_index(data[FRAME_DATA_INDEX] - 1)) {
+          this->existence_boundary_select_->publish_state(data[FRAME_DATA_INDEX] - 1);
+        }
       }
-#endif
       break;
-    case 0x82:
-#ifdef USE_SENSOR
-      if (this->custom_spatial_motion_value_sensor_ != nullptr) {
-        this->custom_spatial_motion_value_sensor_->publish_state(data[FRAME_DATA_INDEX]);
+    case 0x0b:
+    case 0x8b:
+      if (this->motion_boundary_select_ != nullptr) {
+        if (this->motion_boundary_select_->has_index(data[FRAME_DATA_INDEX] - 1)) {
+          this->motion_boundary_select_->publish_state(data[FRAME_DATA_INDEX] - 1);
+        }
       }
-#endif
       break;
-    case 0x83:
-#ifdef USE_SENSOR
-      if (this->custom_presence_of_detection_sensor_ != nullptr) {
-        this->custom_presence_of_detection_sensor_->publish_state(
-            S_PRESENCE_OF_DETECTION_RANGE_STR[data[FRAME_DATA_INDEX]]);
-      }
 #endif
-      break;
-    case 0x84:
-#ifdef USE_SENSOR
-      if (this->custom_motion_distance_sensor_ != nullptr) {
-        this->custom_motion_distance_sensor_->publish_state(data[FRAME_DATA_INDEX] * 0.5f);
-      }
-#endif
-      break;
-    case 0x85:
-#ifdef USE_SENSOR
-      if (this->custom_motion_speed_sensor_ != nullptr) {
-        this->custom_motion_speed_sensor_->publish_state((data[FRAME_DATA_INDEX] - 10) * 0.5f);
-      }
-#endif
-      break;
   }
 }
 
