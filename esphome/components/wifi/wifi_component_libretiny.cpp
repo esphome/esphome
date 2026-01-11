@@ -86,6 +86,14 @@ enum class LTWiFiSTAState : uint8_t {
 
 static LTWiFiSTAState s_sta_state = LTWiFiSTAState::IDLE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// Count of ignored disconnect events during connection - too many indicates real failure
+static uint8_t s_ignored_disconnect_count = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// Threshold for ignored disconnect events before treating as connection failure
+// LibreTiny sends spurious "Association Leave" events, but more than this many
+// indicates the connection is failing repeatedly. Value of 3 balances fast failure
+// detection with tolerance for occasional spurious events on successful connections.
+static constexpr uint8_t IGNORED_DISCONNECT_THRESHOLD = 3;
+
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = WiFi.getMode();
   bool current_sta = current_mode & 0b01;
@@ -201,8 +209,9 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   this->wifi_apply_hostname_();
 
-  // Reset state machine before connecting
+  // Reset state machine and disconnect counter before connecting
   s_sta_state = LTWiFiSTAState::CONNECTING;
+  s_ignored_disconnect_count = 0;
 
   WiFiStatus status = WiFi.begin(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
                                  ap.get_channel(),  // 0 = auto
@@ -474,10 +483,22 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       // causing wifi_sta_connect_status_() to return an error. The main loop would then
       // call retry_connect(), aborting a connection that may succeed moments later.
       // Only ignore benign reasons - real failures like NO_AP_FOUND should still be processed.
+      // However, if we get too many of these events (IGNORED_DISCONNECT_THRESHOLD), treat it
+      // as a real connection failure to avoid waiting the full timeout for a failing connection.
       if (it.ssid_len == 0 && s_sta_state == LTWiFiSTAState::CONNECTING && it.reason != WIFI_REASON_NO_AP_FOUND) {
-        ESP_LOGV(TAG, "Ignoring disconnect event with empty ssid while connecting (reason=%s)",
-                 get_disconnect_reason_str(it.reason));
-        break;
+        s_ignored_disconnect_count++;
+        if (s_ignored_disconnect_count >= IGNORED_DISCONNECT_THRESHOLD) {
+          ESP_LOGW(TAG, "Too many disconnect events (%u) while connecting, treating as failure (reason=%s)",
+                   s_ignored_disconnect_count, get_disconnect_reason_str(it.reason));
+          s_sta_state = LTWiFiSTAState::ERROR_FAILED;
+          WiFi.disconnect();
+          this->error_from_callback_ = true;
+          // Don't break - fall through to notify listeners
+        } else {
+          ESP_LOGV(TAG, "Ignoring disconnect event with empty ssid while connecting (reason=%s, count=%u)",
+                   get_disconnect_reason_str(it.reason), s_ignored_disconnect_count);
+          break;
+        }
       }
 
       if (it.reason == WIFI_REASON_NO_AP_FOUND) {

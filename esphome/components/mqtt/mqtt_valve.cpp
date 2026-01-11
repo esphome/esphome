@@ -65,7 +65,7 @@ void MQTTValveComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
   }
 }
 
-std::string MQTTValveComponent::component_type() const { return "valve"; }
+MQTT_COMPONENT_TYPE(MQTTValveComponent, "valve")
 const EntityBase *MQTTValveComponent::get_entity() const { return this->valve_; }
 
 bool MQTTValveComponent::send_initial_state() { return this->publish_state(); }

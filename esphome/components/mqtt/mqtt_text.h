@@ -32,7 +32,7 @@ class MQTTTextComponent : public mqtt::MQTTComponent {
 
  protected:
   /// Override for MQTTComponent, returns "text".
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   text::Text *text_;
