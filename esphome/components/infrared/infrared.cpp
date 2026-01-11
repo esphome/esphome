@@ -148,13 +148,12 @@ bool Infrared::on_receive(remote_base::RemoteReceiveData data) {
   // Forward received IR data to API server
 #ifdef USE_API
   if (api::global_api_server != nullptr) {
-    const auto &raw_data = data.get_raw_data();
 #ifdef USE_DEVICES
     uint32_t device_id = this->get_device_id();
 #else
     uint32_t device_id = 0;
 #endif
-    api::global_api_server->send_infrared_receive_event(device_id, this->get_object_id_hash(), raw_data);
+    api::global_api_server->send_infrared_receive_event(device_id, this->get_object_id_hash(), &data.get_raw_data());
   }
 #endif
   return false;  // Don't consume the event, allow other listeners to process it
