@@ -50,6 +50,17 @@ CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
 
+# BK72XX SDK options to disable unused features.
+# Disabling BLE saves ~21KB RAM and ~200KB Flash because BLE init code is
+# called unconditionally by the SDK. ESPHome doesn't use BLE on LibreTiny.
+#
+# Other options like CFG_TX_EVM_TEST, CFG_RX_SENSITIVITY_TEST, CFG_SUPPORT_BKREG,
+# CFG_SUPPORT_OTA_HTTP, and CFG_USE_SPI_SLAVE were evaluated but provide no
+# measurable benefit - the linker already strips unreferenced code via -gc-sections.
+_BK72XX_SYS_CONFIG_OPTIONS = [
+    "CFG_SUPPORT_BLE=0",
+]
+
 
 def _detect_variant(value):
     if KEY_LIBRETINY not in CORE.data:
@@ -345,5 +356,11 @@ async def component_to_code(config):
     else:
         cg.add_platformio_option("custom_fw_name", "esphome")
         cg.add_platformio_option("custom_fw_version", __version__)
+
+    # Apply chip-specific SDK options to reduce compile time
+    if CORE.is_bk72xx:
+        cg.add_platformio_option(
+            "custom_options.sys_config#h", _BK72XX_SYS_CONFIG_OPTIONS
+        )
 
     await cg.register_component(var, config)
