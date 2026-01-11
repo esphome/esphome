@@ -44,7 +44,7 @@ inline bool is_register_type_binary(ModbusRegisterType type) {
 // If the frame is too short to determine the length, returns the minimum length
 inline uint8_t server_frame_length(const std::vector<uint8_t> &frame) {
   if (frame.size() < 2)
-    return MIN_SERVER_FRAME_SIZE;
+    return MIN_FRAME_SIZE;
   if (is_function_code_exception(frame[1])) {
     return 5;  // address(1) + function(1) + exception(1) + CRC(2)
   }
@@ -74,7 +74,7 @@ inline uint8_t server_frame_length(const std::vector<uint8_t> &frame) {
       // address(1) + function(1) + fifo address(2) CRC(2)
       return 6;
     default:
-      return MIN_SERVER_FRAME_SIZE;  // unknown length
+      return MIN_FRAME_SIZE;  // unknown length
   }
 }
 
@@ -82,7 +82,7 @@ inline uint8_t server_frame_length(const std::vector<uint8_t> &frame) {
 // If the frame is too short to determine the length, returns the minimum length
 inline uint8_t client_frame_length(const std::vector<uint8_t> &frame) {
   if (frame.size() < 2)
-    return MIN_CLIENT_FRAME_SIZE;
+    return MIN_FRAME_SIZE;
   switch (static_cast<ModbusFunctionCode>(frame[1])) {
     case ModbusFunctionCode::READ_COILS:
     case ModbusFunctionCode::READ_DISCRETE_INPUTS:
@@ -111,7 +111,7 @@ inline uint8_t client_frame_length(const std::vector<uint8_t> &frame) {
       // address(1) + function(1) + fifo address(2) CRC(2)
       return 6;
     default:
-      return MIN_CLIENT_FRAME_SIZE;  // unknown length
+      return MIN_FRAME_SIZE;  // unknown length
   }
 }
 
@@ -153,7 +153,7 @@ inline bool is_client_frame_length_valid(const std::vector<uint8_t> &frame) {
   if (is_function_code_read(frame[1]) || is_function_code_write(frame[1])) {
     return client_frame_length(frame) == frame.size();
   }
-  return true;
+  return frame.size() >= MIN_FRAME_SIZE && frame.size() <= MAX_FRAME_SIZE;
 }
 
 inline bool value_type_is_float(SensorValueType v) {
