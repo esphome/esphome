@@ -146,7 +146,7 @@ void Infrared::transmit_raw_timings(uint32_t carrier_frequency, const uint8_t *t
 
 bool Infrared::on_receive(remote_base::RemoteReceiveData data) {
   // Forward received IR data to API server
-#ifdef USE_API
+#if defined(USE_API) && defined(USE_IR_RF)
   if (api::global_api_server != nullptr) {
 #ifdef USE_DEVICES
     uint32_t device_id = this->get_device_id();
