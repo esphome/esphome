@@ -194,7 +194,6 @@ class APIServer : public Component,
   void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
 #endif
 #ifdef USE_INFRARED
-  void register_infrared(infrared::Infrared *infrared) { this->infrareds_.push_back(infrared); }
   void on_infrared_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg);
   void send_infrared_receive_event(uint32_t device_id, uint32_t key, const remote_base::RawTimings &timings);
 #endif
@@ -299,9 +298,6 @@ class APIServer : public Component,
     ActionResponseCallback callback;
   };
   std::vector<PendingActionResponse> action_response_callbacks_;
-#endif
-#ifdef USE_INFRARED
-  std::vector<infrared::Infrared *> infrareds_;
 #endif
 
   // Group smaller types together
