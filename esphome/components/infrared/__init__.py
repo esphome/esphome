@@ -49,7 +49,7 @@ async def register_infrared(var, config):
     await cg.register_component(var, config)
     await setup_infrared_core_(var, config)
     cg.add(cg.App.register_infrared(var))
-    CORE.register_platform_component("infrared")
+    CORE.register_platform_component("infrared", var)
 
 
 async def new_infrared(config, *args):
