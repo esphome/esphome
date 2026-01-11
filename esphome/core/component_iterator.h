@@ -16,6 +16,12 @@ class UserServiceDescriptor;
 }  // namespace api
 #endif
 
+#ifdef USE_INFRARED
+namespace infrared {
+class Infrared;
+}  // namespace infrared
+#endif
+
 class ComponentIterator {
  public:
   void begin(bool include_internal = false);
