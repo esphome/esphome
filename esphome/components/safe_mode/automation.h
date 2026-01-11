@@ -1,4 +1,7 @@
 #pragma once
+#include "esphome/core/defines.h"
+
+#ifdef USE_SAFE_MODE_CALLBACK
 #include "safe_mode.h"
 
 #include "esphome/core/automation.h"
@@ -15,3 +18,5 @@ class SafeModeTrigger : public Trigger<> {
 
 }  // namespace safe_mode
 }  // namespace esphome
+
+#endif  // USE_SAFE_MODE_CALLBACK
