@@ -31,6 +31,11 @@ class RemoteTransmitData {
   uint32_t get_carrier_frequency() const { return this->carrier_frequency_; }
   const RawTimings &get_data() const { return this->data_; }
   void set_data(const RawTimings &data) { this->data_ = data; }
+  /// Set data from packed protobuf sint32 buffer (zigzag + varint encoded)
+  /// @param data Pointer to packed zigzag-varint-encoded sint32 values
+  /// @param len Length of the buffer in bytes
+  /// @param count Number of values (for reserve optimization)
+  void set_data_from_packed_sint32(const uint8_t *data, size_t len, size_t count);
   void reset() {
     this->data_.clear();
     this->carrier_frequency_ = 0;

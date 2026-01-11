@@ -8,8 +8,7 @@
 #ifdef USE_MQTT
 #ifdef USE_DATETIME_DATE
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.datetime";
 
@@ -20,14 +19,14 @@ MQTTDateComponent::MQTTDateComponent(DateEntity *date) : date_(date) {}
 void MQTTDateComponent::setup() {
   this->subscribe_json(this->get_command_topic_(), [this](const std::string &topic, JsonObject root) {
     auto call = this->date_->make_call();
-    if (root["year"].is<uint16_t>()) {
-      call.set_year(root["year"]);
+    if (root[ESPHOME_F("year")].is<uint16_t>()) {
+      call.set_year(root[ESPHOME_F("year")]);
     }
-    if (root["month"].is<uint8_t>()) {
-      call.set_month(root["month"]);
+    if (root[ESPHOME_F("month")].is<uint8_t>()) {
+      call.set_month(root[ESPHOME_F("month")]);
     }
-    if (root["day"].is<uint8_t>()) {
-      call.set_day(root["day"]);
+    if (root[ESPHOME_F("day")].is<uint8_t>()) {
+      call.set_day(root[ESPHOME_F("day")]);
     }
     call.perform();
   });
@@ -40,7 +39,7 @@ void MQTTDateComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, true)
 }
 
-std::string MQTTDateComponent::component_type() const { return "date"; }
+MQTT_COMPONENT_TYPE(MQTTDateComponent, "date")
 const EntityBase *MQTTDateComponent::get_entity() const { return this->date_; }
 
 void MQTTDateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
@@ -56,14 +55,13 @@ bool MQTTDateComponent::send_initial_state() {
 bool MQTTDateComponent::publish_state(uint16_t year, uint8_t month, uint8_t day) {
   return this->publish_json(this->get_state_topic_(), [year, month, day](JsonObject root) {
     // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-    root["year"] = year;
-    root["month"] = month;
-    root["day"] = day;
+    root[ESPHOME_F("year")] = year;
+    root[ESPHOME_F("month")] = month;
+    root[ESPHOME_F("day")] = day;
   });
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_DATETIME_DATE
 #endif  // USE_MQTT
