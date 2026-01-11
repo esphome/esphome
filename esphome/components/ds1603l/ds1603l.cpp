@@ -38,7 +38,8 @@ void Ds1603l::loop() {
     // Read 4 bytes of data
     this->read_array(this->rx_buffer_, 4);
 
-    ESP_LOGD(TAG, "Raw Data: %02X %02X %02X %02X", this->rx_buffer_[0], this->rx_buffer_[1], this->rx_buffer_[2], this->rx_buffer_[3]);
+    ESP_LOGD(TAG, "Raw Data: %02X %02X %02X %02X", this->rx_buffer_[0], this->rx_buffer_[1], this->rx_buffer_[2],
+             this->rx_buffer_[3]);
 
     // Verify the header byte
     if (this->rx_buffer_[0] != 0xFF) {
@@ -55,10 +56,10 @@ void Ds1603l::dump_config() {
   LOG_SENSOR("", "Liquid Level", this);
   LOG_SENSOR("", "Liquid Volume", this);
   if (liquid_level_sensor_) {
-    ESP_LOGCONFIG(TAG, " Liquid Level id: %s", liquid_level_sensor_->get_name().c_str()); 
+    ESP_LOGCONFIG(TAG, " Liquid Level id: %s", liquid_level_sensor_->get_name().c_str());
   }
   if (liquid_volume_sensor_) {
-    ESP_LOGCONFIG(TAG, " Liquid Volume id: %s", liquid_volume_sensor_->get_name().c_str()); 
+    ESP_LOGCONFIG(TAG, " Liquid Volume id: %s", liquid_volume_sensor_->get_name().c_str());
   }
 }
 
