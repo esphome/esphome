@@ -151,8 +151,6 @@ void EPaperBase::loop() {
   this->process_state_();
 }
 
-EPaperState operator+(EPaperState lhs, int rhs) { return static_cast<EPaperState>(static_cast<int>(lhs) + rhs); }
-
 /**
  * Process the state machine.
  * Typical state sequence:
