@@ -165,8 +165,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   // Regulator stage 0
   if (nrf_power_mainregstatus_get(NRF_POWER) == NRF_POWER_MAINREGSTATUS_HIGH) {
     const char *reg0_type = nrf_power_dcdcen_vddh_get(NRF_POWER) ? "DC/DC" : "LDO";
-    const char *reg0_voltage =
-        regout0_to_str(regout0_to_str((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) >> UICR_REGOUT0_VOUT_Pos));
+    const char *reg0_voltage = regout0_to_str((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) >> UICR_REGOUT0_VOUT_Pos);
     ESP_LOGD(TAG, "Regulator stage 0: %s, %s", reg0_type, reg0_voltage);
     pos = buf_append(buf, size, pos, "|Regulator stage 0: %s, %s", reg0_type, reg0_voltage);
 #ifdef USE_NRF52_REG0_VOUT
