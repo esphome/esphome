@@ -50,12 +50,10 @@ class InfraredCall {
   void perform();
 
  protected:
-  friend Infrared;
-
+  uint32_t repeat_count_{1};
   Infrared *parent_;
   optional<uint32_t> carrier_frequency_;
   std::vector<int32_t> raw_timings_;
-  uint32_t repeat_count_{1};
 };
 
 /// InfraredTraits - Describes the capabilities of an infrared implementation
@@ -109,6 +107,8 @@ class Infrared : public Component, public EntityBase {
 #endif
 
  protected:
+  friend class InfraredCall;
+
   /// Perform the actual transmission (called by InfraredCall)
   virtual void control(const InfraredCall &call);
 

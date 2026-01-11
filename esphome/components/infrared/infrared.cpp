@@ -49,11 +49,11 @@ void Infrared::setup() {
 
 void Infrared::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "Infrared:\n"
+                "Infrared '%s'\n"
                 "  Supports Transmitter: %s\n"
                 "  Supports Receiver: %s",
-                YESNO(this->traits_.get_supports_transmitter()), YESNO(this->traits_.get_supports_receiver()));
-  LOG_ENTITY_BASE("  ", "", this);
+                this->get_name().c_str(), YESNO(this->traits_.get_supports_transmitter()),
+                YESNO(this->traits_.get_supports_receiver()));
 }
 
 InfraredCall Infrared::make_call() { return InfraredCall(this); }
