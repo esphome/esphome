@@ -4,7 +4,7 @@ from . import EpaperModel
 
 
 class SSD1677(EpaperModel):
-    def __init__(self, name, class_name="EPaperSSD1677", data_rate="20MHz", **defaults):
+    def __init__(self, name, class_name="EPaperMono", data_rate="20MHz", **defaults):
         defaults[CONF_DATA_RATE] = data_rate
         super().__init__(name, class_name, **defaults)
 

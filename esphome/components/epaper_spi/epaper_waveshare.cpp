@@ -1,13 +1,6 @@
 #include "epaper_waveshare.h"
 
 namespace esphome::epaper_spi {
-bool EpaperWaveshare::reset() {
-  if (EPaperBase::reset()) {
-    this->command(0x12);
-    return true;
-  }
-  return false;
-}
 
 void EpaperWaveshare::initialise(bool partial) {
   EPaperBase::initialise(partial);

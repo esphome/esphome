@@ -1,4 +1,4 @@
-#include "epaper_spi_ssd1677.h"
+#include "epaper_spi_mono.h"
 
 #include <algorithm>
 
@@ -7,18 +7,18 @@
 namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.ssd1677";
 
-void EPaperSSD1677::refresh_screen(bool partial) {
+void EPaperMono::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "Refresh screen");
   this->cmd_data(0x22, {partial ? (uint8_t) 0xFF : (uint8_t) 0xF7});
   this->command(0x20);
 }
 
-void EPaperSSD1677::deep_sleep() {
+void EPaperMono::deep_sleep() {
   ESP_LOGV(TAG, "Deep sleep");
   this->command(0x10);
 }
 
-bool EPaperSSD1677::reset() {
+bool EPaperMono::reset() {
   if (EPaperBase::reset()) {
     this->command(0x12);
     return true;
@@ -26,7 +26,7 @@ bool EPaperSSD1677::reset() {
   return false;
 }
 
-void EPaperSSD1677::set_window() {
+void EPaperMono::set_window() {
   this->x_low_ &= ~7;
   this->x_high_ += 7;
   this->x_high_ &= ~7;
@@ -38,7 +38,7 @@ void EPaperSSD1677::set_window() {
   cmd_data(0x4F, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256)});
 }
 
-bool HOT EPaperSSD1677::transfer_data() {
+bool HOT EPaperMono::transfer_data() {
   auto start_time = millis();
   if (this->current_data_index_ == 0) {
     // round to byte boundaries
