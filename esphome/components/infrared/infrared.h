@@ -6,7 +6,6 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
-#include "esphome/core/hal.h"
 #include "esphome/components/remote_base/remote_base.h"
 
 #include <vector>
