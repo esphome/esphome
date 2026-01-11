@@ -362,16 +362,13 @@ void APIServer::on_infrared_transmit_raw_timings_request(const InfraredRFTransmi
 }
 
 void APIServer::send_infrared_receive_event([[maybe_unused]] uint32_t device_id, uint32_t key,
-                                            std::span<const int32_t> timings) {
+                                            const std::vector<int32_t> *timings) {
   InfraredRFReceiveEvent resp{};
 #ifdef USE_DEVICES
   resp.device_id = device_id;
 #endif
   resp.key = key;
-  resp.timings.reserve(timings.size());
-  for (const auto &timing : timings) {
-    resp.timings.push_back(static_cast<int32_t>(timing));
-  }
+  resp.timings = timings;
 
   for (auto &c : this->clients_)
     c->send_infrared_receive_event(resp);

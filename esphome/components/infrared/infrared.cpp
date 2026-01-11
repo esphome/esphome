@@ -67,7 +67,7 @@ void Infrared::control(const InfraredCall &call) {
     return;
   }
 
-  ESP_LOGD(TAG, "Transmitting raw timings: timing_count=%u, repeat_count=%u", call.get_raw_timings().size(),
+  ESP_LOGD(TAG, "Transmitting raw timings: timing_count=%zu, repeat_count=%u", call.get_raw_timings().size(),
            call.get_repeat_count());
 
   // Create transmit data object

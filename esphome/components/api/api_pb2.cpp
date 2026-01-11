@@ -3424,7 +3424,7 @@ void InfraredRFReceiveEvent::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, this->device_id);
 #endif
   buffer.encode_fixed32(2, this->key);
-  for (auto &it : this->timings) {
+  for (const auto &it : *this->timings) {
     buffer.encode_sint32(3, it, true);
   }
 }
@@ -3433,8 +3433,8 @@ void InfraredRFReceiveEvent::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, this->device_id);
 #endif
   size.add_fixed32(1, this->key);
-  if (!this->timings.empty()) {
-    for (const auto &it : this->timings) {
+  if (!this->timings->empty()) {
+    for (const auto &it : *this->timings) {
       size.add_sint32_force(1, it);
     }
   }

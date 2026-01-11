@@ -3104,7 +3104,7 @@ class InfraredRFReceiveEvent final : public ProtoMessage {
   uint32_t device_id{0};
 #endif
   uint32_t key{0};
-  std::vector<int32_t> timings{};
+  const std::vector<int32_t> *timings{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

@@ -2483,5 +2483,5 @@ message InfraredRFReceiveEvent {
 
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
   fixed32 key = 2;                                    // Key identifying the receiver instance
-  repeated sint32 timings = 3 [packed = true];        // Raw timings in microseconds (zigzag-encoded): alternating mark/space periods
+  repeated sint32 timings = 3 [packed = true, (container_pointer_no_template) = "std::vector<int32_t>"];  // Raw timings in microseconds (zigzag-encoded): alternating mark/space periods
 }

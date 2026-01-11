@@ -2348,7 +2348,7 @@ void InfraredRFReceiveEvent::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
   dump_field(out, "key", this->key);
-  for (const auto &it : this->timings) {
+  for (const auto &it : *this->timings) {
     dump_field(out, "timings", it, 4);
   }
 }
