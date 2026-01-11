@@ -532,21 +532,16 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
 void MR24HPC1Component::r24_parse_data_frame_(uint8_t *data, uint8_t len) {
   switch (data[FRAME_CONTROL_WORD_INDEX]) {
     case 0x01: {
-      if (data[FRAME_COMMAND_WORD_INDEX] == 0x01) {
-#ifdef USE_TEXT_SENSOR
-        if (this->heartbeat_state_text_sensor_ != nullptr) {
-          this->heartbeat_state_text_sensor_->publish_state("Equipment Normal");
-        }
-#endif
-      } else if (data[FRAME_COMMAND_WORD_INDEX] == 0x02) {
+      if (data[FRAME_COMMAND_WORD_INDEX] == 0x02) {
         ESP_LOGD(TAG, "Reply: query restart packet");
-      } else {
-#ifdef USE_TEXT_SENSOR
-        if (this->heartbeat_state_text_sensor_ != nullptr) {
-          this->heartbeat_state_text_sensor_->publish_state("Equipment Abnormal");
-        }
-#endif
+        break;
       }
+#ifdef USE_TEXT_SENSOR
+      if (this->heartbeat_state_text_sensor_ != nullptr) {
+        this->heartbeat_state_text_sensor_->publish_state(
+            data[FRAME_COMMAND_WORD_INDEX] == 0x01 ? "Equipment Normal" : "Equipment Abnormal");
+      }
+#endif
     } break;
     case 0x02: {
       this->r24_frame_parse_product_information_(data);
