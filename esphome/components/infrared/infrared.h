@@ -30,7 +30,11 @@ class InfraredCall {
   /// Set the carrier frequency in Hz
   InfraredCall &set_carrier_frequency(uint32_t frequency);
   /// Set the raw timings (positive = mark, negative = space)
+  /// Note: The timings vector must outlive the InfraredCall (zero-copy reference)
   InfraredCall &set_raw_timings(const std::vector<int32_t> &timings);
+  /// Set the raw timings from packed protobuf sint32 data (zero-copy from wire)
+  /// Note: The data must outlive the InfraredCall
+  InfraredCall &set_raw_timings_packed(const uint8_t *data, uint16_t length, uint16_t count);
   /// Set the number of times to repeat transmission (1 = transmit once, 2 = transmit twice, etc.)
   InfraredCall &set_repeat_count(uint32_t count);
 
@@ -39,8 +43,16 @@ class InfraredCall {
 
   /// Get the carrier frequency
   const optional<uint32_t> &get_carrier_frequency() const { return this->carrier_frequency_; }
-  /// Get the raw timings
-  const std::vector<int32_t> &get_raw_timings() const { return this->raw_timings_; }
+  /// Get the raw timings (only valid if set via set_raw_timings, not packed)
+  const std::vector<int32_t> &get_raw_timings() const { return *this->raw_timings_; }
+  /// Check if raw timings have been set (either vector or packed)
+  bool has_raw_timings() const { return this->raw_timings_ != nullptr || this->packed_data_ != nullptr; }
+  /// Check if using packed data format
+  bool is_packed() const { return this->packed_data_ != nullptr; }
+  /// Get packed data (only valid if set via set_raw_timings_packed)
+  const uint8_t *get_packed_data() const { return this->packed_data_; }
+  uint16_t get_packed_length() const { return this->packed_length_; }
+  uint16_t get_packed_count() const { return this->packed_count_; }
   /// Get the repeat count
   uint32_t get_repeat_count() const { return this->repeat_count_; }
 
@@ -48,7 +60,12 @@ class InfraredCall {
   uint32_t repeat_count_{1};
   Infrared *parent_;
   optional<uint32_t> carrier_frequency_;
-  std::vector<int32_t> raw_timings_;
+  // Vector-based timings (for lambdas/automations)
+  const std::vector<int32_t> *raw_timings_{nullptr};
+  // Packed protobuf timings (for API zero-copy)
+  const uint8_t *packed_data_{nullptr};
+  uint16_t packed_length_{0};
+  uint16_t packed_count_{0};
 };
 
 /// InfraredTraits - Describes the capabilities of an infrared implementation
@@ -93,15 +110,6 @@ class Infrared : public Component, public EntityBase, public remote_base::Remote
 
   /// Get capability flags for this infrared instance
   uint32_t get_capability_flags() const;
-
-  /// Transmit infrared data using packed protobuf-encoded sint32 timings (zero-copy)
-  /// @param carrier_frequency Carrier frequency in Hz
-  /// @param timings_data Pointer to packed sint32 varint data
-  /// @param timings_length Length of timings data in bytes
-  /// @param timings_count Number of timing values
-  /// @param repeat_count Number of times to repeat transmission
-  void transmit_raw_timings(uint32_t carrier_frequency, const uint8_t *timings_data, uint16_t timings_length,
-                            uint16_t timings_count, uint32_t repeat_count);
 
   /// Called when IR data is received (from RemoteReceiverListener)
   bool on_receive(remote_base::RemoteReceiveData data) override;

@@ -186,7 +186,6 @@ class APIServer : public Component,
   void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
 #endif
 #ifdef USE_IR_RF
-  void on_infrared_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg);
   void send_infrared_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
 #endif
 

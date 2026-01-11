@@ -17,7 +17,16 @@ InfraredCall &InfraredCall::set_carrier_frequency(uint32_t frequency) {
 }
 
 InfraredCall &InfraredCall::set_raw_timings(const std::vector<int32_t> &timings) {
-  this->raw_timings_ = timings;
+  this->raw_timings_ = &timings;
+  this->packed_data_ = nullptr;  // Clear packed if vector is set
+  return *this;
+}
+
+InfraredCall &InfraredCall::set_raw_timings_packed(const uint8_t *data, uint16_t length, uint16_t count) {
+  this->packed_data_ = data;
+  this->packed_length_ = length;
+  this->packed_count_ = count;
+  this->raw_timings_ = nullptr;  // Clear vector if packed is set
   return *this;
 }
 
@@ -62,13 +71,10 @@ void Infrared::control(const InfraredCall &call) {
     return;
   }
 
-  if (call.get_raw_timings().empty()) {
-    ESP_LOGE(TAG, "Raw timings array is empty");
+  if (!call.has_raw_timings()) {
+    ESP_LOGE(TAG, "No raw timings provided");
     return;
   }
-
-  ESP_LOGD(TAG, "Transmitting raw timings: timing_count=%zu, repeat_count=%u", call.get_raw_timings().size(),
-           call.get_repeat_count());
 
   // Create transmit data object
   auto transmit_call = this->transmitter_->transmit();
@@ -79,13 +85,29 @@ void Infrared::control(const InfraredCall &call) {
     transmit_data->set_carrier_frequency(call.get_carrier_frequency().value());
   }
 
-  // Copy raw timings to transmit data
-  // Timings format: positive values = mark (LED on), negative values = space (LED off)
-  for (const auto &timing : call.get_raw_timings()) {
-    if (timing > 0) {
-      transmit_data->mark(static_cast<uint32_t>(timing));
-    } else {
-      transmit_data->space(static_cast<uint32_t>(-timing));
+  // Set timings based on format
+  if (call.is_packed()) {
+    // Zero-copy from packed protobuf data
+    ESP_LOGD(TAG, "Transmitting raw timings: timing_count=%u, repeat_count=%u", call.get_packed_count(),
+             call.get_repeat_count());
+    transmit_data->set_data_from_packed_sint32(call.get_packed_data(), call.get_packed_length(),
+                                               call.get_packed_count());
+  } else {
+    // From vector (lambdas/automations)
+    const auto &timings = call.get_raw_timings();
+    if (timings.empty()) {
+      ESP_LOGE(TAG, "Raw timings array is empty");
+      return;
+    }
+    ESP_LOGD(TAG, "Transmitting raw timings: timing_count=%zu, repeat_count=%u", timings.size(),
+             call.get_repeat_count());
+    // Timings format: positive values = mark (LED on), negative values = space (LED off)
+    for (const auto &timing : timings) {
+      if (timing > 0) {
+        transmit_data->mark(static_cast<uint32_t>(timing));
+      } else {
+        transmit_data->space(static_cast<uint32_t>(-timing));
+      }
     }
   }
 
@@ -108,40 +130,6 @@ uint32_t Infrared::get_capability_flags() const {
     flags |= InfraredCapability::CAPABILITY_RECEIVER;
 
   return flags;
-}
-
-void Infrared::transmit_raw_timings(uint32_t carrier_frequency, const uint8_t *timings_data, uint16_t timings_length,
-                                    uint16_t timings_count, uint32_t repeat_count) {
-  if (this->transmitter_ == nullptr) {
-    ESP_LOGW(TAG, "No transmitter configured");
-    return;
-  }
-
-  if (timings_count == 0) {
-    ESP_LOGE(TAG, "Raw timings array is empty");
-    return;
-  }
-
-  ESP_LOGD(TAG, "Transmitting raw timings: carrier=%u Hz, timing_count=%u, repeat_count=%u", carrier_frequency,
-           timings_count, repeat_count);
-
-  // Create transmit data object
-  auto call = this->transmitter_->transmit();
-  auto *transmit_data = call.get_data();
-
-  // Set carrier frequency
-  transmit_data->set_carrier_frequency(carrier_frequency);
-
-  // Decode packed sint32 timings directly from protobuf data using remote_base helper
-  transmit_data->set_data_from_packed_sint32(timings_data, timings_length, timings_count);
-
-  // Set repeat count (default to 1 if not specified or 0)
-  if (repeat_count > 0) {
-    call.set_send_times(repeat_count);
-  }
-
-  // Transmit the data
-  call.perform();
 }
 
 bool Infrared::on_receive(remote_base::RemoteReceiveData data) {

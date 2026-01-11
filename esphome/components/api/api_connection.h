@@ -172,7 +172,7 @@ class APIConnection final : public APIServerConnection {
   void on_water_heater_command_request(const WaterHeaterCommandRequest &msg) override;
 #endif
 
-#ifdef USE_INFRARED
+#ifdef USE_IR_RF
   void infrared_rf_transmit_raw_timings(const InfraredRFTransmitRawTimingsRequest &msg) override;
   void send_infrared_receive_event(const InfraredRFReceiveEvent &msg);
 #endif
