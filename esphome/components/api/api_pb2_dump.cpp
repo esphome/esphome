@@ -2336,9 +2336,12 @@ void InfraredTransmitRawTimingsRequest::dump_to(std::string &out) const {
   dump_field(out, "key", this->key);
   dump_field(out, "carrier_frequency", this->carrier_frequency);
   dump_field(out, "repeat_count", this->repeat_count);
-  for (const auto &it : this->timings) {
-    dump_field(out, "timings", it, 4);
-  }
+  out.append("  timings: ");
+  out.append("packed buffer [");
+  out.append(std::to_string(this->timings_count_));
+  out.append(" values, ");
+  out.append(std::to_string(this->timings_length_));
+  out.append(" bytes]\n");
 }
 void InfraredReceiveEvent::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "InfraredReceiveEvent");

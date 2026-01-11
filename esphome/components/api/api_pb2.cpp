@@ -3395,9 +3395,19 @@ bool InfraredTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoVa
     case 4:
       this->repeat_count = value.as_uint32();
       break;
-    case 5:
-      this->timings.push_back(value.as_sint32());
+    default:
+      return false;
+  }
+  return true;
+}
+bool InfraredTransmitRawTimingsRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 5: {
+      this->timings_data_ = value.data();
+      this->timings_length_ = value.size();
+      this->timings_count_ = count_packed_varints(value.data(), value.size());
       break;
+    }
     default:
       return false;
   }

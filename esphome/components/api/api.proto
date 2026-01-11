@@ -2474,7 +2474,7 @@ message InfraredTransmitRawTimingsRequest {
   fixed32 key = 2;                                       // Key identifying the transmitter instance
   uint32 carrier_frequency = 3;                          // Carrier frequency in Hz
   uint32 repeat_count = 4;                               // Number of times to transmit (1 = once, 2 = twice, etc.)
-  repeated sint32 timings = 5 [packed = true];  // Raw timings in microseconds (zigzag-encoded): positive = mark (LED on), negative = space (LED off)
+  repeated sint32 timings = 5 [packed = true, (packed_buffer) = true];  // Raw timings in microseconds (zigzag-encoded): positive = mark (LED/TX on), negative = space (LED/TX off)
 }
 
 // Event message for received infrared data
