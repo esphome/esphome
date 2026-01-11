@@ -387,6 +387,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 #endif
   }
 #endif
+  return pos;
 }
 
 void DebugComponent::update_platform_() {}
