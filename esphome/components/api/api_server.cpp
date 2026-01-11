@@ -348,7 +348,7 @@ void APIServer::on_zwave_proxy_request(const esphome::api::ProtoMessage &msg) {
 #endif
 
 #ifdef USE_INFRARED
-void APIServer::on_infrared_transmit_raw_timings_request(const InfraredTransmitRawTimingsRequest &msg) {
+void APIServer::on_infrared_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg) {
 #ifdef USE_DEVICES
   infrared::Infrared *infrared = App.get_infrared_by_key(msg.key, msg.device_id);
 #else
@@ -361,7 +361,7 @@ void APIServer::on_infrared_transmit_raw_timings_request(const InfraredTransmitR
 }
 
 void APIServer::send_infrared_receive_event(uint32_t device_id, uint32_t key, const remote_base::RawTimings &timings) {
-  InfraredReceiveEvent resp{};
+  InfraredRFReceiveEvent resp{};
 #ifdef USE_DEVICES
   resp.device_id = device_id;
 #endif

@@ -173,8 +173,8 @@ class APIConnection final : public APIServerConnection {
 #endif
 
 #ifdef USE_INFRARED
-  void infrared_transmit_raw_timings(const InfraredTransmitRawTimingsRequest &msg) override;
-  void send_infrared_receive_event(const InfraredReceiveEvent &msg);
+  void infrared_transmit_raw_timings(const InfraredRFTransmitRawTimingsRequest &msg) override;
+  void send_infrared_receive_event(const InfraredRFReceiveEvent &msg);
 #endif
 
 #ifdef USE_EVENT

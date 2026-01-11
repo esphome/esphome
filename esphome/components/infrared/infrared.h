@@ -49,6 +49,13 @@ class InfraredCall {
   /// Perform the transmission
   void perform();
 
+  /// Get the carrier frequency
+  const optional<uint32_t> &get_carrier_frequency() const { return this->carrier_frequency_; }
+  /// Get the raw timings
+  const std::vector<int32_t> &get_raw_timings() const { return this->raw_timings_; }
+  /// Get the repeat count
+  uint32_t get_repeat_count() const { return this->repeat_count_; }
+
  protected:
   uint32_t repeat_count_{1};
   Infrared *parent_;
@@ -103,7 +110,7 @@ class Infrared : public Component, public EntityBase {
   uint32_t get_capability_flags() const;
 
   /// Transmit infrared data using raw timings array
-  void transmit_raw_timings(const api::InfraredTransmitRawTimingsRequest &msg);
+  void transmit_raw_timings(const api::InfraredRFTransmitRawTimingsRequest &msg);
 #endif
 
  protected:

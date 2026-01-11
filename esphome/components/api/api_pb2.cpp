@@ -119,9 +119,6 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_ZWAVE_PROXY
   buffer.encode_uint32(24, this->zwave_home_id);
 #endif
-#ifdef USE_INFRARED
-  buffer.encode_uint32(25, this->infrared_feature_flags);
-#endif
 }
 void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->name.size());
@@ -176,9 +173,6 @@ void DeviceInfoResponse::calculate_size(ProtoSize &size) const {
 #endif
 #ifdef USE_ZWAVE_PROXY
   size.add_uint32(2, this->zwave_home_id);
-#endif
-#ifdef USE_INFRARED
-  size.add_uint32(2, this->infrared_feature_flags);
 #endif
 }
 #ifdef USE_BINARY_SENSOR
@@ -3382,7 +3376,9 @@ void ListEntitiesInfraredResponse::calculate_size(ProtoSize &size) const {
 #endif
   size.add_uint32(1, this->capabilities);
 }
-bool InfraredTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+#endif
+#ifdef USE_IR_RF
+bool InfraredRFTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
 #ifdef USE_DEVICES
     case 1:
@@ -3400,7 +3396,7 @@ bool InfraredTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoVa
   }
   return true;
 }
-bool InfraredTransmitRawTimingsRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+bool InfraredRFTransmitRawTimingsRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 5: {
       this->timings_data_ = value.data();
@@ -3413,7 +3409,7 @@ bool InfraredTransmitRawTimingsRequest::decode_length(uint32_t field_id, ProtoLe
   }
   return true;
 }
-bool InfraredTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+bool InfraredRFTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 2:
       this->key = value.as_fixed32();
@@ -3423,7 +3419,7 @@ bool InfraredTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Proto32B
   }
   return true;
 }
-void InfraredReceiveEvent::encode(ProtoWriteBuffer buffer) const {
+void InfraredRFReceiveEvent::encode(ProtoWriteBuffer buffer) const {
 #ifdef USE_DEVICES
   buffer.encode_uint32(1, this->device_id);
 #endif
@@ -3432,7 +3428,7 @@ void InfraredReceiveEvent::encode(ProtoWriteBuffer buffer) const {
     buffer.encode_sint32(3, it, true);
   }
 }
-void InfraredReceiveEvent::calculate_size(ProtoSize &size) const {
+void InfraredRFReceiveEvent::calculate_size(ProtoSize &size) const {
 #ifdef USE_DEVICES
   size.add_uint32(1, this->device_id);
 #endif

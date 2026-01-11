@@ -827,9 +827,6 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 #ifdef USE_ZWAVE_PROXY
   dump_field(out, "zwave_home_id", this->zwave_home_id);
 #endif
-#ifdef USE_INFRARED
-  dump_field(out, "infrared_feature_flags", this->infrared_feature_flags);
-#endif
 }
 void ListEntitiesRequest::dump_to(std::string &out) const { out.append("ListEntitiesRequest {}"); }
 void ListEntitiesDoneResponse::dump_to(std::string &out) const { out.append("ListEntitiesDoneResponse {}"); }
@@ -2328,8 +2325,10 @@ void ListEntitiesInfraredResponse::dump_to(std::string &out) const {
 #endif
   dump_field(out, "capabilities", this->capabilities);
 }
-void InfraredTransmitRawTimingsRequest::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "InfraredTransmitRawTimingsRequest");
+#endif
+#ifdef USE_IR_RF
+void InfraredRFTransmitRawTimingsRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "InfraredRFTransmitRawTimingsRequest");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -2343,8 +2342,8 @@ void InfraredTransmitRawTimingsRequest::dump_to(std::string &out) const {
   out.append(std::to_string(this->timings_length_));
   out.append(" bytes]\n");
 }
-void InfraredReceiveEvent::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "InfraredReceiveEvent");
+void InfraredRFReceiveEvent::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "InfraredRFReceiveEvent");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif

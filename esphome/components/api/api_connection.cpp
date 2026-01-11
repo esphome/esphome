@@ -1437,14 +1437,14 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
 #endif
 
 #ifdef USE_INFRARED
-void APIConnection::infrared_transmit_raw_timings(const InfraredTransmitRawTimingsRequest &msg) {
+void APIConnection::infrared_transmit_raw_timings(const InfraredRFTransmitRawTimingsRequest &msg) {
   if (global_api_server != nullptr) {
     global_api_server->on_infrared_transmit_raw_timings_request(msg);
   }
 }
 
-void APIConnection::send_infrared_receive_event(const InfraredReceiveEvent &msg) {
-  this->send_message(msg, InfraredReceiveEvent::MESSAGE_TYPE);
+void APIConnection::send_infrared_receive_event(const InfraredRFReceiveEvent &msg) {
+  this->send_message(msg, InfraredRFReceiveEvent::MESSAGE_TYPE);
 }
 
 uint16_t APIConnection::try_send_infrared_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,

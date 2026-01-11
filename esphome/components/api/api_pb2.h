@@ -485,7 +485,7 @@ class DeviceInfo final : public ProtoMessage {
 class DeviceInfoResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 10;
-  static constexpr uint16_t ESTIMATED_SIZE = 260;
+  static constexpr uint8_t ESTIMATED_SIZE = 255;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "device_info_response"; }
 #endif
@@ -537,9 +537,6 @@ class DeviceInfoResponse final : public ProtoMessage {
 #endif
 #ifdef USE_ZWAVE_PROXY
   uint32_t zwave_home_id{0};
-#endif
-#ifdef USE_INFRARED
-  uint32_t infrared_feature_flags{0};
 #endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -3069,12 +3066,14 @@ class ListEntitiesInfraredResponse final : public InfoResponseProtoMessage {
 
  protected:
 };
-class InfraredTransmitRawTimingsRequest final : public ProtoDecodableMessage {
+#endif
+#ifdef USE_IR_RF
+class InfraredRFTransmitRawTimingsRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 136;
   static constexpr uint8_t ESTIMATED_SIZE = 220;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "infrared_transmit_raw_timings_request"; }
+  const char *message_name() const override { return "infrared_rf_transmit_raw_timings_request"; }
 #endif
 #ifdef USE_DEVICES
   uint32_t device_id{0};
@@ -3094,12 +3093,12 @@ class InfraredTransmitRawTimingsRequest final : public ProtoDecodableMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class InfraredReceiveEvent final : public ProtoMessage {
+class InfraredRFReceiveEvent final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 137;
   static constexpr uint8_t ESTIMATED_SIZE = 17;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "infrared_receive_event"; }
+  const char *message_name() const override { return "infrared_rf_receive_event"; }
 #endif
 #ifdef USE_DEVICES
   uint32_t device_id{0};

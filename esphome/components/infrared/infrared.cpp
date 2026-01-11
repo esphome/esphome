@@ -64,26 +64,26 @@ void Infrared::control(const InfraredCall &call) {
     return;
   }
 
-  if (call.raw_timings_.empty()) {
+  if (call.get_raw_timings().empty()) {
     ESP_LOGE(TAG, "Raw timings array is empty");
     return;
   }
 
-  ESP_LOGD(TAG, "Transmitting raw timings: timing_count=%u, repeat_count=%u", call.raw_timings_.size(),
-           call.repeat_count_);
+  ESP_LOGD(TAG, "Transmitting raw timings: timing_count=%u, repeat_count=%u", call.get_raw_timings().size(),
+           call.get_repeat_count());
 
   // Create transmit data object
   auto transmit_call = this->transmitter_->transmit();
   auto *transmit_data = transmit_call.get_data();
 
   // Set carrier frequency
-  if (call.carrier_frequency_.has_value()) {
-    transmit_data->set_carrier_frequency(call.carrier_frequency_.value());
+  if (call.get_carrier_frequency().has_value()) {
+    transmit_data->set_carrier_frequency(call.get_carrier_frequency().value());
   }
 
   // Copy raw timings to transmit data
   // Timings format: positive values = mark (LED on), negative values = space (LED off)
-  for (const auto &timing : call.raw_timings_) {
+  for (const auto &timing : call.get_raw_timings()) {
     if (timing > 0) {
       transmit_data->mark(static_cast<uint32_t>(timing));
     } else {
@@ -92,8 +92,8 @@ void Infrared::control(const InfraredCall &call) {
   }
 
   // Set repeat count
-  if (call.repeat_count_ > 0) {
-    transmit_call.set_send_times(call.repeat_count_);
+  if (call.get_repeat_count() > 0) {
+    transmit_call.set_send_times(call.get_repeat_count());
   }
 
   // Perform transmission
@@ -113,7 +113,7 @@ uint32_t Infrared::get_capability_flags() const {
   return flags;
 }
 
-void Infrared::transmit_raw_timings(const api::InfraredTransmitRawTimingsRequest &msg) {
+void Infrared::transmit_raw_timings(const api::InfraredRFTransmitRawTimingsRequest &msg) {
   if (this->transmitter_ == nullptr) {
     ESP_LOGW(TAG, "No transmitter configured");
     return;
