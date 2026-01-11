@@ -9,8 +9,6 @@ from esphome.const import (
     CONF_FREE,
     CONF_ID,
     CONF_LOOP_TIME,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
     PlatformFramework,
 )
 from esphome.core import CORE
@@ -58,13 +56,7 @@ async def to_code(config):
         zephyr_add_prj_conf("LOG", True)
         zephyr_add_prj_conf("LOG_BLOCK_IN_THREAD", True)
         zephyr_add_prj_conf("LOG_BUFFER_SIZE", 4096)
-        framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-        if CORE.is_nrf52 and framework_ver >= cv.Version(2, 9, 2):
-            # RTT do not print anything without it on 2.9.2
-            zephyr_add_prj_conf("CONSOLE", True)
-        else:
-            # it block even if not connected when CONFIG_CONSOLE=y
-            zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
+        zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add_define("USE_DEBUG")
