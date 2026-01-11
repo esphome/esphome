@@ -39,6 +39,7 @@ from esphome.const import (
     CONF_MDNS,
     CONF_MQTT,
     CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PLATFORM,
@@ -71,6 +72,7 @@ from esphome.util import (
     run_external_process,
     safe_print,
 )
+from esphome.zeroconf import discover_mdns_devices
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -281,22 +283,34 @@ def choose_upload_log_host(
         elif bootsel.permission_error:
             bootsel_permission_error = True
 
+    def add_ota_options() -> None:
+        """Add OTA options, using mDNS discovery if name_add_mac_suffix is enabled."""
+        if has_name_add_mac_suffix() and has_mdns() and has_non_ip_address():
+            # Discover devices via mDNS when name_add_mac_suffix is enabled
+            safe_print("Discovering devices...")
+            discovered = discover_mdns_devices(CORE.name)
+            for device_addr in discovered:
+                options.append((f"Over The Air ({device_addr})", device_addr))
+            if not discovered and has_resolvable_address():
+                # No devices found, show base address as fallback
+                options.append(
+                    (f"Over The Air ({CORE.address}) (no devices found)", CORE.address)
+                )
+        elif has_resolvable_address():
+            options.append((f"Over The Air ({CORE.address})", CORE.address))
+        if has_mqtt_ip_lookup():
+            options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+
     if purpose == Purpose.LOGGING:
         if has_mqtt_logging():
             mqtt_config = CORE.config[CONF_MQTT]
             options.append((f"MQTT ({mqtt_config[CONF_BROKER]})", "MQTT"))
 
         if has_api():
-            if has_resolvable_address():
-                options.append((f"Over The Air ({CORE.address})", CORE.address))
-            if has_mqtt_ip_lookup():
-                options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+            add_ota_options()
 
     elif purpose == Purpose.UPLOADING and has_ota():
-        if has_resolvable_address():
-            options.append((f"Over The Air ({CORE.address})", CORE.address))
-        if has_mqtt_ip_lookup():
-            options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+        add_ota_options()
 
     # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
     if (
@@ -405,6 +419,14 @@ def has_resolvable_address() -> bool:
 
     # .local mDNS hostnames are only resolvable if mDNS is enabled
     return not CORE.address.endswith(".local")
+
+
+def has_name_add_mac_suffix() -> bool:
+    """Check if name_add_mac_suffix is enabled in the config."""
+    if CORE.config is None:
+        return False
+    esphome_config = CORE.config.get(CONF_ESPHOME, {})
+    return esphome_config.get(CONF_NAME_ADD_MAC_SUFFIX, False)
 
 
 def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):

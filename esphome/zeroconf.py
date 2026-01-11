@@ -4,10 +4,12 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 import logging
+import time
 
 from zeroconf import (
     AddressResolver,
     IPVersion,
+    ServiceBrowser,
     ServiceInfo,
     ServiceStateChange,
     Zeroconf,
@@ -200,3 +202,53 @@ class AsyncEsphomeZeroconf(AsyncZeroconf):
         ) and (addresses := info.parsed_scoped_addresses(IPVersion.All)):
             return addresses
         return None
+
+
+def discover_mdns_devices(base_name: str, timeout: float = 5.0) -> list[str]:
+    """Discover ESPHome devices via mDNS that match the base name pattern.
+
+    When name_add_mac_suffix is enabled, devices advertise as <base_name>-<mac>.local.
+    This function discovers all such devices on the network.
+
+    Args:
+        base_name: The base device name (without MAC suffix)
+        timeout: How long to wait for mDNS responses (default 5 seconds)
+
+    Returns:
+        List of discovered device addresses (e.g., ['device-abc123.local'])
+    """
+    discovered: list[str] = []
+    prefix = f"{base_name}-"
+
+    def on_service_state_change(
+        zeroconf: Zeroconf,
+        service_type: str,
+        name: str,
+        state_change: ServiceStateChange,
+    ) -> None:
+        if state_change in (ServiceStateChange.Added, ServiceStateChange.Updated):
+            # Extract device name from service name (removes service type suffix)
+            device_name = name.partition(".")[0]
+            # Check if this device matches our base name pattern
+            if device_name.startswith(prefix) and device_name not in discovered:
+                discovered.append(device_name)
+
+    try:
+        zc = Zeroconf()
+    except Exception as err:
+        _LOGGER.warning("mDNS discovery failed to initialize: %s", err)
+        return []
+
+    browser: ServiceBrowser | None = None
+    try:
+        browser = ServiceBrowser(
+            zc, ESPHOME_SERVICE_TYPE, handlers=[on_service_state_change]
+        )
+        # Wait for discovery
+        time.sleep(timeout)
+    finally:
+        if browser is not None:
+            browser.cancel()
+        zc.close()
+
+    return [f"{name}.local" for name in sorted(discovered)]
