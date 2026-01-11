@@ -66,7 +66,7 @@ class InfraredTraits {
 };
 
 /// Infrared - Base class for infrared remote control implementations
-class Infrared : public Component, public EntityBase {
+class Infrared : public Component, public EntityBase, public remote_base::RemoteReceiverListener {
  public:
   Infrared() = default;
 
@@ -102,6 +102,9 @@ class Infrared : public Component, public EntityBase {
   /// @param repeat_count Number of times to repeat transmission
   void transmit_raw_timings(uint32_t carrier_frequency, const uint8_t *timings_data, uint16_t timings_length,
                             uint16_t timings_count, uint32_t repeat_count);
+
+  /// Called when IR data is received (from RemoteReceiverListener)
+  bool on_receive(remote_base::RemoteReceiveData data) override;
 
  protected:
   friend class InfraredCall;

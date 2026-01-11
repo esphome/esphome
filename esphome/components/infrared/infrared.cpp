@@ -1,6 +1,10 @@
 #include "infrared.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_API
+#include "esphome/components/api/api_server.h"
+#endif
+
 namespace esphome::infrared {
 
 static const char *const TAG = "infrared";
@@ -34,6 +38,11 @@ void Infrared::setup() {
   // Set up traits based on configuration
   this->traits_.set_supports_transmitter(this->has_transmitter());
   this->traits_.set_supports_receiver(this->has_receiver());
+
+  // Register as listener for received IR data
+  if (this->receiver_ != nullptr) {
+    this->receiver_->register_listener(this);
+  }
 }
 
 void Infrared::dump_config() {
@@ -133,6 +142,17 @@ void Infrared::transmit_raw_timings(uint32_t carrier_frequency, const uint8_t *t
 
   // Transmit the data
   call.perform();
+}
+
+bool Infrared::on_receive(remote_base::RemoteReceiveData data) {
+  // Forward received IR data to API server
+#ifdef USE_API
+  if (api::global_api_server != nullptr) {
+    const auto &raw_data = data.get_raw_data();
+    api::global_api_server->send_infrared_receive_event(0, this->get_object_id_hash(), raw_data);
+  }
+#endif
+  return false;  // Don't consume the event, allow other listeners to process it
 }
 
 }  // namespace esphome::infrared

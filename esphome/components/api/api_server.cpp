@@ -361,13 +361,13 @@ void APIServer::on_infrared_transmit_raw_timings_request(const InfraredRFTransmi
                                  msg.repeat_count);
 }
 
-void APIServer::send_infrared_receive_event(uint32_t device_id, uint32_t key, const remote_base::RawTimings &timings) {
+void APIServer::send_infrared_receive_event([[maybe_unused]] uint32_t device_id, uint32_t key,
+                                            std::span<const int32_t> timings) {
   InfraredRFReceiveEvent resp{};
 #ifdef USE_DEVICES
   resp.device_id = device_id;
 #endif
   resp.key = key;
-  // Convert RawTimings to sint32 array for protobuf
   resp.timings.reserve(timings.size());
   for (const auto &timing : timings) {
     resp.timings.push_back(static_cast<int32_t>(timing));

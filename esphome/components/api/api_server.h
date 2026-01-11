@@ -20,11 +20,8 @@
 #include "esphome/components/camera/camera.h"
 #endif
 
+#include <span>
 #include <vector>
-
-#ifdef USE_INFRARED
-#include "esphome/components/remote_base/remote_base.h"
-#endif
 
 namespace esphome::api {
 
@@ -191,7 +188,7 @@ class APIServer : public Component,
 #endif
 #ifdef USE_INFRARED
   void on_infrared_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg);
-  void send_infrared_receive_event(uint32_t device_id, uint32_t key, const remote_base::RawTimings &timings);
+  void send_infrared_receive_event(uint32_t device_id, uint32_t key, std::span<const int32_t> timings);
 #endif
 
   bool is_connected(bool state_subscription_only = false) const;
