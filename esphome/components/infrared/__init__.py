@@ -67,3 +67,4 @@ async def new_infrared(config: ConfigType, *args) -> cg.Pvariable:
 
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_INFRARED")
+    cg.add_define("USE_IR_RF")

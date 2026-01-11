@@ -50,6 +50,7 @@
 #define USE_IMAGE
 #define USE_IMPROV_SERIAL_NEXT_URL
 #define USE_INFRARED
+#define USE_IR_RF
 #define USE_JSON
 #define USE_LIGHT
 #define USE_LOCK
