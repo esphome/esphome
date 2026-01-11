@@ -1,3 +1,13 @@
+"""
+Infrared component for ESPHome.
+
+WARNING: This component is EXPERIMENTAL. The API (both Python configuration
+and C++ interfaces) may change at any time without following the normal
+breaking changes policy. Use at your own risk.
+
+Once the API is considered stable, this warning will be removed.
+"""
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
