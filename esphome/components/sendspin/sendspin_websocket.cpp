@@ -122,6 +122,7 @@ esp_err_t SendspinWebsocket::send_text_message_(const std::string &message,
     if (httpd_queue_work(this->server_, async_send_text, resp_arg) != ESP_OK) {
       ESP_LOGE(TAG, "httpd_queue_work failed!");
       message_allocator.deallocate(resp_arg->payload, resp_arg->len);
+      async_resp_allocator.deallocate(resp_arg, 1);
       return ESP_FAIL;
     }
   }
@@ -183,7 +184,7 @@ void SendspinWebsocket::async_send_text(void *arg) {
   auto message_allocator = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
   message_allocator.deallocate(ws_pkt.payload, ws_pkt.len);
   auto async_resp_allocator = RAMAllocator<AsyncRespArg>(RAMAllocator<AsyncRespArg>::ALLOC_INTERNAL);
-  async_resp_allocator.deallocate(resp_arg, sizeof(AsyncRespArg));
+  async_resp_allocator.deallocate(resp_arg, 1);
 }
 
 }  // namespace sendspin
