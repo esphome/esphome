@@ -6,6 +6,7 @@
 #include <hal/nrf_power.h>
 #include <cstdint>
 #include <zephyr/storage/flash_map.h>
+#include <zephyr/version.h>
 
 #define BOOTLOADER_VERSION_REGISTER NRF_TIMER2->CC[0]
 
@@ -432,7 +433,11 @@ std::string DebugComponent::get_stack_usage_() {
 
   for (int i = 0; i < num_cpus; i++) {
     size_t unused;
+#if KERNEL_VERSION_MAJOR > 3 || (KERNEL_VERSION_MAJOR == 3 && KERNEL_VERSION_MINOR > 6)
+    const char *buf = K_KERNEL_STACK_BUFFER(z_interrupt_stacks[i]);
+#else
     const char *buf = Z_KERNEL_STACK_BUFFER(z_interrupt_stacks[i]);
+#endif
     size_t size = K_KERNEL_STACK_SIZEOF(z_interrupt_stacks[i]);
     int err = z_stack_space_get(buf, size, &unused);
 
