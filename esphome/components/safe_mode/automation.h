@@ -6,8 +6,7 @@
 
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace safe_mode {
+namespace esphome::safe_mode {
 
 class SafeModeTrigger : public Trigger<> {
  public:
@@ -16,7 +15,6 @@ class SafeModeTrigger : public Trigger<> {
   }
 };
 
-}  // namespace safe_mode
-}  // namespace esphome
+}  // namespace esphome::safe_mode
 
 #endif  // USE_SAFE_MODE_CALLBACK

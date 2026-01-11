@@ -13,8 +13,7 @@
 #include <esp_ota_ops.h>
 #endif
 
-namespace esphome {
-namespace safe_mode {
+namespace esphome::safe_mode {
 
 static const char *const TAG = "safe_mode";
 
@@ -159,5 +158,4 @@ void SafeModeComponent::on_safe_shutdown() {
     this->clean_rtc();
 }
 
-}  // namespace safe_mode
-}  // namespace esphome
+}  // namespace esphome::safe_mode

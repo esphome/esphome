@@ -5,8 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace safe_mode {
+namespace esphome::safe_mode {
 
 /// SafeModeComponent provides a safe way to recover from repeated boot failures
 class SafeModeComponent : public Component {
@@ -53,5 +52,4 @@ class SafeModeComponent : public Component {
       0x5afe5afe;  ///< a magic number to indicate that safe mode should be entered on next boot
 };
 
-}  // namespace safe_mode
-}  // namespace esphome
+}  // namespace esphome::safe_mode
