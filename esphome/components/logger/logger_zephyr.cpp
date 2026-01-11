@@ -84,7 +84,7 @@ void Logger::pre_setup() {
   if (hwinfo_get_reset_cause(&cause) == 0) {
     ESP_LOGI(TAG, "boot reason %u", cause);
   }
-  print_coredump();
+  zephyr_coredump::print_coredump();
 #endif
 }
 
