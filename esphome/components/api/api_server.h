@@ -24,10 +24,6 @@
 
 #ifdef USE_INFRARED
 #include "esphome/components/remote_base/remote_base.h"
-namespace esphome::infrared {
-// Forward declaration
-class Infrared;
-}  // namespace esphome::infrared
 #endif
 
 namespace esphome::api {
