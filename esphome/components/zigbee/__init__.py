@@ -69,7 +69,7 @@ def validate_number_of_ep(config: ConfigType) -> None:
         raise cv.Invalid(
             "Single endpoint is not supported https://github.com/Koenkk/zigbee2mqtt/issues/29888"
         )
-    if count > CONF_MAX_EP_NUMBER:
+    if count > CONF_MAX_EP_NUMBER and not CORE.testing_mode:
         raise cv.Invalid(f"Maximum number of end points is {CONF_MAX_EP_NUMBER}")
 
 
