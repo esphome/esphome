@@ -60,7 +60,7 @@ async def to_code(config):
         zephyr_add_prj_conf("LOG_BUFFER_SIZE", 4096)
         zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
         framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-        if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
+        if CORE.is_nrf52 and framework_ver >= cv.Version(2, 9, 2):
             zephyr_add_prj_conf("CONSOLE", True)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
