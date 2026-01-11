@@ -473,6 +473,10 @@ class APIConnection final : public APIServerConnection {
   static uint16_t try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                              bool is_single);
 #endif
+#ifdef USE_INFRARED
+  static uint16_t try_send_infrared_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                         bool is_single);
+#endif
 #ifdef USE_EVENT
   static uint16_t try_send_event_response(event::Event *event, const char *event_type, APIConnection *conn,
                                           uint32_t remaining_size, bool is_single);

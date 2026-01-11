@@ -1446,6 +1446,15 @@ void APIConnection::infrared_transmit_raw_timings(const InfraredTransmitRawTimin
 void APIConnection::send_infrared_receive_event(const InfraredReceiveEvent &msg) {
   this->send_message(msg, InfraredReceiveEvent::MESSAGE_TYPE);
 }
+
+uint16_t APIConnection::try_send_infrared_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                               bool is_single) {
+  auto *infrared = static_cast<infrared::Infrared *>(entity);
+  ListEntitiesInfraredResponse msg;
+  msg.capabilities = infrared->get_capability_flags();
+  return fill_and_encode_entity_info(infrared, msg, ListEntitiesInfraredResponse::MESSAGE_TYPE, conn, remaining_size,
+                                     is_single);
+}
 #endif
 
 #ifdef USE_UPDATE
