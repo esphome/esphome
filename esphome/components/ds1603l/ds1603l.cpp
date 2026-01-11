@@ -1,17 +1,14 @@
 #include "esphome/core/log.h"
-#include "DS1603L.h"
+#include "ds1603l.h"
 #include <algorithm>
 
 namespace esphome {
-namespace DS1603L {
+namespace ds1603l {
 
-static const char *TAG = "DS1603L.sensor";
+static const char *const TAG = "ds1603l.sensor";
 
-void DS1603L::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up DS1603L sensor...");
-
-  // Add a delay to allow the sensor to initialize after power-up
-  delay(2000);  // 2 seconds
+void Ds1603l::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up ds1603l sensor...");
 
   // Flush any residual data in the UART buffer
   while (this->available() > 0) {
@@ -19,11 +16,11 @@ void DS1603L::setup() {
   }
 }
 
-void DS1603L::update() {
+void Ds1603l::update() {
   // Loop does it all
 }
 
-void DS1603L::loop() {
+void Ds1603l::loop() {
   static bool initialized = false;
   static unsigned long start_time = millis();
 
@@ -41,8 +38,7 @@ void DS1603L::loop() {
     // Read 4 bytes of data
     this->read_array(this->rx_buffer_, 4);
 
-    ESP_LOGD(TAG, "Raw Data: %02X %02X %02X %02X", this->rx_buffer_[0], this->rx_buffer_[1], this->rx_buffer_[2],
-             this->rx_buffer_[3]);
+    ESP_LOGD(TAG, "Raw Data: %02X %02X %02X %02X", this->rx_buffer_[0], this->rx_buffer_[1], this->rx_buffer_[2], this->rx_buffer_[3]);
 
     // Verify the header byte
     if (this->rx_buffer_[0] != 0xFF) {
@@ -54,19 +50,19 @@ void DS1603L::loop() {
   }
 }
 
-void DS1603L::dump_config() {
-  ESP_LOGCONFIG(TAG, "DS1603L Sensor:");
+void Ds1603l::dump_config() {
+  ESP_LOGCONFIG(TAG, "ds1603l Sensor:");
   LOG_SENSOR("", "Liquid Level", this);
   LOG_SENSOR("", "Liquid Volume", this);
   if (liquid_level_sensor_) {
-    ESP_LOGCONFIG(TAG, " Liquid Level id: %s", liquid_level_sensor_->get_name().c_str());
+    ESP_LOGCONFIG(TAG, " Liquid Level id: %s", liquid_level_sensor_->get_name().c_str()); 
   }
   if (liquid_volume_sensor_) {
-    ESP_LOGCONFIG(TAG, " Liquid Volume id: %s", liquid_volume_sensor_->get_name().c_str());
+    ESP_LOGCONFIG(TAG, " Liquid Volume id: %s", liquid_volume_sensor_->get_name().c_str()); 
   }
 }
 
-void DS1603L::parse_data_() {
+void Ds1603l::parse_data_() {
   uint8_t header = this->rx_buffer_[0];
   uint8_t data_h = this->rx_buffer_[1];
   uint8_t data_l = this->rx_buffer_[2];
@@ -111,5 +107,5 @@ void DS1603L::parse_data_() {
   }
 }
 
-}  // namespace DS1603L
+}  // namespace ds1603l
 }  // namespace esphome
