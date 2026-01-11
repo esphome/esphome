@@ -125,12 +125,6 @@ class WaterHeater;
 }
 #endif
 
-#ifdef USE_INFRARED
-namespace infrared {
-class Infrared;
-}
-#endif
-
 #ifdef USE_EVENT
 namespace event {
 class Event;
