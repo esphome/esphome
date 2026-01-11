@@ -152,7 +152,6 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
 
 def zephyr_add_cdc_acm(config, id):
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    # zephyr and nrf-sdk use different versioning
     if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
         zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
