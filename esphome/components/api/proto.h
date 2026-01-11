@@ -39,6 +39,24 @@ inline constexpr int64_t decode_zigzag64(uint64_t value) {
   return (value & 1) ? static_cast<int64_t>(~(value >> 1)) : static_cast<int64_t>(value >> 1);
 }
 
+/// Count number of varints in a packed buffer
+inline uint16_t count_packed_varints(const uint8_t *data, size_t len) {
+  uint16_t count = 0;
+  while (len > 0) {
+    // Skip varint bytes until we find one without continuation bit
+    while (len > 0 && (*data & 0x80)) {
+      data++;
+      len--;
+    }
+    if (len > 0) {
+      data++;
+      len--;
+      count++;
+    }
+  }
+  return count;
+}
+
 /*
  * StringRef Ownership Model for API Protocol Messages
  * ===================================================
@@ -54,16 +72,16 @@ inline constexpr int64_t decode_zigzag64(uint64_t value) {
  * 3. Global/static strings: StringRef(GLOBAL_CONSTANT) - Always safe
  * 4. Local variables: Safe ONLY if encoding happens before function returns:
  *    std::string temp = compute_value();
- *    msg.set_field(StringRef(temp));
+ *    msg.field = StringRef(temp);
  *    return this->send_message(msg);  // temp is valid during encoding
  *
  * Unsafe Patterns (WILL cause crashes/corruption):
- * 1. Temporaries: msg.set_field(StringRef(obj.get_string())) // get_string() returns by value
- * 2. Concatenation: msg.set_field(StringRef(str1 + str2)) // Result is temporary
+ * 1. Temporaries: msg.field = StringRef(obj.get_string()) // get_string() returns by value
+ * 2. Concatenation: msg.field = StringRef(str1 + str2) // Result is temporary
  *
  * For unsafe patterns, store in a local variable first:
  *    std::string temp = get_string();  // or str1 + str2
- *    msg.set_field(StringRef(temp));
+ *    msg.field = StringRef(temp);
  *
  * The send_*_response pattern ensures proper lifetime management by encoding
  * within the same function scope where temporaries are created.
@@ -180,9 +198,10 @@ class ProtoVarInt {
   uint64_t value_;
 };
 
-// Forward declaration for decode_to_message and encode_to_writer
-class ProtoMessage;
+// Forward declarations for decode_to_message, encode_message and encode_packed_sint32
 class ProtoDecodableMessage;
+class ProtoMessage;
+class ProtoSize;
 
 class ProtoLengthDelimited {
  public:
@@ -334,15 +353,14 @@ class ProtoWriteBuffer {
   void encode_sint64(uint32_t field_id, int64_t value, bool force = false) {
     this->encode_uint64(field_id, encode_zigzag64(value), force);
   }
+  /// Encode a packed repeated sint32 field (zero-copy from vector)
+  void encode_packed_sint32(uint32_t field_id, const std::vector<int32_t> &values);
   void encode_message(uint32_t field_id, const ProtoMessage &value);
   std::vector<uint8_t> *get_buffer() const { return buffer_; }
 
  protected:
   std::vector<uint8_t> *buffer_;
 };
-
-// Forward declaration
-class ProtoSize;
 
 class ProtoMessage {
  public:
@@ -792,7 +810,42 @@ class ProtoSize {
       }
     }
   }
+
+  /**
+   * @brief Calculate size of a packed repeated sint32 field
+   */
+  inline void add_packed_sint32(uint32_t field_id_size, const std::vector<int32_t> &values) {
+    if (values.empty())
+      return;
+
+    size_t packed_size = 0;
+    for (int value : values) {
+      packed_size += varint(encode_zigzag32(value));
+    }
+
+    // field_id + length varint + packed data
+    total_size_ += field_id_size + varint(static_cast<uint32_t>(packed_size)) + static_cast<uint32_t>(packed_size);
+  }
 };
+
+// Implementation of encode_packed_sint32 - must be after ProtoSize is defined
+inline void ProtoWriteBuffer::encode_packed_sint32(uint32_t field_id, const std::vector<int32_t> &values) {
+  if (values.empty())
+    return;
+
+  // Calculate packed size
+  size_t packed_size = 0;
+  for (int value : values) {
+    packed_size += ProtoSize::varint(encode_zigzag32(value));
+  }
+
+  // Write tag (LENGTH_DELIMITED) + length + all zigzag-encoded values
+  this->encode_field_raw(field_id, WIRE_TYPE_LENGTH_DELIMITED);
+  this->encode_varint_raw(packed_size);
+  for (int value : values) {
+    this->encode_varint_raw(encode_zigzag32(value));
+  }
+}
 
 // Implementation of encode_message - must be after ProtoMessage is defined
 inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessage &value) {
@@ -833,9 +886,6 @@ class ProtoService {
   virtual bool is_authenticated() = 0;
   virtual bool is_connection_setup() = 0;
   virtual void on_fatal_error() = 0;
-#ifdef USE_API_PASSWORD
-  virtual void on_unauthenticated_access() = 0;
-#endif
   virtual void on_no_setup_connection() = 0;
   /**
    * Create a buffer with a reserved size.
@@ -873,20 +923,7 @@ class ProtoService {
     return true;
   }
 
-  inline bool check_authenticated_() {
-#ifdef USE_API_PASSWORD
-    if (!this->check_connection_setup_()) {
-      return false;
-    }
-    if (!this->is_authenticated()) {
-      this->on_unauthenticated_access();
-      return false;
-    }
-    return true;
-#else
-    return this->check_connection_setup_();
-#endif
-  }
+  inline bool check_authenticated_() { return this->check_connection_setup_(); }
 };
 
 }  // namespace esphome::api

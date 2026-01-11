@@ -1,4 +1,5 @@
 #include "kuntze.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
@@ -10,11 +11,17 @@ static const char *const TAG = "kuntze";
 static const uint8_t CMD_READ_REG = 0x03;
 static const uint16_t REGISTER[] = {4136, 4160, 4680, 6000, 4688, 4728, 5832};
 
+// Maximum bytes to log for Modbus responses (2 registers = 4, plus count = 5)
+static constexpr size_t KUNTZE_MAX_LOG_BYTES = 8;
+
 void Kuntze::on_modbus_data(const std::vector<uint8_t> &data) {
   auto get_16bit = [&](int i) -> uint16_t { return (uint16_t(data[i * 2]) << 8) | uint16_t(data[i * 2 + 1]); };
 
   this->waiting_ = false;
-  ESP_LOGV(TAG, "Data: %s", format_hex_pretty(data).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(KUNTZE_MAX_LOG_BYTES)];
+#endif
+  ESP_LOGV(TAG, "Data: %s", format_hex_pretty_to(hex_buf, data.data(), data.size()));
 
   float value = (float) get_16bit(0);
   for (int i = 0; i < data[3]; i++)

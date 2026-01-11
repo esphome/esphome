@@ -17,11 +17,14 @@ void DHT::setup() {
 }
 
 void DHT::dump_config() {
-  ESP_LOGCONFIG(TAG, "DHT:");
+  ESP_LOGCONFIG(TAG,
+                "DHT:\n"
+                "  %sModel: %s\n"
+                "  Internal pull-up: %s",
+                this->is_auto_detect_ ? "Auto-detected " : "",
+                this->model_ == DHT_MODEL_DHT11 ? "DHT11" : "DHT22 or equivalent",
+                ONOFF(this->t_pin_->get_flags() & gpio::FLAG_PULLUP));
   LOG_PIN("  Pin: ", this->t_pin_);
-  ESP_LOGCONFIG(TAG, "  %sModel: %s", this->is_auto_detect_ ? "Auto-detected " : "",
-                this->model_ == DHT_MODEL_DHT11 ? "DHT11" : "DHT22 or equivalent");
-  ESP_LOGCONFIG(TAG, "  Internal pull-up: %s", ONOFF(this->t_pin_->get_flags() & gpio::FLAG_PULLUP));
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);

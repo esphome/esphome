@@ -129,10 +129,8 @@ void PCA9554GPIOPin::setup() { pin_mode(flags_); }
 void PCA9554GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool PCA9554GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void PCA9554GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-std::string PCA9554GPIOPin::dump_summary() const {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "%u via PCA9554", pin_);
-  return buffer;
+size_t PCA9554GPIOPin::dump_summary(char *buffer, size_t len) const {
+  return snprintf(buffer, len, "%u via PCA9554", this->pin_);
 }
 
 }  // namespace pca9554
