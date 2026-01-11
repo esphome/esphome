@@ -335,8 +335,7 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
     return false;
   }
 
-  // Build user:pass in stack buffer (max 64 + 1 + 64 = 129 bytes typical)
-  // Use 256 bytes to handle longer credentials safely
+  // Build user:pass in stack buffer to avoid heap allocation
   constexpr size_t max_user_info_len = 256;
   char user_info[max_user_info_len];
   size_t user_len = strlen(username);
