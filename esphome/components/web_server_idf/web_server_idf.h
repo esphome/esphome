@@ -326,6 +326,11 @@ class AsyncEventSource : public AsyncWebHandler {
 };
 #endif  // USE_WEBSERVER
 
+struct HttpHeader {
+  const char *name;
+  const char *value;
+};
+
 class DefaultHeaders {
   friend class AsyncWebServerRequest;
 #ifdef USE_WEBSERVER
@@ -334,13 +339,13 @@ class DefaultHeaders {
 
  public:
   // NOLINTNEXTLINE(readability-identifier-naming)
-  void addHeader(const char *name, const char *value) { this->headers_.emplace_back(name, value); }
+  void addHeader(const char *name, const char *value) { this->headers_.push_back({name, value}); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
   static DefaultHeaders &Instance();
 
  protected:
-  std::vector<std::pair<std::string, std::string>> headers_;
+  std::vector<HttpHeader> headers_;
 };
 
 }  // namespace web_server_idf
