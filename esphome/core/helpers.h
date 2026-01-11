@@ -293,8 +293,8 @@ template<typename T> class FixedVector {
     size_ = 0;
   }
 
-  // Shrink capacity to fit current size (frees all memory)
-  void shrink_to_fit() {
+  // Release all memory (destroys elements and frees memory)
+  void release() {
     cleanup_();
     reset_();
   }
