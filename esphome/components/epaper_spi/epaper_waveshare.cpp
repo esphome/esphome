@@ -24,7 +24,7 @@ void EpaperWaveshare::initialise(bool partial) {
   this->send_red_ = true;
 }
 
-void EpaperWaveshare::set_window_() {
+void EpaperWaveshare::set_window() {
   this->x_low_ &= ~7;
   this->x_high_ += 7;
   this->x_high_ &= ~7;

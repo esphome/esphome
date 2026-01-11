@@ -26,7 +26,7 @@ bool EPaperSSD1677::reset() {
   return false;
 }
 
-void EPaperSSD1677::set_window_() {
+void EPaperSSD1677::set_window() {
   this->x_low_ &= ~7;
   this->x_high_ += 7;
   this->x_high_ &= ~7;
@@ -42,7 +42,7 @@ bool HOT EPaperSSD1677::transfer_data() {
   auto start_time = millis();
   if (this->current_data_index_ == 0) {
     // round to byte boundaries
-    set_window_();
+    set_window();
     // for monochrome, we still need to clear the red data buffer at least once to prevent it
     // causing dirty pixels after partial refresh.
     this->command(this->send_red_ ? 0x26 : 0x24);
