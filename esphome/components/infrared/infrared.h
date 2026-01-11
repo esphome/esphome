@@ -15,21 +15,11 @@
 
 namespace esphome::infrared {
 
-/// Feature flags for infrared component availability
-enum InfraredFeature : uint32_t {
-  FEATURE_INFRARED_ENABLED = 1 << 0,
-};
-
 /// Capability flags for individual infrared instances
 enum InfraredCapability : uint32_t {
   CAPABILITY_TRANSMITTER = 1 << 0,  // Can transmit signals
   CAPABILITY_RECEIVER = 1 << 1,     // Can receive signals
 };
-
-#ifdef USE_API
-/// Get global feature flags for infrared component (not instance-specific)
-inline uint32_t get_infrared_feature_flags() { return InfraredFeature::FEATURE_INFRARED_ENABLED; }
-#endif
 
 /// Forward declarations
 class Infrared;

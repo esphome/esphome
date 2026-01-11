@@ -1662,9 +1662,6 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   resp.zwave_proxy_feature_flags = zwave_proxy::global_zwave_proxy->get_feature_flags();
   resp.zwave_home_id = zwave_proxy::global_zwave_proxy->get_home_id();
 #endif
-#ifdef USE_INFRARED
-  resp.infrared_feature_flags = infrared::get_infrared_feature_flags();
-#endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;
 #endif
