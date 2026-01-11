@@ -19,6 +19,8 @@
 #endif
 
 #ifdef USE_ETHERNET_LLDP
+#include "esphome/core/version.h"
+
 // Default LLDP System-Description value, used if not set in the configuration:
 #ifdef ESPHOME_PROJECT_NAME
 // If esphome.project has been configured, use name and version
@@ -27,9 +29,6 @@
 // Otherwise, say we're ESPHome and include the software version and board type.
 #define LLDP_DEFAULT_DESCRIPTION "ESPHome.io " ESPHOME_VERSION " " ESPHOME_BOARD
 #endif
-
-#include "esphome/core/version.h"
-#include "lldp.h"
 #endif /* USE_ETHERNET_LLDP */
 
 namespace esphome {

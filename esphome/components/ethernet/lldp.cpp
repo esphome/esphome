@@ -4,7 +4,7 @@
 // All mandatory and some optional data units have been implemented.
 //
 // Written by Nic Bellamy, 2025. https://github.com/Gnuspice
-#include "esphome/core/defines.h"
+#include "lldp.h"
 
 #ifdef USE_ETHERNET_LLDP
 #include <stdint.h>
@@ -18,7 +18,6 @@
 #include "lwip/ip_addr.h"
 // For ETHTYPE_LLDP
 #include "lwip/prot/ieee.h"
-#include "lldp.h"
 
 // For ethernet and L2TAP bits
 #include "esp_eth.h"
