@@ -55,10 +55,10 @@ void Ds1603l::dump_config() {
   LOG_SENSOR("", "Liquid Level", this);
   LOG_SENSOR("", "Liquid Volume", this);
   if (ds1603l_liquid_level_sensor_) {
-    ESP_LOGCONFIG(TAG, " Liquid Level id: %s", ds1603l_liquid_level_sensor_->get_name().c_str()); 
+    ESP_LOGCONFIG(TAG, " Liquid Level id: %s", ds1603l_liquid_level_sensor_->get_name().c_str());
   }
   if (ds1603l_liquid_volume_sensor_) {
-    ESP_LOGCONFIG(TAG, " Liquid Volume id: %s", ds1603l_liquid_volume_sensor_->get_name().c_str()); 
+    ESP_LOGCONFIG(TAG, " Liquid Volume id: %s", ds1603l_liquid_volume_sensor_->get_name().c_str());
   }
 }
 
