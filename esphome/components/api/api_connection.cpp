@@ -1452,7 +1452,7 @@ void APIConnection::infrared_rf_transmit_raw_timings(const InfraredRFTransmitRaw
 #endif
 }
 
-void APIConnection::send_infrared_receive_event(const InfraredRFReceiveEvent &msg) {
+void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) {
   this->send_message(msg, InfraredRFReceiveEvent::MESSAGE_TYPE);
 }
 #endif

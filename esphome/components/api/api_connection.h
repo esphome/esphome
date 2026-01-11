@@ -174,7 +174,7 @@ class APIConnection final : public APIServerConnection {
 
 #ifdef USE_IR_RF
   void infrared_rf_transmit_raw_timings(const InfraredRFTransmitRawTimingsRequest &msg) override;
-  void send_infrared_receive_event(const InfraredRFReceiveEvent &msg);
+  void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
 #endif
 
 #ifdef USE_EVENT

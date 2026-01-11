@@ -141,7 +141,7 @@ bool Infrared::on_receive(remote_base::RemoteReceiveData data) {
 #else
     uint32_t device_id = 0;
 #endif
-    api::global_api_server->send_infrared_receive_event(device_id, this->get_object_id_hash(), &data.get_raw_data());
+    api::global_api_server->send_infrared_rf_receive_event(device_id, this->get_object_id_hash(), &data.get_raw_data());
   }
 #endif
   return false;  // Don't consume the event, allow other listeners to process it
