@@ -1,0 +1,24 @@
+one_wire:
+  - platform: ds2482
+    id: onewire_bus_ch0
+    i2c_id: i2c_bus
+    address: 0x18
+    channel: 0
+    active_pullup: true
+    strong_pullup: false
+
+  - platform: ds2482
+    id: onewire_bus_ch1
+    i2c_id: i2c_bus
+    address: 0x18
+    channel: 1
+    active_pullup: true
+    strong_pullup: false
+
+  - platform: ds2482
+    id: onewire_bus_ch7
+    i2c_id: i2c_bus
+    address: 0x18
+    channel: 7
+    active_pullup: true
+    strong_pullup: false
