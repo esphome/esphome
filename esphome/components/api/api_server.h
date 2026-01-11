@@ -22,8 +22,6 @@
 
 #include <vector>
 
-}  // namespace esphome::api
-
 #ifdef USE_INFRARED
 #include "esphome/components/remote_base/remote_base.h"
 namespace esphome::infrared {

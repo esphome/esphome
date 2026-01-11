@@ -5,7 +5,7 @@ from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
 
 CODEOWNERS = ["@kbx81"]
-DEPENDENCIES = ["api"]
+DEPENDENCIES = ["api", "remote_base"]
 
 IS_PLATFORM_COMPONENT = True
 
