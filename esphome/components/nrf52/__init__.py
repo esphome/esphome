@@ -140,7 +140,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_UICR_ERASE, default=False): cv.boolean,
                 }
             ),
-            cv.Optional(CONF_FRAMEWORK, default={CONF_VERSION: "2.6.2-7"}): cv.Schema(
+            cv.Optional(CONF_FRAMEWORK, default={CONF_VERSION: "2.6.1-7"}): cv.Schema(
                 {
                     cv.Required(CONF_VERSION): cv.string_strict,
                 }
