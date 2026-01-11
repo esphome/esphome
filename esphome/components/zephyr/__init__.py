@@ -216,7 +216,7 @@ def copy_files():
 
     if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT or zephyr_data()[
         KEY_BOARD
-    ] in ["xiao_ble", "adafruit_itsybitsy"]:
+    ] in ["xiao_ble"]:
         fake_board_manifest = """
 {
     "frameworks": [
