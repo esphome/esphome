@@ -206,7 +206,7 @@ void SendspinHub::websocket_close_callback(void *context) {
 #ifdef USE_WIFI
   if (this_sendspin->high_performance_networking_requested_for_time_ &&
       wifi::global_wifi_component->release_high_performance()) {
-    this_sendspin->high_performance_networking_requested_for_time_ = true;
+    this_sendspin->high_performance_networking_requested_for_time_ = false;
   }
   if (this_sendspin->high_performance_networking_requested_for_playback_ &&
       wifi::global_wifi_component->release_high_performance()) {
