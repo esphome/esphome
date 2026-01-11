@@ -12,6 +12,12 @@
 #include <zephyr/drivers/hwinfo.h>
 #endif
 
+namespace esphome::zephyr_coredump {
+
+__attribute__((weak)) void print_coredump() {}
+
+}  // namespace esphome::zephyr_coredump
+
 namespace esphome::logger {
 
 static const char *const TAG = "logger";
@@ -78,6 +84,7 @@ void Logger::pre_setup() {
   if (hwinfo_get_reset_cause(&cause) == 0) {
     ESP_LOGI(TAG, "boot reason %u", cause);
   }
+  print_coredump();
 #endif
 }
 
