@@ -23,6 +23,7 @@
 #endif
 #include "esphome/components/socket/socket.h"
 
+#include <span>
 #include <unordered_map>
 #include <vector>
 
@@ -71,10 +72,18 @@ struct Timer {
   uint32_t seconds_left;
   bool is_active;
 
+  /// Buffer size for to_str() - sufficient for typical timer names
+  static constexpr size_t TO_STR_BUFFER_SIZE = 128;
+  /// Format to buffer, returns pointer to buffer (may truncate long names)
+  const char *to_str(std::span<char, TO_STR_BUFFER_SIZE> buffer) const {
+    snprintf(buffer.data(), buffer.size(),
+             "Timer(id=%s, name=%s, total_seconds=%" PRIu32 ", seconds_left=%" PRIu32 ", is_active=%s)",
+             this->id.c_str(), this->name.c_str(), this->total_seconds, this->seconds_left, YESNO(this->is_active));
+    return buffer.data();
+  }
   std::string to_string() const {
-    return str_sprintf("Timer(id=%s, name=%s, total_seconds=%" PRIu32 ", seconds_left=%" PRIu32 ", is_active=%s)",
-                       this->id.c_str(), this->name.c_str(), this->total_seconds, this->seconds_left,
-                       YESNO(this->is_active));
+    char buffer[TO_STR_BUFFER_SIZE];
+    return this->to_str(buffer);
   }
 };
 

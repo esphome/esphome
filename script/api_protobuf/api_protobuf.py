@@ -339,6 +339,9 @@ def create_field_type_info(
 ) -> TypeInfo:
     """Create the appropriate TypeInfo instance for a field, handling repeated fields and custom options."""
     if field.label == FieldDescriptorProto.LABEL_REPEATED:
+        # Check if this is a packed_buffer field (zero-copy packed repeated)
+        if get_field_opt(field, pb.packed_buffer, False):
+            return PackedBufferTypeInfo(field)
         # Check if this repeated field has fixed_array_with_length_define option
         if (
             fixed_size := get_field_opt(field, pb.fixed_array_with_length_define)
@@ -354,41 +357,30 @@ def create_field_type_info(
             return FixedArrayRepeatedType(field, size_define)
         return RepeatedTypeInfo(field)
 
-    # Check for mutually exclusive options on bytes fields
-    if field.type == 12:
-        has_pointer_to_buffer = get_field_opt(field, pb.pointer_to_buffer, False)
-        fixed_size = get_field_opt(field, pb.fixed_array_size, None)
-
-        if has_pointer_to_buffer and fixed_size is not None:
-            raise ValueError(
-                f"Field '{field.name}' has both pointer_to_buffer and fixed_array_size. "
-                "These options are mutually exclusive. Use pointer_to_buffer for zero-copy "
-                "or fixed_array_size for traditional array storage."
-            )
-
-        if has_pointer_to_buffer:
-            # Zero-copy pointer approach - no size needed, will use size_t for length
-            return PointerToBytesBufferType(field, None)
-
-        if fixed_size is not None:
-            # Traditional fixed array approach with copy
-            return FixedArrayBytesType(field, fixed_size)
-
-    # Check for pointer_to_buffer option on string fields
-    if field.type == 9:
-        has_pointer_to_buffer = get_field_opt(field, pb.pointer_to_buffer, False)
-
-        if has_pointer_to_buffer:
-            # Zero-copy pointer approach for strings
-            return PointerToBytesBufferType(field, None)
-
     # Special handling for bytes fields
     if field.type == 12:
+        fixed_size = get_field_opt(field, pb.fixed_array_size, None)
+
+        if fixed_size is not None:
+            # Traditional fixed array approach with copy (takes priority)
+            return FixedArrayBytesType(field, fixed_size)
+
+        # For messages that decode (SOURCE_CLIENT or SOURCE_BOTH), use pointer
+        # for zero-copy access to the receive buffer
+        if needs_decode:
+            return PointerToBytesBufferType(field, None)
+
+        # For SOURCE_SERVER (encode only), explicit annotation is still needed
+        if get_field_opt(field, pb.pointer_to_buffer, False):
+            return PointerToBytesBufferType(field, None)
+
         return BytesType(field, needs_decode, needs_encode)
 
-    # Special handling for string fields
+    # Special handling for string fields - use StringRef for zero-copy unless no_zero_copy is set
     if field.type == 9:
-        return StringType(field, needs_decode, needs_encode)
+        if get_field_opt(field, pb.no_zero_copy, False):
+            return StringType(field, needs_decode, needs_encode)
+        return PointerToStringBufferType(field, None)
 
     validate_field_type(field.type, field.name)
     return TYPE_INFO[field.type](field)
@@ -840,8 +832,8 @@ class BytesType(TypeInfo):
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical bytes
 
 
-class PointerToBytesBufferType(TypeInfo):
-    """Type for bytes fields that use pointer_to_buffer option for zero-copy."""
+class PointerToBufferTypeBase(TypeInfo):
+    """Base class for pointer_to_buffer types (bytes and strings) for zero-copy decoding."""
 
     @classmethod
     def can_use_dump_field(cls) -> bool:
@@ -851,29 +843,34 @@ class PointerToBytesBufferType(TypeInfo):
         self, field: descriptor.FieldDescriptorProto, size: int | None = None
     ) -> None:
         super().__init__(field)
-        # Size is not used for pointer_to_buffer - we always use size_t for length
         self.array_size = 0
 
     @property
-    def cpp_type(self) -> str:
-        return "const uint8_t*"
+    def decode_length(self) -> str | None:
+        # This is handled in decode_length_content
+        return None
 
     @property
-    def default_value(self) -> str:
-        return "nullptr"
+    def wire_type(self) -> WireType:
+        """Get the wire type for this field."""
+        return WireType.LENGTH_DELIMITED  # Uses wire type 2
 
-    @property
-    def reference_type(self) -> str:
-        return "const uint8_t*"
+    def get_estimated_size(self) -> int:
+        # field ID + length varint + typical data (assume small for pointer fields)
+        return self.calculate_field_id_size() + 2 + 16
 
-    @property
-    def const_reference_type(self) -> str:
-        return "const uint8_t*"
+
+class PointerToBytesBufferType(PointerToBufferTypeBase):
+    """Type for bytes fields that use pointer_to_buffer option for zero-copy."""
+
+    cpp_type = "const uint8_t*"
+    default_value = "nullptr"
+    reference_type = "const uint8_t*"
+    const_reference_type = "const uint8_t*"
 
     @property
     def public_content(self) -> list[str]:
         # Use uint16_t for length - max packet size is well below 65535
-        # Add pointer and length fields
         return [
             f"const uint8_t* {self.field_name}{{nullptr}};",
             f"uint16_t {self.field_name}_len{{0}};",
@@ -885,23 +882,11 @@ class PointerToBytesBufferType(TypeInfo):
 
     @property
     def decode_length_content(self) -> str | None:
-        # Decode directly stores the pointer to avoid allocation
         return f"""case {self.number}: {{
-      // Use raw data directly to avoid allocation
       this->{self.field_name} = value.data();
       this->{self.field_name}_len = value.size();
       break;
     }}"""
-
-    @property
-    def decode_length(self) -> str | None:
-        # This is handled in decode_length_content
-        return None
-
-    @property
-    def wire_type(self) -> WireType:
-        """Get the wire type for this bytes field."""
-        return WireType.LENGTH_DELIMITED  # Uses wire type 2
 
     def dump(self, name: str) -> str:
         return (
@@ -910,7 +895,6 @@ class PointerToBytesBufferType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        # Custom dump that doesn't use dump_field template
         return (
             f'out.append("  {self.name}: ");\n'
             + f"out.append({self.dump(self.field_name)});\n"
@@ -918,11 +902,134 @@ class PointerToBytesBufferType(TypeInfo):
         )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return f"size.add_length({self.number}, this->{self.field_name}_len);"
+        return f"size.add_length({self.calculate_field_id_size()}, this->{self.field_name}_len);"
+
+
+class PointerToStringBufferType(PointerToBufferTypeBase):
+    """Type for string fields that use pointer_to_buffer option for zero-copy.
+
+    Uses StringRef instead of separate pointer and length fields.
+    """
+
+    cpp_type = "StringRef"
+    default_value = ""
+    reference_type = "StringRef &"
+    const_reference_type = "const StringRef &"
+
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return True
+
+    @property
+    def public_content(self) -> list[str]:
+        return [f"StringRef {self.field_name}{{}};"]
+
+    @property
+    def encode_content(self) -> str:
+        return f"buffer.encode_string({self.number}, this->{self.field_name});"
+
+    @property
+    def decode_length_content(self) -> str | None:
+        return f"""case {self.number}: {{
+      this->{self.field_name} = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      break;
+    }}"""
+
+    def dump(self, name: str) -> str:
+        # Not used since we use dump_field, but required by abstract base class
+        return f'out.append("\'").append({name}.c_str(), {name}.size()).append("\'");'
+
+    @property
+    def dump_content(self) -> str:
+        return f'dump_field(out, "{self.name}", this->{self.field_name});'
+
+    def get_size_calculation(self, name: str, force: bool = False) -> str:
+        return f"size.add_length({self.calculate_field_id_size()}, this->{self.field_name}.size());"
 
     def get_estimated_size(self) -> int:
-        # field ID + length varint + typical data (assume small for pointer fields)
-        return self.calculate_field_id_size() + 2 + 16
+        return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
+
+
+class PackedBufferTypeInfo(TypeInfo):
+    """Type for packed repeated fields that expose raw buffer instead of decoding.
+
+    When a repeated field is marked with [(packed_buffer) = true], this type
+    generates code that stores a pointer to the raw protobuf buffer along with
+    its length and the count of values. This enables zero-copy passthrough when
+    the consumer can decode the packed varints on-demand.
+    """
+
+    def __init__(self, field: descriptor.FieldDescriptorProto) -> None:
+        # packed_buffer is decode-only (SOURCE_CLIENT messages)
+        super().__init__(field, needs_decode=True, needs_encode=False)
+
+    @property
+    def cpp_type(self) -> str:
+        # Not used - we have multiple fields
+        return "const uint8_t*"
+
+    @property
+    def wire_type(self) -> WireType:
+        """Packed fields use LENGTH_DELIMITED wire type."""
+        return WireType.LENGTH_DELIMITED
+
+    @property
+    def public_content(self) -> list[str]:
+        """Generate three fields: data pointer, length, and count."""
+        return [
+            f"const uint8_t *{self.field_name}_data_{{nullptr}};",
+            f"uint16_t {self.field_name}_length_{{0}};",
+            f"uint16_t {self.field_name}_count_{{0}};",
+        ]
+
+    @property
+    def decode_length_content(self) -> str:
+        """Store pointer to buffer and calculate count of packed varints."""
+        return f"""case {self.number}: {{
+      this->{self.field_name}_data_ = value.data();
+      this->{self.field_name}_length_ = value.size();
+      this->{self.field_name}_count_ = count_packed_varints(value.data(), value.size());
+      break;
+    }}"""
+
+    @property
+    def encode_content(self) -> str:
+        """No encoding - this is decode-only for SOURCE_CLIENT messages."""
+        return None
+
+    @property
+    def dump_content(self) -> str:
+        """Dump shows buffer info but not decoded values."""
+        return (
+            f'out.append("  {self.name}: ");\n'
+            + 'out.append("packed buffer [");\n'
+            + f"out.append(std::to_string(this->{self.field_name}_count_));\n"
+            + 'out.append(" values, ");\n'
+            + f"out.append(std::to_string(this->{self.field_name}_length_));\n"
+            + 'out.append(" bytes]\\n");'
+        )
+
+    def dump(self, name: str) -> str:
+        """Dump method for packed buffer - not typically used but required by abstract base."""
+        return 'out.append("packed buffer");'
+
+    def get_size_calculation(self, name: str, force: bool = False) -> str:
+        """No size calculation needed - decode-only."""
+        return ""
+
+    def get_estimated_size(self) -> int:
+        """Estimate size for packed buffer field.
+
+        Typical IR/RF timing array has ~50-200 values, each encoded as 1-3 bytes.
+        Estimate 100 values * 2 bytes = 200 bytes typical.
+        """
+        return (
+            self.calculate_field_id_size() + 2 + 200
+        )  # field ID + length varint + data
+
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return False
 
 
 class FixedArrayBytesType(TypeInfo):
@@ -1215,6 +1322,9 @@ class FixedArrayRepeatedType(TypeInfo):
         """Helper to generate encode statement for a single element."""
         if isinstance(self._ti, EnumType):
             return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
+        # MessageType.encode_message doesn't have a force parameter
+        if isinstance(self._ti, MessageType):
+            return f"buffer.{self._ti.encode_func}({self.number}, {element});"
         return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
 
     @property
@@ -1536,6 +1646,15 @@ class RepeatedTypeInfo(TypeInfo):
         # std::vector is specialized for bool, reference does not work
         return isinstance(self._ti, BoolType)
 
+    def _encode_element_call(self, element: str) -> str:
+        """Helper to generate encode call for a single element."""
+        if isinstance(self._ti, EnumType):
+            return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
+        # MessageType.encode_message doesn't have a force parameter
+        if isinstance(self._ti, MessageType):
+            return f"buffer.{self._ti.encode_func}({self.number}, {element});"
+        return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
+
     @property
     def encode_content(self) -> str:
         if self._use_pointer:
@@ -1546,17 +1665,11 @@ class RepeatedTypeInfo(TypeInfo):
                 o += f"  buffer.{self._ti.encode_func}({self.number}, it, strlen(it), true);\n"
             else:
                 o = f"for (const auto &it : *this->{self.field_name}) {{\n"
-                if isinstance(self._ti, EnumType):
-                    o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
-                else:
-                    o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
+                o += f"  {self._encode_element_call('it')}\n"
             o += "}"
             return o
         o = f"for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
-        if isinstance(self._ti, EnumType):
-            o += f"  buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>(it), true);\n"
-        else:
-            o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
+        o += f"  {self._encode_element_call('it')}\n"
         o += "}"
         return o
 
@@ -2123,12 +2236,10 @@ def build_message_type(
     # dump_to implementation will go in dump_cpp
     dump_impl = f"void {desc.name}::dump_to(std::string &out) const {{"
     if dump:
-        if len(dump) == 1 and len(dump[0]) + len(dump_impl) + 3 < 120:
-            dump_impl += f" {dump[0]} "
-        else:
-            dump_impl += "\n"
-            dump_impl += f'  MessageDumpHelper helper(out, "{desc.name}");\n'
-            dump_impl += indent("\n".join(dump)) + "\n"
+        # Always use MessageDumpHelper for consistent output formatting
+        dump_impl += "\n"
+        dump_impl += f'  MessageDumpHelper helper(out, "{desc.name}");\n'
+        dump_impl += indent("\n".join(dump)) + "\n"
     else:
         o2 = f'out.append("{desc.name} {{}}");'
         if len(dump_impl) + len(o2) + 3 < 120:

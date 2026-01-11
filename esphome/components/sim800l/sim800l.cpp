@@ -323,8 +323,10 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         kick ESPHome callback now
       */
       if (ok || message.compare(0, 6, "+CMGL:") == 0) {
-        ESP_LOGD(TAG, "Received SMS from: %s", this->sender_.c_str());
-        ESP_LOGD(TAG, "%s", this->message_.c_str());
+        ESP_LOGD(TAG,
+                 "Received SMS from: %s\n"
+                 "%s",
+                 this->sender_.c_str(), this->message_.c_str());
         this->sms_received_callback_.call(this->message_, this->sender_);
         this->state_ = STATE_RECEIVED_SMS;
       } else {

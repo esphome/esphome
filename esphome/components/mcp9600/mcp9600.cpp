@@ -63,12 +63,12 @@ void MCP9600Component::setup() {
 }
 
 void MCP9600Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "MCP9600:");
+  ESP_LOGCONFIG(TAG,
+                "MCP9600:\n"
+                "  Device ID: 0x%x",
+                this->device_id_);
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-
-  ESP_LOGCONFIG(TAG, "  Device ID: 0x%x", this->device_id_);
-
   LOG_SENSOR("  ", "Hot Junction Temperature", this->hot_junction_sensor_);
   LOG_SENSOR("  ", "Cold Junction Temperature", this->cold_junction_sensor_);
 

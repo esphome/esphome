@@ -3,8 +3,7 @@
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 static const char *const TAG = "sensor";
 
@@ -76,9 +75,7 @@ StateClass Sensor::get_state_class() {
 
 void Sensor::publish_state(float state) {
   this->raw_state = state;
-  if (this->raw_callback_) {
-    this->raw_callback_->call(state);
-  }
+  this->raw_callback_.call(state);
 
   ESP_LOGV(TAG, "'%s': Received new state %f", this->name_.c_str(), state);
 
@@ -91,10 +88,7 @@ void Sensor::publish_state(float state) {
 
 void Sensor::add_on_state_callback(std::function<void(float)> &&callback) { this->callback_.add(std::move(callback)); }
 void Sensor::add_on_raw_state_callback(std::function<void(float)> &&callback) {
-  if (!this->raw_callback_) {
-    this->raw_callback_ = make_unique<CallbackManager<void(float)>>();
-  }
-  this->raw_callback_->add(std::move(callback));
+  this->raw_callback_.add(std::move(callback));
 }
 
 void Sensor::add_filter(Filter *filter) {
@@ -140,5 +134,4 @@ void Sensor::internal_send_state_to_frontend(float state) {
 #endif
 }
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor
