@@ -339,6 +339,9 @@ def create_field_type_info(
 ) -> TypeInfo:
     """Create the appropriate TypeInfo instance for a field, handling repeated fields and custom options."""
     if field.label == FieldDescriptorProto.LABEL_REPEATED:
+        # Check if this is a packed_buffer field (zero-copy packed repeated)
+        if get_field_opt(field, pb.packed_buffer, False):
+            return PackedBufferTypeInfo(field)
         # Check if this repeated field has fixed_array_with_length_define option
         if (
             fixed_size := get_field_opt(field, pb.fixed_array_with_length_define)
@@ -945,6 +948,88 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
+
+
+class PackedBufferTypeInfo(TypeInfo):
+    """Type for packed repeated fields that expose raw buffer instead of decoding.
+
+    When a repeated field is marked with [(packed_buffer) = true], this type
+    generates code that stores a pointer to the raw protobuf buffer along with
+    its length and the count of values. This enables zero-copy passthrough when
+    the consumer can decode the packed varints on-demand.
+    """
+
+    def __init__(self, field: descriptor.FieldDescriptorProto) -> None:
+        # packed_buffer is decode-only (SOURCE_CLIENT messages)
+        super().__init__(field, needs_decode=True, needs_encode=False)
+
+    @property
+    def cpp_type(self) -> str:
+        # Not used - we have multiple fields
+        return "const uint8_t*"
+
+    @property
+    def wire_type(self) -> WireType:
+        """Packed fields use LENGTH_DELIMITED wire type."""
+        return WireType.LENGTH_DELIMITED
+
+    @property
+    def public_content(self) -> list[str]:
+        """Generate three fields: data pointer, length, and count."""
+        return [
+            f"const uint8_t *{self.field_name}_data_{{nullptr}};",
+            f"uint16_t {self.field_name}_length_{{0}};",
+            f"uint16_t {self.field_name}_count_{{0}};",
+        ]
+
+    @property
+    def decode_length_content(self) -> str:
+        """Store pointer to buffer and calculate count of packed varints."""
+        return f"""case {self.number}: {{
+      this->{self.field_name}_data_ = value.data();
+      this->{self.field_name}_length_ = value.size();
+      this->{self.field_name}_count_ = count_packed_varints(value.data(), value.size());
+      break;
+    }}"""
+
+    @property
+    def encode_content(self) -> str:
+        """No encoding - this is decode-only for SOURCE_CLIENT messages."""
+        return None
+
+    @property
+    def dump_content(self) -> str:
+        """Dump shows buffer info but not decoded values."""
+        return (
+            f'out.append("  {self.name}: ");\n'
+            + 'out.append("packed buffer [");\n'
+            + f"out.append(std::to_string(this->{self.field_name}_count_));\n"
+            + 'out.append(" values, ");\n'
+            + f"out.append(std::to_string(this->{self.field_name}_length_));\n"
+            + 'out.append(" bytes]\\n");'
+        )
+
+    def dump(self, name: str) -> str:
+        """Dump method for packed buffer - not typically used but required by abstract base."""
+        return 'out.append("packed buffer");'
+
+    def get_size_calculation(self, name: str, force: bool = False) -> str:
+        """No size calculation needed - decode-only."""
+        return ""
+
+    def get_estimated_size(self) -> int:
+        """Estimate size for packed buffer field.
+
+        Typical IR/RF timing array has ~50-200 values, each encoded as 1-3 bytes.
+        Estimate 100 values * 2 bytes = 200 bytes typical.
+        """
+        return (
+            self.calculate_field_id_size() + 2 + 200
+        )  # field ID + length varint + data
+
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return False
 
 
 class FixedArrayBytesType(TypeInfo):
