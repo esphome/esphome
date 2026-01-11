@@ -2,7 +2,7 @@
 
 #include <cstdarg>
 #include <map>
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_HOST)
 #include <pthread.h>
 #endif
 #include "esphome/core/automation.h"
@@ -12,7 +12,13 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-#include "task_log_buffer.h"
+#ifdef USE_HOST
+#include "task_log_buffer_host.h"
+#elif defined(USE_ESP32)
+#include "task_log_buffer_esp32.h"
+#elif defined(USE_LIBRETINY)
+#include "task_log_buffer_libretiny.h"
+#endif
 #endif
 
 #ifdef USE_ARDUINO
@@ -181,6 +187,9 @@ class Logger : public Component {
   uart_port_t get_uart_num() const { return uart_num_; }
   void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
 #endif
+#ifdef USE_HOST
+  void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
+#endif
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   void set_uart_selection(UARTSelection uart_selection) { uart_ = uart_selection; }
   /// Get the UART used by the logger.
@@ -228,7 +237,7 @@ class Logger : public Component {
   inline void HOT format_log_to_buffer_with_terminator_(uint8_t level, const char *tag, int line, const char *format,
                                                         va_list args, char *buffer, uint16_t *buffer_at,
                                                         uint16_t buffer_size) {
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_HOST)
     this->write_header_to_buffer_(level, tag, line, this->get_thread_name_(), buffer, buffer_at, buffer_size);
 #elif defined(USE_ZEPHYR)
     char buff[MAX_POINTER_REPRESENTATION];
@@ -291,6 +300,22 @@ class Logger : public Component {
     this->write_tx_buffer_to_console_();
   }
 
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+  // Helper to format a pre-formatted message from the task log buffer and notify listeners
+  // Used by process_messages_ to avoid code duplication between ESP32 and host platforms
+  inline void HOT format_buffered_message_and_notify_(uint8_t level, const char *tag, uint16_t line,
+                                                      const char *thread_name, const char *text, size_t text_length) {
+    this->tx_buffer_at_ = 0;
+    this->write_header_to_buffer_(level, tag, line, thread_name, this->tx_buffer_, &this->tx_buffer_at_,
+                                  this->tx_buffer_size_);
+    this->write_body_to_buffer_(text, text_length, this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
+    this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
+    this->tx_buffer_[this->tx_buffer_at_] = '\0';
+    for (auto *listener : this->log_listeners_)
+      listener->on_log(level, tag, this->tx_buffer_, this->tx_buffer_at_);
+  }
+#endif
+
   // Write the body of the log message to the buffer
   inline void write_body_to_buffer_(const char *value, size_t length, char *buffer, uint16_t *buffer_at,
                                     uint16_t buffer_size) {
@@ -325,12 +350,19 @@ class Logger : public Component {
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   void *main_task_ = nullptr;  // Only used for thread name identification
 #endif
+#ifdef USE_HOST
+  pthread_t main_thread_{};  // Main thread for identification
+#endif
 #ifdef USE_ESP32
   // Task-specific recursion guards:
   // - Main task uses a dedicated member variable for efficiency
   // - Other tasks use pthread TLS with a dynamically created key via pthread_key_create
   pthread_key_t log_recursion_key_;  // 4 bytes
   uart_port_t uart_num_;             // 4 bytes (enum defaults to int size)
+#endif
+#ifdef USE_HOST
+  // Thread-specific recursion guards using pthread TLS
+  pthread_key_t log_recursion_key_;
 #endif
 
   // Large objects (internally aligned)
@@ -342,7 +374,13 @@ class Logger : public Component {
   std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
+#ifdef USE_HOST
+  std::unique_ptr<logger::TaskLogBufferHost> log_buffer_;  // Will be initialized with init_log_buffer
+#elif defined(USE_ESP32)
   std::unique_ptr<logger::TaskLogBuffer> log_buffer_;  // Will be initialized with init_log_buffer
+#elif defined(USE_LIBRETINY)
+  std::unique_ptr<logger::TaskLogBufferLibreTiny> log_buffer_;  // Will be initialized with init_log_buffer
+#endif
 #endif
 
   // Group smaller types together at the end
@@ -355,8 +393,11 @@ class Logger : public Component {
 #ifdef USE_LIBRETINY
   UARTSelection uart_{UART_SELECTION_DEFAULT};
 #endif
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
   bool main_task_recursion_guard_{false};
+#ifdef USE_LIBRETINY
+  bool non_main_task_recursion_guard_{false};  // Shared guard for all non-main tasks on LibreTiny
+#endif
 #else
   bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
 #endif
@@ -392,7 +433,7 @@ class Logger : public Component {
   }
 #endif
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_HOST)
   inline bool HOT check_and_set_task_log_recursion_(bool is_main_task) {
     if (is_main_task) {
       const bool was_recursive = main_task_recursion_guard_;
@@ -415,6 +456,54 @@ class Logger : public Component {
     }
 
     pthread_setspecific(log_recursion_key_, (void *) 0);
+  }
+#elif defined(USE_LIBRETINY)
+  // LibreTiny doesn't have FreeRTOS TLS, so use a simple approach:
+  // - Main task uses dedicated boolean (same as ESP32)
+  // - Non-main tasks share a single recursion guard
+  // This is safe because:
+  // - Recursion from logging within logging is the main concern
+  // - Cross-task "recursion" is prevented by the buffer mutex anyway
+  // - Missing a recursive call from another task is acceptable (falls back to direct output)
+
+  inline bool HOT check_and_set_task_log_recursion_(bool is_main_task) {
+    if (is_main_task) {
+      const bool was_recursive = main_task_recursion_guard_;
+      main_task_recursion_guard_ = true;
+      return was_recursive;
+    }
+
+    // For non-main tasks, use a simple shared guard
+    // This may block legitimate concurrent logs from different tasks,
+    // but that's acceptable - they'll fall back to direct console output
+    const bool was_recursive = non_main_task_recursion_guard_;
+    non_main_task_recursion_guard_ = true;
+    return was_recursive;
+  }
+
+  inline void HOT reset_task_log_recursion_(bool is_main_task) {
+    if (is_main_task) {
+      main_task_recursion_guard_ = false;
+      return;
+    }
+
+    non_main_task_recursion_guard_ = false;
+  }
+#endif
+
+#ifdef USE_HOST
+  const char *HOT get_thread_name_() {
+    pthread_t current_thread = pthread_self();
+    if (pthread_equal(current_thread, main_thread_)) {
+      return nullptr;  // Main thread
+    }
+    // For non-main threads, return the thread name
+    // We store it in thread-local storage to avoid allocation
+    static thread_local char thread_name_buf[32];
+    if (pthread_getname_np(current_thread, thread_name_buf, sizeof(thread_name_buf)) == 0) {
+      return thread_name_buf;
+    }
+    return nullptr;
   }
 #endif
 
@@ -475,7 +564,7 @@ class Logger : public Component {
     buffer[pos++] = '0' + (remainder - tens * 10);
     buffer[pos++] = ']';
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR) || defined(USE_HOST)
     if (thread_name != nullptr) {
       write_ansi_color_for_level(buffer, pos, 1);  // Always use bold red for thread name
       buffer[pos++] = '[';
@@ -520,8 +609,8 @@ class Logger : public Component {
     this->write_body_to_buffer_(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN, buffer, buffer_at, buffer_size);
   }
 
-#ifdef USE_ESP32
-  // Disable loop when task buffer is empty (with USB CDC check)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // Disable loop when task buffer is empty (with USB CDC check on ESP32)
   inline void disable_loop_when_buffer_empty_() {
     // Thread safety note: This is safe even if another task calls enable_loop_soon_any_context()
     // concurrently. If that happens between our check and disable_loop(), the enable request

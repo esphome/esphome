@@ -1,11 +1,15 @@
 #include <vector>
 #include "modbus_number.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace modbus_controller {
 
 static const char *const TAG = "modbus.number";
+
+// Maximum uint16_t registers to log in verbose hex output
+static constexpr size_t MODBUS_NUMBER_MAX_LOG_REGISTERS = 32;
 
 void ModbusNumber::parse_and_publish(const std::vector<uint8_t> &data) {
   float result = payload_to_float(data, *this) / this->multiply_by_;
@@ -47,7 +51,11 @@ void ModbusNumber::control(float value) {
   }
 
   if (!data.empty()) {
-    ESP_LOGV(TAG, "Modbus Number write raw: %s", format_hex_pretty(data).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    char hex_buf[format_hex_pretty_uint16_size(MODBUS_NUMBER_MAX_LOG_REGISTERS)];
+#endif
+    ESP_LOGV(TAG, "Modbus Number write raw: %s",
+             format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
     write_cmd = ModbusCommandItem::create_custom_command(
         this->parent_, data,
         [this, write_cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {

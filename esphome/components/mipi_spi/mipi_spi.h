@@ -569,6 +569,12 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
 
   // Fills the display with a color.
   void fill(Color color) override {
+    // If clipping is active, fall back to base implementation
+    if (this->get_clipping().is_set()) {
+      display::Display::fill(color);
+      return;
+    }
+
     this->x_low_ = 0;
     this->y_low_ = this->start_line_;
     this->x_high_ = WIDTH - 1;

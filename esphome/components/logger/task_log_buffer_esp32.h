@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
@@ -13,6 +15,22 @@
 
 namespace esphome::logger {
 
+/**
+ * @brief Task log buffer for ESP32 platform using FreeRTOS ring buffer.
+ *
+ * Threading Model: Multi-Producer Single-Consumer (MPSC)
+ * - Multiple FreeRTOS tasks can safely call send_message_thread_safe() concurrently
+ * - Only the main loop task calls borrow_message_main_loop() and release_message_main_loop()
+ *
+ * This uses the FreeRTOS ring buffer (RINGBUF_TYPE_NOSPLIT) which provides
+ * built-in thread-safety for the MPSC pattern. The ring buffer ensures
+ * message integrity - each message is stored contiguously.
+ *
+ * Design:
+ * - Variable-size messages with header + text stored contiguously
+ * - FreeRTOS ring buffer handles synchronization internally
+ * - Atomic counter for fast has_messages() check without ring buffer lock
+ */
 class TaskLogBuffer {
  public:
   // Structure for a log message header (text data follows immediately after)
@@ -65,3 +83,4 @@ class TaskLogBuffer {
 }  // namespace esphome::logger
 
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER
+#endif  // USE_ESP32

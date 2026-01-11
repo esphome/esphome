@@ -162,6 +162,10 @@ template<typename T, size_t N> class StaticVector {
   size_t size() const { return count_; }
   bool empty() const { return count_ == 0; }
 
+  // Direct access to underlying data
+  T *data() { return data_.data(); }
+  const T *data() const { return data_.data(); }
+
   T &operator[](size_t i) { return data_[i]; }
   const T &operator[](size_t i) const { return data_[i]; }
 
@@ -289,8 +293,8 @@ template<typename T> class FixedVector {
     size_ = 0;
   }
 
-  // Shrink capacity to fit current size (frees all memory)
-  void shrink_to_fit() {
+  // Release all memory (destroys elements and frees memory)
+  void release() {
     cleanup_();
     reset_();
   }
@@ -399,6 +403,16 @@ constexpr uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
 }
 inline uint32_t fnv1a_hash_extend(uint32_t hash, const std::string &str) {
   return fnv1a_hash_extend(hash, str.c_str());
+}
+/// Extend a FNV-1a hash with an integer (hashes each byte).
+template<std::integral T> constexpr uint32_t fnv1a_hash_extend(uint32_t hash, T value) {
+  using UnsignedT = std::make_unsigned_t<T>;
+  UnsignedT uvalue = static_cast<UnsignedT>(value);
+  for (size_t i = 0; i < sizeof(T); i++) {
+    hash ^= (uvalue >> (i * 8)) & 0xFF;
+    hash *= FNV1_PRIME;
+  }
+  return hash;
 }
 /// Calculate a FNV-1a hash of \p str.
 constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
@@ -528,6 +542,20 @@ constexpr char to_sanitized_char(char c) {
 }
 /// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
 std::string str_sanitize(const std::string &str);
+
+/// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
+/// This computes object_id hashes directly from names without creating an intermediate buffer.
+/// IMPORTANT: Must match Python fnv1_hash_object_id() in esphome/helpers.py.
+/// If you modify this function, update the Python version and tests in both places.
+inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
+  uint32_t hash = FNV1_OFFSET_BASIS;
+  for (size_t i = 0; i < len; i++) {
+    hash *= FNV1_PRIME;
+    // Apply snake_case (space->underscore, uppercase->lowercase) then sanitize
+    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(str[i])));
+  }
+  return hash;
+}
 
 /// snprintf-like function returning std::string of maximum length \p len (excluding null terminator).
 std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t len, ...);
@@ -728,6 +756,32 @@ inline char *format_hex_to(char (&buffer)[N], T val) {
   return format_hex_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
 }
 
+/// Calculate buffer size needed for format_hex_to: "XXXXXXXX...\0" = bytes * 2 + 1
+constexpr size_t format_hex_size(size_t byte_count) { return byte_count * 2 + 1; }
+
+/// Calculate buffer size needed for format_hex_prefixed_to: "0xXXXXXXXX...\0" = bytes * 2 + 3
+constexpr size_t format_hex_prefixed_size(size_t byte_count) { return byte_count * 2 + 3; }
+
+/// Format an unsigned integer as "0x" prefixed lowercase hex to buffer.
+template<size_t N, typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline char *format_hex_prefixed_to(char (&buffer)[N], T val) {
+  static_assert(N >= sizeof(T) * 2 + 3, "Buffer too small for prefixed hex");
+  buffer[0] = '0';
+  buffer[1] = 'x';
+  val = convert_big_endian(val);
+  format_hex_to(buffer + 2, N - 2, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
+  return buffer;
+}
+
+/// Format byte array as "0x" prefixed lowercase hex to buffer.
+template<size_t N> inline char *format_hex_prefixed_to(char (&buffer)[N], const uint8_t *data, size_t length) {
+  static_assert(N >= 5, "Buffer must hold at least '0x' + one hex byte + null");
+  buffer[0] = '0';
+  buffer[1] = 'x';
+  format_hex_to(buffer + 2, N - 2, data, length);
+  return buffer;
+}
+
 /// Calculate buffer size needed for format_hex_pretty_to with separator: "XX:XX:...:XX\0"
 constexpr size_t format_hex_pretty_size(size_t byte_count) { return byte_count * 3; }
 
@@ -748,6 +802,31 @@ char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data
 template<size_t N>
 inline char *format_hex_pretty_to(char (&buffer)[N], const uint8_t *data, size_t length, char separator = ':') {
   static_assert(N >= 3, "Buffer must hold at least one hex byte");
+  return format_hex_pretty_to(buffer, N, data, length, separator);
+}
+
+/// Calculate buffer size needed for format_hex_pretty_to with uint16_t data: "XXXX:XXXX:...:XXXX\0"
+constexpr size_t format_hex_pretty_uint16_size(size_t count) { return count * 5; }
+
+/**
+ * Format uint16_t array as uppercase hex with separator to pre-allocated buffer.
+ * Each uint16_t is formatted as 4 hex chars in big-endian order.
+ *
+ * @param buffer Output buffer to write to.
+ * @param buffer_size Size of the output buffer.
+ * @param data Pointer to uint16_t array.
+ * @param length Number of uint16_t values.
+ * @param separator Character to use between values, or '\0' for no separator.
+ * @return Pointer to buffer.
+ *
+ * Buffer size needed: length * 5 with separator (for "XXXX:XXXX\0"), length * 4 + 1 without.
+ */
+char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint16_t *data, size_t length, char separator = ':');
+
+/// Format uint16_t array as uppercase hex with separator to buffer. Automatically deduces buffer size.
+template<size_t N>
+inline char *format_hex_pretty_to(char (&buffer)[N], const uint16_t *data, size_t length, char separator = ':') {
+  static_assert(N >= 5, "Buffer must hold at least one hex uint16_t");
   return format_hex_pretty_to(buffer, N, data, length, separator);
 }
 

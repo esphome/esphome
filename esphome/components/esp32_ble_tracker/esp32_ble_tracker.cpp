@@ -37,6 +37,9 @@ namespace esphome::esp32_ble_tracker {
 
 static const char *const TAG = "esp32_ble_tracker";
 
+// BLE advertisement max: 31 bytes adv data + 31 bytes scan response
+static constexpr size_t BLE_ADV_MAX_LOG_BYTES = 62;
+
 ESP32BLETracker *global_esp32_ble_tracker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 const char *client_state_to_string(ClientState state) {
@@ -445,6 +448,7 @@ void ESPBTDevice::parse_scan_rst(const BLEScanResult &scan_result) {
     uuid.to_str(uuid_buf);
     ESP_LOGVV(TAG, "  Service UUID: %s", uuid_buf);
   }
+  char hex_buf[format_hex_pretty_size(BLE_ADV_MAX_LOG_BYTES)];
   for (auto &data : this->manufacturer_datas_) {
     auto ibeacon = ESPBLEiBeacon::from_manufacturer_data(data);
     if (ibeacon.has_value()) {
@@ -458,7 +462,8 @@ void ESPBTDevice::parse_scan_rst(const BLEScanResult &scan_result) {
     } else {
       char uuid_buf[esp32_ble::UUID_STR_LEN];
       data.uuid.to_str(uuid_buf);
-      ESP_LOGVV(TAG, "  Manufacturer ID: %s, data: %s", uuid_buf, format_hex_pretty(data.data).c_str());
+      ESP_LOGVV(TAG, "  Manufacturer ID: %s, data: %s", uuid_buf,
+                format_hex_pretty_to(hex_buf, data.data.data(), data.data.size()));
     }
   }
   for (auto &data : this->service_datas_) {
@@ -466,11 +471,11 @@ void ESPBTDevice::parse_scan_rst(const BLEScanResult &scan_result) {
     char uuid_buf[esp32_ble::UUID_STR_LEN];
     data.uuid.to_str(uuid_buf);
     ESP_LOGVV(TAG, "    UUID: %s", uuid_buf);
-    ESP_LOGVV(TAG, "    Data: %s", format_hex_pretty(data.data).c_str());
+    ESP_LOGVV(TAG, "    Data: %s", format_hex_pretty_to(hex_buf, data.data.data(), data.data.size()));
   }
 
   ESP_LOGVV(TAG, "  Adv data: %s",
-            format_hex_pretty(scan_result.ble_adv, scan_result.adv_data_len + scan_result.scan_rsp_len).c_str());
+            format_hex_pretty_to(hex_buf, scan_result.ble_adv, scan_result.adv_data_len + scan_result.scan_rsp_len));
 #endif
 }
 
@@ -634,9 +639,8 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint8_t len) {
 }
 
 std::string ESPBTDevice::address_str() const {
-  char mac[18];
-  format_mac_addr_upper(this->address_, mac);
-  return mac;
+  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  return this->address_str_to(buf);
 }
 
 uint64_t ESPBTDevice::address_uint64() const { return esp32_ble::ble_addr_to_uint64(this->address_); }
@@ -652,8 +656,10 @@ void ESP32BLETracker::dump_config() {
                 "  Continuous Scanning: %s",
                 this->scan_duration_, this->scan_interval_ * 0.625f, this->scan_window_ * 0.625f,
                 this->scan_active_ ? "ACTIVE" : "PASSIVE", YESNO(this->scan_continuous_));
-  ESP_LOGCONFIG(TAG, "  Scanner State: %s", this->scanner_state_to_string_(this->scanner_state_));
-  ESP_LOGCONFIG(TAG, "  Connecting: %d, discovered: %d, disconnecting: %d", this->client_state_counts_.connecting,
+  ESP_LOGCONFIG(TAG,
+                "  Scanner State: %s\n"
+                "  Connecting: %d, discovered: %d, disconnecting: %d",
+                this->scanner_state_to_string_(this->scanner_state_), this->client_state_counts_.connecting,
                 this->client_state_counts_.discovered, this->client_state_counts_.disconnecting);
   if (this->scan_start_fail_count_) {
     ESP_LOGCONFIG(TAG, "  Scan Start Fail Count: %d", this->scan_start_fail_count_);
@@ -669,7 +675,8 @@ void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
   }
   this->already_discovered_.push_back(address);
 
-  ESP_LOGD(TAG, "Found device %s RSSI=%d", device.address_str().c_str(), device.get_rssi());
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  ESP_LOGD(TAG, "Found device %s RSSI=%d", device.address_str_to(addr_buf), device.get_rssi());
 
   const char *address_type_s;
   switch (device.get_address_type()) {
