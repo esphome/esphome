@@ -2,6 +2,7 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include <esp_http_server.h>
 
 #include <atomic>
@@ -345,7 +346,8 @@ class DefaultHeaders {
   static DefaultHeaders &Instance();
 
  protected:
-  std::vector<HttpHeader> headers_;
+  // Stack-allocated, no reallocation machinery. Count defined in web_server_base where headers are added.
+  StaticVector<HttpHeader, WEB_SERVER_DEFAULT_HEADERS_COUNT> headers_;
 };
 
 }  // namespace web_server_idf
