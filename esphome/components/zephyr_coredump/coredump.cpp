@@ -1,5 +1,6 @@
 #ifdef USE_ZEPHYR
 #include "coredump.h"
+#include "esphome/core/hal.h"
 extern "C" {
 #include <zephyr/debug/coredump.h>
 }
@@ -63,7 +64,9 @@ static void print_stored_dump() {
   size_t i = 0;
   off_t offset = 0;
   coredump_cmd_copy_arg arg{offset, buf, BUF_SZ};
+  arch_feed_wdt();
   int ret = coredump_cmd(COREDUMP_CMD_COPY_STORED_DUMP, &arg);
+  arch_feed_wdt();
   while (remaining > 0 && ret > 0) {
     print_buf[print_buf_ptr] = format_hex_char(buf[i] >> 4);
     print_buf_ptr++;
@@ -78,7 +81,9 @@ static void print_stored_dump() {
       i = 0;
       flush_print_buf();
       arg.offset = offset;
+      arch_feed_wdt();
       ret = coredump_cmd(COREDUMP_CMD_COPY_STORED_DUMP, &arg);
+      arch_feed_wdt();
     }
   }
   if (print_buf_ptr != 0) {
