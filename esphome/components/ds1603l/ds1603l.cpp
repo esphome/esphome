@@ -38,8 +38,7 @@ void Ds1603l::loop() {
     // Read 4 bytes of data
     this->read_array(this->rx_buffer_, 4);
 
-    ESP_LOGD(TAG, "Raw Data: %02X %02X %02X %02X", this->rx_buffer_[0], this->rx_buffer_[1], this->rx_buffer_[2],
-             this->rx_buffer_[3]);
+    ESP_LOGD(TAG, "Raw Data: %02X %02X %02X %02X", this->rx_buffer_[0], this->rx_buffer_[1], this->rx_buffer_[2], this->rx_buffer_[3]);
 
     // Verify the header byte
     if (this->rx_buffer_[0] != 0xFF) {
@@ -55,11 +54,11 @@ void Ds1603l::dump_config() {
   ESP_LOGCONFIG(TAG, "ds1603l Sensor:");
   LOG_SENSOR("", "Liquid Level", this);
   LOG_SENSOR("", "Liquid Volume", this);
-  if (liquid_level_sensor_) {
-    ESP_LOGCONFIG(TAG, " Liquid Level id: %s", liquid_level_sensor_->get_name().c_str());
+  if (ds1603l_liquid_level_sensor_) {
+    ESP_LOGCONFIG(TAG, " Liquid Level id: %s", ds1603l_liquid_level_sensor_->get_name().c_str()); 
   }
-  if (liquid_volume_sensor_) {
-    ESP_LOGCONFIG(TAG, " Liquid Volume id: %s", liquid_volume_sensor_->get_name().c_str());
+  if (ds1603l_liquid_volume_sensor_) {
+    ESP_LOGCONFIG(TAG, " Liquid Volume id: %s", ds1603l_liquid_volume_sensor_->get_name().c_str()); 
   }
 }
 
@@ -88,23 +87,23 @@ void Ds1603l::parse_data_() {
 
   // Calculate liquid level directly and clamp
   float raw_level = (data_h << 8) | data_l;
-  float liquid_level = std::clamp(raw_level, min_level_, max_level_);
+  float ds1603l_liquid_level = std::clamp(raw_level, ds1603l_min_level_, ds1603l_max_level_);
 
   // Calculate liquid volume directly and clamp
-  float liquid_volume = liquid_level * (max_volume_ / max_level_);
-  liquid_volume = std::clamp(liquid_volume, min_volume_, max_volume_);
+  float ds1603l_liquid_volume = ds1603l_liquid_level * (ds1603l_max_volume_ / ds1603l_max_level_);
+  ds1603l_liquid_volume = std::clamp(ds1603l_liquid_volume, ds1603l_min_volume_, ds1603l_max_volume_);
 
-  ESP_LOGI(TAG, "Liquid Level: %f mm", liquid_level);
+  ESP_LOGI(TAG, "Liquid Level: %f mm", ds1603l_liquid_level);
 
-  ESP_LOGI(TAG, "Liquid Volume: %f gal", liquid_volume);
+  ESP_LOGI(TAG, "Liquid Volume: %f gal", ds1603l_liquid_volume);
 
   // Publish values
 
-  if (liquid_level_sensor_) {
-    liquid_level_sensor_->publish_state(liquid_level);
+  if (ds1603l_liquid_level_sensor_) {
+    ds1603l_liquid_level_sensor_->publish_state(ds1603l_liquid_level);
   }
-  if (liquid_volume_sensor_) {
-    liquid_volume_sensor_->publish_state(liquid_volume);
+  if (ds1603l_liquid_volume_sensor_) {
+    ds1603l_liquid_volume_sensor_->publish_state(ds1603l_liquid_volume);
   }
 }
 
