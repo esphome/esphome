@@ -75,6 +75,7 @@ def set_core_data(config: ConfigType) -> ConfigType:
 def set_framework(config: ConfigType) -> ConfigType:
     version = cv.Version.parse(cv.version_number(config[CONF_FRAMEWORK][CONF_VERSION]))
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = version
+    return config
 
 
 BOOTLOADERS = [
