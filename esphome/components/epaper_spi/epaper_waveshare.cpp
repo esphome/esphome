@@ -2,6 +2,8 @@
 
 namespace esphome::epaper_spi {
 
+static const char *const TAG = "epaper_spi.waveshare";
+
 void EpaperWaveshare::initialise(bool partial) {
   EPaperBase::initialise(partial);
   if (partial) {
@@ -28,6 +30,7 @@ void EpaperWaveshare::set_window() {
   cmd_data(0x45, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256), (uint8_t) (this->y_high_ - 1),
                   (uint8_t) ((this->y_high_ - 1) / 256)});
   cmd_data(0x4F, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256)});
+  ESP_LOGV(TAG, "Set window X: %u-%u, Y: %u-%u", this->x_low_, this->x_high_, this->y_low_, this->y_high_);
 }
 
 void EpaperWaveshare::refresh_screen(bool partial) {

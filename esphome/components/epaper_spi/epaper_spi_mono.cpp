@@ -27,6 +27,7 @@ bool EPaperMono::reset() {
 }
 
 void EPaperMono::set_window() {
+  // round x-coordinates to byte boundaries
   this->x_low_ &= ~7;
   this->x_high_ += 7;
   this->x_high_ &= ~7;
@@ -59,7 +60,7 @@ bool HOT EPaperMono::transfer_data() {
       bytes_to_send[i] = this->send_red_ ? 0 : this->buffer_[data_idx++];
     }
     ++this->current_data_index_;
-    this->write_array(&bytes_to_send.front(), this->row_width_);  // NOLINT
+    this->write_array(&bytes_to_send.front(), row_length);  // NOLINT
     if (millis() - start_time > MAX_TRANSFER_TIME) {
       // Let the main loop run and come back next loop
       this->disable();
