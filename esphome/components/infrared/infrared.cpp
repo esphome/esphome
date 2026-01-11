@@ -1,10 +1,6 @@
 #include "infrared.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_API
-#include "esphome/components/api/api_server.h"
-#endif
-
 namespace esphome::infrared {
 
 static const char *const TAG = "infrared";
@@ -38,13 +34,6 @@ void Infrared::setup() {
   // Set up traits based on configuration
   this->traits_.set_supports_transmitter(this->has_transmitter());
   this->traits_.set_supports_receiver(this->has_receiver());
-
-#ifdef USE_API
-  // Register with API server
-  if (api::global_api_server != nullptr) {
-    api::global_api_server->register_infrared(this);
-  }
-#endif
 }
 
 void Infrared::dump_config() {
@@ -100,7 +89,6 @@ void Infrared::control(const InfraredCall &call) {
   transmit_call.perform();
 }
 
-#ifdef USE_API
 uint32_t Infrared::get_capability_flags() const {
   uint32_t flags = 0;
 
@@ -113,40 +101,38 @@ uint32_t Infrared::get_capability_flags() const {
   return flags;
 }
 
-void Infrared::transmit_raw_timings(const api::InfraredRFTransmitRawTimingsRequest &msg) {
+void Infrared::transmit_raw_timings(uint32_t carrier_frequency, const uint8_t *timings_data, uint16_t timings_length,
+                                    uint16_t timings_count, uint32_t repeat_count) {
   if (this->transmitter_ == nullptr) {
     ESP_LOGW(TAG, "No transmitter configured");
     return;
   }
 
-  if (msg.timings_length_ == 0) {
+  if (timings_count == 0) {
     ESP_LOGE(TAG, "Raw timings array is empty");
     return;
   }
 
-  ESP_LOGD(TAG, "Transmitting raw timings: key=%u, carrier=%u Hz, timing_count=%u, repeat_count=%u", msg.key,
-           msg.carrier_frequency, msg.timings_count_, msg.repeat_count);
+  ESP_LOGD(TAG, "Transmitting raw timings: carrier=%u Hz, timing_count=%u, repeat_count=%u", carrier_frequency,
+           timings_count, repeat_count);
 
   // Create transmit data object
   auto call = this->transmitter_->transmit();
   auto *transmit_data = call.get_data();
 
   // Set carrier frequency
-  transmit_data->set_carrier_frequency(msg.carrier_frequency);
+  transmit_data->set_carrier_frequency(carrier_frequency);
 
-  // Zero-copy: decode directly from protobuf packed buffer into remote_base's reusable vector
-  // The packed buffer contains zigzag-varint-encoded sint32 values
-  // Timings format: positive values = mark (LED on), negative values = space (LED off)
-  transmit_data->set_data_from_packed_sint32(msg.timings_data_, msg.timings_length_, msg.timings_count_);
+  // Decode packed sint32 timings directly from protobuf data using remote_base helper
+  transmit_data->set_data_from_packed_sint32(timings_data, timings_length, timings_count);
 
   // Set repeat count (default to 1 if not specified or 0)
-  if (msg.repeat_count > 0) {
-    call.set_send_times(msg.repeat_count);
+  if (repeat_count > 0) {
+    call.set_send_times(repeat_count);
   }
 
   // Transmit the data
   call.perform();
 }
-#endif  // USE_API
 
 }  // namespace esphome::infrared

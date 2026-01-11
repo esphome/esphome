@@ -8,12 +8,6 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/remote_base/remote_base.h"
-#include "esphome/components/remote_transmitter/remote_transmitter.h"
-#include "esphome/components/remote_receiver/remote_receiver.h"
-
-#ifdef USE_API
-#include "esphome/components/api/api_pb2.h"
-#endif
 
 #include <vector>
 
@@ -81,11 +75,9 @@ class Infrared : public Component, public EntityBase {
   float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
   /// Set the remote receiver component
-  void set_receiver(remote_receiver::RemoteReceiverComponent *receiver) { this->receiver_ = receiver; }
+  void set_receiver(remote_base::RemoteReceiverBase *receiver) { this->receiver_ = receiver; }
   /// Set the remote transmitter component
-  void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
-    this->transmitter_ = transmitter;
-  }
+  void set_transmitter(remote_base::RemoteTransmitterBase *transmitter) { this->transmitter_ = transmitter; }
 
   /// Check if this infrared has a transmitter configured
   bool has_transmitter() const { return this->transmitter_ != nullptr; }
@@ -99,13 +91,17 @@ class Infrared : public Component, public EntityBase {
   /// Create a call object for transmitting
   InfraredCall make_call();
 
-#ifdef USE_API
   /// Get capability flags for this infrared instance
   uint32_t get_capability_flags() const;
 
-  /// Transmit infrared data using raw timings array
-  void transmit_raw_timings(const api::InfraredRFTransmitRawTimingsRequest &msg);
-#endif
+  /// Transmit infrared data using packed protobuf-encoded sint32 timings (zero-copy)
+  /// @param carrier_frequency Carrier frequency in Hz
+  /// @param timings_data Pointer to packed sint32 varint data
+  /// @param timings_length Length of timings data in bytes
+  /// @param timings_count Number of timing values
+  /// @param repeat_count Number of times to repeat transmission
+  void transmit_raw_timings(uint32_t carrier_frequency, const uint8_t *timings_data, uint16_t timings_length,
+                            uint16_t timings_count, uint32_t repeat_count);
 
  protected:
   friend class InfraredCall;
@@ -114,8 +110,8 @@ class Infrared : public Component, public EntityBase {
   virtual void control(const InfraredCall &call);
 
   // Underlying hardware components
-  remote_receiver::RemoteReceiverComponent *receiver_{nullptr};
-  remote_transmitter::RemoteTransmitterComponent *transmitter_{nullptr};
+  remote_base::RemoteReceiverBase *receiver_{nullptr};
+  remote_base::RemoteTransmitterBase *transmitter_{nullptr};
 
   // Traits describing capabilities
   InfraredTraits traits_;

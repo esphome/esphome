@@ -357,7 +357,8 @@ void APIServer::on_infrared_transmit_raw_timings_request(const InfraredRFTransmi
   if (infrared == nullptr)
     return;
 
-  infrared->transmit_raw_timings(msg);
+  infrared->transmit_raw_timings(msg.carrier_frequency, msg.timings_data_, msg.timings_length_, msg.timings_count_,
+                                 msg.repeat_count);
 }
 
 void APIServer::send_infrared_receive_event(uint32_t device_id, uint32_t key, const remote_base::RawTimings &timings) {
