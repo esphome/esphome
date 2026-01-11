@@ -1520,37 +1520,34 @@ def test_detect_platform_hint_from_filename(
     assert result == expected_platform
 
 
-def test_detect_platform_hint_from_filename_case_insensitive() -> None:
+@pytest.mark.parametrize(
+    ("filename", "expected_platform"),
+    [
+        # RP2040/Pico with different cases
+        ("file_RP2040.cpp", determine_jobs.Platform.RP2040_ARD),
+        ("file_Rp2040.cpp", determine_jobs.Platform.RP2040_ARD),
+        ("file_PICO.cpp", determine_jobs.Platform.RP2040_ARD),
+        ("file_Pico.cpp", determine_jobs.Platform.RP2040_ARD),
+        # ESP8266 with different cases
+        ("file_ESP8266.cpp", determine_jobs.Platform.ESP8266_ARD),
+        # ESP32 with different cases
+        ("file_ESP32.cpp", determine_jobs.Platform.ESP32_IDF),
+    ],
+    ids=[
+        "rp2040_uppercase",
+        "rp2040_mixedcase",
+        "pico_uppercase",
+        "pico_titlecase",
+        "esp8266_uppercase",
+        "esp32_uppercase",
+    ],
+)
+def test_detect_platform_hint_from_filename_case_insensitive(
+    filename: str, expected_platform: determine_jobs.Platform
+) -> None:
     """Test that platform detection is case-insensitive."""
-    # Test RP2040/Pico with different cases
-    assert (
-        determine_jobs._detect_platform_hint_from_filename("file_RP2040.cpp")
-        == determine_jobs.Platform.RP2040_ARD
-    )
-    assert (
-        determine_jobs._detect_platform_hint_from_filename("file_Rp2040.cpp")
-        == determine_jobs.Platform.RP2040_ARD
-    )
-    assert (
-        determine_jobs._detect_platform_hint_from_filename("file_PICO.cpp")
-        == determine_jobs.Platform.RP2040_ARD
-    )
-    assert (
-        determine_jobs._detect_platform_hint_from_filename("file_Pico.cpp")
-        == determine_jobs.Platform.RP2040_ARD
-    )
-
-    # Test ESP8266 with different cases
-    assert (
-        determine_jobs._detect_platform_hint_from_filename("file_ESP8266.cpp")
-        == determine_jobs.Platform.ESP8266_ARD
-    )
-
-    # Test ESP32 with different cases
-    assert (
-        determine_jobs._detect_platform_hint_from_filename("file_ESP32.cpp")
-        == determine_jobs.Platform.ESP32_IDF
-    )
+    result = determine_jobs._detect_platform_hint_from_filename(filename)
+    assert result == expected_platform
 
 
 def test_component_batching_beta_branch_40_per_batch(
