@@ -60,7 +60,7 @@ IS_TARGET_PLATFORM = True
 # references undefined symbols when CFG_SUPPORT_BLE=0.
 #
 # Other options like CFG_TX_EVM_TEST, CFG_RX_SENSITIVITY_TEST, CFG_SUPPORT_BKREG,
-# CFG_SUPPORT_OTA_HTTP, and CFG_USE_SPI_SLAVE were evaluated but provide no
+# CFG_SUPPORT_OTA_HTTP, and CFG_USE_SPI_SLAVE were evaluated but provide no  # NOLINT
 # measurable benefit - the linker already strips unreferenced code via -gc-sections.
 _BK7231N_SYS_CONFIG_OPTIONS = [
     "CFG_SUPPORT_BLE=0",
