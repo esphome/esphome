@@ -2014,8 +2014,8 @@ void WiFiComponent::release_scan_results_() {
     // std::vector - use swap trick since shrink_to_fit is non-binding
     decltype(this->scan_result_)().swap(this->scan_result_);
 #else
-    // FixedVector::shrink_to_fit() actually frees all memory
-    this->scan_result_.shrink_to_fit();
+    // FixedVector::release() frees all memory
+    this->scan_result_.release();
 #endif
   }
 }
