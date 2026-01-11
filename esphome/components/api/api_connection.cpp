@@ -1437,7 +1437,7 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
 #endif
 
 #ifdef USE_INFRARED
-void APIConnection::infrared_transmit_raw_timings(const InfraredRFTransmitRawTimingsRequest &msg) {
+void APIConnection::infrared_rf_transmit_raw_timings(const InfraredRFTransmitRawTimingsRequest &msg) {
   if (global_api_server != nullptr) {
     global_api_server->on_infrared_transmit_raw_timings_request(msg);
   }
