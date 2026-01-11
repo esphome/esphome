@@ -43,10 +43,7 @@ void IPS7100Component::dump_config() {
 
 void IPS7100Component::update() {
   bool pm_success = this->read_pm_data_();
-
-  // Delay between reading PM and PC data to allow sensor to prepare next data
-  delay(50);  // 50ms
-
+  delay(40);  // Wait before reading PC data
   bool pc_success = this->read_pc_data_();
 
   if (!pm_success && !pc_success) {
