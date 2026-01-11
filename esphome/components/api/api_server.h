@@ -20,7 +20,6 @@
 #include "esphome/components/camera/camera.h"
 #endif
 
-#include <span>
 #include <vector>
 
 namespace esphome::api {
