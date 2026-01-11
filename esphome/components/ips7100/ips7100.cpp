@@ -1,5 +1,6 @@
 #include "ips7100.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -109,18 +110,17 @@ bool IPS7100Component::read_pm_data_() {
 
   // Parse PM values (7 x 4-byte floats, little-endian)
   for (int i = 0; i < 7; i++) {
+    uint32_t raw;
+    memcpy(&raw, &buffer[i * 4], sizeof(raw));
+    raw = convert_little_endian(raw);
+
+    // Reinterpret as float using union for type punning
     union {
-      uint8_t bytes[4];
-      float value;
+      uint32_t u;
+      float f;
     } converter;
-
-    // Little-endian byte order
-    converter.bytes[0] = buffer[i * 4];
-    converter.bytes[1] = buffer[i * 4 + 1];
-    converter.bytes[2] = buffer[i * 4 + 2];
-    converter.bytes[3] = buffer[i * 4 + 3];
-
-    this->pm_values_[i] = converter.value;
+    converter.u = raw;
+    this->pm_values_[i] = converter.f;
   }
 
   ESP_LOGV(TAG, "PM values: %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f", this->pm_values_[0], this->pm_values_[1],
@@ -145,9 +145,9 @@ bool IPS7100Component::read_pc_data_() {
 
   // Parse PC values (7 x 4-byte unsigned longs, big-endian)
   for (int i = 0; i < 7; i++) {
-    this->pc_values_[i] = (static_cast<uint32_t>(buffer[i * 4]) << 24) |
-                          (static_cast<uint32_t>(buffer[i * 4 + 1]) << 16) |
-                          (static_cast<uint32_t>(buffer[i * 4 + 2]) << 8) | static_cast<uint32_t>(buffer[i * 4 + 3]);
+    uint32_t raw;
+    memcpy(&raw, &buffer[i * 4], sizeof(raw));
+    this->pc_values_[i] = convert_big_endian(raw);
   }
 
   ESP_LOGV(TAG, "PC values: %u, %u, %u, %u, %u, %u, %u", this->pc_values_[0], this->pc_values_[1], this->pc_values_[2],
