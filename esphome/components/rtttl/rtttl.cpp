@@ -305,8 +305,10 @@ void Rtttl::play(std::string rtttl) {
   }
   ESP_LOGD(TAG, "Playing song %.*s", (int) this->position_, this->rtttl_.c_str());
 
+  size_t name_end_position = this->position_;
+
   // get default duration
-  this->position_ = this->rtttl_.find("d=", this->position_);
+  this->position_ = this->rtttl_.find("d=", name_end_position);
   if (this->position_ == std::string::npos) {
     ESP_LOGE(TAG, "Missing 'd='");
     return;
@@ -321,7 +323,7 @@ void Rtttl::play(std::string rtttl) {
   }
 
   // get default octave
-  this->position_ = this->rtttl_.find("o=", this->position_);
+  this->position_ = this->rtttl_.find("o=", name_end_position);
   if (this->position_ == std::string::npos) {
     ESP_LOGE(TAG, "Missing 'o=");
     return;
@@ -336,7 +338,7 @@ void Rtttl::play(std::string rtttl) {
   }
 
   // get BPM
-  this->position_ = this->rtttl_.find("b=", this->position_);
+  this->position_ = this->rtttl_.find("b=", name_end_position);
   if (this->position_ == std::string::npos) {
     ESP_LOGE(TAG, "Missing b=");
     return;
