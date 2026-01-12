@@ -511,6 +511,8 @@ template<typename T> constexpr T convert_little_endian(T val) {
 
 /// Compare strings for equality in case-insensitive manner.
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
+/// Compare StringRefs for equality in case-insensitive manner.
+bool str_equals_case_insensitive(StringRef a, StringRef b);
 
 /// Check whether a string starts with a value.
 bool str_startswith(const std::string &str, const std::string &start);

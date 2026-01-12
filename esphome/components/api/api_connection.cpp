@@ -443,7 +443,7 @@ uint16_t APIConnection::try_send_fan_state(EntityBase *entity, APIConnection *co
   if (traits.supports_direction())
     msg.direction = static_cast<enums::FanDirection>(fan->direction);
   if (traits.supports_preset_modes() && fan->has_preset_mode())
-    msg.preset_mode = StringRef(fan->get_preset_mode());
+    msg.preset_mode = fan->get_preset_mode();
   return fill_and_encode_entity_state(fan, msg, FanStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 uint16_t APIConnection::try_send_fan_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -499,7 +499,7 @@ uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *
   resp.cold_white = values.get_cold_white();
   resp.warm_white = values.get_warm_white();
   if (light->supports_effects()) {
-    resp.effect = light->get_effect_name_ref();
+    resp.effect = light->get_effect_name();
   }
   return fill_and_encode_entity_state(light, resp, LightStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
@@ -522,7 +522,8 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
     effects_list.init(light_effects.size() + 1);
     effects_list.push_back("None");
     for (auto *effect : light_effects) {
-      effects_list.push_back(effect->get_name());
+      // c_str() is safe as effect names are null-terminated strings from codegen
+      effects_list.push_back(effect->get_name().c_str());
     }
   }
   msg.effects = &effects_list;
@@ -675,13 +676,13 @@ uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection
   if (traits.get_supports_fan_modes() && climate->fan_mode.has_value())
     resp.fan_mode = static_cast<enums::ClimateFanMode>(climate->fan_mode.value());
   if (!traits.get_supported_custom_fan_modes().empty() && climate->has_custom_fan_mode()) {
-    resp.custom_fan_mode = StringRef(climate->get_custom_fan_mode());
+    resp.custom_fan_mode = climate->get_custom_fan_mode();
   }
   if (traits.get_supports_presets() && climate->preset.has_value()) {
     resp.preset = static_cast<enums::ClimatePreset>(climate->preset.value());
   }
   if (!traits.get_supported_custom_presets().empty() && climate->has_custom_preset()) {
-    resp.custom_preset = StringRef(climate->get_custom_preset());
+    resp.custom_preset = climate->get_custom_preset();
   }
   if (traits.get_supports_swing_modes())
     resp.swing_mode = static_cast<enums::ClimateSwingMode>(climate->swing_mode);
@@ -914,7 +915,7 @@ uint16_t APIConnection::try_send_select_state(EntityBase *entity, APIConnection 
                                               bool is_single) {
   auto *select = static_cast<select::Select *>(entity);
   SelectStateResponse resp;
-  resp.state = StringRef(select->current_option());
+  resp.state = select->current_option();
   resp.missing_state = !select->has_state();
   return fill_and_encode_entity_state(select, resp, SelectStateResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
@@ -1414,14 +1415,15 @@ void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequ
 #endif
 
 #ifdef USE_EVENT
-void APIConnection::send_event(event::Event *event, const char *event_type) {
-  this->send_message_smart_(event, MessageCreator(event_type), EventResponse::MESSAGE_TYPE,
+void APIConnection::send_event(event::Event *event, StringRef event_type) {
+  // get_last_event_type() returns StringRef pointing to null-terminated string literals from codegen
+  this->send_message_smart_(event, MessageCreator(event_type.c_str()), EventResponse::MESSAGE_TYPE,
                             EventResponse::ESTIMATED_SIZE);
 }
-uint16_t APIConnection::try_send_event_response(event::Event *event, const char *event_type, APIConnection *conn,
+uint16_t APIConnection::try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,
                                                 uint32_t remaining_size, bool is_single) {
   EventResponse resp;
-  resp.event_type = StringRef(event_type);
+  resp.event_type = event_type;
   return fill_and_encode_entity_state(event, resp, EventResponse::MESSAGE_TYPE, conn, remaining_size, is_single);
 }
 
@@ -2055,7 +2057,7 @@ uint16_t APIConnection::MessageCreator::operator()(EntityBase *entity, APIConnec
   // Special case: EventResponse uses const char * pointer
   if (message_type == EventResponse::MESSAGE_TYPE) {
     auto *e = static_cast<event::Event *>(entity);
-    return APIConnection::try_send_event_response(e, data_.const_char_ptr, conn, remaining_size, is_single);
+    return APIConnection::try_send_event_response(e, StringRef(data_.const_char_ptr), conn, remaining_size, is_single);
   }
 #endif
 
