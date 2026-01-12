@@ -1306,9 +1306,13 @@ class HighFrequencyLoopRequester {
 void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
 
 /// Get the device MAC address as a string, in lowercase hex notation.
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
+/// Use get_mac_address_into_buffer() instead.
 std::string get_mac_address();
 
 /// Get the device MAC address as a string, in colon-separated uppercase hex notation.
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
+/// Use get_mac_address_pretty_into_buffer() instead.
 std::string get_mac_address_pretty();
 
 /// Get the device MAC address into the given buffer, in lowercase hex notation.
