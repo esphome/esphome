@@ -112,7 +112,7 @@ def consume_endpoint(config: ConfigType) -> ConfigType:
         return config
     if " " in config[CONF_NAME]:
         _LOGGER.warning(
-            "'%s' won't work in Zigbee2MQTT. Please change name to '%s'",
+            "Spaces in '%s' work with ZHA but not Zigbee2MQTT. For Zigbee2MQTT use '%s'"
             config[CONF_NAME],
             config[CONF_NAME].replace(" ", "_"),
         )
