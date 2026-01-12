@@ -364,7 +364,7 @@ void ESP32TouchComponent::loop() {
 
 void ESP32TouchComponent::on_shutdown() {
   // Disable interrupts
-  touch_pad_intr_disable(TOUCH_PAD_INTR_MASK_ACTIVE);
+  touch_pad_intr_disable(static_cast<touch_pad_intr_mask_t>(TOUCH_PAD_INTR_MASK_ACTIVE | TOUCH_PAD_INTR_MASK_TIMEOUT));
   touch_pad_isr_deregister(touch_isr_handler, this);
   this->cleanup_touch_queue_();
 
