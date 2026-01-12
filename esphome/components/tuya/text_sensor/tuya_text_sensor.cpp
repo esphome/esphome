@@ -14,9 +14,11 @@ void TuyaTextSensor::setup() {
         this->publish_state(datapoint.value_string);
         break;
       case TuyaDatapointType::RAW: {
-        std::string data = format_hex_pretty(datapoint.value_raw);
-        ESP_LOGD(TAG, "MCU reported text sensor %u is: %s", datapoint.id, data.c_str());
-        this->publish_state(data);
+        // Text sensor state is limited to 255 bytes, use 256 byte buffer
+        char hex_buf[256];
+        const char *formatted = format_hex_pretty_to(hex_buf, sizeof(hex_buf), datapoint.value_raw);
+        ESP_LOGD(TAG, "MCU reported text sensor %u is: %s", datapoint.id, formatted);
+        this->publish_state(formatted);
         break;
       }
       case TuyaDatapointType::ENUM: {
