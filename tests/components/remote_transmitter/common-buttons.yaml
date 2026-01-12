@@ -153,6 +153,13 @@ button:
         code: !lambda |-
           return {(int32_t)id(test_number).state * 100, -1000};
   - platform: template
+    name: RC5X Marantz
+    on_press:
+      remote_transmitter.transmit_rc5x:
+        address: 0x10
+        command: 0x0
+        extension: 0x6
+  - platform: template
     name: AEHA
     id: eaha_hitachi_climate_power_on
     on_press:

@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_DATA,
     CONF_DELTA,
     CONF_DEVICE,
+    CONF_EXTENSION,
     CONF_FAMILY,
     CONF_GROUP,
     CONF_ID,
@@ -1341,6 +1342,53 @@ async def rc5_action(var, config, args):
     cg.add(var.set_address(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
+
+
+# RC5X (aka RC5 Marantz)
+RC5XData, RC5XBinarySensor, RC5XTrigger, RC5XAction, RC5XDumper = declare_protocol(
+    "RC5X"
+)
+RC5X_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0x1F)),
+        cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x7F)),
+        cv.Required(CONF_EXTENSION): cv.All(cv.hex_int, cv.Range(min=0, max=0x7F)),
+    }
+)
+
+
+@register_binary_sensor("rc5x", RC5XBinarySensor, RC5X_SCHEMA)
+def rc5x_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                RC5XData,
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
+                ("extension", config[CONF_EXTENSION]),
+            )
+        )
+    )
+
+
+@register_trigger("rc5x", RC5XTrigger, RC5XData)
+def rc5x_trigger(var, config):
+    pass
+
+
+@register_dumper("rc5x", RC5XDumper)
+def rc5x_dumper(var, config):
+    pass
+
+
+@register_action("rc5x", RC5XAction, RC5X_SCHEMA)
+async def rc5x_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
+    template_ = await cg.templatable(config[CONF_EXTENSION], args, cg.uint8)
+    cg.add(var.set_extension(template_))
 
 
 # RC6
