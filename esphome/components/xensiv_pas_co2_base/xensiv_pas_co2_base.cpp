@@ -20,6 +20,7 @@ void XensivPasCO2::setup() {
   // Test I2C communication first using scratch register
   if (!this->test_scratch_register_()) {
     ESP_LOGE(TAG, "I2C communication test failed");
+    this->failure_reason_ += "I2C communication test failed";
     this->mark_failed();
     return;
   }
@@ -31,6 +32,7 @@ void XensivPasCO2::setup() {
     ESP_LOGCONFIG(TAG, "Sensor soft reset");
   } else {
     ESP_LOGW(TAG, "Failed to perform sensor soft reset");
+    this->failure_reason_ += "Failed to perform sensor soft reset";
     this->mark_failed();
   }
 
@@ -97,12 +99,12 @@ void XensivPasCO2::setup_sensor(XensivPasCO2 *arg) {
 
   // Configure sensor interrupt register and GPIO pin if configured
   if (!arg->setup_interrupt_()) {
-    ESP_LOGE(TAG, "Failed to setup interrupt");
+    arg->failure_reason_ += "Failed to set up interrupt; ";
     arg->mark_failed();
   }
 
   if (!arg->update_operation_mode_()) {
-    ESP_LOGE(TAG, "Failed to set operation mode");
+    arg->failure_reason_ += "Failed to set operation mode; ";
     arg->mark_failed();
   }
 
@@ -356,7 +358,7 @@ void XensivPasCO2::dump_config() {
   ESP_LOGCONFIG(TAG, "XENSIV PASCO2 CO2 Sensor:");
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with PASCO2 failed!");
+    ESP_LOGE(TAG, "Failure Reason: %s", this->failure_reason_.c_str());
   }
 
   if (this->co2_sensor_ != nullptr) {

@@ -53,6 +53,8 @@ class XensivPasCO2 : public Component {
 
   InternalGPIOPin *interrupt_pin_{nullptr};
   volatile bool data_ready_{false};
+
+  std::string failure_reason_;
 };
 
 }  // namespace xensiv_pas_co2_base
