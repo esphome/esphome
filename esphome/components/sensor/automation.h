@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 class SensorStateTrigger : public Trigger<float> {
  public:
@@ -107,5 +106,4 @@ template<typename... Ts> class SensorInRangeCondition : public Condition<Ts...> 
   float max_{NAN};
 };
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor

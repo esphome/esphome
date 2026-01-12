@@ -5,8 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace safe_mode {
+namespace esphome::safe_mode {
 
 /// SafeModeComponent provides a safe way to recover from repeated boot failures
 class SafeModeComponent : public Component {
@@ -25,9 +24,11 @@ class SafeModeComponent : public Component {
 
   void on_safe_shutdown() override;
 
+#ifdef USE_SAFE_MODE_CALLBACK
   void add_on_safe_mode_callback(std::function<void()> &&callback) {
     this->safe_mode_callback_.add(std::move(callback));
   }
+#endif
 
  protected:
   void write_rtc_(uint32_t val);
@@ -43,11 +44,12 @@ class SafeModeComponent : public Component {
   uint8_t safe_mode_num_attempts_{0};
   // Larger objects at the end
   ESPPreferenceObject rtc_;
+#ifdef USE_SAFE_MODE_CALLBACK
   CallbackManager<void()> safe_mode_callback_{};
+#endif
 
   static const uint32_t ENTER_SAFE_MODE_MAGIC =
       0x5afe5afe;  ///< a magic number to indicate that safe mode should be entered on next boot
 };
 
-}  // namespace safe_mode
-}  // namespace esphome
+}  // namespace esphome::safe_mode

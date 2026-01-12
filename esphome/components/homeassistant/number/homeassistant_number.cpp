@@ -91,11 +91,14 @@ void HomeassistantNumber::control(float value) {
   resp.data.init(2);
   auto &entity_id = resp.data.emplace_back();
   entity_id.key = ENTITY_ID_KEY;
-  entity_id.value = this->entity_id_;
+  entity_id.value = StringRef(this->entity_id_);
 
   auto &entity_value = resp.data.emplace_back();
   entity_value.key = VALUE_KEY;
-  entity_value.value = to_string(value);
+  // Stack buffer - no heap allocation; %g produces shortest representation
+  char value_buf[16];
+  snprintf(value_buf, sizeof(value_buf), "%g", value);
+  entity_value.value = StringRef(value_buf);
 
   api::global_api_server->send_homeassistant_action(resp);
 }
