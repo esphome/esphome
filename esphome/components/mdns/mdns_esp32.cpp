@@ -7,24 +7,15 @@
 #include "esphome/core/log.h"
 #include "mdns_component.h"
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
 static const char *const TAG = "mdns";
 
-void MDNSComponent::setup() {
-#ifdef USE_MDNS_STORE_SERVICES
-  this->compile_records_(this->services_);
-  const auto &services = this->services_;
-#else
-  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
-  this->compile_records_(services);
-#endif
-
+static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
   esp_err_t err = mdns_init();
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Init failed: %s", esp_err_to_name(err));
-    this->mark_failed();
+    comp->mark_failed();
     return;
   }
 
@@ -51,12 +42,13 @@ void MDNSComponent::setup() {
   }
 }
 
+void MDNSComponent::setup() { this->setup_buffers_and_register_(register_esp32); }
+
 void MDNSComponent::on_shutdown() {
   mdns_free();
   delay(40);  // Allow the mdns packets announcing service removal to be sent
 }
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 
 #endif  // USE_ESP32

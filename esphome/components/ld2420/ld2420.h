@@ -17,8 +17,7 @@
 #include "esphome/components/button/button.h"
 #endif
 
-namespace esphome {
-namespace ld2420 {
+namespace esphome::ld2420 {
 
 static const uint8_t CALIBRATE_SAMPLES = 64;
 static const uint8_t MAX_LINE_LENGTH = 46;  // Max characters for serial buffer
@@ -193,5 +192,4 @@ class LD2420Component : public Component, public uart::UARTDevice {
   std::vector<LD2420Listener *> listeners_{};
 };
 
-}  // namespace ld2420
-}  // namespace esphome
+}  // namespace esphome::ld2420

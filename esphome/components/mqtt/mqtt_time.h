@@ -8,8 +8,7 @@
 #include "esphome/components/datetime/time_entity.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTTimeComponent : public mqtt::MQTTComponent {
  public:
@@ -32,14 +31,13 @@ class MQTTTimeComponent : public mqtt::MQTTComponent {
   bool publish_state(uint8_t hour, uint8_t minute, uint8_t second);
 
  protected:
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   datetime::TimeEntity *time_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_DATETIME_DATE
 #endif  // USE_MQTT

@@ -146,8 +146,10 @@ void CurrentBasedCover::dump_config() {
   if (this->close_obstacle_current_threshold_ != FLT_MAX) {
     ESP_LOGCONFIG(TAG, "  Close obstacle current threshold: %.11fA", this->close_obstacle_current_threshold_);
   }
-  ESP_LOGCONFIG(TAG, "  Close Duration: %.1fs", this->close_duration_ / 1e3f);
-  ESP_LOGCONFIG(TAG, "Obstacle Rollback: %.1f%%", this->obstacle_rollback_ * 100);
+  ESP_LOGCONFIG(TAG,
+                "  Close Duration: %.1fs\n"
+                "Obstacle Rollback: %.1f%%",
+                this->close_duration_ / 1e3f, this->obstacle_rollback_ * 100);
   if (this->max_duration_ != UINT32_MAX) {
     ESP_LOGCONFIG(TAG, "Maximum duration: %.1fs", this->max_duration_ / 1e3f);
   }

@@ -6,8 +6,7 @@
 #include "select_call.h"
 #include "select_traits.h"
 
-namespace esphome {
-namespace select {
+namespace esphome::select {
 
 #define LOG_SELECT(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -35,7 +34,7 @@ class Select : public EntityBase {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   /// @deprecated Use current_option() instead. This member will be removed in ESPHome 2026.5.0.
-  __attribute__((deprecated("Use current_option() instead of .state. Will be removed in 2026.5.0")))
+  ESPDEPRECATED("Use current_option() instead of .state. Will be removed in 2026.5.0", "2025.11.0")
   std::string state{};
 
   Select() = default;
@@ -63,8 +62,9 @@ class Select : public EntityBase {
   size_t size() const;
 
   /// Find the (optional) index offset of the provided option value.
-  optional<size_t> index_of(const std::string &option) const;
-  optional<size_t> index_of(const char *option) const;
+  optional<size_t> index_of(const char *option, size_t len) const;
+  optional<size_t> index_of(const std::string &option) const { return this->index_of(option.data(), option.size()); }
+  optional<size_t> index_of(const char *option) const { return this->index_of(option, strlen(option)); }
 
   /// Return the (optional) index offset of the currently active option.
   optional<size_t> active_index() const;
@@ -75,7 +75,7 @@ class Select : public EntityBase {
   /// Return the option value at the provided index offset (as const char* from flash).
   const char *option_at(size_t index) const;
 
-  void add_on_state_callback(std::function<void(std::string, size_t)> &&callback);
+  void add_on_state_callback(std::function<void(size_t)> &&callback);
 
  protected:
   friend class SelectCall;
@@ -111,8 +111,7 @@ class Select : public EntityBase {
     }
   }
 
-  CallbackManager<void(std::string, size_t)> state_callback_;
+  LazyCallbackManager<void(size_t)> state_callback_;
 };
 
-}  // namespace select
-}  // namespace esphome
+}  // namespace esphome::select

@@ -8,8 +8,7 @@
 #ifdef USE_MQTT
 #ifdef USE_DATETIME_DATETIME
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.datetime.datetime";
 
@@ -20,23 +19,23 @@ MQTTDateTimeComponent::MQTTDateTimeComponent(DateTimeEntity *datetime) : datetim
 void MQTTDateTimeComponent::setup() {
   this->subscribe_json(this->get_command_topic_(), [this](const std::string &topic, JsonObject root) {
     auto call = this->datetime_->make_call();
-    if (root["year"].is<uint16_t>()) {
-      call.set_year(root["year"]);
+    if (root[ESPHOME_F("year")].is<uint16_t>()) {
+      call.set_year(root[ESPHOME_F("year")]);
     }
-    if (root["month"].is<uint8_t>()) {
-      call.set_month(root["month"]);
+    if (root[ESPHOME_F("month")].is<uint8_t>()) {
+      call.set_month(root[ESPHOME_F("month")]);
     }
-    if (root["day"].is<uint8_t>()) {
-      call.set_day(root["day"]);
+    if (root[ESPHOME_F("day")].is<uint8_t>()) {
+      call.set_day(root[ESPHOME_F("day")]);
     }
-    if (root["hour"].is<uint8_t>()) {
-      call.set_hour(root["hour"]);
+    if (root[ESPHOME_F("hour")].is<uint8_t>()) {
+      call.set_hour(root[ESPHOME_F("hour")]);
     }
-    if (root["minute"].is<uint8_t>()) {
-      call.set_minute(root["minute"]);
+    if (root[ESPHOME_F("minute")].is<uint8_t>()) {
+      call.set_minute(root[ESPHOME_F("minute")]);
     }
-    if (root["second"].is<uint8_t>()) {
-      call.set_second(root["second"]);
+    if (root[ESPHOME_F("second")].is<uint8_t>()) {
+      call.set_second(root[ESPHOME_F("second")]);
     }
     call.perform();
   });
@@ -51,7 +50,7 @@ void MQTTDateTimeComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, true)
 }
 
-std::string MQTTDateTimeComponent::component_type() const { return "datetime"; }
+MQTT_COMPONENT_TYPE(MQTTDateTimeComponent, "datetime")
 const EntityBase *MQTTDateTimeComponent::get_entity() const { return this->datetime_; }
 
 void MQTTDateTimeComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
@@ -69,17 +68,16 @@ bool MQTTDateTimeComponent::publish_state(uint16_t year, uint8_t month, uint8_t 
                                           uint8_t second) {
   return this->publish_json(this->get_state_topic_(), [year, month, day, hour, minute, second](JsonObject root) {
     // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-    root["year"] = year;
-    root["month"] = month;
-    root["day"] = day;
-    root["hour"] = hour;
-    root["minute"] = minute;
-    root["second"] = second;
+    root[ESPHOME_F("year")] = year;
+    root[ESPHOME_F("month")] = month;
+    root[ESPHOME_F("day")] = day;
+    root[ESPHOME_F("hour")] = hour;
+    root[ESPHOME_F("minute")] = minute;
+    root[ESPHOME_F("second")] = second;
   });
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_DATETIME_DATETIME
 #endif  // USE_MQTT
