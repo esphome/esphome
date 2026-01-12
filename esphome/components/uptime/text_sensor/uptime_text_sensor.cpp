@@ -54,35 +54,22 @@ void UptimeTextSensor::update() {
   bool minutes_enabled = interval < 1800;
   bool hours_enabled = interval < 12 * 3600;
 
-  // Determine which units to show
-  bool show_days, show_hours, show_minutes, show_seconds;
+  // Show from highest non-zero unit (or all in expand mode) down to smallest enabled
+  bool show_days = this->expand_ || days > 0;
+  bool show_hours = hours_enabled && (show_days || hours > 0);
+  bool show_minutes = minutes_enabled && (show_hours || minutes > 0);
+  bool show_seconds = seconds_enabled && (show_minutes || seconds > 0);
 
-  if (this->expand_) {
-    // Show all enabled units
-    show_days = true;
-    show_hours = hours_enabled;
-    show_minutes = minutes_enabled;
-    show_seconds = seconds_enabled;
-  } else {
-    // Start with only the smallest enabled unit
-    show_seconds = seconds_enabled;
-    show_minutes = minutes_enabled && !show_seconds;
-    show_hours = hours_enabled && !show_minutes && !show_seconds;
-    show_days = !show_hours && !show_minutes && !show_seconds;
-
-    // Add larger non-zero units
-    if (days > 0)
+  // If nothing shown, show smallest enabled unit
+  if (!show_days && !show_hours && !show_minutes && !show_seconds) {
+    if (seconds_enabled)
+      show_seconds = true;
+    else if (minutes_enabled)
+      show_minutes = true;
+    else if (hours_enabled)
+      show_hours = true;
+    else
       show_days = true;
-    if (hours > 0 && hours_enabled)
-      show_hours = true;
-    if (minutes > 0 && minutes_enabled)
-      show_minutes = true;
-
-    // Fill in gaps (e.g., show 0h between 1d and 0m)
-    if (show_days && hours_enabled)
-      show_hours = true;
-    if (show_hours && minutes_enabled)
-      show_minutes = true;
   }
 
   // Build output string on stack
