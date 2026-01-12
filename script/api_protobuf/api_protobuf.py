@@ -786,10 +786,32 @@ class BytesType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        o = f'out.append("  {self.name}: ");\n'
-        o += self.dump(f"this->{self.field_name}") + "\n"
-        o += 'out.append("\\n");'
-        return o
+        # For SOURCE_CLIENT only, always use std::string
+        if not self._needs_encode:
+            return (
+                f'dump_bytes_field(out, "{self.name}", '
+                f"reinterpret_cast<const uint8_t*>(this->{self.field_name}.data()), "
+                f"this->{self.field_name}.size());"
+            )
+
+        # For SOURCE_SERVER, always use pointer/length
+        if not self._needs_decode:
+            return (
+                f'dump_bytes_field(out, "{self.name}", '
+                f"this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
+            )
+
+        # For SOURCE_BOTH, check if pointer is set (sending) or use string (received)
+        return (
+            f"if (this->{self.field_name}_ptr_ != nullptr) {{\n"
+            f'  dump_bytes_field(out, "{self.name}", '
+            f"this->{self.field_name}_ptr_, this->{self.field_name}_len_);\n"
+            f"}} else {{\n"
+            f'  dump_bytes_field(out, "{self.name}", '
+            f"reinterpret_cast<const uint8_t*>(this->{self.field_name}.data()), "
+            f"this->{self.field_name}.size());\n"
+            f"}}"
+        )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return f"size.add_length({self.calculate_field_id_size()}, this->{self.field_name}_len_);"
@@ -862,9 +884,8 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
     @property
     def dump_content(self) -> str:
         return (
-            f'out.append("  {self.name}: ");\n'
-            + f"out.append({self.dump(self.field_name)});\n"
-            + 'out.append("\\n");'
+            f'dump_bytes_field(out, "{self.name}", '
+            f"this->{self.field_name}, this->{self.field_name}_len);"
         )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
@@ -1062,10 +1083,10 @@ class FixedArrayBytesType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        o = f'out.append("  {self.name}: ");\n'
-        o += f"out.append(format_hex_pretty(this->{self.field_name}, this->{self.field_name}_len));\n"
-        o += 'out.append("\\n");'
-        return o
+        return (
+            f'dump_bytes_field(out, "{self.name}", '
+            f"this->{self.field_name}, this->{self.field_name}_len);"
+        )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         # Use the actual length stored in the _len field
@@ -2656,6 +2677,15 @@ static void dump_field(std::string &out, const char *field_name, T value, int in
   append_field_prefix(out, field_name, indent);
   out.append(proto_enum_to_string<T>(value));
   out.append("\\n");
+}
+
+// Helper for bytes fields - uses stack buffer to avoid heap allocation
+// Buffer sized for 160 bytes of data (480 chars with separators) to fit typical log buffer
+static void dump_bytes_field(std::string &out, const char *field_name, const uint8_t *data, size_t len, int indent = 2) {
+  char hex_buf[format_hex_pretty_size(160)];
+  append_field_prefix(out, field_name, indent);
+  format_hex_pretty_to(hex_buf, data, len);
+  append_with_newline(out, hex_buf);
 }
 
 """

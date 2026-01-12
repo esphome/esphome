@@ -73,7 +73,8 @@ bool MQTTValveComponent::publish_state() {
   auto traits = this->valve_->get_traits();
   bool success = true;
   if (traits.get_supports_position()) {
-    std::string pos = value_accuracy_to_string(roundf(this->valve_->position * 100), 0);
+    char pos[VALUE_ACCURACY_MAX_LEN];
+    value_accuracy_to_buf(pos, roundf(this->valve_->position * 100), 0);
     if (!this->publish(this->get_position_state_topic(), pos))
       success = false;
   }

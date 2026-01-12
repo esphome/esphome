@@ -100,6 +100,16 @@ template<typename T> static void dump_field(std::string &out, const char *field_
   out.append("\n");
 }
 
+// Helper for bytes fields - uses stack buffer to avoid heap allocation
+// Buffer sized for 160 bytes of data (480 chars with separators) to fit typical log buffer
+static void dump_bytes_field(std::string &out, const char *field_name, const uint8_t *data, size_t len,
+                             int indent = 2) {
+  char hex_buf[format_hex_pretty_size(160)];
+  append_field_prefix(out, field_name, indent);
+  format_hex_pretty_to(hex_buf, data, len);
+  append_with_newline(out, hex_buf);
+}
+
 template<> const char *proto_enum_to_string<enums::EntityCategory>(enums::EntityCategory value) {
   switch (value) {
     case enums::ENTITY_CATEGORY_NONE:
@@ -1127,16 +1137,12 @@ void SubscribeLogsRequest::dump_to(std::string &out) const {
 void SubscribeLogsResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "SubscribeLogsResponse");
   dump_field(out, "level", static_cast<enums::LogLevel>(this->level));
-  out.append("  message: ");
-  out.append(format_hex_pretty(this->message_ptr_, this->message_len_));
-  out.append("\n");
+  dump_bytes_field(out, "message", this->message_ptr_, this->message_len_);
 }
 #ifdef USE_API_NOISE
 void NoiseEncryptionSetKeyRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "NoiseEncryptionSetKeyRequest");
-  out.append("  key: ");
-  out.append(format_hex_pretty(this->key, this->key_len));
-  out.append("\n");
+  dump_bytes_field(out, "key", this->key, this->key_len);
 }
 void NoiseEncryptionSetKeyResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "NoiseEncryptionSetKeyResponse");
@@ -1189,9 +1195,7 @@ void HomeassistantActionResponse::dump_to(std::string &out) const {
   dump_field(out, "success", this->success);
   dump_field(out, "error_message", this->error_message);
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  out.append("  response_data: ");
-  out.append(format_hex_pretty(this->response_data, this->response_data_len));
-  out.append("\n");
+  dump_bytes_field(out, "response_data", this->response_data, this->response_data_len);
 #endif
 }
 #endif
@@ -1278,9 +1282,7 @@ void ExecuteServiceResponse::dump_to(std::string &out) const {
   dump_field(out, "success", this->success);
   dump_field(out, "error_message", this->error_message);
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  out.append("  response_data: ");
-  out.append(format_hex_pretty(this->response_data, this->response_data_len));
-  out.append("\n");
+  dump_bytes_field(out, "response_data", this->response_data, this->response_data_len);
 #endif
 }
 #endif
@@ -1302,9 +1304,7 @@ void ListEntitiesCameraResponse::dump_to(std::string &out) const {
 void CameraImageResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "CameraImageResponse");
   dump_field(out, "key", this->key);
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data_ptr_, this->data_len_));
-  out.append("\n");
+  dump_bytes_field(out, "data", this->data_ptr_, this->data_len_);
   dump_field(out, "done", this->done);
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
@@ -1705,9 +1705,7 @@ void BluetoothLERawAdvertisement::dump_to(std::string &out) const {
   dump_field(out, "address", this->address);
   dump_field(out, "rssi", this->rssi);
   dump_field(out, "address_type", this->address_type);
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data, this->data_len));
-  out.append("\n");
+  dump_bytes_field(out, "data", this->data, this->data_len);
 }
 void BluetoothLERawAdvertisementsResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothLERawAdvertisementsResponse");
@@ -1792,18 +1790,14 @@ void BluetoothGATTReadResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTReadResponse");
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data_ptr_, this->data_len_));
-  out.append("\n");
+  dump_bytes_field(out, "data", this->data_ptr_, this->data_len_);
 }
 void BluetoothGATTWriteRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTWriteRequest");
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
   dump_field(out, "response", this->response);
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data, this->data_len));
-  out.append("\n");
+  dump_bytes_field(out, "data", this->data, this->data_len);
 }
 void BluetoothGATTReadDescriptorRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTReadDescriptorRequest");
@@ -1814,9 +1808,7 @@ void BluetoothGATTWriteDescriptorRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTWriteDescriptorRequest");
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data, this->data_len));
-  out.append("\n");
+  dump_bytes_field(out, "data", this->data, this->data_len);
 }
 void BluetoothGATTNotifyRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTNotifyRequest");
@@ -1828,9 +1820,7 @@ void BluetoothGATTNotifyDataResponse::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTNotifyDataResponse");
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data_ptr_, this->data_len_));
-  out.append("\n");
+  dump_bytes_field(out, "data", this->data_ptr_, this->data_len_);
 }
 void SubscribeBluetoothConnectionsFreeRequest::dump_to(std::string &out) const {
   out.append("SubscribeBluetoothConnectionsFreeRequest {}");
@@ -1934,9 +1924,7 @@ void VoiceAssistantEventResponse::dump_to(std::string &out) const {
 }
 void VoiceAssistantAudio::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantAudio");
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data, this->data_len));
-  out.append("\n");
+  dump_bytes_field(out, "data", this->data, this->data_len);
   dump_field(out, "end", this->end);
 }
 void VoiceAssistantTimerEventResponse::dump_to(std::string &out) const {
@@ -2297,16 +2285,12 @@ void UpdateCommandRequest::dump_to(std::string &out) const {
 #ifdef USE_ZWAVE_PROXY
 void ZWaveProxyFrame::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ZWaveProxyFrame");
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data, this->data_len));
-  out.append("\n");
+  dump_bytes_field(out, "data", this->data, this->data_len);
 }
 void ZWaveProxyRequest::dump_to(std::string &out) const {
   MessageDumpHelper helper(out, "ZWaveProxyRequest");
   dump_field(out, "type", static_cast<enums::ZWaveProxyRequestType>(this->type));
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data, this->data_len));
-  out.append("\n");
+  dump_bytes_field(out, "data", this->data, this->data_len);
 }
 #endif
 #ifdef USE_INFRARED
