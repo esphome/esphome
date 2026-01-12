@@ -27,12 +27,14 @@ void QrCode::set_ecc(qrcodegen_Ecc ecc) {
 
 void QrCode::generate_qr_code() {
   ESP_LOGV(TAG, "Generating QR code");
-  uint8_t tempbuffer[qrcodegen_BUFFER_LEN_MAX];
+  uint8_t* tempbuffer = (uint8_t*) malloc(qrcodegen_BUFFER_LEN_MAX);
 
   if (!qrcodegen_encodeText(this->value_.c_str(), tempbuffer, this->qr_, this->ecc_, qrcodegen_VERSION_MIN,
                             qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true)) {
     ESP_LOGE(TAG, "Failed to generate QR code");
   }
+
+  free(tempbuffer);
 }
 
 void QrCode::draw(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color, int scale) {
