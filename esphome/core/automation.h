@@ -159,6 +159,12 @@ template<typename T, typename... X> class TemplatableValue {
     return this->value(x...);
   }
 
+  /// Check if this holds a static string (const char* stored without allocation)
+  bool is_static_string() const { return this->type_ == STATIC_STRING; }
+
+  /// Get the static string pointer (only valid if is_static_string() returns true)
+  const char *get_static_string() const { return this->static_str_; }
+
  protected:
   enum : uint8_t {
     NONE,
