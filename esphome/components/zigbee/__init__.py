@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from esphome import automation, core
@@ -12,7 +13,7 @@ from esphome.components.nrf52.boards import BOOTLOADER_CONFIG, Section
 from esphome.components.zephyr import zephyr_add_pm_static, zephyr_data
 from esphome.components.zephyr.const import KEY_BOOTLOADER
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL
+from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL, CONF_NAME
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -35,6 +36,8 @@ from .zigbee_esp32 import (
     zigbee_require_vfs_select,
 )
 from .zigbee_zephyr import zephyr_binary_sensor, zephyr_sensor
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@luar123", "@tomaszduda23"]
 
@@ -155,6 +158,12 @@ async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 def consume_endpoint(config: ConfigType) -> ConfigType:
+    if " " in config[CONF_NAME]:
+        _LOGGER.warning(
+            "Spaces in '%s' work with ZHA but not Zigbee2MQTT. For Zigbee2MQTT use '%s'",
+            config[CONF_NAME],
+            config[CONF_NAME].replace(" ", "_"),
+        )
     data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
     slots: list[str] = data.setdefault(KEY_EP_NUMBER, [])
     slots.extend([""])
