@@ -134,6 +134,7 @@ esphome/components/dht/* @OttoWinter
 esphome/components/display_menu_base/* @numo68
 esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
+esphome/components/ds1603l/* @JakeLC15
 esphome/components/ds2484/* @mrk-its
 esphome/components/dsmr/* @glmnet @PolarGoose @zuidwijk
 esphome/components/duty_time/* @dudanov
