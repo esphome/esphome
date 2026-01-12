@@ -1008,7 +1008,7 @@ void PrometheusHandler::climate_row_(AsyncResponseStream *stream, climate::Clima
   value_accuracy_to_buf(value_buf, traits.get_visual_max_temperature(), target_accuracy);
   climate_value_row_(stream, obj, area, node, friendly_name, max_temp, value_buf);
   // min temp
-  std::string min_temp = "mininum_temperature";
+  std::string min_temp = "minimum_temperature";
   value_accuracy_to_buf(value_buf, traits.get_visual_min_temperature(), target_accuracy);
   climate_value_row_(stream, obj, area, node, friendly_name, min_temp, value_buf);
   // now check optional traits
