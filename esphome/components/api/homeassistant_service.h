@@ -217,7 +217,15 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   static void populate_service_map(VectorType &dest, SourceType &source, FixedVector<std::string> &value_storage,
                                    Ts... x) {
     dest.init(source.size());
-    value_storage.init(source.size());  // Max possible, single allocation
+
+    // Count non-static strings to allocate exact storage needed
+    size_t lambda_count = 0;
+    for (const auto &it : source) {
+      if (!it.value.is_static_string()) {
+        lambda_count++;
+      }
+    }
+    value_storage.init(lambda_count);
 
     for (auto &it : source) {
       auto &kv = dest.emplace_back();
