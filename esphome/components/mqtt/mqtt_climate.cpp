@@ -291,35 +291,36 @@ bool MQTTClimateComponent::publish_state_() {
     success = false;
   int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
+  char payload[VALUE_ACCURACY_MAX_LEN];
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE) &&
       !std::isnan(this->device_->current_temperature)) {
-    std::string payload = value_accuracy_to_string(this->device_->current_temperature, current_accuracy);
+    value_accuracy_to_buf(payload, this->device_->current_temperature, current_accuracy);
     if (!this->publish(this->get_current_temperature_state_topic(), payload))
       success = false;
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
-    std::string payload = value_accuracy_to_string(this->device_->target_temperature_low, target_accuracy);
+    value_accuracy_to_buf(payload, this->device_->target_temperature_low, target_accuracy);
     if (!this->publish(this->get_target_temperature_low_state_topic(), payload))
       success = false;
-    payload = value_accuracy_to_string(this->device_->target_temperature_high, target_accuracy);
+    value_accuracy_to_buf(payload, this->device_->target_temperature_high, target_accuracy);
     if (!this->publish(this->get_target_temperature_high_state_topic(), payload))
       success = false;
   } else {
-    std::string payload = value_accuracy_to_string(this->device_->target_temperature, target_accuracy);
+    value_accuracy_to_buf(payload, this->device_->target_temperature, target_accuracy);
     if (!this->publish(this->get_target_temperature_state_topic(), payload))
       success = false;
   }
 
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY) &&
       !std::isnan(this->device_->current_humidity)) {
-    std::string payload = value_accuracy_to_string(this->device_->current_humidity, 0);
+    value_accuracy_to_buf(payload, this->device_->current_humidity, 0);
     if (!this->publish(this->get_current_humidity_state_topic(), payload))
       success = false;
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY) &&
       !std::isnan(this->device_->target_humidity)) {
-    std::string payload = value_accuracy_to_string(this->device_->target_humidity, 0);
+    value_accuracy_to_buf(payload, this->device_->target_humidity, 0);
     if (!this->publish(this->get_target_humidity_state_topic(), payload))
       success = false;
   }
@@ -357,7 +358,7 @@ bool MQTTClimateComponent::publish_state_() {
       }
     }
     if (this->device_->has_custom_preset())
-      payload = this->device_->get_custom_preset();
+      payload = this->device_->get_custom_preset().c_str();
     if (!this->publish(this->get_preset_state_topic(), payload))
       success = false;
   }
@@ -429,7 +430,7 @@ bool MQTTClimateComponent::publish_state_() {
       }
     }
     if (this->device_->has_custom_fan_mode())
-      payload = this->device_->get_custom_fan_mode();
+      payload = this->device_->get_custom_fan_mode().c_str();
     if (!this->publish(this->get_fan_mode_state_topic(), payload))
       success = false;
   }
