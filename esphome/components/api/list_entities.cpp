@@ -87,13 +87,7 @@ LIST_ENTITIES_HANDLER(update, update::UpdateEntity, ListEntitiesUpdateResponse)
 #endif
 
 // Special cases that don't follow the pattern
-bool ListEntitiesIterator::on_end() {
-#ifdef USE_IR_RF_PROXY
-  // List ir_rf_proxy entities before sending done
-  this->client_->parent_->list_ir_rf_proxy_entities(this->client_);
-#endif
-  return this->client_->send_list_info_done();
-}
+bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(); }
 
 ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(client) {}
 

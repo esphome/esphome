@@ -827,9 +827,6 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 #ifdef USE_ZWAVE_PROXY
   dump_field(out, "zwave_home_id", this->zwave_home_id);
 #endif
-#ifdef USE_IR_RF_PROXY
-  dump_field(out, "ir_rf_proxy_feature_flags", this->ir_rf_proxy_feature_flags);
-#endif
 }
 void ListEntitiesRequest::dump_to(std::string &out) const { out.append("ListEntitiesRequest {}"); }
 void ListEntitiesDoneResponse::dump_to(std::string &out) const { out.append("ListEntitiesDoneResponse {}"); }

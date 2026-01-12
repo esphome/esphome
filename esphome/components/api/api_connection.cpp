@@ -1675,10 +1675,6 @@ bool APIConnection::send_device_info_response(const DeviceInfoRequest &msg) {
   resp.zwave_proxy_feature_flags = zwave_proxy::global_zwave_proxy->get_feature_flags();
   resp.zwave_home_id = zwave_proxy::global_zwave_proxy->get_home_id();
 #endif
-#ifdef USE_IR_RF_PROXY
-  // Get global feature flags for the IR/RF proxy component
-  resp.ir_rf_proxy_feature_flags = ir_rf_proxy::get_ir_rf_proxy_feature_flags();
-#endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;
 #endif
@@ -2140,48 +2136,6 @@ void APIConnection::process_state_subscriptions_() {
   }
 }
 #endif  // USE_API_HOMEASSISTANT_STATES
-
-#ifdef USE_IR_RF_PROXY
-void APIConnection::ir_rf_proxy_transmit_raw_timings(const IrRfProxyTransmitRawTimingsRequest &msg) {
-  this->parent_->on_ir_rf_proxy_transmit_raw_timings_request(msg);
-}
-
-uint16_t APIConnection::try_send_ir_rf_proxy_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                                  bool is_single) {
-  auto *ir_rf_proxy = static_cast<ir_rf_proxy::IrRfProxyComponent *>(entity);
-  ListEntitiesIrRfProxyResponse msg{};
-  msg.capabilities = ir_rf_proxy->get_capability_flags();
-  msg.frequency = ir_rf_proxy->get_frequency();
-  return fill_and_encode_entity_info(ir_rf_proxy, msg, ListEntitiesIrRfProxyResponse::MESSAGE_TYPE, conn,
-                                     remaining_size, is_single);
-}
-
-void APIConnection::send_ir_rf_proxy_receive_event(uint32_t device_id, uint32_t key,
-                                                   const remote_base::RawTimings &timings) {
-  // Calculate message size using manual packed encoding
-  ProtoSize size;
-#ifdef USE_DEVICES
-  size.add_uint32(1, device_id);  // device_id field (field_id=1, wire_type=0)
-#endif
-  size.add_fixed32(1, key);            // key field (field_id=2, wire_type=5, tag=(2<<3)|5=21)
-  size.add_packed_sint32(1, timings);  // timings field (field_id=3, wire_type=2, tag=(3<<3)|2=26)
-
-  // Allocate buffer with exact size
-  auto buffer = this->create_buffer(size.get_size());
-
-  // Encode directly from receiver's vector - zero copy!
-#ifdef USE_DEVICES
-  buffer.encode_uint32(1, device_id);
-#endif
-  buffer.encode_fixed32(2, key);
-  buffer.encode_packed_sint32(3, timings);
-
-  // Send the buffer
-  if (!this->send_buffer(buffer, IrRfProxyReceiveEvent::MESSAGE_TYPE)) {
-    this->on_fatal_error();
-  }
-}
-#endif  // USE_IR_RF_PROXY
 
 void APIConnection::log_client_(int level, const LogString *message) {
   esp_log_printf_(level, TAG, __LINE__, ESPHOME_LOG_FORMAT("%s (%s): %s"), this->helper_->get_client_name(),

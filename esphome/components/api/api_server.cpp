@@ -18,10 +18,6 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
-#ifdef USE_IR_RF_PROXY
-#include "esphome/components/ir_rf_proxy/ir_rf_proxy.h"
-#endif
-
 #include <algorithm>
 #include <utility>
 
@@ -714,37 +710,6 @@ void APIServer::send_action_response(uint32_t action_call_id, bool success, Stri
 }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
-
-#ifdef USE_IR_RF_PROXY
-void APIServer::register_ir_rf_proxy(ir_rf_proxy::IrRfProxyComponent *ir_rf_proxy) {
-  this->ir_rf_proxies_.push_back(ir_rf_proxy);
-}
-
-void APIServer::on_ir_rf_proxy_transmit_raw_timings_request(const IrRfProxyTransmitRawTimingsRequest &msg) {
-  for (auto *ir_rf_proxy : this->ir_rf_proxies_) {
-    if (ir_rf_proxy->get_object_id_hash() == msg.key) {
-      ir_rf_proxy->transmit_raw_timings(msg);
-      return;
-    }
-  }
-  ESP_LOGW(TAG, "IR/RF proxy raw timings transmit request for unknown key: %u", msg.key);
-}
-
-void APIServer::send_ir_rf_proxy_receive_event(uint32_t device_id, uint32_t key,
-                                               const remote_base::RawTimings &timings) {
-  // Zero-copy: pass reference directly to each connection for packed encoding
-  for (auto &client : this->clients_) {
-    client->send_ir_rf_proxy_receive_event(device_id, key, timings);
-  }
-}
-
-void APIServer::list_ir_rf_proxy_entities(APIConnection *conn) {
-  for (auto *ir_rf_proxy : this->ir_rf_proxies_) {
-    conn->schedule_message_(ir_rf_proxy, &APIConnection::try_send_ir_rf_proxy_info,
-                            ListEntitiesIrRfProxyResponse::MESSAGE_TYPE, ListEntitiesIrRfProxyResponse::ESTIMATED_SIZE);
-  }
-}
-#endif  // USE_IR_RF_PROXY
 
 }  // namespace esphome::api
 #endif

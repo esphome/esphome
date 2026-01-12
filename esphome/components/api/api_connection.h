@@ -162,13 +162,6 @@ class APIConnection final : public APIServerConnection {
   void zwave_proxy_request(const ZWaveProxyRequest &msg) override;
 #endif
 
-#ifdef USE_IR_RF_PROXY
-  void ir_rf_proxy_transmit_raw_timings(const IrRfProxyTransmitRawTimingsRequest &msg) override;
-  static uint16_t try_send_ir_rf_proxy_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                            bool is_single);
-  void send_ir_rf_proxy_receive_event(uint32_t device_id, uint32_t key, const remote_base::RawTimings &timings);
-#endif
-
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
   void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) override;

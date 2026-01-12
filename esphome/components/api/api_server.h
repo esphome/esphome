@@ -31,14 +31,6 @@ class UserServiceDescriptor;
 
 }  // namespace esphome::api
 
-#ifdef USE_IR_RF_PROXY
-#include "esphome/components/remote_base/remote_base.h"
-namespace esphome::ir_rf_proxy {
-// Forward declaration
-class IrRfProxyComponent;
-}  // namespace esphome::ir_rf_proxy
-#endif
-
 namespace esphome::api {
 
 #ifdef USE_API_NOISE
@@ -294,9 +286,6 @@ class APIServer : public Component,
   std::vector<ActiveActionCall> active_action_calls_;
   uint32_t next_action_call_id_{1};  // Counter for generating unique action_call_ids
 #endif                               // USE_API_USER_DEFINED_ACTION_RESPONSES
-#endif
-#ifdef USE_IR_RF_PROXY
-  std::vector<ir_rf_proxy::IrRfProxyComponent *> ir_rf_proxies_;
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   struct PendingActionResponse {

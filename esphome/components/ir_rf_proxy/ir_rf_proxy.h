@@ -1,73 +1,37 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/entity_base.h"
-#include "esphome/core/hal.h"
-#include "esphome/components/remote_base/remote_base.h"
+#include "esphome/components/infrared/infrared.h"
 #include "esphome/components/remote_transmitter/remote_transmitter.h"
 #include "esphome/components/remote_receiver/remote_receiver.h"
 
-#ifdef USE_API
-#include "esphome/components/api/api_pb2.h"
-#endif
-
-#include <vector>
-
 namespace esphome::ir_rf_proxy {
 
-/// Feature flags for IR/RF proxy component availability
-enum IrRfProxyFeature : uint32_t {
-  FEATURE_IR_RF_PROXY_ENABLED = 1 << 0,
-};
-
-/// Capability flags for individual IR/RF proxy instances
-enum IrRfProxyCapability : uint32_t {
-  CAPABILITY_TRANSMITTER = 1 << 0,  // Can transmit signals
-  CAPABILITY_RECEIVER = 1 << 1,     // Can receive signals
-};
-
-#ifdef USE_API
-/// Get global feature flags for IR/RF proxy component (not instance-specific)
-inline uint32_t get_ir_rf_proxy_feature_flags() { return IrRfProxyFeature::FEATURE_IR_RF_PROXY_ENABLED; }
-#endif
-
-class IrRfProxyComponent : public Component, public EntityBase, public remote_base::RemoteReceiverListener {
+/// IrRfProxy - Infrared platform implementation using remote_transmitter/receiver as backend
+class IrRfProxy : public infrared::Infrared {
  public:
-  IrRfProxyComponent() = default;
+  IrRfProxy() = default;
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
-  void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
-  void set_receiver(remote_receiver::RemoteReceiverComponent *receiver) { this->receiver_ = receiver; }
-  void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
-    this->transmitter_ = transmitter;
-  }
+  /// Set RF frequency in kHz (0 = infrared, non-zero = RF)
+  void set_frequency(uint32_t frequency_khz) { this->frequency_khz_ = frequency_khz; }
+  /// Get RF frequency in kHz
+  uint32_t get_frequency() const { return this->frequency_khz_; }
+  /// Check if this is RF mode (non-zero frequency)
+  bool is_rf() const { return this->frequency_khz_ > 0; }
 
-  /// Returns frequency in kHz (Hz / 1000), or 0 for infrared
-  uint32_t get_frequency() const { return this->frequency_; }
-  bool is_rf() const { return this->frequency_ > 0; }
-  bool has_transmitter() const { return this->transmitter_ != nullptr; }
-  bool has_receiver() const { return this->receiver_ != nullptr; }
-
-#ifdef USE_API
-  /// Get capability flags for this IR/RF proxy instance
-  uint32_t get_capability_flags() const;
-
-  /// Transmit IR/RF data using raw timings array
-  void transmit_raw_timings(const api::IrRfProxyTransmitRawTimingsRequest &msg);
-
-  /// Called when IR data is received - implements RemoteReceiverListener interface
-  bool on_receive(remote_base::RemoteReceiveData data) override;
-#endif
+  /// Set the remote_transmitter backend
+  void set_remote_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter);
+  /// Set the remote_receiver backend
+  void set_remote_receiver(remote_receiver::RemoteReceiverComponent *receiver);
 
  protected:
-  // Targeted RF frequency in kHz (Hz / 1000); 0 = infrared, non-zero = RF
-  uint32_t frequency_{0};
-  // Underlying hardware components
-  remote_receiver::RemoteReceiverComponent *receiver_{nullptr};
-  remote_transmitter::RemoteTransmitterComponent *transmitter_{nullptr};
+  /// Implement the control method from infrared::Infrared base class
+  void control(const infrared::InfraredCall &call) override;
+
+  // RF frequency in kHz (Hz / 1000); 0 = infrared, non-zero = RF
+  uint32_t frequency_khz_{0};
 };
 
 }  // namespace esphome::ir_rf_proxy
