@@ -329,7 +329,10 @@ std::string format_hex(const uint8_t *data, size_t length) {
   format_hex_to(&ret[0], length * 2 + 1, data, length);
   return ret;
 }
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
+#pragma GCC diagnostic pop
 
 char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator) {
   return format_hex_internal(buffer, buffer_size, data, length, separator, 'A');
