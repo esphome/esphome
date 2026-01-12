@@ -60,7 +60,6 @@ void TuyaLight::setup() {
       float red, green, blue;
       switch (*this->color_type_) {
         case TuyaColorType::RGBHSV:
-        case TuyaColorType::RGB_LOWERCASE:
         case TuyaColorType::RGB: {
           auto rgb = parse_hex<uint32_t>(datapoint.value_string.substr(0, 6));
           if (!rgb.has_value())
@@ -191,13 +190,8 @@ void TuyaLight::write_state(light::LightState *state) {
     switch (*this->color_type_) {
       case TuyaColorType::RGB: {
         char buffer[7];
-        sprintf(buffer, "%02X%02X%02X", int(red * 255), int(green * 255), int(blue * 255));
-        color_value = buffer;
-        break;
-      }
-      case TuyaColorType::RGB_LOWERCASE: {
-        char buffer[7];
-        sprintf(buffer, "%02x%02x%02x", int(red * 255), int(green * 255), int(blue * 255));
+        const char *format_str = this->color_type_lowercase_ ? "%02x%02x%02x" : "%02X%02X%02X";
+        sprintf(buffer, format_str, int(red * 255), int(green * 255), int(blue * 255));
         color_value = buffer;
         break;
       }
@@ -206,7 +200,8 @@ void TuyaLight::write_state(light::LightState *state) {
         float saturation, value;
         rgb_to_hsv(red, green, blue, hue, saturation, value);
         char buffer[13];
-        sprintf(buffer, "%04X%04X%04X", hue, int(saturation * 1000), int(value * 1000));
+        const char *format_str = this->color_type_lowercase_ ? "%04x%04x%04x" : "%04X%04X%04X";
+        sprintf(buffer, format_str, hue, int(saturation * 1000), int(value * 1000));
         color_value = buffer;
         break;
       }
@@ -215,8 +210,9 @@ void TuyaLight::write_state(light::LightState *state) {
         float saturation, value;
         rgb_to_hsv(red, green, blue, hue, saturation, value);
         char buffer[15];
-        sprintf(buffer, "%02X%02X%02X%04X%02X%02X", int(red * 255), int(green * 255), int(blue * 255), hue,
-                int(saturation * 255), int(value * 255));
+        const char *format_str = this->color_type_lowercase_ ? "%02x%02x%02x%04x%02x%02x" : "%02X%02X%02X%04X%02X%02X";
+        sprintf(buffer, format_str, int(red * 255), int(green * 255), int(blue * 255), hue, int(saturation * 255),
+                int(value * 255));
         color_value = buffer;
         break;
       }

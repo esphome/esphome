@@ -44,7 +44,8 @@ light:
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
     gamma_correct: 1
-    color_type: RGB_LOWERCASE
+    color_type: RGB
+    color_type_lowercase: true
 
 number:
   - platform: tuya
