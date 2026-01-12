@@ -124,6 +124,16 @@ enum class RoamingState : uint8_t {
   RECONNECTING,
 };
 
+/// Controls how RETRY_HIDDEN phase selects networks to try
+enum class RetryHiddenMode : uint8_t {
+  /// Normal mode: scan completed, only try networks NOT visible in scan results
+  /// (truly hidden networks that need probe requests)
+  SCAN_BASED,
+  /// Blind retry mode: scanning disabled (captive portal/improv active),
+  /// try ALL configured networks sequentially without consulting scan results
+  BLIND_RETRY,
+};
+
 /// Struct for setting static IPs in WiFiComponent.
 struct ManualIP {
   network::IPAddress static_ip;
@@ -676,7 +686,7 @@ class WiFiComponent : public Component {
   bool enable_on_boot_{true};
   bool got_ipv4_address_{false};
   bool keep_scan_results_{false};
-  bool did_scan_this_cycle_{false};
+  RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   bool skip_cooldown_next_cycle_{false};
   bool post_connect_roaming_{true};  // Enabled by default
   RoamingState roaming_state_{RoamingState::IDLE};

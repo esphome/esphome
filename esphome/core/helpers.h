@@ -511,6 +511,8 @@ template<typename T> constexpr T convert_little_endian(T val) {
 
 /// Compare strings for equality in case-insensitive manner.
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
+/// Compare StringRefs for equality in case-insensitive manner.
+bool str_equals_case_insensitive(StringRef a, StringRef b);
 
 /// Check whether a string starts with a value.
 bool str_startswith(const std::string &str, const std::string &start);
@@ -1025,7 +1027,8 @@ enum ParseOnOffState : uint8_t {
 /// Parse a string that contains either on, off or toggle.
 ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const char *off = nullptr);
 
-/// Create a string from a value and an accuracy in decimals.
+/// @deprecated Allocates heap memory. Use value_accuracy_to_buf() instead. Removed in 2026.7.0.
+ESPDEPRECATED("Allocates heap memory. Use value_accuracy_to_buf() instead. Removed in 2026.7.0.", "2026.1.0")
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
 
 /// Maximum buffer size for value_accuracy formatting (float ~15 chars + space + UOM ~40 chars + null)
