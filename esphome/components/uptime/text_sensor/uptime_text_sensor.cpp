@@ -62,14 +62,15 @@ void UptimeTextSensor::update() {
 
   // If nothing shown, show smallest enabled unit
   if (!show_days && !show_hours && !show_minutes && !show_seconds) {
-    if (seconds_enabled)
+    if (seconds_enabled) {
       show_seconds = true;
-    else if (minutes_enabled)
+    } else if (minutes_enabled) {
       show_minutes = true;
-    else if (hours_enabled)
+    } else if (hours_enabled) {
       show_hours = true;
-    else
+    } else {
       show_days = true;
+    }
   }
 
   // Build output string on stack
