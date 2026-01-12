@@ -85,27 +85,25 @@ def create_test_config(config_name: str, includes: list[str]) -> dict:
     }
 
 
-def add_platform_components(config: dict, components: list[str]) -> None:
+def get_platform_components(components: list[str]) -> list[str]:
+    platform_components: list[str] = []
     for component in components:
         test_dir = COMPONENTS_TESTS_DIR / component
-        if test_dir.is_dir():
-            # Iterate all folders in test_dir
-            for platform_dir in test_dir.iterdir():
-                if platform_dir.is_dir():
-                    platform = platform_dir.name
-                    platform_component = config.setdefault(platform, [])
-                    if not platform_component:
-                        component_module = get_component(platform)
-                        if (
-                            component_module is None
-                            or not component_module.is_platform_component
-                        ):
-                            raise Exception(
-                                f"Component tests for '{component}' reference non-existing or invalid platform component '{platform}'"
-                                f" in its directory structure. See ({COMPONENTS_TESTS_DIR / component / platform})."
-                            )
-                        CORE.register_platform_component(platform, "dummy")
-                    platform_component.append({CONF_PLATFORM: component})
+        if not test_dir.is_dir():
+            continue
+        # Iterate all folders in test_dir
+        for domain_dir in test_dir.iterdir():
+            if not domain_dir.is_dir():
+                continue
+            domain = domain_dir.name
+            domain_module = get_component(domain)
+            if domain_module is None or not domain_module.is_platform_component:
+                raise Exception(
+                    f"Component tests for '{component}' reference non-existing or invalid domain '{domain}'"
+                    f" in its directory structure. See ({COMPONENTS_TESTS_DIR / component / domain})."
+                )
+            platform_components.append(f"{domain}.{component}")
+    return platform_components
 
 
 def run_tests(selected_components: list[str]) -> int:
@@ -124,18 +122,25 @@ def run_tests(selected_components: list[str]) -> int:
         )
         return 0
 
-    components = sorted(components)
-
-    # Obtain possible dependencies for the requested components:
-    components_with_dependencies = sorted(get_all_dependencies(set(components)))
-
     # Build a list of include folders, one folder per component containing tests.
     # A special replacement main.cpp is located in /tests/components/main.cpp
     includes: list[str] = ["main.cpp"] + components
 
+    # Obtain a list of platform components to be tested:
+    try:
+        platform_components = get_platform_components(components)
+    except Exception as e:
+        print(f"Error obtaining platform components: {e}")
+        return 3
+
+    components = sorted(components + platform_components)
+
     # Create a unique name for this config based on the actual components being tested
     # to maximize cache during testing
     config_name: str = "cpptests-" + hash_components(components)
+
+    # Obtain possible dependencies for the requested components:
+    components_with_dependencies = sorted(get_all_dependencies(set(components)))
 
     config = create_test_config(config_name, includes)
 
@@ -148,14 +153,20 @@ def run_tests(selected_components: list[str]) -> int:
 
     # Add all components and dependencies to the base configuration after validation, so their files
     # are added to the build.
-    config.update({key: [] for key in components_with_dependencies})
-    try:
-        add_platform_components(config, components)
-    except Exception as e:
-        print(f"Error adding platform components: {e}")
-        return 3
+    for component_name in components_with_dependencies:
+        if "." in component_name:
+            domain, component = component_name.split(".")
+            domain_list = config.setdefault(domain, [])
+            if not domain_list:
+                CORE.register_platform_component(domain, "dummy")
+            domain_list.append({CONF_PLATFORM: component})
+        else:
+            config.setdefault(component_name, [])
 
-    print(f"Testing components: {', '.join(components)}")
+    dependencies = set(components_with_dependencies) - set(components)
+    print(
+        f"Testing components: {', '.join(components)}. Dependencies: {', '.join(dependencies) if dependencies else 'None'}"
+    )
     CORE.config = config
     args = parse_args(["program", "compile", str(CORE.config_path)])
     try:
