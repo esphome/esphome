@@ -174,7 +174,8 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
         resp.wants_response = true;
         // Set response template if provided
         if (this->flags_.has_response_template) {
-          resp.response_template = StringRef(response_template_value = this->response_template_.value(x...));
+          response_template_value = this->response_template_.value(x...);
+          resp.response_template = StringRef(response_template_value);
         }
       }
 #endif
