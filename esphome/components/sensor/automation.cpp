@@ -1,10 +1,8 @@
 #include "automation.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 static const char *const TAG = "sensor.automation";
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor

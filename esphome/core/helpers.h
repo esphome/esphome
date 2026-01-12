@@ -293,8 +293,8 @@ template<typename T> class FixedVector {
     size_ = 0;
   }
 
-  // Shrink capacity to fit current size (frees all memory)
-  void shrink_to_fit() {
+  // Release all memory (destroys elements and frees memory)
+  void release() {
     cleanup_();
     reset_();
   }
@@ -511,6 +511,8 @@ template<typename T> constexpr T convert_little_endian(T val) {
 
 /// Compare strings for equality in case-insensitive manner.
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
+/// Compare StringRefs for equality in case-insensitive manner.
+bool str_equals_case_insensitive(StringRef a, StringRef b);
 
 /// Check whether a string starts with a value.
 bool str_startswith(const std::string &str, const std::string &start);
@@ -759,6 +761,29 @@ inline char *format_hex_to(char (&buffer)[N], T val) {
 /// Calculate buffer size needed for format_hex_to: "XXXXXXXX...\0" = bytes * 2 + 1
 constexpr size_t format_hex_size(size_t byte_count) { return byte_count * 2 + 1; }
 
+/// Calculate buffer size needed for format_hex_prefixed_to: "0xXXXXXXXX...\0" = bytes * 2 + 3
+constexpr size_t format_hex_prefixed_size(size_t byte_count) { return byte_count * 2 + 3; }
+
+/// Format an unsigned integer as "0x" prefixed lowercase hex to buffer.
+template<size_t N, typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline char *format_hex_prefixed_to(char (&buffer)[N], T val) {
+  static_assert(N >= sizeof(T) * 2 + 3, "Buffer too small for prefixed hex");
+  buffer[0] = '0';
+  buffer[1] = 'x';
+  val = convert_big_endian(val);
+  format_hex_to(buffer + 2, N - 2, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
+  return buffer;
+}
+
+/// Format byte array as "0x" prefixed lowercase hex to buffer.
+template<size_t N> inline char *format_hex_prefixed_to(char (&buffer)[N], const uint8_t *data, size_t length) {
+  static_assert(N >= 5, "Buffer must hold at least '0x' + one hex byte + null");
+  buffer[0] = '0';
+  buffer[1] = 'x';
+  format_hex_to(buffer + 2, N - 2, data, length);
+  return buffer;
+}
+
 /// Calculate buffer size needed for format_hex_pretty_to with separator: "XX:XX:...:XX\0"
 constexpr size_t format_hex_pretty_size(size_t byte_count) { return byte_count * 3; }
 
@@ -1002,7 +1027,8 @@ enum ParseOnOffState : uint8_t {
 /// Parse a string that contains either on, off or toggle.
 ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const char *off = nullptr);
 
-/// Create a string from a value and an accuracy in decimals.
+/// @deprecated Allocates heap memory. Use value_accuracy_to_buf() instead. Removed in 2026.7.0.
+ESPDEPRECATED("Allocates heap memory. Use value_accuracy_to_buf() instead. Removed in 2026.7.0.", "2026.1.0")
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
 
 /// Maximum buffer size for value_accuracy formatting (float ~15 chars + space + UOM ~40 chars + null)
@@ -1280,9 +1306,13 @@ class HighFrequencyLoopRequester {
 void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
 
 /// Get the device MAC address as a string, in lowercase hex notation.
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
+/// Use get_mac_address_into_buffer() instead.
 std::string get_mac_address();
 
 /// Get the device MAC address as a string, in colon-separated uppercase hex notation.
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
+/// Use get_mac_address_pretty_into_buffer() instead.
 std::string get_mac_address_pretty();
 
 /// Get the device MAC address into the given buffer, in lowercase hex notation.
