@@ -249,6 +249,7 @@ esphome/components/ina260/* @mreditor97
 esphome/components/ina2xx_base/* @latonita
 esphome/components/ina2xx_i2c/* @latonita
 esphome/components/ina2xx_spi/* @latonita
+esphome/components/infrared/* @kbx81
 esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate/* @jesserockz @JosipKuci
 esphome/components/integration/* @OttoWinter
