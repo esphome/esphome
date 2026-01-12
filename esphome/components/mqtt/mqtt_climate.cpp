@@ -254,7 +254,7 @@ void MQTTClimateComponent::setup() {
 }
 MQTTClimateComponent::MQTTClimateComponent(Climate *device) : device_(device) {}
 bool MQTTClimateComponent::send_initial_state() { return this->publish_state_(); }
-std::string MQTTClimateComponent::component_type() const { return "climate"; }
+MQTT_COMPONENT_TYPE(MQTTClimateComponent, "climate")
 const EntityBase *MQTTClimateComponent::get_entity() const { return this->device_; }
 
 bool MQTTClimateComponent::publish_state_() {
@@ -357,7 +357,7 @@ bool MQTTClimateComponent::publish_state_() {
       }
     }
     if (this->device_->has_custom_preset())
-      payload = this->device_->get_custom_preset();
+      payload = this->device_->get_custom_preset().c_str();
     if (!this->publish(this->get_preset_state_topic(), payload))
       success = false;
   }
@@ -429,7 +429,7 @@ bool MQTTClimateComponent::publish_state_() {
       }
     }
     if (this->device_->has_custom_fan_mode())
-      payload = this->device_->get_custom_fan_mode();
+      payload = this->device_->get_custom_fan_mode().c_str();
     if (!this->publish(this->get_fan_mode_state_topic(), payload))
       success = false;
   }
