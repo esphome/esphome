@@ -143,46 +143,12 @@ marshn
 
 uint8_t DraytonProtocol::calc_cs_(uint32_t out_data) const {
   uint16_t cs = 0;
-  if (out_data & (1 << (0x00 + NBITS_CHECKSUM)))
-    cs += 0x08;
-  if (out_data & (1 << (0x01 + NBITS_CHECKSUM)))
-    cs += 0x04;
-  if (out_data & (1 << (0x02 + NBITS_CHECKSUM)))
-    cs += 0x02;
-  if (out_data & (1 << (0x03 + NBITS_CHECKSUM)))
-    cs += 0x01;
-  if (out_data & (1 << (0x04 + NBITS_CHECKSUM)))
-    cs += 0x10;
-  if (out_data & (1 << (0x05 + NBITS_CHECKSUM)))
-    cs += 0x08;
-  if (out_data & (1 << (0x06 + NBITS_CHECKSUM)))
-    cs += 0x04;
-  if (out_data & (1 << (0x07 + NBITS_CHECKSUM)))
-    cs += 0x02;
-  if (out_data & (1 << (0x08 + NBITS_CHECKSUM)))
-    cs += 0x20;
-  if (out_data & (1 << (0x09 + NBITS_CHECKSUM)))
-    cs += 0x10;
-  if (out_data & (1 << (0x0A + NBITS_CHECKSUM)))
-    cs += 0x08;
-  if (out_data & (1 << (0x0B + NBITS_CHECKSUM)))
-    cs += 0x04;
-  if (out_data & (1 << (0x0C + NBITS_CHECKSUM)))
-    cs += 0x40;
-  if (out_data & (1 << (0x0D + NBITS_CHECKSUM)))
-    cs += 0x20;
-  if (out_data & (1 << (0x0E + NBITS_CHECKSUM)))
-    cs += 0x10;
-  if (out_data & (1 << (0x0F + NBITS_CHECKSUM)))
-    cs += 0x08;
-  if (out_data & (1 << (0x10 + NBITS_CHECKSUM)))
-    cs += 0x80;
-  if (out_data & (1 << (0x11 + NBITS_CHECKSUM)))
-    cs += 0x40;
-  if (out_data & (1 << (0x12 + NBITS_CHECKSUM)))
-    cs += 0x20;
-  if (out_data & (1 << (0x13 + NBITS_CHECKSUM)))
-    cs += 0x10;
+  uint32_t rev = reverse_bits(out_data);
+
+  for (uint8_t i = 4; i <= 20; i += 4) {
+    cs <<= 1;
+    cs += ((rev >> i) & 0x0F);
+  }
 
   if (cs > 0x7F) {
     cs += 1;
