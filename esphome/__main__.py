@@ -62,6 +62,9 @@ from esphome.util import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Maximum buffer size for serial log reading to prevent unbounded memory growth
+SERIAL_BUFFER_MAX_SIZE = 65536
+
 # Special non-component keys that appear in configs
 _NON_COMPONENT_KEYS = frozenset(
     {
@@ -431,25 +434,37 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     while tries < 5:
         try:
             with ser:
+                buffer = b""
+                ser.timeout = 0.1  # 100ms timeout for non-blocking reads
                 while True:
                     try:
-                        raw = ser.readline()
+                        # Read all available data and timestamp it
+                        chunk = ser.read(ser.in_waiting or 1)
+                        if not chunk:
+                            continue
+                        time_ = datetime.now()
+                        milliseconds = time_.microsecond // 1000
+                        time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{milliseconds:03}]"
+
+                        # Add to buffer and process complete lines
+                        # Limit buffer size to prevent unbounded memory growth
+                        # if device sends data without newlines
+                        buffer += chunk
+                        if len(buffer) > SERIAL_BUFFER_MAX_SIZE:
+                            buffer = buffer[-SERIAL_BUFFER_MAX_SIZE:]
+                        while b"\n" in buffer:
+                            raw_line, buffer = buffer.split(b"\n", 1)
+                            line = raw_line.replace(b"\r", b"").decode(
+                                "utf8", "backslashreplace"
+                            )
+                            safe_print(parser.parse_line(line, time_str))
+
+                            backtrace_state = platformio_api.process_stacktrace(
+                                config, line, backtrace_state=backtrace_state
+                            )
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
-                    line = (
-                        raw.replace(b"\r", b"")
-                        .replace(b"\n", b"")
-                        .decode("utf8", "backslashreplace")
-                    )
-                    time_ = datetime.now()
-                    nanoseconds = time_.microsecond // 1000
-                    time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{nanoseconds:03}]"
-                    safe_print(parser.parse_line(line, time_str))
-
-                    backtrace_state = platformio_api.process_stacktrace(
-                        config, line, backtrace_state=backtrace_state
-                    )
         except serial.SerialException:
             tries += 1
             time.sleep(1)
@@ -518,8 +533,47 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     rc = platformio_api.run_compile(config, CORE.verbose)
     if rc != 0:
         return rc
+
+    # Check if firmware was rebuilt and emit build_info + create manifest
+    _check_and_emit_build_info()
+
     idedata = platformio_api.get_idedata(config)
     return 0 if idedata is not None else 1
+
+
+def _check_and_emit_build_info() -> None:
+    """Check if firmware was rebuilt and emit build_info."""
+    import json
+
+    firmware_path = CORE.firmware_bin
+    build_info_json_path = CORE.relative_build_path("build_info.json")
+
+    # Check if both files exist
+    if not firmware_path.exists() or not build_info_json_path.exists():
+        return
+
+    # Check if firmware is newer than build_info (indicating a relink occurred)
+    if firmware_path.stat().st_mtime <= build_info_json_path.stat().st_mtime:
+        return
+
+    # Read build_info from JSON
+    try:
+        with open(build_info_json_path, encoding="utf-8") as f:
+            build_info = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        _LOGGER.debug("Failed to read build_info: %s", e)
+        return
+
+    config_hash = build_info.get("config_hash")
+    build_time_str = build_info.get("build_time_str")
+
+    if config_hash is None or build_time_str is None:
+        return
+
+    # Emit build_info with human-readable time
+    _LOGGER.info(
+        "Build Info: config_hash=0x%08x build_time_str=%s", config_hash, build_time_str
+    )
 
 
 def upload_using_esptool(
@@ -750,7 +804,13 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     exit_code = compile_program(args, config)
     if exit_code != 0:
         return exit_code
-    _LOGGER.info("Successfully compiled program.")
+    if CORE.is_host:
+        from esphome.platformio_api import get_idedata
+
+        program_path = str(get_idedata(config).firmware_elf_path)
+        _LOGGER.info("Successfully compiled program to path '%s'", program_path)
+    else:
+        _LOGGER.info("Successfully compiled program.")
     return 0
 
 
@@ -800,10 +860,8 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     if CORE.is_host:
         from esphome.platformio_api import get_idedata
 
-        idedata = get_idedata(config)
-        if idedata is None:
-            return 1
-        program_path = idedata.raw["prog_path"]
+        program_path = str(get_idedata(config).firmware_elf_path)
+        _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
     # Get devices, resolving special identifiers like OTA
@@ -974,6 +1032,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
         idedata.objdump_path,
         idedata.readelf_path,
         external_components,
+        idedata=idedata,
     )
     analyzer.analyze()
 

@@ -227,7 +227,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ADE7880),
             cv.Optional(CONF_FREQUENCY, default="50Hz"): cv.All(
-                cv.frequency, cv.Range(min=45.0, max=66.0)
+                cv.frequency, cv.float_range(min=45.0, max=66.0)
             ),
             cv.Optional(CONF_IRQ0_PIN): pins.internal_gpio_input_pin_schema,
             cv.Required(CONF_IRQ1_PIN): pins.internal_gpio_input_pin_schema,

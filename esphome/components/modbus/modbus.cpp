@@ -8,6 +8,9 @@ namespace modbus {
 
 static const char *const TAG = "modbus";
 
+// Maximum bytes to log for Modbus frames (truncated if larger)
+static constexpr size_t MODBUS_MAX_LOG_BYTES = 64;
+
 void Modbus::setup() {
   if (this->flow_control_pin_ != nullptr) {
     this->flow_control_pin_->setup();
@@ -273,7 +276,11 @@ void Modbus::send_next_frame_() {
 
   this->tx_buffer_.pop();
 
-  ESP_LOGV(TAG, "Write: %s %dms after last send", format_hex_pretty(data).c_str(), millis() - this->last_send_);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+#endif
+  ESP_LOGV(TAG, "Write: %s %dms after last send", format_hex_pretty_to(hex_buf, data.data(), data.size()),
+           millis() - this->last_send_);
   this->last_send_ = millis();
 
   if (!this->tx_buffer_.empty()) {
@@ -282,9 +289,8 @@ void Modbus::send_next_frame_() {
 }
 
 void Modbus::dump_config() {
-  ESP_LOGCONFIG(TAG, "Modbus:");
-  LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
   ESP_LOGCONFIG(TAG,
+                "Modbus:\n"
                 "  Send Wait Time: %d ms\n"
                 "  Turnaround Time: %d ms\n"
                 "  Frame Delay: %d ms\n"
@@ -292,6 +298,7 @@ void Modbus::dump_config() {
                 "  CRC Disabled: %s",
                 this->send_wait_time_, this->turnaround_delay_ms_, this->frame_delay_ms_,
                 this->long_rx_buffer_delay_ms_, YESNO(this->disable_crc_));
+  LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
 }
 float Modbus::get_setup_priority() const {
   // After UART bus
@@ -352,7 +359,10 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
     this->tx_buffer_.push(data);
   } else {
-    ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty(data).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
+    char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+#endif
+    ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty_to(hex_buf, data.data(), data.size()));
   }
 }
 

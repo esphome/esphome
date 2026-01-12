@@ -220,10 +220,6 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-        cv.Optional("enable_mdns"): cv.invalid(
-            "This option has been removed. Please use the [disabled] option under the "
-            "new mdns component instead."
-        ),
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -434,9 +430,12 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
 
     # Check all used pins against RMII reserved pins
     for pin_list in pins.PIN_SCHEMA_REGISTRY.pins_used.values():
-        for pin_path, _, pin_config in pin_list:
+        for pin_path, pin_device, pin_config in pin_list:
             pin_num = pin_config.get(CONF_NUMBER)
             if pin_num not in rmii_pins:
+                continue
+            # Skip if pin is not directly on ESP, but at some expander (device set to something else than 'None')
+            if pin_device is not None:
                 continue
             # Found a conflict - show helpful error message
             pin_function = rmii_pins[pin_num]

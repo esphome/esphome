@@ -98,10 +98,8 @@ void ESP8266GPIOPin::pin_mode(gpio::Flags flags) {
   pinMode(pin_, flags_to_mode(flags, pin_));  // NOLINT
 }
 
-std::string ESP8266GPIOPin::dump_summary() const {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "GPIO%u", pin_);
-  return buffer;
+size_t ESP8266GPIOPin::dump_summary(char *buffer, size_t len) const {
+  return snprintf(buffer, len, "GPIO%u", this->pin_);
 }
 
 bool ESP8266GPIOPin::digital_read() {
