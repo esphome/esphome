@@ -9,3 +9,51 @@ fan:
     has_oscillating: true
     has_direction: true
     speed_count: 3
+
+# Test lambdas using get_preset_mode() which returns StringRef
+# These examples match the migration guide in the PR description
+binary_sensor:
+  - platform: template
+    id: fan_has_preset
+    name: "Fan Has Preset"
+    lambda: |-
+      // Migration guide: Checking if preset mode is set
+      // Use empty() or has_preset_mode()
+      if (!id(test_fan).get_preset_mode().empty()) {
+        // preset is set
+      }
+      if (id(test_fan).has_preset_mode()) {
+        // preset is set
+      }
+
+      // Migration guide: Comparing preset mode
+      // Use == operator directly (safe, works even when empty)
+      if (id(test_fan).get_preset_mode() == "Eco") {
+        return true;
+      }
+
+      // Migration guide: Checking for no preset
+      if (id(test_fan).get_preset_mode().empty()) {
+        // no preset
+      }
+      if (!id(test_fan).has_preset_mode()) {
+        // no preset
+      }
+
+      // Migration guide: Getting as std::string
+      std::string preset = std::string(id(test_fan).get_preset_mode());
+
+      // Migration guide: Logging option 1
+      // Use .c_str() - works because StringRef points to null-terminated string in traits
+      ESP_LOGD("test", "Preset: %s", id(test_fan).get_preset_mode().c_str());
+
+      // Migration guide: Logging option 2
+      // Use %.*s format (safer, no null-termination assumption)
+      auto preset_ref = id(test_fan).get_preset_mode();
+      ESP_LOGD("test", "Preset: %.*s", (int)preset_ref.size(), preset_ref.c_str());
+
+      // Test != comparison
+      if (id(test_fan).get_preset_mode() != "Sleep") {
+        return true;
+      }
+      return false;
