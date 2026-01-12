@@ -80,6 +80,7 @@ class AsyncResponseStream : public AsyncWebServerResponse {
   void print(const std::string &str) { this->content_.append(str); }
   void print(float value);
   void printf(const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+  void write(uint8_t c) { this->content_.push_back(static_cast<char>(c)); }
 
  protected:
   std::string content_;
