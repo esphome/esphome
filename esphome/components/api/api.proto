@@ -763,7 +763,7 @@ message SubscribeHomeassistantServicesRequest {
 
 message HomeassistantServiceMap {
   string key = 1;
-  string value = 2 [(no_zero_copy) = true];
+  string value = 2;
 }
 
 message HomeassistantActionRequest {
@@ -779,7 +779,7 @@ message HomeassistantActionRequest {
   bool is_event = 5;
   uint32 call_id = 6 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES"];
   bool wants_response = 7 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
-  string response_template = 8 [(no_zero_copy) = true, (field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
+  string response_template = 8 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
 }
 
 // Message sent by Home Assistant to ESPHome with service call response data
