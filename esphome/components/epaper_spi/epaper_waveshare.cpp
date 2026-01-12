@@ -25,11 +25,11 @@ void EpaperWaveshare::set_window() {
   this->x_high_ &= ~7;
   uint16_t x_start = this->x_low_ / 8;
   uint16_t x_end = (this->x_high_ - 1) / 8;
-  cmd_data(0x44, {(uint8_t) x_start, (uint8_t) (x_end)});
-  cmd_data(0x4E, {(uint8_t) x_start});
-  cmd_data(0x45, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256), (uint8_t) (this->y_high_ - 1),
-                  (uint8_t) ((this->y_high_ - 1) / 256)});
-  cmd_data(0x4F, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256)});
+  this->cmd_data(0x44, {(uint8_t) x_start, (uint8_t) (x_end)});
+  this->cmd_data(0x4E, {(uint8_t) x_start});
+  this->cmd_data(0x45, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256), (uint8_t) (this->y_high_ - 1),
+                        (uint8_t) ((this->y_high_ - 1) / 256)});
+  this->cmd_data(0x4F, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256)});
   ESP_LOGV(TAG, "Set window X: %u-%u, Y: %u-%u", this->x_low_, this->x_high_, this->y_low_, this->y_high_);
 }
 

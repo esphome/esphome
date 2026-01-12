@@ -31,19 +31,19 @@ void EPaperMono::set_window() {
   this->x_low_ &= ~7;
   this->x_high_ += 7;
   this->x_high_ &= ~7;
-  cmd_data(0x44, {(uint8_t) this->x_low_, (uint8_t) (this->x_low_ / 256), (uint8_t) (this->x_high_ - 1),
-                  (uint8_t) ((this->x_high_ - 1) / 256)});
-  cmd_data(0x4E, {(uint8_t) this->x_low_, (uint8_t) (this->x_low_ / 256)});
-  cmd_data(0x45, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256), (uint8_t) (this->y_high_ - 1),
-                  (uint8_t) ((this->y_high_ - 1) / 256)});
-  cmd_data(0x4F, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256)});
+  this->cmd_data(0x44, {(uint8_t) this->x_low_, (uint8_t) (this->x_low_ / 256), (uint8_t) (this->x_high_ - 1),
+                        (uint8_t) ((this->x_high_ - 1) / 256)});
+  this->cmd_data(0x4E, {(uint8_t) this->x_low_, (uint8_t) (this->x_low_ / 256)});
+  this->cmd_data(0x45, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256), (uint8_t) (this->y_high_ - 1),
+                        (uint8_t) ((this->y_high_ - 1) / 256)});
+  this->cmd_data(0x4F, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256)});
 }
 
 bool HOT EPaperMono::transfer_data() {
   auto start_time = millis();
   if (this->current_data_index_ == 0) {
     // round to byte boundaries
-    set_window();
+    this->set_window();
     // for monochrome, we still need to clear the red data buffer at least once to prevent it
     // causing dirty pixels after partial refresh.
     this->command(this->send_red_ ? 0x26 : 0x24);
