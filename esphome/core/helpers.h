@@ -759,6 +759,16 @@ inline char *format_hex_to(char (&buffer)[N], T val) {
   return format_hex_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
 }
 
+/// Format std::vector<uint8_t> as lowercase hex to buffer.
+template<size_t N> inline char *format_hex_to(char (&buffer)[N], const std::vector<uint8_t> &data) {
+  return format_hex_to(buffer, data.data(), data.size());
+}
+
+/// Format std::array<uint8_t, M> as lowercase hex to buffer.
+template<size_t N, size_t M> inline char *format_hex_to(char (&buffer)[N], const std::array<uint8_t, M> &data) {
+  return format_hex_to(buffer, data.data(), data.size());
+}
+
 /// Calculate buffer size needed for format_hex_to: "XXXXXXXX...\0" = bytes * 2 + 1
 constexpr size_t format_hex_size(size_t byte_count) { return byte_count * 2 + 1; }
 
@@ -808,6 +818,18 @@ inline char *format_hex_pretty_to(char (&buffer)[N], const uint8_t *data, size_t
   return format_hex_pretty_to(buffer, N, data, length, separator);
 }
 
+/// Format std::vector<uint8_t> as uppercase hex with separator to buffer.
+template<size_t N>
+inline char *format_hex_pretty_to(char (&buffer)[N], const std::vector<uint8_t> &data, char separator = ':') {
+  return format_hex_pretty_to(buffer, data.data(), data.size(), separator);
+}
+
+/// Format std::array<uint8_t, M> as uppercase hex with separator to buffer.
+template<size_t N, size_t M>
+inline char *format_hex_pretty_to(char (&buffer)[N], const std::array<uint8_t, M> &data, char separator = ':') {
+  return format_hex_pretty_to(buffer, data.data(), data.size(), separator);
+}
+
 /// Calculate buffer size needed for format_hex_pretty_to with uint16_t data: "XXXX:XXXX:...:XXXX\0"
 constexpr size_t format_hex_pretty_uint16_size(size_t count) { return count * 5; }
 
@@ -841,8 +863,8 @@ static constexpr size_t MAC_ADDRESS_PRETTY_BUFFER_SIZE = format_hex_pretty_size(
 static constexpr size_t MAC_ADDRESS_BUFFER_SIZE = MAC_ADDRESS_SIZE * 2 + 1;
 
 /// Format MAC address as XX:XX:XX:XX:XX:XX (uppercase, colon separators)
-inline void format_mac_addr_upper(const uint8_t *mac, char *output) {
-  format_hex_pretty_to(output, MAC_ADDRESS_PRETTY_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE, ':');
+inline char *format_mac_addr_upper(const uint8_t *mac, char *output) {
+  return format_hex_pretty_to(output, MAC_ADDRESS_PRETTY_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE, ':');
 }
 
 /// Format MAC address as xxxxxxxxxxxxxx (lowercase, no separators)
