@@ -197,12 +197,8 @@ class APIServer : public Component,
 #ifdef USE_ZWAVE_PROXY
   void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
 #endif
-#ifdef USE_IR_RF_PROXY
-  void register_ir_rf_proxy(ir_rf_proxy::IrRfProxyComponent *ir_rf_proxy);
-  void on_ir_rf_proxy_transmit_raw_timings_request(const IrRfProxyTransmitRawTimingsRequest &msg);
-  void send_ir_rf_proxy_receive_event(uint32_t device_id, uint32_t key, const remote_base::RawTimings &timings);
-  void list_ir_rf_proxy_entities(APIConnection *conn);
-  const std::vector<ir_rf_proxy::IrRfProxyComponent *> &get_ir_rf_proxies() const { return this->ir_rf_proxies_; }
+#ifdef USE_IR_RF
+  void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
 #endif
 
   bool is_connected(bool state_subscription_only = false) const;

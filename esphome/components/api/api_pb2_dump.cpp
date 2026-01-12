@@ -2312,9 +2312,9 @@ void ZWaveProxyRequest::dump_to(std::string &out) const {
   out.append("\n");
 }
 #endif
-#ifdef USE_IR_RF_PROXY
-void ListEntitiesIrRfProxyResponse::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "ListEntitiesIrRfProxyResponse");
+#ifdef USE_INFRARED
+void ListEntitiesInfraredResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ListEntitiesInfraredResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
   dump_field(out, "name", this->name);
@@ -2327,10 +2327,11 @@ void ListEntitiesIrRfProxyResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
   dump_field(out, "capabilities", this->capabilities);
-  dump_field(out, "frequency", this->frequency);
 }
-void IrRfProxyTransmitRawTimingsRequest::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "IrRfProxyTransmitRawTimingsRequest");
+#endif
+#ifdef USE_IR_RF
+void InfraredRFTransmitRawTimingsRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "InfraredRFTransmitRawTimingsRequest");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
@@ -2344,13 +2345,13 @@ void IrRfProxyTransmitRawTimingsRequest::dump_to(std::string &out) const {
   out.append(std::to_string(this->timings_length_));
   out.append(" bytes]\n");
 }
-void IrRfProxyReceiveEvent::dump_to(std::string &out) const {
-  MessageDumpHelper helper(out, "IrRfProxyReceiveEvent");
+void InfraredRFReceiveEvent::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "InfraredRFReceiveEvent");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
 #endif
   dump_field(out, "key", this->key);
-  for (const auto &it : this->timings) {
+  for (const auto &it : *this->timings) {
     dump_field(out, "timings", it, 4);
   }
 }

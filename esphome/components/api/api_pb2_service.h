@@ -218,8 +218,8 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_z_wave_proxy_request(const ZWaveProxyRequest &value){};
 #endif
 
-#ifdef USE_IR_RF_PROXY
-  virtual void on_ir_rf_proxy_transmit_raw_timings_request(const IrRfProxyTransmitRawTimingsRequest &value){};
+#ifdef USE_IR_RF
+  virtual void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &value){};
 #endif
 
  protected:
@@ -353,8 +353,8 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_ZWAVE_PROXY
   virtual void zwave_proxy_request(const ZWaveProxyRequest &msg) = 0;
 #endif
-#ifdef USE_IR_RF_PROXY
-  virtual void ir_rf_proxy_transmit_raw_timings(const IrRfProxyTransmitRawTimingsRequest &msg) = 0;
+#ifdef USE_IR_RF
+  virtual void infrared_rf_transmit_raw_timings(const InfraredRFTransmitRawTimingsRequest &msg) = 0;
 #endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
@@ -482,8 +482,8 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_ZWAVE_PROXY
   void on_z_wave_proxy_request(const ZWaveProxyRequest &msg) override;
 #endif
-#ifdef USE_IR_RF_PROXY
-  void on_ir_rf_proxy_transmit_raw_timings_request(const IrRfProxyTransmitRawTimingsRequest &msg) override;
+#ifdef USE_IR_RF
+  void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg) override;
 #endif
   void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;
 };

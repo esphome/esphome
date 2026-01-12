@@ -1056,7 +1056,7 @@ class SubscribeHomeassistantServicesRequest final : public ProtoMessage {
 class HomeassistantServiceMap final : public ProtoMessage {
  public:
   StringRef key{};
-  std::string value{};
+  StringRef value{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1084,7 +1084,7 @@ class HomeassistantActionRequest final : public ProtoMessage {
   bool wants_response{false};
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  std::string response_template{};
+  StringRef response_template{};
 #endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
@@ -3052,16 +3052,15 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif
-#ifdef USE_IR_RF_PROXY
-class ListEntitiesIrRfProxyResponse final : public InfoResponseProtoMessage {
+#ifdef USE_INFRARED
+class ListEntitiesInfraredResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 135;
-  static constexpr uint8_t ESTIMATED_SIZE = 48;
+  static constexpr uint8_t ESTIMATED_SIZE = 44;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "list_entities_ir_rf_proxy_response"; }
+  const char *message_name() const override { return "list_entities_infrared_response"; }
 #endif
   uint32_t capabilities{0};
-  uint32_t frequency{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -3070,12 +3069,14 @@ class ListEntitiesIrRfProxyResponse final : public InfoResponseProtoMessage {
 
  protected:
 };
-class IrRfProxyTransmitRawTimingsRequest final : public ProtoDecodableMessage {
+#endif
+#ifdef USE_IR_RF
+class InfraredRFTransmitRawTimingsRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 136;
   static constexpr uint8_t ESTIMATED_SIZE = 220;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "ir_rf_proxy_transmit_raw_timings_request"; }
+  const char *message_name() const override { return "infrared_rf_transmit_raw_timings_request"; }
 #endif
 #ifdef USE_DEVICES
   uint32_t device_id{0};
@@ -3095,18 +3096,18 @@ class IrRfProxyTransmitRawTimingsRequest final : public ProtoDecodableMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class IrRfProxyReceiveEvent final : public ProtoMessage {
+class InfraredRFReceiveEvent final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 137;
   static constexpr uint8_t ESTIMATED_SIZE = 17;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "ir_rf_proxy_receive_event"; }
+  const char *message_name() const override { return "infrared_rf_receive_event"; }
 #endif
 #ifdef USE_DEVICES
   uint32_t device_id{0};
 #endif
   uint32_t key{0};
-  std::vector<int32_t> timings{};
+  const std::vector<int32_t> *timings{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

@@ -5,8 +5,7 @@
 #include "esphome/core/log.h"
 #include "sensor.h"
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 static const char *const TAG = "sensor.filter";
 
@@ -574,5 +573,4 @@ void StreamingMovingAverageFilter::reset_batch() {
   this->valid_count_ = 0;
 }
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor
