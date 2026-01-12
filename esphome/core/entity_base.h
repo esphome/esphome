@@ -26,7 +26,7 @@ static constexpr size_t ESPHOME_DOMAIN_MAX_LEN = 20;
 // Maximum size for object_id buffer (friendly_name + null + margin)
 static constexpr size_t OBJECT_ID_MAX_LEN = 128;
 
-// Maximum state length for text sensors and similar entities
+// Maximum state length that Home Assistant will accept without raising ValueError
 static constexpr size_t MAX_STATE_LEN = 255;
 
 enum EntityCategory : uint8_t {
