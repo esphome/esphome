@@ -347,6 +347,21 @@ void APIServer::on_zwave_proxy_request(const esphome::api::ProtoMessage &msg) {
 }
 #endif
 
+#ifdef USE_IR_RF
+void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_id, uint32_t key,
+                                               const std::vector<int32_t> *timings) {
+  InfraredRFReceiveEvent resp{};
+#ifdef USE_DEVICES
+  resp.device_id = device_id;
+#endif
+  resp.key = key;
+  resp.timings = timings;
+
+  for (auto &c : this->clients_)
+    c->send_infrared_rf_receive_event(resp);
+}
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
 API_DISPATCH_UPDATE(alarm_control_panel::AlarmControlPanel, alarm_control_panel)
 #endif
