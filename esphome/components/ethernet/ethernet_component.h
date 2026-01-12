@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/network/ip_address.h"
 
 #ifdef USE_ESP32
@@ -82,7 +83,9 @@ class EthernetComponent : public Component {
   void add_phy_register(PHYRegister register_value);
 #endif
   void set_type(EthernetType type);
+#ifdef USE_ETHERNET_MANUAL_IP
   void set_manual_ip(const ManualIP &manual_ip);
+#endif
   void set_fixed_mac(const std::array<uint8_t, 6> &mac) { this->fixed_mac_ = mac; }
 
   network::IPAddresses get_ip_addresses();
@@ -91,6 +94,7 @@ class EthernetComponent : public Component {
   void set_use_address(const char *use_address);
   void get_eth_mac_address_raw(uint8_t *mac);
   std::string get_eth_mac_address_pretty();
+  const char *get_eth_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
   eth_duplex_t get_duplex_mode();
   eth_speed_t get_link_speed();
   bool powerdown();
@@ -137,7 +141,9 @@ class EthernetComponent : public Component {
   uint8_t mdc_pin_{23};
   uint8_t mdio_pin_{18};
 #endif
+#ifdef USE_ETHERNET_MANUAL_IP
   optional<ManualIP> manual_ip_{};
+#endif
   uint32_t connect_begin_;
 
   // Group all uint8_t types together (enums and bools)

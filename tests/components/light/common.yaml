@@ -1,6 +1,65 @@
 esphome:
   on_boot:
     then:
+      # Test LightEffect::get_name() returns StringRef
+      - lambda: |-
+          // Test LightEffect::get_name() returns StringRef
+          auto &effects = id(test_monochromatic_light).get_effects();
+          if (!effects.empty()) {
+            // Test: get_name() returns StringRef
+            StringRef name = effects[0]->get_name();
+
+            // Test: comparison with string literal works directly
+            if (name == "Strobe") {
+              ESP_LOGI("test", "Found Strobe effect");
+            }
+
+            // Test: safe logging with %.*s format
+            ESP_LOGI("test", "Effect name: %.*s", (int) name.size(), name.c_str());
+
+            // Test: .c_str() for functions expecting const char*
+            ESP_LOGI("test", "Effect: %s", name.c_str());
+
+            // Test: explicit conversion to std::string
+            std::string name_str(name.c_str(), name.size());
+            ESP_LOGI("test", "As string: %s", name_str.c_str());
+
+            // Test: size() method
+            ESP_LOGI("test", "Name length: %d", (int) name.size());
+          }
+
+      # Test LightState::get_effect_name() returns StringRef
+      - lambda: |-
+          // Test LightState::get_effect_name() returns StringRef
+          StringRef current_effect = id(test_monochromatic_light).get_effect_name();
+
+          // Test: comparison with "None" works directly
+          if (current_effect == "None") {
+            ESP_LOGI("test", "No effect active");
+          }
+
+          // Test: safe logging
+          ESP_LOGI("test", "Current effect: %.*s", (int) current_effect.size(), current_effect.c_str());
+
+      # Test str_equals_case_insensitive with StringRef
+      - lambda: |-
+          // Test str_equals_case_insensitive(StringRef, StringRef)
+          auto &effects = id(test_monochromatic_light).get_effects();
+          if (!effects.empty()) {
+            StringRef name = effects[0]->get_name();
+
+            // Test: case-insensitive comparison
+            if (str_equals_case_insensitive(name, "STROBE")) {
+              ESP_LOGI("test", "Case-insensitive match works");
+            }
+
+            // Test: case-insensitive with StringRef from string
+            std::string search = "strobe";
+            if (str_equals_case_insensitive(StringRef(search.c_str(), search.size()), name)) {
+              ESP_LOGI("test", "Reverse comparison works");
+            }
+          }
+
       - light.toggle: test_binary_light
       - light.turn_off: test_rgb_light
       - light.turn_on:

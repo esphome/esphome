@@ -27,11 +27,13 @@ void BluetoothProxy::setup() {
   // Capture the configured scan mode from YAML before any API changes
   this->configured_scan_active_ = this->parent_->get_scan_active();
 
-  this->parent_->add_scanner_state_callback([this](esp32_ble_tracker::ScannerState state) {
-    if (this->api_connection_ != nullptr) {
-      this->send_bluetooth_scanner_state_(state);
-    }
-  });
+  this->parent_->add_scanner_state_listener(this);
+}
+
+void BluetoothProxy::on_scanner_state(esp32_ble_tracker::ScannerState state) {
+  if (this->api_connection_ != nullptr) {
+    this->send_bluetooth_scanner_state_(state);
+  }
 }
 
 void BluetoothProxy::send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerState state) {
@@ -47,12 +49,11 @@ void BluetoothProxy::send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerSta
 
 void BluetoothProxy::log_connection_request_ignored_(BluetoothConnection *connection, espbt::ClientState state) {
   ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, state: %s", connection->get_connection_index(),
-           connection->address_str().c_str(), espbt::client_state_to_string(state));
+           connection->address_str(), espbt::client_state_to_string(state));
 }
 
 void BluetoothProxy::log_connection_info_(BluetoothConnection *connection, const char *message) {
-  ESP_LOGI(TAG, "[%d] [%s] Connecting %s", connection->get_connection_index(), connection->address_str().c_str(),
-           message);
+  ESP_LOGI(TAG, "[%d] [%s] Connecting %s", connection->get_connection_index(), connection->address_str(), message);
 }
 
 void BluetoothProxy::log_not_connected_gatt_(const char *action, const char *type) {
@@ -186,7 +187,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       }
       if (!msg.has_address_type) {
         ESP_LOGE(TAG, "[%d] [%s] Missing address type in connect request", connection->get_connection_index(),
-                 connection->address_str().c_str());
+                 connection->address_str());
         this->send_device_connection(msg.address, false);
         return;
       }
@@ -199,7 +200,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       } else if (connection->state() == espbt::ClientState::CONNECTING) {
         if (connection->disconnect_pending()) {
           ESP_LOGW(TAG, "[%d] [%s] Connection request while pending disconnect, cancelling pending disconnect",
-                   connection->get_connection_index(), connection->address_str().c_str());
+                   connection->get_connection_index(), connection->address_str());
           connection->cancel_pending_disconnect();
           return;
         }
@@ -339,7 +340,7 @@ void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetSer
     return;
   }
   if (!connection->service_count_) {
-    ESP_LOGW(TAG, "[%d] [%s] No GATT services found", connection->connection_index_, connection->address_str().c_str());
+    ESP_LOGW(TAG, "[%d] [%s] No GATT services found", connection->connection_index_, connection->address_str());
     this->send_gatt_services_done(msg.address);
     return;
   }
