@@ -36,7 +36,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
         ),
         cv.Optional(CONF_OPERATION_MODE, default="continuous"): cv.enum(
             {
-                "idle": 0,
+                "single_shot": 0,
                 "continuous": 1,
             }
         ),
