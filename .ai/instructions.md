@@ -387,15 +387,12 @@ This document provides essential context for AI models interacting with this pro
            - Red-black tree code (`rb_tree`, `_Rb_tree`)
            - Hash table infrastructure (`unordered_map`, `hash`)
 
-        **When to optimize:**
+        **Prioritize optimization effort for:**
         - Core components (API, network, logger)
         - Widely-used components (mdns, wifi, ble)
         - Components causing flash size complaints
 
-        **When not to optimize:**
-        - Single-use niche components
-        - Code where readability matters more than bytes
-        - Already using appropriate containers
+        Note: Avoiding heap allocation after `setup()` is always required regardless of component type. The prioritization above is about the effort spent on container optimization (e.g., migrating from `std::vector` to `StaticVector`).
 
     *   **State Management:** Use `CORE.data` for component state that needs to persist during configuration generation. Avoid module-level mutable globals.
 
