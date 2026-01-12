@@ -532,6 +532,8 @@ bool str_startswith(const std::string &str, const std::string &start);
 bool str_endswith(const std::string &str, const std::string &end);
 
 /// Truncate a string to a specific length.
+/// @deprecated Allocates heap memory and is unused. Removed in 2026.7.0.
+ESPDEPRECATED("Allocates heap memory and is unused. Removed in 2026.7.0.", "2026.1.0")
 std::string str_truncate(const std::string &str, size_t length);
 
 /// Extract the part of the string until either the first occurrence of the specified character, or the end
@@ -543,11 +545,15 @@ std::string str_until(const std::string &str, char ch);
 /// Convert the string to lower case.
 std::string str_lower_case(const std::string &str);
 /// Convert the string to upper case.
+/// @deprecated Allocates heap memory and is unused. Removed in 2026.7.0.
+ESPDEPRECATED("Allocates heap memory and is unused. Removed in 2026.7.0.", "2026.1.0")
 std::string str_upper_case(const std::string &str);
 
 /// Convert a single char to snake_case: lowercase and space to underscore.
 constexpr char to_snake_case_char(char c) { return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c; }
 /// Convert the string to snake case (lowercase with underscores).
+/// @deprecated Allocates heap memory and is unused in C++. Removed in 2026.7.0.
+ESPDEPRECATED("Allocates heap memory and is unused in C++. Removed in 2026.7.0.", "2026.1.0")
 std::string str_snake_case(const std::string &str);
 
 /// Sanitize a single char: keep alphanumerics, dashes, underscores; replace others with underscore.
@@ -862,17 +868,29 @@ inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
 }
 
 /// Format the six-byte array \p mac into a MAC address.
+/// @deprecated Allocates heap memory. Use format_mac_addr_upper() with a stack buffer instead. Removed in 2026.7.0.
+ESPDEPRECATED("Allocates heap memory. Use format_mac_addr_upper() with stack buffer. Removed in 2026.7.0.", "2026.1.0")
 std::string format_mac_address_pretty(const uint8_t mac[6]);
 /// Format the byte array \p data of length \p len in lowercased hex.
+/// @deprecated Allocates heap memory. Use format_hex_to() with a stack buffer instead. Removed in 2026.7.0.
+ESPDEPRECATED("Allocates heap memory. Use format_hex_to() with stack buffer. Removed in 2026.7.0.", "2026.1.0")
 std::string format_hex(const uint8_t *data, size_t length);
 /// Format the vector \p data in lowercased hex.
+/// @deprecated Allocates heap memory. Use format_hex_to() with a stack buffer instead. Removed in 2026.7.0.
+ESPDEPRECATED("Allocates heap memory. Use format_hex_to() with stack buffer. Removed in 2026.7.0.", "2026.1.0")
 std::string format_hex(const std::vector<uint8_t> &data);
 /// Format an unsigned integer in lowercased hex, starting with the most significant byte.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
+/// @deprecated Allocates heap memory. Use format_hex_to() with a stack buffer instead. Removed in 2026.7.0.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+ESPDEPRECATED("Allocates heap memory. Use format_hex_to() with stack buffer. Removed in 2026.7.0.", "2026.1.0")
+std::string format_hex(T val) {
   val = convert_big_endian(val);
   return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
 }
-template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &data) {
+/// @deprecated Allocates heap memory. Use format_hex_to() with a stack buffer instead. Removed in 2026.7.0.
+template<std::size_t N>
+ESPDEPRECATED("Allocates heap memory. Use format_hex_to() with stack buffer. Removed in 2026.7.0.", "2026.1.0")
+std::string format_hex(const std::array<uint8_t, N> &data) {
   return format_hex(data.data(), data.size());
 }
 

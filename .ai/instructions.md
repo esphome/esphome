@@ -293,6 +293,10 @@ This document provides essential context for AI models interacting with this pro
     *   **Configuration Design:** Aim for simplicity with sensible defaults, while allowing for advanced customization.
     *   **Embedded Systems Optimization:** ESPHome targets resource-constrained microcontrollers. Be mindful of flash size and RAM usage.
 
+        **Why Heap Allocation Matters:**
+
+        ESP devices run for months with small heaps shared between Wi-Fi, BLE, LWIP, and application code. Over time, repeated allocations of different sizes fragment the heap. Failures happen when the largest contiguous block shrinks, even if total free heap is still large. We have seen field crashes caused by this. For this reason, ESPHome treats runtime heap allocation in hot paths as a reliability bug, not a performance issue. Helpers that hide allocation (`std::string`, `std::to_string`, string-returning helpers) are being deprecated and replaced with buffer and view based APIs.
+
         **STL Container Guidelines:**
 
         ESPHome runs on embedded systems with limited resources. Choose containers carefully:

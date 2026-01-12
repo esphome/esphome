@@ -9,8 +9,8 @@ namespace uptime {
 
 static const char *const TAG = "uptime.sensor";
 
-// Cap position to prevent buffer overflow from snprintf return value
-inline size_t clamp_buffer_pos(size_t pos, size_t buf_size) { return pos < buf_size ? pos : buf_size - 1; }
+// Clamp position to valid buffer range when snprintf indicates truncation
+static size_t clamp_buffer_pos(size_t pos, size_t buf_size) { return pos < buf_size ? pos : buf_size - 1; }
 
 static void append_unit(char *buf, size_t buf_size, size_t &pos, const char *separator, unsigned value,
                         const char *label) {
