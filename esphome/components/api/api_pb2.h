@@ -1053,7 +1053,7 @@ class SubscribeHomeassistantServicesRequest final : public ProtoMessage {
 class HomeassistantServiceMap final : public ProtoMessage {
  public:
   StringRef key{};
-  std::string value{};
+  StringRef value{};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1081,7 +1081,7 @@ class HomeassistantActionRequest final : public ProtoMessage {
   bool wants_response{false};
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  std::string response_template{};
+  StringRef response_template{};
 #endif
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
