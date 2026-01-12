@@ -3347,5 +3347,98 @@ void ZWaveProxyRequest::calculate_size(ProtoSize &size) const {
   size.add_length(1, this->data_len);
 }
 #endif
+#ifdef USE_INFRARED
+void ListEntitiesInfraredResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name);
+#ifdef USE_ENTITY_ICON
+  buffer.encode_string(4, this->icon);
+#endif
+  buffer.encode_bool(5, this->disabled_by_default);
+  buffer.encode_uint32(6, static_cast<uint32_t>(this->entity_category));
+#ifdef USE_DEVICES
+  buffer.encode_uint32(7, this->device_id);
+#endif
+  buffer.encode_uint32(8, this->capabilities);
+}
+void ListEntitiesInfraredResponse::calculate_size(ProtoSize &size) const {
+  size.add_length(1, this->object_id.size());
+  size.add_fixed32(1, this->key);
+  size.add_length(1, this->name.size());
+#ifdef USE_ENTITY_ICON
+  size.add_length(1, this->icon.size());
+#endif
+  size.add_bool(1, this->disabled_by_default);
+  size.add_uint32(1, static_cast<uint32_t>(this->entity_category));
+#ifdef USE_DEVICES
+  size.add_uint32(1, this->device_id);
+#endif
+  size.add_uint32(1, this->capabilities);
+}
+#endif
+#ifdef USE_IR_RF
+bool InfraredRFTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+#ifdef USE_DEVICES
+    case 1:
+      this->device_id = value.as_uint32();
+      break;
+#endif
+    case 3:
+      this->carrier_frequency = value.as_uint32();
+      break;
+    case 4:
+      this->repeat_count = value.as_uint32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+bool InfraredRFTransmitRawTimingsRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 5: {
+      this->timings_data_ = value.data();
+      this->timings_length_ = value.size();
+      this->timings_count_ = count_packed_varints(value.data(), value.size());
+      break;
+    }
+    default:
+      return false;
+  }
+  return true;
+}
+bool InfraredRFTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 2:
+      this->key = value.as_fixed32();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+void InfraredRFReceiveEvent::encode(ProtoWriteBuffer buffer) const {
+#ifdef USE_DEVICES
+  buffer.encode_uint32(1, this->device_id);
+#endif
+  buffer.encode_fixed32(2, this->key);
+  for (const auto &it : *this->timings) {
+    buffer.encode_sint32(3, it, true);
+  }
+}
+void InfraredRFReceiveEvent::calculate_size(ProtoSize &size) const {
+#ifdef USE_DEVICES
+  size.add_uint32(1, this->device_id);
+#endif
+  size.add_fixed32(1, this->key);
+  if (!this->timings->empty()) {
+    for (const auto &it : *this->timings) {
+      size.add_sint32_force(1, it);
+    }
+  }
+}
+#endif
 
 }  // namespace esphome::api
