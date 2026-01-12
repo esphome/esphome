@@ -26,8 +26,7 @@ void NfcTagBinarySensor::dump_config() {
   }
   if (!this->uid_.empty()) {
     char uid_buf[FORMAT_BYTES_BUFFER_SIZE];
-    format_bytes_to(uid_buf, this->uid_);
-    ESP_LOGCONFIG(TAG, "  Tag UID: %s", uid_buf);
+    ESP_LOGCONFIG(TAG, "  Tag UID: %s", format_bytes_to(uid_buf, this->uid_));
   }
 }
 
