@@ -187,7 +187,13 @@ bool MQTTComponent::send_discovery_() {
           char friendly_name_hash[9];
           sprintf(friendly_name_hash, "%08" PRIx32, fnv1_hash(this->friendly_name_()));
           friendly_name_hash[8] = 0;  // ensure the hash-string ends with null
-          root[MQTT_UNIQUE_ID] = get_mac_address() + "-" + this->component_type() + "-" + friendly_name_hash;
+          // Format: mac-component_type-hash (e.g. "aabbccddeeff-sensor-12345678")
+          // MAC (12) + "-" (1) + domain (max 20) + "-" (1) + hash (8) + null (1) = 43
+          char unique_id[MAC_ADDRESS_BUFFER_SIZE + ESPHOME_DOMAIN_MAX_LEN + 11];
+          char mac_buf[MAC_ADDRESS_BUFFER_SIZE];
+          get_mac_address_into_buffer(mac_buf);
+          snprintf(unique_id, sizeof(unique_id), "%s-%s-%s", mac_buf, this->component_type(), friendly_name_hash);
+          root[MQTT_UNIQUE_ID] = unique_id;
         } else {
           // default to almost-unique ID. It's a hack but the only way to get that
           // gorgeous device registry view.
@@ -203,7 +209,8 @@ bool MQTTComponent::send_discovery_() {
         std::string node_area = App.get_area();
 
         JsonObject device_info = root[MQTT_DEVICE].to<JsonObject>();
-        const auto mac = get_mac_address();
+        char mac[MAC_ADDRESS_BUFFER_SIZE];
+        get_mac_address_into_buffer(mac);
         device_info[MQTT_DEVICE_IDENTIFIERS] = mac;
         device_info[MQTT_DEVICE_NAME] = node_friendly_name;
 #ifdef ESPHOME_PROJECT_NAME
