@@ -1,4 +1,5 @@
 #include "tuya_text_sensor.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -14,9 +15,10 @@ void TuyaTextSensor::setup() {
         this->publish_state(datapoint.value_string);
         break;
       case TuyaDatapointType::RAW: {
-        // Text sensor state is limited to 255 bytes, use 256 byte buffer
-        char hex_buf[256];
-        const char *formatted = format_hex_pretty_to(hex_buf, sizeof(hex_buf), datapoint.value_raw);
+        // Text sensor state is limited to MAX_STATE_LEN bytes
+        char hex_buf[MAX_STATE_LEN + 1];
+        const char *formatted =
+            format_hex_pretty_to(hex_buf, sizeof(hex_buf), datapoint.value_raw.data(), datapoint.value_raw.size());
         ESP_LOGD(TAG, "MCU reported text sensor %u is: %s", datapoint.id, formatted);
         this->publish_state(formatted);
         break;
