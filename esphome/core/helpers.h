@@ -871,13 +871,19 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
 ESPDEPRECATED("Allocates heap memory. Use format_hex_to() with stack buffer. Removed in 2026.7.0.", "2026.1.0")
 std::string format_hex(T val) {
   val = convert_big_endian(val);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
+#pragma GCC diagnostic pop
 }
 /// @deprecated Allocates heap memory. Use format_hex_to() with a stack buffer instead. Removed in 2026.7.0.
 template<std::size_t N>
 ESPDEPRECATED("Allocates heap memory. Use format_hex_to() with stack buffer. Removed in 2026.7.0.", "2026.1.0")
 std::string format_hex(const std::array<uint8_t, N> &data) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return format_hex(data.data(), data.size());
+#pragma GCC diagnostic pop
 }
 
 /** Format a byte array in pretty-printed, human-readable hex format.
