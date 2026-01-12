@@ -267,8 +267,10 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
         if (std::find(networks.begin(), networks.end(), ssid) != networks.end())
           continue;
         // Send each ssid separately to avoid overflowing the buffer
-        std::vector<uint8_t> data = improv::build_rpc_response(
-            improv::GET_WIFI_NETWORKS, {ssid, str_sprintf("%d", scan.get_rssi()), YESNO(scan.get_with_auth())}, false);
+        char rssi_buf[5];  // int8_t: -128 to 127, max 4 chars + null
+        *int8_to_str(rssi_buf, scan.get_rssi()) = '\0';
+        std::vector<uint8_t> data =
+            improv::build_rpc_response(improv::GET_WIFI_NETWORKS, {ssid, rssi_buf, YESNO(scan.get_with_auth())}, false);
         this->send_response_(data);
         networks.push_back(ssid);
       }

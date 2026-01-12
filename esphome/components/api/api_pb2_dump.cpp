@@ -2309,6 +2309,50 @@ void ZWaveProxyRequest::dump_to(std::string &out) const {
   out.append("\n");
 }
 #endif
+#ifdef USE_INFRARED
+void ListEntitiesInfraredResponse::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "ListEntitiesInfraredResponse");
+  dump_field(out, "object_id", this->object_id);
+  dump_field(out, "key", this->key);
+  dump_field(out, "name", this->name);
+#ifdef USE_ENTITY_ICON
+  dump_field(out, "icon", this->icon);
+#endif
+  dump_field(out, "disabled_by_default", this->disabled_by_default);
+  dump_field(out, "entity_category", static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+  dump_field(out, "capabilities", this->capabilities);
+}
+#endif
+#ifdef USE_IR_RF
+void InfraredRFTransmitRawTimingsRequest::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "InfraredRFTransmitRawTimingsRequest");
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+  dump_field(out, "key", this->key);
+  dump_field(out, "carrier_frequency", this->carrier_frequency);
+  dump_field(out, "repeat_count", this->repeat_count);
+  out.append("  timings: ");
+  out.append("packed buffer [");
+  out.append(std::to_string(this->timings_count_));
+  out.append(" values, ");
+  out.append(std::to_string(this->timings_length_));
+  out.append(" bytes]\n");
+}
+void InfraredRFReceiveEvent::dump_to(std::string &out) const {
+  MessageDumpHelper helper(out, "InfraredRFReceiveEvent");
+#ifdef USE_DEVICES
+  dump_field(out, "device_id", this->device_id);
+#endif
+  dump_field(out, "key", this->key);
+  for (const auto &it : *this->timings) {
+    dump_field(out, "timings", it, 4);
+  }
+}
+#endif
 
 }  // namespace esphome::api
 

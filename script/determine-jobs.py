@@ -90,6 +90,7 @@ class Platform(StrEnum):
     ESP32_S2_IDF = "esp32-s2-idf"
     ESP32_S3_IDF = "esp32-s3-idf"
     BK72XX_ARD = "bk72xx-ard"  # LibreTiny BK7231N
+    RP2040_ARD = "rp2040-ard"  # Raspberry Pi Pico
 
 
 # Memory impact analysis constants
@@ -122,6 +123,7 @@ PLATFORM_SPECIFIC_COMPONENTS = frozenset(
 # 3. ESP32 IDF - Primary ESP32 platform, most representative of modern ESPHome
 # 4-6. Other ESP32 variants - Less commonly used but still supported
 # 7. BK72XX - LibreTiny platform (good for detecting LibreTiny-specific changes)
+# 8. RP2040 - Raspberry Pi Pico platform
 MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_C6_IDF,  # ESP32-C6 IDF (newest, supports Thread/Zigbee)
     Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained, fastest builds)
@@ -130,6 +132,7 @@ MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_S2_IDF,  # ESP32-S2 IDF
     Platform.ESP32_S3_IDF,  # ESP32-S3 IDF
     Platform.BK72XX_ARD,  # LibreTiny BK7231N
+    Platform.RP2040_ARD,  # Raspberry Pi Pico
 ]
 
 
@@ -408,7 +411,7 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     - wifi_component_esp8266.cpp, *_esp8266.h -> ESP8266_ARD
     - *_esp32*.cpp -> ESP32 IDF (generic)
     - *_libretiny.cpp, *_bk72*.* -> BK72XX (LibreTiny)
-    - *_pico.cpp, *_rp2040.* -> RP2040 (not in preference list)
+    - *_pico.cpp, *_rp2040.* -> RP2040_ARD
 
     Args:
         filename: File path to check
@@ -445,9 +448,9 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     if "libretiny" in filename_lower or "bk72" in filename_lower:
         return Platform.BK72XX_ARD
 
-    # RP2040 is not in MEMORY_IMPACT_PLATFORM_PREFERENCE
-    # if "pico" in filename_lower or "rp2040" in filename_lower:
-    #     return None  # No RP2040 platform preference
+    # RP2040 / Raspberry Pi Pico
+    if "pico" in filename_lower or "rp2040" in filename_lower:
+        return Platform.RP2040_ARD
 
     return None
 

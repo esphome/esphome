@@ -339,6 +339,9 @@ def create_field_type_info(
 ) -> TypeInfo:
     """Create the appropriate TypeInfo instance for a field, handling repeated fields and custom options."""
     if field.label == FieldDescriptorProto.LABEL_REPEATED:
+        # Check if this is a packed_buffer field (zero-copy packed repeated)
+        if get_field_opt(field, pb.packed_buffer, False):
+            return PackedBufferTypeInfo(field)
         # Check if this repeated field has fixed_array_with_length_define option
         if (
             fixed_size := get_field_opt(field, pb.fixed_array_with_length_define)
@@ -373,10 +376,8 @@ def create_field_type_info(
 
         return BytesType(field, needs_decode, needs_encode)
 
-    # Special handling for string fields - use StringRef for zero-copy unless no_zero_copy is set
+    # Special handling for string fields - use StringRef for zero-copy
     if field.type == 9:
-        if get_field_opt(field, pb.no_zero_copy, False):
-            return StringType(field, needs_decode, needs_encode)
         return PointerToStringBufferType(field, None)
 
     validate_field_type(field.type, field.name)
@@ -582,15 +583,12 @@ class StringType(TypeInfo):
     def public_content(self) -> list[str]:
         content: list[str] = []
 
-        # Check if no_zero_copy option is set
-        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
-
-        # Add std::string storage if message needs decoding OR if no_zero_copy is set
-        if self._needs_decode or no_zero_copy:
+        # Add std::string storage if message needs decoding
+        if self._needs_decode:
             content.append(f"std::string {self.field_name}{{}};")
 
-        # Only add StringRef if encoding is needed AND no_zero_copy is not set
-        if self._needs_encode and not no_zero_copy:
+        # Add StringRef if encoding is needed
+        if self._needs_encode:
             content.extend(
                 [
                     # Add StringRef field if message needs encoding
@@ -605,26 +603,13 @@ class StringType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        # Check if no_zero_copy option is set
-        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
-
-        if no_zero_copy:
-            # Use the std::string directly
-            return f"buffer.encode_string({self.number}, this->{self.field_name});"
         # Use the StringRef
         return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_);"
 
     def dump(self, name):
-        # Check if no_zero_copy option is set
-        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
-
         # If name is 'it', this is a repeated field element - always use string
         if name == "it":
             return "append_quoted_string(out, StringRef(it));"
-
-        # If no_zero_copy is set, always use std::string
-        if no_zero_copy:
-            return f'out.append("\'").append(this->{self.field_name}).append("\'");'
 
         # For SOURCE_CLIENT only, always use std::string
         if not self._needs_encode:
@@ -645,13 +630,6 @@ class StringType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        # Check if no_zero_copy option is set
-        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
-
-        # If no_zero_copy is set, always use std::string
-        if no_zero_copy:
-            return f'dump_field(out, "{self.name}", this->{self.field_name});'
-
         # For SOURCE_CLIENT only, use std::string
         if not self._needs_encode:
             return f'dump_field(out, "{self.name}", this->{self.field_name});'
@@ -667,17 +645,8 @@ class StringType(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        # Check if no_zero_copy option is set
-        no_zero_copy = get_field_opt(self._field, pb.no_zero_copy, False)
-
-        # For SOURCE_CLIENT only messages or no_zero_copy, use the string field directly
-        if not self._needs_encode or no_zero_copy:
-            # For no_zero_copy, we need to use .size() on the string
-            if no_zero_copy and name != "it":
-                field_id_size = self.calculate_field_id_size()
-                return (
-                    f"size.add_length({field_id_size}, this->{self.field_name}.size());"
-                )
+        # For SOURCE_CLIENT only messages, use the string field directly
+        if not self._needs_encode:
             return self._get_simple_size_calculation(name, force, "add_length")
 
         # Check if this is being called from a repeated field context
@@ -945,6 +914,88 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
+
+
+class PackedBufferTypeInfo(TypeInfo):
+    """Type for packed repeated fields that expose raw buffer instead of decoding.
+
+    When a repeated field is marked with [(packed_buffer) = true], this type
+    generates code that stores a pointer to the raw protobuf buffer along with
+    its length and the count of values. This enables zero-copy passthrough when
+    the consumer can decode the packed varints on-demand.
+    """
+
+    def __init__(self, field: descriptor.FieldDescriptorProto) -> None:
+        # packed_buffer is decode-only (SOURCE_CLIENT messages)
+        super().__init__(field, needs_decode=True, needs_encode=False)
+
+    @property
+    def cpp_type(self) -> str:
+        # Not used - we have multiple fields
+        return "const uint8_t*"
+
+    @property
+    def wire_type(self) -> WireType:
+        """Packed fields use LENGTH_DELIMITED wire type."""
+        return WireType.LENGTH_DELIMITED
+
+    @property
+    def public_content(self) -> list[str]:
+        """Generate three fields: data pointer, length, and count."""
+        return [
+            f"const uint8_t *{self.field_name}_data_{{nullptr}};",
+            f"uint16_t {self.field_name}_length_{{0}};",
+            f"uint16_t {self.field_name}_count_{{0}};",
+        ]
+
+    @property
+    def decode_length_content(self) -> str:
+        """Store pointer to buffer and calculate count of packed varints."""
+        return f"""case {self.number}: {{
+      this->{self.field_name}_data_ = value.data();
+      this->{self.field_name}_length_ = value.size();
+      this->{self.field_name}_count_ = count_packed_varints(value.data(), value.size());
+      break;
+    }}"""
+
+    @property
+    def encode_content(self) -> str:
+        """No encoding - this is decode-only for SOURCE_CLIENT messages."""
+        return None
+
+    @property
+    def dump_content(self) -> str:
+        """Dump shows buffer info but not decoded values."""
+        return (
+            f'out.append("  {self.name}: ");\n'
+            + 'out.append("packed buffer [");\n'
+            + f"out.append(std::to_string(this->{self.field_name}_count_));\n"
+            + 'out.append(" values, ");\n'
+            + f"out.append(std::to_string(this->{self.field_name}_length_));\n"
+            + 'out.append(" bytes]\\n");'
+        )
+
+    def dump(self, name: str) -> str:
+        """Dump method for packed buffer - not typically used but required by abstract base."""
+        return 'out.append("packed buffer");'
+
+    def get_size_calculation(self, name: str, force: bool = False) -> str:
+        """No size calculation needed - decode-only."""
+        return ""
+
+    def get_estimated_size(self) -> int:
+        """Estimate size for packed buffer field.
+
+        Typical IR/RF timing array has ~50-200 values, each encoded as 1-3 bytes.
+        Estimate 100 values * 2 bytes = 200 bytes typical.
+        """
+        return (
+            self.calculate_field_id_size() + 2 + 200
+        )  # field ID + length varint + data
+
+    @classmethod
+    def can_use_dump_field(cls) -> bool:
+        return False
 
 
 class FixedArrayBytesType(TypeInfo):
