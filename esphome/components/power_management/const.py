@@ -1,10 +1,12 @@
 """Constants used by power_manager."""
 
+CONF_ESPHOME_LOCKS = "esphome_locks"
 CONF_LOCK_TYPE = "lock_type"
 CONF_MAX_FREQUENCY = "max_frequency"
 CONF_MIN_FREQUENCY = "min_frequency"
 CONF_POWER_DOWN_FLASH = "power_down_flash"
 CONF_POWER_DOWN_PERIPHERALS = "power_down_peripherals"
+CONF_POWER_MANAGEMENT = "power_management"
 CONF_PROFILING = "profiling"
 CONF_TICKLESS_IDLE = "tickless_idle"
 CONF_TRACE = "trace"

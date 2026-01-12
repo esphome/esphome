@@ -3,6 +3,7 @@
 
 namespace esphome::power_management {
 
+#ifdef USE_POWER_MANAGEMENT
 const char *power_manager_type_to_string(PowerManagementLockType type) {
   switch (type) {
     case CPU:
@@ -15,11 +16,14 @@ const char *power_manager_type_to_string(PowerManagementLockType type) {
       return "UNKNOWN";
   }
 }
+#endif
 
-#ifndef USE_ESP_IDF
+#ifndef USE_ESP32
 void PowerManagement::setup() {}
+#ifdef USE_POWER_MANAGEMENT
 void PowerManagement::acquire_lock(PowerManagementLockType lt) {}
 void PowerManagement::release_lock(PowerManagementLockType lt) {}
+#endif
 #endif
 
 }  // namespace esphome::power_management

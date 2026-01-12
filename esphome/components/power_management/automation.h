@@ -9,6 +9,7 @@ template<typename... Ts> class AcquireLockAction : public Action<Ts...>, public 
  public:
   TEMPLATABLE_VALUE(std::string, lock_type)
   void play(Ts... x) override {
+#ifdef USE_POWER_MANAGEMENT
     if (this->lock_type_.value(x...) == "CPU") {
       this->parent_->acquire_lock(PowerManagementLockType::CPU);
     } else if (this->lock_type_.value(x...) == "APB") {
@@ -16,6 +17,7 @@ template<typename... Ts> class AcquireLockAction : public Action<Ts...>, public 
     } else if (this->lock_type_.value(x...) == "SLP") {
       this->parent_->acquire_lock(PowerManagementLockType::SLP);
     }
+#endif
   }
 };
 
@@ -23,6 +25,7 @@ template<typename... Ts> class ReleaseLockAction : public Action<Ts...>, public 
  public:
   TEMPLATABLE_VALUE(std::string, lock_type)
   void play(Ts... x) override {
+#ifdef USE_POWER_MANAGEMENT
     if (this->lock_type_.value(x...) == "CPU") {
       this->parent_->release_lock(PowerManagementLockType::CPU);
     } else if (this->lock_type_.value(x...) == "APB") {
@@ -30,6 +33,7 @@ template<typename... Ts> class ReleaseLockAction : public Action<Ts...>, public 
     } else if (this->lock_type_.value(x...) == "SLP") {
       this->parent_->release_lock(PowerManagementLockType::SLP);
     }
+#endif
   }
 };
 

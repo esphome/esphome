@@ -3,20 +3,23 @@ import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+import esphome.final_validate as fv
 
 from .const import (
+    CONF_ESPHOME_LOCKS,
     CONF_LOCK_TYPE,
     CONF_MAX_FREQUENCY,
     CONF_MIN_FREQUENCY,
     CONF_POWER_DOWN_FLASH,
     CONF_POWER_DOWN_PERIPHERALS,
+    CONF_POWER_MANAGEMENT,
     CONF_PROFILING,
     CONF_TICKLESS_IDLE,
     CONF_TRACE,
 )
 
 CODEOWNERS = ["@rwrozelle"]
-power_management_ns = cg.esphome_ns.namespace("power_management")
+power_management_ns = cg.esphome_ns.namespace(CONF_POWER_MANAGEMENT)
 PowerManagement = power_management_ns.class_("PowerManagement", cg.Component)
 
 AcquireLockAction = power_management_ns.class_("AcquireLockAction", automation.Action)
@@ -53,6 +56,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PowerManagement),
+            cv.Optional(CONF_ESPHOME_LOCKS): cv.boolean,
             cv.Optional(CONF_MAX_FREQUENCY): cv.All(cv.frequency, cv.int_),
             cv.Optional(CONF_MIN_FREQUENCY): cv.All(cv.frequency, cv.int_),
             cv.Optional(CONF_POWER_DOWN_PERIPHERALS): cv.boolean,
@@ -62,15 +66,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TRACE): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_with_esp_idf,
+    cv.only_on_esp32,
 )
 
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    cg.add_define("USE_POWER_MANAGEMENT", True)
     add_idf_sdkconfig_option("CONFIG_PM_ENABLE", True)
+
+    if config.get(CONF_ESPHOME_LOCKS):
+        cg.add_define("USE_POWER_MANAGEMENT")
 
     if (max_freq := config.get(CONF_MAX_FREQUENCY)) is not None:
         cg.add(var.set_max_freq_mhz(max_freq))
@@ -93,3 +99,32 @@ async def to_code(config):
         if config.get(CONF_POWER_DOWN_FLASH):
             # There is a defined set of peripheral's that work with PM
             add_idf_sdkconfig_option("CONFIG_ESP_SLEEP_POWER_DOWN_FLASH", True)
+
+
+def _pm_recursive_validator(value):
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key in (
+                "power_management.acquire_lock",
+                "power_management.release_lock",
+            ):
+                raise cv.Invalid(
+                    f"Action: {key} not allowed when {CONF_POWER_MANAGEMENT} {CONF_ESPHOME_LOCKS} is not true"
+                )
+            _pm_recursive_validator(item)
+    elif isinstance(value, list):
+        for item in value:
+            _pm_recursive_validator(item)
+
+
+def _pm_final_validate(config):
+    full_config = fv.full_config.get()
+    if not (
+        (pm_conf := full_config.get(CONF_POWER_MANAGEMENT))
+        and pm_conf.get(CONF_ESPHOME_LOCKS)
+    ):
+        # find all actions
+        _pm_recursive_validator(full_config)
+
+
+FINAL_VALIDATE_SCHEMA = _pm_final_validate

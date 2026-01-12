@@ -1,5 +1,5 @@
 #include "power_management.h"
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include "esphome/core/log.h"
 
 namespace esphome::power_management {
@@ -30,6 +30,7 @@ void PowerManagement::setup() {
     return;
   }
 
+#ifdef USE_POWER_MANAGEMENT
   // Create Locks
   for (uint8_t i = 0; i < PowerManagement::PM_LOCK_ARRAY_SIZE; i++) {
     rc = esp_pm_lock_create(this->pm_lock_types_[i], 0, power_manager_type_to_string((PowerManagementLockType) i),
@@ -41,8 +42,10 @@ void PowerManagement::setup() {
       return;
     }
   }
+#endif
 }
 
+#ifdef USE_POWER_MANAGEMENT
 // Thread Safe
 void PowerManagement::acquire_lock(PowerManagementLockType lt) {
   if (this->is_ready()) {
@@ -68,9 +71,13 @@ void PowerManagement::release_lock(PowerManagementLockType lt) {
     ESP_LOGD(TAG, "Released pm lock: %s", power_manager_type_to_string(lt));
   }
 }
+#endif
 
 void PowerManagement::dump_config() {
   ESP_LOGCONFIG(TAG, "Power Management:");
+#ifdef USE_POWER_MANAGEMENT
+  ESP_LOGCONFIG(TAG, "  EspHome Locks available");
+#endif
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
   ESP_LOGCONFIG(TAG, "  Light Sleep Enabled");
 #if CONFIG_ESP_SLEEP_POWER_DOWN_FLASH
