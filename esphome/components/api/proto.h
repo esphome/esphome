@@ -427,8 +427,7 @@ class ProtoMessage {
   // Default implementation for messages with no fields
   virtual void calculate_size(ProtoSize &size) const {}
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *dump() const;
-  virtual void dump_to(DumpBuffer &out) const = 0;
+  virtual const char *dump_to(DumpBuffer &out) const = 0;
   virtual const char *message_name() const { return "unknown"; }
 #endif
 };

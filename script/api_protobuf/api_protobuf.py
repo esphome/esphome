@@ -2216,24 +2216,22 @@ def build_message_type(
 
     # dump_to method declaration in header
     prot = "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-    prot += "void dump_to(DumpBuffer &out) const override;\n"
+    prot += "const char *dump_to(DumpBuffer &out) const override;\n"
     prot += "#endif\n"
     public_content.append(prot)
 
     # dump_to implementation will go in dump_cpp
-    dump_impl = f"void {desc.name}::dump_to(DumpBuffer &out) const {{"
+    dump_impl = f"const char *{desc.name}::dump_to(DumpBuffer &out) const {{"
     if dump:
         # Always use MessageDumpHelper for consistent output formatting
         dump_impl += "\n"
         dump_impl += f'  MessageDumpHelper helper(out, "{desc.name}");\n'
         dump_impl += indent("\n".join(dump)) + "\n"
+        dump_impl += "  return out.c_str();\n"
     else:
-        o2 = f'out.append("{desc.name} {{}}");'
-        if len(dump_impl) + len(o2) + 3 < 120:
-            dump_impl += f" {o2} "
-        else:
-            dump_impl += "\n"
-            dump_impl += f"  {o2}\n"
+        dump_impl += "\n"
+        dump_impl += f'  out.append("{desc.name} {{}}");\n'
+        dump_impl += "  return out.c_str();\n"
     dump_impl += "}\n"
 
     if base_class:
@@ -2521,7 +2519,7 @@ def build_service_message_type(
             case += "// Empty message: no decode needed\n"
         if log:
             case += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-            case += f'ESP_LOGVV(TAG, "{func}: %s", msg.dump());\n'
+            case += f'this->log_receive_message_("{func}", msg);\n'
             case += "#endif\n"
         case += f"this->{func}(msg);\n"
         case += "break;"
@@ -2843,27 +2841,33 @@ static const char *const TAG = "api.service";
     hpp += f"class {class_name} : public ProtoService {{\n"
     hpp += " public:\n"
 
-    # Add logging helper method declaration
+    # Add logging helper method declarations
     hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     hpp += " protected:\n"
     hpp += "  void log_send_message_(const char *name, const char *dump);\n"
+    hpp += "  void log_receive_message_(const char *name, const ProtoMessage &msg);\n"
     hpp += " public:\n"
     hpp += "#endif\n\n"
 
     # Add non-template send_message method
     hpp += "  bool send_message(const ProtoMessage &msg, uint8_t message_type) {\n"
     hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-    hpp += "    this->log_send_message_(msg.message_name(), msg.dump());\n"
+    hpp += "    DumpBuffer dump_buf;\n"
+    hpp += "    this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));\n"
     hpp += "#endif\n"
     hpp += "    return this->send_message_(msg, message_type);\n"
     hpp += "  }\n\n"
 
-    # Add logging helper method implementation to cpp
+    # Add logging helper method implementations to cpp
     cpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     cpp += (
         f"void {class_name}::log_send_message_(const char *name, const char *dump) {{\n"
     )
     cpp += '  ESP_LOGVV(TAG, "send_message %s: %s", name, dump);\n'
+    cpp += "}\n"
+    cpp += f"void {class_name}::log_receive_message_(const char *name, const ProtoMessage &msg) {{\n"
+    cpp += "  DumpBuffer dump_buf;\n"
+    cpp += '  ESP_LOGVV(TAG, "%s: %s", name, msg.dump_to(dump_buf));\n'
     cpp += "}\n"
     cpp += "#endif\n\n"
 

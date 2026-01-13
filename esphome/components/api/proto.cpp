@@ -139,13 +139,4 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
   }
 }
 
-#ifdef HAS_PROTO_MESSAGE_DUMP
-const char *ProtoMessage::dump() const {
-  static DumpBuffer buf;
-  buf = DumpBuffer();  // Reset buffer
-  this->dump_to(buf);
-  return buf.c_str();
-}
-#endif
-
 }  // namespace esphome::api
