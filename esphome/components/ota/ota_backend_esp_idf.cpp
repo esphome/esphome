@@ -17,7 +17,7 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
   // in case begin() is called without matching end(), we need to free any previously allocated OTA context
   // this is safe to call even if update_handle_ was already freed
   (void) esp_ota_abort(this->update_handle_);
-  
+
   this->partition_ = esp_ota_get_next_update_partition(nullptr);
   if (this->partition_ == nullptr) {
     return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
