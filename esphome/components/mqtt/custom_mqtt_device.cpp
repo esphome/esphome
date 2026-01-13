@@ -13,13 +13,13 @@ bool CustomMQTTDevice::publish(const std::string &topic, const std::string &payl
 }
 bool CustomMQTTDevice::publish(const std::string &topic, float value, int8_t number_decimals) {
   char buf[VALUE_ACCURACY_MAX_LEN];
-  value_accuracy_to_buf(buf, value, number_decimals);
-  return this->publish(topic, buf);
+  size_t len = value_accuracy_to_buf(buf, value, number_decimals);
+  return global_mqtt_client->publish(topic, buf, len);
 }
 bool CustomMQTTDevice::publish(const std::string &topic, int value) {
   char buffer[24];
-  sprintf(buffer, "%d", value);
-  return this->publish(topic, buffer);
+  int len = snprintf(buffer, sizeof(buffer), "%d", value);
+  return global_mqtt_client->publish(topic, buffer, len);
 }
 bool CustomMQTTDevice::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos, bool retain) {
   return global_mqtt_client->publish_json(topic, f, qos, retain);
