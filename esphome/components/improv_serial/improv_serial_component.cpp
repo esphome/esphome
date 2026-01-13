@@ -193,8 +193,12 @@ std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv:
 #ifdef USE_WEBSERVER
   for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
     if (ip.is_ip4()) {
-      std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
-      urls.push_back(webserver_url);
+      char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+      ip.str_to(ip_buf);
+      // "http://" (7) + IP (40) + ":" (1) + port (5) + null (1) = 54
+      char webserver_url[7 + network::IP_ADDRESS_BUFFER_SIZE + 1 + 5 + 1];
+      snprintf(webserver_url, sizeof(webserver_url), "http://%s:%u", ip_buf, USE_WEBSERVER_PORT);
+      urls.emplace_back(webserver_url);
       break;
     }
   }
