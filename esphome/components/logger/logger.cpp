@@ -29,7 +29,13 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   if (level > this->level_for(tag))
     return;
 
-  const bool is_main_task = this->is_current_main_task_();
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // Get task handle once - used for both main task check and passing to non-main thread handler
+  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  const bool is_main_task = (current_task == this->main_task_);
+#else  // USE_HOST
+  const bool is_main_task = pthread_equal(pthread_self(), this->main_thread_);
+#endif
 
   // Fast path: main thread, no recursion (99.9% of all logs)
   if (is_main_task && !this->main_task_recursion_guard_) [[likely]] {
@@ -45,12 +51,21 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   }
 
   // Non-main thread handling (~0.1% of logs)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  this->log_vprintf_non_main_thread_(level, tag, line, format, args, current_task);
+#else  // USE_HOST
   this->log_vprintf_non_main_thread_(level, tag, line, format, args);
+#endif
 }
 
 // Handles non-main thread logging only
 // Kept separate from hot path to improve instruction cache performance
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
+                                          TaskHandle_t current_task) {
+#else  // USE_HOST
 void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args) {
+#endif
   // Check if already in recursion for this non-main thread/task
   if (this->is_non_main_task_recursive_()) {
     return;
@@ -63,8 +78,8 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // For non-main threads/tasks, queue the message for callbacks
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  message_sent = this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line),
-                                                             xTaskGetCurrentTaskHandle(), format, args);
+  message_sent =
+      this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), current_task, format, args);
 #else  // USE_HOST
   message_sent = this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), format, args);
 #endif

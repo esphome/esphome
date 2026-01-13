@@ -243,13 +243,13 @@ class Logger : public Component {
 
 #if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
   // Handles non-main thread logging only (~0.1% of calls)
-  void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args);
-
-  // Platform-specific main task/thread check - inlined for fast path performance
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  inline bool is_current_main_task_() const { return xTaskGetCurrentTaskHandle() == this->main_task_; }
+  // ESP32/LibreTiny: Pass task handle to avoid calling xTaskGetCurrentTaskHandle() twice
+  void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
+                                    TaskHandle_t current_task);
 #else  // USE_HOST
-  inline bool is_current_main_task_() const { return pthread_equal(pthread_self(), this->main_thread_); }
+  // Host: No task handle parameter needed (not used in send_message_thread_safe)
+  void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args);
 #endif
 #endif
   void process_messages_();
