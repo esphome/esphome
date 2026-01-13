@@ -1,5 +1,7 @@
 """Infrared platform implementation using remote_base (remote_transmitter/receiver)."""
 
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import infrared, remote_receiver, remote_transmitter
 import esphome.config_validation as cv
@@ -26,7 +28,7 @@ CONFIG_SCHEMA = infrared.infrared_schema(IrRfProxy).extend(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: dict[str, Any]) -> None:
     """Validate that transmitters have a proper carrier duty cycle."""
     # Only validate if this is an infrared (not RF) configuration with a transmitter
     if config.get(CONF_FREQUENCY, 0) != 0 or CONF_REMOTE_TRANSMITTER_ID not in config:
@@ -53,7 +55,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: dict[str, Any]) -> None:
     """Code generation for remote_base infrared platform."""
     # Create and register the infrared entity
     var = await infrared.new_infrared(config)
@@ -70,5 +72,3 @@ async def to_code(config):
     if CONF_REMOTE_RECEIVER_ID in config:
         receiver = await cg.get_variable(config[CONF_REMOTE_RECEIVER_ID])
         cg.add(var.set_receiver(receiver))
-        # Register as a listener to the receiver
-        cg.add(receiver.register_listener(var))

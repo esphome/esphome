@@ -6,11 +6,7 @@ namespace esphome::ir_rf_proxy {
 static const char *const TAG = "ir_rf_proxy";
 
 void IrRfProxy::setup() {
-  // Set up traits based on configuration
-  this->traits_.set_supports_transmitter(this->has_transmitter());
-  this->traits_.set_supports_receiver(this->has_receiver());
-
-  // Call base class setup (handles API registration via ComponentIterator)
+  // Call base class setup (handles traits and API registration via ComponentIterator)
   infrared::Infrared::setup();
 }
 
