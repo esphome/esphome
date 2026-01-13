@@ -543,6 +543,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       }
       s_sta_connected = false;
       s_sta_connecting = false;
+      // Set error flag BEFORE notifying listeners so is_connected() returns
+      // correct state during listener callbacks (matches ESP-IDF behavior)
+      global_wifi_component->error_from_callback_ = true;
 #ifdef USE_WIFI_LISTENERS
       static constexpr uint8_t EMPTY_BSSID[6] = {};
       for (auto *listener : global_wifi_component->connect_state_listeners_) {
@@ -633,10 +636,6 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
 #endif
     default:
       break;
-  }
-
-  if (event->event == EVENT_STAMODE_DISCONNECTED) {
-    global_wifi_component->error_from_callback_ = true;
   }
 
   WiFiMockClass::_event_callback(event);
