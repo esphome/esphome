@@ -29,10 +29,6 @@ namespace esphome::api {
 class UserServiceDescriptor;
 #endif
 
-}  // namespace esphome::api
-
-namespace esphome::api {
-
 #ifdef USE_API_NOISE
 struct SavedNoisePsk {
   psk_t psk;
