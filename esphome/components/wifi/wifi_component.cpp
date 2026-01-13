@@ -48,7 +48,7 @@ static const char *const TAG = "wifi";
 /// The WiFi component uses a state machine with priority degradation to handle connection failures
 /// and automatically cycle through different BSSIDs in mesh networks or multiple configured networks.
 ///
-/// Connection Flow:
+/// Normal Connection Flow (SCAN_BASED):
 /// ┌──────────────────────────────────────────────────────────────────────┐
 /// │                      Fast Connect Path (Optional)                    │
 /// ├──────────────────────────────────────────────────────────────────────┤
@@ -109,10 +109,13 @@ static const char *const TAG = "wifi";
 /// │       (Skip Hidden1/Hidden2, try Hidden3 from example)               │
 /// │     - If none → Skip RETRY_HIDDEN, go to step 5                      │
 /// │                          ↓                                           │
-/// │  5. FAILED → RESTARTING_ADAPTER (skipped if AP/improv active)        │
+/// │  5. FAILED → RESTARTING_ADAPTER                                      │
+/// │     - Normal: restart adapter, clear state                           │
+/// │     - AP/improv active: skip restart, just disconnect                │
 /// │                          ↓                                           │
 /// │  6. Loop back to start:                                              │
 /// │     - If first network is hidden → EXPLICIT_HIDDEN (retry cycle)     │
+/// │     - If AP/improv active → RETRY_HIDDEN (blind retry, see below)    │
 /// │     - Otherwise → SCAN_CONNECTING (rescan)                           │
 /// │                          ↓                                           │
 /// │  7. RESCAN → Apply stored priorities, sort again                     │
@@ -134,8 +137,10 @@ static const char *const TAG = "wifi";
 /// - FAST_CONNECT_CYCLING_APS: Cycle through remaining configured networks (1 attempt each, fast_connect only)
 /// - EXPLICIT_HIDDEN: Try consecutive networks marked hidden:true before scanning (1 attempt per SSID)
 /// - SCAN_CONNECTING: Connect using scan results (2 attempts per BSSID)
-/// - RETRY_HIDDEN: Try networks not found in scan (1 attempt per SSID, skipped if none found)
-/// - RESTARTING_ADAPTER: Restart WiFi adapter to clear stuck state
+/// - RETRY_HIDDEN: Behavior controlled by RetryHiddenMode:
+///   * SCAN_BASED: Try networks not found in scan (truly hidden, 1 attempt per SSID)
+///   * BLIND_RETRY: Cycle through ALL networks when scanning disabled (AP active)
+/// - RESTARTING_ADAPTER: Restart WiFi adapter to clear stuck state (restart skipped if AP active)
 ///
 /// Hidden Network Handling:
 /// - Networks marked 'hidden: true' before first non-hidden → Tried in EXPLICIT_HIDDEN phase
@@ -144,6 +149,35 @@ static const char *const TAG = "wifi";
 /// - Networks not in scan results → Tried in RETRY_HIDDEN phase
 /// - Networks visible in scan + not marked hidden → Skipped in RETRY_HIDDEN phase
 /// - Networks marked 'hidden: true' always use hidden mode, even if broadcasting SSID
+///
+/// ┌──────────────────────────────────────────────────────────────────────┐
+/// │        Captive Portal / Improv Mode (AP active, scanning disabled)   │
+/// ├──────────────────────────────────────────────────────────────────────┤
+/// │  When captive_portal or esp32_improv is active, WiFi scanning is     │
+/// │  disabled because it disrupts AP clients (radio leaves AP channel    │
+/// │  to hop through other channels, causing client disconnections).      │
+/// │                                                                      │
+/// │  Flow with RetryHiddenMode::BLIND_RETRY:                             │
+/// │                                                                      │
+/// │  1. RESTARTING_ADAPTER → In this mode, skip adapter restart and      │
+/// │     just disconnect (normal mode restarts the adapter)               │
+/// │     - Sets retry_hidden_mode_ = BLIND_RETRY                          │
+/// │     - Enter extended cooldown (30s vs normal 500ms)                  │
+/// │                          ↓                                           │
+/// │  2. determine_next_phase_() returns RETRY_HIDDEN (skips scanning)    │
+/// │                          ↓                                           │
+/// │  3. RETRY_HIDDEN with BLIND_RETRY mode:                              │
+/// │     - find_next_hidden_sta_() ignores scan_result_                   │
+/// │     - ALL configured networks become candidates                      │
+/// │     - Cycles through networks: Net1 → Net2 → Net3 → ...              │
+/// │                          ↓                                           │
+/// │  4. After exhausting all networks → Back to RESTARTING_ADAPTER       │
+/// │     - Loop continues until connection succeeds or user configures    │
+/// │       new credentials via captive portal                             │
+/// │                                                                      │
+/// │  The 30s cooldown gives users time to interact with captive portal   │
+/// │  without constant connection attempts disrupting the AP.             │
+/// └──────────────────────────────────────────────────────────────────────┘
 ///
 /// ┌──────────────────────────────────────────────────────────────────────┐
 /// │              Post-Connect Roaming (for stationary devices)           │
@@ -332,7 +366,23 @@ bool WiFiComponent::ssid_was_seen_in_scan_(const std::string &ssid) const {
 }
 
 int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
-  // Find next SSID that wasn't in scan results (might be hidden)
+  // Find next SSID to try in RETRY_HIDDEN phase.
+  //
+  // This function operates in two modes based on retry_hidden_mode_:
+  //
+  // 1. SCAN_BASED mode:
+  //    After SCAN_CONNECTING phase, only returns networks that were NOT visible
+  //    in the scan (truly hidden networks that need probe requests).
+  //
+  // 2. BLIND_RETRY mode:
+  //    When captive portal/improv is active, scanning is skipped to avoid
+  //    disrupting the AP. In this mode, ALL configured networks are returned
+  //    as candidates, cycling through them sequentially. This allows the device
+  //    to keep trying all networks while users configure WiFi via captive portal.
+  //
+  // Additionally, if EXPLICIT_HIDDEN phase was executed (first network marked hidden:true),
+  // those networks are skipped here since they were already tried.
+  //
   bool include_explicit_hidden = !this->went_through_explicit_hidden_phase_();
   // Start searching from start_index + 1
   for (size_t i = start_index + 1; i < this->sta_.size(); i++) {
@@ -349,9 +399,9 @@ int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
       }
     }
 
-    // If we didn't scan this cycle, treat all networks as potentially hidden
-    // Otherwise, only retry networks that weren't seen in the scan
-    if (!this->did_scan_this_cycle_ || !this->ssid_was_seen_in_scan_(sta.get_ssid())) {
+    // In BLIND_RETRY mode, treat all networks as candidates
+    // In SCAN_BASED mode, only retry networks that weren't seen in the scan
+    if (this->retry_hidden_mode_ == RetryHiddenMode::BLIND_RETRY || !this->ssid_was_seen_in_scan_(sta.get_ssid())) {
       ESP_LOGD(TAG, "Hidden candidate " LOG_SECRET("'%s'") " at index %d", sta.get_ssid().c_str(), static_cast<int>(i));
       return static_cast<int8_t>(i);
     }
@@ -1158,7 +1208,7 @@ void WiFiComponent::check_scanning_finished() {
     return;
   }
   this->scan_done_ = false;
-  this->did_scan_this_cycle_ = true;
+  this->retry_hidden_mode_ = RetryHiddenMode::SCAN_BASED;
 
   if (this->scan_result_.empty()) {
     ESP_LOGW(TAG, "No networks found");
@@ -1463,8 +1513,23 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       if (this->went_through_explicit_hidden_phase_()) {
         return WiFiRetryPhase::EXPLICIT_HIDDEN;
       }
-      // Skip scanning when captive portal/improv is active to avoid disrupting AP
-      // Even passive scans can cause brief AP disconnections on ESP32
+      // Skip scanning when captive portal/improv is active to avoid disrupting AP.
+      //
+      // WHY SCANNING DISRUPTS AP MODE:
+      // WiFi scanning requires the radio to leave the AP's channel and hop through
+      // other channels to listen for beacons. During this time (even for passive scans),
+      // the AP cannot service connected clients - they experience disconnections or
+      // timeouts. On ESP32, even passive scans cause brief but noticeable disruptions
+      // that break captive portal HTTP requests and DNS lookups.
+      //
+      // BLIND RETRY MODE:
+      // When captive portal/improv is active, we use RETRY_HIDDEN as a "try all networks
+      // blindly" mode. Since retry_hidden_mode_ is set to BLIND_RETRY (in RESTARTING_ADAPTER
+      // transition), find_next_hidden_sta_() will treat ALL configured networks as
+      // candidates, cycling through them without requiring scan results.
+      //
+      // This allows users to configure WiFi via captive portal while the device keeps
+      // attempting to connect to all configured networks in sequence.
       if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
         return WiFiRetryPhase::RETRY_HIDDEN;
       }
@@ -1533,19 +1598,19 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       break;
 
     case WiFiRetryPhase::RETRY_HIDDEN:
-      // Starting hidden mode - find first SSID that wasn't in scan results
-      if (old_phase == WiFiRetryPhase::SCAN_CONNECTING) {
-        // Keep scan results so we can skip SSIDs that were visible in the scan
-        // Don't clear scan_result_ - we need it to know which SSIDs are NOT hidden
+      // Always reset to first candidate when entering this phase.
+      // This phase can be entered from:
+      // - SCAN_CONNECTING: normal flow, find_next_hidden_sta_() skips networks visible in scan
+      // - RESTARTING_ADAPTER: captive portal active, find_next_hidden_sta_() tries ALL networks
+      //
+      // The retry_hidden_mode_ controls the behavior:
+      // - SCAN_BASED: scan_result_ is checked, visible networks are skipped
+      // - BLIND_RETRY: scan_result_ is ignored, all networks become candidates
+      // We don't clear scan_result_ here - the mode controls whether it's consulted.
+      this->selected_sta_index_ = this->find_next_hidden_sta_(-1);
 
-        // If first network is marked hidden, we went through EXPLICIT_HIDDEN phase
-        // In that case, skip networks marked hidden:true (already tried)
-        // Otherwise, include them (they haven't been tried yet)
-        this->selected_sta_index_ = this->find_next_hidden_sta_(-1);
-
-        if (this->selected_sta_index_ == -1) {
-          ESP_LOGD(TAG, "All SSIDs visible or already tried, skipping hidden mode");
-        }
+      if (this->selected_sta_index_ == -1) {
+        ESP_LOGD(TAG, "All SSIDs visible or already tried, skipping hidden mode");
       }
       break;
 
@@ -1561,7 +1626,11 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
         this->wifi_disconnect_();
       }
       // Clear scan flag - we're starting a new retry cycle
-      this->did_scan_this_cycle_ = false;
+      // This is critical for captive portal/improv flow: when determine_next_phase_()
+      // returns RETRY_HIDDEN (because scanning is skipped), find_next_hidden_sta_()
+      // will see BLIND_RETRY mode and treat ALL networks as candidates,
+      // effectively cycling through all configured networks without scan results.
+      this->retry_hidden_mode_ = RetryHiddenMode::BLIND_RETRY;
       // Always enter cooldown after restart (or skip-restart) to allow stabilization
       // Use extended cooldown when AP is active to avoid constant scanning that blocks DNS
       this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
