@@ -203,7 +203,8 @@ uint8_t PN7150::set_test_mode(const TestMode test_mode, const std::vector<uint8_
     result = rx.get_message();
     result.erase(result.begin(), result.begin() + 4);  // remove NCI header
     if (!result.empty()) {
-      ESP_LOGW(TAG, "Test results: %s", nfc::format_bytes(result).c_str());
+      char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+      ESP_LOGW(TAG, "Test results: %s", nfc::format_bytes_to(buf, result));
     }
   }
   return status;
@@ -229,14 +230,16 @@ uint8_t PN7150::reset_core_(const bool reset_config, const bool power) {
   }
 
   if (!rx.simple_status_response_is(nfc::STATUS_OK)) {
-    ESP_LOGE(TAG, "Invalid reset response: %s", nfc::format_bytes(rx.get_message()).c_str());
+    char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+    ESP_LOGE(TAG, "Invalid reset response: %s", nfc::format_bytes_to(buf, rx.get_message()));
     return rx.get_simple_status_response();
   }
   // verify reset response
   if ((!rx.message_type_is(nfc::NCI_PKT_MT_CTRL_RESPONSE)) || (!rx.message_length_is(3)) ||
       (rx.get_message()[nfc::NCI_PKT_PAYLOAD_OFFSET + 1] != 0x11) ||
       (rx.get_message()[nfc::NCI_PKT_PAYLOAD_OFFSET + 2] != (uint8_t) reset_config)) {
-    ESP_LOGE(TAG, "Reset response was malformed: %s", nfc::format_bytes(rx.get_message()).c_str());
+    char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+    ESP_LOGE(TAG, "Reset response was malformed: %s", nfc::format_bytes_to(buf, rx.get_message()));
     return nfc::STATUS_FAILED;
   }
 
@@ -259,7 +262,8 @@ uint8_t PN7150::init_core_() {
   }
 
   if (!rx.simple_status_response_is(nfc::STATUS_OK)) {
-    ESP_LOGE(TAG, "Invalid initialise response: %s", nfc::format_bytes(rx.get_message()).c_str());
+    char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+    ESP_LOGE(TAG, "Invalid initialise response: %s", nfc::format_bytes_to(buf, rx.get_message()));
     return nfc::STATUS_FAILED;
   }
 
@@ -574,7 +578,8 @@ void PN7150::erase_tag_(const uint8_t tag_index) {
     for (auto *listener : this->tag_listeners_) {
       listener->tag_off(*this->discovered_endpoint_[tag_index].tag);
     }
-    ESP_LOGI(TAG, "Tag %s removed", nfc::format_uid(this->discovered_endpoint_[tag_index].tag->get_uid()).c_str());
+    char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
+    ESP_LOGI(TAG, "Tag %s removed", nfc::format_uid_to(uid_buf, this->discovered_endpoint_[tag_index].tag->get_uid()));
     this->discovered_endpoint_.erase(this->discovered_endpoint_.begin() + tag_index);
   }
 }
@@ -772,26 +777,33 @@ void PN7150::process_message_() {
             ESP_LOGV(TAG, "Unimplemented NCI Core OID received: 0x%02X", rx.get_oid());
         }
       } else {
-        ESP_LOGV(TAG, "Unimplemented notification: %s", nfc::format_bytes(rx.get_message()).c_str());
+        char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+        ESP_LOGV(TAG, "Unimplemented notification: %s", nfc::format_bytes_to(buf, rx.get_message()));
       }
       break;
 
-    case nfc::NCI_PKT_MT_CTRL_RESPONSE:
+    case nfc::NCI_PKT_MT_CTRL_RESPONSE: {
+      char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
       ESP_LOGV(TAG, "Unimplemented GID: 0x%02X  OID: 0x%02X  Full response: %s", rx.get_gid(), rx.get_oid(),
-               nfc::format_bytes(rx.get_message()).c_str());
+               nfc::format_bytes_to(buf, rx.get_message()));
       break;
+    }
 
-    case nfc::NCI_PKT_MT_CTRL_COMMAND:
-      ESP_LOGV(TAG, "Unimplemented command: %s", nfc::format_bytes(rx.get_message()).c_str());
+    case nfc::NCI_PKT_MT_CTRL_COMMAND: {
+      char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+      ESP_LOGV(TAG, "Unimplemented command: %s", nfc::format_bytes_to(buf, rx.get_message()));
       break;
+    }
 
     case nfc::NCI_PKT_MT_DATA:
       this->process_data_message_(rx);
       break;
 
-    default:
-      ESP_LOGV(TAG, "Unimplemented message type: %s", nfc::format_bytes(rx.get_message()).c_str());
+    default: {
+      char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+      ESP_LOGV(TAG, "Unimplemented message type: %s", nfc::format_bytes_to(buf, rx.get_message()));
       break;
+    }
   }
 }
 
@@ -872,8 +884,9 @@ void PN7150::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
       case EP_READ:
       default:
         if (!working_endpoint.trig_called) {
+          char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
           ESP_LOGI(TAG, "Read tag type %s with UID %s", working_endpoint.tag->get_tag_type().c_str(),
-                   nfc::format_uid(working_endpoint.tag->get_uid()).c_str());
+                   nfc::format_uid_to(uid_buf, working_endpoint.tag->get_uid()));
           if (this->read_endpoint_data_(*working_endpoint.tag) != nfc::STATUS_OK) {
             ESP_LOGW(TAG, "  Unable to read NDEF record(s)");
           } else if (working_endpoint.tag->has_ndef_message()) {
@@ -964,7 +977,8 @@ void PN7150::process_rf_deactivate_oid_(nfc::NciMessage &rx) {
 }
 
 void PN7150::process_data_message_(nfc::NciMessage &rx) {
-  ESP_LOGVV(TAG, "Received data message: %s", nfc::format_bytes(rx.get_message()).c_str());
+  char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+  ESP_LOGVV(TAG, "Received data message: %s", nfc::format_bytes_to(buf, rx.get_message()));
 
   std::vector<uint8_t> ndef_response;
   this->card_emu_t4t_get_response_(rx.get_message(), ndef_response);
@@ -978,7 +992,7 @@ void PN7150::process_data_message_(nfc::NciMessage &rx) {
                                  uint8_t(ndef_response_size & 0x00FF)};
   tx_msg.insert(tx_msg.end(), ndef_response.begin(), ndef_response.end());
   nfc::NciMessage tx(tx_msg);
-  ESP_LOGVV(TAG, "Sending data message: %s", nfc::format_bytes(tx.get_message()).c_str());
+  ESP_LOGVV(TAG, "Sending data message: %s", nfc::format_bytes_to(buf, tx.get_message()));
   if (this->transceive_(tx, rx, NFCC_DEFAULT_TIMEOUT, false) != nfc::STATUS_OK) {
     ESP_LOGE(TAG, "Sending reply for card emulation failed");
   }
@@ -1031,7 +1045,8 @@ void PN7150::card_emu_t4t_get_response_(std::vector<uint8_t> &response, std::vec
       uint16_t offset = (response[nfc::NCI_PKT_HEADER_SIZE + 2] << 8) + response[nfc::NCI_PKT_HEADER_SIZE + 3];
       uint8_t length = response[nfc::NCI_PKT_HEADER_SIZE + 4];
 
-      ESP_LOGVV(TAG, "Encoded NDEF message: %s", nfc::format_bytes(ndef_message).c_str());
+      char ndef_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+      ESP_LOGVV(TAG, "Encoded NDEF message: %s", nfc::format_bytes_to(ndef_buf, ndef_message));
 
       if (length <= (ndef_msg_size + offset + 2)) {
         if (offset == 0) {
@@ -1070,7 +1085,8 @@ void PN7150::card_emu_t4t_get_response_(std::vector<uint8_t> &response, std::vec
 
       ndef_msg_written.insert(ndef_msg_written.end(), response.begin() + nfc::NCI_PKT_HEADER_SIZE + 5,
                               response.begin() + nfc::NCI_PKT_HEADER_SIZE + 5 + length);
-      ESP_LOGD(TAG, "Received %u-byte NDEF message: %s", length, nfc::format_bytes(ndef_msg_written).c_str());
+      char ndef_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+      ESP_LOGD(TAG, "Received %u-byte NDEF message: %s", length, nfc::format_bytes_to(ndef_buf, ndef_msg_written));
       ndef_response.insert(ndef_response.end(), std::begin(CARD_EMU_T4T_OK), std::end(CARD_EMU_T4T_OK));
     }
   }
@@ -1079,6 +1095,7 @@ void PN7150::card_emu_t4t_get_response_(std::vector<uint8_t> &response, std::vec
 uint8_t PN7150::transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, const uint16_t timeout,
                             const bool expect_notification) {
   uint8_t retries = NFCC_MAX_COMM_FAILS;
+  char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
 
   while (retries) {
     // first, send the message we need to send
@@ -1086,7 +1103,7 @@ uint8_t PN7150::transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, const uint
       ESP_LOGE(TAG, "Error sending message");
       return nfc::STATUS_FAILED;
     }
-    ESP_LOGVV(TAG, "Wrote: %s", nfc::format_bytes(tx.get_message()).c_str());
+    ESP_LOGVV(TAG, "Wrote: %s", nfc::format_bytes_to(buf, tx.get_message()));
     // next, the NFCC should send back a response
     if (this->read_nfcc(rx, timeout) != nfc::STATUS_OK) {
       ESP_LOGW(TAG, "Error receiving message");
@@ -1098,24 +1115,24 @@ uint8_t PN7150::transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, const uint
       break;
     }
   }
-  ESP_LOGVV(TAG, "Read: %s", nfc::format_bytes(rx.get_message()).c_str());
+  ESP_LOGVV(TAG, "Read: %s", nfc::format_bytes_to(buf, rx.get_message()));
   // validate the response based on the message type that was sent (command vs. data)
   if (!tx.message_type_is(nfc::NCI_PKT_MT_DATA)) {
     // for commands, the GID and OID should match and the status should be OK
     if ((rx.get_gid() != tx.get_gid()) || (rx.get_oid()) != tx.get_oid()) {
-      ESP_LOGE(TAG, "Incorrect response to command: %s", nfc::format_bytes(rx.get_message()).c_str());
+      ESP_LOGE(TAG, "Incorrect response to command: %s", nfc::format_bytes_to(buf, rx.get_message()));
       return nfc::STATUS_FAILED;
     }
 
     if (!rx.simple_status_response_is(nfc::STATUS_OK)) {
-      ESP_LOGE(TAG, "Error in response to command: %s", nfc::format_bytes(rx.get_message()).c_str());
+      ESP_LOGE(TAG, "Error in response to command: %s", nfc::format_bytes_to(buf, rx.get_message()));
     }
     return rx.get_simple_status_response();
   } else {
     // when requesting data from the endpoint, the first response is from the NFCC; we must validate this, first
     if ((!rx.message_type_is(nfc::NCI_PKT_MT_CTRL_NOTIFICATION)) || (!rx.gid_is(nfc::NCI_CORE_GID)) ||
         (!rx.oid_is(nfc::NCI_CORE_CONN_CREDITS_OID)) || (!rx.message_length_is(3))) {
-      ESP_LOGE(TAG, "Incorrect response to data message: %s", nfc::format_bytes(rx.get_message()).c_str());
+      ESP_LOGE(TAG, "Incorrect response to data message: %s", nfc::format_bytes_to(buf, rx.get_message()));
       return nfc::STATUS_FAILED;
     }
 
@@ -1125,7 +1142,7 @@ uint8_t PN7150::transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, const uint
         ESP_LOGE(TAG, "Error receiving data from endpoint");
         return nfc::STATUS_FAILED;
       }
-      ESP_LOGVV(TAG, "Read: %s", nfc::format_bytes(rx.get_message()).c_str());
+      ESP_LOGVV(TAG, "Read: %s", nfc::format_bytes_to(buf, rx.get_message()));
     }
 
     return nfc::STATUS_OK;

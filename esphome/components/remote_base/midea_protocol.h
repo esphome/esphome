@@ -29,6 +29,8 @@ class MideaData {
   bool is_valid() const { return this->data_[OFFSET_CS] == this->calc_cs_(); }
   void finalize() { this->data_[OFFSET_CS] = this->calc_cs_(); }
   bool is_compliment(const MideaData &rhs) const;
+  /// @deprecated Allocates heap memory. Use to_str() instead. Removed in 2026.7.0.
+  ESPDEPRECATED("Allocates heap memory. Use to_str() instead. Removed in 2026.7.0.", "2026.1.0")
   std::string to_string() const { return format_hex_pretty(this->data_.data(), this->data_.size()); }
   /// Buffer size for to_str(): 6 bytes = "AA.BB.CC.DD.EE.FF\0"
   static constexpr size_t TO_STR_BUFFER_SIZE = format_hex_pretty_size(6);

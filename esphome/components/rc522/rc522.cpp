@@ -492,7 +492,10 @@ bool RC522BinarySensor::process(std::vector<uint8_t> &data) {
   this->found_ = result;
   return result;
 }
-void RC522Trigger::process(std::vector<uint8_t> &data) { this->trigger(format_hex_pretty(data, '-', false)); }
+void RC522Trigger::process(std::vector<uint8_t> &data) {
+  char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
+  this->trigger(format_hex_pretty_to(uid_buf, data.data(), data.size(), '-'));
+}
 
 }  // namespace rc522
 }  // namespace esphome
