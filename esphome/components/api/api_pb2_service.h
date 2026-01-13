@@ -12,7 +12,7 @@ class APIServerConnectionBase : public ProtoService {
  public:
 #ifdef HAS_PROTO_MESSAGE_DUMP
  protected:
-  void log_send_message_(const char *name, const std::string &dump);
+  void log_send_message_(const char *name, const char *dump);
 
  public:
 #endif

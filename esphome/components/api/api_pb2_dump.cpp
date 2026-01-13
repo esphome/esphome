@@ -10,7 +10,7 @@
 namespace esphome::api {
 
 // Helper function to append a quoted string, handling empty StringRef
-static inline void append_quoted_string(std::string &out, const StringRef &ref) {
+static inline void append_quoted_string(DumpBuffer &out, const StringRef &ref) {
   out.append("'");
   if (!ref.empty()) {
     out.append(ref.c_str());
@@ -19,11 +19,11 @@ static inline void append_quoted_string(std::string &out, const StringRef &ref) 
 }
 
 // Common helpers for dump_field functions
-static inline void append_field_prefix(std::string &out, const char *field_name, int indent) {
+static inline void append_field_prefix(DumpBuffer &out, const char *field_name, int indent) {
   out.append(indent, ' ').append(field_name).append(": ");
 }
 
-static inline void append_with_newline(std::string &out, const char *str) {
+static inline void append_with_newline(DumpBuffer &out, const char *str) {
   out.append(str);
   out.append("\n");
 }
@@ -31,70 +31,70 @@ static inline void append_with_newline(std::string &out, const char *str) {
 // RAII helper for message dump formatting
 class MessageDumpHelper {
  public:
-  MessageDumpHelper(std::string &out, const char *message_name) : out_(out) {
+  MessageDumpHelper(DumpBuffer &out, const char *message_name) : out_(out) {
     out_.append(message_name);
     out_.append(" {\n");
   }
   ~MessageDumpHelper() { out_.append(" }"); }
 
  private:
-  std::string &out_;
+  DumpBuffer &out_;
 };
 
 // Helper functions to reduce code duplication in dump methods
-static void dump_field(std::string &out, const char *field_name, int32_t value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, int32_t value, int indent = 2) {
   char buffer[64];
   append_field_prefix(out, field_name, indent);
   snprintf(buffer, 64, "%" PRId32, value);
   append_with_newline(out, buffer);
 }
 
-static void dump_field(std::string &out, const char *field_name, uint32_t value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, uint32_t value, int indent = 2) {
   char buffer[64];
   append_field_prefix(out, field_name, indent);
   snprintf(buffer, 64, "%" PRIu32, value);
   append_with_newline(out, buffer);
 }
 
-static void dump_field(std::string &out, const char *field_name, float value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, float value, int indent = 2) {
   char buffer[64];
   append_field_prefix(out, field_name, indent);
   snprintf(buffer, 64, "%g", value);
   append_with_newline(out, buffer);
 }
 
-static void dump_field(std::string &out, const char *field_name, uint64_t value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, uint64_t value, int indent = 2) {
   char buffer[64];
   append_field_prefix(out, field_name, indent);
   snprintf(buffer, 64, "%" PRIu64, value);
   append_with_newline(out, buffer);
 }
 
-static void dump_field(std::string &out, const char *field_name, bool value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, bool value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append(YESNO(value));
   out.append("\n");
 }
 
-static void dump_field(std::string &out, const char *field_name, const std::string &value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, const std::string &value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
-  out.append("'").append(value).append("'");
+  out.append("'").append(value.c_str()).append("'");
   out.append("\n");
 }
 
-static void dump_field(std::string &out, const char *field_name, StringRef value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, StringRef value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   append_quoted_string(out, value);
   out.append("\n");
 }
 
-static void dump_field(std::string &out, const char *field_name, const char *value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, const char *value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append("'").append(value).append("'");
   out.append("\n");
 }
 
-template<typename T> static void dump_field(std::string &out, const char *field_name, T value, int indent = 2) {
+template<typename T> static void dump_field(DumpBuffer &out, const char *field_name, T value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append(proto_enum_to_string<T>(value));
   out.append("\n");
@@ -102,8 +102,7 @@ template<typename T> static void dump_field(std::string &out, const char *field_
 
 // Helper for bytes fields - uses stack buffer to avoid heap allocation
 // Buffer sized for 160 bytes of data (480 chars with separators) to fit typical log buffer
-static void dump_bytes_field(std::string &out, const char *field_name, const uint8_t *data, size_t len,
-                             int indent = 2) {
+static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len, int indent = 2) {
   char hex_buf[format_hex_pretty_size(160)];
   append_field_prefix(out, field_name, indent);
   format_hex_pretty_to(hex_buf, data, len);
@@ -743,40 +742,40 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums:
 }
 #endif
 
-void HelloRequest::dump_to(std::string &out) const {
+void HelloRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "HelloRequest");
   dump_field(out, "client_info", this->client_info);
   dump_field(out, "api_version_major", this->api_version_major);
   dump_field(out, "api_version_minor", this->api_version_minor);
 }
-void HelloResponse::dump_to(std::string &out) const {
+void HelloResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "HelloResponse");
   dump_field(out, "api_version_major", this->api_version_major);
   dump_field(out, "api_version_minor", this->api_version_minor);
   dump_field(out, "server_info", this->server_info);
   dump_field(out, "name", this->name);
 }
-void DisconnectRequest::dump_to(std::string &out) const { out.append("DisconnectRequest {}"); }
-void DisconnectResponse::dump_to(std::string &out) const { out.append("DisconnectResponse {}"); }
-void PingRequest::dump_to(std::string &out) const { out.append("PingRequest {}"); }
-void PingResponse::dump_to(std::string &out) const { out.append("PingResponse {}"); }
-void DeviceInfoRequest::dump_to(std::string &out) const { out.append("DeviceInfoRequest {}"); }
+void DisconnectRequest::dump_to(DumpBuffer &out) const { out.append("DisconnectRequest {}"); }
+void DisconnectResponse::dump_to(DumpBuffer &out) const { out.append("DisconnectResponse {}"); }
+void PingRequest::dump_to(DumpBuffer &out) const { out.append("PingRequest {}"); }
+void PingResponse::dump_to(DumpBuffer &out) const { out.append("PingResponse {}"); }
+void DeviceInfoRequest::dump_to(DumpBuffer &out) const { out.append("DeviceInfoRequest {}"); }
 #ifdef USE_AREAS
-void AreaInfo::dump_to(std::string &out) const {
+void AreaInfo::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "AreaInfo");
   dump_field(out, "area_id", this->area_id);
   dump_field(out, "name", this->name);
 }
 #endif
 #ifdef USE_DEVICES
-void DeviceInfo::dump_to(std::string &out) const {
+void DeviceInfo::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "DeviceInfo");
   dump_field(out, "device_id", this->device_id);
   dump_field(out, "name", this->name);
   dump_field(out, "area_id", this->area_id);
 }
 #endif
-void DeviceInfoResponse::dump_to(std::string &out) const {
+void DeviceInfoResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "DeviceInfoResponse");
   dump_field(out, "name", this->name);
   dump_field(out, "mac_address", this->mac_address);
@@ -838,11 +837,11 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
   dump_field(out, "zwave_home_id", this->zwave_home_id);
 #endif
 }
-void ListEntitiesRequest::dump_to(std::string &out) const { out.append("ListEntitiesRequest {}"); }
-void ListEntitiesDoneResponse::dump_to(std::string &out) const { out.append("ListEntitiesDoneResponse {}"); }
-void SubscribeStatesRequest::dump_to(std::string &out) const { out.append("SubscribeStatesRequest {}"); }
+void ListEntitiesRequest::dump_to(DumpBuffer &out) const { out.append("ListEntitiesRequest {}"); }
+void ListEntitiesDoneResponse::dump_to(DumpBuffer &out) const { out.append("ListEntitiesDoneResponse {}"); }
+void SubscribeStatesRequest::dump_to(DumpBuffer &out) const { out.append("SubscribeStatesRequest {}"); }
 #ifdef USE_BINARY_SENSOR
-void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
+void ListEntitiesBinarySensorResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesBinarySensorResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -858,7 +857,7 @@ void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void BinarySensorStateResponse::dump_to(std::string &out) const {
+void BinarySensorStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BinarySensorStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "state", this->state);
@@ -869,7 +868,7 @@ void BinarySensorStateResponse::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_COVER
-void ListEntitiesCoverResponse::dump_to(std::string &out) const {
+void ListEntitiesCoverResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesCoverResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -888,7 +887,7 @@ void ListEntitiesCoverResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void CoverStateResponse::dump_to(std::string &out) const {
+void CoverStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "CoverStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "position", this->position);
@@ -898,7 +897,7 @@ void CoverStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void CoverCommandRequest::dump_to(std::string &out) const {
+void CoverCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "CoverCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "has_position", this->has_position);
@@ -912,7 +911,7 @@ void CoverCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_FAN
-void ListEntitiesFanResponse::dump_to(std::string &out) const {
+void ListEntitiesFanResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesFanResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -933,7 +932,7 @@ void ListEntitiesFanResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void FanStateResponse::dump_to(std::string &out) const {
+void FanStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "FanStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "state", this->state);
@@ -945,7 +944,7 @@ void FanStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void FanCommandRequest::dump_to(std::string &out) const {
+void FanCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "FanCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "has_state", this->has_state);
@@ -964,7 +963,7 @@ void FanCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_LIGHT
-void ListEntitiesLightResponse::dump_to(std::string &out) const {
+void ListEntitiesLightResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesLightResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -986,7 +985,7 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void LightStateResponse::dump_to(std::string &out) const {
+void LightStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "LightStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "state", this->state);
@@ -1005,7 +1004,7 @@ void LightStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void LightCommandRequest::dump_to(std::string &out) const {
+void LightCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "LightCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "has_state", this->has_state);
@@ -1040,7 +1039,7 @@ void LightCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_SENSOR
-void ListEntitiesSensorResponse::dump_to(std::string &out) const {
+void ListEntitiesSensorResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesSensorResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -1059,7 +1058,7 @@ void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void SensorStateResponse::dump_to(std::string &out) const {
+void SensorStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SensorStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "state", this->state);
@@ -1070,7 +1069,7 @@ void SensorStateResponse::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_SWITCH
-void ListEntitiesSwitchResponse::dump_to(std::string &out) const {
+void ListEntitiesSwitchResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesSwitchResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -1086,7 +1085,7 @@ void ListEntitiesSwitchResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void SwitchStateResponse::dump_to(std::string &out) const {
+void SwitchStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SwitchStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "state", this->state);
@@ -1094,7 +1093,7 @@ void SwitchStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void SwitchCommandRequest::dump_to(std::string &out) const {
+void SwitchCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SwitchCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "state", this->state);
@@ -1104,7 +1103,7 @@ void SwitchCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_TEXT_SENSOR
-void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
+void ListEntitiesTextSensorResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesTextSensorResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -1119,7 +1118,7 @@ void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void TextSensorStateResponse::dump_to(std::string &out) const {
+void TextSensorStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "TextSensorStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "state", this->state);
@@ -1129,36 +1128,36 @@ void TextSensorStateResponse::dump_to(std::string &out) const {
 #endif
 }
 #endif
-void SubscribeLogsRequest::dump_to(std::string &out) const {
+void SubscribeLogsRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SubscribeLogsRequest");
   dump_field(out, "level", static_cast<enums::LogLevel>(this->level));
   dump_field(out, "dump_config", this->dump_config);
 }
-void SubscribeLogsResponse::dump_to(std::string &out) const {
+void SubscribeLogsResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SubscribeLogsResponse");
   dump_field(out, "level", static_cast<enums::LogLevel>(this->level));
   dump_bytes_field(out, "message", this->message_ptr_, this->message_len_);
 }
 #ifdef USE_API_NOISE
-void NoiseEncryptionSetKeyRequest::dump_to(std::string &out) const {
+void NoiseEncryptionSetKeyRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "NoiseEncryptionSetKeyRequest");
   dump_bytes_field(out, "key", this->key, this->key_len);
 }
-void NoiseEncryptionSetKeyResponse::dump_to(std::string &out) const {
+void NoiseEncryptionSetKeyResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "NoiseEncryptionSetKeyResponse");
   dump_field(out, "success", this->success);
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-void SubscribeHomeassistantServicesRequest::dump_to(std::string &out) const {
+void SubscribeHomeassistantServicesRequest::dump_to(DumpBuffer &out) const {
   out.append("SubscribeHomeassistantServicesRequest {}");
 }
-void HomeassistantServiceMap::dump_to(std::string &out) const {
+void HomeassistantServiceMap::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "HomeassistantServiceMap");
   dump_field(out, "key", this->key);
   dump_field(out, "value", this->value);
 }
-void HomeassistantActionRequest::dump_to(std::string &out) const {
+void HomeassistantActionRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "HomeassistantActionRequest");
   dump_field(out, "service", this->service);
   for (const auto &it : this->data) {
@@ -1189,7 +1188,7 @@ void HomeassistantActionRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
-void HomeassistantActionResponse::dump_to(std::string &out) const {
+void HomeassistantActionResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "HomeassistantActionResponse");
   dump_field(out, "call_id", this->call_id);
   dump_field(out, "success", this->success);
@@ -1200,35 +1199,35 @@ void HomeassistantActionResponse::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-void SubscribeHomeAssistantStatesRequest::dump_to(std::string &out) const {
+void SubscribeHomeAssistantStatesRequest::dump_to(DumpBuffer &out) const {
   out.append("SubscribeHomeAssistantStatesRequest {}");
 }
-void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
+void SubscribeHomeAssistantStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SubscribeHomeAssistantStateResponse");
   dump_field(out, "entity_id", this->entity_id);
   dump_field(out, "attribute", this->attribute);
   dump_field(out, "once", this->once);
 }
-void HomeAssistantStateResponse::dump_to(std::string &out) const {
+void HomeAssistantStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "HomeAssistantStateResponse");
   dump_field(out, "entity_id", this->entity_id);
   dump_field(out, "state", this->state);
   dump_field(out, "attribute", this->attribute);
 }
 #endif
-void GetTimeRequest::dump_to(std::string &out) const { out.append("GetTimeRequest {}"); }
-void GetTimeResponse::dump_to(std::string &out) const {
+void GetTimeRequest::dump_to(DumpBuffer &out) const { out.append("GetTimeRequest {}"); }
+void GetTimeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "GetTimeResponse");
   dump_field(out, "epoch_seconds", this->epoch_seconds);
   dump_field(out, "timezone", this->timezone);
 }
 #ifdef USE_API_USER_DEFINED_ACTIONS
-void ListEntitiesServicesArgument::dump_to(std::string &out) const {
+void ListEntitiesServicesArgument::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesServicesArgument");
   dump_field(out, "name", this->name);
   dump_field(out, "type", static_cast<enums::ServiceArgType>(this->type));
 }
-void ListEntitiesServicesResponse::dump_to(std::string &out) const {
+void ListEntitiesServicesResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesServicesResponse");
   dump_field(out, "name", this->name);
   dump_field(out, "key", this->key);
@@ -1239,7 +1238,7 @@ void ListEntitiesServicesResponse::dump_to(std::string &out) const {
   }
   dump_field(out, "supports_response", static_cast<enums::SupportsResponseType>(this->supports_response));
 }
-void ExecuteServiceArgument::dump_to(std::string &out) const {
+void ExecuteServiceArgument::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ExecuteServiceArgument");
   dump_field(out, "bool_", this->bool_);
   dump_field(out, "legacy_int", this->legacy_int);
@@ -1259,7 +1258,7 @@ void ExecuteServiceArgument::dump_to(std::string &out) const {
     dump_field(out, "string_array", it, 4);
   }
 }
-void ExecuteServiceRequest::dump_to(std::string &out) const {
+void ExecuteServiceRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ExecuteServiceRequest");
   dump_field(out, "key", this->key);
   for (const auto &it : this->args) {
@@ -1276,7 +1275,7 @@ void ExecuteServiceRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-void ExecuteServiceResponse::dump_to(std::string &out) const {
+void ExecuteServiceResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ExecuteServiceResponse");
   dump_field(out, "call_id", this->call_id);
   dump_field(out, "success", this->success);
@@ -1287,7 +1286,7 @@ void ExecuteServiceResponse::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_CAMERA
-void ListEntitiesCameraResponse::dump_to(std::string &out) const {
+void ListEntitiesCameraResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesCameraResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -1301,7 +1300,7 @@ void ListEntitiesCameraResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void CameraImageResponse::dump_to(std::string &out) const {
+void CameraImageResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "CameraImageResponse");
   dump_field(out, "key", this->key);
   dump_bytes_field(out, "data", this->data_ptr_, this->data_len_);
@@ -1310,14 +1309,14 @@ void CameraImageResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void CameraImageRequest::dump_to(std::string &out) const {
+void CameraImageRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "CameraImageRequest");
   dump_field(out, "single", this->single);
   dump_field(out, "stream", this->stream);
 }
 #endif
 #ifdef USE_CLIMATE
-void ListEntitiesClimateResponse::dump_to(std::string &out) const {
+void ListEntitiesClimateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesClimateResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -1361,7 +1360,7 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
 #endif
   dump_field(out, "feature_flags", this->feature_flags);
 }
-void ClimateStateResponse::dump_to(std::string &out) const {
+void ClimateStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ClimateStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "mode", static_cast<enums::ClimateMode>(this->mode));
@@ -1381,7 +1380,7 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void ClimateCommandRequest::dump_to(std::string &out) const {
+void ClimateCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ClimateCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "has_mode", this->has_mode);
@@ -1410,7 +1409,7 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_WATER_HEATER
-void ListEntitiesWaterHeaterResponse::dump_to(std::string &out) const {
+void ListEntitiesWaterHeaterResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesWaterHeaterResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -1431,7 +1430,7 @@ void ListEntitiesWaterHeaterResponse::dump_to(std::string &out) const {
   }
   dump_field(out, "supported_features", this->supported_features);
 }
-void WaterHeaterStateResponse::dump_to(std::string &out) const {
+void WaterHeaterStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "WaterHeaterStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "current_temperature", this->current_temperature);
@@ -1444,7 +1443,7 @@ void WaterHeaterStateResponse::dump_to(std::string &out) const {
   dump_field(out, "target_temperature_low", this->target_temperature_low);
   dump_field(out, "target_temperature_high", this->target_temperature_high);
 }
-void WaterHeaterCommandRequest::dump_to(std::string &out) const {
+void WaterHeaterCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "WaterHeaterCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "has_fields", this->has_fields);
@@ -1459,7 +1458,7 @@ void WaterHeaterCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_NUMBER
-void ListEntitiesNumberResponse::dump_to(std::string &out) const {
+void ListEntitiesNumberResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesNumberResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -1479,7 +1478,7 @@ void ListEntitiesNumberResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void NumberStateResponse::dump_to(std::string &out) const {
+void NumberStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "NumberStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "state", this->state);
@@ -1488,7 +1487,7 @@ void NumberStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void NumberCommandRequest::dump_to(std::string &out) const {
+void NumberCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "NumberCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "state", this->state);
@@ -1498,7 +1497,7 @@ void NumberCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_SELECT
-void ListEntitiesSelectResponse::dump_to(std::string &out) const {
+void ListEntitiesSelectResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesSelectResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -1515,7 +1514,7 @@ void ListEntitiesSelectResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void SelectStateResponse::dump_to(std::string &out) const {
+void SelectStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SelectStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "state", this->state);
@@ -1524,7 +1523,7 @@ void SelectStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void SelectCommandRequest::dump_to(std::string &out) const {
+void SelectCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SelectCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "state", this->state);
@@ -1534,7 +1533,7 @@ void SelectCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_SIREN
-void ListEntitiesSirenResponse::dump_to(std::string &out) const {
+void ListEntitiesSirenResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesSirenResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -1553,7 +1552,7 @@ void ListEntitiesSirenResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void SirenStateResponse::dump_to(std::string &out) const {
+void SirenStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SirenStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "state", this->state);
@@ -1561,7 +1560,7 @@ void SirenStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void SirenCommandRequest::dump_to(std::string &out) const {
+void SirenCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SirenCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "has_state", this->has_state);
@@ -1578,7 +1577,7 @@ void SirenCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_LOCK
-void ListEntitiesLockResponse::dump_to(std::string &out) const {
+void ListEntitiesLockResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesLockResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -1596,7 +1595,7 @@ void ListEntitiesLockResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void LockStateResponse::dump_to(std::string &out) const {
+void LockStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "LockStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "state", static_cast<enums::LockState>(this->state));
@@ -1604,7 +1603,7 @@ void LockStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void LockCommandRequest::dump_to(std::string &out) const {
+void LockCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "LockCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "command", static_cast<enums::LockCommand>(this->command));
@@ -1616,7 +1615,7 @@ void LockCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_BUTTON
-void ListEntitiesButtonResponse::dump_to(std::string &out) const {
+void ListEntitiesButtonResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesButtonResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -1631,7 +1630,7 @@ void ListEntitiesButtonResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void ButtonCommandRequest::dump_to(std::string &out) const {
+void ButtonCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ButtonCommandRequest");
   dump_field(out, "key", this->key);
 #ifdef USE_DEVICES
@@ -1640,7 +1639,7 @@ void ButtonCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_MEDIA_PLAYER
-void MediaPlayerSupportedFormat::dump_to(std::string &out) const {
+void MediaPlayerSupportedFormat::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "MediaPlayerSupportedFormat");
   dump_field(out, "format", this->format);
   dump_field(out, "sample_rate", this->sample_rate);
@@ -1648,7 +1647,7 @@ void MediaPlayerSupportedFormat::dump_to(std::string &out) const {
   dump_field(out, "purpose", static_cast<enums::MediaPlayerFormatPurpose>(this->purpose));
   dump_field(out, "sample_bytes", this->sample_bytes);
 }
-void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
+void ListEntitiesMediaPlayerResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesMediaPlayerResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -1669,7 +1668,7 @@ void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
 #endif
   dump_field(out, "feature_flags", this->feature_flags);
 }
-void MediaPlayerStateResponse::dump_to(std::string &out) const {
+void MediaPlayerStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "MediaPlayerStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "state", static_cast<enums::MediaPlayerState>(this->state));
@@ -1679,7 +1678,7 @@ void MediaPlayerStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void MediaPlayerCommandRequest::dump_to(std::string &out) const {
+void MediaPlayerCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "MediaPlayerCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "has_command", this->has_command);
@@ -1696,18 +1695,18 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-void SubscribeBluetoothLEAdvertisementsRequest::dump_to(std::string &out) const {
+void SubscribeBluetoothLEAdvertisementsRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SubscribeBluetoothLEAdvertisementsRequest");
   dump_field(out, "flags", this->flags);
 }
-void BluetoothLERawAdvertisement::dump_to(std::string &out) const {
+void BluetoothLERawAdvertisement::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothLERawAdvertisement");
   dump_field(out, "address", this->address);
   dump_field(out, "rssi", this->rssi);
   dump_field(out, "address_type", this->address_type);
   dump_bytes_field(out, "data", this->data, this->data_len);
 }
-void BluetoothLERawAdvertisementsResponse::dump_to(std::string &out) const {
+void BluetoothLERawAdvertisementsResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothLERawAdvertisementsResponse");
   for (uint16_t i = 0; i < this->advertisements_len; i++) {
     out.append("  advertisements: ");
@@ -1715,25 +1714,25 @@ void BluetoothLERawAdvertisementsResponse::dump_to(std::string &out) const {
     out.append("\n");
   }
 }
-void BluetoothDeviceRequest::dump_to(std::string &out) const {
+void BluetoothDeviceRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothDeviceRequest");
   dump_field(out, "address", this->address);
   dump_field(out, "request_type", static_cast<enums::BluetoothDeviceRequestType>(this->request_type));
   dump_field(out, "has_address_type", this->has_address_type);
   dump_field(out, "address_type", this->address_type);
 }
-void BluetoothDeviceConnectionResponse::dump_to(std::string &out) const {
+void BluetoothDeviceConnectionResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothDeviceConnectionResponse");
   dump_field(out, "address", this->address);
   dump_field(out, "connected", this->connected);
   dump_field(out, "mtu", this->mtu);
   dump_field(out, "error", this->error);
 }
-void BluetoothGATTGetServicesRequest::dump_to(std::string &out) const {
+void BluetoothGATTGetServicesRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTGetServicesRequest");
   dump_field(out, "address", this->address);
 }
-void BluetoothGATTDescriptor::dump_to(std::string &out) const {
+void BluetoothGATTDescriptor::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTDescriptor");
   for (const auto &it : this->uuid) {
     dump_field(out, "uuid", it, 4);
@@ -1741,7 +1740,7 @@ void BluetoothGATTDescriptor::dump_to(std::string &out) const {
   dump_field(out, "handle", this->handle);
   dump_field(out, "short_uuid", this->short_uuid);
 }
-void BluetoothGATTCharacteristic::dump_to(std::string &out) const {
+void BluetoothGATTCharacteristic::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTCharacteristic");
   for (const auto &it : this->uuid) {
     dump_field(out, "uuid", it, 4);
@@ -1755,7 +1754,7 @@ void BluetoothGATTCharacteristic::dump_to(std::string &out) const {
   }
   dump_field(out, "short_uuid", this->short_uuid);
 }
-void BluetoothGATTService::dump_to(std::string &out) const {
+void BluetoothGATTService::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTService");
   for (const auto &it : this->uuid) {
     dump_field(out, "uuid", it, 4);
@@ -1768,7 +1767,7 @@ void BluetoothGATTService::dump_to(std::string &out) const {
   }
   dump_field(out, "short_uuid", this->short_uuid);
 }
-void BluetoothGATTGetServicesResponse::dump_to(std::string &out) const {
+void BluetoothGATTGetServicesResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTGetServicesResponse");
   dump_field(out, "address", this->address);
   for (const auto &it : this->services) {
@@ -1777,55 +1776,55 @@ void BluetoothGATTGetServicesResponse::dump_to(std::string &out) const {
     out.append("\n");
   }
 }
-void BluetoothGATTGetServicesDoneResponse::dump_to(std::string &out) const {
+void BluetoothGATTGetServicesDoneResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTGetServicesDoneResponse");
   dump_field(out, "address", this->address);
 }
-void BluetoothGATTReadRequest::dump_to(std::string &out) const {
+void BluetoothGATTReadRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTReadRequest");
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
 }
-void BluetoothGATTReadResponse::dump_to(std::string &out) const {
+void BluetoothGATTReadResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTReadResponse");
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
   dump_bytes_field(out, "data", this->data_ptr_, this->data_len_);
 }
-void BluetoothGATTWriteRequest::dump_to(std::string &out) const {
+void BluetoothGATTWriteRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTWriteRequest");
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
   dump_field(out, "response", this->response);
   dump_bytes_field(out, "data", this->data, this->data_len);
 }
-void BluetoothGATTReadDescriptorRequest::dump_to(std::string &out) const {
+void BluetoothGATTReadDescriptorRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTReadDescriptorRequest");
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
 }
-void BluetoothGATTWriteDescriptorRequest::dump_to(std::string &out) const {
+void BluetoothGATTWriteDescriptorRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTWriteDescriptorRequest");
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
   dump_bytes_field(out, "data", this->data, this->data_len);
 }
-void BluetoothGATTNotifyRequest::dump_to(std::string &out) const {
+void BluetoothGATTNotifyRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTNotifyRequest");
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
   dump_field(out, "enable", this->enable);
 }
-void BluetoothGATTNotifyDataResponse::dump_to(std::string &out) const {
+void BluetoothGATTNotifyDataResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTNotifyDataResponse");
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
   dump_bytes_field(out, "data", this->data_ptr_, this->data_len_);
 }
-void SubscribeBluetoothConnectionsFreeRequest::dump_to(std::string &out) const {
+void SubscribeBluetoothConnectionsFreeRequest::dump_to(DumpBuffer &out) const {
   out.append("SubscribeBluetoothConnectionsFreeRequest {}");
 }
-void BluetoothConnectionsFreeResponse::dump_to(std::string &out) const {
+void BluetoothConnectionsFreeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothConnectionsFreeResponse");
   dump_field(out, "free", this->free);
   dump_field(out, "limit", this->limit);
@@ -1833,67 +1832,67 @@ void BluetoothConnectionsFreeResponse::dump_to(std::string &out) const {
     dump_field(out, "allocated", it, 4);
   }
 }
-void BluetoothGATTErrorResponse::dump_to(std::string &out) const {
+void BluetoothGATTErrorResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTErrorResponse");
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
   dump_field(out, "error", this->error);
 }
-void BluetoothGATTWriteResponse::dump_to(std::string &out) const {
+void BluetoothGATTWriteResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTWriteResponse");
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
 }
-void BluetoothGATTNotifyResponse::dump_to(std::string &out) const {
+void BluetoothGATTNotifyResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothGATTNotifyResponse");
   dump_field(out, "address", this->address);
   dump_field(out, "handle", this->handle);
 }
-void BluetoothDevicePairingResponse::dump_to(std::string &out) const {
+void BluetoothDevicePairingResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothDevicePairingResponse");
   dump_field(out, "address", this->address);
   dump_field(out, "paired", this->paired);
   dump_field(out, "error", this->error);
 }
-void BluetoothDeviceUnpairingResponse::dump_to(std::string &out) const {
+void BluetoothDeviceUnpairingResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothDeviceUnpairingResponse");
   dump_field(out, "address", this->address);
   dump_field(out, "success", this->success);
   dump_field(out, "error", this->error);
 }
-void UnsubscribeBluetoothLEAdvertisementsRequest::dump_to(std::string &out) const {
+void UnsubscribeBluetoothLEAdvertisementsRequest::dump_to(DumpBuffer &out) const {
   out.append("UnsubscribeBluetoothLEAdvertisementsRequest {}");
 }
-void BluetoothDeviceClearCacheResponse::dump_to(std::string &out) const {
+void BluetoothDeviceClearCacheResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothDeviceClearCacheResponse");
   dump_field(out, "address", this->address);
   dump_field(out, "success", this->success);
   dump_field(out, "error", this->error);
 }
-void BluetoothScannerStateResponse::dump_to(std::string &out) const {
+void BluetoothScannerStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothScannerStateResponse");
   dump_field(out, "state", static_cast<enums::BluetoothScannerState>(this->state));
   dump_field(out, "mode", static_cast<enums::BluetoothScannerMode>(this->mode));
   dump_field(out, "configured_mode", static_cast<enums::BluetoothScannerMode>(this->configured_mode));
 }
-void BluetoothScannerSetModeRequest::dump_to(std::string &out) const {
+void BluetoothScannerSetModeRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothScannerSetModeRequest");
   dump_field(out, "mode", static_cast<enums::BluetoothScannerMode>(this->mode));
 }
 #endif
 #ifdef USE_VOICE_ASSISTANT
-void SubscribeVoiceAssistantRequest::dump_to(std::string &out) const {
+void SubscribeVoiceAssistantRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SubscribeVoiceAssistantRequest");
   dump_field(out, "subscribe", this->subscribe);
   dump_field(out, "flags", this->flags);
 }
-void VoiceAssistantAudioSettings::dump_to(std::string &out) const {
+void VoiceAssistantAudioSettings::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantAudioSettings");
   dump_field(out, "noise_suppression_level", this->noise_suppression_level);
   dump_field(out, "auto_gain", this->auto_gain);
   dump_field(out, "volume_multiplier", this->volume_multiplier);
 }
-void VoiceAssistantRequest::dump_to(std::string &out) const {
+void VoiceAssistantRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantRequest");
   dump_field(out, "start", this->start);
   dump_field(out, "conversation_id", this->conversation_id);
@@ -1903,17 +1902,17 @@ void VoiceAssistantRequest::dump_to(std::string &out) const {
   out.append("\n");
   dump_field(out, "wake_word_phrase", this->wake_word_phrase);
 }
-void VoiceAssistantResponse::dump_to(std::string &out) const {
+void VoiceAssistantResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantResponse");
   dump_field(out, "port", this->port);
   dump_field(out, "error", this->error);
 }
-void VoiceAssistantEventData::dump_to(std::string &out) const {
+void VoiceAssistantEventData::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantEventData");
   dump_field(out, "name", this->name);
   dump_field(out, "value", this->value);
 }
-void VoiceAssistantEventResponse::dump_to(std::string &out) const {
+void VoiceAssistantEventResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantEventResponse");
   dump_field(out, "event_type", static_cast<enums::VoiceAssistantEvent>(this->event_type));
   for (const auto &it : this->data) {
@@ -1922,12 +1921,12 @@ void VoiceAssistantEventResponse::dump_to(std::string &out) const {
     out.append("\n");
   }
 }
-void VoiceAssistantAudio::dump_to(std::string &out) const {
+void VoiceAssistantAudio::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantAudio");
   dump_bytes_field(out, "data", this->data, this->data_len);
   dump_field(out, "end", this->end);
 }
-void VoiceAssistantTimerEventResponse::dump_to(std::string &out) const {
+void VoiceAssistantTimerEventResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantTimerEventResponse");
   dump_field(out, "event_type", static_cast<enums::VoiceAssistantTimerEvent>(this->event_type));
   dump_field(out, "timer_id", this->timer_id);
@@ -1936,18 +1935,18 @@ void VoiceAssistantTimerEventResponse::dump_to(std::string &out) const {
   dump_field(out, "seconds_left", this->seconds_left);
   dump_field(out, "is_active", this->is_active);
 }
-void VoiceAssistantAnnounceRequest::dump_to(std::string &out) const {
+void VoiceAssistantAnnounceRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantAnnounceRequest");
   dump_field(out, "media_id", this->media_id);
   dump_field(out, "text", this->text);
   dump_field(out, "preannounce_media_id", this->preannounce_media_id);
   dump_field(out, "start_conversation", this->start_conversation);
 }
-void VoiceAssistantAnnounceFinished::dump_to(std::string &out) const {
+void VoiceAssistantAnnounceFinished::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantAnnounceFinished");
   dump_field(out, "success", this->success);
 }
-void VoiceAssistantWakeWord::dump_to(std::string &out) const {
+void VoiceAssistantWakeWord::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantWakeWord");
   dump_field(out, "id", this->id);
   dump_field(out, "wake_word", this->wake_word);
@@ -1955,7 +1954,7 @@ void VoiceAssistantWakeWord::dump_to(std::string &out) const {
     dump_field(out, "trained_languages", it, 4);
   }
 }
-void VoiceAssistantExternalWakeWord::dump_to(std::string &out) const {
+void VoiceAssistantExternalWakeWord::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantExternalWakeWord");
   dump_field(out, "id", this->id);
   dump_field(out, "wake_word", this->wake_word);
@@ -1967,7 +1966,7 @@ void VoiceAssistantExternalWakeWord::dump_to(std::string &out) const {
   dump_field(out, "model_hash", this->model_hash);
   dump_field(out, "url", this->url);
 }
-void VoiceAssistantConfigurationRequest::dump_to(std::string &out) const {
+void VoiceAssistantConfigurationRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantConfigurationRequest");
   for (const auto &it : this->external_wake_words) {
     out.append("  external_wake_words: ");
@@ -1975,7 +1974,7 @@ void VoiceAssistantConfigurationRequest::dump_to(std::string &out) const {
     out.append("\n");
   }
 }
-void VoiceAssistantConfigurationResponse::dump_to(std::string &out) const {
+void VoiceAssistantConfigurationResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantConfigurationResponse");
   for (const auto &it : this->available_wake_words) {
     out.append("  available_wake_words: ");
@@ -1987,7 +1986,7 @@ void VoiceAssistantConfigurationResponse::dump_to(std::string &out) const {
   }
   dump_field(out, "max_active_wake_words", this->max_active_wake_words);
 }
-void VoiceAssistantSetConfiguration::dump_to(std::string &out) const {
+void VoiceAssistantSetConfiguration::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "VoiceAssistantSetConfiguration");
   for (const auto &it : this->active_wake_words) {
     dump_field(out, "active_wake_words", it, 4);
@@ -1995,7 +1994,7 @@ void VoiceAssistantSetConfiguration::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-void ListEntitiesAlarmControlPanelResponse::dump_to(std::string &out) const {
+void ListEntitiesAlarmControlPanelResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesAlarmControlPanelResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -2012,7 +2011,7 @@ void ListEntitiesAlarmControlPanelResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void AlarmControlPanelStateResponse::dump_to(std::string &out) const {
+void AlarmControlPanelStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "AlarmControlPanelStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "state", static_cast<enums::AlarmControlPanelState>(this->state));
@@ -2020,7 +2019,7 @@ void AlarmControlPanelStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void AlarmControlPanelCommandRequest::dump_to(std::string &out) const {
+void AlarmControlPanelCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "AlarmControlPanelCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "command", static_cast<enums::AlarmControlPanelStateCommand>(this->command));
@@ -2031,7 +2030,7 @@ void AlarmControlPanelCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_TEXT
-void ListEntitiesTextResponse::dump_to(std::string &out) const {
+void ListEntitiesTextResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesTextResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -2049,7 +2048,7 @@ void ListEntitiesTextResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void TextStateResponse::dump_to(std::string &out) const {
+void TextStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "TextStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "state", this->state);
@@ -2058,7 +2057,7 @@ void TextStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void TextCommandRequest::dump_to(std::string &out) const {
+void TextCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "TextCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "state", this->state);
@@ -2068,7 +2067,7 @@ void TextCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_DATETIME_DATE
-void ListEntitiesDateResponse::dump_to(std::string &out) const {
+void ListEntitiesDateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesDateResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -2082,7 +2081,7 @@ void ListEntitiesDateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void DateStateResponse::dump_to(std::string &out) const {
+void DateStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "DateStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "missing_state", this->missing_state);
@@ -2093,7 +2092,7 @@ void DateStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void DateCommandRequest::dump_to(std::string &out) const {
+void DateCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "DateCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "year", this->year);
@@ -2105,7 +2104,7 @@ void DateCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_DATETIME_TIME
-void ListEntitiesTimeResponse::dump_to(std::string &out) const {
+void ListEntitiesTimeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesTimeResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -2119,7 +2118,7 @@ void ListEntitiesTimeResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void TimeStateResponse::dump_to(std::string &out) const {
+void TimeStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "TimeStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "missing_state", this->missing_state);
@@ -2130,7 +2129,7 @@ void TimeStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void TimeCommandRequest::dump_to(std::string &out) const {
+void TimeCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "TimeCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "hour", this->hour);
@@ -2142,7 +2141,7 @@ void TimeCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_EVENT
-void ListEntitiesEventResponse::dump_to(std::string &out) const {
+void ListEntitiesEventResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesEventResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -2160,7 +2159,7 @@ void ListEntitiesEventResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void EventResponse::dump_to(std::string &out) const {
+void EventResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "EventResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "event_type", this->event_type);
@@ -2170,7 +2169,7 @@ void EventResponse::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_VALVE
-void ListEntitiesValveResponse::dump_to(std::string &out) const {
+void ListEntitiesValveResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesValveResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -2188,7 +2187,7 @@ void ListEntitiesValveResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void ValveStateResponse::dump_to(std::string &out) const {
+void ValveStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ValveStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "position", this->position);
@@ -2197,7 +2196,7 @@ void ValveStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void ValveCommandRequest::dump_to(std::string &out) const {
+void ValveCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ValveCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "has_position", this->has_position);
@@ -2209,7 +2208,7 @@ void ValveCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_DATETIME_DATETIME
-void ListEntitiesDateTimeResponse::dump_to(std::string &out) const {
+void ListEntitiesDateTimeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesDateTimeResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -2223,7 +2222,7 @@ void ListEntitiesDateTimeResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void DateTimeStateResponse::dump_to(std::string &out) const {
+void DateTimeStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "DateTimeStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "missing_state", this->missing_state);
@@ -2232,7 +2231,7 @@ void DateTimeStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void DateTimeCommandRequest::dump_to(std::string &out) const {
+void DateTimeCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "DateTimeCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "epoch_seconds", this->epoch_seconds);
@@ -2242,7 +2241,7 @@ void DateTimeCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_UPDATE
-void ListEntitiesUpdateResponse::dump_to(std::string &out) const {
+void ListEntitiesUpdateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesUpdateResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -2257,7 +2256,7 @@ void ListEntitiesUpdateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void UpdateStateResponse::dump_to(std::string &out) const {
+void UpdateStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "UpdateStateResponse");
   dump_field(out, "key", this->key);
   dump_field(out, "missing_state", this->missing_state);
@@ -2273,7 +2272,7 @@ void UpdateStateResponse::dump_to(std::string &out) const {
   dump_field(out, "device_id", this->device_id);
 #endif
 }
-void UpdateCommandRequest::dump_to(std::string &out) const {
+void UpdateCommandRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "UpdateCommandRequest");
   dump_field(out, "key", this->key);
   dump_field(out, "command", static_cast<enums::UpdateCommand>(this->command));
@@ -2283,18 +2282,18 @@ void UpdateCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
-void ZWaveProxyFrame::dump_to(std::string &out) const {
+void ZWaveProxyFrame::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ZWaveProxyFrame");
   dump_bytes_field(out, "data", this->data, this->data_len);
 }
-void ZWaveProxyRequest::dump_to(std::string &out) const {
+void ZWaveProxyRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ZWaveProxyRequest");
   dump_field(out, "type", static_cast<enums::ZWaveProxyRequestType>(this->type));
   dump_bytes_field(out, "data", this->data, this->data_len);
 }
 #endif
 #ifdef USE_INFRARED
-void ListEntitiesInfraredResponse::dump_to(std::string &out) const {
+void ListEntitiesInfraredResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "ListEntitiesInfraredResponse");
   dump_field(out, "object_id", this->object_id);
   dump_field(out, "key", this->key);
@@ -2311,7 +2310,7 @@ void ListEntitiesInfraredResponse::dump_to(std::string &out) const {
 }
 #endif
 #ifdef USE_IR_RF
-void InfraredRFTransmitRawTimingsRequest::dump_to(std::string &out) const {
+void InfraredRFTransmitRawTimingsRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "InfraredRFTransmitRawTimingsRequest");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
@@ -2326,7 +2325,7 @@ void InfraredRFTransmitRawTimingsRequest::dump_to(std::string &out) const {
   out.append(std::to_string(this->timings_length_));
   out.append(" bytes]\n");
 }
-void InfraredRFReceiveEvent::dump_to(std::string &out) const {
+void InfraredRFReceiveEvent::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "InfraredRFReceiveEvent");
 #ifdef USE_DEVICES
   dump_field(out, "device_id", this->device_id);
