@@ -212,6 +212,8 @@ def zigbee_assign(target: cg.MockObj, expression: cg.RawExpression | int) -> str
 
 def zigbee_set_string(target: cg.MockObj, value: str) -> str:
     """Set a ZCL string value and return the target name (arrays decay to pointers)."""
+    # Zigbee supports only ASCII
+    value = value.encode("ascii", "ignore").decode()
     cg.add(
         cg.RawExpression(
             f"ZB_ZCL_SET_STRING_VAL({target}, {cg.safe_exp(value)}, ZB_ZCL_STRING_CONST_SIZE({cg.safe_exp(value)}))"
