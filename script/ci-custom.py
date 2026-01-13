@@ -679,6 +679,52 @@ def lint_trailing_whitespace(fname, match):
     return "Trailing whitespace detected"
 
 
+# Heap-allocating helpers that cause fragmentation on long-running embedded devices.
+# These return std::string and should be replaced with stack-based alternatives.
+HEAP_ALLOCATING_HELPERS = {
+    "format_hex": "format_hex_to() with a stack buffer",
+    "format_mac_address_pretty": "format_mac_addr_upper() with a stack buffer",
+    "get_mac_address": "get_mac_address_into_buffer() with a stack buffer",
+    "get_mac_address_pretty": "get_mac_address_pretty_into_buffer() with a stack buffer",
+    "str_truncate": "removal (function is unused)",
+    "str_upper_case": "removal (function is unused)",
+    "str_snake_case": "removal (function is unused)",
+}
+
+
+@lint_re_check(
+    # Use negative lookahead to exclude _to/_into_buffer variants
+    # format_hex(?!_) ensures we don't match format_hex_to, format_hex_pretty_to, etc.
+    # get_mac_address(?!_) ensures we don't match get_mac_address_into_buffer, etc.
+    r"[^\w]("
+    r"format_hex(?!_)|"
+    r"format_mac_address_pretty|"
+    r"get_mac_address_pretty(?!_)|"
+    r"get_mac_address(?!_)|"
+    r"str_truncate|"
+    r"str_upper_case|"
+    r"str_snake_case"
+    r")\s*\(",
+    include=cpp_include,
+    exclude=[
+        # The definitions themselves
+        "esphome/core/helpers.h",
+        "esphome/core/helpers.cpp",
+    ],
+)
+def lint_no_heap_allocating_helpers(fname, match):
+    func = match.group(1)
+    replacement = HEAP_ALLOCATING_HELPERS.get(func, "a stack-based alternative")
+    return (
+        f"{highlight(func + '()')} allocates heap memory. On long-running embedded devices, "
+        f"repeated heap allocations fragment memory over time. Even infrequent allocations "
+        f"become time bombs - the heap eventually cannot satisfy requests even with free "
+        f"memory available.\n"
+        f"Please use {replacement} instead.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
 @lint_content_find_check(
     "ESP_LOG",
     include=["*.h", "*.tcc"],
