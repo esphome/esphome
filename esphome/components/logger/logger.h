@@ -369,7 +369,8 @@ class Logger : public Component {
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   std::map<const char *, uint8_t, CStrCompare> log_levels_{};
 #endif
-  std::vector<LogListener *> log_listeners_;  // Log message listeners (API, MQTT, syslog, etc.)
+  StaticVector<LogListener *, ESPHOME_LOG_MAX_LISTENERS>
+      log_listeners_;  // Log message listeners (API, MQTT, syslog, etc.)
 #ifdef USE_LOGGER_LEVEL_LISTENERS
   std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
 #endif
