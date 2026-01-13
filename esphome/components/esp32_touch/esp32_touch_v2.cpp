@@ -26,8 +26,8 @@ void ESP32TouchComponent::update_touch_state_(ESP32TouchBinarySensor *child, boo
     if (is_touched) {
       // Read floating benchmark for logging
       uint32_t benchmark = this->read_floating_benchmark_(child->touch_pad_);
-      ESP_LOGV(TAG, "Touch Pad '%s' state: ON (value: %" PRIu32 " > threshold: %" PRIu32 ")", child->get_name().c_str(),
-               value, child->threshold_ + benchmark);
+      ESP_LOGV(TAG, "Touch Pad '%s' state: ON (value: %" PRIu32 " > threshold + benchmark: %" PRIu32 ")",
+               child->get_name().c_str(), value, child->threshold_ + benchmark);
     } else {
       ESP_LOGV(TAG, "Touch Pad '%s' state: OFF", child->get_name().c_str());
     }
@@ -325,7 +325,6 @@ void ESP32TouchComponent::loop() {
 
   size_t pads_off = 0;
   for (auto *child : this->children_) {
-    child->ensure_benchmark_read();
     // Handle initial state publication after startup
     this->publish_initial_state_if_needed_(child, now);
 
