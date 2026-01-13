@@ -174,7 +174,7 @@ bool MQTTFanComponent::publish_state() {
   }
   auto traits = this->state_->get_traits();
   if (traits.supports_speed()) {
-    char buf[4];
+    char buf[12];
     int len = snprintf(buf, sizeof(buf), "%d", this->state_->speed);
     bool success = this->publish(this->get_speed_level_state_topic(), buf, len);
     failed = failed || !success;
