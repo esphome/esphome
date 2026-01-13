@@ -1,0 +1,15 @@
+<<: !include common-lan8720.yaml
+
+sn74hc165:
+  - id: sn74hc165_hub
+    clock_pin: GPIO13
+    data_pin: GPIO14
+    load_pin: GPIO15
+    sr_count: 3
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 19
+    id: relay_2

@@ -4,9 +4,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/template_lambda.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 // We keep this separate so we don't have to template and duplicate
 // the text input for each different size flash allocation.
@@ -59,9 +59,9 @@ template<uint8_t SZ> class TextSaver : public TemplateTextSaverBase {
   }
 };
 
-class TemplateText : public text::Text, public PollingComponent {
+class TemplateText final : public text::Text, public PollingComponent {
  public:
-  void set_template(std::function<optional<std::string>()> &&f) { this->f_ = f; }
+  template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
   void setup() override;
   void update() override;
@@ -78,10 +78,9 @@ class TemplateText : public text::Text, public PollingComponent {
   bool optimistic_ = false;
   std::string initial_value_;
   Trigger<std::string> *set_trigger_ = new Trigger<std::string>();
-  optional<std::function<optional<std::string>()>> f_{nullptr};
+  TemplateLambda<std::string> f_{};
 
   TemplateTextSaverBase *pref_ = nullptr;
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

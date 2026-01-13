@@ -2,13 +2,13 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include <esp_http_server.h>
 
 #include <atomic>
 #include <functional>
 #include <list>
 #include <map>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -81,6 +81,7 @@ class AsyncResponseStream : public AsyncWebServerResponse {
   void print(const std::string &str) { this->content_.append(str); }
   void print(float value);
   void printf(const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+  void write(uint8_t c) { this->content_.push_back(static_cast<char>(c)); }
 
  protected:
   std::string content_;
@@ -200,12 +201,15 @@ class AsyncWebServer {
     return *handler;
   }
 
+  httpd_handle_t get_server() { return this->server_; }
+
  protected:
   uint16_t port_{};
   httpd_handle_t server_{};
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;
+  static void safe_close_with_shutdown(httpd_handle_t hd, int sockfd);
 #ifdef USE_WEBSERVER_OTA
   esp_err_t handle_multipart_upload_(httpd_req_t *r, const char *content_type);
 #endif
@@ -315,11 +319,19 @@ class AsyncEventSource : public AsyncWebHandler {
 
  protected:
   std::string url_;
-  std::set<AsyncEventSourceResponse *> sessions_;
+  // Use vector instead of set: SSE sessions are typically 1-5 connections (browsers, dashboards).
+  // Linear search is faster than red-black tree overhead for this small dataset.
+  // Only operations needed: add session, remove session, iterate sessions - no need for sorted order.
+  std::vector<AsyncEventSourceResponse *> sessions_;
   connect_handler_t on_connect_{};
   esphome::web_server::WebServer *web_server_;
 };
 #endif  // USE_WEBSERVER
+
+struct HttpHeader {
+  const char *name;
+  const char *value;
+};
 
 class DefaultHeaders {
   friend class AsyncWebServerRequest;
@@ -329,13 +341,14 @@ class DefaultHeaders {
 
  public:
   // NOLINTNEXTLINE(readability-identifier-naming)
-  void addHeader(const char *name, const char *value) { this->headers_.emplace_back(name, value); }
+  void addHeader(const char *name, const char *value) { this->headers_.push_back({name, value}); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
   static DefaultHeaders &Instance();
 
  protected:
-  std::vector<std::pair<std::string, std::string>> headers_;
+  // Stack-allocated, no reallocation machinery. Count defined in web_server_base where headers are added.
+  StaticVector<HttpHeader, WEB_SERVER_DEFAULT_HEADERS_COUNT> headers_;
 };
 
 }  // namespace web_server_idf

@@ -1,5 +1,5 @@
 rc522_i2c:
-  - id: rc522_nfcc
+  - id: rc522_nfcc_i2c
     i2c_id: i2c_bus
     update_interval: 1s
     on_tag:
@@ -8,6 +8,6 @@ rc522_i2c:
 
 binary_sensor:
   - platform: rc522
-    rc522_id: rc522_nfcc
+    rc522_id: rc522_nfcc_i2c
     name: RC522 NFC Tag
     uid: 74-10-37-94

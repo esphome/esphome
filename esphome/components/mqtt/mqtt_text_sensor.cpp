@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_TEXT_SENSOR
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.text_sensor";
 
@@ -15,10 +14,12 @@ using namespace esphome::text_sensor;
 
 MQTTTextSensor::MQTTTextSensor(TextSensor *sensor) : sensor_(sensor) {}
 void MQTTTextSensor::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  if (!this->sensor_->get_device_class().empty()) {
-    root[MQTT_DEVICE_CLASS] = this->sensor_->get_device_class();
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  const auto device_class = this->sensor_->get_device_class_ref();
+  if (!device_class.empty()) {
+    root[MQTT_DEVICE_CLASS] = device_class;
   }
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
   config.command_topic = false;
 }
 void MQTTTextSensor::setup() {
@@ -38,11 +39,10 @@ bool MQTTTextSensor::send_initial_state() {
     return true;
   }
 }
-std::string MQTTTextSensor::component_type() const { return "sensor"; }
+MQTT_COMPONENT_TYPE(MQTTTextSensor, "sensor")
 const EntityBase *MQTTTextSensor::get_entity() const { return this->sensor_; }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

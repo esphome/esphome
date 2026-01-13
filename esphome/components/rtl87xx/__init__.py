@@ -6,10 +6,13 @@
 # in schema.py file in this directory.
 
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import libretiny
 from esphome.components.libretiny.const import (
     COMPONENT_RTL87XX,
+    FAMILY_RTL8710B,
     KEY_COMPONENT_DATA,
+    KEY_FAMILY,
     KEY_LIBRETINY,
     LibreTinyComponent,
 )
@@ -45,6 +48,11 @@ CONFIG_SCHEMA.prepend_extra(_set_core_data)
 
 
 async def to_code(config):
+    # Use FreeRTOS 8.2.3+ for xTaskNotifyGive/ulTaskNotifyTake required by AsyncTCP 3.4.3+
+    # https://github.com/esphome/esphome/issues/10220
+    # Only for RTL8710B (ambz) - RTL8720C (ambz2) requires FreeRTOS 10.x
+    if CORE.data[KEY_LIBRETINY][KEY_FAMILY] == FAMILY_RTL8710B:
+        cg.add_platformio_option("custom_versions.freertos", "8.2.3")
     return await libretiny.component_to_code(config)
 
 

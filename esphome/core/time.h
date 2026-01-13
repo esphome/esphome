@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <ctime>
+#include <span>
 #include <string>
 
 namespace esphome {
@@ -13,6 +14,9 @@ uint8_t days_in_month(uint8_t month, uint16_t year);
 
 /// A more user-friendly version of struct tm from time.h
 struct ESPTime {
+  /// Buffer size required for strftime output
+  static constexpr size_t STRFTIME_BUFFER_SIZE = 128;
+
   /** seconds after the minute [0-60]
    * @note second is generally 0-59; the extra range is to accommodate leap seconds.
    */
@@ -43,17 +47,27 @@ struct ESPTime {
    */
   size_t strftime(char *buffer, size_t buffer_len, const char *format);
 
-  /** Convert this ESPTime struct to a string as specified by the format argument.
+  /** Format time into a fixed-size buffer, returns length written.
+   *
+   * This is the preferred method for avoiding heap allocations. The buffer size is enforced at compile-time.
+   * On format error, writes "ERROR" to the buffer and returns 5.
    * @see https://www.gnu.org/software/libc/manual/html_node/Formatting-Calendar-Time.html#index-strftime
+   */
+  size_t strftime_to(std::span<char, STRFTIME_BUFFER_SIZE> buffer, const char *format);
+
+  /** Convert this ESPTime struct to a string as specified by the format argument.
+   * @see https://en.cppreference.com/w/c/chrono/strftime
    *
-   * @warning This method uses dynamically allocated strings which can cause heap fragmentation with some
-   * microcontrollers.
+   * @warning This method returns a dynamically allocated string which can cause heap fragmentation with some
+   * microcontrollers. Prefer strftime_to() for heap-free formatting.
    *
-   * @warning This method can return "ERROR" when the underlying strftime() call fails, e.g. when the
-   * format string contains unsupported specifiers or when the format string doesn't produce any
-   * output.
+   * @warning This method can return "ERROR" when the underlying strftime() call fails or when the
+   * output exceeds STRFTIME_BUFFER_SIZE bytes.
    */
   std::string strftime(const std::string &format);
+
+  /// @copydoc strftime(const std::string &format)
+  std::string strftime(const char *format);
 
   /// Check if this ESPTime is valid (all fields in range and year is greater than 2018)
   bool is_valid() const { return this->year >= 2019 && this->fields_in_range(); }
@@ -82,6 +96,9 @@ struct ESPTime {
    */
   static ESPTime from_epoch_local(time_t epoch) {
     struct tm *c_tm = ::localtime(&epoch);
+    if (c_tm == nullptr) {
+      return ESPTime{};  // Return an invalid ESPTime
+    }
     return ESPTime::from_c_tm(c_tm, epoch);
   }
   /** Convert an UTC epoch timestamp to a UTC time ESPTime instance.
@@ -91,6 +108,9 @@ struct ESPTime {
    */
   static ESPTime from_epoch_utc(time_t epoch) {
     struct tm *c_tm = ::gmtime(&epoch);
+    if (c_tm == nullptr) {
+      return ESPTime{};  // Return an invalid ESPTime
+    }
     return ESPTime::from_c_tm(c_tm, epoch);
   }
 

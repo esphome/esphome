@@ -32,6 +32,7 @@ from .const import (
     CONF_SDK_SILENT,
     CONF_UART_PORT,
     FAMILIES,
+    FAMILY_BK7231N,
     FAMILY_COMPONENT,
     FAMILY_FRIENDLY,
     KEY_BOARD,
@@ -49,6 +50,22 @@ _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
+
+# BK7231N SDK options to disable unused features.
+# Disabling BLE saves ~21KB RAM and ~200KB Flash because BLE init code is
+# called unconditionally by the SDK. ESPHome doesn't use BLE on LibreTiny.
+#
+# This only works on BK7231N (BLE 5.x). Other BK72XX chips using BLE 4.2
+# (BK7231T, BK7231Q, BK7251; BK7252 boards use the BK7251 family) have a bug
+# where the BLE library still links and references undefined symbols when
+# CFG_SUPPORT_BLE=0.
+#
+# Other options like CFG_TX_EVM_TEST, CFG_RX_SENSITIVITY_TEST, CFG_SUPPORT_BKREG,
+# CFG_SUPPORT_OTA_HTTP, and CFG_USE_SPI_SLAVE were evaluated but provide no  # NOLINT
+# measurable benefit - the linker already strips unreferenced code via -gc-sections.
+_BK7231N_SYS_CONFIG_OPTIONS = [
+    "CFG_SUPPORT_BLE=0",
+]
 
 
 def _detect_variant(value):
@@ -174,9 +191,9 @@ def _notify_old_style(config):
 
 # The dev and latest branches will be at *least* this version, which is what matters.
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(1, 9, 1), "https://github.com/libretiny-eu/libretiny.git"),
-    "latest": (cv.Version(1, 9, 1), "libretiny"),
-    "recommended": (cv.Version(1, 9, 1), None),
+    "dev": (cv.Version(1, 9, 2), "https://github.com/libretiny-eu/libretiny.git"),
+    "latest": (cv.Version(1, 9, 2), "libretiny"),
+    "recommended": (cv.Version(1, 9, 2), None),
 }
 
 
@@ -261,6 +278,10 @@ async def component_to_code(config):
     cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_FAMILY]}")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", FAMILY_FRIENDLY[config[CONF_FAMILY]])
+    # LibreTiny uses MULTI_NO_ATOMICS because platforms like BK7231N (ARM968E-S) lack
+    # exclusive load/store (no LDREX/STREX). std::atomic RMW operations require libatomic,
+    # which is not linked to save flash (4-8KB). Even if linked, libatomic would use locks
+    # (ATOMIC_INT_LOCK_FREE=1), so explicit FreeRTOS mutexes are simpler and equivalent.
     cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
 
     # force using arduino framework
@@ -341,5 +362,11 @@ async def component_to_code(config):
     else:
         cg.add_platformio_option("custom_fw_name", "esphome")
         cg.add_platformio_option("custom_fw_version", __version__)
+
+    # Apply chip-specific SDK options to save RAM/Flash
+    if config[CONF_FAMILY] == FAMILY_BK7231N:
+        cg.add_platformio_option(
+            "custom_options.sys_config#h", _BK7231N_SYS_CONFIG_OPTIONS
+        )
 
     await cg.register_component(var, config)

@@ -1,15 +1,17 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    add_idf_sdkconfig_option,
+    get_esp32_variant,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_BITS_PER_SAMPLE, CONF_CHANNEL, CONF_ID, CONF_SAMPLE_RATE
@@ -68,13 +70,14 @@ I2S_ROLE_OPTIONS = {
 # https://github.com/espressif/esp-idf/blob/master/components/soc/{variant}/include/soc/soc_caps.h (SOC_I2S_NUM)
 I2S_PORTS = {
     VARIANT_ESP32: 2,
-    VARIANT_ESP32S2: 1,
-    VARIANT_ESP32S3: 2,
     VARIANT_ESP32C3: 1,
     VARIANT_ESP32C5: 1,
     VARIANT_ESP32C6: 1,
+    VARIANT_ESP32C61: 1,
     VARIANT_ESP32H2: 1,
     VARIANT_ESP32P4: 3,
+    VARIANT_ESP32S2: 1,
+    VARIANT_ESP32S3: 2,
 }
 
 i2s_channel_fmt_t = cg.global_ns.enum("i2s_channel_fmt_t")
@@ -143,7 +146,18 @@ def validate_mclk_divisible_by_3(config):
     return config
 
 
-_use_legacy_driver = None
+# Key for storing legacy driver setting in CORE.data
+I2S_USE_LEGACY_DRIVER_KEY = "i2s_use_legacy_driver"
+
+
+def _get_use_legacy_driver():
+    """Get the legacy driver setting from CORE.data."""
+    return CORE.data.get(I2S_USE_LEGACY_DRIVER_KEY)
+
+
+def _set_use_legacy_driver(value: bool) -> None:
+    """Set the legacy driver setting in CORE.data."""
+    CORE.data[I2S_USE_LEGACY_DRIVER_KEY] = value
 
 
 def i2s_audio_component_schema(
@@ -209,17 +223,17 @@ async def register_i2s_audio_component(var, config):
 
 
 def validate_use_legacy(value):
-    global _use_legacy_driver  # noqa: PLW0603
     if CONF_USE_LEGACY in value:
-        if (_use_legacy_driver is not None) and (
-            _use_legacy_driver != value[CONF_USE_LEGACY]
-        ):
+        existing_value = _get_use_legacy_driver()
+        if (existing_value is not None) and (existing_value != value[CONF_USE_LEGACY]):
             raise cv.Invalid(
                 f"All i2s_audio components must set {CONF_USE_LEGACY} to the same value."
             )
         if (not value[CONF_USE_LEGACY]) and (CORE.using_arduino):
             raise cv.Invalid("Arduino supports only the legacy i2s driver")
-        _use_legacy_driver = value[CONF_USE_LEGACY]
+        _set_use_legacy_driver(value[CONF_USE_LEGACY])
+    elif CORE.using_arduino:
+        _set_use_legacy_driver(True)
     return value
 
 
@@ -249,7 +263,7 @@ def _final_validate(_):
 
 
 def use_legacy():
-    return not (CORE.using_esp_idf and not _use_legacy_driver)
+    return _get_use_legacy_driver()
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

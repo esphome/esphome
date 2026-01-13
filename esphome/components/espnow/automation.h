@@ -14,13 +14,13 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
   TEMPLATABLE_VALUE(std::vector<uint8_t>, data);
 
  public:
-  void add_on_sent(const std::vector<Action<Ts...> *> &actions) {
+  void add_on_sent(const std::initializer_list<Action<Ts...> *> &actions) {
     this->sent_.add_actions(actions);
     if (this->flags_.wait_for_sent) {
       this->sent_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next_(x...); }));
     }
   }
-  void add_on_error(const std::vector<Action<Ts...> *> &actions) {
+  void add_on_error(const std::initializer_list<Action<Ts...> *> &actions) {
     this->error_.add_actions(actions);
     if (this->flags_.wait_for_sent) {
       this->error_.add_action(new LambdaAction<Ts...>([this](Ts... x) {
@@ -36,7 +36,7 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
   void set_wait_for_sent(bool wait_for_sent) { this->flags_.wait_for_sent = wait_for_sent; }
   void set_continue_on_error(bool continue_on_error) { this->flags_.continue_on_error = continue_on_error; }
 
-  void play_complex(Ts... x) override {
+  void play_complex(const Ts &...x) override {
     this->num_running_++;
     send_callback_t send_callback = [this, x...](esp_err_t status) {
       if (status == ESP_OK) {
@@ -67,7 +67,7 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
     }
   }
 
-  void play(Ts... x) override { /* ignore - see play_complex */
+  void play(const Ts &...x) override { /* ignore - see play_complex */
   }
 
   void stop() override {
@@ -90,7 +90,7 @@ template<typename... Ts> class AddPeerAction : public Action<Ts...>, public Pare
   TEMPLATABLE_VALUE(peer_address_t, address);
 
  public:
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     peer_address_t address = this->address_.value(x...);
     this->parent_->add_peer(address.data());
   }
@@ -100,7 +100,7 @@ template<typename... Ts> class DeletePeerAction : public Action<Ts...>, public P
   TEMPLATABLE_VALUE(peer_address_t, address);
 
  public:
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     peer_address_t address = this->address_.value(x...);
     this->parent_->del_peer(address.data());
   }
@@ -109,7 +109,7 @@ template<typename... Ts> class DeletePeerAction : public Action<Ts...>, public P
 template<typename... Ts> class SetChannelAction : public Action<Ts...>, public Parented<ESPNowComponent> {
  public:
   TEMPLATABLE_VALUE(uint8_t, channel)
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     if (this->parent_->is_wifi_enabled()) {
       return;
     }
