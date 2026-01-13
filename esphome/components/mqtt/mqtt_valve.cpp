@@ -74,8 +74,8 @@ bool MQTTValveComponent::publish_state() {
   bool success = true;
   if (traits.get_supports_position()) {
     char pos[VALUE_ACCURACY_MAX_LEN];
-    value_accuracy_to_buf(pos, roundf(this->valve_->position * 100), 0);
-    if (!this->publish(this->get_position_state_topic(), pos))
+    size_t len = value_accuracy_to_buf(pos, roundf(this->valve_->position * 100), 0);
+    if (!this->publish(this->get_position_state_topic(), pos, len))
       success = false;
   }
   const char *state_s = this->valve_->current_operation == VALVE_OPERATION_OPENING   ? "opening"

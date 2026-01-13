@@ -106,9 +106,13 @@ std::string MQTTComponent::get_command_topic_() const {
 }
 
 bool MQTTComponent::publish(const std::string &topic, const std::string &payload) {
+  return this->publish(topic, payload.data(), payload.size());
+}
+
+bool MQTTComponent::publish(const std::string &topic, const char *payload, size_t payload_length) {
   if (topic.empty())
     return false;
-  return global_mqtt_client->publish(topic, payload, this->qos_, this->retain_);
+  return global_mqtt_client->publish(topic, payload, payload_length, this->qos_, this->retain_);
 }
 
 bool MQTTComponent::publish_json(const std::string &topic, const json::json_build_t &f) {
