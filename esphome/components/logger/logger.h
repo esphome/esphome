@@ -236,6 +236,8 @@ class Logger : public Component {
     ~RecursionGuard() { flag_ = false; }
     RecursionGuard(const RecursionGuard &) = delete;
     RecursionGuard &operator=(const RecursionGuard &) = delete;
+    RecursionGuard(RecursionGuard &&) = delete;
+    RecursionGuard &operator=(RecursionGuard &&) = delete;
 
    private:
     bool &flag_;
