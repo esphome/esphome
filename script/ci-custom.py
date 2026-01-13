@@ -683,6 +683,7 @@ def lint_trailing_whitespace(fname, match):
 # These return std::string and should be replaced with stack-based alternatives.
 HEAP_ALLOCATING_HELPERS = {
     "format_hex": "format_hex_to() with a stack buffer",
+    "format_hex_pretty": "format_hex_pretty_to() with a stack buffer",
     "format_mac_address_pretty": "format_mac_addr_upper() with a stack buffer",
     "get_mac_address": "get_mac_address_into_buffer() with a stack buffer",
     "get_mac_address_pretty": "get_mac_address_pretty_into_buffer() with a stack buffer",
@@ -696,15 +697,17 @@ HEAP_ALLOCATING_HELPERS = {
     # Use negative lookahead to exclude _to/_into_buffer variants
     # format_hex(?!_) ensures we don't match format_hex_to, format_hex_pretty_to, etc.
     # get_mac_address(?!_) ensures we don't match get_mac_address_into_buffer, etc.
+    # CPP_RE_EOL captures rest of line so NOLINT comments are detected
     r"[^\w]("
     r"format_hex(?!_)|"
+    r"format_hex_pretty(?!_)|"
     r"format_mac_address_pretty|"
     r"get_mac_address_pretty(?!_)|"
     r"get_mac_address(?!_)|"
     r"str_truncate|"
     r"str_upper_case|"
     r"str_snake_case"
-    r")\s*\(",
+    r")\s*\(" + CPP_RE_EOL,
     include=cpp_include,
     exclude=[
         # The definitions themselves

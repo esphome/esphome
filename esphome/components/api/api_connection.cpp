@@ -305,7 +305,8 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint8_t mess
 #ifdef HAS_PROTO_MESSAGE_DUMP
   // If in log-only mode, just log and return
   if (conn->flags_.log_only_mode) {
-    conn->log_send_message_(msg.message_name(), msg.dump());
+    DumpBuffer dump_buf;
+    conn->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));
     return 1;  // Return non-zero to indicate "success" for logging
   }
 #endif
