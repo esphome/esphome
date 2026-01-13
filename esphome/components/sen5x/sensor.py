@@ -6,7 +6,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALGORITHM_TUNING,
     CONF_ALTITUDE_COMPENSATION,
-    CONF_AMBIENT_PRESSURE_COMPENSATION,
     CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
     CONF_AUTOMATIC_SELF_CALIBRATION,
     CONF_CO2,
@@ -294,7 +293,6 @@ SETTING_MAP = {
 CO2_SETTING_MAP = {
     CONF_AUTOMATIC_SELF_CALIBRATION: "set_automatic_self_calibration",
     CONF_ALTITUDE_COMPENSATION: "set_altitude_compensation",
-    CONF_AMBIENT_PRESSURE_COMPENSATION: "set_ambient_pressure_compensation",
 }
 
 
@@ -412,15 +410,13 @@ async def to_code(config):
                 cfg[CONF_TIME_CONSTANT],
             )
         )
-    if CONF_CO2 in config:
+    if cfg := config.get(CONF_CO2):
         for key, funcName in CO2_SETTING_MAP.items():
-            if key in config[CONF_CO2]:
-                cg.add(getattr(var, funcName)(config[CONF_CO2][key]))
-            if CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE in config[CONF_CO2]:
-                sens = await cg.get_variable(
-                    config[CONF_CO2][CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE]
-                )
-                cg.add(var.set_ambient_pressure_compensation_source(sens))
+            if setting := config.get(key):
+                cg.add(getattr(var, funcName)(setting))
+        if source := cfg.get(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE):
+            sens = await cg.get_variable(source)
+            cg.add(var.set_ambient_pressure_compensation_source(sens))
 
 
 SEN5X_ACTION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(SEN5XComponent)})
