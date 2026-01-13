@@ -122,6 +122,25 @@ sensor:
   Only a limited set of units is supported. Unsupported units will revert to unitless.
   This is exposed as the Zigbee endpoint engineering units.
 
+### Switch Configuration
+
+All switches with a `name` are automatically exposed over Zigbee.
+
+```yaml
+switch:
+  - platform: template
+    name: "Template Switch"
+    optimistic: true
+```
+
+#### Configuration variables
+
+- **name** (**Required**, string): The name for the switch. This is exposed as the
+  Zigbee endpoint description.
+- **internal** (*Optional*, boolean): Mark this component as internal. Internal components will
+  not be exposed over Zigbee. Only specifying an `id` without a `name` will implicitly set this to true.
+  Use this if you run out of Zigbee endpoints.
+
 ## See Also
 
 - [Zigbee2MQTT](https://www.zigbee2mqtt.io/)
