@@ -1421,6 +1421,135 @@ def test_detect_memory_impact_config_runs_at_component_limit(tmp_path: Path) -> 
     assert len(result["components"]) == 40
 
 
+# Tests for _detect_platform_hint_from_filename function
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected_platform"),
+    [
+        # ESP-IDF platform detection
+        ("esphome/components/wifi/wifi_esp_idf.cpp", determine_jobs.Platform.ESP32_IDF),
+        (
+            "esphome/components/wifi/wifi_component_esp_idf.cpp",
+            determine_jobs.Platform.ESP32_IDF,
+        ),
+        (
+            "esphome/components/ethernet/ethernet_idf.cpp",
+            determine_jobs.Platform.ESP32_IDF,
+        ),
+        # ESP32 variant detection with IDF suffix
+        (
+            "esphome/components/ble/esp32c3_idf.cpp",
+            determine_jobs.Platform.ESP32_C3_IDF,
+        ),
+        (
+            "esphome/components/ble/esp32c6_idf.cpp",
+            determine_jobs.Platform.ESP32_C6_IDF,
+        ),
+        (
+            "esphome/components/ble/esp32s2_idf.cpp",
+            determine_jobs.Platform.ESP32_S2_IDF,
+        ),
+        (
+            "esphome/components/ble/esp32s3_idf.cpp",
+            determine_jobs.Platform.ESP32_S3_IDF,
+        ),
+        # ESP8266 detection
+        (
+            "esphome/components/wifi/wifi_esp8266.cpp",
+            determine_jobs.Platform.ESP8266_ARD,
+        ),
+        ("esphome/core/helpers_esp8266.h", determine_jobs.Platform.ESP8266_ARD),
+        # Generic ESP32 detection (without IDF suffix)
+        ("esphome/components/wifi/wifi_esp32.cpp", determine_jobs.Platform.ESP32_IDF),
+        (
+            "esphome/components/ethernet/ethernet_esp32.cpp",
+            determine_jobs.Platform.ESP32_IDF,
+        ),
+        # LibreTiny / BK72xx detection
+        (
+            "esphome/components/wifi/wifi_libretiny.cpp",
+            determine_jobs.Platform.BK72XX_ARD,
+        ),
+        ("esphome/components/ble/ble_bk72xx.cpp", determine_jobs.Platform.BK72XX_ARD),
+        # RP2040 / Raspberry Pi Pico detection
+        ("esphome/components/gpio/gpio_rp2040.cpp", determine_jobs.Platform.RP2040_ARD),
+        ("esphome/components/wifi/wifi_rp2040.cpp", determine_jobs.Platform.RP2040_ARD),
+        ("esphome/components/i2c/i2c_pico.cpp", determine_jobs.Platform.RP2040_ARD),
+        ("esphome/components/spi/spi_pico.cpp", determine_jobs.Platform.RP2040_ARD),
+        (
+            "tests/components/rp2040/test.rp2040-ard.yaml",
+            determine_jobs.Platform.RP2040_ARD,
+        ),
+        # No platform hint (generic files)
+        ("esphome/components/wifi/wifi.cpp", None),
+        ("esphome/components/sensor/sensor.h", None),
+        ("esphome/core/helpers.h", None),
+        ("README.md", None),
+    ],
+    ids=[
+        "esp_idf_suffix",
+        "esp_idf_component_suffix",
+        "idf_suffix",
+        "esp32c3_idf",
+        "esp32c6_idf",
+        "esp32s2_idf",
+        "esp32s3_idf",
+        "esp8266_suffix",
+        "esp8266_core_header",
+        "generic_esp32",
+        "esp32_in_name",
+        "libretiny",
+        "bk72xx",
+        "rp2040_gpio",
+        "rp2040_wifi",
+        "pico_i2c",
+        "pico_spi",
+        "rp2040_test_yaml",
+        "generic_wifi_no_hint",
+        "generic_sensor_no_hint",
+        "core_helpers_no_hint",
+        "readme_no_hint",
+    ],
+)
+def test_detect_platform_hint_from_filename(
+    filename: str, expected_platform: determine_jobs.Platform | None
+) -> None:
+    """Test _detect_platform_hint_from_filename correctly detects platform hints."""
+    result = determine_jobs._detect_platform_hint_from_filename(filename)
+    assert result == expected_platform
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected_platform"),
+    [
+        # RP2040/Pico with different cases
+        ("file_RP2040.cpp", determine_jobs.Platform.RP2040_ARD),
+        ("file_Rp2040.cpp", determine_jobs.Platform.RP2040_ARD),
+        ("file_PICO.cpp", determine_jobs.Platform.RP2040_ARD),
+        ("file_Pico.cpp", determine_jobs.Platform.RP2040_ARD),
+        # ESP8266 with different cases
+        ("file_ESP8266.cpp", determine_jobs.Platform.ESP8266_ARD),
+        # ESP32 with different cases
+        ("file_ESP32.cpp", determine_jobs.Platform.ESP32_IDF),
+    ],
+    ids=[
+        "rp2040_uppercase",
+        "rp2040_mixedcase",
+        "pico_uppercase",
+        "pico_titlecase",
+        "esp8266_uppercase",
+        "esp32_uppercase",
+    ],
+)
+def test_detect_platform_hint_from_filename_case_insensitive(
+    filename: str, expected_platform: determine_jobs.Platform
+) -> None:
+    """Test that platform detection is case-insensitive."""
+    result = determine_jobs._detect_platform_hint_from_filename(filename)
+    assert result == expected_platform
+
+
 def test_component_batching_beta_branch_40_per_batch(
     tmp_path: Path,
     mock_should_run_integration_tests: Mock,

@@ -141,6 +141,13 @@ bool ListEntitiesIterator::on_water_heater(water_heater::WaterHeater *obj) {
 }
 #endif
 
+#ifdef USE_INFRARED
+bool ListEntitiesIterator::on_infrared(infrared::Infrared *obj) {
+  // Infrared web_server support not yet implemented - this stub acknowledges the entity
+  return true;
+}
+#endif
+
 #ifdef USE_EVENT
 bool ListEntitiesIterator::on_event(event::Event *obj) {
   // Null event type, since we are just iterating over entities
