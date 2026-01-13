@@ -9,17 +9,12 @@
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/string_ref.h"
 
 #include <functional>
 #include <vector>
 
 namespace esphome::api {
-
-// Client information structure
-struct ClientInfo {
-  std::string name;      // Client name from Hello message
-  std::string peername;  // IP:port from socket
-};
 
 // Keepalive timeout in milliseconds
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
@@ -28,14 +23,9 @@ static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
 // TODO: Remove MAX_INITIAL_PER_BATCH_LEGACY before 2026.7.0 - all clients should support API 1.14 by then
 static constexpr size_t MAX_INITIAL_PER_BATCH_LEGACY = 24;  // For clients < API 1.14 (includes object_id)
 static constexpr size_t MAX_INITIAL_PER_BATCH = 34;         // For clients >= API 1.14 (no object_id)
-// Maximum number of packets to process in a single batch (platform-dependent)
-// This limit exists to prevent stack overflow from the PacketInfo array in process_batch_
-// Each PacketInfo is 8 bytes, so 64 * 8 = 512 bytes, 32 * 8 = 256 bytes
-#if defined(USE_ESP32) || defined(USE_HOST)
-static constexpr size_t MAX_PACKETS_PER_BATCH = 64;  // ESP32 has 8KB+ stack, HOST has plenty
-#else
-static constexpr size_t MAX_PACKETS_PER_BATCH = 32;  // ESP8266/RP2040/etc have smaller stacks
-#endif
+// Verify MAX_MESSAGES_PER_BATCH (defined in api_frame_helper.h) can hold the initial batch
+static_assert(MAX_MESSAGES_PER_BATCH >= MAX_INITIAL_PER_BATCH,
+              "MAX_MESSAGES_PER_BATCH must be >= MAX_INITIAL_PER_BATCH");
 
 class APIConnection final : public APIServerConnection {
  public:
@@ -182,8 +172,13 @@ class APIConnection final : public APIServerConnection {
   void on_water_heater_command_request(const WaterHeaterCommandRequest &msg) override;
 #endif
 
+#ifdef USE_IR_RF
+  void infrared_rf_transmit_raw_timings(const InfraredRFTransmitRawTimingsRequest &msg) override;
+  void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
+#endif
+
 #ifdef USE_EVENT
-  void send_event(event::Event *event, const char *event_type);
+  void send_event(event::Event *event, StringRef event_type);
 #endif
 
 #ifdef USE_UPDATE
@@ -284,8 +279,9 @@ class APIConnection final : public APIServerConnection {
   bool try_to_clear_buffer(bool log_out_of_space);
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
-  const std::string &get_name() const { return this->client_info_.name; }
-  const std::string &get_peername() const { return this->client_info_.peername; }
+  const char *get_name() const { return this->helper_->get_client_name(); }
+  /// Get peer name (IP address) - cached at connection init time
+  const char *get_peername() const { return this->helper_->get_client_peername(); }
 
  protected:
   // Helper function to handle authentication completion
@@ -326,16 +322,16 @@ class APIConnection final : public APIServerConnection {
     // Buffer must remain in scope until encode_message_to_buffer is called
     char object_id_buf[OBJECT_ID_MAX_LEN];
     if (!conn->client_supports_api_version(1, 14)) {
-      msg.set_object_id(entity->get_object_id_to(object_id_buf));
+      msg.object_id = entity->get_object_id_to(object_id_buf);
     }
 
     if (entity->has_own_name()) {
-      msg.set_name(entity->get_name());
+      msg.name = entity->get_name();
     }
 
     // Set common EntityBase properties
 #ifdef USE_ENTITY_ICON
-    msg.set_icon(entity->get_icon_ref());
+    msg.icon = entity->get_icon_ref();
 #endif
     msg.disabled_by_default = entity->is_disabled_by_default();
     msg.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
@@ -477,8 +473,12 @@ class APIConnection final : public APIServerConnection {
   static uint16_t try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                              bool is_single);
 #endif
+#ifdef USE_INFRARED
+  static uint16_t try_send_infrared_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                         bool is_single);
+#endif
 #ifdef USE_EVENT
-  static uint16_t try_send_event_response(event::Event *event, const char *event_type, APIConnection *conn,
+  static uint16_t try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,
                                           uint32_t remaining_size, bool is_single);
   static uint16_t try_send_event_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
 #endif
@@ -531,10 +531,7 @@ class APIConnection final : public APIServerConnection {
   std::unique_ptr<camera::CameraImageReader> image_reader_;
 #endif
 
-  // Group 3: Client info struct (24 bytes on 32-bit: 2 strings × 12 bytes each)
-  ClientInfo client_info_;
-
-  // Group 4: 4-byte types
+  // Group 3: 4-byte types
   uint32_t last_traffic_;
 #ifdef USE_API_HOMEASSISTANT_STATES
   int state_subs_at_ = -1;
@@ -761,6 +758,8 @@ class APIConnection final : public APIServerConnection {
     return this->schedule_batch_();
   }
 
+  // Helper function to log client messages with name and peername
+  void log_client_(int level, const LogString *message);
   // Helper function to log API errors with errno
   void log_warning_(const LogString *message, APIError err);
   // Helper to handle fatal errors with logging

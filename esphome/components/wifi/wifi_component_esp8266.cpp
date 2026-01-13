@@ -371,7 +371,8 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   while (!connected) {
     uint8_t ipv6_addr_count = 0;
     for (auto addr : addrList) {
-      ESP_LOGV(TAG, "Address %s", addr.toString().c_str());
+      char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+      ESP_LOGV(TAG, "Address %s", network::IPAddress(addr.ipFromNetifNum()).str_to(ip_buf));
       if (addr.isV6()) {
         ipv6_addr_count++;
       }
@@ -413,21 +414,6 @@ const LogString *get_auth_mode_str(uint8_t mode) {
       return LOG_STR("UNKNOWN");
   }
 }
-#ifdef ipv4_addr
-std::string format_ip_addr(struct ipv4_addr ip) {
-  char buf[20];
-  sprintf(buf, "%u.%u.%u.%u", uint8_t(ip.addr >> 0), uint8_t(ip.addr >> 8), uint8_t(ip.addr >> 16),
-          uint8_t(ip.addr >> 24));
-  return buf;
-}
-#else
-std::string format_ip_addr(struct ip_addr ip) {
-  char buf[20];
-  sprintf(buf, "%u.%u.%u.%u", uint8_t(ip.addr >> 0), uint8_t(ip.addr >> 8), uint8_t(ip.addr >> 16),
-          uint8_t(ip.addr >> 24));
-  return buf;
-}
-#endif
 const LogString *get_op_mode_str(uint8_t mode) {
   switch (mode) {
     case WIFI_OFF:
@@ -518,8 +504,12 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
   switch (event->event) {
     case EVENT_STAMODE_CONNECTED: {
       auto it = event->event_info.connected;
-      ESP_LOGV(TAG, "Connected ssid='%.*s' bssid=%s channel=%u", it.ssid_len, (const char *) it.ssid,
-               format_mac_address_pretty(it.bssid).c_str(), it.channel);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(it.bssid, bssid_buf);
+      ESP_LOGV(TAG, "Connected ssid='%.*s' bssid=%s channel=%u", it.ssid_len, (const char *) it.ssid, bssid_buf,
+               it.channel);
+#endif
       s_sta_connected = true;
 #ifdef USE_WIFI_LISTENERS
       for (auto *listener : global_wifi_component->connect_state_listeners_) {
@@ -578,8 +568,10 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     }
     case EVENT_STAMODE_GOT_IP: {
       auto it = event->event_info.got_ip;
-      ESP_LOGV(TAG, "static_ip=%s gateway=%s netmask=%s", format_ip_addr(it.ip).c_str(), format_ip_addr(it.gw).c_str(),
-               format_ip_addr(it.mask).c_str());
+      char ip_buf[network::IP_ADDRESS_BUFFER_SIZE], gw_buf[network::IP_ADDRESS_BUFFER_SIZE],
+          mask_buf[network::IP_ADDRESS_BUFFER_SIZE];
+      ESP_LOGV(TAG, "static_ip=%s gateway=%s netmask=%s", network::IPAddress(&it.ip).str_to(ip_buf),
+               network::IPAddress(&it.gw).str_to(gw_buf), network::IPAddress(&it.mask).str_to(mask_buf));
       s_sta_got_ip = true;
 #ifdef USE_WIFI_LISTENERS
       for (auto *listener : global_wifi_component->ip_state_listeners_) {
@@ -594,18 +586,30 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       break;
     }
     case EVENT_SOFTAPMODE_STACONNECTED: {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto it = event->event_info.sta_connected;
-      ESP_LOGV(TAG, "AP client connected MAC=%s aid=%u", format_mac_address_pretty(it.mac).c_str(), it.aid);
+      char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(it.mac, mac_buf);
+      ESP_LOGV(TAG, "AP client connected MAC=%s aid=%u", mac_buf, it.aid);
+#endif
       break;
     }
     case EVENT_SOFTAPMODE_STADISCONNECTED: {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto it = event->event_info.sta_disconnected;
-      ESP_LOGV(TAG, "AP client disconnected MAC=%s aid=%u", format_mac_address_pretty(it.mac).c_str(), it.aid);
+      char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(it.mac, mac_buf);
+      ESP_LOGV(TAG, "AP client disconnected MAC=%s aid=%u", mac_buf, it.aid);
+#endif
       break;
     }
     case EVENT_SOFTAPMODE_PROBEREQRECVED: {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
       auto it = event->event_info.ap_probereqrecved;
-      ESP_LOGVV(TAG, "AP receive Probe Request MAC=%s RSSI=%d", format_mac_address_pretty(it.mac).c_str(), it.rssi);
+      char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(it.mac, mac_buf);
+      ESP_LOGVV(TAG, "AP receive Probe Request MAC=%s RSSI=%d", mac_buf, it.rssi);
+#endif
       break;
     }
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
@@ -616,9 +620,14 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       break;
     }
     case EVENT_SOFTAPMODE_DISTRIBUTE_STA_IP: {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto it = event->event_info.distribute_sta_ip;
-      ESP_LOGV(TAG, "AP Distribute Station IP MAC=%s IP=%s aid=%u", format_mac_address_pretty(it.mac).c_str(),
-               format_ip_addr(it.ip).c_str(), it.aid);
+      char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+      format_mac_addr_upper(it.mac, mac_buf);
+      ESP_LOGV(TAG, "AP Distribute Station IP MAC=%s IP=%s aid=%u", mac_buf, network::IPAddress(&it.ip).str_to(ip_buf),
+               it.aid);
+#endif
       break;
     }
 #endif

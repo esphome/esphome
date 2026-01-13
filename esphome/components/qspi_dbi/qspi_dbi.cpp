@@ -216,12 +216,14 @@ void QspiDbi::write_sequence_(const std::vector<uint8_t> &vec) {
 void QspiDbi::dump_config() {
   ESP_LOGCONFIG("", "QSPI_DBI Display");
   ESP_LOGCONFIG("", "Model: %s", this->model_);
-  ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
-  ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
-  ESP_LOGCONFIG(TAG, "  Draw rounding: %u", this->draw_rounding_);
+  ESP_LOGCONFIG(TAG,
+                "  Height: %u\n"
+                "  Width: %u\n"
+                "  Draw rounding: %u\n"
+                "  SPI Data rate: %uMHz",
+                this->height_, this->width_, this->draw_rounding_, (unsigned) (this->data_rate_ / 1000000));
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  SPI Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 }
 
 }  // namespace qspi_dbi

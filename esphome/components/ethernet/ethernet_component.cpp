@@ -813,8 +813,10 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
     ESPHL_ERROR_CHECK(err, "Select PHY Register page failed");
   }
 
-  ESP_LOGD(TAG, "Writing to PHY Register Address: 0x%02" PRIX32, register_data.address);
-  ESP_LOGD(TAG, "Writing to PHY Register Value: 0x%04" PRIX32, register_data.value);
+  ESP_LOGD(TAG,
+           "Writing to PHY Register Address: 0x%02" PRIX32 "\n"
+           "Writing to PHY Register Value: 0x%04" PRIX32,
+           register_data.address, register_data.value);
   err = mac->write_phy_reg(mac, this->phy_addr_, register_data.address, register_data.value);
   ESPHL_ERROR_CHECK(err, "Writing PHY Register failed");
 

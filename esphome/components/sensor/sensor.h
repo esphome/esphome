@@ -9,8 +9,7 @@
 #include <initializer_list>
 #include <memory>
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *obj);
 
@@ -143,5 +142,4 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   } sensor_flags_{};
 };
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor

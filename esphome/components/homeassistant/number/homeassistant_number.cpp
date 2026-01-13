@@ -3,14 +3,15 @@
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome {
 namespace homeassistant {
 
 static const char *const TAG = "homeassistant.number";
 
-void HomeassistantNumber::state_changed_(const std::string &state) {
-  auto number_value = parse_number<float>(state);
+void HomeassistantNumber::state_changed_(StringRef state) {
+  auto number_value = parse_number<float>(state.c_str());
   if (!number_value.has_value()) {
     ESP_LOGW(TAG, "'%s': Can't convert '%s' to number!", this->entity_id_, state.c_str());
     this->publish_state(NAN);
@@ -23,8 +24,8 @@ void HomeassistantNumber::state_changed_(const std::string &state) {
   this->publish_state(number_value.value());
 }
 
-void HomeassistantNumber::min_retrieved_(const std::string &min) {
-  auto min_value = parse_number<float>(min);
+void HomeassistantNumber::min_retrieved_(StringRef min) {
+  auto min_value = parse_number<float>(min.c_str());
   if (!min_value.has_value()) {
     ESP_LOGE(TAG, "'%s': Can't convert 'min' value '%s' to number!", this->entity_id_, min.c_str());
     return;
@@ -33,8 +34,8 @@ void HomeassistantNumber::min_retrieved_(const std::string &min) {
   this->traits.set_min_value(min_value.value());
 }
 
-void HomeassistantNumber::max_retrieved_(const std::string &max) {
-  auto max_value = parse_number<float>(max);
+void HomeassistantNumber::max_retrieved_(StringRef max) {
+  auto max_value = parse_number<float>(max.c_str());
   if (!max_value.has_value()) {
     ESP_LOGE(TAG, "'%s': Can't convert 'max' value '%s' to number!", this->entity_id_, max.c_str());
     return;
@@ -43,8 +44,8 @@ void HomeassistantNumber::max_retrieved_(const std::string &max) {
   this->traits.set_max_value(max_value.value());
 }
 
-void HomeassistantNumber::step_retrieved_(const std::string &step) {
-  auto step_value = parse_number<float>(step);
+void HomeassistantNumber::step_retrieved_(StringRef step) {
+  auto step_value = parse_number<float>(step.c_str());
   if (!step_value.has_value()) {
     ESP_LOGE(TAG, "'%s': Can't convert 'step' value '%s' to number!", this->entity_id_, step.c_str());
     return;
@@ -85,16 +86,19 @@ void HomeassistantNumber::control(float value) {
   static constexpr auto VALUE_KEY = StringRef::from_lit("value");
 
   api::HomeassistantActionRequest resp;
-  resp.set_service(SERVICE_NAME);
+  resp.service = SERVICE_NAME;
 
   resp.data.init(2);
   auto &entity_id = resp.data.emplace_back();
-  entity_id.set_key(ENTITY_ID_KEY);
-  entity_id.value = this->entity_id_;
+  entity_id.key = ENTITY_ID_KEY;
+  entity_id.value = StringRef(this->entity_id_);
 
   auto &entity_value = resp.data.emplace_back();
-  entity_value.set_key(VALUE_KEY);
-  entity_value.value = to_string(value);
+  entity_value.key = VALUE_KEY;
+  // Stack buffer - no heap allocation; %g produces shortest representation
+  char value_buf[16];
+  snprintf(value_buf, sizeof(value_buf), "%g", value);
+  entity_value.value = StringRef(value_buf);
 
   api::global_api_server->send_homeassistant_action(resp);
 }

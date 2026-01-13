@@ -13,8 +13,7 @@
 #include <esp_ota_ops.h>
 #endif
 
-namespace esphome {
-namespace safe_mode {
+namespace esphome::safe_mode {
 
 static const char *const TAG = "safe_mode";
 
@@ -40,8 +39,10 @@ void SafeModeComponent::dump_config() {
 #ifdef USE_OTA_ROLLBACK
   const esp_partition_t *last_invalid = esp_ota_get_last_invalid_partition();
   if (last_invalid != nullptr) {
-    ESP_LOGW(TAG, "OTA rollback detected! Rolled back from partition '%s'", last_invalid->label);
-    ESP_LOGW(TAG, "The device reset before the boot was marked successful");
+    ESP_LOGW(TAG,
+             "OTA rollback detected! Rolled back from partition '%s'\n"
+             "The device reset before the boot was marked successful",
+             last_invalid->label);
   }
 #endif
 }
@@ -124,7 +125,9 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
 
   ESP_LOGW(TAG, "SAFE MODE IS ACTIVE");
 
+#ifdef USE_SAFE_MODE_CALLBACK
   this->safe_mode_callback_.call();
+#endif
 
   return true;
 }
@@ -155,5 +158,4 @@ void SafeModeComponent::on_safe_shutdown() {
     this->clean_rtc();
 }
 
-}  // namespace safe_mode
-}  // namespace esphome
+}  // namespace esphome::safe_mode

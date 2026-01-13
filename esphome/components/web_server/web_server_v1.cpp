@@ -202,7 +202,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
         stream.print("<option></option>");
         for (auto const &option : select->traits.get_options()) {
           stream.print("<option>");
-          stream.print(option.c_str());
+          stream.print(option);
           stream.print("</option>");
         }
         stream.print("</select>");
@@ -229,6 +229,13 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   for (auto *obj : App.get_climates()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "climate", "");
+  }
+#endif
+
+#ifdef USE_WATER_HEATER
+  for (auto *obj : App.get_water_heaters()) {
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "water_heater", "");
   }
 #endif
 

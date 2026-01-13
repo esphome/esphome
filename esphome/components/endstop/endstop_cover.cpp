@@ -104,10 +104,12 @@ void EndstopCover::loop() {
 }
 void EndstopCover::dump_config() {
   LOG_COVER("", "Endstop Cover", this);
+  ESP_LOGCONFIG(TAG,
+                "  Open Duration: %.1fs\n"
+                "  Close Duration: %.1fs",
+                this->open_duration_ / 1e3f, this->close_duration_ / 1e3f);
   LOG_BINARY_SENSOR("  ", "Open Endstop", this->open_endstop_);
-  ESP_LOGCONFIG(TAG, "  Open Duration: %.1fs", this->open_duration_ / 1e3f);
   LOG_BINARY_SENSOR("  ", "Close Endstop", this->close_endstop_);
-  ESP_LOGCONFIG(TAG, "  Close Duration: %.1fs", this->close_duration_ / 1e3f);
 }
 float EndstopCover::get_setup_priority() const { return setup_priority::DATA; }
 void EndstopCover::stop_prev_trigger_() {

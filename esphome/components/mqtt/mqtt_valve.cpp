@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_VALVE
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.valve";
 
@@ -66,7 +65,7 @@ void MQTTValveComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
   }
 }
 
-std::string MQTTValveComponent::component_type() const { return "valve"; }
+MQTT_COMPONENT_TYPE(MQTTValveComponent, "valve")
 const EntityBase *MQTTValveComponent::get_entity() const { return this->valve_; }
 
 bool MQTTValveComponent::send_initial_state() { return this->publish_state(); }
@@ -74,7 +73,8 @@ bool MQTTValveComponent::publish_state() {
   auto traits = this->valve_->get_traits();
   bool success = true;
   if (traits.get_supports_position()) {
-    std::string pos = value_accuracy_to_string(roundf(this->valve_->position * 100), 0);
+    char pos[VALUE_ACCURACY_MAX_LEN];
+    value_accuracy_to_buf(pos, roundf(this->valve_->position * 100), 0);
     if (!this->publish(this->get_position_state_topic(), pos))
       success = false;
   }
@@ -89,8 +89,7 @@ bool MQTTValveComponent::publish_state() {
   return success;
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
