@@ -106,7 +106,10 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
 
   // endpoints are enumerated from 1
   if (global_zigbee->callbacks_.size() >= endpoint) {
-    global_zigbee->callbacks_[endpoint - 1](bufid);
+    auto cb = global_zigbee->callbacks_[endpoint - 1];
+    if (cb) {
+      cb(bufid);
+    }
     return;
   }
   p_device_cb_param->status = RET_ERROR;
