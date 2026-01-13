@@ -94,14 +94,14 @@ std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) con
 }
 
 std::string MQTTComponent::get_state_topic_() const {
-  if (this->has_custom_state_topic_)
-    return this->custom_state_topic_.str();
+  if (this->custom_state_topic_.has_value())
+    return this->custom_state_topic_.value();
   return this->get_default_topic_for_("state");
 }
 
 std::string MQTTComponent::get_command_topic_() const {
-  if (this->has_custom_command_topic_)
-    return this->custom_command_topic_.str();
+  if (this->custom_command_topic_.has_value())
+    return this->custom_command_topic_.value();
   return this->get_default_topic_for_("command");
 }
 
@@ -273,14 +273,6 @@ MQTTComponent::MQTTComponent() = default;
 
 float MQTTComponent::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 void MQTTComponent::disable_discovery() { this->discovery_enabled_ = false; }
-void MQTTComponent::set_custom_state_topic(const char *custom_state_topic) {
-  this->custom_state_topic_ = StringRef(custom_state_topic);
-  this->has_custom_state_topic_ = true;
-}
-void MQTTComponent::set_custom_command_topic(const char *custom_command_topic) {
-  this->custom_command_topic_ = StringRef(custom_command_topic);
-  this->has_custom_command_topic_ = true;
-}
 void MQTTComponent::set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }
 
 void MQTTComponent::set_availability(std::string topic, std::string payload_available,
@@ -349,13 +341,13 @@ StringRef MQTTComponent::get_default_object_id_to_(std::span<char, OBJECT_ID_MAX
 StringRef MQTTComponent::get_icon_ref_() const { return this->get_entity()->get_icon_ref(); }
 bool MQTTComponent::is_disabled_by_default_() const { return this->get_entity()->is_disabled_by_default(); }
 bool MQTTComponent::is_internal() {
-  if (this->has_custom_state_topic_) {
+  if (this->custom_state_topic_.has_value()) {
     // If the custom state_topic is null, return true as it is internal and should not publish
     // else, return false, as it is explicitly set to a topic, so it is not internal and should publish
     return this->get_state_topic_().empty();
   }
 
-  if (this->has_custom_command_topic_) {
+  if (this->custom_command_topic_.has_value()) {
     // If the custom command_topic is null, return true as it is internal and should not publish
     // else, return false, as it is explicitly set to a topic, so it is not internal and should publish
     return this->get_command_topic_().empty();
