@@ -28,6 +28,12 @@ static inline void append_with_newline(DumpBuffer &out, const char *str) {
   out.append("\n");
 }
 
+static inline void append_uint(DumpBuffer &out, uint32_t value) {
+  char buf[16];
+  snprintf(buf, sizeof(buf), "%" PRIu32, value);
+  out.append(buf);
+}
+
 // RAII helper for message dump formatting
 class MessageDumpHelper {
  public:
@@ -2484,9 +2490,9 @@ const char *InfraredRFTransmitRawTimingsRequest::dump_to(DumpBuffer &out) const 
   dump_field(out, "repeat_count", this->repeat_count);
   out.append("  timings: ");
   out.append("packed buffer [");
-  out.append(std::to_string(this->timings_count_));
+  append_uint(out, this->timings_count_);
   out.append(" values, ");
-  out.append(std::to_string(this->timings_length_));
+  append_uint(out, this->timings_length_);
   out.append(" bytes]\n");
   return out.c_str();
 }
