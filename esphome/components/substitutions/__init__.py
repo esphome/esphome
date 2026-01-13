@@ -2,6 +2,7 @@ from collections import ChainMap
 import logging
 from typing import Any
 
+import esphome
 from esphome import core
 from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
 import esphome.config_validation as cv
@@ -292,6 +293,27 @@ def push_context(
     return parent_context
 
 
+def resolve_include(
+    include: IncludeFile,
+    path: list[int | str],
+    context_vars: ContextVars,
+    strict_undefined: bool = True,
+    errors: ErrList | None = None,
+):
+    """Returns the contents of the included file after resolving substitutions
+    in the filename, if any."""
+    include.file = _expand_substitutions(
+        include.file, path + [".file"], context_vars, strict_undefined, errors
+    )
+    try:
+        return include.load()
+    except esphome.core.EsphomeError as err:
+        raise cv.Invalid(
+            f"Error including file '{include.file}': {str(err)}",
+            path + [f"<{include.file}>"],
+        ) from err
+
+
 def substitute(
     item: Any,
     path: SubstitutionPath,
@@ -335,12 +357,9 @@ def substitute(
             result = type(item)(value)
 
     elif isinstance(item, IncludeFile):
-        item.file = _expand_substitutions(
-            item.file, path + [".file"], context_vars, strict_undefined, errors
-        )
-        content = item.load()
+        content = resolve_include(item, path, context_vars, strict_undefined, errors)
         result = substitute(
-            content, path + [f"<{item.file}>"], context_vars, strict_undefined, errors
+            content, path + [f"<{item.file}>"], context_vars, strict_undefined
         )
 
     if isinstance(item, ESPHomeDataBase):

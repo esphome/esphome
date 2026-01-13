@@ -6,7 +6,12 @@ from pathlib import Path
 from typing import Any
 
 from esphome import git, yaml_util
-from esphome.components.substitutions import ContextVars, push_context, substitute
+from esphome.components.substitutions import (
+    ContextVars,
+    push_context,
+    resolve_include,
+    substitute,
+)
 from esphome.components.substitutions.jinja import has_jinja
 from esphome.config_helpers import Remove, merge_config
 import esphome.config_validation as cv
@@ -407,7 +412,8 @@ class _PackageProcessor:
         """
         while True:
             if isinstance(package_config, yaml_util.IncludeFile):
-                package_config = package_config.load()
+                package_config = resolve_include(package_config, [], context_vars)
+
             package_config = _substitute_package_definition(
                 package_config, context_vars
             )
