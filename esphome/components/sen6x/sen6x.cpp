@@ -442,7 +442,7 @@ bool SEN6XComponent::write_tuning_parameters_(uint16_t i2c_command, const GasTun
   params[3] = tuning.gating_max_duration_minutes;
   params[4] = tuning.std_initial;
   params[5] = tuning.gain_factor;
-  auto result = write_command(i2c_command, params, 6);
+  auto result = this->write_command(i2c_command, params, 6);
   if (!result) {
     ESP_LOGE(TAG, "Set tuning parameters failed (command=%0xX, err=%d)", i2c_command, this->last_error_);
   }
@@ -455,7 +455,7 @@ bool SEN6XComponent::write_temperature_compensation_(const TemperatureCompensati
   params[1] = compensation.normalized_offset_slope;
   params[2] = compensation.time_constant;
   params[3] = compensation.slot;
-  if (!write_command(SEN6X_CMD_TEMPERATURE_COMPENSATION, params, 4)) {
+  if (!this->write_command(SEN6X_CMD_TEMPERATURE_COMPENSATION, params, 4)) {
     ESP_LOGE(TAG, "Set temperature_compensation failed (%d)", this->last_error_);
     return false;
   }
@@ -465,7 +465,7 @@ bool SEN6XComponent::write_temperature_compensation_(const TemperatureCompensati
 bool SEN6XComponent::write_pressure_compensation_(const uint16_t pressure) {
   uint16_t params[1];
   params[0] = pressure;
-  if (!write_command(SEN6X_CMD_PRESSURE_COMPENSATION, params, 1)) {
+  if (!this->write_command(SEN6X_CMD_PRESSURE_COMPENSATION, params, 1)) {
     ESP_LOGE(TAG, "Set pressure_compensation failed (%d)", this->last_error_);
     return false;
   }
@@ -475,7 +475,7 @@ bool SEN6XComponent::write_pressure_compensation_(const uint16_t pressure) {
 bool SEN6XComponent::write_altitude_compensation_(const uint16_t altitude) {
   uint16_t params[1];
   params[0] = altitude;
-  if (!write_command(SEN6X_CMD_ALTITUDE_COMPENSATION, params, 1)) {
+  if (!this->write_command(SEN6X_CMD_ALTITUDE_COMPENSATION, params, 1)) {
     ESP_LOGE(TAG, "Set altitude_compensation failed (%d)", this->last_error_);
     return false;
   }
@@ -483,7 +483,7 @@ bool SEN6XComponent::write_altitude_compensation_(const uint16_t altitude) {
 }
 
 bool SEN6XComponent::start_fan_cleaning() {
-  if (!write_command(SEN6X_CMD_START_CLEANING_FAN)) {
+  if (!this->write_command(SEN6X_CMD_START_CLEANING_FAN)) {
     this->status_set_warning();
     ESP_LOGE(TAG, "Start fan cleaning failed (%d)", this->last_error_);
     return false;

@@ -14,7 +14,7 @@ enum ERRORCODE : uint8_t {
   MEASUREMENT_INIT_FAILED,
   PRODUCT_NAME_FAILED,
   FIRMWARE_FAILED,
-  UNKNOWN
+  UNKNOWN_ERROR
 };
 
 struct Sen6xBaselines {
@@ -130,12 +130,12 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
     }
   }
 
-  uint32_t seconds_since_last_store_;
-  std::array<char, 2> firmware_version_;
-  ERRORCODE error_code_;
-  std::array<char, 32> serial_number_;
+  uint32_t seconds_since_last_store_{0};
+  std::array<char, 2> firmware_version_{};
+  ERRORCODE error_code_{COMMUNICATION_FAILED};
+  std::array<char, 32> serial_number_{};
   bool initialized_{false};
-  bool store_baseline_;
+  bool store_baseline_{false};
 
   sensor::Sensor *pm_1_0_sensor_{nullptr};
   sensor::Sensor *pm_2_5_sensor_{nullptr};
@@ -152,9 +152,9 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureCompensation> temperature_compensation_;
   ESPPreferenceObject pref_;
-  std::array<char, 32> product_name_;
+  std::array<char, 32> product_name_{};
   Sen6xType sen6x_type_{UNKNOWN};
-  Sen6xBaselines voc_baselines_storage_;
+  Sen6xBaselines voc_baselines_storage_{};
   optional<uint16_t> pressure_compensation_;
   optional<uint16_t> altitude_compensation_;
 };
