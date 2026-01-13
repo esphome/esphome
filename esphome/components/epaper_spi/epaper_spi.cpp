@@ -124,14 +124,10 @@ void EPaperBase::wait_for_idle_(bool should_wait) {
 
 void EPaperBase::loop() {
   auto now = millis();
-  if (this->delay_until_ != 0) {
-    // using modulus arithmetic to handle wrap-around
-    int diff = now - this->delay_until_;
-    if (diff < 0) {
-      return;
-    }
-    this->delay_until_ = 0;
-  }
+  // using modulus arithmetic to handle wrap-around
+  int diff = now - this->delay_until_;
+  if (diff < 0)
+    return;
   if (this->waiting_for_idle_) {
     if (this->is_idle_()) {
       this->waiting_for_idle_ = false;
@@ -224,14 +220,11 @@ void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
   ESP_LOGV(TAG, "Exit state %s", this->epaper_state_to_string_());
   this->state_ = state;
   this->wait_for_idle_(state > EPaperState::SHOULD_WAIT);
-  if (delay != 0) {
-    this->delay_until_ = millis() + delay;
-  } else {
-    // delay_until_ should be 0, unless a subclass has set it for its own purposes
-    if (this->delay_until_ != 0) {
-      this->delay_until_ += millis();
-    }
-  }
+  // allow subclasses to nominate delays
+  if (delay == 0)
+    delay = this->next_delay_;
+  this->next_delay_ = 0;
+  this->delay_until_ = millis() + delay;
   ESP_LOGV(TAG, "Enter state %s, delay %u, wait_for_idle=%s", this->epaper_state_to_string_(), delay,
            TRUEFALSE(this->waiting_for_idle_));
   if (state == EPaperState::IDLE) {

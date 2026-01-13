@@ -167,7 +167,8 @@ class EPaperBase : public Display,
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
   bool waiting_for_idle_{};
-  uint32_t delay_until_{};
+  uint32_t delay_until_{};  // timestamp until which to delay processing
+  uint16_t next_delay_{};   // milliseconds to delay before next state
   uint8_t transform_{};
   uint8_t update_count_{};
   // these values represent the bounds of the updated buffer. Note that x_high and y_high

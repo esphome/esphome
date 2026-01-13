@@ -11,7 +11,7 @@ void EpaperWaveshare::initialise(bool partial) {
     this->cmd_data(0x3C, {0x80});
     this->cmd_data(0x22, {0xC0});
     this->command(0x20);
-    this->delay_until_ = 100;
+    this->next_delay_ = 100;
   } else {
     this->cmd_data(0x32, this->lut_, this->lut_length_);
     this->cmd_data(0x3C, {0x05});
@@ -40,7 +40,7 @@ void EpaperWaveshare::refresh_screen(bool partial) {
     this->cmd_data(0x22, {0xC7});
   }
   this->command(0x20);
-  this->delay_until_ = partial ? 100 : 3000;
+  this->next_delay_ = partial ? 100 : 3000;
 }
 
 void EpaperWaveshare::deep_sleep() { this->cmd_data(0x10, {0x01}); }
