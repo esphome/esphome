@@ -3,26 +3,25 @@
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace lock {
+namespace esphome::lock {
 
 static const char *const TAG = "lock";
 
-const char *lock_state_to_string(LockState state) {
+const LogString *lock_state_to_string(LockState state) {
   switch (state) {
     case LOCK_STATE_LOCKED:
-      return "LOCKED";
+      return LOG_STR("LOCKED");
     case LOCK_STATE_UNLOCKED:
-      return "UNLOCKED";
+      return LOG_STR("UNLOCKED");
     case LOCK_STATE_JAMMED:
-      return "JAMMED";
+      return LOG_STR("JAMMED");
     case LOCK_STATE_LOCKING:
-      return "LOCKING";
+      return LOG_STR("LOCKING");
     case LOCK_STATE_UNLOCKING:
-      return "UNLOCKING";
+      return LOG_STR("UNLOCKING");
     case LOCK_STATE_NONE:
     default:
-      return "UNKNOWN";
+      return LOG_STR("UNKNOWN");
   }
 }
 
@@ -53,7 +52,7 @@ void Lock::publish_state(LockState state) {
 
   this->state = state;
   this->rtc_.save(&this->state);
-  ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), lock_state_to_string(state));
+  ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), LOG_STR_ARG(lock_state_to_string(state)));
   this->state_callback_.call();
 #if defined(USE_LOCK) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_lock_update(this);
@@ -66,8 +65,7 @@ void LockCall::perform() {
   ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   this->validate_();
   if (this->state_.has_value()) {
-    const char *state_s = lock_state_to_string(*this->state_);
-    ESP_LOGD(TAG, "  State: %s", state_s);
+    ESP_LOGD(TAG, "  State: %s", LOG_STR_ARG(lock_state_to_string(*this->state_)));
   }
   this->parent_->control(*this);
 }
@@ -75,7 +73,7 @@ void LockCall::validate_() {
   if (this->state_.has_value()) {
     auto state = *this->state_;
     if (!this->parent_->traits.supports_state(state)) {
-      ESP_LOGW(TAG, "  State %s is not supported by this device!", lock_state_to_string(*this->state_));
+      ESP_LOGW(TAG, "  State %s is not supported by this device!", LOG_STR_ARG(lock_state_to_string(*this->state_)));
       this->state_.reset();
     }
   }
@@ -108,5 +106,4 @@ LockCall &LockCall::set_state(const std::string &state) {
 }
 const optional<LockState> &LockCall::get_state() const { return this->state_; }
 
-}  // namespace lock
-}  // namespace esphome
+}  // namespace esphome::lock

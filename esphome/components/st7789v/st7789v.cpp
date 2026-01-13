@@ -127,15 +127,15 @@ void ST7789V::dump_config() {
                 "  Width: %u\n"
                 "  Height Offset: %u\n"
                 "  Width Offset: %u\n"
-                "  8-bit color mode: %s",
+                "  8-bit color mode: %s\n"
+                "  Data rate: %dMHz",
                 this->model_str_, this->height_, this->width_, this->offset_height_, this->offset_width_,
-                YESNO(this->eightbitcolor_));
+                YESNO(this->eightbitcolor_), (unsigned) (this->data_rate_ / 1000000));
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  B/L Pin: ", this->backlight_pin_);
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 #ifdef USE_POWER_SUPPLY
   ESP_LOGCONFIG(TAG, "  Power Supply Configured: yes");
 #endif

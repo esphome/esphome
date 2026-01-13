@@ -22,6 +22,11 @@ constexpr size_t CHUNK_SIZE = 1500;
 void Esp32HostedUpdate::setup() {
   this->update_info_.title = "ESP32 Hosted Coprocessor";
 
+  // if wifi is not present, connect to the coprocessor
+#ifndef USE_WIFI
+  esp_hosted_connect_to_slave();  // NOLINT
+#endif
+
   // get coprocessor version
   esp_hosted_coprocessor_fwver_t ver_info;
   if (esp_hosted_get_coprocessor_fwversion(&ver_info) == ESP_OK) {
@@ -36,11 +41,13 @@ void Esp32HostedUpdate::setup() {
   if (this->firmware_size_ >= app_desc_offset + sizeof(esp_app_desc_t)) {
     esp_app_desc_t *app_desc = (esp_app_desc_t *) (this->firmware_data_ + app_desc_offset);
     if (app_desc->magic_word == ESP_APP_DESC_MAGIC_WORD) {
-      ESP_LOGD(TAG, "Firmware version: %s", app_desc->version);
-      ESP_LOGD(TAG, "Project name: %s", app_desc->project_name);
-      ESP_LOGD(TAG, "Build date: %s", app_desc->date);
-      ESP_LOGD(TAG, "Build time: %s", app_desc->time);
-      ESP_LOGD(TAG, "IDF version: %s", app_desc->idf_ver);
+      ESP_LOGD(TAG,
+               "Firmware version: %s\n"
+               "Project name: %s\n"
+               "Build date: %s\n"
+               "Build time: %s\n"
+               "IDF version: %s",
+               app_desc->version, app_desc->project_name, app_desc->date, app_desc->time, app_desc->idf_ver);
       this->update_info_.latest_version = app_desc->version;
       if (this->update_info_.latest_version != this->update_info_.current_version) {
         this->state_ = update::UPDATE_STATE_AVAILABLE;
@@ -83,12 +90,13 @@ void Esp32HostedUpdate::perform(bool force) {
     return;
   }
 
-  sha256::SHA256 hasher;
+  // ESP32-S3 hardware SHA acceleration requires 32-byte DMA alignment (IDF 5.5.x+)
+  alignas(32) sha256::SHA256 hasher;
   hasher.init();
   hasher.add(this->firmware_data_, this->firmware_size_);
   hasher.calculate();
   if (!hasher.equals_bytes(this->firmware_sha256_.data())) {
-    this->status_set_error("SHA256 verification failed");
+    this->status_set_error(LOG_STR("SHA256 verification failed"));
     this->publish_state();
     return;
   }
@@ -105,7 +113,7 @@ void Esp32HostedUpdate::perform(bool force) {
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to begin OTA: %s", esp_err_to_name(err));
     this->state_ = prev_state;
-    this->status_set_error("Failed to begin OTA");
+    this->status_set_error(LOG_STR("Failed to begin OTA"));
     this->publish_state();
     return;
   }
@@ -121,7 +129,7 @@ void Esp32HostedUpdate::perform(bool force) {
       ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
       esp_hosted_slave_ota_end();  // NOLINT
       this->state_ = prev_state;
-      this->status_set_error("Failed to write OTA data");
+      this->status_set_error(LOG_STR("Failed to write OTA data"));
       this->publish_state();
       return;
     }
@@ -134,7 +142,7 @@ void Esp32HostedUpdate::perform(bool force) {
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to end OTA: %s", esp_err_to_name(err));
     this->state_ = prev_state;
-    this->status_set_error("Failed to end OTA");
+    this->status_set_error(LOG_STR("Failed to end OTA"));
     this->publish_state();
     return;
   }
@@ -144,7 +152,7 @@ void Esp32HostedUpdate::perform(bool force) {
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to activate OTA: %s", esp_err_to_name(err));
     this->state_ = prev_state;
-    this->status_set_error("Failed to activate OTA");
+    this->status_set_error(LOG_STR("Failed to activate OTA"));
     this->publish_state();
     return;
   }

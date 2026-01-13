@@ -7,10 +7,7 @@ service APIConnection {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
   }
-  rpc authenticate (AuthenticationRequest) returns (AuthenticationResponse) {
-    option (needs_setup_connection) = false;
-    option (needs_authentication) = false;
-  }
+  // REMOVED in ESPHome 2026.1.0: rpc authenticate (AuthenticationRequest) returns (AuthenticationResponse)
   rpc disconnect (DisconnectRequest) returns (DisconnectResponse) {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
@@ -82,14 +79,13 @@ service APIConnection {
 //  * VarInt denoting the type of message.
 //  * The message object encoded as a ProtoBuf message
 
-// The connection is established in 4 steps:
+// The connection is established in 2 steps:
 //  * First, the client connects to the server and sends a "Hello Request" identifying itself
-//  * The server responds with a "Hello Response" and selects the protocol version
-//  * After receiving this message, the client attempts to authenticate itself using
-//    the password and a "Connect Request"
-//  * The server responds with a "Connect Response" and notifies of invalid password.
+//  * The server responds with a "Hello Response" and the connection is authenticated
 // If anything in this initial process fails, the connection must immediately closed
 // by both sides and _no_ disconnection message is to be sent.
+// Note: Password authentication via AuthenticationRequest/AuthenticationResponse (message IDs 3, 4)
+// was removed in ESPHome 2026.1.0. Those message IDs are reserved and should not be reused.
 
 // Message sent at the beginning of each connection
 // Can only be sent by the client and only at the beginning of the connection
@@ -102,7 +98,7 @@ message HelloRequest {
   // For example "Home Assistant"
   // Not strictly necessary to send but nice for debugging
   // purposes.
-  string client_info = 1 [(pointer_to_buffer) = true];
+  string client_info = 1;
   uint32 api_version_major = 2;
   uint32 api_version_minor = 3;
 }
@@ -130,25 +126,23 @@ message HelloResponse {
   string name = 4;
 }
 
-// Message sent at the beginning of each connection to authenticate the client
-// Can only be sent by the client and only at the beginning of the connection
+// DEPRECATED in ESPHome 2026.1.0 - Password authentication is no longer supported.
+// These messages are kept for protocol documentation but are not processed by the server.
+// Use noise encryption instead: https://esphome.io/components/api/#configuration-variables
 message AuthenticationRequest {
   option (id) = 3;
   option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
-  option (ifdef) = "USE_API_PASSWORD";
+  option deprecated = true;
 
-  // The password to log in with
-  string password = 1 [(pointer_to_buffer) = true];
+  string password = 1;
 }
 
-// Confirmation of successful connection. After this the connection is available for all traffic.
-// Can only be sent by the server and only at the beginning of the connection
 message AuthenticationResponse {
   option (id) = 4;
   option (source) = SOURCE_SERVER;
   option (no_delay) = true;
-  option (ifdef) = "USE_API_PASSWORD";
+  option deprecated = true;
 
   bool invalid_password = 1;
 }
@@ -205,7 +199,9 @@ message DeviceInfoResponse {
   option (id) = 10;
   option (source) = SOURCE_SERVER;
 
-  bool uses_password = 1 [(field_ifdef) = "USE_API_PASSWORD"];
+  // Deprecated in ESPHome 2026.1.0, but kept for backward compatibility
+  // with older ESPHome versions that still send this field.
+  bool uses_password = 1 [deprecated = true];
 
   // The name of the node, given by "App.set_name()"
   string name = 2;
@@ -518,7 +514,7 @@ message ListEntitiesLightResponse {
   bool legacy_supports_color_temperature = 8 [deprecated=true];
   float min_mireds = 9;
   float max_mireds = 10;
-  repeated string effects = 11;
+  repeated string effects = 11 [(container_pointer_no_template) = "FixedVector<const char *>"];
   bool disabled_by_default = 13;
   string icon = 14 [(field_ifdef) = "USE_ENTITY_ICON"];
   EntityCategory entity_category = 15;
@@ -589,6 +585,7 @@ enum SensorStateClass {
   STATE_CLASS_MEASUREMENT = 1;
   STATE_CLASS_TOTAL_INCREASING = 2;
   STATE_CLASS_TOTAL = 3;
+  STATE_CLASS_MEASUREMENT_ANGLE = 4;
 }
 
 // Deprecated in API version 1.5
@@ -795,7 +792,7 @@ message HomeassistantActionResponse {
   uint32 call_id = 1; // Matches the call_id from HomeassistantActionRequest
   bool success = 2; // Whether the service call succeeded
   string error_message = 3; // Error message if success = false
-  bytes response_data = 4 [(pointer_to_buffer) = true, (field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
+  bytes response_data = 4 [(field_ifdef) = "USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON"];
 }
 
 // ==================== IMPORT HOME ASSISTANT STATES ====================
@@ -840,7 +837,7 @@ message GetTimeResponse {
   option (no_delay) = true;
 
   fixed32 epoch_seconds = 1;
-  string timezone = 2 [(pointer_to_buffer) = true];
+  string timezone = 2;
 }
 
 // ==================== USER-DEFINES SERVICES ====================
@@ -854,22 +851,31 @@ enum ServiceArgType {
   SERVICE_ARG_TYPE_FLOAT_ARRAY = 6;
   SERVICE_ARG_TYPE_STRING_ARRAY = 7;
 }
+enum SupportsResponseType {
+  SUPPORTS_RESPONSE_NONE = 0;
+  SUPPORTS_RESPONSE_OPTIONAL = 1;
+  SUPPORTS_RESPONSE_ONLY = 2;
+  // Status-only response - reports success/error without data payload
+  // Value is higher to avoid conflicts with future Home Assistant values
+  SUPPORTS_RESPONSE_STATUS = 100;
+}
 message ListEntitiesServicesArgument {
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
   string name = 1;
   ServiceArgType type = 2;
 }
 message ListEntitiesServicesResponse {
   option (id) = 41;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
 
   string name = 1;
   fixed32 key = 2;
   repeated ListEntitiesServicesArgument args = 3 [(fixed_vector) = true];
+  SupportsResponseType supports_response = 4;
 }
 message ExecuteServiceArgument {
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
   bool bool_ = 1;
   int32 legacy_int = 2;
   float float_ = 3;
@@ -885,10 +891,25 @@ message ExecuteServiceRequest {
   option (id) = 42;
   option (source) = SOURCE_CLIENT;
   option (no_delay) = true;
-  option (ifdef) = "USE_API_SERVICES";
+  option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
 
   fixed32 key = 1;
   repeated ExecuteServiceArgument args = 2 [(fixed_vector) = true];
+  uint32 call_id = 3 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_RESPONSES"];
+  bool return_response = 4 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_RESPONSES"];
+}
+
+// Message sent by ESPHome to Home Assistant with service execution response data
+message ExecuteServiceResponse {
+  option (id) = 131;
+  option (source) = SOURCE_SERVER;
+  option (no_delay) = true;
+  option (ifdef) = "USE_API_USER_DEFINED_ACTION_RESPONSES";
+
+  uint32 call_id = 1; // Matches the call_id from ExecuteServiceRequest
+  bool success = 2; // Whether the service execution succeeded
+  string error_message = 3; // Error message if success = false
+  bytes response_data = 4 [(pointer_to_buffer) = true, (field_ifdef) = "USE_API_USER_DEFINED_ACTION_RESPONSES_JSON"];
 }
 
 // ==================== CAMERA ====================
@@ -1076,6 +1097,85 @@ message ClimateCommandRequest {
   uint32 device_id = 24 [(field_ifdef) = "USE_DEVICES"];
 }
 
+// ==================== WATER_HEATER ====================
+enum WaterHeaterMode {
+  WATER_HEATER_MODE_OFF = 0;
+  WATER_HEATER_MODE_ECO = 1;
+  WATER_HEATER_MODE_ELECTRIC = 2;
+  WATER_HEATER_MODE_PERFORMANCE = 3;
+  WATER_HEATER_MODE_HIGH_DEMAND = 4;
+  WATER_HEATER_MODE_HEAT_PUMP = 5;
+  WATER_HEATER_MODE_GAS = 6;
+}
+
+message ListEntitiesWaterHeaterResponse {
+  option (id) = 132;
+  option (base_class) = "InfoResponseProtoMessage";
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_WATER_HEATER";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON"];
+  bool disabled_by_default = 5;
+  EntityCategory entity_category = 6;
+  uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];
+  float min_temperature = 8;
+  float max_temperature = 9;
+  float target_temperature_step = 10;
+  repeated WaterHeaterMode supported_modes = 11 [(container_pointer_no_template) = "water_heater::WaterHeaterModeMask"];
+  // Bitmask of WaterHeaterFeature flags
+  uint32 supported_features = 12;
+}
+
+message WaterHeaterStateResponse {
+  option (id) = 133;
+  option (base_class) = "StateResponseProtoMessage";
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_WATER_HEATER";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  float current_temperature = 2;
+  float target_temperature = 3;
+  WaterHeaterMode mode = 4;
+  uint32 device_id = 5 [(field_ifdef) = "USE_DEVICES"];
+  // Bitmask of current state flags (bit 0 = away, bit 1 = on)
+  uint32 state = 6;
+  float target_temperature_low = 7;
+  float target_temperature_high = 8;
+}
+
+// Bitmask for WaterHeaterCommandRequest.has_fields
+enum WaterHeaterCommandHasField {
+  WATER_HEATER_COMMAND_HAS_NONE = 0;
+  WATER_HEATER_COMMAND_HAS_MODE = 1;
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE = 2;
+  WATER_HEATER_COMMAND_HAS_STATE = 4;
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW = 8;
+  WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH = 16;
+}
+
+message WaterHeaterCommandRequest {
+  option (id) = 134;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_WATER_HEATER";
+  option (no_delay) = true;
+  option (base_class) = "CommandProtoMessage";
+
+  fixed32 key = 1;
+  // Bitmask of which fields are set (see WaterHeaterCommandHasField)
+  uint32 has_fields = 2;
+  WaterHeaterMode mode = 3;
+  float target_temperature = 4;
+  uint32 device_id = 5 [(field_ifdef) = "USE_DEVICES"];
+  // State flags bitmask (bit 0 = away, bit 1 = on)
+  uint32 state = 6;
+  float target_temperature_low = 7;
+  float target_temperature_high = 8;
+}
+
 // ==================== NUMBER ====================
 enum NumberMode {
   NUMBER_MODE_AUTO = 0;
@@ -1188,7 +1288,7 @@ message ListEntitiesSirenResponse {
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
   bool disabled_by_default = 6;
-  repeated string tones = 7;
+  repeated string tones = 7 [(container_pointer_no_template) = "FixedVector<const char *>"];
   bool supports_duration = 8;
   bool supports_volume = 9;
   EntityCategory entity_category = 10;
@@ -1588,7 +1688,7 @@ message BluetoothGATTWriteRequest {
   uint32 handle = 2;
   bool response = 3;
 
-  bytes data = 4 [(pointer_to_buffer) = true];
+  bytes data = 4;
 }
 
 message BluetoothGATTReadDescriptorRequest {
@@ -1608,7 +1708,7 @@ message BluetoothGATTWriteDescriptorRequest {
   uint64 address = 1;
   uint32 handle = 2;
 
-  bytes data = 3 [(pointer_to_buffer) = true];
+  bytes data = 3;
 }
 
 message BluetoothGATTNotifyRequest {
@@ -1833,7 +1933,7 @@ message VoiceAssistantAudio {
   option (source) = SOURCE_BOTH;
   option (ifdef) = "USE_VOICE_ASSISTANT";
 
-  bytes data = 1;
+  bytes data = 1 [(pointer_to_buffer) = true];
   bool end = 2;
 }
 
@@ -2321,7 +2421,7 @@ message ZWaveProxyFrame {
   option (ifdef) = "USE_ZWAVE_PROXY";
   option (no_delay) = true;
 
-  bytes data = 1 [(pointer_to_buffer) = true];
+  bytes data = 1;
 }
 
 enum ZWaveProxyRequestType {
@@ -2335,5 +2435,5 @@ message ZWaveProxyRequest {
   option (ifdef) = "USE_ZWAVE_PROXY";
 
   ZWaveProxyRequestType type = 1;
-  bytes data = 2 [(pointer_to_buffer) = true];
+  bytes data = 2;
 }
