@@ -990,9 +990,9 @@ class PackedBufferTypeInfo(TypeInfo):
         return (
             f'out.append("  {self.name}: ");\n'
             + 'out.append("packed buffer [");\n'
-            + f"out.append(std::to_string(this->{self.field_name}_count_));\n"
+            + f"append_uint(out, this->{self.field_name}_count_);\n"
             + 'out.append(" values, ");\n'
-            + f"out.append(std::to_string(this->{self.field_name}_length_));\n"
+            + f"append_uint(out, this->{self.field_name}_length_);\n"
             + 'out.append(" bytes]\\n");'
         )
 
@@ -2602,6 +2602,12 @@ static inline void append_field_prefix(DumpBuffer &out, const char *field_name, 
 static inline void append_with_newline(DumpBuffer &out, const char *str) {
   out.append(str);
   out.append("\\n");
+}
+
+static inline void append_uint(DumpBuffer &out, uint32_t value) {
+  char buf[16];
+  snprintf(buf, sizeof(buf), "%" PRIu32, value);
+  out.append(buf);
 }
 
 // RAII helper for message dump formatting
