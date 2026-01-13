@@ -172,6 +172,11 @@ class APIConnection final : public APIServerConnection {
   void on_water_heater_command_request(const WaterHeaterCommandRequest &msg) override;
 #endif
 
+#ifdef USE_IR_RF
+  void infrared_rf_transmit_raw_timings(const InfraredRFTransmitRawTimingsRequest &msg) override;
+  void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
+#endif
+
 #ifdef USE_EVENT
   void send_event(event::Event *event, StringRef event_type);
 #endif
@@ -467,6 +472,10 @@ class APIConnection final : public APIServerConnection {
                                               bool is_single);
   static uint16_t try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                              bool is_single);
+#endif
+#ifdef USE_INFRARED
+  static uint16_t try_send_infrared_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                         bool is_single);
 #endif
 #ifdef USE_EVENT
   static uint16_t try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,

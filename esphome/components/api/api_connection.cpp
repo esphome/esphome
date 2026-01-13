@@ -46,6 +46,9 @@
 #ifdef USE_WATER_HEATER
 #include "esphome/components/water_heater/water_heater.h"
 #endif
+#ifdef USE_INFRARED
+#include "esphome/components/infrared/infrared.h"
+#endif
 
 namespace esphome::api {
 
@@ -1434,6 +1437,35 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
   msg.device_class = event->get_device_class_ref();
   msg.event_types = &event->get_event_types();
   return fill_and_encode_entity_info(event, msg, ListEntitiesEventResponse::MESSAGE_TYPE, conn, remaining_size,
+                                     is_single);
+}
+#endif
+
+#ifdef USE_IR_RF
+void APIConnection::infrared_rf_transmit_raw_timings(const InfraredRFTransmitRawTimingsRequest &msg) {
+  // TODO: When RF is implemented, add a field to the message to distinguish IR vs RF
+  // and dispatch to the appropriate entity type based on that field.
+#ifdef USE_INFRARED
+  ENTITY_COMMAND_MAKE_CALL(infrared::Infrared, infrared, infrared)
+  call.set_carrier_frequency(msg.carrier_frequency);
+  call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
+  call.set_repeat_count(msg.repeat_count);
+  call.perform();
+#endif
+}
+
+void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) {
+  this->send_message(msg, InfraredRFReceiveEvent::MESSAGE_TYPE);
+}
+#endif
+
+#ifdef USE_INFRARED
+uint16_t APIConnection::try_send_infrared_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
+                                               bool is_single) {
+  auto *infrared = static_cast<infrared::Infrared *>(entity);
+  ListEntitiesInfraredResponse msg;
+  msg.capabilities = infrared->get_capability_flags();
+  return fill_and_encode_entity_info(infrared, msg, ListEntitiesInfraredResponse::MESSAGE_TYPE, conn, remaining_size,
                                      is_single);
 }
 #endif

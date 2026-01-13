@@ -532,8 +532,7 @@ bool str_startswith(const std::string &str, const std::string &start);
 bool str_endswith(const std::string &str, const std::string &end);
 
 /// Truncate a string to a specific length.
-/// @deprecated Allocates heap memory and is unused. Removed in 2026.7.0.
-ESPDEPRECATED("Allocates heap memory and is unused. Removed in 2026.7.0.", "2026.1.0")
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
 std::string str_truncate(const std::string &str, size_t length);
 
 /// Extract the part of the string until either the first occurrence of the specified character, or the end
@@ -545,15 +544,13 @@ std::string str_until(const std::string &str, char ch);
 /// Convert the string to lower case.
 std::string str_lower_case(const std::string &str);
 /// Convert the string to upper case.
-/// @deprecated Allocates heap memory and is unused. Removed in 2026.7.0.
-ESPDEPRECATED("Allocates heap memory and is unused. Removed in 2026.7.0.", "2026.1.0")
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
 std::string str_upper_case(const std::string &str);
 
 /// Convert a single char to snake_case: lowercase and space to underscore.
 constexpr char to_snake_case_char(char c) { return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c; }
 /// Convert the string to snake case (lowercase with underscores).
-/// @deprecated Allocates heap memory and is unused in C++. Removed in 2026.7.0.
-ESPDEPRECATED("Allocates heap memory and is unused in C++. Removed in 2026.7.0.", "2026.1.0")
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
 std::string str_snake_case(const std::string &str);
 
 /// Sanitize a single char: keep alphanumerics, dashes, underscores; replace others with underscore.
@@ -776,6 +773,16 @@ inline char *format_hex_to(char (&buffer)[N], T val) {
   return format_hex_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
 }
 
+/// Format std::vector<uint8_t> as lowercase hex to buffer.
+template<size_t N> inline char *format_hex_to(char (&buffer)[N], const std::vector<uint8_t> &data) {
+  return format_hex_to(buffer, data.data(), data.size());
+}
+
+/// Format std::array<uint8_t, M> as lowercase hex to buffer.
+template<size_t N, size_t M> inline char *format_hex_to(char (&buffer)[N], const std::array<uint8_t, M> &data) {
+  return format_hex_to(buffer, data.data(), data.size());
+}
+
 /// Calculate buffer size needed for format_hex_to: "XXXXXXXX...\0" = bytes * 2 + 1
 constexpr size_t format_hex_size(size_t byte_count) { return byte_count * 2 + 1; }
 
@@ -825,6 +832,18 @@ inline char *format_hex_pretty_to(char (&buffer)[N], const uint8_t *data, size_t
   return format_hex_pretty_to(buffer, N, data, length, separator);
 }
 
+/// Format std::vector<uint8_t> as uppercase hex with separator to buffer.
+template<size_t N>
+inline char *format_hex_pretty_to(char (&buffer)[N], const std::vector<uint8_t> &data, char separator = ':') {
+  return format_hex_pretty_to(buffer, data.data(), data.size(), separator);
+}
+
+/// Format std::array<uint8_t, M> as uppercase hex with separator to buffer.
+template<size_t N, size_t M>
+inline char *format_hex_pretty_to(char (&buffer)[N], const std::array<uint8_t, M> &data, char separator = ':') {
+  return format_hex_pretty_to(buffer, data.data(), data.size(), separator);
+}
+
 /// Calculate buffer size needed for format_hex_pretty_to with uint16_t data: "XXXX:XXXX:...:XXXX\0"
 constexpr size_t format_hex_pretty_uint16_size(size_t count) { return count * 5; }
 
@@ -858,8 +877,8 @@ static constexpr size_t MAC_ADDRESS_PRETTY_BUFFER_SIZE = format_hex_pretty_size(
 static constexpr size_t MAC_ADDRESS_BUFFER_SIZE = MAC_ADDRESS_SIZE * 2 + 1;
 
 /// Format MAC address as XX:XX:XX:XX:XX:XX (uppercase, colon separators)
-inline void format_mac_addr_upper(const uint8_t *mac, char *output) {
-  format_hex_pretty_to(output, MAC_ADDRESS_PRETTY_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE, ':');
+inline char *format_mac_addr_upper(const uint8_t *mac, char *output) {
+  return format_hex_pretty_to(output, MAC_ADDRESS_PRETTY_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE, ':');
 }
 
 /// Format MAC address as xxxxxxxxxxxxxx (lowercase, no separators)
@@ -868,34 +887,31 @@ inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
 }
 
 /// Format the six-byte array \p mac into a MAC address.
-/// @deprecated Allocates heap memory. Use format_mac_addr_upper() with a stack buffer instead. Removed in 2026.7.0.
-ESPDEPRECATED("Allocates heap memory. Use format_mac_addr_upper() with stack buffer. Removed in 2026.7.0.", "2026.1.0")
+/// @warning Allocates heap memory. Use format_mac_addr_upper() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 std::string format_mac_address_pretty(const uint8_t mac[6]);
 /// Format the byte array \p data of length \p len in lowercased hex.
-/// @deprecated Allocates heap memory. Use format_hex_to() with a stack buffer instead. Removed in 2026.7.0.
-ESPDEPRECATED("Allocates heap memory. Use format_hex_to() with stack buffer. Removed in 2026.7.0.", "2026.1.0")
+/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 std::string format_hex(const uint8_t *data, size_t length);
 /// Format the vector \p data in lowercased hex.
-/// @deprecated Allocates heap memory. Use format_hex_to() with a stack buffer instead. Removed in 2026.7.0.
-ESPDEPRECATED("Allocates heap memory. Use format_hex_to() with stack buffer. Removed in 2026.7.0.", "2026.1.0")
+/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 std::string format_hex(const std::vector<uint8_t> &data);
 /// Format an unsigned integer in lowercased hex, starting with the most significant byte.
-/// @deprecated Allocates heap memory. Use format_hex_to() with a stack buffer instead. Removed in 2026.7.0.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-ESPDEPRECATED("Allocates heap memory. Use format_hex_to() with stack buffer. Removed in 2026.7.0.", "2026.1.0")
-std::string format_hex(T val) {
+/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
   val = convert_big_endian(val);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
 #pragma GCC diagnostic pop
 }
-/// @deprecated Allocates heap memory. Use format_hex_to() with a stack buffer instead. Removed in 2026.7.0.
-template<std::size_t N>
-ESPDEPRECATED("Allocates heap memory. Use format_hex_to() with stack buffer. Removed in 2026.7.0.", "2026.1.0")
-std::string format_hex(const std::array<uint8_t, N> &data) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+/// Format the std::array \p data in lowercased hex.
+/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
+template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &data) {
   return format_hex(data.data(), data.size());
 #pragma GCC diagnostic pop
 }
@@ -1342,14 +1358,13 @@ class HighFrequencyLoopRequester {
 void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
 
 /// Get the device MAC address as a string, in lowercase hex notation.
-/// @deprecated Allocates heap memory. Use get_mac_address_into_buffer() instead. Removed in 2026.7.0.
-ESPDEPRECATED("Allocates heap memory. Use get_mac_address_into_buffer() instead. Removed in 2026.7.0.", "2026.1.0")
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
+/// Use get_mac_address_into_buffer() instead.
 std::string get_mac_address();
 
 /// Get the device MAC address as a string, in colon-separated uppercase hex notation.
-/// @deprecated Allocates heap memory. Use get_mac_address_pretty_into_buffer() instead. Removed in 2026.7.0.
-ESPDEPRECATED("Allocates heap memory. Use get_mac_address_pretty_into_buffer() instead. Removed in 2026.7.0.",
-              "2026.1.0")
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
+/// Use get_mac_address_pretty_into_buffer() instead.
 std::string get_mac_address_pretty();
 
 /// Get the device MAC address into the given buffer, in lowercase hex notation.

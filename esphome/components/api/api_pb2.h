@@ -3049,5 +3049,70 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 #endif
+#ifdef USE_INFRARED
+class ListEntitiesInfraredResponse final : public InfoResponseProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 135;
+  static constexpr uint8_t ESTIMATED_SIZE = 44;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "list_entities_infrared_response"; }
+#endif
+  uint32_t capabilities{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
+#endif
+#ifdef USE_IR_RF
+class InfraredRFTransmitRawTimingsRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 136;
+  static constexpr uint8_t ESTIMATED_SIZE = 220;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "infrared_rf_transmit_raw_timings_request"; }
+#endif
+#ifdef USE_DEVICES
+  uint32_t device_id{0};
+#endif
+  uint32_t key{0};
+  uint32_t carrier_frequency{0};
+  uint32_t repeat_count{0};
+  const uint8_t *timings_data_{nullptr};
+  uint16_t timings_length_{0};
+  uint16_t timings_count_{0};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class InfraredRFReceiveEvent final : public ProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 137;
+  static constexpr uint8_t ESTIMATED_SIZE = 17;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *message_name() const override { return "infrared_rf_receive_event"; }
+#endif
+#ifdef USE_DEVICES
+  uint32_t device_id{0};
+#endif
+  uint32_t key{0};
+  const std::vector<int32_t> *timings{};
+  void encode(ProtoWriteBuffer buffer) const override;
+  void calculate_size(ProtoSize &size) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
+#endif
 
 }  // namespace esphome::api

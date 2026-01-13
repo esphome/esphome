@@ -66,6 +66,8 @@ service APIConnection {
 
   rpc zwave_proxy_frame(ZWaveProxyFrame) returns (void) {}
   rpc zwave_proxy_request(ZWaveProxyRequest) returns (void) {}
+
+  rpc infrared_rf_transmit_raw_timings(InfraredRFTransmitRawTimingsRequest) returns (void) {}
 }
 
 
@@ -2436,4 +2438,50 @@ message ZWaveProxyRequest {
 
   ZWaveProxyRequestType type = 1;
   bytes data = 2;
+}
+
+// ==================== INFRARED ====================
+// Note: Feature and capability flag enums are defined in
+// esphome/components/infrared/infrared.h
+
+// Listing of infrared instances
+message ListEntitiesInfraredResponse {
+  option (id) = 135;
+  option (base_class) = "InfoResponseProtoMessage";
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_INFRARED";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON"];
+  bool disabled_by_default = 5;
+  EntityCategory entity_category = 6;
+  uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];
+  uint32 capabilities = 8;  // Bitfield of InfraredCapabilityFlags
+}
+
+// Command to transmit infrared/RF data using raw timings
+message InfraredRFTransmitRawTimingsRequest {
+  option (id) = 136;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_IR_RF";
+
+  uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
+  fixed32 key = 2;                                       // Key identifying the transmitter instance
+  uint32 carrier_frequency = 3;                          // Carrier frequency in Hz
+  uint32 repeat_count = 4;                               // Number of times to transmit (1 = once, 2 = twice, etc.)
+  repeated sint32 timings = 5 [packed = true, (packed_buffer) = true];  // Raw timings in microseconds (zigzag-encoded): positive = mark (LED/TX on), negative = space (LED/TX off)
+}
+
+// Event message for received infrared/RF data
+message InfraredRFReceiveEvent {
+  option (id) = 137;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_IR_RF";
+  option (no_delay) = true;
+
+  uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
+  fixed32 key = 2;                                    // Key identifying the receiver instance
+  repeated sint32 timings = 3 [packed = true, (container_pointer_no_template) = "std::vector<int32_t>"];  // Raw timings in microseconds (zigzag-encoded): alternating mark/space periods
 }
