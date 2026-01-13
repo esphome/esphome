@@ -15,7 +15,6 @@ class IrRfProxy : public infrared::Infrared {
  public:
   IrRfProxy() = default;
 
-  void setup() override;
   void dump_config() override;
 
   /// Set RF frequency in kHz (0 = infrared, non-zero = RF)
