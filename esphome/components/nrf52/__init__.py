@@ -55,6 +55,7 @@ from .const import (
     CONF_MCU,
     CONF_PARTITIONS,
     MCU_FAMILY_NRF52,
+    MCU_FAMILY_NRF54L,
 )
 
 # force import gpio to register pin schema
@@ -297,6 +298,15 @@ async def to_code(config: ConfigType) -> None:
                         };
                     """
                 )
+
+    if board.mcu in MCU_FAMILY_NRF54L:
+        zephyr_add_overlay(
+            """
+                &wdt31 {
+                    status = "okay";
+                };
+            """
+        )
 
     # c++ support
     if framework_ver < cv.Version(2, 9, 2):
