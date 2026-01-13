@@ -66,6 +66,9 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   void add_area_label_(AsyncResponseStream *stream, std::string &area);
   void add_node_label_(AsyncResponseStream *stream, std::string &node);
   void add_friendly_name_label_(AsyncResponseStream *stream, std::string &friendly_name);
+  void handle_failed_metric_(AsyncResponseStream *stream, const std::string &component_name, const std::string &value,
+                             EntityBase *obj, std::string &area, std::string &node, std::string &friendly_name);
+  void handle_metric_type_(AsyncResponseStream *stream, const std::string &component_name);
   /// Print metric name and common labels (id, area, node, friendly_name, name)
 #ifdef USE_ESP8266
   void print_metric_labels_(AsyncResponseStream *stream, const __FlashStringHelper *metric_name, EntityBase *obj,
@@ -194,6 +197,24 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   /// Return the valve state as prometheus data point
   void valve_row_(AsyncResponseStream *stream, valve::Valve *obj, std::string &area, std::string &node,
                   std::string &friendly_name);
+#endif
+
+#ifdef USE_DATETIME_DATE
+  /// Return the date state as prometheus data point
+  void date_row_(AsyncResponseStream *stream, datetime::DateEntity *obj, std::string &area, std::string &node,
+                 std::string &friendly_name);
+#endif
+
+#ifdef USE_DATETIME_TIME
+  /// Return the time state as prometheus data point
+  void time_row_(AsyncResponseStream *stream, datetime::TimeEntity *obj, std::string &area, std::string &node,
+                 std::string &friendly_name);
+#endif
+
+#ifdef USE_DATETIME_DATETIME
+  /// Return the datetime state as prometheus data point
+  void datetime_row_(AsyncResponseStream *stream, datetime::DateTimeEntity *obj, std::string &area, std::string &node,
+                     std::string &friendly_name);
 #endif
 
 #ifdef USE_CLIMATE

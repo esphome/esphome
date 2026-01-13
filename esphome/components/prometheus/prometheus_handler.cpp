@@ -1,4 +1,5 @@
 #include "prometheus_handler.h"
+#include <cinttypes>
 #ifdef USE_NETWORK
 #include "esphome/core/application.h"
 
@@ -101,6 +102,24 @@ void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
     this->valve_row_(stream, obj, area, node, friendly_name);
 #endif
 
+#ifdef USE_DATETIME_DATE
+  this->handle_metric_type_(stream, "date");
+  for (auto *obj : App.get_dates())
+    this->date_row_(stream, obj, area, node, friendly_name);
+#endif
+
+#ifdef USE_DATETIME_TIME
+  this->handle_metric_type_(stream, "time");
+  for (auto *obj : App.get_times())
+    this->time_row_(stream, obj, area, node, friendly_name);
+#endif
+
+#ifdef USE_DATETIME_DATETIME
+  this->handle_metric_type_(stream, "datetime");
+  for (auto *obj : App.get_datetimes())
+    this->datetime_row_(stream, obj, area, node, friendly_name);
+#endif
+
 #ifdef USE_CLIMATE
   this->climate_type_(stream);
   for (auto *obj : App.get_climates())
@@ -111,6 +130,12 @@ void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
 }
 
 std::string PrometheusHandler::relabel_id_(EntityBase *obj) {
+  // auto item = relabel_map_id_.find(obj);
+  // if (item != relabel_map_id_.end()) {
+  //   return item->second;
+  // }
+  // char object_id_buf[OBJECT_ID_MAX_LEN];
+  // return obj->get_object_id_to(object_id_buf).str();
   auto item = relabel_map_id_.find(obj);
   return item == relabel_map_id_.end() ? obj->get_object_id() : item->second;
 }
@@ -139,6 +164,32 @@ void PrometheusHandler::add_friendly_name_label_(AsyncResponseStream *stream, st
     stream->print(ESPHOME_F("\",friendly_name=\""));
     stream->print(friendly_name.c_str());
   }
+}
+
+void PrometheusHandler::handle_failed_metric_(AsyncResponseStream *stream, const std::string &component_name,
+                                              const std::string &value, EntityBase *obj, std::string &area,
+                                              std::string &node, std::string &friendly_name) {
+  stream->print(ESPHOME_F("esphome_"));
+  stream->print(component_name.c_str());
+  stream->print(ESPHOME_F("_failed{id=\""));
+  stream->print(relabel_id_(obj).c_str());
+  add_area_label_(stream, area);
+  add_node_label_(stream, node);
+  add_friendly_name_label_(stream, friendly_name);
+  stream->print(ESPHOME_F("\",name=\""));
+  stream->print(relabel_name_(obj).c_str());
+  stream->print(ESPHOME_F("\"} "));
+  stream->print(value.c_str());
+  stream->print(ESPHOME_F("\n"));
+}
+
+void PrometheusHandler::handle_metric_type_(AsyncResponseStream *stream, const std::string &component_name) {
+  stream->print(ESPHOME_F("#TYPE esphome_"));
+  stream->print(component_name.c_str());
+  stream->print(ESPHOME_F("_value gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_"));
+  stream->print(component_name.c_str());
+  stream->print(ESPHOME_F("_failed gauge\n"));
 }
 
 #ifdef USE_ESP8266
@@ -1085,6 +1136,118 @@ void PrometheusHandler::climate_row_(AsyncResponseStream *stream, climate::Clima
   }
   std::string all_climate_category = "all";
   climate_failed_row_(stream, obj, area, node, friendly_name, all_climate_category, any_failures);
+}
+#endif
+
+#ifdef USE_DATETIME_DATE
+void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEntity *obj, std::string &area,
+                                  std::string &node, std::string &friendly_name) {
+  if (obj->is_internal() && !this->include_internal_)
+    return;
+  std::string component = "date";
+  if (obj->has_state()) {
+    // We have a valid value, output this value
+    handle_failed_metric_(stream, component, "0", obj, area, node, friendly_name);
+    stream->print(ESPHOME_F("esphome_date_value{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(ESPHOME_F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(ESPHOME_F("\"} "));
+    // Construct a date time object
+    ESPTime val{};
+    val.year = obj->year;
+    val.month = obj->month;
+    val.day_of_month = obj->day;
+    val.hour = 0;
+    val.minute = 0;
+    val.second = 0;
+    // these are ignored
+    val.day_of_week = 1;
+    val.day_of_year = 1;
+    val.is_dst = false;
+    val.recalc_timestamp_utc(false);
+    int64_t ts = (int64_t) val.timestamp;
+    int64_t offset = (int64_t) ESPTime::timezone_offset();
+    int64_t adjusted_ts = ts - offset;
+    // prometheus expects ms
+    stream->printf("%" PRId64 "\n", adjusted_ts * 1000LL);
+  } else {
+    // Invalid state
+    handle_failed_metric_(stream, component, "1", obj, area, node, friendly_name);
+  }
+}
+#endif
+
+#ifdef USE_DATETIME_TIME
+void PrometheusHandler::time_row_(AsyncResponseStream *stream, datetime::TimeEntity *obj, std::string &area,
+                                  std::string &node, std::string &friendly_name) {
+  if (obj->is_internal() && !this->include_internal_)
+    return;
+  std::string component = "time";
+  if (obj->has_state()) {
+    // We have a valid value, output this value
+    handle_failed_metric_(stream, component, "0", obj, area, node, friendly_name);
+    stream->print(ESPHOME_F("esphome_time_value{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(ESPHOME_F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(ESPHOME_F("\"} "));
+    // Data itself - convert to seconds since midnight
+    int64_t seconds_since_midnight = (int64_t) obj->hour * 3600 + (int64_t) obj->minute * 60 + (int64_t) obj->second;
+    // prometheus expects ms
+    stream->printf("%" PRId64 "\n", seconds_since_midnight * 1000);
+  } else {
+    // Invalid state
+    handle_failed_metric_(stream, component, "1", obj, area, node, friendly_name);
+  }
+}
+#endif
+
+#ifdef USE_DATETIME_DATETIME
+void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::DateTimeEntity *obj, std::string &area,
+                                      std::string &node, std::string &friendly_name) {
+  if (obj->is_internal() && !this->include_internal_)
+    return;
+  std::string component = "datetime";
+  if (obj->has_state()) {
+    // We have a valid value, output this value
+    handle_failed_metric_(stream, component, "0", obj, area, node, friendly_name);
+    stream->print(ESPHOME_F("esphome_datetime_value{id=\""));
+    stream->print(relabel_id_(obj).c_str());
+    add_area_label_(stream, area);
+    add_node_label_(stream, node);
+    add_friendly_name_label_(stream, friendly_name);
+    stream->print(ESPHOME_F("\",name=\""));
+    stream->print(relabel_name_(obj).c_str());
+    stream->print(ESPHOME_F("\"} "));
+    // Construct a date time object
+    ESPTime val{};
+    val.year = obj->year;
+    val.month = obj->month;
+    val.day_of_month = obj->day;
+    val.hour = obj->hour;
+    val.minute = obj->minute;
+    val.second = obj->second;
+    // these are ignored
+    val.day_of_week = 1;
+    val.day_of_year = 1;
+    val.is_dst = false;
+    val.recalc_timestamp_utc(false);
+    int64_t ts = (int64_t) val.timestamp;
+    int64_t offset = (int64_t) ESPTime::timezone_offset();
+    int64_t adjusted_ts = ts - offset;
+    // prometheus expects ms
+    stream->printf("%" PRId64 "\n", adjusted_ts * 1000LL);
+  } else {
+    // Invalid state
+    handle_failed_metric_(stream, component, "1", obj, area, node, friendly_name);
+  }
 }
 #endif
 
