@@ -468,6 +468,8 @@ class Logger : public Component {
     ~NonMainTaskRecursionGuard() { pthread_setspecific(key_, nullptr); }
     NonMainTaskRecursionGuard(const NonMainTaskRecursionGuard &) = delete;
     NonMainTaskRecursionGuard &operator=(const NonMainTaskRecursionGuard &) = delete;
+    NonMainTaskRecursionGuard(NonMainTaskRecursionGuard &&) = delete;
+    NonMainTaskRecursionGuard &operator=(NonMainTaskRecursionGuard &&) = delete;
 
    private:
     pthread_key_t key_;
