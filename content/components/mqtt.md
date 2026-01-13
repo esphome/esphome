@@ -488,20 +488,20 @@ command_retain: false
    Home Assistant for showing entity availability. Default derived from
    [global birth/last will message](#mqtt-last_will_birth).
 
-- **state_topic** (*Optional*, string): The topic to publish state
+- **state_topic** (*Optional*, string, [templatable](/automations/templates)): The topic to publish state
    updates to. Defaults to
    `<TOPIC_PREFIX>/<COMPONENT_TYPE>/<COMPONENT_NAME>/state`.
 
    ESPHome will always publish a manually configured state topic, even if
-   the component is internal. Use `null` to disable publishing the
+   the component is internal. Use `null` (or return `""` in the lambda) to disable publishing the
    component's state.
 
-- **command_topic** (*Optional*, string): The topic to subscribe to for
+- **command_topic** (*Optional*, string, [templatable](/automations/templates)): The topic to subscribe to for
    commands from the remote. Defaults to
    `<TOPIC_PREFIX>/<COMPONENT_TYPE>/<COMPONENT_NAME>/command`.
 
    ESPHome will always subscribe to a manually configured command topic,
-   even if the component is internal. Use `null` to disable subscribing
+   even if the component is internal. Use `null` (or return `""` in the lambda) to disable subscribing
    to the component's command topic.
 
 - **command_retain** (*Optional*, boolean): Whether MQTT command messages
