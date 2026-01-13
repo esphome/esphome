@@ -1,5 +1,9 @@
 #pragma once
 
+// WARNING: This component is EXPERIMENTAL. The API may change at any time
+// without following the normal breaking changes policy. Use at your own risk.
+// Once the API is considered stable, this warning will be removed.
+
 #include "esphome/components/infrared/infrared.h"
 #include "esphome/components/remote_transmitter/remote_transmitter.h"
 #include "esphome/components/remote_receiver/remote_receiver.h"
