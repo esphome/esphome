@@ -500,18 +500,24 @@ bool SEN6XComponent::start_fan_cleaning() {
 }
 
 SEN6XComponent::Sen6xType SEN6XComponent::infer_type_from_product_name_(const std::string_view &product_name) {
-  if (product_name == "SEN62")
+  if (product_name == "SEN62") {
     return SEN62;
-  else if (product_name == "SEN63C")
+  }
+  if (product_name == "SEN63C") {
     return SEN63C;
-  else if (product_name == "SEN65")
+  }
+  if (product_name == "SEN65") {
     return SEN65;
-  else if (product_name == "SEN66")
+  }
+  if (product_name == "SEN66") {
     return SEN66;
-  else if (product_name == "SEN68")
+  }
+  if (product_name == "SEN68") {
     return SEN68;
-  else if (product_name == "SEN69C")
+  }
+  if (product_name == "SEN69C") {
     return SEN69C;
+  }
   return UNKNOWN;
 }
 
