@@ -31,7 +31,6 @@ from esphome.const import (
     CONF_TEMPERATURE_COMPENSATION,
     CONF_TIME_CONSTANT,
     CONF_VOC,
-    CONF_VOC_BASELINE,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_GAS,
@@ -200,7 +199,6 @@ CONFIG_SCHEMA = (
                 gain_factor=230,
             ),
             cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
-            cv.Optional(CONF_VOC_BASELINE): cv.hex_uint16_t,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 icon=ICON_THERMOMETER,
@@ -244,8 +242,6 @@ SENSOR_MAP = {
     CONF_FORMALDEHYDE: "set_hcho_sensor",
 }
 
-SETTING_MAP = {}
-
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -253,10 +249,6 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_type(config["type"]))
-
-    for key, funcName in SETTING_MAP.items():
-        if cfg := config.get(key):
-            cg.add(getattr(var, funcName)(cfg))
 
     for key, funcName in SENSOR_MAP.items():
         if cfg := config.get(key):
@@ -317,6 +309,6 @@ SEN6X_ACTION_SCHEMA = maybe_simple_id(
 @automation.register_action(
     "sen6x.start_fan_autoclean", StartFanAction, SEN6X_ACTION_SCHEMA
 )
-async def sen64_fan_to_code(config, action_id, template_arg, args):
+async def sen6x_fan_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
