@@ -51,6 +51,9 @@ static const char *const TAG = "ota.esp8266";
 std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::ESP8266OTABackend>(); }
 
 OTAResponseTypes ESP8266OTABackend::begin(size_t image_size) {
+  // Make sure the memory from previous unfinished attempt is freed
+  this->buffer_.reset();
+
   // Handle UPDATE_SIZE_UNKNOWN (0) by calculating available space
   if (image_size == 0) {
     // Round down to sector boundary: subtract one sector, then mask to sector alignment
