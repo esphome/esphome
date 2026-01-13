@@ -236,6 +236,8 @@ class Logger : public Component {
     ~RecursionGuard() { flag_ = false; }
     RecursionGuard(const RecursionGuard &) = delete;
     RecursionGuard &operator=(const RecursionGuard &) = delete;
+    RecursionGuard(RecursionGuard &&) = delete;
+    RecursionGuard &operator=(RecursionGuard &&) = delete;
 
    private:
     bool &flag_;
@@ -466,6 +468,8 @@ class Logger : public Component {
     ~NonMainTaskRecursionGuard() { pthread_setspecific(key_, nullptr); }
     NonMainTaskRecursionGuard(const NonMainTaskRecursionGuard &) = delete;
     NonMainTaskRecursionGuard &operator=(const NonMainTaskRecursionGuard &) = delete;
+    NonMainTaskRecursionGuard(NonMainTaskRecursionGuard &&) = delete;
+    NonMainTaskRecursionGuard &operator=(NonMainTaskRecursionGuard &&) = delete;
 
    private:
     pthread_key_t key_;
