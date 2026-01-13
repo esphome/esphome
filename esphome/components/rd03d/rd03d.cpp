@@ -21,6 +21,11 @@ static constexpr uint8_t CMD_FRAME_FOOTER[] = {0x04, 0x03, 0x02, 0x01};
 static constexpr uint16_t CMD_SINGLE_TARGET = 0x0080;
 static constexpr uint16_t CMD_MULTI_TARGET = 0x0090;
 
+// Speed sentinel values (cm/s) - radar outputs these when no valid Doppler measurement
+// FMCW radars detect motion via Doppler shift; targets with these speeds are likely noise
+static constexpr int16_t SPEED_SENTINEL_248 = 248;
+static constexpr int16_t SPEED_SENTINEL_256 = 256;
+
 // Decode coordinate/speed value from RD-03D format
 // Per datasheet: MSB=1 means positive, MSB=0 means negative
 static constexpr int16_t decode_value(uint8_t low_byte, uint8_t high_byte) {
@@ -29,6 +34,13 @@ static constexpr int16_t decode_value(uint8_t low_byte, uint8_t high_byte) {
     value = -value;
   }
   return value;
+}
+
+// Check if speed value indicates a valid Doppler measurement
+// Zero, ±248, or ±256 cm/s are sentinel values from the radar firmware
+static constexpr bool is_speed_valid(int16_t speed) {
+  int16_t abs_speed = speed < 0 ? -speed : speed;
+  return speed != 0 && abs_speed != SPEED_SENTINEL_248 && abs_speed != SPEED_SENTINEL_256;
 }
 
 void RD03DComponent::setup() {
@@ -136,8 +148,12 @@ void RD03DComponent::process_frame_() {
     int16_t speed = decode_value(speed_low, speed_high);
     uint16_t resolution = (res_high << 8) | res_low;
 
-    // Check if target is present (non-zero coordinates)
-    bool target_present = (x != 0 || y != 0);
+    // Check if target is present
+    // Requires non-zero coordinates AND valid speed (not a sentinel value)
+    // FMCW radars detect motion via Doppler; sentinel speed indicates no real target
+    bool has_position = (x != 0 || y != 0);
+    bool has_valid_speed = is_speed_valid(speed);
+    bool target_present = has_position && has_valid_speed;
     if (target_present) {
       target_count++;
     }
@@ -169,20 +185,21 @@ void RD03DComponent::process_frame_() {
 #ifdef USE_SENSOR
 void RD03DComponent::publish_target_(uint8_t target_num, int16_t x, int16_t y, int16_t speed, uint16_t resolution) {
   TargetSensor &target = this->targets_[target_num];
+  bool valid = is_speed_valid(speed);
 
-  // Publish X coordinate (mm)
+  // Publish X coordinate (mm) - NaN if target invalid
   if (target.x != nullptr) {
-    target.x->publish_state(x);
+    target.x->publish_state(valid ? static_cast<float>(x) : NAN);
   }
 
-  // Publish Y coordinate (mm)
+  // Publish Y coordinate (mm) - NaN if target invalid
   if (target.y != nullptr) {
-    target.y->publish_state(y);
+    target.y->publish_state(valid ? static_cast<float>(y) : NAN);
   }
 
-  // Publish speed (convert from cm/s to mm/s)
+  // Publish speed (convert from cm/s to mm/s) - NaN if target invalid
   if (target.speed != nullptr) {
-    target.speed->publish_state(static_cast<float>(speed) * 10.0f);
+    target.speed->publish_state(valid ? static_cast<float>(speed) * 10.0f : NAN);
   }
 
   // Publish resolution (mm)
@@ -190,20 +207,23 @@ void RD03DComponent::publish_target_(uint8_t target_num, int16_t x, int16_t y, i
     target.resolution->publish_state(resolution);
   }
 
-  // Calculate and publish distance (mm)
+  // Calculate and publish distance (mm) - NaN if target invalid
   if (target.distance != nullptr) {
-    float distance = std::hypot(static_cast<float>(x), static_cast<float>(y));
-    target.distance->publish_state(distance);
+    if (valid) {
+      target.distance->publish_state(std::hypot(static_cast<float>(x), static_cast<float>(y)));
+    } else {
+      target.distance->publish_state(NAN);
+    }
   }
 
-  // Calculate and publish angle (degrees)
+  // Calculate and publish angle (degrees) - NaN if target invalid
   // Angle is measured from the Y axis (radar forward direction)
   if (target.angle != nullptr) {
-    if (x == 0 && y == 0) {
-      target.angle->publish_state(0);
-    } else {
+    if (valid) {
       float angle = std::atan2(static_cast<float>(x), static_cast<float>(y)) * 180.0f / M_PI;
       target.angle->publish_state(angle);
+    } else {
+      target.angle->publish_state(NAN);
     }
   }
 }
