@@ -17,7 +17,7 @@ from esphome.core import CORE
 
 from .boards import LN882X_BOARD_PINS, LN882X_BOARDS
 
-CODEOWNERS = ["@lamauny"]
+CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["libretiny"]
 IS_TARGET_PLATFORM = True
 
@@ -27,6 +27,7 @@ COMPONENT_DATA = LibreTinyComponent(
     board_pins=LN882X_BOARD_PINS,
     pin_validation=None,
     usage_validation=None,
+    supports_atomics=True,
 )
 
 

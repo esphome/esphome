@@ -33,6 +33,7 @@ from esphome.core import CORE
 
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["libretiny"]
+IS_TARGET_PLATFORM = True
 
 COMPONENT_DATA = LibreTinyComponent(
     name=COMPONENT_{COMPONENT},
@@ -40,6 +41,7 @@ COMPONENT_DATA = LibreTinyComponent(
     board_pins={COMPONENT}_BOARD_PINS,
     pin_validation={PIN_VALIDATION},
     usage_validation={USAGE_VALIDATION},
+    supports_atomics={SUPPORTS_ATOMICS},
 )
 
 
@@ -97,6 +99,14 @@ COMPONENT_MAP = {
     "ln882x": "lightning-ln882x",
 }
 
+# Components with Cortex-M4(F) have LDREX/STREX for native atomic support.
+# BK72xx uses ARM968E-S (ARMv5TE) which lacks these instructions.
+COMPONENT_SUPPORTS_ATOMICS = {
+    "rtl87xx": True,  # Cortex-M4
+    "ln882x": True,  # Cortex-M4F
+    "bk72xx": False,  # ARM968E-S
+}
+
 
 def subst(code: str, key: str, value: str) -> str:
     return code.replace(f"{{{key}}}", value)
@@ -147,6 +157,7 @@ def write_component_code(
         PIN_SCHEMA=PIN_SCHEMA_BASE,
         PIN_VALIDATION="None",
         USAGE_VALIDATION="None",
+        SUPPORTS_ATOMICS=str(COMPONENT_SUPPORTS_ATOMICS.get(component, False)),
     )
 
     # parse gpio.py file to find custom validators

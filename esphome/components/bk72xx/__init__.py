@@ -27,6 +27,7 @@ COMPONENT_DATA = LibreTinyComponent(
     board_pins=BK72XX_BOARD_PINS,
     pin_validation=None,
     usage_validation=None,
+    supports_atomics=False,
 )
 
 
