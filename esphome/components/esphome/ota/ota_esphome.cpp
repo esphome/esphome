@@ -370,11 +370,13 @@ void ESPHomeOTAComponent::handle_data_() {
 
 error:
   this->write_byte_(static_cast<uint8_t>(error_code));
-  this->cleanup_connection_();
 
+  // Abort backend before cleanup - cleanup_connection_() destroys the backend
   if (this->backend_ != nullptr && update_started) {
     this->backend_->abort();
   }
+
+  this->cleanup_connection_();
 
   this->status_momentary_error("err", 5000);
 #ifdef USE_OTA_STATE_LISTENER
