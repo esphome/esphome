@@ -99,14 +99,14 @@ bool MQTTCoverComponent::publish_state() {
   bool success = true;
   if (traits.get_supports_position()) {
     char pos[VALUE_ACCURACY_MAX_LEN];
-    value_accuracy_to_buf(pos, roundf(this->cover_->position * 100), 0);
-    if (!this->publish(this->get_position_state_topic(), pos))
+    size_t len = value_accuracy_to_buf(pos, roundf(this->cover_->position * 100), 0);
+    if (!this->publish(this->get_position_state_topic(), pos, len))
       success = false;
   }
   if (traits.get_supports_tilt()) {
     char pos[VALUE_ACCURACY_MAX_LEN];
-    value_accuracy_to_buf(pos, roundf(this->cover_->tilt * 100), 0);
-    if (!this->publish(this->get_tilt_state_topic(), pos))
+    size_t len = value_accuracy_to_buf(pos, roundf(this->cover_->tilt * 100), 0);
+    if (!this->publish(this->get_tilt_state_topic(), pos, len))
       success = false;
   }
   const char *state_s = this->cover_->current_operation == COVER_OPERATION_OPENING   ? "opening"

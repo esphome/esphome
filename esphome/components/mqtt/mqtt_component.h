@@ -140,6 +140,14 @@ class MQTTComponent : public Component {
    */
   bool publish(const std::string &topic, const std::string &payload);
 
+  /** Send a MQTT message.
+   *
+   * @param topic The topic.
+   * @param payload The payload buffer.
+   * @param payload_length The length of the payload.
+   */
+  bool publish(const std::string &topic, const char *payload, size_t payload_length);
+
   /** Construct and send a JSON MQTT message.
    *
    * @param topic The topic.
