@@ -88,21 +88,27 @@ void SEN6XComponent::setup() {
       this->unpack_uint16_to_char_(raw_product_name, this->product_name_);
       ESP_LOGV(TAG, "Product name %.*s", (int) this->product_name_.size(), this->product_name_.data());
 
-      // Determine sensor type from product name
-      // NOTE: this is done via type parameter in YAML now, so this code is commented out
-      // if (std::string_view(this->product_name_.data()) == "SEN62")
-      //   this->sen6x_type_ = SEN62;
-      // else if (std::string_view(this->product_name_.data()) == "SEN63C")
-      //   this->sen6x_type_ = SEN63C;
-      // else if (std::string_view(this->product_name_.data()) == "SEN65")
-      //   this->sen6x_type_ = SEN65;
-      // else if (std::string_view(this->product_name_.data()) == "SEN66")
-      //   this->sen6x_type_ = SEN66;
-      // else if (std::string_view(this->product_name_.data()) == "SEN68")
-      //   this->sen6x_type_ = SEN68;
-      // else if (std::string_view(this->product_name_.data()) == "SEN69C")
-      //   this->sen6x_type_ = SEN69C;
-      // ESP_LOGD(TAG, "Product name: %s", this->product_name_.data());
+      // Infer sensor type from product name
+      Sen6xType inferred_type = this->infer_type_from_product_name_(this->product_name_.data());
+
+      // If type was not set via YAML, use inferred type
+      if (this->sen6x_type_ == UNKNOWN) {
+        this->sen6x_type_ = inferred_type;
+        if (inferred_type == UNKNOWN) {
+          ESP_LOGE(TAG, "Unable to infer sensor type from product name '%s'. Please specify 'type' in configuration.",
+                   this->product_name_.data());
+          this->error_code_ = PRODUCT_NAME_FAILED;
+          this->mark_failed();
+          return;
+        }
+        ESP_LOGD(TAG, "Sensor type inferred from product name: %s", this->product_name_.data());
+      } else if (this->sen6x_type_ != inferred_type && inferred_type != UNKNOWN) {
+        // User specified type, but it doesn't match product name
+        ESP_LOGW(TAG,
+                 "Configured sensor type does not match product name '%s'. "
+                 "Using configured type, but this may cause issues.",
+                 this->product_name_.data());
+      }
 
       if (this->voc_sensor_ && (this->sen6x_type_ == SEN62 || this->sen6x_type_ == SEN63C)) {
         ESP_LOGE(TAG, "VOC is not available on SEN62 and SEN63C");
@@ -491,6 +497,22 @@ bool SEN6XComponent::start_fan_cleaning() {
     ESP_LOGD(TAG, "Fan auto clean started");
   }
   return true;
+}
+
+SEN6XComponent::Sen6xType SEN6XComponent::infer_type_from_product_name_(const std::string_view &product_name) {
+  if (product_name == "SEN62")
+    return SEN62;
+  else if (product_name == "SEN63C")
+    return SEN63C;
+  else if (product_name == "SEN65")
+    return SEN65;
+  else if (product_name == "SEN66")
+    return SEN66;
+  else if (product_name == "SEN68")
+    return SEN68;
+  else if (product_name == "SEN69C")
+    return SEN69C;
+  return UNKNOWN;
 }
 
 }  // namespace esphome::sen6x

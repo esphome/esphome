@@ -121,7 +121,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SEN6XComponent),
-            cv.Required("type"): cv.one_of(
+            cv.Optional("type"): cv.one_of(
                 "SEN62", "SEN63C", "SEN65", "SEN66", "SEN68", "SEN69C", upper=True
             ),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
@@ -248,7 +248,8 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_type(config["type"]))
+    if "type" in config:
+        cg.add(var.set_type(config["type"]))
 
     for key, funcName in SENSOR_MAP.items():
         if cfg := config.get(key):

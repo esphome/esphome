@@ -122,6 +122,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
   bool write_pressure_compensation_(uint16_t pressure);
   bool write_altitude_compensation_(uint16_t altitude);
+  Sen6xType infer_type_from_product_name_(const std::string_view &product_name);
 
   template<size_t N> void unpack_uint16_to_char_(uint16_t (&src)[N], std::array<char, N * 2> &dest) {
     for (size_t i = 0; i < N; ++i) {
