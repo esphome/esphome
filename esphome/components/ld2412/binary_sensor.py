@@ -21,7 +21,7 @@ DEPENDENCIES = ["ld2412"]
 CONF_DYNAMIC_BACKGROUND_CORRECTION_STATUS = "dynamic_background_correction_status"
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_ID): cv.declare_id(cg.Component),
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
     cv.Optional(
         CONF_DYNAMIC_BACKGROUND_CORRECTION_STATUS

@@ -23,7 +23,7 @@ CONF_OUT_PIN_LEVEL = "out_pin_level"
 
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_ID): cv.declare_id(cg.Component),
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
     cv.Optional(CONF_DISTANCE_RESOLUTION): select.select_schema(
         DistanceResolutionSelect,

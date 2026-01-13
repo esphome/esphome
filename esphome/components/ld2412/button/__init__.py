@@ -27,7 +27,7 @@ CONF_QUERY_PARAMS = "query_params"
 CONF_START_DYNAMIC_BACKGROUND_CORRECTION = "start_dynamic_background_correction"
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_ID): cv.declare_id(cg.Component),
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
     cv.Optional(CONF_FACTORY_RESET): button.button_schema(
         FactoryResetButton,

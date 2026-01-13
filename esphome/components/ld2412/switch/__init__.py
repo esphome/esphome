@@ -18,7 +18,7 @@ EngineeringModeSwitch = LD2412_ns.class_("EngineeringModeSwitch", switch.Switch)
 CONF_ENGINEERING_MODE = "engineering_mode"
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_ID): cv.declare_id(cg.Component),
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
     cv.Optional(CONF_BLUETOOTH): switch.switch_schema(
         BluetoothSwitch,

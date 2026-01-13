@@ -21,7 +21,7 @@ MAX_TARGETS = 3
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_ID): cv.declare_id(cg.Component),
+        cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
         cv.Optional(CONF_VERSION): text_sensor.text_sensor_schema(
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
