@@ -15,16 +15,19 @@ DEPENDENCIES = ["infrared"]
 
 IrRfProxy = ir_rf_proxy_ns.class_("IrRfProxy", infrared.Infrared)
 
-CONFIG_SCHEMA = infrared.infrared_schema(IrRfProxy).extend(
-    {
-        cv.Optional(CONF_FREQUENCY, default=0): cv.frequency,
-        cv.Optional(CONF_REMOTE_RECEIVER_ID): cv.use_id(
-            remote_receiver.RemoteReceiverComponent
-        ),
-        cv.Optional(CONF_REMOTE_TRANSMITTER_ID): cv.use_id(
-            remote_transmitter.RemoteTransmitterComponent
-        ),
-    }
+CONFIG_SCHEMA = cv.All(
+    infrared.infrared_schema(IrRfProxy).extend(
+        {
+            cv.Optional(CONF_FREQUENCY, default=0): cv.frequency,
+            cv.Optional(CONF_REMOTE_RECEIVER_ID): cv.use_id(
+                remote_receiver.RemoteReceiverComponent
+            ),
+            cv.Optional(CONF_REMOTE_TRANSMITTER_ID): cv.use_id(
+                remote_transmitter.RemoteTransmitterComponent
+            ),
+        }
+    ),
+    cv.has_exactly_one_key(CONF_REMOTE_RECEIVER_ID, CONF_REMOTE_TRANSMITTER_ID),
 )
 
 
