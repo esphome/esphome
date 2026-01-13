@@ -13,6 +13,34 @@ namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.component";
 
+// Helper functions for building topic strings on stack
+inline char *append_str(char *p, const char *s, size_t len) {
+  memcpy(p, s, len);
+  return p + len;
+}
+
+inline char *append_char(char *p, char c) {
+  *p = c;
+  return p + 1;
+}
+
+// Max lengths for stack-based topic building.
+// These limits are enforced at Python config validation time in mqtt/__init__.py
+// using cv.Length() validators for topic_prefix and discovery_prefix.
+// MQTT_COMPONENT_TYPE_MAX_LEN and MQTT_SUFFIX_MAX_LEN are defined in mqtt_component.h.
+// ESPHOME_DEVICE_NAME_MAX_LEN and OBJECT_ID_MAX_LEN are defined in entity_base.h.
+// This ensures the stack buffers below are always large enough.
+static constexpr size_t TOPIC_PREFIX_MAX_LEN = 64;      // Validated in Python: cv.Length(max=64)
+static constexpr size_t DISCOVERY_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
+
+// Stack buffer sizes - safe because all inputs are length-validated at config time
+// Format: prefix + "/" + type + "/" + object_id + "/" + suffix + null
+static constexpr size_t DEFAULT_TOPIC_MAX_LEN =
+    TOPIC_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1 + MQTT_SUFFIX_MAX_LEN + 1;
+// Format: prefix + "/" + type + "/" + name + "/" + object_id + "/config" + null
+static constexpr size_t DISCOVERY_TOPIC_MAX_LEN = DISCOVERY_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 +
+                                                  ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 7 + 1;
+
 void MQTTComponent::set_qos(uint8_t qos) { this->qos_ = qos; }
 
 void MQTTComponent::set_subscribe_qos(uint8_t qos) { this->subscribe_qos_ = qos; }
@@ -21,8 +49,23 @@ void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
   std::string sanitized_name = str_sanitize(App.get_name());
-  return discovery_info.prefix + "/" + this->component_type() + "/" + sanitized_name + "/" +
-         this->get_default_object_id_() + "/config";
+  const char *comp_type = this->component_type();
+  char object_id_buf[OBJECT_ID_MAX_LEN];
+  StringRef object_id = this->get_default_object_id_to_(object_id_buf);
+
+  char buf[DISCOVERY_TOPIC_MAX_LEN];
+  char *p = buf;
+
+  p = append_str(p, discovery_info.prefix.data(), discovery_info.prefix.size());
+  p = append_char(p, '/');
+  p = append_str(p, comp_type, strlen(comp_type));
+  p = append_char(p, '/');
+  p = append_str(p, sanitized_name.data(), sanitized_name.size());
+  p = append_char(p, '/');
+  p = append_str(p, object_id.c_str(), object_id.size());
+  p = append_str(p, "/config", 7);
+
+  return std::string(buf, p - buf);
 }
 
 std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) const {
@@ -32,25 +75,44 @@ std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) con
     return "";
   }
 
-  return topic_prefix + "/" + this->component_type() + "/" + this->get_default_object_id_() + "/" + suffix;
+  const char *comp_type = this->component_type();
+  char object_id_buf[OBJECT_ID_MAX_LEN];
+  StringRef object_id = this->get_default_object_id_to_(object_id_buf);
+
+  char buf[DEFAULT_TOPIC_MAX_LEN];
+  char *p = buf;
+
+  p = append_str(p, topic_prefix.data(), topic_prefix.size());
+  p = append_char(p, '/');
+  p = append_str(p, comp_type, strlen(comp_type));
+  p = append_char(p, '/');
+  p = append_str(p, object_id.c_str(), object_id.size());
+  p = append_char(p, '/');
+  p = append_str(p, suffix.data(), suffix.size());
+
+  return std::string(buf, p - buf);
 }
 
 std::string MQTTComponent::get_state_topic_() const {
-  if (this->has_custom_state_topic_)
-    return this->custom_state_topic_.str();
+  if (this->custom_state_topic_.has_value())
+    return this->custom_state_topic_.value();
   return this->get_default_topic_for_("state");
 }
 
 std::string MQTTComponent::get_command_topic_() const {
-  if (this->has_custom_command_topic_)
-    return this->custom_command_topic_.str();
+  if (this->custom_command_topic_.has_value())
+    return this->custom_command_topic_.value();
   return this->get_default_topic_for_("command");
 }
 
 bool MQTTComponent::publish(const std::string &topic, const std::string &payload) {
+  return this->publish(topic, payload.data(), payload.size());
+}
+
+bool MQTTComponent::publish(const std::string &topic, const char *payload, size_t payload_length) {
   if (topic.empty())
     return false;
-  return global_mqtt_client->publish(topic, payload, this->qos_, this->retain_);
+  return global_mqtt_client->publish(topic, payload, payload_length, this->qos_, this->retain_);
 }
 
 bool MQTTComponent::publish_json(const std::string &topic, const json::json_build_t &f) {
@@ -123,27 +185,36 @@ bool MQTTComponent::send_discovery_() {
         }
 
         const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
+        char object_id_buf[OBJECT_ID_MAX_LEN];
+        StringRef object_id = this->get_default_object_id_to_(object_id_buf);
         if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
           char friendly_name_hash[9];
           sprintf(friendly_name_hash, "%08" PRIx32, fnv1_hash(this->friendly_name_()));
           friendly_name_hash[8] = 0;  // ensure the hash-string ends with null
-          root[MQTT_UNIQUE_ID] = get_mac_address() + "-" + this->component_type() + "-" + friendly_name_hash;
+          // Format: mac-component_type-hash (e.g. "aabbccddeeff-sensor-12345678")
+          // MAC (12) + "-" (1) + domain (max 20) + "-" (1) + hash (8) + null (1) = 43
+          char unique_id[MAC_ADDRESS_BUFFER_SIZE + ESPHOME_DOMAIN_MAX_LEN + 11];
+          char mac_buf[MAC_ADDRESS_BUFFER_SIZE];
+          get_mac_address_into_buffer(mac_buf);
+          snprintf(unique_id, sizeof(unique_id), "%s-%s-%s", mac_buf, this->component_type(), friendly_name_hash);
+          root[MQTT_UNIQUE_ID] = unique_id;
         } else {
           // default to almost-unique ID. It's a hack but the only way to get that
           // gorgeous device registry view.
-          root[MQTT_UNIQUE_ID] = "ESP" + this->component_type() + this->get_default_object_id_();
+          root[MQTT_UNIQUE_ID] = "ESP" + std::string(this->component_type()) + object_id.c_str();
         }
 
         const std::string &node_name = App.get_name();
         if (discovery_info.object_id_generator == MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR)
-          root[MQTT_OBJECT_ID] = node_name + "_" + this->get_default_object_id_();
+          root[MQTT_OBJECT_ID] = node_name + "_" + object_id.c_str();
 
         const std::string &friendly_name_ref = App.get_friendly_name();
         const std::string &node_friendly_name = friendly_name_ref.empty() ? node_name : friendly_name_ref;
         std::string node_area = App.get_area();
 
         JsonObject device_info = root[MQTT_DEVICE].to<JsonObject>();
-        const auto mac = get_mac_address();
+        char mac[MAC_ADDRESS_BUFFER_SIZE];
+        get_mac_address_into_buffer(mac);
         device_info[MQTT_DEVICE_IDENTIFIERS] = mac;
         device_info[MQTT_DEVICE_NAME] = node_friendly_name;
 #ifdef ESPHOME_PROJECT_NAME
@@ -194,10 +265,6 @@ bool MQTTComponent::is_discovery_enabled() const {
   return this->discovery_enabled_ && global_mqtt_client->is_discovery_enabled();
 }
 
-std::string MQTTComponent::get_default_object_id_() const {
-  return str_sanitize(str_snake_case(this->friendly_name_()));
-}
-
 void MQTTComponent::subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos) {
   global_mqtt_client->subscribe(topic, std::move(callback), qos);
 }
@@ -210,14 +277,6 @@ MQTTComponent::MQTTComponent() = default;
 
 float MQTTComponent::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 void MQTTComponent::disable_discovery() { this->discovery_enabled_ = false; }
-void MQTTComponent::set_custom_state_topic(const char *custom_state_topic) {
-  this->custom_state_topic_ = StringRef(custom_state_topic);
-  this->has_custom_state_topic_ = true;
-}
-void MQTTComponent::set_custom_command_topic(const char *custom_command_topic) {
-  this->custom_command_topic_ = StringRef(custom_command_topic);
-  this->has_custom_command_topic_ = true;
-}
 void MQTTComponent::set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }
 
 void MQTTComponent::set_availability(std::string topic, std::string payload_available,
@@ -280,16 +339,19 @@ bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connec
 
 // Pull these properties from EntityBase if not overridden
 std::string MQTTComponent::friendly_name_() const { return this->get_entity()->get_name(); }
+StringRef MQTTComponent::get_default_object_id_to_(std::span<char, OBJECT_ID_MAX_LEN> buf) const {
+  return this->get_entity()->get_object_id_to(buf);
+}
 StringRef MQTTComponent::get_icon_ref_() const { return this->get_entity()->get_icon_ref(); }
 bool MQTTComponent::is_disabled_by_default_() const { return this->get_entity()->is_disabled_by_default(); }
 bool MQTTComponent::is_internal() {
-  if (this->has_custom_state_topic_) {
+  if (this->custom_state_topic_.has_value()) {
     // If the custom state_topic is null, return true as it is internal and should not publish
     // else, return false, as it is explicitly set to a topic, so it is not internal and should publish
     return this->get_state_topic_().empty();
   }
 
-  if (this->has_custom_command_topic_) {
+  if (this->custom_command_topic_.has_value()) {
     // If the custom command_topic is null, return true as it is internal and should not publish
     // else, return false, as it is explicitly set to a topic, so it is not internal and should publish
     return this->get_command_topic_().empty();

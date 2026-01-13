@@ -14,7 +14,7 @@ static const char *const TAG = "mqtt.light";
 
 using namespace esphome::light;
 
-std::string MQTTJSONLightComponent::component_type() const { return "light"; }
+MQTT_COMPONENT_TYPE(MQTTJSONLightComponent, "light")
 const EntityBase *MQTTJSONLightComponent::get_entity() const { return this->state_; }
 
 void MQTTJSONLightComponent::setup() {
@@ -80,8 +80,10 @@ void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
   if (this->state_->supports_effects()) {
     root[ESPHOME_F("effect")] = true;
     JsonArray effect_list = root[MQTT_EFFECT_LIST].to<JsonArray>();
-    for (auto *effect : this->state_->get_effects())
-      effect_list.add(effect->get_name());
+    for (auto *effect : this->state_->get_effects()) {
+      // c_str() is safe as effect names are null-terminated strings from codegen
+      effect_list.add(effect->get_name().c_str());
+    }
     effect_list.add(ESPHOME_F("None"));
   }
 }

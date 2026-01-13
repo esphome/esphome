@@ -13,8 +13,7 @@
 #include <esp_ota_ops.h>
 #endif
 
-namespace esphome {
-namespace safe_mode {
+namespace esphome::safe_mode {
 
 static const char *const TAG = "safe_mode";
 
@@ -126,7 +125,9 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
 
   ESP_LOGW(TAG, "SAFE MODE IS ACTIVE");
 
+#ifdef USE_SAFE_MODE_CALLBACK
   this->safe_mode_callback_.call();
+#endif
 
   return true;
 }
@@ -157,5 +158,4 @@ void SafeModeComponent::on_safe_shutdown() {
     this->clean_rtc();
 }
 
-}  // namespace safe_mode
-}  // namespace esphome
+}  // namespace esphome::safe_mode
