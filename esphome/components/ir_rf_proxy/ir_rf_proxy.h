@@ -21,15 +21,7 @@ class IrRfProxy : public infrared::Infrared {
   /// Check if this is RF mode (non-zero frequency)
   bool is_rf() const { return this->frequency_khz_ > 0; }
 
-  /// Set the remote_transmitter backend
-  void set_remote_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter);
-  /// Set the remote_receiver backend
-  void set_remote_receiver(remote_receiver::RemoteReceiverComponent *receiver);
-
  protected:
-  /// Implement the control method from infrared::Infrared base class
-  void control(const infrared::InfraredCall &call) override;
-
   // RF frequency in kHz (Hz / 1000); 0 = infrared, non-zero = RF
   uint32_t frequency_khz_{0};
 };

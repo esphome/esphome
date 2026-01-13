@@ -29,23 +29,25 @@ CONFIG_SCHEMA = infrared.infrared_schema(IrRfProxy).extend(
 def _final_validate(config):
     """Validate that transmitters have a proper carrier duty cycle."""
     # Only validate if this is an infrared (not RF) configuration with a transmitter
-    if config.get(CONF_FREQUENCY, 0) == 0 and CONF_REMOTE_TRANSMITTER_ID in config:
-        # Get the transmitter configuration
-        transmitter_id = config[CONF_REMOTE_TRANSMITTER_ID]
-        full_config = fv.full_config.get()
-        transmitter_path = full_config.get_path_for_id(transmitter_id)[:-1]
-        transmitter_config = full_config.get_config_for_path(transmitter_path)
+    if config.get(CONF_FREQUENCY, 0) != 0 or CONF_REMOTE_TRANSMITTER_ID not in config:
+        return
 
-        # Check if carrier_duty_percent set to 0 or 100
-        # Note: remote_transmitter schema requires this field and validates 1-100%,
-        # but we double-check here for infrared to provide a helpful error message
-        duty_percent = transmitter_config.get(CONF_CARRIER_DUTY_PERCENT)
-        if duty_percent in {0, 100}:
-            raise cv.Invalid(
-                f"Transmitter '{transmitter_id}' must have '{CONF_CARRIER_DUTY_PERCENT}' configured with "
-                "an intermediate value (typically 30-50%) for infrared transmission. If this is an RF "
-                f"transmitter, configure this infrared with a '{CONF_FREQUENCY}' value greater than 0"
-            )
+    # Get the transmitter configuration
+    transmitter_id = config[CONF_REMOTE_TRANSMITTER_ID]
+    full_config = fv.full_config.get()
+    transmitter_path = full_config.get_path_for_id(transmitter_id)[:-1]
+    transmitter_config = full_config.get_config_for_path(transmitter_path)
+
+    # Check if carrier_duty_percent set to 0 or 100
+    # Note: remote_transmitter schema requires this field and validates 1-100%,
+    # but we double-check here for infrared to provide a helpful error message
+    duty_percent = transmitter_config.get(CONF_CARRIER_DUTY_PERCENT)
+    if duty_percent in {0, 100}:
+        raise cv.Invalid(
+            f"Transmitter '{transmitter_id}' must have '{CONF_CARRIER_DUTY_PERCENT}' configured with "
+            "an intermediate value (typically 30-50%) for infrared transmission. If this is an RF "
+            f"transmitter, configure this infrared with a '{CONF_FREQUENCY}' value greater than 0"
+        )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -62,11 +64,11 @@ async def to_code(config):
     # Link transmitter if specified
     if CONF_REMOTE_TRANSMITTER_ID in config:
         transmitter = await cg.get_variable(config[CONF_REMOTE_TRANSMITTER_ID])
-        cg.add(var.set_remote_transmitter(transmitter))
+        cg.add(var.set_transmitter(transmitter))
 
     # Link receiver if specified
     if CONF_REMOTE_RECEIVER_ID in config:
         receiver = await cg.get_variable(config[CONF_REMOTE_RECEIVER_ID])
-        cg.add(var.set_remote_receiver(receiver))
+        cg.add(var.set_receiver(receiver))
         # Register as a listener to the receiver
         cg.add(receiver.register_listener(var))
