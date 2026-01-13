@@ -229,6 +229,29 @@ class Logger : public Component {
 #endif
 
  protected:
+  // RAII guard for recursion flags - sets flag on construction, clears on destruction
+  class RecursionGuard {
+   public:
+    explicit RecursionGuard(bool &flag) : flag_(flag) { flag_ = true; }
+    ~RecursionGuard() { flag_ = false; }
+    RecursionGuard(const RecursionGuard &) = delete;
+    RecursionGuard &operator=(const RecursionGuard &) = delete;
+
+   private:
+    bool &flag_;
+  };
+
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
+  // Handles non-main thread logging only (~0.1% of calls)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // ESP32/LibreTiny: Pass task handle to avoid calling xTaskGetCurrentTaskHandle() twice
+  void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
+                                    TaskHandle_t current_task);
+#else  // USE_HOST
+  // Host: No task handle parameter needed (not used in send_message_thread_safe)
+  void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args);
+#endif
+#endif
   void process_messages_();
   void write_msg_(const char *msg, size_t len);
 
@@ -348,10 +371,10 @@ class Logger : public Component {
   const device *uart_dev_{nullptr};
 #endif
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-  void *main_task_ = nullptr;  // Only used for thread name identification
+  void *main_task_{nullptr};  // Main thread/task for fast path comparison
 #endif
 #ifdef USE_HOST
-  pthread_t main_thread_{};  // Main thread for identification
+  pthread_t main_thread_{};  // Main thread for pthread_equal() comparison
 #endif
 #ifdef USE_ESP32
   // Task-specific recursion guards:
@@ -434,29 +457,26 @@ class Logger : public Component {
 #endif
 
 #if defined(USE_ESP32) || defined(USE_HOST)
-  inline bool HOT check_and_set_task_log_recursion_(bool is_main_task) {
-    if (is_main_task) {
-      const bool was_recursive = main_task_recursion_guard_;
-      main_task_recursion_guard_ = true;
-      return was_recursive;
+  // RAII guard for non-main task recursion using pthread TLS
+  class NonMainTaskRecursionGuard {
+   public:
+    explicit NonMainTaskRecursionGuard(pthread_key_t key) : key_(key) {
+      pthread_setspecific(key_, reinterpret_cast<void *>(1));
     }
+    ~NonMainTaskRecursionGuard() { pthread_setspecific(key_, nullptr); }
+    NonMainTaskRecursionGuard(const NonMainTaskRecursionGuard &) = delete;
+    NonMainTaskRecursionGuard &operator=(const NonMainTaskRecursionGuard &) = delete;
 
-    intptr_t current = (intptr_t) pthread_getspecific(log_recursion_key_);
-    if (current != 0)
-      return true;
+   private:
+    pthread_key_t key_;
+  };
 
-    pthread_setspecific(log_recursion_key_, (void *) 1);
-    return false;
-  }
+  // Check if non-main task is already in recursion (via TLS)
+  inline bool HOT is_non_main_task_recursive_() const { return pthread_getspecific(log_recursion_key_) != nullptr; }
 
-  inline void HOT reset_task_log_recursion_(bool is_main_task) {
-    if (is_main_task) {
-      main_task_recursion_guard_ = false;
-      return;
-    }
+  // Create RAII guard for non-main task recursion
+  inline NonMainTaskRecursionGuard make_non_main_task_guard_() { return NonMainTaskRecursionGuard(log_recursion_key_); }
 
-    pthread_setspecific(log_recursion_key_, (void *) 0);
-  }
 #elif defined(USE_LIBRETINY)
   // LibreTiny doesn't have FreeRTOS TLS, so use a simple approach:
   // - Main task uses dedicated boolean (same as ESP32)
@@ -466,29 +486,11 @@ class Logger : public Component {
   // - Cross-task "recursion" is prevented by the buffer mutex anyway
   // - Missing a recursive call from another task is acceptable (falls back to direct output)
 
-  inline bool HOT check_and_set_task_log_recursion_(bool is_main_task) {
-    if (is_main_task) {
-      const bool was_recursive = main_task_recursion_guard_;
-      main_task_recursion_guard_ = true;
-      return was_recursive;
-    }
+  // Check if non-main task is already in recursion
+  inline bool HOT is_non_main_task_recursive_() const { return non_main_task_recursion_guard_; }
 
-    // For non-main tasks, use a simple shared guard
-    // This may block legitimate concurrent logs from different tasks,
-    // but that's acceptable - they'll fall back to direct console output
-    const bool was_recursive = non_main_task_recursion_guard_;
-    non_main_task_recursion_guard_ = true;
-    return was_recursive;
-  }
-
-  inline void HOT reset_task_log_recursion_(bool is_main_task) {
-    if (is_main_task) {
-      main_task_recursion_guard_ = false;
-      return;
-    }
-
-    non_main_task_recursion_guard_ = false;
-  }
+  // Create RAII guard for non-main task recursion (uses shared boolean for all non-main tasks)
+  inline RecursionGuard make_non_main_task_guard_() { return RecursionGuard(non_main_task_recursion_guard_); }
 #endif
 
 #ifdef USE_HOST
