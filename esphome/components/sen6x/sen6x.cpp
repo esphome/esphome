@@ -252,6 +252,9 @@ void SEN6XComponent::update() {
       this->sen6x_type_ == SEN69C) {
     // Store baselines after defined interval or if the difference between current and stored baseline becomes too
     // much
+    if (this->store_baseline_) {
+      this->seconds_since_last_store_ += this->get_update_interval() / 1000;
+    }
     if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
       if (this->write_command(SEN6X_CMD_VOC_ALGORITHM_STATE)) {
         // run it a bit later to avoid adding a delay here
