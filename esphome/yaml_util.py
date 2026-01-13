@@ -89,24 +89,6 @@ def make_data_base(
         return value
 
 
-class ConfigContext:
-    """This is a mixin class that holds substitution vars that should be applied
-    to the tagged node and its children. During configuration loading, context vars can
-    be added to nodes using `add_context` function, which applies the mixin storing
-    the captured values and unevaluated expressions.
-    The substitution pass then recreates the effective context by merging the context vars
-    from this node and parent nodes.
-    """
-
-    @property
-    def vars(self) -> dict[str, Any]:
-        return self._context_vars
-
-    def set_context(self, vars: dict[str, Any]) -> None:
-        # pylint: disable=attribute-defined-outside-init
-        self._context_vars = vars
-
-
 def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
     """Tags a list/string/dict value with context vars that must be applied to it and its children
     during the substitution pass. If no vars are given, no tagging is done.
@@ -128,6 +110,36 @@ def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
         value = add_class_to_obj(value, ConfigContext)
         value.set_context(context_vars)
     return value
+
+
+class ConfigContext:
+    """This is a mixin class that holds substitution vars that should be applied
+    to the tagged node and its children. During configuration loading, context vars can
+    be added to nodes using `add_context` function, which applies the mixin storing
+    the captured values and unevaluated expressions.
+    The substitution pass then recreates the effective context by merging the context vars
+    from this node and parent nodes.
+    """
+
+    @property
+    def vars(self) -> dict[str, Any]:
+        return self._context_vars
+
+    def set_context(self, vars: dict[str, Any]) -> None:
+        # pylint: disable=attribute-defined-outside-init
+        self._context_vars = vars
+
+    def copy_context_to_children(self):
+        """Propagate context to children."""
+        if isinstance(self, dict):
+            n = {}
+            for k, v in self.items():
+                n[add_context(k, self.vars)] = add_context(v, self.vars)
+            self.clear()
+            self.update(n)
+        elif isinstance(self, list):
+            for i in range(len(self)):
+                self[i] = add_context(self[i], self.vars)
 
 
 class IncludeFile:
@@ -262,6 +274,11 @@ class ESPHomeLoaderMixin:
 
             # This is a merge key, resolve value and add to merge_pairs
             value = self.construct_object(value_node)
+            if isinstance(value, ConfigContext):
+                # Since the parent dict/list will disappear, propagate
+                # context to children now to retain context vars
+                value.copy_context_to_children()
+
             if isinstance(value, dict):
                 # base case, copy directly to merge_pairs
                 # direct merge, like "<<: {some_key: some_value}"
@@ -276,12 +293,18 @@ class ESPHomeLoaderMixin:
                             f"Expected a mapping for merging, but found {type(item)}",
                             value_node.start_mark,
                         )
+                    if isinstance(item, ConfigContext):
+                        item.copy_context_to_children()
                     merge_pairs.extend(item.items())
             else:
+                extra_message = ""
+                if isinstance(value, IncludeFile):
+                    extra_message = " Substitution in include filename with merge keys is not supported yet."
+
                 raise yaml.constructor.ConstructorError(
                     "While constructing a mapping",
                     node.start_mark,
-                    f"Expected a mapping or list of mappings for merging, but found {type(value)}",
+                    f"Expected a mapping or list of mappings for merging, but found {type(value)}.{extra_message}",
                     value_node.start_mark,
                 )
 
@@ -363,7 +386,10 @@ class ESPHomeLoaderMixin:
         else:
             file, vars = node.value, None
 
-        return IncludeFile(self.name, file, vars, self.yaml_loader)
+        include = IncludeFile(self.name, file, vars, self.yaml_loader)
+        if "$" in str(file):
+            return include  # file name has substitutions, defer loading
+        return include.load()
 
     @_add_data_ref
     def construct_include_dir_list(self, node: yaml.Node) -> list[dict[str, Any]]:
