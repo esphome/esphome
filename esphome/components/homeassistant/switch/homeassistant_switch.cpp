@@ -55,7 +55,7 @@ void HomeassistantSwitch::write_state(bool state) {
   resp.data.init(1);
   auto &entity_id_kv = resp.data.emplace_back();
   entity_id_kv.key = ENTITY_ID_KEY;
-  entity_id_kv.value = this->entity_id_;
+  entity_id_kv.value = StringRef(this->entity_id_);
 
   api::global_api_server->send_homeassistant_action(resp);
 }

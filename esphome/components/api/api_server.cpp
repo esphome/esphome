@@ -318,13 +318,11 @@ API_DISPATCH_UPDATE(water_heater::WaterHeater, water_heater)
 #endif
 
 #ifdef USE_EVENT
-// Event is a special case - unlike other entities with simple state fields,
-// events store their state in a member accessed via obj->get_last_event_type()
 void APIServer::on_event(event::Event *obj) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_event(obj, obj->get_last_event_type());
+    c->send_event(obj);
 }
 #endif
 
@@ -344,6 +342,21 @@ void APIServer::on_zwave_proxy_request(const esphome::api::ProtoMessage &msg) {
   //  very infrequent and small, we simply send it to all clients
   for (auto &c : this->clients_)
     c->send_message(msg, api::ZWaveProxyRequest::MESSAGE_TYPE);
+}
+#endif
+
+#ifdef USE_IR_RF
+void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_id, uint32_t key,
+                                               const std::vector<int32_t> *timings) {
+  InfraredRFReceiveEvent resp{};
+#ifdef USE_DEVICES
+  resp.device_id = device_id;
+#endif
+  resp.key = key;
+  resp.timings = timings;
+
+  for (auto &c : this->clients_)
+    c->send_infrared_rf_receive_event(resp);
 }
 #endif
 
@@ -600,8 +613,7 @@ void APIServer::on_shutdown() {
     if (!c->send_message(req, DisconnectRequest::MESSAGE_TYPE)) {
       // If we can't send the disconnect request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
-      c->schedule_message_front_(nullptr, &APIConnection::try_send_disconnect_request, DisconnectRequest::MESSAGE_TYPE,
-                                 DisconnectRequest::ESTIMATED_SIZE);
+      c->schedule_message_front_(nullptr, DisconnectRequest::MESSAGE_TYPE, DisconnectRequest::ESTIMATED_SIZE);
     }
   }
 }

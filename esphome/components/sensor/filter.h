@@ -7,8 +7,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 class Sensor;
 
@@ -632,5 +631,4 @@ class StreamingMovingAverageFilter : public StreamingFilter {
   size_t valid_count_{0};
 };
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor

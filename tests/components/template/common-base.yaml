@@ -243,6 +243,7 @@ number:
 
 select:
   - platform: template
+    id: template_select
     name: "Template select"
     optimistic: true
     options:
@@ -250,6 +251,37 @@ select:
       - two
       - three
     initial_option: two
+    # Test current_option() returning std::string_view - migration guide examples
+    on_value:
+      - lambda: |-
+          // Migration guide: Check if select has a state
+          // OLD: if (id(template_select).current_option() != nullptr)
+          // NEW: Check with .empty()
+          if (!id(template_select).current_option().empty()) {
+            ESP_LOGI("test", "Select has state");
+          }
+
+          // Migration guide: Compare option values
+          // OLD: if (strcmp(id(template_select).current_option(), "one") == 0)
+          // NEW: Direct comparison works safely even when empty
+          if (id(template_select).current_option() == "one") {
+            ESP_LOGI("test", "Option is 'one'");
+          }
+          if (id(template_select).current_option() != "two") {
+            ESP_LOGI("test", "Option is not 'two'");
+          }
+
+          // Migration guide: Logging options
+          // Option 1: Using .c_str() - StringRef guarantees null-termination
+          ESP_LOGI("test", "Current option: %s", id(template_select).current_option().c_str());
+
+          // Option 2: Using %.*s format with size
+          auto option = id(template_select).current_option();
+          ESP_LOGI("test", "Current option (safe): %.*s", (int) option.size(), option.c_str());
+
+          // Migration guide: Store in std::string
+          std::string stored_option(id(template_select).current_option());
+          ESP_LOGI("test", "Stored: %s", stored_option.c_str());
 
 lock:
   - platform: template
