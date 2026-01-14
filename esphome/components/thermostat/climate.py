@@ -127,8 +127,36 @@ PRESET_CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def validate_temperature_preset(preset, root_config, name, requirements):
+def validate_temperature_preset(preset, root_config, name, requirements, use_single_temp=False):
     # verify temperature settings for the provided preset / default / away configuration
+
+    # When in single temperature mode with both heat and cool actions,
+    # allow either high or low (but not both)
+    if use_single_temp:
+        has_heat = CONF_HEAT_ACTION in root_config
+        has_cool = CONF_COOL_ACTION in root_config or (
+            root_config.get(CONF_FAN_ONLY_COOLING, False) and CONF_FAN_ONLY_ACTION in root_config
+        )
+
+        if has_heat and has_cool:
+            # Both actions present - require exactly one temperature field
+            has_low = CONF_DEFAULT_TARGET_TEMPERATURE_LOW in preset
+            has_high = CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in preset
+
+            if not has_low and not has_high:
+                raise cv.Invalid(
+                    f"Either {CONF_DEFAULT_TARGET_TEMPERATURE_LOW} or {CONF_DEFAULT_TARGET_TEMPERATURE_HIGH} "
+                    f"must be defined in {name} config when using single temperature mode with both heating and cooling"
+                )
+            if has_low and has_high:
+                raise cv.Invalid(
+                    f"Only one of {CONF_DEFAULT_TARGET_TEMPERATURE_LOW} or {CONF_DEFAULT_TARGET_TEMPERATURE_HIGH} "
+                    f"should be defined in {name} config when using single temperature mode"
+                )
+            # If we have exactly one, validation passes
+            return
+
+    # Standard validation for non-single-temperature mode or when only one action is present
     for config_temp, req_actions in requirements.items():
         for req_action in req_actions:
             # verify corresponding default target temperature exists when a given climate action exists
@@ -313,7 +341,7 @@ def validate_thermostat(config):
                     f"{req_config_item} must be defined to use {config_trigger}"
                 )
 
-    # determine validation requirements based on fan_only_cooling setting
+    # determine validation requirements based on fan_only_cooling and use_single_temperature settings
     if config[CONF_FAN_ONLY_COOLING] is True:
         requirements = {
             CONF_DEFAULT_TARGET_TEMPERATURE_HIGH: [
@@ -327,6 +355,10 @@ def validate_thermostat(config):
             CONF_DEFAULT_TARGET_TEMPERATURE_HIGH: [CONF_COOL_ACTION],
             CONF_DEFAULT_TARGET_TEMPERATURE_LOW: [CONF_HEAT_ACTION],
         }
+
+    # When use_single_temperature is enabled, modify requirements to be more lenient
+    # Allow either high or low temperature (but not both required) when both actions are present
+    use_single_temp = config.get(CONF_USE_SINGLE_TEMPERATURE, False)
 
     # Legacy high/low configs
     if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config:
@@ -359,7 +391,7 @@ def validate_thermostat(config):
     if CONF_PRESET in config:
         for preset_config in config[CONF_PRESET]:
             validate_temperature_preset(
-                preset_config, config, preset_config[CONF_NAME], requirements
+                preset_config, config, preset_config[CONF_NAME], requirements, use_single_temp
             )
 
     if config.get(CONF_USE_SINGLE_TEMPERATURE) and CONF_HEAT_COOL_MODE in config:

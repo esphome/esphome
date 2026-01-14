@@ -2,6 +2,9 @@ sensor:
   - platform: template
     id: thermostat_sensor
     lambda: "return 21;"
+  - platform: template
+    id: thermostat_sensor_single
+    lambda: "return 21;"
 
 climate:
   - platform: thermostat
@@ -111,3 +114,41 @@ climate:
     fan_only_cooling: true
     fan_with_cooling: true
     fan_with_heating: true
+
+  # Test single temperature mode
+  - platform: thermostat
+    id: test_thermostat_single
+    name: Test Thermostat Single Temperature
+    sensor: thermostat_sensor_single
+    use_single_temperature: true
+    preset:
+      - name: Home
+        default_target_temperature_low: 21°C
+        mode: AUTO
+      - name: Away
+        default_target_temperature_high: 18°C
+        mode: AUTO
+      - name: Sleep
+        default_target_temperature_low: 19°C
+        mode: HEAT
+    default_preset: Home
+    idle_action:
+      - logger.log: idle_action_single
+    cool_action:
+      - logger.log: cool_action_single
+    heat_action:
+      - logger.log: heat_action_single
+    auto_mode:
+      - logger.log: auto_mode_single
+    off_mode:
+      - logger.log: off_mode_single
+    heat_mode:
+      - logger.log: heat_mode_single
+    cool_mode:
+      - logger.log: cool_mode_single
+    min_cooling_off_time: 300s
+    min_cooling_run_time: 300s
+    min_heating_off_time: 300s
+    min_heating_run_time: 300s
+    min_idle_time: 30s
+    set_point_minimum_differential: 0.5
