@@ -275,6 +275,9 @@ struct LTWiFiEvent;
  *
  * Components can implement this interface to receive IP address updates
  * without the overhead of std::function callbacks.
+ *
+ * @note Components must call wifi.request_wifi_ip_state_listener() in their
+ *       Python to_code() to register for this listener type.
  */
 class WiFiIPStateListener {
  public:
@@ -286,6 +289,9 @@ class WiFiIPStateListener {
  *
  * Components can implement this interface to receive scan results
  * without the overhead of std::function callbacks.
+ *
+ * @note Components must call wifi.request_wifi_scan_results_listener() in their
+ *       Python to_code() to register for this listener type.
  */
 class WiFiScanResultsListener {
  public:
@@ -296,6 +302,9 @@ class WiFiScanResultsListener {
  *
  * Components can implement this interface to receive connection updates
  * without the overhead of std::function callbacks.
+ *
+ * @note Components must call wifi.request_wifi_connect_state_listener() in their
+ *       Python to_code() to register for this listener type.
  */
 class WiFiConnectStateListener {
  public:
@@ -306,6 +315,9 @@ class WiFiConnectStateListener {
  *
  * Components can implement this interface to receive power save mode updates
  * without the overhead of std::function callbacks.
+ *
+ * @note Components must call wifi.request_wifi_power_save_listener() in their
+ *       Python to_code() to register for this listener type.
  */
 class WiFiPowerSaveListener {
  public:
