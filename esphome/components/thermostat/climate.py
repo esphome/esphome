@@ -127,7 +127,9 @@ PRESET_CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def validate_temperature_preset(preset, root_config, name, requirements, use_single_temp=False):
+def validate_temperature_preset(
+    preset, root_config, name, requirements, use_single_temp=False
+):
     # verify temperature settings for the provided preset / default / away configuration
 
     # When in single temperature mode with both heat and cool actions,
@@ -135,7 +137,8 @@ def validate_temperature_preset(preset, root_config, name, requirements, use_sin
     if use_single_temp:
         has_heat = CONF_HEAT_ACTION in root_config
         has_cool = CONF_COOL_ACTION in root_config or (
-            root_config.get(CONF_FAN_ONLY_COOLING, False) and CONF_FAN_ONLY_ACTION in root_config
+            root_config.get(CONF_FAN_ONLY_COOLING, False)
+            and CONF_FAN_ONLY_ACTION in root_config
         )
 
         if has_heat and has_cool:
@@ -391,7 +394,11 @@ def validate_thermostat(config):
     if CONF_PRESET in config:
         for preset_config in config[CONF_PRESET]:
             validate_temperature_preset(
-                preset_config, config, preset_config[CONF_NAME], requirements, use_single_temp
+                preset_config,
+                config,
+                preset_config[CONF_NAME],
+                requirements,
+                use_single_temp,
             )
 
     if config.get(CONF_USE_SINGLE_TEMPERATURE) and CONF_HEAT_COOL_MODE in config:

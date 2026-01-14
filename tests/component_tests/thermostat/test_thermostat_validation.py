@@ -1,13 +1,14 @@
 """Unit tests for thermostat component validation."""
 
 import pytest
+
 from esphome import config_validation as cv
 from esphome.components.thermostat import climate as thermostat
 from esphome.const import (
     CONF_COOL_ACTION,
-    CONF_HEAT_ACTION,
     CONF_FAN_ONLY_ACTION,
     CONF_FAN_ONLY_COOLING,
+    CONF_HEAT_ACTION,
     CONF_NAME,
 )
 
