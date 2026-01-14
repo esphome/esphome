@@ -410,6 +410,7 @@ media_source::MediaSourceCapabilities SendspinMediaSource::get_capabilities() {
   caps.supports_pause = true;
   caps.supports_volume_control = true;
   caps.has_internal_playlist = true;
+  caps.supports_group_join = true;
 
   return caps;
 }
