@@ -5,6 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <algorithm>
 #include <cinttypes>
 #include <cstring>
@@ -32,26 +33,33 @@ static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max()
 // max delay to start an interval sequence
 static constexpr uint32_t MAX_INTERVAL_DELAY = 5000;
 
+#if defined(ESPHOME_LOG_HAS_VERBOSE) || defined(ESPHOME_DEBUG_SCHEDULER)
 // Helper struct for formatting scheduler item names consistently in logs
 // Uses a stack buffer to avoid heap allocation
+// Uses ESPHOME_snprintf_P/ESPHOME_PSTR for ESP8266 to keep format strings in flash
 struct SchedulerNameLog {
-  char buffer[20];  // Enough for "id:4294967295" or "hash:0xFFFFFFFF"
+  char buffer[20];  // Enough for "id:4294967295" or "hash:0xFFFFFFFF" or "(null)"
 
   // Format a scheduler item name for logging
   // Returns pointer to formatted string (either static_name or internal buffer)
   const char *format(Scheduler::NameType name_type, const char *static_name, uint32_t hash_or_id) {
     using NameType = Scheduler::NameType;
     if (name_type == NameType::STATIC_STRING) {
-      return static_name ? static_name : "(null)";
+      if (static_name)
+        return static_name;
+      // Copy "(null)" to buffer to keep it in flash on ESP8266
+      ESPHOME_strncpy_P(buffer, ESPHOME_PSTR("(null)"), sizeof(buffer));
+      return buffer;
     } else if (name_type == NameType::HASHED_STRING) {
-      snprintf(buffer, sizeof(buffer), "hash:0x%08" PRIX32, hash_or_id);
+      ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("hash:0x%08" PRIX32), hash_or_id);
       return buffer;
     } else {  // NUMERIC_ID
-      snprintf(buffer, sizeof(buffer), "id:%" PRIu32, hash_or_id);
+      ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("id:%" PRIu32), hash_or_id);
       return buffer;
     }
   }
 };
+#endif
 
 // Uncomment to debug scheduler
 // #define ESPHOME_DEBUG_SCHEDULER
@@ -156,9 +164,11 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     // Calculate random offset (0 to min(interval/2, 5s))
     uint32_t offset = (uint32_t) (std::min(delay / 2, MAX_INTERVAL_DELAY) * random_float());
     item->set_next_execution(now + offset);
+#ifdef ESPHOME_LOG_HAS_VERBOSE
     SchedulerNameLog name_log;
     ESP_LOGV(TAG, "Scheduler interval for %s is %" PRIu32 "ms, offset %" PRIu32 "ms",
              name_log.format(name_type, static_name, hash_or_id), delay, offset);
+#endif
   } else {
     item->interval = 0;
     item->set_next_execution(now + delay);
@@ -284,16 +294,20 @@ void HOT Scheduler::set_retry_common_(Component *component, NameType name_type, 
   if (initial_wait_time == SCHEDULER_DONT_RUN)
     return;
 
-  SchedulerNameLog name_log;
-  ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%" PRIu32 ", max_attempts=%u, backoff_factor=%0.1f)",
-            name_log.format(name_type, static_name, hash_or_id), initial_wait_time, max_attempts,
-            backoff_increase_factor);
-
   if (backoff_increase_factor < 0.0001) {
-    ESP_LOGE(TAG, "backoff_factor %0.1f too small, using 1.0: %s", backoff_increase_factor,
-             name_log.format(name_type, static_name, hash_or_id));
+    ESP_LOGE(TAG, "set_retry: backoff_factor %0.1f too small, using 1.0: %s", backoff_increase_factor,
+             (name_type == NameType::STATIC_STRING && static_name) ? static_name : "");
     backoff_increase_factor = 1;
   }
+
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+  {
+    SchedulerNameLog name_log;
+    ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%" PRIu32 ", max_attempts=%u, backoff_factor=%0.1f)",
+              name_log.format(name_type, static_name, hash_or_id), initial_wait_time, max_attempts,
+              backoff_increase_factor);
+  }
+#endif
 
   auto args = std::make_shared<RetryArgs>();
   args->func = std::move(func);
