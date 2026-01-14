@@ -252,15 +252,11 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_TEMPERATURE_COMPENSATION): cv.Schema(
                 {
-                    cv.Optional(CONF_OFFSET, default=0): cv.float_range(
-                        min=-100.0, max=100.0
+                    cv.Optional(CONF_OFFSET, default=0): cv.float_,
+                    cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0): cv.All(
+                        float_previously_pct, cv.float_
                     ),
-                    cv.Optional(
-                        CONF_NORMALIZED_OFFSET_SLOPE, default=0
-                    ): cv.float_range(min=-3.0, max=3.0),
-                    cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_range(
-                        min=0, max=65535
-                    ),
+                    cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_,
                 }
             ),
             cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES),
