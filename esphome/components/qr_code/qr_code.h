@@ -13,6 +13,22 @@ class Display;
 }  // namespace display
 
 namespace qr_code {
+/// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
+template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
+ public:
+  uint8_t *get(size_t size) {
+    if (size <= STACK_SIZE) {
+      return this->stack_buffer_;
+    }
+    this->heap_buffer_ = std::unique_ptr<uint8_t[]>(new uint8_t[size]);
+    return this->heap_buffer_.get();
+  }
+
+ private:
+  uint8_t stack_buffer_[STACK_SIZE];
+  std::unique_ptr<uint8_t[]> heap_buffer_;
+};
+
 class QrCode : public Component {
  public:
   void draw(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color, int scale);
