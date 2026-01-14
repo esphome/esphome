@@ -646,9 +646,10 @@ bool SEN5XComponent::write_temperature_acceleration_() {
     auto result = this->write_command(SEN6X_CMD_TEMPERATURE_ACCEL_PARAMETERS, params, 4);
     if (!result) {
       ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+      return false;
     }
   }
-  return result;
+  return true;
 }
 
 bool SEN5XComponent::write_ambient_pressure_compensation_(uint16_t pressure_in_hpa) {
