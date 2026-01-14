@@ -279,7 +279,7 @@ climate::ClimateTraits ThermostatClimate::traits() {
 
   if (this->supports_auto_)
     traits.add_supported_mode(climate::CLIMATE_MODE_AUTO);
-  if (this->supports_heat_cool_ && !this->use_single_temperature_)
+  if (this->supports_heat_cool_ && !this->use_single_point_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
   if (this->supports_cool_)
     traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
@@ -765,7 +765,7 @@ void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode, bo
 }
 
 void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode, bool publish_state) {
-  if (this->use_single_temperature_ && mode == climate::CLIMATE_MODE_HEAT_COOL) {
+  if (this->use_single_point_ && mode == climate::CLIMATE_MODE_HEAT_COOL) {
     ESP_LOGW(TAG, "HEAT_COOL mode is disabled when single temperature mode is enabled; switching to OFF.");
     mode = climate::CLIMATE_MODE_OFF;
   }
@@ -1437,15 +1437,15 @@ void ThermostatClimate::set_humidity_hysteresis(float humidity_hysteresis) {
   this->humidity_hysteresis_ = std::clamp<float>(humidity_hysteresis, 0.0f, 100.0f);
 }
 void ThermostatClimate::set_use_startup_delay(bool use_startup_delay) { this->use_startup_delay_ = use_startup_delay; }
-void ThermostatClimate::set_use_single_temperature(bool use_single_temperature) {
-  this->use_single_temperature_ = use_single_temperature;
-  if (use_single_temperature) {
+void ThermostatClimate::set_use_single_point(bool use_single_point) {
+  this->use_single_point_ = use_single_point;
+  if (use_single_point) {
     this->supports_two_points_ = false;
     this->supports_heat_cool_ = false;
   }
 }
 void ThermostatClimate::set_supports_heat_cool(bool supports_heat_cool) {
-  this->supports_heat_cool_ = supports_heat_cool && !this->use_single_temperature_;
+  this->supports_heat_cool_ = supports_heat_cool && !this->use_single_point_;
 }
 void ThermostatClimate::set_supports_auto(bool supports_auto) { this->supports_auto_ = supports_auto; }
 void ThermostatClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
@@ -1508,7 +1508,7 @@ void ThermostatClimate::set_supports_swing_mode_vertical(bool supports_swing_mod
   this->supports_swing_mode_vertical_ = supports_swing_mode_vertical;
 }
 void ThermostatClimate::set_supports_two_points(bool supports_two_points) {
-  this->supports_two_points_ = supports_two_points && !this->use_single_temperature_;
+  this->supports_two_points_ = supports_two_points && !this->use_single_point_;
 }
 void ThermostatClimate::set_supports_dehumidification(bool supports_dehumidification) {
   this->supports_dehumidification_ = supports_dehumidification;
@@ -1576,7 +1576,7 @@ void ThermostatClimate::dump_config() {
                 "  Use Start-up Delay: %s\n"
                 "  Single Target Temperature: %s",
                 this->on_boot_restore_from_ == thermostat::DEFAULT_PRESET ? "DEFAULT_PRESET" : "MEMORY",
-                YESNO(this->use_startup_delay_), YESNO(this->use_single_temperature_));
+                YESNO(this->use_startup_delay_), YESNO(this->use_single_point_));
   if (this->supports_two_points_) {
     ESP_LOGCONFIG(TAG, "  Minimum Set Point Differential: %.1f°C", this->set_point_minimum_differential_);
   }

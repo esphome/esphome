@@ -71,7 +71,7 @@ from esphome.const import (
     CONF_VISUAL,
 )
 
-CONF_USE_SINGLE_TEMPERATURE = "use_single_temperature"
+CONF_USE_SINGLE_POINT = "use_single_point"
 CONF_DEFAULT_PRESET = "default_preset"
 CONF_HUMIDITY_CONTROL_DEHUMIDIFY_ACTION = "humidity_control_dehumidify_action"
 CONF_HUMIDITY_CONTROL_HUMIDIFY_ACTION = "humidity_control_humidify_action"
@@ -344,7 +344,7 @@ def validate_thermostat(config):
                     f"{req_config_item} must be defined to use {config_trigger}"
                 )
 
-    # determine validation requirements based on fan_only_cooling and use_single_temperature settings
+    # determine validation requirements based on fan_only_cooling and use_single_point settings
     if config[CONF_FAN_ONLY_COOLING] is True:
         requirements = {
             CONF_DEFAULT_TARGET_TEMPERATURE_HIGH: [
@@ -359,9 +359,9 @@ def validate_thermostat(config):
             CONF_DEFAULT_TARGET_TEMPERATURE_LOW: [CONF_HEAT_ACTION],
         }
 
-    # When use_single_temperature is enabled, modify requirements to be more lenient
+    # When use_single_point is enabled, modify requirements to be more lenient
     # Allow either high or low temperature (but not both required) when both actions are present
-    use_single_temp = config.get(CONF_USE_SINGLE_TEMPERATURE, False)
+    use_single_temp = config.get(CONF_USE_SINGLE_POINT, False)
 
     # Legacy high/low configs
     if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config:
@@ -401,9 +401,9 @@ def validate_thermostat(config):
                 use_single_temp,
             )
 
-    if config.get(CONF_USE_SINGLE_TEMPERATURE) and CONF_HEAT_COOL_MODE in config:
+    if config.get(CONF_USE_SINGLE_POINT) and CONF_HEAT_COOL_MODE in config:
         raise cv.Invalid(
-            f"{CONF_HEAT_COOL_MODE} cannot be used when {CONF_USE_SINGLE_TEMPERATURE} is enabled."
+            f"{CONF_HEAT_COOL_MODE} cannot be used when {CONF_USE_SINGLE_POINT} is enabled."
         )
 
     # Warn about using the removed CONF_DEFAULT_MODE and advise users
@@ -682,7 +682,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_SET_POINT_MINIMUM_DIFFERENTIAL, default=0.5
             ): cv.temperature_delta,
-            cv.Optional(CONF_USE_SINGLE_TEMPERATURE, default=False): cv.boolean,
+            cv.Optional(CONF_USE_SINGLE_POINT, default=False): cv.boolean,
             cv.Optional(CONF_COOL_DEADBAND, default=0.5): cv.temperature_delta,
             cv.Optional(CONF_COOL_OVERRUN, default=0.5): cv.temperature_delta,
             cv.Optional(CONF_HEAT_DEADBAND, default=0.5): cv.temperature_delta,
@@ -739,7 +739,7 @@ async def to_code(config):
             CONF_COOL_ACTION in config
             or (config[CONF_FAN_ONLY_COOLING] and CONF_FAN_ONLY_ACTION in config)
         )
-        and not config[CONF_USE_SINGLE_TEMPERATURE]
+        and not config[CONF_USE_SINGLE_POINT]
     )
     if two_points_available:
         cg.add(var.set_supports_two_points(True))
@@ -750,7 +750,7 @@ async def to_code(config):
             config[CONF_SET_POINT_MINIMUM_DIFFERENTIAL]
         )
     )
-    cg.add(var.set_use_single_temperature(config[CONF_USE_SINGLE_TEMPERATURE]))
+    cg.add(var.set_use_single_point(config[CONF_USE_SINGLE_POINT]))
     cg.add(var.set_sensor(sens))
 
     if CONF_HUMIDITY_SENSOR in config:
@@ -890,7 +890,7 @@ async def to_code(config):
         )
         cg.add(var.set_supports_heat(True))
 
-    if CONF_HEAT_COOL_MODE in config and not config[CONF_USE_SINGLE_TEMPERATURE]:
+    if CONF_HEAT_COOL_MODE in config and not config[CONF_USE_SINGLE_POINT]:
         # Build automation only if user provided actions (not just `true`)
         if config[CONF_HEAT_COOL_MODE]:
             await automation.build_automation(

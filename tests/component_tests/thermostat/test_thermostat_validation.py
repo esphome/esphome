@@ -13,20 +13,20 @@ from esphome.const import (
 )
 
 # Constants from thermostat climate.py
-CONF_USE_SINGLE_TEMPERATURE = "use_single_temperature"
+CONF_USE_SINGLE_POINT = "use_single_point"
 CONF_DEFAULT_TARGET_TEMPERATURE_LOW = "default_target_temperature_low"
 CONF_DEFAULT_TARGET_TEMPERATURE_HIGH = "default_target_temperature_high"
 
 
 class TestSingleTemperatureValidation:
-    """Test validation for use_single_temperature feature."""
+    """Test validation for use_single_point feature."""
 
     def test_single_temp_with_both_actions_requires_one_temp_field(self):
         """When single temp mode with both heat and cool, require exactly one temp field."""
         root_config = {
             CONF_HEAT_ACTION: True,
             CONF_COOL_ACTION: True,
-            CONF_USE_SINGLE_TEMPERATURE: True,
+            CONF_USE_SINGLE_POINT: True,
         }
         preset = {CONF_NAME: "Test"}
 
@@ -44,7 +44,7 @@ class TestSingleTemperatureValidation:
         root_config = {
             CONF_HEAT_ACTION: True,
             CONF_COOL_ACTION: True,
-            CONF_USE_SINGLE_TEMPERATURE: True,
+            CONF_USE_SINGLE_POINT: True,
         }
         preset = {
             CONF_NAME: "Test",
@@ -66,7 +66,7 @@ class TestSingleTemperatureValidation:
         root_config = {
             CONF_HEAT_ACTION: True,
             CONF_COOL_ACTION: True,
-            CONF_USE_SINGLE_TEMPERATURE: True,
+            CONF_USE_SINGLE_POINT: True,
         }
         preset = {
             CONF_NAME: "Test",
@@ -84,7 +84,7 @@ class TestSingleTemperatureValidation:
         root_config = {
             CONF_HEAT_ACTION: True,
             CONF_COOL_ACTION: True,
-            CONF_USE_SINGLE_TEMPERATURE: True,
+            CONF_USE_SINGLE_POINT: True,
         }
         preset = {
             CONF_NAME: "Test",
@@ -103,7 +103,7 @@ class TestSingleTemperatureValidation:
             CONF_HEAT_ACTION: True,
             CONF_FAN_ONLY_ACTION: True,
             CONF_FAN_ONLY_COOLING: True,
-            CONF_USE_SINGLE_TEMPERATURE: True,
+            CONF_USE_SINGLE_POINT: True,
         }
         preset = {CONF_NAME: "Test"}
 
@@ -120,7 +120,7 @@ class TestSingleTemperatureValidation:
         """When single temp mode but only heat action, use standard validation."""
         root_config = {
             CONF_HEAT_ACTION: True,
-            CONF_USE_SINGLE_TEMPERATURE: True,
+            CONF_USE_SINGLE_POINT: True,
         }
         preset = {
             CONF_NAME: "Test",
@@ -139,7 +139,7 @@ class TestSingleTemperatureValidation:
         """When single temp mode but only cool action, use standard validation."""
         root_config = {
             CONF_COOL_ACTION: True,
-            CONF_USE_SINGLE_TEMPERATURE: True,
+            CONF_USE_SINGLE_POINT: True,
         }
         preset = {
             CONF_NAME: "Test",
@@ -205,10 +205,10 @@ class TestThermostatValidation:
     """Test general thermostat validation rules."""
 
     def test_heat_cool_mode_incompatible_with_single_temp(self):
-        """HEAT_COOL mode cannot be used with use_single_temperature."""
+        """HEAT_COOL mode cannot be used with use_single_point."""
         config = {
             "heat_cool_mode": [],  # Empty automation list (true)
-            CONF_USE_SINGLE_TEMPERATURE: True,
+            CONF_USE_SINGLE_POINT: True,
             CONF_HEAT_ACTION: [],
             CONF_COOL_ACTION: [],
             "min_cooling_off_time": 300,
@@ -220,11 +220,11 @@ class TestThermostatValidation:
         # This validation happens in validate_thermostat
         with pytest.raises(
             cv.Invalid,
-            match="heat_cool_mode cannot be used when use_single_temperature is enabled",
+            match="heat_cool_mode cannot be used when use_single_point is enabled",
         ):
             # The actual validation is done by validate_thermostat, but we can test
             # the specific check
-            if config.get(CONF_USE_SINGLE_TEMPERATURE) and "heat_cool_mode" in config:
+            if config.get(CONF_USE_SINGLE_POINT) and "heat_cool_mode" in config:
                 raise cv.Invalid(
-                    "heat_cool_mode cannot be used when use_single_temperature is enabled."
+                    "heat_cool_mode cannot be used when use_single_point is enabled."
                 )

@@ -120,7 +120,7 @@ climate:
     id: test_thermostat_single
     name: Test Thermostat Single Temperature
     sensor: thermostat_sensor_single
-    use_single_temperature: true
+    use_single_point: true
     preset:
       - name: Home
         default_target_temperature_low: 21°C

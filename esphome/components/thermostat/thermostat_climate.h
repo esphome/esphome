@@ -115,7 +115,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   void set_humidity_sensor(sensor::Sensor *humidity_sensor);
   void set_humidity_hysteresis(float humidity_hysteresis);
   void set_use_startup_delay(bool use_startup_delay);
-  void set_use_single_temperature(bool use_single_temperature);
+  void set_use_single_point(bool use_single_point);
   void set_supports_auto(bool supports_auto);
   void set_supports_heat_cool(bool supports_heat_cool);
   void set_supports_cool(bool supports_cool);
@@ -385,8 +385,8 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   /// Used to start "off" delay timers at boot
   bool use_startup_delay_{false};
-  /// Forces the thermostat to operate with a single target temperature even if heat and cool are available
-  bool use_single_temperature_{false};
+  /// Forces the thermostat to operate with a single point target temperature even if heat and cool are available
+  bool use_single_point_{false};
 
   /// setup_complete_ blocks modifying/resetting the temps immediately after boot
   bool setup_complete_{false};
