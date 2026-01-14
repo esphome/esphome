@@ -351,7 +351,20 @@ advanced stuff (see the full API Reference for more info).
     }
 ```
 
-- `turn_off()` / `turn_on()` / `toggle()`  : Manually turn the fan ON/OFF from code.
+- `get_preset_mode()`: Retrieve the current preset mode of the fan. Returns `StringRef`.
+
+```yaml
+    // Within lambda, get the fan preset mode and conditionally do something.
+    // get_preset_mode() returns an empty StringRef when no preset mode is set,
+    // so check has_preset_mode() before using where a non-empty value is expected.
+    if (id(my_fan).has_preset_mode() && id(my_fan).get_preset_mode() == "auto") {
+      // Fan preset mode is "auto", do something here.
+    } else {
+      // Fan preset mode is not set, or is not "auto". Do something else here.
+    }
+```
+
+- `turn_off()` / `turn_on()` / `toggle()`: Manually turn the fan ON/OFF from code.
   Similar to the `fan.turn_on`, `fan.turn_off`, and `fan.toggle` actions,
   but can be used in complex lambda expressions.
 
@@ -372,13 +385,13 @@ advanced stuff (see the full API Reference for more info).
     call.perform();
 ```
 
-- `get_preset_mode()` / `set_preset_mode()` / `has_preset_mode()`  : Retrieve or set the preset mode of the fan.
+- `set_preset_mode()` / `has_preset_mode()`: Set or check the preset mode of the fan.
 
 ```yaml
     // Within lambda, get the fan preset mode and conditionally do something.
-    // get_preset_mode() will return a null pointer when a value is not set,
-    // so check has_preset_mode() before using where a string is expected.
-    if (id(my_fan).has_preset_mode() && strcmp(id(my_fan).get_preset_mode(), "auto") == 0) {
+    // get_preset_mode() returns an empty StringRef when no preset mode is set,
+    // so check has_preset_mode() before using where a non-empty value is expected.
+    if (id(my_fan).has_preset_mode() && id(my_fan).get_preset_mode() == "auto") {
       // Fan preset mode is "auto", do something here.
     } else {
       // Fan preset mode is not set, or is not "auto". Do something else here.
