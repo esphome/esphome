@@ -294,12 +294,6 @@ void HOT Scheduler::set_retry_common_(Component *component, NameType name_type, 
   if (initial_wait_time == SCHEDULER_DONT_RUN)
     return;
 
-  if (backoff_increase_factor < 0.0001) {
-    ESP_LOGE(TAG, "set_retry: backoff_factor %0.1f too small, using 1.0: %s", backoff_increase_factor,
-             (name_type == NameType::STATIC_STRING && static_name) ? static_name : "");
-    backoff_increase_factor = 1;
-  }
-
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   {
     SchedulerNameLog name_log;
@@ -308,6 +302,12 @@ void HOT Scheduler::set_retry_common_(Component *component, NameType name_type, 
               backoff_increase_factor);
   }
 #endif
+
+  if (backoff_increase_factor < 0.0001) {
+    ESP_LOGE(TAG, "set_retry: backoff_factor %0.1f too small, using 1.0: %s", backoff_increase_factor,
+             (name_type == NameType::STATIC_STRING && static_name) ? static_name : "");
+    backoff_increase_factor = 1;
+  }
 
   auto args = std::make_shared<RetryArgs>();
   args->func = std::move(func);
