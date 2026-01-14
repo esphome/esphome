@@ -4,8 +4,7 @@
 #include "esphome/components/output/binary_output.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 class TemplateBinaryOutput final : public output::BinaryOutput {
  public:
@@ -27,5 +26,4 @@ class TemplateFloatOutput final : public output::FloatOutput {
   Trigger<float> *trigger_ = new Trigger<float>();
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

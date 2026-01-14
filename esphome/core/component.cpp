@@ -138,7 +138,16 @@ void Component::set_retry(const std::string &name, uint32_t initial_wait_time, u
   App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
 }
 
+void Component::set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
+                          std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
+  App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
+}
+
 bool Component::cancel_retry(const std::string &name) {  // NOLINT
+  return App.scheduler.cancel_retry(this, name);
+}
+
+bool Component::cancel_retry(const char *name) {  // NOLINT
   return App.scheduler.cancel_retry(this, name);
 }
 
@@ -196,7 +205,13 @@ void Component::call() {
       this->call_setup();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
       uint32_t setup_time = millis() - start_time;
-      ESP_LOGCONFIG(TAG, "Setup %s took %ums", LOG_STR_ARG(this->get_component_log_str()), (unsigned) setup_time);
+      // Only log at CONFIG level if setup took longer than the blocking threshold
+      // to avoid spamming the log and blocking the event loop
+      if (setup_time >= WARN_IF_BLOCKING_OVER_MS) {
+        ESP_LOGCONFIG(TAG, "Setup %s took %ums", LOG_STR_ARG(this->get_component_log_str()), (unsigned) setup_time);
+      } else {
+        ESP_LOGV(TAG, "Setup %s took %ums", LOG_STR_ARG(this->get_component_log_str()), (unsigned) setup_time);
+      }
 #endif
       break;
     }

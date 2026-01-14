@@ -552,6 +552,8 @@ def convert_path_to_relative(abspath, current):
     exclude=[
         "esphome/components/libretiny/generate_components.py",
         "esphome/components/web_server/__init__.py",
+        # const.py has absolute import in docstring example for external components
+        "esphome/components/esp8266/const.py",
     ],
 )
 def lint_relative_py_import(fname: Path, line, col, content):
@@ -578,6 +580,7 @@ def lint_relative_py_import(fname: Path, line, col, content):
     ],
     exclude=[
         "esphome/components/socket/headers.h",
+        "esphome/components/async_tcp/async_tcp.h",
         "esphome/components/esp32/core.cpp",
         "esphome/components/esp8266/core.cpp",
         "esphome/components/rp2040/core.cpp",
@@ -613,6 +616,19 @@ def lint_esphome_h(fname, line, col, content):
         "File contains reference to 'esphome.h' - This file is "
         "auto-generated and should only be used for *custom* "
         "components. Please replace with references to the direct files."
+    )
+
+
+@lint_content_find_check(
+    "CORE.using_esp_idf",
+    include=py_include,
+    exclude=["esphome/core/__init__.py", "script/ci-custom.py"],
+)
+def lint_using_esp_idf_deprecated(fname, line, col, content):
+    return (
+        f"{highlight('CORE.using_esp_idf')} is deprecated and will change behavior in 2026.6. "
+        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
+        f"Please use {highlight('CORE.is_esp32')} and/or {highlight('CORE.using_arduino')} instead."
     )
 
 
@@ -661,6 +677,55 @@ lint_re_check(
 @lint_re_check(r"[\t\r\f\v ]+$")
 def lint_trailing_whitespace(fname, match):
     return "Trailing whitespace detected"
+
+
+# Heap-allocating helpers that cause fragmentation on long-running embedded devices.
+# These return std::string and should be replaced with stack-based alternatives.
+HEAP_ALLOCATING_HELPERS = {
+    "format_hex": "format_hex_to() with a stack buffer",
+    "format_hex_pretty": "format_hex_pretty_to() with a stack buffer",
+    "format_mac_address_pretty": "format_mac_addr_upper() with a stack buffer",
+    "get_mac_address": "get_mac_address_into_buffer() with a stack buffer",
+    "get_mac_address_pretty": "get_mac_address_pretty_into_buffer() with a stack buffer",
+    "str_truncate": "removal (function is unused)",
+    "str_upper_case": "removal (function is unused)",
+    "str_snake_case": "removal (function is unused)",
+}
+
+
+@lint_re_check(
+    # Use negative lookahead to exclude _to/_into_buffer variants
+    # format_hex(?!_) ensures we don't match format_hex_to, format_hex_pretty_to, etc.
+    # get_mac_address(?!_) ensures we don't match get_mac_address_into_buffer, etc.
+    # CPP_RE_EOL captures rest of line so NOLINT comments are detected
+    r"[^\w]("
+    r"format_hex(?!_)|"
+    r"format_hex_pretty(?!_)|"
+    r"format_mac_address_pretty|"
+    r"get_mac_address_pretty(?!_)|"
+    r"get_mac_address(?!_)|"
+    r"str_truncate|"
+    r"str_upper_case|"
+    r"str_snake_case"
+    r")\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+    exclude=[
+        # The definitions themselves
+        "esphome/core/helpers.h",
+        "esphome/core/helpers.cpp",
+    ],
+)
+def lint_no_heap_allocating_helpers(fname, match):
+    func = match.group(1)
+    replacement = HEAP_ALLOCATING_HELPERS.get(func, "a stack-based alternative")
+    return (
+        f"{highlight(func + '()')} allocates heap memory. On long-running embedded devices, "
+        f"repeated heap allocations fragment memory over time. Even infrequent allocations "
+        f"become time bombs - the heap eventually cannot satisfy requests even with free "
+        f"memory available.\n"
+        f"Please use {replacement} instead.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
 
 
 @lint_content_find_check(

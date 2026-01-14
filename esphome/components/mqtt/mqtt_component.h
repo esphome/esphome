@@ -6,19 +6,23 @@
 
 #include <memory>
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/string_ref.h"
 #include "mqtt_client.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 /// Simple Helper struct used for Home Assistant MQTT send_discovery().
 struct SendDiscoveryConfig {
   bool state_topic{true};    ///< If the state topic should be included. Defaults to true.
   bool command_topic{true};  ///< If the command topic should be included. Default to true.
 };
+
+// Max lengths for stack-based topic building (must match mqtt_component.cpp)
+static constexpr size_t MQTT_COMPONENT_TYPE_MAX_LEN = 20;
+static constexpr size_t MQTT_SUFFIX_MAX_LEN = 32;
 
 #define LOG_MQTT_COMPONENT(state_topic, command_topic) \
   if (state_topic) { \
@@ -28,7 +32,18 @@ struct SendDiscoveryConfig {
     ESP_LOGCONFIG(TAG, "  Command Topic: '%s'", this->get_command_topic_().c_str()); \
   }
 
+// Macro to define component_type() with compile-time length verification
+// Usage: MQTT_COMPONENT_TYPE(MQTTSensorComponent, "sensor")
+#define MQTT_COMPONENT_TYPE(class_name, type_str) \
+  const char *class_name::component_type() const { return type_str; } \
+  static_assert(sizeof(type_str) - 1 <= MQTT_COMPONENT_TYPE_MAX_LEN, \
+                #class_name "::component_type() exceeds MQTT_COMPONENT_TYPE_MAX_LEN");
+
+// Macro to define custom topic getter/setter with compile-time suffix length verification
 #define MQTT_COMPONENT_CUSTOM_TOPIC_(name, type) \
+  static_assert(sizeof(#name "/" #type) - 1 <= MQTT_SUFFIX_MAX_LEN, \
+                "topic suffix " #name "/" #type " exceeds MQTT_SUFFIX_MAX_LEN"); \
+\
  protected: \
   std::string custom_##name##_##type##_topic_{}; \
 \
@@ -93,12 +108,15 @@ class MQTTComponent : public Component {
   void set_subscribe_qos(uint8_t qos);
 
   /// Override this method to return the component type (e.g. "light", "sensor", ...)
-  virtual std::string component_type() const = 0;
+  virtual const char *component_type() const = 0;
 
-  /// Set a custom state topic. Set to "" for default behavior.
-  void set_custom_state_topic(const char *custom_state_topic);
-  /// Set a custom command topic. Set to "" for default behavior.
-  void set_custom_command_topic(const char *custom_command_topic);
+  /// Set a custom state topic. Do not set for default behavior.
+  template<typename T> void set_custom_state_topic(T &&custom_state_topic) {
+    this->custom_state_topic_ = std::forward<T>(custom_state_topic);
+  }
+  template<typename T> void set_custom_command_topic(T &&custom_command_topic) {
+    this->custom_command_topic_ = std::forward<T>(custom_command_topic);
+  }
   /// Set whether command message should be retained.
   void set_command_retain(bool command_retain);
 
@@ -121,6 +139,14 @@ class MQTTComponent : public Component {
    * @param payload The payload.
    */
   bool publish(const std::string &topic, const std::string &payload);
+
+  /** Send a MQTT message.
+   *
+   * @param topic The topic.
+   * @param payload The payload buffer.
+   * @param payload_length The length of the payload.
+   */
+  bool publish(const std::string &topic, const char *payload, size_t payload_length);
 
   /** Construct and send a JSON MQTT message.
    *
@@ -186,16 +212,13 @@ class MQTTComponent : public Component {
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  /// Generate the Home Assistant MQTT discovery object id by automatically transforming the friendly name.
-  std::string get_default_object_id_() const;
+  /// Get the object ID for this MQTT component, writing to the provided buffer.
+  StringRef get_default_object_id_to_(std::span<char, OBJECT_ID_MAX_LEN> buf) const;
 
-  StringRef custom_state_topic_{};
-  StringRef custom_command_topic_{};
+  TemplatableValue<std::string> custom_state_topic_{};
+  TemplatableValue<std::string> custom_command_topic_{};
 
   std::unique_ptr<Availability> availability_;
-
-  bool has_custom_state_topic_{false};
-  bool has_custom_command_topic_{false};
 
   bool command_retain_{false};
   bool retain_{true};
@@ -205,7 +228,6 @@ class MQTTComponent : public Component {
   bool resend_state_{false};
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_MQTt

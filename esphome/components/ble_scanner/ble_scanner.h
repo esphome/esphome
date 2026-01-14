@@ -1,7 +1,8 @@
 #pragma once
 
+#include <cinttypes>
+#include <cstdio>
 #include <ctime>
-#include <string>
 
 #include "esphome/core/component.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
@@ -15,17 +16,13 @@ namespace ble_scanner {
 class BLEScanner : public text_sensor::TextSensor, public esp32_ble_tracker::ESPBTDeviceListener, public Component {
  public:
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
-    this->publish_state("{\"timestamp\":" + to_string(::time(nullptr)) +
-                        ","
-                        "\"address\":\"" +
-                        device.address_str() +
-                        "\","
-                        "\"rssi\":" +
-                        to_string(device.get_rssi()) +
-                        ","
-                        "\"name\":\"" +
-                        device.get_name() + "\"}");
-
+    // Format JSON using stack buffer to avoid heap allocations from string concatenation
+    char buf[128];
+    char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+    snprintf(buf, sizeof(buf), "{\"timestamp\":%" PRId64 ",\"address\":\"%s\",\"rssi\":%d,\"name\":\"%s\"}",
+             static_cast<int64_t>(::time(nullptr)), device.address_str_to(addr_buf), device.get_rssi(),
+             device.get_name().c_str());
+    this->publish_state(buf);
     return true;
   }
   void dump_config() override;

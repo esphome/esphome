@@ -6,8 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 using namespace esphome::alarm_control_panel;
 
@@ -286,5 +285,4 @@ void TemplateAlarmControlPanel::control(const AlarmControlPanelCall &call) {
   }
 }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

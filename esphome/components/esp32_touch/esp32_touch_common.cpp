@@ -102,7 +102,16 @@ void ESP32TouchComponent::process_setup_mode_logging_(uint32_t now) {
       uint32_t value = this->read_touch_value(child->get_touch_pad());
       // Store the value for get_value() access in lambdas
       child->value_ = value;
-      ESP_LOGD(TAG, "Touch Pad '%s' (T%d): %d", child->get_name().c_str(), child->get_touch_pad(), value);
+      // Read benchmark if not already read
+      child->ensure_benchmark_read();
+      // Calculate difference to help user set threshold
+      // For ESP32-S2/S3 v2: touch detected when value > benchmark + threshold
+      // So threshold should be < (value - benchmark) when touched
+      int32_t difference = static_cast<int32_t>(value) - static_cast<int32_t>(child->benchmark_);
+      ESP_LOGD(TAG,
+               "Touch Pad '%s' (T%d): value=%d, benchmark=%" PRIu32 ", difference=%" PRId32 " (set threshold < %" PRId32
+               " to detect touch)",
+               child->get_name().c_str(), child->get_touch_pad(), value, child->benchmark_, difference, difference);
 #endif
     }
     this->setup_mode_last_log_print_ = now;

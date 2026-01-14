@@ -174,7 +174,7 @@ class Lock : public EntityBase {
    */
   virtual void control(const LockCall &call) = 0;
 
-  CallbackManager<void()> state_callback_{};
+  LazyCallbackManager<void()> state_callback_{};
   Deduplicator<LockState> publish_dedup_;
   ESPPreferenceObject rtc_;
 };
