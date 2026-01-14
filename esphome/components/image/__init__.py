@@ -689,6 +689,11 @@ async def write_image(config, all_frames=False):
                 ratio = min(new_width_max / width, new_height_max / height)
                 width, height = int(width * ratio), int(height * ratio)
     except (OSError, UnidentifiedImageError, ValueError) as exc:
+        if str(exc) == "SVG has an invalid size":
+            raise core.EsphomeError(
+                f"SVG image file {path} has an invalid size. "
+                "Ensure the SVG defines width and height in absolute units (e.g., px, not mm)."
+            ) from exc
         raise core.EsphomeError(f"Could not read image file {path}: {exc}") from exc
 
     if not resize and (width > 500 or height > 500):
