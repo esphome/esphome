@@ -247,27 +247,29 @@ advanced stuff.
 ```cpp
     // Check if custom fan mode is active, type: bool
     id(my_climate).has_custom_fan_mode()
-    // Get custom fan mode (read-only), type: const char*
+    // Get custom fan mode (read-only), type: StringRef
     id(my_climate).get_custom_fan_mode()
     // Check if custom preset is active, type: bool
     id(my_climate).has_custom_preset()
-    // Get custom preset (read-only), type: const char*
+    // Get custom preset (read-only), type: StringRef
     id(my_climate).get_custom_preset()
 ```
 
-> [!WARNING]
-> Always check if a custom mode is active before accessing it. Calling `get_custom_fan_mode()` or `get_custom_preset()` when no custom mode is set will return `nullptr`, which can cause crashes if dereferenced.
+> [!NOTE]
+> `get_custom_fan_mode()` and `get_custom_preset()` return `StringRef`. When no custom mode is set, they return an empty `StringRef`. Use `has_custom_fan_mode()` or `has_custom_preset()` to check if a custom mode is active, or check if the returned `StringRef` is empty.
 >
 > ```cpp
-> // Correct - check before accessing
+> // Check using has_custom_fan_mode()
 > if (id(my_climate).has_custom_fan_mode()) {
->   const char* mode = id(my_climate).get_custom_fan_mode();
->   // Now safe to use mode
+>   auto mode = id(my_climate).get_custom_fan_mode();
+>   ESP_LOGD("tag", "Mode: %.*s", (int) mode.size(), mode.c_str());
 > }
 >
-> // Wrong - may crash if no custom mode is set
-> const char* mode = id(my_climate).get_custom_fan_mode();
-> ESP_LOGD("tag", "Mode: %s", mode);  // Crashes if mode is nullptr
+> // Or check if empty
+> auto mode = id(my_climate).get_custom_fan_mode();
+> if (!mode.empty()) {
+>   // Use mode
+> }
 > ```
 
 - `.make_call`  : Control the climate device
