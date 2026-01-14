@@ -115,8 +115,9 @@ inline bool operator!=(const char *lhs, const StringRef &rhs) { return !(rhs == 
 inline bool operator==(const StringRef &lhs, const __FlashStringHelper *rhs) {
   PGM_P p = reinterpret_cast<PGM_P>(rhs);
   size_t rhs_len = strlen_P(p);
-  if (lhs.size() != rhs_len)
+  if (lhs.size() != rhs_len) {
     return false;
+  }
   return memcmp_P(lhs.c_str(), p, rhs_len) == 0;
 }
 
