@@ -8,6 +8,7 @@
 #include <esp_app_desc.h>
 #include <esp_hosted.h>
 #include <esp_hosted_host_fw_ver.h>
+#include <esp_ota_ops.h>
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
 #include "esphome/components/json/json_util.h"
@@ -441,6 +442,12 @@ void Esp32HostedUpdate::perform(bool force) {
   this->state_ = update::UPDATE_STATE_NO_UPDATE;
   this->status_clear_error();
   this->publish_state();
+
+#ifdef USE_OTA_ROLLBACK
+  // Mark the host partition as valid before rebooting, in case the safe mode
+  // timer hasn't expired yet.
+  esp_ota_mark_app_valid_cancel_rollback();
+#endif
 
   // Schedule a restart to ensure everything is in sync
   ESP_LOGI(TAG, "Restarting in 1 second");
