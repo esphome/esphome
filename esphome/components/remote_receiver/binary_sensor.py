@@ -1,6 +1,6 @@
 from esphome.components import binary_sensor, remote_base
 
-from . import FILTER_SOURCE_FILES  # noqa: F401
+from . import FILTER_SOURCE_FILES  # noqa: F401  pylint: disable=unused-import
 
 DEPENDENCIES = ["remote_receiver"]
 
