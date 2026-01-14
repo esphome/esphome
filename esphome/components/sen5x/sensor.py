@@ -1,4 +1,5 @@
 from esphome import automation
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
@@ -178,7 +179,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_MODEL): cv.enum(SEN5X_MODELS, upper=True),
             cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES),
             cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval,
-            cv.Optional(CONF_STORE_BASELINE): cv.boolean,
+            cv.Optional(CONF_STORE_BASELINE, default=False): cv.boolean,
             cv.Optional(CONF_TEMPERATURE_COMPENSATION): cv.Schema(
                 {
                     cv.Optional(CONF_OFFSET, default=0): cv.float_range(
@@ -308,12 +309,12 @@ SETTING_MAP = {
     CONF_MODEL: "set_model",
     CONF_AUTO_CLEANING_INTERVAL: "set_auto_cleaning_interval",
     CONF_ACCELERATION_MODE: "set_acceleration_mode",
+    CONF_STORE_BASELINE: "set_store_baseline",
 }
 
 CO2_SETTING_MAP = {
     CONF_AUTOMATIC_SELF_CALIBRATION: "set_automatic_self_calibration",
     CONF_ALTITUDE_COMPENSATION: "set_altitude_compensation",
-    CONF_AMBIENT_PRESSURE_COMPENSATION: "set_ambient_pressure_compensation",
 }
 
 
@@ -448,20 +449,16 @@ async def to_code(config):
                 cfg[CONF_T2],
             )
         )
-    if CONF_CO2 in config:
+    if cfg := config.get(CONF_CO2):
         for key, funcName in CO2_SETTING_MAP.items():
-            if key in config[CONF_CO2]:
-                cg.add(getattr(var, funcName)(config[CONF_CO2][key]))
-            if CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE in config[CONF_CO2]:
-                sens = await cg.get_variable(
-                    config[CONF_CO2][CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE]
-                )
-                cg.add(var.set_ambient_pressure_compensation_source(sens))
+            if setting := config.get(key):
+                cg.add(getattr(var, funcName)(setting))
+        if source := cfg.get(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE):
+            sens = await cg.get_variable(source)
+            cg.add(var.set_ambient_pressure_compensation_source(sens))
 
 
-SEN5X_ACTION_SCHEMA = automation.maybe_simple_id(
-    {cv.GenerateID(): cv.use_id(SEN5XComponent)}
-)
+SEN5X_ACTION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(SEN5XComponent)})
 
 
 @automation.register_action(
@@ -482,7 +479,7 @@ async def sen5x_ah_to_code(config, action_id, template_arg, args):
     return var
 
 
-SEN5X_VALUE_ACTION_SCHEMA = cv.maybe_simple_value(
+SEN5X_VALUE_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(SEN5XComponent),
         cv.Required(CONF_VALUE): cv.templatable(cv.positive_int),
@@ -498,8 +495,8 @@ SEN5X_VALUE_ACTION_SCHEMA = cv.maybe_simple_value(
 async def sen5x_pfcc_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    template = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
-    cg.add(var.set_value(template))
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
+    cg.add(var.set_value(template_))
     return var
 
 
@@ -511,8 +508,8 @@ async def sen5x_pfcc_to_code(config, action_id, template_arg, args):
 async def sen5x_saph_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    template = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
-    cg.add(var.set_value(template))
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
+    cg.add(var.set_value(template_))
     return var
 
 

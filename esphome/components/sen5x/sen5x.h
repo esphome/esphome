@@ -40,11 +40,6 @@ enum Sen5xSetupStates {
   SEN5X_SM_DONE
 };
 
-struct Sen5xBaselines {
-  int32_t state0;
-  int32_t state1;
-} PACKED;  // NOLINT
-
 struct GasTuning {
   uint16_t index_offset;
   uint16_t learning_time_offset_hours;
@@ -78,9 +73,7 @@ struct AccelerationParameters {
 
 // Shortest time interval of 3H for storing baseline values.
 // Prevents wear of the flash because of too many write operations
-static const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 10800;
-// Store anyway if the baseline difference exceeds the max storage diff value
-static const uint32_t MAXIMUM_STORAGE_DIFF = 50;
+static const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 3 * 60 * 60 * 1000;
 
 class SEN5XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
@@ -159,7 +152,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool write_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
   bool write_temperature_acceleration_();
 
-  uint32_t seconds_since_last_store_;
+  uint32_t last_store_time_;
   ERRORCODE error_code_;
   uint8_t firmware_major_{0xFF};
   uint8_t firmware_minor_{0xFF};
@@ -194,7 +187,6 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   ESPPreferenceObject pref_;
   std::string product_name_ = "Unknown";
   std::string serial_number_ = "Unknown";
-  Sen5xBaselines voc_baselines_storage_;
 };
 
 }  // namespace sen5x

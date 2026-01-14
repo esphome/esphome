@@ -189,7 +189,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_VOCB); });
       break;
     case SEN5X_SM_SET_VOCB:
-      if (this->voc_sensor_ && this->store_baseline_) {
+      if (this->store_baseline_) {
         // Hash with config hash, version, and serial number, ensures the baseline storage is cleared after OTA
         // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
 #if ESPHOME_VERSION_CODE >= VERSION_CODE(2026, 1, 0)
@@ -197,32 +197,19 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
 #else
         uint32_t hash = fnv1_hash(App.get_compilation_time_ref() + this->serial_number_);
 #endif
-        this->pref_ = global_preferences->make_preference<Sen5xBaselines>(hash, true);
-
-        if (this->pref_.load(&this->voc_baselines_storage_)) {
-          ESP_LOGV(TAG, "Loaded VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
-                   this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
-        }
-
-        // Initialize storage timestamp
-        this->seconds_since_last_store_ = 0;
-
-        if (this->voc_baselines_storage_.state0 > 0 && this->voc_baselines_storage_.state1 > 0) {
-          ESP_LOGV(TAG, "Restoring VOC baseline from save state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
-                   this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
-          uint16_t states[4];
-
-          states[0] = voc_baselines_storage_.state0 >> 16;
-          states[1] = voc_baselines_storage_.state0 & 0xFFFF;
-          states[2] = voc_baselines_storage_.state1 >> 16;
-          states[3] = voc_baselines_storage_.state1 & 0xFFFF;
-
-          if (!this->write_command(CMD_VOC_ALGORITHM_STATE, states, 4)) {
-            ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+        this->pref_ = global_preferences->make_preference<uint16_t[4]>(hash, true);
+        uint16_t state[4];
+        this->last_store_time_ = App.get_loop_component_start_time();
+        // ignore byte order, we are good as long as we are consistent loading and saving
+        if (this->pref_.load(&state)) {
+          if (this->write_command(CMD_VOC_ALGORITHM_STATE, state, 4)) {
+            ESP_LOGV(TAG, "Loaded VOC baseline from flash");
+            this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_ACI); });
+            return;
           }
         }
       }
-      this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_ACI); });
+      this->internal_setup_(SEN5X_SM_SET_ACI);
       break;
     case SEN5X_SM_SET_ACI:
       if (this->auto_cleaning_interval_.has_value()) {
@@ -387,6 +374,7 @@ void SEN5XComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RH/T acceleration mode: %s",
                   LOG_STR_ARG(rht_accel_mode_to_string(this->acceleration_mode_.value())));
   }
+  ESP_LOGCONFIG(TAG, "  Store Baseline: %s", TRUEFALSE(this->store_baseline_));
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM  4.0", this->pm_4_0_sensor_);
@@ -413,44 +401,8 @@ void SEN5XComponent::dump_config() {
 }
 
 void SEN5XComponent::update() {
-  if (!this->initialized_) {
+  if (!this->initialized_ || !this->running_)
     return;
-  }
-
-  // Store baselines after defined interval or if the difference between current and stored baseline becomes too
-  // much
-  if (this->voc_sensor_ && this->store_baseline_ &&
-      this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
-    if (this->write_command(CMD_VOC_ALGORITHM_STATE)) {
-      // run it a bit later to avoid adding a delay here
-      this->set_timeout(550, [this]() {
-        uint16_t states[4];
-        if (this->read_data(states, 4)) {
-          uint32_t state0 = states[0] << 16 | states[1];
-          uint32_t state1 = states[2] << 16 | states[3];
-          if ((uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state0 - state0)) >
-                  MAXIMUM_STORAGE_DIFF ||
-              (uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state1 - state1)) >
-                  MAXIMUM_STORAGE_DIFF) {
-            this->seconds_since_last_store_ = 0;
-            this->voc_baselines_storage_.state0 = state0;
-            this->voc_baselines_storage_.state1 = state1;
-
-            if (this->pref_.save(&this->voc_baselines_storage_)) {
-              ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
-                       this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
-            } else {
-              ESP_LOGE(TAG, "Could not store VOC baselines");
-            }
-          }
-        }
-      });
-    }
-  }
-  // do not read measured values if we are not running
-  if (!this->running_) {
-    return;
-  }
   uint16_t cmd;
   uint8_t length;
   switch (this->model_.value()) {
@@ -497,13 +449,13 @@ void SEN5XComponent::update() {
   }
   if (!this->write_command(cmd)) {
     this->status_set_warning();
-    ESP_LOGD(TAG, ESP_LOG_MSG_COMM_FAIL);
+    ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
   this->set_timeout(20, [this, length]() {
     uint16_t measurements[10];
     if (!this->read_data(measurements, length)) {
-      ESP_LOGV(TAG, ESP_LOG_MSG_COMM_FAIL);
+      ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
       this->status_set_warning();
       return;
     }
@@ -583,7 +535,31 @@ void SEN5XComponent::update() {
         this->set_ambient_pressure_compensation(pressure);
       }
     }
-    this->status_clear_warning();
+    this->set_timeout(20, [this]() {
+      if (!this->store_baseline_ ||
+          (App.get_loop_component_start_time() - this->last_store_time_) < SHORTEST_BASELINE_STORE_INTERVAL) {
+        this->status_clear_warning();
+      } else {
+        this->last_store_time_ = App.get_loop_component_start_time();
+        if (!this->write_command(CMD_VOC_ALGORITHM_STATE)) {
+          this->status_set_warning();
+          ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
+        } else {
+          this->set_timeout(20, [this]() {
+            uint16_t state[4];
+            if (!this->read_data(state, 4)) {
+              this->status_set_warning();
+              ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
+            } else {
+              if (this->pref_.save(&state)) {
+                ESP_LOGD(TAG, "Saved VOC baseline to flash");
+              }
+              this->status_clear_warning();
+            }
+          });
+        }
+      }
+    });
   });
 }
 
@@ -670,10 +646,9 @@ bool SEN5XComponent::write_temperature_acceleration_() {
     auto result = this->write_command(SEN6X_CMD_TEMPERATURE_ACCEL_PARAMETERS, params, 4);
     if (!result) {
       ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      return false;
     }
   }
-  return true;
+  return result;
 }
 
 bool SEN5XComponent::write_ambient_pressure_compensation_(uint16_t pressure_in_hpa) {
@@ -801,35 +776,35 @@ bool SEN5XComponent::activate_heater() {
 bool SEN5XComponent::perform_forced_co2_calibration(uint16_t co2) {
   if (this->model_.value() == SEN63C || this->model_.value() == SEN66 || this->model_.value() == SEN69C) {
     if (this->busy_) {
-      ESP_LOGW(TAG, "Forced CO₂ recalibration aborted, sensor is busy");
+      ESP_LOGW(TAG, "Forced CO₂ Recalibration aborted, sensor is busy");
       return false;
     }
-    ESP_LOGD(TAG, "Forced CO₂ recalibration, co2=%d", co2);
+    ESP_LOGD(TAG, "Forced CO₂ Recalibration, co2=%d", co2);
     this->busy_ = true;  // prevent actions from stomping on each other
     if (!this->stop_measurements_()) {
-      ESP_LOGE(TAG, "Forced CO₂ recalibration failed");
+      ESP_LOGE(TAG, "Forced CO₂ Recalibration failed");
       this->busy_ = false;
       return false;
     }
     this->set_timeout(1400, [this, co2]() {
       if (!this->write_command(SEN6X_CMD_PERFORM_FORCED_CO2_RECAL, co2)) {
         this->start_measurements_();
-        ESP_LOGE(TAG, "Forced CO₂ recalibration failed");
+        ESP_LOGE(TAG, "Forced CO₂ Recalibration failed");
         this->set_timeout(50, [this]() { this->busy_ = false; });
       } else {
         this->set_timeout(500, [this]() {
           uint16_t frc = 0;
           if (!this->read_data(frc)) {
-            ESP_LOGE(TAG, "Forced CO₂ recalibration failed");
+            ESP_LOGE(TAG, "Forced CO₂ Recalibration failed");
           } else {
             if (frc == 0xFFFF) {
-              ESP_LOGE(TAG, "Forced CO₂ recalibration failed");
+              ESP_LOGE(TAG, "Forced CO₂ Recalibration failed");
             } else {
-              ESP_LOGD(TAG, "Forced CO₂ recalibration finished, frc=%+d", static_cast<int32_t>(frc) - 0x8000);
+              ESP_LOGD(TAG, "Forced CO₂ Recalibration finished, corr=%d", static_cast<int32_t>(frc) - 0x8000);
             }
           }
           if (!this->start_measurements_()) {
-            ESP_LOGE(TAG, "Forced CO₂ recalibration failed");
+            ESP_LOGE(TAG, "Forced CO₂ Recalibration failed");
           }
           this->set_timeout(50, [this]() { this->busy_ = false; });
         });
@@ -837,7 +812,7 @@ bool SEN5XComponent::perform_forced_co2_calibration(uint16_t co2) {
     });
     return true;
   } else {
-    ESP_LOGE(TAG, "Forced CO₂ recalibration is not supported");
+    ESP_LOGE(TAG, "Forced CO₂ Recalibration is not supported");
     return false;
   }
 }
