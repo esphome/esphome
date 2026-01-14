@@ -81,8 +81,8 @@ CONF_TEMPERATURE_ACCELERATION = "temperature_acceleration"
 # Actions
 StartFanCleaningAction = sen5x_ns.class_("StartFanCleaningAction", automation.Action)
 ActivateHeaterAction = sen5x_ns.class_("ActivateHeaterAction", automation.Action)
-PerformForcedCo2CalibrationAction = sen5x_ns.class_(
-    "PerformForcedCo2CalibrationAction", automation.Action
+PerformForcedCo2RecalibrationAction = sen5x_ns.class_(
+    "PerformForcedCo2RecalibrationAction", automation.Action
 )
 SetAmbientPressureCompensationAction = sen5x_ns.class_(
     "SetAmbientPressureCompensationAction", automation.Action
@@ -488,15 +488,15 @@ SEN5X_VALUE_ACTION_SCHEMA = maybe_simple_id(
 
 
 @automation.register_action(
-    "sen5x.perform_forced_co2_calibration",
-    PerformForcedCo2CalibrationAction,
+    "sen5x.perform_forced_co2_recalibration",
+    PerformForcedCo2RecalibrationAction,
     SEN5X_VALUE_ACTION_SCHEMA,
 )
 async def sen5x_pfcc_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
-    cg.add(var.set_value(template_))
+    template = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
+    cg.add(var.set_value(template))
     return var
 
 
@@ -508,8 +508,8 @@ async def sen5x_pfcc_to_code(config, action_id, template_arg, args):
 async def sen5x_saph_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
-    cg.add(var.set_value(template_))
+    template = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
+    cg.add(var.set_value(template))
     return var
 
 
