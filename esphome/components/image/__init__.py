@@ -669,11 +669,11 @@ async def write_image(config, all_frames=False):
                 width, height = resize
                 # resvg-py allows rendering by width/height directly
                 image_data = resvg_py.svg_to_bytes(
-                    svg_path=str(path), width=int(width), height=int(height), dpi=100
+                    svg_path=str(path), width=int(width), height=int(height)
                 )
             else:
                 # Default size
-                image_data = resvg_py.svg_to_bytes(svg_path=str(path), dpi=100)
+                image_data = resvg_py.svg_to_bytes(svg_path=str(path))
 
             # Convert bytes to Pillow Image
             image = Image.open(io.BytesIO(image_data))
@@ -689,11 +689,6 @@ async def write_image(config, all_frames=False):
                 ratio = min(new_width_max / width, new_height_max / height)
                 width, height = int(width * ratio), int(height * ratio)
     except (OSError, UnidentifiedImageError, ValueError) as exc:
-        if str(exc) == "SVG has an invalid size":
-            raise core.EsphomeError(
-                f"SVG image file {path} has an invalid size. "
-                "Ensure the SVG defines width and height in absolute units (e.g., px, not mm)."
-            ) from exc
         raise core.EsphomeError(f"Could not read image file {path}: {exc}") from exc
 
     if not resize and (width > 500 or height > 500):
