@@ -166,7 +166,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_MODEL): cv.enum(SEN5X_MODELS, upper=True),
             cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES),
             cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval,
-            cv.Optional(CONF_STORE_BASELINE): cv.boolean,
+            cv.Optional(CONF_STORE_BASELINE, default=False): cv.boolean,
             cv.Optional(CONF_TEMPERATURE_COMPENSATION): cv.Schema(
                 {
                     cv.Optional(CONF_OFFSET, default=0): cv.float_range(
@@ -288,6 +288,7 @@ SETTING_MAP = {
     CONF_MODEL: "set_model",
     CONF_AUTO_CLEANING_INTERVAL: "set_auto_cleaning_interval",
     CONF_ACCELERATION_MODE: "set_acceleration_mode",
+    CONF_STORE_BASELINE: "set_store_baseline",
 }
 
 CO2_SETTING_MAP = {
