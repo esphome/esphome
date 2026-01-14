@@ -39,6 +39,12 @@ PublishClientSettingsAction = sendspin_ns.class_(
     cg.Parented.template(SendspinHub),
 )
 
+SendSwitchCommandAction = sendspin_ns.class_(
+    "SendSwitchCommandAction",
+    automation.Action,
+    cg.Parented.template(SendspinHub),
+)
+
 
 def _request_high_performance_networking(config):
     """Request high performance networking for Sendspin streaming.
@@ -108,3 +114,19 @@ async def to_code(config):
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
             )
+
+
+SENDSPIN_SWITCH_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(SendspinHub),
+    }
+)
+
+
+@automation.register_action(
+    "sendspin.switch", SendSwitchCommandAction, SENDSPIN_SWITCH_ACTION_SCHEMA
+)
+async def sendspin_switch_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
