@@ -684,6 +684,8 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
     // Copy pointer to local variable to avoid TOCTOU race
     media_source::MediaSource *active_source =
         (control_command.pipeline == MEDIA_PIPELINE) ? this->media_active_source_ : this->announcement_active_source_;
+    media_source::MediaSource *last_active_source =
+        (control_command.pipeline == MEDIA_PIPELINE) ? this->media_last_source_ : this->announcement_last_source_;
 
     // Store capability to avoid multiple dereferences
     bool has_internal_playlist = false;
@@ -793,13 +795,18 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
           // TODO: Handle unshuffle in media player playlist
           return;
         }
-      case media_player::MEDIA_PLAYER_COMMAND_GROUP_JOIN:
-        if (active_source->get_capabilities().supports_group_join) {
+      case media_player::MEDIA_PLAYER_COMMAND_GROUP_JOIN: {
+        bool active_source_can_join =
+            ((active_source != nullptr) && (active_source->get_capabilities().supports_group_join));
+        bool last_source_can_join =
+            ((last_active_source != nullptr) && (last_active_source->get_capabilities().supports_group_join));
+        if (active_source_can_join || last_source_can_join) {
           media_source_command = media_source::MEDIA_SOURCE_COMMAND_GROUP_JOIN;
         } else {
-          // TODO: Probably just ignore this, right?
           return;
         }
+        break;
+      }
       default:
         break;
     }
