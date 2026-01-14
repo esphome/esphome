@@ -25,8 +25,8 @@ void PowerManagement::setup() {
 
   rc = esp_pm_configure(&pm_config);
   if (rc != 0) {
-    this->mark_failed();
     ESP_LOGE(TAG, "Failed esp_pm_configure %d", rc);
+    this->mark_failed();
     return;
   }
 

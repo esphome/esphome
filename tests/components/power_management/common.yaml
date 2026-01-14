@@ -2,7 +2,10 @@ power_management:
   id: pm_id
   max_frequency: 96MHZ
   min_frequency: 32MHZ
-  tickless_idle: true
+  enable_light_sleep: true
+  idle_time_before_sleep: 3
+  esphome_locks: true
   power_down_flash: true
   power_down_peripherals: true
   profiling: true
+  trace: true
