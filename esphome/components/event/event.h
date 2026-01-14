@@ -49,8 +49,10 @@ class Event : public EntityBase, public EntityBase_DeviceClass {
   /// Return the last triggered event type, or empty StringRef if no event triggered yet.
   StringRef get_last_event_type() const { return StringRef::from_maybe_nullptr(this->last_event_type_); }
 
-  /// Return event type by index.
-  const char *get_event_type(uint8_t index) const { return this->types_[index]; }
+  /// Return event type by index, or nullptr if index is out of bounds.
+  const char *get_event_type(uint8_t index) const {
+    return index < this->types_.size() ? this->types_[index] : nullptr;
+  }
 
   /// Return index of last triggered event type, or max uint8_t if no event triggered yet.
   uint8_t get_last_event_type_index() const {
