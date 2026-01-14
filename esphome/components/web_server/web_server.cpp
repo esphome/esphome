@@ -1956,7 +1956,7 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
     if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->infrared_json_(obj, detail);
-      request->send(200, "application/json", data.c_str());
+      request->send(200, ESPHOME_F("application/json"), data.c_str());
       return;
     }
     if (!match.method_equals("transmit")) {
@@ -1966,7 +1966,7 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
 
     // Only allow transmit if the device supports it
     if (!obj->has_transmitter()) {
-      request->send(400, "text/plain", "Device does not support transmission");
+      request->send(400, ESPHOME_F("text/plain"), "Device does not support transmission");
       return;
     }
 
@@ -1999,14 +1999,14 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
       std::vector<uint8_t> decoded = base64_decode(encoded);
 
       if (decoded.empty()) {
-        request->send(400, "text/plain", "Invalid base64 data");
+        request->send(400, ESPHOME_F("text/plain"), "Invalid base64 data");
         return;
       }
 
       // Convert decoded bytes to int32_t timings
       // Each timing is a 4-byte signed integer (little-endian)
       if (decoded.size() % 4 != 0) {
-        request->send(400, "text/plain", "Data size must be a multiple of 4 bytes");
+        request->send(400, ESPHOME_F("text/plain"), "Data size must be a multiple of 4 bytes");
         return;
       }
 
