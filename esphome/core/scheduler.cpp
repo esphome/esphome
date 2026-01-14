@@ -75,25 +75,6 @@ static void validate_static_string(const char *name) {
 // iterating over them from the loop task is fine; but iterating from any other context requires the lock to be held to
 // avoid the main thread modifying the list while it is being accessed.
 
-// Helper to get or create a scheduler item from the pool
-// IMPORTANT: Caller must hold the scheduler lock before calling this function.
-std::unique_ptr<Scheduler::SchedulerItem> Scheduler::get_item_from_pool_locked_() {
-  std::unique_ptr<SchedulerItem> item;
-  if (!this->scheduler_item_pool_.empty()) {
-    item = std::move(this->scheduler_item_pool_.back());
-    this->scheduler_item_pool_.pop_back();
-#ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGD(TAG, "Reused item from pool (pool size now: %zu)", this->scheduler_item_pool_.size());
-#endif
-  } else {
-    item = make_unique<SchedulerItem>();
-#ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGD(TAG, "Allocated new item (pool empty)");
-#endif
-  }
-  return item;
-}
-
 // Common implementation for both timeout and interval
 // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
 void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type,
@@ -167,17 +148,17 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
   // For retries, check if there's a cancelled timeout first
-  if (is_retry && type == SchedulerItem::TIMEOUT) {
-    if (has_cancelled_timeout_in_container_locked_(this->items_, component, name_type, static_name, hash_or_id,
-                                                   /* match_retry= */ true) ||
-        has_cancelled_timeout_in_container_locked_(this->to_add_, component, name_type, static_name, hash_or_id,
-                                                   /* match_retry= */ true)) {
-      // Skip scheduling - the retry was cancelled
+  // Skip check for anonymous retries (STATIC_STRING with nullptr) - they can't be cancelled by name
+  if (is_retry && (name_type != NameType::STATIC_STRING || static_name != nullptr) && type == SchedulerItem::TIMEOUT &&
+      (has_cancelled_timeout_in_container_locked_(this->items_, component, name_type, static_name, hash_or_id,
+                                                  /* match_retry= */ true) ||
+       has_cancelled_timeout_in_container_locked_(this->to_add_, component, name_type, static_name, hash_or_id,
+                                                  /* match_retry= */ true))) {
+    // Skip scheduling - the retry was cancelled
 #ifdef ESPHOME_DEBUG_SCHEDULER
-      ESP_LOGD(TAG, "Skipping retry - found cancelled item");
+    ESP_LOGD(TAG, "Skipping retry - found cancelled item");
 #endif
-      return;
-    }
+    return;
   }
 
   // If name is provided, do atomic cancel-and-add (unless skip_cancel is true)
@@ -848,5 +829,24 @@ void Scheduler::debug_log_timer_(const SchedulerItem *item, bool is_static_strin
   }
 }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
+
+// Helper to get or create a scheduler item from the pool
+// IMPORTANT: Caller must hold the scheduler lock before calling this function.
+std::unique_ptr<Scheduler::SchedulerItem> Scheduler::get_item_from_pool_locked_() {
+  std::unique_ptr<SchedulerItem> item;
+  if (!this->scheduler_item_pool_.empty()) {
+    item = std::move(this->scheduler_item_pool_.back());
+    this->scheduler_item_pool_.pop_back();
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    ESP_LOGD(TAG, "Reused item from pool (pool size now: %zu)", this->scheduler_item_pool_.size());
+#endif
+  } else {
+    item = make_unique<SchedulerItem>();
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    ESP_LOGD(TAG, "Allocated new item (pool empty)");
+#endif
+  }
+  return item;
+}
 
 }  // namespace esphome

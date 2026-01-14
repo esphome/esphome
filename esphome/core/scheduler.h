@@ -264,6 +264,9 @@ class Scheduler {
   // Helper to check if two static string names match
   inline bool HOT names_match_static_(const char *name1, const char *name2) const {
     // Check pointer equality first (common for static strings), then string contents
+    // The core ESPHome codebase uses static strings (const char*) for component names,
+    // making pointer comparison effective. The std::string overloads exist only for
+    // compatibility with external components but are rarely used in practice.
     return (name1 != nullptr && name2 != nullptr) && ((name1 == name2) || (strcmp(name1, name2) == 0));
   }
 
@@ -275,7 +278,9 @@ class Scheduler {
                                        SchedulerItem::Type type, bool match_retry, bool skip_removed = true) const {
     // THREAD SAFETY: Check for nullptr first to prevent LoadProhibited crashes. On multi-threaded
     // platforms, items can be moved out of defer_queue_ during processing, leaving nullptr entries.
-    // This check provides defense-in-depth: helper functions should be safe regardless of caller behavior.
+    // PR #11305 added nullptr checks in callers (mark_matching_items_removed_locked_() and
+    // has_cancelled_timeout_in_container_locked_()), but this check provides defense-in-depth: helper
+    // functions should be safe regardless of caller behavior.
     // Fixes: https://github.com/esphome/esphome/issues/11940
     if (!item)
       return false;
