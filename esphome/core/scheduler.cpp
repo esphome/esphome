@@ -612,8 +612,9 @@ uint64_t Scheduler::millis_64_(uint32_t now) {
   // THREAD SAFETY NOTE:
   // This function has three implementations, based on the precompiler flags
   // - ESPHOME_THREAD_SINGLE - Runs on single-threaded platforms (ESP8266, RP2040, etc.)
-  // - ESPHOME_THREAD_MULTI_NO_ATOMICS - Runs on multi-threaded platforms without atomics (LibreTiny)
-  // - ESPHOME_THREAD_MULTI_ATOMICS - Runs on multi-threaded platforms with atomics (ESP32, HOST, etc.)
+  // - ESPHOME_THREAD_MULTI_NO_ATOMICS - Runs on multi-threaded platforms without atomics (LibreTiny BK72xx)
+  // - ESPHOME_THREAD_MULTI_ATOMICS - Runs on multi-threaded platforms with atomics (ESP32, HOST, LibreTiny
+  // RTL87xx/LN882x, etc.)
   //
   // Make sure all changes are synchronized if you edit this function.
   //
