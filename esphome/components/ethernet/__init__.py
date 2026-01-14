@@ -489,8 +489,6 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional Ethernet features."""
-    ip_state_count = CORE.data.get(ETHERNET_IP_STATE_LISTENERS_KEY, 0)
-
-    if ip_state_count:
+    if ip_state_count := CORE.data.get(ETHERNET_IP_STATE_LISTENERS_KEY, 0):
         cg.add_define("USE_ETHERNET_IP_STATE_LISTENERS")
         cg.add_define("ESPHOME_ETHERNET_IP_STATE_LISTENERS", ip_state_count)
