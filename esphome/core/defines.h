@@ -20,6 +20,7 @@
 
 // logger
 #define ESPHOME_LOG_LEVEL ESPHOME_LOG_LEVEL_VERY_VERBOSE
+#define USE_LOG_LISTENERS
 #define ESPHOME_LOG_MAX_LISTENERS 8
 
 // Feature flags

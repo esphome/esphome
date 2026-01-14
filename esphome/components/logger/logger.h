@@ -212,8 +212,13 @@ class Logger : public Component {
 
   inline uint8_t level_for(const char *tag);
 
+#ifdef USE_LOG_LISTENERS
   /// Register a log listener to receive log messages
   void add_log_listener(LogListener *listener) { this->log_listeners_.push_back(listener); }
+#else
+  /// No-op when log listeners are disabled
+  void add_log_listener(LogListener *listener) {}
+#endif
 
 #ifdef USE_LOGGER_LEVEL_LISTENERS
   /// Register a listener for log level changes
@@ -293,8 +298,10 @@ class Logger : public Component {
                                                 this->tx_buffer_size_);
 
     // Listeners get message WITHOUT newline (for API/MQTT/syslog)
+#ifdef USE_LOG_LISTENERS
     for (auto *listener : this->log_listeners_)
       listener->on_log(level, tag, this->tx_buffer_, this->tx_buffer_at_);
+#endif
 
     // Console gets message WITH newline (if platform needs it)
     this->write_tx_buffer_to_console_();
@@ -311,8 +318,10 @@ class Logger : public Component {
     this->write_body_to_buffer_(text, text_length, this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
     this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
     this->tx_buffer_[this->tx_buffer_at_] = '\0';
+#ifdef USE_LOG_LISTENERS
     for (auto *listener : this->log_listeners_)
       listener->on_log(level, tag, this->tx_buffer_, this->tx_buffer_at_);
+#endif
   }
 #endif
 
@@ -369,8 +378,10 @@ class Logger : public Component {
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   std::map<const char *, uint8_t, CStrCompare> log_levels_{};
 #endif
+#ifdef USE_LOG_LISTENERS
   StaticVector<LogListener *, ESPHOME_LOG_MAX_LISTENERS>
       log_listeners_;  // Log message listeners (API, MQTT, syslog, etc.)
+#endif
 #ifdef USE_LOGGER_LEVEL_LISTENERS
   std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
 #endif
