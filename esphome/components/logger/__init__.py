@@ -578,6 +578,6 @@ async def final_step():
     if domain_data.get(KEY_LEVEL_LISTENERS, False):
         cg.add_define("USE_LOGGER_LEVEL_LISTENERS")
 
-    # Set exact count of log listeners - runtime will error if exceeded
+    # Set exact count of log listeners - runtime will silently drop listeners if exceeded
     log_listener_count = domain_data.get(KEY_LOG_LISTENERS, 0)
     cg.add_define("ESPHOME_LOG_MAX_LISTENERS", log_listener_count)
