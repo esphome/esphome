@@ -446,10 +446,11 @@ void HOT Scheduler::call(uint32_t now) {
         item = this->pop_raw_locked_();
       }
 
-      const char *name = item->get_name();
+      SchedulerNameLog name_log;
       bool is_cancelled = is_item_removed_(item.get());
       ESP_LOGD(TAG, "  %s '%s/%s' interval=%" PRIu32 " next_execution in %" PRIu64 "ms at %" PRIu64 "%s",
-               item->get_type_str(), LOG_STR_ARG(item->get_source()), name ? name : "(null)", item->interval,
+               item->get_type_str(), LOG_STR_ARG(item->get_source()),
+               name_log.format(item->get_name_type(), item->get_name(), item->get_name_hash_or_id()), item->interval,
                item->get_next_execution() - now_64, item->get_next_execution(), is_cancelled ? " [CANCELLED]" : "");
 
       old_items.push_back(std::move(item));
@@ -513,10 +514,13 @@ void HOT Scheduler::call(uint32_t now) {
 #endif
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-    const char *item_name = item->get_name();
-    ESP_LOGV(TAG, "Running %s '%s/%s' with interval=%" PRIu32 " next_execution=%" PRIu64 " (now=%" PRIu64 ")",
-             item->get_type_str(), LOG_STR_ARG(item->get_source()), item_name ? item_name : "(null)", item->interval,
-             item->get_next_execution(), now_64);
+    {
+      SchedulerNameLog name_log;
+      ESP_LOGV(TAG, "Running %s '%s/%s' with interval=%" PRIu32 " next_execution=%" PRIu64 " (now=%" PRIu64 ")",
+               item->get_type_str(), LOG_STR_ARG(item->get_source()),
+               name_log.format(item->get_name_type(), item->get_name(), item->get_name_hash_or_id()), item->interval,
+               item->get_next_execution(), now_64);
+    }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
     // Warning: During callback(), a lot of stuff can happen, including:
