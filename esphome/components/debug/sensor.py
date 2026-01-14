@@ -17,7 +17,7 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
-from . import CONF_DEBUG_ID, DebugComponent
+from . import CONF_DEBUG_ID, FILTER_SOURCE_FILES, DebugComponent  # noqa: F401
 
 DEPENDENCIES = ["debug"]
 
