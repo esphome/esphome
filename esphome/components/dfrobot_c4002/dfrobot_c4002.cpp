@@ -14,7 +14,7 @@ static const char *const TAG = "dfrobot_c4002: ";
  */
 void C4002Component::setup() {
   update_config_param();
-  this->publish_text_("The initialization of c4002 was successful!");
+  this->publish_text("The initialization of c4002 was successful!");
 }
 
 /**
@@ -22,7 +22,6 @@ void C4002Component::setup() {
  * Print current configuration values to the log for debugging.
  */
 void C4002Component::print_config() { ESP_LOGD(TAG, "run print config"); }
-
 
 /**
  * loop
@@ -42,7 +41,7 @@ void C4002Component::loop() {
     ESP_LOGD(TAG, "********Calibration countdown: %2d s**********", ret.calibCountdown);
     if (ret.calibCountdown == 0) {
       ESP_LOGD(TAG, "Calibration complete!");
-      this->publish_text_("Calibration complete!");
+      this->publish_text("Calibration complete!");
       analysis_text_report();
     }
   }
@@ -55,7 +54,7 @@ void C4002Component::loop() {
   if (reset_flag_ == 1) {
     reset_flag_ = 0;
     restart();
-    this->publish_text_("Reset the device to factory complete!");
+    this->publish_text("Reset the device to factory complete!");
   }
 }
 
@@ -118,9 +117,10 @@ void C4002Component::update_config_param() {
     ESP_LOGD(TAG, "Publishing light_threshold_: %.2f", current_light_threshold);
   }
 
-  for (int i = 0; i < 6; i++) {
-    current_area_[i] = 0;
+  for (float &v : current_area_) {
+    v = 0.0f;
   }
+
   joint_enable_door();
 
   if (area1_min_range_number_ != nullptr) {
@@ -447,7 +447,7 @@ bool C4002Component::set_target_disappear_delay(uint16_t delay_time) {
  * Get the delay time of the target disappear.
  * Returns the delay time in ms.
  */
-uint16_t C4002Component::get_target_disappear_delay(void) {
+uint16_t C4002Component::get_target_disappear_delay() {
   uint8_t send_date[10];
   uint16_t data_len = 0;
   uint16_t temp = 4;
@@ -469,7 +469,7 @@ uint16_t C4002Component::get_target_disappear_delay(void) {
  * restart
  * Restart the device.
  */
-int8_t C4002Component::restart(void) {
+int8_t C4002Component::restart() {
   int8_t ret = 0;
   uint8_t send_date[10];
   uint16_t data_len = 5;
@@ -486,7 +486,10 @@ int8_t C4002Component::restart(void) {
   } else {
     ret = -1;
   }
-  delay(500);
+
+  for (int i = 0; i < 50; i++) {
+    delay(10);
+  }
   update_config_param();
   delay(10);
   return ret;
@@ -533,7 +536,7 @@ void C4002Component::get_distance_presence_threshold(DistanceDoorType door_type,
  * analysis gate data
  * Analysis the gate data,send the result.
  */
-void C4002Component::analysis_text_report(void) {
+void C4002Component::analysis_text_report() {
   uint8_t move_data[15], exist_data[15];
   uint8_t thld = 80;
   std::vector<uint8_t> over_indices;
@@ -557,7 +560,7 @@ void C4002Component::analysis_text_report(void) {
   }
 
   if (flag == 0) {
-    this->publish_text_("The calibration threshold is effective!");
+    this->publish_text("The calibration threshold is effective!");
     return;
   }
 
@@ -570,15 +573,14 @@ void C4002Component::analysis_text_report(void) {
   for (size_t i = 0; i < over_indices.size(); i++) {
     uint8_t idx = over_indices[i];
 
-    offset += snprintf(data_str + offset, sizeof(data_str) - offset, "%.1f%s", Interval_point[idx],
+    offset += snprintf(data_str + offset, sizeof(data_str) - offset, "%.1f%s", interval_point_[idx],
                        (i < over_indices.size() - 1) ? ", " : "");
   }
 
-  offset += snprintf(data_str + offset, sizeof(data_str) - offset,
-                     " m, Please clear all interference sources within this range and recalibrate.");
+  snprintf(data_str + offset, sizeof(data_str) - offset,
+           " m, Please clear all interference sources within this range and recalibrate.");
 
-  this->publish_text_(data_str);
-  return;
+  this->publish_text(data_str);
 }
 
 /**
@@ -959,13 +961,11 @@ float C4002Component::get_area_range(RangValue range_value) { return current_are
  * joint_enable_door
  * Enable the door according to the current area range.
  */
-bool C4002Component::joint_enable_door(void) {
-  constexpr int DOOR_COUNT = 15;
+bool C4002Component::joint_enable_door() {
+  // int door_count = 15;
 
-  float current_area[6] = {0};
-
-  for (int i = 0; i < DOOR_COUNT; ++i) {
-    enable_door_[i] = 1;
+  for (auto &v : enable_door_) {
+    v = 1;
   }
 
   auto apply_range = [this](int min_index, int max_index) {
@@ -983,7 +983,7 @@ bool C4002Component::joint_enable_door(void) {
       max = 0;
 
     for (int door = 0; door < 15; door++) {
-      if (Interval_point[door] > min && max > Interval_point[door]) {
+      if (interval_point_[door] > min && max > interval_point_[door]) {
         enable_door_[door] = 0;
       }
     }
@@ -993,14 +993,14 @@ bool C4002Component::joint_enable_door(void) {
   apply_range(AREA2_DOOR_MIN, AREA2_DOOR_MAX);
   apply_range(AREA3_DOOR_MIN, AREA3_DOOR_MAX);
 
-  // for (int i = 0; i < DOOR_COUNT; ++i) {
+  // for (int i = 0; i < door_count; ++i) {
   //   ESP_LOGD(TAG, "door %d enable %d", i, enable_door_[i]);
   // }
 
   return enable_all_distance_door(enable_door_);
 }
 
-void C4002Component::publish_text_(const std::string &msg) {
+void C4002Component::publish_text(const std::string &msg) {
 #ifdef USE_TEXT_SENSOR
   if (this->text_sensor_ != nullptr) {
     this->text_sensor_->publish_state(msg);
@@ -1014,10 +1014,7 @@ void C4002Component::publish_text_(const std::string &msg) {
  * setup_number
  * Set the detect range of the device.
  */
-void C4002Component::setup_number() {
-  bool ret;
-  ret = get_detect_range();
-}
+void C4002Component::setup_number() { get_detect_range(); }
 
 /**
  * get_light_threshold

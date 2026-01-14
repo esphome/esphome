@@ -275,9 +275,9 @@ class C4002Component : public Component, public uart::UARTDevice {
   bool set_target_disappear_delay(uint16_t delay_time);
 
   // ** param getters ** //
-  void analysis_text_report(void);
+  void analysis_text_report();
   void get_distance_presence_threshold(DistanceDoorType door_type, uint8_t *gate_data);
-  uint16_t get_target_disappear_delay(void);
+  uint16_t get_target_disappear_delay();
   TargetState get_target_state();
   float get_light();
   uint32_t get_exist_dist_index();
@@ -290,7 +290,7 @@ class C4002Component : public Component, public uart::UARTDevice {
   float get_light_threshold();
 
   // ** data getters ** //
-  int8_t restart(void);
+  int8_t restart();
   void send_pack(void *pdata, uint16_t len, uint8_t msg_type);
   RecvPck recv_pack();
   bool check_sum(const uint8_t *pdata, uint8_t len);
@@ -344,7 +344,7 @@ class C4002Component : public Component, public uart::UARTDevice {
 #ifdef USE_TEXT_SENSOR
   void set_text_sensor(text_sensor::TextSensor *ts) { this->text_sensor_ = ts; }
 #endif
-  void publish_text_(const std::string &msg);
+  void publish_text(const std::string &msg);
 
  protected:
   //**all data param **//
@@ -400,7 +400,7 @@ class C4002Component : public Component, public uart::UARTDevice {
 #ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *text_sensor_{nullptr};
 
-  float Interval_point[15] = {0.2, 0.8, 1.6, 2.4, 3.2, 4, 4.8, 5.6, 6.4, 7.2, 8, 8.8, 9.6, 10.4, 11.2};
+  float interval_point_[15] = {0.2, 0.8, 1.6, 2.4, 3.2, 4, 4.8, 5.6, 6.4, 7.2, 8, 8.8, 9.6, 10.4, 11.2};
 
 #endif
 
