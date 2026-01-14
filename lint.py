@@ -461,6 +461,10 @@ def lint_internal_links(fname, content):
         if not link_url.startswith("/") and re.search(r"\.(png|jpg|jpeg|gif|svg|webp|pdf|zip)$", link_url, re.IGNORECASE):
             continue
 
+        # Skip absolute links to static assets (images directory)
+        if link_url.startswith("/images/") and re.search(r"\.(png|jpg|jpeg|gif|svg|webp|pdf|zip)$", link_url, re.IGNORECASE):
+            continue
+
         # Skip links that look like code/lambda parameters (contain spaces, parentheses, etc.)
         if " " in link_url or "(" in link_url or ")" in link_url:
             continue
