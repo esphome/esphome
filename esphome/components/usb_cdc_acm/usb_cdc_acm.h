@@ -59,7 +59,7 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   void set_interface_number(uint8_t itf) { this->itf_ = itf; }
   // Get the CDC port number for this instance
   uint8_t get_itf() const { return this->itf_; }
-  // Ring buffer accessors for bridge componentsfv
+  // Ring buffer accessors for bridge components
   RingbufHandle_t get_tx_ringbuf() const { return this->usb_tx_ringbuf_; }
   RingbufHandle_t get_rx_ringbuf() const { return this->usb_rx_ringbuf_; }
 
