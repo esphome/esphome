@@ -175,8 +175,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-  this->debug_log_timer_(item.get(), name_type == NameType::STATIC_STRING,
-                         name_type == NameType::STATIC_STRING ? static_name : nullptr, type, delay, now);
+  this->debug_log_timer_(item.get(), name_type, static_name, hash_or_id, type, delay, now);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
   // For retries, check if there's a cancelled timeout first
@@ -854,21 +853,22 @@ void Scheduler::recycle_item_main_loop_(std::unique_ptr<SchedulerItem> item) {
 }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-void Scheduler::debug_log_timer_(const SchedulerItem *item, bool is_static_string, const char *name_cstr,
-                                 SchedulerItem::Type type, uint32_t delay, uint64_t now) {
+void Scheduler::debug_log_timer_(const SchedulerItem *item, NameType name_type, const char *static_name,
+                                 uint32_t hash_or_id, SchedulerItem::Type type, uint32_t delay, uint64_t now) {
   // Validate static strings in debug mode
-  if (is_static_string && name_cstr != nullptr) {
-    validate_static_string(name_cstr);
+  if (name_type == NameType::STATIC_STRING && static_name != nullptr) {
+    validate_static_string(static_name);
   }
 
   // Debug logging
+  SchedulerNameLog name_log;
   const char *type_str = (type == SchedulerItem::TIMEOUT) ? "timeout" : "interval";
   if (type == SchedulerItem::TIMEOUT) {
     ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
-             name_cstr ? name_cstr : "(null)", type_str, delay);
+             name_log.format(name_type, static_name, hash_or_id), type_str, delay);
   } else {
     ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ", offset=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
-             name_cstr ? name_cstr : "(null)", type_str, delay,
+             name_log.format(name_type, static_name, hash_or_id), type_str, delay,
              static_cast<uint32_t>(item->get_next_execution() - now));
   }
 }
