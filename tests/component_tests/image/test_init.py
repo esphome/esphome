@@ -373,7 +373,7 @@ async def test_svg_with_mm_dimensions_error(
     # Verify that the correct error message is raised
     with pytest.raises(
         EsphomeError,
-        match=r"SVG image file .* has an invalid size\. "
+        match=r"SVG image file .*invalid_dimensions.svg has an invalid size\. "
         r"Ensure the SVG defines width and height in absolute units \(e\.g\., px, not mm\)\.",
     ):
         await write_image(config)
