@@ -472,6 +472,12 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
       break;
     case ETHERNET_EVENT_CONNECTED:
       event_name = "ETH connected";
+      // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
+#if defined(USE_ETHERNET_IP_STATE_LISTENERS) && defined(USE_ETHERNET_MANUAL_IP)
+      if (global_eth_component->manual_ip_.has_value()) {
+        global_eth_component->notify_ip_state_listeners_();
+      }
+#endif
       break;
     case ETHERNET_EVENT_DISCONNECTED:
       event_name = "ETH disconnected";
