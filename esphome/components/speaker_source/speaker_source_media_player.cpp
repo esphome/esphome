@@ -701,6 +701,15 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
       case media_player::MEDIA_PLAYER_COMMAND_PAUSE:
         media_source_command = media_source::MEDIA_SOURCE_COMMAND_PAUSE;
         break;
+      case media_player::MEDIA_PLAYER_COMMAND_TOGGLE: {
+        if (((active_source != nullptr) &&
+             (active_source->get_state(control_command.pipeline) == media_source::MediaSourceState::PLAYING))) {
+          media_source_command = media_source::MEDIA_SOURCE_COMMAND_PAUSE;
+        } else {
+          media_source_command = media_source::MEDIA_SOURCE_COMMAND_PLAY;
+        }
+        break;
+      }
       case media_player::MEDIA_PLAYER_COMMAND_STOP: {
         if (!has_internal_playlist) {
           // Stop should clear the playlist to prevent auto-progression
