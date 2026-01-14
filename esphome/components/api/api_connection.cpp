@@ -1903,7 +1903,8 @@ void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, uint8_t me
   // This avoids expensive vector::insert which shifts all elements
   // Note: We only ever have one high-priority message at a time (ping OR disconnect)
   // If we're disconnecting, pings are blocked, so this simple swap is sufficient
-  items.emplace_back(entity, message_type, estimated_size);
+  // Use same 4-arg signature as add_item to share _M_realloc_insert template instantiation
+  items.emplace_back(entity, message_type, estimated_size, AUX_DATA_UNUSED);
   if (items.size() > 1) {
     // Swap the new high-priority item to the front
     std::swap(items.front(), items.back());
