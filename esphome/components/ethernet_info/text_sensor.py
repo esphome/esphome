@@ -60,9 +60,9 @@ async def to_code(config):
             if sensor_conf := conf.get(f"address_{x}"):
                 sens = await text_sensor.new_text_sensor(sensor_conf)
                 cg.add(ip_info.add_ip_sensors(x, sens))
-    if config.get(CONF_DNS_ADDRESS):
-        dns_info = await text_sensor.new_text_sensor(config[CONF_DNS_ADDRESS])
-        await cg.register_component(dns_info, config[CONF_DNS_ADDRESS])
+    if conf := config.get(CONF_DNS_ADDRESS):
+        dns_info = await text_sensor.new_text_sensor(conf)
+        await cg.register_component(dns_info, conf)
     if config.get(CONF_MAC_ADDRESS):
         mac_info = await text_sensor.new_text_sensor(config[CONF_MAC_ADDRESS])
         await cg.register_component(mac_info, config[CONF_MAC_ADDRESS])
