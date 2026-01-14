@@ -62,6 +62,12 @@ struct UrlMatch {
   bool domain_equals(const char *str) const { return this->domain == str; }
   bool method_equals(const char *str) const { return this->method == str; }
 
+#ifdef USE_ESP8266
+  // Overloads for flash strings on ESP8266
+  bool domain_equals(const __FlashStringHelper *str) const { return this->domain == str; }
+  bool method_equals(const __FlashStringHelper *str) const { return this->method == str; }
+#endif
+
   /// Match entity by name first, then fall back to object_id with deprecation warning
   /// Returns EntityMatchResult with match status and whether action segment is empty
   EntityMatchResult match_entity(EntityBase *entity) const;
@@ -627,7 +633,7 @@ class WebServer : public Controller,
   std::string text_json_(text::Text *obj, const std::string &value, JsonDetail start_config);
 #endif
 #ifdef USE_SELECT
-  std::string select_json_(select::Select *obj, const char *value, JsonDetail start_config);
+  std::string select_json_(select::Select *obj, StringRef value, JsonDetail start_config);
 #endif
 #ifdef USE_CLIMATE
   std::string climate_json_(climate::Climate *obj, JsonDetail start_config);
@@ -643,7 +649,7 @@ class WebServer : public Controller,
                                         alarm_control_panel::AlarmControlPanelState value, JsonDetail start_config);
 #endif
 #ifdef USE_EVENT
-  std::string event_json_(event::Event *obj, const std::string &event_type, JsonDetail start_config);
+  std::string event_json_(event::Event *obj, StringRef event_type, JsonDetail start_config);
 #endif
 #ifdef USE_WATER_HEATER
   std::string water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config);
