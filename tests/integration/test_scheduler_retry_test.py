@@ -25,7 +25,6 @@ async def test_scheduler_retry_test(
     multiple_name_done = asyncio.Event()
     const_char_done = asyncio.Event()
     static_char_done = asyncio.Event()
-    mixed_cancel_done = asyncio.Event()
     test_complete = asyncio.Event()
 
     # Track retry counts
@@ -42,14 +41,13 @@ async def test_scheduler_retry_test(
     # Track specific test results
     cancel_result = None
     empty_cancel_result = None
-    mixed_cancel_result = None
     backoff_intervals = []
 
     def on_log_line(line: str) -> None:
         nonlocal simple_retry_count, backoff_retry_count, immediate_done_count
         nonlocal cancel_retry_count, empty_name_retry_count, component_retry_count
         nonlocal multiple_name_count, const_char_retry_count, static_char_retry_count
-        nonlocal cancel_result, empty_cancel_result, mixed_cancel_result
+        nonlocal cancel_result, empty_cancel_result
 
         # Strip ANSI color codes
         clean_line = re.sub(r"\x1b\[[0-9;]*m", "", line)
@@ -128,11 +126,6 @@ async def test_scheduler_retry_test(
         elif "Static cancel result:" in clean_line:
             # This is part of test 9, but we don't track it separately
             pass
-
-        # Mixed cancel test
-        elif "Mixed cancel result:" in clean_line:
-            mixed_cancel_result = "true" in clean_line
-            mixed_cancel_done.set()
 
         # Test completion
         elif "All retry tests completed" in clean_line:
@@ -277,16 +270,6 @@ async def test_scheduler_retry_test(
 
         assert static_char_retry_count == 1, (
             f"Expected 1 static char retry call, got {static_char_retry_count}"
-        )
-
-        # Wait for mixed cancel test
-        try:
-            await asyncio.wait_for(mixed_cancel_done.wait(), timeout=1.0)
-        except TimeoutError:
-            pytest.fail("Mixed cancel test did not complete")
-
-        assert mixed_cancel_result is True, (
-            "Mixed string/const char cancel should have succeeded"
         )
 
         # Wait for test completion

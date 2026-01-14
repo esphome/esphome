@@ -265,8 +265,7 @@ void APIConnection::loop() {
       // If we can't send the ping request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
       ESP_LOGW(TAG, "Buffer full, ping queued");
-      this->schedule_message_front_(nullptr, &APIConnection::try_send_ping_request, PingRequest::MESSAGE_TYPE,
-                                    PingRequest::ESTIMATED_SIZE);
+      this->schedule_message_front_(nullptr, PingRequest::MESSAGE_TYPE, PingRequest::ESTIMATED_SIZE);
       this->flags_.sent_ping = true;  // Mark as sent to avoid scheduling multiple pings
     }
   }
@@ -362,8 +361,8 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint8_t mess
 
 #ifdef USE_BINARY_SENSOR
 bool APIConnection::send_binary_sensor_state(binary_sensor::BinarySensor *binary_sensor) {
-  return this->send_message_smart_(binary_sensor, &APIConnection::try_send_binary_sensor_state,
-                                   BinarySensorStateResponse::MESSAGE_TYPE, BinarySensorStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(binary_sensor, BinarySensorStateResponse::MESSAGE_TYPE,
+                                   BinarySensorStateResponse::ESTIMATED_SIZE);
 }
 
 uint16_t APIConnection::try_send_binary_sensor_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -389,8 +388,7 @@ uint16_t APIConnection::try_send_binary_sensor_info(EntityBase *entity, APIConne
 
 #ifdef USE_COVER
 bool APIConnection::send_cover_state(cover::Cover *cover) {
-  return this->send_message_smart_(cover, &APIConnection::try_send_cover_state, CoverStateResponse::MESSAGE_TYPE,
-                                   CoverStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(cover, CoverStateResponse::MESSAGE_TYPE, CoverStateResponse::ESTIMATED_SIZE);
 }
 uint16_t APIConnection::try_send_cover_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                              bool is_single) {
@@ -430,8 +428,7 @@ void APIConnection::cover_command(const CoverCommandRequest &msg) {
 
 #ifdef USE_FAN
 bool APIConnection::send_fan_state(fan::Fan *fan) {
-  return this->send_message_smart_(fan, &APIConnection::try_send_fan_state, FanStateResponse::MESSAGE_TYPE,
-                                   FanStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(fan, FanStateResponse::MESSAGE_TYPE, FanStateResponse::ESTIMATED_SIZE);
 }
 uint16_t APIConnection::try_send_fan_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                            bool is_single) {
@@ -482,8 +479,7 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
 
 #ifdef USE_LIGHT
 bool APIConnection::send_light_state(light::LightState *light) {
-  return this->send_message_smart_(light, &APIConnection::try_send_light_state, LightStateResponse::MESSAGE_TYPE,
-                                   LightStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(light, LightStateResponse::MESSAGE_TYPE, LightStateResponse::ESTIMATED_SIZE);
 }
 uint16_t APIConnection::try_send_light_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                              bool is_single) {
@@ -569,8 +565,7 @@ void APIConnection::light_command(const LightCommandRequest &msg) {
 
 #ifdef USE_SENSOR
 bool APIConnection::send_sensor_state(sensor::Sensor *sensor) {
-  return this->send_message_smart_(sensor, &APIConnection::try_send_sensor_state, SensorStateResponse::MESSAGE_TYPE,
-                                   SensorStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(sensor, SensorStateResponse::MESSAGE_TYPE, SensorStateResponse::ESTIMATED_SIZE);
 }
 
 uint16_t APIConnection::try_send_sensor_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -598,8 +593,7 @@ uint16_t APIConnection::try_send_sensor_info(EntityBase *entity, APIConnection *
 
 #ifdef USE_SWITCH
 bool APIConnection::send_switch_state(switch_::Switch *a_switch) {
-  return this->send_message_smart_(a_switch, &APIConnection::try_send_switch_state, SwitchStateResponse::MESSAGE_TYPE,
-                                   SwitchStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(a_switch, SwitchStateResponse::MESSAGE_TYPE, SwitchStateResponse::ESTIMATED_SIZE);
 }
 
 uint16_t APIConnection::try_send_switch_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -633,8 +627,8 @@ void APIConnection::switch_command(const SwitchCommandRequest &msg) {
 
 #ifdef USE_TEXT_SENSOR
 bool APIConnection::send_text_sensor_state(text_sensor::TextSensor *text_sensor) {
-  return this->send_message_smart_(text_sensor, &APIConnection::try_send_text_sensor_state,
-                                   TextSensorStateResponse::MESSAGE_TYPE, TextSensorStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(text_sensor, TextSensorStateResponse::MESSAGE_TYPE,
+                                   TextSensorStateResponse::ESTIMATED_SIZE);
 }
 
 uint16_t APIConnection::try_send_text_sensor_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -658,8 +652,7 @@ uint16_t APIConnection::try_send_text_sensor_info(EntityBase *entity, APIConnect
 
 #ifdef USE_CLIMATE
 bool APIConnection::send_climate_state(climate::Climate *climate) {
-  return this->send_message_smart_(climate, &APIConnection::try_send_climate_state, ClimateStateResponse::MESSAGE_TYPE,
-                                   ClimateStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(climate, ClimateStateResponse::MESSAGE_TYPE, ClimateStateResponse::ESTIMATED_SIZE);
 }
 uint16_t APIConnection::try_send_climate_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                                bool is_single) {
@@ -754,8 +747,7 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
 
 #ifdef USE_NUMBER
 bool APIConnection::send_number_state(number::Number *number) {
-  return this->send_message_smart_(number, &APIConnection::try_send_number_state, NumberStateResponse::MESSAGE_TYPE,
-                                   NumberStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(number, NumberStateResponse::MESSAGE_TYPE, NumberStateResponse::ESTIMATED_SIZE);
 }
 
 uint16_t APIConnection::try_send_number_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -789,8 +781,7 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 
 #ifdef USE_DATETIME_DATE
 bool APIConnection::send_date_state(datetime::DateEntity *date) {
-  return this->send_message_smart_(date, &APIConnection::try_send_date_state, DateStateResponse::MESSAGE_TYPE,
-                                   DateStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(date, DateStateResponse::MESSAGE_TYPE, DateStateResponse::ESTIMATED_SIZE);
 }
 uint16_t APIConnection::try_send_date_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                             bool is_single) {
@@ -818,8 +809,7 @@ void APIConnection::date_command(const DateCommandRequest &msg) {
 
 #ifdef USE_DATETIME_TIME
 bool APIConnection::send_time_state(datetime::TimeEntity *time) {
-  return this->send_message_smart_(time, &APIConnection::try_send_time_state, TimeStateResponse::MESSAGE_TYPE,
-                                   TimeStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(time, TimeStateResponse::MESSAGE_TYPE, TimeStateResponse::ESTIMATED_SIZE);
 }
 uint16_t APIConnection::try_send_time_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                             bool is_single) {
@@ -847,8 +837,8 @@ void APIConnection::time_command(const TimeCommandRequest &msg) {
 
 #ifdef USE_DATETIME_DATETIME
 bool APIConnection::send_datetime_state(datetime::DateTimeEntity *datetime) {
-  return this->send_message_smart_(datetime, &APIConnection::try_send_datetime_state,
-                                   DateTimeStateResponse::MESSAGE_TYPE, DateTimeStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(datetime, DateTimeStateResponse::MESSAGE_TYPE,
+                                   DateTimeStateResponse::ESTIMATED_SIZE);
 }
 uint16_t APIConnection::try_send_datetime_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                                 bool is_single) {
@@ -878,8 +868,7 @@ void APIConnection::datetime_command(const DateTimeCommandRequest &msg) {
 
 #ifdef USE_TEXT
 bool APIConnection::send_text_state(text::Text *text) {
-  return this->send_message_smart_(text, &APIConnection::try_send_text_state, TextStateResponse::MESSAGE_TYPE,
-                                   TextStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(text, TextStateResponse::MESSAGE_TYPE, TextStateResponse::ESTIMATED_SIZE);
 }
 
 uint16_t APIConnection::try_send_text_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -911,8 +900,7 @@ void APIConnection::text_command(const TextCommandRequest &msg) {
 
 #ifdef USE_SELECT
 bool APIConnection::send_select_state(select::Select *select) {
-  return this->send_message_smart_(select, &APIConnection::try_send_select_state, SelectStateResponse::MESSAGE_TYPE,
-                                   SelectStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(select, SelectStateResponse::MESSAGE_TYPE, SelectStateResponse::ESTIMATED_SIZE);
 }
 
 uint16_t APIConnection::try_send_select_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -956,8 +944,7 @@ void esphome::api::APIConnection::button_command(const ButtonCommandRequest &msg
 
 #ifdef USE_LOCK
 bool APIConnection::send_lock_state(lock::Lock *a_lock) {
-  return this->send_message_smart_(a_lock, &APIConnection::try_send_lock_state, LockStateResponse::MESSAGE_TYPE,
-                                   LockStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(a_lock, LockStateResponse::MESSAGE_TYPE, LockStateResponse::ESTIMATED_SIZE);
 }
 
 uint16_t APIConnection::try_send_lock_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
@@ -997,8 +984,7 @@ void APIConnection::lock_command(const LockCommandRequest &msg) {
 
 #ifdef USE_VALVE
 bool APIConnection::send_valve_state(valve::Valve *valve) {
-  return this->send_message_smart_(valve, &APIConnection::try_send_valve_state, ValveStateResponse::MESSAGE_TYPE,
-                                   ValveStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(valve, ValveStateResponse::MESSAGE_TYPE, ValveStateResponse::ESTIMATED_SIZE);
 }
 uint16_t APIConnection::try_send_valve_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                              bool is_single) {
@@ -1032,8 +1018,8 @@ void APIConnection::valve_command(const ValveCommandRequest &msg) {
 
 #ifdef USE_MEDIA_PLAYER
 bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_player) {
-  return this->send_message_smart_(media_player, &APIConnection::try_send_media_player_state,
-                                   MediaPlayerStateResponse::MESSAGE_TYPE, MediaPlayerStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(media_player, MediaPlayerStateResponse::MESSAGE_TYPE,
+                                   MediaPlayerStateResponse::ESTIMATED_SIZE);
 }
 uint16_t APIConnection::try_send_media_player_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                                     bool is_single) {
@@ -1315,8 +1301,7 @@ void APIConnection::zwave_proxy_request(const ZWaveProxyRequest &msg) {
 
 #ifdef USE_ALARM_CONTROL_PANEL
 bool APIConnection::send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
-  return this->send_message_smart_(a_alarm_control_panel, &APIConnection::try_send_alarm_control_panel_state,
-                                   AlarmControlPanelStateResponse::MESSAGE_TYPE,
+  return this->send_message_smart_(a_alarm_control_panel, AlarmControlPanelStateResponse::MESSAGE_TYPE,
                                    AlarmControlPanelStateResponse::ESTIMATED_SIZE);
 }
 uint16_t APIConnection::try_send_alarm_control_panel_state(EntityBase *entity, APIConnection *conn,
@@ -1369,8 +1354,8 @@ void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRe
 
 #ifdef USE_WATER_HEATER
 bool APIConnection::send_water_heater_state(water_heater::WaterHeater *water_heater) {
-  return this->send_message_smart_(water_heater, &APIConnection::try_send_water_heater_state,
-                                   WaterHeaterStateResponse::MESSAGE_TYPE, WaterHeaterStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(water_heater, WaterHeaterStateResponse::MESSAGE_TYPE,
+                                   WaterHeaterStateResponse::ESTIMATED_SIZE);
 }
 uint16_t APIConnection::try_send_water_heater_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                                     bool is_single) {
@@ -1419,10 +1404,11 @@ void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequ
 #endif
 
 #ifdef USE_EVENT
-void APIConnection::send_event(event::Event *event, StringRef event_type) {
-  // get_last_event_type() returns StringRef pointing to null-terminated string literals from codegen
-  this->send_message_smart_(event, MessageCreator(event_type.c_str()), EventResponse::MESSAGE_TYPE,
-                            EventResponse::ESTIMATED_SIZE);
+// Event is a special case - unlike other entities with simple state fields,
+// events store their state in a member accessed via obj->get_last_event_type()
+void APIConnection::send_event(event::Event *event) {
+  this->send_message_smart_(event, EventResponse::MESSAGE_TYPE, EventResponse::ESTIMATED_SIZE,
+                            event->get_last_event_type_index());
 }
 uint16_t APIConnection::try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,
                                                 uint32_t remaining_size, bool is_single) {
@@ -1473,8 +1459,7 @@ uint16_t APIConnection::try_send_infrared_info(EntityBase *entity, APIConnection
 
 #ifdef USE_UPDATE
 bool APIConnection::send_update_state(update::UpdateEntity *update) {
-  return this->send_message_smart_(update, &APIConnection::try_send_update_state, UpdateStateResponse::MESSAGE_TYPE,
-                                   UpdateStateResponse::ESTIMATED_SIZE);
+  return this->send_message_smart_(update, UpdateStateResponse::MESSAGE_TYPE, UpdateStateResponse::ESTIMATED_SIZE);
 }
 uint16_t APIConnection::try_send_update_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
                                               bool is_single) {
@@ -1897,30 +1882,31 @@ void APIConnection::on_fatal_error() {
   this->flags_.remove = true;
 }
 
-void APIConnection::DeferredBatch::add_item(EntityBase *entity, MessageCreator creator, uint8_t message_type,
-                                            uint8_t estimated_size) {
+void APIConnection::DeferredBatch::add_item(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
+                                            uint8_t aux_data_index) {
   // Check if we already have a message of this type for this entity
   // This provides deduplication per entity/message_type combination
   // O(n) but optimized for RAM and not performance.
-  for (auto &item : items) {
-    if (item.entity == entity && item.message_type == message_type) {
-      // Replace with new creator
-      item.creator = creator;
-      return;
+  // Skip deduplication for events - they are edge-triggered, every occurrence matters
+#ifdef USE_EVENT
+  if (message_type != EventResponse::MESSAGE_TYPE)
+#endif
+  {
+    for (const auto &item : items) {
+      if (item.entity == entity && item.message_type == message_type)
+        return;  // Already queued
     }
   }
-
-  // No existing item found, add new one
-  items.emplace_back(entity, creator, message_type, estimated_size);
+  // No existing item found (or event), add new one
+  items.push_back({entity, message_type, estimated_size, aux_data_index});
 }
 
-void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, MessageCreator creator, uint8_t message_type,
-                                                  uint8_t estimated_size) {
+void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
   // Add high priority message and swap to front
   // This avoids expensive vector::insert which shifts all elements
   // Note: We only ever have one high-priority message at a time (ping OR disconnect)
   // If we're disconnecting, pings are blocked, so this simple swap is sufficient
-  items.emplace_back(entity, creator, message_type, estimated_size);
+  items.push_back({entity, message_type, estimated_size, AUX_DATA_UNUSED});
   if (items.size() > 1) {
     // Swap the new high-priority item to the front
     std::swap(items.front(), items.back());
@@ -1959,19 +1945,17 @@ void APIConnection::process_batch_() {
   if (num_items == 1) {
     const auto &item = this->deferred_batch_[0];
 
-    // Let the creator calculate size and encode if it fits
-    uint16_t payload_size =
-        item.creator(item.entity, this, std::numeric_limits<uint16_t>::max(), true, item.message_type);
+    // Let dispatch_message_ calculate size and encode if it fits
+    uint16_t payload_size = this->dispatch_message_(item, std::numeric_limits<uint16_t>::max(), true);
 
     if (payload_size > 0 && this->send_buffer(ProtoWriteBuffer{&shared_buf}, item.message_type)) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      // Log messages after send attempt for VV debugging
-      // It's safe to use the buffer for logging at this point regardless of send result
+      // Log message after send attempt for VV debugging
       this->log_batch_item_(item);
 #endif
       this->clear_batch_();
     } else if (payload_size == 0) {
-      // Message too large
+      // Message too large to fit in available space
       ESP_LOGW(TAG, "Message too large to send: type=%u", item.message_type);
       this->clear_batch_();
     }
@@ -2016,9 +2000,9 @@ void APIConnection::process_batch_() {
   // Process items and encode directly to buffer (up to our limit)
   for (size_t i = 0; i < messages_to_process; i++) {
     const auto &item = this->deferred_batch_[i];
-    // Try to encode message
-    // The creator will calculate overhead to determine if the message fits
-    uint16_t payload_size = item.creator(item.entity, this, remaining_size, false, item.message_type);
+    // Try to encode message via dispatch
+    // The dispatch function calculates overhead to determine if the message fits
+    uint16_t payload_size = this->dispatch_message_(item, remaining_size, false);
 
     if (payload_size == 0) {
       // Message won't fit, stop processing
@@ -2084,18 +2068,129 @@ void APIConnection::process_batch_() {
   }
 }
 
-uint16_t APIConnection::MessageCreator::operator()(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                                   bool is_single, uint8_t message_type) const {
+// Dispatch message encoding based on message_type
+// Switch assigns function pointer, single call site for smaller code size
+uint16_t APIConnection::dispatch_message_(const DeferredBatch::BatchItem &item, uint32_t remaining_size,
+                                          bool is_single) {
 #ifdef USE_EVENT
-  // Special case: EventResponse uses const char * pointer
-  if (message_type == EventResponse::MESSAGE_TYPE) {
-    auto *e = static_cast<event::Event *>(entity);
-    return APIConnection::try_send_event_response(e, StringRef(data_.const_char_ptr), conn, remaining_size, is_single);
+  // Events need aux_data_index to look up event type from entity
+  if (item.message_type == EventResponse::MESSAGE_TYPE) {
+    // Skip if aux_data_index is invalid (should never happen in normal operation)
+    if (item.aux_data_index == DeferredBatch::AUX_DATA_UNUSED)
+      return 0;
+    auto *event = static_cast<event::Event *>(item.entity);
+    return try_send_event_response(event, StringRef::from_maybe_nullptr(event->get_event_type(item.aux_data_index)),
+                                   this, remaining_size, is_single);
   }
 #endif
 
-  // All other message types use function pointers
-  return data_.function_ptr(entity, conn, remaining_size, is_single);
+  // All other message types use function pointer lookup via switch
+  MessageCreatorPtr func = nullptr;
+
+// Macros to reduce repetitive switch cases
+#define CASE_STATE_INFO(entity_name, StateResp, InfoResp) \
+  case StateResp::MESSAGE_TYPE: \
+    func = &try_send_##entity_name##_state; \
+    break; \
+  case InfoResp::MESSAGE_TYPE: \
+    func = &try_send_##entity_name##_info; \
+    break;
+#define CASE_INFO_ONLY(entity_name, InfoResp) \
+  case InfoResp::MESSAGE_TYPE: \
+    func = &try_send_##entity_name##_info; \
+    break;
+
+  switch (item.message_type) {
+#ifdef USE_BINARY_SENSOR
+    CASE_STATE_INFO(binary_sensor, BinarySensorStateResponse, ListEntitiesBinarySensorResponse)
+#endif
+#ifdef USE_COVER
+    CASE_STATE_INFO(cover, CoverStateResponse, ListEntitiesCoverResponse)
+#endif
+#ifdef USE_FAN
+    CASE_STATE_INFO(fan, FanStateResponse, ListEntitiesFanResponse)
+#endif
+#ifdef USE_LIGHT
+    CASE_STATE_INFO(light, LightStateResponse, ListEntitiesLightResponse)
+#endif
+#ifdef USE_SENSOR
+    CASE_STATE_INFO(sensor, SensorStateResponse, ListEntitiesSensorResponse)
+#endif
+#ifdef USE_SWITCH
+    CASE_STATE_INFO(switch, SwitchStateResponse, ListEntitiesSwitchResponse)
+#endif
+#ifdef USE_BUTTON
+    CASE_INFO_ONLY(button, ListEntitiesButtonResponse)
+#endif
+#ifdef USE_TEXT_SENSOR
+    CASE_STATE_INFO(text_sensor, TextSensorStateResponse, ListEntitiesTextSensorResponse)
+#endif
+#ifdef USE_CLIMATE
+    CASE_STATE_INFO(climate, ClimateStateResponse, ListEntitiesClimateResponse)
+#endif
+#ifdef USE_NUMBER
+    CASE_STATE_INFO(number, NumberStateResponse, ListEntitiesNumberResponse)
+#endif
+#ifdef USE_DATETIME_DATE
+    CASE_STATE_INFO(date, DateStateResponse, ListEntitiesDateResponse)
+#endif
+#ifdef USE_DATETIME_TIME
+    CASE_STATE_INFO(time, TimeStateResponse, ListEntitiesTimeResponse)
+#endif
+#ifdef USE_DATETIME_DATETIME
+    CASE_STATE_INFO(datetime, DateTimeStateResponse, ListEntitiesDateTimeResponse)
+#endif
+#ifdef USE_TEXT
+    CASE_STATE_INFO(text, TextStateResponse, ListEntitiesTextResponse)
+#endif
+#ifdef USE_SELECT
+    CASE_STATE_INFO(select, SelectStateResponse, ListEntitiesSelectResponse)
+#endif
+#ifdef USE_LOCK
+    CASE_STATE_INFO(lock, LockStateResponse, ListEntitiesLockResponse)
+#endif
+#ifdef USE_VALVE
+    CASE_STATE_INFO(valve, ValveStateResponse, ListEntitiesValveResponse)
+#endif
+#ifdef USE_MEDIA_PLAYER
+    CASE_STATE_INFO(media_player, MediaPlayerStateResponse, ListEntitiesMediaPlayerResponse)
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+    CASE_STATE_INFO(alarm_control_panel, AlarmControlPanelStateResponse, ListEntitiesAlarmControlPanelResponse)
+#endif
+#ifdef USE_WATER_HEATER
+    CASE_STATE_INFO(water_heater, WaterHeaterStateResponse, ListEntitiesWaterHeaterResponse)
+#endif
+#ifdef USE_CAMERA
+    CASE_INFO_ONLY(camera, ListEntitiesCameraResponse)
+#endif
+#ifdef USE_INFRARED
+    CASE_INFO_ONLY(infrared, ListEntitiesInfraredResponse)
+#endif
+#ifdef USE_EVENT
+    CASE_INFO_ONLY(event, ListEntitiesEventResponse)
+#endif
+#ifdef USE_UPDATE
+    CASE_STATE_INFO(update, UpdateStateResponse, ListEntitiesUpdateResponse)
+#endif
+    // Special messages (not entity state/info)
+    case ListEntitiesDoneResponse::MESSAGE_TYPE:
+      func = &try_send_list_info_done;
+      break;
+    case DisconnectRequest::MESSAGE_TYPE:
+      func = &try_send_disconnect_request;
+      break;
+    case PingRequest::MESSAGE_TYPE:
+      func = &try_send_ping_request;
+      break;
+    default:
+      return 0;
+  }
+
+#undef CASE_STATE_INFO
+#undef CASE_INFO_ONLY
+
+  return func(item.entity, this, remaining_size, is_single);
 }
 
 uint16_t APIConnection::try_send_list_info_done(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
