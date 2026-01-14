@@ -540,9 +540,10 @@ void SEN5XComponent::update() {
               this->status_set_warning();
               ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
             } else {
-              if (this->pref_.save(&state))
+              if (this->pref_.save(&state)) {
                 ESP_LOGD(TAG, "Saved VOC baseline to flash, 0x%s",
                          format_hex_pretty(reinterpret_cast<uint8_t *>(state), 8).c_str());
+              }
               this->status_clear_warning();
             }
           });
