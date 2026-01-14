@@ -237,7 +237,7 @@ class Scheduler {
                          uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> func,
                          float backoff_increase_factor);
   // Common implementation for cancel_retry
-  bool cancel_retry(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
+  bool cancel_retry_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
 
   uint64_t millis_64_(uint32_t now);
   // Cleanup logically deleted items from the scheduler

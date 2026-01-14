@@ -279,7 +279,7 @@ void retry_handler(const std::shared_ptr<RetryArgs> &args) {
 void HOT Scheduler::set_retry_common_(Component *component, NameType name_type, const char *static_name,
                                       uint32_t hash_or_id, uint32_t initial_wait_time, uint8_t max_attempts,
                                       std::function<RetryResult(uint8_t)> func, float backoff_increase_factor) {
-  this->cancel_retry(component, name_type, static_name, hash_or_id);
+  this->cancel_retry_(component, name_type, static_name, hash_or_id);
 
   if (initial_wait_time == SCHEDULER_DONT_RUN)
     return;
@@ -321,13 +321,13 @@ void HOT Scheduler::set_retry(Component *component, const char *name, uint32_t i
                           backoff_increase_factor);
 }
 
-bool HOT Scheduler::cancel_retry(Component *component, NameType name_type, const char *static_name,
-                                 uint32_t hash_or_id) {
+bool HOT Scheduler::cancel_retry_(Component *component, NameType name_type, const char *static_name,
+                                  uint32_t hash_or_id) {
   return this->cancel_item_(component, name_type, static_name, hash_or_id, SchedulerItem::TIMEOUT,
                             /* match_retry= */ true);
 }
 bool HOT Scheduler::cancel_retry(Component *component, const char *name) {
-  return this->cancel_retry(component, NameType::STATIC_STRING, name, 0);
+  return this->cancel_retry_(component, NameType::STATIC_STRING, name, 0);
 }
 
 void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
@@ -338,7 +338,7 @@ void HOT Scheduler::set_retry(Component *component, const std::string &name, uin
 }
 
 bool HOT Scheduler::cancel_retry(Component *component, const std::string &name) {
-  return this->cancel_retry(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name));
+  return this->cancel_retry_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name));
 }
 
 void HOT Scheduler::set_retry(Component *component, uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,
@@ -348,7 +348,7 @@ void HOT Scheduler::set_retry(Component *component, uint32_t id, uint32_t initia
 }
 
 bool HOT Scheduler::cancel_retry(Component *component, uint32_t id) {
-  return this->cancel_retry(component, NameType::NUMERIC_ID, nullptr, id);
+  return this->cancel_retry_(component, NameType::NUMERIC_ID, nullptr, id);
 }
 
 optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {

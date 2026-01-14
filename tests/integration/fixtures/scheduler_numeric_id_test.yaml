@@ -88,11 +88,13 @@ script:
               });
 
               // Test set_interval with uint32_t ID
-              this->set_interval(5002U, 400, []() {
+              // Capture 'this' pointer so we can cancel with correct component
+              auto *self = this;
+              this->set_interval(5002U, 400, [self]() {
                 ESP_LOGI("test", "Component numeric interval 5002 fired");
                 id(interval_counter) += 1;
-                // Cancel after first fire
-                App.scheduler.cancel_interval(nullptr, 5002U);
+                // Cancel after first fire - must use same component pointer
+                App.scheduler.cancel_interval(self, 5002U);
               });
             }
           };
