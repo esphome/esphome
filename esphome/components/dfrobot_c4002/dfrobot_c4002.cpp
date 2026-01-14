@@ -96,6 +96,7 @@ void C4002Component::update_config_param() {
 
     ESP_LOGD(TAG, "C4002 begin failed");
   }
+  
   ESP_LOGD(TAG, "C4002 begin success");
 
   setup_number();
