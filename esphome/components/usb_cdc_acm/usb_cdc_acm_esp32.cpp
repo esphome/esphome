@@ -3,6 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#include <cstring>
 #include <sys/param.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/ringbuf.h"
