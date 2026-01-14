@@ -318,13 +318,11 @@ API_DISPATCH_UPDATE(water_heater::WaterHeater, water_heater)
 #endif
 
 #ifdef USE_EVENT
-// Event is a special case - unlike other entities with simple state fields,
-// events store their state in a member accessed via obj->get_last_event_type()
 void APIServer::on_event(event::Event *obj) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_event(obj, obj->get_last_event_type());
+    c->send_event(obj);
 }
 #endif
 
@@ -615,8 +613,7 @@ void APIServer::on_shutdown() {
     if (!c->send_message(req, DisconnectRequest::MESSAGE_TYPE)) {
       // If we can't send the disconnect request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
-      c->schedule_message_front_(nullptr, &APIConnection::try_send_disconnect_request, DisconnectRequest::MESSAGE_TYPE,
-                                 DisconnectRequest::ESTIMATED_SIZE);
+      c->schedule_message_front_(nullptr, DisconnectRequest::MESSAGE_TYPE, DisconnectRequest::ESTIMATED_SIZE);
     }
   }
 }
@@ -648,18 +645,18 @@ uint32_t APIServer::register_active_action_call(uint32_t client_call_id, APIConn
   this->active_action_calls_.push_back({action_call_id, client_call_id, conn});
 
   // Schedule automatic cleanup after timeout (client will have given up by then)
-  this->set_timeout(str_sprintf("action_call_%u", action_call_id), USE_API_ACTION_CALL_TIMEOUT_MS,
-                    [this, action_call_id]() {
-                      ESP_LOGD(TAG, "Action call %u timed out", action_call_id);
-                      this->unregister_active_action_call(action_call_id);
-                    });
+  // Uses numeric ID overload to avoid heap allocation from str_sprintf
+  this->set_timeout(action_call_id, USE_API_ACTION_CALL_TIMEOUT_MS, [this, action_call_id]() {
+    ESP_LOGD(TAG, "Action call %u timed out", action_call_id);
+    this->unregister_active_action_call(action_call_id);
+  });
 
   return action_call_id;
 }
 
 void APIServer::unregister_active_action_call(uint32_t action_call_id) {
-  // Cancel the timeout for this action call
-  this->cancel_timeout(str_sprintf("action_call_%u", action_call_id));
+  // Cancel the timeout for this action call (uses numeric ID overload)
+  this->cancel_timeout(action_call_id);
 
   // Swap-and-pop is more efficient than remove_if for unordered vectors
   for (size_t i = 0; i < this->active_action_calls_.size(); i++) {
@@ -675,8 +672,8 @@ void APIServer::unregister_active_action_calls_for_connection(APIConnection *con
   // Remove all active action calls for disconnected connection using swap-and-pop
   for (size_t i = 0; i < this->active_action_calls_.size();) {
     if (this->active_action_calls_[i].connection == conn) {
-      // Cancel the timeout for this action call
-      this->cancel_timeout(str_sprintf("action_call_%u", this->active_action_calls_[i].action_call_id));
+      // Cancel the timeout for this action call (uses numeric ID overload)
+      this->cancel_timeout(this->active_action_calls_[i].action_call_id);
 
       std::swap(this->active_action_calls_[i], this->active_action_calls_.back());
       this->active_action_calls_.pop_back();

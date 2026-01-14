@@ -35,7 +35,7 @@ from .zigbee_esp32 import (
     validate_binary_sensor_esp32,
     zigbee_require_vfs_select,
 )
-from .zigbee_zephyr import zephyr_binary_sensor, zephyr_sensor
+from .zigbee_zephyr import zephyr_binary_sensor, zephyr_sensor, zephyr_switch
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,6 +61,7 @@ BINARY_SENSOR_SCHEMA = cv.Schema(
     }
 ).extend(zephyr_binary_sensor)
 SENSOR_SCHEMA = cv.Schema({}).extend(zephyr_sensor)
+SWITCH_SCHEMA = cv.Schema({}).extend(zephyr_switch)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -157,6 +158,15 @@ async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
         await zephyr_setup_sensor(entity, config)
 
 
+async def setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
+    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
+        return
+    if CORE.using_zephyr:
+        from .zigbee_zephyr import zephyr_setup_switch
+
+        await zephyr_setup_switch(entity, config)
+
+
 def consume_endpoint(config: ConfigType) -> ConfigType:
     if " " in config[CONF_NAME]:
         _LOGGER.warning(
@@ -179,6 +189,12 @@ def validate_binary_sensor(config: ConfigType) -> ConfigType:
 
 
 def validate_sensor(config: ConfigType) -> ConfigType:
+    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+        return config
+    return consume_endpoint(config)
+
+
+def validate_switch(config: ConfigType) -> ConfigType:
     if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return config
     return consume_endpoint(config)

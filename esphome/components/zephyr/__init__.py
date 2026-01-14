@@ -3,7 +3,8 @@ import textwrap
 from typing import TypedDict
 
 import esphome.codegen as cg
-from esphome.const import CONF_BOARD
+import esphome.config_validation as cv
+from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 
@@ -150,6 +151,9 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
 
 
 def zephyr_add_cdc_acm(config, id):
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
+        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
     # prevent device to go to susspend, without this communication stop working in python
@@ -159,12 +163,12 @@ def zephyr_add_cdc_acm(config, id):
     zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
     zephyr_add_overlay(
         f"""
-&zephyr_udc0 {{
-    cdc_acm_uart{id}: cdc_acm_uart{id} {{
-        compatible = "zephyr,cdc-acm-uart";
-    }};
-}};
-"""
+            &zephyr_udc0 {{
+                cdc_acm_uart{id}: cdc_acm_uart{id} {{
+                    compatible = "zephyr,cdc-acm-uart";
+                }};
+            }};
+        """
     )
 
 
@@ -184,11 +188,12 @@ def copy_files():
     if user:
         zephyr_add_overlay(
             f"""
-/ {{
-    zephyr,user {{
-        {[f"{key} = {', '.join(value)};" for key, value in user.items()][0]}
-}};
-}};"""
+                / {{
+                    zephyr,user {{
+                        {[f"{key} = {', '.join(value)};" for key, value in user.items()][0]}
+                    }};
+                }};
+            """
         )
 
     want_opts = zephyr_data()[KEY_PRJ_CONF]
