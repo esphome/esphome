@@ -19,7 +19,7 @@
     <pre>{{ .src }}; {{ $ext }}; {{ $componentPath }} {{ $globalPath}}</pre>
 {{ end }}
 {{ if not $image }}
-    {{ warnf "Unresolved image '%s' in page '%s'" .src .Page.File.Path }}
+    {{ errorf "Unresolved image '%s' in page '%s'" .src .Page.File.Path }}
 {{ end }}
 
 {{- if and $image (in (split ".svg,.avif" ",") $ext) -}}
