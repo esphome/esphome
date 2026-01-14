@@ -2075,6 +2075,9 @@ uint16_t APIConnection::dispatch_message_(const DeferredBatch::BatchItem &item, 
 #ifdef USE_EVENT
   // Events need aux_data_index to look up event type from entity
   if (item.message_type == EventResponse::MESSAGE_TYPE) {
+    // Skip if aux_data_index is invalid (should never happen in normal operation)
+    if (item.aux_data_index == DeferredBatch::AUX_DATA_UNUSED)
+      return 0;
     auto *event = static_cast<event::Event *>(item.entity);
     return try_send_event_response(event, StringRef::from_maybe_nullptr(event->get_event_type(item.aux_data_index)),
                                    this, remaining_size, is_single);
