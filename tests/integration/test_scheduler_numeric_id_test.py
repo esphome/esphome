@@ -18,6 +18,7 @@ async def test_scheduler_numeric_id_test(
     # Track counts
     timeout_count = 0
     interval_count = 0
+    retry_count = 0
 
     # Events for each test completion
     numeric_timeout_1001_fired = asyncio.Event()
@@ -30,13 +31,17 @@ async def test_scheduler_numeric_id_test(
     component_interval_fired = asyncio.Event()
     zero_id_timeout_fired = asyncio.Event()
     max_id_timeout_fired = asyncio.Event()
+    numeric_retry_done = asyncio.Event()
+    numeric_retry_cancelled = asyncio.Event()
     final_results_logged = asyncio.Event()
 
     # Track interval counts
     numeric_interval_count = 0
+    numeric_retry_count = 0
 
     def on_log_line(line: str) -> None:
-        nonlocal timeout_count, interval_count, numeric_interval_count
+        nonlocal timeout_count, interval_count, retry_count
+        nonlocal numeric_interval_count, numeric_retry_count
 
         # Strip ANSI color codes
         clean_line = re.sub(r"\x1b\[[0-9;]*m", "", line)
@@ -88,12 +93,27 @@ async def test_scheduler_numeric_id_test(
             max_id_timeout_fired.set()
             timeout_count += 1
 
+        # Check for numeric retry tests
+        elif "Numeric retry 6001 attempt" in clean_line:
+            match = re.search(r"attempt (\d+)", clean_line)
+            if match:
+                numeric_retry_count = int(match.group(1))
+
+        elif "Numeric retry 6001 done" in clean_line:
+            numeric_retry_done.set()
+
+        elif "Cancelled numeric retry 6002" in clean_line:
+            numeric_retry_cancelled.set()
+
         # Check for final results
         elif "Final results" in clean_line:
-            match = re.search(r"Timeouts: (\d+), Intervals: (\d+)", clean_line)
+            match = re.search(
+                r"Timeouts: (\d+), Intervals: (\d+), Retries: (\d+)", clean_line
+            )
             if match:
                 timeout_count = int(match.group(1))
                 interval_count = int(match.group(2))
+                retry_count = int(match.group(3))
                 final_results_logged.set()
 
     async with (
@@ -164,6 +184,23 @@ async def test_scheduler_numeric_id_test(
         except TimeoutError:
             pytest.fail("Max ID timeout did not fire within 0.5 seconds")
 
+        # Wait for numeric retry tests
+        try:
+            await asyncio.wait_for(numeric_retry_done.wait(), timeout=1.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Numeric retry 6001 did not complete. Count: {numeric_retry_count}"
+            )
+
+        assert numeric_retry_count >= 2, (
+            f"Expected at least 2 numeric retry attempts, got {numeric_retry_count}"
+        )
+
+        # Verify numeric retry was cancelled
+        assert numeric_retry_cancelled.is_set(), (
+            "Numeric retry 6002 should have been cancelled"
+        )
+
         # Wait for final results
         try:
             await asyncio.wait_for(final_results_logged.wait(), timeout=3.0)
@@ -174,4 +211,7 @@ async def test_scheduler_numeric_id_test(
         assert timeout_count >= 6, f"Expected at least 6 timeouts, got {timeout_count}"
         assert interval_count >= 3, (
             f"Expected at least 3 interval fires, got {interval_count}"
+        )
+        assert retry_count >= 2, (
+            f"Expected at least 2 retry attempts, got {retry_count}"
         )
