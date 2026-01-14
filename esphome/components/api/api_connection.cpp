@@ -1911,6 +1911,7 @@ void APIConnection::DeferredBatch::add_item(EntityBase *entity, MessageCreator c
   }
 
   // No existing item found, add new one
+  // NOLINTNEXTLINE(modernize-use-emplace) - emplace_back with 4 trivial args generates more template bloat
   items.push_back({entity, creator, message_type, estimated_size});
 }
 
@@ -1920,6 +1921,7 @@ void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, MessageCre
   // This avoids expensive vector::insert which shifts all elements
   // Note: We only ever have one high-priority message at a time (ping OR disconnect)
   // If we're disconnecting, pings are blocked, so this simple swap is sufficient
+  // NOLINTNEXTLINE(modernize-use-emplace) - emplace_back with 4 trivial args generates more template bloat
   items.push_back({entity, creator, message_type, estimated_size});
   if (items.size() > 1) {
     // Swap the new high-priority item to the front
