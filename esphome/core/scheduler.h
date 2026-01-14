@@ -30,21 +30,10 @@ class Scheduler {
   template<typename... Ts> friend class DelayAction;
 
  public:
-  // std::string overloads - deprecated, use const char* or uint32_t instead
+  // std::string overload - deprecated, use const char* or uint32_t instead
   // Remove before 2026.7.0
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
   void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> func);
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  bool cancel_timeout(Component *component, const std::string &name);
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> func);
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  bool cancel_interval(Component *component, const std::string &name);
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_retry(Component *component, const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
-                 std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  bool cancel_retry(Component *component, const std::string &name);
 
   /** Set a timeout with a const char* name.
    *
@@ -55,11 +44,16 @@ class Scheduler {
    *   - A pointer with lifetime >= the scheduled task
    */
   void set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func);
-  bool cancel_timeout(Component *component, const char *name);
-
   /// Set a timeout with a numeric ID (zero heap allocation)
   void set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> func);
+
+  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
+  bool cancel_timeout(Component *component, const std::string &name);
+  bool cancel_timeout(Component *component, const char *name);
   bool cancel_timeout(Component *component, uint32_t id);
+
+  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
+  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> func);
 
   /** Set an interval with a const char* name.
    *
@@ -70,19 +64,26 @@ class Scheduler {
    *   - A pointer with lifetime >= the scheduled task
    */
   void set_interval(Component *component, const char *name, uint32_t interval, std::function<void()> func);
-  bool cancel_interval(Component *component, const char *name);
-
   /// Set an interval with a numeric ID (zero heap allocation)
   void set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> func);
+
+  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
+  bool cancel_interval(Component *component, const std::string &name);
+  bool cancel_interval(Component *component, const char *name);
   bool cancel_interval(Component *component, uint32_t id);
 
+  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
+  void set_retry(Component *component, const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
+                 std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
   void set_retry(Component *component, const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
                  std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
-  bool cancel_retry(Component *component, const char *name);
-
   /// Set a retry with a numeric ID (zero heap allocation)
   void set_retry(Component *component, uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,
                  std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
+
+  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
+  bool cancel_retry(Component *component, const std::string &name);
+  bool cancel_retry(Component *component, const char *name);
   bool cancel_retry(Component *component, uint32_t id);
 
   // Calculate when the next scheduled item should run
