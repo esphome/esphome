@@ -178,8 +178,10 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
       this->tx_buffer_at_ - msg_start;  // Don't subtract 1 - tx_buffer_at_ is already at the null terminator position
 
   // Listeners get message first (before console write)
+#ifdef USE_LOG_LISTENERS
   for (auto *listener : this->log_listeners_)
     listener->on_log(level, tag, this->tx_buffer_ + msg_start, msg_length);
+#endif
 
   // Write to console starting at the msg_start
   this->write_tx_buffer_to_console_(msg_start, &msg_length);
