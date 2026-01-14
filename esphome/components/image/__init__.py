@@ -660,20 +660,14 @@ async def write_image(config, all_frames=False):
     if not path.is_file():
         raise core.EsphomeError(f"Could not load image file {path}")
 
-    resize = config.get(CONF_RESIZE)
+    resize = config.get(CONF_RESIZE, (None, None))
     try:
         if is_svg_file(path):
             import resvg_py
 
-            if resize:
-                width, height = resize
-                # resvg-py allows rendering by width/height directly
-                image_data = resvg_py.svg_to_bytes(
-                    svg_path=str(path), width=int(width), height=int(height), dpi=100
-                )
-            else:
-                # Default size
-                image_data = resvg_py.svg_to_bytes(svg_path=str(path), dpi=100)
+            image_data = resvg_py.svg_to_bytes(
+                svg_path=str(path), width=resize[0], height=resize[1], dpi=100
+            )
 
             # Convert bytes to Pillow Image
             image = Image.open(io.BytesIO(image_data))
