@@ -19,7 +19,7 @@ void MinDetectRangeNumber::control(float value) {
         this->publish_state(min_range);
       }
     } else {
-      this->publish_state(NAN);
+      this->publish_state(min_range);
       // this->parent_->publish_text_("The maximum must be greater than the minimum.")
     }
   }
@@ -39,7 +39,7 @@ void MaxDetectRangeNumber::control(float value) {
         this->publish_state(max_range);
       }
     } else {
-      this->publish_state(NAN);
+      this->publish_state(max_range);
       // this->parent_->publish_text_("The maximum must be greater than the minimum.")
     }
   }
@@ -54,7 +54,7 @@ void LightThresholdNumber::control(float value) {
       this->publish_state(value);
     } else {
       ESP_LOGD(TAG, "Set light threshold failed");
-      this->publish_state(NAN);
+      this->publish_state(0.0);
     }
   }
 }
@@ -77,7 +77,7 @@ void Area1MinRangeNumber::control(float value) {
       this->parent_->set_area_range(AREA1_DOOR_MIN, area1_min);
     }
   } else {
-    this->publish_state(NAN);
+    this->publish_state(area1_min);
     this->parent_->set_area_range(AREA1_DOOR_MIN, area1_min);
     // this->parent_->publish_text_("The maximum must be greater than the minimum.")
   }
@@ -98,7 +98,7 @@ void Area1MaxRangeNumber::control(float value) {
       this->publish_state(area1_max);
     }
   } else {
-    this->publish_state(NAN);
+    this->publish_state(area1_max);
     this->parent_->set_area_range(AREA1_DOOR_MAX, area1_max);
     // this->parent_->publish_text_("The maximum must be greater than the minimum.")
   }
@@ -120,7 +120,7 @@ void Area2MinRangeNumber::control(float value) {
       this->publish_state(area2_min);
     }
   } else {
-    this->publish_state(NAN);
+    this->publish_state(area2_min);
     this->parent_->set_area_range(AREA2_DOOR_MIN, area2_min);
     // this->parent_->publish_text_("The maximum must be greater than the minimum.")
   }
@@ -141,7 +141,7 @@ void Area2MaxRangeNumber::control(float value) {
       this->publish_state(area2_max);
     }
   } else {
-    this->publish_state(NAN);
+    this->publish_state(area2_max);
     this->parent_->set_area_range(AREA2_DOOR_MAX, area2_max);
     // this->parent_->publish_text_("The maximum must be greater than the minimum.")
   }
@@ -164,7 +164,7 @@ void Area3MinRangeNumber::control(float value) {
       this->publish_state(area3_min);
     }
   } else {
-    this->publish_state(NAN);
+    this->publish_state(area3_min);
     this->parent_->set_area_range(AREA3_DOOR_MIN, area3_min);
     // this->parent_->publish_text_("The maximum must be greater than the minimum.")
   }
@@ -185,7 +185,7 @@ void Area3MaxRangeNumber::control(float value) {
       this->publish_state(area3_max);
     }
   } else {
-    this->publish_state(NAN);
+    this->publish_state(area3_max);
     this->parent_->set_area_range(AREA3_DOOR_MAX, area3_max);
     // this->parent_->publish_text_("The maximum must be greater than the minimum.")
   }
