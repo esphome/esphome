@@ -62,6 +62,12 @@ struct UrlMatch {
   bool domain_equals(const char *str) const { return this->domain == str; }
   bool method_equals(const char *str) const { return this->method == str; }
 
+#ifdef USE_ESP8266
+  // Overloads for flash strings on ESP8266
+  bool domain_equals(const __FlashStringHelper *str) const { return this->domain == str; }
+  bool method_equals(const __FlashStringHelper *str) const { return this->method == str; }
+#endif
+
   /// Match entity by name first, then fall back to object_id with deprecation warning
   /// Returns EntityMatchResult with match status and whether action segment is empty
   EntityMatchResult match_entity(EntityBase *entity) const;
