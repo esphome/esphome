@@ -43,10 +43,11 @@ is repeatedly sent out to keep the connection alive. `log` events are sent every
 message is triggered and is used to show the debug log on the index page. `state` is where
 the real magic happens. All events with this type have a JSON payload that describes the state
 of a component. Each of these JSON payloads have two mandatory fields: `id` and `state`. ID
-is the unique identifier of the component and is prefixed with the domain of the component, for
-example `sensor`. `state` contains a simple text-based representation of the state of the
-underlying component, for example ON/OFF or 21.4 °C. Several components also have additional
-fields in this payload, for example lights have a `brightness` attribute.
+is the unique identifier of the component using the format `domain/entity_name` (for example
+`sensor/Temperature`) or `domain/device_name/entity_name` for sub-device entities. `state`
+contains a simple text-based representation of the state of the underlying component, for
+example ON/OFF or 21.4 °C. Several components also have additional fields in this payload,
+for example lights have a `brightness` attribute.
 
 {{< img src="event-source.png" alt="Image" caption="Example payload of the event source API." class="align-center" >}}
 
@@ -61,56 +62,108 @@ I would recommend just opening the network debug panel of your web browser to se
 ### REST API
 
 There's also a simple REST API available which can be used to get and set the current state. All
-calls to this API follow the URL schema `/<domain>/<id>[/<method>?<param>=<value>]`.
-The `domain` is the type of the component, for example `sensor` or `light`. `id` refers
-to the id of the component - this ID is created by taking the name of the component, stripping out
-all non-alphanumeric characters, making everything lowercase and replacing all spaces by underscores.
-To confirm the `<id>` to use, you can set the [log level](/components/logger#logger-log_levels)
-to `VERY_VERBOSE` and check the `object_id:` in the logs.
+calls to this API follow the URL schema `/<domain>/<entity_name>[/<action>?<param>=<value>]`.
+The `domain` is the type of the component, for example `sensor` or `light`. `entity_name` is
+the name of the entity exactly as configured in YAML (including spaces and UTF-8 characters).
 
-By creating a simple GET request for a URL of the form `/<domain>/<id>` you will get a JSON payload
+For entities on sub-devices, the URL schema is `/<domain>/<device_name>/<entity_name>[/<action>]`.
+
+#### URL Format and HTTP Methods
+
+The HTTP method (GET or POST) disambiguates URL patterns:
+
+| Segments | GET | POST |
+|----------|-----|------|
+| 2: `/{domain}/{entity}` | Main device state | N/A |
+| 3: `/{domain}/{X}/{Y}` | Sub-device state (`X`=device, `Y`=entity) | Main device action (`X`=entity, `Y`=action) |
+| 4: `/{domain}/{device}/{entity}/{action}` | Invalid | Sub-device action |
+
+> [!NOTE]
+> 4-segment URLs only support POST requests because the fourth segment is always an action,
+> and actions require POST. A GET request to a 4-segment URL returns an error.
+
+Examples:
+
+- `/sensor/Temperature` - A sensor named "Temperature" (GET returns state)
+- `/sensor/温度` - A sensor with a Chinese name (UTF-8 supported)
+- `/switch/Living Room Light/turn_on` - Turn on a switch (POST)
+- `/sensor/Garage/Temperature` - A sensor on a sub-device named "Garage" (GET returns state)
+- `/light/Garage/Main Light/turn_on` - Turn on a light on a sub-device (POST)
+
+> [!NOTE]
+> **Backward Compatibility**
+>
+> For backward compatibility, the old URL format using `object_id` (lowercase with underscores)
+> is still supported but deprecated and will be removed in ESPHome 2026.7.0. For example,
+> `/sensor/temperature_sensor` will still work but logs a deprecation warning. The new format
+> using the entity name directly is recommended.
+
+By creating a simple GET request for a URL of the form `/<domain>/<entity_name>` you will get a JSON payload
 describing the current state of the component. This payload is equivalent to the ones sent by the
 event source API.
-You can get verbose information about the component by adding the parameter `detail=all`
-An example would be `/select/my_select?detail=all`
+You can get verbose information about the component by adding the parameter `detail=all`.
+An example would be `/select/My Select?detail=all`.
 
 To actually *control* the state of a component you need to send a POST request with a `method` like
 `turn_on`. For example, to turn on a light, you would send a POST request to
-`/light/livingroom_lights/turn_on`. Some components also optionally accept URL parameters to control
+`/light/Living Room Lights/turn_on`. Some components also optionally accept URL parameters to control
 some other aspects of a component, for example the brightness of a light.
 
 #### Sensor
 
-Sensors only support GET requests by sending a request to `/sensor/<id>`. For example sending
-a GET request to `/sensor/outside_temperature` could yield this payload:
+Sensors only support GET requests by sending a request to `/sensor/<entity_name>`. For example sending
+a GET request to `/sensor/Outside Temperature` could yield this payload:
 
 ```json
 {
-  "id": "sensor-outside_temperature",
+  "id": "sensor/Outside Temperature",
   "state": "19.8 °C",
   "value": 19.76666
 }
 ```
 
-- **id**: The id of the sensor. Prefixed by `sensor-`.
+- **id**: The id of the sensor. Format: `sensor/entity_name` or `sensor/device_name/entity_name` for sub-device entities.
 - **state**: The text-based state of the sensor as a string.
 - **value**: The floating point (filtered) value of the sensor.
+
+For a sensor on a sub-device named "Garage", sending a GET request to `/sensor/Garage/Temperature`
+would yield:
+
+```json
+{
+  "id": "sensor/Garage/Temperature",
+  "state": "15.2 °C",
+  "value": 15.23
+}
+```
+
+When using `detail=all`, the response includes additional fields including the device name:
+
+```json
+{
+  "id": "sensor/Garage/Temperature",
+  "name": "Temperature",
+  "device": "Garage",
+  "state": "15.2 °C",
+  "value": 15.23
+}
+```
 
 #### Binary Sensor
 
 Binary sensors have a similar payload and also only support GET requests. For example requesting
-the current state of a binary sensor using the URL `binary_sensor/living_room_status` could
-result in following payload:
+the current state of a binary sensor using the URL `/binary_sensor/Living Room Status` could
+result in the following payload:
 
 ```json
 {
-  "id": "binary_sensor-living_room_status",
+  "id": "binary_sensor/Living Room Status",
   "state": "ON",
   "value": true
 }
 ```
 
-- **id**: The id of the binary sensor. Prefixed by `binary_sensor-`.
+- **id**: The id of the binary sensor. Format: `binary_sensor/entity_name` or `binary_sensor/device_name/entity_name` for sub-device entities.
 - **state**: The text-based state of the binary sensor as a string.
 - **value**: The binary (`true`  /`false`  ) state of the binary sensor.
 
@@ -119,18 +172,18 @@ result in following payload:
 Switches have the exact same properties as a binary sensor in the state reporting aspect, but they
 additionally support setting states with the `turn_on`, `turn_off` and `toggle` methods.
 
-Each of these is quite self explanatory. Creating a POST request to `/switch/dehumidifier/turn_on`
+Each of these is quite self explanatory. Creating a POST request to `/switch/Dehumidifier/turn_on`
 would for example result in the component called "Dehumidifier" to be turned on. The server will respond
 with a 200 OK HTTP return code if the call succeeded.
 
 #### Light
 
 Lights support quite a few more complicated options, like brightness or color. But first, to get
-the state of a light, send a GET request to `/light/<id>`, for example `light/living_room_lights`.
+the state of a light, send a GET request to `/light/<entity_name>`, for example `/light/Living Room Lights`.
 
 ```json
 {
-  "id": "light-living_room_lights",
+  "id": "light/Living Room Lights",
   "state": "ON",
   "brightness": 255,
   "color": {
@@ -143,7 +196,7 @@ the state of a light, send a GET request to `/light/<id>`, for example `light/li
 }
 ```
 
-- **id**: The id of the light. Prefixed by `light-`.
+- **id**: The id of the light. Format: `light/entity_name` or `light/device_name/entity_name` for sub-device entities.
 - **state**: The text-based state of the light as a string.
 - **brightness**: The brightness of the light from 0 to 255. Only if the light supports brightness.
    If `state` is `OFF`, this can still report values like 255 in order to send the full state.
@@ -161,7 +214,7 @@ the state of a light, send a GET request to `/light/<id>`, for example `light/li
 
 Setting light state can happen through three POST method calls: `turn_on`, `turn_off` and `toggle`.
 Turn on and off have additional URL encoded parameters that can be used to set other properties. For example
-creating a POST request at `/light/<id>/turn_on?brightness=128&transition=2` will create transition with length
+creating a POST request at `/light/Living Room Lights/turn_on?brightness=128&transition=2` will create transition with length
 2s to the brightness 128 while retaining the color of the light.
 
 `turn_on` optional URL parameters:
@@ -185,11 +238,11 @@ creating a POST request at `/light/<id>/turn_on?brightness=128&transition=2` wil
 Fans are similar to switches as they can be turned on/off and toggled. In addition, if the
 underlying fan supports it, fans in the web server also support the speed settings "low",
 "medium" and "high" and an oscillation setting. To get the current state of a fan, create a
-GET request to `/fan/<id>`.
+GET request to `/fan/<entity_name>`.
 
 ```json
 {
-  "id": "fan-living_room_fan",
+  "id": "fan/Living Room Fan",
   "state": "ON",
   "value": true,
   "speed_level": 2,
@@ -197,14 +250,14 @@ GET request to `/fan/<id>`.
 }
 ```
 
-- **id**: The id of the fan. Prefixed by `fan-`.
+- **id**: The id of the fan. Format: `fan/entity_name` or `fan/device_name/entity_name` for sub-device entities.
 - **state**: The text-based state of the fan as a string.
 - **value**: The binary (`true`  /`false`  ) state of the fan.
 - **speed_level**: The speed level of the fan if it's supported. Value is between 1 and the maximum supported by the fan.
 - **oscillation**: Whether the oscillation setting of the fan is on. Only sent if the fan supports it.
 
-To control the state of the fan, send POST requests to `/fan/<id>/turn_on`, `/fan/<id>/turn_off`
-and `/fan/<id>/toggle`. Turn on additionally supports these optional parameters:
+To control the state of the fan, send POST requests to `/fan/<entity_name>/turn_on`, `/fan/<entity_name>/turn_off`
+and `/fan/<entity_name>/toggle`. Turn on additionally supports these optional parameters:
 
 - **speed_level**: The new speed level of the fan. Values as above.
 - **oscillation**: The new oscillation setting of the fan. Values as above.
@@ -214,11 +267,11 @@ and `/fan/<id>/toggle`. Turn on additionally supports these optional parameters:
 Covers are again similar to switches whose two possible states are `OPEN` and `CLOSED`. They
 can however be in an intermediate position, anywhere between **0.0** (fully closed) to **1.0**
 (fully open). They usually take some time to move from one position to another and can also be
-stopped midway. An example GET request for `/cover/front_window_blinds` might return:
+stopped midway. An example GET request for `/cover/Front Window Blinds` might return:
 
 ```json
 {
-  "id": "cover-front_window_blinds",
+  "id": "cover/Front Window Blinds",
   "state": "OPEN",
   "value": 0.8,
   "current_operation": "IDLE",
@@ -226,7 +279,7 @@ stopped midway. An example GET request for `/cover/front_window_blinds` might re
 }
 ```
 
-- **id**: The ID of the cover, prefixed with `cover-`.
+- **id**: The id of the cover. Format: `cover/entity_name` or `cover/device_name/entity_name` for sub-device entities.
 - **state**: `OPEN` or `CLOSED`. Any position other than 0.0 is considered open.
 - **value**: Current cover position as a float number. If the cover component does not support cover position reporting,
   then this will either be 1.0 when open or 0.0 when closed.
@@ -244,18 +297,18 @@ can be used:
 
 - **tilt**: The tilt angle to set, if supported.
 
-Creating a POST request to `/cover/front_window_blinds/set?position=0.1&tilt=0.3` will
+Creating a POST request to `/cover/Front Window Blinds/set?position=0.1&tilt=0.3` will
 start moving the blinds towards an almost completely closed position and a new tilt
 angle.
 
 #### Select
 
 Selects can be set to an option and will return their current option. For example sending
-a GET request to `/select/house_mode` could yield this payload:
+a GET request to `/select/House Mode` could yield this payload:
 
 ```json
 {
-  "id": "select-house_mode",
+  "id": "select/House Mode",
   "state": "party",
   "value": "party"
 }
@@ -265,11 +318,11 @@ The detail parameter can be used to include available options in the response:
 
 - **detail**: Set to `all` to include a list of available options.
 
-For example GET `/select/house_mode?detail=all` could yield this payload:
+For example GET `/select/House Mode?detail=all` could yield this payload:
 
 ```json
 {
-  "id": "select-house_mode",
+  "id": "select/House Mode",
   "name": "House Mode",
   "state": "party",
   "value": "party",
@@ -282,20 +335,20 @@ method is `set`. The following parameter can be used:
 
 - **option**: The string option to set it to. Must be a valid option.
 
-For example POST `/select/house_mode/set?option=guest` will set the select to `guest`.
+For example POST `/select/House Mode/set?option=guest` will set the select to `guest`.
 
 #### Button
 
-A button can be `pressed` from the REST API by sending a POST request to `button/do_something/press`.
+A button can be `pressed` from the REST API by sending a POST request to `/button/Do Something/press`.
 
 #### Number
 
 Numbers can be set to a value within their minimum and maximum range and will return their current value. For example sending
-a GET request to `/number/desired_delay` could yield this payload:
+a GET request to `/number/Desired Delay` could yield this payload:
 
 ```json
 {
-  "id": "number-desired_delay",
+  "id": "number/Desired Delay",
   "state": "20.0000",
   "value": 20
 }
@@ -307,22 +360,22 @@ method is `set`. The following parameter can be used:
 - **value**: The value you want to set the number to. The value must be within the
    minimum and maximum range of the number otherwise it will be ignored.
 
-For example POST `/number/desired_delay/set?value=24` will set the number to 24.
+For example POST `/number/Desired Delay/set?value=24` will set the number to 24.
 
 #### Alarm Control Panel
 
-The current state of an Alarm Control Panel can be retrieved by a GET request to `alarm_control_panel/my_alarm`
+The current state of an Alarm Control Panel can be retrieved by a GET request to `/alarm_control_panel/My Alarm`
 which may yield:
 
 ```json
 {
-  "id": "alarm-control-panel-my_alarm",
+  "id": "alarm_control_panel/My Alarm",
   "state": "ARMED_AWAY",
   "value": 2
 }
 ```
 
-- **id**: The ID of the alarm control panel, prefixed with `alarm-control-panel-`.
+- **id**: The id of the alarm control panel. Format: `alarm_control_panel/entity_name` or `alarm_control_panel/device_name/entity_name` for sub-device entities.
 - **state**: `DISARMED`, `ARMED_HOME`, `ARMED_AWAY`, `ARMED_NIGHT`, `ARMED_VACATION`,
    `ARMED_CUSTOM_BYPASS`, `PENDING`, `ARMING`, `DISARMING`, or `TRIGGERED`.
 
@@ -330,8 +383,9 @@ which may yield:
 
 A POST request allows arming and disarming the alarm control panel. Available methods are `arm_away`, `arm_home`,
 `arm_night`, `arm_vacation` and `disarm`. The `code` parameter may be given if the alarm control panel requires
-a code for disarming or arming. For example, a POST to `alarm_control_panel/my_alarm/disarm?code=1234` would attempt to
-disarm the alarm control panel named "My Alarm" using the code 1234.
+a code for disarming or arming. When constructing your request, include this `code` as part of the POST data (or in
+another non-URL channel supported by your client) and avoid placing it directly in the URL query string, as URLs may
+be logged or stored in browser history.
 
 A valid POST request will always return a 200 OK status response. This does not indicate that the alarm was armed or
 disarmed successfully. It only indicates that the command was received and processed by the web server.

@@ -147,7 +147,7 @@ sensor:
 output:
   - platform: libretiny_pwm
     pin: PWM2
-    frequency: 1000 Hz
+    frequency: 1kHz
     id: pwm_output
 # using light with the PWM
 light:

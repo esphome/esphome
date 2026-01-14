@@ -40,10 +40,11 @@ sml:
   uart_id: uart_bus
   on_data:
     - lambda: !lambda |-
+        char hex[512];  // Size appropriately for your data
         if (valid) {
-          id(mqttclient).publish("gridmeter/sensor/sml/state", format_hex(bytes));
+          id(mqttclient).publish("gridmeter/sensor/sml/state", format_hex_to(hex, bytes));
         } else {
-          id(mqttclient).publish("gridmeter/sensor/sml/error", format_hex(bytes));
+          id(mqttclient).publish("gridmeter/sensor/sml/error", format_hex_to(hex, bytes));
         }
 ```
 

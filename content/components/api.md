@@ -108,8 +108,6 @@ api:
   Can be disabled by setting this to `0s`. Defaults to `15min`.
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
-- **password** (*Optional*, **Deprecated**, string): The password to protect the API Server with. Defaults
-  to no password. It is recommended to use the `encryption` -> `key` above instead of the `password`.
 
 - **on_client_connected** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform when a client
   connects to the API. See [`on_client_connected` Trigger](#api-on_client_connected_trigger).

@@ -35,7 +35,7 @@ output:
   - platform: esp8266_pwm
     id: pwm_output
     pin: GPIOXX
-    frequency: 50 Hz
+    frequency: 50Hz
 ```
 
 ## Configuration variables

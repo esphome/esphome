@@ -186,7 +186,8 @@ There are the following possibilities to operate this sensor:
 
 - "Mi Like" advertisement (dummy bindkey required)
 - "Custom" advertisement (no bindkey required)
-- "pvvx" custom advertisement (no bindkey required, only PVVX firmware)
+- "pvvx" advertisement (no bindkey required, only PVVX firmware)
+- "BTHome" advertisement (no bindkey required, PVVX firmware default)
 
 Configuration example for Xiaomi stock firmware or ATC MiThermometer firmware set to "Mi Like" advertisement:
 
@@ -203,7 +204,25 @@ sensor:
       name: "LYWSD03MMC Battery Level"
 ```
 
-Configuration example for PVVX MiThermometer firmware set to "Custom" advertisement:
+Configuration example for PVVX MiThermometer firmware set to "BTHome" advertisement:
+
+```yaml
+sensor:
+  - platform: bthome_mithermometer
+    mac_address: AA:BB:CC:DD:EE:FF
+    temperature:
+      name: "BTHome Temperature"
+    humidity:
+      name: "BTHome Humidity"
+    battery_level:
+      name: "BTHome Battery Level"
+    battery_voltage:
+      name: "BTHome Battery Voltage"
+    signal_strength:
+      name: "BTHome Signal"
+```
+
+Configuration example for PVVX MiThermometer firmware set to "pvvx" advertisement:
 
 ```yaml
 sensor:
@@ -214,9 +233,9 @@ sensor:
     humidity:
       name: "PVVX Humidity"
     battery_level:
-      name: "PVVX Battery-Level"
+      name: "PVVX Battery Level"
     battery_voltage:
-      name: "PVVX Battery-Voltage"
+      name: "PVVX Battery Voltage"
     signal_strength:
       name: "PVVX Signal"
 ```
@@ -232,12 +251,15 @@ sensor:
     humidity:
       name: "ATC Humidity"
     battery_level:
-      name: "ATC Battery-Level"
+      name: "ATC Battery Level"
     battery_voltage:
-      name: "ATC Battery-Voltage"
+      name: "ATC Battery Voltage"
     signal_strength:
       name: "ATC Signal"
 ```
+
+> [!NOTE]
+> PVVX firmare deprecated any other advertisment format other than "BTHome" starting with version 6.0.
 
 ### XMWSDJ04MMC
 

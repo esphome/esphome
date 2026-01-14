@@ -29,12 +29,51 @@ canbus:
 
 - **rx_pin** (**Required**, [Pin](/guides/configuration-types#pin)): Receive pin.
 - **tx_pin** (**Required**, [Pin](/guides/configuration-types#pin)): Transmit pin.
+- **mode** (*Optional*, enum): Operating mode. One of:
+
+  - `NORMAL`: Normal operation, sends ACK signals. *(default)*
+  - `LISTENONLY`: Receive data only, no ACK signals sent.
+
 - **rx_queue_len** (*Optional*, int): Length of RX queue.
 - **tx_queue_len** (*Optional*, int): Length of TX queue, 0 to disable.
 - **tx_enqueue_timeout** (*Optional*, [Time](/guides/configuration-types#time)): Maximum time to wait when the TX queue is full before
   dropping the message (by default, this is set to the time it takes to send 10 CAN messages at the given bit rate).
 
 - All other options from [Canbus](/components/canbus#config-canbus).
+
+## Listen-Only Mode
+
+Listen-only mode configures the ESP32's TWAI controller to passively monitor CAN bus traffic without participating in the protocol. In this mode:
+
+- The controller receives all CAN frames but does not send ACK signals
+- Transmission is disabled (attempts will log a warning)
+
+This is particularly useful for:
+
+- **BMS monitoring**: Tapping into battery-to-inverter communication (e.g., Pylontech, Deye)
+- **CAN bus debugging**: Observing traffic without interfering
+- **Multi-master scenarios**: When the ESP32 should observe but not participate
+
+```yaml
+# Example configuration for passive CAN bus monitoring
+canbus:
+  - platform: esp32_can
+    tx_pin: GPIOXX
+    rx_pin: GPIOXX
+    bit_rate: 500kbps
+    mode: LISTENONLY
+    on_frame:
+      - can_id: 0x355
+        then:
+          - lambda: |-
+              ESP_LOGI("can", "SOC: %d%%", x[0]);
+```
+
+> [!NOTE]
+> In listen-only mode, the ESP32 will not send ACK signals. This means other devices on the bus will not receive acknowledgment for their transmissions from the ESP32. This is the desired behavior when monitoring an existing bus where other devices are already handling acknowledgments.
+
+> [!TIP]
+> The `tx_pin` is still required even in listen-only mode, as the ESP32 TWAI driver requires both pins for initialization. However, no data will be transmitted on this pin when using `LISTENONLY` mode.
 
 {{< anchor "esp32-can-bit-rate" >}}
 
