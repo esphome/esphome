@@ -65,6 +65,7 @@ unless it's truly exceptional, etc.
 - [An IoT clock designed for children](https://github.com/chrisns/childrens-clock) by {{< ghuser name="chrisns" >}}
 - [Remote controller RC433 for garage door open](https://dedeideas.eu/index.php/en-us/rc433-pre-home-assistant-en) by [lubomirkarlik](https://dedeideas.eu/index.php/en-us/about-me)
 - [How to create an ESPHome external component](https://medium.com/@vinsce/create-an-esphome-external-component-part-1-introduction-config-validation-and-code-generation-e0389e674bd6) by {{< ghuser name="vinsce" >}}
+- [Smart garage door remote modification when direct opener wiring isn't feasible](https://github.com/linux4life798/smart-garage-remote) by {{< ghuser name="linux4life798" >}}
 
 ## Custom Components & Code
 
