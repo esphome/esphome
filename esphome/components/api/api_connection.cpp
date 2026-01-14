@@ -1887,14 +1887,17 @@ void APIConnection::DeferredBatch::add_item(EntityBase *entity, uint8_t message_
   // Check if we already have a message of this type for this entity
   // This provides deduplication per entity/message_type combination
   // O(n) but optimized for RAM and not performance.
-  for (auto &item : items) {
-    if (item.entity == entity && item.message_type == message_type) {
-      // Update aux_data_index for events (allows updating event type)
-      item.aux_data_index = aux_data_index;
-      return;
+  // Skip deduplication for events - they are edge-triggered, every occurrence matters
+#ifdef USE_EVENT
+  if (message_type != EventResponse::MESSAGE_TYPE)
+#endif
+  {
+    for (const auto &item : items) {
+      if (item.entity == entity && item.message_type == message_type)
+        return;  // Already queued
     }
   }
-  // No existing item found, add new one
+  // No existing item found (or event), add new one
   items.push_back({entity, message_type, estimated_size, aux_data_index});
 }
 
