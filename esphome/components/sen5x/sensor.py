@@ -454,13 +454,17 @@ async def to_code(config):
             cg.add(var.set_ambient_pressure_compensation_source(sens))
 
 
-SEN5X_ACTION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(SEN5XComponent)})
+SEN5X_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(SEN5XComponent),
+    }
+)
 
 
 @automation.register_action(
     "sen5x.start_fan_autoclean", StartFanAction, SEN5X_ACTION_SCHEMA
 )
-async def sen5x_fan_to_code(config, action_id, template_arg, args):
+async def sen54_fan_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
