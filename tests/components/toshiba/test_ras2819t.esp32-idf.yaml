@@ -1,5 +1,5 @@
-substitutions:
-  tx_pin: GPIO5
-  rx_pin: GPIO4
+packages:
+  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp32-idf.yaml
+  remote_receiver: !include ../../test_build_components/common/remote_receiver/esp32-idf.yaml
 
 <<: !include common_ras2819t.yaml

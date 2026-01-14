@@ -9,8 +9,7 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 static const char *const TAG = "uart.arduino_esp8266";
 bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -56,11 +55,19 @@ uint32_t ESP8266UartComponent::get_config() {
 }
 
 void ESP8266UartComponent::setup() {
-  if (this->rx_pin_) {
-    this->rx_pin_->setup();
-  }
-  if (this->tx_pin_ && this->rx_pin_ != this->tx_pin_) {
-    this->tx_pin_->setup();
+  auto setup_pin_if_needed = [](InternalGPIOPin *pin) {
+    if (!pin) {
+      return;
+    }
+    const auto mask = gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN;
+    if ((pin->get_flags() & mask) != gpio::Flags::FLAG_NONE) {
+      pin->setup();
+    }
+  };
+
+  setup_pin_if_needed(this->rx_pin_);
+  if (this->rx_pin_ != this->tx_pin_) {
+    setup_pin_if_needed(this->tx_pin_);
   }
 
   // Use Arduino HardwareSerial UARTs if all used pins match the ones
@@ -68,6 +75,7 @@ void ESP8266UartComponent::setup() {
   // is 1 we still want to use Serial.
   SerialConfig config = static_cast<SerialConfig>(get_config());
 
+#ifdef USE_ESP8266_UART_SERIAL
   if (!ESP8266UartComponent::serial0_in_use && (tx_pin_ == nullptr || tx_pin_->get_pin() == 1) &&
       (rx_pin_ == nullptr || rx_pin_->get_pin() == 3)
 #ifdef USE_LOGGER
@@ -93,11 +101,16 @@ void ESP8266UartComponent::setup() {
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
     ESP8266UartComponent::serial0_in_use = true;
-  } else if ((tx_pin_ == nullptr || tx_pin_->get_pin() == 2) && (rx_pin_ == nullptr || rx_pin_->get_pin() == 8)) {
+  } else
+#endif  // USE_ESP8266_UART_SERIAL
+#ifdef USE_ESP8266_UART_SERIAL1
+      if ((tx_pin_ == nullptr || tx_pin_->get_pin() == 2) && (rx_pin_ == nullptr || rx_pin_->get_pin() == 8)) {
     this->hw_serial_ = &Serial1;
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
-  } else {
+  } else
+#endif  // USE_ESP8266_UART_SERIAL1
+  {
     this->sw_serial_ = new ESP8266SoftwareSerial();  // NOLINT
     this->sw_serial_->setup(tx_pin_, rx_pin_, this->baud_rate_, this->stop_bits_, this->data_bits_, this->parity_,
                             this->rx_buffer_size_);
@@ -323,6 +336,5 @@ int ESP8266SoftwareSerial::available() {
   return avail;
 }
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart
 #endif  // USE_ESP8266

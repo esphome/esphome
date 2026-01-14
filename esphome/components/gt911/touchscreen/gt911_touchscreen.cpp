@@ -34,8 +34,8 @@ void GT911Touchscreen::setup() {
       this->interrupt_pin_->digital_write(false);
     }
     delay(2);
-    this->reset_pin_->digital_write(true);  // wait 50ms after reset
-    this->set_timeout(50, [this] { this->setup_internal_(); });
+    this->reset_pin_->digital_write(true);  // wait at least T3+T4 ms as per the datasheet
+    this->set_timeout(5 + 50 + 1, [this] { this->setup_internal_(); });
     return;
   }
   this->setup_internal_();
@@ -79,13 +79,13 @@ void GT911Touchscreen::setup_internal_() {
       }
     }
     if (err != i2c::ERROR_OK) {
-      this->mark_failed("Calibration error");
+      this->mark_failed(LOG_STR("Calibration error"));
       return;
     }
   }
 
   if (err != i2c::ERROR_OK) {
-    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->setup_done_ = true;

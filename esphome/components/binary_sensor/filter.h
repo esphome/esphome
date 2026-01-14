@@ -4,9 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-
-namespace binary_sensor {
+namespace esphome::binary_sensor {
 
 class BinarySensor;
 
@@ -111,6 +109,21 @@ class LambdaFilter : public Filter {
   std::function<optional<bool>(bool)> f_;
 };
 
+/** Optimized lambda filter for stateless lambdas (no capture).
+ *
+ * Uses function pointer instead of std::function to reduce memory overhead.
+ * Memory: 4 bytes (function pointer on 32-bit) vs 32 bytes (std::function).
+ */
+class StatelessLambdaFilter : public Filter {
+ public:
+  explicit StatelessLambdaFilter(optional<bool> (*f)(bool)) : f_(f) {}
+
+  optional<bool> new_value(bool value) override { return this->f_(value); }
+
+ protected:
+  optional<bool> (*f_)(bool);
+};
+
 class SettleFilter : public Filter, public Component {
  public:
   optional<bool> new_value(bool value) override;
@@ -124,6 +137,4 @@ class SettleFilter : public Filter, public Component {
   bool steady_{true};
 };
 
-}  // namespace binary_sensor
-
-}  // namespace esphome
+}  // namespace esphome::binary_sensor
