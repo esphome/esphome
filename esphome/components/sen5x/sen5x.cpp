@@ -353,9 +353,6 @@ void SEN5XComponent::dump_config() {
       case FIRMWARE_FAILED:
         ESP_LOGE(TAG, "Unable to read firmware version");
         break;
-      case UNSUPPORTED_CONF:
-        ESP_LOGE(TAG, "Unsupported configuration");
-        break;
       default:
         ESP_LOGE(TAG, "Unknown setup error");
         break;
@@ -477,15 +474,6 @@ void SEN5XComponent::update() {
       float pm_10_0 = measurements[3] == UINT16_MAX ? NAN : measurements[3] / 10.0f;
       this->pm_10_0_sensor_->publish_state(pm_10_0);
     }
-    if (this->humidity_sensor_ != nullptr) {
-      float humidity = static_cast<int16_t>(measurements[4]) / 100.0f;
-      if ((this->is_sen6x_() && measurements[4] == INT16_MAX) ||
-          (!this->is_sen6x_() && measurements[4] == UINT16_MAX)) {
-        humidity = NAN;
-      }
-      ESP_LOGV(TAG, "humidity = 0x%.4x", measurements[4]);
-      this->humidity_sensor_->publish_state(humidity);
-    }
     if (this->temperature_sensor_ != nullptr) {
       float temperature = static_cast<int16_t>(measurements[5]) / 200.0f;
       if ((this->is_sen6x_() && measurements[5] == INT16_MAX) ||
@@ -494,6 +482,15 @@ void SEN5XComponent::update() {
       }
       ESP_LOGV(TAG, "temperature = 0x%.4x", measurements[5]);
       this->temperature_sensor_->publish_state(temperature);
+    }
+    if (this->humidity_sensor_ != nullptr) {
+      float humidity = static_cast<int16_t>(measurements[4]) / 100.0f;
+      if ((this->is_sen6x_() && measurements[4] == INT16_MAX) ||
+          (!this->is_sen6x_() && measurements[4] == UINT16_MAX)) {
+        humidity = NAN;
+      }
+      ESP_LOGV(TAG, "humidity = 0x%.4x", measurements[4]);
+      this->humidity_sensor_->publish_state(humidity);
     }
     if (this->voc_sensor_ != nullptr) {
       ESP_LOGV(TAG, "voc = 0x%.4x", measurements[6]);
@@ -669,17 +666,7 @@ bool SEN5XComponent::write_ambient_pressure_compensation_(uint16_t pressure_in_h
 }
 
 bool SEN5XComponent::is_sen6x_() {
-  switch (this->model_.value()) {
-    case SEN62:
-    case SEN63C:
-    case SEN65:
-    case SEN66:
-    case SEN68:
-    case SEN69C:
-      return true;
-    default:
-      return false;
-  }
+  return this->model_.value() != SEN50 && this->model_.value() != SEN54 && this->model_.value() != SEN55;
 }
 
 void SEN5XComponent::set_ambient_pressure_compensation(uint16_t pressure_in_hpa) {
@@ -709,9 +696,8 @@ void SEN5XComponent::start_fan_cleaning() {
     return;
   }
   ESP_LOGD(TAG, "Fan Cleaning started (12s)");
-  this->busy_ = true;  // prevent actions from stomping on each other
-                       // measurements must (SEN6X)/should (SEN5X) be stopped first
-  if (!this->stop_measurements_()) {
+  this->busy_ = true;                 // prevent actions from stomping on each other
+  if (!this->stop_measurements_()) {  // measurements must (SEN6X)/should (SEN5X) be stopped first
     ESP_LOGE(TAG, "Fan Cleaning failed");
     this->busy_ = false;
     return;

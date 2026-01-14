@@ -7,6 +7,16 @@
 namespace esphome {
 namespace sen5x {
 
+template<typename... Ts> class StartFanAction : public Action<Ts...>, public Parented<SEN5XComponent> {
+ public:
+  void play(const Ts &...x) override { this->parent_->start_fan_cleaning(); }
+};
+
+template<typename... Ts> class ActivateHeaterAction : public Action<Ts...>, public Parented<SEN5XComponent> {
+ public:
+  void play(const Ts &...x) override { this->parent_->activate_heater(); }
+};
+
 template<typename... Ts>
 class SetAmbientPressureCompensationAction : public Action<Ts...>, public Parented<SEN5XComponent> {
  public:
@@ -29,16 +39,6 @@ class PerformForcedCo2RecalibrationAction : public Action<Ts...>, public Parente
 
  protected:
   TEMPLATABLE_VALUE(uint16_t, value)
-};
-
-template<typename... Ts> class StartFanCleaningAction : public Action<Ts...>, public Parented<SEN5XComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->start_fan_cleaning(); }
-};
-
-template<typename... Ts> class ActivateHeaterAction : public Action<Ts...>, public Parented<SEN5XComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->activate_heater(); }
 };
 
 template<typename... Ts>
