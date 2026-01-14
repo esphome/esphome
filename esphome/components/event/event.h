@@ -56,6 +56,7 @@ class Event : public EntityBase, public EntityBase_DeviceClass {
   uint8_t get_last_event_type_index() const {
     if (this->last_event_type_ == nullptr)
       return std::numeric_limits<uint8_t>::max();
+    // Most events have <3 types, uint8_t is sufficient for all reasonable scenarios
     const uint8_t size = static_cast<uint8_t>(this->types_.size());
     for (uint8_t i = 0; i < size; i++) {
       if (this->types_[i] == this->last_event_type_)
