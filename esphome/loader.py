@@ -75,7 +75,8 @@ class ComponentManifest:
 
     @property
     def dependencies(self) -> list[str]:
-        return getattr(self.module, "DEPENDENCIES", [])
+        dependencies = getattr(self.module, "DEPENDENCIES", [])
+        return dependencies() if callable(dependencies) else dependencies
 
     @property
     def conflicts_with(self) -> list[str]:

@@ -1,5 +1,6 @@
 #pragma once
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ZEPHYR)
 
 #include "esphome/core/component.h"
 #include "esphome/core/event_pool.h"
@@ -7,8 +8,13 @@
 #include "esphome/components/uart/uart_component.h"
 
 #include <functional>
+#ifdef USE_ZEPHYR
+#include <zephyr/device.h>
+#include <zephyr/sys/ring_buffer.h>
+#else
 #include "freertos/ringbuf.h"
 #include "tusb_cdc_acm.h"
+#endif
 
 namespace esphome::usb_cdc_acm {
 
@@ -59,12 +65,16 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   void set_interface_number(uint8_t itf) { this->itf_ = itf; }
   // Get the CDC port number for this instance
   uint8_t get_itf() const { return this->itf_; }
+#ifdef USE_ZEPHYR
+  explicit USBCDCACMInstance(const device *uart_dev) : uart_dev_(uart_dev) {}
+#else
   // Ring buffer accessors for bridge components
   RingbufHandle_t get_tx_ringbuf() const { return this->usb_tx_ringbuf_; }
   RingbufHandle_t get_rx_ringbuf() const { return this->usb_rx_ringbuf_; }
 
   // Task handle accessor for notifying TX task
   TaskHandle_t get_tx_task_handle() const { return this->usb_tx_task_handle_; }
+#endif
 
   // Callback registration for line coding and line state changes
   void set_line_coding_callback(LineCodingCallback callback) { this->line_coding_callback_ = std::move(callback); }
@@ -89,6 +99,19 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
 
   // Process queued events and invoke callbacks (called from main loop)
   void process_events_();
+#ifdef USE_ZEPHYR
+  static void uart_irq_handler(const device *dev, void *instance);
+  void uart_rx_process_();
+  void uart_tx_process_();
+
+  const device *uart_dev_;
+  uint8_t rx_ringbuf_data_[ESPHOME_CDC_RX_RING_BUFFER_SIZE];
+  uint8_t tx_ringbuf_data_[ESPHOME_CDC_TX_RING_BUFFER_SIZE];
+  ring_buf rx_ringbuf_;
+  ring_buf tx_ringbuf_;
+  uint32_t dtr_{0};
+  uint32_t rts_{0};
+#else
   TaskHandle_t usb_tx_task_handle_{nullptr};
 
   RingbufHandle_t usb_tx_ringbuf_{nullptr};
@@ -96,6 +119,7 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   // RX buffer for peek functionality
   uint8_t peek_buffer_{0};
   bool has_peek_{false};
+#endif
   uint8_t itf_{0};
   // User-registered callbacks (called from main loop)
   LineCodingCallback line_coding_callback_{nullptr};
