@@ -199,8 +199,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
         // ignore byte order, we are good as long as we are consistent loading and saving
         if (this->pref_.load(&state)) {
           if (this->write_command(CMD_VOC_ALGORITHM_STATE, state, 4)) {
-            ESP_LOGV(TAG, "Loaded VOC baseline, 0x%s",
-                     format_hex_pretty(reinterpret_cast<uint8_t *>(state), 8).c_str());
+            ESP_LOGV(TAG, "Loaded VOC baseline from flash");
             this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_ACI); });
             return;
           }
@@ -541,8 +540,7 @@ void SEN5XComponent::update() {
               ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
             } else {
               if (this->pref_.save(&state)) {
-                ESP_LOGD(TAG, "Saved VOC baseline to flash, 0x%s",
-                         format_hex_pretty(reinterpret_cast<uint8_t *>(state), 8).c_str());
+                ESP_LOGD(TAG, "Saved VOC baseline to flash");
               }
               this->status_clear_warning();
             }
