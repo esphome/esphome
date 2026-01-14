@@ -53,13 +53,15 @@ done and will not be available if there are any `delay` actions or others that d
 ```yaml
 espnow:
   on_...:
-    - logger.log:
-        format: "Sent to %s from %s: %s RSSI: %ddBm"
-        args:
-          - format_mac_address_pretty(info.des_addr).c_str()
-          - format_mac_address_pretty(info.src_addr).c_str()
-          - format_hex_pretty(data, size).c_str()
-          - info.rx_ctrl->rssi
+    - lambda: |-
+        char des_mac[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+        char src_mac[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+        char hex[256];
+        ESP_LOGD("espnow", "Sent to %s from %s: %s RSSI: %ddBm",
+                 format_mac_addr_upper(info.des_addr, des_mac),
+                 format_mac_addr_upper(info.src_addr, src_mac),
+                 format_hex_pretty_to(hex, data, size),
+                 info.rx_ctrl->rssi);
 ```
 
 {{< anchor "espnow-on_receive" >}}

@@ -39,7 +39,7 @@ i2c:
 - **scan** (*Optional*, boolean): If ESPHome should do a search of the I²C address space on startup.
   Defaults to `true`.
 
-- **frequency** (*Optional*, float): Set the frequency the I²C bus should operate on.
+- **frequency** (*Optional*, frequency): Set the frequency the I²C bus should operate on.
   Defaults to `50kHz`. Default for NRF52 is `100kHz`. Values are `10kHz`, `50kHz`, `100kHz`, `200kHz`, ... `800kHz`.
   NRF52 supports only `100kHz` and `400kHz`.
 

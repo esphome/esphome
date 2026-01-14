@@ -35,7 +35,11 @@ wifi:
 captive_portal:
 ```
 
-No configuration variables.
+## Configuration variables
+
+- **compression** (*Optional*, string): The compression algorithm used for the embedded web assets.
+  Options are `br` (Brotli) or `gzip`. Brotli provides ~24% smaller size than gzip.
+  Defaults to `br`.
 
 ## See Also
 

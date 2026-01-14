@@ -16,7 +16,7 @@ and which PWM pins it supports.
 output:
   - platform: libretiny_pwm
     pin: P8
-    frequency: 1000 Hz
+    frequency: 1kHz
     id: pwm_output
 
 # Example usage in a light
@@ -31,7 +31,7 @@ light:
 - **pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The pin to use PWM on.
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The id to use for this output component.
 - **frequency** (*Optional*, frequency): The frequency to run the PWM with. Lower frequencies
-  have more visual artifacts, but can represent much more colors. Defaults to `1000 Hz`.
+  have more visual artifacts, but can represent much more colors. Defaults to `1kHz`.
 
 - All other options from [Output](/components/output#config-output).
 
@@ -52,8 +52,8 @@ on_...:
 Configuration variables:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the PWM output to change.
-- **frequency** (**Required**, [templatable](/automations/templates), float): The frequency
-  to set in hertz.
+- **frequency** (**Required**, [templatable](/automations/templates), frequency): The frequency
+  to set in Hz.
 
 ## See Also
 

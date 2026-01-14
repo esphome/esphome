@@ -98,6 +98,7 @@ sensor:
 
 ## See Also
 
+- {{< docref "/components/sensor/aqi" >}}
 - {{< docref "/components/sensor/sds011" >}}
 - [Sensor Filters](/components/sensor#sensor-filters)
 - {{< apiref "pmsx003/pmsx003.h" "pmsx003/pmsx003.h" >}}

@@ -23,259 +23,347 @@ data which this component decodes and updates the configured sensors at the pace
 
 ```yaml
 # Example configuration entry
+uart:
+  rx_pin: GPIO16
+  baud_rate: 115200
+  rx_buffer_size: 1700
+
 dsmr:
+  # Optional. The ID of the DSMR. Specify it if you have multiple DSMR components.
+  id: dsmr_id
+
+  # Optional. The ID of the UART hub.
+  # Required if you have multiple UARTs configured.
+  uart_id: uart_dsmr
+
+  # Optional. 32 character long encryption key.
+  # Specify only if your smart meter uses encryption (f.e. if you have "Luxembourg Smarty")
   decryption_key: !secret decryption_key
+
+  # Optional. The id of the gas meter. Default=1.
+  gas_mbus_id: 1
+
+  # Optional. The id of the water meter. Default=2.
+  water_mbus_id: 2
+
+  # Optional. Specifies if the CRC check must be done. Default=true.
+  # You must set it to false for older DSMR versions because they do not provide a CRC.
+  crc_check: true
+
+  # Optional. The size of the buffer used for reading DSMR telegrams.
+  # Specify this parameter only if your smart meter sends large telegrams.
+  max_telegram_length: 1500
+
+  # Optional. P1 port's data request pin.
+  # DSMR module uses this pin to tell the smart meter when to send data.
+  # By default, smart meters send data continuously.
+  # Specifying this pin is only useful if you want to use a custom `request_interval`.
+  request_pin: GPIO5
+
+  # Optional. The minimum time between two telegram readings. Default=0ms.
+  # The pace at which the smart meter sends its data determines the update frequency.
+  # This works best in combination with a `request_pin`, but this option will work without one, too.
+  request_interval: 0ms
+
+  # Optional. The timeout on incoming data while reading a telegram. Default=200ms.
+  # When no new data arrives within the given timeout, the device will consider the current
+  # telegram a loss and starts looking for the header of the next telegram.
+  receive_timeout: 200ms
+
+#
+# List of available sensors and text sensors.
+# Not all sensors are available on all devices.
+#
 
 sensor:
   - platform: dsmr
+
+    energy_delivered_lux:
+      name: "Energy Consumed Luxembourg. OBIS: 1-0:1.8.0"
     energy_delivered_tariff1:
-      name: Energy Consumed Tariff 1
+      name: "Energy Consumed Tariff 1. OBIS: 1-0:1.8.1"
+    energy_delivered_tariff2:
+      name: "Energy Consumed Tariff 2. OBIS: 1-0:1.8.2"
+    energy_delivered_tariff3:
+      name: "Energy Consumed Tariff 3. OBIS: 1-0:1.8.3"
+    energy_delivered_tariff4:
+      name: "Energy Consumed Tariff 4. OBIS: 1-0:1.8.4"
+    energy_returned_lux:
+      name: "Energy Produced Luxembourg. OBIS: 1-0:2.8.0"
+    energy_returned_tariff1:
+      name: "Energy Produced Tariff 1. OBIS: 1-0:2.8.1"
+    energy_returned_tariff2:
+      name: "Energy Produced Tariff 2. OBIS: 1-0:2.8.2"
+    energy_returned_tariff3:
+      name: "Energy Produced Tariff 3. OBIS: 1-0:2.8.3"
+    energy_returned_tariff4:
+      name: "Energy Produced Tariff 4. OBIS: 1-0:2.8.4"
+    energy_delivered_tariff1_ch:
+      name: "Energy Consumed Tariff 1 (CH). OBIS: 1-1:1.8.1"
+    energy_delivered_tariff2_ch:
+      name: "Energy Consumed Tariff 2 (CH). OBIS: 1-1:1.8.2"
+    energy_returned_tariff1_ch:
+      name: "Energy Produced Tariff 1 (CH). OBIS: 1-1:2.8.1"
+    energy_returned_tariff2_ch:
+      name: "Energy Produced Tariff 2 (CH). OBIS: 1-1:2.8.2"
+    total_imported_energy:
+      name: "Reactive Energy Imported (Total). OBIS: 1-0:3.8.0"
+    reactive_energy_delivered_tariff1:
+      name: "Reactive Energy Imported Tariff 1. OBIS: 1-0:3.8.1"
+    reactive_energy_delivered_tariff2:
+      name: "Reactive Energy Imported Tariff 2. OBIS: 1-0:3.8.2"
+    reactive_energy_delivered_tariff3:
+      name: "Reactive Energy Imported Tariff 3. OBIS: 1-0:3.8.3"
+    reactive_energy_delivered_tariff4:
+      name: "Reactive Energy Imported Tariff 4. OBIS: 1-0:3.8.4"
+    total_exported_energy:
+      name: "Reactive Energy Exported (Total). OBIS: 1-0:4.8.0"
+    reactive_energy_returned_tariff1:
+      name: "Reactive Energy Exported Tariff 1. OBIS: 1-0:4.8.1"
+    reactive_energy_returned_tariff2:
+      name: "Reactive Energy Exported Tariff 2. OBIS: 1-0:4.8.2"
+    reactive_energy_returned_tariff3:
+      name: "Reactive Energy Exported Tariff 3. OBIS: 1-0:4.8.3"
+    reactive_energy_returned_tariff4:
+      name: "Reactive Energy Exported Tariff 4. OBIS: 1-0:4.8.4"
+    power_delivered:
+      name: "Power Consumed. OBIS: 1-0:1.7.0"
+    power_returned:
+      name: "Power Produced. OBIS: 1-0:2.7.0"
+    power_delivered_ch:
+      name: "Power Consumed (CH). OBIS: 1-1:1.7.0"
+    power_returned_ch:
+      name: "Power Produced (CH). OBIS: 1-1:2.7.0"
+    reactive_power_delivered:
+      name: "Reactive Power Imported. OBIS: 1-0:3.7.0"
+    reactive_power_returned:
+      name: "Reactive Power Exported. OBIS: 1-0:4.7.0"
+    electricity_threshold:
+      name: "Electricity Threshold. OBIS: 0-0:17.0.0"
+    electricity_switch_position:
+      name: "Electricity Switch Position. OBIS: 0-0:96.3.10"
+    electricity_failures:
+      name: "Electricity Failures. OBIS: 0-0:96.7.21"
+    electricity_long_failures:
+      name: "Long Electricity Failures. OBIS: 0-0:96.7.9"
+    electricity_sags_l1:
+      name: "Voltage Sags L1. OBIS: 1-0:32.32.0"
+    electricity_sags_l2:
+      name: "Voltage Sags L2. OBIS: 1-0:52.32.0"
+    electricity_sags_l3:
+      name: "Voltage Sags L3. OBIS: 1-0:72.32.0"
+    electricity_swells_l1:
+      name: "Voltage Swells L1. OBIS: 1-0:32.36.0"
+    electricity_swells_l2:
+      name: "Voltage Swells L2. OBIS: 1-0:52.36.0"
+    electricity_swells_l3:
+      name: "Voltage Swells L3. OBIS: 1-0:72.36.0"
+    voltage_sag_time_l1:
+      name: "Voltage Sag Time L1. OBIS: 1-0:32.33.0"
+    voltage_sag_time_l2:
+      name: "Voltage Sag Time L2. OBIS: 1-0:52.33.0"
+    voltage_sag_time_l3:
+      name: "Voltage Sag Time L3. OBIS: 1-0:72.33.0"
+    voltage_sag_l1:
+      name: "Voltage Sag L1. OBIS: 1-0:32.34.0"
+    voltage_sag_l2:
+      name: "Voltage Sag L2. OBIS: 1-0:52.34.0"
+    voltage_sag_l3:
+      name: "Voltage Sag L3. OBIS: 1-0:72.34.0"
+    voltage_swell_time_l1:
+      name: "Voltage Swell Time L1. OBIS: 1-0:32.37.0"
+    voltage_swell_time_l2:
+      name: "Voltage Swell Time L2. OBIS: 1-0:52.37.0"
+    voltage_swell_time_l3:
+      name: "Voltage Swell Time L3. OBIS: 1-0:72.37.0"
+    voltage_swell_l1:
+      name: "Voltage Swell L1. OBIS: 1-0:32.38.0"
+    voltage_swell_l2:
+      name: "Voltage Swell L2. OBIS: 1-0:52.38.0"
+    voltage_swell_l3:
+      name: "Voltage Swell L3. OBIS: 1-0:72.38.0"
+    current_l1:
+      name: "Current Phase 1. OBIS: 1-0:31.7.0"
+    current_l2:
+      name: "Current Phase 2. OBIS: 1-0:51.7.0"
+    current_l3:
+      name: "Current Phase 3. OBIS: 1-0:71.7.0"
+    current:
+      name: "Current. OBIS: 1-0:11.7.0"
+    current_n:
+      name: "Neutral Current. OBIS: 1-0:91.7.0"
+    current_sum:
+      name: "Current Sum. OBIS: 1-0:90.7.0"
+    current_fuse_l1:
+      name: "Current Fuse Phase 1. OBIS: 1-0:31.4.0"
+    current_fuse_l2:
+      name: "Current Fuse Phase 2. OBIS: 1-0:51.4.0"
+    current_fuse_l3:
+      name: "Current Fuse Phase 3. OBIS: 1-0:71.4.0"
+    power_delivered_l1:
+      name: "Power Consumed Phase 1. OBIS: 1-0:21.7.0"
+    power_delivered_l2:
+      name: "Power Consumed Phase 2. OBIS: 1-0:41.7.0"
+    power_delivered_l3:
+      name: "Power Consumed Phase 3. OBIS: 1-0:61.7.0"
+    power_returned_l1:
+      name: "Power Produced Phase 1. OBIS: 1-0:22.7.0"
+    power_returned_l2:
+      name: "Power Produced Phase 2. OBIS: 1-0:42.7.0"
+    power_returned_l3:
+      name: "Power Produced Phase 3. OBIS: 1-0:62.7.0"
+    reactive_power_delivered_l1:
+      name: "Reactive Power Imported L1. OBIS: 1-0:23.7.0"
+    reactive_power_delivered_l2:
+      name: "Reactive Power Imported L2. OBIS: 1-0:43.7.0"
+    reactive_power_delivered_l3:
+      name: "Reactive Power Imported L3. OBIS: 1-0:63.7.0"
+    reactive_power_returned_l1:
+      name: "Reactive Power Exported L1. OBIS: 1-0:24.7.0"
+    reactive_power_returned_l2:
+      name: "Reactive Power Exported L2. OBIS: 1-0:44.7.0"
+    reactive_power_returned_l3:
+      name: "Reactive Power Exported L3. OBIS: 1-0:64.7.0"
+    voltage_l1:
+      name: "Voltage Phase 1. OBIS: 1-0:32.7.0"
+    voltage_l2:
+      name: "Voltage Phase 2. OBIS: 1-0:52.7.0"
+    voltage_l3:
+      name: "Voltage Phase 3. OBIS: 1-0:72.7.0"
+    voltage_avg_l1:
+      name: "Voltage Avg Phase 1. OBIS: 1-0:32.24.0"
+    voltage_avg_l2:
+      name: "Voltage Avg Phase 2. OBIS: 1-0:52.24.0"
+    voltage_avg_l3:
+      name: "Voltage Avg Phase 3. OBIS: 1-0:72.24.0"
+    voltage:
+      name: "Voltage (Overall). OBIS: 1-0:12.7.0"
+    frequency:
+      name: "Grid Frequency. OBIS: 1-0:14.7.0"
+    abs_power:
+      name: "Absolute active instantaneous power. OBIS: 1-0:15.7.0"
+    gas_delivered:
+      name: "Gas Consumed. OBIS: 0-gas_mbus_id:24.2.1"
+    gas_delivered_be:
+      name: "Gas Consumed Belgium. OBIS: 0-gas_mbus_id:24.2.3"
+    water_delivered:
+      name: "Water Consumed. OBIS: 0-water_mbus_id:24.2.1"
+    thermal_delivered:
+      name: "Thermal Energy Consumed. OBIS: 0-3:24.2.1"
+    sub_delivered:
+      name: "Submeter Volume. OBIS: 0-4:24.2.1"
+    gas_device_type:
+      name: "Gas Device Type. OBIS: 0-gas_mbus_id:24.1.0"
+    gas_valve_position:
+      name: "Gas Valve Position. OBIS: 0-gas_mbus_id:24.4.0"
+    thermal_device_type:
+      name: "Thermal Device Type. OBIS: 0-3:24.1.0"
+    thermal_valve_position:
+      name: "Thermal Valve Position. OBIS: 0-3:24.4.0"
+    water_device_type:
+      name: "Water Device Type. OBIS: 0-water_mbus_id:24.1.0"
+    water_valve_position:
+      name: "Water Valve Position. OBIS: 0-water_mbus_id:24.4.0"
+    sub_device_type:
+      name: "Submeter Device Type. OBIS: 0-4:24.1.0"
+    sub_valve_position:
+      name: "Submeter Valve Position. OBIS: 0-4:24.4.0"
+    apparent_delivery_power:
+      name: "Apparent Power Delivered. OBIS: 1-0:9.7.0"
+    apparent_delivery_power_l1:
+      name: "Apparent Power Delivered L1. OBIS: 1-0:29.7.0"
+    apparent_delivery_power_l2:
+      name: "Apparent Power Delivered L2. OBIS: 1-0:49.7.0"
+    apparent_delivery_power_l3:
+      name: "Apparent Power Delivered L3. OBIS: 1-0:69.7.0"
+    apparent_return_power:
+      name: "Apparent Power Returned. OBIS: 1-0:10.7.0"
+    apparent_return_power_l1:
+      name: "Apparent Power Returned L1. OBIS: 1-0:30.7.0"
+    apparent_return_power_l2:
+      name: "Apparent Power Returned L2. OBIS: 1-0:50.7.0"
+    apparent_return_power_l3:
+      name: "Apparent Power Returned L3. OBIS: 1-0:70.7.0"
+    active_demand_power:
+      name: "Active Demand (Avg3 Plus). OBIS: 1-0:1.24.0"
+    active_demand_abs:
+      name: "Active Demand (Avg3) Absolute. OBIS: 1-0:15.24.0"
+    active_energy_import_current_average_demand:
+      name: "Current Average Quarterly Demand for Peak Tariff Belgium. OBIS: 1-0:1.4.0"
+    active_energy_export_current_average_demand:
+      name: "Avg Export Demand (Active). OBIS: 1-0:2.4.0"
+    reactive_energy_import_current_average_demand:
+      name: "Avg Import Demand (Reactive). OBIS: 1-0:3.4.0"
+    reactive_energy_export_current_average_demand:
+      name: "Avg Export Demand (Reactive). OBIS: 1-0:4.4.0"
+    apparent_energy_import_current_average_demand:
+      name: "Avg Import Demand (Apparent). OBIS: 1-0:9.4.0"
+    apparent_energy_export_current_average_demand:
+      name: "Avg Export Demand (Apparent). OBIS: 1-0:10.4.0"
+    active_energy_import_last_completed_demand:
+      name: "Last Completed Import Demand (Active). OBIS: 1-0:1.5.0"
+    active_energy_export_last_completed_demand:
+      name: "Last Completed Export Demand (Active). OBIS: 1-0:2.5.0"
+    reactive_energy_import_last_completed_demand:
+      name: "Last Completed Import Demand (Reactive). OBIS: 1-0:3.5.0"
+    reactive_energy_export_last_completed_demand:
+      name: "Last Completed Export Demand (Reactive). OBIS: 1-0:4.5.0"
+    apparent_energy_import_last_completed_demand:
+      name: "Last Completed Import Demand (Apparent). OBIS: 1-0:9.5.0"
+    apparent_energy_export_last_completed_demand:
+      name: "Last Completed Export Demand (Apparent). OBIS: 1-0:10.5.0"
+    active_energy_import_maximum_demand_running_month:
+      name: "Max Import Demand This Month (Active). OBIS: 1-0:1.6.0"
+    active_energy_import_maximum_demand_last_13_months:
+      name: "Average of Monthly Max Import (Active, 13 months). OBIS: 0-0:98.1.0"
+    fw_core_version:
+      name: "Meter FW Core Version. OBIS: 1-0:0.2.0"
+    fw_module_version:
+      name: "Meter FW Module Version. OBIS: 1-1:0.2.0"
 
 text_sensor:
   - platform: dsmr
     identification:
       name: "DSMR Identification"
     p1_version:
-      name: "DSMR Version"
+      name: "DSMR Version. OBIS: 1-3:0.2.8"
+    p1_version_be:
+      name: "DSMR Version Belgium. OBIS: 0-0:96.1.4"
+    timestamp:
+      name: "Telegram Timestamp. OBIS: 0-0:1.0.0"
+    electricity_tariff:
+      name: "Electricity Tariff. OBIS: 0-0:96.14.0"
+    electricity_failure_log:
+      name: "Electricity Failure Log. OBIS: 1-0:99.97.0"
+    message_short:
+      name: "Message Short. OBIS: 0-0:96.13.1"
+    message_long:
+      name: "Message Long. OBIS: 0-0:96.13.0"
+    equipment_id:
+      name: "Electric Meter Equipment ID. OBIS: 0-0:96.1.1"
+    gas_equipment_id:
+      name: "Gas Equipment ID. OBIS: 0-gas_mbus_id:96.1.0"
+    gas_equipment_id_be:
+      name: "Gas Equipment ID Belgium. OBIS: 0-gas_mbus_id:96.1.1"
+    thermal_equipment_id:
+      name: "Thermal Equipment ID. OBIS: 0-3:96.1.0"
+    water_equipment_id:
+      name: "Water Equipment ID. OBIS: 0-water_mbus_id:96.1.0"
+    sub_equipment_id:
+      name: "Submeter Equipment ID. OBIS: 0-4:96.1.0"
+    gas_delivered_text:
+      name: "Unformatted gas data. OBIS: 0-gas_mbus_id:24.3.0"
+    fw_core_checksum:
+      name: "FW Core Checksum. OBIS: 1-0:0.2.8"
+    fw_module_checksum:
+      name: "FW Module Checksum. OBIS: 1-1:0.2.8"
+
+    # The (decrypted) unparsed telegram, marked as an internal sensor.
+    # Can also be used to trigger an action based on the last values.
+    telegram:
+      name: "Raw DSMR Telegram"
+      internal: true
 ```
-
-Configuration variables:
-
-- **decryption_key** (*Optional*, string, [templatable](/automations/templates), 32 characters, case insensitive): The key to decrypt the
-  telegrams. Used in Lux only.
-
-- **gas_mbus_id** (*Optional*, int): The id of the gas meter. Defaults to `1`.
-- **water_mbus_id** (*Optional*, int): The id of the water meter. Defaults to `2`.
-- **crc_check** (*Optional*, boolean): Specifies if the CRC check must be done. This is required to be set to false for
-  older DSMR versions as they do not provide a CRC. Defaults to `true`.
-
-- **max_telegram_length** (*Optional*, integer): The size of the buffer used for reading DSMR telegrams. Increase
-  if you are reading from a smart meter that sends large telegrams. Defaults to `1500`.
-
-- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the UART hub.
-- **request_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The pin that can be used for controlling
-  the P1 port's Data Request pin. Defaults to not using a Data Request pin.
-  See [Using the P1 Data Request pin](#sensor-dsmr-request_pin).
-
-- **request_interval** (*Optional*, [Time](/guides/configuration-types#time)): The minimum time between two telegram readings.
-  Defaults to `0ms`, meaning that the pace at which the smart meter sends its data determines the update frequency.
-  This works best in combination with a `request_pin`, but this option will work without one too.
-
-- **receive_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The timeout on incoming data while reading a telegram.
-  When no new data arrive within the given timeout, the device will consider the current telegram a loss and
-  starts looking for the header of the next telegram. Defaults to `200ms`.
-
-- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the DSMR if you have multiple components.
-
-## Sensor
-
-> [!NOTE]
-> Not all sensors are available on all devices.
-
-Country specific sensors are listed last.
-
-Configuration variables:
-
-- **energy_delivered_tariff1** (*Optional*): Energy Consumed Tariff 1.
-
-  - All options from [Sensor](/components/sensor).
-
-- **energy_delivered_tariff2** (*Optional*): Energy Consumed Tariff 2.
-
-  - All options from [Sensor](/components/sensor).
-
-- **energy_returned_tariff1** (*Optional*): Energy Produced Tariff 1.
-
-  - All options from [Sensor](/components/sensor).
-
-- **energy_returned_tariff2** (*Optional*): Energy Produced Tariff 2.
-
-  - All options from [Sensor](/components/sensor).
-
-- **power_delivered** (*Optional*): Power Consumed.
-
-  - All options from [Sensor](/components/sensor).
-
-- **power_returned** (*Optional*): Power Produced.
-
-  - All options from [Sensor](/components/sensor).
-
-- **electricity_failures** (*Optional*): Electricity Failures.
-
-  - All options from [Sensor](/components/sensor).
-
-- **electricity_long_failures** (*Optional*): Long Electricity Failures.
-
-  - All options from [Sensor](/components/sensor).
-
-- **electricity_sags_l1** (*Optional*): Number of voltage sags in phase L1.
-
-  - All options from [Sensor](/components/sensor).
-
-- **electricity_sags_l2** (*Optional*): Number of voltage sags in phase L2.
-
-  - All options from [Sensor](/components/sensor).
-
-- **electricity_sags_l3** (*Optional*): Number of voltage sags in phase L3.
-
-  - All options from [Sensor](/components/sensor).
-
-- **electricity_swells_l1** (*Optional*): Number of voltage swells in phase L1.
-
-  - All options from [Sensor](/components/sensor).
-
-- **electricity_swells_l2** (*Optional*): Number of voltage swells in phase L2.
-
-  - All options from [Sensor](/components/sensor).
-
-- **electricity_swells_l3** (*Optional*): Number of voltage swells in phase L3.
-
-  - All options from [Sensor](/components/sensor).
-
-- **voltage_l1** (*Optional*): Voltage Phase 1.
-
-  - All options from [Sensor](/components/sensor).
-
-- **voltage_l2** (*Optional*): Voltage Phase 2.
-
-  - All options from [Sensor](/components/sensor).
-
-- **voltage_l3** (*Optional*): Voltage Phase 3.
-
-  - All options from [Sensor](/components/sensor).
-
-- **current_l1** (*Optional*): Current Phase 1.
-
-  - All options from [Sensor](/components/sensor).
-
-- **current_l2** (*Optional*): Current Phase 2.
-
-  - All options from [Sensor](/components/sensor).
-
-- **current_l3** (*Optional*): Current Phase 3.
-
-  - All options from [Sensor](/components/sensor).
-
-- **power_delivered_l1** (*Optional*): Power Consumed Phase 1.
-
-  - All options from [Sensor](/components/sensor).
-
-- **power_delivered_l2** (*Optional*): Power Consumed Phase 2.
-
-  - All options from [Sensor](/components/sensor).
-
-- **power_delivered_l3** (*Optional*): Power Consumed Phase 3.
-
-  - All options from [Sensor](/components/sensor).
-
-- **power_returned_l1** (*Optional*): Power Produced Phase 1.
-
-  - All options from [Sensor](/components/sensor).
-
-- **power_returned_l2** (*Optional*): Power Produced Phase 2.
-
-  - All options from [Sensor](/components/sensor).
-
-- **power_returned_l3** (*Optional*): Power Produced Phase 3.
-
-  - All options from [Sensor](/components/sensor).
-
-- **gas_delivered** (*Optional*): Gas Consumed.
-
-  - All options from [Sensor](/components/sensor).
-
-- **water_delivered** (*Optional*): Water Consumed.
-
-  - All options from [Sensor](/components/sensor).
-
-Belgium
-
-- **gas_delivered_be** (*Optional*): Gas Consumed Belgium.
-
-  - All options from [Sensor](/components/sensor).
-
-- **active_energy_import_current_average_demand** (*Optional*): Current Average Quarterly Demand for Peak Tarrif Belgium.
-
-  - All options from [Sensor](/components/sensor).
-
-- **active_energy_import_maximum_demand_running_month** (*Optional*): Current Month's Maximum Quarterly Demand for Peak Tarrif Belgium.
-
-  - All options from [Sensor](/components/sensor).
-
-- **active_energy_import_maximum_demand_last_13_months** (*Optional*): 13 Month Maximum Quarterly Demand for Peak Tarrif Belgium.
-
-  - All options from [Sensor](/components/sensor).
-
-Luxembourg
-
-- **energy_delivered_lux** (*Optional*): Energy Consumed Luxembourg
-
-  - All options from [Sensor](/components/sensor).
-
-- **energy_returned_lux** (*Optional*): Energy Produced Luxembourg
-
-  - All options from [Sensor](/components/sensor).
-
-## Text Sensor
-
-Configuration variables:
-
-- **identification** (*Optional*): DSMR Identification
-
-  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
-
-- **p1_version** (*Optional*): DSMR Version
-
-  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
-
-- **timestamp** (*Optional*): Timestamp
-
-  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
-
-- **electricity_tariff** (*Optional*): The current tariff. According to the specs value
-  '0001' means 'normal tariff' and value '0002' means 'low tariff'. Your meter may report differently.
-
-  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
-
-- **electricity_failure_log** (*Optional*): Electricity Failure Log
-
-  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
-
-- **message_short** (*Optional*): Message Short
-
-  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
-
-- **message_long** (*Optional*): Message Long
-
-  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
-
-- **gas_equipment_id** (*Optional*): Gas Equipment ID.
-
-  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
-
-- **water_equipment_id** (*Optional*): Water Equipment ID
-
-  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
-
-- **sub_equipment_id** (*Optional*): Sub Equipment ID
-
-  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
-
-- **gas_delivered_text** (*Optional*): A text sensor which unformatted gas data. You need to
-  apply a custom parsing of this value depending on your meter format.
-
-  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
-
-- **telegram** (*Optional*): The (decrypted) unparsed telegram, marked as internal sensor.
-  Can also be used to trigger an action based on the last values.
-
-  - All other options from [Text Sensor](/components/text_sensor#config-text_sensor).
-
-Belgium
-
-- **p1_version_be** (*Optional*): DSMR Version Belgium
-
-  - All options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 ## Older DSMR meters support
 
@@ -427,7 +515,7 @@ text_sensor:
       on_value:
         then:
           - lambda: |-
-              ESP_LOGV("dsrm", "telegram: %s", x.c_str());
+              ESP_LOGV("dsmr", "telegram: %s", x.c_str());
               p1_bridge_uart->write_str(x.c_str());
 ```
 

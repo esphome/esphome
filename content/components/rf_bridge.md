@@ -30,10 +30,10 @@ rf_bridge:
     - homeassistant.event:
         event: esphome.rf_code_received
         data:
-          sync: !lambda 'return format_hex(data.sync);'
-          low: !lambda 'return format_hex(data.low);'
-          high: !lambda 'return format_hex(data.high);'
-          code: !lambda 'return format_hex(data.code);'
+          sync: !lambda 'char buf[5]; return format_hex_to(buf, data.sync);'
+          low: !lambda 'char buf[5]; return format_hex_to(buf, data.low);'
+          high: !lambda 'char buf[5]; return format_hex_to(buf, data.high);'
+          code: !lambda 'char buf[9]; return format_hex_to(buf, data.code);'
 ```
 
 ## Configuration variables
@@ -57,10 +57,10 @@ on_code_received:
   - homeassistant.event:
       event: esphome.rf_code_received
       data:
-        sync: !lambda 'return format_hex(data.sync);'
-        low: !lambda 'return format_hex(data.low);'
-        high: !lambda 'return format_hex(data.high);'
-        code: !lambda 'return format_hex(data.code);'
+        sync: !lambda 'char buf[5]; return format_hex_to(buf, data.sync);'
+        low: !lambda 'char buf[5]; return format_hex_to(buf, data.low);'
+        high: !lambda 'char buf[5]; return format_hex_to(buf, data.high);'
+        code: !lambda 'char buf[9]; return format_hex_to(buf, data.code);'
 ```
 
 {{< anchor "rf_bridge-send_code_action" >}}
@@ -194,8 +194,8 @@ on_advanced_code_received:
   - homeassistant.event:
       event: esphome.rf_advanced_code_received
       data:
-        length: !lambda 'return format_hex(data.length);'
-        protocol: !lambda 'return format_hex(data.protocol);'
+        length: !lambda 'char buf[3]; return format_hex_to(buf, data.length);'
+        protocol: !lambda 'char buf[3]; return format_hex_to(buf, data.protocol);'
         code: !lambda 'return data.code;'
 ```
 
@@ -366,10 +366,10 @@ rf_bridge:
       - homeassistant.event:
           event: esphome.rf_code_received
           data:
-            sync: !lambda 'return format_hex(data.sync);'
-            low: !lambda 'return format_hex(data.low);'
-            high: !lambda 'return format_hex(data.high);'
-            code: !lambda 'return format_hex(data.code);'
+            sync: !lambda 'char buf[5]; return format_hex_to(buf, data.sync);'
+            low: !lambda 'char buf[5]; return format_hex_to(buf, data.low);'
+            high: !lambda 'char buf[5]; return format_hex_to(buf, data.high);'
+            code: !lambda 'char buf[9]; return format_hex_to(buf, data.code);'
 
     - homeassistant.event:
           event: esphome.rf_code_received
@@ -384,8 +384,8 @@ rf_bridge:
       - homeassistant.event:
           event: esphome.rf_advanced_code_received
           data:
-            length: !lambda 'return format_hex(data.length);'
-            protocol: !lambda 'return format_hex(data.protocol);'
+            length: !lambda 'char buf[3]; return format_hex_to(buf, data.length);'
+            protocol: !lambda 'char buf[3]; return format_hex_to(buf, data.protocol);'
             code: !lambda 'return data.code;'
 ```
 
