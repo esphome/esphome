@@ -136,14 +136,16 @@ def _pm_final_validate(config):
         raise cv.Invalid(
             f"{CONF_POWER_DOWN_FLASH}: True not allowed when device has PSRAM"
         )
-    if config.get(CONF_POWER_DOWN_PERIPHERALS):
-        raise cv.Invalid(
-            f"{CONF_POWER_DOWN_PERIPHERALS}: True not allowed when {CONF_ENABLE_LIGHT_SLEEP} not set to True"
-        )
-    if config.get(CONF_POWER_DOWN_FLASH):
-        raise cv.Invalid(
-            f"{CONF_POWER_DOWN_FLASH}: True not allowed when {CONF_ENABLE_LIGHT_SLEEP} not set to True"
-        )
+
+    if not (config.get(CONF_ENABLE_LIGHT_SLEEP)):
+        if config.get(CONF_POWER_DOWN_PERIPHERALS):
+            raise cv.Invalid(
+                f"{CONF_POWER_DOWN_PERIPHERALS}: True not allowed when {CONF_ENABLE_LIGHT_SLEEP} not set to True"
+            )
+        if config.get(CONF_POWER_DOWN_FLASH):
+            raise cv.Invalid(
+                f"{CONF_POWER_DOWN_FLASH}: True not allowed when {CONF_ENABLE_LIGHT_SLEEP} not set to True"
+            )
 
     if not (
         (pm_conf := full_config.get(CONF_POWER_MANAGEMENT))
