@@ -444,26 +444,32 @@ class WiFiComponent : public Component {
 
   int32_t get_wifi_channel();
 
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_IP_STATE_LISTENERS
   /** Add a listener for IP state changes.
    * Listener receives: IP addresses, DNS address 1, DNS address 2
    */
   void add_ip_state_listener(WiFiIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
+#endif  // USE_WIFI_IP_STATE_LISTENERS
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
   /// Add a listener for WiFi scan results
   void add_scan_results_listener(WiFiScanResultsListener *listener) {
     this->scan_results_listeners_.push_back(listener);
   }
+#endif  // USE_WIFI_SCAN_RESULTS_LISTENERS
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
   /** Add a listener for WiFi connection state changes.
    * Listener receives: SSID, BSSID
    */
   void add_connect_state_listener(WiFiConnectStateListener *listener) {
     this->connect_state_listeners_.push_back(listener);
   }
+#endif  // USE_WIFI_CONNECT_STATE_LISTENERS
+#ifdef USE_WIFI_POWER_SAVE_LISTENERS
   /** Add a listener for WiFi power save mode changes.
    * Listener receives: WiFiPowerSaveMode
    */
   void add_power_save_listener(WiFiPowerSaveListener *listener) { this->power_save_listeners_.push_back(listener); }
-#endif  // USE_WIFI_LISTENERS
+#endif  // USE_WIFI_POWER_SAVE_LISTENERS
 
 #ifdef USE_WIFI_RUNTIME_POWER_SAVE
   /** Request high-performance mode (no power saving) for improved WiFi latency.
@@ -628,12 +634,18 @@ class WiFiComponent : public Component {
   WiFiAP ap_;
 #endif
   float output_power_{NAN};
-#ifdef USE_WIFI_LISTENERS
-  std::vector<WiFiIPStateListener *> ip_state_listeners_;
-  std::vector<WiFiScanResultsListener *> scan_results_listeners_;
-  std::vector<WiFiConnectStateListener *> connect_state_listeners_;
-  std::vector<WiFiPowerSaveListener *> power_save_listeners_;
-#endif  // USE_WIFI_LISTENERS
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+  StaticVector<WiFiIPStateListener *, ESPHOME_WIFI_IP_STATE_LISTENERS> ip_state_listeners_;
+#endif
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
+  StaticVector<WiFiScanResultsListener *, ESPHOME_WIFI_SCAN_RESULTS_LISTENERS> scan_results_listeners_;
+#endif
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+  StaticVector<WiFiConnectStateListener *, ESPHOME_WIFI_CONNECT_STATE_LISTENERS> connect_state_listeners_;
+#endif
+#ifdef USE_WIFI_POWER_SAVE_LISTENERS
+  StaticVector<WiFiPowerSaveListener *, ESPHOME_WIFI_POWER_SAVE_LISTENERS> power_save_listeners_;
+#endif
   ESPPreferenceObject pref_;
 #ifdef USE_WIFI_FAST_CONNECT
   ESPPreferenceObject fast_connect_pref_;

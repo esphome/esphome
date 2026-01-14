@@ -105,7 +105,7 @@ bool WiFiComponent::wifi_apply_power_save_() {
   }
   wifi_fpm_auto_sleep_set_in_null_mode(1);
   bool success = wifi_set_sleep_type(power_save);
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_POWER_SAVE_LISTENERS
   if (success) {
     for (auto *listener : this->power_save_listeners_) {
       listener->on_wifi_power_save(this->power_save_);
@@ -511,12 +511,13 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
                it.channel);
 #endif
       s_sta_connected = true;
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
       for (auto *listener : global_wifi_component->connect_state_listeners_) {
         listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
       }
+#endif
       // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
-#ifdef USE_WIFI_MANUAL_IP
+#if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
       if (const WiFiAP *config = global_wifi_component->get_selected_sta_();
           config && config->get_manual_ip().has_value()) {
         for (auto *listener : global_wifi_component->ip_state_listeners_) {
@@ -524,7 +525,6 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
                                 global_wifi_component->get_dns_address(0), global_wifi_component->get_dns_address(1));
         }
       }
-#endif
 #endif
       break;
     }
@@ -547,7 +547,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       // This ensures is_connected() returns false during listener callbacks,
       // which is critical for proper reconnection logic (e.g., roaming).
       global_wifi_component->error_from_callback_ = true;
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
       // Notify listeners AFTER setting error flag so they see correct state
       static constexpr uint8_t EMPTY_BSSID[6] = {};
       for (auto *listener : global_wifi_component->connect_state_listeners_) {
@@ -578,7 +578,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       ESP_LOGV(TAG, "static_ip=%s gateway=%s netmask=%s", network::IPAddress(&it.ip).str_to(ip_buf),
                network::IPAddress(&it.gw).str_to(gw_buf), network::IPAddress(&it.mask).str_to(mask_buf));
       s_sta_got_ip = true;
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_IP_STATE_LISTENERS
       for (auto *listener : global_wifi_component->ip_state_listeners_) {
         listener->on_ip_state(global_wifi_component->wifi_sta_ip_addresses(), global_wifi_component->get_dns_address(0),
                               global_wifi_component->get_dns_address(1));
@@ -771,7 +771,7 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
         it->is_hidden != 0);
   }
   this->scan_done_ = true;
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
   for (auto *listener : global_wifi_component->scan_results_listeners_) {
     listener->on_wifi_scan_results(global_wifi_component->scan_result_);
   }
