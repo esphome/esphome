@@ -37,7 +37,7 @@ void EmonTx::setup() {
 
   ESP_LOGCONFIG(TAG, "Setting up EmonTx component");
 
-#ifdef USE_API
+#ifdef USE_API_CUSTOM_SERVICES
   // Auto-register send_command service when config_panel is enabled
   if (this->config_panel_) {
     this->register_service(&EmonTx::send_command, "send_command", {"command"});
@@ -125,16 +125,25 @@ void EmonTx::loop() {
           } else if (!api::global_api_server->is_connected()) {
             ESP_LOGV(TAG, "Cannot fire event: api_server not connected");
           } else {
+            static constexpr auto SERVICE_EMONTX_RAW = StringRef::from_lit("esphome.emontx_raw");
+            static constexpr auto DEVICE_ID_KEY = StringRef::from_lit("device_id");
+            static constexpr auto LINE_KEY = StringRef::from_lit("line");
+
             api::HomeassistantActionRequest resp;
-            resp.set_service(StringRef("esphome.emontx_raw"));
+
+            resp.service = SERVICE_EMONTX_RAW;
             resp.is_event = true;
+
             resp.data.init(2);
+
             auto &kv1 = resp.data.emplace_back();
-            kv1.set_key(StringRef("device_id"));
-            kv1.value = App.get_name();
+            kv1.key = DEVICE_ID_KEY;
+            kv1.value = StringRef(App.get_name());
+
             auto &kv2 = resp.data.emplace_back();
-            kv2.set_key(StringRef("line"));
-            kv2.value = line;
+            kv2.key = LINE_KEY;
+            kv2.value = StringRef(line);
+
             api::global_api_server->send_homeassistant_action(resp);
             ESP_LOGV(TAG, "Fired esphome.emontx_raw event");
           }
@@ -205,13 +214,20 @@ void EmonTx::parse_json_(const std::string &data) {
 #ifdef USE_API_HOMEASSISTANT_SERVICES
     // Fire Home Assistant event with the received data
     if (api::global_api_server != nullptr && api::global_api_server->is_connected()) {
+      static constexpr auto SERVICE_EMONTX_JSON = StringRef::from_lit("esphome.emontx_json");
+      static constexpr auto DATA_KEY = StringRef::from_lit("data");
+
       api::HomeassistantActionRequest resp;
-      resp.set_service(StringRef("esphome.emontx_json"));
+
+      resp.service = SERVICE_EMONTX_JSON;
       resp.is_event = true;
+
       resp.data.init(1);
+
       auto &kv = resp.data.emplace_back();
-      kv.set_key(StringRef("data"));
-      kv.value = data;
+      kv.key = DATA_KEY;
+      kv.value = StringRef(data);
+
       api::global_api_server->send_homeassistant_action(resp);
       ESP_LOGV(TAG, "Fired esphome.emontx_json event");
     }
