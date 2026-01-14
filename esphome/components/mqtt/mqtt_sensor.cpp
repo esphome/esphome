@@ -11,8 +11,7 @@
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
 #endif
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.sensor";
 
@@ -32,7 +31,7 @@ void MQTTSensorComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, false)
 }
 
-std::string MQTTSensorComponent::component_type() const { return "sensor"; }
+MQTT_COMPONENT_TYPE(MQTTSensorComponent, "sensor")
 const EntityBase *MQTTSensorComponent::get_entity() const { return this->sensor_; }
 
 uint32_t MQTTSensorComponent::get_expire_after() const {
@@ -81,13 +80,14 @@ bool MQTTSensorComponent::send_initial_state() {
 }
 bool MQTTSensorComponent::publish_state(float value) {
   if (mqtt::global_mqtt_client->is_publish_nan_as_none() && std::isnan(value))
-    return this->publish(this->get_state_topic_(), "None");
+    return this->publish(this->get_state_topic_(), "None", 4);
   int8_t accuracy = this->sensor_->get_accuracy_decimals();
-  return this->publish(this->get_state_topic_(), value_accuracy_to_string(value, accuracy));
+  char buf[VALUE_ACCURACY_MAX_LEN];
+  size_t len = value_accuracy_to_buf(buf, value, accuracy);
+  return this->publish(this->get_state_topic_(), buf, len);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

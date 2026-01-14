@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_IGNORE_EFUSE_MAC_CRC,
     CONF_LOG_LEVEL,
     CONF_NAME,
+    CONF_OTA,
     CONF_PATH,
     CONF_PLATFORM_VERSION,
     CONF_PLATFORMIO_OPTIONS,
@@ -620,11 +621,18 @@ def final_validate(config):
             )
         )
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
-        safe_mode_config = full_config.get(CONF_SAFE_MODE)
-        if safe_mode_config is None or safe_mode_config.get(CONF_DISABLED, False):
-            _LOGGER.warning(
-                "OTA rollback requires safe_mode, disabling rollback support"
-            )
+        # "disabled: false" means safe mode *is* enabled.
+        safe_mode_config = full_config.get(CONF_SAFE_MODE, {CONF_DISABLED: True})
+        safe_mode_enabled = not safe_mode_config[CONF_DISABLED]
+        ota_enabled = CONF_OTA in full_config
+        # Both need to be enabled for rollback to work
+        if not (ota_enabled and safe_mode_enabled):
+            # But only warn if ota is even possible
+            if ota_enabled:
+                _LOGGER.warning(
+                    "OTA rollback requires safe_mode, disabling rollback support"
+                )
+            # disable the rollback feature anyway since it can't be used.
             advanced[CONF_ENABLE_OTA_ROLLBACK] = False
     if errs:
         raise cv.MultipleInvalid(errs)
@@ -644,6 +652,7 @@ CONF_DISABLE_VFS_SUPPORT_SELECT = "disable_vfs_support_select"
 CONF_DISABLE_VFS_SUPPORT_DIR = "disable_vfs_support_dir"
 CONF_FREERTOS_IN_IRAM = "freertos_in_iram"
 CONF_RINGBUF_IN_IRAM = "ringbuf_in_iram"
+CONF_HEAP_IN_IRAM = "heap_in_iram"
 CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
 
 # VFS requirement tracking
@@ -745,6 +754,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
                 cv.Optional(CONF_FREERTOS_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_RINGBUF_IN_IRAM, default=False): cv.boolean,
+                cv.Optional(CONF_HEAP_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_EXECUTE_FROM_PSRAM, default=False): cv.boolean,
                 cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
                     min=8192, max=32768
@@ -1089,6 +1099,12 @@ async def to_code(config):
     else:
         # Place in flash to save IRAM (default)
         add_idf_sdkconfig_option("CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH", True)
+
+    # Place heap functions into flash to save IRAM (~4-6KB savings)
+    # Safe as long as heap functions are not called from ISRs (which they shouldn't be)
+    # Users can set heap_in_iram: true as an escape hatch if needed
+    if not conf[CONF_ADVANCED][CONF_HEAP_IN_IRAM]:
+        add_idf_sdkconfig_option("CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH", True)
 
     # Setup watchdog
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT", True)

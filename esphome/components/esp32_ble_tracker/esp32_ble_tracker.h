@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 
 #include <array>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -72,6 +73,12 @@ class ESPBTDevice {
   void parse_scan_rst(const BLEScanResult &scan_result);
 
   std::string address_str() const;
+
+  /// Format MAC address into provided buffer, returns pointer to buffer for convenience
+  const char *address_str_to(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) const {
+    format_mac_addr_upper(this->address_, buf.data());
+    return buf.data();
+  }
 
   uint64_t address_uint64() const;
 

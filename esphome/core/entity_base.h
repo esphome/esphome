@@ -13,8 +13,21 @@
 
 namespace esphome {
 
-// Maximum size for object_id buffer (friendly_name max ~120 + margin)
+// Maximum device name length - keep in sync with validate_hostname() in esphome/core/config.py
+static constexpr size_t ESPHOME_DEVICE_NAME_MAX_LEN = 31;
+
+// Maximum friendly name length for entities and sub-devices - keep in sync with FRIENDLY_NAME_MAX_LEN in
+// esphome/core/config.py
+static constexpr size_t ESPHOME_FRIENDLY_NAME_MAX_LEN = 120;
+
+// Maximum domain length (longest: "alarm_control_panel" = 19)
+static constexpr size_t ESPHOME_DOMAIN_MAX_LEN = 20;
+
+// Maximum size for object_id buffer (friendly_name + null + margin)
 static constexpr size_t OBJECT_ID_MAX_LEN = 128;
+
+// Maximum state length that Home Assistant will accept without raising ValueError
+static constexpr size_t MAX_STATE_LEN = 255;
 
 enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_NONE = 0,

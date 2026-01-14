@@ -1,4 +1,5 @@
 #include "nfc_binary_sensor.h"
+#include "../nfc.h"
 #include "../nfc_helpers.h"
 #include "esphome/core/log.h"
 
@@ -24,7 +25,8 @@ void NfcTagBinarySensor::dump_config() {
     return;
   }
   if (!this->uid_.empty()) {
-    ESP_LOGCONFIG(TAG, "  Tag UID: %s", format_bytes(this->uid_).c_str());
+    char uid_buf[FORMAT_BYTES_BUFFER_SIZE];
+    ESP_LOGCONFIG(TAG, "  Tag UID: %s", format_bytes_to(uid_buf, this->uid_));
   }
 }
 
