@@ -196,14 +196,19 @@ void HOT Scheduler::set_interval(Component *component, const char *name, uint32_
                           std::move(func));
 }
 
-bool HOT Scheduler::cancel_timeout(Component *component, const char *name) {
+// Common implementation for cancel operations - handles locking
+bool HOT Scheduler::cancel_item_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
+                                 SchedulerItem::Type type, bool match_retry) {
   LockGuard guard{this->lock_};
-  return this->cancel_item_locked_(component, NameType::STATIC_STRING, name, 0, SchedulerItem::TIMEOUT);
+  return this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, match_retry);
+}
+
+bool HOT Scheduler::cancel_timeout(Component *component, const char *name) {
+  return this->cancel_item_(component, NameType::STATIC_STRING, name, 0, SchedulerItem::TIMEOUT);
 }
 
 bool HOT Scheduler::cancel_interval(Component *component, const char *name) {
-  LockGuard guard{this->lock_};
-  return this->cancel_item_locked_(component, NameType::STATIC_STRING, name, 0, SchedulerItem::INTERVAL);
+  return this->cancel_item_(component, NameType::STATIC_STRING, name, 0, SchedulerItem::INTERVAL);
 }
 
 // Public API - std::string (hashed) versions - computes FNV-1a hash internally
@@ -220,15 +225,11 @@ void HOT Scheduler::set_interval(Component *component, const std::string &name, 
 }
 
 bool HOT Scheduler::cancel_timeout(Component *component, const std::string &name) {
-  LockGuard guard{this->lock_};
-  return this->cancel_item_locked_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name),
-                                   SchedulerItem::TIMEOUT);
+  return this->cancel_item_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name), SchedulerItem::TIMEOUT);
 }
 
 bool HOT Scheduler::cancel_interval(Component *component, const std::string &name) {
-  LockGuard guard{this->lock_};
-  return this->cancel_item_locked_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name),
-                                   SchedulerItem::INTERVAL);
+  return this->cancel_item_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name), SchedulerItem::INTERVAL);
 }
 
 // Public API - uint32_t (numeric ID) versions
@@ -243,13 +244,11 @@ void HOT Scheduler::set_interval(Component *component, uint32_t id, uint32_t int
 }
 
 bool HOT Scheduler::cancel_timeout(Component *component, uint32_t id) {
-  LockGuard guard{this->lock_};
-  return this->cancel_item_locked_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::TIMEOUT);
+  return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::TIMEOUT);
 }
 
 bool HOT Scheduler::cancel_interval(Component *component, uint32_t id) {
-  LockGuard guard{this->lock_};
-  return this->cancel_item_locked_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::INTERVAL);
+  return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::INTERVAL);
 }
 
 struct RetryArgs {
@@ -336,9 +335,8 @@ void HOT Scheduler::set_retry(Component *component, const char *name, uint32_t i
 }
 
 bool HOT Scheduler::cancel_retry(Component *component, const char *name) {
-  LockGuard guard{this->lock_};
-  return this->cancel_item_locked_(component, NameType::STATIC_STRING, name, 0, SchedulerItem::TIMEOUT,
-                                   /* match_retry= */ true);
+  return this->cancel_item_(component, NameType::STATIC_STRING, name, 0, SchedulerItem::TIMEOUT,
+                            /* match_retry= */ true);
 }
 
 // Public API - std::string (hashed) versions
@@ -350,9 +348,8 @@ void HOT Scheduler::set_retry(Component *component, const std::string &name, uin
 }
 
 bool HOT Scheduler::cancel_retry(Component *component, const std::string &name) {
-  LockGuard guard{this->lock_};
-  return this->cancel_item_locked_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name),
-                                   SchedulerItem::TIMEOUT, /* match_retry= */ true);
+  return this->cancel_item_(component, NameType::HASHED_STRING, nullptr, fnv1a_hash(name), SchedulerItem::TIMEOUT,
+                            /* match_retry= */ true);
 }
 
 // Public API - uint32_t (numeric ID) versions
@@ -363,9 +360,8 @@ void HOT Scheduler::set_retry(Component *component, uint32_t id, uint32_t initia
 }
 
 bool HOT Scheduler::cancel_retry(Component *component, uint32_t id) {
-  LockGuard guard{this->lock_};
-  return this->cancel_item_locked_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::TIMEOUT,
-                                   /* match_retry= */ true);
+  return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::TIMEOUT,
+                            /* match_retry= */ true);
 }
 
 optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {

@@ -249,6 +249,9 @@ class Scheduler {
   std::unique_ptr<SchedulerItem> get_item_from_pool_locked_();
 
  private:
+  // Common implementation for cancel operations - handles locking
+  bool cancel_item_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
+                    SchedulerItem::Type type, bool match_retry = false);
   // Helper to cancel items - must be called with lock held
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   bool cancel_item_locked_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
