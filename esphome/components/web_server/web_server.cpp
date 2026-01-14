@@ -2010,7 +2010,6 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
         return;
       }
 
-      // Convert decoded bytes to int32_t timings
       // Store in a shared_ptr so it outlives the lambda and call
       auto timings = std::make_shared<std::vector<int32_t>>();
       timings->reserve(decoded.size() / 4);
@@ -2030,7 +2029,6 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
       return;
     }
 
-    // Success response moved into the if block above
     request->send(200);
     return;
   }
