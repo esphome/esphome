@@ -235,6 +235,8 @@ class Scheduler {
   void set_retry_common_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
                          uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> func,
                          float backoff_increase_factor);
+  // Common implementation for cancel_retry
+  bool cancel_retry(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
 
   uint64_t millis_64_(uint32_t now);
   // Cleanup logically deleted items from the scheduler
@@ -249,13 +251,14 @@ class Scheduler {
   std::unique_ptr<SchedulerItem> get_item_from_pool_locked_();
 
  private:
-  // Common implementation for cancel operations - handles locking
-  bool cancel_item_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
-                    SchedulerItem::Type type, bool match_retry = false);
   // Helper to cancel items - must be called with lock held
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   bool cancel_item_locked_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
                            SchedulerItem::Type type, bool match_retry = false);
+
+  // Common implementation for cancel operations - handles locking
+  bool cancel_item_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
+                    SchedulerItem::Type type, bool match_retry = false);
 
   // Helper to check if two static string names match
   inline bool HOT names_match_static_(const char *name1, const char *name2) const {
