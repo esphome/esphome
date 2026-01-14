@@ -10,13 +10,16 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.image import (
+    CONF_INVERT_ALPHA,
+    CONF_OPAQUE,
     CONF_TRANSPARENCY,
     CONFIG_SCHEMA,
     get_all_image_metadata,
     get_image_metadata,
+    write_image,
 )
-from esphome.const import CONF_ID, CONF_RAW_DATA_ID, CONF_TYPE
-from esphome.core import CORE
+from esphome.const import CONF_DITHER, CONF_FILE, CONF_ID, CONF_RAW_DATA_ID, CONF_TYPE
+from esphome.core import CORE, EsphomeError
 
 
 @pytest.mark.parametrize(
@@ -350,3 +353,27 @@ def test_get_all_image_metadata_empty() -> None:
         "get_all_image_metadata should always return a dict"
     )
     # Length could be 0 or more depending on what's in CORE at test time
+
+
+@pytest.mark.asyncio
+async def test_svg_with_mm_dimensions_error(
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that SVG files with dimensions in mm produce the correct error message."""
+    # Create a minimal config for write_image
+    config = {
+        CONF_FILE: component_config_path("invalid_dimensions.svg"),
+        CONF_TYPE: "BINARY",
+        CONF_TRANSPARENCY: CONF_OPAQUE,
+        CONF_DITHER: "NONE",
+        CONF_INVERT_ALPHA: False,
+        CONF_RAW_DATA_ID: "test_raw_data_id",
+    }
+
+    # Verify that the correct error message is raised
+    with pytest.raises(
+        EsphomeError,
+        match=r"SVG image file .*invalid_dimensions.svg has an invalid size\. "
+        r"Ensure the SVG defines width and height in absolute units \(e\.g\., px, not mm\)\.",
+    ):
+        await write_image(config)
