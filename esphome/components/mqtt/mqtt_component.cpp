@@ -232,7 +232,10 @@ bool MQTTComponent::send_discovery_() {
 #else
         const char *fmt = ver_fmt;
 #endif
-        device_info[MQTT_DEVICE_SW_VERSION] = str_sprintf(fmt, App.get_config_hash());
+        // sizeof(ver_fmt) + 8: format specifier expands to 8 hex digits, plus safety margin
+        char version_buf[sizeof(ver_fmt) + 8];
+        snprintf(version_buf, sizeof(version_buf), fmt, App.get_config_hash());
+        device_info[MQTT_DEVICE_SW_VERSION] = version_buf;
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
 #if defined(USE_ESP8266) || defined(USE_ESP32)
         device_info[MQTT_DEVICE_MANUFACTURER] = "Espressif";
