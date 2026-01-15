@@ -36,6 +36,23 @@ struct WriteBuffer {
   size_t len;           ///< length of the buffer
 };
 
+/// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large.
+/// Useful for avoiding heap allocation for common small cases while still supporting larger sizes.
+template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
+ public:
+  uint8_t *get(size_t size) {
+    if (size <= STACK_SIZE) {
+      return this->stack_buffer_;
+    }
+    this->heap_buffer_ = std::make_unique<uint8_t[]>(size);
+    return this->heap_buffer_.get();
+  }
+
+ protected:
+  uint8_t stack_buffer_[STACK_SIZE];
+  std::unique_ptr<uint8_t[]> heap_buffer_;
+};
+
 /// @brief This Class provides the methods to read and write bytes from an I2CBus.
 /// @note The I2CBus virtual class follows a *Factory design pattern* that provides all the interfaces methods required
 /// by clients while deferring the actual implementation of these methods to a subclasses. I2C-bus specification and

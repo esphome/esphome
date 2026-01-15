@@ -1496,23 +1496,6 @@ template<class T> class RAMAllocator {
 
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
 
-/// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large.
-/// Useful for avoiding heap allocation for common small cases while still supporting larger sizes.
-template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
- public:
-  uint8_t *get(size_t size) {
-    if (size <= STACK_SIZE) {
-      return this->stack_buffer_;
-    }
-    this->heap_buffer_ = std::make_unique<uint8_t[]>(size);
-    return this->heap_buffer_.get();
-  }
-
- protected:
-  uint8_t stack_buffer_[STACK_SIZE];
-  std::unique_ptr<uint8_t[]> heap_buffer_;
-};
-
 /**
  * Functions to constrain the range of arithmetic values.
  */
