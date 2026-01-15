@@ -215,8 +215,13 @@ void Application::loop() {
 #if defined(USE_ESP32_VARIANT_ESP32) && !defined(USE_ESP32_MIN_CHIP_REVISION_SET)
       // Suggest optimization for chips that don't need the PSRAM cache workaround
       if (chip_info.revision >= 300) {
+#ifdef USE_PSRAM
+        ESP_LOGW(TAG, "Set minimum_chip_revision: \"%d.%d\" to save ~10KB IRAM", chip_info.revision / 100,
+                 chip_info.revision % 100);
+#else
         ESP_LOGW(TAG, "Set minimum_chip_revision: \"%d.%d\" to reduce binary size", chip_info.revision / 100,
                  chip_info.revision % 100);
+#endif
       }
 #endif
 #endif

@@ -57,10 +57,14 @@ mqtt:
     - mqtt.publish:
         topic: some/topic
         payload: Hello
+    - lambda: |-
+        ESP_LOGD("MQTT", "Session present %d", session_present);
   on_disconnect:
     - mqtt.publish:
         topic: some/topic
         payload: Good-bye
+    - lambda: |-
+        ESP_LOGD("MQTT", "Disconnect reason %d", reason);
   publish_nan_as_none: false
 
 binary_sensor:
@@ -87,6 +91,7 @@ button:
   - platform: template
     name: "Template Button"
     state_topic: some/topic/button
+    command_topic: !lambda return "some/topic/button/command";
     qos: 2
     on_press:
       - mqtt.disable
@@ -291,7 +296,7 @@ event:
 fan:
   - platform: template
     name: Template Fan
-    state_topic: some/topic/fan
+    state_topic: !lambda return "some/topic/fan";
     direction_state_topic: some/topic/direction/state
     direction_command_topic: some/topic/direction/command
     qos: 2
