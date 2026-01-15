@@ -67,7 +67,7 @@ std::string lv_event_code_name_for(uint8_t event_code) {
   }
   // max 4 bytes: "%2d" with uint8_t (max 255, 3 digits) + null
   char buf[4];
-  snprintf(buf, sizeof(buf), "%2d", event_code);
+  snprintf(buf, sizeof(buf), "%2u", event_code);
   return buf;
 }
 
