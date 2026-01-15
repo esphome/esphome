@@ -1996,24 +1996,27 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
           request->getParam(ESPHOME_F("data"))->value().c_str();  // NOLINT(readability-redundant-string-cstr)
 
       // Decode base64 data
-      std::vector<uint8_t> decoded = base64_decode(encoded);
+      constexpr size_t max_ir_bytes = 1024;
+      uint8_t decoded[max_ir_bytes];
+      size_t decoded_len = base64_decode(encoded, decoded, sizeof(decoded));
+      ESP_LOGV(TAG, "Decoded base64 data length: %zu", decoded_len);
 
-      if (decoded.empty()) {
-        request->send(400, ESPHOME_F("text/plain"), "Invalid base64 data");
+      if (decoded_len == 0) {
+        request->send(400, ESPHOME_F("text/plain"), "Invalid or oversized base64 data");
         return;
       }
 
       // Convert decoded bytes to int32_t timings
       // Each timing is a 4-byte signed integer (little-endian)
-      if (decoded.size() % 4 != 0) {
+      if (decoded_len % 4 != 0) {
         request->send(400, ESPHOME_F("text/plain"), "Data size must be a multiple of 4 bytes");
         return;
       }
 
       std::vector<int32_t> timings;
-      timings.reserve(decoded.size() / 4);
+      timings.reserve(decoded_len / 4);
 
-      for (size_t i = 0; i < decoded.size(); i += 4) {
+      for (size_t i = 0; i < decoded_len; i += 4) {
         int32_t timing = encode_uint32(decoded[i + 3], decoded[i + 2], decoded[i + 1], decoded[i]);
         timings.push_back(timing);
       }
