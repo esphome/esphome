@@ -2,12 +2,39 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cstdarg>
 
 namespace esphome {
 namespace cse7766 {
 
 static const char *const TAG = "cse7766";
 static constexpr size_t CSE7766_RAW_DATA_SIZE = 24;
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+/// @brief Safely append formatted string to buffer.
+/// @param buf Destination buffer (must be non-null)
+/// @param size Total buffer size in bytes
+/// @param pos Current write position (0 to size-1 for valid positions, size means full)
+/// @param fmt printf-style format string
+/// @return New write position: pos + chars_written, capped at size when buffer is full.
+///         Returns size (not size-1) when full because vsnprintf already wrote the null
+///         terminator at buf[size-1]. Returning size signals "no room for more content".
+///         On encoding error, returns pos unchanged (no write occurred).
+__attribute__((format(printf, 4, 5))) static size_t buf_append_(char *buf, size_t size, size_t pos, const char *fmt,
+                                                                ...) {
+  if (pos >= size) {
+    return size;
+  }
+  va_list args;
+  va_start(args, fmt);
+  int written = vsnprintf(buf + pos, size - pos, fmt, args);
+  va_end(args);
+  if (written < 0) {
+    return pos;  // encoding error
+  }
+  return std::min(pos + static_cast<size_t>(written), size);
+}
+#endif
 
 void CSE7766Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
@@ -207,23 +234,21 @@ void CSE7766Component::parse_data_() {
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   {
-    // Buffer: 7 + 14 + 31 + 14 + 24 = 90 chars max + null, rounded to 96
-    char buf[96];
-    int pos = snprintf(buf, sizeof(buf), "Parsed:");  // max 7: "Parsed:"
+    // Buffer: 7 + 15 + 33 + 15 + 25 = 95 chars max + null, rounded to 128 for safety margin.
+    // Float sizes with %.4f can be up to 11 chars for large values (e.g., 999999.9999).
+    char buf[128];
+    size_t pos = buf_append_(buf, sizeof(buf), 0, "Parsed:");
     if (have_voltage) {
-      pos += snprintf(buf + pos, sizeof(buf) - pos, " V=%.4fV", voltage);  // max 14: " V="(3) + float(10) + "V"(1)
+      pos = buf_append_(buf, sizeof(buf), pos, " V=%.4fV", voltage);
     }
     if (have_current) {
-      pos +=
-          snprintf(buf + pos, sizeof(buf) - pos, " I=%.4fmA (~%.4fmA)", current * 1000.0f,
-                   calculated_current * 1000.0f);  // max 31: " I="(3) + float(10) + "mA (~"(5) + float(10) + "mA)"(3)
+      pos = buf_append_(buf, sizeof(buf), pos, " I=%.4fmA (~%.4fmA)", current * 1000.0f, calculated_current * 1000.0f);
     }
     if (have_power) {
-      pos += snprintf(buf + pos, sizeof(buf) - pos, " P=%.4fW", power);  // max 14: " P="(3) + float(10) + "W"(1)
+      pos = buf_append_(buf, sizeof(buf), pos, " P=%.4fW", power);
     }
     if (energy != 0.0f) {
-      snprintf(buf + pos, sizeof(buf) - pos, " E=%.4fkWh (%u)", energy,
-               cf_pulses);  // max 24: " E="(3) + float(10) + "kWh ("(5) + uint16(5) + ")"(1)
+      buf_append_(buf, sizeof(buf), pos, " E=%.4fkWh (%u)", energy, cf_pulses);
     }
     ESP_LOGVV(TAG, "%s", buf);
   }
