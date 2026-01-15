@@ -198,7 +198,7 @@ void EZOSensor::get_slope() { this->add_command_("Slope,?", EzoCommandType::EZO_
 void EZOSensor::get_t() { this->add_command_("T,?", EzoCommandType::EZO_T); }
 
 void EZOSensor::set_t(float value) {
-  // max 14: "T,"(2) + float(10) + null, rounded to 16
+  // max 14 bytes: "T,"(2) + float with "%0.2f" (up to 11 chars) + null(1); use 16 for alignment
   char payload[16];
   snprintf(payload, sizeof(payload), "T,%0.2f", value);
   this->add_command_(payload, EzoCommandType::EZO_T);
