@@ -1,7 +1,6 @@
 #pragma once
 #include "esphome/core/component.h"
 #include "esphome/core/color.h"
-#include "esphome/core/helpers.h"
 
 #include <cstdint>
 
@@ -14,7 +13,6 @@ class Display;
 }  // namespace display
 
 namespace qr_code {
-
 class QrCode : public Component {
  public:
   void draw(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color, int scale);
