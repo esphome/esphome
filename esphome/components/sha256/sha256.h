@@ -24,7 +24,7 @@ namespace esphome::sha256 {
 
 /// SHA256 hash implementation.
 ///
-/// CRITICAL for ESP32-S2/S3 with IDF 5.5.x hardware SHA acceleration:
+/// CRITICAL for ESP32 variants (except original) with IDF 5.5.x hardware SHA acceleration:
 /// 1. The object MUST stay in the same stack frame (no passing to other functions)
 /// 2. NO Variable Length Arrays (VLAs) in the same function
 ///
