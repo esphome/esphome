@@ -285,8 +285,12 @@ class ServerRegister {
       case SensorValueType::S_QWORD_R:
         return std::to_string(value);
       case SensorValueType::FP32_R:
-      case SensorValueType::FP32:
-        return str_sprintf("%.1f", bit_cast<float>(static_cast<uint32_t>(value)));
+      case SensorValueType::FP32: {
+        // max 48: float with %.1f can be up to 41 chars (3.4e38 → 39 digits + sign + decimal + 1 digit) + null
+        char buf[48];
+        snprintf(buf, sizeof(buf), "%.1f", bit_cast<float>(static_cast<uint32_t>(value)));
+        return buf;
+      }
       default:
         return std::to_string(value);
     }
