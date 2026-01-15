@@ -225,22 +225,30 @@ void Nextion::add_buffer_overflow_event_callback(std::function<void()> &&callbac
   this->buffer_overflow_callback_.add(std::move(callback));
 }
 
-void Nextion::add_custom_switch_callback(std::function<void(const std::string &, bool)> &&callback) {
-  this->custom_switch_callback_.add(std::move(callback));
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
+void Nextion::add_custom_binary_sensor_callback(std::function<void(const std::string &, bool)> &&callback) {
+  this->custom_binary_sensor_callback_.add(std::move(callback));
 }
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
 
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
 void Nextion::add_custom_sensor_callback(std::function<void(const std::string &, int32_t)> &&callback) {
   this->custom_sensor_callback_.add(std::move(callback));
 }
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
 
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+void Nextion::add_custom_switch_callback(std::function<void(const std::string &, bool)> &&callback) {
+  this->custom_switch_callback_.add(std::move(callback));
+}
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 void Nextion::add_custom_text_sensor_callback(
     std::function<void(const std::string &, const std::string &)> &&callback) {
   this->custom_text_sensor_callback_.add(std::move(callback));
 }
-
-void Nextion::add_custom_binary_sensor_callback(std::function<void(const std::string &, bool)> &&callback) {
-  this->custom_binary_sensor_callback_.add(std::move(callback));
-}
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 
 void Nextion::update_all_components() {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || this->is_sleeping())
@@ -724,7 +732,10 @@ void Nextion::process_nextion_commands_() {
 
         ESP_LOGN(TAG, "Switch %s: %s", ONOFF(to_process[index] != 0), variable_name.c_str());
 
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
         this->custom_switch_callback_.call(variable_name, to_process[index] != 0);
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+
         for (auto *switchtype : this->switchtype_) {
           switchtype->process_bool(variable_name, to_process[index] != 0);
         }
@@ -756,7 +767,10 @@ void Nextion::process_nextion_commands_() {
 
         ESP_LOGN(TAG, "Sensor: %s=%d", variable_name.c_str(), value);
 
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
         this->custom_sensor_callback_.call(variable_name, value);
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
+
         for (auto *sensor : this->sensortype_) {
           sensor->process_sensor(variable_name, value);
         }
@@ -794,7 +808,11 @@ void Nextion::process_nextion_commands_() {
         // nq->variable_name = variable_name;
         // nq->state = text_value;
         // this->textsensorq_.push_back(nq);
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
         this->custom_text_sensor_callback_.call(variable_name, text_value);
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
+
         for (auto *textsensortype : this->textsensortype_) {
           textsensortype->process_text(variable_name, text_value);
         }
@@ -822,7 +840,10 @@ void Nextion::process_nextion_commands_() {
 
         ESP_LOGN(TAG, "Binary sensor: %s=%s", variable_name.c_str(), ONOFF(to_process[index] != 0));
 
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
         this->custom_binary_sensor_callback_.call(variable_name, to_process[index] != 0);
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
+
         for (auto *binarysensortype : this->binarysensortype_) {
           binarysensortype->process_bool(&variable_name[0], to_process[index] != 0);
         }

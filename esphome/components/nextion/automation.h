@@ -52,28 +52,7 @@ class TouchTrigger : public Trigger<uint8_t, uint8_t, bool> {
   }
 };
 
-class CustomSwitchTrigger : public Trigger<std::string, bool> {
- public:
-  explicit CustomSwitchTrigger(Nextion *nextion) {
-    nextion->add_custom_switch_callback([this](const std::string &key, bool value) { this->trigger(key, value); });
-  }
-};
-
-class CustomSensorTrigger : public Trigger<std::string, int32_t> {
- public:
-  explicit CustomSensorTrigger(Nextion *nextion) {
-    nextion->add_custom_sensor_callback([this](const std::string &key, int32_t value) { this->trigger(key, value); });
-  }
-};
-
-class CustomTextSensorTrigger : public Trigger<std::string, std::string> {
- public:
-  explicit CustomTextSensorTrigger(Nextion *nextion) {
-    nextion->add_custom_text_sensor_callback(
-        [this](const std::string &key, const std::string &value) { this->trigger(key, value); });
-  }
-};
-
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
 class CustomBinarySensorTrigger : public Trigger<std::string, bool> {
  public:
   explicit CustomBinarySensorTrigger(Nextion *nextion) {
@@ -81,6 +60,35 @@ class CustomBinarySensorTrigger : public Trigger<std::string, bool> {
         [this](const std::string &key, bool value) { this->trigger(key, value); });
   }
 };
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
+class CustomSensorTrigger : public Trigger<std::string, int32_t> {
+ public:
+  explicit CustomSensorTrigger(Nextion *nextion) {
+    nextion->add_custom_sensor_callback([this](const std::string &key, int32_t value) { this->trigger(key, value); });
+  }
+};
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+class CustomSwitchTrigger : public Trigger<std::string, bool> {
+ public:
+  explicit CustomSwitchTrigger(Nextion *nextion) {
+    nextion->add_custom_switch_callback([this](const std::string &key, bool value) { this->trigger(key, value); });
+  }
+};
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
+class CustomTextSensorTrigger : public Trigger<std::string, std::string> {
+ public:
+  explicit CustomTextSensorTrigger(Nextion *nextion) {
+    nextion->add_custom_text_sensor_callback(
+        [this](const std::string &key, const std::string &value) { this->trigger(key, value); });
+  }
+};
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 
 template<typename... Ts> class NextionSetBrightnessAction : public Action<Ts...> {
  public:
