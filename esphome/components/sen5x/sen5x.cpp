@@ -424,15 +424,6 @@ void SEN5XComponent::update() {
       float pm_10_0 = measurements[3] == UINT16_MAX ? NAN : measurements[3] / 10.0f;
       this->pm_10_0_sensor_->publish_state(pm_10_0);
     }
-    if (this->humidity_sensor_ != nullptr) {
-      float humidity = static_cast<int16_t>(measurements[4]) / 100.0f;
-      if ((this->is_sen6x_() && measurements[4] == INT16_MAX) ||
-          (!this->is_sen6x_() && measurements[4] == UINT16_MAX)) {
-        humidity = NAN;
-      }
-      ESP_LOGV(TAG, "humidity = 0x%.4x", measurements[4]);
-      this->humidity_sensor_->publish_state(humidity);
-    }
     if (this->temperature_sensor_ != nullptr) {
       float temperature = static_cast<int16_t>(measurements[5]) / 200.0f;
       if ((this->is_sen6x_() && measurements[5] == INT16_MAX) ||
@@ -441,6 +432,15 @@ void SEN5XComponent::update() {
       }
       ESP_LOGV(TAG, "temperature = 0x%.4x", measurements[5]);
       this->temperature_sensor_->publish_state(temperature);
+    }
+    if (this->humidity_sensor_ != nullptr) {
+      float humidity = static_cast<int16_t>(measurements[4]) / 100.0f;
+      if ((this->is_sen6x_() && measurements[4] == INT16_MAX) ||
+          (!this->is_sen6x_() && measurements[4] == UINT16_MAX)) {
+        humidity = NAN;
+      }
+      ESP_LOGV(TAG, "humidity = 0x%.4x", measurements[4]);
+      this->humidity_sensor_->publish_state(humidity);
     }
     if (this->voc_sensor_ != nullptr) {
       ESP_LOGV(TAG, "voc = 0x%.4x", measurements[6]);

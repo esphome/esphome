@@ -9,8 +9,14 @@
 namespace esphome {
 namespace sen5x {
 
+enum RhtAccelerationMode : uint16_t {
+  LOW_ACCELERATION = 0,
+  MEDIUM_ACCELERATION = 1,
+  HIGH_ACCELERATION = 2,
+};
+
 enum Sen5xType { SEN50, SEN54, SEN55, SEN62, SEN63C, SEN65, SEN66, SEN68, SEN69C, UNKNOWN_MODEL };
-enum RhtAccelerationMode : uint16_t { LOW_ACCELERATION = 0, MEDIUM_ACCELERATION = 1, HIGH_ACCELERATION = 2 };
+
 enum Sen5xSetupStates {
   SEN5X_SM_START,
   SEN5X_SM_START_1,

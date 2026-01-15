@@ -164,22 +164,6 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SEN5XComponent),
             cv.Required(CONF_MODEL): cv.enum(SEN5X_MODELS, upper=True),
-            cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES),
-            cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval,
-            cv.Optional(CONF_STORE_BASELINE, default=False): cv.boolean,
-            cv.Optional(CONF_TEMPERATURE_COMPENSATION): cv.Schema(
-                {
-                    cv.Optional(CONF_OFFSET, default=0): cv.float_range(
-                        min=-100.0, max=100.0
-                    ),
-                    cv.Optional(
-                        CONF_NORMALIZED_OFFSET_SLOPE, default=0
-                    ): cv.float_range(min=-3.0, max=3.0),
-                    cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_range(
-                        min=0, max=65535
-                    ),
-                }
-            ),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_CHEMICAL_WEAPON,
@@ -207,6 +191,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_PM10,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval,
             cv.Optional(CONF_VOC): _gas_sensor(
                 index_offset=100,
                 learning_time_offset=12,
@@ -223,6 +208,37 @@ CONFIG_SCHEMA = (
                 std_initial=50,
                 gain_factor=230,
             ),
+            cv.Optional(CONF_HCHO): sensor.sensor_schema(
+                unit_of_measurement=UNIT_PARTS_PER_BILLION,
+                icon=ICON_MOLECULE,
+                accuracy_decimals=1,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
+            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                icon=ICON_THERMOMETER,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
+                unit_of_measurement=UNIT_PERCENT,
+                icon=ICON_WATER_PERCENT,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_HUMIDITY,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_TEMPERATURE_COMPENSATION): cv.Schema(
+                {
+                    cv.Optional(CONF_OFFSET, default=0): cv.float_,
+                    cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0): cv.All(
+                        float_previously_pct, cv.float_
+                    ),
+                    cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_,
+                }
+            ),
+            cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_MOLECULE_CO2,
@@ -245,26 +261,6 @@ CONFIG_SCHEMA = (
                     }
                 )
             ),
-            cv.Optional(CONF_HCHO): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_BILLION,
-                icon=ICON_MOLECULE,
-                accuracy_decimals=1,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_THERMOMETER,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_WATER_PERCENT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -285,9 +281,9 @@ SENSOR_MAP = {
 }
 
 SETTING_MAP = {
-    CONF_MODEL: "set_model",
     CONF_AUTO_CLEANING_INTERVAL: "set_auto_cleaning_interval",
     CONF_ACCELERATION_MODE: "set_acceleration_mode",
+    CONF_MODEL: "set_model",
     CONF_STORE_BASELINE: "set_store_baseline",
 }
 
