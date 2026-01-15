@@ -325,7 +325,7 @@ DriverChip(
      (0x29,0x00),
      (REGFLAG_DELAY, 5),     # delay 5 ms na display ON
      (0x11,0x00),
-     (REGFLAG_DELAY, 120),     # delay 5 ms na display ON
+     (REGFLAG_DELAY, 120),     # delay 120 ms na display ON
      (0x35,0x00),
     ]
 )
