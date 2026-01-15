@@ -232,7 +232,7 @@ bool MQTTComponent::send_discovery_() {
 #else
         const char *fmt = ver_fmt;
 #endif
-        // sizeof(ver_fmt) + 8: format specifier expands to 8 hex digits, plus safety margin
+        // Buffer sized for format string expansion: ~4 bytes net growth from format specifier to 8 hex digits, plus safety margin
         char version_buf[sizeof(ver_fmt) + 8];
         snprintf(version_buf, sizeof(version_buf), fmt, App.get_config_hash());
         device_info[MQTT_DEVICE_SW_VERSION] = version_buf;
