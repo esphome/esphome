@@ -48,7 +48,8 @@ void MQTTComponent::set_subscribe_qos(uint8_t qos) { this->subscribe_qos_ = qos;
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
-  std::string sanitized_name = str_sanitize(App.get_name());
+  char sanitized_name[ESPHOME_DEVICE_NAME_MAX_LEN + 1];
+  str_sanitize_to(sanitized_name, App.get_name().c_str());
   const char *comp_type = this->component_type();
   char object_id_buf[OBJECT_ID_MAX_LEN];
   StringRef object_id = this->get_default_object_id_to_(object_id_buf);
@@ -60,7 +61,7 @@ std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discove
   p = append_char(p, '/');
   p = append_str(p, comp_type, strlen(comp_type));
   p = append_char(p, '/');
-  p = append_str(p, sanitized_name.data(), sanitized_name.size());
+  p = append_str(p, sanitized_name, strlen(sanitized_name));
   p = append_char(p, '/');
   p = append_str(p, object_id.c_str(), object_id.size());
   p = append_str(p, "/config", 7);
