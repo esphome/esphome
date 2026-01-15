@@ -169,8 +169,8 @@ void EZOSensor::add_command_(const char *command, EzoCommandType command_type, u
 }
 
 void EZOSensor::set_calibration_point_(EzoCalibrationType type, float value) {
-  // max 20: "Cal,"(4) + type(4) + ","(1) + float(10) + null
-  char payload[20];
+  // max 21: "Cal,"(4) + type(4) + ","(1) + float(11) + null; use 24 for safety
+  char payload[24];
   snprintf(payload, sizeof(payload), "Cal,%s,%0.2f", EZO_CALIBRATION_TYPE_STRINGS[type], value);
   this->add_command_(payload, EzoCommandType::EZO_CALIBRATION, 900);
 }
@@ -198,7 +198,7 @@ void EZOSensor::get_slope() { this->add_command_("Slope,?", EzoCommandType::EZO_
 void EZOSensor::get_t() { this->add_command_("T,?", EzoCommandType::EZO_T); }
 
 void EZOSensor::set_t(float value) {
-  // max 14: "T,"(2) + float(10) + null, rounded to 16
+  // max 14 bytes: "T,"(2) + float with "%0.2f" (up to 11 chars) + null(1); use 16 for alignment
   char payload[16];
   snprintf(payload, sizeof(payload), "T,%0.2f", value);
   this->add_command_(payload, EzoCommandType::EZO_T);
@@ -221,7 +221,7 @@ void EZOSensor::set_calibration_point_high(float value) {
 }
 
 void EZOSensor::set_calibration_generic(float value) {
-  // max 16: "Cal,"(4) + float(10) + null, rounded to 16
+  // exact 16 bytes: "Cal," (4) + float with "%0.2f" (up to 11 chars, e.g. "-9999999.99") + null (1) = 16
   char payload[16];
   snprintf(payload, sizeof(payload), "Cal,%0.2f", value);
   this->add_command_(payload, EzoCommandType::EZO_CALIBRATION, 900);
