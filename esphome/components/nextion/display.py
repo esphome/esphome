@@ -91,7 +91,11 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_ON_CUSTOM_BINARY_SENSOR): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CustomBinarySensorTrigger)}
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        CustomBinarySensorTrigger
+                    )
+                }
             ),
             cv.Optional(CONF_ON_CUSTOM_SENSOR): automation.validate_automation(
                 {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CustomSensorTrigger)}
