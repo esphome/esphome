@@ -55,16 +55,14 @@ class TouchTrigger : public Trigger<uint8_t, uint8_t, bool> {
 class CustomSwitchTrigger : public Trigger<std::string, bool> {
  public:
   explicit CustomSwitchTrigger(Nextion *nextion) {
-    nextion->add_custom_switch_callback(
-        [this](const std::string &key, bool value) { this->trigger(key, value); });
+    nextion->add_custom_switch_callback([this](const std::string &key, bool value) { this->trigger(key, value); });
   }
 };
 
 class CustomSensorTrigger : public Trigger<std::string, int32_t> {
  public:
   explicit CustomSensorTrigger(Nextion *nextion) {
-    nextion->add_custom_sensor_callback(
-        [this](const std::string &key, int32_t value) { this->trigger(key, value); });
+    nextion->add_custom_sensor_callback([this](const std::string &key, int32_t value) { this->trigger(key, value); });
   }
 };
 

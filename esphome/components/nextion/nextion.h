@@ -1171,8 +1171,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * @param callback The void(const std::string &key, const std::string &value) callback.
    */
-  void add_custom_text_sensor_callback(
-      std::function<void(const std::string &, const std::string &)> &&callback);
+  void add_custom_text_sensor_callback(std::function<void(const std::string &, const std::string &)> &&callback);
 
   /** Add a callback to be notified when Nextion sends a custom binary sensor protocol frame (0x93).
    *
