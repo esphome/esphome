@@ -1,4 +1,7 @@
 #pragma once
+
+#include <string>
+
 #include "esphome/core/automation.h"
 #include "nextion.h"
 
@@ -46,6 +49,38 @@ class TouchTrigger : public Trigger<uint8_t, uint8_t, bool> {
     nextion->add_touch_event_callback([this](uint8_t page_id, uint8_t component_id, bool touch_event) {
       this->trigger(page_id, component_id, touch_event);
     });
+  }
+};
+
+class CustomSwitchTrigger : public Trigger<std::string, bool> {
+ public:
+  explicit CustomSwitchTrigger(Nextion *nextion) {
+    nextion->add_custom_switch_callback(
+        [this](const std::string &key, bool value) { this->trigger(key, value); });
+  }
+};
+
+class CustomSensorTrigger : public Trigger<std::string, int32_t> {
+ public:
+  explicit CustomSensorTrigger(Nextion *nextion) {
+    nextion->add_custom_sensor_callback(
+        [this](const std::string &key, int32_t value) { this->trigger(key, value); });
+  }
+};
+
+class CustomTextSensorTrigger : public Trigger<std::string, std::string> {
+ public:
+  explicit CustomTextSensorTrigger(Nextion *nextion) {
+    nextion->add_custom_text_sensor_callback(
+        [this](const std::string &key, const std::string &value) { this->trigger(key, value); });
+  }
+};
+
+class CustomBinarySensorTrigger : public Trigger<std::string, bool> {
+ public:
+  explicit CustomBinarySensorTrigger(Nextion *nextion) {
+    nextion->add_custom_binary_sensor_callback(
+        [this](const std::string &key, bool value) { this->trigger(key, value); });
   }
 };
 

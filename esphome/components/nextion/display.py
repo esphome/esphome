@@ -20,6 +20,10 @@ from .base_component import (
     CONF_MAX_COMMANDS_PER_LOOP,
     CONF_MAX_QUEUE_SIZE,
     CONF_ON_BUFFER_OVERFLOW,
+    CONF_ON_CUSTOM_BINARY_SENSOR,
+    CONF_ON_CUSTOM_SENSOR,
+    CONF_ON_CUSTOM_SWITCH,
+    CONF_ON_CUSTOM_TEXT_SENSOR,
     CONF_ON_PAGE,
     CONF_ON_SETUP,
     CONF_ON_SLEEP,
@@ -47,6 +51,18 @@ TouchTrigger = nextion_ns.class_("TouchTrigger", automation.Trigger.template())
 BufferOverflowTrigger = nextion_ns.class_(
     "BufferOverflowTrigger", automation.Trigger.template()
 )
+CustomBinarySensorTrigger = nextion_ns.class_(
+    "CustomBinarySensorTrigger", automation.Trigger.template(cg.std_string, cg.bool_)
+)
+CustomSensorTrigger = nextion_ns.class_(
+    "CustomSensorTrigger", automation.Trigger.template(cg.std_string, cg.int32)
+)
+CustomSwitchTrigger = nextion_ns.class_(
+    "CustomSwitchTrigger", automation.Trigger.template(cg.std_string, cg.bool_)
+)
+CustomTextSensorTrigger = nextion_ns.class_(
+    "CustomTextSensorTrigger", automation.Trigger.template(cg.std_string, cg.std_string)
+)
 
 CONFIG_SCHEMA = (
     display.BASIC_DISPLAY_SCHEMA.extend(
@@ -68,6 +84,18 @@ CONFIG_SCHEMA = (
                         BufferOverflowTrigger
                     ),
                 }
+            ),
+            cv.Optional(CONF_ON_CUSTOM_BINARY_SENSOR): automation.validate_automation(
+                {cv.GenerateID(CONF_ID): cv.declare_id(CustomBinarySensorTrigger)}
+            ),
+            cv.Optional(CONF_ON_CUSTOM_SENSOR): automation.validate_automation(
+                {cv.GenerateID(CONF_ID): cv.declare_id(CustomSensorTrigger)}
+            ),
+            cv.Optional(CONF_ON_CUSTOM_SWITCH): automation.validate_automation(
+                {cv.GenerateID(CONF_ID): cv.declare_id(CustomSwitchTrigger)}
+            ),
+            cv.Optional(CONF_ON_CUSTOM_TEXT_SENSOR): automation.validate_automation(
+                {cv.GenerateID(CONF_ID): cv.declare_id(CustomTextSensorTrigger)}
             ),
             cv.Optional(CONF_ON_PAGE): automation.validate_automation(
                 {
@@ -219,3 +247,47 @@ async def to_code(config):
     for conf in config.get(CONF_ON_BUFFER_OVERFLOW, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_CUSTOM_BINARY_SENSOR, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger,
+            [
+                (cg.std_string, "key"),
+                (cg.bool_, "value"),
+            ],
+            conf,
+        )
+
+    for conf in config.get(CONF_ON_CUSTOM_SENSOR, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger,
+            [
+                (cg.std_string, "key"),
+                (cg.int32, "value"),
+            ],
+            conf,
+        )
+
+    for conf in config.get(CONF_ON_CUSTOM_SWITCH, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger,
+            [
+                (cg.std_string, "key"),
+                (cg.bool_, "value"),
+            ],
+            conf,
+        )
+
+    for conf in config.get(CONF_ON_CUSTOM_TEXT_SENSOR, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger,
+            [
+                (cg.std_string, "key"),
+                (cg.std_string, "value"),
+            ],
+            conf,
+        )
