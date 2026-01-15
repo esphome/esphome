@@ -142,13 +142,13 @@ void STCC4Component::perform_factory_reset_() {
 }
 
 bool STCC4Component::perform_self_test_() {
-  uint16_t result = 0xFFFF;
+  uint16_t result;
 
   this->read_data(&result, 2);
 
   // PASS
   if (result == 0x0000 || result == 0x0010) {
-    ESP_LOGW(TAG, "STCC4 Nominal");
+    ESP_LOGI(TAG, "STCC4 Nominal");
     this->state_.is_sht45_present = true;
     this->status_clear_warning();
     return true;
@@ -156,14 +156,15 @@ bool STCC4Component::perform_self_test_() {
 
   // FAIL decode
   if (result & 0x0001) {
-    ESP_LOGW(TAG, "Sensor voltage out of range");
-    this->status_set_error();
+    ESP_LOGW(TAG, "Sensor voltage out of range, sensor may stabilize");
+    this->status_set_warning();
     return true;
   }
 
   if (result & 0x000E) {
     ESP_LOGW(TAG, "Sensor failed, contact Sensirion with code 0x%04X", result);
     this->status_set_error();
+    this->mark_failed();
     return true;
   }
 
@@ -196,6 +197,18 @@ bool STCC4Component::perform_self_test_() {
 }
 
 void STCC4Component::read_serial_number_() {
+  if (this->state_.is_measuring) {
+    ESP_LOGW(TAG, "Serial number can not be read during continuous measurement!");
+    return;
+  }
+
+  uint16_t buffer[6];
+  if (!this->get_register((uint16_t) SensorCommand::GET_PRODUCT_ID, buffer, 6, 1)) {
+    ESP_LOGW(TAG, "Failed to read serial number");
+  }
+
+  this->serial_number_ = ((uint64_t) buffer[2] << 48) | ((uint64_t) buffer[3] << 32) | ((uint64_t) buffer[4] << 16) |
+                         ((uint64_t) buffer[5]);
   // %todo% rewrite function using FSM if needed
 
   // uint16_t buffer[6];
@@ -228,7 +241,7 @@ void STCC4Component::continue_setup_() {
     case 1:
       this->write_command((uint16_t) SensorCommand::PERFORM_SELF_TEST);
       this->stage_++;
-      this->set_timeout("Sensor Selftest command sent!", 500, [this]() { continue_setup_(); });
+      this->set_timeout("Sensor self-test command sent!", 500, [this]() { continue_setup_(); });
       break;
 
     case 2:
@@ -236,7 +249,7 @@ void STCC4Component::continue_setup_() {
         this->set_timeout("Running test again", 500, [this]() { continue_setup_(); });
         break;
       }
-      ESP_LOGW(TAG, "Self check completed");
+      ESP_LOGI(TAG, "Self check completed");
       if (this->continuous_) {
         this->start_continuous_measurement_();
         this->stage_++;
@@ -262,7 +275,7 @@ void STCC4Component::continue_setup_() {
     }
 
     case 99:
-      ESP_LOGW(TAG, "STCC4 Init completed!");
+      ESP_LOGI(TAG, "STCC4 Init completed!");
       break;
     default:
       break;
