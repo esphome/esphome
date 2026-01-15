@@ -144,7 +144,9 @@ void SEN6XComponent::setup() {
         // Hash with compilation time and serial number
         // This ensures the baseline storage is cleared after OTA
         // Serial numbers are unique to each sensor, so mulitple sensors can be used without conflict
-        uint32_t hash = fnv1_hash(App.get_compilation_time() + std::to_string(combined_serial));
+        char build_time[esphome::Application::BUILD_TIME_STR_SIZE];
+        App.get_build_time_string(build_time);
+        uint32_t hash = fnv1_hash(std::string(build_time) + std::to_string(combined_serial));
         this->pref_ = global_preferences->make_preference<Sen6xBaselines>(hash, true);
 
         if (this->pref_.load(&this->voc_baselines_storage_)) {
