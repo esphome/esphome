@@ -1966,7 +1966,9 @@ MQTT_COMPONENT_SCHEMA = Schema(
         Optional(CONF_RETAIN): All(requires_component("mqtt"), boolean),
         Optional(CONF_DISCOVERY): All(requires_component("mqtt"), boolean),
         Optional(CONF_SUBSCRIBE_QOS): All(requires_component("mqtt"), mqtt_qos),
-        Optional(CONF_STATE_TOPIC): All(requires_component("mqtt"), publish_topic),
+        Optional(CONF_STATE_TOPIC): All(
+            requires_component("mqtt"), templatable(publish_topic)
+        ),
         Optional(CONF_AVAILABILITY): All(
             requires_component("mqtt"), Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)
         ),
@@ -1975,7 +1977,9 @@ MQTT_COMPONENT_SCHEMA = Schema(
 
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     {
-        Optional(CONF_COMMAND_TOPIC): All(requires_component("mqtt"), subscribe_topic),
+        Optional(CONF_COMMAND_TOPIC): All(
+            requires_component("mqtt"), templatable(subscribe_topic)
+        ),
         Optional(CONF_COMMAND_RETAIN): All(requires_component("mqtt"), boolean),
     }
 )
