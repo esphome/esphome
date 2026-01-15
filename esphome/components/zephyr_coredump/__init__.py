@@ -23,6 +23,8 @@ async def to_code(config):
     zephyr_add_prj_conf("DEBUG_COREDUMP", True)
     zephyr_add_prj_conf("DEBUG_COREDUMP_BACKEND_FLASH_PARTITION", True)
     zephyr_add_prj_conf("DEBUG_COREDUMP_MEMORY_DUMP_THREADS", True)
+    # zephyr_add_prj_conf("EXTRA_EXCEPTION_INFO", True)
+    # https://github.com/zephyrproject-rtos/zephyr/pull/79622
     zephyr_add_pm_static(
         [Section("coredump_partition", 0xE4000, 0x10000, "flash_primary")]
     )
