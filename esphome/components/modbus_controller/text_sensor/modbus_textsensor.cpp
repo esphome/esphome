@@ -24,7 +24,7 @@ void ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
         break;
       }
       case RawEncoding::COMMA: {
-        // max 5: ","(1) + uint8(3) + null
+        // max 5: optional ','(1) + uint8(3) + null, for both ",%d" and "%d"
         char dec_buf[5];
         snprintf(dec_buf, sizeof(dec_buf), index != this->offset ? ",%d" : "%d", b);
         output_str += dec_buf;
