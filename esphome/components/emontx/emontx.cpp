@@ -281,12 +281,12 @@ void EmonTx::dump_config() {
 /**
  * @brief Sends a command string to the emonTx device via UART.
  *
- * @param command The command string to send (CR+LF will be appended automatically).
+ * @param command The command string to send (LF will be appended automatically).
  */
 void EmonTx::send_command(std::string command) {
   ESP_LOGD(TAG, "Sending command to emonTx: %s", command.c_str());
-  // Append CR+LF as required by emonTx firmware
-  command += "\r\n";
+  // Append LF as required by emonTx firmware
+  command += "\n";
   this->write_str(command.c_str());
 }
 
