@@ -69,7 +69,7 @@ CONF_HCHO = "hcho"
 ICON_MOLECULE = "mdi:molecule"
 
 # Actions
-StartFanCleaningAction = sen5x_ns.class_("StartFanCleaningAction", automation.Action)
+StartFanAction = sen5x_ns.class_("StartFanAction", automation.Action)
 ActivateHeaterAction = sen5x_ns.class_("ActivateHeaterAction", automation.Action)
 PerformForcedCo2RecalibrationAction = sen5x_ns.class_(
     "PerformForcedCo2RecalibrationAction", automation.Action
@@ -424,7 +424,7 @@ SEN5X_ACTION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(SEN5XComponent
 
 
 @automation.register_action(
-    "sen5x.start_fan_cleaning", StartFanCleaningAction, SEN5X_ACTION_SCHEMA
+    "sen5x.start_fan_autoclean", StartFanAction, SEN5X_ACTION_SCHEMA
 )
 async def sen5x_fan_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
