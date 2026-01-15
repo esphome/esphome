@@ -36,6 +36,10 @@ class RemoteTransmitData {
   /// @param len Length of the buffer in bytes
   /// @param count Number of values (for reserve optimization)
   void set_data_from_packed_sint32(const uint8_t *data, size_t len, size_t count);
+  /// Set data from little-endian int32 buffer (e.g., decoded from base64)
+  /// @param data Pointer to little-endian int32 values
+  /// @param len Length of the buffer in bytes (must be multiple of 4)
+  void set_data_from_le_int32_buffer(const uint8_t *data, size_t len);
   void reset() {
     this->data_.clear();
     this->carrier_frequency_ = 0;

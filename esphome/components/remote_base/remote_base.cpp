@@ -159,6 +159,16 @@ void RemoteTransmitData::set_data_from_packed_sint32(const uint8_t *data, size_t
   }
 }
 
+void RemoteTransmitData::set_data_from_le_int32_buffer(const uint8_t *data, size_t len) {
+  this->data_.clear();
+  this->data_.reserve(len / 4);
+  // Parse little-endian int32 values
+  for (size_t i = 0; i + 3 < len; i += 4) {
+    int32_t timing = static_cast<int32_t>(encode_uint32(data[i + 3], data[i + 2], data[i + 1], data[i]));
+    this->data_.push_back(timing);
+  }
+}
+
 /* RemoteTransmitterBase */
 
 void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
