@@ -49,7 +49,7 @@ void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
   char sanitized_name[ESPHOME_DEVICE_NAME_MAX_LEN + 1];
-  str_sanitize_to(sanitized_name, App.get_name());
+  str_sanitize_to(sanitized_name, App.get_name().c_str());
   const char *comp_type = this->component_type();
   char object_id_buf[OBJECT_ID_MAX_LEN];
   StringRef object_id = this->get_default_object_id_to_(object_id_buf);
