@@ -20,8 +20,8 @@ static constexpr size_t CSE7766_RAW_DATA_SIZE = 24;
 ///         Returns size (not size-1) when full because vsnprintf already wrote the null
 ///         terminator at buf[size-1]. Returning size signals "no room for more content".
 ///         On encoding error, returns pos unchanged (no write occurred).
-__attribute__((format(printf, 4, 5))) static size_t buf_append_(char *buf, size_t size, size_t pos, const char *fmt,
-                                                                ...) {
+__attribute__((format(printf, 4, 5))) static size_t buf_append(char *buf, size_t size, size_t pos, const char *fmt,
+                                                               ...) {
   if (pos >= size) {
     return size;
   }
@@ -237,18 +237,18 @@ void CSE7766Component::parse_data_() {
     // Buffer: 7 + 15 + 33 + 15 + 25 = 95 chars max + null, rounded to 128 for safety margin.
     // Float sizes with %.4f can be up to 11 chars for large values (e.g., 999999.9999).
     char buf[128];
-    size_t pos = buf_append_(buf, sizeof(buf), 0, "Parsed:");
+    size_t pos = buf_append(buf, sizeof(buf), 0, "Parsed:");
     if (have_voltage) {
-      pos = buf_append_(buf, sizeof(buf), pos, " V=%.4fV", voltage);
+      pos = buf_append(buf, sizeof(buf), pos, " V=%.4fV", voltage);
     }
     if (have_current) {
-      pos = buf_append_(buf, sizeof(buf), pos, " I=%.4fmA (~%.4fmA)", current * 1000.0f, calculated_current * 1000.0f);
+      pos = buf_append(buf, sizeof(buf), pos, " I=%.4fmA (~%.4fmA)", current * 1000.0f, calculated_current * 1000.0f);
     }
     if (have_power) {
-      pos = buf_append_(buf, sizeof(buf), pos, " P=%.4fW", power);
+      pos = buf_append(buf, sizeof(buf), pos, " P=%.4fW", power);
     }
     if (energy != 0.0f) {
-      buf_append_(buf, sizeof(buf), pos, " E=%.4fkWh (%u)", energy, cf_pulses);
+      buf_append(buf, sizeof(buf), pos, " E=%.4fkWh (%u)", energy, cf_pulses);
     }
     ESP_LOGVV(TAG, "%s", buf);
   }
