@@ -26,6 +26,9 @@ void SafeModeComponent::dump_config() {
                 this->safe_mode_boot_is_good_after_ / 1000,  // because milliseconds
                 this->safe_mode_num_attempts_,
                 this->safe_mode_enable_time_ / 1000);  // because milliseconds
+#ifdef USE_OTA_ROLLBACK
+  ESP_LOGCONFIG(TAG, "  Bootloader rollback: %s", this->rollback_support_);
+#endif
 
   if (this->safe_mode_rtc_value_ > 1 && this->safe_mode_rtc_value_ != SafeModeComponent::ENTER_SAFE_MODE_MAGIC) {
     auto remaining_restarts = this->safe_mode_num_attempts_ - this->safe_mode_rtc_value_;
@@ -89,6 +92,19 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
   this->safe_mode_boot_is_good_after_ = boot_is_good_after;
   this->safe_mode_num_attempts_ = num_attempts;
   this->rtc_ = global_preferences->make_preference<uint32_t>(233825507UL, false);
+
+#ifdef USE_OTA_ROLLBACK
+  // Check partition state to detect if bootloader supports rollback
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  esp_ota_img_states_t state;
+  if (esp_ota_get_state_partition(running, &state) == ESP_OK) {
+    if (state == ESP_OTA_IMG_NEW) {
+      this->rollback_support_ = "not supported";
+    } else if (state == ESP_OTA_IMG_PENDING_VERIFY) {
+      this->rollback_support_ = "supported";
+    }
+  }
+#endif
 
   uint32_t rtc_val = this->read_rtc_();
   this->safe_mode_rtc_value_ = rtc_val;
