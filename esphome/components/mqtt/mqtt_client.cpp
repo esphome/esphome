@@ -636,7 +636,7 @@ const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { retur
 void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix) {
   if (App.is_name_add_mac_suffix_enabled() && (topic_prefix == check_topic_prefix)) {
     char buf[ESPHOME_DEVICE_NAME_MAX_LEN + 1];
-    this->topic_prefix_ = str_sanitize_to(buf, App.get_name());
+    this->topic_prefix_ = str_sanitize_to(buf, App.get_name().c_str());
   } else {
     this->topic_prefix_ = topic_prefix;
   }
