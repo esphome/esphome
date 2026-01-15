@@ -227,9 +227,9 @@ void CSE7766Component::parse_data_() {
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   {
-    // Buffer: 7 + 14 + 31 + 14 + 24 = 90 chars max + null, rounded to 96.
-    // Float sizes assume typical sensor values (voltage ~220V, current <10A, power <3000W).
-    char buf[96];
+    // Buffer: 7 + 15 + 33 + 15 + 25 = 95 chars max + null, rounded to 128 for safety margin.
+    // Float sizes with %.4f can be up to 11 chars for large values (e.g., 999999.9999).
+    char buf[128];
     size_t pos = buf_append_(buf, sizeof(buf), 0, "Parsed:");
     if (have_voltage) {
       pos = buf_append_(buf, sizeof(buf), pos, " V=%.4fV", voltage);
