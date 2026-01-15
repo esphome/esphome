@@ -114,7 +114,7 @@ DriverChip(
 # * Vertical Timing (vsync_pulse_width=4, vsync_back_porch=8, vsync_front_porch=20)
 # ----------------------------------------------------------------------------------------------------------------------
 DriverChip(
-    "jc8012P4A1",
+    "JC8012P4A1",
     width=800,
     height=1280,
     hsync_back_porch=20,
@@ -323,9 +323,9 @@ DriverChip(
      (0xE0,0x00),
      (0x11,0x00),
      (0x29,0x00),
-     (REGFLAG_DELAY, 5),     # delay 5 ms na display ON
+     (REGFLAG_DELAY, 5),     # delay 5 ms for display ON
      (0x11,0x00),
-     (REGFLAG_DELAY, 120),     # delay 120 ms na display ON
+     (REGFLAG_DELAY, 120),     # delay 120 ms for display ON
      (0x35,0x00),
     ]
 )
