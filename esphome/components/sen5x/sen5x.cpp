@@ -332,7 +332,9 @@ void SEN5XComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RH/T acceleration mode: %s",
                   LOG_STR_ARG(rht_accel_mode_to_string(this->acceleration_mode_.value())));
   }
-  ESP_LOGCONFIG(TAG, "  Store Baseline: %s", TRUEFALSE(this->store_baseline_));
+  if (this->store_baseline_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Store Baseline: %s", TRUEFALSE(this->store_baseline_.value()));
+  }
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM  4.0", this->pm_4_0_sensor_);
@@ -357,7 +359,7 @@ void SEN5XComponent::dump_config() {
 }
 
 void SEN5XComponent::update() {
-  if (!this->initialized_ || !this->running_)
+  if (!this->initialized_ || !this->running_ || this->busy_)
     return;
   uint16_t cmd;
   uint8_t length;
@@ -498,7 +500,7 @@ void SEN5XComponent::update() {
       }
     }
     this->set_timeout(timeout, [this]() {
-      if (!this->store_baseline_ ||
+      if (!this->store_baseline_.has_value() || !this->store_baseline_.value() ||
           (App.get_loop_component_start_time() - this->last_store_time_) < SHORTEST_BASELINE_STORE_INTERVAL) {
         this->status_clear_warning();
       } else {
@@ -644,24 +646,31 @@ void SEN5XComponent::start_fan_cleaning() {
     return;
   }
   ESP_LOGD(TAG, "Fan Cleaning started (12s)");
-  this->busy_ = true;                 // prevent actions from stomping on each other
-  if (!this->stop_measurements_()) {  // measurements must (SEN6X)/should (SEN5X) be stopped first
-    ESP_LOGE(TAG, "Fan Cleaning failed");
-    this->busy_ = false;
-    return;
+  this->busy_ = true;  // prevent actions from stomping on each other
+  // measurements must be stopped for SEN6X and must be running for SEN5X
+  if (this->is_sen6x_()) {
+    if (!this->stop_measurements_()) {
+      ESP_LOGE(TAG, "Fan Cleaning failed");
+      this->busy_ = false;
+      return;
+    }
   }
   this->set_timeout(1400, [this]() {
     if (!this->write_command(CMD_START_CLEANING_FAN)) {
       ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      this->start_measurements_();
+      if (!this->running_) {
+        this->start_measurements_();
+      }
       ESP_LOGE(TAG, "Fan Cleaning failed");
       this->set_timeout(50, [this]() { this->busy_ = false; });
     } else {
       this->set_timeout(10000, [this]() {
-        if (!this->start_measurements_()) {
-          ESP_LOGE(TAG, "Fan Cleaning failed");
-          this->busy_ = false;
-          return;
+        if (!this->running_) {
+          if (!this->start_measurements_()) {
+            ESP_LOGE(TAG, "Fan Cleaning failed");
+            this->busy_ = false;
+            return;
+          }
         }
         ESP_LOGD(TAG, "Fan Cleaning finished");
         this->set_timeout(50, [this]() { this->busy_ = false; });
