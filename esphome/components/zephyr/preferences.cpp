@@ -15,7 +15,7 @@ static const char *const TAG = "zephyr.preferences";
 
 #define ESPHOME_SETTINGS_KEY "esphome"
 
-// Buffer size for key: "esphome/" (8) + hex uint32 (8) + null (1) = 17, rounded up
+// Buffer size for key: "esphome/" (8) + max hex uint32 (8) + null terminator (1) = 17; use 20 for safety margin
 static constexpr size_t KEY_BUFFER_SIZE = 20;
 
 class ZephyrPreferenceBackend : public ESPPreferenceBackend {
