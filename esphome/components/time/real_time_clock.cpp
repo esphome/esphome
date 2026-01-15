@@ -35,7 +35,8 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   // and prevent clock jumping backwards due to network latency
   auto current = this->utcnow();
   if (current.is_valid()) {
-    int32_t diff = static_cast<int32_t>(epoch) - static_cast<int32_t>(current.timestamp);
+    // Unsigned subtraction handles wraparound correctly, then cast to signed
+    int32_t diff = static_cast<int32_t>(epoch - current.timestamp);
     if (diff >= -1 && diff <= 1) {
       return;
     }
