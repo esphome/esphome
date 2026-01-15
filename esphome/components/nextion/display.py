@@ -57,16 +57,16 @@ BufferOverflowTrigger = nextion_ns.class_(
     "BufferOverflowTrigger", automation.Trigger.template()
 )
 CustomBinarySensorTrigger = nextion_ns.class_(
-    "CustomBinarySensorTrigger", automation.Trigger.template(cg.std_string, cg.bool_)
+    "CustomBinarySensorTrigger", automation.Trigger.template()
 )
 CustomSensorTrigger = nextion_ns.class_(
-    "CustomSensorTrigger", automation.Trigger.template(cg.std_string, cg.int32)
+    "CustomSensorTrigger", automation.Trigger.template()
 )
 CustomSwitchTrigger = nextion_ns.class_(
-    "CustomSwitchTrigger", automation.Trigger.template(cg.std_string, cg.bool_)
+    "CustomSwitchTrigger", automation.Trigger.template()
 )
 CustomTextSensorTrigger = nextion_ns.class_(
-    "CustomTextSensorTrigger", automation.Trigger.template(cg.std_string, cg.std_string)
+    "CustomTextSensorTrigger", automation.Trigger.template()
 )
 
 CONFIG_SCHEMA = (
@@ -91,16 +91,16 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_ON_CUSTOM_BINARY_SENSOR): automation.validate_automation(
-                {cv.GenerateID(CONF_ID): cv.declare_id(CustomBinarySensorTrigger)}
+                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CustomBinarySensorTrigger)}
             ),
             cv.Optional(CONF_ON_CUSTOM_SENSOR): automation.validate_automation(
-                {cv.GenerateID(CONF_ID): cv.declare_id(CustomSensorTrigger)}
+                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CustomSensorTrigger)}
             ),
             cv.Optional(CONF_ON_CUSTOM_SWITCH): automation.validate_automation(
-                {cv.GenerateID(CONF_ID): cv.declare_id(CustomSwitchTrigger)}
+                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CustomSwitchTrigger)}
             ),
             cv.Optional(CONF_ON_CUSTOM_TEXT_SENSOR): automation.validate_automation(
-                {cv.GenerateID(CONF_ID): cv.declare_id(CustomTextSensorTrigger)}
+                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CustomTextSensorTrigger)}
             ),
             cv.Optional(CONF_ON_PAGE): automation.validate_automation(
                 {
