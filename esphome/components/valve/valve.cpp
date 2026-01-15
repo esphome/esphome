@@ -133,7 +133,7 @@ void Valve::add_on_state_callback(std::function<void()> &&f) { this->state_callb
 void Valve::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
 
-  ESP_LOGD(TAG, "'%s' - Publishing:", this->name_.c_str());
+  ESP_LOGD(TAG, "'%s' >>", this->name_.c_str());
   auto traits = this->get_traits();
   if (traits.get_supports_position()) {
     ESP_LOGD(TAG, "  Position: %.0f%%", this->position * 100.0f);
