@@ -31,7 +31,8 @@ void RealTimeClock::dump_config() {
 
 void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   ESP_LOGVV(TAG, "Got epoch %" PRIu32, epoch);
-  // Skip if time is already synchronized to avoid unnecessary writes and log spam
+  // Skip if time is already synchronized to avoid unnecessary writes, log spam,
+  // and prevent clock jumping backwards due to network latency
   auto current = this->utcnow();
   if (current.is_valid()) {
     int32_t diff = static_cast<int32_t>(epoch) - static_cast<int32_t>(current.timestamp);
