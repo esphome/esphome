@@ -207,25 +207,20 @@ void CSE7766Component::parse_data_() {
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   {
-    char buf[128];
-    size_t pos = 0;
-    const size_t size = sizeof(buf);
-    auto append = [&](const char *fmt, auto... args) {
-      if (pos < size) {
-        int written = snprintf(buf + pos, size - pos, fmt, args...);
-        if (written > 0)
-          pos = std::min(pos + static_cast<size_t>(written), size);
-      }
-    };
-    append("Parsed:");
+    // Buffer: 7 + 14 + 31 + 14 + 24 = 90 chars max + null, rounded to 96
+    char buf[96];
+    int pos = snprintf(buf, sizeof(buf), "Parsed:");  // max 7: "Parsed:"
     if (have_voltage)
-      append(" V=%fV", voltage);
+      pos += snprintf(buf + pos, sizeof(buf) - pos, " V=%.4fV", voltage);  // max 14: " V="(3) + float(10) + "V"(1)
     if (have_current)
-      append(" I=%fmA (~%fmA)", current * 1000.0f, calculated_current * 1000.0f);
+      pos +=
+          snprintf(buf + pos, sizeof(buf) - pos, " I=%.4fmA (~%.4fmA)", current * 1000.0f,
+                   calculated_current * 1000.0f);  // max 31: " I="(3) + float(10) + "mA (~"(5) + float(10) + "mA)"(3)
     if (have_power)
-      append(" P=%fW", power);
+      pos += snprintf(buf + pos, sizeof(buf) - pos, " P=%.4fW", power);  // max 14: " P="(3) + float(10) + "W"(1)
     if (energy != 0.0f)
-      append(" E=%fkWh (%u)", energy, cf_pulses);
+      pos += snprintf(buf + pos, sizeof(buf) - pos, " E=%.4fkWh (%u)", energy,
+                      cf_pulses);  // max 24: " E="(3) + float(10) + "kWh ("(5) + uint16(5) + ")"(1)
     ESP_LOGVV(TAG, "%s", buf);
   }
 #endif
