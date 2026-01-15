@@ -125,7 +125,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_ambient_pressure_compensation(uint16_t pressure_in_hpa);
   void start_fan_cleaning();
   void activate_heater();
-  void perform_forced_co2_calibration(uint16_t co2);
+  void perform_forced_co2_recalibration(uint16_t co2);
 
  protected:
   bool is_sen6x_();

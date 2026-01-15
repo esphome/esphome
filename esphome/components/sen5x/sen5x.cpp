@@ -748,13 +748,13 @@ void SEN5XComponent::activate_heater() {
   }
 }
 
-void SEN5XComponent::perform_forced_co2_calibration(uint16_t co2) {
+void SEN5XComponent::perform_forced_co2_recalibration(uint16_t co2) {
   if (this->model_.value() == SEN63C || this->model_.value() == SEN66 || this->model_.value() == SEN69C) {
     if (this->busy_) {
       ESP_LOGW(TAG, "Forced CO₂ Recalibration aborted, sensor is busy");
       return;
     }
-    ESP_LOGD(TAG, "Forced CO₂ Recalibration, co2=%d", co2);
+    ESP_LOGD(TAG, "Forced CO₂ Recalibration started, co2=%d", co2);
     this->busy_ = true;  // prevent actions from stomping on each other
     if (!this->stop_measurements_()) {
       ESP_LOGE(TAG, "Forced CO₂ Recalibration failed");
@@ -768,14 +768,14 @@ void SEN5XComponent::perform_forced_co2_calibration(uint16_t co2) {
         this->set_timeout(50, [this]() { this->busy_ = false; });
       } else {
         this->set_timeout(500, [this]() {
-          uint16_t frc = 0;
-          if (!this->read_data(frc)) {
+          uint16_t correction = 0;
+          if (!this->read_data(correction)) {
             ESP_LOGE(TAG, "Forced CO₂ Recalibration failed");
           } else {
-            if (frc == 0xFFFF) {
+            if (correction == 0xFFFF) {
               ESP_LOGE(TAG, "Forced CO₂ Recalibration failed");
             } else {
-              ESP_LOGD(TAG, "Forced CO₂ Recalibration finished, corr=%d", static_cast<int32_t>(frc) - 0x8000);
+              ESP_LOGD(TAG, "Forced CO₂ Recalibration finished, corr=%d", static_cast<int32_t>(correction) - 0x8000);
             }
           }
           if (!this->start_measurements_()) {
