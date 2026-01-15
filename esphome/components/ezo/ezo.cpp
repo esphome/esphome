@@ -169,8 +169,8 @@ void EZOSensor::add_command_(const char *command, EzoCommandType command_type, u
 }
 
 void EZOSensor::set_calibration_point_(EzoCalibrationType type, float value) {
-  // max 20: "Cal,"(4) + type(4) + ","(1) + float(10) + null
-  char payload[20];
+  // max 21: "Cal,"(4) + type(4) + ","(1) + float(11) + null; use 24 for safety
+  char payload[24];
   snprintf(payload, sizeof(payload), "Cal,%s,%0.2f", EZO_CALIBRATION_TYPE_STRINGS[type], value);
   this->add_command_(payload, EzoCommandType::EZO_CALIBRATION, 900);
 }
