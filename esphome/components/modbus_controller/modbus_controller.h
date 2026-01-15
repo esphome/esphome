@@ -286,7 +286,8 @@ class ServerRegister {
         return std::to_string(value);
       case SensorValueType::FP32_R:
       case SensorValueType::FP32: {
-        // max 48: float with %.1f can be up to 42 chars incl. null (3.4e38 → 38 integer digits + decimal point + 1 decimal digit + optional sign)
+        // max 48: float with %.1f can be up to 42 chars incl. null (3.4e38 → 38 integer digits + decimal point + 1
+        // decimal digit + optional sign)
         char buf[48];
         snprintf(buf, sizeof(buf), "%.1f", bit_cast<float>(static_cast<uint32_t>(value)));
         return buf;
