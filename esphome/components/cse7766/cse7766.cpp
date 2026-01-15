@@ -207,20 +207,26 @@ void CSE7766Component::parse_data_() {
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   {
-    std::string buf = "Parsed:";
-    if (have_voltage) {
-      buf += str_sprintf(" V=%fV", voltage);
-    }
-    if (have_current) {
-      buf += str_sprintf(" I=%fmA (~%fmA)", current * 1000.0f, calculated_current * 1000.0f);
-    }
-    if (have_power) {
-      buf += str_sprintf(" P=%fW", power);
-    }
-    if (energy != 0.0f) {
-      buf += str_sprintf(" E=%fkWh (%u)", energy, cf_pulses);
-    }
-    ESP_LOGVV(TAG, "%s", buf.c_str());
+    char buf[128];
+    size_t pos = 0;
+    const size_t size = sizeof(buf);
+    auto append = [&](const char *fmt, auto... args) {
+      if (pos < size) {
+        int written = snprintf(buf + pos, size - pos, fmt, args...);
+        if (written > 0)
+          pos = std::min(pos + static_cast<size_t>(written), size);
+      }
+    };
+    append("Parsed:");
+    if (have_voltage)
+      append(" V=%fV", voltage);
+    if (have_current)
+      append(" I=%fmA (~%fmA)", current * 1000.0f, calculated_current * 1000.0f);
+    if (have_power)
+      append(" P=%fW", power);
+    if (energy != 0.0f)
+      append(" E=%fkWh (%u)", energy, cf_pulses);
+    ESP_LOGVV(TAG, "%s", buf);
   }
 #endif
 }
