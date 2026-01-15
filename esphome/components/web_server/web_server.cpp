@@ -2010,22 +2010,21 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
         return;
       }
 
-      // Store in a shared_ptr so it outlives the lambda and call
-      auto timings = std::make_shared<std::vector<int32_t>>();
-      timings->reserve(decoded.size() / 4);
+      std::vector<int32_t> timings;
+      timings.reserve(decoded.size() / 4);
 
       for (size_t i = 0; i < decoded.size(); i += 4) {
-        int32_t timing = static_cast<int32_t>(decoded[i]) | (static_cast<int32_t>(decoded[i + 1]) << 8) |
-                         (static_cast<int32_t>(decoded[i + 2]) << 16) | (static_cast<int32_t>(decoded[i + 3]) << 24);
-        timings->push_back(timing);
+        int32_t timing = encode_uint32(decoded[i + 3], decoded[i + 2], decoded[i + 1], decoded[i]);
+        timings.push_back(timing);
       }
 
-      call.set_raw_timings(*timings);
-
-      // Capture timings in lambda to keep it alive
-      this->defer([call, timings]() mutable { call.perform(); });
+      // Move timings into lambda to keep them alive until deferred execution
+      this->defer([call, timings = std::move(timings)]() mutable {
+        call.set_raw_timings(timings);
+        call.perform();
+      });
     } else {
-      request->send(400, "text/plain", "Missing 'data' parameter");
+      request->send(400, ESPHOME_F("text/plain"), "Missing 'data' parameter");
       return;
     }
 
