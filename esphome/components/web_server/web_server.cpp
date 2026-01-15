@@ -2037,10 +2037,6 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
   request->send(404);
 }
 
-std::string WebServer::infrared_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->infrared_json_(static_cast<infrared::Infrared *>(source), DETAIL_STATE);
-}
-
 std::string WebServer::infrared_all_json_generator(WebServer *web_server, void *source) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return web_server->infrared_json_(static_cast<infrared::Infrared *>(source), DETAIL_ALL);

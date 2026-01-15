@@ -450,7 +450,6 @@ class WebServer : public Controller,
   /// Handle an infrared request under '/infrared/<id>/transmit'.
   void handle_infrared_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string infrared_state_json_generator(WebServer *web_server, void *source);
   static std::string infrared_all_json_generator(WebServer *web_server, void *source);
 #endif
 
