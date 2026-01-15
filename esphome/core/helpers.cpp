@@ -410,6 +410,10 @@ char *format_bin_to(char *buffer, size_t buffer_size, const uint8_t *data, size_
   }
   // Calculate max bytes we can format: each byte needs 8 chars
   size_t max_bytes = (buffer_size - 1) / 8;
+  if (max_bytes == 0 || length == 0) {
+    buffer[0] = '\0';
+    return buffer;
+  }
   size_t bytes_to_format = std::min(length, max_bytes);
 
   for (size_t byte_idx = 0; byte_idx < bytes_to_format; byte_idx++) {
