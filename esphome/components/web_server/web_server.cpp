@@ -1993,37 +1993,22 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
       std::string encoded =
           request->getParam(ESPHOME_F("data"))->value().c_str();  // NOLINT(readability-redundant-string-cstr)
 
-      // Decode base64 data
-      constexpr size_t max_ir_bytes = 1024;
-      uint8_t decoded[max_ir_bytes];
-      size_t decoded_len = base64_decode(encoded, decoded, sizeof(decoded));
-      ESP_LOGV(TAG, "Decoded base64 data length: %zu", decoded_len);
-
-      if (decoded_len == 0) {
-        request->send(400, ESPHOME_F("text/plain"), "Invalid or oversized base64 data");
+      // Basic validation: base64 for int32 array must decode to multiple of 4 bytes
+      // Full decode happens at transmit time directly into transmit buffer
+      size_t encoded_len = encoded.size();
+      // Remove padding for length calculation
+      while (encoded_len > 0 && encoded[encoded_len - 1] == '=')
+        encoded_len--;
+      // Each 4 base64 chars = 3 bytes, so decoded_len = (encoded_len * 3) / 4
+      size_t estimated_decoded_len = (encoded_len * 3) / 4;
+      if (estimated_decoded_len == 0 || estimated_decoded_len % 4 != 0) {
+        request->send(400, ESPHOME_F("text/plain"), "Invalid base64 data size");
         return;
       }
 
-      // Convert decoded bytes to int32_t timings
-      // Each timing is a 4-byte signed integer (little-endian)
-      if (decoded_len % 4 != 0) {
-        request->send(400, ESPHOME_F("text/plain"), "Data size must be a multiple of 4 bytes");
-        return;
-      }
-
-      std::vector<int32_t> timings;
-      timings.reserve(decoded_len / 4);
-
-      for (size_t i = 0; i < decoded_len; i += 4) {
-        int32_t timing = encode_uint32(decoded[i + 3], decoded[i + 2], decoded[i + 1], decoded[i]);
-        timings.push_back(timing);
-      }
-
-      // Move timings into lambda to keep them alive until deferred execution
-      this->defer([call, timings = std::move(timings)]() mutable {
-        call.set_raw_timings(timings);
-        call.perform();
-      });
+      // Store base64 string - decode happens directly into transmit buffer at perform() time
+      call.set_raw_timings_base64(std::move(encoded));
+      this->defer([call]() mutable { call.perform(); });
     } else {
       request->send(400, ESPHOME_F("text/plain"), "Missing 'data' parameter");
       return;
