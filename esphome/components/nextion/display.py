@@ -257,9 +257,9 @@ async def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    if config[CONF_ON_CUSTOM_BINARY_SENSOR]:
+    if custom_binary_sensor := config.get(CONF_ON_CUSTOM_BINARY_SENSOR, []):
         cg.add_define("USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR")
-        for conf in config.get(CONF_ON_CUSTOM_BINARY_SENSOR, []):
+        for conf in custom_binary_sensor:
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
             await automation.build_automation(
                 trigger,
@@ -270,9 +270,9 @@ async def to_code(config):
                 conf,
             )
 
-    if config[CONF_ON_CUSTOM_SENSOR]:
+    if custom_sensor := config.get(CONF_ON_CUSTOM_SENSOR, []):
         cg.add_define("USE_NEXTION_TRIGGER_CUSTOM_SENSOR")
-        for conf in config.get(CONF_ON_CUSTOM_SENSOR, []):
+        for conf in custom_sensor:
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
             await automation.build_automation(
                 trigger,
@@ -283,9 +283,9 @@ async def to_code(config):
                 conf,
             )
 
-    if config[CONF_ON_CUSTOM_SWITCH]:
+    if custom_switch := config.get(CONF_ON_CUSTOM_SWITCH, []):
         cg.add_define("USE_NEXTION_TRIGGER_CUSTOM_SWITCH")
-        for conf in config.get(CONF_ON_CUSTOM_SWITCH, []):
+        for conf in custom_switch:
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
             await automation.build_automation(
                 trigger,
@@ -296,9 +296,9 @@ async def to_code(config):
                 conf,
             )
 
-    if config[CONF_ON_CUSTOM_TEXT_SENSOR]:
+    if custom_text := config.get(CONF_ON_CUSTOM_TEXT_SENSOR, []):
         cg.add_define("USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR")
-        for conf in config.get(CONF_ON_CUSTOM_TEXT_SENSOR, []):
+        for conf in custom_text:
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
             await automation.build_automation(
                 trigger,
