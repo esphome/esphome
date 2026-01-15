@@ -379,8 +379,6 @@ void SEN5XComponent::dump_config() {
     if (this->ambient_pressure_compensation_source_ != nullptr) {
       ESP_LOGCONFIG(TAG, "    Ambient Pressure Compensation Source: %s",
                     this->ambient_pressure_compensation_source_->get_name().c_str());
-    } else if (this->ambient_pressure_compensation_.has_value()) {
-      ESP_LOGCONFIG(TAG, "    Ambient Pressure Compensation: %d", this->ambient_pressure_compensation_.value());
     } else if (this->altitude_compensation_.has_value()) {
       ESP_LOGCONFIG(TAG, "    Altitude Compensation: %d", this->altitude_compensation_.value());
     }
@@ -517,13 +515,19 @@ void SEN5XComponent::update() {
       float hcho = measurements[8] == UINT16_MAX ? NAN : measurements[8] / 10.0f;
       this->hcho_sensor_->publish_state(hcho);
     }
+    uint32_t timeout = 0;
     if (this->ambient_pressure_compensation_source_ != nullptr) {
       float pressure = this->ambient_pressure_compensation_source_->state;
       if (!std::isnan(pressure)) {
-        this->set_ambient_pressure_compensation(pressure);
+        uint16_t new_ambient_pressure = static_cast<uint16_t>(pressure);
+        if (!write_ambient_pressure_compensation_(new_ambient_pressure)) {
+          this->status_set_warning();
+          return;
+        }
+        timeout = 20;
       }
     }
-    this->set_timeout(20, [this]() {
+    this->set_timeout(timeout, [this]() {
       if (!this->store_baseline_ ||
           (App.get_loop_component_start_time() - this->last_store_time_) < SHORTEST_BASELINE_STORE_INTERVAL) {
         this->status_clear_warning();
@@ -624,12 +628,15 @@ bool SEN5XComponent::write_temperature_compensation_(const TemperatureCompensati
 }
 
 bool SEN5XComponent::write_ambient_pressure_compensation_(uint16_t pressure_in_hpa) {
-  auto result =
-      this->write_command(SEN6X_CMD_CO2_SENSOR_AUTO_SELF_CAL, this->auto_self_calibration_.value() ? 0x01 : 0x00);
-  if (!result) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->ambient_pressure_compensation_ != pressure_in_hpa) {
+    this->ambient_pressure_compensation_ = pressure_in_hpa;
+    if (!this->write_command(SEN6X_CMD_AMBIENT_PRESSURE, pressure_in_hpa)) {
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+      return false;
+    }
+    ESP_LOGD(TAG, "Ambient Pressure Compensation updated, pres=%d hPa", pressure_in_hpa);
   }
-  return result;
+  return true;
 }
 
 bool SEN5XComponent::is_sen6x_() {
@@ -646,25 +653,24 @@ bool SEN5XComponent::is_sen6x_() {
   }
 }
 
-void SEN5XComponent::set_ambient_pressure_compensation(float pressure_in_hpa) {
+void SEN5XComponent::set_ambient_pressure_compensation(uint16_t pressure_in_hpa) {
   if (this->model_.value() == SEN63C || this->model_.value() == SEN66 || this->model_.value() == SEN69C) {
-    uint16_t new_ambient_pressure = static_cast<uint16_t>(pressure_in_hpa);
     if (!this->initialized_) {
-      this->ambient_pressure_compensation_ = new_ambient_pressure;
       return;
     }
-    // Only send pressure value if it has changed since last update
-    if (!this->ambient_pressure_compensation_.has_value() ||
-        new_ambient_pressure != this->ambient_pressure_compensation_.value()) {
-      write_ambient_pressure_compensation_(new_ambient_pressure);
-      this->ambient_pressure_compensation_ = new_ambient_pressure;
-      ESP_LOGD(TAG, "Ambient Pressure Compensation updated, pressure=%d hPa", new_ambient_pressure);
-      this->set_timeout(20, []() {});
+    if (this->busy_) {
+      ESP_LOGW(TAG, "Ambient Pressure Compensation aborted, sensor is busy");
+      return;
     }
-    return;
+    this->busy_ = true;
+    if (!write_ambient_pressure_compensation_(pressure_in_hpa)) {
+      ESP_LOGE(TAG, "Ambient Pressure Compensation failed");
+      this->busy_ = false;
+      return;
+    }
+    this->set_timeout(20, [this]() { this->busy_ = false; });
   } else {
     ESP_LOGE(TAG, "Set Ambient Pressure Compensation is not supported");
-    return;
   }
 }
 

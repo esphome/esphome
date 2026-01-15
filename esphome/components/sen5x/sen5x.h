@@ -122,7 +122,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_ambient_pressure_compensation_source(sensor::Sensor *pressure) {
     this->ambient_pressure_compensation_source_ = pressure;
   }
-  void set_ambient_pressure_compensation(float pressure_in_hpa);
+  void set_ambient_pressure_compensation(uint16_t pressure_in_hpa);
   void start_fan_cleaning();
   void activate_heater();
   void perform_forced_co2_calibration(uint16_t co2);
@@ -137,6 +137,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool write_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
 
   uint32_t last_store_time_;
+  uint16_t ambient_pressure_compensation_{0};
   ERRORCODE error_code_;
   uint8_t firmware_major_{0xFF};
   uint8_t firmware_minor_{0xFF};
@@ -165,7 +166,6 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<TemperatureCompensation> temperature_compensation_;
   optional<bool> auto_self_calibration_;
   optional<uint16_t> altitude_compensation_;
-  optional<uint16_t> ambient_pressure_compensation_;
 
   ESPPreferenceObject pref_;
   std::string product_name_ = "Unknown";
