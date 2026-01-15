@@ -221,7 +221,7 @@ void EZOSensor::set_calibration_point_high(float value) {
 }
 
 void EZOSensor::set_calibration_generic(float value) {
-  // max 16: "Cal,"(4) + float(10) + null, rounded to 16
+  // exact 16 bytes: "Cal," (4) + float with "%0.2f" (up to 11 chars, e.g. "-9999999.99") + null (1) = 16
   char payload[16];
   snprintf(payload, sizeof(payload), "Cal,%0.2f", value);
   this->add_command_(payload, EzoCommandType::EZO_CALIBRATION, 900);
