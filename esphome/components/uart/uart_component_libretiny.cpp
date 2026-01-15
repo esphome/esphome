@@ -110,7 +110,7 @@ void LibreTinyUARTComponent::setup() {
 #if LT_HW_UART2
     ESP_LOGE(TAG, "    TX=%u, RX=%u", PIN_SERIAL2_TX, PIN_SERIAL2_RX);
 #endif
-    this->mark_failed();
+    this->mark_failed(LOG_STR("SoftwareSerial is not implemented for this chip."));
     return;
 #endif
   }
