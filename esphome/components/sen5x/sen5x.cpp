@@ -107,8 +107,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       // Check if measurement is ready before reading the value
       if (!this->write_command(CMD_GET_DATA_READY_STATUS)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        this->error_code_ = COMMUNICATION_FAILED;
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
       this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_START_2); });
@@ -117,8 +116,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       uint16_t raw_read_status;
       if (!this->read_data(raw_read_status)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        this->error_code_ = COMMUNICATION_FAILED;
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
       // In order to query the device periodic measurement must be ceased
@@ -126,8 +124,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
         ESP_LOGV(TAG, "Stopping periodic measurement");
         if (!this->stop_measurements_()) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-          this->error_code_ = COMMUNICATION_FAILED;
-          this->mark_failed();
+          this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
         this->set_timeout(1400, [this]() { this->internal_setup_(SEN5X_SM_GET_SN); });
@@ -138,8 +135,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
     case SEN5X_SM_GET_SN:
       if (!this->get_register(CMD_GET_SERIAL_NUMBER, string_number, 16, 20)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
       this->serial_number_ = convert_to_string(string_number, 16);
@@ -149,8 +145,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
     case SEN5X_SM_GET_PN:
       if (!this->get_register(CMD_GET_PRODUCT_NAME, string_number, 16, 20)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        this->error_code_ = PRODUCT_NAME_FAILED;
-        this->mark_failed();
+        this->mark_failed(LOG_STR("Product Name failed"));
         return;
       }
       this->product_name_ = convert_to_string(string_number, 16);
@@ -161,8 +156,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
         // product name and model must match
         if (this->product_name_ != model_to_str(this->model_.value())) {
           ESP_LOGE(TAG, "Product Name failed");
-          this->error_code_ = PRODUCT_NAME_FAILED;
-          this->mark_failed();
+          this->mark_failed(LOG_STR("Product Name failed"));
           return;
         }
       }
@@ -173,8 +167,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       uint16_t firmware;
       if (!this->get_register(CMD_GET_FIRMWARE_VERSION, &firmware, 1, 20)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        this->error_code_ = FIRMWARE_FAILED;
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
       if (this->is_sen6x_()) {
@@ -211,8 +204,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       if (this->auto_cleaning_interval_.has_value()) {
         if (!write_command(SEN5X_CMD_AUTO_CLEANING_INTERVAL, this->auto_cleaning_interval_.value())) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-          this->error_code_ = COMMUNICATION_FAILED;
-          this->mark_failed();
+          this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_ACCEL); });
@@ -224,8 +216,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       if (this->acceleration_mode_.has_value()) {
         if (!this->write_command(SEN5X_CMD_RHT_ACCELERATION_MODE, this->acceleration_mode_.value())) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-          this->error_code_ = COMMUNICATION_FAILED;
-          this->mark_failed();
+          this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_VOCT); });
@@ -237,8 +228,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       if (this->voc_tuning_params_.has_value()) {
         if (!this->write_tuning_parameters_(CMD_VOC_ALGORITHM_TUNING, this->voc_tuning_params_.value())) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-          this->error_code_ = COMMUNICATION_FAILED;
-          this->mark_failed();
+          this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_NOXT); });
@@ -250,8 +240,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       if (this->nox_tuning_params_.has_value()) {
         if (!this->write_tuning_parameters_(CMD_NOX_ALGORITHM_TUNING, this->nox_tuning_params_.value())) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-          this->error_code_ = COMMUNICATION_FAILED;
-          this->mark_failed();
+          this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_TP); });
@@ -263,8 +252,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       if (this->temperature_compensation_.has_value()) {
         if (!this->write_temperature_compensation_(this->temperature_compensation_.value())) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-          this->error_code_ = COMMUNICATION_FAILED;
-          this->mark_failed();
+          this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_CO2ASC); });
@@ -277,8 +265,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
         if (!this->write_command(SEN6X_CMD_CO2_SENSOR_AUTO_SELF_CAL,
                                  this->auto_self_calibration_.value() ? 0x01 : 0x00)) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-          this->error_code_ = COMMUNICATION_FAILED;
-          this->mark_failed();
+          this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_CO2AC); });
@@ -290,8 +277,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       if ((this->ambient_pressure_compensation_source_ == nullptr) && (this->altitude_compensation_.has_value())) {
         if (!this->write_command(SEN6X_CMD_SENSOR_ALTITUDE, this->altitude_compensation_.value())) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-          this->error_code_ = COMMUNICATION_FAILED;
-          this->mark_failed();
+          this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_START_MEAS); });
@@ -302,8 +288,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
     case SEN5X_SM_START_MEAS:
       // Finally start sensor measurements
       if (!this->start_measurements_()) {
-        this->error_code_ = MEASUREMENT_INIT_FAILED;
-        this->mark_failed();
+        this->mark_failed(LOG_STR("Measurement Start Failed"));
         return;
       }
       this->set_timeout(50, [this]() { this->internal_setup_(SEN5X_SM_DONE); });
@@ -324,32 +309,6 @@ void SEN5XComponent::dump_config() {
                 "  Serial number: %s\n",
                 TRUEFALSE(this->initialized_), model_to_str(this->model_.value()), this->update_interval_,
                 this->serial_number_.c_str());
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        break;
-      case MEASUREMENT_INIT_FAILED:
-        ESP_LOGE(TAG, "Measurement initialization failed");
-        break;
-      case SERIAL_NUMBER_IDENTIFICATION_FAILED:
-        ESP_LOGE(TAG, "Unable to read serial number");
-        break;
-      case PRODUCT_NAME_FAILED:
-        ESP_LOGE(TAG, "Product name issue");
-        break;
-      case FIRMWARE_FAILED:
-        ESP_LOGE(TAG, "Unable to read firmware version");
-        break;
-      case UNSUPPORTED_CONF:
-        ESP_LOGE(TAG, "Unsupported configuration");
-        break;
-      default:
-        ESP_LOGE(TAG, "Unknown setup error");
-        break;
-    }
-    return;  // don't print any more info if setup failed
-  }
   if (this->is_sen6x_()) {
     ESP_LOGCONFIG(TAG, "  Firmware version: %u.%u", this->firmware_major_, this->firmware_minor_);
   } else {
