@@ -65,9 +65,9 @@ std::string lv_event_code_name_for(uint8_t event_code) {
   if (event_code < sizeof(EVENT_NAMES) / sizeof(EVENT_NAMES[0])) {
     return EVENT_NAMES[event_code];
   }
-  // max 4 bytes: "%2d" with uint8_t (max 255, 3 digits) + null
+  // max 4 bytes: "%u" with uint8_t (max 255, 3 digits) + null
   char buf[4];
-  snprintf(buf, sizeof(buf), "%2u", event_code);
+  snprintf(buf, sizeof(buf), "%u", event_code);
   return buf;
 }
 
