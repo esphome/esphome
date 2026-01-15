@@ -274,7 +274,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       }
       break;
     case SEN5X_SM_SET_CO2AC:
-      if ((this->ambient_pressure_compensation_source_ == nullptr) && (this->altitude_compensation_.has_value())) {
+      if (this->altitude_compensation_.has_value()) {
         if (!this->write_command(SEN6X_CMD_SENSOR_ALTITUDE, this->altitude_compensation_.value())) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
@@ -516,21 +516,11 @@ void SEN5XComponent::update() {
 
 bool SEN5XComponent::start_measurements_() {
   uint16_t cmd;
-  switch (this->model_.value()) {
-    case SEN50:
-    case SEN54:
-    case SEN55:
-      cmd = SEN5X_CMD_START_MEASUREMENTS_RHT_ONLY;
-      if (this->pm_1_0_sensor_ || this->pm_2_5_sensor_ || this->pm_4_0_sensor_ || this->pm_10_0_sensor_) {
-        // if any of the gas sensors are active we need a full measurement
-        cmd = CMD_START_MEASUREMENTS;
-      }
-      break;
-    default:
-      cmd = CMD_START_MEASUREMENTS;
-      break;
+  if (is_sen6x_() || this->pm_1_0_sensor_ || this->pm_2_5_sensor_ || this->pm_4_0_sensor_ || this->pm_10_0_sensor_) {
+    cmd = CMD_START_MEASUREMENTS;
+  } else {
+    cmd = SEN5X_CMD_START_MEASUREMENTS_RHT_ONLY;
   }
-
   auto result = this->write_command(cmd);
   if (!result) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -575,10 +565,7 @@ bool SEN5XComponent::write_temperature_compensation_(const TemperatureCompensati
   params[1] = static_cast<uint16_t>(compensation.normalized_offset_slope);
   params[2] = compensation.time_constant;
   params[3] = compensation.slot;
-  uint8_t write_cnt = 3;
-  if (this->is_sen6x_()) {
-    write_cnt = 4;
-  }
+  uint8_t write_cnt = this->is_sen6x_() ? 4 : 3;
   auto result = this->write_command(CMD_TEMPERATURE_COMPENSATION, params, write_cnt);
   if (!result) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -599,17 +586,7 @@ bool SEN5XComponent::write_ambient_pressure_compensation_(uint16_t pressure_in_h
 }
 
 bool SEN5XComponent::is_sen6x_() {
-  switch (this->model_.value()) {
-    case SEN62:
-    case SEN63C:
-    case SEN65:
-    case SEN66:
-    case SEN68:
-    case SEN69C:
-      return true;
-    default:
-      return false;
-  }
+  return this->model_.value() != SEN50 && this->model_.value() != SEN54 && this->model_.value() != SEN55;
 }
 
 void SEN5XComponent::set_ambient_pressure_compensation(uint16_t pressure_in_hpa) {
@@ -678,7 +655,7 @@ void SEN5XComponent::activate_heater() {
       ESP_LOGW(TAG, "Activate Heater aborted, sensor is busy");
       return;
     }
-    ESP_LOGD(TAG, "Activate Heater (22s)");
+    ESP_LOGD(TAG, "Activate Heater started (22s)");
     this->busy_ = true;  // prevent actions from stomping on each other
     if (!this->stop_measurements_()) {
       ESP_LOGE(TAG, "Activate Heater failed");
@@ -751,10 +728,10 @@ void SEN5XComponent::perform_forced_co2_recalibration(uint16_t co2) {
 
 void SEN5XComponent::set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant,
                                                   uint8_t slot) {
-  if (this->is_sen6x_() || this->model_.value() == SEN54 || this->model_.value() == SEN55) {
+  if (this->model_.value() != SEN50) {
     TemperatureCompensation compensation(offset, normalized_offset_slope, time_constant, slot);
+    this->temperature_compensation_ = compensation;
     if (!this->initialized_) {
-      this->temperature_compensation_ = compensation;
       return;
     }
     if (this->busy_) {
