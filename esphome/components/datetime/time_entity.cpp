@@ -26,8 +26,7 @@ void TimeEntity::publish_state() {
     return;
   }
   this->set_has_state(true);
-  ESP_LOGD(TAG, "'%s': Sending time %02d:%02d:%02d", this->get_name().c_str(), this->hour_, this->minute_,
-           this->second_);
+  ESP_LOGD(TAG, "'%s' >> %02d:%02d:%02d", this->get_name().c_str(), this->hour_, this->minute_, this->second_);
   this->state_callback_.call();
 #if defined(USE_DATETIME_TIME) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_time_update(this);

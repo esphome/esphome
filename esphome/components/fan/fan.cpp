@@ -201,7 +201,7 @@ void Fan::publish_state() {
   auto traits = this->get_traits();
 
   ESP_LOGD(TAG,
-           "'%s' - Sending state:\n"
+           "'%s' >>\n"
            "  State: %s",
            this->name_.c_str(), ONOFF(this->state));
   if (traits.supports_speed()) {
