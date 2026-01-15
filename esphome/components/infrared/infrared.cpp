@@ -88,27 +88,15 @@ void Infrared::control(const InfraredCall &call) {
   // Set timings based on format
   if (call.is_packed()) {
     // Zero-copy from packed protobuf data
-    ESP_LOGD(TAG, "Transmitting raw timings: timing_count=%u, repeat_count=%u", call.get_packed_count(),
-             call.get_repeat_count());
     transmit_data->set_data_from_packed_sint32(call.get_packed_data(), call.get_packed_length(),
                                                call.get_packed_count());
+    ESP_LOGD(TAG, "Transmitting packed raw timings: count=%u, repeat=%u", call.get_packed_count(),
+             call.get_repeat_count());
   } else {
     // From vector (lambdas/automations)
-    const auto &timings = call.get_raw_timings();
-    if (timings.empty()) {
-      ESP_LOGE(TAG, "Raw timings array is empty");
-      return;
-    }
-    ESP_LOGD(TAG, "Transmitting raw timings: timing_count=%zu, repeat_count=%u", timings.size(),
+    transmit_data->set_data(call.get_raw_timings());
+    ESP_LOGD(TAG, "Transmitting raw timings: count=%zu, repeat=%u", call.get_raw_timings().size(),
              call.get_repeat_count());
-    // Timings format: positive values = mark (LED on), negative values = space (LED off)
-    for (const auto &timing : timings) {
-      if (timing > 0) {
-        transmit_data->mark(static_cast<uint32_t>(timing));
-      } else {
-        transmit_data->space(static_cast<uint32_t>(-timing));
-      }
-    }
   }
 
   // Set repeat count

@@ -30,7 +30,7 @@ void DateEntity::publish_state() {
     return;
   }
   this->set_has_state(true);
-  ESP_LOGD(TAG, "'%s': Sending date %d-%d-%d", this->get_name().c_str(), this->year_, this->month_, this->day_);
+  ESP_LOGD(TAG, "'%s' >> %d-%d-%d", this->get_name().c_str(), this->year_, this->month_, this->day_);
   this->state_callback_.call();
 #if defined(USE_DATETIME_DATE) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_date_update(this);

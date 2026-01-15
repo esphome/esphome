@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstring>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -47,6 +48,24 @@ class Event : public EntityBase, public EntityBase_DeviceClass {
 
   /// Return the last triggered event type, or empty StringRef if no event triggered yet.
   StringRef get_last_event_type() const { return StringRef::from_maybe_nullptr(this->last_event_type_); }
+
+  /// Return event type by index, or nullptr if index is out of bounds.
+  const char *get_event_type(uint8_t index) const {
+    return index < this->types_.size() ? this->types_[index] : nullptr;
+  }
+
+  /// Return index of last triggered event type, or max uint8_t if no event triggered yet.
+  uint8_t get_last_event_type_index() const {
+    if (this->last_event_type_ == nullptr)
+      return std::numeric_limits<uint8_t>::max();
+    // Most events have <3 types, uint8_t is sufficient for all reasonable scenarios
+    const uint8_t size = static_cast<uint8_t>(this->types_.size());
+    for (uint8_t i = 0; i < size; i++) {
+      if (this->types_[i] == this->last_event_type_)
+        return i;
+    }
+    return std::numeric_limits<uint8_t>::max();
+  }
 
   /// Check if an event has been triggered.
   bool has_event() const { return this->last_event_type_ != nullptr; }

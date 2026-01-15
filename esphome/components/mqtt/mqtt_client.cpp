@@ -28,8 +28,9 @@ static const char *const TAG = "mqtt";
 
 MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
-  const std::string mac_addr = get_mac_address();
-  this->credentials_.client_id = make_name_with_suffix(App.get_name(), '-', mac_addr.c_str(), mac_addr.size());
+  char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
+  get_mac_address_into_buffer(mac_addr);
+  this->credentials_.client_id = make_name_with_suffix(App.get_name(), '-', mac_addr, MAC_ADDRESS_BUFFER_SIZE - 1);
 }
 
 // Connection
@@ -102,7 +103,9 @@ void MQTTClientComponent::send_device_info_() {
         root[ESPHOME_F("port")] = api::global_api_server->get_port();
 #endif
         root[ESPHOME_F("version")] = ESPHOME_VERSION;
-        root[ESPHOME_F("mac")] = get_mac_address();
+        char mac_buf[MAC_ADDRESS_BUFFER_SIZE];
+        get_mac_address_into_buffer(mac_buf);
+        root[ESPHOME_F("mac")] = mac_buf;
 
 #ifdef USE_ESP8266
         root[ESPHOME_F("platform")] = ESPHOME_F("ESP8266");
