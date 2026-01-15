@@ -182,7 +182,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_VOCB); });
       break;
     case SEN5X_SM_SET_VOCB:
-      if (this->store_baseline_) {
+      if (this->store_baseline_.has_value() && this->store_baseline_.value()) {
         // Hash with config hash, version, and serial number, ensures the baseline storage is cleared after OTA
         // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
         uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), this->serial_number_);
@@ -321,7 +321,9 @@ void SEN5XComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RH/T acceleration mode: %s",
                   LOG_STR_ARG(rht_accel_mode_to_string(this->acceleration_mode_.value())));
   }
-  ESP_LOGCONFIG(TAG, "  Store Baseline: %s", TRUEFALSE(this->store_baseline_));
+  if (this->store_baseline_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Store Baseline: %s", TRUEFALSE(this->store_baseline_.value()));
+  }
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM  4.0", this->pm_4_0_sensor_);
@@ -346,7 +348,7 @@ void SEN5XComponent::dump_config() {
 }
 
 void SEN5XComponent::update() {
-  if (!this->initialized_ || !this->running_)
+  if (!this->initialized_ || !this->running_ || this->busy_)
     return;
   uint16_t cmd;
   uint8_t length;
@@ -487,7 +489,7 @@ void SEN5XComponent::update() {
       }
     }
     this->set_timeout(timeout, [this]() {
-      if (!this->store_baseline_ ||
+      if (!this->store_baseline_.has_value() || !this->store_baseline_.value() ||
           (App.get_loop_component_start_time() - this->last_store_time_) < SHORTEST_BASELINE_STORE_INTERVAL) {
         this->status_clear_warning();
       } else {
@@ -617,7 +619,7 @@ void SEN5XComponent::start_fan_cleaning() {
   }
   ESP_LOGD(TAG, "Fan Cleaning started (12s)");
   this->busy_ = true;  // prevent actions from stomping on each other
-  // measurements must be stopped first for certain devices
+  // measurements must be stopped for SEN6X and must be running for SEN5X
   if (this->is_sen6x_()) {
     if (!this->stop_measurements_()) {
       ESP_LOGE(TAG, "Fan Cleaning failed");

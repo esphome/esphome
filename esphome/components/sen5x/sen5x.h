@@ -139,7 +139,6 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool initialized_{false};
   bool running_{false};
   bool busy_{false};
-  bool store_baseline_;
 
   sensor::Sensor *pm_1_0_sensor_{nullptr};
   sensor::Sensor *pm_2_5_sensor_{nullptr};
@@ -161,6 +160,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<TemperatureCompensation> temperature_compensation_;
   optional<bool> auto_self_calibration_;
   optional<uint16_t> altitude_compensation_;
+  optional<bool> store_baseline_;
 
   ESPPreferenceObject pref_;
   std::string product_name_ = "Unknown";
