@@ -11,8 +11,15 @@ static const char *const TAG = "cse7766";
 static constexpr size_t CSE7766_RAW_DATA_SIZE = 24;
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-/// Safely append formatted string to buffer, returning new position (capped at size).
-/// Handles negative return values from snprintf (encoding errors).
+/// @brief Safely append formatted string to buffer.
+/// @param buf Destination buffer (must be non-null)
+/// @param size Total buffer size in bytes
+/// @param pos Current write position (0 to size-1 for valid positions, size means full)
+/// @param fmt printf-style format string
+/// @return New write position: pos + chars_written, capped at size when buffer is full.
+///         Returns size (not size-1) when full because vsnprintf already wrote the null
+///         terminator at buf[size-1]. Returning size signals "no room for more content".
+///         On encoding error, returns pos unchanged (no write occurred).
 __attribute__((format(printf, 4, 5))) static size_t buf_append_(char *buf, size_t size, size_t pos, const char *fmt,
                                                                 ...) {
   if (pos >= size) {
