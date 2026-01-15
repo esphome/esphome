@@ -1,6 +1,7 @@
 #include "web_server.h"
 #ifdef USE_WEBSERVER
 #include "esphome/components/json/json_util.h"
+#include "esphome/core/progmem.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
@@ -679,11 +680,11 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
     enum SwitchAction { NONE, TOGGLE, TURN_ON, TURN_OFF };
     SwitchAction action = NONE;
 
-    if (match.method_equals("toggle")) {
+    if (match.method_equals(ESPHOME_F("toggle"))) {
       action = TOGGLE;
-    } else if (match.method_equals("turn_on")) {
+    } else if (match.method_equals(ESPHOME_F("turn_on"))) {
       action = TURN_ON;
-    } else if (match.method_equals("turn_off")) {
+    } else if (match.method_equals(ESPHOME_F("turn_off"))) {
       action = TURN_OFF;
     }
 
@@ -741,7 +742,7 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
       auto detail = get_request_detail(request);
       std::string data = this->button_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
-    } else if (match.method_equals("press")) {
+    } else if (match.method_equals(ESPHOME_F("press"))) {
       this->defer([obj]() { obj->press(); });
       request->send(200);
       return;
@@ -829,12 +830,12 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       auto detail = get_request_detail(request);
       std::string data = this->fan_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
-    } else if (match.method_equals("toggle")) {
+    } else if (match.method_equals(ESPHOME_F("toggle"))) {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
     } else {
-      bool is_on = match.method_equals("turn_on");
-      bool is_off = match.method_equals("turn_off");
+      bool is_on = match.method_equals(ESPHOME_F("turn_on"));
+      bool is_off = match.method_equals(ESPHOME_F("turn_off"));
       if (!is_on && !is_off) {
         request->send(404);
         return;
@@ -910,12 +911,12 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
       auto detail = get_request_detail(request);
       std::string data = this->light_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
-    } else if (match.method_equals("toggle")) {
+    } else if (match.method_equals(ESPHOME_F("toggle"))) {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
     } else {
-      bool is_on = match.method_equals("turn_on");
-      bool is_off = match.method_equals("turn_off");
+      bool is_on = match.method_equals(ESPHOME_F("turn_on"));
+      bool is_off = match.method_equals(ESPHOME_F("turn_off"));
       if (!is_on && !is_off) {
         request->send(404);
         return;
@@ -1014,7 +1015,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
       }
     }
 
-    if (!found && !match.method_equals("set")) {
+    if (!found && !match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
@@ -1080,7 +1081,7 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
@@ -1147,7 +1148,7 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
@@ -1211,7 +1212,7 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
@@ -1274,7 +1275,7 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
@@ -1340,7 +1341,7 @@ void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMat
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
@@ -1398,7 +1399,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
       return;
     }
 
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
@@ -1457,7 +1458,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
       return;
     }
 
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
@@ -1613,11 +1614,11 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
     enum LockAction { NONE, LOCK, UNLOCK, OPEN };
     LockAction action = NONE;
 
-    if (match.method_equals("lock")) {
+    if (match.method_equals(ESPHOME_F("lock"))) {
       action = LOCK;
-    } else if (match.method_equals("unlock")) {
+    } else if (match.method_equals(ESPHOME_F("unlock"))) {
       action = UNLOCK;
-    } else if (match.method_equals("open")) {
+    } else if (match.method_equals(ESPHOME_F("open"))) {
       action = OPEN;
     }
 
@@ -1706,7 +1707,7 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
       }
     }
 
-    if (!found && !match.method_equals("set")) {
+    if (!found && !match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
@@ -1849,7 +1850,7 @@ void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, cons
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
@@ -2029,7 +2030,7 @@ void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlM
       return;
     }
 
-    if (!match.method_equals("install")) {
+    if (!match.method_equals(ESPHOME_F("install"))) {
       request->send(404);
       return;
     }
@@ -2244,102 +2245,102 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   if (false) {  // Start chain for else-if macro pattern
   }
 #ifdef USE_SENSOR
-  else if (match.domain_equals("sensor")) {
+  else if (match.domain_equals(ESPHOME_F("sensor"))) {
     this->handle_sensor_request(request, match);
   }
 #endif
 #ifdef USE_SWITCH
-  else if (match.domain_equals("switch")) {
+  else if (match.domain_equals(ESPHOME_F("switch"))) {
     this->handle_switch_request(request, match);
   }
 #endif
 #ifdef USE_BUTTON
-  else if (match.domain_equals("button")) {
+  else if (match.domain_equals(ESPHOME_F("button"))) {
     this->handle_button_request(request, match);
   }
 #endif
 #ifdef USE_BINARY_SENSOR
-  else if (match.domain_equals("binary_sensor")) {
+  else if (match.domain_equals(ESPHOME_F("binary_sensor"))) {
     this->handle_binary_sensor_request(request, match);
   }
 #endif
 #ifdef USE_FAN
-  else if (match.domain_equals("fan")) {
+  else if (match.domain_equals(ESPHOME_F("fan"))) {
     this->handle_fan_request(request, match);
   }
 #endif
 #ifdef USE_LIGHT
-  else if (match.domain_equals("light")) {
+  else if (match.domain_equals(ESPHOME_F("light"))) {
     this->handle_light_request(request, match);
   }
 #endif
 #ifdef USE_TEXT_SENSOR
-  else if (match.domain_equals("text_sensor")) {
+  else if (match.domain_equals(ESPHOME_F("text_sensor"))) {
     this->handle_text_sensor_request(request, match);
   }
 #endif
 #ifdef USE_COVER
-  else if (match.domain_equals("cover")) {
+  else if (match.domain_equals(ESPHOME_F("cover"))) {
     this->handle_cover_request(request, match);
   }
 #endif
 #ifdef USE_NUMBER
-  else if (match.domain_equals("number")) {
+  else if (match.domain_equals(ESPHOME_F("number"))) {
     this->handle_number_request(request, match);
   }
 #endif
 #ifdef USE_DATETIME_DATE
-  else if (match.domain_equals("date")) {
+  else if (match.domain_equals(ESPHOME_F("date"))) {
     this->handle_date_request(request, match);
   }
 #endif
 #ifdef USE_DATETIME_TIME
-  else if (match.domain_equals("time")) {
+  else if (match.domain_equals(ESPHOME_F("time"))) {
     this->handle_time_request(request, match);
   }
 #endif
 #ifdef USE_DATETIME_DATETIME
-  else if (match.domain_equals("datetime")) {
+  else if (match.domain_equals(ESPHOME_F("datetime"))) {
     this->handle_datetime_request(request, match);
   }
 #endif
 #ifdef USE_TEXT
-  else if (match.domain_equals("text")) {
+  else if (match.domain_equals(ESPHOME_F("text"))) {
     this->handle_text_request(request, match);
   }
 #endif
 #ifdef USE_SELECT
-  else if (match.domain_equals("select")) {
+  else if (match.domain_equals(ESPHOME_F("select"))) {
     this->handle_select_request(request, match);
   }
 #endif
 #ifdef USE_CLIMATE
-  else if (match.domain_equals("climate")) {
+  else if (match.domain_equals(ESPHOME_F("climate"))) {
     this->handle_climate_request(request, match);
   }
 #endif
 #ifdef USE_LOCK
-  else if (match.domain_equals("lock")) {
+  else if (match.domain_equals(ESPHOME_F("lock"))) {
     this->handle_lock_request(request, match);
   }
 #endif
 #ifdef USE_VALVE
-  else if (match.domain_equals("valve")) {
+  else if (match.domain_equals(ESPHOME_F("valve"))) {
     this->handle_valve_request(request, match);
   }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-  else if (match.domain_equals("alarm_control_panel")) {
+  else if (match.domain_equals(ESPHOME_F("alarm_control_panel"))) {
     this->handle_alarm_control_panel_request(request, match);
   }
 #endif
 #ifdef USE_UPDATE
-  else if (match.domain_equals("update")) {
+  else if (match.domain_equals(ESPHOME_F("update"))) {
     this->handle_update_request(request, match);
   }
 #endif
 #ifdef USE_WATER_HEATER
-  else if (match.domain_equals("water_heater")) {
+  else if (match.domain_equals(ESPHOME_F("water_heater"))) {
     this->handle_water_heater_request(request, match);
   }
 #endif

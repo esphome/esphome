@@ -63,6 +63,7 @@ class SSD1306 : public display::DisplayBuffer {
   bool is_sh1106_() const;
   bool is_sh1107_() const;
   bool is_ssd1305_() const;
+  bool is_ssd1306b_() const;
 
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
