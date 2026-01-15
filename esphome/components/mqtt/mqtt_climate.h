@@ -8,15 +8,14 @@
 #include "esphome/components/climate/climate.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTClimateComponent : public mqtt::MQTTComponent {
  public:
   MQTTClimateComponent(climate::Climate *device);
   void send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) override;
   bool send_initial_state() override;
-  std::string component_type() const override;
+  const char *component_type() const override;
   void setup() override;
 
   MQTT_COMPONENT_CUSTOM_TOPIC(current_temperature, state)
@@ -49,8 +48,7 @@ class MQTTClimateComponent : public mqtt::MQTTComponent {
   climate::Climate *device_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

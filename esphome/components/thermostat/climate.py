@@ -153,6 +153,19 @@ def generate_comparable_preset(config, name):
     return comparable_preset
 
 
+def validate_heat_cool_mode(value) -> list:
+    """Validate heat_cool_mode - accepts either True or an automation."""
+    if value is True:
+        # Convert True to empty automation list
+        return []
+    if value is False:
+        raise cv.Invalid(
+            "heat_cool_mode cannot be 'false'. Specify 'true' to enable the mode or provide an automation"
+        )
+    # Otherwise validate as automation
+    return automation.validate_automation(single=True)(value)
+
+
 def validate_thermostat(config):
     # verify corresponding action(s) exist(s) for any defined climate mode or action
     requirements = {
@@ -554,9 +567,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FAN_ONLY_MODE): automation.validate_automation(
                 single=True
             ),
-            cv.Optional(CONF_HEAT_COOL_MODE): automation.validate_automation(
-                single=True
-            ),
+            cv.Optional(CONF_HEAT_COOL_MODE): validate_heat_cool_mode,
             cv.Optional(CONF_HEAT_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_OFF_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_FAN_MODE_ON_ACTION): automation.validate_automation(
@@ -828,9 +839,11 @@ async def to_code(config):
         )
         cg.add(var.set_supports_heat(True))
     if CONF_HEAT_COOL_MODE in config:
-        await automation.build_automation(
-            var.get_heat_cool_mode_trigger(), [], config[CONF_HEAT_COOL_MODE]
-        )
+        # Build automation only if user provided actions (not just `true`)
+        if config[CONF_HEAT_COOL_MODE]:
+            await automation.build_automation(
+                var.get_heat_cool_mode_trigger(), [], config[CONF_HEAT_COOL_MODE]
+            )
         cg.add(var.set_supports_heat_cool(True))
     if CONF_OFF_MODE in config:
         await automation.build_automation(
@@ -945,6 +958,10 @@ async def to_code(config):
     cg.add(var.set_humidity_hysteresis(config[CONF_HUMIDITY_HYSTERESIS]))
 
     if CONF_PRESET in config:
+        # Separate standard and custom presets, and build preset config variables
+        standard_presets: list[tuple[cg.MockObj, cg.MockObj]] = []
+        custom_presets: list[tuple[str, cg.MockObj]] = []
+
         for preset_config in config[CONF_PRESET]:
             name = preset_config[CONF_NAME]
             standard_preset = None
@@ -987,9 +1004,39 @@ async def to_code(config):
                 )
 
             if standard_preset is not None:
-                cg.add(var.set_preset_config(standard_preset, preset_target_variable))
+                standard_presets.append((standard_preset, preset_target_variable))
             else:
-                cg.add(var.set_custom_preset_config(name, preset_target_variable))
+                custom_presets.append((name, preset_target_variable))
+
+        # Build initializer list for standard presets
+        if standard_presets:
+            cg.add(
+                var.set_preset_config(
+                    [
+                        cg.StructInitializer(
+                            thermostat_ns.struct("ThermostatPresetEntry"),
+                            ("preset", preset),
+                            ("config", preset_var),
+                        )
+                        for preset, preset_var in standard_presets
+                    ]
+                )
+            )
+
+        # Build initializer list for custom presets
+        if custom_presets:
+            cg.add(
+                var.set_custom_preset_config(
+                    [
+                        cg.StructInitializer(
+                            thermostat_ns.struct("ThermostatCustomPresetEntry"),
+                            ("name", cg.RawExpression(f'"{name}"')),
+                            ("config", preset_var),
+                        )
+                        for name, preset_var in custom_presets
+                    ]
+                )
+            )
 
     if CONF_DEFAULT_PRESET in config:
         default_preset_name = config[CONF_DEFAULT_PRESET]

@@ -89,6 +89,8 @@ class Platform(StrEnum):
     ESP32_C6_IDF = "esp32-c6-idf"
     ESP32_S2_IDF = "esp32-s2-idf"
     ESP32_S3_IDF = "esp32-s3-idf"
+    BK72XX_ARD = "bk72xx-ard"  # LibreTiny BK7231N
+    RP2040_ARD = "rp2040-ard"  # Raspberry Pi Pico
 
 
 # Memory impact analysis constants
@@ -120,6 +122,8 @@ PLATFORM_SPECIFIC_COMPONENTS = frozenset(
 #                      fastest build times, most sensitive to code size changes
 # 3. ESP32 IDF - Primary ESP32 platform, most representative of modern ESPHome
 # 4-6. Other ESP32 variants - Less commonly used but still supported
+# 7. BK72XX - LibreTiny platform (good for detecting LibreTiny-specific changes)
+# 8. RP2040 - Raspberry Pi Pico platform
 MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_C6_IDF,  # ESP32-C6 IDF (newest, supports Thread/Zigbee)
     Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained, fastest builds)
@@ -127,6 +131,8 @@ MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_C3_IDF,  # ESP32-C3 IDF
     Platform.ESP32_S2_IDF,  # ESP32-S2 IDF
     Platform.ESP32_S3_IDF,  # ESP32-S3 IDF
+    Platform.BK72XX_ARD,  # LibreTiny BK7231N
+    Platform.RP2040_ARD,  # Raspberry Pi Pico
 ]
 
 
@@ -404,8 +410,8 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     - wifi_component_esp_idf.cpp, *_idf.h -> ESP32 IDF variants
     - wifi_component_esp8266.cpp, *_esp8266.h -> ESP8266_ARD
     - *_esp32*.cpp -> ESP32 IDF (generic)
-    - *_libretiny.cpp, *_retiny.* -> LibreTiny (not in preference list)
-    - *_pico.cpp, *_rp2040.* -> RP2040 (not in preference list)
+    - *_libretiny.cpp, *_bk72*.* -> BK72XX (LibreTiny)
+    - *_pico.cpp, *_rp2040.* -> RP2040_ARD
 
     Args:
         filename: File path to check
@@ -438,12 +444,13 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     if "esp32" in filename_lower:
         return Platform.ESP32_IDF
 
-    # LibreTiny and RP2040 are not in MEMORY_IMPACT_PLATFORM_PREFERENCE
-    # so we don't return them as hints
-    # if "retiny" in filename_lower or "libretiny" in filename_lower:
-    #     return None  # No specific LibreTiny platform preference
-    # if "pico" in filename_lower or "rp2040" in filename_lower:
-    #     return None  # No RP2040 platform preference
+    # LibreTiny (via 'libretiny' pattern or BK72xx-specific files)
+    if "libretiny" in filename_lower or "bk72" in filename_lower:
+        return Platform.BK72XX_ARD
+
+    # RP2040 / Raspberry Pi Pico
+    if "pico" in filename_lower or "rp2040" in filename_lower:
+        return Platform.RP2040_ARD
 
     return None
 
@@ -756,11 +763,27 @@ def main() -> None:
     component_test_batches: list[str]
     if changed_components_with_tests:
         tests_dir = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
+
+        # For beta/release branches, group all components for faster CI
+        # (no isolation, all components are groupable)
+        target_branch = get_target_branch()
+        is_release_branch = target_branch and (
+            target_branch.startswith("release") or target_branch.startswith("beta")
+        )
+
+        if is_release_branch:
+            # For beta/release: Don't isolate any components - group everything
+            # This allows components to be merged into single builds
+            batch_directly_changed = set()  # Empty set - no isolation
+        else:
+            # Normal PR: only directly changed components are isolated
+            batch_directly_changed = directly_changed_with_tests
+
         batches, _ = create_intelligent_batches(
             components=changed_components_with_tests,
             tests_dir=tests_dir,
             batch_size=COMPONENT_TEST_BATCH_SIZE,
-            directly_changed=directly_changed_with_tests,
+            directly_changed=batch_directly_changed,
         )
         # Convert batches to space-separated strings for CI matrix
         component_test_batches = [" ".join(batch) for batch in batches]

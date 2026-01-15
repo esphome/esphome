@@ -1,8 +1,0 @@
-substitutions:
-  cs_pin: GPIO8
-  dc_pin: GPIO9
-  reset_pin: GPIO10
-packages:
-  spi: !include ../../test_build_components/common/spi/esp32-c3-idf.yaml
-
-<<: !include common.yaml

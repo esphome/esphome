@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_EVENT
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.event";
 
@@ -38,8 +37,8 @@ void MQTTEventComponent::setup() {
 void MQTTEventComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Event '%s': ", this->event_->get_name().c_str());
   ESP_LOGCONFIG(TAG, "Event Types: ");
-  for (const auto &event_type : this->event_->get_event_types()) {
-    ESP_LOGCONFIG(TAG, "- %s", event_type.c_str());
+  for (const char *event_type : this->event_->get_event_types()) {
+    ESP_LOGCONFIG(TAG, "- %s", event_type);
   }
   LOG_MQTT_COMPONENT(true, true);
 }
@@ -51,11 +50,10 @@ bool MQTTEventComponent::publish_event_(const std::string &event_type) {
   });
 }
 
-std::string MQTTEventComponent::component_type() const { return "event"; }
+MQTT_COMPONENT_TYPE(MQTTEventComponent, "event")
 const EntityBase *MQTTEventComponent::get_entity() const { return this->event_; }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
