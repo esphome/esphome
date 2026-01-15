@@ -44,7 +44,9 @@ class HashBase {
   virtual size_t get_size() const = 0;
 
  protected:
-  uint8_t digest_[32];  // Storage sized for max(MD5=16, SHA256=32) bytes
+  // 32-byte alignment required for ESP32-S2/S3 hardware SHA DMA operations.
+  // This also sets the class alignment to 32, ensuring derived objects are properly aligned.
+  alignas(32) uint8_t digest_[32];  // Storage sized for max(MD5=16, SHA256=32) bytes
 };
 
 }  // namespace esphome
