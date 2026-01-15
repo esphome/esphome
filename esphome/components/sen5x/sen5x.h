@@ -115,17 +115,17 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
     tuning_params.gain_factor = gain_factor;
     this->nox_tuning_params_ = tuning_params;
   }
-  bool set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant,
+  void set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant,
                                     uint8_t slot = 0);
   void set_automatic_self_calibration(bool value) { this->auto_self_calibration_ = value; }
   void set_altitude_compensation(uint16_t altitude) { this->altitude_compensation_ = altitude; }
   void set_ambient_pressure_compensation_source(sensor::Sensor *pressure) {
     this->ambient_pressure_compensation_source_ = pressure;
   }
-  bool set_ambient_pressure_compensation(float pressure_in_hpa);
-  bool start_fan_cleaning();
-  bool activate_heater();
-  bool perform_forced_co2_calibration(uint16_t co2);
+  void set_ambient_pressure_compensation(float pressure_in_hpa);
+  void start_fan_cleaning();
+  void activate_heater();
+  void perform_forced_co2_calibration(uint16_t co2);
 
  protected:
   bool is_sen6x_();
