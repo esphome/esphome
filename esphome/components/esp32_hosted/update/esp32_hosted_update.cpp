@@ -69,7 +69,10 @@ void Esp32HostedUpdate::setup() {
   // Get coprocessor version
   esp_hosted_coprocessor_fwver_t ver_info;
   if (esp_hosted_get_coprocessor_fwversion(&ver_info) == ESP_OK) {
-    this->update_info_.current_version = str_sprintf("%d.%d.%d", ver_info.major1, ver_info.minor1, ver_info.patch1);
+    // 16 bytes: "255.255.255" (11 chars) + null + safety margin
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d.%d.%d", ver_info.major1, ver_info.minor1, ver_info.patch1);
+    this->update_info_.current_version = buf;
   } else {
     this->update_info_.current_version = "unknown";
   }
