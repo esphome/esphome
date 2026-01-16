@@ -30,7 +30,7 @@ void RX8025TComponent::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
-  ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->get_timezone().c_str());
+  RealTimeClock::dump_config();
 }
 
 float RX8025TComponent::get_setup_priority() const { return setup_priority::DATA; }
