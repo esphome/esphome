@@ -164,29 +164,29 @@ void PrometheusHandler::add_friendly_name_label_(AsyncResponseStream *stream, st
   }
 }
 
-void PrometheusHandler::handle_failed_metric_(AsyncResponseStream *stream, const std::string &component_name,
-                                              const std::string &value, EntityBase *obj, std::string &area,
-                                              std::string &node, std::string &friendly_name) {
+void PrometheusHandler::handle_failed_metric_(AsyncResponseStream *stream, const char *component_name,
+                                              const char *value, EntityBase *obj, std::string &area, std::string &node,
+                                              std::string &friendly_name) {
   stream->print(ESPHOME_F("esphome_"));
-  stream->print(component_name.c_str());
+  stream->print(component_name);
   stream->print(ESPHOME_F("_failed{id=\""));
   stream->print(relabel_id_(obj).c_str());
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  stream->print(relabel_name_(obj).c_str());
+  stream->print(relabel_name_(obj));
   stream->print(ESPHOME_F("\"} "));
-  stream->print(value.c_str());
+  stream->print(value);
   stream->print(ESPHOME_F("\n"));
 }
 
-void PrometheusHandler::handle_metric_type_(AsyncResponseStream *stream, const std::string &component_name) {
+void PrometheusHandler::handle_metric_type_(AsyncResponseStream *stream, const char *component_name) {
   stream->print(ESPHOME_F("#TYPE esphome_"));
-  stream->print(component_name.c_str());
+  stream->print(component_name);
   stream->print(ESPHOME_F("_value gauge\n"));
   stream->print(ESPHOME_F("#TYPE esphome_"));
-  stream->print(component_name.c_str());
+  stream->print(component_name);
   stream->print(ESPHOME_F("_failed gauge\n"));
 }
 
@@ -1148,7 +1148,7 @@ void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEnt
                                   std::string &node, std::string &friendly_name) {
   if (obj->is_internal() && !this->include_internal_)
     return;
-  std::string component = "date";
+  const char *component = "date";
   if (obj->has_state()) {
     // We have a valid value, output this value
     handle_failed_metric_(stream, component, "0", obj, area, node, friendly_name);
@@ -1190,7 +1190,7 @@ void PrometheusHandler::time_row_(AsyncResponseStream *stream, datetime::TimeEnt
                                   std::string &node, std::string &friendly_name) {
   if (obj->is_internal() && !this->include_internal_)
     return;
-  std::string component = "time";
+  const char *component = "time";
   if (obj->has_state()) {
     // We have a valid value, output this value
     handle_failed_metric_(stream, component, "0", obj, area, node, friendly_name);
@@ -1218,7 +1218,7 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
                                       std::string &node, std::string &friendly_name) {
   if (obj->is_internal() && !this->include_internal_)
     return;
-  std::string component = "datetime";
+  const char *component = "datetime";
   if (obj->has_state()) {
     // We have a valid value, output this value
     handle_failed_metric_(stream, component, "0", obj, area, node, friendly_name);
