@@ -1150,12 +1150,12 @@ void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEnt
     return;
   const char *component = "date";
   if (obj->has_state()) {
-    // We have a valid value, output this value
-    // Construct a date time object
+    // We have a valid value, construct a datetime object
     ESPTime val{};
     val.year = obj->year;
     val.month = obj->month;
     val.day_of_month = obj->day;
+    // Make sure to zero out time
     val.hour = 0;
     val.minute = 0;
     val.second = 0;
@@ -1182,8 +1182,7 @@ void PrometheusHandler::time_row_(AsyncResponseStream *stream, datetime::TimeEnt
     return;
   const char *component = "time";
   if (obj->has_state()) {
-    // We have a valid value, output this value
-    // Data itself - convert to seconds since midnight
+    // We have a valid value, calculate seconds since midnight
     int64_t seconds_since_midnight = (int64_t) obj->hour * 3600 + (int64_t) obj->minute * 60 + (int64_t) obj->second;
     date_base_row_(stream, component, seconds_since_midnight, obj, area, node, friendly_name);
   } else {
@@ -1200,12 +1199,12 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     return;
   const char *component = "datetime";
   if (obj->has_state()) {
-    // We have a valid value, output this value
-    // Construct a date time object
+    // We have a valid value, construct a datetime object
     ESPTime val{};
     val.year = obj->year;
     val.month = obj->month;
     val.day_of_month = obj->day;
+    // Make sure to include time data
     val.hour = obj->hour;
     val.minute = obj->minute;
     val.second = obj->second;
@@ -1229,8 +1228,9 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
 void PrometheusHandler::date_base_row_(AsyncResponseStream *stream, const char *component_name, int64_t final_timestamp,
                                        datetime::DateTimeBase *obj, std::string &area, std::string &node,
                                        std::string &friendly_name) {
-  // We have a valid value, output this value
+  // First mark the _failed_ version of the metric as false
   handle_failed_metric_(stream, component_name, "0", obj, area, node, friendly_name);
+  // Now output actual metric value
   stream->print(ESPHOME_F("esphome_"));
   stream->print(component_name);
   stream->print(ESPHOME_F("_value{id=\""));
@@ -1241,7 +1241,7 @@ void PrometheusHandler::date_base_row_(AsyncResponseStream *stream, const char *
   stream->print(ESPHOME_F("\",name=\""));
   stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\"} "));
-  // prometheus expects ms
+  // Note: grafana expects timestamp values to be in ms since the epoch. See prometheus docs.
   stream->printf("%" PRId64 "\n", final_timestamp * 1000LL);
 }
 #endif
