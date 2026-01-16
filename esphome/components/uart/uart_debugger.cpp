@@ -107,7 +107,7 @@ void UARTDebug::log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uin
     if (i > 0) {
       res += separator;
     }
-    sprintf(buf, "%02X", bytes[i]);
+    buf_append_printf(buf, sizeof(buf), 0, "%02X", bytes[i]);
     res += buf;
   }
   ESP_LOGD(TAG, "%s", res.c_str());
@@ -147,7 +147,7 @@ void UARTDebug::log_string(UARTDirection direction, std::vector<uint8_t> bytes) 
     } else if (bytes[i] == 92) {
       res += "\\\\";
     } else if (bytes[i] < 32 || bytes[i] > 127) {
-      sprintf(buf, "\\x%02X", bytes[i]);
+      buf_append_printf(buf, sizeof(buf), 0, "\\x%02X", bytes[i]);
       res += buf;
     } else {
       res += bytes[i];
@@ -189,7 +189,7 @@ void UARTDebug::log_binary(UARTDirection direction, std::vector<uint8_t> bytes, 
     if (i > 0) {
       res += separator;
     }
-    sprintf(buf, "0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(bytes[i]), bytes[i]);
+    buf_append_printf(buf, sizeof(buf), 0, "0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(bytes[i]), bytes[i]);
     res += buf;
   }
   ESP_LOGD(TAG, "%s", res.c_str());
