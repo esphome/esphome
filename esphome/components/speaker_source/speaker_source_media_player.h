@@ -12,6 +12,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 
+#include <array>
 #include <vector>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -28,6 +29,33 @@ enum RepeatMode : uint8_t {
   REPEAT_OFF = 0,
   REPEAT_ONE = 1,
   REPEAT_ALL = 2,
+};
+
+struct PipelineState {
+  /// @brief Timeout IDs for playlist delay, indexed by Pipeline enum
+  static constexpr const char *const TIMEOUT_IDS[] = {"next_media", "next_ann"};
+
+  speaker::Speaker *speaker{nullptr};
+  optional<media_player::MediaPlayerSupportedFormat> format;
+
+  media_source::MediaSource *active_source{nullptr};
+  media_source::MediaSource *last_source{nullptr};
+  media_source::MediaSource *stopping_source{nullptr};  // Source we've asked to stop, awaiting IDLE
+
+  std::vector<std::string> playlist;
+  size_t playlist_index{0};
+  RepeatMode repeat_mode{REPEAT_OFF};
+  uint32_t playlist_delay_ms{0};
+
+  // When non-empty, playlist_index indexes into these vectors
+  // which contain the actual playlist indices in shuffled order
+  std::vector<size_t> shuffle_indices;
+
+  // Track frames sent to speaker to correlate with playback callbacks
+  uint32_t pending_frames{0};
+
+  /// @brief Check if this pipeline is configured (has a speaker assigned)
+  bool is_configured() const { return this->speaker != nullptr; }
 };
 
 struct MediaCallCommand {
@@ -82,18 +110,11 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   void set_volume_max(float volume_max) { this->volume_max_ = volume_max; }
   void set_volume_min(float volume_min) { this->volume_min_ = volume_min; }
 
-  void set_announcement_speaker(speaker::Speaker *announcement_speaker) {
-    this->announcement_speaker_ = announcement_speaker;
-  }
-
   void add_media_source(media_source::MediaSource *media_source) { this->media_sources_.push_back(media_source); }
-  void set_media_speaker(speaker::Speaker *media_speaker) { this->media_speaker_ = media_speaker; }
 
-  void set_announcement_format(const media_player::MediaPlayerSupportedFormat &announcement_format) {
-    this->announcement_format_ = announcement_format;
-  }
-  void set_media_format(const media_player::MediaPlayerSupportedFormat &media_format) {
-    this->media_format_ = media_format;
+  void set_speaker(size_t pipeline, speaker::Speaker *speaker) { this->pipelines_[pipeline].speaker = speaker; }
+  void set_format(size_t pipeline, const media_player::MediaPlayerSupportedFormat &format) {
+    this->pipelines_[pipeline].format = format;
   }
 
   Trigger<> *get_mute_trigger() const { return this->mute_trigger_; }
@@ -145,44 +166,12 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   void unshuffle_playlist_(size_t pipeline);
 
   std::vector<media_source::MediaSource *> media_sources_;
-  speaker::Speaker *media_speaker_{nullptr};
-  speaker::Speaker *announcement_speaker_{nullptr};
-  media_source::MediaSource *announcement_active_source_{nullptr};
-  media_source::MediaSource *announcement_last_source_{nullptr};
-  media_source::MediaSource *announcement_stopping_source_{nullptr};  // Source we've asked to stop, awaiting IDLE
-  media_source::MediaSource *media_active_source_{nullptr};
-  media_source::MediaSource *media_last_source_{nullptr};
-  media_source::MediaSource *media_stopping_source_{nullptr};  // Source we've asked to stop, awaiting IDLE
-
-  optional<media_player::MediaPlayerSupportedFormat> media_format_;
-
-  optional<media_player::MediaPlayerSupportedFormat> announcement_format_;
 
   QueueHandle_t media_control_command_queue_;
 
-  // Playlists use std::vector with index-based tracking:
-  // 1. Lower memory overhead (important for embedded systems)
-  // 2. Better cache locality for frequent iteration in loop()
-  // 3. Index tracking enables repeat_all without modifying the playlist
-  // 4. Typical playlists are small (< 20 songs)
-  // Note: No mutex needed - playlists are only accessed from the main loop thread
-  std::vector<std::string> media_playlist_;
-  std::vector<std::string> announcement_playlist_;
-  size_t media_playlist_index_{0};
-  size_t announcement_playlist_index_{0};
-  RepeatMode media_repeat_mode_{REPEAT_OFF};
-  RepeatMode announcement_repeat_mode_{REPEAT_OFF};
-  uint32_t media_playlist_delay_ms_{0};
-  uint32_t announcement_playlist_delay_ms_{0};
-
-  // Shuffle support - when non-empty, playlist_index indexes into these vectors
-  // which contain the actual playlist indices in shuffled order
-  std::vector<size_t> media_shuffle_indices_;
-  std::vector<size_t> announcement_shuffle_indices_;
-
-  // Track frames sent to speaker per pipeline to correlate with playback callbacks
-  uint32_t media_pending_frames_{0};
-  uint32_t announcement_pending_frames_{0};
+  // Pipeline state for media (index 0) and announcement (index 1) pipelines
+  // Note: No mutex needed - pipelines are only accessed from the main loop thread
+  std::array<PipelineState, 2> pipelines_;
 
   bool task_stack_in_psram_;
 

@@ -33,6 +33,8 @@ SpeakerSourceMediaPlayer = speaker_source_ns.class_(
     "SpeakerSourceMediaPlayer", cg.Component, media_player.MediaPlayer
 )
 
+Pipeline = speaker_source_ns.enum("Pipeline")
+
 MuteTrigger = speaker_source_ns.class_("MuteTrigger", automation.Trigger.template())
 UnmuteTrigger = speaker_source_ns.class_("UnmuteTrigger", automation.Trigger.template())
 VolumeTrigger = speaker_source_ns.class_(
@@ -178,33 +180,40 @@ async def to_code(config):
 
     if CONF_ANNOUNCEMENT_SPEAKER in config:
         spk = await cg.get_variable(config[CONF_ANNOUNCEMENT_SPEAKER])
-        cg.add(var.set_announcement_speaker(spk))
+        cg.add(var.set_speaker(Pipeline.ANNOUNCEMENT_PIPELINE, spk))
 
     if CONF_MEDIA_SPEAKER in config:
         spk = await cg.get_variable(config[CONF_MEDIA_SPEAKER])
-        cg.add(var.set_media_speaker(spk))
+        cg.add(var.set_speaker(Pipeline.MEDIA_PIPELINE, spk))
 
     if announcement_pipeline_config := config.get(CONF_ANNOUNCEMENT_PIPELINE):
         cg.add(
-            var.set_announcement_format(
+            var.set_format(
+                Pipeline.ANNOUNCEMENT_PIPELINE,
                 _get_supported_format_struct(
                     announcement_pipeline_config, "ANNOUNCEMENT"
-                )
+                ),
             )
         )
         cg.add(
             var.set_playlist_delay_ms(
-                1, announcement_pipeline_config[CONF_PLAYLIST_DELAY]
+                Pipeline.ANNOUNCEMENT_PIPELINE,
+                announcement_pipeline_config[CONF_PLAYLIST_DELAY],
             )
         )
 
     if media_pipeline_config := config.get(CONF_MEDIA_PIPELINE):
         cg.add(
-            var.set_media_format(
-                _get_supported_format_struct(media_pipeline_config, "MEDIA")
+            var.set_format(
+                Pipeline.MEDIA_PIPELINE,
+                _get_supported_format_struct(media_pipeline_config, "MEDIA"),
             )
         )
-        cg.add(var.set_playlist_delay_ms(0, media_pipeline_config[CONF_PLAYLIST_DELAY]))
+        cg.add(
+            var.set_playlist_delay_ms(
+                Pipeline.MEDIA_PIPELINE, media_pipeline_config[CONF_PLAYLIST_DELAY]
+            )
+        )
 
     if on_mute := config.get(CONF_ON_MUTE):
         await automation.build_automation(
