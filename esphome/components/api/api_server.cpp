@@ -241,8 +241,10 @@ void APIServer::handle_disconnect(APIConnection *conn) {}
   void APIServer::on_##entity_name##_update(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
     if (obj->is_internal()) \
       return; \
-    for (auto &c : this->clients_) \
-      c->send_##entity_name##_state(obj); \
+    for (auto &c : this->clients_) { \
+      if (c->flags_.state_subscription) \
+        c->send_##entity_name##_state(obj); \
+    } \
   }
 
 #ifdef USE_BINARY_SENSOR
@@ -321,8 +323,10 @@ API_DISPATCH_UPDATE(water_heater::WaterHeater, water_heater)
 void APIServer::on_event(event::Event *obj) {
   if (obj->is_internal())
     return;
-  for (auto &c : this->clients_)
-    c->send_event(obj);
+  for (auto &c : this->clients_) {
+    if (c->flags_.state_subscription)
+      c->send_event(obj);
+  }
 }
 #endif
 
@@ -331,8 +335,10 @@ void APIServer::on_event(event::Event *obj) {
 void APIServer::on_update(update::UpdateEntity *obj) {
   if (obj->is_internal())
     return;
-  for (auto &c : this->clients_)
-    c->send_update_state(obj);
+  for (auto &c : this->clients_) {
+    if (c->flags_.state_subscription)
+      c->send_update_state(obj);
+  }
 }
 #endif
 
