@@ -1,6 +1,6 @@
 #include "am43_base.h"
+#include "esphome/core/helpers.h"
 #include <cstring>
-#include <cstdio>
 
 namespace esphome {
 namespace am43 {
@@ -8,12 +8,9 @@ namespace am43 {
 const uint8_t START_PACKET[5] = {0x00, 0xff, 0x00, 0x00, 0x9a};
 
 std::string pkt_to_hex(const uint8_t *data, uint16_t len) {
-  char buf[64];
-  memset(buf, 0, 64);
-  for (int i = 0; i < len; i++)
-    sprintf(&buf[i * 2], "%02x", data[i]);
-  std::string ret = buf;
-  return ret;
+  char buf[64];  // format_hex_size(31) = 63, fits 31 bytes of hex data
+  format_hex_to(buf, sizeof(buf), data, len);
+  return buf;
 }
 
 Am43Packet *Am43Encoder::get_battery_level_request() {
