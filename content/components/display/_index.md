@@ -395,7 +395,7 @@ binary_sensor:
     id: my_binary_sensor
 
 color:
-  - name: my_red
+  - id: my_red
     red: 100%
 
 display:
