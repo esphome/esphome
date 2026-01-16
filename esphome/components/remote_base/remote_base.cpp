@@ -159,25 +159,22 @@ void RemoteTransmitData::set_data_from_packed_sint32(const uint8_t *data, size_t
   }
 }
 
-void RemoteTransmitData::set_data_from_le_int32_buffer(const uint8_t *data, size_t len) {
-  this->data_.clear();
-  this->data_.reserve(len / 4);
-  // Parse little-endian int32 values
-  for (size_t i = 0; i + 3 < len; i += 4) {
-    int32_t timing = static_cast<int32_t>(encode_uint32(data[i + 3], data[i + 2], data[i + 1], data[i]));
-    this->data_.push_back(timing);
-  }
-}
-
-bool RemoteTransmitData::set_data_from_base64_le_int32(const std::string &base64) {
-  // Decode base64 into stack buffer, then parse into data_
-  constexpr size_t max_ir_bytes = 1024;
-  uint8_t decoded[max_ir_bytes];
-  size_t decoded_len = base64_decode(base64, decoded, sizeof(decoded));
-  if (decoded_len == 0 || decoded_len % 4 != 0) {
+bool RemoteTransmitData::set_data_from_base85(const std::string &base85) {
+  size_t len = base85.size();
+  if (len % 5 != 0)
     return false;
+
+  this->data_.clear();  // Retains capacity!
+  const char *ptr = base85.data();
+  const char *end = ptr + len;
+
+  while (ptr < end) {
+    int32_t value;
+    if (!base85_decode_int32(ptr, value))
+      return false;
+    this->data_.push_back(value);
+    ptr += 5;
   }
-  this->set_data_from_le_int32_buffer(decoded, decoded_len);
   return true;
 }
 
