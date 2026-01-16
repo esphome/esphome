@@ -617,6 +617,55 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
   return ret;
 }
 
+/// Encode int32 to 5 base85 characters + null terminator
+/// Standard ASCII85 alphabet: '!' (33) = 0 through 'u' (117) = 84
+inline void base85_encode_int32(int32_t value, std::span<char, BASE85_INT32_ENCODED_SIZE> output) {
+  uint32_t v = static_cast<uint32_t>(value);
+  // Encode least significant digit first, then reverse
+  for (int i = 4; i >= 0; i--) {
+    output[i] = static_cast<char>('!' + (v % 85));
+    v /= 85;
+  }
+  output[5] = '\0';
+}
+
+/// Decode 5 base85 characters to int32
+inline bool base85_decode_int32(const char *input, int32_t &out) {
+  uint8_t c0 = static_cast<uint8_t>(input[0] - '!');
+  uint8_t c1 = static_cast<uint8_t>(input[1] - '!');
+  uint8_t c2 = static_cast<uint8_t>(input[2] - '!');
+  uint8_t c3 = static_cast<uint8_t>(input[3] - '!');
+  uint8_t c4 = static_cast<uint8_t>(input[4] - '!');
+
+  // Each digit must be 0-84. Since uint8_t wraps, chars below '!' become > 84
+  if (c0 > 84 || c1 > 84 || c2 > 84 || c3 > 84 || c4 > 84)
+    return false;
+
+  // 85^4 = 52200625, 85^3 = 614125, 85^2 = 7225, 85^1 = 85
+  out = static_cast<int32_t>(c0 * 52200625u + c1 * 614125u + c2 * 7225u + c3 * 85u + c4);
+  return true;
+}
+
+/// Decode base85 string directly into vector (no intermediate buffer)
+bool base85_decode_int32_vector(const std::string &base85, std::vector<int32_t> &out) {
+  size_t len = base85.size();
+  if (len % 5 != 0)
+    return false;
+
+  out.clear();
+  const char *ptr = base85.data();
+  const char *end = ptr + len;
+
+  while (ptr < end) {
+    int32_t value;
+    if (!base85_decode_int32(ptr, value))
+      return false;
+    out.push_back(value);
+    ptr += 5;
+  }
+  return true;
+}
+
 // Colors
 
 float gamma_correct(float value, float gamma) {
