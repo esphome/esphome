@@ -36,6 +36,11 @@ class RemoteTransmitData {
   /// @param len Length of the buffer in bytes
   /// @param count Number of values (for reserve optimization)
   void set_data_from_packed_sint32(const uint8_t *data, size_t len, size_t count);
+  /// Set data from base85-encoded int32 values
+  /// Decodes directly into internal buffer (zero heap allocations)
+  /// @param base85 Base85-encoded string (5 chars per int32 value)
+  /// @return true if successful, false if decode failed or invalid size
+  bool set_data_from_base85(const std::string &base85);
   void reset() {
     this->data_.clear();
     this->carrier_frequency_ = 0;
