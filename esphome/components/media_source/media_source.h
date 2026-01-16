@@ -29,7 +29,8 @@ enum MediaSourceCommand : uint8_t {
   MEDIA_SOURCE_COMMAND_END,  // Indicates source should end
   MEDIA_SOURCE_COMMAND_PLAY,
   MEDIA_SOURCE_COMMAND_PAUSE,
-  MEDIA_SOURCE_COMMAND_STOP,  // Indicates source should end, and, if a smart, forward the command for the group
+  MEDIA_SOURCE_COMMAND_TOGGLE,  // Toggle play/pause (media player converts to PLAY or PAUSE)
+  MEDIA_SOURCE_COMMAND_STOP,    // Indicates source should end, and, if a smart, forward the command for the group
   MEDIA_SOURCE_COMMAND_NEXT,
   MEDIA_SOURCE_COMMAND_PREVIOUS,
   MEDIA_SOURCE_COMMAND_ENQUEUE,         // Add URI to internal playlist
