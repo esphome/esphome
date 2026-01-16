@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP_IDF
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include "esphome/components/audio/audio.h"
@@ -452,6 +453,8 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
   size_t *playlist_index =
       (pipeline == MEDIA_PIPELINE) ? &this->media_playlist_index_ : &this->announcement_playlist_index_;
   RepeatMode *repeat_mode = (pipeline == MEDIA_PIPELINE) ? &this->media_repeat_mode_ : &this->announcement_repeat_mode_;
+  std::vector<size_t> *shuffle_indices =
+      (pipeline == MEDIA_PIPELINE) ? &this->media_shuffle_indices_ : &this->announcement_shuffle_indices_;
   uint32_t playlist_delay_ms =
       (pipeline == MEDIA_PIPELINE) ? this->media_playlist_delay_ms_ : this->announcement_playlist_delay_ms_;
 
@@ -464,7 +467,8 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
       const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
       this->cancel_timeout(timeout_id);
       playlist->clear();
-      *playlist_index = 0;  // Reset index
+      shuffle_indices->clear();  // Clear shuffle when starting fresh playlist
+      *playlist_index = 0;       // Reset index
       playlist->push_back(*control_command.data.uri);
 
       // Queue PLAY_CURRENT to initiate playback
@@ -477,6 +481,11 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
       // Always add to our local playlist
       bool was_empty = playlist->empty();
       playlist->push_back(*control_command.data.uri);
+
+      // If shuffle is active, add the new item to the end of the shuffle order
+      if (!shuffle_indices->empty()) {
+        shuffle_indices->push_back(playlist->size() - 1);
+      }
 
       if (was_empty) {
         *playlist_index = 0;  // Reset index when adding to empty playlist
@@ -514,9 +523,10 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
     }
 
     case MediaPlayerControlCommand::PLAY_CURRENT: {
-      // Play the item at current playlist index
+      // Play the item at current playlist index (mapped through shuffle if active)
       if (*playlist_index < playlist->size()) {
-        command_executed = this->try_execute_play_uri_((*playlist)[*playlist_index], pipeline);
+        size_t actual_position = this->get_playlist_position_(pipeline);
+        command_executed = this->try_execute_play_uri_((*playlist)[actual_position], pipeline);
       } else {
         command_executed = true;  // Index out of bounds or empty playlist
       }
@@ -566,6 +576,7 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
             const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
             this->cancel_timeout(timeout_id);
             playlist->clear();
+            shuffle_indices->clear();  // Clear shuffle state
             *playlist_index = 0;
           }
           if (target_source != nullptr) {
@@ -639,7 +650,9 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
             const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
             this->cancel_timeout(timeout_id);
             if (*playlist_index < playlist->size()) {
-              std::string current = (*playlist)[*playlist_index];
+              // Get actual position accounting for shuffle
+              size_t actual_position = this->get_playlist_position_(pipeline);
+              std::string current = (*playlist)[actual_position];
               playlist->clear();
               playlist->push_back(current);
               *playlist_index = 0;
@@ -647,6 +660,7 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
               playlist->clear();
               *playlist_index = 0;
             }
+            shuffle_indices->clear();  // Clear shuffle state
           } else if (target_source != nullptr) {
             target_source->handle_command(source_command, pipeline);
           }
@@ -654,9 +668,16 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
         }
 
         case media_source::MEDIA_SOURCE_COMMAND_SHUFFLE:
+          if (!has_internal_playlist) {
+            this->shuffle_playlist_(pipeline);
+          } else if (target_source != nullptr) {
+            target_source->handle_command(source_command, pipeline);
+          }
+          break;
+
         case media_source::MEDIA_SOURCE_COMMAND_UNSHUFFLE:
           if (!has_internal_playlist) {
-            // TODO: Handle shuffle for local playlist
+            this->unshuffle_playlist_(pipeline);
           } else if (target_source != nullptr) {
             target_source->handle_command(source_command, pipeline);
           }
@@ -884,6 +905,69 @@ void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
   }
 
   this->defer([this, volume]() { this->volume_trigger_->trigger(volume); });
+}
+
+size_t SpeakerSourceMediaPlayer::get_playlist_position_(size_t pipeline) const {
+  const auto *shuffle_indices =
+      (pipeline == MEDIA_PIPELINE) ? &this->media_shuffle_indices_ : &this->announcement_shuffle_indices_;
+  const size_t playlist_index =
+      (pipeline == MEDIA_PIPELINE) ? this->media_playlist_index_ : this->announcement_playlist_index_;
+
+  if (shuffle_indices->empty() || playlist_index >= shuffle_indices->size()) {
+    return playlist_index;  // No shuffle active or index out of bounds, use direct index
+  }
+  return (*shuffle_indices)[playlist_index];
+}
+
+void SpeakerSourceMediaPlayer::shuffle_playlist_(size_t pipeline) {
+  auto *playlist = (pipeline == MEDIA_PIPELINE) ? &this->media_playlist_ : &this->announcement_playlist_;
+  auto *shuffle_indices =
+      (pipeline == MEDIA_PIPELINE) ? &this->media_shuffle_indices_ : &this->announcement_shuffle_indices_;
+  const size_t playlist_index =
+      (pipeline == MEDIA_PIPELINE) ? this->media_playlist_index_ : this->announcement_playlist_index_;
+
+  if (playlist->size() <= 1) {
+    shuffle_indices->clear();
+    return;
+  }
+
+  // Capture current actual position BEFORE modifying shuffle_indices
+  size_t current_actual = this->get_playlist_position_(pipeline);
+
+  // Build indices vector
+  shuffle_indices->resize(playlist->size());
+  for (size_t i = 0; i < playlist->size(); i++) {
+    (*shuffle_indices)[i] = i;
+  }
+
+  // Fisher-Yates shuffle using ESPHome's random helper
+  for (size_t i = shuffle_indices->size() - 1; i > 0; i--) {
+    size_t j = random_uint32() % (i + 1);
+    std::swap((*shuffle_indices)[i], (*shuffle_indices)[j]);
+  }
+
+  // Move current track to current position (so playback continues seamlessly)
+  if (playlist_index < shuffle_indices->size()) {
+    for (size_t i = 0; i < shuffle_indices->size(); i++) {
+      if ((*shuffle_indices)[i] == current_actual) {
+        std::swap((*shuffle_indices)[i], (*shuffle_indices)[playlist_index]);
+        break;
+      }
+    }
+  }
+}
+
+void SpeakerSourceMediaPlayer::unshuffle_playlist_(size_t pipeline) {
+  auto *shuffle_indices =
+      (pipeline == MEDIA_PIPELINE) ? &this->media_shuffle_indices_ : &this->announcement_shuffle_indices_;
+  size_t *playlist_index =
+      (pipeline == MEDIA_PIPELINE) ? &this->media_playlist_index_ : &this->announcement_playlist_index_;
+
+  if (!shuffle_indices->empty() && *playlist_index < shuffle_indices->size()) {
+    // Set playlist_index to the actual position we were playing
+    *playlist_index = (*shuffle_indices)[*playlist_index];
+  }
+  shuffle_indices->clear();
 }
 
 }  // namespace speaker_source

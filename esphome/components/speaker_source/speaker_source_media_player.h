@@ -133,6 +133,17 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   void queue_command_(MediaPlayerControlCommand::Type type, size_t pipeline);
   void queue_play_current_(size_t pipeline, uint32_t delay_ms = 0);
 
+  /// @brief Maps playlist_index through shuffle indices if shuffle is active
+  /// @param pipeline The pipeline to get position for
+  /// @return The actual playlist index to use
+  size_t get_playlist_position_(size_t pipeline) const;
+
+  /// @brief Generates shuffled indices for the playlist, keeping current track at current position
+  void shuffle_playlist_(size_t pipeline);
+
+  /// @brief Clears shuffle indices and adjusts playlist_index to maintain current track
+  void unshuffle_playlist_(size_t pipeline);
+
   std::vector<media_source::MediaSource *> media_sources_;
   speaker::Speaker *media_speaker_{nullptr};
   speaker::Speaker *announcement_speaker_{nullptr};
@@ -163,6 +174,11 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   RepeatMode announcement_repeat_mode_{REPEAT_OFF};
   uint32_t media_playlist_delay_ms_{0};
   uint32_t announcement_playlist_delay_ms_{0};
+
+  // Shuffle support - when non-empty, playlist_index indexes into these vectors
+  // which contain the actual playlist indices in shuffled order
+  std::vector<size_t> media_shuffle_indices_;
+  std::vector<size_t> announcement_shuffle_indices_;
 
   // Track frames sent to speaker per pipeline to correlate with playback callbacks
   uint32_t media_pending_frames_{0};
