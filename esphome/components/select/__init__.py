@@ -13,15 +13,19 @@ from esphome.const import (
     CONF_ON_VALUE,
     CONF_OPERATION,
     CONF_OPTION,
+    CONF_OPTIONS,
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObjClass, TemplateArguments
+from esphome.cpp_types import global_ns
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
+
+CONF_OPTIONS_ID = "options_id"
 
 select_ns = cg.esphome_ns.namespace("select")
 Select = select_ns.class_("Select", cg.EntityBase)
@@ -39,6 +43,7 @@ SelectSetIndexAction = select_ns.class_("SelectSetIndexAction", automation.Actio
 SelectOperationAction = select_ns.class_("SelectOperationAction", automation.Action)
 
 # Conditions
+SelectAnyCondition = select_ns.class_("SelectAnyCondition", automation.Condition)
 SelectIsCondition = select_ns.class_("SelectIsCondition", automation.Condition)
 
 # Enums
@@ -173,16 +178,34 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
     SelectIsCondition,
     OPERATION_BASE_SCHEMA.extend(
         {
-            cv.Required(CONF_OPTION): cv.templatable(cv.string_strict),
+            cv.Required(CONF_OPTIONS): cv.Any(
+                cv.ensure_list(cv.string_strict, cv.Length(min=1)),
+                cv.templatable(cv.string_strict),
+            ),
+            cv.GenerateID(CONF_OPTIONS_ID): cv.declare_id([cg.const_char_ptr]),
         }
     ),
 )
 async def select_is_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(condition_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_OPTION], args, cg.std_string)
-    cg.add(var.set_option(template_))
-    return var
+    options = config[CONF_OPTIONS]
+
+    if cg.is_template(options):
+        # Single templatable option
+        arg = await cg.templatable(options, args, cg.std_string)
+    else:
+        # List of constant options
+        # Create a constexpr and pass that with a template length
+        arr_id = ID(
+            f"{condition_id}_data",
+            is_declaration=True,
+            type=global_ns.namespace("constexpr char * const"),
+        )
+        arg = cg.static_const_array(arr_id, cg.ArrayInitializer(*options))
+        condition_id = condition_id.copy()
+        condition_id.type = SelectAnyCondition
+        template_arg = TemplateArguments(len(options))
+    return cg.new_Pvariable(condition_id, template_arg, paren, arg)
 
 
 @automation.register_action(
