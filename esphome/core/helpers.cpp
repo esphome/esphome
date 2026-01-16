@@ -617,19 +617,15 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
   return ret;
 }
 
-/// Encode int32 to 5 base85 characters
+/// Encode int32 to 5 base85 characters + null terminator
 /// Standard ASCII85 alphabet: '!' (33) = 0 through 'u' (117) = 84
-inline void base85_encode_int32(int32_t value, char *output) {
+inline void base85_encode_int32(int32_t value, std::span<char, BASE85_INT32_ENCODED_SIZE> output) {
   uint32_t v = static_cast<uint32_t>(value);
   // Encode least significant digit first, then reverse
   for (uint8_t i = 4; i >= 0; i--) {
     output[i] = static_cast<char>('!' + (v % 85));
     v /= 85;
   }
-}
-
-inline void base85_encode_int32(int32_t value, std::span<char, BASE85_INT32_ENCODED_SIZE> output) {
-  base85_encode_int32(value, output.data());
   output[5] = '\0';
 }
 
