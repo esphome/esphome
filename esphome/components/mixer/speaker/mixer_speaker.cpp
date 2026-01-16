@@ -65,6 +65,9 @@ void SourceSpeaker::setup() {
     return;
   }
 
+  // Start with loop disabled since we begin in STATE_STOPPED with no pending commands
+  this->disable_loop();
+
   this->parent_->get_output_speaker()->add_audio_output_callback([this](uint32_t new_frames, int64_t write_timestamp) {
     // First, drain the playback delay using CAS loop (frames in pipeline before this source started contributing)
     uint32_t delay_to_drain = 0;
@@ -205,6 +208,13 @@ void SourceSpeaker::loop() {
       break;
     }
     case speaker::STATE_STOPPED:
+      // Re-check event bits for any new commands that may have arrived
+      event_bits = xEventGroupGetBits(this->event_group_);
+      if (!(event_bits & (SourceSpeakerEventBits::COMMAND_START | SourceSpeakerEventBits::COMMAND_STOP |
+                          SourceSpeakerEventBits::COMMAND_FINISH))) {
+        // No pending commands, disable loop to save CPU cycles
+        this->disable_loop();
+      }
       break;
   }
 }
@@ -225,6 +235,7 @@ size_t SourceSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_
 }
 
 void SourceSpeaker::start() {
+  this->enable_loop_soon_any_context();
   xEventGroupSetBits(this->event_group_, SourceSpeakerEventBits::COMMAND_START);
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
@@ -258,6 +269,7 @@ esp_err_t SourceSpeaker::start_() {
 }
 
 void SourceSpeaker::stop() {
+  this->enable_loop_soon_any_context();
   xEventGroupSetBits(this->event_group_, SourceSpeakerEventBits::COMMAND_STOP);
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
@@ -265,6 +277,7 @@ void SourceSpeaker::stop() {
 }
 
 void SourceSpeaker::finish() {
+  this->enable_loop_soon_any_context();
   xEventGroupSetBits(this->event_group_, SourceSpeakerEventBits::COMMAND_FINISH);
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
@@ -415,6 +428,9 @@ void MixerSpeaker::setup() {
     } while (!this->frames_in_pipeline_.compare_exchange_weak(current, new_value, std::memory_order_release,
                                                               std::memory_order_acquire));
   });
+
+  // Start with loop disabled since no task is running and no commands are pending
+  this->disable_loop();
 }
 
 void MixerSpeaker::loop() {
@@ -481,6 +497,13 @@ void MixerSpeaker::loop() {
       // Send stop command signal to the mixer task since no source speakers are active
       xEventGroupSetBits(this->event_group_, MixerEventGroupBits::COMMAND_STOP);
     }
+  } else if (this->task_stack_buffer_ == nullptr) {
+    // Task is fully stopped and cleaned up, check if we can disable loop
+    event_group_bits = xEventGroupGetBits(this->event_group_);
+    if (event_group_bits == 0) {
+      // No pending events, disable loop to save CPU cycles
+      this->disable_loop();
+    }
   }
 }
 
@@ -500,6 +523,9 @@ esp_err_t MixerSpeaker::start(audio::AudioStreamInfo &stream_info) {
       return ESP_ERR_INVALID_ARG;
     }
   }
+
+  // Ensure loop runs to process the start command
+  this->enable_loop_soon_any_context();
 
   // Informs the loop function to start the task
   xEventGroupSetBits(this->event_group_, MixerEventGroupBits::COMMAND_START);
