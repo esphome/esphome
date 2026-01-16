@@ -4,6 +4,7 @@ import gzip
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
+from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
 from esphome.const import (
@@ -202,7 +203,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_OTA): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
-            cv.Optional(CONF_COMPRESSION, default="br"): cv.one_of("br", "gzip"),
+            cv.Optional(CONF_COMPRESSION, default="gzip"): cv.one_of("gzip", "br"),
             cv.Optional(CONF_SORTING_GROUPS): cv.ensure_list(sorting_group),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -313,6 +314,8 @@ async def to_code(config):
     if config.get(CONF_OTA) is False:
         cg.add_define("USE_WEBSERVER_OTA_DISABLED")
     cg.add(var.set_expose_log(config[CONF_LOG]))
+    if config[CONF_LOG]:
+        request_log_listener()  # Request a log listener slot for web server log streaming
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
     if CONF_AUTH in config:

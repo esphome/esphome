@@ -10,7 +10,7 @@ namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.binary_sensor";
 
-std::string MQTTBinarySensorComponent::component_type() const { return "binary_sensor"; }
+MQTT_COMPONENT_TYPE(MQTTBinarySensorComponent, "binary_sensor")
 const EntityBase *MQTTBinarySensorComponent::get_entity() const { return this->binary_sensor_; }
 
 void MQTTBinarySensorComponent::setup() {

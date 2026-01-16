@@ -29,7 +29,7 @@ class MQTTBinarySensorComponent : public mqtt::MQTTComponent {
   bool publish_state(bool state);
 
  protected:
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   binary_sensor::BinarySensor *binary_sensor_;
