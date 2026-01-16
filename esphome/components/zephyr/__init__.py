@@ -1,17 +1,18 @@
+from dataclasses import dataclass
+import json
 from pathlib import Path
+import shutil
 import textwrap
 from typing import TypedDict
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 
 from .const import (
-    BOOTLOADER_MCUBOOT,
     KEY_BOARD,
-    KEY_BOOTLOADER,
     KEY_EXTRA_BUILD_FILES,
     KEY_OVERLAY,
     KEY_PM_STATIC,
@@ -44,9 +45,43 @@ class Section:
         )
 
 
+@dataclass
+class ZephyrBoard:
+    id: str  # Shorthand name, for identification
+    name: str  # Full name with the qualifiers, ie. nrf54l15dk/nrf52l15/cpuapp
+    mcu: str
+    vendor: str
+    flash_size: int
+    ram_size: int
+    external_flash: dict | None
+    bootloader: dict | None
+
+    def to_platformio_board(self) -> dict:
+        return {
+            "frameworks": ["zephyr"],
+            "name": "esphome nrf52",
+            "mcu": self.mcu,
+            "upload": {
+                "maximum_size": self.flash_size,
+                "maximum_ram_size": self.ram_size,
+                "speed": 115200,
+            },
+            "url": "https://esphome.io",
+            "vendor": self.vendor,
+            "build": {
+                "bsp": {
+                    "name": self.vendor,
+                },
+                "softdevice": {"sd_fwid": "0x00B6"},
+                "zephyr": {
+                    "variant": self.name,
+                },
+            },
+        }
+
+
 class ZephyrData(TypedDict):
-    board: str
-    bootloader: str
+    board: ZephyrBoard
     prj_conf: dict[str, tuple[PrjConfValueType, bool]]
     overlay: str
     extra_build_files: dict[str, Path]
@@ -54,10 +89,9 @@ class ZephyrData(TypedDict):
     user: dict[str, list[str]]
 
 
-def zephyr_set_core_data(config):
+def zephyr_set_core_data(config, board: ZephyrBoard):
     CORE.data[KEY_ZEPHYR] = ZephyrData(
-        board=config[CONF_BOARD],
-        bootloader=config[KEY_BOOTLOADER],
+        board=board,
         prj_conf={},
         overlay="",
         extra_build_files={},
@@ -172,7 +206,7 @@ def zephyr_add_cdc_acm(config, id):
     )
 
 
-def zephyr_add_pm_static(section: Section):
+def zephyr_add_pm_static(section: list[Section]):
     CORE.data[KEY_ZEPHYR][KEY_PM_STATIC].extend(section)
 
 
@@ -213,37 +247,10 @@ def copy_files():
         zephyr_data()[KEY_OVERLAY],
     )
 
-    if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT or zephyr_data()[
-        KEY_BOARD
-    ] in ["xiao_ble"]:
-        fake_board_manifest = """
-{
-    "frameworks": [
-        "zephyr"
-    ],
-    "name": "esphome nrf52",
-    "upload": {
-        "maximum_ram_size": 248832,
-        "maximum_size": 815104,
-        "speed": 115200
-    },
-    "url": "https://esphome.io/",
-    "vendor": "esphome",
-    "build": {
-        "bsp": {
-            "name": "adafruit"
-        },
-        "softdevice": {
-            "sd_fwid": "0x00B6"
-        }
-    }
-}
-"""
-
-        write_file_if_changed(
-            CORE.relative_build_path(f"boards/{zephyr_data()[KEY_BOARD]}.json"),
-            fake_board_manifest,
-        )
+    write_file_if_changed(
+        CORE.relative_build_path(f"boards/{zephyr_data()[KEY_BOARD].id}.json"),
+        json.dumps(zephyr_data()[KEY_BOARD].to_platformio_board(), indent=4),
+    )
 
     for filename, path in zephyr_data()[KEY_EXTRA_BUILD_FILES].items():
         copy_file_if_changed(
@@ -255,4 +262,9 @@ def copy_files():
     if pm_static:
         write_file_if_changed(
             CORE.relative_build_path("zephyr/pm_static.yml"), pm_static
+        )
+    else:
+        # Cleanup old file if no pm_static sections were added
+        shutil.rmtree(
+            CORE.relative_build_path("zephyr/pm_static.yml"), ignore_errors=True
         )

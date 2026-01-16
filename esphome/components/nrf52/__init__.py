@@ -7,6 +7,7 @@ from pathlib import Path
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.zephyr import (
+    Section,
     copy_files as zephyr_copy_files,
     zephyr_add_overlay,
     zephyr_add_pm_static,
@@ -16,17 +17,16 @@ from esphome.components.zephyr import (
     zephyr_setup_preferences,
     zephyr_to_code,
 )
-from esphome.components.zephyr.const import (
-    BOOTLOADER_MCUBOOT,
-    KEY_BOOTLOADER,
-    KEY_ZEPHYR,
-)
+from esphome.components.zephyr.const import KEY_BOARD, KEY_ZEPHYR
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
     CONF_ID,
+    CONF_NAME,
     CONF_RESET_PIN,
+    CONF_SIZE,
+    CONF_TYPE,
     CONF_VERSION,
     CONF_VOLTAGE,
     KEY_CORE,
@@ -40,12 +40,21 @@ from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priori
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG
+from .boards import BOARDS, BOOTLOADER_PARTITION_MAP, FLASH_SIZE_MAP, Nrf52Board
 from .const import (
-    BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+    BOOTLOADER_MCUBOOT,
+    BOOTLOADER_NONE,
+    BOOTLOADER_NORDIC,
+    CONF_BOOTLOADER,
+    CONF_EXT_FLASH,
+    CONF_FLASH_SIZE,
+    CONF_LABEL,
+    CONF_MCU,
+    CONF_PARTITIONS,
+    MCU_FAMILY_NRF52,
 )
 
 # force import gpio to register pin schema
@@ -57,55 +66,75 @@ IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
 
 
-def set_core_data(config: ConfigType) -> ConfigType:
-    zephyr_set_core_data(config)
+def _set_platform(config: ConfigType) -> ConfigType:
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
-    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
-
-    if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
-        zephyr_add_pm_static(BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]])
-
     return config
 
 
-def set_framework(config: ConfigType) -> ConfigType:
+def _get_board_info(config):
+    board_config = config[CONF_BOARD]
+    board_id = board_config[CONF_NAME]
+    if "/" in board_id:
+        board_id = board_id.split("/")[0]
+    board_info = BOARDS[board_id].copy()
+    board_info[CONF_ID] = board_id
+    board_info[CONF_NAME] = board_config[CONF_NAME]
+
+    if CONF_FLASH_SIZE in board_config:
+        board_info[CONF_FLASH_SIZE] = board_config[CONF_FLASH_SIZE]
+    else:
+        board_info[CONF_FLASH_SIZE] = FLASH_SIZE_MAP[board_info[CONF_MCU]]
+
+    if CONF_EXT_FLASH in board_config:
+        board_info[CONF_EXT_FLASH] = board_config[CONF_EXT_FLASH]
+
+    if CONF_BOOTLOADER in config:
+        bootloader = config[CONF_BOOTLOADER]
+        if bootloader == BOOTLOADER_ADAFRUIT_NRF52_SD132:
+            # From our perspective SD132 and SD140v6 is the same
+            bootloader = BOOTLOADER_ADAFRUIT_NRF52_SD140_V6
+        if bootloader in (
+            BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
+            BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+            BOOTLOADER_NORDIC,
+        ):
+            board_info[CONF_BOOTLOADER] = {
+                CONF_TYPE: bootloader,
+                CONF_PARTITIONS: BOOTLOADER_PARTITION_MAP[bootloader],
+            }
+        else:
+            board_info[CONF_BOOTLOADER] = None
+
+    return board_info
+
+
+def _set_core_data(config):
+    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
     version = cv.Version.parse(cv.version_number(config[CONF_FRAMEWORK][CONF_VERSION]))
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = version
+
+    info = _get_board_info(config)
+    board = Nrf52Board.from_dict(info)
+    zephyr_set_core_data(config, board)
+
+    if board.bootloader:
+        sections = [
+            Section(p["name"], p["address"], p["size"], "flash_primary")
+            for p in board.bootloader[CONF_PARTITIONS]
+        ]
+        zephyr_add_pm_static(sections)
+
     return config
 
 
 BOOTLOADERS = [
-    BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     BOOTLOADER_MCUBOOT,
+    BOOTLOADER_NONE,
+    BOOTLOADER_NORDIC,
 ]
-
-
-def _detect_bootloader(config: ConfigType) -> ConfigType:
-    """Detect the bootloader for the given board."""
-    config = config.copy()
-    bootloaders: list[str] = []
-    board = config[CONF_BOARD]
-
-    if board in BOARDS_ZEPHYR and KEY_BOOTLOADER in BOARDS_ZEPHYR[board]:
-        # this board have bootloaders config available
-        bootloaders = BOARDS_ZEPHYR[board][KEY_BOOTLOADER]
-
-    if KEY_BOOTLOADER not in config:
-        if bootloaders:
-            # there is no bootloader in config -> take first one
-            config[KEY_BOOTLOADER] = bootloaders[0]
-        else:
-            # make mcuboot as default if there is no configuration for that board
-            config[KEY_BOOTLOADER] = BOOTLOADER_MCUBOOT
-    elif bootloaders and config[KEY_BOOTLOADER] not in bootloaders:
-        raise cv.Invalid(
-            f"{board} does not support {config[KEY_BOOTLOADER]}, select one of: {', '.join(bootloaders)}"
-        )
-    return config
-
 
 nrf52_ns = cg.esphome_ns.namespace("nrf52")
 DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
@@ -117,13 +146,35 @@ CONF_UICR_ERASE = "uicr_erase"
 
 VOLTAGE_LEVELS = [1.8, 2.1, 2.4, 2.7, 3.0, 3.3]
 
+
+def _parse_shorthand_board(value: str) -> ConfigType:
+    return {CONF_NAME: value}
+
+
+BOARD_SCHEMA = cv.All(
+    cv.Any(
+        cv.All(cv.string_strict, _parse_shorthand_board),
+        cv.Schema(
+            {
+                cv.Required(CONF_NAME): cv.string_strict,
+                cv.Optional(CONF_EXT_FLASH): cv.Schema(
+                    {
+                        cv.Required(CONF_LABEL): cv.string_strict,
+                        cv.Required(CONF_SIZE): cv.hex_int,
+                    }
+                ),
+                cv.Optional(CONF_FLASH_SIZE): cv.hex_int,
+            }
+        ),
+    ),
+)
+
 CONFIG_SCHEMA = cv.All(
-    _detect_bootloader,
-    set_core_data,
+    _set_platform,
     cv.Schema(
         {
-            cv.Required(CONF_BOARD): cv.string_strict,
-            cv.Optional(KEY_BOOTLOADER): cv.one_of(*BOOTLOADERS, lower=True),
+            cv.Required(CONF_BOARD): BOARD_SCHEMA,
+            cv.Optional(CONF_BOOTLOADER): cv.one_of(*BOOTLOADERS, lower=True),
             cv.Optional(CONF_DFU): cv.Schema(
                 {
                     cv.GenerateID(): cv.declare_id(DeviceFirmwareUpdate),
@@ -147,23 +198,27 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
-    set_framework,
+    _set_core_data,
 )
 
 
-def _validate_mcumgr(config):
-    bootloader = zephyr_data()[KEY_BOOTLOADER]
-    if bootloader == BOOTLOADER_MCUBOOT:
-        raise cv.Invalid(f"'{bootloader}' bootloader does not support DFU")
+def _validate_dfu():
+    bootloader = zephyr_data()[KEY_BOARD].bootloader
+    if not bootloader:
+        raise cv.Invalid("DFU requires a bootloader to be configured")
+    if bootloader[CONF_TYPE] not in (
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+        BOOTLOADER_NORDIC,
+    ):
+        raise cv.Invalid(f"'{bootloader[CONF_TYPE]}' bootloader does not support DFU")
 
 
 def _final_validate(config):
     if CONF_DFU in config:
-        _validate_mcumgr(config)
-    if config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT:
-        _LOGGER.warning(
-            "Selected generic Adafruit bootloader. The board might crash. Consider settings `bootloader:`"
-        )
+        _validate_dfu()
+
+    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -172,10 +227,11 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 @coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
-    cg.add_platformio_option("board", config[CONF_BOARD])
+    board = zephyr_data()[KEY_BOARD]
+    cg.add_platformio_option("board", board.id)
     cg.add_build_flag("-DUSE_NRF52")
-    cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
-    cg.add_define("ESPHOME_VARIANT", "NRF52")
+    cg.add_define("ESPHOME_BOARD", board.id)
+    cg.add_define("ESPHOME_VARIANT", board.mcu)
     # nRF52 processors are single-core
     cg.add_define(ThreadModel.SINGLE)
     cg.add_platformio_option(CONF_FRAMEWORK, CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK])
@@ -191,16 +247,13 @@ async def to_code(config: ConfigType) -> None:
         ],
     )
 
-    if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+    if board.bootloader and board.bootloader[CONF_TYPE] == BOOTLOADER_MCUBOOT:
         cg.add_define("USE_BOOTLOADER_MCUBOOT")
-    else:
-        if "_sd" in config[KEY_BOOTLOADER]:
-            bootloader = config[KEY_BOOTLOADER].split("_")
-            sd_id = bootloader[2][2:]
-            cg.add_define("USE_SOFTDEVICE_ID", int(sd_id))
-            if (len(bootloader)) > 3:
-                sd_version = bootloader[3][1:]
-                cg.add_define("USE_SOFTDEVICE_VERSION", int(sd_version))
+
+    if board.bootloader and board.bootloader[CONF_TYPE] in (
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+    ):
         # make sure that firmware.zip is created
         # for Adafruit_nRF52_Bootloader
         cg.add_platformio_option("board_upload.protocol", "nrfutil")
@@ -214,22 +267,36 @@ async def to_code(config: ConfigType) -> None:
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if framework_ver < cv.Version(2, 9, 2):
-        zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
-    else:
-        zephyr_add_overlay(
-            f"""
-                &reg1 {{
-                    regulator-initial-mode = <{"NRF5X_REG_MODE_DCDC" if config[CONF_DCDC] else "NRF5X_REG_MODE_LDO"}>;
-                }};
-            """
-        )
 
-    if reg0_config := config.get(CONF_REG0):
-        value = VOLTAGE_LEVELS.index(reg0_config[CONF_VOLTAGE])
-        cg.add_define("USE_NRF52_REG0_VOUT", value)
-        if reg0_config[CONF_UICR_ERASE]:
-            cg.add_define("USE_NRF52_UICR_ERASE")
+    if board.mcu in MCU_FAMILY_NRF52:
+        if framework_ver < cv.Version(2, 9, 2):
+            zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
+        else:
+            zephyr_add_overlay(
+                f"""
+                    &reg1 {{
+                        regulator-initial-mode = <{"NRF5X_REG_MODE_DCDC" if config[CONF_DCDC] else "NRF5X_REG_MODE_LDO"}>;
+                    }};
+                """
+            )
+
+        if reg0_config := config.get(CONF_REG0):
+            value = VOLTAGE_LEVELS.index(reg0_config[CONF_VOLTAGE])
+            cg.add_define("USE_NRF52_REG0_VOUT", value)
+            if reg0_config[CONF_UICR_ERASE]:
+                cg.add_define("USE_NRF52_UICR_ERASE")
+
+            # use NFC pins as GPIO
+            if framework_ver < cv.Version(2, 9, 2):
+                zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
+            else:
+                zephyr_add_overlay(
+                    """
+                        &uicr {
+                            nfct-pins-as-gpios;
+                        };
+                    """
+                )
 
     # c++ support
     if framework_ver < cv.Version(2, 9, 2):
@@ -244,17 +311,6 @@ async def to_code(config: ConfigType) -> None:
     # disable console
     zephyr_add_prj_conf("UART_CONSOLE", False)
     zephyr_add_prj_conf("CONSOLE", False)
-    # use NFC pins as GPIO
-    if framework_ver < cv.Version(2, 9, 2):
-        zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
-    else:
-        zephyr_add_overlay(
-            """
-                &uicr {
-                    nfct-pins-as-gpios;
-                };
-            """
-        )
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
