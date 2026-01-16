@@ -173,8 +173,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   uint32_t flash_size = ESP.getFlashChipSize() / 1024;       // NOLINT
   uint32_t flash_speed = ESP.getFlashChipSpeed() / 1000000;  // NOLINT
   ESP_LOGD(TAG, "Flash Chip: Size=%" PRIu32 "kB Speed=%" PRIu32 "MHz Mode=%s", flash_size, flash_speed, flash_mode);
-  pos = buf_append(buf, size, pos, "|Flash: %" PRIu32 "kB Speed:%" PRIu32 "MHz Mode:%s", flash_size, flash_speed,
-                   flash_mode);
+  pos = buf_append_printf(buf, size, pos, "|Flash: %" PRIu32 "kB Speed:%" PRIu32 "MHz Mode:%s", flash_size, flash_speed,
+                          flash_mode);
 #endif
 
   esp_chip_info_t info;
@@ -182,52 +182,52 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   const char *model = ESPHOME_VARIANT;
 
   // Build features string
-  pos = buf_append(buf, size, pos, "|Chip: %s Features:", model);
+  pos = buf_append_printf(buf, size, pos, "|Chip: %s Features:", model);
   bool first_feature = true;
   for (const auto &feature : CHIP_FEATURES) {
     if (info.features & feature.bit) {
-      pos = buf_append(buf, size, pos, "%s%s", first_feature ? "" : ", ", feature.name);
+      pos = buf_append_printf(buf, size, pos, "%s%s", first_feature ? "" : ", ", feature.name);
       first_feature = false;
       info.features &= ~feature.bit;
     }
   }
   if (info.features != 0) {
-    pos = buf_append(buf, size, pos, "%sOther:0x%" PRIx32, first_feature ? "" : ", ", info.features);
+    pos = buf_append_printf(buf, size, pos, "%sOther:0x%" PRIx32, first_feature ? "" : ", ", info.features);
   }
   ESP_LOGD(TAG, "Chip: Model=%s, Cores=%u, Revision=%u", model, info.cores, info.revision);
-  pos = buf_append(buf, size, pos, " Cores:%u Revision:%u", info.cores, info.revision);
+  pos = buf_append_printf(buf, size, pos, " Cores:%u Revision:%u", info.cores, info.revision);
 
   uint32_t cpu_freq_mhz = arch_get_cpu_freq_hz() / 1000000;
   ESP_LOGD(TAG, "CPU Frequency: %" PRIu32 " MHz", cpu_freq_mhz);
-  pos = buf_append(buf, size, pos, "|CPU Frequency: %" PRIu32 " MHz", cpu_freq_mhz);
+  pos = buf_append_printf(buf, size, pos, "|CPU Frequency: %" PRIu32 " MHz", cpu_freq_mhz);
 
   // Framework detection
 #ifdef USE_ARDUINO
   ESP_LOGD(TAG, "Framework: Arduino");
-  pos = buf_append(buf, size, pos, "|Framework: Arduino");
+  pos = buf_append_printf(buf, size, pos, "|Framework: Arduino");
 #elif defined(USE_ESP32)
   ESP_LOGD(TAG, "Framework: ESP-IDF");
-  pos = buf_append(buf, size, pos, "|Framework: ESP-IDF");
+  pos = buf_append_printf(buf, size, pos, "|Framework: ESP-IDF");
 #else
   ESP_LOGW(TAG, "Framework: UNKNOWN");
-  pos = buf_append(buf, size, pos, "|Framework: UNKNOWN");
+  pos = buf_append_printf(buf, size, pos, "|Framework: UNKNOWN");
 #endif
 
   ESP_LOGD(TAG, "ESP-IDF Version: %s", esp_get_idf_version());
-  pos = buf_append(buf, size, pos, "|ESP-IDF: %s", esp_get_idf_version());
+  pos = buf_append_printf(buf, size, pos, "|ESP-IDF: %s", esp_get_idf_version());
 
   uint8_t mac[6];
   get_mac_address_raw(mac);
   ESP_LOGD(TAG, "EFuse MAC: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  pos = buf_append(buf, size, pos, "|EFuse MAC: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4],
-                   mac[5]);
+  pos = buf_append_printf(buf, size, pos, "|EFuse MAC: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3],
+                          mac[4], mac[5]);
 
   char reason_buffer[RESET_REASON_BUFFER_SIZE];
   const char *reset_reason = get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE>(reason_buffer));
-  pos = buf_append(buf, size, pos, "|Reset: %s", reset_reason);
+  pos = buf_append_printf(buf, size, pos, "|Reset: %s", reset_reason);
 
   const char *wakeup_cause = get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE>(reason_buffer));
-  pos = buf_append(buf, size, pos, "|Wakeup: %s", wakeup_cause);
+  pos = buf_append_printf(buf, size, pos, "|Wakeup: %s", wakeup_cause);
 
   return pos;
 }
