@@ -21,6 +21,7 @@
 
 #ifdef USE_ESP8266
 #include <Esp.h>
+#include <pgmspace.h>
 #endif
 
 #ifdef USE_RP2040
