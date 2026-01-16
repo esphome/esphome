@@ -1,4 +1,5 @@
 #include "remote_base.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -169,36 +170,31 @@ void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   const auto &vec = this->temp_.get_data();
   char buffer[256];
-  uint32_t buffer_offset = 0;
-  buffer_offset += sprintf(buffer, "Sending times=%" PRIu32 " wait=%" PRIu32 "ms: ", send_times, send_wait);
+  size_t pos = buf_append_printf(buffer, sizeof(buffer), 0,
+                                 "Sending times=%" PRIu32 " wait=%" PRIu32 "ms: ", send_times, send_wait);
 
   for (size_t i = 0; i < vec.size(); i++) {
     const int32_t value = vec[i];
-    const uint32_t remaining_length = sizeof(buffer) - buffer_offset;
-    int written;
+    size_t prev_pos = pos;
 
     if (i + 1 < vec.size()) {
-      written = snprintf(buffer + buffer_offset, remaining_length, "%" PRId32 ", ", value);
+      pos = buf_append_printf(buffer, sizeof(buffer), pos, "%" PRId32 ", ", value);
     } else {
-      written = snprintf(buffer + buffer_offset, remaining_length, "%" PRId32, value);
+      pos = buf_append_printf(buffer, sizeof(buffer), pos, "%" PRId32, value);
     }
 
-    if (written < 0 || written >= int(remaining_length)) {
-      // write failed, flush...
-      buffer[buffer_offset] = '\0';
+    if (pos >= sizeof(buffer) - 1) {
+      // buffer full, flush and continue
+      buffer[prev_pos] = '\0';
       ESP_LOGVV(TAG, "%s", buffer);
-      buffer_offset = 0;
-      written = sprintf(buffer, "  ");
       if (i + 1 < vec.size()) {
-        written += sprintf(buffer + written, "%" PRId32 ", ", value);
+        pos = buf_append_printf(buffer, sizeof(buffer), 0, "  %" PRId32 ", ", value);
       } else {
-        written += sprintf(buffer + written, "%" PRId32, value);
+        pos = buf_append_printf(buffer, sizeof(buffer), 0, "  %" PRId32, value);
       }
     }
-
-    buffer_offset += written;
   }
-  if (buffer_offset != 0) {
+  if (pos != 0) {
     ESP_LOGVV(TAG, "%s", buffer);
   }
 #endif
