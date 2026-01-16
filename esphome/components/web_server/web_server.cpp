@@ -1987,7 +1987,8 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
       }
     }
 
-    // Parse base85-encoded raw timings (required)
+    // Parse base64url-encoded raw timings (required)
+    // Base64url is URL-safe: uses A-Za-z0-9-_ (no special characters needing escaping)
     if (!request->hasParam(ESPHOME_F("data"))) {
       request->send(400, ESPHOME_F("text/plain"), "Missing 'data' parameter");
       return;
@@ -1997,10 +1998,19 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
     std::string encoded =
         request->getParam(ESPHOME_F("data"))->value().c_str();  // NOLINT(readability-redundant-string-cstr)
 
-    // Pass pointer to base85 string - decoded directly into transmit buffer at perform() time
-    // perform() must be called synchronously while `encoded` is still in scope
-    call.set_raw_timings_base85(encoded);
-    call.perform();
+    // Validate base64url is not empty
+    if (encoded.empty()) {
+      request->send(400, ESPHOME_F("text/plain"), "Empty 'data' parameter");
+      return;
+    }
+
+    // Defer to main loop for thread safety. Move encoded string into lambda to ensure
+    // it outlives the call - set_raw_timings_base64url stores a pointer, so the string
+    // must remain valid until perform() completes.
+    this->defer([call, encoded = std::move(encoded)]() mutable {
+      call.set_raw_timings_base64url(encoded);
+      call.perform();
+    });
 
     request->send(200);
     return;
