@@ -1472,6 +1472,24 @@ def test_detect_memory_impact_config_runs_at_component_limit(tmp_path: Path) -> 
             determine_jobs.Platform.BK72XX_ARD,
         ),
         ("esphome/components/ble/ble_bk72xx.cpp", determine_jobs.Platform.BK72XX_ARD),
+        # RTL87xx (LibreTiny Realtek) detection
+        (
+            "tests/components/logger/test.rtl87xx-ard.yaml",
+            determine_jobs.Platform.RTL87XX_ARD,
+        ),
+        (
+            "esphome/components/libretiny/wifi_rtl87xx.cpp",
+            determine_jobs.Platform.RTL87XX_ARD,
+        ),
+        # LN882x (LibreTiny Lightning) detection
+        (
+            "tests/components/logger/test.ln882x-ard.yaml",
+            determine_jobs.Platform.LN882X_ARD,
+        ),
+        (
+            "esphome/components/libretiny/wifi_ln882x.cpp",
+            determine_jobs.Platform.LN882X_ARD,
+        ),
         # RP2040 / Raspberry Pi Pico detection
         ("esphome/components/gpio/gpio_rp2040.cpp", determine_jobs.Platform.RP2040_ARD),
         ("esphome/components/wifi/wifi_rp2040.cpp", determine_jobs.Platform.RP2040_ARD),
@@ -1501,6 +1519,10 @@ def test_detect_memory_impact_config_runs_at_component_limit(tmp_path: Path) -> 
         "esp32_in_name",
         "libretiny",
         "bk72xx",
+        "rtl87xx_test_yaml",
+        "rtl87xx_wifi",
+        "ln882x_test_yaml",
+        "ln882x_wifi",
         "rp2040_gpio",
         "rp2040_wifi",
         "pico_i2c",

@@ -90,6 +90,8 @@ class Platform(StrEnum):
     ESP32_S2_IDF = "esp32-s2-idf"
     ESP32_S3_IDF = "esp32-s3-idf"
     BK72XX_ARD = "bk72xx-ard"  # LibreTiny BK7231N
+    RTL87XX_ARD = "rtl87xx-ard"  # LibreTiny RTL8720x
+    LN882X_ARD = "ln882x-ard"  # LibreTiny LN882x
     RP2040_ARD = "rp2040-ard"  # Raspberry Pi Pico
 
 
@@ -122,8 +124,8 @@ PLATFORM_SPECIFIC_COMPONENTS = frozenset(
 #                      fastest build times, most sensitive to code size changes
 # 3. ESP32 IDF - Primary ESP32 platform, most representative of modern ESPHome
 # 4-6. Other ESP32 variants - Less commonly used but still supported
-# 7. BK72XX - LibreTiny platform (good for detecting LibreTiny-specific changes)
-# 8. RP2040 - Raspberry Pi Pico platform
+# 7-9. LibreTiny platforms (BK72XX, RTL87XX, LN882X) - good for detecting LibreTiny-specific changes
+# 10. RP2040 - Raspberry Pi Pico platform
 MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_C6_IDF,  # ESP32-C6 IDF (newest, supports Thread/Zigbee)
     Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained, fastest builds)
@@ -132,6 +134,8 @@ MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_S2_IDF,  # ESP32-S2 IDF
     Platform.ESP32_S3_IDF,  # ESP32-S3 IDF
     Platform.BK72XX_ARD,  # LibreTiny BK7231N
+    Platform.RTL87XX_ARD,  # LibreTiny RTL8720x
+    Platform.LN882X_ARD,  # LibreTiny LN882x
     Platform.RP2040_ARD,  # Raspberry Pi Pico
 ]
 
@@ -411,6 +415,8 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     - wifi_component_esp8266.cpp, *_esp8266.h -> ESP8266_ARD
     - *_esp32*.cpp -> ESP32 IDF (generic)
     - *_libretiny.cpp, *_bk72*.* -> BK72XX (LibreTiny)
+    - *_rtl87*.* -> RTL87XX (LibreTiny Realtek)
+    - *_ln882*.* -> LN882X (LibreTiny Lightning)
     - *_pico.cpp, *_rp2040.* -> RP2040_ARD
 
     Args:
@@ -444,7 +450,12 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     if "esp32" in filename_lower:
         return Platform.ESP32_IDF
 
-    # LibreTiny (via 'libretiny' pattern or BK72xx-specific files)
+    # LibreTiny platforms (check specific variants before generic libretiny)
+    # Check specific variants first to handle paths like libretiny/wifi_rtl87xx.cpp
+    if "rtl87" in filename_lower:
+        return Platform.RTL87XX_ARD
+    if "ln882" in filename_lower:
+        return Platform.LN882X_ARD
     if "libretiny" in filename_lower or "bk72" in filename_lower:
         return Platform.BK72XX_ARD
 
