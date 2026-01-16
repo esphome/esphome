@@ -25,8 +25,6 @@ from esphome.cpp_types import global_ns
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
-CONF_OPTIONS_ID = "options_id"
-
 select_ns = cg.esphome_ns.namespace("select")
 Select = select_ns.class_("Select", cg.EntityBase)
 SelectPtr = Select.operator("ptr")
@@ -182,7 +180,6 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
                 cv.ensure_list(cv.string_strict, cv.Length(min=1)),
                 cv.templatable(cv.string_strict),
             ),
-            cv.GenerateID(CONF_OPTIONS_ID): cv.declare_id([cg.const_char_ptr]),
         }
     ),
 )
