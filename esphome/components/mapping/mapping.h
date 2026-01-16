@@ -66,8 +66,8 @@ template<typename K, typename V> class Mapping {
       }
       esph_log_e(TAG, "Key '%s' not found in mapping", buf);
     } else {
-      // Fallback for custom types - likely unreachable but kept for compatibility
-      esph_log_e(TAG, "Key '%s' not found in mapping", to_string(key).c_str());
+      // All supported key types are handled above - this should never be reached
+      static_assert(sizeof(K) == 0, "Unsupported key type for Mapping error logging");
     }
     return {};
   }
