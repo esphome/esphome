@@ -125,6 +125,7 @@ DriverChip(
     lane_bit_rate="1Gbps",
     swap_xy=cv.UNDEFINED,
     color_order="RGB",
+    reset_pin=27,
     initsequence=[
         (0xE0, 0x00),
         (0xE1, 0x93),
