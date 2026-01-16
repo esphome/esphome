@@ -18,7 +18,15 @@ InfraredCall &InfraredCall::set_carrier_frequency(uint32_t frequency) {
 
 InfraredCall &InfraredCall::set_raw_timings(const std::vector<int32_t> &timings) {
   this->raw_timings_ = &timings;
-  this->packed_data_ = nullptr;  // Clear packed if vector is set
+  this->packed_data_ = nullptr;
+  this->base85_ptr_ = nullptr;
+  return *this;
+}
+
+InfraredCall &InfraredCall::set_raw_timings_base85(const std::string &base85) {
+  this->base85_ptr_ = &base85;
+  this->raw_timings_ = nullptr;
+  this->packed_data_ = nullptr;
   return *this;
 }
 
@@ -26,7 +34,8 @@ InfraredCall &InfraredCall::set_raw_timings_packed(const uint8_t *data, uint16_t
   this->packed_data_ = data;
   this->packed_length_ = length;
   this->packed_count_ = count;
-  this->raw_timings_ = nullptr;  // Clear vector if packed is set
+  this->raw_timings_ = nullptr;
+  this->base85_ptr_ = nullptr;
   return *this;
 }
 
@@ -91,6 +100,14 @@ void Infrared::control(const InfraredCall &call) {
     transmit_data->set_data_from_packed_sint32(call.get_packed_data(), call.get_packed_length(),
                                                call.get_packed_count());
     ESP_LOGD(TAG, "Transmitting packed raw timings: count=%u, repeat=%u", call.get_packed_count(),
+             call.get_repeat_count());
+  } else if (call.is_base85()) {
+    // Decode base85 directly into transmit buffer (zero heap allocations)
+    if (!transmit_data->set_data_from_base85(call.get_base85_data())) {
+      ESP_LOGE(TAG, "Invalid base85 data");
+      return;
+    }
+    ESP_LOGD(TAG, "Transmitting base85 raw timings: count=%zu, repeat=%u", transmit_data->get_data().size(),
              call.get_repeat_count());
   } else {
     // From vector (lambdas/automations)
