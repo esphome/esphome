@@ -159,6 +159,25 @@ void RemoteTransmitData::set_data_from_packed_sint32(const uint8_t *data, size_t
   }
 }
 
+bool RemoteTransmitData::set_data_from_base85(const std::string &base85) {
+  size_t len = base85.size();
+  if (len % 5 != 0)
+    return false;
+
+  this->data_.clear();  // Retains capacity!
+  const char *ptr = base85.data();
+  const char *end = ptr + len;
+
+  while (ptr < end) {
+    int32_t value;
+    if (!base85_decode_int32(ptr, value))
+      return false;
+    this->data_.push_back(value);
+    ptr += 5;
+  }
+  return true;
+}
+
 /* RemoteTransmitterBase */
 
 void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {

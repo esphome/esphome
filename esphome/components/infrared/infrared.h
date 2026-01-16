@@ -31,6 +31,10 @@ class InfraredCall {
   /// Set the raw timings (positive = mark, negative = space)
   /// Note: The timings vector must outlive the InfraredCall (zero-copy reference)
   InfraredCall &set_raw_timings(const std::vector<int32_t> &timings);
+  /// Set the raw timings from base85-encoded int32 data
+  /// Note: The string must outlive the InfraredCall (zero-copy pointer)
+  /// Decoded directly into transmit buffer at perform() time
+  InfraredCall &set_raw_timings_base85(const std::string &base85);
   /// Set the raw timings from packed protobuf sint32 data (zero-copy from wire)
   /// Note: The data must outlive the InfraredCall
   InfraredCall &set_raw_timings_packed(const uint8_t *data, uint16_t length, uint16_t count);
@@ -42,12 +46,18 @@ class InfraredCall {
 
   /// Get the carrier frequency
   const optional<uint32_t> &get_carrier_frequency() const { return this->carrier_frequency_; }
-  /// Get the raw timings (only valid if set via set_raw_timings, not packed)
+  /// Get the raw timings (only valid if set via set_raw_timings, not packed or base85)
   const std::vector<int32_t> &get_raw_timings() const { return *this->raw_timings_; }
-  /// Check if raw timings have been set (either vector or packed)
-  bool has_raw_timings() const { return this->raw_timings_ != nullptr || this->packed_data_ != nullptr; }
+  /// Check if raw timings have been set (vector, packed, or base85)
+  bool has_raw_timings() const {
+    return this->raw_timings_ != nullptr || this->packed_data_ != nullptr || this->base85_ptr_ != nullptr;
+  }
   /// Check if using packed data format
   bool is_packed() const { return this->packed_data_ != nullptr; }
+  /// Check if using base85 data format
+  bool is_base85() const { return this->base85_ptr_ != nullptr; }
+  /// Get the base85 data string
+  const std::string &get_base85_data() const { return *this->base85_ptr_; }
   /// Get packed data (only valid if set via set_raw_timings_packed)
   const uint8_t *get_packed_data() const { return this->packed_data_; }
   uint16_t get_packed_length() const { return this->packed_length_; }
@@ -61,6 +71,8 @@ class InfraredCall {
   optional<uint32_t> carrier_frequency_;
   // Vector-based timings (for lambdas/automations)
   const std::vector<int32_t> *raw_timings_{nullptr};
+  // Base85-encoded data pointer (for web_server - decoded directly into transmit buffer)
+  const std::string *base85_ptr_{nullptr};
   // Packed protobuf timings (for API zero-copy)
   const uint8_t *packed_data_{nullptr};
   uint16_t packed_length_{0};
