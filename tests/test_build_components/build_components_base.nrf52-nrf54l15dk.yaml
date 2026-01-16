@@ -1,0 +1,14 @@
+esphome:
+  name: componenttestnrf52
+  friendly_name: $component_name
+
+nrf52:
+  board: nrf54l15dk/nrf54l15/cpuapp
+  framework:
+    version: "2.9.2-1"
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file
