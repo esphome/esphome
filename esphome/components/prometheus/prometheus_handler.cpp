@@ -1151,15 +1151,6 @@ void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEnt
   const char *component = "date";
   if (obj->has_state()) {
     // We have a valid value, output this value
-    handle_failed_metric_(stream, component, "0", obj, area, node, friendly_name);
-    stream->print(ESPHOME_F("esphome_date_value{id=\""));
-    stream->print(relabel_id_(obj).c_str());
-    add_area_label_(stream, area);
-    add_node_label_(stream, node);
-    add_friendly_name_label_(stream, friendly_name);
-    stream->print(ESPHOME_F("\",name=\""));
-    stream->print(relabel_name_(obj).c_str());
-    stream->print(ESPHOME_F("\"} "));
     // Construct a date time object
     ESPTime val{};
     val.year = obj->year;
@@ -1176,8 +1167,7 @@ void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEnt
     int64_t ts = (int64_t) val.timestamp;
     int64_t offset = (int64_t) ESPTime::timezone_offset();
     int64_t adjusted_ts = ts - offset;
-    // prometheus expects ms
-    stream->printf("%" PRId64 "\n", adjusted_ts * 1000LL);
+    date_base_row_(stream, component, adjusted_ts, obj, area, node, friendly_name);
   } else {
     // Invalid state
     handle_failed_metric_(stream, component, "1", obj, area, node, friendly_name);
@@ -1193,19 +1183,9 @@ void PrometheusHandler::time_row_(AsyncResponseStream *stream, datetime::TimeEnt
   const char *component = "time";
   if (obj->has_state()) {
     // We have a valid value, output this value
-    handle_failed_metric_(stream, component, "0", obj, area, node, friendly_name);
-    stream->print(ESPHOME_F("esphome_time_value{id=\""));
-    stream->print(relabel_id_(obj).c_str());
-    add_area_label_(stream, area);
-    add_node_label_(stream, node);
-    add_friendly_name_label_(stream, friendly_name);
-    stream->print(ESPHOME_F("\",name=\""));
-    stream->print(relabel_name_(obj).c_str());
-    stream->print(ESPHOME_F("\"} "));
     // Data itself - convert to seconds since midnight
     int64_t seconds_since_midnight = (int64_t) obj->hour * 3600 + (int64_t) obj->minute * 60 + (int64_t) obj->second;
-    // prometheus expects ms
-    stream->printf("%" PRId64 "\n", seconds_since_midnight * 1000);
+    date_base_row_(stream, component, adjusted_ts, obj, area, node, friendly_name);
   } else {
     // Invalid state
     handle_failed_metric_(stream, component, "1", obj, area, node, friendly_name);
@@ -1221,15 +1201,6 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
   const char *component = "datetime";
   if (obj->has_state()) {
     // We have a valid value, output this value
-    handle_failed_metric_(stream, component, "0", obj, area, node, friendly_name);
-    stream->print(ESPHOME_F("esphome_datetime_value{id=\""));
-    stream->print(relabel_id_(obj).c_str());
-    add_area_label_(stream, area);
-    add_node_label_(stream, node);
-    add_friendly_name_label_(stream, friendly_name);
-    stream->print(ESPHOME_F("\",name=\""));
-    stream->print(relabel_name_(obj).c_str());
-    stream->print(ESPHOME_F("\"} "));
     // Construct a date time object
     ESPTime val{};
     val.year = obj->year;
@@ -1246,12 +1217,32 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
     int64_t ts = (int64_t) val.timestamp;
     int64_t offset = (int64_t) ESPTime::timezone_offset();
     int64_t adjusted_ts = ts - offset;
-    // prometheus expects ms
-    stream->printf("%" PRId64 "\n", adjusted_ts * 1000LL);
+    date_base_row_(stream, component, adjusted_ts, obj, area, node, friendly_name);
   } else {
     // Invalid state
     handle_failed_metric_(stream, component, "1", obj, area, node, friendly_name);
   }
+}
+#endif
+
+#if defined(USE_DATETIME_DATE) || defined(USE_DATETIME_DATETIME) || defined(USE_DATETIME_TIME)
+void PrometheusHandler::date_base_row_(AsyncResponseStream *stream, const char *component_name, int64_t final_timestamp,
+                                       datetime::DateTimeBase *obj, std::string &area, std::string &node,
+                                       std::string &friendly_name) {
+  // We have a valid value, output this value
+  handle_failed_metric_(stream, component, "0", obj, area, node, friendly_name);
+  stream->print(ESPHOME_F("esphome_"));
+  stream->print(component_name);
+  stream->print(ESPHOME_F("_value{id=\""));
+  stream->print(relabel_id_(obj).c_str());
+  add_area_label_(stream, area);
+  add_node_label_(stream, node);
+  add_friendly_name_label_(stream, friendly_name);
+  stream->print(ESPHOME_F("\",name=\""));
+  stream->print(relabel_name_(obj).c_str());
+  stream->print(ESPHOME_F("\"} "));
+  // prometheus expects ms
+  stream->printf("%" PRId64 "\n", final_timestamp * 1000LL);
 }
 #endif
 

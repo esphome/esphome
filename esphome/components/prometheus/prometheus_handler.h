@@ -217,6 +217,12 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
                      std::string &friendly_name);
 #endif
 
+#if defined(USE_DATETIME_DATE) || defined(USE_DATETIME_DATETIME) || defined(USE_DATETIME_TIME)
+  /// Return the datetime base object state as prometheus data point
+  void date_base_row_(AsyncResponseStream *stream, const char *component_name, int64_t final_timestamp,
+                      datetime::DateTimeBase *obj, std::string &area, std::string &node, std::string &friendly_name);
+#endif
+
 #ifdef USE_CLIMATE
   /// Return the type for prometheus
   void climate_type_(AsyncResponseStream *stream);
