@@ -54,6 +54,13 @@ binary_sensor:
         return false;
       }
   - platform: template
+    id: select_binary_sensor
+    name: Select is one
+    condition:
+      select.is:
+        id: template_select
+        option: "one"
+  - platform: template
     id: other_binary_sensor
     name: "Garage Door Closed"
     condition:

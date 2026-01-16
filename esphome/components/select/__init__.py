@@ -38,6 +38,9 @@ SelectSetAction = select_ns.class_("SelectSetAction", automation.Action)
 SelectSetIndexAction = select_ns.class_("SelectSetIndexAction", automation.Action)
 SelectOperationAction = select_ns.class_("SelectOperationAction", automation.Action)
 
+# Conditions
+SelectIsCondition = select_ns.class_("SelectIsCondition", automation.Condition)
+
 # Enums
 SelectOperation = select_ns.enum("SelectOperation")
 SELECT_OPERATION_OPTIONS = {
@@ -162,6 +165,23 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_INDEX], args, cg.size_t)
     cg.add(var.set_index(template_))
+    return var
+
+
+@automation.register_condition(
+    "select.is",
+    SelectIsCondition,
+    OPERATION_BASE_SCHEMA.extend(
+        {
+            cv.Required(CONF_OPTION): cv.templatable(cv.string_strict),
+        }
+    ),
+)
+async def select_is_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(condition_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_OPTION], args, cg.std_string)
+    cg.add(var.set_option(template_))
     return var
 
 

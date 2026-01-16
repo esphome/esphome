@@ -66,4 +66,19 @@ template<typename... Ts> class SelectOperationAction : public Action<Ts...> {
   Select *select_;
 };
 
+template<typename... Ts> class SelectIsCondition : public Condition<Ts...> {
+ public:
+  SelectIsCondition(Select *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(std::string, option)
+
+  bool check(const Ts &...x) override {
+    auto current = this->parent_->current_option();
+    auto target = this->option_.value(x...);
+    return current == target;
+  }
+
+ protected:
+  Select *parent_;
+};
+
 }  // namespace esphome::select
