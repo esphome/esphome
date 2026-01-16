@@ -387,7 +387,6 @@ async def to_code(config):
             var.set_nox_algorithm_tuning(
                 cfg[CONF_INDEX_OFFSET],
                 cfg[CONF_LEARNING_TIME_OFFSET_HOURS],
-                cfg[CONF_LEARNING_TIME_GAIN_HOURS],
                 cfg[CONF_GATING_MAX_DURATION_MINUTES],
                 cfg[CONF_GAIN_FACTOR],
             )
