@@ -41,7 +41,6 @@ SelectSetIndexAction = select_ns.class_("SelectSetIndexAction", automation.Actio
 SelectOperationAction = select_ns.class_("SelectOperationAction", automation.Action)
 
 # Conditions
-SelectAnyCondition = select_ns.class_("SelectAnyCondition", automation.Condition)
 SelectIsCondition = select_ns.class_("SelectIsCondition", automation.Condition)
 
 # Enums
@@ -190,6 +189,7 @@ async def select_is_to_code(config, condition_id, template_arg, args):
     if cg.is_template(options):
         # Single templatable option
         arg = await cg.templatable(options, args, cg.std_string)
+        template_arg = TemplateArguments(0, *template_arg)
     else:
         # List of constant options
         # Create a constexpr and pass that with a template length
@@ -199,9 +199,7 @@ async def select_is_to_code(config, condition_id, template_arg, args):
             type=global_ns.namespace("constexpr char * const"),
         )
         arg = cg.static_const_array(arr_id, cg.ArrayInitializer(*options))
-        condition_id = condition_id.copy()
-        condition_id.type = SelectAnyCondition
-        template_arg = TemplateArguments(len(options))
+        template_arg = TemplateArguments(len(options), *template_arg)
     return cg.new_Pvariable(condition_id, template_arg, paren, arg)
 
 

@@ -66,9 +66,9 @@ template<typename... Ts> class SelectOperationAction : public Action<Ts...> {
   Select *select_;
 };
 
-template<size_t N, typename... Ts> class SelectAnyCondition : public Condition<Ts...> {
+template<size_t N, typename... Ts> class SelectIsCondition : public Condition<Ts...> {
  public:
-  SelectAnyCondition(Select *parent, const char *const *option_list) : parent_(parent), option_list_(option_list) {}
+  SelectIsCondition(Select *parent, const char *const *option_list) : parent_(parent), option_list_(option_list) {}
 
   bool check(const Ts &...x) override {
     auto current = this->parent_->current_option();
@@ -85,7 +85,7 @@ template<size_t N, typename... Ts> class SelectAnyCondition : public Condition<T
   const char *const *option_list_;
 };
 
-template<typename... Ts> class SelectIsCondition : public Condition<Ts...> {
+template<typename... Ts> class SelectIsCondition<0, Ts...> : public Condition<Ts...> {
  public:
   SelectIsCondition(Select *parent, std::function<std::string(const Ts &...)> &&f) : parent_(parent), f_(f) {}
 
