@@ -166,11 +166,13 @@ void UARTDebug::log_int(UARTDirection direction, std::vector<uint8_t> bytes, uin
   } else {
     res += ">>> ";
   }
+  char buf[4];  // max 3 digits for uint8_t (255) + null
   for (size_t i = 0; i < len; i++) {
     if (i > 0) {
       res += separator;
     }
-    res += to_string(bytes[i]);
+    buf_append_printf(buf, sizeof(buf), 0, "%u", bytes[i]);
+    res += buf;
   }
   ESP_LOGD(TAG, "%s", res.c_str());
   delay(10);
