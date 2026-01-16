@@ -1987,7 +1987,7 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
       }
     }
 
-    // Parse base64-encoded raw timings (required)
+    // Parse base85-encoded raw timings (required)
     if (!request->hasParam(ESPHOME_F("data"))) {
       request->send(400, ESPHOME_F("text/plain"), "Missing 'data' parameter");
       return;
@@ -1997,9 +1997,9 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
     std::string encoded =
         request->getParam(ESPHOME_F("data"))->value().c_str();  // NOLINT(readability-redundant-string-cstr)
 
-    // Pass pointer to base64 string - decoded directly into transmit buffer at perform() time
+    // Pass pointer to base85 string - decoded directly into transmit buffer at perform() time
     // perform() must be called synchronously while `encoded` is still in scope
-    call.set_raw_timings_base64(encoded);
+    call.set_raw_timings_base85(encoded);
     call.perform();
 
     request->send(200);
