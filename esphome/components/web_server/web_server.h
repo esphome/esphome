@@ -295,7 +295,7 @@ class WebServer : public Controller,
   /// Handle a button request under '/button/<id>/press'.
   void handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string button_state_json_generator(WebServer *web_server, void *source);
+  // Buttons are stateless, so there is no button_state_json_generator
   static std::string button_all_json_generator(WebServer *web_server, void *source);
 #endif
 
