@@ -15,6 +15,7 @@ ESPHOME_COMPONENT_PATTERN = re.compile(r"esphome::([a-zA-Z0-9_]+)::")
 # - LibreTiny RTL87xx: .xip.code_* (flash), .ram.code_* (RAM)
 # - LibreTiny BK7231: .itcm.code (fast RAM), .vectors (interrupt vectors)
 # - LibreTiny LN882X: .flash_text, .flash_copy* (flash code)
+# - Zephyr/nRF52: text, rodata, datas, bss (no leading dots)
 SECTION_MAPPING = {
     ".text": frozenset(
         [
@@ -30,6 +31,9 @@ SECTION_MAPPING = {
             # LibreTiny LN882X flash code
             ".flash_text",
             ".flash_copy",
+            # Zephyr/nRF52 sections (no leading dots)
+            "text",
+            "rom_start",
         ]
     ),
     ".rodata": frozenset(
@@ -37,6 +41,8 @@ SECTION_MAPPING = {
             ".rodata",
             # LibreTiny RTL87xx read-only data in RAM
             ".ram.code_rodata",
+            # Zephyr/nRF52 sections (no leading dots)
+            "rodata",
         ]
     ),
     # .bss patterns - must be before .data to catch ".dram0.bss"
@@ -45,9 +51,19 @@ SECTION_MAPPING = {
             ".bss",
             # LibreTiny LN882X BSS
             ".bss_ram",
+            # Zephyr/nRF52 sections (no leading dots)
+            "bss",
+            "noinit",
         ]
     ),
-    ".data": frozenset([".data", ".dram"]),
+    ".data": frozenset(
+        [
+            ".data",
+            ".dram",
+            # Zephyr/nRF52 sections (no leading dots)
+            "datas",
+        ]
+    ),
 }
 
 # Section to ComponentMemory attribute mapping

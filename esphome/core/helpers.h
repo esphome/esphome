@@ -1,8 +1,11 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdarg>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <functional>
 #include <iterator>
@@ -18,6 +21,7 @@
 
 #ifdef USE_ESP8266
 #include <Esp.h>
+#include <pgmspace.h>
 #endif
 
 #ifdef USE_RP2040
@@ -567,6 +571,53 @@ std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, 
 
 /// sprintf-like function returning std::string.
 std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
+
+#ifdef USE_ESP8266
+// ESP8266: Use vsnprintf_P to keep format strings in flash (PROGMEM)
+// Format strings must be wrapped with PSTR() macro
+/// Safely append formatted string to buffer, returning new position (capped at size).
+/// @param buf Output buffer
+/// @param size Total buffer size
+/// @param pos Current position in buffer
+/// @param fmt Format string (must be in PROGMEM on ESP8266)
+/// @return New position after appending (capped at size on overflow)
+inline size_t buf_append_printf_p(char *buf, size_t size, size_t pos, PGM_P fmt, ...) {
+  if (pos >= size) {
+    return size;
+  }
+  va_list args;
+  va_start(args, fmt);
+  int written = vsnprintf_P(buf + pos, size - pos, fmt, args);
+  va_end(args);
+  if (written < 0) {
+    return pos;  // encoding error
+  }
+  return std::min(pos + static_cast<size_t>(written), size);
+}
+#define buf_append_printf(buf, size, pos, fmt, ...) buf_append_printf_p(buf, size, pos, PSTR(fmt), ##__VA_ARGS__)
+#else
+/// Safely append formatted string to buffer, returning new position (capped at size).
+/// Handles snprintf edge cases: negative returns (encoding errors) and truncation.
+/// @param buf Output buffer
+/// @param size Total buffer size
+/// @param pos Current position in buffer
+/// @param fmt printf-style format string
+/// @return New position after appending (capped at size on overflow)
+__attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf, size_t size, size_t pos,
+                                                                      const char *fmt, ...) {
+  if (pos >= size) {
+    return size;
+  }
+  va_list args;
+  va_start(args, fmt);
+  int written = vsnprintf(buf + pos, size - pos, fmt, args);
+  va_end(args);
+  if (written < 0) {
+    return pos;  // encoding error
+  }
+  return std::min(pos + static_cast<size_t>(written), size);
+}
+#endif
 
 /// Concatenate a name with a separator and suffix using an efficient stack-based approach.
 /// This avoids multiple heap allocations during string construction.
