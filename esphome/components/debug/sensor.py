@@ -12,7 +12,6 @@ from esphome.const import (
     ICON_COUNTER,
     ICON_TIMER,
     PLATFORM_BK72XX,
-    PLATFORM_ESP32,
     PLATFORM_LN882X,
     PLATFORM_RTL87XX,
     UNIT_BYTES,
@@ -59,8 +58,10 @@ CONFIG_SCHEMA = {
         ),
     ),
     cv.Optional(CONF_MIN_FREE): cv.All(
-        cv.only_on(
-            [PLATFORM_ESP32, PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RTL87XX]
+        cv.Any(
+            cv.only_on_esp32,
+            cv.only_on([PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RTL87XX]),
+            msg="This feature is only available on ESP32 and LibreTiny (BK72xx, LN882x, RTL87xx)",
         ),
         sensor.sensor_schema(
             unit_of_measurement=UNIT_BYTES,
