@@ -188,7 +188,7 @@ async def select_is_to_code(config, condition_id, template_arg, args):
 
     if cg.is_template(options):
         # Single templatable option
-        arg = await cg.templatable(options, args, cg.std_string)
+        arg = await cg.templatable(options, args, cg.std_vector.template(cg.std_string))
         template_arg = TemplateArguments(0, *template_arg)
     else:
         # List of constant options

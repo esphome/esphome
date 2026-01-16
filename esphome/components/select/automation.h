@@ -87,12 +87,21 @@ template<size_t N, typename... Ts> class SelectIsCondition : public Condition<Ts
 
 template<typename... Ts> class SelectIsCondition<0, Ts...> : public Condition<Ts...> {
  public:
-  SelectIsCondition(Select *parent, std::function<std::string(const Ts &...)> &&f) : parent_(parent), f_(f) {}
+  SelectIsCondition(Select *parent, std::function<std::vector<std::string>(const Ts &...)> &&f)
+      : parent_(parent), f_(f) {}
 
-  bool check(const Ts &...x) override { return this->parent_->current_option() == this->f_(x...); }
+  bool check(const Ts &...x) override {
+    auto current = this->parent_->current_option();
+    for (const auto &option : this->f_(x...)) {
+      if (current == option) {
+        return true;
+      }
+    }
+    return false;
+  }
 
  protected:
   Select *parent_;
-  std::function<std::string(const Ts &...)> f_;
+  std::function<std::vector<std::string>(const Ts &...)> f_;
 };
 }  // namespace esphome::select
