@@ -45,16 +45,25 @@ template<typename K, typename V> class Mapping {
     } else if constexpr (std::is_same_v<K, std::string>) {
       esph_log_e(TAG, "Key '%s' not found in mapping", key.c_str());
     } else if constexpr (std::is_integral_v<K>) {
-      char buf[24];  // enough for int64_t
-      buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, static_cast<int64_t>(key));
+      char buf[24];  // enough for 64-bit integer
+      if constexpr (std::is_unsigned_v<K>) {
+        buf_append_printf(buf, sizeof(buf), 0, "%" PRIu64, static_cast<uint64_t>(key));
+      } else {
+        buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, static_cast<int64_t>(key));
+      }
       esph_log_e(TAG, "Key '%s' not found in mapping", buf);
     } else if constexpr (std::is_floating_point_v<K>) {
-      char buf[24];
+      char buf[32];  // enough for %g with doubles
       buf_append_printf(buf, sizeof(buf), 0, "%g", static_cast<double>(key));
       esph_log_e(TAG, "Key '%s' not found in mapping", buf);
     } else if constexpr (std::is_enum_v<K>) {
+      using underlying_t = std::underlying_type_t<K>;
       char buf[24];  // enough for underlying integral type
-      buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, static_cast<int64_t>(key));
+      if constexpr (std::is_unsigned_v<underlying_t>) {
+        buf_append_printf(buf, sizeof(buf), 0, "%" PRIu64, static_cast<uint64_t>(static_cast<underlying_t>(key)));
+      } else {
+        buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, static_cast<int64_t>(static_cast<underlying_t>(key)));
+      }
       esph_log_e(TAG, "Key '%s' not found in mapping", buf);
     } else {
       // Fallback for custom types - likely unreachable but kept for compatibility
