@@ -34,6 +34,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_NAME,
+    KEY_NO_PLATFORMIO,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
@@ -962,12 +963,17 @@ async def _add_yaml_idf_components(components: list[ConfigType]):
 
 
 async def to_code(config):
-    cg.add_platformio_option("board", config[CONF_BOARD])
-    cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
-    cg.add_platformio_option(
-        "board_upload.maximum_size",
-        int(config[CONF_FLASH_SIZE].removesuffix("MB")) * 1024 * 1024,
-    )
+    # Check if using native ESP-IDF build (--no-platformio)
+    use_platformio = not CORE.data.get(KEY_NO_PLATFORMIO, False)
+
+    if use_platformio:
+        cg.add_platformio_option("board", config[CONF_BOARD])
+        cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
+        cg.add_platformio_option(
+            "board_upload.maximum_size",
+            int(config[CONF_FLASH_SIZE].removesuffix("MB")) * 1024 * 1024,
+        )
+
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_build_flag("-Wl,-z,noexecstack")
@@ -977,55 +983,63 @@ async def to_code(config):
     cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[variant])
     cg.add_define(ThreadModel.MULTI_ATOMICS)
 
-    cg.add_platformio_option("lib_ldf_mode", "off")
-    cg.add_platformio_option("lib_compat_mode", "strict")
+    if use_platformio:
+        cg.add_platformio_option("lib_ldf_mode", "off")
+        cg.add_platformio_option("lib_compat_mode", "strict")
 
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
 
     conf = config[CONF_FRAMEWORK]
-    cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
-    if CONF_SOURCE in conf:
-        cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
+    if use_platformio:
+        cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
+        if CONF_SOURCE in conf:
+            cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
 
     if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
         cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
 
-    for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
-        os.environ.pop(clean_var, None)
+    # Clear IDF environment variables to avoid conflicts with PlatformIO's ESP-IDF
+    # but keep them when using --no-platformio for native ESP-IDF builds
+    if use_platformio:
+        for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
+            os.environ.pop(clean_var, None)
 
     # Set the location of the IDF component manager cache
     os.environ["IDF_COMPONENT_CACHE_PATH"] = str(
         CORE.relative_internal_path(".espressif")
     )
 
-    add_extra_script(
-        "pre",
-        "pre_build.py",
-        Path(__file__).parent / "pre_build.py.script",
-    )
-
-    add_extra_script(
-        "post",
-        "post_build.py",
-        Path(__file__).parent / "post_build.py.script",
-    )
-
-    # In testing mode, add IRAM fix script to allow linking grouped component tests
-    # Similar to ESP8266's approach but for ESP-IDF
-    if CORE.testing_mode:
-        cg.add_build_flag("-DESPHOME_TESTING_MODE")
+    if use_platformio:
         add_extra_script(
             "pre",
-            "iram_fix.py",
-            Path(__file__).parent / "iram_fix.py.script",
+            "pre_build.py",
+            Path(__file__).parent / "pre_build.py.script",
         )
 
+        add_extra_script(
+            "post",
+            "post_build.py",
+            Path(__file__).parent / "post_build.py.script",
+        )
+
+        # In testing mode, add IRAM fix script to allow linking grouped component tests
+        # Similar to ESP8266's approach but for ESP-IDF
+        if CORE.testing_mode:
+            cg.add_build_flag("-DESPHOME_TESTING_MODE")
+            add_extra_script(
+                "pre",
+                "iram_fix.py",
+                Path(__file__).parent / "iram_fix.py.script",
+            )
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
-        cg.add_platformio_option("framework", "espidf")
+        if use_platformio:
+            cg.add_platformio_option("framework", "espidf")
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
     else:
-        cg.add_platformio_option("framework", "arduino, espidf")
+        if use_platformio:
+            cg.add_platformio_option("framework", "arduino, espidf")
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
         cg.add_define(
@@ -1039,9 +1053,13 @@ async def to_code(config):
 
         # Add IDF framework source for Arduino builds to ensure it uses the same version as
         # the ESP-IDF framework
-        if (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
+        if (
+            use_platformio
+            and (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None
+        ):
             cg.add_platformio_option(
-                "platform_packages", [_format_framework_espidf_version(idf_ver, None)]
+                "platform_packages",
+                [_format_framework_espidf_version(idf_ver, None)],
             )
 
         # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
@@ -1196,7 +1214,8 @@ async def to_code(config):
             "CONFIG_VFS_SUPPORT_DIR", not advanced[CONF_DISABLE_VFS_SUPPORT_DIR]
         )
 
-    cg.add_platformio_option("board_build.partitions", "partitions.csv")
+    if use_platformio:
+        cg.add_platformio_option("board_build.partitions", "partitions.csv")
     if CONF_PARTITIONS in config:
         add_extra_build_file(
             "partitions.csv", CORE.relative_config_path(config[CONF_PARTITIONS])
