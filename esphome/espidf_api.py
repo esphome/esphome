@@ -154,7 +154,7 @@ def create_factory_bin() -> bool:
         return False
 
     try:
-        with open(flasher_args_path) as f:
+        with open(flasher_args_path, encoding="utf-8") as f:
             flash_data = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         _LOGGER.error("Failed to read flasher_args.json: %s", e)
