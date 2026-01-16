@@ -42,7 +42,7 @@ from esphome.const import (
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
     ENV_NOGITIGNORE,
-    KEY_NO_PLATFORMIO,
+    KEY_NATIVE_IDF,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
@@ -116,7 +116,7 @@ class ArgsProtocol(Protocol):
     configuration: str
     name: str
     upload_speed: str | None
-    no_platformio: bool
+    native_idf: bool
 
 
 def choose_prompt(options, purpose: str = None):
@@ -501,15 +501,15 @@ def wrap_to_code(name, comp):
     return wrapped
 
 
-def write_cpp(config: ConfigType, no_platformio: bool = False) -> int:
+def write_cpp(config: ConfigType, native_idf: bool = False) -> int:
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
 
-    # Store no_platformio flag so esp32 component can check it
-    CORE.data[KEY_NO_PLATFORMIO] = no_platformio
+    # Store native_idf flag so esp32 component can check it
+    CORE.data[KEY_NATIVE_IDF] = native_idf
 
     generate_cpp_contents(config)
-    return write_cpp_file(no_platformio=no_platformio)
+    return write_cpp_file(native_idf=native_idf)
 
 
 def generate_cpp_contents(config: ConfigType) -> None:
@@ -523,11 +523,11 @@ def generate_cpp_contents(config: ConfigType) -> None:
     CORE.flush_tasks()
 
 
-def write_cpp_file(no_platformio: bool = False) -> int:
+def write_cpp_file(native_idf: bool = False) -> int:
     code_s = indent(CORE.cpp_main_section)
     writer.write_cpp(code_s)
 
-    if no_platformio and CORE.is_esp32 and CORE.target_framework == "esp-idf":
+    if native_idf and CORE.is_esp32 and CORE.target_framework == "esp-idf":
         from esphome.build_gen import espidf
 
         espidf.write_project()
@@ -540,13 +540,13 @@ def write_cpp_file(no_platformio: bool = False) -> int:
 
 
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
-    no_platformio = getattr(args, "no_platformio", False)
+    native_idf = getattr(args, "native_idf", False)
 
     # NOTE: "Build path:" format is parsed by script/ci_memory_impact_extract.py
     # If you change this format, update the regex in that script as well
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
 
-    if no_platformio and CORE.is_esp32 and CORE.target_framework == "esp-idf":
+    if native_idf and CORE.is_esp32 and CORE.target_framework == "esp-idf":
         from esphome import espidf_api
 
         rc = espidf_api.run_compile(config, CORE.verbose)
@@ -827,8 +827,8 @@ def command_vscode(args: ArgsProtocol) -> int | None:
 
 
 def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
-    no_platformio = getattr(args, "no_platformio", False)
-    exit_code = write_cpp(config, no_platformio=no_platformio)
+    native_idf = getattr(args, "native_idf", False)
+    exit_code = write_cpp(config, native_idf=native_idf)
     if exit_code != 0:
         return exit_code
     if args.only_generate:
@@ -883,8 +883,8 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
-    no_platformio = getattr(args, "no_platformio", False)
-    exit_code = write_cpp(config, no_platformio=no_platformio)
+    native_idf = getattr(args, "native_idf", False)
+    exit_code = write_cpp(config, native_idf=native_idf)
     if exit_code != 0:
         return exit_code
     exit_code = compile_program(args, config)
@@ -1314,7 +1314,7 @@ def parse_args(argv):
         action="store_true",
     )
     parser_compile.add_argument(
-        "--no-platformio",
+        "--native-idf",
         help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
         action="store_true",
     )
@@ -1400,7 +1400,7 @@ def parse_args(argv):
         default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
     )
     parser_run.add_argument(
-        "--no-platformio",
+        "--native-idf",
         help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
         action="store_true",
     )

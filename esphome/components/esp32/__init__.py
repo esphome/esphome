@@ -34,7 +34,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_NAME,
-    KEY_NO_PLATFORMIO,
+    KEY_NATIVE_IDF,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
@@ -968,11 +968,11 @@ async def to_code(config):
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     conf = config[CONF_FRAMEWORK]
 
-    # Check if using native ESP-IDF build (--no-platformio)
-    use_platformio = not CORE.data.get(KEY_NO_PLATFORMIO, False)
+    # Check if using native ESP-IDF build (--native-idf)
+    use_platformio = not CORE.data.get(KEY_NATIVE_IDF, False)
     if use_platformio:
         # Clear IDF environment variables to avoid conflicts with PlatformIO's ESP-IDF
-        # but keep them when using --no-platformio for native ESP-IDF builds
+        # but keep them when using --native-idf for native ESP-IDF builds
         for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
             os.environ.pop(clean_var, None)
 
