@@ -180,6 +180,7 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
     // Free existing heap allocation if switching from heap to inline or different heap size
     if (!this->is_inline_() && (size <= InlineSize || size != this->len_)) {
       delete[] this->heap_;
+      this->heap_ = nullptr;  // Defensive: prevent use-after-free if logic changes
     }
     // Allocate new heap buffer if needed
     if (size > InlineSize && (this->is_inline_() || size != this->len_)) {
