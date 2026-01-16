@@ -58,10 +58,8 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
   size_t ts_written = now.is_valid() ? now.strftime(packet + offset, remaining, "%b %e %H:%M:%S") : 0;
   if (ts_written > 0) {
     offset += ts_written;
-    remaining -= ts_written;
   } else if (remaining > 0) {
     packet[offset++] = '-';
-    remaining--;
   }
 
   // Write hostname, tag, and message
