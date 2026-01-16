@@ -332,6 +332,7 @@ Sprinkler::Sprinkler(const std::string &name) {
   // The `name` is needed to set timers up, hence non-default constructor
   // replaces `set_name()` method previously existed
   this->name_ = name;
+  this->timer_.init(2);
   this->timer_.push_back({this->name_ + "sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)});
   this->timer_.push_back({this->name_ + "vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)});
 }
@@ -1574,7 +1575,8 @@ const LogString *Sprinkler::state_as_str_(SprinklerState state) {
 
 void Sprinkler::start_timer_(const SprinklerTimerIndex timer_index) {
   if (this->timer_duration_(timer_index) > 0) {
-    this->set_timeout(this->timer_[timer_index].name, this->timer_duration_(timer_index),
+    // FixedVector ensures timer_ can't be resized, so .c_str() pointers remain valid
+    this->set_timeout(this->timer_[timer_index].name.c_str(), this->timer_duration_(timer_index),
                       this->timer_cbf_(timer_index));
     this->timer_[timer_index].start_time = millis();
     this->timer_[timer_index].active = true;
@@ -1585,7 +1587,7 @@ void Sprinkler::start_timer_(const SprinklerTimerIndex timer_index) {
 
 bool Sprinkler::cancel_timer_(const SprinklerTimerIndex timer_index) {
   this->timer_[timer_index].active = false;
-  return this->cancel_timeout(this->timer_[timer_index].name);
+  return this->cancel_timeout(this->timer_[timer_index].name.c_str());
 }
 
 bool Sprinkler::timer_active_(const SprinklerTimerIndex timer_index) { return this->timer_[timer_index].active; }

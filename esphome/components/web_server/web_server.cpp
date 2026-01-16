@@ -753,9 +753,6 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
   }
   request->send(404);
 }
-std::string WebServer::button_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->button_json_((button::Button *) (source), DETAIL_STATE);
-}
 std::string WebServer::button_all_json_generator(WebServer *web_server, void *source) {
   return web_server->button_json_((button::Button *) (source), DETAIL_ALL);
 }
