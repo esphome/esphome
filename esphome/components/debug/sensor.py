@@ -17,7 +17,11 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
-from . import CONF_DEBUG_ID, DebugComponent
+from . import (  # noqa: F401  pylint: disable=unused-import
+    CONF_DEBUG_ID,
+    FILTER_SOURCE_FILES,
+    DebugComponent,
+)
 
 DEPENDENCIES = ["debug"]
 
