@@ -12,6 +12,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
+#include <atomic>
+
 namespace esphome {
 namespace mixer_speaker {
 
@@ -117,7 +119,9 @@ class SourceSpeaker : public speaker::Speaker, public Component {
   uint32_t ducking_transition_samples_remaining_{0};
   uint32_t samples_per_ducking_step_{0};
 
-  uint32_t pending_playback_frames_{0};
+  std::atomic<uint32_t> pending_playback_frames_{0};
+  std::atomic<uint32_t> playback_delay_frames_{0};  // Frames in output pipeline when this source started contributing
+  std::atomic<bool> has_contributed_{false};        // Tracks if source has contributed during this session
 
   QueueHandle_t controls_queue_{nullptr};
   uint32_t stopping_start_ms_{0};
@@ -146,6 +150,9 @@ class MixerSpeaker : public Component {
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
 
   speaker::Speaker *get_output_speaker() const { return this->output_speaker_; }
+
+  /// @brief Returns the current number of frames in the output pipeline (written but not yet played)
+  uint32_t get_frames_in_pipeline() const { return this->frames_in_pipeline_.load(std::memory_order_acquire); }
 
  protected:
   /// @brief Copies audio frames from the input buffer to the output buffer taking into account the number of channels
@@ -201,6 +208,8 @@ class MixerSpeaker : public Component {
   StackType_t *task_stack_buffer_{nullptr};
 
   optional<audio::AudioStreamInfo> audio_stream_info_;
+
+  std::atomic<uint32_t> frames_in_pipeline_{0};  // Frames written to output but not yet played
 };
 
 }  // namespace mixer_speaker

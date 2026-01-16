@@ -72,12 +72,34 @@ void SourceSpeaker::setup() {
   }
 
   this->parent_->get_output_speaker()->add_audio_output_callback([this](uint32_t new_frames, int64_t write_timestamp) {
-    // The SourceSpeaker may not have included any audio in the mixed output, so verify there were pending frames
-    uint32_t speakers_playback_frames = std::min(new_frames, this->pending_playback_frames_);
-    this->pending_playback_frames_ -= speakers_playback_frames;
+    // First, drain the playback delay using CAS loop (frames in pipeline before this source started contributing)
+    uint32_t delay_to_drain = 0;
+    uint32_t current_delay = this->playback_delay_frames_.load(std::memory_order_acquire);
+    if (current_delay > 0) {
+      uint32_t new_delay;
+      do {
+        delay_to_drain = std::min(new_frames, current_delay);
+        new_delay = current_delay - delay_to_drain;
+      } while (!this->playback_delay_frames_.compare_exchange_weak(current_delay, new_delay, std::memory_order_release,
+                                                                   std::memory_order_acquire));
+    }
+    uint32_t remaining_frames = new_frames - delay_to_drain;
 
-    if (speakers_playback_frames > 0) {
-      this->audio_output_callback_(speakers_playback_frames, write_timestamp);
+    // Then, count towards this source's pending playback frames using CAS loop
+    if (remaining_frames > 0) {
+      uint32_t speakers_playback_frames = 0;
+      uint32_t current_pending = this->pending_playback_frames_.load(std::memory_order_acquire);
+      if (current_pending > 0) {
+        uint32_t new_pending;
+        do {
+          speakers_playback_frames = std::min(remaining_frames, current_pending);
+          new_pending = current_pending - speakers_playback_frames;
+        } while (!this->pending_playback_frames_.compare_exchange_weak(
+            current_pending, new_pending, std::memory_order_release, std::memory_order_acquire));
+      }
+      if (speakers_playback_frames > 0) {
+        this->audio_output_callback_(speakers_playback_frames, write_timestamp);
+      }
     }
   });
 }
@@ -136,7 +158,9 @@ void SourceSpeaker::loop() {
     case speaker::STATE_STARTING: {
       esp_err_t err = this->start_();
       if (err == ESP_OK) {
-        this->pending_playback_frames_ = 0;  // reset pending playback frames
+        this->pending_playback_frames_.store(0, std::memory_order_release);  // reset pending playback frames
+        this->playback_delay_frames_.store(0, std::memory_order_release);    // reset playback delay
+        this->has_contributed_.store(false, std::memory_order_release);      // reset contribution tracking
         this->state_ = speaker::STATE_RUNNING;
         this->stop_gracefully_ = false;
         this->last_seen_data_ms_ = millis();
@@ -168,7 +192,8 @@ void SourceSpeaker::loop() {
       break;
     }
     case speaker::STATE_RUNNING:
-      if (!this->transfer_buffer_->has_buffered_data() && (this->pending_playback_frames_ == 0)) {
+      if (!this->transfer_buffer_->has_buffered_data() &&
+          (this->pending_playback_frames_.load(std::memory_order_acquire) == 0)) {
         // No audio data in buffer waiting to get mixed and no frames are pending playback
         if ((this->timeout_ms_.has_value() && ((millis() - this->last_seen_data_ms_) > this->timeout_ms_.value())) ||
             this->stop_gracefully_) {
@@ -186,9 +211,10 @@ void SourceSpeaker::loop() {
         this->parent_->get_output_speaker()->stop();
       }
 
-      if (this->parent_->get_output_speaker()->is_stopped() || (this->pending_playback_frames_ == 0)) {
+      if (this->parent_->get_output_speaker()->is_stopped() ||
+          (this->pending_playback_frames_.load(std::memory_order_acquire) == 0)) {
         // Output speaker is stopped OR all pending playback frames have played
-        this->pending_playback_frames_ = 0;
+        this->pending_playback_frames_.store(0, std::memory_order_release);
         this->stop_gracefully_ = false;
 
         this->state_ = speaker::STATE_STOPPED;
@@ -389,6 +415,17 @@ void MixerSpeaker::setup() {
     this->mark_failed();
     return;
   }
+
+  // Register callback to track frames in the output pipeline
+  this->output_speaker_->add_audio_output_callback([this](uint32_t new_frames, int64_t write_timestamp) {
+    // Decrement frames_in_pipeline_ using CAS loop to prevent race conditions
+    uint32_t current = this->frames_in_pipeline_.load(std::memory_order_acquire);
+    uint32_t new_value;
+    do {
+      new_value = current - std::min(new_frames, current);
+    } while (!this->frames_in_pipeline_.compare_exchange_weak(current, new_value, std::memory_order_release,
+                                                              std::memory_order_acquire));
+  });
 }
 
 void MixerSpeaker::loop() {
@@ -666,13 +703,21 @@ void MixerSpeaker::audio_mixer_task(void *params) {
                     reinterpret_cast<int16_t *>(output_transfer_buffer->get_buffer_end()),
                     this_mixer->audio_stream_info_.value(), frames_to_mix);
 
-        // Update source speaker buffer length
-        speakers_with_data[0]->pending_playback_frames_ += frames_to_mix;
+        // Set playback delay for newly contributing source
+        if (!speakers_with_data[0]->has_contributed_.load(std::memory_order_acquire)) {
+          speakers_with_data[0]->playback_delay_frames_.store(
+              this_mixer->frames_in_pipeline_.load(std::memory_order_acquire), std::memory_order_release);
+          speakers_with_data[0]->has_contributed_.store(true, std::memory_order_release);
+        }
+
+        // Update source speaker pending frames
+        speakers_with_data[0]->pending_playback_frames_.fetch_add(frames_to_mix, std::memory_order_release);
         transfer_buffers_with_data[0]->decrease_buffer_length(active_stream_info.frames_to_bytes(frames_to_mix));
 
-        // Update output transfer buffer length
+        // Update output transfer buffer length and pipeline frame count
         output_transfer_buffer->increase_buffer_length(
             this_mixer->audio_stream_info_.value().frames_to_bytes(frames_to_mix));
+        this_mixer->frames_in_pipeline_.fetch_add(frames_to_mix, std::memory_order_release);
       } else {
         // Speaker's stream info doesn't match the output speaker's, so it's a new source speaker
         if (!this_mixer->output_speaker_->is_stopped()) {
@@ -687,6 +732,8 @@ void MixerSpeaker::audio_mixer_task(void *params) {
                                      active_stream_info.get_sample_rate());
           this_mixer->output_speaker_->set_audio_stream_info(this_mixer->audio_stream_info_.value());
           this_mixer->output_speaker_->start();
+          // Reset pipeline frame count since we're starting fresh with a new sample rate
+          this_mixer->frames_in_pipeline_.store(0, std::memory_order_release);
           sent_finished = false;
         }
       }
@@ -715,20 +762,33 @@ void MixerSpeaker::audio_mixer_task(void *params) {
         }
       }
 
+      // Get current pipeline depth for delay calculation (before incrementing)
+      uint32_t current_pipeline_frames = this_mixer->frames_in_pipeline_.load(std::memory_order_acquire);
+
       // Update source transfer buffer lengths and add new audio durations to the source speaker pending playbacks
       for (size_t i = 0; i < transfer_buffers_with_data.size(); ++i) {
-        speakers_with_data[i]->pending_playback_frames_ += frames_to_mix;
+        // Set playback delay for newly contributing sources
+        if (!speakers_with_data[i]->has_contributed_.load(std::memory_order_acquire)) {
+          speakers_with_data[i]->playback_delay_frames_.store(current_pipeline_frames, std::memory_order_release);
+          speakers_with_data[i]->has_contributed_.store(true, std::memory_order_release);
+        }
+
+        speakers_with_data[i]->pending_playback_frames_.fetch_add(frames_to_mix, std::memory_order_release);
         transfer_buffers_with_data[i]->decrease_buffer_length(
             speakers_with_data[i]->get_audio_stream_info().frames_to_bytes(frames_to_mix));
       }
 
-      // Update output transfer buffer length
+      // Update output transfer buffer length and pipeline frame count (once, not per source)
       output_transfer_buffer->increase_buffer_length(
           this_mixer->audio_stream_info_.value().frames_to_bytes(frames_to_mix));
+      this_mixer->frames_in_pipeline_.fetch_add(frames_to_mix, std::memory_order_release);
     }
   }
 
   xEventGroupSetBits(this_mixer->event_group_, MixerEventGroupBits::STATE_STOPPING);
+
+  // Reset pipeline frame count since the task is stopping
+  this_mixer->frames_in_pipeline_.store(0, std::memory_order_release);
 
   output_transfer_buffer.reset();
 
