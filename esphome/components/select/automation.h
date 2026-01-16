@@ -66,7 +66,7 @@ template<typename... Ts> class SelectOperationAction : public Action<Ts...> {
   Select *select_;
 };
 
-template<ssize_t N, typename... Ts> class SelectIsCondition : public Condition<Ts...> {
+template<size_t N, typename... Ts> class SelectIsCondition : public Condition<Ts...> {
  public:
   SelectIsCondition(Select *parent, const char *const *option_list) : parent_(parent), option_list_(option_list) {}
 
