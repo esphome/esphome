@@ -52,10 +52,6 @@ template<typename K, typename V> class Mapping {
         buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, static_cast<int64_t>(key));
       }
       esph_log_e(TAG, "Key '%s' not found in mapping", buf);
-    } else if constexpr (std::is_floating_point_v<K>) {
-      char buf[32];  // enough for %g with doubles
-      buf_append_printf(buf, sizeof(buf), 0, "%g", static_cast<double>(key));
-      esph_log_e(TAG, "Key '%s' not found in mapping", buf);
     } else {
       // All supported key types are handled above - this should never be reached
       static_assert(sizeof(K) == 0, "Unsupported key type for Mapping error logging");
