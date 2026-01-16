@@ -624,6 +624,46 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
   return ret;
 }
 
+/// Decode base64/base64url string directly into vector of little-endian int32 values
+/// @param base64 Base64 or base64url encoded string (both +/ and -_ accepted)
+/// @param out Output vector (cleared and filled with decoded int32 values)
+/// @return true if successful, false if decode failed or invalid size
+bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> &out) {
+  // Decode in chunks to minimize stack usage
+  constexpr size_t chunk_bytes = 48;  // 12 int32 values
+  constexpr size_t chunk_chars = 64;  // 48 * 4/3 = 64 chars
+  uint8_t chunk[chunk_bytes];
+
+  out.clear();
+
+  const uint8_t *input = reinterpret_cast<const uint8_t *>(base64.data());
+  size_t remaining = base64.size();
+  size_t pos = 0;
+
+  while (remaining > 0) {
+    size_t chars_to_decode = std::min(remaining, chunk_chars);
+    size_t decoded_len = base64_decode(input + pos, chars_to_decode, chunk, chunk_bytes);
+
+    if (decoded_len == 0)
+      return false;
+
+    // Parse little-endian int32 values
+    for (size_t i = 0; i + 3 < decoded_len; i += 4) {
+      int32_t timing = static_cast<int32_t>(encode_uint32(chunk[i + 3], chunk[i + 2], chunk[i + 1], chunk[i]));
+      out.push_back(timing);
+    }
+
+    // Check for incomplete int32 in last chunk
+    if (remaining <= chunk_chars && (decoded_len % 4) != 0)
+      return false;
+
+    pos += chars_to_decode;
+    remaining -= chars_to_decode;
+  }
+
+  return !out.empty();
+}
+
 /// Encode int32 to 5 base85 characters + null terminator
 /// Standard ASCII85 alphabet: '!' (33) = 0 through 'u' (117) = 84
 inline void base85_encode_int32(int32_t value, std::span<char, BASE85_INT32_ENCODED_SIZE> output) {
