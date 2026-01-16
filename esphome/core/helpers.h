@@ -143,19 +143,29 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
       delete[] this->heap_;
   }
 
-  // Move constructor - memcpy is safe because union is zero-initialized
+  // Move constructor
   SmallInlineBuffer(SmallInlineBuffer &&other) noexcept : len_(other.len_) {
-    memcpy(this->inline_, other.inline_, InlineSize);
-    other.len_ = 0;  // Mark as empty so other's destructor is no-op
+    if (other.is_inline_()) {
+      memcpy(this->inline_, other.inline_, this->len_);
+    } else {
+      this->heap_ = other.heap_;
+      other.heap_ = nullptr;
+    }
+    other.len_ = 0;
   }
 
-  // Move assignment - memcpy is safe because union is zero-initialized
+  // Move assignment
   SmallInlineBuffer &operator=(SmallInlineBuffer &&other) noexcept {
     if (this != &other) {
       if (!this->is_inline_())
         delete[] this->heap_;
       this->len_ = other.len_;
-      memcpy(this->inline_, other.inline_, InlineSize);
+      if (other.is_inline_()) {
+        memcpy(this->inline_, other.inline_, this->len_);
+      } else {
+        this->heap_ = other.heap_;
+        other.heap_ = nullptr;
+      }
       other.len_ = 0;
     }
     return *this;
@@ -170,6 +180,7 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
     // Free existing heap allocation if switching from heap to inline or different heap size
     if (!this->is_inline_() && (size <= InlineSize || size != this->len_)) {
       delete[] this->heap_;
+      this->heap_ = nullptr;  // Defensive: prevent use-after-free if logic changes
     }
     // Allocate new heap buffer if needed
     if (size > InlineSize && (this->is_inline_() || size != this->len_)) {
@@ -188,7 +199,7 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
 
   size_t len_{0};
   union {
-    uint8_t inline_[InlineSize]{};  // Zero-init for safe memcpy in move ops
+    uint8_t inline_[InlineSize]{};  // Zero-init ensures clean initial state
     uint8_t *heap_;
   };
 };
