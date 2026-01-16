@@ -24,7 +24,9 @@ void HmacSHA256::calculate() { mbedtls_md_hmac_finish(&this->ctx_, this->digest_
 
 void HmacSHA256::get_bytes(uint8_t *output) { memcpy(output, this->digest_, SHA256_DIGEST_SIZE); }
 
-void HmacSHA256::get_hex(char *output) { format_hex_to(output, this->digest_, SHA256_DIGEST_SIZE); }
+void HmacSHA256::get_hex(char *output) {
+  format_hex_to(output, SHA256_DIGEST_SIZE * 2 + 1, this->digest_, SHA256_DIGEST_SIZE);
+}
 
 bool HmacSHA256::equals_bytes(const uint8_t *expected) {
   return memcmp(this->digest_, expected, SHA256_DIGEST_SIZE) == 0;
