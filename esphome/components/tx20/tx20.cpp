@@ -113,8 +113,7 @@ void Tx20Component::decode_and_publish_() {
     debug_pos = buf_append_printf(debug_buf, sizeof(debug_buf), debug_pos, "%u, ", this->store_.buffer[i]);
   }
   if (bits_before_padding < MAX_BUFFER_SIZE) {
-    debug_pos =
-        buf_append_printf(debug_buf, sizeof(debug_buf), debug_pos, "%zu, ", MAX_BUFFER_SIZE - bits_before_padding);
+    buf_append_printf(debug_buf, sizeof(debug_buf), debug_pos, "%zu, ", MAX_BUFFER_SIZE - bits_before_padding);
   }
   char bits_buf[MAX_BUFFER_SIZE + 1];
   for (size_t i = 0; i < MAX_BUFFER_SIZE; i++) {
