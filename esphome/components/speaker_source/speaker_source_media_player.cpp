@@ -526,19 +526,57 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
     case MediaPlayerControlCommand::SEND_COMMAND: {
       media_source::MediaSourceCommand source_command = control_command.data.source_command;
 
-      // Handle commands that need local playlist management
-      if (!has_internal_playlist) {
-        switch (source_command) {
-          case media_source::MEDIA_SOURCE_COMMAND_STOP: {
+      // Determine target source: prefer active, fall back to last
+      media_source::MediaSource *last_source =
+          (pipeline == MEDIA_PIPELINE) ? this->media_last_source_ : this->announcement_last_source_;
+      media_source::MediaSource *target_source = (active_source != nullptr) ? active_source : last_source;
+
+      switch (source_command) {
+        case media_source::MEDIA_SOURCE_COMMAND_TOGGLE: {
+          // Convert TOGGLE to PLAY or PAUSE based on current state
+          if ((active_source != nullptr) &&
+              (active_source->get_state(pipeline) == media_source::MediaSourceState::PLAYING)) {
+            if (target_source != nullptr) {
+              target_source->handle_command(media_source::MEDIA_SOURCE_COMMAND_PAUSE, pipeline);
+            }
+          } else if (!has_internal_playlist && active_source == nullptr && *playlist_index < playlist->size()) {
+            // No active source but playlist has items - use playlist to resume
+            this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
+          } else {
+            if (target_source != nullptr) {
+              target_source->handle_command(media_source::MEDIA_SOURCE_COMMAND_PLAY, pipeline);
+            }
+          }
+          break;
+        }
+
+        case media_source::MEDIA_SOURCE_COMMAND_PLAY: {
+          if (!has_internal_playlist && active_source == nullptr && *playlist_index < playlist->size()) {
+            // No active source but playlist has items - use playlist to resume
+            this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
+          } else if (target_source != nullptr) {
+            target_source->handle_command(source_command, pipeline);
+          }
+          break;
+        }
+
+        case media_source::MEDIA_SOURCE_COMMAND_STOP: {
+          if (!has_internal_playlist) {
             // Clear the playlist to prevent auto-progression
             const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
             this->cancel_timeout(timeout_id);
             playlist->clear();
-            *playlist_index = 0;  // Reset index
-            break;
+            *playlist_index = 0;
           }
-          case media_source::MEDIA_SOURCE_COMMAND_NEXT: {
-            // NEXT from HA: force advance to next track
+          if (target_source != nullptr) {
+            target_source->handle_command(source_command, pipeline);
+          }
+          break;
+        }
+
+        case media_source::MEDIA_SOURCE_COMMAND_NEXT: {
+          if (!has_internal_playlist) {
+            // Advance to next track locally
             if (*playlist_index + 1 < playlist->size()) {
               (*playlist_index)++;
               this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
@@ -547,11 +585,15 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
               this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
             }
             // else: at end with no repeat_all - stay on current
-            command_executed = true;
-            break;
+          } else if (target_source != nullptr) {
+            target_source->handle_command(source_command, pipeline);
           }
-          case media_source::MEDIA_SOURCE_COMMAND_PREVIOUS: {
-            // PREVIOUS from HA: go back to previous track
+          break;
+        }
+
+        case media_source::MEDIA_SOURCE_COMMAND_PREVIOUS: {
+          if (!has_internal_playlist) {
+            // Go back to previous track locally
             if (*playlist_index > 0) {
               (*playlist_index)--;
               this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
@@ -561,22 +603,38 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
               this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
             }
             // else: at beginning with no repeat_all - stay on current
-            command_executed = true;
-            break;
+          } else if (target_source != nullptr) {
+            target_source->handle_command(source_command, pipeline);
           }
-          case media_source::MEDIA_SOURCE_COMMAND_REPEAT_ONE:
+          break;
+        }
+
+        case media_source::MEDIA_SOURCE_COMMAND_REPEAT_ONE:
+          if (!has_internal_playlist) {
             *repeat_mode = REPEAT_ONE;
-            command_executed = true;
-            break;
-          case media_source::MEDIA_SOURCE_COMMAND_REPEAT_OFF:
+          } else if (target_source != nullptr) {
+            target_source->handle_command(source_command, pipeline);
+          }
+          break;
+
+        case media_source::MEDIA_SOURCE_COMMAND_REPEAT_OFF:
+          if (!has_internal_playlist) {
             *repeat_mode = REPEAT_OFF;
-            command_executed = true;
-            break;
-          case media_source::MEDIA_SOURCE_COMMAND_REPEAT_ALL:
+          } else if (target_source != nullptr) {
+            target_source->handle_command(source_command, pipeline);
+          }
+          break;
+
+        case media_source::MEDIA_SOURCE_COMMAND_REPEAT_ALL:
+          if (!has_internal_playlist) {
             *repeat_mode = REPEAT_ALL;
-            command_executed = true;
-            break;
-          case media_source::MEDIA_SOURCE_COMMAND_CLEAR_PLAYLIST: {
+          } else if (target_source != nullptr) {
+            target_source->handle_command(source_command, pipeline);
+          }
+          break;
+
+        case media_source::MEDIA_SOURCE_COMMAND_CLEAR_PLAYLIST: {
+          if (!has_internal_playlist) {
             // Clear playlist but keep current item playing
             const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
             this->cancel_timeout(timeout_id);
@@ -589,56 +647,42 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
               playlist->clear();
               *playlist_index = 0;
             }
-            command_executed = true;
-            break;
+          } else if (target_source != nullptr) {
+            target_source->handle_command(source_command, pipeline);
           }
-          case media_source::MEDIA_SOURCE_COMMAND_SHUFFLE:
-          case media_source::MEDIA_SOURCE_COMMAND_UNSHUFFLE:
-            // TODO: Handle these for local playlist
-            command_executed = true;
-            break;
-          default:
-            break;
-        }
-      }
-
-      // If not already handled, route command to the appropriate source
-      if (!command_executed) {
-        // Handle TOGGLE by checking current state
-        if (source_command == media_source::MEDIA_SOURCE_COMMAND_TOGGLE) {
-          if ((active_source != nullptr) &&
-              (active_source->get_state(pipeline) == media_source::MediaSourceState::PLAYING)) {
-            source_command = media_source::MEDIA_SOURCE_COMMAND_PAUSE;
-          } else {
-            source_command = media_source::MEDIA_SOURCE_COMMAND_PLAY;
-          }
+          break;
         }
 
-        // Handle GROUP_JOIN - check if any source supports it
-        if (source_command == media_source::MEDIA_SOURCE_COMMAND_GROUP_JOIN) {
-          media_source::MediaSource *last_source =
-              (pipeline == MEDIA_PIPELINE) ? this->media_last_source_ : this->announcement_last_source_;
+        case media_source::MEDIA_SOURCE_COMMAND_SHUFFLE:
+        case media_source::MEDIA_SOURCE_COMMAND_UNSHUFFLE:
+          if (!has_internal_playlist) {
+            // TODO: Handle shuffle for local playlist
+          } else if (target_source != nullptr) {
+            target_source->handle_command(source_command, pipeline);
+          }
+          break;
+
+        case media_source::MEDIA_SOURCE_COMMAND_GROUP_JOIN: {
+          // Check if any source supports group join before forwarding
           bool active_can_join = (active_source != nullptr) && active_source->get_capabilities().supports_group_join;
           bool last_can_join = (last_source != nullptr) && last_source->get_capabilities().supports_group_join;
 
-          if (!active_can_join && !last_can_join) {
-            command_executed = true;  // No source can handle this, just drop it
+          if ((active_can_join || last_can_join) && target_source != nullptr) {
+            target_source->handle_command(source_command, pipeline);
           }
+          // else: no source can handle this, silently drop
+          break;
         }
 
-        if (!command_executed) {
-          if (active_source != nullptr) {
-            active_source->handle_command(source_command, pipeline);
-          } else {
-            media_source::MediaSource *last_source =
-                (pipeline == MEDIA_PIPELINE) ? this->media_last_source_ : this->announcement_last_source_;
-            if (last_source != nullptr) {
-              last_source->handle_command(source_command, pipeline);
-            }
+        default:
+          // All other commands (PAUSE, GROUP_LEAVE, NOP, etc.) forward directly
+          if (target_source != nullptr) {
+            target_source->handle_command(source_command, pipeline);
           }
-          command_executed = true;
-        }
+          break;
       }
+
+      command_executed = true;
       break;
     }
   }
@@ -691,21 +735,48 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
   }
 
   if (call.get_command().has_value()) {
-    media_source::MediaSourceCommand media_source_command = media_source::MEDIA_SOURCE_COMMAND_NOP;
-
     switch (call.get_command().value()) {
+      // Add most commands direclty to queue
       case media_player::MEDIA_PLAYER_COMMAND_PLAY:
-        media_source_command = media_source::MEDIA_SOURCE_COMMAND_PLAY;
+        control_command.data.source_command = media_source::MEDIA_SOURCE_COMMAND_PLAY;
         break;
       case media_player::MEDIA_PLAYER_COMMAND_PAUSE:
-        media_source_command = media_source::MEDIA_SOURCE_COMMAND_PAUSE;
+        control_command.data.source_command = media_source::MEDIA_SOURCE_COMMAND_PAUSE;
         break;
       case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
-        media_source_command = media_source::MEDIA_SOURCE_COMMAND_TOGGLE;
+        control_command.data.source_command = media_source::MEDIA_SOURCE_COMMAND_TOGGLE;
         break;
       case media_player::MEDIA_PLAYER_COMMAND_STOP:
-        media_source_command = media_source::MEDIA_SOURCE_COMMAND_STOP;
+        control_command.data.source_command = media_source::MEDIA_SOURCE_COMMAND_STOP;
         break;
+      case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ALL:
+        control_command.data.source_command = media_source::MEDIA_SOURCE_COMMAND_REPEAT_ALL;
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ONE:
+        control_command.data.source_command = media_source::MEDIA_SOURCE_COMMAND_REPEAT_ONE;
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_REPEAT_OFF:
+        control_command.data.source_command = media_source::MEDIA_SOURCE_COMMAND_REPEAT_OFF;
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
+        control_command.data.source_command = media_source::MEDIA_SOURCE_COMMAND_CLEAR_PLAYLIST;
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_NEXT:
+        control_command.data.source_command = media_source::MEDIA_SOURCE_COMMAND_NEXT;
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_PREVIOUS:
+        control_command.data.source_command = media_source::MEDIA_SOURCE_COMMAND_PREVIOUS;
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_SHUFFLE:
+        control_command.data.source_command = media_source::MEDIA_SOURCE_COMMAND_SHUFFLE;
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_UNSHUFFLE:
+        control_command.data.source_command = media_source::MEDIA_SOURCE_COMMAND_UNSHUFFLE;
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_GROUP_JOIN:
+        control_command.data.source_command = media_source::MEDIA_SOURCE_COMMAND_GROUP_JOIN;
+        break;
+      // Handle volume and mute commands directly
       case media_player::MEDIA_PLAYER_COMMAND_MUTE:
         this->set_mute_state_(true);
         this->publish_state();
@@ -722,39 +793,11 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
         this->set_volume_(std::max(0.0f, this->volume - this->volume_increment_));
         this->publish_state();
         return;
-      case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ALL:
-        media_source_command = media_source::MEDIA_SOURCE_COMMAND_REPEAT_ALL;
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ONE:
-        media_source_command = media_source::MEDIA_SOURCE_COMMAND_REPEAT_ONE;
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_REPEAT_OFF:
-        media_source_command = media_source::MEDIA_SOURCE_COMMAND_REPEAT_OFF;
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
-        media_source_command = media_source::MEDIA_SOURCE_COMMAND_CLEAR_PLAYLIST;
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_NEXT:
-        media_source_command = media_source::MEDIA_SOURCE_COMMAND_NEXT;
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_PREVIOUS:
-        media_source_command = media_source::MEDIA_SOURCE_COMMAND_PREVIOUS;
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_SHUFFLE:
-        media_source_command = media_source::MEDIA_SOURCE_COMMAND_SHUFFLE;
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_UNSHUFFLE:
-        media_source_command = media_source::MEDIA_SOURCE_COMMAND_UNSHUFFLE;
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_GROUP_JOIN:
-        media_source_command = media_source::MEDIA_SOURCE_COMMAND_GROUP_JOIN;
-        break;
       default:
         return;
     }
 
     control_command.type = MediaPlayerControlCommand::SEND_COMMAND;
-    control_command.data.source_command = media_source_command;
     xQueueSend(this->media_control_command_queue_, &control_command, 0);
   }
 }
