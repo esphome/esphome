@@ -428,6 +428,7 @@ void ToshibaClimate::setup() {
   // Never send nan to HA
   if (std::isnan(this->target_temperature))
     this->target_temperature = 24;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   // Log final state for debugging HA errors
   const char *fan_mode_str = "NONE";
   char fan_mode_buf[4];  // max 3 digits for fan mode enum + null
@@ -437,6 +438,7 @@ void ToshibaClimate::setup() {
   }
   ESP_LOGV(TAG, "Setup complete - Mode: %d, Fan: %s, Swing: %d, Temp: %.1f", static_cast<int>(this->mode), fan_mode_str,
            static_cast<int>(this->swing_mode), this->target_temperature);
+#endif
 }
 
 void ToshibaClimate::transmit_state() {
