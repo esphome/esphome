@@ -1,0 +1,5 @@
+time:
+  - platform: rx8025t
+    i2c_id: i2c_bus
+    id: rx8025t_time
+    update_interval: never
