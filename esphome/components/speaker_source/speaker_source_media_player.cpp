@@ -19,7 +19,6 @@ void SpeakerSourceMediaPlayer::setup() {
   state = media_player::MEDIA_PLAYER_STATE_IDLE;
 
   this->media_control_command_queue_ = xQueueCreate(MEDIA_CONTROLS_QUEUE_LENGTH, sizeof(MediaPlayerControlCommand));
-  this->playlist_mutex_ = xSemaphoreCreateMutex();
 
   this->pref_ = global_preferences->make_preference<VolumeRestoreState>(this->get_preference_hash());
 
@@ -139,83 +138,35 @@ void SpeakerSourceMediaPlayer::handle_media_state_callback_(media_source::MediaS
       (pipeline == MEDIA_PIPELINE) ? &this->media_active_source_ : &this->announcement_active_source_;
   media_source::MediaSource **last_source_ptr =
       (pipeline == MEDIA_PIPELINE) ? &this->media_last_source_ : &this->announcement_last_source_;
+  media_source::MediaSource **stopping_source_ptr =
+      (pipeline == MEDIA_PIPELINE) ? &this->media_stopping_source_ : &this->announcement_stopping_source_;
 
   speaker::Speaker *target_speaker = (pipeline == MEDIA_PIPELINE) ? this->media_speaker_ : this->announcement_speaker_;
-  std::vector<std::string> *playlist =
-      (pipeline == MEDIA_PIPELINE) ? &this->media_playlist_ : &this->announcement_playlist_;
-  bool repeat_one = (pipeline == MEDIA_PIPELINE) ? this->media_repeat_one_ : this->announcement_repeat_one_;
-  uint32_t playlist_delay_ms =
-      (pipeline == MEDIA_PIPELINE) ? this->media_playlist_delay_ms_ : this->announcement_playlist_delay_ms_;
 
-  // Update active source tracking based on state transitions
   if (state == media_source::MediaSourceState::IDLE) {
     // Source went idle - clear stopping flag if this was the source we asked to stop
-    media_source::MediaSource **stopping_source_ptr =
-        (pipeline == MEDIA_PIPELINE) ? &this->media_stopping_source_ : &this->announcement_stopping_source_;
     if (*stopping_source_ptr == source) {
       *stopping_source_ptr = nullptr;
     }
 
     // Source went idle - clear it if it's the active source
     if (*active_source_ptr == source) {
-      *last_source_ptr = *active_source_ptr;  // Update last source
+      *last_source_ptr = *active_source_ptr;
       *active_source_ptr = nullptr;
+
       // Finish the speaker to ensure it's ready for the next playback
       if (target_speaker != nullptr) {
         target_speaker->finish();
       }
 
-      // Handle playlist progression
-      xSemaphoreTake(this->playlist_mutex_, portMAX_DELAY);
-      if (!playlist->empty()) {
-        // Pop the front item if repeat is disabled
-        if (!repeat_one) {
-          playlist->erase(playlist->begin());
-        }
-
-        // If there are more items in the playlist, schedule the next one
-        if (!playlist->empty()) {
-          const std::string next_uri = playlist->front();
-          xSemaphoreGive(this->playlist_mutex_);
-
-          const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
-
-          if (playlist_delay_ms > 0) {
-            // Schedule playback with delay
-            this->set_timeout(timeout_id, playlist_delay_ms, [this, next_uri, pipeline]() {
-              MediaPlayerControlCommand control_command;
-              control_command.type = MediaPlayerControlCommand::PLAY_URI;
-              control_command.pipeline = pipeline;
-              control_command.data.uri = new std::string(next_uri);
-              if (xQueueSend(this->media_control_command_queue_, &control_command, portMAX_DELAY) != pdTRUE) {
-                delete control_command.data.uri;  // Clean up on failure
-                ESP_LOGE(TAG, "Failed to queue command, command dropped");
-              }
-            });
-          } else {
-            // Play immediately
-            MediaPlayerControlCommand control_command;
-            control_command.type = MediaPlayerControlCommand::PLAY_URI;
-            control_command.pipeline = pipeline;
-            control_command.data.uri = new std::string(next_uri);
-            if (xQueueSend(this->media_control_command_queue_, &control_command, portMAX_DELAY) != pdTRUE) {
-              delete control_command.data.uri;  // Clean up on failure
-              ESP_LOGE(TAG, "Failed to queue command, command dropped");
-            }
-          }
-        } else {
-          xSemaphoreGive(this->playlist_mutex_);
-        }
-      } else {
-        xSemaphoreGive(this->playlist_mutex_);
-      }
+      // Queue PLAYLIST_ADVANCE to handle track completion - all playlist logic is in process_control_queue_
+      this->queue_command_(MediaPlayerControlCommand::PLAYLIST_ADVANCE, pipeline);
     }
   } else if (state == media_source::MediaSourceState::PLAYING) {
     // Source started playing - make it the active source if no one else is active
-    // (Note: try_execute_play_uri_ ensures old source is stopped before new one plays)
     if (*active_source_ptr == nullptr) {
       *active_source_ptr = source;
-      *last_source_ptr = nullptr;  // clear the last active source
+      *last_source_ptr = nullptr;
     }
   }
 }
@@ -262,12 +213,8 @@ void SpeakerSourceMediaPlayer::loop() {
   media_player::MediaPlayerState old_state = this->state;
 
   // Check playlist state to detect transitions between items
-  bool announcement_has_next_item = false;
-  bool media_has_next_item = false;
-  xSemaphoreTake(this->playlist_mutex_, portMAX_DELAY);
-  announcement_has_next_item = !this->announcement_playlist_.empty() || this->announcement_repeat_one_;
-  media_has_next_item = !this->media_playlist_.empty() || this->media_repeat_one_;
-  xSemaphoreGive(this->playlist_mutex_);
+  bool announcement_has_next_item = !this->announcement_playlist_.empty() || this->announcement_repeat_one_;
+  bool media_has_next_item = !this->media_playlist_.empty() || this->media_repeat_one_;
 
   // Check announcement pipeline first
   // Copy pointer to local variable to avoid TOCTOU race
@@ -464,108 +411,209 @@ bool SpeakerSourceMediaPlayer::try_execute_play_uri_(const std::string &uri, siz
   return true;  // Remove from queue
 }
 
+void SpeakerSourceMediaPlayer::queue_command_(MediaPlayerControlCommand::Type type, size_t pipeline) {
+  MediaPlayerControlCommand cmd;
+  cmd.type = type;
+  cmd.pipeline = pipeline;
+  if (xQueueSend(this->media_control_command_queue_, &cmd, 0) != pdTRUE) {
+    ESP_LOGE(TAG, "Failed to queue command type %d", static_cast<int>(type));
+  }
+}
+
+void SpeakerSourceMediaPlayer::queue_play_front_(size_t pipeline, uint32_t delay_ms) {
+  if (delay_ms > 0) {
+    const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
+    this->set_timeout(timeout_id, delay_ms,
+                      [this, pipeline]() { this->queue_command_(MediaPlayerControlCommand::PLAY_FRONT, pipeline); });
+  } else {
+    this->queue_command_(MediaPlayerControlCommand::PLAY_FRONT, pipeline);
+  }
+}
+
 void SpeakerSourceMediaPlayer::process_control_queue_() {
   MediaPlayerControlCommand control_command;
 
   // Use peek to check command without removing it
-  if (xQueuePeek(this->media_control_command_queue_, &control_command, 0) == pdTRUE) {
-    bool command_executed = false;
+  if (xQueuePeek(this->media_control_command_queue_, &control_command, 0) != pdTRUE) {
+    return;
+  }
 
-    switch (control_command.type) {
-      case MediaPlayerControlCommand::PLAY_URI:
-        command_executed = this->try_execute_play_uri_(*control_command.data.uri, control_command.pipeline);
-        break;
+  bool command_executed = false;
+  size_t pipeline = control_command.pipeline;
 
-      case MediaPlayerControlCommand::ENQUEUE_URI: {
-        // Enqueue URI to the active source's internal playlist
-        // Copy pointer to local variable to avoid TOCTOU race
-        media_source::MediaSource *active_source = (control_command.pipeline == MEDIA_PIPELINE)
-                                                       ? this->media_active_source_
-                                                       : this->announcement_active_source_;
+  // Get active source and playlist for this pipeline
+  media_source::MediaSource *active_source =
+      (pipeline == MEDIA_PIPELINE) ? this->media_active_source_ : this->announcement_active_source_;
+  std::vector<std::string> *playlist =
+      (pipeline == MEDIA_PIPELINE) ? &this->media_playlist_ : &this->announcement_playlist_;
+  bool *repeat_one = (pipeline == MEDIA_PIPELINE) ? &this->media_repeat_one_ : &this->announcement_repeat_one_;
+  uint32_t playlist_delay_ms =
+      (pipeline == MEDIA_PIPELINE) ? this->media_playlist_delay_ms_ : this->announcement_playlist_delay_ms_;
 
-        // Check once and store capability to avoid multiple dereferences
-        bool has_internal_playlist = false;
-        if (active_source != nullptr) {
-          has_internal_playlist = active_source->get_capabilities().has_internal_playlist;
+  // Check if active source has internal playlist management
+  bool has_internal_playlist = (active_source != nullptr) && active_source->get_capabilities().has_internal_playlist;
+
+  switch (control_command.type) {
+    case MediaPlayerControlCommand::PLAY_URI: {
+      // Always use our local playlist to start playback
+      const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
+      this->cancel_timeout(timeout_id);
+      playlist->clear();
+      playlist->push_back(*control_command.data.uri);
+
+      // Queue PLAY_FRONT to initiate playback
+      this->queue_command_(MediaPlayerControlCommand::PLAY_FRONT, pipeline);
+      command_executed = true;
+      break;
+    }
+
+    case MediaPlayerControlCommand::ENQUEUE_URI: {
+      // Always add to our local playlist
+      bool was_empty = playlist->empty();
+      playlist->push_back(*control_command.data.uri);
+
+      // If nothing was playing, queue PLAY_FRONT to start
+      bool nothing_playing =
+          (active_source == nullptr) || (active_source->get_state(pipeline) == media_source::MediaSourceState::IDLE);
+      if (was_empty && nothing_playing) {
+        this->queue_command_(MediaPlayerControlCommand::PLAY_FRONT, pipeline);
+      }
+      command_executed = true;
+      break;
+    }
+
+    case MediaPlayerControlCommand::PLAYLIST_ADVANCE: {
+      // Internal message: a track finished, advance to next in our playlist
+      if (!playlist->empty() && !*repeat_one) {
+        // Remove the completed item
+        playlist->erase(playlist->begin());
+      }
+
+      if (!playlist->empty()) {
+        // Queue PLAY_FRONT with optional delay
+        this->queue_play_front_(pipeline, playlist_delay_ms);
+      }
+      command_executed = true;
+      break;
+    }
+
+    case MediaPlayerControlCommand::PLAY_FRONT: {
+      // Play the front item of our local playlist
+      if (!playlist->empty()) {
+        command_executed = this->try_execute_play_uri_(playlist->front(), pipeline);
+      } else {
+        command_executed = true;  // Empty playlist, nothing to do
+      }
+      break;
+    }
+
+    case MediaPlayerControlCommand::SEND_COMMAND: {
+      media_source::MediaSourceCommand source_command = control_command.data.source_command;
+
+      // Handle commands that need local playlist management
+      if (!has_internal_playlist) {
+        switch (source_command) {
+          case media_source::MEDIA_SOURCE_COMMAND_STOP: {
+            // Clear the playlist to prevent auto-progression
+            const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
+            this->cancel_timeout(timeout_id);
+            playlist->clear();
+            break;
+          }
+          case media_source::MEDIA_SOURCE_COMMAND_NEXT: {
+            // NEXT from HA: force advance (remove front, queue PLAY_FRONT)
+            if (!playlist->empty()) {
+              playlist->erase(playlist->begin());
+            }
+            if (!playlist->empty()) {
+              this->queue_command_(MediaPlayerControlCommand::PLAY_FRONT, pipeline);
+            }
+            command_executed = true;
+            break;
+          }
+          case media_source::MEDIA_SOURCE_COMMAND_REPEAT_ONE:
+            *repeat_one = true;
+            command_executed = true;
+            break;
+          case media_source::MEDIA_SOURCE_COMMAND_REPEAT_OFF:
+            *repeat_one = false;
+            command_executed = true;
+            break;
+          case media_source::MEDIA_SOURCE_COMMAND_CLEAR_PLAYLIST: {
+            // Clear playlist but keep current item
+            const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
+            this->cancel_timeout(timeout_id);
+            if (!playlist->empty()) {
+              std::string current = playlist->front();
+              playlist->clear();
+              playlist->push_back(current);
+            }
+            command_executed = true;
+            break;
+          }
+          case media_source::MEDIA_SOURCE_COMMAND_REPEAT_ALL:
+          case media_source::MEDIA_SOURCE_COMMAND_PREVIOUS:
+          case media_source::MEDIA_SOURCE_COMMAND_SHUFFLE:
+          case media_source::MEDIA_SOURCE_COMMAND_UNSHUFFLE:
+            // TODO: Handle these for local playlist
+            command_executed = true;
+            break;
+          default:
+            break;
+        }
+      }
+
+      // If not already handled, route command to the appropriate source
+      if (!command_executed) {
+        // Handle TOGGLE by checking current state
+        if (source_command == media_source::MEDIA_SOURCE_COMMAND_TOGGLE) {
+          if ((active_source != nullptr) &&
+              (active_source->get_state(pipeline) == media_source::MediaSourceState::PLAYING)) {
+            source_command = media_source::MEDIA_SOURCE_COMMAND_PAUSE;
+          } else {
+            source_command = media_source::MEDIA_SOURCE_COMMAND_PLAY;
+          }
         }
 
-        if (has_internal_playlist) {
-          // Call enqueue_uri on the source
-          bool success = active_source->enqueue_uri(*control_command.data.uri, control_command.pipeline);
-          if (!success) {
-            ESP_LOGW(TAG, "Pipeline %zu: Failed to enqueue URI: %s", control_command.pipeline,
-                     control_command.data.uri->c_str());
+        // Handle GROUP_JOIN - check if any source supports it
+        if (source_command == media_source::MEDIA_SOURCE_COMMAND_GROUP_JOIN) {
+          media_source::MediaSource *last_source =
+              (pipeline == MEDIA_PIPELINE) ? this->media_last_source_ : this->announcement_last_source_;
+          bool active_can_join = (active_source != nullptr) && active_source->get_capabilities().supports_group_join;
+          bool last_can_join = (last_source != nullptr) && last_source->get_capabilities().supports_group_join;
+
+          if (!active_can_join && !last_can_join) {
+            command_executed = true;  // No source can handle this, just drop it
+          }
+        }
+
+        if (!command_executed) {
+          if (active_source != nullptr) {
+            active_source->handle_command(source_command, pipeline);
+          } else {
+            media_source::MediaSource *last_source =
+                (pipeline == MEDIA_PIPELINE) ? this->media_last_source_ : this->announcement_last_source_;
+            if (last_source != nullptr) {
+              last_source->handle_command(source_command, pipeline);
+            }
           }
           command_executed = true;
-        } else {
-          // Source doesn't support internal playlist, command shouldn't have been queued
-          ESP_LOGE(TAG,
-                   "Logic error: ENQUEUE_URI command queued for pipeline %zu but source doesn't support internal "
-                   "playlist",
-                   control_command.pipeline);
-          command_executed = true;  // Remove from queue
         }
-        break;
       }
-
-      case MediaPlayerControlCommand::SEND_COMMAND: {
-        // Route command to the appropriate pipeline's active source
-        // Copy pointer to local variable to avoid TOCTOU race
-        media_source::MediaSource *active_source = (control_command.pipeline == MEDIA_PIPELINE)
-                                                       ? this->media_active_source_
-                                                       : this->announcement_active_source_;
-        if (active_source != nullptr) {
-          active_source->handle_command(control_command.data.source_command, control_command.pipeline);
-        } else {
-          media_source::MediaSource *last_source =
-              (control_command.pipeline == MEDIA_PIPELINE) ? this->media_last_source_ : this->announcement_last_source_;
-          if (last_source != nullptr) {
-            last_source->handle_command(control_command.data.source_command, control_command.pipeline);
-          }
-        }
-        command_executed = true;
-        break;
-      }
-    }
-
-    // Only remove from queue if successfully executed
-    if (command_executed) {
-      xQueueReceive(this->media_control_command_queue_, &control_command, 0);
-
-      // Delete the allocated string for PLAY_URI and ENQUEUE_URI commands
-      if (control_command.type == MediaPlayerControlCommand::PLAY_URI ||
-          control_command.type == MediaPlayerControlCommand::ENQUEUE_URI) {
-        delete control_command.data.uri;  // Must be manually deleted after receiving from queue
-      }
+      break;
     }
   }
-}
 
-void SpeakerSourceMediaPlayer::clear_local_playlist_(size_t pipeline, bool keep_current_item) {
-  const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
-  this->cancel_timeout(timeout_id);
+  // Only remove from queue if successfully executed
+  if (command_executed) {
+    xQueueReceive(this->media_control_command_queue_, &control_command, 0);
 
-  xSemaphoreTake(this->playlist_mutex_, portMAX_DELAY);
-  if (pipeline == MEDIA_PIPELINE) {
-    if (keep_current_item && !this->media_playlist_.empty()) {
-      // Keep only the currently playing item
-      std::string current = this->media_playlist_.front();
-      this->media_playlist_.clear();
-      this->media_playlist_.push_back(current);
-    } else {
-      this->media_playlist_.clear();
-    }
-  } else {
-    if (keep_current_item && !this->announcement_playlist_.empty()) {
-      // Keep only the currently playing item
-      std::string current = this->announcement_playlist_.front();
-      this->announcement_playlist_.clear();
-      this->announcement_playlist_.push_back(current);
-    } else {
-      this->announcement_playlist_.clear();
+    // Delete the allocated string for PLAY_URI and ENQUEUE_URI commands
+    if (control_command.type == MediaPlayerControlCommand::PLAY_URI ||
+        control_command.type == MediaPlayerControlCommand::ENQUEUE_URI) {
+      delete control_command.data.uri;
     }
   }
-  xSemaphoreGive(this->playlist_mutex_);
 }
 
 void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call) {
@@ -585,92 +633,15 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
   }
 
   if (call.get_media_url().has_value()) {
-    // Copy pointer to local variable to avoid TOCTOU race
-    media_source::MediaSource *active_source =
-        (control_command.pipeline == MEDIA_PIPELINE) ? this->media_active_source_ : this->announcement_active_source_;
-
     bool enqueue =
         call.get_command().has_value() && call.get_command().value() == media_player::MEDIA_PLAYER_COMMAND_ENQUEUE;
 
-    // Check if active source has internal playlist management
-    // Store capability to avoid multiple dereferences
-    bool has_internal_playlist = false;
-    if (active_source != nullptr) {
-      has_internal_playlist = active_source->get_capabilities().has_internal_playlist;
+    control_command.type = enqueue ? MediaPlayerControlCommand::ENQUEUE_URI : MediaPlayerControlCommand::PLAY_URI;
+    control_command.data.uri = new std::string(call.get_media_url().value());
+    if (xQueueSend(this->media_control_command_queue_, &control_command, 0) != pdTRUE) {
+      delete control_command.data.uri;
+      ESP_LOGE(TAG, "Failed to queue command, command dropped");
     }
-
-    if (has_internal_playlist) {
-      // Source manages its own playlist - delegate to source
-      if (enqueue) {
-        control_command.type = MediaPlayerControlCommand::ENQUEUE_URI;
-        control_command.data.uri = new std::string(call.get_media_url().value());
-        if (xQueueSend(this->media_control_command_queue_, &control_command, portMAX_DELAY) != pdTRUE) {
-          delete control_command.data.uri;  // Clean up on failure
-          ESP_LOGE(TAG, "Failed to queue command, command dropped");
-        }
-      } else {
-        // Just play the URI - source handles its own queueing behavior
-        control_command.type = MediaPlayerControlCommand::PLAY_URI;
-        control_command.data.uri = new std::string(call.get_media_url().value());
-        if (xQueueSend(this->media_control_command_queue_, &control_command, portMAX_DELAY) != pdTRUE) {
-          delete control_command.data.uri;  // Clean up on failure
-          ESP_LOGE(TAG, "Failed to queue command, command dropped");
-        }
-      }
-    } else {
-      // Use local playlist management
-      std::vector<std::string> *playlist =
-          (control_command.pipeline == MEDIA_PIPELINE) ? &this->media_playlist_ : &this->announcement_playlist_;
-      const std::string timeout_id = (control_command.pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
-
-      xSemaphoreTake(this->playlist_mutex_, portMAX_DELAY);
-
-      if (enqueue) {
-        // Add to end of playlist
-        playlist->push_back(call.get_media_url().value());
-
-        // If nothing is playing, start playback with the first item
-        // Get state once to avoid multiple dereferences
-        bool should_start = false;
-        if (active_source == nullptr) {
-          should_start = true;
-        } else {
-          media_source::MediaSourceState active_state = active_source->get_state(control_command.pipeline);
-          should_start = (active_state == media_source::MediaSourceState::IDLE);
-        }
-
-        xSemaphoreGive(this->playlist_mutex_);
-
-        if (should_start) {
-          control_command.type = MediaPlayerControlCommand::PLAY_URI;
-          control_command.data.uri = new std::string(call.get_media_url().value());
-          if (xQueueSend(this->media_control_command_queue_, &control_command, portMAX_DELAY) != pdTRUE) {
-            delete control_command.data.uri;  // Clean up on failure
-            ESP_LOGE(TAG, "Failed to queue command, command dropped");
-          }
-        }
-      } else {
-        // Replace current playback - clear playlist, start new URI, then add to playlist
-        this->cancel_timeout(timeout_id);
-        playlist->clear();
-
-        xSemaphoreGive(this->playlist_mutex_);
-
-        // Start playback first
-        control_command.type = MediaPlayerControlCommand::PLAY_URI;
-        control_command.data.uri = new std::string(call.get_media_url().value());
-        if (xQueueSend(this->media_control_command_queue_, &control_command, portMAX_DELAY) != pdTRUE) {
-          delete control_command.data.uri;  // Clean up on failure
-          ESP_LOGE(TAG, "Failed to queue command, command dropped");
-        }
-
-        // Now add to playlist so it's tracked as the current item
-        xSemaphoreTake(this->playlist_mutex_, portMAX_DELAY);
-        playlist->push_back(call.get_media_url().value());
-        xSemaphoreGive(this->playlist_mutex_);
-      }
-    }
-
     return;
   }
 
@@ -681,19 +652,8 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
   }
 
   if (call.get_command().has_value()) {
-    // Copy pointer to local variable to avoid TOCTOU race
-    media_source::MediaSource *active_source =
-        (control_command.pipeline == MEDIA_PIPELINE) ? this->media_active_source_ : this->announcement_active_source_;
-    media_source::MediaSource *last_active_source =
-        (control_command.pipeline == MEDIA_PIPELINE) ? this->media_last_source_ : this->announcement_last_source_;
-
-    // Store capability to avoid multiple dereferences
-    bool has_internal_playlist = false;
-    if (active_source != nullptr) {
-      has_internal_playlist = active_source->get_capabilities().has_internal_playlist;
-    }
-
     media_source::MediaSourceCommand media_source_command = media_source::MEDIA_SOURCE_COMMAND_NOP;
+
     switch (call.get_command().value()) {
       case media_player::MEDIA_PLAYER_COMMAND_PLAY:
         media_source_command = media_source::MEDIA_SOURCE_COMMAND_PLAY;
@@ -701,24 +661,12 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
       case media_player::MEDIA_PLAYER_COMMAND_PAUSE:
         media_source_command = media_source::MEDIA_SOURCE_COMMAND_PAUSE;
         break;
-      case media_player::MEDIA_PLAYER_COMMAND_TOGGLE: {
-        if (((active_source != nullptr) &&
-             (active_source->get_state(control_command.pipeline) == media_source::MediaSourceState::PLAYING))) {
-          media_source_command = media_source::MEDIA_SOURCE_COMMAND_PAUSE;
-        } else {
-          media_source_command = media_source::MEDIA_SOURCE_COMMAND_PLAY;
-        }
+      case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
+        media_source_command = media_source::MEDIA_SOURCE_COMMAND_TOGGLE;
         break;
-      }
-      case media_player::MEDIA_PLAYER_COMMAND_STOP: {
-        if (!has_internal_playlist) {
-          // Stop should clear the playlist to prevent auto-progression
-          this->clear_local_playlist_(control_command.pipeline, false);
-        }
-
+      case media_player::MEDIA_PLAYER_COMMAND_STOP:
         media_source_command = media_source::MEDIA_SOURCE_COMMAND_STOP;
         break;
-      }
       case media_player::MEDIA_PLAYER_COMMAND_MUTE:
         this->set_mute_state_(true);
         this->publish_state();
@@ -736,95 +684,39 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
         this->publish_state();
         return;
       case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ALL:
-        if (has_internal_playlist) {
-          media_source_command = media_source::MEDIA_SOURCE_COMMAND_REPEAT_ALL;
-        } else {
-          // TODO: Handle repeat entire playlist
-          return;
-        }
+        media_source_command = media_source::MEDIA_SOURCE_COMMAND_REPEAT_ALL;
         break;
       case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ONE:
-        if (has_internal_playlist) {
-          media_source_command = media_source::MEDIA_SOURCE_COMMAND_REPEAT_ONE;
-        } else {
-          if (control_command.pipeline == MEDIA_PIPELINE) {
-            this->media_repeat_one_ = true;
-          } else {
-            this->announcement_repeat_one_ = true;
-          }
-          return;
-        }
+        media_source_command = media_source::MEDIA_SOURCE_COMMAND_REPEAT_ONE;
         break;
       case media_player::MEDIA_PLAYER_COMMAND_REPEAT_OFF:
-        if (has_internal_playlist) {
-          media_source_command = media_source::MEDIA_SOURCE_COMMAND_REPEAT_OFF;
-        } else {
-          if (control_command.pipeline == MEDIA_PIPELINE) {
-            this->media_repeat_one_ = false;
-          } else {
-            this->announcement_repeat_one_ = false;
-          }
-          return;
-        }
+        media_source_command = media_source::MEDIA_SOURCE_COMMAND_REPEAT_OFF;
         break;
       case media_player::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
-        if (has_internal_playlist) {
-          media_source_command = media_source::MEDIA_SOURCE_COMMAND_CLEAR_PLAYLIST;
-        } else {
-          // Clear playlist but keep the currently playing item
-          this->clear_local_playlist_(control_command.pipeline, true);
-          return;
-        }
+        media_source_command = media_source::MEDIA_SOURCE_COMMAND_CLEAR_PLAYLIST;
         break;
       case media_player::MEDIA_PLAYER_COMMAND_NEXT:
-        if (has_internal_playlist) {
-          media_source_command = media_source::MEDIA_SOURCE_COMMAND_NEXT;
-        } else {
-          // TODO: Go to next track in media player playlist
-          return;
-        }
+        media_source_command = media_source::MEDIA_SOURCE_COMMAND_NEXT;
+        break;
       case media_player::MEDIA_PLAYER_COMMAND_PREVIOUS:
-        if (has_internal_playlist) {
-          media_source_command = media_source::MEDIA_SOURCE_COMMAND_PREVIOUS;
-        } else {
-          // TODO: Go to previous track in media player playlist
-          return;
-        }
+        media_source_command = media_source::MEDIA_SOURCE_COMMAND_PREVIOUS;
+        break;
       case media_player::MEDIA_PLAYER_COMMAND_SHUFFLE:
-        if (has_internal_playlist) {
-          media_source_command = media_source::MEDIA_SOURCE_COMMAND_SHUFFLE;
-        } else {
-          // TODO: Handle shuffle in media player playlist
-          return;
-        }
+        media_source_command = media_source::MEDIA_SOURCE_COMMAND_SHUFFLE;
+        break;
       case media_player::MEDIA_PLAYER_COMMAND_UNSHUFFLE:
-        if (has_internal_playlist) {
-          media_source_command = media_source::MEDIA_SOURCE_COMMAND_UNSHUFFLE;
-        } else {
-          // TODO: Handle unshuffle in media player playlist
-          return;
-        }
-      case media_player::MEDIA_PLAYER_COMMAND_GROUP_JOIN: {
-        bool active_source_can_join =
-            ((active_source != nullptr) && (active_source->get_capabilities().supports_group_join));
-        bool last_source_can_join =
-            ((last_active_source != nullptr) && (last_active_source->get_capabilities().supports_group_join));
-        if (active_source_can_join || last_source_can_join) {
-          media_source_command = media_source::MEDIA_SOURCE_COMMAND_GROUP_JOIN;
-        } else {
-          return;
-        }
+        media_source_command = media_source::MEDIA_SOURCE_COMMAND_UNSHUFFLE;
         break;
-      }
+      case media_player::MEDIA_PLAYER_COMMAND_GROUP_JOIN:
+        media_source_command = media_source::MEDIA_SOURCE_COMMAND_GROUP_JOIN;
+        break;
       default:
-        break;
+        return;
     }
-    if (media_source_command != media_source::MEDIA_SOURCE_COMMAND_NOP) {
-      control_command.type = MediaPlayerControlCommand::SEND_COMMAND;
-      control_command.data.source_command = media_source_command;
 
-      xQueueSend(this->media_control_command_queue_, &control_command, portMAX_DELAY);
-    }
+    control_command.type = MediaPlayerControlCommand::SEND_COMMAND;
+    control_command.data.source_command = media_source_command;
+    xQueueSend(this->media_control_command_queue_, &control_command, 0);
   }
 }
 

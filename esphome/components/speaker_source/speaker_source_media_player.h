@@ -35,9 +35,11 @@ struct MediaCallCommand {
 
 struct MediaPlayerControlCommand {
   enum Type : uint8_t {
-    PLAY_URI,
-    ENQUEUE_URI,
-    SEND_COMMAND,
+    PLAY_URI,          // Clear playlist, add URI, queue PLAY_FRONT
+    ENQUEUE_URI,       // Add URI to playlist, queue PLAY_FRONT if idle
+    PLAYLIST_ADVANCE,  // Remove front (unless repeat_one), queue PLAY_FRONT if more items
+    PLAY_FRONT,        // Play front item of playlist (can retry if speaker not ready)
+    SEND_COMMAND,      // Send command to active source
   };
   Type type;
   size_t pipeline;  // MEDIA_PIPELINE or ANNOUNCEMENT_PIPELINE
@@ -122,7 +124,8 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   void process_control_queue_();
   bool try_execute_play_uri_(const std::string &uri, size_t pipeline);
   media_source::MediaSource *find_source_for_uri_(const std::string &uri, size_t pipeline);
-  void clear_local_playlist_(size_t pipeline, bool keep_current_item);
+  void queue_command_(MediaPlayerControlCommand::Type type, size_t pipeline);
+  void queue_play_front_(size_t pipeline, uint32_t delay_ms = 0);
 
   std::vector<media_source::MediaSource *> media_sources_;
   speaker::Speaker *media_speaker_{nullptr};
@@ -145,9 +148,9 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   // 2. Better cache locality for frequent iteration in loop()
   // 3. erase(begin()) only happens once per song (~3 min intervals)
   // 4. Typical playlists are small (< 20 songs)
+  // Note: No mutex needed - playlists are only accessed from the main loop thread
   std::vector<std::string> media_playlist_;
   std::vector<std::string> announcement_playlist_;
-  SemaphoreHandle_t playlist_mutex_;
   bool media_repeat_one_{false};
   bool announcement_repeat_one_{false};
   uint32_t media_playlist_delay_ms_{0};
