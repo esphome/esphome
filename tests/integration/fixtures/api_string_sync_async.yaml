@@ -1,0 +1,67 @@
+esphome:
+  name: api-string-sync-async-test
+host:
+
+api:
+  actions:
+    # ==========================================================================
+    # Synchronous service - uses zero-copy StringRef
+    # Tests that .compare() and .c_str() work on StringRef
+    # ==========================================================================
+    - action: sync_string_service
+      variables:
+        command: string
+      supports_response: none
+      then:
+        - lambda: !lambda |-
+            if (command.compare("start") == 0) {
+              ESP_LOGI("sync_test", "Sync command: start");
+            } else if (command.compare("stop") == 0) {
+              ESP_LOGI("sync_test", "Sync command: stop");
+            } else if (command.compare("restart") == 0) {
+              ESP_LOGI("sync_test", "Sync command: restart");
+            } else {
+              ESP_LOGW("sync_test", "Sync unknown command: %s", command.c_str());
+            }
+
+    # ==========================================================================
+    # Asynchronous service - uses std::string copy
+    # The delay makes this async, requiring string data to be copied
+    # Tests that async services still work correctly with std::string
+    # ==========================================================================
+    - action: async_string_service
+      variables:
+        message: string
+      supports_response: none
+      then:
+        - logger.log:
+            format: "Async before delay: %s"
+            args: [message.c_str()]
+        - delay: 100ms
+        - lambda: !lambda |-
+            // After delay, the original receive buffer would be freed
+            // so we need std::string copy for this to work safely
+            if (message.compare("test") == 0) {
+              ESP_LOGI("async_test", "Async after delay: test matched");
+            } else {
+              ESP_LOGI("async_test", "Async after delay: %s", message.c_str());
+            }
+
+    # ==========================================================================
+    # Synchronous service with multiple strings
+    # Tests that multiple StringRef args work
+    # ==========================================================================
+    - action: sync_multi_string
+      variables:
+        first: string
+        second: string
+      supports_response: none
+      then:
+        - lambda: !lambda |-
+            bool first_match = first.compare("hello") == 0;
+            bool second_match = second.compare("world") == 0;
+            ESP_LOGI("multi_test", "Multi string: first=%s (%d), second=%s (%d)",
+                     first.c_str(), first_match, second.c_str(), second_match);
+
+logger:
+  level: DEBUG
