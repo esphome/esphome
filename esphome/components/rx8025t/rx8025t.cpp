@@ -47,7 +47,7 @@ void RX8025TComponent::read_time() {
   }
 
   ESPTime rtc_time{
-      .second = uint8_t(this->rx8025t_.reg.second + 10 * this->rx8025t_.reg.second_10),
+      .second = uint8_t(this->rx8025t_.reg.second + 10u * this->rx8025t_.reg.second_10),
       .minute = uint8_t(this->rx8025t_.reg.minute + 10u * this->rx8025t_.reg.minute_10),
       .hour = uint8_t(this->rx8025t_.reg.hour + 10u * this->rx8025t_.reg.hour_10),
       .day_of_week = uint8_t(this->rx8025t_.reg.weekday + 1),  // ESPTime uses 1-7, RX8025T uses 0-6
