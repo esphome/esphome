@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 
+from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME
 from esphome.core import CORE, EsphomeError
 
@@ -144,8 +145,8 @@ def create_factory_bin() -> bool:
         _LOGGER.error("Failed to read flasher_args.json: %s", e)
         return False
 
-    # Get flash size from sdkconfig or default
-    flash_size = "4MB"  # TODO: Read from config
+    # Get flash size from config
+    flash_size = CORE.data[KEY_ESP32][KEY_FLASH_SIZE]
 
     # Build esptool merge command
     sections = []
