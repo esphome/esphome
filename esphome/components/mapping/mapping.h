@@ -2,6 +2,7 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 #include <map>
 #include <string>
 
@@ -43,7 +44,20 @@ template<typename K, typename V> class Mapping {
       esph_log_e(TAG, "Key '%p' not found in mapping", key);
     } else if constexpr (std::is_same_v<K, std::string>) {
       esph_log_e(TAG, "Key '%s' not found in mapping", key.c_str());
+    } else if constexpr (std::is_integral_v<K>) {
+      char buf[24];  // enough for int64_t
+      buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, static_cast<int64_t>(key));
+      esph_log_e(TAG, "Key '%s' not found in mapping", buf);
+    } else if constexpr (std::is_floating_point_v<K>) {
+      char buf[24];
+      buf_append_printf(buf, sizeof(buf), 0, "%g", static_cast<double>(key));
+      esph_log_e(TAG, "Key '%s' not found in mapping", buf);
+    } else if constexpr (std::is_enum_v<K>) {
+      char buf[24];  // enough for underlying integral type
+      buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, static_cast<int64_t>(key));
+      esph_log_e(TAG, "Key '%s' not found in mapping", buf);
     } else {
+      // Fallback for custom types - likely unreachable but kept for compatibility
       esph_log_e(TAG, "Key '%s' not found in mapping", to_string(key).c_str());
     }
     return {};
