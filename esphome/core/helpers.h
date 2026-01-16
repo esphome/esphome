@@ -1086,6 +1086,12 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string);
 size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len);
 
+void base85_encode_int32(int32_t value, char *output);
+std::string base85_encode_int32(int32_t value);
+
+bool base85_decode_int32(const char *input, int32_t &out);
+bool base85_decode_int32_vector(const std::string &base85, std::vector<int32_t> &out);
+
 ///@}
 
 /// @name Colors
