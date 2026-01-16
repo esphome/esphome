@@ -54,6 +54,7 @@ from .const import (  # noqa
     KEY_COMPONENTS,
     KEY_ESP32,
     KEY_EXTRA_BUILD_FILES,
+    KEY_FLASH_SIZE,
     KEY_PATH,
     KEY_REF,
     KEY_REPO,
@@ -200,6 +201,7 @@ def set_core_data(config):
     )
 
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
+    CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = config[CONF_FLASH_SIZE]
     CORE.data[KEY_ESP32][KEY_VARIANT] = variant
     CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES] = {}
 
@@ -983,14 +985,12 @@ async def to_code(config):
     cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[variant])
     cg.add_define(ThreadModel.MULTI_ATOMICS)
 
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    conf = config[CONF_FRAMEWORK]
+
     if use_platformio:
         cg.add_platformio_option("lib_ldf_mode", "off")
         cg.add_platformio_option("lib_compat_mode", "strict")
-
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-
-    conf = config[CONF_FRAMEWORK]
-    if use_platformio:
         cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
         if CONF_SOURCE in conf:
             cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
@@ -998,18 +998,17 @@ async def to_code(config):
     if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
         cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
 
-    # Clear IDF environment variables to avoid conflicts with PlatformIO's ESP-IDF
-    # but keep them when using --no-platformio for native ESP-IDF builds
-    if use_platformio:
-        for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
-            os.environ.pop(clean_var, None)
-
     # Set the location of the IDF component manager cache
     os.environ["IDF_COMPONENT_CACHE_PATH"] = str(
         CORE.relative_internal_path(".espressif")
     )
 
     if use_platformio:
+        # Clear IDF environment variables to avoid conflicts with PlatformIO's ESP-IDF
+        # but keep them when using --no-platformio for native ESP-IDF builds
+        for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
+            os.environ.pop(clean_var, None)
+
         add_extra_script(
             "pre",
             "pre_build.py",
@@ -1033,40 +1032,39 @@ async def to_code(config):
             )
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
-        if use_platformio:
-            cg.add_platformio_option("framework", "espidf")
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
-    else:
         if use_platformio:
-            cg.add_platformio_option("framework", "arduino, espidf")
+            cg.add_platformio_option("framework", "espidf")
+    else:
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
+        if use_platformio:
+            cg.add_platformio_option("framework", "arduino, espidf")
+
+            # Add IDF framework source for Arduino builds to ensure it uses the same version as
+            # the ESP-IDF framework
+            if (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
+                cg.add_platformio_option(
+                    "platform_packages",
+                    [_format_framework_espidf_version(idf_ver, None)],
+                )
+
+            # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
+            if get_esp32_variant() == VARIANT_ESP32S2:
+                cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=1")
+                cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=0")
+                cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=0")
+
         cg.add_define(
             "USE_ARDUINO_VERSION_CODE",
             cg.RawExpression(
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
         )
+
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
-
-        # Add IDF framework source for Arduino builds to ensure it uses the same version as
-        # the ESP-IDF framework
-        if (
-            use_platformio
-            and (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None
-        ):
-            cg.add_platformio_option(
-                "platform_packages",
-                [_format_framework_espidf_version(idf_ver, None)],
-            )
-
-        # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
-        if get_esp32_variant() == VARIANT_ESP32S2:
-            cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=1")
-            cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=0")
-            cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=0")
 
     cg.add_build_flag("-Wno-nonnull-compare")
 
@@ -1380,19 +1378,16 @@ def copy_files():
     _write_idf_component_yml()
 
     if "partitions.csv" not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
+        flash_size = CORE.data[KEY_ESP32][KEY_FLASH_SIZE]
         if CORE.using_arduino:
             write_file_if_changed(
                 CORE.relative_build_path("partitions.csv"),
-                get_arduino_partition_csv(
-                    CORE.platformio_options.get("board_upload.flash_size")
-                ),
+                get_arduino_partition_csv(flash_size),
             )
         else:
             write_file_if_changed(
                 CORE.relative_build_path("partitions.csv"),
-                get_idf_partition_csv(
-                    CORE.platformio_options.get("board_upload.flash_size")
-                ),
+                get_idf_partition_csv(flash_size),
             )
     # IDF build scripts look for version string to put in the build.
     # However, if the build path does not have an initialized git repo,
