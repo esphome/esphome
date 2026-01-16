@@ -80,6 +80,21 @@ class StringRef {
 
   operator std::string() const { return str(); }
 
+  // compare() methods for std::string API compatibility
+  int compare(const StringRef &other) const {
+    size_t min_len = len_ < other.len_ ? len_ : other.len_;
+    int result = std::memcmp(base_, other.base_, min_len);
+    if (result != 0)
+      return result;
+    if (len_ < other.len_)
+      return -1;
+    if (len_ > other.len_)
+      return 1;
+    return 0;
+  }
+  int compare(const std::string &other) const { return compare(StringRef(other)); }
+  int compare(const char *other) const { return compare(StringRef(other)); }
+
  private:
   const char *base_;
   size_type len_;

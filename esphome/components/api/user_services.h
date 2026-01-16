@@ -32,6 +32,9 @@ class UserServiceDescriptor {
 
 template<typename T> T get_execute_arg_value(const ExecuteServiceArgument &arg);
 
+// Specialization declarations for explicit template instantiation
+template<> const StringRef &get_execute_arg_value<const StringRef &>(const ExecuteServiceArgument &arg);
+
 template<typename T> enums::ServiceArgType to_service_arg_type();
 
 // Base class for YAML-defined services (most common case)

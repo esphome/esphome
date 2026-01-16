@@ -57,8 +57,14 @@ def maybe_conf(conf, *validators):
     return validate
 
 
-def register_action(name: str, action_type: MockObjClass, schema: cv.Schema):
-    return ACTION_REGISTRY.register(name, action_type, schema)
+def register_action(
+    name: str,
+    action_type: MockObjClass,
+    schema: cv.Schema,
+    *,
+    is_async: bool = False,
+):
+    return ACTION_REGISTRY.register(name, action_type, schema, is_async=is_async)
 
 
 def register_condition(name: str, condition_type: MockObjClass, schema: cv.Schema):
@@ -81,6 +87,36 @@ def validate_potentially_and_condition(value):
         with cv.remove_prepend_path(["and"]):
             return validate_condition({"and": value})
     return validate_condition(value)
+
+
+def automation_is_synchronous(action_configs: list[ConfigType]) -> bool:
+    """Check if an automation action list runs fully synchronously.
+
+    Returns False if any action in the chain (including nested actions)
+    is async (e.g., delay, wait_until). Used to determine if StringRef
+    arguments are safe (synchronous) or need copying to std::string (async).
+    """
+    if not action_configs:
+        return True
+
+    for action_config in action_configs:
+        # Extract action type (first key in the config dict)
+        action_type = next(iter(action_config.keys()))
+
+        # Check if this action is async
+        registry_entry = ACTION_REGISTRY.get(action_type)
+        if registry_entry and registry_entry.is_async:
+            return False
+
+        # Recursively check nested action lists
+        config = action_config[action_type]
+        if isinstance(config, dict):
+            for nested_key in (CONF_THEN, CONF_ELSE):
+                nested_actions = config.get(nested_key)
+                if nested_actions and not automation_is_synchronous(nested_actions):
+                    return False
+
+    return True
 
 
 def validate_potentially_or_condition(value):
@@ -335,7 +371,10 @@ async def component_is_idle_condition_to_code(
 
 
 @register_action(
-    "delay", DelayAction, cv.templatable(cv.positive_time_period_milliseconds)
+    "delay",
+    DelayAction,
+    cv.templatable(cv.positive_time_period_milliseconds),
+    is_async=True,
 )
 async def delay_action_to_code(
     config: ConfigType,
@@ -445,7 +484,7 @@ _validate_wait_until = cv.maybe_simple_value(
 )
 
 
-@register_action("wait_until", WaitUntilAction, _validate_wait_until)
+@register_action("wait_until", WaitUntilAction, _validate_wait_until, is_async=True)
 async def wait_until_action_to_code(
     config: ConfigType,
     action_id: ID,

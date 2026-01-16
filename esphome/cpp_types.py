@@ -23,6 +23,7 @@ size_t = global_ns.namespace("size_t")
 const_char_ptr = global_ns.namespace("const char *")
 NAN = global_ns.namespace("NAN")
 esphome_ns = global_ns  # using namespace esphome;
+StringRef = esphome_ns.class_("StringRef")
 FixedVector = esphome_ns.class_("FixedVector")
 App = esphome_ns.App
 EntityBase = esphome_ns.class_("EntityBase")

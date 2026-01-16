@@ -381,8 +381,15 @@ async def to_code(config: ConfigType) -> None:
                     func_args.append((cg.bool_, "return_response"))
 
             service_arg_names: list[str] = []
+            # Check if automation is synchronous to enable zero-copy StringRef for strings
+            is_sync = automation.automation_is_synchronous(conf[CONF_THEN])
             for name, var_ in conf[CONF_VARIABLES].items():
-                native = SERVICE_ARG_NATIVE_TYPES[var_]
+                # For string args in synchronous automations, use StringRef (zero-copy)
+                # For async automations, use std::string (safe copy)
+                if var_ == "string" and is_sync:
+                    native = cg.StringRef.operator("const").operator("ref")
+                else:
+                    native = SERVICE_ARG_NATIVE_TYPES[var_]
                 service_template_args.append(native)
                 func_args.append((native, name))
                 service_arg_names.append(name)
