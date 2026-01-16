@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INDEX,
+    CONF_LAMBDA,
     CONF_MODE,
     CONF_MQTT_ID,
     CONF_ON_VALUE,
@@ -175,21 +176,16 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
     SelectIsCondition,
     OPERATION_BASE_SCHEMA.extend(
         {
-            cv.Required(CONF_OPTIONS): cv.templatable(
-                cv.ensure_list(cv.string_strict, cv.Length(min=1))
+            cv.Optional(CONF_OPTIONS): cv.All(
+                cv.ensure_list(cv.string_strict), cv.Length(min=1)
             ),
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
         }
-    ),
+    ).add_extra(cv.has_exactly_one_key(CONF_OPTIONS, CONF_LAMBDA)),
 )
 async def select_is_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    options = config[CONF_OPTIONS]
-
-    if cg.is_template(options):
-        # Single templatable option
-        arg = await cg.templatable(options, args, cg.std_vector.template(cg.std_string))
-        template_arg = TemplateArguments(0, *template_arg)
-    else:
+    if options := config.get(CONF_OPTIONS):
         # List of constant options
         # Create a constexpr and pass that with a template length
         arr_id = ID(
@@ -199,6 +195,14 @@ async def select_is_to_code(config, condition_id, template_arg, args):
         )
         arg = cg.static_const_array(arr_id, cg.ArrayInitializer(*options))
         template_arg = TemplateArguments(len(options), *template_arg)
+    else:
+        # Lambda
+        arg = await cg.process_lambda(
+            config[CONF_LAMBDA],
+            [(global_ns.namespace("StringRef &").operator("const"), "current")] + args,
+            return_type=cg.bool_,
+        )
+        template_arg = TemplateArguments(0, *template_arg)
     return cg.new_Pvariable(condition_id, template_arg, paren, arg)
 
 

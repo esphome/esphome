@@ -63,7 +63,7 @@ binary_sensor:
             options: [one, two]
         - select.is:
             id: template_select
-            options: !lambda return {id(template_text).state};
+            lambda: return current == id(template_text).state;
   - platform: template
     id: other_binary_sensor
     name: "Garage Door Closed"
