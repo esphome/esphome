@@ -628,11 +628,9 @@ inline void base85_encode_int32(int32_t value, char *output) {
   }
 }
 
-inline std::string base85_encode_int32(int32_t value) {
-  char buf[6];
-  base85_encode_int32(value, buf);
-  buf[5] = '\0';
-  return std::string(buf, 5);
+inline void base85_encode_int32(int32_t value, std::span<char, BASE85_INT32_ENCODED_SIZE> output) {
+  base85_encode_int32(value, output.data());
+  output[5] = '\0';
 }
 
 /// Decode 5 base85 characters to int32
