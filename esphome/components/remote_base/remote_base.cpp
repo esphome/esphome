@@ -159,41 +159,7 @@ void RemoteTransmitData::set_data_from_packed_sint32(const uint8_t *data, size_t
 }
 
 bool RemoteTransmitData::set_data_from_base64url(const std::string &base64url) {
-  // Decode in chunks to avoid large stack buffers.
-  // 48 bytes = 12 timings per chunk, requires 64 base64 chars.
-  // Uses base64_decode which handles both +/ and -_ variants.
-  this->data_.clear();
-
-  constexpr size_t chunk_bytes = 48;  // 12 timings worth
-  constexpr size_t chunk_chars = 64;  // 48 * 4/3 = 64 chars
-  uint8_t chunk[chunk_bytes];
-
-  const uint8_t *input = reinterpret_cast<const uint8_t *>(base64url.data());
-  size_t remaining = base64url.size();
-  size_t pos = 0;
-
-  while (remaining > 0) {
-    size_t chars_to_decode = std::min(remaining, chunk_chars);
-    size_t decoded_len = base64_decode(input + pos, chars_to_decode, chunk, chunk_bytes);
-
-    if (decoded_len == 0)
-      return false;
-
-    // Parse little-endian int32 values
-    for (size_t i = 0; i + 3 < decoded_len; i += 4) {
-      int32_t timing = static_cast<int32_t>(encode_uint32(chunk[i + 3], chunk[i + 2], chunk[i + 1], chunk[i]));
-      this->data_.push_back(timing);
-    }
-
-    // Check for incomplete timing in last chunk
-    if (remaining <= chunk_chars && (decoded_len % 4) != 0)
-      return false;
-
-    pos += chars_to_decode;
-    remaining -= chars_to_decode;
-  }
-
-  return !this->data_.empty();
+  return base64_decode_int32_vector(base64url, this->data_);
 }
 
 /* RemoteTransmitterBase */
