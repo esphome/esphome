@@ -622,7 +622,7 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
 inline void base85_encode_int32(int32_t value, std::span<char, BASE85_INT32_ENCODED_SIZE> output) {
   uint32_t v = static_cast<uint32_t>(value);
   // Encode least significant digit first, then reverse
-  for (uint8_t i = 4; i >= 0; i--) {
+  for (int i = 4; i >= 0; i--) {
     output[i] = static_cast<char>('!' + (v % 85));
     v /= 85;
   }
