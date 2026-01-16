@@ -86,8 +86,8 @@ struct MessageHeader {
   std::string print() {
     // 64 bytes: "MessageHeader: seq " + uint16 + ", len " + uint32 + ", type " + type + safety margin
     char buf[64];
-    snprintf(buf, sizeof(buf), "MessageHeader: seq %d, len %d, type %s", this->seq, this->len,
-             message_type_to_str(this->type));
+    buf_append_printf(buf, sizeof(buf), 0, "MessageHeader: seq %d, len %d, type %s", this->seq, this->len,
+                      message_type_to_str(this->type));
     return buf;
   }
 
@@ -179,7 +179,7 @@ struct StatusReply {
   std::string print() {
     // 48 bytes: "StatusReply: state " (19) + state (11) + safety margin
     char buf[48];
-    snprintf(buf, sizeof(buf), "StatusReply: state %s", gate_status_to_str(this->state));
+    buf_append_printf(buf, sizeof(buf), 0, "StatusReply: state %s", gate_status_to_str(this->state));
     return buf;
   }
 
@@ -216,7 +216,7 @@ struct CommandRequestReply {
   std::string print() {
     // 56 bytes: "CommandRequestReply: state " (27) + state (11) + safety margin
     char buf[56];
-    snprintf(buf, sizeof(buf), "CommandRequestReply: state %s", gate_status_to_str(this->state));
+    buf_append_printf(buf, sizeof(buf), 0, "CommandRequestReply: state %s", gate_status_to_str(this->state));
     return buf;
   }
 
