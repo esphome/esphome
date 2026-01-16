@@ -175,7 +175,7 @@ void PrometheusHandler::handle_failed_metric_(AsyncResponseStream *stream, const
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  stream->print(relabel_name_(obj));
+  stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\"} "));
   stream->print(value);
   stream->print(ESPHOME_F("\n"));
