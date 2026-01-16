@@ -8,14 +8,13 @@
 #ifdef USE_LIGHT
 
 #include "esphome/components/light/light_json_schema.h"
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.light";
 
 using namespace esphome::light;
 
-std::string MQTTJSONLightComponent::component_type() const { return "light"; }
+MQTT_COMPONENT_TYPE(MQTTJSONLightComponent, "light")
 const EntityBase *MQTTJSONLightComponent::get_entity() const { return this->state_; }
 
 void MQTTJSONLightComponent::setup() {
@@ -44,33 +43,33 @@ LightState *MQTTJSONLightComponent::get_state() const { return this->state_; }
 
 void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  root["schema"] = "json";
+  root[ESPHOME_F("schema")] = ESPHOME_F("json");
   auto traits = this->state_->get_traits();
 
   root[MQTT_COLOR_MODE] = true;
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  JsonArray color_modes = root["supported_color_modes"].to<JsonArray>();
+  JsonArray color_modes = root[ESPHOME_F("supported_color_modes")].to<JsonArray>();
   if (traits.supports_color_mode(ColorMode::ON_OFF))
-    color_modes.add("onoff");
+    color_modes.add(ESPHOME_F("onoff"));
   if (traits.supports_color_mode(ColorMode::BRIGHTNESS))
-    color_modes.add("brightness");
+    color_modes.add(ESPHOME_F("brightness"));
   if (traits.supports_color_mode(ColorMode::WHITE))
-    color_modes.add("white");
+    color_modes.add(ESPHOME_F("white"));
   if (traits.supports_color_mode(ColorMode::COLOR_TEMPERATURE) ||
       traits.supports_color_mode(ColorMode::COLD_WARM_WHITE))
-    color_modes.add("color_temp");
+    color_modes.add(ESPHOME_F("color_temp"));
   if (traits.supports_color_mode(ColorMode::RGB))
-    color_modes.add("rgb");
+    color_modes.add(ESPHOME_F("rgb"));
   if (traits.supports_color_mode(ColorMode::RGB_WHITE) ||
       // HA doesn't support RGBCT, and there's no CWWW->CT emulation in ESPHome yet, so ignore CT control for now
       traits.supports_color_mode(ColorMode::RGB_COLOR_TEMPERATURE))
-    color_modes.add("rgbw");
+    color_modes.add(ESPHOME_F("rgbw"));
   if (traits.supports_color_mode(ColorMode::RGB_COLD_WARM_WHITE))
-    color_modes.add("rgbww");
+    color_modes.add(ESPHOME_F("rgbww"));
 
   // legacy API
   if (traits.supports_color_capability(ColorCapability::BRIGHTNESS))
-    root["brightness"] = true;
+    root[ESPHOME_F("brightness")] = true;
 
   if (traits.supports_color_mode(ColorMode::COLOR_TEMPERATURE) ||
       traits.supports_color_mode(ColorMode::COLD_WARM_WHITE)) {
@@ -79,11 +78,13 @@ void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
   }
 
   if (this->state_->supports_effects()) {
-    root["effect"] = true;
+    root[ESPHOME_F("effect")] = true;
     JsonArray effect_list = root[MQTT_EFFECT_LIST].to<JsonArray>();
-    for (auto *effect : this->state_->get_effects())
-      effect_list.add(effect->get_name());
-    effect_list.add("None");
+    for (auto *effect : this->state_->get_effects()) {
+      // c_str() is safe as effect names are null-terminated strings from codegen
+      effect_list.add(effect->get_name().c_str());
+    }
+    effect_list.add(ESPHOME_F("None"));
   }
 }
 bool MQTTJSONLightComponent::send_initial_state() { return this->publish_state_(); }
@@ -92,8 +93,7 @@ void MQTTJSONLightComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, true)
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

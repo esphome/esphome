@@ -1,6 +1,7 @@
 #include "web_server.h"
 #ifdef USE_WEBSERVER
 #include "esphome/components/json/json_util.h"
+#include "esphome/core/progmem.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
@@ -28,6 +29,10 @@
 #include "esphome/components/climate/climate.h"
 #endif
 
+#ifdef USE_WATER_HEATER
+#include "esphome/components/water_heater/water_heater.h"
+#endif
+
 #ifdef USE_WEBSERVER_LOCAL
 #if USE_WEBSERVER_VERSION == 2
 #include "server_index_v2.h"
@@ -45,60 +50,142 @@ static constexpr size_t PSTR_LOCAL_SIZE = 18;
 #define PSTR_LOCAL(mode_s) ESPHOME_strncpy_P(buf, (ESPHOME_PGM_P) ((mode_s)), PSTR_LOCAL_SIZE - 1)
 
 // Parse URL and return match info
-static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain) {
-  UrlMatch match{};
+// URL formats (disambiguated by HTTP method for 3-segment case):
+//   GET  /{domain}/{entity_name} - main device state
+//   POST /{domain}/{entity_name}/{action} - main device action
+//   GET  /{domain}/{device_name}/{entity_name} - sub-device state (USE_DEVICES only)
+//   POST /{domain}/{device_name}/{entity_name}/{action} - sub-device action (USE_DEVICES only)
+static UrlMatch match_url(const char *url_ptr, size_t url_len, bool only_domain, bool is_post = false) {
+  // URL must start with '/' and have content after it
+  if (url_len < 2 || url_ptr[0] != '/')
+    return UrlMatch{};
 
-  // URL must start with '/'
-  if (url_len < 2 || url_ptr[0] != '/') {
-    return match;
-  }
-
-  // Skip leading '/'
-  const char *start = url_ptr + 1;
+  const char *p = url_ptr + 1;
   const char *end = url_ptr + url_len;
 
-  // Find domain (everything up to next '/' or end)
-  const char *domain_end = (const char *) memchr(start, '/', end - start);
-  if (!domain_end) {
-    // No second slash found - original behavior returns invalid
-    return match;
-  }
+  // Helper to find next segment: returns pointer after '/' or nullptr if no more slashes
+  auto next_segment = [&end](const char *start) -> const char * {
+    const char *slash = (const char *) memchr(start, '/', end - start);
+    return slash ? slash + 1 : nullptr;
+  };
 
-  // Set domain
-  match.domain = start;
-  match.domain_len = domain_end - start;
+  // Helper to make StringRef from segment start to next segment (or end)
+  auto make_ref = [&end](const char *start, const char *next_start) -> StringRef {
+    return StringRef(start, (next_start ? next_start - 1 : end) - start);
+  };
+
+  // Parse domain segment
+  const char *s1 = p;
+  const char *s2 = next_segment(s1);
+
+  // Must have domain with trailing slash
+  if (!s2)
+    return UrlMatch{};
+
+  UrlMatch match{};
+  match.domain = make_ref(s1, s2);
   match.valid = true;
 
-  if (only_domain) {
+  if (only_domain || s2 >= end)
     return match;
-  }
 
-  // Parse ID if present
-  if (domain_end + 1 >= end) {
-    return match;  // Nothing after domain slash
-  }
+  // Parse remaining segments only when needed
+  const char *s3 = next_segment(s2);
+  const char *s4 = s3 ? next_segment(s3) : nullptr;
 
-  const char *id_start = domain_end + 1;
-  const char *id_end = (const char *) memchr(id_start, '/', end - id_start);
+  StringRef seg2 = make_ref(s2, s3);
+  StringRef seg3 = s3 ? make_ref(s3, s4) : StringRef();
+  StringRef seg4 = s4 ? make_ref(s4, nullptr) : StringRef();
 
-  if (!id_end) {
-    // No more slashes, entire remaining string is ID
-    match.id = id_start;
-    match.id_len = end - id_start;
-    return match;
-  }
+  // Reject empty segments
+  if (seg2.empty() || (s3 && seg3.empty()) || (s4 && seg4.empty()))
+    return UrlMatch{};
 
-  // Set ID
-  match.id = id_start;
-  match.id_len = id_end - id_start;
-
-  // Parse method if present
-  if (id_end + 1 < end) {
-    match.method = id_end + 1;
-    match.method_len = end - (id_end + 1);
+  // Interpret based on segment count
+  if (!s3) {
+    // 1 segment after domain: /{domain}/{entity}
+    match.id = seg2;
+  } else if (!s4) {
+    // 2 segments after domain: /{domain}/{X}/{Y}
+    // HTTP method disambiguates: GET = device/entity, POST = entity/action
+    if (is_post) {
+      match.id = seg2;
+      match.method = seg3;
+      return match;
+    }
+#ifdef USE_DEVICES
+    match.device_name = seg2;
+    match.id = seg3;
+#else
+    return UrlMatch{};  // 3-segment GET not supported without USE_DEVICES
+#endif
+  } else {
+    // 3 segments after domain: /{domain}/{device}/{entity}/{action}
+#ifdef USE_DEVICES
+    if (!is_post) {
+      return UrlMatch{};  // 4-segment GET not supported (action requires POST)
+    }
+    match.device_name = seg2;
+    match.id = seg3;
+    match.method = seg4;
+#else
+    return UrlMatch{};  // Not supported without USE_DEVICES
+#endif
   }
 
   return match;
+}
+
+EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
+  EntityMatchResult result{false, this->method.empty()};
+
+#ifdef USE_DEVICES
+  Device *entity_device = entity->get_device();
+  bool url_has_device = !this->device_name.empty();
+  bool entity_has_device = (entity_device != nullptr);
+
+  // Device matching: URL device segment must match entity's device
+  if (url_has_device != entity_has_device) {
+    return result;  // Mismatch: one has device, other doesn't
+  }
+  if (url_has_device && this->device_name != entity_device->get_name()) {
+    return result;  // Device name doesn't match
+  }
+#endif
+
+  // Try matching by entity name (new format)
+  if (this->id == entity->get_name()) {
+    result.matched = true;
+    return result;
+  }
+
+  // Fall back to object_id (deprecated format)
+  char object_id_buf[OBJECT_ID_MAX_LEN];
+  StringRef object_id = entity->get_object_id_to(object_id_buf);
+  if (this->id == object_id) {
+    result.matched = true;
+    // Log deprecation warning
+#ifdef USE_DEVICES
+    Device *device = entity->get_device();
+    if (device != nullptr) {
+      ESP_LOGW(TAG,
+               "Deprecated URL format: /%.*s/%.*s/%.*s - use entity name '/%.*s/%s/%s' instead. "
+               "Object ID URLs will be removed in 2026.7.0.",
+               (int) this->domain.size(), this->domain.c_str(), (int) this->device_name.size(),
+               this->device_name.c_str(), (int) this->id.size(), this->id.c_str(), (int) this->domain.size(),
+               this->domain.c_str(), device->get_name(), entity->get_name().c_str());
+    } else
+#endif
+    {
+      ESP_LOGW(TAG,
+               "Deprecated URL format: /%.*s/%.*s - use entity name '/%.*s/%s' instead. "
+               "Object ID URLs will be removed in 2026.7.0.",
+               (int) this->domain.size(), this->domain.c_str(), (int) this->id.size(), this->id.c_str(),
+               (int) this->domain.size(), this->domain.c_str(), entity->get_name().c_str());
+    }
+  }
+
+  return result;
 }
 
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
@@ -340,7 +427,11 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #else
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
 #endif
+#ifdef USE_WEBSERVER_GZIP
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
+#else
+  response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("br"));
+#endif
   request->send(response);
 }
 #elif USE_WEBSERVER_VERSION >= 2
@@ -397,15 +488,55 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 #endif
 
 // Helper functions to reduce code size by avoiding macro expansion
+// Build unique id as: {domain}/{device_name}/{entity_name} or {domain}/{entity_name}
+// Uses names (not object_id) to avoid UTF-8 collision issues
 static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, JsonDetail start_config) {
-  char id_buf[160];  // prefix + dash + object_id (up to 128) + null
-  size_t len = strlen(prefix);
-  memcpy(id_buf, prefix, len);  // NOLINT(bugprone-not-null-terminated-result) - null added by write_object_id_to
-  id_buf[len++] = '-';
-  obj->write_object_id_to(id_buf + len, sizeof(id_buf) - len);
+  const StringRef &name = obj->get_name();
+  size_t prefix_len = strlen(prefix);
+  size_t name_len = name.size();
+
+#ifdef USE_DEVICES
+  Device *device = obj->get_device();
+  const char *device_name = device ? device->get_name() : nullptr;
+  size_t device_len = device_name ? strlen(device_name) : 0;
+#endif
+
+  // Build id into stack buffer - ArduinoJson copies the string
+  // Format: {prefix}/{device?}/{name}
+  // Buffer sizes use constants from entity_base.h validated in core/config.py
+  // Note: Device name uses ESPHOME_FRIENDLY_NAME_MAX_LEN (sub-device max 120), not ESPHOME_DEVICE_NAME_MAX_LEN
+  // (hostname)
+#ifdef USE_DEVICES
+  static constexpr size_t ID_BUF_SIZE =
+      ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
+#else
+  static constexpr size_t ID_BUF_SIZE = ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
+#endif
+  char id_buf[ID_BUF_SIZE];
+  char *p = id_buf;
+  memcpy(p, prefix, prefix_len);
+  p += prefix_len;
+  *p++ = '/';
+#ifdef USE_DEVICES
+  if (device_name) {
+    memcpy(p, device_name, device_len);
+    p += device_len;
+    *p++ = '/';
+  }
+#endif
+  memcpy(p, name.c_str(), name_len);
+  p[name_len] = '\0';
+
   root[ESPHOME_F("id")] = id_buf;
+
   if (start_config == DETAIL_ALL) {
-    root[ESPHOME_F("name")] = obj->get_name();
+    root[ESPHOME_F("domain")] = prefix;
+    root[ESPHOME_F("name")] = name;
+#ifdef USE_DEVICES
+    if (device_name) {
+      root[ESPHOME_F("device")] = device_name;
+    }
+#endif
     root[ESPHOME_F("icon")] = obj->get_icon_ref();
     root[ESPHOME_F("entity_category")] = obj->get_entity_category();
     bool is_disabled = obj->is_disabled_by_default();
@@ -432,7 +563,7 @@ static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const c
 
 // Helper to get request detail parameter
 static JsonDetail get_request_detail(AsyncWebServerRequest *request) {
-  auto *param = request->getParam("detail");
+  auto *param = request->getParam(ESPHOME_F("detail"));
   return (param && param->value() == "all") ? DETAIL_ALL : DETAIL_STATE;
 }
 
@@ -444,10 +575,11 @@ void WebServer::on_sensor_update(sensor::Sensor *obj) {
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
     // Note: request->method() is always HTTP_GET here (canHandle ensures this)
-    if (match.method_empty()) {
+    if (entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->sensor_json_(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
@@ -490,10 +622,11 @@ void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj) {
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
     // Note: request->method() is always HTTP_GET here (canHandle ensures this)
-    if (match.method_empty()) {
+    if (entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->text_sensor_json_(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
@@ -532,10 +665,11 @@ void WebServer::on_switch_update(switch_::Switch *obj) {
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
 
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->switch_json_(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
@@ -546,11 +680,11 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
     enum SwitchAction { NONE, TOGGLE, TURN_ON, TURN_OFF };
     SwitchAction action = NONE;
 
-    if (match.method_equals("toggle")) {
+    if (match.method_equals(ESPHOME_F("toggle"))) {
       action = TOGGLE;
-    } else if (match.method_equals("turn_on")) {
+    } else if (match.method_equals(ESPHOME_F("turn_on"))) {
       action = TURN_ON;
-    } else if (match.method_equals("turn_off")) {
+    } else if (match.method_equals(ESPHOME_F("turn_off"))) {
       action = TURN_OFF;
     }
 
@@ -601,13 +735,14 @@ std::string WebServer::switch_json_(switch_::Switch *obj, bool value, JsonDetail
 #ifdef USE_BUTTON
 void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (button::Button *obj : App.get_buttons()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->button_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
-    } else if (match.method_equals("press")) {
+    } else if (match.method_equals(ESPHOME_F("press"))) {
       this->defer([obj]() { obj->press(); });
       request->send(200);
       return;
@@ -617,9 +752,6 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
     return;
   }
   request->send(404);
-}
-std::string WebServer::button_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->button_json_((button::Button *) (source), DETAIL_STATE);
 }
 std::string WebServer::button_all_json_generator(WebServer *web_server, void *source) {
   return web_server->button_json_((button::Button *) (source), DETAIL_ALL);
@@ -645,10 +777,11 @@ void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj) {
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
     // Note: request->method() is always HTTP_GET here (canHandle ensures this)
-    if (match.method_empty()) {
+    if (entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->binary_sensor_json_(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
@@ -686,29 +819,30 @@ void WebServer::on_fan_update(fan::Fan *obj) {
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (fan::Fan *obj : App.get_fans()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
 
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->fan_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
-    } else if (match.method_equals("toggle")) {
+    } else if (match.method_equals(ESPHOME_F("toggle"))) {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
     } else {
-      bool is_on = match.method_equals("turn_on");
-      bool is_off = match.method_equals("turn_off");
+      bool is_on = match.method_equals(ESPHOME_F("turn_on"));
+      bool is_off = match.method_equals(ESPHOME_F("turn_off"));
       if (!is_on && !is_off) {
         request->send(404);
         return;
       }
       auto call = is_on ? obj->turn_on() : obj->turn_off();
 
-      parse_int_param_(request, "speed_level", call, &decltype(call)::set_speed);
+      parse_int_param_(request, ESPHOME_F("speed_level"), call, &decltype(call)::set_speed);
 
-      if (request->hasParam("oscillation")) {
-        auto speed = request->getParam("oscillation")->value();
+      if (request->hasParam(ESPHOME_F("oscillation"))) {
+        auto speed = request->getParam(ESPHOME_F("oscillation"))->value();
         auto val = parse_on_off(speed.c_str());
         switch (val) {
           case PARSE_ON:
@@ -766,19 +900,20 @@ void WebServer::on_light_update(light::LightState *obj) {
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
 
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->light_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
-    } else if (match.method_equals("toggle")) {
+    } else if (match.method_equals(ESPHOME_F("toggle"))) {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
     } else {
-      bool is_on = match.method_equals("turn_on");
-      bool is_off = match.method_equals("turn_off");
+      bool is_on = match.method_equals(ESPHOME_F("turn_on"));
+      bool is_off = match.method_equals(ESPHOME_F("turn_off"));
       if (!is_on && !is_off) {
         request->send(404);
         return;
@@ -787,20 +922,20 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
 
       if (is_on) {
         // Parse color parameters
-        parse_light_param_(request, "brightness", call, &decltype(call)::set_brightness, 255.0f);
-        parse_light_param_(request, "r", call, &decltype(call)::set_red, 255.0f);
-        parse_light_param_(request, "g", call, &decltype(call)::set_green, 255.0f);
-        parse_light_param_(request, "b", call, &decltype(call)::set_blue, 255.0f);
-        parse_light_param_(request, "white_value", call, &decltype(call)::set_white, 255.0f);
-        parse_light_param_(request, "color_temp", call, &decltype(call)::set_color_temperature);
+        parse_light_param_(request, ESPHOME_F("brightness"), call, &decltype(call)::set_brightness, 255.0f);
+        parse_light_param_(request, ESPHOME_F("r"), call, &decltype(call)::set_red, 255.0f);
+        parse_light_param_(request, ESPHOME_F("g"), call, &decltype(call)::set_green, 255.0f);
+        parse_light_param_(request, ESPHOME_F("b"), call, &decltype(call)::set_blue, 255.0f);
+        parse_light_param_(request, ESPHOME_F("white_value"), call, &decltype(call)::set_white, 255.0f);
+        parse_light_param_(request, ESPHOME_F("color_temp"), call, &decltype(call)::set_color_temperature);
 
         // Parse timing parameters
-        parse_light_param_uint_(request, "flash", call, &decltype(call)::set_flash_length, 1000);
+        parse_light_param_uint_(request, ESPHOME_F("flash"), call, &decltype(call)::set_flash_length, 1000);
       }
-      parse_light_param_uint_(request, "transition", call, &decltype(call)::set_transition_length, 1000);
+      parse_light_param_uint_(request, ESPHOME_F("transition"), call, &decltype(call)::set_transition_length, 1000);
 
       if (is_on) {
-        parse_string_param_(request, "effect", call, &decltype(call)::set_effect);
+        parse_string_param_(request, ESPHOME_F("effect"), call, &decltype(call)::set_effect);
       }
 
       this->defer([call]() mutable { call.perform(); });
@@ -844,10 +979,11 @@ void WebServer::on_cover_update(cover::Cover *obj) {
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
 
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->cover_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
@@ -876,20 +1012,20 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
       }
     }
 
-    if (!found && !match.method_equals("set")) {
+    if (!found && !match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto traits = obj->get_traits();
-    if ((request->hasParam("position") && !traits.get_supports_position()) ||
-        (request->hasParam("tilt") && !traits.get_supports_tilt())) {
+    if ((request->hasParam(ESPHOME_F("position")) && !traits.get_supports_position()) ||
+        (request->hasParam(ESPHOME_F("tilt")) && !traits.get_supports_tilt())) {
       request->send(409);
       return;
     }
 
-    parse_float_param_(request, "position", call, &decltype(call)::set_position);
-    parse_float_param_(request, "tilt", call, &decltype(call)::set_tilt);
+    parse_float_param_(request, ESPHOME_F("position"), call, &decltype(call)::set_position);
+    parse_float_param_(request, ESPHOME_F("tilt"), call, &decltype(call)::set_tilt);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -932,22 +1068,23 @@ void WebServer::on_number_update(number::Number *obj) {
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_numbers()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
 
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->number_json_(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto call = obj->make_call();
-    parse_float_param_(request, "value", call, &decltype(call)::set_value);
+    parse_float_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_value);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -999,27 +1136,28 @@ void WebServer::on_date_update(datetime::DateEntity *obj) {
 }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_dates()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->date_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto call = obj->make_call();
 
-    if (!request->hasParam("value")) {
+    if (!request->hasParam(ESPHOME_F("value"))) {
       request->send(409);
       return;
     }
 
-    parse_string_param_(request, "value", call, &decltype(call)::set_date);
+    parse_string_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_date);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -1062,27 +1200,28 @@ void WebServer::on_time_update(datetime::TimeEntity *obj) {
 }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_times()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->time_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto call = obj->make_call();
 
-    if (!request->hasParam("value")) {
+    if (!request->hasParam(ESPHOME_F("value"))) {
       request->send(409);
       return;
     }
 
-    parse_string_param_(request, "value", call, &decltype(call)::set_time);
+    parse_string_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_time);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -1124,27 +1263,28 @@ void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
 }
 void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_datetimes()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->datetime_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto call = obj->make_call();
 
-    if (!request->hasParam("value")) {
+    if (!request->hasParam(ESPHOME_F("value"))) {
       request->send(409);
       return;
     }
 
-    parse_string_param_(request, "value", call, &decltype(call)::set_datetime);
+    parse_string_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_datetime);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -1188,22 +1328,23 @@ void WebServer::on_text_update(text::Text *obj) {
 }
 void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_texts()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
 
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->text_json_(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto call = obj->make_call();
-    parse_string_param_(request, "value", call, &decltype(call)::set_value);
+    parse_string_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_value);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -1244,23 +1385,24 @@ void WebServer::on_select_update(select::Select *obj) {
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_selects()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
 
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
-      std::string data = this->select_json_(obj, obj->has_state() ? obj->current_option() : "", detail);
+      std::string data = this->select_json_(obj, obj->has_state() ? obj->current_option() : StringRef(), detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
 
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto call = obj->make_call();
-    parse_string_param_(request, "option", call, &decltype(call)::set_option);
+    parse_string_param_(request, ESPHOME_F("option"), call, &decltype(call)::set_option);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -1270,17 +1412,18 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
 }
 std::string WebServer::select_state_json_generator(WebServer *web_server, void *source) {
   auto *obj = (select::Select *) (source);
-  return web_server->select_json_(obj, obj->has_state() ? obj->current_option() : "", DETAIL_STATE);
+  return web_server->select_json_(obj, obj->has_state() ? obj->current_option() : StringRef(), DETAIL_STATE);
 }
 std::string WebServer::select_all_json_generator(WebServer *web_server, void *source) {
   auto *obj = (select::Select *) (source);
-  return web_server->select_json_(obj, obj->has_state() ? obj->current_option() : "", DETAIL_ALL);
+  return web_server->select_json_(obj, obj->has_state() ? obj->current_option() : StringRef(), DETAIL_ALL);
 }
-std::string WebServer::select_json_(select::Select *obj, const char *value, JsonDetail start_config) {
+std::string WebServer::select_json_(select::Select *obj, StringRef value, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "select", value, value, start_config);
+  // value points to null-terminated string literals from codegen (via current_option())
+  set_json_icon_state_value(root, obj, "select", value.c_str(), value.c_str(), start_config);
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root[ESPHOME_F("option")].to<JsonArray>();
     for (auto &option : obj->traits.get_options()) {
@@ -1301,17 +1444,18 @@ void WebServer::on_climate_update(climate::Climate *obj) {
 }
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_climates()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
 
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->climate_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
 
-    if (!match.method_equals("set")) {
+    if (!match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
@@ -1319,14 +1463,15 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     auto call = obj->make_call();
 
     // Parse string mode parameters
-    parse_string_param_(request, "mode", call, &decltype(call)::set_mode);
-    parse_string_param_(request, "fan_mode", call, &decltype(call)::set_fan_mode);
-    parse_string_param_(request, "swing_mode", call, &decltype(call)::set_swing_mode);
+    parse_string_param_(request, ESPHOME_F("mode"), call, &decltype(call)::set_mode);
+    parse_string_param_(request, ESPHOME_F("fan_mode"), call, &decltype(call)::set_fan_mode);
+    parse_string_param_(request, ESPHOME_F("swing_mode"), call, &decltype(call)::set_swing_mode);
 
     // Parse temperature parameters
-    parse_float_param_(request, "target_temperature_high", call, &decltype(call)::set_target_temperature_high);
-    parse_float_param_(request, "target_temperature_low", call, &decltype(call)::set_target_temperature_low);
-    parse_float_param_(request, "target_temperature", call, &decltype(call)::set_target_temperature);
+    parse_float_param_(request, ESPHOME_F("target_temperature_high"), call,
+                       &decltype(call)::set_target_temperature_high);
+    parse_float_param_(request, ESPHOME_F("target_temperature_low"), call, &decltype(call)::set_target_temperature_low);
+    parse_float_param_(request, ESPHOME_F("target_temperature"), call, &decltype(call)::set_target_temperature);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -1451,10 +1596,11 @@ void WebServer::on_lock_update(lock::Lock *obj) {
 }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (lock::Lock *obj : App.get_locks()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
 
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->lock_json_(obj, obj->state, detail);
       request->send(200, "application/json", data.c_str());
@@ -1465,11 +1611,11 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
     enum LockAction { NONE, LOCK, UNLOCK, OPEN };
     LockAction action = NONE;
 
-    if (match.method_equals("lock")) {
+    if (match.method_equals(ESPHOME_F("lock"))) {
       action = LOCK;
-    } else if (match.method_equals("unlock")) {
+    } else if (match.method_equals(ESPHOME_F("unlock"))) {
       action = UNLOCK;
-    } else if (match.method_equals("open")) {
+    } else if (match.method_equals(ESPHOME_F("open"))) {
       action = OPEN;
     }
 
@@ -1525,10 +1671,11 @@ void WebServer::on_valve_update(valve::Valve *obj) {
 }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (valve::Valve *obj : App.get_valves()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
 
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->valve_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
@@ -1557,18 +1704,18 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
       }
     }
 
-    if (!found && !match.method_equals("set")) {
+    if (!found && !match.method_equals(ESPHOME_F("set"))) {
       request->send(404);
       return;
     }
 
     auto traits = obj->get_traits();
-    if (request->hasParam("position") && !traits.get_supports_position()) {
+    if (request->hasParam(ESPHOME_F("position")) && !traits.get_supports_position()) {
       request->send(409);
       return;
     }
 
-    parse_float_param_(request, "position", call, &decltype(call)::set_position);
+    parse_float_param_(request, ESPHOME_F("position"), call, &decltype(call)::set_position);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -1609,10 +1756,11 @@ void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlP
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (alarm_control_panel::AlarmControlPanel *obj : App.get_alarm_control_panels()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
 
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->alarm_control_panel_json_(obj, obj->get_state(), detail);
       request->send(200, "application/json", data.c_str());
@@ -1620,7 +1768,7 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
     }
 
     auto call = obj->make_call();
-    parse_string_param_(request, "code", call, &decltype(call)::set_code);
+    parse_string_param_(request, ESPHOME_F("code"), call, &decltype(call)::set_code);
 
     // Lookup table for alarm control panel methods
     static const struct {
@@ -1681,6 +1829,117 @@ std::string WebServer::alarm_control_panel_json_(alarm_control_panel::AlarmContr
 }
 #endif
 
+#ifdef USE_WATER_HEATER
+void WebServer::on_water_heater_update(water_heater::WaterHeater *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
+  this->events_.deferrable_send_state(obj, "state", water_heater_state_json_generator);
+}
+void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (water_heater::WaterHeater *obj : App.get_water_heaters()) {
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
+      continue;
+
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
+      auto detail = get_request_detail(request);
+      std::string data = this->water_heater_json_(obj, detail);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+    if (!match.method_equals(ESPHOME_F("set"))) {
+      request->send(404);
+      return;
+    }
+    auto call = obj->make_call();
+    // Use base class reference for template deduction (make_call returns WaterHeaterCallInternal)
+    water_heater::WaterHeaterCall &base_call = call;
+
+    // Parse mode parameter
+    parse_string_param_(request, ESPHOME_F("mode"), base_call, &water_heater::WaterHeaterCall::set_mode);
+
+    // Parse temperature parameters
+    parse_float_param_(request, ESPHOME_F("target_temperature"), base_call,
+                       &water_heater::WaterHeaterCall::set_target_temperature);
+    parse_float_param_(request, ESPHOME_F("target_temperature_low"), base_call,
+                       &water_heater::WaterHeaterCall::set_target_temperature_low);
+    parse_float_param_(request, ESPHOME_F("target_temperature_high"), base_call,
+                       &water_heater::WaterHeaterCall::set_target_temperature_high);
+
+    // Parse away mode parameter
+    parse_bool_param_(request, ESPHOME_F("away"), base_call, &water_heater::WaterHeaterCall::set_away);
+
+    // Parse on/off parameter
+    parse_bool_param_(request, ESPHOME_F("is_on"), base_call, &water_heater::WaterHeaterCall::set_on);
+
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+std::string WebServer::water_heater_state_json_generator(WebServer *web_server, void *source) {
+  return web_server->water_heater_json_(static_cast<water_heater::WaterHeater *>(source), DETAIL_STATE);
+}
+std::string WebServer::water_heater_all_json_generator(WebServer *web_server, void *source) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  return web_server->water_heater_json_(static_cast<water_heater::WaterHeater *>(source), DETAIL_ALL);
+}
+std::string WebServer::water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config) {
+  json::JsonBuilder builder;
+  JsonObject root = builder.root();
+  char buf[PSTR_LOCAL_SIZE];
+
+  const auto mode = obj->get_mode();
+  const char *mode_s = PSTR_LOCAL(water_heater::water_heater_mode_to_string(mode));
+
+  set_json_icon_state_value(root, obj, "water_heater", mode_s, mode, start_config);
+
+  auto traits = obj->get_traits();
+
+  if (start_config == DETAIL_ALL) {
+    JsonArray modes = root[ESPHOME_F("modes")].to<JsonArray>();
+    for (auto m : traits.get_supported_modes())
+      modes.add(PSTR_LOCAL(water_heater::water_heater_mode_to_string(m)));
+    this->add_sorting_info_(root, obj);
+  }
+
+  if (traits.get_supports_current_temperature()) {
+    float current = obj->get_current_temperature();
+    if (!std::isnan(current))
+      root[ESPHOME_F("current_temperature")] = current;
+  }
+
+  if (traits.get_supports_two_point_target_temperature()) {
+    float low = obj->get_target_temperature_low();
+    float high = obj->get_target_temperature_high();
+    if (!std::isnan(low))
+      root[ESPHOME_F("target_temperature_low")] = low;
+    if (!std::isnan(high))
+      root[ESPHOME_F("target_temperature_high")] = high;
+  } else {
+    float target = obj->get_target_temperature();
+    if (!std::isnan(target))
+      root[ESPHOME_F("target_temperature")] = target;
+  }
+
+  root[ESPHOME_F("min_temperature")] = traits.get_min_temperature();
+  root[ESPHOME_F("max_temperature")] = traits.get_max_temperature();
+  root[ESPHOME_F("step")] = traits.get_target_temperature_step();
+
+  if (traits.get_supports_away_mode()) {
+    root[ESPHOME_F("away")] = obj->is_away();
+  }
+
+  if (traits.has_feature_flags(water_heater::WATER_HEATER_SUPPORTS_ON_OFF)) {
+    root[ESPHOME_F("is_on")] = obj->is_on();
+  }
+
+  return builder.serialize();
+}
+#endif
+
 #ifdef USE_EVENT
 void WebServer::on_event(event::Event *obj) {
   if (!this->include_internal_ && obj->is_internal())
@@ -1690,13 +1949,14 @@ void WebServer::on_event(event::Event *obj) {
 
 void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (event::Event *obj : App.get_events()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
 
     // Note: request->method() is always HTTP_GET here (canHandle ensures this)
-    if (match.method_empty()) {
+    if (entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
-      std::string data = this->event_json_(obj, "", detail);
+      std::string data = this->event_json_(obj, StringRef(), detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
@@ -1704,10 +1964,7 @@ void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMa
   request->send(404);
 }
 
-static std::string get_event_type(event::Event *event) {
-  const char *last_type = event ? event->get_last_event_type() : nullptr;
-  return last_type ? last_type : "";
-}
+static StringRef get_event_type(event::Event *event) { return event ? event->get_last_event_type() : StringRef(); }
 
 std::string WebServer::event_state_json_generator(WebServer *web_server, void *source) {
   auto *event = static_cast<event::Event *>(source);
@@ -1718,7 +1975,7 @@ std::string WebServer::event_all_json_generator(WebServer *web_server, void *sou
   auto *event = static_cast<event::Event *>(source);
   return web_server->event_json_(event, get_event_type(event), DETAIL_ALL);
 }
-std::string WebServer::event_json_(event::Event *obj, const std::string &event_type, JsonDetail start_config) {
+std::string WebServer::event_json_(event::Event *obj, StringRef event_type, JsonDetail start_config) {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -1759,17 +2016,18 @@ void WebServer::on_update(update::UpdateEntity *obj) {
 }
 void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (update::UpdateEntity *obj : App.get_updates()) {
-    if (!match.id_equals_entity(obj))
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
       continue;
 
-    if (request->method() == HTTP_GET && match.method_empty()) {
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
       auto detail = get_request_detail(request);
       std::string data = this->update_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
       return;
     }
 
-    if (!match.method_equals("install")) {
+    if (!match.method_equals(ESPHOME_F("install"))) {
       request->send(404);
       return;
     }
@@ -1915,6 +2173,9 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
 #ifdef USE_UPDATE
       "update",
 #endif
+#ifdef USE_WATER_HEATER
+      "water_heater",
+#endif
   };
 
   // Check GET-only domains
@@ -1973,105 +2234,111 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #endif
 
   // Parse URL for component routing
-  UrlMatch match = match_url(url.c_str(), url.length(), false);
+  // Pass HTTP method to disambiguate 3-segment URLs (GET=sub-device state, POST=main device action)
+  UrlMatch match = match_url(url.c_str(), url.length(), false, request->method() == HTTP_POST);
 
   // Route to appropriate handler based on domain
   // NOLINTNEXTLINE(readability-simplify-boolean-expr)
   if (false) {  // Start chain for else-if macro pattern
   }
 #ifdef USE_SENSOR
-  else if (match.domain_equals("sensor")) {
+  else if (match.domain_equals(ESPHOME_F("sensor"))) {
     this->handle_sensor_request(request, match);
   }
 #endif
 #ifdef USE_SWITCH
-  else if (match.domain_equals("switch")) {
+  else if (match.domain_equals(ESPHOME_F("switch"))) {
     this->handle_switch_request(request, match);
   }
 #endif
 #ifdef USE_BUTTON
-  else if (match.domain_equals("button")) {
+  else if (match.domain_equals(ESPHOME_F("button"))) {
     this->handle_button_request(request, match);
   }
 #endif
 #ifdef USE_BINARY_SENSOR
-  else if (match.domain_equals("binary_sensor")) {
+  else if (match.domain_equals(ESPHOME_F("binary_sensor"))) {
     this->handle_binary_sensor_request(request, match);
   }
 #endif
 #ifdef USE_FAN
-  else if (match.domain_equals("fan")) {
+  else if (match.domain_equals(ESPHOME_F("fan"))) {
     this->handle_fan_request(request, match);
   }
 #endif
 #ifdef USE_LIGHT
-  else if (match.domain_equals("light")) {
+  else if (match.domain_equals(ESPHOME_F("light"))) {
     this->handle_light_request(request, match);
   }
 #endif
 #ifdef USE_TEXT_SENSOR
-  else if (match.domain_equals("text_sensor")) {
+  else if (match.domain_equals(ESPHOME_F("text_sensor"))) {
     this->handle_text_sensor_request(request, match);
   }
 #endif
 #ifdef USE_COVER
-  else if (match.domain_equals("cover")) {
+  else if (match.domain_equals(ESPHOME_F("cover"))) {
     this->handle_cover_request(request, match);
   }
 #endif
 #ifdef USE_NUMBER
-  else if (match.domain_equals("number")) {
+  else if (match.domain_equals(ESPHOME_F("number"))) {
     this->handle_number_request(request, match);
   }
 #endif
 #ifdef USE_DATETIME_DATE
-  else if (match.domain_equals("date")) {
+  else if (match.domain_equals(ESPHOME_F("date"))) {
     this->handle_date_request(request, match);
   }
 #endif
 #ifdef USE_DATETIME_TIME
-  else if (match.domain_equals("time")) {
+  else if (match.domain_equals(ESPHOME_F("time"))) {
     this->handle_time_request(request, match);
   }
 #endif
 #ifdef USE_DATETIME_DATETIME
-  else if (match.domain_equals("datetime")) {
+  else if (match.domain_equals(ESPHOME_F("datetime"))) {
     this->handle_datetime_request(request, match);
   }
 #endif
 #ifdef USE_TEXT
-  else if (match.domain_equals("text")) {
+  else if (match.domain_equals(ESPHOME_F("text"))) {
     this->handle_text_request(request, match);
   }
 #endif
 #ifdef USE_SELECT
-  else if (match.domain_equals("select")) {
+  else if (match.domain_equals(ESPHOME_F("select"))) {
     this->handle_select_request(request, match);
   }
 #endif
 #ifdef USE_CLIMATE
-  else if (match.domain_equals("climate")) {
+  else if (match.domain_equals(ESPHOME_F("climate"))) {
     this->handle_climate_request(request, match);
   }
 #endif
 #ifdef USE_LOCK
-  else if (match.domain_equals("lock")) {
+  else if (match.domain_equals(ESPHOME_F("lock"))) {
     this->handle_lock_request(request, match);
   }
 #endif
 #ifdef USE_VALVE
-  else if (match.domain_equals("valve")) {
+  else if (match.domain_equals(ESPHOME_F("valve"))) {
     this->handle_valve_request(request, match);
   }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-  else if (match.domain_equals("alarm_control_panel")) {
+  else if (match.domain_equals(ESPHOME_F("alarm_control_panel"))) {
     this->handle_alarm_control_panel_request(request, match);
   }
 #endif
 #ifdef USE_UPDATE
-  else if (match.domain_equals("update")) {
+  else if (match.domain_equals(ESPHOME_F("update"))) {
     this->handle_update_request(request, match);
+  }
+#endif
+#ifdef USE_WATER_HEATER
+  else if (match.domain_equals(ESPHOME_F("water_heater"))) {
+    this->handle_water_heater_request(request, match);
   }
 #endif
   else {

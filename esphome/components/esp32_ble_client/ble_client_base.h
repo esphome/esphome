@@ -22,7 +22,6 @@ namespace esphome::esp32_ble_client {
 namespace espbt = esphome::esp32_ble_tracker;
 
 static const int UNSET_CONN_ID = 0xFFFF;
-static constexpr size_t MAC_ADDR_STR_LEN = 18;  // "AA:BB:CC:DD:EE:FF\0"
 
 class BLEClientBase : public espbt::ESPBTClient, public Component {
  public:
@@ -111,8 +110,8 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   esp_gatt_status_t status_{ESP_GATT_OK};
 
   // Group 4: Arrays
-  char address_str_[MAC_ADDR_STR_LEN]{};  // 18 bytes: "AA:BB:CC:DD:EE:FF\0"
-  esp_bd_addr_t remote_bda_;              // 6 bytes
+  char address_str_[MAC_ADDRESS_PRETTY_BUFFER_SIZE]{};
+  esp_bd_addr_t remote_bda_;  // 6 bytes
 
   // Group 5: 2-byte types
   uint16_t conn_id_{UNSET_CONN_ID};
@@ -128,7 +127,8 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   // 6 bytes used, 2 bytes padding
 
   void log_event_(const char *name);
-  void log_gattc_event_(const char *name);
+  void log_gattc_lifecycle_event_(const char *name);
+  void log_gattc_data_event_(const char *name);
   void update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
                            const char *param_type);
   void set_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,

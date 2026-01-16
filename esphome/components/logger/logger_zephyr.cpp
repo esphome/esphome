@@ -66,6 +66,8 @@ void Logger::pre_setup() {
 void HOT Logger::write_msg_(const char *msg, size_t len) {
   // Single write with newline already in buffer (added by caller)
 #ifdef CONFIG_PRINTK
+  // Requires the debug component and an active SWD connection.
+  // It is used for pyocd rtt -t nrf52840
   k_str_out(const_cast<char *>(msg), len);
 #endif
   if (this->uart_dev_ == nullptr) {

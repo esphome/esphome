@@ -162,6 +162,9 @@ float random_float() { return static_cast<float>(random_uint32()) / static_cast<
 bool str_equals_case_insensitive(const std::string &a, const std::string &b) {
   return strcasecmp(a.c_str(), b.c_str()) == 0;
 }
+bool str_equals_case_insensitive(StringRef a, StringRef b) {
+  return a.size() == b.size() && strncasecmp(a.c_str(), b.c_str(), a.size()) == 0;
+}
 #if __cplusplus >= 202002L
 bool str_startswith(const std::string &str, const std::string &start) { return str.starts_with(start); }
 bool str_endswith(const std::string &str, const std::string &end) { return str.ends_with(end); }
@@ -332,6 +335,37 @@ char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data
   return format_hex_internal(buffer, buffer_size, data, length, separator, 'A');
 }
 
+char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint16_t *data, size_t length, char separator) {
+  if (length == 0 || buffer_size == 0) {
+    if (buffer_size > 0)
+      buffer[0] = '\0';
+    return buffer;
+  }
+  // With separator: each uint16_t needs 5 chars (4 hex + 1 sep), except last has no separator
+  // Without separator: each uint16_t needs 4 chars, plus null terminator
+  uint8_t stride = separator ? 5 : 4;
+  size_t max_values = separator ? (buffer_size / stride) : ((buffer_size - 1) / stride);
+  if (max_values == 0) {
+    buffer[0] = '\0';
+    return buffer;
+  }
+  if (length > max_values) {
+    length = max_values;
+  }
+  for (size_t i = 0; i < length; i++) {
+    size_t pos = i * stride;
+    buffer[pos] = format_hex_pretty_char((data[i] & 0xF000) >> 12);
+    buffer[pos + 1] = format_hex_pretty_char((data[i] & 0x0F00) >> 8);
+    buffer[pos + 2] = format_hex_pretty_char((data[i] & 0x00F0) >> 4);
+    buffer[pos + 3] = format_hex_pretty_char(data[i] & 0x000F);
+    if (separator && i < length - 1) {
+      buffer[pos + 4] = separator;
+    }
+  }
+  buffer[length * stride - (separator ? 1 : 0)] = '\0';
+  return buffer;
+}
+
 // Shared implementation for uint8_t and string hex formatting
 static std::string format_hex_pretty_uint8(const uint8_t *data, size_t length, char separator, bool show_length) {
   if (data == nullptr || length == 0)
@@ -356,16 +390,9 @@ std::string format_hex_pretty(const uint16_t *data, size_t length, char separato
   if (data == nullptr || length == 0)
     return "";
   std::string ret;
-  uint8_t multiple = separator ? 5 : 4;  // 5 if separator is not \0, 4 otherwise
-  ret.resize(multiple * length - (separator ? 1 : 0));
-  for (size_t i = 0; i < length; i++) {
-    ret[multiple * i] = format_hex_pretty_char((data[i] & 0xF000) >> 12);
-    ret[multiple * i + 1] = format_hex_pretty_char((data[i] & 0x0F00) >> 8);
-    ret[multiple * i + 2] = format_hex_pretty_char((data[i] & 0x00F0) >> 4);
-    ret[multiple * i + 3] = format_hex_pretty_char(data[i] & 0x000F);
-    if (separator && i != length - 1)
-      ret[multiple * i + 4] = separator;
-  }
+  size_t hex_len = separator ? (length * 5 - 1) : (length * 4);
+  ret.resize(hex_len);
+  format_hex_pretty_to(&ret[0], hex_len + 1, data, length, separator);
   if (show_length && length > 4)
     return ret + " (" + std::to_string(length) + ")";
   return ret;
@@ -588,6 +615,55 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
   size_t actual_len = base64_decode(encoded_string, ret.data(), max_len);
   ret.resize(actual_len);
   return ret;
+}
+
+/// Encode int32 to 5 base85 characters + null terminator
+/// Standard ASCII85 alphabet: '!' (33) = 0 through 'u' (117) = 84
+inline void base85_encode_int32(int32_t value, std::span<char, BASE85_INT32_ENCODED_SIZE> output) {
+  uint32_t v = static_cast<uint32_t>(value);
+  // Encode least significant digit first, then reverse
+  for (int i = 4; i >= 0; i--) {
+    output[i] = static_cast<char>('!' + (v % 85));
+    v /= 85;
+  }
+  output[5] = '\0';
+}
+
+/// Decode 5 base85 characters to int32
+inline bool base85_decode_int32(const char *input, int32_t &out) {
+  uint8_t c0 = static_cast<uint8_t>(input[0] - '!');
+  uint8_t c1 = static_cast<uint8_t>(input[1] - '!');
+  uint8_t c2 = static_cast<uint8_t>(input[2] - '!');
+  uint8_t c3 = static_cast<uint8_t>(input[3] - '!');
+  uint8_t c4 = static_cast<uint8_t>(input[4] - '!');
+
+  // Each digit must be 0-84. Since uint8_t wraps, chars below '!' become > 84
+  if (c0 > 84 || c1 > 84 || c2 > 84 || c3 > 84 || c4 > 84)
+    return false;
+
+  // 85^4 = 52200625, 85^3 = 614125, 85^2 = 7225, 85^1 = 85
+  out = static_cast<int32_t>(c0 * 52200625u + c1 * 614125u + c2 * 7225u + c3 * 85u + c4);
+  return true;
+}
+
+/// Decode base85 string directly into vector (no intermediate buffer)
+bool base85_decode_int32_vector(const std::string &base85, std::vector<int32_t> &out) {
+  size_t len = base85.size();
+  if (len % 5 != 0)
+    return false;
+
+  out.clear();
+  const char *ptr = base85.data();
+  const char *end = ptr + len;
+
+  while (ptr < end) {
+    int32_t value;
+    if (!base85_decode_int32(ptr, value))
+      return false;
+    out.push_back(value);
+    ptr += 5;
+  }
+  return true;
 }
 
 // Colors

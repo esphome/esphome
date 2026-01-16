@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_FAN
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.fan";
 
@@ -16,7 +15,7 @@ using namespace esphome::fan;
 MQTTFanComponent::MQTTFanComponent(Fan *state) : state_(state) {}
 
 Fan *MQTTFanComponent::get_state() const { return this->state_; }
-std::string MQTTFanComponent::component_type() const { return "fan"; }
+MQTT_COMPONENT_TYPE(MQTTFanComponent, "fan")
 const EntityBase *MQTTFanComponent::get_entity() const { return this->state_; }
 
 void MQTTFanComponent::setup() {
@@ -175,15 +174,15 @@ bool MQTTFanComponent::publish_state() {
   }
   auto traits = this->state_->get_traits();
   if (traits.supports_speed()) {
-    std::string payload = to_string(this->state_->speed);
-    bool success = this->publish(this->get_speed_level_state_topic(), payload);
+    char buf[12];
+    int len = snprintf(buf, sizeof(buf), "%d", this->state_->speed);
+    bool success = this->publish(this->get_speed_level_state_topic(), buf, len);
     failed = failed || !success;
   }
   return !failed;
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
