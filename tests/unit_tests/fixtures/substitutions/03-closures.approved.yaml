@@ -6,6 +6,7 @@ package_result:
     root file
   - Double substitution also works; the value of var7 is 79, where A is a package
     var
+  - key79: Key should substitute to key79
 local_results:
   - The value of B is 5
   - 'You will see, however, that

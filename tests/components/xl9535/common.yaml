@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_xl9535
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 xl9535:
   - id: xl9535_hub
+    i2c_id: i2c_bus
     address: 0x20
 
 binary_sensor:

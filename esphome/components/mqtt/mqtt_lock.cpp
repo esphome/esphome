@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_LOCK
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.lock";
 
@@ -24,7 +23,7 @@ void MQTTLockComponent::setup() {
     } else if (strcasecmp(payload.c_str(), "OPEN") == 0) {
       this->lock_->open();
     } else {
-      ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name().c_str(), payload.c_str());
+      ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name_().c_str(), payload.c_str());
       this->status_momentary_warning("state", 5000);
     }
   });
@@ -35,23 +34,30 @@ void MQTTLockComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, true);
 }
 
-std::string MQTTLockComponent::component_type() const { return "lock"; }
+MQTT_COMPONENT_TYPE(MQTTLockComponent, "lock")
 const EntityBase *MQTTLockComponent::get_entity() const { return this->lock_; }
 void MQTTLockComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  if (this->lock_->traits.get_assumed_state())
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  if (this->lock_->traits.get_assumed_state()) {
     root[MQTT_OPTIMISTIC] = true;
+  }
   if (this->lock_->traits.get_supports_open())
     root[MQTT_PAYLOAD_OPEN] = "OPEN";
 }
 bool MQTTLockComponent::send_initial_state() { return this->publish_state(); }
 
 bool MQTTLockComponent::publish_state() {
-  std::string payload = lock_state_to_string(this->lock_->state);
-  return this->publish(this->get_state_topic_(), payload);
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+  char buf[LOCK_STATE_STR_SIZE];
+  strncpy_P(buf, (PGM_P) lock_state_to_string(this->lock_->state), sizeof(buf) - 1);
+  buf[sizeof(buf) - 1] = '\0';
+  return this->publish(this->get_state_topic_(), buf);
+#else
+  return this->publish(this->get_state_topic_(), LOG_STR_ARG(lock_state_to_string(this->lock_->state)));
+#endif
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

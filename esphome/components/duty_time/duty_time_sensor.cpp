@@ -41,7 +41,7 @@ void DutyTimeSensor::setup() {
   uint32_t seconds = 0;
 
   if (this->restore_) {
-    this->pref_ = global_preferences->make_preference<uint32_t>(this->get_object_id_hash());
+    this->pref_ = global_preferences->make_preference<uint32_t>(this->get_preference_hash());
     this->pref_.load(&seconds);
   }
 

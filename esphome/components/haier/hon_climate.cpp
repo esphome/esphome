@@ -213,7 +213,7 @@ haier_protocol::HandlerError HonClimate::status_handler_(haier_protocol::FrameTy
                this->real_control_packet_size_);
         this->status_message_callback_.call((const char *) data, data_size);
       } else {
-        ESP_LOGW(TAG, "Status packet too small: %d (should be >= %d)", data_size, this->real_control_packet_size_);
+        ESP_LOGW(TAG, "Status packet too small: %zu (should be >= %zu)", data_size, this->real_control_packet_size_);
       }
       switch (this->protocol_phase_) {
         case ProtocolPhases::SENDING_FIRST_STATUS_REQUEST:
@@ -516,7 +516,7 @@ void HonClimate::initialization() {
   HaierClimateBase::initialization();
   constexpr uint32_t restore_settings_version = 0x57EB59DDUL;
   this->hon_rtc_ =
-      global_preferences->make_preference<HonSettings>(this->get_object_id_hash() ^ restore_settings_version);
+      global_preferences->make_preference<HonSettings>(this->get_preference_hash() ^ restore_settings_version);
   HonSettings recovered;
   if (this->hon_rtc_.load(&recovered)) {
     this->settings_ = recovered;
@@ -827,7 +827,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
   size_t expected_size =
       2 + this->status_message_header_size_ + this->real_control_packet_size_ + this->real_sensors_packet_size_;
   if (size < expected_size) {
-    ESP_LOGW(TAG, "Unexpected message size %d (expexted >= %d)", size, expected_size);
+    ESP_LOGW(TAG, "Unexpected message size %u (expexted >= %zu)", size, expected_size);
     return haier_protocol::HandlerError::WRONG_MESSAGE_STRUCTURE;
   }
   uint16_t subtype = (((uint16_t) packet_buffer[0]) << 8) + packet_buffer[1];
@@ -1033,9 +1033,9 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
   {
     // Swing mode
     ClimateSwingMode old_swing_mode = this->swing_mode;
-    const std::set<ClimateSwingMode> &swing_modes = traits_.get_supported_swing_modes();
-    bool vertical_swing_supported = swing_modes.find(CLIMATE_SWING_VERTICAL) != swing_modes.end();
-    bool horizontal_swing_supported = swing_modes.find(CLIMATE_SWING_HORIZONTAL) != swing_modes.end();
+    const auto &swing_modes = traits_.get_supported_swing_modes();
+    bool vertical_swing_supported = swing_modes.count(CLIMATE_SWING_VERTICAL);
+    bool horizontal_swing_supported = swing_modes.count(CLIMATE_SWING_HORIZONTAL);
     if (horizontal_swing_supported &&
         (packet.control.horizontal_swing_mode == (uint8_t) hon_protocol::HorizontalSwingMode::AUTO)) {
       if (vertical_swing_supported &&
@@ -1218,13 +1218,13 @@ void HonClimate::fill_control_messages_queue_() {
                                                 (uint8_t) hon_protocol::DataParameters::QUIET_MODE,
                                             quiet_mode_buf, 2);
     }
-    if ((fast_mode_buf[1] != 0xFF) && ((presets.find(climate::ClimatePreset::CLIMATE_PRESET_BOOST) != presets.end()))) {
+    if ((fast_mode_buf[1] != 0xFF) && presets.count(climate::ClimatePreset::CLIMATE_PRESET_BOOST)) {
       this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
                                             (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                                 (uint8_t) hon_protocol::DataParameters::FAST_MODE,
                                             fast_mode_buf, 2);
     }
-    if ((away_mode_buf[1] != 0xFF) && ((presets.find(climate::ClimatePreset::CLIMATE_PRESET_AWAY) != presets.end()))) {
+    if ((away_mode_buf[1] != 0xFF) && presets.count(climate::ClimatePreset::CLIMATE_PRESET_AWAY)) {
       this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
                                             (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                                 (uint8_t) hon_protocol::DataParameters::TEN_DEGREE,

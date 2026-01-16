@@ -40,7 +40,7 @@ INTERNAL_DAC_OPTIONS = {
 
 EXTERNAL_DAC_OPTIONS = [CONF_MONO, CONF_STEREO]
 
-NO_INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32S2]
+NO_INTERNAL_DAC_VARIANTS = [esp32.VARIANT_ESP32S2]
 
 I2C_COMM_FMT_OPTIONS = ["lsb", "msb"]
 
@@ -92,7 +92,7 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(_):
     if not use_legacy():
-        raise cv.Invalid("I2S media player is only compatible with legacy i2s driver.")
+        raise cv.Invalid("I2S media player is only compatible with legacy i2s driver")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

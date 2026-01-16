@@ -4,8 +4,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.custom";
 
@@ -13,13 +12,14 @@ bool CustomMQTTDevice::publish(const std::string &topic, const std::string &payl
   return global_mqtt_client->publish(topic, payload, qos, retain);
 }
 bool CustomMQTTDevice::publish(const std::string &topic, float value, int8_t number_decimals) {
-  auto str = value_accuracy_to_string(value, number_decimals);
-  return this->publish(topic, str);
+  char buf[VALUE_ACCURACY_MAX_LEN];
+  size_t len = value_accuracy_to_buf(buf, value, number_decimals);
+  return global_mqtt_client->publish(topic, buf, len);
 }
 bool CustomMQTTDevice::publish(const std::string &topic, int value) {
   char buffer[24];
-  sprintf(buffer, "%d", value);
-  return this->publish(topic, buffer);
+  int len = snprintf(buffer, sizeof(buffer), "%d", value);
+  return global_mqtt_client->publish(topic, buffer, len);
 }
 bool CustomMQTTDevice::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos, bool retain) {
   return global_mqtt_client->publish_json(topic, f, qos, retain);
@@ -29,7 +29,6 @@ bool CustomMQTTDevice::publish_json(const std::string &topic, const json::json_b
 }
 bool CustomMQTTDevice::is_connected() { return global_mqtt_client != nullptr && global_mqtt_client->is_connected(); }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_MQTT

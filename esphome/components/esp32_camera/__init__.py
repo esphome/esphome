@@ -1,13 +1,17 @@
+import logging
+
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import i2c
-from esphome.components.esp32 import add_idf_component
+from esphome.components import i2c, socket
+from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
+from esphome.components.psram import DOMAIN as psram_domain
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_CONTRAST,
     CONF_DATA_PINS,
     CONF_FREQUENCY,
+    CONF_I2C,
     CONF_I2C_ID,
     CONF_ID,
     CONF_PIN,
@@ -18,12 +22,13 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VSYNC_PIN,
 )
-from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
+import esphome.final_validate as fv
 
+_LOGGER = logging.getLogger(__name__)
+
+AUTO_LOAD = ["camera", "socket"]
 DEPENDENCIES = ["esp32"]
-
-AUTO_LOAD = ["camera", "psram"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
@@ -113,6 +118,12 @@ ENUM_SPECIAL_EFFECT = {
     "SEPIA": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_SEPIA,
 }
 
+camera_fb_location_t = cg.global_ns.enum("camera_fb_location_t")
+ENUM_FB_LOCATION = {
+    "PSRAM": cg.global_ns.CAMERA_FB_IN_PSRAM,
+    "DRAM": cg.global_ns.CAMERA_FB_IN_DRAM,
+}
+
 # pin assignment
 CONF_HREF_PIN = "href_pin"
 CONF_PIXEL_CLOCK_PIN = "pixel_clock_pin"
@@ -143,6 +154,7 @@ CONF_MAX_FRAMERATE = "max_framerate"
 CONF_IDLE_FRAMERATE = "idle_framerate"
 # frame buffer
 CONF_FRAME_BUFFER_COUNT = "frame_buffer_count"
+CONF_FRAME_BUFFER_LOCATION = "frame_buffer_location"
 
 # stream trigger
 CONF_ON_STREAM_START = "on_stream_start"
@@ -150,6 +162,14 @@ CONF_ON_STREAM_STOP = "on_stream_stop"
 CONF_ON_IMAGE = "on_image"
 
 camera_range_param = cv.int_range(min=-2, max=2)
+
+
+def validate_fb_location_(value):
+    validator = cv.enum(ENUM_FB_LOCATION, upper=True)
+    if value.lower() == psram_domain:
+        validator = cv.All(validator, cv.requires_component(psram_domain))
+    return validator(value)
+
 
 CONFIG_SCHEMA = cv.All(
     cv.ENTITY_BASE_SCHEMA.extend(
@@ -166,7 +186,7 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.Required(CONF_PIN): pins.internal_gpio_input_pin_number,
                     cv.Optional(CONF_FREQUENCY, default="20MHz"): cv.All(
-                        cv.frequency, cv.Range(min=8e6, max=20e6)
+                        cv.frequency, cv.float_range(min=8e6, max=20e6)
                     ),
                 }
             ),
@@ -224,6 +244,9 @@ CONFIG_SCHEMA = cv.All(
                 cv.framerate, cv.Range(min=0, max=1)
             ),
             cv.Optional(CONF_FRAME_BUFFER_COUNT, default=1): cv.int_range(min=1, max=2),
+            cv.Optional(
+                CONF_FRAME_BUFFER_LOCATION, default="PSRAM"
+            ): validate_fb_location_,
             cv.Optional(CONF_ON_STREAM_START): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -249,6 +272,22 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_exactly_one_key(CONF_I2C_PINS, CONF_I2C_ID),
 )
+
+
+def _final_validate(config):
+    if CONF_I2C_PINS not in config:
+        return
+    fconf = fv.full_config.get()
+    if fconf.get(CONF_I2C):
+        raise cv.Invalid(
+            "The `i2c_pins:` config option is incompatible with an dedicated `i2c:` block, use `i2c_id` instead"
+        )
+    _LOGGER.warning(
+        "The `i2c_pins:` config option is deprecated. Use `i2c_id:` with a dedicated `i2c:` definition instead."
+    )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 SETTERS = {
     # pin assignment
@@ -279,11 +318,13 @@ SETTERS = {
     CONF_WB_MODE: "set_wb_mode",
     # test pattern
     CONF_TEST_PATTERN: "set_test_pattern",
+    CONF_FRAME_BUFFER_LOCATION: "set_frame_buffer_location",
 }
 
 
 async def to_code(config):
     cg.add_define("USE_CAMERA")
+    socket.require_wake_loop_threadsafe()
     var = cg.new_Pvariable(config[CONF_ID])
     await setup_entity(var, config, "camera")
     await cg.register_component(var, config)
@@ -306,12 +347,14 @@ async def to_code(config):
     else:
         cg.add(var.set_idle_update_interval(1000 / config[CONF_IDLE_FRAMERATE]))
     cg.add(var.set_frame_buffer_count(config[CONF_FRAME_BUFFER_COUNT]))
+    cg.add(var.set_frame_buffer_location(config[CONF_FRAME_BUFFER_LOCATION]))
     cg.add(var.set_frame_size(config[CONF_RESOLUTION]))
 
     cg.add_define("USE_CAMERA")
 
-    if CORE.using_esp_idf:
-        add_idf_component(name="espressif/esp32-camera", ref="2.0.15")
+    add_idf_component(name="espressif/esp32-camera", ref="2.1.1")
+    add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_NEW", True)
+    add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_LEGACY", False)
 
     for conf in config.get(CONF_ON_STREAM_START, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

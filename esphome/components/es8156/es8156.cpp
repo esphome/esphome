@@ -17,8 +17,6 @@ static const char *const TAG = "es8156";
   }
 
 void ES8156::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   ES8156_ERROR_FAILED(this->write_byte(ES8156_REG02_SCLK_MODE, 0x04));
   ES8156_ERROR_FAILED(this->write_byte(ES8156_REG20_ANALOG_SYS1, 0x2A));
   ES8156_ERROR_FAILED(this->write_byte(ES8156_REG21_ANALOG_SYS2, 0x3C));

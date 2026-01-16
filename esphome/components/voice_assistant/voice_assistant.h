@@ -23,6 +23,7 @@
 #endif
 #include "esphome/components/socket/socket.h"
 
+#include <span>
 #include <unordered_map>
 #include <vector>
 
@@ -71,10 +72,18 @@ struct Timer {
   uint32_t seconds_left;
   bool is_active;
 
+  /// Buffer size for to_str() - sufficient for typical timer names
+  static constexpr size_t TO_STR_BUFFER_SIZE = 128;
+  /// Format to buffer, returns pointer to buffer (may truncate long names)
+  const char *to_str(std::span<char, TO_STR_BUFFER_SIZE> buffer) const {
+    snprintf(buffer.data(), buffer.size(),
+             "Timer(id=%s, name=%s, total_seconds=%" PRIu32 ", seconds_left=%" PRIu32 ", is_active=%s)",
+             this->id.c_str(), this->name.c_str(), this->total_seconds, this->seconds_left, YESNO(this->is_active));
+    return buffer.data();
+  }
   std::string to_string() const {
-    return str_sprintf("Timer(id=%s, name=%s, total_seconds=%" PRIu32 ", seconds_left=%" PRIu32 ", is_active=%s)",
-                       this->id.c_str(), this->name.c_str(), this->total_seconds, this->seconds_left,
-                       YESNO(this->is_active));
+    char buffer[TO_STR_BUFFER_SIZE];
+    return this->to_str(buffer);
   }
 };
 
@@ -89,6 +98,15 @@ struct Configuration {
   std::vector<std::string> active_wake_words;
   uint32_t max_active_wake_words;
 };
+
+#ifdef USE_MEDIA_PLAYER
+enum class MediaPlayerResponseState {
+  IDLE,
+  URL_SENT,
+  PLAYING,
+  FINISHED,
+};
+#endif
 
 class VoiceAssistant : public Component {
  public:
@@ -272,8 +290,8 @@ class VoiceAssistant : public Component {
   media_player::MediaPlayer *media_player_{nullptr};
   std::string tts_response_url_{""};
   bool started_streaming_tts_{false};
-  bool media_player_wait_for_announcement_start_{false};
-  bool media_player_wait_for_announcement_end_{false};
+
+  MediaPlayerResponseState media_player_response_state_{MediaPlayerResponseState::IDLE};
 #endif
 
   bool local_output_{false};
@@ -315,7 +333,7 @@ template<typename... Ts> class StartAction : public Action<Ts...>, public Parent
   TEMPLATABLE_VALUE(std::string, wake_word);
 
  public:
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->parent_->set_wake_word(this->wake_word_.value(x...));
     this->parent_->request_start(false, this->silence_detection_);
   }
@@ -328,22 +346,22 @@ template<typename... Ts> class StartAction : public Action<Ts...>, public Parent
 
 template<typename... Ts> class StartContinuousAction : public Action<Ts...>, public Parented<VoiceAssistant> {
  public:
-  void play(Ts... x) override { this->parent_->request_start(true, true); }
+  void play(const Ts &...x) override { this->parent_->request_start(true, true); }
 };
 
 template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<VoiceAssistant> {
  public:
-  void play(Ts... x) override { this->parent_->request_stop(); }
+  void play(const Ts &...x) override { this->parent_->request_stop(); }
 };
 
 template<typename... Ts> class IsRunningCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }
+  bool check(const Ts &...x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }
 };
 
 template<typename... Ts> class ConnectedCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
  public:
-  bool check(Ts... x) override { return this->parent_->get_api_connection() != nullptr; }
+  bool check(const Ts &...x) override { return this->parent_->get_api_connection() != nullptr; }
 };
 
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

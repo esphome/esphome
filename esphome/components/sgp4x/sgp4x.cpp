@@ -1,4 +1,5 @@
 #include "sgp4x.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <cinttypes>
@@ -9,8 +10,6 @@ namespace sgp4x {
 static const char *const TAG = "sgp4x";
 
 void SGP4xComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // Serial Number identification
   uint16_t raw_serial_number[3];
   if (!this->get_register(SGP4X_CMD_GET_SERIAL_ID, raw_serial_number, 3, 1)) {
@@ -58,10 +57,10 @@ void SGP4xComponent::setup() {
   ESP_LOGD(TAG, "Version 0x%0X", featureset);
 
   if (this->store_baseline_) {
-    // Hash with compilation time and serial number
+    // Hash with config hash, version, and serial number
     // This ensures the baseline storage is cleared after OTA
-    // Serial numbers are unique to each sensor, so mulitple sensors can be used without conflict
-    uint32_t hash = fnv1_hash(App.get_compilation_time() + std::to_string(this->serial_number_));
+    // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
+    uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), this->serial_number_);
     this->pref_ = global_preferences->make_preference<SGP4xBaselines>(hash, true);
 
     if (this->pref_.load(&this->voc_baselines_storage_)) {
@@ -213,7 +212,7 @@ void SGP4xComponent::measure_raw_() {
 
   if (!this->write_command(command, data, 2)) {
     ESP_LOGD(TAG, "write error (%d)", this->last_error_);
-    this->status_set_warning("measurement request failed");
+    this->status_set_warning(LOG_STR("measurement request failed"));
     return;
   }
 
@@ -222,7 +221,7 @@ void SGP4xComponent::measure_raw_() {
     raw_data[1] = 0;
     if (!this->read_data(raw_data, response_words)) {
       ESP_LOGD(TAG, "read error (%d)", this->last_error_);
-      this->status_set_warning("measurement read failed");
+      this->status_set_warning(LOG_STR("measurement read failed"));
       this->voc_index_ = this->nox_index_ = UINT16_MAX;
       return;
     }

@@ -121,8 +121,6 @@ void spi_dma_tx_finish_callback(unsigned int param) {
 }
 
 void BekenSPILEDStripLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   size_t buffer_size = this->get_buffer_size_();
   size_t dma_buffer_size = (buffer_size * 8) + (2 * 64);
 

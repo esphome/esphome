@@ -11,6 +11,10 @@
 #include "esphome/components/json/json_util.h"
 #endif  // USE_JSON
 
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif  // USE_ESP8266
+
 namespace esphome {
 
 /**
@@ -107,6 +111,23 @@ inline bool operator!=(const StringRef &lhs, const char *rhs) { return !(lhs == 
 
 inline bool operator!=(const char *lhs, const StringRef &rhs) { return !(rhs == lhs); }
 
+#ifdef USE_ESP8266
+inline bool operator==(const StringRef &lhs, const __FlashStringHelper *rhs) {
+  PGM_P p = reinterpret_cast<PGM_P>(rhs);
+  size_t rhs_len = strlen_P(p);
+  if (lhs.size() != rhs_len) {
+    return false;
+  }
+  return memcmp_P(lhs.c_str(), p, rhs_len) == 0;
+}
+
+inline bool operator==(const __FlashStringHelper *lhs, const StringRef &rhs) { return rhs == lhs; }
+
+inline bool operator!=(const StringRef &lhs, const __FlashStringHelper *rhs) { return !(lhs == rhs); }
+
+inline bool operator!=(const __FlashStringHelper *lhs, const StringRef &rhs) { return !(rhs == lhs); }
+#endif  // USE_ESP8266
+
 inline bool operator<(const StringRef &lhs, const StringRef &rhs) {
   return std::lexicographical_compare(std::begin(lhs), std::end(lhs), std::begin(rhs), std::end(rhs));
 }
@@ -128,9 +149,20 @@ inline std::string operator+(const StringRef &lhs, const char *rhs) {
   return str;
 }
 
+inline std::string operator+(const StringRef &lhs, const std::string &rhs) {
+  auto str = lhs.str();
+  str.append(rhs);
+  return str;
+}
+
+inline std::string operator+(const std::string &lhs, const StringRef &rhs) {
+  std::string str(lhs);
+  str.append(rhs.c_str(), rhs.size());
+  return str;
+}
 #ifdef USE_JSON
 // NOLINTNEXTLINE(readability-identifier-naming)
-void convertToJson(const StringRef &src, JsonVariant dst);
+inline void convertToJson(const StringRef &src, JsonVariant dst) { dst.set(src.c_str()); }
 #endif  // USE_JSON
 
 }  // namespace esphome

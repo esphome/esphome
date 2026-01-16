@@ -7,13 +7,13 @@ from dataclasses import dataclass
 from functools import partial
 import json
 import logging
-from pathlib import Path
 import threading
 from typing import Any
 
 from esphome.storage_json import ignored_devices_storage_path
 
 from ..zeroconf import DiscoveredImport
+from .const import DashboardEvent
 from .dns import DNSCache
 from .entries import DashboardEntries
 from .settings import DashboardSettings
@@ -31,7 +31,7 @@ MDNS_BOOTSTRAP_TIME = 7.5
 class Event:
     """Dashboard Event."""
 
-    event_type: str
+    event_type: DashboardEvent
     data: dict[str, Any]
 
 
@@ -40,22 +40,24 @@ class EventBus:
 
     def __init__(self) -> None:
         """Initialize the Dashboard event bus."""
-        self._listeners: dict[str, set[Callable[[Event], None]]] = {}
+        self._listeners: dict[DashboardEvent, set[Callable[[Event], None]]] = {}
 
     def async_add_listener(
-        self, event_type: str, listener: Callable[[Event], None]
+        self, event_type: DashboardEvent, listener: Callable[[Event], None]
     ) -> Callable[[], None]:
         """Add a listener to the event bus."""
         self._listeners.setdefault(event_type, set()).add(listener)
         return partial(self._async_remove_listener, event_type, listener)
 
     def _async_remove_listener(
-        self, event_type: str, listener: Callable[[Event], None]
+        self, event_type: DashboardEvent, listener: Callable[[Event], None]
     ) -> None:
         """Remove a listener from the event bus."""
         self._listeners[event_type].discard(listener)
 
-    def async_fire(self, event_type: str, event_data: dict[str, Any]) -> None:
+    def async_fire(
+        self, event_type: DashboardEvent, event_data: dict[str, Any]
+    ) -> None:
         """Fire an event."""
         event = Event(event_type, event_data)
 
@@ -108,7 +110,7 @@ class ESPHomeDashboard:
         await self.loop.run_in_executor(None, self.load_ignored_devices)
 
     def load_ignored_devices(self) -> None:
-        storage_path = Path(ignored_devices_storage_path())
+        storage_path = ignored_devices_storage_path()
         try:
             with storage_path.open("r", encoding="utf-8") as f_handle:
                 data = json.load(f_handle)
@@ -117,7 +119,7 @@ class ESPHomeDashboard:
             pass
 
     def save_ignored_devices(self) -> None:
-        storage_path = Path(ignored_devices_storage_path())
+        storage_path = ignored_devices_storage_path()
         with storage_path.open("w", encoding="utf-8") as f_handle:
             json.dump(
                 {"ignored_devices": sorted(self.ignored_devices)}, indent=2, fp=f_handle

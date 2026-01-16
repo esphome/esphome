@@ -58,8 +58,7 @@ Gate 0 high thresh = 10 00 uint16_t 0x0010, Threshold value = 60 EA 00 00 uint32
 Gate 0 low thresh = 20 00 uint16_t 0x0020, Threshold value = 60 EA 00 00 uint32_t 0x0000EA60
 */
 
-namespace esphome {
-namespace ld2420 {
+namespace esphome::ld2420 {
 
 static const char *const TAG = "ld2420";
 
@@ -131,13 +130,13 @@ static const uint8_t CMD_FRAME_STATUS = 7;
 static const uint8_t CMD_ERROR_WORD = 8;
 static const uint8_t ENERGY_SENSOR_START = 9;
 static const uint8_t CALIBRATE_REPORT_INTERVAL = 4;
-static const std::string OP_NORMAL_MODE_STRING = "Normal";
-static const std::string OP_SIMPLE_MODE_STRING = "Simple";
+static const char *const OP_NORMAL_MODE_STRING = "Normal";
+static const char *const OP_SIMPLE_MODE_STRING = "Simple";
 
 // Memory-efficient lookup tables
 struct StringToUint8 {
   const char *str;
-  uint8_t value;
+  const uint8_t value;
 };
 
 static constexpr StringToUint8 OP_MODE_BY_STR[] = {
@@ -155,8 +154,9 @@ static constexpr const char *ERR_MESSAGE[] = {
 // Helper function for lookups
 template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const std::string &str) {
   for (const auto &entry : arr) {
-    if (str == entry.str)
+    if (str == entry.str) {
       return entry.value;
+    }
   }
   return 0xFF;  // Not found
 }
@@ -173,7 +173,7 @@ static uint8_t calc_checksum(void *data, size_t size) {
 static int get_firmware_int(const char *version_string) {
   std::string version_str = version_string;
   if (version_str[0] == 'v') {
-    version_str = version_str.substr(1);
+    version_str.erase(0, 1);
   }
   version_str.erase(remove(version_str.begin(), version_str.end(), '.'), version_str.end());
   int version_integer = stoi(version_str);
@@ -204,15 +204,16 @@ void LD2420Component::dump_config() {
   LOG_BUTTON("  ", "Factory Reset:", this->factory_reset_button_);
   LOG_BUTTON("  ", "Restart Module:", this->restart_module_button_);
 #endif
+#ifdef USE_SELECT
   ESP_LOGCONFIG(TAG, "Select:");
   LOG_SELECT("  ", "Operating Mode", this->operating_selector_);
+#endif
   if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
     ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
   }
 }
 
 void LD2420Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->set_config_mode(true) == LD2420_ERROR_TIMEOUT) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
@@ -238,12 +239,20 @@ void LD2420Component::setup() {
   memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
   if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
     this->set_operating_mode(OP_SIMPLE_MODE_STRING);
-    this->operating_selector_->publish_state(OP_SIMPLE_MODE_STRING);
+#ifdef USE_SELECT
+    if (this->operating_selector_ != nullptr) {
+      this->operating_selector_->publish_state(OP_SIMPLE_MODE_STRING);
+    }
+#endif
     this->set_mode_(CMD_SYSTEM_MODE_SIMPLE);
     ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
   } else {
     this->set_mode_(CMD_SYSTEM_MODE_ENERGY);
-    this->operating_selector_->publish_state(OP_NORMAL_MODE_STRING);
+#ifdef USE_SELECT
+    if (this->operating_selector_ != nullptr) {
+      this->operating_selector_->publish_state(OP_NORMAL_MODE_STRING);
+    }
+#endif
   }
 #ifdef USE_NUMBER
   this->init_gate_config_numbers();
@@ -326,15 +335,8 @@ void LD2420Component::revert_config_action() {
 
 void LD2420Component::loop() {
   // If there is a active send command do not process it here, the send command call will handle it.
-  if (!this->get_cmd_active_()) {
-    if (!this->available())
-      return;
-    static uint8_t buffer[2048];
-    static uint8_t rx_data;
-    while (this->available()) {
-      rx_data = this->read();
-      this->readline_(rx_data, buffer, sizeof(buffer));
-    }
+  while (!this->cmd_active_ && this->available()) {
+    this->readline_(this->read(), this->buffer_data_, MAX_LINE_LENGTH);
   }
 }
 
@@ -365,8 +367,9 @@ void LD2420Component::auto_calibrate_sensitivity() {
 
     // Store average and peak values
     this->gate_avg[gate] = sum / CALIBRATE_SAMPLES;
-    if (this->gate_peak[gate] < peak)
+    if (this->gate_peak[gate] < peak) {
       this->gate_peak[gate] = peak;
+    }
 
     uint32_t calculated_value =
         (static_cast<uint32_t>(this->gate_peak[gate]) + (move_factor * static_cast<uint32_t>(this->gate_peak[gate])));
@@ -385,12 +388,16 @@ void LD2420Component::report_gate_data() {
   ESP_LOGI(TAG, "Total samples: %d", this->total_sample_number_counter);
 }
 
-void LD2420Component::set_operating_mode(const std::string &state) {
+void LD2420Component::set_operating_mode(const char *state) {
   // If unsupported firmware ignore mode select
   if (ld2420::get_firmware_int(firmware_ver_) >= CALIBRATE_VERSION_MIN) {
     this->current_operating_mode = find_uint8(OP_MODE_BY_STR, state);
-    // Entering Auto Calibrate we need to clear the privoiuos data collection
-    this->operating_selector_->publish_state(state);
+    // Entering Auto Calibrate we need to clear the previous data collection
+#ifdef USE_SELECT
+    if (this->operating_selector_ != nullptr) {
+      this->operating_selector_->publish_state(state);
+    }
+#endif
     if (current_operating_mode == OP_CALIBRATE_MODE) {
       this->set_calibration_(true);
       for (uint8_t gate = 0; gate < TOTAL_GATES; gate++) {
@@ -403,41 +410,48 @@ void LD2420Component::set_operating_mode(const std::string &state) {
       }
     } else {
       // Set the current data back so we don't have new data that can be applied in error.
-      if (this->get_calibration_())
+      if (this->get_calibration_()) {
         memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
+      }
       this->set_calibration_(false);
     }
   } else {
     this->current_operating_mode = OP_SIMPLE_MODE;
-    this->operating_selector_->publish_state(OP_SIMPLE_MODE_STRING);
+#ifdef USE_SELECT
+    if (this->operating_selector_ != nullptr) {
+      this->operating_selector_->publish_state(OP_SIMPLE_MODE_STRING);
+    }
+#endif
   }
 }
 
 void LD2420Component::readline_(int rx_data, uint8_t *buffer, int len) {
-  static int pos = 0;
-
-  if (rx_data >= 0) {
-    if (pos < len - 1) {
-      buffer[pos++] = rx_data;
-      buffer[pos] = 0;
-    } else {
-      pos = 0;
-    }
-    if (pos >= 4) {
-      if (memcmp(&buffer[pos - 4], &CMD_FRAME_FOOTER, sizeof(CMD_FRAME_FOOTER)) == 0) {
-        this->set_cmd_active_(false);  // Set command state to inactive after responce.
-        this->handle_ack_data_(buffer, pos);
-        pos = 0;
-      } else if ((buffer[pos - 2] == 0x0D && buffer[pos - 1] == 0x0A) &&
-                 (this->get_mode_() == CMD_SYSTEM_MODE_SIMPLE)) {
-        this->handle_simple_mode_(buffer, pos);
-        pos = 0;
-      } else if ((memcmp(&buffer[pos - 4], &ENERGY_FRAME_FOOTER, sizeof(ENERGY_FRAME_FOOTER)) == 0) &&
-                 (this->get_mode_() == CMD_SYSTEM_MODE_ENERGY)) {
-        this->handle_energy_mode_(buffer, pos);
-        pos = 0;
-      }
-    }
+  if (rx_data < 0) {
+    return;  // No data available
+  }
+  if (this->buffer_pos_ < len - 1) {
+    buffer[this->buffer_pos_++] = rx_data;
+    buffer[this->buffer_pos_] = 0;
+  } else {
+    // We should never get here, but just in case...
+    ESP_LOGW(TAG, "Max command length exceeded; ignoring");
+    this->buffer_pos_ = 0;
+  }
+  if (this->buffer_pos_ < 4) {
+    return;  // Not enough data to process yet
+  }
+  if (memcmp(&buffer[this->buffer_pos_ - 4], &CMD_FRAME_FOOTER, sizeof(CMD_FRAME_FOOTER)) == 0) {
+    this->cmd_active_ = false;  // Set command state to inactive after response
+    this->handle_ack_data_(buffer, this->buffer_pos_);
+    this->buffer_pos_ = 0;
+  } else if ((buffer[this->buffer_pos_ - 2] == 0x0D && buffer[this->buffer_pos_ - 1] == 0x0A) &&
+             (this->get_mode_() == CMD_SYSTEM_MODE_SIMPLE)) {
+    this->handle_simple_mode_(buffer, this->buffer_pos_);
+    this->buffer_pos_ = 0;
+  } else if ((memcmp(&buffer[this->buffer_pos_ - 4], &ENERGY_FRAME_FOOTER, sizeof(ENERGY_FRAME_FOOTER)) == 0) &&
+             (this->get_mode_() == CMD_SYSTEM_MODE_ENERGY)) {
+    this->handle_energy_mode_(buffer, this->buffer_pos_);
+    this->buffer_pos_ = 0;
   }
 }
 
@@ -462,8 +476,9 @@ void LD2420Component::handle_energy_mode_(uint8_t *buffer, int len) {
 
   // Resonable refresh rate for home assistant database size health
   const int32_t current_millis = App.get_loop_component_start_time();
-  if (current_millis - this->last_periodic_millis < REFRESH_RATE_MS)
+  if (current_millis - this->last_periodic_millis < REFRESH_RATE_MS) {
     return;
+  }
   this->last_periodic_millis = current_millis;
   for (auto &listener : this->listeners_) {
     listener->on_distance(this->get_distance_());
@@ -506,14 +521,16 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
     }
   }
   outbuf[index] = '\0';
-  if (index > 1)
+  if (index > 1) {
     this->set_distance_(strtol(outbuf, &endptr, 10));
+  }
 
   if (this->get_mode_() == CMD_SYSTEM_MODE_SIMPLE) {
     // Resonable refresh rate for home assistant database size health
     const int32_t current_millis = App.get_loop_component_start_time();
-    if (current_millis - this->last_normal_periodic_millis < REFRESH_RATE_MS)
+    if (current_millis - this->last_normal_periodic_millis < REFRESH_RATE_MS) {
       return;
+    }
     this->last_normal_periodic_millis = current_millis;
     for (auto &listener : this->listeners_)
       listener->on_distance(this->get_distance_());
@@ -593,11 +610,12 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
 int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
   uint32_t start_millis = millis();
   uint8_t error = 0;
-  uint8_t ack_buffer[64];
-  uint8_t cmd_buffer[64];
+  uint8_t ack_buffer[MAX_LINE_LENGTH];
+  uint8_t cmd_buffer[MAX_LINE_LENGTH];
   this->cmd_reply_.ack = false;
-  if (frame.command != CMD_RESTART)
-    this->set_cmd_active_(true);  // Restart does not reply, thus no ack state required.
+  if (frame.command != CMD_RESTART) {
+    this->cmd_active_ = true;
+  }  // Restart does not reply, thus no ack state required
   uint8_t retry = 3;
   while (retry) {
     frame.length = 0;
@@ -619,9 +637,7 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
 
     memcpy(cmd_buffer + frame.length, &frame.footer, sizeof(frame.footer));
     frame.length += sizeof(frame.footer);
-    for (uint16_t index = 0; index < frame.length; index++) {
-      this->write_byte(cmd_buffer[index]);
-    }
+    this->write_array(cmd_buffer, frame.length);
 
     error = 0;
     if (frame.command == CMD_RESTART) {
@@ -630,7 +646,7 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
 
     while (!this->cmd_reply_.ack) {
       while (this->available()) {
-        this->readline_(read(), ack_buffer, sizeof(ack_buffer));
+        this->readline_(this->read(), ack_buffer, sizeof(ack_buffer));
       }
       delay_microseconds_safe(1450);
       // Wait on an Rx from the LD2420 for up to 3 1 second loops, otherwise it could trigger a WDT.
@@ -641,10 +657,12 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
         break;
       }
     }
-    if (this->cmd_reply_.ack)
+    if (this->cmd_reply_.ack) {
       retry = 0;
-    if (this->cmd_reply_.error > 0)
+    }
+    if (this->cmd_reply_.error > 0) {
       this->handle_cmd_error(error);
+    }
   }
   return error;
 }
@@ -764,8 +782,9 @@ void LD2420Component::set_system_mode(uint16_t mode) {
   cmd_frame.data_length += sizeof(unknown_parm);
   cmd_frame.footer = CMD_FRAME_FOOTER;
   ESP_LOGV(TAG, "Sending write system mode command: %2X", cmd_frame.command);
-  if (this->send_cmd_from_array(cmd_frame) == 0)
+  if (this->send_cmd_from_array(cmd_frame) == 0) {
     this->set_mode_(mode);
+  }
 }
 
 void LD2420Component::get_firmware_version_() {
@@ -840,18 +859,24 @@ void LD2420Component::set_gate_threshold(uint8_t gate) {
 
 #ifdef USE_NUMBER
 void LD2420Component::init_gate_config_numbers() {
-  if (this->gate_timeout_number_ != nullptr)
+  if (this->gate_timeout_number_ != nullptr) {
     this->gate_timeout_number_->publish_state(static_cast<uint16_t>(this->current_config.timeout));
-  if (this->gate_select_number_ != nullptr)
+  }
+  if (this->gate_select_number_ != nullptr) {
     this->gate_select_number_->publish_state(0);
-  if (this->min_gate_distance_number_ != nullptr)
+  }
+  if (this->min_gate_distance_number_ != nullptr) {
     this->min_gate_distance_number_->publish_state(static_cast<uint16_t>(this->current_config.min_gate));
-  if (this->max_gate_distance_number_ != nullptr)
+  }
+  if (this->max_gate_distance_number_ != nullptr) {
     this->max_gate_distance_number_->publish_state(static_cast<uint16_t>(this->current_config.max_gate));
-  if (this->gate_move_sensitivity_factor_number_ != nullptr)
+  }
+  if (this->gate_move_sensitivity_factor_number_ != nullptr) {
     this->gate_move_sensitivity_factor_number_->publish_state(this->gate_move_sensitivity_factor);
-  if (this->gate_still_sensitivity_factor_number_ != nullptr)
+  }
+  if (this->gate_still_sensitivity_factor_number_ != nullptr) {
     this->gate_still_sensitivity_factor_number_->publish_state(this->gate_still_sensitivity_factor);
+  }
   for (uint8_t gate = 0; gate < TOTAL_GATES; gate++) {
     if (this->gate_still_threshold_numbers_[gate] != nullptr) {
       this->gate_still_threshold_numbers_[gate]->publish_state(
@@ -872,5 +897,4 @@ void LD2420Component::refresh_gate_config_numbers() {
 
 #endif
 
-}  // namespace ld2420
-}  // namespace esphome
+}  // namespace esphome::ld2420

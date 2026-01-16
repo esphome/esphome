@@ -82,4 +82,3 @@ output:
     write_action:
       - lambda: |-
           ESP_LOGD("test", "Light output: %d", state);
-

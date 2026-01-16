@@ -7,7 +7,8 @@
 
 #include "opentherm.h"
 #include "esphome/core/helpers.h"
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#include <cinttypes>
+#ifdef USE_ESP32
 #include "driver/timer.h"
 #include "esp_err.h"
 #endif
@@ -20,7 +21,6 @@ namespace esphome {
 namespace opentherm {
 
 using std::string;
-using std::to_string;
 
 static const char *const TAG = "opentherm";
 
@@ -31,7 +31,7 @@ OpenTherm *OpenTherm::instance = nullptr;
 OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t device_timeout)
     : in_pin_(in_pin),
       out_pin_(out_pin),
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
       timer_group_(TIMER_GROUP_0),
       timer_idx_(TIMER_0),
 #endif
@@ -57,7 +57,7 @@ bool OpenTherm::initialize() {
   this->out_pin_->setup();
   this->out_pin_->digital_write(true);
 
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
   return this->init_esp32_timer_();
 #else
   return true;
@@ -238,7 +238,7 @@ void IRAM_ATTR OpenTherm::write_bit_(uint8_t high, uint8_t clock) {
   }
 }
 
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
 
 bool OpenTherm::init_esp32_timer_() {
   // Search for a free timer. Maybe unstable, we'll see.
@@ -365,7 +365,7 @@ void IRAM_ATTR OpenTherm::stop_timer_() {
   }
 }
 
-#endif  // END ESP32
+#endif  // USE_ESP32
 
 #ifdef ESP8266
 // 5 kHz timer_
@@ -563,14 +563,13 @@ const char *OpenTherm::message_id_to_str(MessageId id) {
 void OpenTherm::debug_data(OpenthermData &data) {
   ESP_LOGD(TAG, "%s %s %s %s", format_bin(data.type).c_str(), format_bin(data.id).c_str(),
            format_bin(data.valueHB).c_str(), format_bin(data.valueLB).c_str());
-  ESP_LOGD(TAG, "type: %s; id: %s; HB: %s; LB: %s; uint_16: %s; float: %s",
-           this->message_type_to_str((MessageType) data.type), to_string(data.id).c_str(),
-           to_string(data.valueHB).c_str(), to_string(data.valueLB).c_str(), to_string(data.u16()).c_str(),
-           to_string(data.f88()).c_str());
+  ESP_LOGD(TAG, "type: %s; id: %u; HB: %u; LB: %u; uint_16: %u; float: %f",
+           this->message_type_to_str((MessageType) data.type), data.id, data.valueHB, data.valueLB, data.u16(),
+           data.f88());
 }
 void OpenTherm::debug_error(OpenThermError &error) const {
-  ESP_LOGD(TAG, "data: %s; clock: %s; capture: %s; bit_pos: %s", format_hex(error.data).c_str(),
-           to_string(clock_).c_str(), format_bin(error.capture).c_str(), to_string(error.bit_pos).c_str());
+  ESP_LOGD(TAG, "data: 0x%08" PRIx32 "; clock: %u; capture: 0x%08" PRIx32 "; bit_pos: %u", error.data, this->clock_,
+           error.capture, error.bit_pos);
 }
 
 float OpenthermData::f88() { return ((float) this->s16()) / 256.0; }

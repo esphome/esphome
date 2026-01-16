@@ -10,7 +10,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     KEY_PAST_SAFE_MODE,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import RawExpression
 
 CODEOWNERS = ["@paulmonigatti", "@jsuanet", "@kbx81"]
@@ -53,15 +53,17 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(50.0)
+@coroutine_with_priority(CoroPriority.APPLICATION)
 async def to_code(config):
     if not config[CONF_DISABLED]:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
 
-        for conf in config.get(CONF_ON_SAFE_MODE, []):
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            await automation.build_automation(trigger, [], conf)
+        if on_safe_mode_config := config.get(CONF_ON_SAFE_MODE):
+            cg.add_define("USE_SAFE_MODE_CALLBACK")
+            for conf in on_safe_mode_config:
+                trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+                await automation.build_automation(trigger, [], conf)
 
         condition = var.should_enter_safe_mode(
             config[CONF_NUM_ATTEMPTS],

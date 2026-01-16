@@ -44,7 +44,7 @@ async def test_host_mode_batch_delay(
         # Wait for states from all entities with timeout
         try:
             entity_count = await asyncio.wait_for(entity_count_future, timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(
                 f"Did not receive states from at least 7 entities within 5 seconds. "
                 f"Received {len(states)} states"

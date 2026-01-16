@@ -1,0 +1,13 @@
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    advanced:
+      execute_from_psram: true
+      disable_libc_locks_in_iram: true  # Test default RAM optimization enabled
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:

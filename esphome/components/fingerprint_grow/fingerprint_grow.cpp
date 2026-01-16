@@ -57,8 +57,6 @@ void FingerprintGrowComponent::update() {
 }
 
 void FingerprintGrowComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   this->has_sensing_pin_ = (this->sensing_pin_ != nullptr);
   this->has_power_pin_ = (this->sensor_power_pin_ != nullptr);
 
@@ -82,7 +80,7 @@ void FingerprintGrowComponent::setup() {
   delay(20);  // This delay guarantees the sensor will in fact be powered power.
 
   if (this->check_password_()) {
-    if (this->new_password_ != -1) {
+    if (this->new_password_ != std::numeric_limits<uint32_t>::max()) {
       if (this->set_password_())
         return;
     } else {

@@ -86,7 +86,7 @@ async def test_host_mode_entity_fields(
         # Wait for at least one state
         try:
             await asyncio.wait_for(state_received.wait(), timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail("No states received within 5 seconds")
 
         # Verify we received states (which means has_state flag is working)

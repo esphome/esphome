@@ -59,12 +59,12 @@ class DS1307Component : public time::RealTimeClock, public i2c::I2CDevice {
 
 template<typename... Ts> class WriteAction : public Action<Ts...>, public Parented<DS1307Component> {
  public:
-  void play(Ts... x) override { this->parent_->write_time(); }
+  void play(const Ts &...x) override { this->parent_->write_time(); }
 };
 
 template<typename... Ts> class ReadAction : public Action<Ts...>, public Parented<DS1307Component> {
  public:
-  void play(Ts... x) override { this->parent_->read_time(); }
+  void play(const Ts &...x) override { this->parent_->read_time(); }
 };
 }  // namespace ds1307
 }  // namespace esphome

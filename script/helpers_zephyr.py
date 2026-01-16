@@ -17,6 +17,7 @@ def load_idedata(environment, temp_folder, platformio_ini):
         """
 #include <zephyr/kernel.h>
 int main() { return 0;}
+extern "C" void zboss_signal_handler() {};
 """,
         encoding="utf-8",
     )
@@ -25,6 +26,14 @@ int main() { return 0;}
     Path(zephyr_dir / "prj.conf").write_text(
         """
 CONFIG_NEWLIB_LIBC=y
+CONFIG_BT=y
+CONFIG_ADC=y
+#zigbee begin
+CONFIG_ZIGBEE=y
+CONFIG_CRYPTO=y
+CONFIG_NVS=y
+CONFIG_SETTINGS=y
+#zigbee end
 """,
         encoding="utf-8",
     )
@@ -41,12 +50,13 @@ CONFIG_NEWLIB_LIBC=y
         return include_paths
 
     def extract_defines(command):
-        defines = []
         define_pattern = re.compile(r"-D\s*([^\s]+)")
-        for match in define_pattern.findall(command):
-            if match not in ("_ASMLANGUAGE"):
-                defines.append(match)
-        return defines
+        ignore_prefixes = ("_ASMLANGUAGE", "NRF_802154_ECB_PRIORITY=")
+        return [
+            match.replace("\\", "")
+            for match in define_pattern.findall(command)
+            if not any(match.startswith(prefix) for prefix in ignore_prefixes)
+        ]
 
     def find_cxx_path(commands):
         for entry in commands:
@@ -55,6 +65,7 @@ CONFIG_NEWLIB_LIBC=y
             if not cxx_path.endswith("++"):
                 continue
             return cxx_path
+        return None
 
     def get_builtin_include_paths(compiler):
         result = subprocess.run(
@@ -78,14 +89,14 @@ CONFIG_NEWLIB_LIBC=y
         return include_paths
 
     def extract_cxx_flags(command):
-        flags = []
         # Extracts CXXFLAGS from the command string, excluding includes and defines.
         flag_pattern = re.compile(
             r"(-O[0-3s]|-g|-std=[^\s]+|-Wall|-Wextra|-Werror|--[^\s]+|-f[^\s]+|-m[^\s]+|-imacros\s*[^\s]+)"
         )
-        for match in flag_pattern.findall(command):
-            flags.append(match.replace("-imacros ", "-imacros"))
-        return flags
+        return [
+            match.replace("-imacros ", "-imacros")
+            for match in flag_pattern.findall(command)
+        ]
 
     def transform_to_idedata_format(compile_commands):
         cxx_path = find_cxx_path(compile_commands)

@@ -2,14 +2,14 @@
 
 <a href="https://esphome.io/">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://esphome.io/_static/logo-text-on-dark.svg", alt="ESPHome Logo">
-    <img src="https://esphome.io/_static/logo-text-on-light.svg" alt="ESPHome Logo">
+    <source media="(prefers-color-scheme: dark)" srcset="https://media.esphome.io/logo/logo-text-on-dark.svg">
+    <img src="https://media.esphome.io/logo/logo-text-on-light.svg" alt="ESPHome Logo">
   </picture>
 </a>
 
 ---
 
-[Documentation](https://esphome.io) -- [Issues](https://github.com/esphome/issues/issues) -- [Feature requests](https://github.com/esphome/feature-requests/issues)
+[Documentation](https://esphome.io) -- [Issues](https://github.com/esphome/esphome/issues) -- [Feature requests](https://github.com/orgs/esphome/discussions)
 
 ---
 

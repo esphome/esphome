@@ -59,12 +59,12 @@ async def test_scheduler_defer_cancels_regular(
         assert test_service is not None, "test_defer_cancels_regular service not found"
 
         # Execute the test
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
 
         # Wait for test completion
         try:
             await asyncio.wait_for(test_complete_future, timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pytest.fail(f"Test timed out. Log messages: {log_messages}")
 
         # Verify results

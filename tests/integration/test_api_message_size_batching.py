@@ -141,6 +141,9 @@ async def test_api_message_size_batching(
         assert text_input.max_length == 255, (
             f"Expected max_length 255, got {text_input.max_length}"
         )
+        assert text_input.pattern == "[A-Za-z0-9 ]+", (
+            f"Expected pattern '[A-Za-z0-9 ]+', got '{text_input.pattern}'"
+        )
 
         # Verify total entity count - messages of various sizes were batched successfully
         # We have: 3 selects + 3 text sensors + 1 text input + 1 number = 8 total
@@ -177,7 +180,7 @@ async def test_api_message_size_batching(
         # Wait for states with timeout
         try:
             await asyncio.wait_for(states_future, timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             missing_keys = expected_keys - received_keys
             pytest.fail(
                 f"Did not receive states from all entities within 5 seconds. "

@@ -1,0 +1,12 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
+
+display:
+  - platform: mipi_spi
+    spi_id: spi_bus
+    model: t-display-s3-pro
+
+lvgl:
+
+psram:
+  mode: quad

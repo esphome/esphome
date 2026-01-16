@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_SWITCH
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.switch";
 
@@ -29,7 +28,7 @@ void MQTTSwitchComponent::setup() {
         break;
       case PARSE_NONE:
       default:
-        ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name().c_str(), payload.c_str());
+        ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name_().c_str(), payload.c_str());
         this->status_momentary_warning("state", 5000);
         break;
     }
@@ -42,11 +41,13 @@ void MQTTSwitchComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, true);
 }
 
-std::string MQTTSwitchComponent::component_type() const { return "switch"; }
+MQTT_COMPONENT_TYPE(MQTTSwitchComponent, "switch")
 const EntityBase *MQTTSwitchComponent::get_entity() const { return this->switch_; }
 void MQTTSwitchComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  if (this->switch_->assumed_state())
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  if (this->switch_->assumed_state()) {
     root[MQTT_OPTIMISTIC] = true;
+  }
 }
 bool MQTTSwitchComponent::send_initial_state() { return this->publish_state(this->switch_->state); }
 
@@ -55,8 +56,7 @@ bool MQTTSwitchComponent::publish_state(bool state) {
   return this->publish(this->get_state_topic_(), state_s);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

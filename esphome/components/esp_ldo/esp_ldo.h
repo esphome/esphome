@@ -17,6 +17,9 @@ class EspLdo : public Component {
   void set_adjustable(bool adjustable) { this->adjustable_ = adjustable; }
   void set_voltage(float voltage) { this->voltage_ = voltage; }
   void adjust_voltage(float voltage);
+  float get_setup_priority() const override {
+    return setup_priority::BUS;  // LDO setup should be done early
+  }
 
  protected:
   int channel_;
@@ -31,7 +34,7 @@ template<typename... Ts> class AdjustAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(float, voltage)
 
-  void play(Ts... x) override { this->ldo_->adjust_voltage(this->voltage_.value(x...)); }
+  void play(const Ts &...x) override { this->ldo_->adjust_voltage(this->voltage_.value(x...)); }
 
  protected:
   EspLdo *ldo_;

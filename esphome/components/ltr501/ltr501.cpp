@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <limits>
 
 using esphome::i2c::ErrorCode;
 
@@ -28,30 +29,30 @@ bool operator!=(const GainTimePair &lhs, const GainTimePair &rhs) {
 
 template<typename T, size_t size> T get_next(const T (&array)[size], const T val) {
   size_t i = 0;
-  size_t idx = -1;
-  while (idx == -1 && i < size) {
+  size_t idx = std::numeric_limits<size_t>::max();
+  while (idx == std::numeric_limits<size_t>::max() && i < size) {
     if (array[i] == val) {
       idx = i;
       break;
     }
     i++;
   }
-  if (idx == -1 || i + 1 >= size)
+  if (idx == std::numeric_limits<size_t>::max() || i + 1 >= size)
     return val;
   return array[i + 1];
 }
 
 template<typename T, size_t size> T get_prev(const T (&array)[size], const T val) {
   size_t i = size - 1;
-  size_t idx = -1;
-  while (idx == -1 && i > 0) {
+  size_t idx = std::numeric_limits<size_t>::max();
+  while (idx == std::numeric_limits<size_t>::max() && i > 0) {
     if (array[i] == val) {
       idx = i;
       break;
     }
     i--;
   }
-  if (idx == -1 || i == 0)
+  if (idx == std::numeric_limits<size_t>::max() || i == 0)
     return val;
   return array[i - 1];
 }
@@ -74,7 +75,6 @@ static float get_ps_gain_coeff(PsGain501 gain) {
 }
 
 void LTRAlsPs501Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // As per datasheet we need to wait at least 100ms after power on to get ALS chip responsive
   this->set_timeout(100, [this]() { this->state_ = State::DELAYED_SETUP; });
 }
@@ -174,7 +174,7 @@ void LTRAlsPs501Component::loop() {
       break;
 
     case State::WAITING_FOR_DATA:
-      if (this->is_als_data_ready_(this->als_readings_) == DataAvail::DATA_OK) {
+      if (this->is_als_data_ready_(this->als_readings_) == LtrDataAvail::LTR_DATA_OK) {
         tries = 0;
         ESP_LOGV(TAG, "Reading sensor data assuming gain = %.0fx, time = %d ms",
                  get_gain_coeff(this->als_readings_.gain), get_itime_ms(this->als_readings_.integration_time));
@@ -379,18 +379,18 @@ void LTRAlsPs501Component::configure_integration_time_(IntegrationTime501 time) 
   }
 }
 
-DataAvail LTRAlsPs501Component::is_als_data_ready_(AlsReadings &data) {
+LtrDataAvail LTRAlsPs501Component::is_als_data_ready_(AlsReadings &data) {
   AlsPsStatusRegister als_status{0};
   als_status.raw = this->reg((uint8_t) CommandRegisters::ALS_PS_STATUS).get();
   if (!als_status.als_new_data)
-    return DataAvail::NO_DATA;
+    return LtrDataAvail::LTR_NO_DATA;
   ESP_LOGV(TAG, "Data ready, reported gain is %.0fx", get_gain_coeff(als_status.gain));
   if (data.gain != als_status.gain) {
     ESP_LOGW(TAG, "Actual gain differs from requested (%.0f)", get_gain_coeff(data.gain));
-    return DataAvail::BAD_DATA;
+    return LtrDataAvail::LTR_BAD_DATA;
   }
   data.gain = als_status.gain;
-  return DataAvail::DATA_OK;
+  return LtrDataAvail::LTR_DATA_OK;
 }
 
 void LTRAlsPs501Component::read_sensor_data_(AlsReadings &data) {

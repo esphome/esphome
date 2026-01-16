@@ -61,15 +61,29 @@ class ATM90E32Component : public PollingComponent,
     this->phase_[phase].harmonic_active_power_sensor_ = obj;
   }
   void set_peak_current_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].peak_current_sensor_ = obj; }
-  void set_volt_gain(int phase, uint16_t gain) { this->phase_[phase].voltage_gain_ = gain; }
-  void set_ct_gain(int phase, uint16_t gain) { this->phase_[phase].ct_gain_ = gain; }
-  void set_voltage_offset(uint8_t phase, int16_t offset) { this->offset_phase_[phase].voltage_offset_ = offset; }
-  void set_current_offset(uint8_t phase, int16_t offset) { this->offset_phase_[phase].current_offset_ = offset; }
+  void set_volt_gain(int phase, uint16_t gain) {
+    this->phase_[phase].voltage_gain_ = gain;
+    this->has_config_voltage_gain_[phase] = true;
+  }
+  void set_ct_gain(int phase, uint16_t gain) {
+    this->phase_[phase].ct_gain_ = gain;
+    this->has_config_current_gain_[phase] = true;
+  }
+  void set_voltage_offset(uint8_t phase, int16_t offset) {
+    this->offset_phase_[phase].voltage_offset_ = offset;
+    this->has_config_voltage_offset_[phase] = true;
+  }
+  void set_current_offset(uint8_t phase, int16_t offset) {
+    this->offset_phase_[phase].current_offset_ = offset;
+    this->has_config_current_offset_[phase] = true;
+  }
   void set_active_power_offset(uint8_t phase, int16_t offset) {
     this->power_offset_phase_[phase].active_power_offset = offset;
+    this->has_config_active_power_offset_[phase] = true;
   }
   void set_reactive_power_offset(uint8_t phase, int16_t offset) {
     this->power_offset_phase_[phase].reactive_power_offset = offset;
+    this->has_config_reactive_power_offset_[phase] = true;
   }
   void set_freq_sensor(sensor::Sensor *freq_sensor) { freq_sensor_ = freq_sensor; }
   void set_peak_current_signed(bool flag) { peak_current_signed_ = flag; }
@@ -127,7 +141,7 @@ class ATM90E32Component : public PollingComponent,
 #endif
   uint16_t read16_(uint16_t a_register);
   int read32_(uint16_t addr_h, uint16_t addr_l);
-  void write16_(uint16_t a_register, uint16_t val);
+  void write16_(uint16_t a_register, uint16_t val, bool validate = true);
   float get_local_phase_voltage_(uint8_t phase);
   float get_local_phase_current_(uint8_t phase);
   float get_local_phase_active_power_(uint8_t phase);
@@ -159,12 +173,15 @@ class ATM90E32Component : public PollingComponent,
   void restore_offset_calibrations_();
   void restore_power_offset_calibrations_();
   void restore_gain_calibrations_();
+  void save_offset_calibration_to_memory_();
   void save_gain_calibration_to_memory_();
+  void save_power_offset_calibration_to_memory_();
   void write_offsets_to_registers_(uint8_t phase, int16_t voltage_offset, int16_t current_offset);
   void write_power_offsets_to_registers_(uint8_t phase, int16_t p_offset, int16_t q_offset);
   void write_gains_to_registers_();
   bool verify_gain_writes_();
   bool validate_spi_read_(uint16_t expected, const char *context = nullptr);
+  void log_calibration_status_();
 
   struct ATM90E32Phase {
     uint16_t voltage_gain_{0};
@@ -204,19 +221,33 @@ class ATM90E32Component : public PollingComponent,
     int16_t current_offset_{0};
   } offset_phase_[3];
 
+  OffsetCalibration config_offset_phase_[3];
+
   struct PowerOffsetCalibration {
     int16_t active_power_offset{0};
     int16_t reactive_power_offset{0};
   } power_offset_phase_[3];
+
+  PowerOffsetCalibration config_power_offset_phase_[3];
 
   struct GainCalibration {
     uint16_t voltage_gain{1};
     uint16_t current_gain{1};
   } gain_phase_[3];
 
+  GainCalibration config_gain_phase_[3];
+
+  bool has_config_voltage_offset_[3]{false, false, false};
+  bool has_config_current_offset_[3]{false, false, false};
+  bool has_config_active_power_offset_[3]{false, false, false};
+  bool has_config_reactive_power_offset_[3]{false, false, false};
+  bool has_config_voltage_gain_[3]{false, false, false};
+  bool has_config_current_gain_[3]{false, false, false};
+
   ESPPreferenceObject offset_pref_;
   ESPPreferenceObject power_offset_pref_;
   ESPPreferenceObject gain_calibration_pref_;
+  std::string cs_summary_;
 
   sensor::Sensor *freq_sensor_{nullptr};
 #ifdef USE_TEXT_SENSOR
@@ -231,6 +262,13 @@ class ATM90E32Component : public PollingComponent,
   bool peak_current_signed_{false};
   bool enable_offset_calibration_{false};
   bool enable_gain_calibration_{false};
+  bool restored_offset_calibration_{false};
+  bool restored_power_offset_calibration_{false};
+  bool restored_gain_calibration_{false};
+  bool calibration_message_printed_{false};
+  bool offset_calibration_mismatch_[3]{false, false, false};
+  bool power_offset_calibration_mismatch_[3]{false, false, false};
+  bool gain_calibration_mismatch_[3]{false, false, false};
 };
 
 }  // namespace atm90e32

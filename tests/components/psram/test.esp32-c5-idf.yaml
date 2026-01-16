@@ -1,0 +1,8 @@
+esp32:
+  cpu_frequency: 240MHz
+  framework:
+    type: esp-idf
+
+psram:
+  speed: 120MHz
+  ignore_not_found: false

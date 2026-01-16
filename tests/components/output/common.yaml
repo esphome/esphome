@@ -6,6 +6,12 @@ esphome:
       - output.set_level:
           id: light_output_1
           level: 50%
+      - output.set_min_power:
+          id: light_output_1
+          min_power: 20%
+      - output.set_max_power:
+          id: light_output_1
+          max_power: 80%
 
 output:
   - platform: ${output_platform}

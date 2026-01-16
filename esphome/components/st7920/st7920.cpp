@@ -32,7 +32,6 @@ static const uint8_t LCD_LINE2 = 0x88;
 static const uint8_t LCD_LINE3 = 0x98;
 
 void ST7920::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->dump_config();
   this->spi_setup();
   this->init_internal_(this->get_buffer_length_());
@@ -90,7 +89,16 @@ void HOT ST7920::write_display_data() {
   }
 }
 
-void ST7920::fill(Color color) { memset(this->buffer_, color.is_on() ? 0xFF : 0x00, this->get_buffer_length_()); }
+void ST7920::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
+  uint8_t fill = color.is_on() ? 0xFF : 0x00;
+  memset(this->buffer_, fill, this->get_buffer_length_());
+}
 
 void ST7920::dump_config() {
   LOG_DISPLAY("", "ST7920", this);

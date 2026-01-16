@@ -1,6 +1,9 @@
-#include "http_request_host.h"
-
 #ifdef USE_HOST
+
+#define USE_HTTP_REQUEST_HOST_H
+#define CPPHTTPLIB_NO_EXCEPTIONS
+#include "httplib.h"
+#include "http_request_host.h"
 
 #include <regex>
 #include "esphome/components/network/util.h"
@@ -9,14 +12,14 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 static const char *const TAG = "http_request.host";
 
-std::shared_ptr<HttpContainer> HttpRequestHost::perform(std::string url, std::string method, std::string body,
-                                                        std::list<Header> request_headers,
-                                                        std::set<std::string> response_headers) {
+std::shared_ptr<HttpContainer> HttpRequestHost::perform(const std::string &url, const std::string &method,
+                                                        const std::string &body,
+                                                        const std::list<Header> &request_headers,
+                                                        const std::set<std::string> &response_headers) {
   if (!network::is_connected()) {
     this->status_momentary_error("failed", 1000);
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
@@ -135,7 +138,6 @@ void HttpContainerHost::end() {
   this->bytes_read_ = 0;
 }
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request
 
 #endif  // USE_HOST

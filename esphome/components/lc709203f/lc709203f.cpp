@@ -1,5 +1,6 @@
-#include "esphome/core/log.h"
 #include "lc709203f.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace lc709203f {
@@ -49,8 +50,6 @@ void Lc709203f::setup() {
   //  initialization code checks the return code from those functions. If they don't return
   //  NO_ERROR (0x00), that part of the initialization aborts and will be retried on the next
   //  call to update().
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // Set power mode to on. Note that, unlike some other similar devices, in sleep mode the IC
   //  does not record power usage. If there is significant power consumption during sleep mode,
   //  the pack RSOC will likely no longer be correct. Because of that, I do not implement
@@ -147,19 +146,14 @@ void Lc709203f::update() {
 }
 
 void Lc709203f::dump_config() {
-  ESP_LOGCONFIG(TAG, "LC709203F:");
-  LOG_I2C_DEVICE(this);
-
-  LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG,
+                "LC709203F:\n"
                 "  Pack Size: %d mAH\n"
-                "  Pack APA: 0x%02X",
-                this->pack_size_, this->apa_);
-
-  // This is only true if the pack_voltage_ is either 0x0000 or 0x0001. The config validator
-  //  should have already verified this.
-  ESP_LOGCONFIG(TAG, "  Pack Rated Voltage: 3.%sV", this->pack_voltage_ == 0x0000 ? "8" : "7");
-
+                "  Pack APA: 0x%02X\n"
+                "  Pack Rated Voltage: 3.%sV",
+                this->pack_size_, this->apa_, this->pack_voltage_ == 0x0000 ? "8" : "7");
+  LOG_I2C_DEVICE(this);
+  LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Battery Remaining", this->battery_remaining_sensor_);
 
@@ -186,14 +180,17 @@ uint8_t Lc709203f::get_register_(uint8_t register_to_read, uint16_t *register_va
     //  function will send a stop between the read and the write portion of the I2C
     //  transaction. This is bad in this case and will result in reading nothing but 0xFFFF
     //  from the registers.
-    return_code = this->read_register(register_to_read, &read_buffer[3], 3, false);
+    return_code = this->read_register(register_to_read, &read_buffer[3], 3);
     if (return_code != i2c::NO_ERROR) {
       // Error on the i2c bus
-      this->status_set_warning(
-          str_sprintf("Error code %d when reading from register 0x%02X", return_code, register_to_read).c_str());
-    } else if (this->crc8_(read_buffer, 5) != read_buffer[5]) {
+      char buf[64];
+      snprintf(buf, sizeof(buf), "Error code %d when reading from register 0x%02X", return_code, register_to_read);
+      this->status_set_warning(buf);
+    } else if (crc8(read_buffer, 5, 0x00, 0x07, true) != read_buffer[5]) {
       // I2C indicated OK, but the CRC of the data does not matcth.
-      this->status_set_warning(str_sprintf("CRC error reading from register 0x%02X", register_to_read).c_str());
+      char buf[64];
+      snprintf(buf, sizeof(buf), "CRC error reading from register 0x%02X", register_to_read);
+      this->status_set_warning(buf);
     } else {
       *register_value = ((uint16_t) read_buffer[4] << 8) | (uint16_t) read_buffer[3];
       return i2c::NO_ERROR;
@@ -222,37 +219,24 @@ uint8_t Lc709203f::set_register_(uint8_t register_to_set, uint16_t value_to_set)
   write_buffer[1] = register_to_set;
   write_buffer[2] = value_to_set & 0xFF;         // Low byte
   write_buffer[3] = (value_to_set >> 8) & 0xFF;  // High byte
-  write_buffer[4] = this->crc8_(write_buffer, 4);
+  write_buffer[4] = crc8(write_buffer, 4, 0x00, 0x07, true);
 
   for (uint8_t i = 0; i <= LC709203F_I2C_RETRY_COUNT; i++) {
     // Note: we don't write the first byte of the write buffer to the device.
     //  This is done automatically by the write() function.
-    return_code = this->write(&write_buffer[1], 4, true);
+    return_code = this->write(&write_buffer[1], 4);
     if (return_code == i2c::NO_ERROR) {
       return return_code;
     } else {
-      this->status_set_warning(
-          str_sprintf("Error code %d when writing to register 0x%02X", return_code, register_to_set).c_str());
+      char buf[64];
+      snprintf(buf, sizeof(buf), "Error code %d when writing to register 0x%02X", return_code, register_to_set);
+      this->status_set_warning(buf);
     }
   }
 
   // If we get here, we tried to send the data LC709203F_I2C_RETRY_COUNT times and failed.
   //  We return the I2C error code, it is up to the higher level code what to do about it.
   return return_code;
-}
-
-uint8_t Lc709203f::crc8_(uint8_t *byte_buffer, uint8_t length_of_crc) {
-  uint8_t crc = 0x00;
-  const uint8_t polynomial(0x07);
-
-  for (uint8_t j = length_of_crc; j; --j) {
-    crc ^= *byte_buffer++;
-
-    for (uint8_t i = 8; i; --i) {
-      crc = (crc & 0x80) ? (crc << 1) ^ polynomial : (crc << 1);
-    }
-  }
-  return crc;
 }
 
 void Lc709203f::set_pack_size(uint16_t pack_size) {

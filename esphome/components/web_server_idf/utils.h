@@ -1,5 +1,5 @@
 #pragma once
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include <esp_http_server.h>
 #include <string>
@@ -7,6 +7,10 @@
 
 namespace esphome {
 namespace web_server_idf {
+
+/// Decode URL-encoded string in-place (e.g., %20 -> space, + -> space)
+/// Returns the new length of the decoded string
+size_t url_decode(char *str);
 
 bool request_has_header(httpd_req_t *req, const char *name);
 optional<std::string> request_get_header(httpd_req_t *req, const char *name);
@@ -24,4 +28,4 @@ const char *stristr(const char *haystack, const char *needle);
 
 }  // namespace web_server_idf
 }  // namespace esphome
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32
