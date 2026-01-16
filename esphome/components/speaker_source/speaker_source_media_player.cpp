@@ -213,8 +213,11 @@ void SpeakerSourceMediaPlayer::loop() {
   media_player::MediaPlayerState old_state = this->state;
 
   // Check playlist state to detect transitions between items
-  bool announcement_has_next_item = !this->announcement_playlist_.empty() || this->announcement_repeat_one_;
-  bool media_has_next_item = !this->media_playlist_.empty() || this->media_repeat_one_;
+  bool announcement_has_next_item =
+      (this->announcement_playlist_index_ < this->announcement_playlist_.size()) ||
+      (this->announcement_repeat_mode_ != REPEAT_OFF && !this->announcement_playlist_.empty());
+  bool media_has_next_item = (this->media_playlist_index_ < this->media_playlist_.size()) ||
+                             (this->media_repeat_mode_ != REPEAT_OFF && !this->media_playlist_.empty());
 
   // Check announcement pipeline first
   // Copy pointer to local variable to avoid TOCTOU race
@@ -420,13 +423,13 @@ void SpeakerSourceMediaPlayer::queue_command_(MediaPlayerControlCommand::Type ty
   }
 }
 
-void SpeakerSourceMediaPlayer::queue_play_front_(size_t pipeline, uint32_t delay_ms) {
+void SpeakerSourceMediaPlayer::queue_play_current_(size_t pipeline, uint32_t delay_ms) {
   if (delay_ms > 0) {
     const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
     this->set_timeout(timeout_id, delay_ms,
-                      [this, pipeline]() { this->queue_command_(MediaPlayerControlCommand::PLAY_FRONT, pipeline); });
+                      [this, pipeline]() { this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline); });
   } else {
-    this->queue_command_(MediaPlayerControlCommand::PLAY_FRONT, pipeline);
+    this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
   }
 }
 
@@ -446,7 +449,9 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
       (pipeline == MEDIA_PIPELINE) ? this->media_active_source_ : this->announcement_active_source_;
   std::vector<std::string> *playlist =
       (pipeline == MEDIA_PIPELINE) ? &this->media_playlist_ : &this->announcement_playlist_;
-  bool *repeat_one = (pipeline == MEDIA_PIPELINE) ? &this->media_repeat_one_ : &this->announcement_repeat_one_;
+  size_t *playlist_index =
+      (pipeline == MEDIA_PIPELINE) ? &this->media_playlist_index_ : &this->announcement_playlist_index_;
+  RepeatMode *repeat_mode = (pipeline == MEDIA_PIPELINE) ? &this->media_repeat_mode_ : &this->announcement_repeat_mode_;
   uint32_t playlist_delay_ms =
       (pipeline == MEDIA_PIPELINE) ? this->media_playlist_delay_ms_ : this->announcement_playlist_delay_ms_;
 
@@ -459,10 +464,11 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
       const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
       this->cancel_timeout(timeout_id);
       playlist->clear();
+      *playlist_index = 0;  // Reset index
       playlist->push_back(*control_command.data.uri);
 
-      // Queue PLAY_FRONT to initiate playback
-      this->queue_command_(MediaPlayerControlCommand::PLAY_FRONT, pipeline);
+      // Queue PLAY_CURRENT to initiate playback
+      this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
       command_executed = true;
       break;
     }
@@ -472,37 +478,47 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
       bool was_empty = playlist->empty();
       playlist->push_back(*control_command.data.uri);
 
-      // If nothing was playing, queue PLAY_FRONT to start
+      if (was_empty) {
+        *playlist_index = 0;  // Reset index when adding to empty playlist
+      }
+
+      // If nothing was playing, queue PLAY_CURRENT to start
       bool nothing_playing =
           (active_source == nullptr) || (active_source->get_state(pipeline) == media_source::MediaSourceState::IDLE);
       if (was_empty && nothing_playing) {
-        this->queue_command_(MediaPlayerControlCommand::PLAY_FRONT, pipeline);
+        this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
       }
       command_executed = true;
       break;
     }
 
     case MediaPlayerControlCommand::PLAYLIST_ADVANCE: {
-      // Internal message: a track finished, advance to next in our playlist
-      if (!playlist->empty() && !*repeat_one) {
-        // Remove the completed item
-        playlist->erase(playlist->begin());
+      // Internal message: a track finished, advance to next
+      if (*repeat_mode != REPEAT_ONE) {
+        // Advance index (unless repeat_one keeps same track)
+        (*playlist_index)++;
       }
 
-      if (!playlist->empty()) {
-        // Queue PLAY_FRONT with optional delay
-        this->queue_play_front_(pipeline, playlist_delay_ms);
+      // Check if we should continue playback
+      if (*playlist_index < playlist->size()) {
+        // More items to play
+        this->queue_play_current_(pipeline, playlist_delay_ms);
+      } else if (*repeat_mode == REPEAT_ALL && !playlist->empty()) {
+        // At end but repeat_all is on - wrap to beginning
+        *playlist_index = 0;
+        this->queue_play_current_(pipeline, playlist_delay_ms);
       }
+      // else: at end with repeat_off - stay idle
       command_executed = true;
       break;
     }
 
-    case MediaPlayerControlCommand::PLAY_FRONT: {
-      // Play the front item of our local playlist
-      if (!playlist->empty()) {
-        command_executed = this->try_execute_play_uri_(playlist->front(), pipeline);
+    case MediaPlayerControlCommand::PLAY_CURRENT: {
+      // Play the item at current playlist index
+      if (*playlist_index < playlist->size()) {
+        command_executed = this->try_execute_play_uri_((*playlist)[*playlist_index], pipeline);
       } else {
-        command_executed = true;  // Empty playlist, nothing to do
+        command_executed = true;  // Index out of bounds or empty playlist
       }
       break;
     }
@@ -518,41 +534,64 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
             const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
             this->cancel_timeout(timeout_id);
             playlist->clear();
+            *playlist_index = 0;  // Reset index
             break;
           }
           case media_source::MEDIA_SOURCE_COMMAND_NEXT: {
-            // NEXT from HA: force advance (remove front, queue PLAY_FRONT)
-            if (!playlist->empty()) {
-              playlist->erase(playlist->begin());
+            // NEXT from HA: force advance to next track
+            if (*playlist_index + 1 < playlist->size()) {
+              (*playlist_index)++;
+              this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
+            } else if (*repeat_mode == REPEAT_ALL && !playlist->empty()) {
+              *playlist_index = 0;
+              this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
             }
-            if (!playlist->empty()) {
-              this->queue_command_(MediaPlayerControlCommand::PLAY_FRONT, pipeline);
+            // else: at end with no repeat_all - stay on current
+            command_executed = true;
+            break;
+          }
+          case media_source::MEDIA_SOURCE_COMMAND_PREVIOUS: {
+            // PREVIOUS from HA: go back to previous track
+            if (*playlist_index > 0) {
+              (*playlist_index)--;
+              this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
+            } else if (*repeat_mode == REPEAT_ALL && !playlist->empty()) {
+              // At beginning with repeat_all - wrap to end
+              *playlist_index = playlist->size() - 1;
+              this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
             }
+            // else: at beginning with no repeat_all - stay on current
             command_executed = true;
             break;
           }
           case media_source::MEDIA_SOURCE_COMMAND_REPEAT_ONE:
-            *repeat_one = true;
+            *repeat_mode = REPEAT_ONE;
             command_executed = true;
             break;
           case media_source::MEDIA_SOURCE_COMMAND_REPEAT_OFF:
-            *repeat_one = false;
+            *repeat_mode = REPEAT_OFF;
+            command_executed = true;
+            break;
+          case media_source::MEDIA_SOURCE_COMMAND_REPEAT_ALL:
+            *repeat_mode = REPEAT_ALL;
             command_executed = true;
             break;
           case media_source::MEDIA_SOURCE_COMMAND_CLEAR_PLAYLIST: {
-            // Clear playlist but keep current item
+            // Clear playlist but keep current item playing
             const std::string timeout_id = (pipeline == MEDIA_PIPELINE) ? "next_media" : "next_ann";
             this->cancel_timeout(timeout_id);
-            if (!playlist->empty()) {
-              std::string current = playlist->front();
+            if (*playlist_index < playlist->size()) {
+              std::string current = (*playlist)[*playlist_index];
               playlist->clear();
               playlist->push_back(current);
+              *playlist_index = 0;
+            } else {
+              playlist->clear();
+              *playlist_index = 0;
             }
             command_executed = true;
             break;
           }
-          case media_source::MEDIA_SOURCE_COMMAND_REPEAT_ALL:
-          case media_source::MEDIA_SOURCE_COMMAND_PREVIOUS:
           case media_source::MEDIA_SOURCE_COMMAND_SHUFFLE:
           case media_source::MEDIA_SOURCE_COMMAND_UNSHUFFLE:
             // TODO: Handle these for local playlist

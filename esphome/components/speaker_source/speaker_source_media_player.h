@@ -24,6 +24,12 @@ enum Pipeline : size_t {
   ANNOUNCEMENT_PIPELINE = 1,
 };
 
+enum RepeatMode : uint8_t {
+  REPEAT_OFF = 0,
+  REPEAT_ONE = 1,
+  REPEAT_ALL = 2,
+};
+
 struct MediaCallCommand {
   optional<media_player::MediaPlayerCommand> command;
   optional<float> volume;
@@ -35,10 +41,10 @@ struct MediaCallCommand {
 
 struct MediaPlayerControlCommand {
   enum Type : uint8_t {
-    PLAY_URI,          // Clear playlist, add URI, queue PLAY_FRONT
-    ENQUEUE_URI,       // Add URI to playlist, queue PLAY_FRONT if idle
-    PLAYLIST_ADVANCE,  // Remove front (unless repeat_one), queue PLAY_FRONT if more items
-    PLAY_FRONT,        // Play front item of playlist (can retry if speaker not ready)
+    PLAY_URI,          // Clear playlist, reset index, add URI, queue PLAY_CURRENT
+    ENQUEUE_URI,       // Add URI to playlist, queue PLAY_CURRENT if idle
+    PLAYLIST_ADVANCE,  // Advance index (or wrap for repeat_all), queue PLAY_CURRENT if more items
+    PLAY_CURRENT,      // Play item at current playlist index (can retry if speaker not ready)
     SEND_COMMAND,      // Send command to active source
   };
   Type type;
@@ -125,7 +131,7 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   bool try_execute_play_uri_(const std::string &uri, size_t pipeline);
   media_source::MediaSource *find_source_for_uri_(const std::string &uri, size_t pipeline);
   void queue_command_(MediaPlayerControlCommand::Type type, size_t pipeline);
-  void queue_play_front_(size_t pipeline, uint32_t delay_ms = 0);
+  void queue_play_current_(size_t pipeline, uint32_t delay_ms = 0);
 
   std::vector<media_source::MediaSource *> media_sources_;
   speaker::Speaker *media_speaker_{nullptr};
@@ -143,16 +149,18 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
 
   QueueHandle_t media_control_command_queue_;
 
-  // Playlists use std::vector instead of std::deque because:
+  // Playlists use std::vector with index-based tracking:
   // 1. Lower memory overhead (important for embedded systems)
   // 2. Better cache locality for frequent iteration in loop()
-  // 3. erase(begin()) only happens once per song (~3 min intervals)
+  // 3. Index tracking enables repeat_all without modifying the playlist
   // 4. Typical playlists are small (< 20 songs)
   // Note: No mutex needed - playlists are only accessed from the main loop thread
   std::vector<std::string> media_playlist_;
   std::vector<std::string> announcement_playlist_;
-  bool media_repeat_one_{false};
-  bool announcement_repeat_one_{false};
+  size_t media_playlist_index_{0};
+  size_t announcement_playlist_index_{0};
+  RepeatMode media_repeat_mode_{REPEAT_OFF};
+  RepeatMode announcement_repeat_mode_{REPEAT_OFF};
   uint32_t media_playlist_delay_ms_{0};
   uint32_t announcement_playlist_delay_ms_{0};
 
