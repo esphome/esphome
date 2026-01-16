@@ -105,29 +105,29 @@ class RX8025TComponent : public time::RealTimeClock, public i2c::I2CDevice {
       uint8_t unused_c : 4;
 
       // 0x0D - Extension Register
-      uint8_t tsel : 2;   // Timer clock select
-      uint8_t fsel : 2;   // FOUT frequency select
-      bool te : 1;        // Timer enable
-      bool usel : 1;      // Update interrupt select
-      bool wada : 1;      // Weekday/Day alarm select
+      uint8_t tsel : 2;  // Timer clock select
+      uint8_t fsel : 2;  // FOUT frequency select
+      bool te : 1;       // Timer enable
+      bool usel : 1;     // Update interrupt select
+      bool wada : 1;     // Weekday/Day alarm select
       uint8_t unused_d : 1;
 
       // 0x0E - Flag Register
-      bool vdet : 1;      // Voltage detection flag
-      bool vlf : 1;       // Voltage low flag (oscillator stopped)
+      bool vdet : 1;  // Voltage detection flag
+      bool vlf : 1;   // Voltage low flag (oscillator stopped)
       uint8_t unused_e1 : 1;
-      bool af : 1;        // Alarm flag
-      bool tf : 1;        // Timer flag
-      bool uf : 1;        // Update flag
+      bool af : 1;  // Alarm flag
+      bool tf : 1;  // Timer flag
+      bool uf : 1;  // Update flag
       uint8_t unused_e2 : 2;
 
       // 0x0F - Control Register
-      bool reset : 1;     // Reset bit
+      bool reset : 1;  // Reset bit
       uint8_t unused_f1 : 2;
-      bool aie : 1;       // Alarm interrupt enable
-      bool tie : 1;       // Timer interrupt enable
-      bool uie : 1;       // Update interrupt enable
-      uint8_t csel : 2;   // Compensation interval select
+      bool aie : 1;      // Alarm interrupt enable
+      bool tie : 1;      // Timer interrupt enable
+      bool uie : 1;      // Update interrupt enable
+      uint8_t csel : 2;  // Compensation interval select
     } reg;
     mutable uint8_t raw[sizeof(reg)];
   } rx8025t_;

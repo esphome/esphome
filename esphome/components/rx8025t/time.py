@@ -8,7 +8,9 @@ CODEOWNERS = ["@remcom"]
 DEPENDENCIES = ["i2c"]
 
 rx8025t_ns = cg.esphome_ns.namespace("rx8025t")
-RX8025TComponent = rx8025t_ns.class_("RX8025TComponent", time.RealTimeClock, i2c.I2CDevice)
+RX8025TComponent = rx8025t_ns.class_(
+    "RX8025TComponent", time.RealTimeClock, i2c.I2CDevice
+)
 WriteAction = rx8025t_ns.class_("WriteAction", automation.Action)
 ReadAction = rx8025t_ns.class_("ReadAction", automation.Action)
 

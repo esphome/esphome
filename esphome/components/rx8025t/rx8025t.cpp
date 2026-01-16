@@ -99,13 +99,10 @@ bool RX8025TComponent::read_rtc_() {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  VLF:%s VDET:%s",
-           this->rx8025t_.reg.hour_10, this->rx8025t_.reg.hour,
-           this->rx8025t_.reg.minute_10, this->rx8025t_.reg.minute,
-           this->rx8025t_.reg.second_10, this->rx8025t_.reg.second,
-           this->rx8025t_.reg.year_10, this->rx8025t_.reg.year,
-           this->rx8025t_.reg.month_10, this->rx8025t_.reg.month,
-           this->rx8025t_.reg.day_10, this->rx8025t_.reg.day,
+  ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  VLF:%s VDET:%s", this->rx8025t_.reg.hour_10,
+           this->rx8025t_.reg.hour, this->rx8025t_.reg.minute_10, this->rx8025t_.reg.minute,
+           this->rx8025t_.reg.second_10, this->rx8025t_.reg.second, this->rx8025t_.reg.year_10, this->rx8025t_.reg.year,
+           this->rx8025t_.reg.month_10, this->rx8025t_.reg.month, this->rx8025t_.reg.day_10, this->rx8025t_.reg.day,
            ONOFF(this->rx8025t_.reg.vlf), ONOFF(this->rx8025t_.reg.vdet));
 
   return true;
@@ -116,13 +113,10 @@ bool RX8025TComponent::write_rtc_() {
     ESP_LOGE(TAG, "Can't write I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Write %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u",
-           this->rx8025t_.reg.hour_10, this->rx8025t_.reg.hour,
-           this->rx8025t_.reg.minute_10, this->rx8025t_.reg.minute,
-           this->rx8025t_.reg.second_10, this->rx8025t_.reg.second,
-           this->rx8025t_.reg.year_10, this->rx8025t_.reg.year,
-           this->rx8025t_.reg.month_10, this->rx8025t_.reg.month,
-           this->rx8025t_.reg.day_10, this->rx8025t_.reg.day);
+  ESP_LOGD(TAG, "Write %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u", this->rx8025t_.reg.hour_10,
+           this->rx8025t_.reg.hour, this->rx8025t_.reg.minute_10, this->rx8025t_.reg.minute,
+           this->rx8025t_.reg.second_10, this->rx8025t_.reg.second, this->rx8025t_.reg.year_10, this->rx8025t_.reg.year,
+           this->rx8025t_.reg.month_10, this->rx8025t_.reg.month, this->rx8025t_.reg.day_10, this->rx8025t_.reg.day);
   return true;
 }
 
