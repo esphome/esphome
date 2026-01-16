@@ -1,7 +1,7 @@
 sensor:
   - platform: sen5x
     id: sen55
-    model: SEN55
+    type: SEN55
     temperature:
       name: Temperature
       accuracy_decimals: 1
@@ -42,4 +42,3 @@ sensor:
     auto_cleaning_interval: 604800s
     acceleration_mode: low
     store_baseline: true
-    address: 0x69
