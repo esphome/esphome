@@ -129,7 +129,7 @@ void StatsdComponent::update() {
     // %g uses max 13 chars for value (sign + 6 significant digits + e+xxx)
     // Total: 1 + 13 + 4 = 18 chars + null, use 24 for safety
     char val_buf[24];
-    snprintf(val_buf, sizeof(val_buf), ":%g|g\n", val);
+    buf_append_printf(val_buf, sizeof(val_buf), 0, ":%g|g\n", val);
     out.append(val_buf);
 
     if (out.length() > SEND_THRESHOLD) {
