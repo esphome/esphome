@@ -630,7 +630,7 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
 /// @return true if successful, false if decode failed or invalid size
 bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> &out) {
   // Decode in chunks to minimize stack usage
-  constexpr size_t chunk_bytes = 48;  // 12 timings worth
+  constexpr size_t chunk_bytes = 48;  // 12 int32 values
   constexpr size_t chunk_chars = 64;  // 48 * 4/3 = 64 chars
   uint8_t chunk[chunk_bytes];
 
