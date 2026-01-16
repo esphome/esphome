@@ -5,7 +5,35 @@ from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
-from esphome.const import (  # CONF_ALGORITHM_TUNING,; CONF_ALTITUDE_COMPENSATION,; CONF_AMBIENT_PRESSURE_COMPENSATION,; CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,; CONF_AUTOMATIC_SELF_CALIBRATION,; CONF_CO2,; CONF_GAIN_FACTOR,; CONF_GATING_MAX_DURATION_MINUTES,; CONF_HUMIDITY,; CONF_ID,; CONF_INDEX_OFFSET,; CONF_LEARNING_TIME_GAIN_HOURS,; CONF_LEARNING_TIME_OFFSET_HOURS,; CONF_MODEL,; CONF_NORMALIZED_OFFSET_SLOPE,; CONF_NOX,; CONF_OFFSET,; CONF_PM_1_0,; CONF_PM_2_5,; CONF_PM_4_0,; CONF_PM_10_0,; CONF_STD_INITIAL,; CONF_STORE_BASELINE,; CONF_TEMPERATURE,; CONF_TEMPERATURE_COMPENSATION,; CONF_TIME_CONSTANT,; CONF_VALUE,; CONF_VOC,; CONF_VOC_BASELINE,
+from esphome.const import (
+    # CONF_ALGORITHM_TUNING,
+    CONF_ALTITUDE_COMPENSATION,
+    CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
+    CONF_AUTOMATIC_SELF_CALIBRATION,
+    CONF_CO2,
+    CONF_GAIN_FACTOR,
+    # CONF_GATING_MAX_DURATION_MINUTES,
+    CONF_HUMIDITY,
+    CONF_ID,
+    # CONF_INDEX_OFFSET,
+    # CONF_LEARNING_TIME_GAIN_HOURS,
+    # CONF_LEARNING_TIME_OFFSET_HOURS,
+    CONF_MODEL,
+    # CONF_NORMALIZED_OFFSET_SLOPE,
+    # CONF_NOX,
+    CONF_OFFSET,
+    CONF_PM_1_0,
+    CONF_PM_2_5,
+    CONF_PM_4_0,
+    CONF_PM_10_0,
+    # CONF_STD_INITIAL,
+    CONF_STORE_BASELINE,
+    CONF_TEMPERATURE,
+    CONF_TEMPERATURE_COMPENSATION,
+    # CONF_TIME_CONSTANT,
+    CONF_TYPE,
+    CONF_VALUE,
+    # CONF_VOC,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
@@ -26,43 +54,22 @@ from esphome.const import (  # CONF_ALGORITHM_TUNING,; CONF_ALTITUDE_COMPENSATIO
     UNIT_PERCENT,
 )
 
-_LOGGER = logging.getLogger(__name__)
-
 CONF_ALGORITHM_TUNING = "algorithm_tuning"
-CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
-CONF_AMBIENT_PRESSURE_COMPENSATION = "ambient_pressure_compensation"
-CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE = "ambient_pressure_compensation_source"
-CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
-CONF_CO2 = "co2"
-CONF_GAIN_FACTOR = "gain_factor"
 CONF_GATING_MAX_DURATION_MINUTES = "gating_max_duration_minutes"
-CONF_HUMIDITY = "humidity"
-CONF_ID = "id"
 CONF_INDEX_OFFSET = "index_offset"
 CONF_LEARNING_TIME_GAIN_HOURS = "learning_time_gain_hours"
 CONF_LEARNING_TIME_OFFSET_HOURS = "learning_time_offset_hours"
-CONF_MODEL = "model"
 CONF_NORMALIZED_OFFSET_SLOPE = "normalized_offset_slope"
 CONF_NOX = "nox"
-CONF_OFFSET = "offset"
-CONF_PM_1_0 = "pm_1_0"
-CONF_PM_2_5 = "pm_2_5"
-CONF_PM_4_0 = "pm_4_0"
-CONF_PM_10_0 = "pm_10_0"
 CONF_STD_INITIAL = "std_initial"
-CONF_STORE_BASELINE = "store_baseline"
-CONF_TEMPERATURE = "temperature"
-CONF_TEMPERATURE_COMPENSATION = "temperature_compensation"
 CONF_TIME_CONSTANT = "time_constant"
-CONF_TYPE = "type"
-CONF_VALUE = "value"
 CONF_VOC = "voc"
-CONF_VOC_BASELINE = "voc_baseline"
-
 
 CODEOWNERS = ["@martgras", "@mikelawrence"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
+
+_LOGGER = logging.getLogger(__name__)
 
 sen5x_ns = cg.esphome_ns.namespace("sen5x")
 SEN5XComponent = sen5x_ns.class_(
@@ -317,7 +324,6 @@ CO2_SCHEMA = cv.Schema(
         ),
     }
 )
-
 SEN50_SCHEMA = PM_SCHEMA.extend(
     {cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval}
 ).extend(i2c.i2c_device_schema(0x69))
@@ -329,7 +335,8 @@ def validate_model(config):
         _LOGGER.warning(
             "The 'model' option is deprecated and will be removed very soon. "
             "Update your configuration to use 'type' instead. "
-            f"'type: {model}' was added to your configuration automatically."
+            "'type: %s' was added to your configuration automatically.",
+            model,
         )
         config[CONF_TYPE] = model
         del config[CONF_MODEL]
