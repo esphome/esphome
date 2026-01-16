@@ -990,9 +990,9 @@ class PackedBufferTypeInfo(TypeInfo):
         return (
             f'out.append("  {self.name}: ");\n'
             + 'out.append("packed buffer [");\n'
-            + f"out.append(std::to_string(this->{self.field_name}_count_));\n"
+            + f"append_uint(out, this->{self.field_name}_count_);\n"
             + 'out.append(" values, ");\n'
-            + f"out.append(std::to_string(this->{self.field_name}_length_));\n"
+            + f"append_uint(out, this->{self.field_name}_length_);\n"
             + 'out.append(" bytes]\\n");'
         )
 
@@ -2216,24 +2216,22 @@ def build_message_type(
 
     # dump_to method declaration in header
     prot = "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-    prot += "void dump_to(std::string &out) const override;\n"
+    prot += "const char *dump_to(DumpBuffer &out) const override;\n"
     prot += "#endif\n"
     public_content.append(prot)
 
     # dump_to implementation will go in dump_cpp
-    dump_impl = f"void {desc.name}::dump_to(std::string &out) const {{"
+    dump_impl = f"const char *{desc.name}::dump_to(DumpBuffer &out) const {{"
     if dump:
         # Always use MessageDumpHelper for consistent output formatting
         dump_impl += "\n"
         dump_impl += f'  MessageDumpHelper helper(out, "{desc.name}");\n'
         dump_impl += indent("\n".join(dump)) + "\n"
+        dump_impl += "  return out.c_str();\n"
     else:
-        o2 = f'out.append("{desc.name} {{}}");'
-        if len(dump_impl) + len(o2) + 3 < 120:
-            dump_impl += f" {o2} "
-        else:
-            dump_impl += "\n"
-            dump_impl += f"  {o2}\n"
+        dump_impl += "\n"
+        dump_impl += f'  out.append("{desc.name} {{}}");\n'
+        dump_impl += "  return out.c_str();\n"
     dump_impl += "}\n"
 
     if base_class:
@@ -2521,7 +2519,7 @@ def build_service_message_type(
             case += "// Empty message: no decode needed\n"
         if log:
             case += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-            case += f'ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
+            case += f'this->log_receive_message_(LOG_STR("{func}"), msg);\n'
             case += "#endif\n"
         case += f"this->{func}(msg);\n"
         case += "break;"
@@ -2588,7 +2586,7 @@ namespace esphome::api {
 namespace esphome::api {
 
 // Helper function to append a quoted string, handling empty StringRef
-static inline void append_quoted_string(std::string &out, const StringRef &ref) {
+static inline void append_quoted_string(DumpBuffer &out, const StringRef &ref) {
   out.append("'");
   if (!ref.empty()) {
     out.append(ref.c_str());
@@ -2597,83 +2595,89 @@ static inline void append_quoted_string(std::string &out, const StringRef &ref) 
 }
 
 // Common helpers for dump_field functions
-static inline void append_field_prefix(std::string &out, const char *field_name, int indent) {
+static inline void append_field_prefix(DumpBuffer &out, const char *field_name, int indent) {
   out.append(indent, ' ').append(field_name).append(": ");
 }
 
-static inline void append_with_newline(std::string &out, const char *str) {
+static inline void append_with_newline(DumpBuffer &out, const char *str) {
   out.append(str);
   out.append("\\n");
+}
+
+static inline void append_uint(DumpBuffer &out, uint32_t value) {
+  char buf[16];
+  snprintf(buf, sizeof(buf), "%" PRIu32, value);
+  out.append(buf);
 }
 
 // RAII helper for message dump formatting
 class MessageDumpHelper {
  public:
-  MessageDumpHelper(std::string &out, const char *message_name) : out_(out) {
+  MessageDumpHelper(DumpBuffer &out, const char *message_name) : out_(out) {
     out_.append(message_name);
     out_.append(" {\\n");
   }
   ~MessageDumpHelper() { out_.append(" }"); }
 
  private:
-  std::string &out_;
+  DumpBuffer &out_;
 };
 
 // Helper functions to reduce code duplication in dump methods
-static void dump_field(std::string &out, const char *field_name, int32_t value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, int32_t value, int indent = 2) {
   char buffer[64];
   append_field_prefix(out, field_name, indent);
   snprintf(buffer, 64, "%" PRId32, value);
   append_with_newline(out, buffer);
 }
 
-static void dump_field(std::string &out, const char *field_name, uint32_t value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, uint32_t value, int indent = 2) {
   char buffer[64];
   append_field_prefix(out, field_name, indent);
   snprintf(buffer, 64, "%" PRIu32, value);
   append_with_newline(out, buffer);
 }
 
-static void dump_field(std::string &out, const char *field_name, float value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, float value, int indent = 2) {
   char buffer[64];
   append_field_prefix(out, field_name, indent);
   snprintf(buffer, 64, "%g", value);
   append_with_newline(out, buffer);
 }
 
-static void dump_field(std::string &out, const char *field_name, uint64_t value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, uint64_t value, int indent = 2) {
   char buffer[64];
   append_field_prefix(out, field_name, indent);
   snprintf(buffer, 64, "%" PRIu64, value);
   append_with_newline(out, buffer);
 }
 
-static void dump_field(std::string &out, const char *field_name, bool value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, bool value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append(YESNO(value));
   out.append("\\n");
 }
 
-static void dump_field(std::string &out, const char *field_name, const std::string &value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, const std::string &value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
-  out.append("'").append(value).append("'");
+  out.append("'").append(value.c_str()).append("'");
   out.append("\\n");
 }
 
-static void dump_field(std::string &out, const char *field_name, StringRef value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, StringRef value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   append_quoted_string(out, value);
   out.append("\\n");
 }
 
-static void dump_field(std::string &out, const char *field_name, const char *value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, const char *value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append("'").append(value).append("'");
   out.append("\\n");
 }
 
 template<typename T>
-static void dump_field(std::string &out, const char *field_name, T value, int indent = 2) {
+static void dump_field(DumpBuffer &out, const char *field_name, T value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append(proto_enum_to_string<T>(value));
   out.append("\\n");
@@ -2681,7 +2685,7 @@ static void dump_field(std::string &out, const char *field_name, T value, int in
 
 // Helper for bytes fields - uses stack buffer to avoid heap allocation
 // Buffer sized for 160 bytes of data (480 chars with separators) to fit typical log buffer
-static void dump_bytes_field(std::string &out, const char *field_name, const uint8_t *data, size_t len, int indent = 2) {
+static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len, int indent = 2) {
   char hex_buf[format_hex_pretty_size(160)];
   append_field_prefix(out, field_name, indent);
   format_hex_pretty_to(hex_buf, data, len);
@@ -2843,25 +2847,35 @@ static const char *const TAG = "api.service";
     hpp += f"class {class_name} : public ProtoService {{\n"
     hpp += " public:\n"
 
-    # Add logging helper method declaration
+    # Add logging helper method declarations
     hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     hpp += " protected:\n"
-    hpp += "  void log_send_message_(const char *name, const std::string &dump);\n"
+    hpp += "  void log_send_message_(const char *name, const char *dump);\n"
+    hpp += (
+        "  void log_receive_message_(const LogString *name, const ProtoMessage &msg);\n"
+    )
     hpp += " public:\n"
     hpp += "#endif\n\n"
 
     # Add non-template send_message method
     hpp += "  bool send_message(const ProtoMessage &msg, uint8_t message_type) {\n"
     hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-    hpp += "    this->log_send_message_(msg.message_name(), msg.dump());\n"
+    hpp += "    DumpBuffer dump_buf;\n"
+    hpp += "    this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));\n"
     hpp += "#endif\n"
     hpp += "    return this->send_message_(msg, message_type);\n"
     hpp += "  }\n\n"
 
-    # Add logging helper method implementation to cpp
+    # Add logging helper method implementations to cpp
     cpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-    cpp += f"void {class_name}::log_send_message_(const char *name, const std::string &dump) {{\n"
-    cpp += '  ESP_LOGVV(TAG, "send_message %s: %s", name, dump.c_str());\n'
+    cpp += (
+        f"void {class_name}::log_send_message_(const char *name, const char *dump) {{\n"
+    )
+    cpp += '  ESP_LOGVV(TAG, "send_message %s: %s", name, dump);\n'
+    cpp += "}\n"
+    cpp += f"void {class_name}::log_receive_message_(const LogString *name, const ProtoMessage &msg) {{\n"
+    cpp += "  DumpBuffer dump_buf;\n"
+    cpp += '  ESP_LOGVV(TAG, "%s: %s", LOG_STR_ARG(name), msg.dump_to(dump_buf));\n'
     cpp += "}\n"
     cpp += "#endif\n\n"
 

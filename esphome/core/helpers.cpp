@@ -487,19 +487,26 @@ static constexpr const char *BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                             "abcdefghijklmnopqrstuvwxyz"
                                             "0123456789+/";
 
-// Helper function to find the index of a base64 character in the lookup table.
+// Helper function to find the index of a base64/base64url character in the lookup table.
 // Returns the character's position (0-63) if found, or 0 if not found.
+// Supports both standard base64 (+/) and base64url (-_) alphabets.
 // NOTE: This returns 0 for both 'A' (valid base64 char at index 0) and invalid characters.
 // This is safe because is_base64() is ALWAYS checked before calling this function,
 // preventing invalid characters from ever reaching here. The base64_decode function
 // stops processing at the first invalid character due to the is_base64() check in its
 // while loop condition, making this edge case harmless in practice.
 static inline uint8_t base64_find_char(char c) {
+  // Handle base64url variants: '-' maps to '+' (index 62), '_' maps to '/' (index 63)
+  if (c == '-')
+    return 62;
+  if (c == '_')
+    return 63;
   const char *pos = strchr(BASE64_CHARS, c);
   return pos ? (pos - BASE64_CHARS) : 0;
 }
 
-static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/')); }
+// Check if character is valid base64 or base64url
+static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/') || (c == '-') || (c == '_')); }
 
 std::string base64_encode(const std::vector<uint8_t> &buf) { return base64_encode(buf.data(), buf.size()); }
 
@@ -615,6 +622,55 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
   size_t actual_len = base64_decode(encoded_string, ret.data(), max_len);
   ret.resize(actual_len);
   return ret;
+}
+
+/// Encode int32 to 5 base85 characters + null terminator
+/// Standard ASCII85 alphabet: '!' (33) = 0 through 'u' (117) = 84
+inline void base85_encode_int32(int32_t value, std::span<char, BASE85_INT32_ENCODED_SIZE> output) {
+  uint32_t v = static_cast<uint32_t>(value);
+  // Encode least significant digit first, then reverse
+  for (int i = 4; i >= 0; i--) {
+    output[i] = static_cast<char>('!' + (v % 85));
+    v /= 85;
+  }
+  output[5] = '\0';
+}
+
+/// Decode 5 base85 characters to int32
+inline bool base85_decode_int32(const char *input, int32_t &out) {
+  uint8_t c0 = static_cast<uint8_t>(input[0] - '!');
+  uint8_t c1 = static_cast<uint8_t>(input[1] - '!');
+  uint8_t c2 = static_cast<uint8_t>(input[2] - '!');
+  uint8_t c3 = static_cast<uint8_t>(input[3] - '!');
+  uint8_t c4 = static_cast<uint8_t>(input[4] - '!');
+
+  // Each digit must be 0-84. Since uint8_t wraps, chars below '!' become > 84
+  if (c0 > 84 || c1 > 84 || c2 > 84 || c3 > 84 || c4 > 84)
+    return false;
+
+  // 85^4 = 52200625, 85^3 = 614125, 85^2 = 7225, 85^1 = 85
+  out = static_cast<int32_t>(c0 * 52200625u + c1 * 614125u + c2 * 7225u + c3 * 85u + c4);
+  return true;
+}
+
+/// Decode base85 string directly into vector (no intermediate buffer)
+bool base85_decode_int32_vector(const std::string &base85, std::vector<int32_t> &out) {
+  size_t len = base85.size();
+  if (len % 5 != 0)
+    return false;
+
+  out.clear();
+  const char *ptr = base85.data();
+  const char *end = ptr + len;
+
+  while (ptr < end) {
+    int32_t value;
+    if (!base85_decode_int32(ptr, value))
+      return false;
+    out.push_back(value);
+    ptr += 5;
+  }
+  return true;
 }
 
 // Colors

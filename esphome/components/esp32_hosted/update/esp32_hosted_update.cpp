@@ -8,6 +8,7 @@
 #include <esp_app_desc.h>
 #include <esp_hosted.h>
 #include <esp_hosted_host_fw_ver.h>
+#include <esp_ota_ops.h>
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
 #include "esphome/components/json/json_util.h"
@@ -293,8 +294,7 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
   }
 
   // Stream firmware to coprocessor while computing SHA256
-  // Hardware SHA acceleration requires 32-byte alignment on some chips (ESP32-S3 with IDF 5.5.x+)
-  alignas(32) sha256::SHA256 hasher;
+  sha256::SHA256 hasher;
   hasher.init();
 
   uint8_t buffer[CHUNK_SIZE];
@@ -351,8 +351,7 @@ bool Esp32HostedUpdate::write_embedded_firmware_to_coprocessor_() {
   }
 
   // Verify SHA256 before writing
-  // Hardware SHA acceleration requires 32-byte alignment on some chips (ESP32-S3 with IDF 5.5.x+)
-  alignas(32) sha256::SHA256 hasher;
+  sha256::SHA256 hasher;
   hasher.init();
   hasher.add(this->firmware_data_, this->firmware_size_);
   hasher.calculate();
@@ -441,6 +440,12 @@ void Esp32HostedUpdate::perform(bool force) {
   this->state_ = update::UPDATE_STATE_NO_UPDATE;
   this->status_clear_error();
   this->publish_state();
+
+#ifdef USE_OTA_ROLLBACK
+  // Mark the host partition as valid before rebooting, in case the safe mode
+  // timer hasn't expired yet.
+  esp_ota_mark_app_valid_cancel_rollback();
+#endif
 
   // Schedule a restart to ensure everything is in sync
   ESP_LOGI(TAG, "Restarting in 1 second");
