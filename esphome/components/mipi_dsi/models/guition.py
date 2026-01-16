@@ -1,8 +1,6 @@
 from esphome.components.mipi import DriverChip
 import esphome.config_validation as cv
 
-REGFLAG_DELAY = 0xFF
-
 # fmt: off
 DriverChip(
     "JC1060P470",
@@ -321,12 +319,6 @@ DriverChip(
         (0x35, 0x08),
         (0x37, 0x00),
         (0xE0, 0x00),
-        (0x11, 0x00),
-        (0x29, 0x00),
-        (REGFLAG_DELAY, 5),     # delay 5 ms for display ON
-        (0x11, 0x00),
-        (REGFLAG_DELAY, 120),     # delay 120 ms for display ON
-        (0x35, 0x00),
     ]
 )
 # fmt: on
