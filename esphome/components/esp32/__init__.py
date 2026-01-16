@@ -965,10 +965,20 @@ async def _add_yaml_idf_components(components: list[ConfigType]):
 
 
 async def to_code(config):
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    conf = config[CONF_FRAMEWORK]
+
     # Check if using native ESP-IDF build (--no-platformio)
     use_platformio = not CORE.data.get(KEY_NO_PLATFORMIO, False)
-
     if use_platformio:
+        # Clear IDF environment variables to avoid conflicts with PlatformIO's ESP-IDF
+        # but keep them when using --no-platformio for native ESP-IDF builds
+        for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
+            os.environ.pop(clean_var, None)
+
+        cg.add_platformio_option("lib_ldf_mode", "off")
+        cg.add_platformio_option("lib_compat_mode", "strict")
+        cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
         cg.add_platformio_option("board", config[CONF_BOARD])
         cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
         cg.add_platformio_option(
@@ -976,38 +986,8 @@ async def to_code(config):
             int(config[CONF_FLASH_SIZE].removesuffix("MB")) * 1024 * 1024,
         )
 
-    cg.set_cpp_standard("gnu++20")
-    cg.add_build_flag("-DUSE_ESP32")
-    cg.add_build_flag("-Wl,-z,noexecstack")
-    cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
-    variant = config[CONF_VARIANT]
-    cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{variant}")
-    cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[variant])
-    cg.add_define(ThreadModel.MULTI_ATOMICS)
-
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    conf = config[CONF_FRAMEWORK]
-
-    if use_platformio:
-        cg.add_platformio_option("lib_ldf_mode", "off")
-        cg.add_platformio_option("lib_compat_mode", "strict")
-        cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
         if CONF_SOURCE in conf:
             cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
-
-    if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
-        cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
-
-    # Set the location of the IDF component manager cache
-    os.environ["IDF_COMPONENT_CACHE_PATH"] = str(
-        CORE.relative_internal_path(".espressif")
-    )
-
-    if use_platformio:
-        # Clear IDF environment variables to avoid conflicts with PlatformIO's ESP-IDF
-        # but keep them when using --no-platformio for native ESP-IDF builds
-        for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
-            os.environ.pop(clean_var, None)
 
         add_extra_script(
             "pre",
@@ -1030,6 +1010,23 @@ async def to_code(config):
                 "iram_fix.py",
                 Path(__file__).parent / "iram_fix.py.script",
             )
+
+    cg.set_cpp_standard("gnu++20")
+    cg.add_build_flag("-DUSE_ESP32")
+    cg.add_build_flag("-Wl,-z,noexecstack")
+    cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
+    variant = config[CONF_VARIANT]
+    cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{variant}")
+    cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[variant])
+    cg.add_define(ThreadModel.MULTI_ATOMICS)
+
+    if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
+        cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
+
+    # Set the location of the IDF component manager cache
+    os.environ["IDF_COMPONENT_CACHE_PATH"] = str(
+        CORE.relative_internal_path(".espressif")
+    )
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_build_flag("-DUSE_ESP_IDF")
