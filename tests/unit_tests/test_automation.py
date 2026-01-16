@@ -349,11 +349,13 @@ def test_automation_is_synchronous_mixed_sync_async_sequence() -> None:
     assert automation_is_synchronous(actions) is False
 
 
-def test_automation_is_synchronous_unknown_action_treated_as_sync() -> None:
-    """Test that unknown actions (not in registry) are treated as sync by default."""
-    # This simulates an external component's action that isn't registered
+def test_automation_is_synchronous_unknown_action_treated_as_async() -> None:
+    """Test that unknown actions (not in registry) are treated as async for safety."""
+    # This simulates an external component's action that isn't registered.
+    # Unknown actions default to is_sync=None, which is treated as potentially
+    # async for safety (safe-by-default approach).
     actions = [{"my_custom_component.do_something": {"param": "value"}}]
-    assert automation_is_synchronous(actions) is True
+    assert automation_is_synchronous(actions) is False
 
 
 def test_automation_is_synchronous_empty_if_branches() -> None:

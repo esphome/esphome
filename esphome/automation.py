@@ -62,9 +62,9 @@ def register_action(
     action_type: MockObjClass,
     schema: cv.Schema,
     *,
-    is_async: bool = False,
+    is_sync: bool | None = None,
 ):
-    return ACTION_REGISTRY.register(name, action_type, schema, is_async=is_async)
+    return ACTION_REGISTRY.register(name, action_type, schema, is_sync=is_sync)
 
 
 def register_condition(name: str, condition_type: MockObjClass, schema: cv.Schema):
@@ -93,8 +93,13 @@ def automation_is_synchronous(action_configs: list[ConfigType]) -> bool:
     """Check if an automation action list runs fully synchronously.
 
     Returns False if any action in the chain (including nested actions)
-    is async (e.g., delay, wait_until). Used to determine if StringRef
-    arguments are safe (synchronous) or need copying to std::string (async).
+    is async or unknown (e.g., delay, wait_until, unregistered actions).
+    Used to determine if StringRef arguments are safe (synchronous) or
+    need copying to std::string (async/unknown).
+
+    Actions must be explicitly marked with is_sync=True to be considered
+    synchronous. Unknown actions (is_sync=None) are treated as potentially
+    async for safety.
     """
     if not action_configs:
         return True
@@ -103,9 +108,10 @@ def automation_is_synchronous(action_configs: list[ConfigType]) -> bool:
         # Extract action type (first key in the config dict)
         action_type = next(iter(action_config.keys()))
 
-        # Check if this action is async
+        # Check if this action is explicitly synchronous
+        # Unknown actions (not in registry or is_sync=None) are treated as async
         registry_entry = ACTION_REGISTRY.get(action_type)
-        if registry_entry and registry_entry.is_async:
+        if registry_entry is None or registry_entry.is_sync is not True:
             return False
 
         # Recursively check nested action lists
@@ -374,7 +380,7 @@ async def component_is_idle_condition_to_code(
     "delay",
     DelayAction,
     cv.templatable(cv.positive_time_period_milliseconds),
-    is_async=True,
+    is_sync=False,
 )
 async def delay_action_to_code(
     config: ConfigType,
@@ -394,6 +400,7 @@ async def delay_action_to_code(
     IfAction,
     cv.All(
         {
+            # Control flow - recursively checks nested actions
             cv.Exclusive(
                 CONF_CONDITION, CONF_CONDITION
             ): validate_potentially_and_condition,
@@ -405,6 +412,7 @@ async def delay_action_to_code(
         cv.has_at_least_one_key(CONF_THEN, CONF_ELSE),
         cv.has_at_least_one_key(CONF_CONDITION, CONF_ANY, CONF_ALL),
     ),
+    is_sync=True,  # Sync depends on nested actions, checked recursively
 )
 async def if_action_to_code(
     config: ConfigType,
@@ -433,6 +441,7 @@ async def if_action_to_code(
             cv.Required(CONF_THEN): validate_action_list,
         }
     ),
+    is_sync=True,  # Sync depends on nested actions, checked recursively
 )
 async def while_action_to_code(
     config: ConfigType,
@@ -456,6 +465,7 @@ async def while_action_to_code(
             cv.Required(CONF_THEN): validate_action_list,
         }
     ),
+    is_sync=True,  # Sync depends on nested actions, checked recursively
 )
 async def repeat_action_to_code(
     config: ConfigType,
@@ -484,7 +494,7 @@ _validate_wait_until = cv.maybe_simple_value(
 )
 
 
-@register_action("wait_until", WaitUntilAction, _validate_wait_until, is_async=True)
+@register_action("wait_until", WaitUntilAction, _validate_wait_until, is_sync=False)
 async def wait_until_action_to_code(
     config: ConfigType,
     action_id: ID,
@@ -500,7 +510,7 @@ async def wait_until_action_to_code(
     return var
 
 
-@register_action("lambda", LambdaAction, cv.lambda_)
+@register_action("lambda", LambdaAction, cv.lambda_, is_sync=True)
 async def lambda_action_to_code(
     config: ConfigType,
     action_id: ID,
@@ -519,6 +529,7 @@ async def lambda_action_to_code(
             cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
         }
     ),
+    is_sync=True,
 )
 async def component_update_action_to_code(
     config: ConfigType,
@@ -538,6 +549,7 @@ async def component_update_action_to_code(
             cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
         }
     ),
+    is_sync=True,
 )
 async def component_suspend_action_to_code(
     config: ConfigType,
@@ -560,6 +572,7 @@ async def component_suspend_action_to_code(
             ),
         }
     ),
+    is_sync=True,
 )
 async def component_resume_action_to_code(
     config: ConfigType,

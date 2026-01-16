@@ -25,13 +25,16 @@ class RegistryEntry:
         type_id: "MockObjClass",
         schema: "Schema",
         *,
-        is_async: bool = False,
+        is_sync: bool | None = None,
     ):
         self.name = name
         self.fun = fun
         self.type_id = type_id
         self.raw_schema = schema
-        self.is_async = is_async
+        # None = unknown (treated as potentially async for safety)
+        # True = explicitly synchronous (safe for zero-copy)
+        # False = explicitly async (needs copy)
+        self.is_sync = is_sync
 
     @property
     def coroutine_fun(self):
@@ -58,10 +61,10 @@ class Registry(dict[str, RegistryEntry]):
         type_id: "MockObjClass",
         schema: "Schema",
         *,
-        is_async: bool = False,
+        is_sync: bool | None = None,
     ):
         def decorator(fun: Callable[..., Any]):
-            self[name] = RegistryEntry(name, fun, type_id, schema, is_async=is_async)
+            self[name] = RegistryEntry(name, fun, type_id, schema, is_sync=is_sync)
             return fun
 
         return decorator
