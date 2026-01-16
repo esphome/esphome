@@ -15,6 +15,9 @@ CONFIG_SCHEMA = cv.All(
         cv.COMPONENT_SCHEMA
     ),
     cv.only_with_framework(Framework.ZEPHYR),
+    cv.require_framework_version(
+        nrf52_zephyr=cv.Version(2, 9, 2, "1"),
+    ),
 )
 
 
