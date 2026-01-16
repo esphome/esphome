@@ -175,9 +175,8 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
     SelectIsCondition,
     OPERATION_BASE_SCHEMA.extend(
         {
-            cv.Required(CONF_OPTIONS): cv.Any(
-                cv.ensure_list(cv.string_strict, cv.Length(min=1)),
-                cv.templatable(cv.string_strict),
+            cv.Required(CONF_OPTIONS): cv.templatable(
+                cv.ensure_list(cv.string_strict, cv.Length(min=1))
             ),
         }
     ),
