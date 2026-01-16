@@ -439,8 +439,7 @@ void SEN5XComponent::update() {
     }
     if (this->temperature_sensor_ != nullptr) {
       float temperature = static_cast<int16_t>(measurements[5]) / 200.0f;
-      if ((this->is_sen6x_() && measurements[5] == INT16_MAX) ||
-          (!this->is_sen6x_() && measurements[5] == UINT16_MAX)) {
+      if (measurements[5] == INT16_MAX || measurements[5] == UINT16_MAX) {
         temperature = NAN;
       }
       ESP_LOGV(TAG, "temperature = 0x%.4x", measurements[5]);
@@ -448,8 +447,7 @@ void SEN5XComponent::update() {
     }
     if (this->humidity_sensor_ != nullptr) {
       float humidity = static_cast<int16_t>(measurements[4]) / 100.0f;
-      if ((this->is_sen6x_() && measurements[4] == INT16_MAX) ||
-          (!this->is_sen6x_() && measurements[4] == UINT16_MAX)) {
+      if (measurements[4] == INT16_MAX || measurements[4] == UINT16_MAX) {
         humidity = NAN;
       }
       ESP_LOGV(TAG, "humidity = 0x%.4x", measurements[4]);

@@ -18,9 +18,9 @@ from esphome.const import (
     # CONF_INDEX_OFFSET,
     # CONF_LEARNING_TIME_GAIN_HOURS,
     # CONF_LEARNING_TIME_OFFSET_HOURS,
-    CONF_MODEL,
     # CONF_NORMALIZED_OFFSET_SLOPE,
     # CONF_NOX,
+    CONF_MODEL,
     CONF_OFFSET,
     CONF_PM_1_0,
     CONF_PM_2_5,
@@ -324,10 +324,13 @@ CO2_SCHEMA = cv.Schema(
         ),
     }
 )
+
 SEN50_SCHEMA = PM_SCHEMA.extend(
     {cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval}
 ).extend(i2c.i2c_device_schema(0x69))
+SEN54_SCHEMA = SEN50_SCHEMA.extend(SEN5X_TH_SCHEMA).extend(VOC_SCHEMA)
 SEN62_SCHEMA = PM_SCHEMA.extend(SEN6X_TH_SCHEMA).extend(i2c.i2c_device_schema(0x6B))
+SEN65_SCHEMA = SEN62_SCHEMA.extend(VOC_SCHEMA).extend(NOX_SCHEMA)
 
 
 def validate_model(config):
@@ -348,23 +351,14 @@ CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
             SEN50: SEN50_SCHEMA,
-            SEN54: SEN50_SCHEMA.extend(SEN5X_TH_SCHEMA).extend(VOC_SCHEMA),
-            SEN55: SEN50_SCHEMA.extend(SEN5X_TH_SCHEMA)
-            .extend(VOC_SCHEMA)
-            .extend(NOX_SCHEMA),
+            SEN54: SEN54_SCHEMA,
+            SEN55: SEN54_SCHEMA.extend(NOX_SCHEMA),
             SEN62: SEN62_SCHEMA,
             SEN63C: SEN62_SCHEMA.extend(CO2_SCHEMA),
-            SEN65: SEN62_SCHEMA.extend(VOC_SCHEMA).extend(NOX_SCHEMA),
-            SEN66: SEN62_SCHEMA.extend(VOC_SCHEMA)
-            .extend(NOX_SCHEMA)
-            .extend(CO2_SCHEMA),
-            SEN68: SEN62_SCHEMA.extend(VOC_SCHEMA)
-            .extend(NOX_SCHEMA)
-            .extend(HCHO_SCHEMA),
-            SEN69C: SEN62_SCHEMA.extend(VOC_SCHEMA)
-            .extend(NOX_SCHEMA)
-            .extend(CO2_SCHEMA)
-            .extend(HCHO_SCHEMA),
+            SEN65: SEN65_SCHEMA,
+            SEN66: SEN65_SCHEMA.extend(CO2_SCHEMA),
+            SEN68: SEN65_SCHEMA.extend(HCHO_SCHEMA),
+            SEN69C: SEN65_SCHEMA.extend(CO2_SCHEMA).extend(HCHO_SCHEMA),
         },
         upper=True,
     ),
@@ -424,12 +418,10 @@ async def to_code(config):
     for key, funcName in SETTING_MAP.items():
         if cfg := config.get(key):
             cg.add(getattr(var, funcName)(cfg))
-
     for key, funcName in SENSOR_MAP.items():
         if cfg := config.get(key):
             sens = await sensor.new_sensor(cfg)
             cg.add(getattr(var, funcName)(sens))
-
     if cfg := config.get(CONF_VOC, {}).get(CONF_ALGORITHM_TUNING):
         cg.add(
             var.set_voc_algorithm_tuning(
@@ -446,7 +438,6 @@ async def to_code(config):
             var.set_nox_algorithm_tuning(
                 cfg[CONF_INDEX_OFFSET],
                 cfg[CONF_LEARNING_TIME_OFFSET_HOURS],
-                cfg[CONF_LEARNING_TIME_GAIN_HOURS],
                 cfg[CONF_GATING_MAX_DURATION_MINUTES],
                 cfg[CONF_GAIN_FACTOR],
             )
