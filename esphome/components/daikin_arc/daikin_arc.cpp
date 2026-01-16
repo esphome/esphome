@@ -375,7 +375,6 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
         if (j > 0) {
           ESP_LOGD(TAG, "DATA %04x: %s", (j - 16 > 0xffff ? 0 : j - 16), sbuf);
         }
-        sbuf[0] = '\0';
         sbuf_pos = 0;
       }
       char type_ch = ' ';
