@@ -517,9 +517,21 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
             if (target_source != nullptr) {
               target_source->handle_command(media_source::MEDIA_SOURCE_COMMAND_PAUSE, pipeline);
             }
-          } else if (!has_internal_playlist && active_source == nullptr && ps.playlist_index < ps.playlist.size()) {
-            // No active source but playlist has items - use playlist to resume
-            this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
+          } else if (!has_internal_playlist && active_source == nullptr && !ps.playlist.empty()) {
+            // No active source but playlist has items
+            // TODO: Clearly define expected behavior when last_source has internal playlist vs local playlist
+            bool last_has_internal_playlist =
+                (ps.last_source != nullptr) && ps.last_source->get_capabilities().has_internal_playlist;
+            if (last_has_internal_playlist) {
+              // Forward to source with internal playlist
+              ps.last_source->handle_command(media_source::MEDIA_SOURCE_COMMAND_PLAY, pipeline);
+            } else {
+              if (ps.playlist_index >= ps.playlist.size()) {
+                // Playlist finished - restart from beginning
+                ps.playlist_index = 0;
+              }
+              this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
+            }
           } else {
             if (target_source != nullptr) {
               target_source->handle_command(media_source::MEDIA_SOURCE_COMMAND_PLAY, pipeline);
@@ -529,9 +541,21 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
         }
 
         case media_source::MEDIA_SOURCE_COMMAND_PLAY: {
-          if (!has_internal_playlist && active_source == nullptr && ps.playlist_index < ps.playlist.size()) {
-            // No active source but playlist has items - use playlist to resume
-            this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
+          if (!has_internal_playlist && active_source == nullptr && !ps.playlist.empty()) {
+            // No active source but playlist has items
+            // TODO: Clearly define expected behavior when last_source has internal playlist vs local playlist
+            bool last_has_internal_playlist =
+                (ps.last_source != nullptr) && ps.last_source->get_capabilities().has_internal_playlist;
+            if (last_has_internal_playlist) {
+              // Forward to source with internal playlist
+              ps.last_source->handle_command(source_command, pipeline);
+            } else {
+              if (ps.playlist_index >= ps.playlist.size()) {
+                // Playlist finished - restart from beginning
+                ps.playlist_index = 0;
+              }
+              this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
+            }
           } else if (target_source != nullptr) {
             target_source->handle_command(source_command, pipeline);
           }
