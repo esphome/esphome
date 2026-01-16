@@ -8,18 +8,25 @@
 
 #include "esphome/core/component.h"
 
-#include <freertos/event_groups.h>
 #include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
+#include <freertos/event_groups.h>
 
 #include <atomic>
 
 namespace esphome {
 namespace mixer_speaker {
 
+// Event bits for SourceSpeaker command processing
+enum SourceSpeakerEventBits : uint32_t {
+  COMMAND_START = (1 << 0),
+  COMMAND_STOP = (1 << 1),
+  COMMAND_FINISH = (1 << 2),
+};
+
 /* Classes for mixing several source speaker audio streams and writing it to another speaker component.
  *  - Volume controls are passed through to the output speaker
- *  - Source speaker commands are added to a queue and processed in its loop function to ensure thread safety
+ *  - Source speaker commands are signaled via event group bits and processed in its loop function to ensure thread
+ * safety
  *  - Directly handles pausing at the SourceSpeaker level; pause state is not passed through to the output speaker.
  *  - Audio sent to the SourceSpeaker must have 16 bits per sample.
  *  - Audio sent to the SourceSpeaker can have any number of channels. They are duplicated or ignored as needed to match
@@ -123,7 +130,7 @@ class SourceSpeaker : public speaker::Speaker, public Component {
   std::atomic<uint32_t> playback_delay_frames_{0};  // Frames in output pipeline when this source started contributing
   std::atomic<bool> has_contributed_{false};        // Tracks if source has contributed during this session
 
-  QueueHandle_t controls_queue_{nullptr};
+  EventGroupHandle_t event_group_{nullptr};
   uint32_t stopping_start_ms_{0};
 };
 

@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -33,13 +34,6 @@ static const std::vector<int16_t> DECIBEL_REDUCTION_TABLE = {
     4619,  4116,  3668,  3269,  2913,  2596,  2313,  2061,  1837,  1637,  1459,  1300, 1158, 1032, 920,  820,  731,
     651,   580,   517,   461,   411,   366,   326,   291,   259,   231,   206,   183,  163,  146,  130,  116,  103};
 
-// Controls the SourceSpeaker state machine, processed in SourceSpeaker::loop()
-enum class SourceSpeakerControls : uint8_t {
-  START = 0,
-  STOP = 1,
-  FINISH = 2,
-};
-
 enum MixerEventGroupBits : uint32_t {
   COMMAND_START = (1 << 0),  // indicates mixer task should start
   COMMAND_STOP = (1 << 1),   // stops the mixer task
@@ -64,9 +58,9 @@ void SourceSpeaker::dump_config() {
 }
 
 void SourceSpeaker::setup() {
-  this->controls_queue_ = xQueueCreate(3, sizeof(SourceSpeakerControls));
-  if (this->controls_queue_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to create controls queue");
+  this->event_group_ = xEventGroupCreate();
+  if (this->event_group_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create event group");
     this->mark_failed();
     return;
   }
@@ -105,53 +99,42 @@ void SourceSpeaker::setup() {
 }
 
 void SourceSpeaker::loop() {
-  SourceSpeakerControls incoming_control;
-  if (xQueuePeek(this->controls_queue_, &incoming_control, 0)) {
-    // Process control commands from the queue to ensure the state machine is thread safe and order is preserved
-    switch (incoming_control) {
-      case SourceSpeakerControls::START: {
-        if ((this->state_ == speaker::STATE_STOPPED) && xQueueReceive(this->controls_queue_, &incoming_control, 0)) {
-          // Only process if stopped
-          this->state_ = speaker::STATE_STARTING;
-        } else if (this->state_ == speaker::STATE_RUNNING) {
-          // Already running, just ignore the command
-          xQueueReceive(this->controls_queue_, &incoming_control, 0);
-        }
-        // Leave command in queue if transitioning states. It will be processed or discarded once fully stopped or
-        // started.
-        break;
-      }
-      case SourceSpeakerControls::STOP: {
-        if (this->state_ == speaker::STATE_RUNNING) {
-          if (xQueueReceive(this->controls_queue_, &incoming_control, 0)) {
-            // Only process if running
-            this->state_ = speaker::STATE_STOPPING;
-            this->stopping_start_ms_ = millis();
-            this->transfer_buffer_.reset();  // deallocate the transfer buffer
-          }
-        } else if (this->state_ == speaker::STATE_STOPPED) {
-          // Already stopped, discard the command
-          xQueueReceive(this->controls_queue_, &incoming_control, 0);
-        }
-        // Leave command in queue if transitioning states. It will be processed or discarded once fully started or
-        // stopped.
-        break;
-      }
-      case SourceSpeakerControls::FINISH: {
-        if (this->state_ == speaker::STATE_RUNNING) {
-          // Only process if running
-          if (xQueueReceive(this->controls_queue_, &incoming_control, 0)) {
-            this->stop_gracefully_ = true;
-          }
-        } else if (this->state_ == speaker::STATE_STOPPED) {
-          // Already stopped, discard the command
-          xQueueReceive(this->controls_queue_, &incoming_control, 0);
-        }
-        // Leave command in queue if transitioning states. It will be processed or discarded once fully started or
-        // stopped.
-        break;
-      }
+  uint32_t event_bits = xEventGroupGetBits(this->event_group_);
+
+  // Process commands with priority: STOP > FINISH > START
+  // This ensures stop commands take precedence over conflicting start commands
+  if (event_bits & SourceSpeakerEventBits::COMMAND_STOP) {
+    if (this->state_ == speaker::STATE_RUNNING) {
+      // Clear both STOP and START bits - stop takes precedence
+      xEventGroupClearBits(this->event_group_,
+                           SourceSpeakerEventBits::COMMAND_STOP | SourceSpeakerEventBits::COMMAND_START);
+      this->state_ = speaker::STATE_STOPPING;
+      this->stopping_start_ms_ = millis();
+      this->transfer_buffer_.reset();  // deallocate the transfer buffer
+    } else if (this->state_ == speaker::STATE_STOPPED) {
+      // Already stopped, just clear the command bits
+      xEventGroupClearBits(this->event_group_,
+                           SourceSpeakerEventBits::COMMAND_STOP | SourceSpeakerEventBits::COMMAND_START);
     }
+    // Leave bits set if transitioning states (STARTING/STOPPING) - will be processed once state allows
+  } else if (event_bits & SourceSpeakerEventBits::COMMAND_FINISH) {
+    if (this->state_ == speaker::STATE_RUNNING) {
+      xEventGroupClearBits(this->event_group_, SourceSpeakerEventBits::COMMAND_FINISH);
+      this->stop_gracefully_ = true;
+    } else if (this->state_ == speaker::STATE_STOPPED) {
+      // Already stopped, just clear the command bit
+      xEventGroupClearBits(this->event_group_, SourceSpeakerEventBits::COMMAND_FINISH);
+    }
+    // Leave bit set if transitioning states - will be processed once state allows
+  } else if (event_bits & SourceSpeakerEventBits::COMMAND_START) {
+    if (this->state_ == speaker::STATE_STOPPED) {
+      xEventGroupClearBits(this->event_group_, SourceSpeakerEventBits::COMMAND_START);
+      this->state_ = speaker::STATE_STARTING;
+    } else if (this->state_ == speaker::STATE_RUNNING) {
+      // Already running, just clear the command bit
+      xEventGroupClearBits(this->event_group_, SourceSpeakerEventBits::COMMAND_START);
+    }
+    // Leave bit set if transitioning states - will be processed once state allows
   }
   // Process state machine
   switch (this->state_) {
@@ -242,8 +225,10 @@ size_t SourceSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_
 }
 
 void SourceSpeaker::start() {
-  SourceSpeakerControls control = SourceSpeakerControls::START;
-  xQueueSend(this->controls_queue_, &control, 0);
+  xEventGroupSetBits(this->event_group_, SourceSpeakerEventBits::COMMAND_START);
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  App.wake_loop_threadsafe();
+#endif
 }
 
 esp_err_t SourceSpeaker::start_() {
@@ -273,13 +258,17 @@ esp_err_t SourceSpeaker::start_() {
 }
 
 void SourceSpeaker::stop() {
-  SourceSpeakerControls control = SourceSpeakerControls::STOP;
-  xQueueSend(this->controls_queue_, &control, 0);
+  xEventGroupSetBits(this->event_group_, SourceSpeakerEventBits::COMMAND_STOP);
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  App.wake_loop_threadsafe();
+#endif
 }
 
 void SourceSpeaker::finish() {
-  SourceSpeakerControls control = SourceSpeakerControls::FINISH;
-  xQueueSend(this->controls_queue_, &control, 0);
+  xEventGroupSetBits(this->event_group_, SourceSpeakerEventBits::COMMAND_FINISH);
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  App.wake_loop_threadsafe();
+#endif
 }
 
 bool SourceSpeaker::has_buffered_data() const {
