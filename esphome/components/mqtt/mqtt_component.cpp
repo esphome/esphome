@@ -189,8 +189,7 @@ bool MQTTComponent::send_discovery_() {
         StringRef object_id = this->get_default_object_id_to_(object_id_buf);
         if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
           char friendly_name_hash[9];
-          sprintf(friendly_name_hash, "%08" PRIx32, fnv1_hash(this->friendly_name_()));
-          friendly_name_hash[8] = 0;  // ensure the hash-string ends with null
+          snprintf(friendly_name_hash, sizeof(friendly_name_hash), "%08" PRIx32, fnv1_hash(this->friendly_name_()));
           // Format: mac-component_type-hash (e.g. "aabbccddeeff-sensor-12345678")
           // MAC (12) + "-" (1) + domain (max 20) + "-" (1) + hash (8) + null (1) = 43
           char unique_id[MAC_ADDRESS_BUFFER_SIZE + ESPHOME_DOMAIN_MAX_LEN + 11];
