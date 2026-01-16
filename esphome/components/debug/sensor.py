@@ -11,6 +11,10 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_COUNTER,
     ICON_TIMER,
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_LN882X,
+    PLATFORM_RTL87XX,
     UNIT_BYTES,
     UNIT_HERTZ,
     UNIT_MILLISECOND,
@@ -45,6 +49,7 @@ CONFIG_SCHEMA = {
                 cv.require_framework_version(esp8266_arduino=cv.Version(2, 5, 2)),
             ),
             cv.only_on_esp32,
+            msg="This feature is only available on ESP8266 (Arduino 2.5.2+) and ESP32",
         ),
         sensor.sensor_schema(
             unit_of_measurement=UNIT_PERCENT,
@@ -54,7 +59,9 @@ CONFIG_SCHEMA = {
         ),
     ),
     cv.Optional(CONF_MIN_FREE): cv.All(
-        cv.Any(cv.only_on_esp32, cv.only_on_libretiny),
+        cv.only_on(
+            [PLATFORM_ESP32, PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RTL87XX]
+        ),
         sensor.sensor_schema(
             unit_of_measurement=UNIT_BYTES,
             icon=ICON_COUNTER,
