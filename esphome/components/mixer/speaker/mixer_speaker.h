@@ -7,6 +7,7 @@
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
@@ -140,6 +141,7 @@ class MixerSpeaker : public Component {
   void setup() override;
   void loop() override;
 
+  void init_source_speakers(size_t count) { this->source_speakers_.init(count); }
   void add_source_speaker(SourceSpeaker *source_speaker) { this->source_speakers_.push_back(source_speaker); }
 
   /// @brief Starts the mixer task. Called by a source speaker giving the current audio stream information
@@ -203,7 +205,7 @@ class MixerSpeaker : public Component {
 
   EventGroupHandle_t event_group_{nullptr};
 
-  std::vector<SourceSpeaker *> source_speakers_;
+  FixedVector<SourceSpeaker *> source_speakers_;
   speaker::Speaker *output_speaker_{nullptr};
 
   uint8_t output_channels_;
