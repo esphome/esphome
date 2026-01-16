@@ -1988,31 +1988,19 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
     }
 
     // Parse base64-encoded raw timings (required)
-    if (request->hasParam(ESPHOME_F("data"))) {
-      // .c_str() is required for Arduino framework where value() returns Arduino String instead of std::string
-      std::string encoded =
-          request->getParam(ESPHOME_F("data"))->value().c_str();  // NOLINT(readability-redundant-string-cstr)
-
-      // Basic validation: base64 for int32 array must decode to multiple of 4 bytes
-      // Full decode happens at transmit time directly into transmit buffer
-      size_t encoded_len = encoded.size();
-      // Remove padding for length calculation
-      while (encoded_len > 0 && encoded[encoded_len - 1] == '=')
-        encoded_len--;
-      // Each 4 base64 chars = 3 bytes, so decoded_len = (encoded_len * 3) / 4
-      size_t estimated_decoded_len = (encoded_len * 3) / 4;
-      if (estimated_decoded_len == 0 || estimated_decoded_len % 4 != 0) {
-        request->send(400, ESPHOME_F("text/plain"), "Invalid base64 data size");
-        return;
-      }
-
-      // Store base64 string - decode happens directly into transmit buffer at perform() time
-      call.set_raw_timings_base64(std::move(encoded));
-      this->defer([call]() mutable { call.perform(); });
-    } else {
+    if (!request->hasParam(ESPHOME_F("data"))) {
       request->send(400, ESPHOME_F("text/plain"), "Missing 'data' parameter");
       return;
     }
+
+    // .c_str() is required for Arduino framework where value() returns Arduino String instead of std::string
+    std::string encoded =
+        request->getParam(ESPHOME_F("data"))->value().c_str();  // NOLINT(readability-redundant-string-cstr)
+
+    // Pass pointer to base64 string - decoded directly into transmit buffer at perform() time
+    // perform() must be called synchronously while `encoded` is still in scope
+    call.set_raw_timings_base64(encoded);
+    call.perform();
 
     request->send(200);
     return;
