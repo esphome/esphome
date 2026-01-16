@@ -42,6 +42,14 @@ using ParamNameType = const __FlashStringHelper *;
 using ParamNameType = const char *;
 #endif
 
+// ESP8266 is single-threaded, so actions can execute directly in request context.
+// Multi-core platforms need to defer to main loop thread for thread safety.
+#ifdef USE_ESP8266
+#define DEFER_ACTION(capture, action) action
+#else
+#define DEFER_ACTION(capture, action) this->defer([capture]() mutable { action; })
+#endif
+
 /// Result of matching a URL against an entity
 struct EntityMatchResult {
   bool matched;          ///< True if entity matched the URL
