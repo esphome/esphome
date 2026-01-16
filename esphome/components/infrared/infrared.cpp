@@ -108,11 +108,11 @@ void Infrared::control(const InfraredCall &call) {
       return;
     }
     // Sanity check: validate timing values are within reasonable bounds
-    constexpr int32_t MAX_TIMING_US = 500000;  // 500ms absolute max
+    constexpr int32_t max_timing_us = 500000;  // 500ms absolute max
     for (int32_t timing : transmit_data->get_data()) {
       int32_t abs_timing = timing < 0 ? -timing : timing;
-      if (abs_timing > MAX_TIMING_US) {
-        ESP_LOGE(TAG, "Invalid timing value: %d µs (max %d)", timing, MAX_TIMING_US);
+      if (abs_timing > max_timing_us) {
+        ESP_LOGE(TAG, "Invalid timing value: %d µs (max %d)", timing, max_timing_us);
         return;
       }
     }
