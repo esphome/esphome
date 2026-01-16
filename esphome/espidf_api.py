@@ -36,39 +36,23 @@ def _get_idf_path() -> Path | None:
 
 
 def _get_idf_env() -> dict[str, str]:
-    """Get environment variables needed for ESP-IDF build."""
+    """Get environment variables needed for ESP-IDF build.
+
+    Requires the user to have sourced export.sh before running esphome.
+    """
     env = os.environ.copy()
 
     idf_path = _get_idf_path()
     if idf_path is None:
         raise EsphomeError(
-            "ESP-IDF not found. Please install ESP-IDF and set IDF_PATH environment variable.\n"
+            "ESP-IDF not found. Please install ESP-IDF and source export.sh:\n"
+            "  git clone -b v5.3.2 --recursive https://github.com/espressif/esp-idf.git ~/esp-idf\n"
+            "  cd ~/esp-idf && ./install.sh\n"
+            "  source ~/esp-idf/export.sh\n"
             "See: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/"
         )
 
     env["IDF_PATH"] = str(idf_path)
-
-    # Source the export script to get proper environment
-    # This sets up PATH, IDF_PYTHON_ENV_PATH, etc.
-    export_script = idf_path / "export.sh"
-    if export_script.is_file():
-        # Run export.sh and capture environment
-        try:
-            result = subprocess.run(
-                ["bash", "-c", f"source {export_script} > /dev/null 2>&1 && env"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            for line in result.stdout.splitlines():
-                if "=" in line:
-                    key, _, value = line.partition("=")
-                    env[key] = value
-        except subprocess.CalledProcessError:
-            _LOGGER.warning(
-                "Failed to source ESP-IDF export.sh, using basic environment"
-            )
-
     return env
 
 
