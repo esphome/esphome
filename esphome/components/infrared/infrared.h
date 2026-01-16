@@ -32,8 +32,9 @@ class InfraredCall {
   /// Note: The timings vector must outlive the InfraredCall (zero-copy reference)
   InfraredCall &set_raw_timings(const std::vector<int32_t> &timings);
   /// Set the raw timings from base64-encoded little-endian int32 data
-  /// The base64 string is stored and decoded directly into transmit buffer at perform() time
-  InfraredCall &set_raw_timings_base64(std::string &&base64);
+  /// Note: The string must outlive the InfraredCall (zero-copy pointer)
+  /// Decoded directly into transmit buffer at perform() time
+  InfraredCall &set_raw_timings_base64(const std::string &base64);
   /// Set the raw timings from packed protobuf sint32 data (zero-copy from wire)
   /// Note: The data must outlive the InfraredCall
   InfraredCall &set_raw_timings_packed(const uint8_t *data, uint16_t length, uint16_t count);
@@ -49,14 +50,14 @@ class InfraredCall {
   const std::vector<int32_t> &get_raw_timings() const { return *this->raw_timings_; }
   /// Check if raw timings have been set (vector, packed, or base64)
   bool has_raw_timings() const {
-    return this->raw_timings_ != nullptr || this->packed_data_ != nullptr || !this->base64_data_.empty();
+    return this->raw_timings_ != nullptr || this->packed_data_ != nullptr || this->base64_ptr_ != nullptr;
   }
   /// Check if using packed data format
   bool is_packed() const { return this->packed_data_ != nullptr; }
   /// Check if using base64 data format
-  bool is_base64() const { return !this->base64_data_.empty(); }
+  bool is_base64() const { return this->base64_ptr_ != nullptr; }
   /// Get the base64 data string
-  const std::string &get_base64_data() const { return this->base64_data_; }
+  const std::string &get_base64_data() const { return *this->base64_ptr_; }
   /// Get packed data (only valid if set via set_raw_timings_packed)
   const uint8_t *get_packed_data() const { return this->packed_data_; }
   uint16_t get_packed_length() const { return this->packed_length_; }
@@ -70,8 +71,8 @@ class InfraredCall {
   optional<uint32_t> carrier_frequency_;
   // Vector-based timings (for lambdas/automations)
   const std::vector<int32_t> *raw_timings_{nullptr};
-  // Base64-encoded data (for web_server - decoded directly into transmit buffer)
-  std::string base64_data_;
+  // Base64-encoded data pointer (for web_server - decoded directly into transmit buffer)
+  const std::string *base64_ptr_{nullptr};
   // Packed protobuf timings (for API zero-copy)
   const uint8_t *packed_data_{nullptr};
   uint16_t packed_length_{0};

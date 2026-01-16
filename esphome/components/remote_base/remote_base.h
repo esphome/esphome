@@ -40,6 +40,11 @@ class RemoteTransmitData {
   /// @param data Pointer to little-endian int32 values
   /// @param len Length of the buffer in bytes (must be multiple of 4)
   void set_data_from_le_int32_buffer(const uint8_t *data, size_t len);
+  /// Set data from base64-encoded little-endian int32 values
+  /// Decodes and parses directly into internal buffer (zero intermediate copies)
+  /// @param base64 Base64-encoded string of little-endian int32 values
+  /// @return true if successful, false if decode failed or invalid size
+  bool set_data_from_base64_le_int32(const std::string &base64);
   void reset() {
     this->data_.clear();
     this->carrier_frequency_ = 0;

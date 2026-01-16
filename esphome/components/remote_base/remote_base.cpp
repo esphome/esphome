@@ -169,6 +169,18 @@ void RemoteTransmitData::set_data_from_le_int32_buffer(const uint8_t *data, size
   }
 }
 
+bool RemoteTransmitData::set_data_from_base64_le_int32(const std::string &base64) {
+  // Decode base64 into stack buffer, then parse into data_
+  constexpr size_t max_ir_bytes = 1024;
+  uint8_t decoded[max_ir_bytes];
+  size_t decoded_len = base64_decode(base64, decoded, sizeof(decoded));
+  if (decoded_len == 0 || decoded_len % 4 != 0) {
+    return false;
+  }
+  this->set_data_from_le_int32_buffer(decoded, decoded_len);
+  return true;
+}
+
 /* RemoteTransmitterBase */
 
 void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {

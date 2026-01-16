@@ -19,12 +19,12 @@ InfraredCall &InfraredCall::set_carrier_frequency(uint32_t frequency) {
 InfraredCall &InfraredCall::set_raw_timings(const std::vector<int32_t> &timings) {
   this->raw_timings_ = &timings;
   this->packed_data_ = nullptr;
-  this->base64_data_.clear();
+  this->base64_ptr_ = nullptr;
   return *this;
 }
 
-InfraredCall &InfraredCall::set_raw_timings_base64(std::string &&base64) {
-  this->base64_data_ = std::move(base64);
+InfraredCall &InfraredCall::set_raw_timings_base64(const std::string &base64) {
+  this->base64_ptr_ = &base64;
   this->raw_timings_ = nullptr;
   this->packed_data_ = nullptr;
   return *this;
@@ -35,7 +35,7 @@ InfraredCall &InfraredCall::set_raw_timings_packed(const uint8_t *data, uint16_t
   this->packed_length_ = length;
   this->packed_count_ = count;
   this->raw_timings_ = nullptr;
-  this->base64_data_.clear();
+  this->base64_ptr_ = nullptr;
   return *this;
 }
 
@@ -103,15 +103,12 @@ void Infrared::control(const InfraredCall &call) {
              call.get_repeat_count());
   } else if (call.is_base64()) {
     // Decode base64 and parse directly into transmit buffer
-    constexpr size_t max_ir_bytes = 1024;
-    uint8_t decoded[max_ir_bytes];
-    size_t decoded_len = base64_decode(call.get_base64_data(), decoded, sizeof(decoded));
-    if (decoded_len == 0 || decoded_len % 4 != 0) {
+    if (!transmit_data->set_data_from_base64_le_int32(call.get_base64_data())) {
       ESP_LOGE(TAG, "Invalid base64 data");
       return;
     }
-    transmit_data->set_data_from_le_int32_buffer(decoded, decoded_len);
-    ESP_LOGD(TAG, "Transmitting base64 raw timings: count=%zu, repeat=%u", decoded_len / 4, call.get_repeat_count());
+    ESP_LOGD(TAG, "Transmitting base64 raw timings: count=%zu, repeat=%u", transmit_data->get_data().size(),
+             call.get_repeat_count());
   } else {
     // From vector (lambdas/automations)
     transmit_data->set_data(call.get_raw_timings());
