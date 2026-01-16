@@ -3,6 +3,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/number/number.h"
 #include "esphome/components/switch/switch.h"
 
@@ -553,8 +554,8 @@ class Sprinkler : public Component {
   /// Sprinkler valve operator objects
   std::vector<SprinklerValveOperator> valve_op_{2};
 
-  /// Valve control timers
-  std::vector<SprinklerTimer> timer_{};
+  /// Valve control timers - FixedVector enforces that this can never grow beyond init() size
+  FixedVector<SprinklerTimer> timer_;
 
   /// Other Sprinkler instances we should be aware of (used to check if pumps are in use)
   std::vector<Sprinkler *> other_controllers_;

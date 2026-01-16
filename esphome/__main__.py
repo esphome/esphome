@@ -222,8 +222,13 @@ def choose_upload_log_host(
             else:
                 resolved.append(device)
         if not resolved:
+            if CORE.dashboard:
+                hint = "If you know the IP, set 'use_address' in your network config."
+            else:
+                hint = "If you know the IP, try --device <IP>"
             raise EsphomeError(
-                f"All specified devices {defaults} could not be resolved. Is the device connected to the network?"
+                f"All specified devices {defaults} could not be resolved. "
+                f"Is the device connected to the network? {hint}"
             )
         return resolved
 

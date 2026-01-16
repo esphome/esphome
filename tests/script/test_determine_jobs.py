@@ -1499,6 +1499,23 @@ def test_detect_memory_impact_config_runs_at_component_limit(tmp_path: Path) -> 
             "tests/components/rp2040/test.rp2040-ard.yaml",
             determine_jobs.Platform.RP2040_ARD,
         ),
+        # nRF52 / Zephyr detection
+        (
+            "tests/components/logger/test.nrf52-adafruit.yaml",
+            determine_jobs.Platform.NRF52_ZEPHYR,
+        ),
+        (
+            "esphome/components/nrf52/gpio.cpp",
+            determine_jobs.Platform.NRF52_ZEPHYR,
+        ),
+        (
+            "esphome/components/zephyr/core.cpp",
+            determine_jobs.Platform.NRF52_ZEPHYR,
+        ),
+        (
+            "esphome/components/zephyr_ble_server/ble_server.cpp",
+            determine_jobs.Platform.NRF52_ZEPHYR,
+        ),
         # No platform hint (generic files)
         ("esphome/components/wifi/wifi.cpp", None),
         ("esphome/components/sensor/sensor.h", None),
@@ -1528,6 +1545,10 @@ def test_detect_memory_impact_config_runs_at_component_limit(tmp_path: Path) -> 
         "pico_i2c",
         "pico_spi",
         "rp2040_test_yaml",
+        "nrf52_test_yaml",
+        "nrf52_gpio",
+        "zephyr_core",
+        "zephyr_ble_server",
         "generic_wifi_no_hint",
         "generic_sensor_no_hint",
         "core_helpers_no_hint",
@@ -1554,6 +1575,11 @@ def test_detect_platform_hint_from_filename(
         ("file_ESP8266.cpp", determine_jobs.Platform.ESP8266_ARD),
         # ESP32 with different cases
         ("file_ESP32.cpp", determine_jobs.Platform.ESP32_IDF),
+        # nRF52/Zephyr with different cases
+        ("file_NRF52.cpp", determine_jobs.Platform.NRF52_ZEPHYR),
+        ("file_Nrf52.cpp", determine_jobs.Platform.NRF52_ZEPHYR),
+        ("file_ZEPHYR.cpp", determine_jobs.Platform.NRF52_ZEPHYR),
+        ("file_Zephyr.cpp", determine_jobs.Platform.NRF52_ZEPHYR),
     ],
     ids=[
         "rp2040_uppercase",
@@ -1562,6 +1588,10 @@ def test_detect_platform_hint_from_filename(
         "pico_titlecase",
         "esp8266_uppercase",
         "esp32_uppercase",
+        "nrf52_uppercase",
+        "nrf52_mixedcase",
+        "zephyr_uppercase",
+        "zephyr_titlecase",
     ],
 )
 def test_detect_platform_hint_from_filename_case_insensitive(
