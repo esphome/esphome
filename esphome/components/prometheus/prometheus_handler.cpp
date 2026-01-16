@@ -1185,7 +1185,7 @@ void PrometheusHandler::time_row_(AsyncResponseStream *stream, datetime::TimeEnt
     // We have a valid value, output this value
     // Data itself - convert to seconds since midnight
     int64_t seconds_since_midnight = (int64_t) obj->hour * 3600 + (int64_t) obj->minute * 60 + (int64_t) obj->second;
-    date_base_row_(stream, component, adjusted_ts, obj, area, node, friendly_name);
+    date_base_row_(stream, component, seconds_since_midnight, obj, area, node, friendly_name);
   } else {
     // Invalid state
     handle_failed_metric_(stream, component, "1", obj, area, node, friendly_name);
@@ -1230,7 +1230,7 @@ void PrometheusHandler::date_base_row_(AsyncResponseStream *stream, const char *
                                        datetime::DateTimeBase *obj, std::string &area, std::string &node,
                                        std::string &friendly_name) {
   // We have a valid value, output this value
-  handle_failed_metric_(stream, component, "0", obj, area, node, friendly_name);
+  handle_failed_metric_(stream, component_name, "0", obj, area, node, friendly_name);
   stream->print(ESPHOME_F("esphome_"));
   stream->print(component_name);
   stream->print(ESPHOME_F("_value{id=\""));
