@@ -246,7 +246,7 @@ void WeikaiGPIOPin::setup() {
 }
 
 size_t WeikaiGPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "%u via WeiKai %s", this->pin_, this->parent_->get_name());
+  return buf_append_printf(buffer, len, 0, "%u via WeiKai %s", this->pin_, this->parent_->get_name());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
