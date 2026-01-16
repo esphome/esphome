@@ -172,10 +172,7 @@ BLE_REMOVE_BOND_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "ble_client.disconnect",
-    BLEDisconnectAction,
-    BLE_CONNECT_ACTION_SCHEMA,
-    is_sync=False,
+    "ble_client.disconnect", BLEDisconnectAction, BLE_CONNECT_ACTION_SCHEMA
 )
 async def ble_disconnect_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
@@ -183,10 +180,7 @@ async def ble_disconnect_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "ble_client.connect",
-    BLEConnectAction,
-    BLE_CONNECT_ACTION_SCHEMA,
-    is_sync=False,
+    "ble_client.connect", BLEConnectAction, BLE_CONNECT_ACTION_SCHEMA
 )
 async def ble_connect_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
@@ -194,10 +188,7 @@ async def ble_connect_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "ble_client.ble_write",
-    BLEWriteAction,
-    BLE_WRITE_ACTION_SCHEMA,
-    is_sync=False,
+    "ble_client.ble_write", BLEWriteAction, BLE_WRITE_ACTION_SCHEMA
 )
 async def ble_write_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])

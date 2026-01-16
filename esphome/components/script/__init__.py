@@ -219,7 +219,6 @@ async def script_stop_action_to_code(config, action_id, template_arg, args):
     "script.wait",
     ScriptWaitAction,
     maybe_simple_id({cv.Required(CONF_ID): cv.use_id(Script)}),
-    is_sync=False,
 )
 async def script_wait_action_to_code(config, action_id, template_arg, args):
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])

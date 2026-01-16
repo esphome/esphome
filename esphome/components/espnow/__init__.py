@@ -223,7 +223,6 @@ SEND_SCHEMA.add_extra(_validate_send_action)
     "espnow.send",
     SendAction,
     SEND_SCHEMA,
-    is_sync=False,
 )
 @automation.register_action(
     "espnow.broadcast",
@@ -236,7 +235,6 @@ SEND_SCHEMA.add_extra(_validate_send_action)
         ),
         key=CONF_DATA,
     ),
-    is_sync=False,
 )
 async def send_action(
     config: ConfigType,

@@ -2,11 +2,8 @@
 
 from esphome.automation import automation_is_synchronous
 
-# Import component modules to register their actions in ACTION_REGISTRY
-# These imports have side effects (decorator registration)
-import esphome.components.ble_client  # noqa: F401  # pylint: disable=unused-import
-import esphome.components.espnow  # noqa: F401  # pylint: disable=unused-import
-import esphome.components.script  # noqa: F401  # pylint: disable=unused-import
+# Import logger to register its actions with is_sync=True
+import esphome.components.logger  # noqa: F401  # pylint: disable=unused-import
 from esphome.const import CONF_ELSE, CONF_THEN
 
 
@@ -422,25 +419,25 @@ def test_automation_is_synchronous_while_inside_repeat() -> None:
 
 
 def test_automation_is_synchronous_script_wait() -> None:
-    """Test that script.wait action makes automation async."""
+    """Test that script.wait (unknown action) is treated as async for safety."""
     actions = [{"script.wait": {"id": "my_script"}}]
     assert automation_is_synchronous(actions) is False
 
 
 def test_automation_is_synchronous_ble_client_connect() -> None:
-    """Test that ble_client.connect action makes automation async."""
+    """Test that ble_client.connect (unknown action) is treated as async for safety."""
     actions = [{"ble_client.connect": {"id": "my_ble_client"}}]
     assert automation_is_synchronous(actions) is False
 
 
 def test_automation_is_synchronous_ble_client_disconnect() -> None:
-    """Test that ble_client.disconnect action makes automation async."""
+    """Test that ble_client.disconnect (unknown action) is treated as async for safety."""
     actions = [{"ble_client.disconnect": {"id": "my_ble_client"}}]
     assert automation_is_synchronous(actions) is False
 
 
 def test_automation_is_synchronous_ble_client_write() -> None:
-    """Test that ble_client.ble_write action makes automation async."""
+    """Test that ble_client.ble_write (unknown action) is treated as async for safety."""
     actions = [
         {
             "ble_client.ble_write": {
@@ -455,7 +452,7 @@ def test_automation_is_synchronous_ble_client_write() -> None:
 
 
 def test_automation_is_synchronous_espnow_send() -> None:
-    """Test that espnow.send action makes automation async."""
+    """Test that espnow.send (unknown action) is treated as async for safety."""
     actions = [
         {
             "espnow.send": {
@@ -468,13 +465,13 @@ def test_automation_is_synchronous_espnow_send() -> None:
 
 
 def test_automation_is_synchronous_espnow_broadcast() -> None:
-    """Test that espnow.broadcast action makes automation async."""
+    """Test that espnow.broadcast (unknown action) is treated as async for safety."""
     actions = [{"espnow.broadcast": {"data": [0x01, 0x02, 0x03]}}]
     assert automation_is_synchronous(actions) is False
 
 
 def test_automation_is_synchronous_nested_script_wait() -> None:
-    """Test that nested script.wait in if block makes automation async."""
+    """Test that nested unknown action in if block makes automation async."""
     actions = [
         {
             "if": {
