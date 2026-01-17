@@ -17,13 +17,6 @@
 namespace esphome {
 namespace mixer_speaker {
 
-// Event bits for SourceSpeaker command processing
-enum SourceSpeakerEventBits : uint32_t {
-  COMMAND_START = (1 << 0),
-  COMMAND_STOP = (1 << 1),
-  COMMAND_FINISH = (1 << 2),
-};
-
 /* Classes for mixing several source speaker audio streams and writing it to another speaker component.
  *  - Volume controls are passed through to the output speaker
  *  - Source speaker commands are signaled via event group bits and processed in its loop function to ensure thread
