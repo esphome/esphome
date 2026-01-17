@@ -1,8 +1,50 @@
 """ESP-IDF direct build generator for ESPHome."""
 
+import json
+from pathlib import Path
+
 from esphome.components.esp32 import get_esp32_variant
 from esphome.core import CORE
 from esphome.helpers import mkdir_p, write_file_if_changed
+
+
+def get_available_components() -> list[str] | None:
+    """Get list of available ESP-IDF components from project_description.json.
+
+    Returns only internal ESP-IDF components, excluding external/managed
+    components (from idf_component.yml).
+    """
+    project_desc = Path(CORE.build_path) / "build" / "project_description.json"
+    if not project_desc.exists():
+        return None
+
+    try:
+        with open(project_desc, encoding="utf-8") as f:
+            data = json.load(f)
+
+        component_info = data.get("build_component_info", {})
+
+        result = []
+        for name, info in component_info.items():
+            # Exclude our own src component
+            if name == "src":
+                continue
+
+            # Exclude managed/external components
+            comp_dir = info.get("dir", "")
+            if "managed_components" in comp_dir:
+                continue
+
+            result.append(name)
+
+        return result
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def has_discovered_components() -> bool:
+    """Check if we have discovered components from a previous configure."""
+    return get_available_components() is not None
 
 
 def get_project_cmakelists() -> str:
@@ -23,44 +65,10 @@ project({CORE.name})
 """
 
 
-def get_component_cmakelists() -> str:
+def get_component_cmakelists(minimal: bool = False) -> str:
     """Generate the main component CMakeLists.txt."""
-    # Common ESP-IDF components required by ESPHome
-    idf_requires = [
-        "app_update",
-        "driver",
-        "efuse",
-        "esp_event",
-        "esp_netif",
-        "esp_partition",
-        "esp_psram",
-        "esp_rom",
-        "esp_system",
-        "esp_timer",
-        "esp_wifi",
-        "freertos",
-        "heap",
-        "log",
-        "lwip",
-        "mbedtls",
-        "nvs_flash",
-        "spi_flash",
-        "wpa_supplicant",
-    ]
-
-    # Optional components that may not exist on all targets
-    optional_requires = [
-        "esp_adc",
-        "esp_eth",
-        "mdns",
-        "mqtt",
-    ]
-
+    idf_requires = [] if minimal else (get_available_components() or [])
     requires_str = " ".join(idf_requires)
-    optional_str = "\n".join(
-        f'if(TARGET idf::{comp})\n  list(APPEND opt_requires "{comp}")\nendif()'
-        for comp in optional_requires
-    )
 
     # Extract compile definitions from build flags (-DXXX -> XXX)
     compile_defs = [flag[2:] for flag in CORE.build_flags if flag.startswith("-D")]
@@ -87,15 +95,10 @@ file(GLOB_RECURSE app_sources
     "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c"
 )
 
-# Optional ESP-IDF components (may not exist on all targets)
-set(opt_requires "")
-{optional_str}
-
 idf_component_register(
     SRCS ${{app_sources}}
     INCLUDE_DIRS "." "esphome"
     REQUIRES {requires_str}
-    PRIV_REQUIRES ${{opt_requires}}
 )
 
 # Apply C++ standard
@@ -118,7 +121,7 @@ target_link_options(${{COMPONENT_LIB}} PUBLIC
 """
 
 
-def write_project() -> None:
+def write_project(minimal: bool = False) -> None:
     """Write ESP-IDF project files."""
     mkdir_p(CORE.build_path)
     mkdir_p(CORE.relative_src_path())
@@ -132,5 +135,5 @@ def write_project() -> None:
     # Write component CMakeLists.txt in src/
     write_file_if_changed(
         CORE.relative_src_path("CMakeLists.txt"),
-        get_component_cmakelists(),
+        get_component_cmakelists(minimal=minimal),
     )

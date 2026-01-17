@@ -97,8 +97,33 @@ def run_idf_py(
     return result.returncode
 
 
+def run_reconfigure() -> int:
+    """Run cmake reconfigure only (no build)."""
+    return run_idf_py("reconfigure")
+
+
 def run_compile(config, verbose: bool) -> int:
-    """Compile the ESP-IDF project."""
+    """Compile the ESP-IDF project.
+
+    Uses two-phase configure to auto-discover available components:
+    1. If no previous build, configure with minimal REQUIRES to discover components
+    2. Regenerate CMakeLists.txt with discovered components
+    3. Run full build
+    """
+    from esphome.build_gen.espidf import has_discovered_components, write_project
+
+    # Check if we need to do discovery phase
+    if not has_discovered_components():
+        _LOGGER.info("Discovering available ESP-IDF components...")
+        write_project(minimal=True)
+        rc = run_reconfigure()
+        if rc != 0:
+            _LOGGER.error("Component discovery failed")
+            return rc
+        _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
+        write_project(minimal=False)
+
+    # Build
     args = ["build"]
 
     if verbose:
