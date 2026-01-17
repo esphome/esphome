@@ -87,7 +87,8 @@ class StringRef {
     if (pos >= len_)
       return std::string::npos;
     const char *result = std::strstr(base_ + pos, s);
-    return result ? static_cast<size_type>(result - base_) : std::string::npos;
+    // Verify match is within bounds (strstr searches to null terminator)
+    return (result && result < base_ + len_) ? static_cast<size_type>(result - base_) : std::string::npos;
   }
   size_type find(char c, size_type pos = 0) const {
     if (pos >= len_)
