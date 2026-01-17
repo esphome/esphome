@@ -35,7 +35,7 @@ class ControlUnitDeviceSensor : public CaravanDevice {
   const char *TAG = "MCU";
 
  protected:
-  const char *get_tag_() override { return this->TAG; }
+  const char *get_tag() override { return this->TAG; }
 
  private:
   void on_switch_state_change_(FendtSwitch *sw, bool state);

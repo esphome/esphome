@@ -27,7 +27,7 @@ class LightingDeviceSensor : public CaravanDevice {
   const char *TAG = "LDS";
 
  protected:
-  const char *get_tag_() { return this->TAG; }
+  const char *get_tag() { return this->TAG; }
 
  private:
   void on_switch_state_changed_(FendtSwitch *sw, bool state);

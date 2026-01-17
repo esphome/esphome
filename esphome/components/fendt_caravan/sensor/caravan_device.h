@@ -34,7 +34,7 @@ class CaravanDevice : public PollingComponent {
     }
     return nullptr;
   }
-  virtual const char *get_tag_() = 0;
+  virtual const char *get_tag() = 0;
 
  private:
   bool log_variables_ = false;
