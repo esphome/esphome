@@ -64,5 +64,6 @@ climate:
       name: Temp
     power_usage:
       name: Power
+      power_multiplier: 3
     humidity_setpoint:
       name: Humidity

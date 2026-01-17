@@ -29,6 +29,7 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   void set_outdoor_temperature_sensor(Sensor *sensor) { this->outdoor_sensor_ = sensor; }
   void set_humidity_setpoint_sensor(Sensor *sensor) { this->humidity_sensor_ = sensor; }
   void set_power_sensor(Sensor *sensor) { this->power_sensor_ = sensor; }
+  void set_power_multiplier(float multiplier) { this->power_multiplier_ = multiplier; }
   void on_status_change() override;
 
   /* ############### */
@@ -60,6 +61,8 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   Sensor *outdoor_sensor_{nullptr};
   Sensor *humidity_sensor_{nullptr};
   Sensor *power_sensor_{nullptr};
+  float power_multiplier_{1.0f};
+
 };
 
 }  // namespace ac

@@ -50,7 +50,8 @@ void AirConditioner::on_status_change() {
   if (need_publish)
     this->publish_state();
   set_sensor(this->outdoor_sensor_, this->base_.getOutdoorTemp());
-  set_sensor(this->power_sensor_, this->base_.getPowerUsage());
+  set_sensor(this->power_sensor_, this->base_.getPowerUsage() * this->power_multiplier_);
+
   set_sensor(this->humidity_sensor_, this->base_.getIndoorHum());
 }
 

@@ -36,6 +36,7 @@ CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart"]
 AUTO_LOAD = ["sensor"]
 CONF_POWER_USAGE = "power_usage"
+CONF_POWER_MULTIPLIER = "power_multiplier"
 CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
 midea_ac_ns = cg.esphome_ns.namespace("midea").namespace("ac")
 AirConditioner = midea_ac_ns.class_("AirConditioner", climate.Climate, cg.Component)
@@ -137,7 +138,12 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                {
+                    cv.Optional(CONF_POWER_MULTIPLIER, default=1.0): cv.float_,
+                }
             ),
+
             cv.Optional(CONF_HUMIDITY_SETPOINT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_WATER_PERCENT,
@@ -285,8 +291,11 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_OUTDOOR_TEMPERATURE])
         cg.add(var.set_outdoor_temperature_sensor(sens))
     if CONF_POWER_USAGE in config:
-        sens = await sensor.new_sensor(config[CONF_POWER_USAGE])
+        sens_config = config[CONF_POWER_USAGE]
+        sens = await sensor.new_sensor(sens_config)
         cg.add(var.set_power_sensor(sens))
+        if CONF_POWER_MULTIPLIER in sens_config:
+            cg.add(var.set_power_multiplier(sens_config[CONF_POWER_MULTIPLIER]))
     if CONF_HUMIDITY_SETPOINT in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
