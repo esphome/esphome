@@ -1829,6 +1829,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Roman Ondráček (@Roman3349)](https://github.com/Roman3349)
 - [romerod (@romerod)](https://github.com/romerod)
 - [Jérôme W. (@RomRider)](https://github.com/RomRider)
+- [John Stenger (@rootnegativ1)](https://github.com/rootnegativ1)
 - [Robbie Page (@rorpage)](https://github.com/rorpage)
 - [roscoegray (@roscoegray)](https://github.com/roscoegray)
 - [Ross Troha (@rosstroha)](https://github.com/rosstroha)
