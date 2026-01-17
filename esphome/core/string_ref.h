@@ -194,15 +194,17 @@ namespace internal {
 template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, F conv) {
   char *end;
   R result = conv(str.c_str(), &end);
+  // Set pos to 0 on conversion failure (when no characters consumed), otherwise index after number
   if (pos)
-    *pos = static_cast<size_t>(end - str.c_str());
+    *pos = (end == str.c_str()) ? 0 : static_cast<size_t>(end - str.c_str());
   return result;
 }
 template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, int base, F conv) {
   char *end;
   R result = conv(str.c_str(), &end, base);
+  // Set pos to 0 on conversion failure (when no characters consumed), otherwise index after number
   if (pos)
-    *pos = static_cast<size_t>(end - str.c_str());
+    *pos = (end == str.c_str()) ? 0 : static_cast<size_t>(end - str.c_str());
   return result;
 }
 // NOLINTEND(google-runtime-int)
