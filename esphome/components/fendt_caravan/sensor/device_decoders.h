@@ -2,6 +2,11 @@
 #include <ctime>
 #include <iostream>
 #include <iomanip>
+#include <vector>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <cctype>
 #include "esphome/core/string_ref.h"
 #include "esphome/core/log.h"
 
