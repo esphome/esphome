@@ -1,5 +1,7 @@
 #ifdef USE_HOST
 
+#include <cerrno>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include "preferences.h"
@@ -46,28 +48,39 @@ void HostPreferences::setup_() {
   this->filename_ = preferences_file.string();
   ESP_LOGD(TAG, "Using preferences path: %s", this->filename_.c_str());
   FILE *fp = fopen(this->filename_.c_str(), "rb");
-  if (fp != nullptr) {
-    while (!feof((fp))) {
-      uint32_t key;
-      uint8_t len;
-      if (fread(&key, sizeof(key), 1, fp) != 1)
-        break;
-      if (fread(&len, sizeof(len), 1, fp) != 1)
-        break;
-      uint8_t data[len];
-      if (fread(data, sizeof(uint8_t), len, fp) != len)
-        break;
-      std::vector vec(data, data + len);
-      this->data[key] = vec;
-    }
-    fclose(fp);
+  if (fp == nullptr) {
+    ESP_LOGE(TAG, "Failed to open preferences file '%s' for reading: %s", this->filename_.c_str(), strerror(errno));
+    this->setup_complete_ = true;
+    return;
   }
+  while (!feof((fp))) {
+    uint32_t key;
+    uint8_t len;
+    if (fread(&key, sizeof(key), 1, fp) != 1)
+      break;
+    if (fread(&len, sizeof(len), 1, fp) != 1)
+      break;
+    uint8_t data[len];
+    if (fread(data, sizeof(uint8_t), len, fp) != len)
+      break;
+    std::vector vec(data, data + len);
+    this->data[key] = vec;
+  }
+  fclose(fp);
   this->setup_complete_ = true;
 }
 
 bool HostPreferences::sync() {
   this->setup_();
+  if (this->filename_.empty()) {
+    ESP_LOGE(TAG, "Preferences file path is not set, cannot sync.");
+    return false;
+  }
   FILE *fp = fopen(this->filename_.c_str(), "wb");
+  if (fp == nullptr) {
+    ESP_LOGE(TAG, "Failed to open preferences file '%s' for writing: %s", this->filename_.c_str(), strerror(errno));
+    return false;
+  }
   std::map<uint32_t, std::vector<uint8_t>>::iterator it;
 
   for (it = this->data.begin(); it != this->data.end(); ++it) {
