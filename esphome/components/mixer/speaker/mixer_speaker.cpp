@@ -550,11 +550,14 @@ esp_err_t MixerSpeaker::start(audio::AudioStreamInfo &stream_info) {
     }
   }
 
-  // Ensure loop runs to process the start command
-  this->enable_loop_soon_any_context();
-
   // Informs the loop function to start the task
   xEventGroupSetBits(this->event_group_, MIXER_TASK_COMMAND_START);
+
+  // Ensure loop runs to process the start command
+  this->enable_loop_soon_any_context();
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  App.wake_loop_threadsafe();
+#endif
   return ESP_OK;
 }
 
