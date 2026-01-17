@@ -4,7 +4,9 @@ from esphome.components.zephyr import (
     zephyr_add_overlay,
     zephyr_add_pm_static,
     zephyr_add_prj_conf,
+    zephyr_data,
 )
+from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, KEY_CORE, KEY_FRAMEWORK_VERSION, Framework
 from esphome.core import CORE
@@ -46,7 +48,10 @@ async def to_code(config):
         zephyr_add_prj_conf("DEBUG_COREDUMP_MEMORY_DUMP_MIN", True)
     cg.add_build_flag("-Wl,--wrap=z_arm_fatal_error")
     cg.add_build_flag("-Wl,--wrap=z_arm_fault")
+    zephyr_add_prj_conf("PARTITION_MANAGER_ENABLED", True)
     addr = 0xE4000
+    if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+        addr = 0xF0000
     zephyr_add_pm_static(
         [Section("coredump_partition", addr, 0x10000, "flash_primary")]
     )
