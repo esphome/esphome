@@ -66,11 +66,17 @@ CONF_WAIT_FOR_SENT = "wait_for_sent"
 MAX_ESPNOW_PACKET_SIZE = 250  # Maximum size of the payload in bytes
 
 
+def validate_channel(value):
+    if value is None:
+        raise cv.Invalid("channel is required if wifi is not configured")
+    return wifi.validate_channel(value)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ESPNowComponent),
-            cv.OnlyWithout(CONF_CHANNEL, CONF_WIFI): wifi.validate_channel,
+            cv.OnlyWithout(CONF_CHANNEL, CONF_WIFI): validate_channel,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_AUTO_ADD_PEER, default=False): cv.boolean,
             cv.Optional(CONF_PEERS): cv.ensure_list(cv.mac_address),

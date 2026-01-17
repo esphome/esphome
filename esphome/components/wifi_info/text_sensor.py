@@ -69,16 +69,6 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
-# Keys that require WiFi listeners
-_NETWORK_INFO_KEYS = {
-    CONF_SSID,
-    CONF_BSSID,
-    CONF_IP_ADDRESS,
-    CONF_DNS_ADDRESS,
-    CONF_SCAN_RESULTS,
-    CONF_POWER_SAVE_MODE,
-}
-
 
 async def setup_conf(config, key):
     if key in config:
@@ -88,16 +78,28 @@ async def setup_conf(config, key):
 
 
 async def to_code(config):
-    # Request WiFi listeners for any sensor that needs them
-    if _NETWORK_INFO_KEYS.intersection(config):
-        wifi.request_wifi_listeners()
+    # Request specific WiFi listeners based on which sensors are configured
+    # SSID and BSSID use WiFiConnectStateListener
+    if CONF_SSID in config or CONF_BSSID in config:
+        wifi.request_wifi_connect_state_listener()
+
+    # IP address and DNS use WiFiIPStateListener
+    if CONF_IP_ADDRESS in config or CONF_DNS_ADDRESS in config:
+        wifi.request_wifi_ip_state_listener()
+
+    # Scan results use WiFiScanResultsListener
+    if CONF_SCAN_RESULTS in config:
+        wifi.request_wifi_scan_results_listener()
+        wifi.request_wifi_scan_results()
+
+    # Power save mode uses WiFiPowerSaveListener
+    if CONF_POWER_SAVE_MODE in config:
+        wifi.request_wifi_power_save_listener()
 
     await setup_conf(config, CONF_SSID)
     await setup_conf(config, CONF_BSSID)
     await setup_conf(config, CONF_MAC_ADDRESS)
-    if CONF_SCAN_RESULTS in config:
-        await setup_conf(config, CONF_SCAN_RESULTS)
-        wifi.request_wifi_scan_results()
+    await setup_conf(config, CONF_SCAN_RESULTS)
     await setup_conf(config, CONF_DNS_ADDRESS)
     await setup_conf(config, CONF_POWER_SAVE_MODE)
     if conf := config.get(CONF_IP_ADDRESS):

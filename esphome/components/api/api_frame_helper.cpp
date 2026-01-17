@@ -1,6 +1,5 @@
 #include "api_frame_helper.h"
 #ifdef USE_API
-#include "api_connection.h"  // For ClientInfo struct
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -16,8 +15,11 @@ static const char *const TAG = "api.frame_helper";
 // Maximum bytes to log in hex format (168 * 3 = 504, under TX buffer size of 512)
 static constexpr size_t API_MAX_LOG_BYTES = 168;
 
-#define HELPER_LOG(msg, ...) \
-  ESP_LOGVV(TAG, "%s (%s): " msg, this->client_info_->name.c_str(), this->client_info_->peername.c_str(), ##__VA_ARGS__)
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+#define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, this->client_peername_, ##__VA_ARGS__)
+#else
+#define HELPER_LOG(msg, ...) ((void) 0)
+#endif
 
 #ifdef HELPER_LOG_PACKETS
 #define LOG_PACKET_RECEIVED(buffer) \
@@ -243,6 +245,8 @@ APIError APIFrameHelper::init_common_() {
     HELPER_LOG("Bad state for init %d", (int) state_);
     return APIError::BAD_STATE;
   }
+  // Cache peername now while socket is valid - needed for error logging after socket failure
+  this->socket_->getpeername_to(this->client_peername_);
   int err = this->socket_->setblocking(false);
   if (err != 0) {
     state_ = State::FAILED;

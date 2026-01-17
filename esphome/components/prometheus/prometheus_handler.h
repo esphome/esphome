@@ -207,7 +207,7 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   void climate_setting_row_(AsyncResponseStream *stream, climate::Climate *obj, std::string &area, std::string &node,
                             std::string &friendly_name, std::string &setting, const LogString *setting_value);
   void climate_value_row_(AsyncResponseStream *stream, climate::Climate *obj, std::string &area, std::string &node,
-                          std::string &friendly_name, std::string &category, std::string &climate_value);
+                          std::string &friendly_name, std::string &category, const char *climate_value);
 #endif
 
   web_server_base::WebServerBase *base_;
