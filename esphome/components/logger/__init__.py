@@ -422,6 +422,7 @@ async def to_code(config):
         cg.add_define("USE_LOGGER_EARLY_MESSAGE")
 
     if CORE.is_nrf52:
+        zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
         if config[CONF_HARDWARE_UART] == UART0:
             zephyr_add_overlay("""&uart0 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == UART1:

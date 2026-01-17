@@ -20,6 +20,18 @@ __attribute__((weak)) void print_coredump() {}
 
 namespace esphome::logger {
 
+static const uint32_t CRASH_MAGIC = 0xDEADBEEF;
+
+__attribute__((section(".noinit"))) struct {
+  uint32_t magic;
+  uint32_t reason;
+  uint32_t pc;
+  uint32_t lr;
+#if defined(CONFIG_THREAD_NAME)
+  char thread[CONFIG_THREAD_MAX_NAME_LEN];
+#endif
+} crash_buf;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 static const char *const TAG = "logger";
 
 #ifdef USE_LOGGER_USB_CDC
@@ -84,6 +96,7 @@ void Logger::pre_setup() {
   if (hwinfo_get_reset_cause(&cause) == 0) {
     ESP_LOGI(TAG, "boot reason %u", cause);
   }
+  dump_crash_();
   zephyr_coredump::print_coredump();
 #endif
 }
@@ -118,6 +131,62 @@ const LogString *Logger::get_uart_selection_() {
   }
 }
 
+static const char *reason_to_str(unsigned int reason, char *buf) {
+  switch (reason) {
+    case K_ERR_CPU_EXCEPTION:
+      return "CPU exception";
+    case K_ERR_SPURIOUS_IRQ:
+      return "Unhandled interrupt";
+    case K_ERR_STACK_CHK_FAIL:
+      return "Stack overflow";
+    case K_ERR_KERNEL_OOPS:
+      return "Kernel oops";
+    case K_ERR_KERNEL_PANIC:
+      return "Kernel panic";
+    default:
+      sprintf(buf, "Unknown error (%u)", reason);
+      return buf;
+  }
+}
+
+void Logger::dump_crash_() {
+  ESP_LOGD(TAG, "crash_buf address %p", &crash_buf);
+  if (crash_buf.magic == CRASH_MAGIC) {
+    char reason_buf[32];
+    ESP_LOGE(TAG, "💥 Last crash:\n");
+    ESP_LOGE(TAG, "Reason=%s PC=0x%08x LR=0x%08x\n", reason_to_str(crash_buf.reason, reason_buf), crash_buf.pc,
+             crash_buf.lr);
+#if defined(CONFIG_THREAD_NAME)
+    ESP_LOGE(TAG, "Thread: %s\n", crash_buf.thread);
+#endif
+  }
+}
+
+void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
+  crash_buf.magic = CRASH_MAGIC;
+  crash_buf.reason = reason;
+  if (esf) {
+    crash_buf.pc = esf->basic.pc;
+    crash_buf.lr = esf->basic.lr;
+  }
+#if defined(CONFIG_THREAD_NAME)
+  auto thread = k_current_get();
+  const char *name = k_thread_name_get(thread);
+  if (name) {
+    strcpy(crash_buf.thread, name);
+  } else {
+    crash_buf.thread[0] = 0;
+  }
+#endif
+
+  /* Force reset */
+  NVIC_SystemReset();
+}
+
 }  // namespace esphome::logger
+
+void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
+  esphome::logger::k_sys_fatal_error_handler(reason, esf);
+}
 
 #endif
