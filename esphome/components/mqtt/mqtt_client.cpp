@@ -94,9 +94,11 @@ void MQTTClientComponent::send_device_info_() {
             char key[8];  // "ip" + up to 3 digits + null
             char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
             if (index == 0) {
-              strcpy(key, "ip");
+              key[0] = 'i';
+              key[1] = 'p';
+              key[2] = '\0';
             } else {
-              snprintf(key, sizeof(key), "ip%u", index);
+              buf_append_printf(key, sizeof(key), 0, "ip%u", index);
             }
             ip.str_to(ip_buf);
             root[key] = ip_buf;

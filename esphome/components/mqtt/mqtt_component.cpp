@@ -189,13 +189,15 @@ bool MQTTComponent::send_discovery_() {
         StringRef object_id = this->get_default_object_id_to_(object_id_buf);
         if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
           char friendly_name_hash[9];
-          snprintf(friendly_name_hash, sizeof(friendly_name_hash), "%08" PRIx32, fnv1_hash(this->friendly_name_()));
+          buf_append_printf(friendly_name_hash, sizeof(friendly_name_hash), 0, "%08" PRIx32,
+                            fnv1_hash(this->friendly_name_()));
           // Format: mac-component_type-hash (e.g. "aabbccddeeff-sensor-12345678")
           // MAC (12) + "-" (1) + domain (max 20) + "-" (1) + hash (8) + null (1) = 43
           char unique_id[MAC_ADDRESS_BUFFER_SIZE + ESPHOME_DOMAIN_MAX_LEN + 11];
           char mac_buf[MAC_ADDRESS_BUFFER_SIZE];
           get_mac_address_into_buffer(mac_buf);
-          snprintf(unique_id, sizeof(unique_id), "%s-%s-%s", mac_buf, this->component_type(), friendly_name_hash);
+          buf_append_printf(unique_id, sizeof(unique_id), 0, "%s-%s-%s", mac_buf, this->component_type(),
+                            friendly_name_hash);
           root[MQTT_UNIQUE_ID] = unique_id;
         } else {
           // default to almost-unique ID. It's a hack but the only way to get that
@@ -224,17 +226,14 @@ bool MQTTComponent::send_discovery_() {
             model == nullptr ? ESPHOME_PROJECT_NAME : std::string(ESPHOME_PROJECT_NAME, model - ESPHOME_PROJECT_NAME);
 #else
         static const char ver_fmt[] PROGMEM = ESPHOME_VERSION " (config hash 0x%08" PRIx32 ")";
-#ifdef USE_ESP8266
-        char fmt_buf[sizeof(ver_fmt)];
-        strcpy_P(fmt_buf, ver_fmt);
-        const char *fmt = fmt_buf;
-#else
-        const char *fmt = ver_fmt;
-#endif
         // Buffer sized for format string expansion: ~4 bytes net growth from format specifier to 8 hex digits, plus
         // safety margin
         char version_buf[sizeof(ver_fmt) + 8];
-        snprintf(version_buf, sizeof(version_buf), fmt, App.get_config_hash());
+#ifdef USE_ESP8266
+        snprintf_P(version_buf, sizeof(version_buf), ver_fmt, App.get_config_hash());
+#else
+        snprintf(version_buf, sizeof(version_buf), ver_fmt, App.get_config_hash());
+#endif
         device_info[MQTT_DEVICE_SW_VERSION] = version_buf;
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
 #if defined(USE_ESP8266) || defined(USE_ESP32)
