@@ -1,0 +1,9 @@
+esphome:
+  name: proto-overflow-plaintext
+
+host:
+
+api:
+
+logger:
+  level: VERY_VERBOSE
