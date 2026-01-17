@@ -33,6 +33,10 @@
 #include "esphome/components/water_heater/water_heater.h"
 #endif
 
+#ifdef USE_INFRARED
+#include "esphome/components/infrared/infrared.h"
+#endif
+
 #ifdef USE_WEBSERVER_LOCAL
 #if USE_WEBSERVER_VERSION == 2
 #include "server_index_v2.h"
@@ -1952,6 +1956,110 @@ std::string WebServer::water_heater_json_(water_heater::WaterHeater *obj, JsonDe
 }
 #endif
 
+#ifdef USE_INFRARED
+void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (infrared::Infrared *obj : App.get_infrareds()) {
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
+      continue;
+
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
+      auto detail = get_request_detail(request);
+      std::string data = this->infrared_json_(obj, detail);
+      request->send(200, ESPHOME_F("application/json"), data.c_str());
+      return;
+    }
+    if (!match.method_equals(ESPHOME_F("transmit"))) {
+      request->send(404);
+      return;
+    }
+
+    // Only allow transmit if the device supports it
+    if (!obj->has_transmitter()) {
+      request->send(400, ESPHOME_F("text/plain"), "Device does not support transmission");
+      return;
+    }
+
+    // Parse parameters
+    auto call = obj->make_call();
+
+    // Parse carrier frequency (optional)
+    if (request->hasParam(ESPHOME_F("carrier_frequency"))) {
+      auto value = parse_number<uint32_t>(request->getParam(ESPHOME_F("carrier_frequency"))->value().c_str());
+      if (value.has_value()) {
+        call.set_carrier_frequency(*value);
+      }
+    }
+
+    // Parse repeat count (optional, defaults to 1)
+    if (request->hasParam(ESPHOME_F("repeat_count"))) {
+      auto value = parse_number<uint32_t>(request->getParam(ESPHOME_F("repeat_count"))->value().c_str());
+      if (value.has_value()) {
+        call.set_repeat_count(*value);
+      }
+    }
+
+    // Parse base64url-encoded raw timings (required)
+    // Base64url is URL-safe: uses A-Za-z0-9-_ (no special characters needing escaping)
+    if (!request->hasParam(ESPHOME_F("data"))) {
+      request->send(400, ESPHOME_F("text/plain"), "Missing 'data' parameter");
+      return;
+    }
+
+    // .c_str() is required for Arduino framework where value() returns Arduino String instead of std::string
+    std::string encoded =
+        request->getParam(ESPHOME_F("data"))->value().c_str();  // NOLINT(readability-redundant-string-cstr)
+
+    // Validate base64url is not empty
+    if (encoded.empty()) {
+      request->send(400, ESPHOME_F("text/plain"), "Empty 'data' parameter");
+      return;
+    }
+
+#ifdef USE_ESP8266
+    // ESP8266 is single-threaded, call directly
+    call.set_raw_timings_base64url(encoded);
+    call.perform();
+#else
+    // Defer to main loop for thread safety. Move encoded string into lambda to ensure
+    // it outlives the call - set_raw_timings_base64url stores a pointer, so the string
+    // must remain valid until perform() completes.
+    this->defer([call, encoded = std::move(encoded)]() mutable {
+      call.set_raw_timings_base64url(encoded);
+      call.perform();
+    });
+#endif
+
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+std::string WebServer::infrared_all_json_generator(WebServer *web_server, void *source) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  return web_server->infrared_json_(static_cast<infrared::Infrared *>(source), DETAIL_ALL);
+}
+
+std::string WebServer::infrared_json_(infrared::Infrared *obj, JsonDetail start_config) {
+  json::JsonBuilder builder;
+  JsonObject root = builder.root();
+
+  set_json_icon_state_value(root, obj, "infrared", "", 0, start_config);
+
+  auto traits = obj->get_traits();
+
+  root[ESPHOME_F("supports_transmitter")] = traits.get_supports_transmitter();
+  root[ESPHOME_F("supports_receiver")] = traits.get_supports_receiver();
+
+  if (start_config == DETAIL_ALL) {
+    this->add_sorting_info_(root, obj);
+  }
+
+  return builder.serialize();
+}
+#endif
+
 #ifdef USE_EVENT
 void WebServer::on_event(event::Event *obj) {
   if (!this->include_internal_ && obj->is_internal())
@@ -2188,6 +2296,9 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
 #ifdef USE_WATER_HEATER
       "water_heater",
 #endif
+#ifdef USE_INFRARED
+      "infrared",
+#endif
   };
 
   // Check GET-only domains
@@ -2351,6 +2462,11 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_WATER_HEATER
   else if (match.domain_equals(ESPHOME_F("water_heater"))) {
     this->handle_water_heater_request(request, match);
+  }
+#endif
+#ifdef USE_INFRARED
+  else if (match.domain_equals(ESPHOME_F("infrared"))) {
+    this->handle_infrared_request(request, match);
   }
 #endif
   else {
