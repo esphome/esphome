@@ -21,7 +21,7 @@ class FendtSensor : public FendtComponent<float>, public sensor::Sensor {
   void on_decoded(const float value) override { this->publish_state(value); }
 
  private:
-  const char *const TAG = "FS";
+  const char *const tag_ = "FS";
 };
 }  // namespace fendt_caravan
 }  // namespace esphome

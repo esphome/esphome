@@ -13,12 +13,12 @@ void FridgeDeviceSensor::setup() {
     auto available =
         this->fridge_available_text_sensor_->create_variable("FRIDGE_AVAILABLE", [](const std::string &value) {
           const char *tmp[] = {"Available", "Not available"};
-          return Coders::decode_bool_str(value, tmp);
+          return DeviceDecoders::decode_bool_str(value, tmp);
         });
     this->add_variable(available);
   }
   if (this->fridge_status_switch_) {
-    auto status = this->fridge_status_switch_->create_variable("FRIDGE_ON_OFF", Coders::decode_bool,
+    auto status = this->fridge_status_switch_->create_variable("FRIDGE_ON_OFF", DeviceDecoders::decode_bool,
                                                                Commands::update_toggle<bool>);
     this->add_variable(status);
     this->fridge_status_switch_->set_state_change_callback(
@@ -27,7 +27,7 @@ void FridgeDeviceSensor::setup() {
   if (this->fridge_mode_select_) {
     std::vector<std::string> list = {"Performance", "", "Quite", "Boost"};
     auto mode = this->fridge_mode_select_->create_variable(
-        "FRIDGE_MODE", [list](const std::string &value) { return Coders::decode_int_str(value, list); },
+        "FRIDGE_MODE", [list](const std::string &value) { return DeviceDecoders::decode_int_str(value, list); },
         [list](const std::string &name, std::string value) {
           auto it = std::find(list.begin(), list.end(), value);
           if (it != list.end()) {
@@ -43,19 +43,19 @@ void FridgeDeviceSensor::setup() {
   if (this->fridge_source_text_sensor_) {
     std::vector<std::string> list = {"Automatic", "Gas", "DirectCurrent", "AlternatingCurrent"};
     auto source = this->fridge_source_text_sensor_->create_variable(
-        "FRIDGE_SOURCE", [list](const std::string &value) { return Coders::decode_int_str(value, list); });
+        "FRIDGE_SOURCE", [list](const std::string &value) { return DeviceDecoders::decode_int_str(value, list); });
     this->add_variable(source);
   }
   if (this->fridge_type_text_sensor_) {
     std::vector<std::string> list = {"None", "DometicAbsorberFridge", "HobbyCompressorRMVOC90",
                                      "DOMETICRC104Compressor", "DOMETIC_RUC"};
     auto ftype = this->fridge_type_text_sensor_->create_variable(
-        "FRIDGE_TYPE", [list](const std::string &value) { return Coders::decode_int_str(value, list); });
+        "FRIDGE_TYPE", [list](const std::string &value) { return DeviceDecoders::decode_int_str(value, list); });
     this->add_variable(ftype);
   }
   if (this->fridge_temperature_number_) {
-    auto temp =
-        this->fridge_temperature_number_->create_variable("FRIDGE_TEMP", Coders::decode_int, Commands::update_int);
+    auto temp = this->fridge_temperature_number_->create_variable("FRIDGE_TEMP", DeviceDecoders::decode_int,
+                                                                  Commands::update_int);
     this->add_variable(temp);
     this->fridge_temperature_number_->set_state_change_callback(
         std::bind(&FridgeDeviceSensor::on_number_state_change, this, std::placeholders::_1, std::placeholders::_2));

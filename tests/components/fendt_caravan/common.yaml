@@ -12,7 +12,7 @@ fendt_caravan:
 sensor:
   - platform: fendt_caravan
     fendt_caravan_id: my_caravan
-    control_unit:
+    control_unit_device:
       id: control_unit
       main_switch:
         name: "Main Switch"
@@ -50,7 +50,7 @@ sensor:
     alde_device:
       alde_available:
         name: "Alde Available"
-      alde_heater_satus:
+      alde_heater_status:
         name: "Heater Status"
       alde_heater_temperature:
         name: "Heater Temperature"

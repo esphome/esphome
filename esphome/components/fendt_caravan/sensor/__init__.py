@@ -26,14 +26,14 @@ from .control_unit_sensor import (
     CONTROL_UNITS,
 )
 from .fridge_sensor import CONF_FRIDGE_DEVICE, CONFIG_FRIDGE_SCHEMA, FRIDGES
-from .lighting_sensor import CONF_LIGHTONG_DEVICE, CONFIG_LIGHTING_SCHEMA, LIGHTINGS
+from .lighting_sensor import CONF_LIGHTING_DEVICE, CONFIG_LIGHTING_SCHEMA, LIGHTINGS
 
 CONFIG_SCHEMA = CONFIG_FENDT_SCHEMA.extend(
     {
         cv.Required(CONF_CONTROL_UNIT_DEVICE): CONFIG_CONTROL_UNIT_SCHEMA,
         cv.Optional(CONF_FRIDGE_DEVICE): CONFIG_FRIDGE_SCHEMA,
         cv.Optional(CONF_ALDE_DEVICE): CONFIG_ALDE_SCHEMA,
-        cv.Optional(CONF_LIGHTONG_DEVICE): CONFIG_LIGHTING_SCHEMA,
+        cv.Optional(CONF_LIGHTING_DEVICE): CONFIG_LIGHTING_SCHEMA,
     }
 )
 
@@ -91,7 +91,7 @@ async def to_code(config):
         cg.add(parent.set_fridge_device(var))
         await device_to_code(var, FRIDGES, conf_fridge)
 
-    if conf_lighting := config.get(CONF_LIGHTONG_DEVICE):
+    if conf_lighting := config.get(CONF_LIGHTING_DEVICE):
         var = cg.new_Pvariable(conf_lighting[CONF_ID])
         await cg.register_component(var, conf_lighting)
         cg.add(parent.set_lighting_device(var))

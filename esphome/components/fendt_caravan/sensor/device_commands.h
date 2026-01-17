@@ -1,5 +1,6 @@
 #pragma once
 #include "esphome/core/string_ref.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace fendt_caravan {
@@ -13,12 +14,13 @@ class Commands {
   }
   static std::string update_run(const std::string &name, bool value) {
     std::string ret_value = "";
-    if (name == "HS_KEY")
+    if (name == "HS_KEY") {
       ret_value = "net-HS_KEY";
-    else if (name == "HS_KEY_LONG")
+    } else if (name == "HS_KEY_LONG") {
       ret_value = "net-HS_KEY_LONG";
-    else
+    } else {
       ret_value = std::string("cmd-run:") + name;
+    }
     return ret_value;
   }
 
@@ -27,14 +29,15 @@ class Commands {
     return "net-" + name + "-" + std::to_string(val);
   }
 
-  static std::string update_heater_el(const std::string &name, std::string el) {
+  static std::string update_heater_el(const std::string &name, const std::string &el) {
     std::string value = "0";
-    if (el == "1 kW")
+    if (el == "1 kW") {
       value = "1";
-    else if (el == "2 kW")
+    } else if (el == "2 kW") {
       value = "2";
-    else if (el == "3 kW")
+    } else if (el == "3 kW") {
       value = "3";
+    }
     return "net-" + name + "-" + value;
   }
   static std::string update_int(const std::string &name, int value) {

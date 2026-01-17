@@ -24,7 +24,7 @@ class AldeDeviceSensor : public CaravanDevice {
   void dump_config() override;
 
   FENDT_TEXT_SENSOR(alde_available);
-  FENDT_SWITCH(alde_heater_satus);
+  FENDT_SWITCH(alde_heater_status);
   FENDT_NUMBER(alde_heater_temperature);
   FENDT_SWITCH(alde_heater_water);
   FENDT_SWITCH(alde_heater_water_temperature);

@@ -32,7 +32,7 @@ class FendtSwitch : public FendtComponent<bool>, public switch_::Switch {
   CallbackManager<void(FendtSwitch *, bool state)> on_state_change_{};
 
  private:
-  const char *const TAG = "FSW";
+  const char *const tag_ = "FSW";
 };
 
 }  // namespace fendt_caravan

@@ -12,12 +12,12 @@ void ControlUnitDeviceSensor::setup() {
   if (this->power_status_text_sensor_) {
     auto network = this->power_status_text_sensor_->create_variable("LINE_EN", [](const std::string &value) {
       const char *tmp[] = {"Connected", "Disconnected"};
-      return Coders::decode_bool_str(value, tmp);
+      return DeviceDecoders::decode_bool_str(value, tmp);
     });
     this->add_variable(network);
   }
 
-  auto main_switch = new Variable<bool>("HS_EN", Coders::decode_bool, Commands::update_toggle<bool>);
+  auto main_switch = new Variable<bool>("HS_EN", DeviceDecoders::decode_bool, Commands::update_toggle<bool>);
   this->add_variable(main_switch);
 
   auto hs_key = new Variable<bool>("HS_KEY", nullptr, Commands::update_run);
@@ -26,83 +26,83 @@ void ControlUnitDeviceSensor::setup() {
   auto hs_key_long = new Variable<bool>("HS_KEY_LONG", nullptr, Commands::update_run);
   this->add_variable(hs_key_long);
 
-  auto d_plus = new Variable<bool>("D_PLUS", Coders::decode_bool);
+  auto d_plus = new Variable<bool>("D_PLUS", DeviceDecoders::decode_bool);
   this->add_variable(d_plus);
 
-  auto battery_loading_status = new Variable<int>("IBAT_BAL", Coders::decode_int);
+  auto battery_loading_status = new Variable<int>("IBAT_BAL", DeviceDecoders::decode_int);
   this->add_variable(battery_loading_status);
 
   auto ac_active = new Variable<std::string>("AC_EN", [](const std::string &value) {
     const char *tmp[] = {"Enable", "Disable"};
-    return Coders::decode_bool_str(value, tmp);
+    return DeviceDecoders::decode_bool_str(value, tmp);
   });
   this->add_variable(ac_active);
 
-  auto alarm_clock_active = new Variable<bool>("WAKE_EN", Coders::decode_bool);
+  auto alarm_clock_active = new Variable<bool>("WAKE_EN", DeviceDecoders::decode_bool);
   this->add_variable(alarm_clock_active);
 
   if (this->temperature_in_sensor_) {
-    auto temp_in = this->temperature_in_sensor_->create_variable("TEMP_IN", Coders::decode_temperature);
+    auto temp_in = this->temperature_in_sensor_->create_variable("TEMP_IN", DeviceDecoders::decode_temperature);
     this->add_variable(temp_in);
   }
 
   if (this->temperature_out_sensor_) {
-    auto temp_out = this->temperature_out_sensor_->create_variable("TEMP_OUT", Coders::decode_temperature);
+    auto temp_out = this->temperature_out_sensor_->create_variable("TEMP_OUT", DeviceDecoders::decode_temperature);
     this->add_variable(temp_out);
   }
 
-  auto battery_voltage = new Variable<float>("UBAT", Coders::decode_voltage);
+  auto battery_voltage = new Variable<float>("UBAT", DeviceDecoders::decode_voltage);
   this->add_variable(battery_voltage);
 
-  auto battery_voltage2 = new Variable<float>("UBATM", Coders::decode_voltage);
+  auto battery_voltage2 = new Variable<float>("UBATM", DeviceDecoders::decode_voltage);
   this->add_variable(battery_voltage2);
 
-  auto date = new Variable<time_t>("DATE", Coders::decode_date);
+  auto date = new Variable<time_t>("DATE", DeviceDecoders::decode_date);
   this->add_variable(date);
 
-  auto time = new Variable<time_t>("TIME", Coders::decode_time);
+  auto time = new Variable<time_t>("TIME", DeviceDecoders::decode_time);
   this->add_variable(time);
 
   if (this->floor_heater_switch_) {
-    auto *sw = this->floor_heater_switch_->create_variable("FLOOR_HEATER_ON", Coders::decode_bool,
+    auto *sw = this->floor_heater_switch_->create_variable("FLOOR_HEATER_ON", DeviceDecoders::decode_bool,
                                                            Commands::update_toggle<bool>);
     this->add_variable(sw);
     this->floor_heater_switch_->set_state_change_callback(std::bind(
         &ControlUnitDeviceSensor::on_switch_state_change, this, std::placeholders::_1, std::placeholders::_2));
   }
 
-  auto temp_in_offset = new Variable<int>("TEMP_IN_OFFSET", Coders::decode_int);
+  auto temp_in_offset = new Variable<int>("TEMP_IN_OFFSET", DeviceDecoders::decode_int);
   this->add_variable(temp_in_offset);
 
-  auto temp_out_offset = new Variable<int>("TEMP_OUT_OFFSET", Coders::decode_int);
+  auto temp_out_offset = new Variable<int>("TEMP_OUT_OFFSET", DeviceDecoders::decode_int);
   this->add_variable(temp_out_offset);
 
   if (this->software_version_text_sensor_) {
     auto software_version =
-        this->software_version_text_sensor_->create_variable("SOFTWARE_VERSION", Coders::decode_str);
+        this->software_version_text_sensor_->create_variable("SOFTWARE_VERSION", DeviceDecoders::decode_str);
     this->add_variable(software_version);
   }
 
-  auto hs_key_state = new Variable<int>("HS_KEY_STATE", Coders::decode_int);
+  auto hs_key_state = new Variable<int>("HS_KEY_STATE", DeviceDecoders::decode_int);
   this->add_variable(hs_key_state);
 
-  auto th_error = new Variable<int>("TH_ERROR", Coders::decode_int);
+  auto th_error = new Variable<int>("TH_ERROR", DeviceDecoders::decode_int);
   this->add_variable(th_error);
 
-  auto trade_show = new Variable<int>("TRADE_SHOW", Coders::decode_int);
+  auto trade_show = new Variable<int>("TRADE_SHOW", DeviceDecoders::decode_int);
   this->add_variable(trade_show);
 
-  auto therme_config = new Variable<int>("THERME_CONFIG", Coders::decode_int);
+  auto therme_config = new Variable<int>("THERME_CONFIG", DeviceDecoders::decode_int);
   this->add_variable(therme_config);
 
   auto floor_heater_config =
-      new Variable<bool>("FLOOR_HEATER_CONFIG", Coders::decode_bool, Commands::update_toggle<bool>);
+      new Variable<bool>("FLOOR_HEATER_CONFIG", DeviceDecoders::decode_bool, Commands::update_toggle<bool>);
   this->add_variable(floor_heater_config);
 
-  auto waste_water_heater_config = new Variable<int>("WASTE_WATER_HEATER_CONFIG", Coders::decode_int);
+  auto waste_water_heater_config = new Variable<int>("WASTE_WATER_HEATER_CONFIG", DeviceDecoders::decode_int);
   this->add_variable(waste_water_heater_config);
 
-  auto radio_config = new Variable<bool>("RADIO_CONFIG", Coders::decode_bool);
+  auto radio_config = new Variable<bool>("RADIO_CONFIG", DeviceDecoders::decode_bool);
   this->add_variable(radio_config);
 
   if (this->main_switch_switch_)

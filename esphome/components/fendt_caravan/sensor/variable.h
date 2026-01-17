@@ -1,10 +1,11 @@
 #pragma once
 #include "esphome/core/component.h"
 #include "esphome/core/string_ref.h"
-#include <string>
-#include <functional>
-#include <vector>
 #include <any>
+#include <functional>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace esphome {
 namespace fendt_caravan {
@@ -14,7 +15,7 @@ using namespace std;
 class IVariable {
  public:
   std::string get_name() { return this->name_; }
-  void set_name(std::string name) { this->name_ = name; }
+  void set_name(std::string name) { this->name_ = std::move(name); }
   std::string get_raw_value() { return this->raw_value_; }
 
   bool is_active() { return this->is_active_; }
@@ -34,7 +35,7 @@ template<class T> class Variable : public IVariable {
   Variable(const std::string name, std::function<T(const std::string &)> decode_funct = nullptr,
            std::function<std::string(const std::string &, T value)> command_funct = nullptr,
            std::function<std::string(const std::string &, T value)> alt_command_funct = nullptr)
-      : decode_funct_(decode_funct), command_funct_(command_funct), alt_command_funct_(alt_command_funct) {
+      : decode_funct_(std::move(decode_funct)), command_funct_(command_funct), alt_command_funct_(alt_command_funct) {
     name_ = name;
     is_active_ = false;
   }
@@ -63,7 +64,7 @@ template<class T> class Variable : public IVariable {
     this->on_decode_.add(std::move(callback));
   }
 
-  void decode(const std::string &value) {
+  void decode(const std::string &value) override {
     raw_value_ = value;
     this->value_ = this->decode_funct_(value);
     this->is_active_ = true;

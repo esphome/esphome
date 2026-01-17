@@ -19,7 +19,7 @@ CONF_FRIDGE_STATUS = "fridge_status"
 CONF_FRIDGE_MODE = "fridge_mode"
 CONF_FRIDGE_SOURCE = "fridge_source"
 CONF_FRIDGE_TYPE = "fridge_type"
-CONF_FRIDGE_TEMP = "fridge_temperature"
+CONF_FRIDGE_TEMPERATURE = "fridge_temperature"
 
 FRIDGES = {
     CONF_FRIDGE_AVAILABLE,
@@ -27,7 +27,7 @@ FRIDGES = {
     CONF_FRIDGE_MODE,
     CONF_FRIDGE_SOURCE,
     CONF_FRIDGE_TYPE,
-    CONF_FRIDGE_TEMP,
+    CONF_FRIDGE_TEMPERATURE,
 }
 
 FRIDGE_TYPES = {
@@ -48,7 +48,9 @@ FRIDGE_TYPES = {
     CONF_FRIDGE_TYPE: text_sensor.text_sensor_schema(
         FendtTextSensor, icon="mdi:power-settings"
     ),
-    CONF_FRIDGE_TEMP: number.number_schema(FendtNumber, icon="mdi:gauge-empty").extend(
+    CONF_FRIDGE_TEMPERATURE: number.number_schema(
+        FendtNumber, icon="mdi:gauge-empty"
+    ).extend(
         {
             cv.Optional(CONF_MIN_VALUE, default=1): cv.int_,
             cv.Optional(CONF_MAX_VALUE, default=5): cv.int_,

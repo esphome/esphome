@@ -18,19 +18,19 @@ AldeDeviceSensor = fendt_caravan_ns.class_("AldeDeviceSensor", cg.PollingCompone
 
 CONF_ALDE_DEVICE = "alde_device"
 CONF_ALDE_AVAILABLE = "alde_available"
-CONF_ALDE_HEATER_STATUS = "alde_heater_satus"
-CONF_ALDE_HEATER_TEMP = "alde_heater_temperature"
+CONF_ALDE_HEATER_STATUS = "alde_heater_status"
+CONF_ALDE_HEATER_TEMPERATURE = "alde_heater_temperature"
 CONF_ALDE_HEATER_WATER = "alde_heater_water"
-CONF_ALDE_HEATER_WATER_TEMP = "alde_heater_water_temperature"
+CONF_ALDE_HEATER_WATER_TEMPERATURE = "alde_heater_water_temperature"
 CONF_ALDE_HEATER_ELECTRIC = "alde_heater_electric"
 CONF_ALDE_HEATER_GAS = "alde_heater_gas"
 
 ALDES = {
     CONF_ALDE_AVAILABLE,
     CONF_ALDE_HEATER_STATUS,
-    CONF_ALDE_HEATER_TEMP,
+    CONF_ALDE_HEATER_TEMPERATURE,
     CONF_ALDE_HEATER_WATER,
-    CONF_ALDE_HEATER_WATER_TEMP,
+    CONF_ALDE_HEATER_WATER_TEMPERATURE,
     CONF_ALDE_HEATER_ELECTRIC,
     CONF_ALDE_HEATER_GAS,
 }
@@ -43,7 +43,7 @@ ALDE_TYPES = {
     CONF_ALDE_HEATER_STATUS: switch.switch_schema(
         FendtSwitch, default_restore_mode="RESTORE_DEFAULT_OFF", icon="mdi:heat-wave"
     ),
-    CONF_ALDE_HEATER_TEMP: number.number_schema(
+    CONF_ALDE_HEATER_TEMPERATURE: number.number_schema(
         FendtNumber,
         device_class=DEVICE_CLASS_TEMPERATURE,
         unit_of_measurement=UNIT_CELSIUS,
@@ -57,7 +57,7 @@ ALDE_TYPES = {
     CONF_ALDE_HEATER_WATER: switch.switch_schema(
         FendtSwitch, default_restore_mode="RESTORE_DEFAULT_OFF", icon="mdi:water-boiler"
     ),
-    CONF_ALDE_HEATER_WATER_TEMP: switch.switch_schema(
+    CONF_ALDE_HEATER_WATER_TEMPERATURE: switch.switch_schema(
         FendtSwitch,
         default_restore_mode="RESTORE_DEFAULT_OFF",
         icon="mdi:thermometer-alert",

@@ -3,20 +3,18 @@
 #include <iostream>
 #include <iomanip>
 #include "esphome/core/string_ref.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace fendt_caravan {
 using namespace std;
 
-class Coders {
+class DeviceDecoders {
  public:
   static bool decode_bool(const std::string &value) {
     std::string decode = value;
     std::transform(decode.begin(), decode.end(), decode.begin(), [](unsigned char c) { return std::tolower(c); });
-    if ((decode == "01") || (decode == "true") || (decode == "1") || (decode == "on"))
-      return true;
-    else
-      return false;
+    return (decode == "01") || (decode == "true") || (decode == "1") || (decode == "on");
   }
   static std::string decode_str(const std::string &value) { return value; }
   static std::string decode_bool_str(const std::string &value, const char **text) {
@@ -27,7 +25,7 @@ class Coders {
     size_t start = value.find("^C");
     if (start != std::string::npos)
       value.replace(start, 2, "");
-    start = value.find(",");
+    start = value.find(',');
     if (start != std::string::npos)
       value.replace(start, 1, ".");
     return std::stof(value);
@@ -37,34 +35,14 @@ class Coders {
     size_t start = value.find("V");
     if (start != std::string::npos)
       value.replace(start, 1, "");
-    start = value.find(",");
+    start = value.find(',');
     if (start != std::string::npos)
       value.replace(start, 1, ".");
     return std::stof(value);
   }
   static int decode_int(const std::string &data) { return std::stoi(data); }
-  static time_t decode_date(const std::string &data) {
-    std::istringstream date(data);
-    tm tm = {};
-    date >> get_time(&tm, "%d.%m.%y");
-    if (date.fail()) {
-      ESP_LOGE("CODERS", "Date Parsing failed");
-      return 0;
-    }
-    time_t ret = mktime(&tm);
-    return ret;
-  }
-  static time_t decode_time(const std::string &data) {
-    std::istringstream date(data);
-    tm tm = {};
-    date >> get_time(&tm, "%H:%M:%S");
-    if (date.fail()) {
-      ESP_LOGE("CODERS", "Date Parsing failed");
-      return 0;
-    }
-    time_t ret = mktime(&tm);
-    return ret;
-  }
+  static time_t decode_date(const std::string &data);
+  static time_t decode_time(const std::string &data);
 
   static std::string decode_heater_el(const std::string &data) {
     std::string ret_val = data;

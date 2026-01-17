@@ -11,50 +11,50 @@ void AldeDeviceSensor::setup() {
     auto alde_available =
         this->alde_available_text_sensor_->create_variable("HEATER_AVAILABLE", [](const std::string &value) {
           const char *tmp[] = {"Available", "Not available"};
-          return Coders::decode_bool_str(value, tmp);
+          return DeviceDecoders::decode_bool_str(value, tmp);
         });
     this->add_variable(alde_available);
   }
 
-  if (this->alde_heater_satus_switch_) {
-    auto heater_status = this->alde_heater_satus_switch_->create_variable("HEATER_ONOFF", Coders::decode_bool,
-                                                                          Commands::update_toggle<bool>);
+  if (this->alde_heater_status_switch_) {
+    auto heater_status = this->alde_heater_status_switch_->create_variable("HEATER_ONOFF", DeviceDecoders::decode_bool,
+                                                                           Commands::update_toggle<bool>);
     this->add_variable(heater_status);
   }
 
   if (this->alde_heater_temperature_number_) {
-    auto heater_temp = this->alde_heater_temperature_number_->create_variable("HEATER_TEMP", Coders::decode_temperature,
-                                                                              Commands::update_temp_10);
+    auto heater_temp = this->alde_heater_temperature_number_->create_variable(
+        "HEATER_TEMP", DeviceDecoders::decode_temperature, Commands::update_temp_10);
     this->add_variable(heater_temp);
   }
 
   if (this->alde_heater_water_switch_) {
-    auto heater_water = this->alde_heater_water_switch_->create_variable("HEATER_WATER", Coders::decode_bool,
+    auto heater_water = this->alde_heater_water_switch_->create_variable("HEATER_WATER", DeviceDecoders::decode_bool,
                                                                          Commands::update_toggle<bool>);
     this->add_variable(heater_water);
   }
 
   if (this->alde_heater_water_temperature_switch_) {
     auto heater_water_temp = this->alde_heater_water_temperature_switch_->create_variable(
-        "HEATER_WATER_TEMP", [](const std::string &data) { return Coders::decode_temperature(data) == 65.0f; },
+        "HEATER_WATER_TEMP", [](const std::string &data) { return DeviceDecoders::decode_temperature(data) == 65.0f; },
         Commands::update_toggle<bool>);
     this->add_variable(heater_water_temp);
   }
 
   if (this->alde_heater_electric_select_) {
-    auto heater_el = this->alde_heater_electric_select_->create_variable("HEATER_EL", Coders::decode_heater_el,
+    auto heater_el = this->alde_heater_electric_select_->create_variable("HEATER_EL", DeviceDecoders::decode_heater_el,
                                                                          Commands::update_heater_el);
     this->add_variable(heater_el);
   }
 
   if (this->alde_heater_gas_switch_) {
-    auto heater_gas = this->alde_heater_gas_switch_->create_variable("HEATER_GAS", Coders::decode_bool,
+    auto heater_gas = this->alde_heater_gas_switch_->create_variable("HEATER_GAS", DeviceDecoders::decode_bool,
                                                                      Commands::update_toggle<bool>);
     this->add_variable(heater_gas);
   }
 
-  if (this->alde_heater_satus_switch_)
-    this->alde_heater_satus_switch_->set_state_change_callback(
+  if (this->alde_heater_status_switch_)
+    this->alde_heater_status_switch_->set_state_change_callback(
         std::bind(&AldeDeviceSensor::on_switch_state_change, this, std::placeholders::_1, std::placeholders::_2));
   if (this->alde_heater_water_switch_)
     this->alde_heater_water_switch_->set_state_change_callback(
@@ -76,7 +76,7 @@ void AldeDeviceSensor::setup() {
 void AldeDeviceSensor::dump_config() {
   ESP_LOGCONFIG(TAG, " -Fendt Alde Device-");
   LOG_TEXT_SENSOR(TAG, "  Alde Sensor", this->alde_available_text_sensor_);
-  LOG_SWITCH(TAG, "  Alde Status Switch", this->alde_heater_satus_switch_);
+  LOG_SWITCH(TAG, "  Alde Status Switch", this->alde_heater_status_switch_);
   LOG_NUMBER(TAG, "  Heater Temperature", this->alde_heater_temperature_number_);
   LOG_SWITCH(TAG, "  Heater Water", this->alde_heater_water_switch_);
   LOG_SWITCH(TAG, "  Water Temperature", this->alde_heater_water_temperature_switch_);

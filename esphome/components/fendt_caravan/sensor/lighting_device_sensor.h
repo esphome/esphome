@@ -24,22 +24,22 @@ class LightingDeviceSensor : public CaravanDevice {
   FENDT_LIGHT_OUTPUT(light_dimsw2);
   FENDT_LIGHT_OUTPUT(light_dimsw3);
   FENDT_LIGHT_OUTPUT(light_dimsw4);
-  const char *get_tag() override { return this->TAG; }
+  const char *get_tag() override { return this->tag_; }
 
  private:
-  const char *TAG = "LDS";
-  void on_switch_state_changed(FendtSwitch *sw, bool state);
-  void on_light_output_state_changed(FendtLightOutput *lo, lamp_state_t state);
-  Variable<lamp_state_t> *create_variable(const std::string &name, FendtLightOutput *lo) {
+  const char *tag_ = "LDS";
+  void on_switch_state_changed_(FendtSwitch *sw, bool state);
+  void on_light_output_state_changed_(FendtLightOutput *lo, LampStateT state);
+  Variable<LampStateT> *create_variable_(const std::string &name, FendtLightOutput *lo) {
     auto *dimsw = lo->create_variable(
         name,
         [](const std::string &data) {
-          int value = Coders::decode_int(data);
-          lamp_state_t ls = {.status = value != 0, .state = (float) value / 15.0f};
+          int value = DeviceDecoders::decode_int(data);
+          LampStateT ls = {.status = value != 0, .state = (float) value / 15.0f};
           return ls;
         },
-        Commands::update_toggle<lamp_state_t>,
-        [](const std::string &name, lamp_state_t state) { return Commands::update_int(name, state.state * 15.f); });
+        Commands::update_toggle<LampStateT>,
+        [](const std::string &name, LampStateT state) { return Commands::update_int(name, state.state * 15.f); });
     return dimsw;
   }
 };

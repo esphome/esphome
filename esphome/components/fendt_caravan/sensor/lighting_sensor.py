@@ -10,7 +10,7 @@ LightingDeviceSensor = fendt_caravan_ns.class_(
 )
 FendtLightOutput = fendt_caravan_ns.class_("FendtLightOutput", light.LightOutput)
 
-CONF_LIGHTONG_DEVICE = "lighting_device"
+CONF_LIGHTING_DEVICE = "lighting_device"
 
 CONF_LIGHT_SW0 = "light_sw0"
 CONF_LIGHT_SW1 = "light_sw1"
