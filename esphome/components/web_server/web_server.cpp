@@ -2191,24 +2191,21 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   const auto &url = request->url();
   const auto method = request->method();
 
-  // Static URL checks
-  static const char *const STATIC_URLS[] = {
-    "/",
+  // Static URL checks - use ESPHOME_F to keep strings in flash on ESP8266
+  if (url == ESPHOME_F("/"))
+    return true;
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
-    "/events",
+  if (url == ESPHOME_F("/events"))
+    return true;
 #endif
 #ifdef USE_WEBSERVER_CSS_INCLUDE
-    "/0.css",
+  if (url == ESPHOME_F("/0.css"))
+    return true;
 #endif
 #ifdef USE_WEBSERVER_JS_INCLUDE
-    "/0.js",
+  if (url == ESPHOME_F("/0.js"))
+    return true;
 #endif
-  };
-
-  for (const auto &static_url : STATIC_URLS) {
-    if (url == static_url)
-      return true;
-  }
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
   if (method == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network")))
@@ -2228,93 +2225,100 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   if (!is_get_or_post)
     return false;
 
-  // Use lookup tables for domain checks
-  static const char *const GET_ONLY_DOMAINS[] = {
+  // Check GET-only domains - use ESPHOME_F to keep strings in flash on ESP8266
+  if (is_get) {
 #ifdef USE_SENSOR
-      "sensor",
+    if (match.domain_equals(ESPHOME_F("sensor")))
+      return true;
 #endif
 #ifdef USE_BINARY_SENSOR
-      "binary_sensor",
+    if (match.domain_equals(ESPHOME_F("binary_sensor")))
+      return true;
 #endif
 #ifdef USE_TEXT_SENSOR
-      "text_sensor",
+    if (match.domain_equals(ESPHOME_F("text_sensor")))
+      return true;
 #endif
 #ifdef USE_EVENT
-      "event",
+    if (match.domain_equals(ESPHOME_F("event")))
+      return true;
 #endif
-  };
-
-  static const char *const GET_POST_DOMAINS[] = {
-#ifdef USE_SWITCH
-      "switch",
-#endif
-#ifdef USE_BUTTON
-      "button",
-#endif
-#ifdef USE_FAN
-      "fan",
-#endif
-#ifdef USE_LIGHT
-      "light",
-#endif
-#ifdef USE_COVER
-      "cover",
-#endif
-#ifdef USE_NUMBER
-      "number",
-#endif
-#ifdef USE_DATETIME_DATE
-      "date",
-#endif
-#ifdef USE_DATETIME_TIME
-      "time",
-#endif
-#ifdef USE_DATETIME_DATETIME
-      "datetime",
-#endif
-#ifdef USE_TEXT
-      "text",
-#endif
-#ifdef USE_SELECT
-      "select",
-#endif
-#ifdef USE_CLIMATE
-      "climate",
-#endif
-#ifdef USE_LOCK
-      "lock",
-#endif
-#ifdef USE_VALVE
-      "valve",
-#endif
-#ifdef USE_ALARM_CONTROL_PANEL
-      "alarm_control_panel",
-#endif
-#ifdef USE_UPDATE
-      "update",
-#endif
-#ifdef USE_WATER_HEATER
-      "water_heater",
-#endif
-#ifdef USE_INFRARED
-      "infrared",
-#endif
-  };
-
-  // Check GET-only domains
-  if (is_get) {
-    for (const auto &domain : GET_ONLY_DOMAINS) {
-      if (match.domain_equals(domain))
-        return true;
-    }
   }
 
   // Check GET+POST domains
   if (is_get_or_post) {
-    for (const auto &domain : GET_POST_DOMAINS) {
-      if (match.domain_equals(domain))
-        return true;
-    }
+#ifdef USE_SWITCH
+    if (match.domain_equals(ESPHOME_F("switch")))
+      return true;
+#endif
+#ifdef USE_BUTTON
+    if (match.domain_equals(ESPHOME_F("button")))
+      return true;
+#endif
+#ifdef USE_FAN
+    if (match.domain_equals(ESPHOME_F("fan")))
+      return true;
+#endif
+#ifdef USE_LIGHT
+    if (match.domain_equals(ESPHOME_F("light")))
+      return true;
+#endif
+#ifdef USE_COVER
+    if (match.domain_equals(ESPHOME_F("cover")))
+      return true;
+#endif
+#ifdef USE_NUMBER
+    if (match.domain_equals(ESPHOME_F("number")))
+      return true;
+#endif
+#ifdef USE_DATETIME_DATE
+    if (match.domain_equals(ESPHOME_F("date")))
+      return true;
+#endif
+#ifdef USE_DATETIME_TIME
+    if (match.domain_equals(ESPHOME_F("time")))
+      return true;
+#endif
+#ifdef USE_DATETIME_DATETIME
+    if (match.domain_equals(ESPHOME_F("datetime")))
+      return true;
+#endif
+#ifdef USE_TEXT
+    if (match.domain_equals(ESPHOME_F("text")))
+      return true;
+#endif
+#ifdef USE_SELECT
+    if (match.domain_equals(ESPHOME_F("select")))
+      return true;
+#endif
+#ifdef USE_CLIMATE
+    if (match.domain_equals(ESPHOME_F("climate")))
+      return true;
+#endif
+#ifdef USE_LOCK
+    if (match.domain_equals(ESPHOME_F("lock")))
+      return true;
+#endif
+#ifdef USE_VALVE
+    if (match.domain_equals(ESPHOME_F("valve")))
+      return true;
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+    if (match.domain_equals(ESPHOME_F("alarm_control_panel")))
+      return true;
+#endif
+#ifdef USE_UPDATE
+    if (match.domain_equals(ESPHOME_F("update")))
+      return true;
+#endif
+#ifdef USE_WATER_HEATER
+    if (match.domain_equals(ESPHOME_F("water_heater")))
+      return true;
+#endif
+#ifdef USE_INFRARED
+    if (match.domain_equals(ESPHOME_F("infrared")))
+      return true;
+#endif
   }
 
   return false;
