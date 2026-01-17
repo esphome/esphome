@@ -87,8 +87,10 @@ class StringRef {
     if (pos >= len_)
       return std::string::npos;
     const char *result = std::strstr(base_ + pos, s);
-    // Verify match is within bounds (strstr searches to null terminator)
-    return (result && result < base_ + len_) ? static_cast<size_type>(result - base_) : std::string::npos;
+    // Verify entire match is within bounds (strstr searches to null terminator)
+    if (result && result + std::strlen(s) <= base_ + len_)
+      return static_cast<size_type>(result - base_);
+    return std::string::npos;
   }
   size_type find(char c, size_type pos = 0) const {
     if (pos >= len_)
@@ -188,6 +190,7 @@ inline std::string operator+(const std::string &lhs, const StringRef &rhs) {
 // String conversion functions for ADL compatibility (allows stoi(x) where x is StringRef)
 // Must be in esphome namespace for ADL to find them. Uses strtol/strtod directly to avoid heap allocation.
 namespace internal {
+// NOLINTBEGIN(google-runtime-int)
 template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, F conv) {
   char *end;
   R result = conv(str.c_str(), &end);
@@ -202,8 +205,9 @@ template<typename R, typename F> inline R parse_number(const StringRef &str, siz
     *pos = static_cast<size_t>(end - str.c_str());
   return result;
 }
+// NOLINTEND(google-runtime-int)
 }  // namespace internal
-// NOLINTBEGIN(readability-identifier-naming)
+// NOLINTBEGIN(readability-identifier-naming,google-runtime-int)
 inline int stoi(const StringRef &str, size_t *pos = nullptr, int base = 10) {
   return static_cast<int>(internal::parse_number<long>(str, pos, base, std::strtol));
 }
