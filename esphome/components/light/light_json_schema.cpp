@@ -48,7 +48,7 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
   auto values = state.remote_values;
 
   const auto color_mode = values.get_color_mode();
-  auto mode_str = get_color_mode_json_str(color_mode);
+  const auto *mode_str = get_color_mode_json_str(color_mode);
   if (mode_str != nullptr) {
     root[ESPHOME_F("color_mode")] = mode_str;
   }
