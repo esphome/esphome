@@ -153,11 +153,11 @@ void Logger::dump_crash_() {
   ESP_LOGD(TAG, "crash_buf address %p", &crash_buf);
   if (crash_buf.magic == CRASH_MAGIC) {
     char reason_buf[32];
-    ESP_LOGE(TAG, "💥 Last crash:\n");
-    ESP_LOGE(TAG, "Reason=%s PC=0x%08x LR=0x%08x\n", reason_to_str(crash_buf.reason, reason_buf), crash_buf.pc,
+    ESP_LOGE(TAG, "💥 Last crash:");
+    ESP_LOGE(TAG, "Reason=%s PC=0x%08x LR=0x%08x", reason_to_str(crash_buf.reason, reason_buf), crash_buf.pc,
              crash_buf.lr);
 #if defined(CONFIG_THREAD_NAME)
-    ESP_LOGE(TAG, "Thread: %s\n", crash_buf.thread);
+    ESP_LOGE(TAG, "Thread: %s", crash_buf.thread);
 #endif
   }
 }
