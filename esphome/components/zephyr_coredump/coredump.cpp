@@ -20,7 +20,6 @@ void print_coredump();
 
 static const char *const TAG = "coredump";
 
-/* Length of buffer of printable size */
 static const uint8_t BUF_SZ = 32;
 static const uint8_t PRINT_BUF_SZ = BUF_SZ * 2;
 
