@@ -1096,9 +1096,66 @@ std::string format_hex_pretty(T val, char separator = '.', bool show_length = tr
   return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T), separator, show_length);
 }
 
+/// Calculate buffer size needed for format_bin_to: "01234567...\0" = bytes * 8 + 1
+constexpr size_t format_bin_size(size_t byte_count) { return byte_count * 8 + 1; }
+
+/** Format byte array as binary string to buffer.
+ *
+ * Each byte is formatted as 8 binary digits (MSB first).
+ * Truncates output if data exceeds buffer capacity.
+ *
+ * @param buffer Output buffer to write to.
+ * @param buffer_size Size of the output buffer.
+ * @param data Pointer to the byte array to format.
+ * @param length Number of bytes in the array.
+ * @return Pointer to buffer.
+ *
+ * Buffer size needed: length * 8 + 1 (use format_bin_size()).
+ *
+ * Example:
+ * @code
+ * char buf[9];  // format_bin_size(1)
+ * format_bin_to(buf, sizeof(buf), data, 1);  // "10101011"
+ * @endcode
+ */
+char *format_bin_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length);
+
+/// Format byte array as binary to buffer. Automatically deduces buffer size.
+template<size_t N> inline char *format_bin_to(char (&buffer)[N], const uint8_t *data, size_t length) {
+  static_assert(N >= 9, "Buffer must hold at least one binary byte (9 chars)");
+  return format_bin_to(buffer, N, data, length);
+}
+
+/** Format an unsigned integer in binary to buffer, MSB first.
+ *
+ * @tparam N Buffer size (must be >= sizeof(T) * 8 + 1).
+ * @tparam T Unsigned integer type.
+ * @param buffer Output buffer to write to.
+ * @param val The unsigned integer value to format.
+ * @return Pointer to buffer.
+ *
+ * Example:
+ * @code
+ * char buf[9];  // format_bin_size(sizeof(uint8_t))
+ * format_bin_to(buf, uint8_t{0xAA});  // "10101010"
+ * char buf16[17];  // format_bin_size(sizeof(uint16_t))
+ * format_bin_to(buf16, uint16_t{0x1234});  // "0001001000110100"
+ * @endcode
+ */
+template<size_t N, typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline char *format_bin_to(char (&buffer)[N], T val) {
+  static_assert(N >= sizeof(T) * 8 + 1, "Buffer too small for type");
+  val = convert_big_endian(val);
+  return format_bin_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
+}
+
 /// Format the byte array \p data of length \p len in binary.
+/// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 std::string format_bin(const uint8_t *data, size_t length);
 /// Format an unsigned integer in binary, starting with the most significant byte.
+/// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_bin(T val) {
   val = convert_big_endian(val);
   return format_bin(reinterpret_cast<uint8_t *>(&val), sizeof(T));

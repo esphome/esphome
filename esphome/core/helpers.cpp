@@ -404,15 +404,31 @@ std::string format_hex_pretty(const std::string &data, char separator, bool show
   return format_hex_pretty_uint8(reinterpret_cast<const uint8_t *>(data.data()), data.length(), separator, show_length);
 }
 
+char *format_bin_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
+  if (buffer_size == 0) {
+    return buffer;
+  }
+  // Calculate max bytes we can format: each byte needs 8 chars
+  size_t max_bytes = (buffer_size - 1) / 8;
+  if (max_bytes == 0 || length == 0) {
+    buffer[0] = '\0';
+    return buffer;
+  }
+  size_t bytes_to_format = std::min(length, max_bytes);
+
+  for (size_t byte_idx = 0; byte_idx < bytes_to_format; byte_idx++) {
+    for (size_t bit_idx = 0; bit_idx < 8; bit_idx++) {
+      buffer[byte_idx * 8 + bit_idx] = ((data[byte_idx] >> (7 - bit_idx)) & 1) + '0';
+    }
+  }
+  buffer[bytes_to_format * 8] = '\0';
+  return buffer;
+}
+
 std::string format_bin(const uint8_t *data, size_t length) {
   std::string result;
   result.resize(length * 8);
-  for (size_t byte_idx = 0; byte_idx < length; byte_idx++) {
-    for (size_t bit_idx = 0; bit_idx < 8; bit_idx++) {
-      result[byte_idx * 8 + bit_idx] = ((data[byte_idx] >> (7 - bit_idx)) & 1) + '0';
-    }
-  }
-
+  format_bin_to(&result[0], length * 8 + 1, data, length);
   return result;
 }
 
