@@ -222,7 +222,7 @@ inline float stof(const StringRef &str, size_t *pos = nullptr) {
 inline double stod(const StringRef &str, size_t *pos = nullptr) {
   return internal::parse_number<double>(str, pos, std::strtod);
 }
-// NOLINTEND(readability-identifier-naming)
+// NOLINTEND(readability-identifier-naming,google-runtime-int)
 
 #ifdef USE_JSON
 // NOLINTNEXTLINE(readability-identifier-naming)
