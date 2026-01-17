@@ -2016,6 +2016,11 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
       return;
     }
 
+#ifdef USE_ESP8266
+    // ESP8266 is single-threaded, call directly
+    call.set_raw_timings_base64url(encoded);
+    call.perform();
+#else
     // Defer to main loop for thread safety. Move encoded string into lambda to ensure
     // it outlives the call - set_raw_timings_base64url stores a pointer, so the string
     // must remain valid until perform() completes.
@@ -2023,6 +2028,7 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
       call.set_raw_timings_base64url(encoded);
       call.perform();
     });
+#endif
 
     request->send(200);
     return;
@@ -2459,7 +2465,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   }
 #endif
 #ifdef USE_INFRARED
-  else if (match.domain_equals("infrared")) {
+  else if (match.domain_equals(ESPHOME_F("infrared"))) {
     this->handle_infrared_request(request, match);
   }
 #endif
