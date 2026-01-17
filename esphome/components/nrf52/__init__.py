@@ -40,7 +40,7 @@ from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priori
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG
+from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, Section
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -61,10 +61,6 @@ def set_core_data(config: ConfigType) -> ConfigType:
     zephyr_set_core_data(config)
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
-
-    if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
-        zephyr_add_pm_static(BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]])
-
     return config
 
 
@@ -255,6 +251,11 @@ async def to_code(config: ConfigType) -> None:
                 };
             """
         )
+    if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
+        zephyr_add_prj_conf("PARTITION_MANAGER_ENABLED", True)
+        pm = BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]]
+        pm.extend([Section("bootloader", 0xF4000, 0xC000, "flash_primary")])
+        zephyr_add_pm_static(pm)
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)

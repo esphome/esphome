@@ -3,9 +3,6 @@ from typing import Any
 
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.components.nrf52.boards import BOOTLOADER_CONFIG, Section
-from esphome.components.zephyr import zephyr_add_pm_static, zephyr_data
-from esphome.components.zephyr.const import KEY_BOOTLOADER
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_NAME
 from esphome.core import CORE
@@ -30,15 +27,6 @@ _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@tomaszduda23"]
 
 
-def zigbee_set_core_data(config: ConfigType) -> ConfigType:
-    if zephyr_data()[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
-        zephyr_add_pm_static(
-            [Section("empty_after_zboss_offset", 0xF4000, 0xC000, "flash_primary")]
-        )
-
-    return config
-
-
 BINARY_SENSOR_SCHEMA = cv.Schema({}).extend(zephyr_binary_sensor)
 SENSOR_SCHEMA = cv.Schema({}).extend(zephyr_sensor)
 SWITCH_SCHEMA = cv.Schema({}).extend(zephyr_switch)
@@ -60,7 +48,6 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    zigbee_set_core_data,
     cv.only_with_framework("zephyr"),
 )
 

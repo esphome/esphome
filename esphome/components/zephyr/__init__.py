@@ -172,7 +172,7 @@ def zephyr_add_cdc_acm(config, id):
     )
 
 
-def zephyr_add_pm_static(section: Section):
+def zephyr_add_pm_static(section: list[Section]):
     CORE.data[KEY_ZEPHYR][KEY_PM_STATIC].extend(section)
 
 

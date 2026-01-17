@@ -28,20 +28,20 @@ async def to_code(config):
     zephyr_add_prj_conf("DEBUG_COREDUMP_MEMORY_DUMP_THREADS", True)
     cg.add_build_flag("-Wl,--wrap=z_arm_fatal_error")
     cg.add_build_flag("-Wl,--wrap=z_arm_fault")
+    addr = 0xE4000
     zephyr_add_pm_static(
-        [Section("coredump_partition", 0xE4000, 0x10000, "flash_primary")]
+        [Section("coredump_partition", addr, 0x10000, "flash_primary")]
     )
     zephyr_add_overlay(
-        """
-            &flash0 {
-                partitions {
-                    coredump_partition: partition@e4000 {
+        f"""
+            &flash0 {{
+                partitions {{
+                    coredump_partition: partition@{hex(addr)} {{
                         label = "coredump-partition";
-                        reg = <0xE4000 DT_SIZE_K(64)>;
-                    };
-
-                };
-            };
+                        reg = <{hex(addr)} DT_SIZE_K(64)>;
+                    }};
+                }};
+            }};
         """
     )
     var = cg.new_Pvariable(config[CONF_ID])
