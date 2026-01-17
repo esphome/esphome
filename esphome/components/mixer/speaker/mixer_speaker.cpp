@@ -329,6 +329,8 @@ void SourceSpeaker::apply_ducking(uint8_t decibel_reduction, uint32_t duration) 
 
     this->target_ducking_db_reduction_ = decibel_reduction;
 
+    // Calculate the number of intermediate dB steps for the transition timing.
+    // Subtract 1 because the first step is taken immediately after this calculation.
     uint8_t total_ducking_steps = 0;
     if (this->target_ducking_db_reduction_ > this->current_ducking_db_reduction_) {
       // The dB reduction level is increasing (which results in quieter audio)
