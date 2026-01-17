@@ -8,14 +8,38 @@ display:
     dimensions:
       width: 800
       height: 480
-    cs_pin: GPIO5
-    dc_pin: GPIO17
-    reset_pin: GPIO16
-    busy_pin: GPIO4
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
     rotation: 0
     update_interval: 60s
     lambda: |-
       it.circle(64, 64, 50, Color::BLACK);
+
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-2.13in-v3
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
 
   - platform: epaper_spi
     model: seeed-reterminal-e1002

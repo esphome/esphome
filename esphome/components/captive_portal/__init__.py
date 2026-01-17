@@ -44,7 +44,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
                 web_server_base.WebServerBase
             ),
-            cv.Optional(CONF_COMPRESSION, default="br"): cv.one_of("br", "gzip"),
+            cv.Optional(CONF_COMPRESSION, default="gzip"): cv.one_of("gzip", "br"),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on(

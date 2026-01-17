@@ -12,14 +12,16 @@ class APIServerConnectionBase : public ProtoService {
  public:
 #ifdef HAS_PROTO_MESSAGE_DUMP
  protected:
-  void log_send_message_(const char *name, const std::string &dump);
+  void log_send_message_(const char *name, const char *dump);
+  void log_receive_message_(const LogString *name, const ProtoMessage &msg);
 
  public:
 #endif
 
   bool send_message(const ProtoMessage &msg, uint8_t message_type) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-    this->log_send_message_(msg.message_name(), msg.dump());
+    DumpBuffer dump_buf;
+    this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));
 #endif
     return this->send_message_(msg, message_type);
   }

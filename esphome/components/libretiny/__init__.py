@@ -35,6 +35,7 @@ from .const import (
     FAMILY_BK7231N,
     FAMILY_COMPONENT,
     FAMILY_FRIENDLY,
+    FAMILY_RTL8710B,
     KEY_BOARD,
     KEY_COMPONENT,
     KEY_COMPONENT_DATA,
@@ -278,11 +279,23 @@ async def component_to_code(config):
     cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_FAMILY]}")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", FAMILY_FRIENDLY[config[CONF_FAMILY]])
-    # LibreTiny uses MULTI_NO_ATOMICS because platforms like BK7231N (ARM968E-S) lack
-    # exclusive load/store (no LDREX/STREX). std::atomic RMW operations require libatomic,
-    # which is not linked to save flash (4-8KB). Even if linked, libatomic would use locks
-    # (ATOMIC_INT_LOCK_FREE=1), so explicit FreeRTOS mutexes are simpler and equivalent.
-    cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
+    # Set threading model based on chip architecture
+    component: LibreTinyComponent = CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA]
+    if component.supports_atomics:
+        # RTL87xx (Cortex-M4) and LN882x (Cortex-M4F) have LDREX/STREX
+        cg.add_define(ThreadModel.MULTI_ATOMICS)
+    else:
+        # BK72xx uses ARM968E-S (ARMv5TE) which lacks LDREX/STREX.
+        # std::atomic RMW operations would require libatomic (not linked to save
+        # 4-8KB flash). Even if linked, it would use locks, so explicit FreeRTOS
+        # mutexes are simpler and equivalent.
+        cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
+
+    # RTL8710B needs FreeRTOS 8.2.3+ for xTaskNotifyGive/ulTaskNotifyTake
+    # required by AsyncTCP 3.4.3+ (https://github.com/esphome/esphome/issues/10220)
+    # RTL8720C (ambz2) requires FreeRTOS 10.x so this only applies to RTL8710B
+    if config[CONF_FAMILY] == FAMILY_RTL8710B:
+        cg.add_platformio_option("custom_versions.freertos", "8.2.3")
 
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")
