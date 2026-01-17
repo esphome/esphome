@@ -605,9 +605,6 @@ bool SendspinHub::process_json_message_(const std::string &message, int64_t time
           }
         });
         // Wake the main loop immediately to process the deferred callback (~12μs latency vs 0-16ms)
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-        App.wake_loop_threadsafe();
-#endif
 #endif
       }
 
@@ -657,10 +654,6 @@ bool SendspinHub::process_json_message_(const std::string &message, int64_t time
                    this->group_state_.group_id.value_or("").c_str(),
                    this->group_state_.group_name.value_or("").c_str());
         });
-        // Wake the main loop immediately to process the deferred callback (~12μs latency vs 0-16ms)
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-        App.wake_loop_threadsafe();
-#endif
       }
       break;
     }

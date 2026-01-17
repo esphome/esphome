@@ -131,11 +131,6 @@ bool SendspinMediaSource::play_uri(const std::string &uri, size_t pipeline) {
   ControlMessage message = {.control = SourceControls::START};
   xQueueSend(ctx.controls_queue, &message, 0);
   this->enable_loop_soon_any_context();
-
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-  App.wake_loop_threadsafe();
-#endif
-
   return true;
 }
 
@@ -336,6 +331,7 @@ void SendspinMediaSource::handle_command(media_source::MediaSourceCommand comman
       if (ctx.generation_state == SendspinGenerationState::GENERATING) {
         message.control = SourceControls::STOP;
         xQueueSend(ctx.controls_queue, &message, 0);
+        this->enable_loop_soon_any_context();
       }
       if (!ctx.pending_start) {
         // TODO: This is a hack to stop us from disconnecting from the server because the media player asked us to stop
@@ -386,10 +382,6 @@ void SendspinMediaSource::handle_command(media_source::MediaSourceCommand comman
       break;
     }
   }
-
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-  App.wake_loop_threadsafe();
-#endif
 }
 
 void SendspinMediaSource::notify_volume_changed(float volume) {
@@ -965,10 +957,6 @@ void SendspinMediaSource::sync_task(void *params) {
   }
 
   xEventGroupSetBits(ctx.event_group, EventGroupBits::TASK_STOPPED);
-
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-  App.wake_loop_threadsafe();
-#endif
 
   while (true) {
     // Continuously delay until the loop method deletes the task
