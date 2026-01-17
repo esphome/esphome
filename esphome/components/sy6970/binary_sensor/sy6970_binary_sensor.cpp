@@ -1,8 +1,7 @@
 #include "sy6970_binary_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sy6970 {
+namespace esphome::sy6970 {
 
 static const char *const TAG = "sy6970.binary_sensor";
 
@@ -23,5 +22,4 @@ void SY6970BinarySensor::update() {
   }
 }
 
-}  // namespace sy6970
-}  // namespace esphome
+}  // namespace esphome::sy6970

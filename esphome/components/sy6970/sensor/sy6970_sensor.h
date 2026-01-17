@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "../sy6970.h"
 
-namespace esphome {
-namespace sy6970 {
+namespace esphome::sy6970 {
 
 class SY6970Sensor : public PollingComponent {
  public:
@@ -37,5 +36,4 @@ class SY6970Sensor : public PollingComponent {
   sensor::Sensor *precharge_current_sensor_{nullptr};
 };
 
-}  // namespace sy6970
-}  // namespace esphome
+}  // namespace esphome::sy6970

@@ -1,8 +1,7 @@
 #include "sy6970_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sy6970 {
+namespace esphome::sy6970 {
 
 static const char *const TAG = "sy6970.sensor";
 
@@ -33,5 +32,4 @@ void SY6970Sensor::update() {
   }
 }
 
-}  // namespace sy6970
-}  // namespace esphome
+}  // namespace esphome::sy6970

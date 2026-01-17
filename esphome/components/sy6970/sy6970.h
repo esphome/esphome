@@ -3,8 +3,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace sy6970 {
+namespace esphome::sy6970 {
 
 // SY6970 Register addresses
 static const uint8_t SY6970_REG_00 = 0x00;
@@ -97,5 +96,4 @@ class SY6970Component : public Component, public i2c::I2CDevice {
   bool initialized_{false};
 };
 
-}  // namespace sy6970
-}  // namespace esphome
+}  // namespace esphome::sy6970

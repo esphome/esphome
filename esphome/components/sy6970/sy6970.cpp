@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sy6970 {
+namespace esphome::sy6970 {
 
 static const char *const TAG = "sy6970";
 
@@ -401,5 +400,4 @@ uint16_t SY6970Component::get_charge_constant_current() {
   return val * 64;
 }
 
-}  // namespace sy6970
-}  // namespace esphome
+}  // namespace esphome::sy6970
