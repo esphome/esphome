@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef USE_ESP32
 #include "esphome/components/light/light_output.h"
 #include "fendt_component.h"
 
@@ -42,3 +43,4 @@ class FendtLightOutput : public FendtComponent<LampStateT>, public light::LightO
 };
 }  // namespace fendt_caravan
 }  // namespace esphome
+#endif

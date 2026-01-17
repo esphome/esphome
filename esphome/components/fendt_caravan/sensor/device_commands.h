@@ -1,4 +1,6 @@
 #pragma once
+
+#ifdef USE_ESP32
 #include "esphome/core/string_ref.h"
 #include "esphome/core/log.h"
 
@@ -47,3 +49,4 @@ class Commands {
 
 }  // namespace fendt_caravan
 }  // namespace esphome
+#endif

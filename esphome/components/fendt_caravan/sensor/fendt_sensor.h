@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef USE_ESP32
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/log.h"
 #include "fendt_component.h"
@@ -25,3 +26,4 @@ class FendtSensor : public FendtComponent<float>, public sensor::Sensor {
 };
 }  // namespace fendt_caravan
 }  // namespace esphome
+#endif

@@ -1,4 +1,6 @@
 #pragma once
+
+#ifdef USE_ESP32
 #include "esphome/core/component.h"
 #include "esphome/core/string_ref.h"
 #include "variable.h"
@@ -37,6 +39,6 @@ class CaravanDevice : public PollingComponent {
  private:
   bool log_variables_ = false;
 };
-
 }  // namespace fendt_caravan
 }  // namespace esphome
+#endif

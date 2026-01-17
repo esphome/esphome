@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef USE_ESP32
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/log.h"
@@ -28,3 +29,4 @@ class FendtTextSensor : public FendtComponent<std::string>, public text_sensor::
 };
 }  // namespace fendt_caravan
 }  // namespace esphome
+#endif

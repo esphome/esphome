@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef USE_ESP32
 #include "variable.h"
 #include "esphome/core/component.h"
 
@@ -31,3 +32,4 @@ template<typename T> class FendtComponent : public Component {
 };
 }  // namespace fendt_caravan
 }  // namespace esphome
+#endif

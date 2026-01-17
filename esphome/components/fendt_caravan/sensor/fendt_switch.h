@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef USE_ESP32
 #include "esphome/components/switch/switch.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/log.h"
@@ -37,3 +38,4 @@ class FendtSwitch : public FendtComponent<bool>, public switch_::Switch {
 
 }  // namespace fendt_caravan
 }  // namespace esphome
+#endif

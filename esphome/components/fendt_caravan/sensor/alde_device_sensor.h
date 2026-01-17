@@ -1,4 +1,6 @@
 #pragma once
+
+#ifdef USE_ESP32
 #include "esphome/core/application.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/component.h"
@@ -10,8 +12,6 @@
 #include "fendt_select.h"
 #include "variable.h"
 #include "caravan_device.h"
-
-#ifdef USE_ESP32
 
 namespace esphome {
 namespace fendt_caravan {

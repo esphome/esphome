@@ -1,5 +1,6 @@
 #include "fendt_light_output.h"
 
+#ifdef USE_ESP32
 namespace esphome {
 namespace fendt_caravan {
 
@@ -19,3 +20,4 @@ void FendtLightOutput::on_decoded(const LampStateT state) {
 
 }  // namespace fendt_caravan
 }  // namespace esphome
+#endif

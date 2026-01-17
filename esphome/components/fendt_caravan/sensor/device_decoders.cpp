@@ -1,5 +1,6 @@
 #include "device_decoders.h"
 
+#ifdef USE_ESP32
 namespace esphome {
 namespace fendt_caravan {
 
@@ -25,6 +26,6 @@ time_t DeviceDecoders::decode_time(const std::string &data) {
   time_t ret = mktime(&tm);
   return ret;
 }
-
 }  // namespace fendt_caravan
 }  // namespace esphome
+#endif

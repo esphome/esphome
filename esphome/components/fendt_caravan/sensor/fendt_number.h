@@ -1,12 +1,12 @@
 #pragma once
 
+#ifdef USE_ESP32
 #include "esphome/components/number/number.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/log.h"
 #include "fendt_component.h"
 #include "variable.h"
 
-#ifdef USE_ESP32
 namespace esphome {
 namespace fendt_caravan {
 

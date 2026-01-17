@@ -1,4 +1,6 @@
 #pragma once
+
+#ifdef USE_ESP32
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 #include <algorithm>
@@ -67,3 +69,4 @@ class DeviceDecoders {
 
 }  // namespace fendt_caravan
 }  // namespace esphome
+#endif
