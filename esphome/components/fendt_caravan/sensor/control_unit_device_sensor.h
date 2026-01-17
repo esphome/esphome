@@ -34,7 +34,7 @@ class ControlUnitDeviceSensor : public CaravanDevice {
   FENDT_SWITCH(floor_heater);
 
  protected:
-  const char *get_tag() override { return this->TAG; }
+  const char *get_tag_() override { return this->TAG; }
 
  private:
   const char *TAG = "MCU";

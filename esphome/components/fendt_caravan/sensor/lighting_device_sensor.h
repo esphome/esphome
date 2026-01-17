@@ -14,7 +14,6 @@ class LightingDeviceSensor : public CaravanDevice {
   void setup() override;
   void dump_config() override;
 
- protected:
   FENDT_SWITCH(light_sw0);
   FENDT_SWITCH(light_sw1);
   FENDT_SWITCH(light_sw2);
@@ -24,10 +23,12 @@ class LightingDeviceSensor : public CaravanDevice {
   FENDT_LIGHT_OUTPUT(light_dimsw2);
   FENDT_LIGHT_OUTPUT(light_dimsw3);
   FENDT_LIGHT_OUTPUT(light_dimsw4);
-  const char *get_tag() override { return this->tag_; }
+
+ protected:
+  const char *get_tag_() override { return this->TAG; }
 
  private:
-  const char *tag_ = "LDS";
+  const char *TAG = "LDS";
   void on_switch_state_changed_(FendtSwitch *sw, bool state);
   void on_light_output_state_changed_(FendtLightOutput *lo, LampStateT state);
   Variable<LampStateT> *create_variable_(const std::string &name, FendtLightOutput *lo) {

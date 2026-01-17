@@ -32,7 +32,7 @@ class AldeDeviceSensor : public CaravanDevice {
   FENDT_SWITCH(alde_heater_gas);
 
  protected:
-  const char *get_tag() override { return this->TAG; }
+  const char *get_tag_() override { return this->TAG; }
 
  private:
   const char *const TAG = "ALD";

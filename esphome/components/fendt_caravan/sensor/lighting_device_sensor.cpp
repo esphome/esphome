@@ -66,7 +66,13 @@ void LightingDeviceSensor::setup() {
   }
 }
 
-void LightingDeviceSensor::dump_config() {}
+void LightingDeviceSensor::dump_config() {
+  ESP_LOGCONFIG(TAG, " - Fendt Lighting Device -");
+  LOG_SWITCH(TAG, "  Light SW0", this->light_sw0_switch_);
+  LOG_SWITCH(TAG, "  Light SW1", this->light_sw1_switch_);
+  LOG_SWITCH(TAG, "  Light SW2", this->light_sw2_switch_);
+  LOG_SWITCH(TAG, "  Light SW3", this->light_sw3_switch_);
+}
 
 void LightingDeviceSensor::on_switch_state_changed_(FendtSwitch *sw, bool state) {
   if (!sw->get_variable())
@@ -75,7 +81,7 @@ void LightingDeviceSensor::on_switch_state_changed_(FendtSwitch *sw, bool state)
   std::string command = "";
   command = sw->get_variable()->get_command();
   if (!command.empty()) {
-    ESP_LOGD(this->tag_, "Select state changed command:%s", command.c_str());
+    ESP_LOGD(TAG, "Select state changed command:%s", command.c_str());
     this->command_callback_.call(command);
   }
 }
@@ -92,7 +98,7 @@ void LightingDeviceSensor::on_light_output_state_changed_(FendtLightOutput *lo, 
     command = variable->get_alt_command();
   }
   if (!command.empty()) {
-    ESP_LOGV(this->tag_, "Lamp state changed. Command: %s", command.c_str());
+    ESP_LOGV(TAG, "Lamp state changed. Command: %s", command.c_str());
     this->command_callback_.call(command);
   }
 }

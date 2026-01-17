@@ -25,7 +25,7 @@ class FridgeDeviceSensor : public CaravanDevice {
   FENDT_NUMBER(fridge_temperature);
 
  protected:
-  const char *get_tag() override { return this->TAG; }
+  const char *get_tag_() override { return this->TAG; }
 
  private:
   const char *TAG = "FRG";
