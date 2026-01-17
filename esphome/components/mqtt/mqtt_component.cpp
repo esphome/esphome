@@ -202,16 +202,24 @@ bool MQTTComponent::send_discovery_() {
         } else {
           // default to almost-unique ID. It's a hack but the only way to get that
           // gorgeous device registry view.
-          root[MQTT_UNIQUE_ID] = "ESP" + std::string(this->component_type()) + object_id.c_str();
+          // "ESP" (3) + component_type (max 20) + object_id (max 128) + null
+          char unique_id_buf[3 + MQTT_COMPONENT_TYPE_MAX_LEN + OBJECT_ID_MAX_LEN + 1];
+          buf_append_printf(unique_id_buf, sizeof(unique_id_buf), 0, "ESP%s%s", this->component_type(),
+                            object_id.c_str());
+          root[MQTT_UNIQUE_ID] = unique_id_buf;
         }
 
         const std::string &node_name = App.get_name();
-        if (discovery_info.object_id_generator == MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR)
-          root[MQTT_OBJECT_ID] = node_name + "_" + object_id.c_str();
+        if (discovery_info.object_id_generator == MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR) {
+          // node_name (max 31) + "_" (1) + object_id (max 128) + null
+          char object_id_full[ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1];
+          buf_append_printf(object_id_full, sizeof(object_id_full), 0, "%s_%s", node_name.c_str(), object_id.c_str());
+          root[MQTT_OBJECT_ID] = object_id_full;
+        }
 
         const std::string &friendly_name_ref = App.get_friendly_name();
         const std::string &node_friendly_name = friendly_name_ref.empty() ? node_name : friendly_name_ref;
-        std::string node_area = App.get_area();
+        const char *node_area = App.get_area();
 
         JsonObject device_info = root[MQTT_DEVICE].to<JsonObject>();
         char mac[MAC_ADDRESS_BUFFER_SIZE];
@@ -225,6 +233,9 @@ bool MQTTComponent::send_discovery_() {
         if (model == nullptr) {
           device_info[MQTT_DEVICE_MANUFACTURER] = ESPHOME_PROJECT_NAME;
         } else {
+          // Extract manufacturer (part before '.') using stack buffer to avoid heap allocation
+          // memcpy is used instead of strncpy since we know the exact length and strncpy
+          // would still require manual null-termination
           char manufacturer[sizeof(ESPHOME_PROJECT_NAME)];
           size_t len = model - ESPHOME_PROJECT_NAME;
           memcpy(manufacturer, ESPHOME_PROJECT_NAME, len);
@@ -255,7 +266,7 @@ bool MQTTComponent::send_discovery_() {
         device_info[MQTT_DEVICE_MANUFACTURER] = "Host";
 #endif
 #endif
-        if (!node_area.empty()) {
+        if (node_area[0] != '\0') {
           device_info[MQTT_DEVICE_SUGGESTED_AREA] = node_area;
         }
 
