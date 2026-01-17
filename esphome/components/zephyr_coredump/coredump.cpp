@@ -18,16 +18,11 @@ void print_coredump();
  */
 #define COREDUMP_PREFIX_STR "#CD:"
 
+static const char *const TAG = "coredump";
+
 /* Length of buffer of printable size */
 static const uint8_t BUF_SZ = 32;
 static const uint8_t PRINT_BUF_SZ = BUF_SZ * 2;
-
-/* Print buffer */
-static char print_buf[PRINT_BUF_SZ + 1];
-static off_t print_buf_ptr;
-static uint8_t buf[BUF_SZ];
-
-static const char *const TAG = "coredump";
 
 void Coredump::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -41,22 +36,25 @@ void Coredump::dump_config() {
   print_coredump();
 }
 
-static void flush_print_buf() {
+static void flush_print_buf(char *print_buf, off_t &print_buf_ptr) {
   ESP_LOGE(TAG, "%s%s", COREDUMP_PREFIX_STR, print_buf);
   print_buf_ptr = 0;
-  (void) memset(print_buf, 0, sizeof(print_buf));
+  (void) memset(print_buf, 0, PRINT_BUF_SZ);
 }
 
 static void print_stored_dump() {
-  /* If valid, start printing to shell */
-  print_buf_ptr = 0;
+  /* Print buffer */
+  char print_buf[PRINT_BUF_SZ + 1];
+  off_t print_buf_ptr = 0;
+  uint8_t buf[BUF_SZ];
+
   (void) memset(print_buf, 0, sizeof(print_buf));
 
   ESP_LOGE(TAG, "%s%s", COREDUMP_PREFIX_STR, COREDUMP_BEGIN_STR);
 
   size_t remaining = coredump_query(COREDUMP_QUERY_GET_STORED_DUMP_SIZE, nullptr);
   if (remaining == 0) {
-    flush_print_buf();
+    flush_print_buf(print_buf, print_buf_ptr);
   }
   size_t i = 0;
   off_t offset = 0;
@@ -76,7 +74,7 @@ static void print_stored_dump() {
 
     if (print_buf_ptr == PRINT_BUF_SZ) {
       i = 0;
-      flush_print_buf();
+      flush_print_buf(print_buf, print_buf_ptr);
       arg.offset = offset;
       arch_feed_wdt();
       ret = coredump_cmd(COREDUMP_CMD_COPY_STORED_DUMP, &arg);
@@ -84,7 +82,7 @@ static void print_stored_dump() {
     }
   }
   if (print_buf_ptr != 0) {
-    flush_print_buf();
+    flush_print_buf(print_buf, print_buf_ptr);
   }
 
   ESP_LOGE(TAG, "%s%s", COREDUMP_PREFIX_STR, COREDUMP_END_STR);
@@ -117,6 +115,7 @@ void print_coredump() {
 }
 }  // namespace esphome::zephyr_coredump
 
+#if defined(CONFIG_DEBUG_COREDUMP_MEMORY_DUMP_THREADS) || defined(CONFIG_DEBUG_COREDUMP_MEMORY_DUMP_MIN)
 // https://github.com/zephyrproject-rtos/zephyr/pull/79622
 extern "C" {
 
@@ -165,5 +164,6 @@ void __wrap_z_arm_fatal_error(unsigned int reason, const z_arch_esf_t *esf)
   __real_z_arm_fatal_error(reason, esf);
 }
 }
+#endif
 
 #endif
