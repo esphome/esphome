@@ -32,6 +32,8 @@ static const uint8_t SSD1306_COMMAND_PAGE_ADDRESS = 0x22;
 static const uint8_t SSD1306_COMMAND_NORMAL_DISPLAY = 0xA6;
 static const uint8_t SSD1306_COMMAND_INVERSE_DISPLAY = 0xA7;
 
+static const uint8_t SSD1306B_COMMAND_SELECT_IREF = 0xAD;
+
 static const uint8_t SSD1305_COMMAND_SET_BRIGHTNESS = 0x82;
 static const uint8_t SSD1305_COMMAND_SET_AREA_COLOR = 0xD8;
 
@@ -95,6 +97,12 @@ void SSD1306::setup() {
       this->command(0x8B);
     }
   } else {
+    if (this->is_ssd1306b_()) {
+      // Select external or internal Iref (0xAD)
+      this->command(SSD1306B_COMMAND_SELECT_IREF);
+      // Enable internal Iref and change from 19ua (POR) to 30uA
+      this->command(0x20 | 0x10);
+    }
     // Enable charge pump (0x8D)
     this->command(SSD1306_COMMAND_CHARGE_PUMP);
     if (this->external_vcc_) {
@@ -226,6 +234,8 @@ bool SSD1306::is_sh1107_() const { return this->model_ == SH1107_MODEL_128_64 ||
 bool SSD1306::is_ssd1305_() const {
   return this->model_ == SSD1305_MODEL_128_64 || this->model_ == SSD1305_MODEL_128_32;
 }
+bool SSD1306::is_ssd1306b_() const { return this->model_ == SSD1306_MODEL_72_40; }
+
 void SSD1306::update() {
   this->do_update_();
   this->display();

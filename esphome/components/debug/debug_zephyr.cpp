@@ -322,6 +322,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
     return "Unspecified";
   };
 
+  char mac_pretty[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  get_mac_address_pretty_into_buffer(mac_pretty);
   ESP_LOGD(TAG,
            "Code page size: %u, code size: %u, device id: 0x%08x%08x\n"
            "Encryption root: 0x%08x%08x%08x%08x, Identity Root: 0x%08x%08x%08x%08x\n"
@@ -330,10 +332,10 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
            "RAM: %ukB, Flash: %ukB, production test: %sdone",
            NRF_FICR->CODEPAGESIZE, NRF_FICR->CODESIZE, NRF_FICR->DEVICEID[1], NRF_FICR->DEVICEID[0], NRF_FICR->ER[0],
            NRF_FICR->ER[1], NRF_FICR->ER[2], NRF_FICR->ER[3], NRF_FICR->IR[0], NRF_FICR->IR[1], NRF_FICR->IR[2],
-           NRF_FICR->IR[3], (NRF_FICR->DEVICEADDRTYPE & 0x1 ? "Random" : "Public"), get_mac_address_pretty().c_str(),
-           NRF_FICR->INFO.PART, NRF_FICR->INFO.VARIANT >> 24 & 0xFF, NRF_FICR->INFO.VARIANT >> 16 & 0xFF,
-           NRF_FICR->INFO.VARIANT >> 8 & 0xFF, NRF_FICR->INFO.VARIANT & 0xFF, package(NRF_FICR->INFO.PACKAGE),
-           NRF_FICR->INFO.RAM, NRF_FICR->INFO.FLASH, (NRF_FICR->PRODTEST[0] == 0xBB42319F ? "" : "not "));
+           NRF_FICR->IR[3], (NRF_FICR->DEVICEADDRTYPE & 0x1 ? "Random" : "Public"), mac_pretty, NRF_FICR->INFO.PART,
+           NRF_FICR->INFO.VARIANT >> 24 & 0xFF, NRF_FICR->INFO.VARIANT >> 16 & 0xFF, NRF_FICR->INFO.VARIANT >> 8 & 0xFF,
+           NRF_FICR->INFO.VARIANT & 0xFF, package(NRF_FICR->INFO.PACKAGE), NRF_FICR->INFO.RAM, NRF_FICR->INFO.FLASH,
+           (NRF_FICR->PRODTEST[0] == 0xBB42319F ? "" : "not "));
   bool n_reset_enabled = NRF_UICR->PSELRESET[0] == NRF_UICR->PSELRESET[1] &&
                          (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_CONNECT_Msk) == UICR_PSELRESET_CONNECT_Connected
                                                                                       << UICR_PSELRESET_CONNECT_Pos;

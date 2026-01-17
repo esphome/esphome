@@ -61,6 +61,21 @@ DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["network"]
 LOGGER = logging.getLogger(__name__)
 
+# Key for tracking IP state listener count in CORE.data
+ETHERNET_IP_STATE_LISTENERS_KEY = "ethernet_ip_state_listeners"
+
+
+def request_ethernet_ip_state_listener() -> None:
+    """Request an IP state listener slot.
+
+    Components that implement EthernetIPStateListener should call this
+    in their to_code() to register for IP state notifications.
+    """
+    CORE.data[ETHERNET_IP_STATE_LISTENERS_KEY] = (
+        CORE.data.get(ETHERNET_IP_STATE_LISTENERS_KEY, 0) + 1
+    )
+
+
 # RMII pins that are hardcoded on ESP32 classic and cannot be changed
 # These pins are used by the internal Ethernet MAC when using RMII PHYs
 ESP32_RMII_FIXED_PINS = {
@@ -411,6 +426,8 @@ async def to_code(config):
     if CORE.using_arduino:
         cg.add_library("WiFi", None)
 
+    CORE.add_job(final_step)
+
 
 def _final_validate_rmii_pins(config: ConfigType) -> None:
     """Validate that RMII pins are not used by other components."""
@@ -467,3 +484,11 @@ def _final_validate(config: ConfigType) -> ConfigType:
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure optional Ethernet features."""
+    if ip_state_count := CORE.data.get(ETHERNET_IP_STATE_LISTENERS_KEY, 0):
+        cg.add_define("USE_ETHERNET_IP_STATE_LISTENERS")
+        cg.add_define("ESPHOME_ETHERNET_IP_STATE_LISTENERS", ip_state_count)
