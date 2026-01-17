@@ -25,9 +25,9 @@ struct ShellCommandOptions {
   bool use_shell{HOST_SHELL_COMMAND_USE_SHELL_DEFAULT};
 };
 
-ShellCommandResult execute_shell_command(const std::string &command, const ShellCommandOptions &options = {});
+ShellCommandResult execute_host_command(const std::string &command, const ShellCommandOptions &options = {});
 ShellCommandResult execute_command(const std::vector<std::string> &args, const ShellCommandOptions &options = {});
-std::future<ShellCommandResult> execute_shell_command_async(const std::string &command,
+std::future<ShellCommandResult> execute_host_command_async(const std::string &command,
                                                             const ShellCommandOptions &options = {});
 std::future<ShellCommandResult> execute_command_async(const std::vector<std::string> &args,
                                                       const ShellCommandOptions &options = {});

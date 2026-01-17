@@ -23,7 +23,7 @@ esphome:
         x = clamp_at_most(x, 40);
         assert(x == 40);
     - lambda: |-
-        auto result = esphome::host::execute_shell_command("hostname");
+        auto result = esphome::host::execute_host_command("hostname");
         id(last_exit_code).publish_state(result.exit_code);
         id(last_stdout).publish_state(result.stdout_output.substr(0, 255));
         id(last_stderr).publish_state(result.stderr_output);

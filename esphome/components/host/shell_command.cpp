@@ -51,7 +51,7 @@ static std::map<std::string, std::string> current_environment() {
   return env_map;
 }
 
-ShellCommandResult execute_shell_command(const std::string &command, const ShellCommandOptions &options) {
+ShellCommandResult execute_host_command(const std::string &command, const ShellCommandOptions &options) {
   ShellCommandResult result{};
 
   int stdout_pipe[2];
@@ -197,9 +197,9 @@ ShellCommandResult execute_shell_command(const std::string &command, const Shell
   return result;
 }
 
-std::future<ShellCommandResult> execute_shell_command_async(const std::string &command,
+std::future<ShellCommandResult> execute_host_command_async(const std::string &command,
                                                             const ShellCommandOptions &options) {
-  return std::async(std::launch::async, [command, options]() { return execute_shell_command(command, options); });
+  return std::async(std::launch::async, [command, options]() { return execute_host_command(command, options); });
 }
 
 ShellCommandResult execute_command(const std::vector<std::string> &args, const ShellCommandOptions &options) {
