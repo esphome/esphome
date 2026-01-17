@@ -397,9 +397,11 @@ constexpr uint32_t FNV1_PRIME = 16777619UL;
 
 /// Extend a FNV-1 hash with an integer (hashes each byte).
 template<std::integral T> constexpr uint32_t fnv1_hash_extend(uint32_t hash, T value) {
+  using UnsignedT = std::make_unsigned_t<T>;
+  UnsignedT uvalue = static_cast<UnsignedT>(value);
   for (size_t i = 0; i < sizeof(T); i++) {
     hash *= FNV1_PRIME;
-    hash ^= (value >> (i * 8)) & 0xFF;
+    hash ^= (uvalue >> (i * 8)) & 0xFF;
   }
   return hash;
 }
