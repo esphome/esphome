@@ -75,7 +75,7 @@ bool MQTTNumberComponent::send_initial_state() {
 }
 bool MQTTNumberComponent::publish_state(float value) {
   char buffer[64];
-  snprintf(buffer, sizeof(buffer), "%f", value);
+  buf_append_printf(buffer, sizeof(buffer), 0, "%f", value);
   return this->publish(this->get_state_topic_(), buffer);
 }
 

@@ -190,27 +190,37 @@ bool MQTTComponent::send_discovery_() {
         StringRef object_id = this->get_default_object_id_to_(object_id_buf);
         if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
           char friendly_name_hash[9];
-          snprintf(friendly_name_hash, sizeof(friendly_name_hash), "%08" PRIx32, fnv1_hash(this->friendly_name_()));
+          buf_append_printf(friendly_name_hash, sizeof(friendly_name_hash), 0, "%08" PRIx32,
+                            fnv1_hash(this->friendly_name_()));
           // Format: mac-component_type-hash (e.g. "aabbccddeeff-sensor-12345678")
           // MAC (12) + "-" (1) + domain (max 20) + "-" (1) + hash (8) + null (1) = 43
           char unique_id[MAC_ADDRESS_BUFFER_SIZE + ESPHOME_DOMAIN_MAX_LEN + 11];
           char mac_buf[MAC_ADDRESS_BUFFER_SIZE];
           get_mac_address_into_buffer(mac_buf);
-          snprintf(unique_id, sizeof(unique_id), "%s-%s-%s", mac_buf, this->component_type(), friendly_name_hash);
+          buf_append_printf(unique_id, sizeof(unique_id), 0, "%s-%s-%s", mac_buf, this->component_type(),
+                            friendly_name_hash);
           root[MQTT_UNIQUE_ID] = unique_id;
         } else {
           // default to almost-unique ID. It's a hack but the only way to get that
           // gorgeous device registry view.
-          root[MQTT_UNIQUE_ID] = "ESP" + std::string(this->component_type()) + object_id.c_str();
+          // "ESP" (3) + component_type (max 20) + object_id (max 128) + null
+          char unique_id_buf[3 + MQTT_COMPONENT_TYPE_MAX_LEN + OBJECT_ID_MAX_LEN + 1];
+          buf_append_printf(unique_id_buf, sizeof(unique_id_buf), 0, "ESP%s%s", this->component_type(),
+                            object_id.c_str());
+          root[MQTT_UNIQUE_ID] = unique_id_buf;
         }
 
         const std::string &node_name = App.get_name();
-        if (discovery_info.object_id_generator == MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR)
-          root[MQTT_OBJECT_ID] = node_name + "_" + object_id.c_str();
+        if (discovery_info.object_id_generator == MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR) {
+          // node_name (max 31) + "_" (1) + object_id (max 128) + null
+          char object_id_full[ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1];
+          buf_append_printf(object_id_full, sizeof(object_id_full), 0, "%s_%s", node_name.c_str(), object_id.c_str());
+          root[MQTT_OBJECT_ID] = object_id_full;
+        }
 
         const std::string &friendly_name_ref = App.get_friendly_name();
         const std::string &node_friendly_name = friendly_name_ref.empty() ? node_name : friendly_name_ref;
-        std::string node_area = App.get_area();
+        const char *node_area = App.get_area();
 
         JsonObject device_info = root[MQTT_DEVICE].to<JsonObject>();
         char mac[MAC_ADDRESS_BUFFER_SIZE];
@@ -221,20 +231,28 @@ bool MQTTComponent::send_discovery_() {
         device_info[MQTT_DEVICE_SW_VERSION] = ESPHOME_PROJECT_VERSION " (ESPHome " ESPHOME_VERSION ")";
         const char *model = std::strchr(ESPHOME_PROJECT_NAME, '.');
         device_info[MQTT_DEVICE_MODEL] = model == nullptr ? ESPHOME_BOARD : model + 1;
-        device_info[MQTT_DEVICE_MANUFACTURER] =
-            model == nullptr ? ESPHOME_PROJECT_NAME : std::string(ESPHOME_PROJECT_NAME, model - ESPHOME_PROJECT_NAME);
+        if (model == nullptr) {
+          device_info[MQTT_DEVICE_MANUFACTURER] = ESPHOME_PROJECT_NAME;
+        } else {
+          // Extract manufacturer (part before '.') using stack buffer to avoid heap allocation
+          // memcpy is used instead of strncpy since we know the exact length and strncpy
+          // would still require manual null-termination
+          char manufacturer[sizeof(ESPHOME_PROJECT_NAME)];
+          size_t len = model - ESPHOME_PROJECT_NAME;
+          memcpy(manufacturer, ESPHOME_PROJECT_NAME, len);
+          manufacturer[len] = '\0';
+          device_info[MQTT_DEVICE_MANUFACTURER] = manufacturer;
+        }
 #else
         static const char ver_fmt[] PROGMEM = ESPHOME_VERSION " (config hash 0x%08" PRIx32 ")";
-#ifdef USE_ESP8266
-        char fmt_buf[sizeof(ver_fmt)];
-        strcpy_P(fmt_buf, ver_fmt);
-        const char *fmt = fmt_buf;
-#else
-        const char *fmt = ver_fmt;
-#endif
-        // sizeof(ver_fmt) + 8: format specifier expands to 8 hex digits, plus safety margin
+        // Buffer sized for format string expansion: ~4 bytes net growth from format specifier to 8 hex digits, plus
+        // safety margin
         char version_buf[sizeof(ver_fmt) + 8];
-        snprintf(version_buf, sizeof(version_buf), fmt, App.get_config_hash());
+#ifdef USE_ESP8266
+        snprintf_P(version_buf, sizeof(version_buf), ver_fmt, App.get_config_hash());
+#else
+        snprintf(version_buf, sizeof(version_buf), ver_fmt, App.get_config_hash());
+#endif
         device_info[MQTT_DEVICE_SW_VERSION] = version_buf;
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
 #if defined(USE_ESP8266) || defined(USE_ESP32)
@@ -249,7 +267,7 @@ bool MQTTComponent::send_discovery_() {
         device_info[MQTT_DEVICE_MANUFACTURER] = "Host";
 #endif
 #endif
-        if (!node_area.empty()) {
+        if (node_area[0] != '\0') {
           device_info[MQTT_DEVICE_SUGGESTED_AREA] = node_area;
         }
 
