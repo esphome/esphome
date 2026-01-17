@@ -22,7 +22,7 @@ void FendtCaravan::loop() {
     return;
 
   uint32_t time_stamp = millis();
-  if (this->commands_.size() > 0 && (time_stamp - this->last_command_time_) >= WIAT_COMMAND && !this->wait_buffer_) {
+  if (!this->commands_.empty() && (time_stamp - this->last_command_time_) >= WIAT_COMMAND && !this->wait_buffer_) {
     std::string cmd = this->commands_.at(0);
 
     uint8_t buffer[cmd.length() + 1];
@@ -59,12 +59,12 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       ESP_LOGV(TAG, "Service discovery complete");
 
-      auto service = this->parent()->get_service(espbt::ESPBTUUID::from_raw(service_uuid_));
+      auto *service = this->parent()->get_service(espbt::ESPBTUUID::from_raw(service_uuid_));
       if (service == nullptr) {
         ESP_LOGW(TAG, "control service not found at device, not a Fendt Caravan..?");
         break;
       }
-      auto chr = service->get_characteristic(characteristic_uuid_);
+      auto *chr = service->get_characteristic(characteristic_uuid_);
       if (chr == nullptr) {
         ESP_LOGW(TAG, "control characteristic not found at device, not a Fendt Caravan..?");
         break;
