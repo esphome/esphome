@@ -35,11 +35,9 @@ class SY6970ChargingBinarySensor : public SY6970Listener, public binary_sensor::
 
 // Specialized sensor types using templates
 // VBUS connected: BUS_STATUS != NO_INPUT
-using SY6970VbusConnectedBinarySensor =
-    InverseStatusBinarySensor<SY6970_REG_STATUS, 5, 0x07, BUS_STATUS_NO_INPUT>;
+using SY6970VbusConnectedBinarySensor = InverseStatusBinarySensor<SY6970_REG_STATUS, 5, 0x07, BUS_STATUS_NO_INPUT>;
 
 // Charge done: CHARGE_STATUS == CHARGE_DONE
-using SY6970ChargeDoneBinarySensor =
-    StatusBinarySensor<SY6970_REG_STATUS, 3, 0x03, CHARGE_STATUS_CHARGE_DONE>;
+using SY6970ChargeDoneBinarySensor = StatusBinarySensor<SY6970_REG_STATUS, 3, 0x03, CHARGE_STATUS_CHARGE_DONE>;
 
 }  // namespace esphome::sy6970
