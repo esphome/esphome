@@ -98,7 +98,8 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
     case ESP_GATTC_NOTIFY_EVT:
       if (param->notify.handle == this->char_handle_) {
         this->wait_buffer_ = true;
-        char buffer[param->notify.value_len + 1] = {0};
+        char buffer[param->notify.value_len + 1];
+        memset(buffer, 0, param->notify.value_len + 1);
         memcpy(buffer, param->notify.value, param->notify.value_len);
         std::string result = std::string(buffer);
         if (!this->last_response_.empty()) {
