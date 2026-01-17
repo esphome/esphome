@@ -17,8 +17,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace time {
+namespace esphome::time {
 
 static const char *const TAG = "time";
 
@@ -32,6 +31,18 @@ void RealTimeClock::dump_config() {
 
 void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   ESP_LOGVV(TAG, "Got epoch %" PRIu32, epoch);
+  // Skip if time is already synchronized to avoid unnecessary writes, log spam,
+  // and prevent clock jumping backwards due to network latency
+  constexpr time_t min_valid_epoch = 1546300800;  // January 1, 2019
+  time_t current_time = this->timestamp_now();
+  // Check if time is valid (year >= 2019) before comparing
+  if (current_time >= min_valid_epoch) {
+    // Unsigned subtraction handles wraparound correctly, then cast to signed
+    int32_t diff = static_cast<int32_t>(epoch - static_cast<uint32_t>(current_time));
+    if (diff >= -1 && diff <= 1) {
+      return;
+    }
+  }
   // Update UTC epoch time.
 #ifdef USE_ZEPHYR
   struct timespec ts;
@@ -78,5 +89,4 @@ void RealTimeClock::apply_timezone_() {
 }
 #endif
 
-}  // namespace time
-}  // namespace esphome
+}  // namespace esphome::time

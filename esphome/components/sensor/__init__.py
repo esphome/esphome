@@ -3,7 +3,7 @@ import math
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
+from esphome.components import mqtt, web_server, zigbee
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ABOVE,
@@ -183,6 +183,7 @@ STATE_CLASSES = {
     "measurement": StateClasses.STATE_CLASS_MEASUREMENT,
     "total_increasing": StateClasses.STATE_CLASS_TOTAL_INCREASING,
     "total": StateClasses.STATE_CLASS_TOTAL,
+    "measurement_angle": StateClasses.STATE_CLASS_MEASUREMENT_ANGLE,
 }
 validate_state_class = cv.enum(STATE_CLASSES, lower=True, space="_")
 
@@ -271,7 +272,9 @@ ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
 ThrottleWithPriorityFilter = sensor_ns.class_(
     "ThrottleWithPriorityFilter", ValueListFilter
 )
-TimeoutFilter = sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
+TimeoutFilterBase = sensor_ns.class_("TimeoutFilterBase", Filter, cg.Component)
+TimeoutFilterLast = sensor_ns.class_("TimeoutFilterLast", TimeoutFilterBase)
+TimeoutFilterConfigured = sensor_ns.class_("TimeoutFilterConfigured", TimeoutFilterBase)
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter, cg.Component)
 HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter, cg.Component)
 DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
@@ -294,6 +297,7 @@ validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 _SENSOR_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
+    .extend(zigbee.SENSOR_SCHEMA)
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
@@ -303,9 +307,6 @@ _SENSOR_SCHEMA = (
             cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
             cv.Optional(CONF_STATE_CLASS): validate_state_class,
             cv.Optional(CONF_ENTITY_CATEGORY): sensor_entity_category,
-            cv.Optional("last_reset_type"): cv.invalid(
-                "last_reset_type has been removed since 2021.9.0. state_class: total_increasing should be used for total values."
-            ),
             cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
             cv.Optional(CONF_EXPIRE_AFTER): cv.All(
                 cv.requires_component("mqtt"),
@@ -337,6 +338,7 @@ _SENSOR_SCHEMA = (
 )
 
 _SENSOR_SCHEMA.add_extra(entity_duplicate_validator("sensor"))
+_SENSOR_SCHEMA.add_extra(zigbee.validate_sensor)
 
 
 def sensor_schema(
@@ -683,11 +685,16 @@ TIMEOUT_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@FILTER_REGISTRY.register("timeout", TimeoutFilter, TIMEOUT_SCHEMA)
+@FILTER_REGISTRY.register("timeout", TimeoutFilterBase, TIMEOUT_SCHEMA)
 async def timeout_filter_to_code(config, filter_id):
+    filter_id = filter_id.copy()
     if config[CONF_VALUE] == "last":
+        # Use TimeoutFilterLast for "last" mode (smaller, more common - LD2450, LD2412, etc.)
+        filter_id.type = TimeoutFilterLast
         var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
     else:
+        # Use TimeoutFilterConfigured for configured value mode
+        filter_id.type = TimeoutFilterConfigured
         template_ = await cg.templatable(config[CONF_VALUE], [], float)
         var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
     await cg.register_component(var, {})
@@ -926,6 +933,8 @@ async def setup_sensor_core_(var, config):
 
     if web_server_config := config.get(CONF_WEB_SERVER):
         await web_server.add_entity_config(var, web_server_config)
+
+    await zigbee.setup_sensor(var, config)
 
 
 async def register_sensor(var, config):

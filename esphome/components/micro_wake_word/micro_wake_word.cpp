@@ -1,6 +1,6 @@
 #include "micro_wake_word.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -119,17 +119,20 @@ void MicroWakeWord::setup() {
     }
   });
 
-#ifdef USE_OTA
-  ota::get_global_ota_callback()->add_on_state_callback(
-      [this](ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
-        if (state == ota::OTA_STARTED) {
-          this->suspend_task_();
-        } else if (state == ota::OTA_ERROR) {
-          this->resume_task_();
-        }
-      });
+#ifdef USE_OTA_STATE_LISTENER
+  ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
 }
+
+#ifdef USE_OTA_STATE_LISTENER
+void MicroWakeWord::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
+  if (state == ota::OTA_STARTED) {
+    this->suspend_task_();
+  } else if (state == ota::OTA_ERROR) {
+    this->resume_task_();
+  }
+}
+#endif
 
 void MicroWakeWord::inference_task(void *params) {
   MicroWakeWord *this_mww = (MicroWakeWord *) params;
@@ -298,8 +301,7 @@ void MicroWakeWord::loop() {
         // uses floating point operations.
         if (!FrontendPopulateState(&this->frontend_config_, &this->frontend_state_,
                                    this->microphone_source_->get_audio_stream_info().get_sample_rate())) {
-          this->status_momentary_error(
-              "Failed to allocate buffers for spectrogram feature processor, attempting again in 1 second", 1000);
+          this->status_momentary_error("frontend_alloc", 1000);
           return;
         }
 
@@ -308,7 +310,7 @@ void MicroWakeWord::loop() {
 
         if (this->inference_task_handle_ == nullptr) {
           FrontendFreeStateContents(&this->frontend_state_);  // Deallocate frontend state
-          this->status_momentary_error("Task failed to start, attempting again in 1 second", 1000);
+          this->status_momentary_error("task_start", 1000);
         }
       }
       break;
@@ -471,4 +473,4 @@ bool MicroWakeWord::update_model_probabilities_(const int8_t audio_features[PREP
 }  // namespace micro_wake_word
 }  // namespace esphome
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

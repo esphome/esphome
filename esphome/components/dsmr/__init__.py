@@ -4,7 +4,7 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_RECEIVE_TIMEOUT, CONF_UART_ID
 
-CODEOWNERS = ["@glmnet", "@zuidwijk"]
+CODEOWNERS = ["@glmnet", "@zuidwijk", "@PolarGoose"]
 
 MULTI_CONF = True
 
@@ -61,7 +61,6 @@ CONFIG_SCHEMA = cv.All(
             ): cv.positive_time_period_milliseconds,
         }
     ).extend(uart.UART_DEVICE_SCHEMA),
-    cv.only_with_arduino,
 )
 
 
@@ -83,7 +82,7 @@ async def to_code(config):
     cg.add_build_flag("-DDSMR_WATER_MBUS_ID=" + str(config[CONF_WATER_MBUS_ID]))
 
     # DSMR Parser
-    cg.add_library("glmnet/Dsmr", "0.8")
+    cg.add_library("esphome/dsmr_parser", "1.0.0")
 
     # Crypto
-    cg.add_library("rweather/Crypto", "0.4.0")
+    cg.add_library("polargoose/Crypto-no-arduino", "0.4.0")

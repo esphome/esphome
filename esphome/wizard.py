@@ -411,9 +411,7 @@ def wizard(path: Path) -> int:
             "https://docs.platformio.org/en/latest/platforms/espressif8266.html#boards"
         )
     elif platform == "RP2040":
-        board_link = (
-            "https://www.raspberrypi.com/documentation/microcontrollers/rp2040.html"
-        )
+        board_link = "https://www.raspberrypi.com/documentation/microcontrollers/silicon.html#rp2040"
     elif platform in ["BK72XX", "LN882X", "RTL87XX"]:
         board_link = "https://docs.libretiny.eu/docs/status/supported/"
     else:
@@ -555,7 +553,7 @@ def wizard(path: Path) -> int:
     safe_print("Next steps:")
     safe_print("  > Follow the rest of the getting started guide:")
     safe_print(
-        "  > https://esphome.io/guides/getting_started_command_line.html#adding-some-features"
+        "  > https://esphome.io/guides/getting_started_command_line/#adding-some-features"
     )
     safe_print("  > to learn how to customize ESPHome and install it to your device.")
     return 0

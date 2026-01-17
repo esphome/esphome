@@ -82,7 +82,6 @@ st7701s.extend(
     "MAKERFABS-4",
     width=480,
     height=480,
-    color_order="RGB",
     invert_colors=True,
     pixel_mode="18bit",
     cs_pin=1,

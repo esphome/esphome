@@ -6,7 +6,6 @@
 
 namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.6c";
-static constexpr size_t MAX_TRANSFER_SIZE = 128;
 static constexpr unsigned char GRAY_THRESHOLD = 50;
 
 enum E6Color {
@@ -75,29 +74,32 @@ static uint8_t color_to_hex(Color color) {
 }
 
 void EPaperSpectraE6::power_on() {
-  ESP_LOGD(TAG, "Power on");
+  ESP_LOGV(TAG, "Power on");
   this->command(0x04);
 }
 
 void EPaperSpectraE6::power_off() {
-  ESP_LOGD(TAG, "Power off");
-  this->command(0x02);
-  this->data(0x00);
+  ESP_LOGV(TAG, "Power off");
+  this->cmd_data(0x02, {0x00});
 }
 
-void EPaperSpectraE6::refresh_screen() {
-  ESP_LOGD(TAG, "Refresh");
-  this->command(0x12);
-  this->data(0x00);
+void EPaperSpectraE6::refresh_screen(bool partial) {
+  ESP_LOGV(TAG, "Refresh");
+  this->cmd_data(0x12, {0x00});
 }
 
 void EPaperSpectraE6::deep_sleep() {
-  ESP_LOGD(TAG, "Deep sleep");
-  this->command(0x07);
-  this->data(0xA5);
+  ESP_LOGV(TAG, "Deep sleep");
+  this->cmd_data(0x07, {0xA5});
 }
 
 void EPaperSpectraE6::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    EPaperBase::fill(color);
+    return;
+  }
+
   auto pixel_color = color_to_hex(color);
 
   // We store 2 pixels per byte
@@ -109,12 +111,11 @@ void EPaperSpectraE6::clear() {
   this->fill(COLOR_ON);
 }
 
-void HOT EPaperSpectraE6::draw_absolute_pixel_internal(int x, int y, Color color) {
-  if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
+void HOT EPaperSpectraE6::draw_pixel_at(int x, int y, Color color) {
+  if (!this->rotate_coordinates_(x, y))
     return;
-
   auto pixel_bits = color_to_hex(color);
-  uint32_t pixel_position = x + y * this->get_width_controller();
+  uint32_t pixel_position = x + y * this->get_width_internal();
   uint32_t byte_position = pixel_position / 2;
   auto original = this->buffer_[byte_position];
   if ((pixel_position & 1) != 0) {
@@ -128,10 +129,6 @@ bool HOT EPaperSpectraE6::transfer_data() {
   const uint32_t start_time = App.get_loop_component_start_time();
   const size_t buffer_length = this->buffer_length_;
   if (this->current_data_index_ == 0) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    this->transfer_start_time_ = millis();
-#endif
-    ESP_LOGV(TAG, "Start sending data at %ums", (unsigned) millis());
     this->command(0x10);
   }
 
@@ -143,7 +140,7 @@ bool HOT EPaperSpectraE6::transfer_data() {
     if (buf_idx == sizeof bytes_to_send) {
       this->start_data_();
       this->write_array(bytes_to_send, buf_idx);
-      this->end_data_();
+      this->disable();
       ESP_LOGV(TAG, "Wrote %d bytes at %ums", buf_idx, (unsigned) millis());
       buf_idx = 0;
 
@@ -157,10 +154,9 @@ bool HOT EPaperSpectraE6::transfer_data() {
   if (buf_idx != 0) {
     this->start_data_();
     this->write_array(bytes_to_send, buf_idx);
-    this->end_data_();
+    this->disable();
   }
   this->current_data_index_ = 0;
-  ESP_LOGV(TAG, "Sent data in %" PRIu32 " ms", millis() - this->transfer_start_time_);
   return true;
 }
 }  // namespace esphome::epaper_spi

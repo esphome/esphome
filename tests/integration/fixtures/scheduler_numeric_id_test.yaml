@@ -1,0 +1,173 @@
+esphome:
+  name: scheduler-numeric-id-test
+  on_boot:
+    priority: -100
+    then:
+      - logger.log: "Starting scheduler numeric ID tests"
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+globals:
+  - id: timeout_counter
+    type: int
+    initial_value: '0'
+  - id: interval_counter
+    type: int
+    initial_value: '0'
+  - id: retry_counter
+    type: int
+    initial_value: '0'
+  - id: tests_done
+    type: bool
+    initial_value: 'false'
+  - id: results_reported
+    type: bool
+    initial_value: 'false'
+
+script:
+  - id: test_numeric_ids
+    then:
+      - logger.log: "Testing numeric ID timeouts and intervals"
+      - lambda: |-
+          auto *component1 = id(test_sensor1);
+
+          // Test 1: Numeric ID with set_timeout (uint32_t)
+          App.scheduler.set_timeout(component1, 1001U, 50, []() {
+            ESP_LOGI("test", "Numeric timeout 1001 fired");
+            id(timeout_counter) += 1;
+          });
+
+          // Test 2: Another numeric ID timeout
+          App.scheduler.set_timeout(component1, 1002U, 100, []() {
+            ESP_LOGI("test", "Numeric timeout 1002 fired");
+            id(timeout_counter) += 1;
+          });
+
+          // Test 3: Numeric ID with set_interval
+          App.scheduler.set_interval(component1, 2001U, 200, []() {
+            ESP_LOGI("test", "Numeric interval 2001 fired, count: %d", id(interval_counter));
+            id(interval_counter) += 1;
+            if (id(interval_counter) >= 3) {
+              App.scheduler.cancel_interval(id(test_sensor1), 2001U);
+              ESP_LOGI("test", "Cancelled numeric interval 2001");
+            }
+          });
+
+          // Test 4: Cancel timeout with numeric ID
+          App.scheduler.set_timeout(component1, 3001U, 5000, []() {
+            ESP_LOGE("test", "ERROR: Timeout 3001 should have been cancelled");
+          });
+          App.scheduler.cancel_timeout(component1, 3001U);
+          ESP_LOGI("test", "Cancelled numeric timeout 3001");
+
+          // Test 5: Multiple timeouts with same numeric ID - only last should execute
+          for (int i = 0; i < 5; i++) {
+            App.scheduler.set_timeout(component1, 4001U, 300 + i*10, [i]() {
+              ESP_LOGI("test", "Duplicate numeric timeout %d fired", i);
+              id(timeout_counter) += 1;
+            });
+          }
+          ESP_LOGI("test", "Created 5 timeouts with same numeric ID 4001");
+
+          // Test 6: Cancel non-existent numeric ID
+          bool cancelled_nonexistent = App.scheduler.cancel_timeout(component1, 9999U);
+          ESP_LOGI("test", "Cancel non-existent numeric ID result: %s",
+                   cancelled_nonexistent ? "true (unexpected!)" : "false (expected)");
+
+          // Test 7: Component method uint32_t overloads
+          class TestNumericComponent : public Component {
+          public:
+            void test_numeric_methods() {
+              // Test set_timeout with uint32_t ID
+              this->set_timeout(5001U, 150, []() {
+                ESP_LOGI("test", "Component numeric timeout 5001 fired");
+                id(timeout_counter) += 1;
+              });
+
+              // Test set_interval with uint32_t ID
+              // Capture 'this' pointer so we can cancel with correct component
+              auto *self = this;
+              this->set_interval(5002U, 400, [self]() {
+                ESP_LOGI("test", "Component numeric interval 5002 fired");
+                id(interval_counter) += 1;
+                // Cancel after first fire - must use same component pointer
+                App.scheduler.cancel_interval(self, 5002U);
+              });
+            }
+          };
+
+          static TestNumericComponent test_component;
+          test_component.test_numeric_methods();
+
+          // Test 8: Zero ID (edge case)
+          App.scheduler.set_timeout(component1, 0U, 200, []() {
+            ESP_LOGI("test", "Numeric timeout with ID 0 fired");
+            id(timeout_counter) += 1;
+          });
+
+          // Test 9: Max uint32_t ID (edge case)
+          App.scheduler.set_timeout(component1, 0xFFFFFFFFU, 250, []() {
+            ESP_LOGI("test", "Numeric timeout with max ID fired");
+            id(timeout_counter) += 1;
+          });
+
+          // Test 10: set_retry with numeric ID
+          App.scheduler.set_retry(component1, 6001U, 50, 3,
+            [](uint8_t retry_countdown) {
+              id(retry_counter)++;
+              ESP_LOGI("test", "Numeric retry 6001 attempt %d (countdown=%d)",
+                       id(retry_counter), retry_countdown);
+              if (id(retry_counter) >= 2) {
+                ESP_LOGI("test", "Numeric retry 6001 done");
+                return RetryResult::DONE;
+              }
+              return RetryResult::RETRY;
+            });
+
+          // Test 11: cancel_retry with numeric ID
+          App.scheduler.set_retry(component1, 6002U, 100, 5,
+            [](uint8_t retry_countdown) {
+              ESP_LOGE("test", "ERROR: Numeric retry 6002 should have been cancelled");
+              return RetryResult::RETRY;
+            });
+          App.scheduler.cancel_retry(component1, 6002U);
+          ESP_LOGI("test", "Cancelled numeric retry 6002");
+
+  - id: report_results
+    then:
+      - lambda: |-
+          ESP_LOGI("test", "Final results - Timeouts: %d, Intervals: %d, Retries: %d",
+                   id(timeout_counter), id(interval_counter), id(retry_counter));
+
+sensor:
+  - platform: template
+    name: Test Sensor 1
+    id: test_sensor1
+    lambda: return 1.0;
+    update_interval: never
+
+interval:
+  # Run numeric ID tests after boot
+  - interval: 0.1s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(tests_done) == false;'
+          then:
+            - lambda: 'id(tests_done) = true;'
+            - script.execute: test_numeric_ids
+            - logger.log: "Started numeric ID tests"
+
+  # Report results after tests complete
+  - interval: 0.2s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(tests_done) && !id(results_reported);'
+          then:
+            - lambda: 'id(results_reported) = true;'
+            - delay: 1.5s
+            - script.execute: report_results
