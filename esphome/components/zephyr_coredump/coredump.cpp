@@ -134,9 +134,13 @@ void __wrap_z_arm_fault(uint32_t msp, uint32_t psp, uint32_t exc_return, _callee
   global_exc_return = exc_return;
   __real_z_arm_fault(msp, psp, exc_return, callee_regs);
 }
-
+#if KERNEL_VERSION_MAJOR > 3 || (KERNEL_VERSION_MAJOR == 3 && KERNEL_VERSION_MINOR > 5)
 extern void __real_z_arm_fatal_error(unsigned int reason, const struct arch_esf *esf);
 void __wrap_z_arm_fatal_error(unsigned int reason, const struct arch_esf *esf) {
+#else
+extern void __real_z_arm_fatal_error(unsigned int reason, const z_arch_esf_t *esf);
+void __wrap_z_arm_fatal_error(unsigned int reason, const z_arch_esf_t *esf) {
+#endif
 #if defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE) || defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
   /* Gdb expects a stack pointer that does not include the exception stack frame in order to
    * unwind. So adjust the stack pointer accordingly.
