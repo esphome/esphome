@@ -23,7 +23,10 @@ static const uint32_t TASK_STACK_SIZE = 3072;
 static const char *const TAG = "resampler_speaker";
 
 enum ResamplingEventGroupBits : uint32_t {
-  COMMAND_STOP = (1 << 0),  // stops the resampler task
+  COMMAND_STOP = (1 << 0),       // signals stop request
+  COMMAND_START = (1 << 1),      // signals start request
+  COMMAND_FINISH = (1 << 2),     // signals finish request (graceful stop)
+  TASK_COMMAND_STOP = (1 << 5),  // signals the task to stop
   STATE_STARTING = (1 << 10),
   STATE_RUNNING = (1 << 11),
   STATE_STOPPING = (1 << 12),
@@ -34,24 +37,11 @@ enum ResamplingEventGroupBits : uint32_t {
   ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
 };
 
-enum class SpeakerControls : uint8_t {
-  START = 0,
-  STOP = 1,
-  FINISH = 2,
-};
-
 void ResamplerSpeaker::setup() {
   this->event_group_ = xEventGroupCreate();
 
   if (this->event_group_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create event group");
-    this->mark_failed();
-    return;
-  }
-
-  this->controls_queue_ = xQueueCreate(3, sizeof(SpeakerControls));
-  if (this->controls_queue_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to create controls queue");
     this->mark_failed();
     return;
   }
@@ -71,55 +61,47 @@ void ResamplerSpeaker::setup() {
 }
 
 void ResamplerSpeaker::loop() {
-  SpeakerControls incoming_control;
-  if (xQueuePeek(this->controls_queue_, &incoming_control, 0)) {
-    // Process control commands from the queue to ensure the state machine is thread safe and order is preserved
-    switch (incoming_control) {
-      case SpeakerControls::START: {
-        if ((this->state_ == speaker::STATE_STOPPED) && xQueueReceive(this->controls_queue_, &incoming_control, 0)) {
-          // Only process if stopped
-          this->state_ = speaker::STATE_STARTING;
-        } else if (this->state_ == speaker::STATE_RUNNING) {
-          // Already running, just ignore the command
-          xQueueReceive(this->controls_queue_, &incoming_control, 0);
-        }
-        // Leave command in queue if transitioning states. It will be processed or discarded once fully stopped or
-        // started.
-        break;
-      }
-      case SpeakerControls::STOP: {
-        if (this->state_ == speaker::STATE_RUNNING) {
-          if (xQueueReceive(this->controls_queue_, &incoming_control, 0)) {
-            // Only process if running
-            this->stop_();
-            this->state_ = speaker::STATE_STOPPING;
-          }
-        } else if (this->state_ == speaker::STATE_STOPPED) {
-          // Already stopped, discard the command
-          xQueueReceive(this->controls_queue_, &incoming_control, 0);
-        }
-        // Leave command in queue if transitioning states. It will be processed or discarded once fully started or
-        // stopped.
-        break;
-      }
-      case SpeakerControls::FINISH: {
-        if (this->state_ == speaker::STATE_RUNNING) {
-          // Only process if running
-          if (xQueueReceive(this->controls_queue_, &incoming_control, 0)) {
-            this->output_speaker_->finish();
-          }
-        } else if (this->state_ == speaker::STATE_STOPPED) {
-          // Already stopped, discard the command
-          xQueueReceive(this->controls_queue_, &incoming_control, 0);
-        }
-        // Leave command in queue if transitioning states. It will be processed or discarded once fully started or
-        // stopped.
-        break;
-      }
+  uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
+
+  // Handle COMMAND_START
+  if (event_group_bits & ResamplingEventGroupBits::COMMAND_START) {
+    if (this->state_ == speaker::STATE_STOPPED) {
+      this->state_ = speaker::STATE_STARTING;
+      xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_START);
+    } else if (this->state_ == speaker::STATE_RUNNING) {
+      // Already running, discard
+      xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_START);
     }
+    // Leave bit set if transitioning - will process after transition completes
   }
 
-  uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
+  // Handle COMMAND_STOP
+  if (event_group_bits & ResamplingEventGroupBits::COMMAND_STOP) {
+    if (this->state_ == speaker::STATE_RUNNING) {
+      this->stop_();
+      this->state_ = speaker::STATE_STOPPING;
+      xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_STOP);
+    } else if (this->state_ == speaker::STATE_STOPPED) {
+      // Already stopped, discard
+      xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_STOP);
+    }
+    // Leave bit set if transitioning
+  }
+
+  // Handle COMMAND_FINISH
+  if (event_group_bits & ResamplingEventGroupBits::COMMAND_FINISH) {
+    if (this->state_ == speaker::STATE_RUNNING) {
+      this->output_speaker_->finish();
+      xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_FINISH);
+    } else if (this->state_ == speaker::STATE_STOPPED) {
+      // Already stopped, discard
+      xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::COMMAND_FINISH);
+    }
+    // Leave bit set if transitioning
+  }
+
+  // Re-read bits after command processing (may have been modified)
+  event_group_bits = xEventGroupGetBits(this->event_group_);
 
   if (event_group_bits & ResamplingEventGroupBits::STATE_STARTING) {
     ESP_LOGD(TAG, "Starting resampler task");
@@ -160,24 +142,33 @@ void ResamplerSpeaker::loop() {
 
   switch (this->state_) {
     case speaker::STATE_STARTING: {
-      esp_err_t err = this->start_();
-      if (err == ESP_OK) {
-        this->callback_remainder_ = 0;  // reset callback remainder
-        this->status_clear_error();
-        this->state_ = speaker::STATE_RUNNING;
-      } else {
-        switch (err) {
-          case ESP_ERR_INVALID_STATE:
-            this->status_set_error(LOG_STR("Failed to start resampler: resampler task failed to start"));
-            break;
-          case ESP_ERR_NO_MEM:
-            this->status_set_error(LOG_STR("Failed to start resampler: not enough memory for task stack"));
-          default:
-            this->status_set_error(LOG_STR("Failed to start resampler"));
-            break;
-        }
+      if (!this->intialized_) {
+        esp_err_t err = this->start_();
+        if (err == ESP_OK) {
+          this->callback_remainder_ = 0;  // reset callback remainder
+          this->status_clear_error();
+          // this->state_ = speaker::STATE_RUNNING;
+          this->intialized_ = true;
+        } else {
+          switch (err) {
+            case ESP_ERR_INVALID_STATE:
+              this->status_set_error(LOG_STR("Failed to start resampler: resampler task failed to start"));
+              break;
+            case ESP_ERR_NO_MEM:
+              this->status_set_error(LOG_STR("Failed to start resampler: not enough memory for task stack"));
+            default:
+              this->status_set_error(LOG_STR("Failed to start resampler"));
+              break;
+          }
 
-        this->state_ = speaker::STATE_STOPPING;
+          this->intialized_ = false;
+          this->state_ = speaker::STATE_STOPPING;
+        }
+      } else {
+        if (this->output_speaker_->is_running()) {
+          this->state_ = speaker::STATE_RUNNING;
+          this->intialized_ = false;
+        }
       }
       break;
     }
@@ -191,6 +182,7 @@ void ResamplerSpeaker::loop() {
       if (this->output_speaker_->is_stopped() && (this->task_handle_ == nullptr)) {
         // Only transition to stopped state once the output speaker and resampler task are fully stopped
         this->state_ = speaker::STATE_STOPPED;
+        this->intialized_ = false;
       }
       break;
     case speaker::STATE_STOPPED:
@@ -207,19 +199,20 @@ size_t ResamplerSpeaker::play(const uint8_t *data, size_t length, TickType_t tic
   if ((this->output_speaker_->is_running()) && (!this->requires_resampling_())) {
     bytes_written = this->output_speaker_->play(data, length, ticks_to_wait);
   } else {
-    if (this->ring_buffer_.use_count() == 1) {
-      std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
+    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
+    if (temp_ring_buffer.use_count() == 2) {
+      // Defensive programming check. Only write to the ring buffer if both the speaker and the caller own a reference
+      // to it.
       bytes_written = temp_ring_buffer->write_without_replacement(data, length, ticks_to_wait);
+    } else {
+      vTaskDelay(ticks_to_wait);
     }
   }
 
   return bytes_written;
 }
 
-void ResamplerSpeaker::start() {
-  SpeakerControls control = SpeakerControls::START;
-  xQueueSend(this->controls_queue_, &control, 0);
-}
+void ResamplerSpeaker::start() { xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::COMMAND_START); }
 
 esp_err_t ResamplerSpeaker::start_() {
   this->target_stream_info_ = audio::AudioStreamInfo(
@@ -263,14 +256,11 @@ esp_err_t ResamplerSpeaker::start_task_() {
   return ESP_OK;
 }
 
-void ResamplerSpeaker::stop() {
-  SpeakerControls control = SpeakerControls::STOP;
-  xQueueSend(this->controls_queue_, &control, 0);
-}
+void ResamplerSpeaker::stop() { xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::COMMAND_STOP); }
 
 void ResamplerSpeaker::stop_() {
   if (this->task_handle_ != nullptr) {
-    xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::COMMAND_STOP);
+    xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::TASK_COMMAND_STOP);
   }
   this->output_speaker_->stop();
 }
@@ -297,10 +287,7 @@ esp_err_t ResamplerSpeaker::delete_task_() {
   return ESP_ERR_INVALID_STATE;
 }
 
-void ResamplerSpeaker::finish() {
-  SpeakerControls control = SpeakerControls::STOP;
-  xQueueSend(this->controls_queue_, &control, 0);
-}
+void ResamplerSpeaker::finish() { xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::COMMAND_FINISH); }
 
 bool ResamplerSpeaker::has_buffered_data() const {
   bool has_ring_buffer_data = false;
@@ -364,7 +351,7 @@ void ResamplerSpeaker::resample_task(void *params) {
   while (err == ESP_OK) {
     uint32_t event_bits = xEventGroupGetBits(this_resampler->event_group_);
 
-    if (event_bits & ResamplingEventGroupBits::COMMAND_STOP) {
+    if (event_bits & ResamplingEventGroupBits::TASK_COMMAND_STOP) {
       break;
     }
 

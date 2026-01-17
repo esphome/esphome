@@ -86,6 +86,7 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
 
   bool task_stack_in_psram_{false};
   bool task_created_{false};
+  bool intialized_{false};
 
   TaskHandle_t task_handle_{nullptr};
   StaticTask_t task_stack_;
