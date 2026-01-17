@@ -1060,6 +1060,83 @@ void WaveshareEPaper1P54InBV2::dump_config() {
 }
 
 // ========================================================
+//                          2.66inch_e-paper_b
+// ========================================================
+// Datasheet:
+//  - https://files.waveshare.com/upload/e/ec/2.66inch-e-paper-b-specification.pdf
+//  - https://github.com/waveshareteam/e-Paper/blob/master/RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_2in66b.c
+
+void WaveshareEPaper2P66InB::initialize() {
+  this->reset_();
+  this->wait_until_idle_();
+
+  this->command(0x12);  // Soft reset
+  this->wait_until_idle_();
+
+  this->command(0x11);  // Data entry mode
+  this->data(0x03);
+
+  // Set display window
+  const uint32_t xend = this->get_width_internal() - 1;
+  const uint32_t yend = this->get_height_internal() - 1;
+
+  this->command(0x44);
+  this->data(0x00);
+  this->data((xend >> 3) & 0x1F);
+
+  this->command(0x45);
+  this->data(0x00);
+  this->data(0x00);
+  this->data(yend & 0xFF);
+  this->data((yend >> 8) & 0x01);
+
+  this->command(0x21);  // Display update control
+  this->data(0x00);
+  this->data(0x80);
+
+  // Set cursor
+  this->command(0x4E);
+  this->data(0x00);
+  this->command(0x4F);
+  this->data(0x00);
+  this->data(0x00);
+
+  this->wait_until_idle_();
+}
+
+void HOT WaveshareEPaper2P66InB::display() {
+  const uint32_t buf_len = this->get_buffer_length_();
+  const uint32_t buf_half_len = buf_len / 2u;
+
+  // Black
+  this->command(0x24);
+  for (uint32_t i = 0; i < buf_half_len; i++) {
+    this->data(this->buffer_[i]);
+  }
+
+  // Red
+  this->command(0x26);
+  for (uint32_t i = buf_half_len; i < buf_len; i++) {
+    this->data(this->buffer_[i]);
+  }
+
+  // Display frame
+  this->command(0x20);
+}
+
+void WaveshareEPaper2P66InB::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.66in B");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+int WaveshareEPaper2P66InB::get_width_internal() { return 152; }
+int WaveshareEPaper2P66InB::get_height_internal() { return 296; }
+
+// ========================================================
 //                          2.7inch_e-paper_b
 // ========================================================
 // Datasheet:
