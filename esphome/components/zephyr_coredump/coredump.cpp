@@ -19,14 +19,11 @@ void print_coredump();
 #define COREDUMP_PREFIX_STR "#CD:"
 
 /* Length of buffer of printable size */
-#define PRINT_BUF_SZ 64
-#define BUF_SZ 32
-
-/* Length of buffer of printable size plus null character */
-#define PRINT_BUF_SZ_RAW (PRINT_BUF_SZ + 1)
+static const uint8_t BUF_SZ = 32;
+static const uint8_t PRINT_BUF_SZ = BUF_SZ * 2;
 
 /* Print buffer */
-static char print_buf[PRINT_BUF_SZ_RAW];
+static char print_buf[PRINT_BUF_SZ + 1];
 static off_t print_buf_ptr;
 static uint8_t buf[BUF_SZ];
 
@@ -136,11 +133,12 @@ void __wrap_z_arm_fault(uint32_t msp, uint32_t psp, uint32_t exc_return, _callee
 }
 #if KERNEL_VERSION_MAJOR > 3 || (KERNEL_VERSION_MAJOR == 3 && KERNEL_VERSION_MINOR > 5)
 extern void __real_z_arm_fatal_error(unsigned int reason, const struct arch_esf *esf);
-void __wrap_z_arm_fatal_error(unsigned int reason, const struct arch_esf *esf) {
+void __wrap_z_arm_fatal_error(unsigned int reason, const struct arch_esf *esf)
 #else
 extern void __real_z_arm_fatal_error(unsigned int reason, const z_arch_esf_t *esf);
-void __wrap_z_arm_fatal_error(unsigned int reason, const z_arch_esf_t *esf) {
+void __wrap_z_arm_fatal_error(unsigned int reason, const z_arch_esf_t *esf)
 #endif
+{
 #if defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE) || defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
   /* Gdb expects a stack pointer that does not include the exception stack frame in order to
    * unwind. So adjust the stack pointer accordingly.
