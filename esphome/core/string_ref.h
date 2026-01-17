@@ -81,7 +81,8 @@ class StringRef {
 
   operator std::string() const { return str(); }
 
-  /// Find first occurrence of substring, returns std::string::npos if not found
+  /// Find first occurrence of substring, returns std::string::npos if not found.
+  /// Note: Requires the underlying string to be null-terminated.
   size_type find(const char *s, size_type pos = 0) const {
     if (pos >= len_)
       return std::string::npos;
@@ -91,8 +92,8 @@ class StringRef {
   size_type find(char c, size_type pos = 0) const {
     if (pos >= len_)
       return std::string::npos;
-    const char *result = std::strchr(base_ + pos, c);
-    return (result && result < base_ + len_) ? static_cast<size_type>(result - base_) : std::string::npos;
+    const void *result = std::memchr(base_ + pos, static_cast<unsigned char>(c), len_ - pos);
+    return result ? static_cast<size_type>(static_cast<const char *>(result) - base_) : std::string::npos;
   }
 
   /// Return substring as std::string
