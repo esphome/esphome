@@ -339,34 +339,19 @@ void SY6970Component::set_charge_current(uint16_t milliamps) {
   this->update_register_(SY6970_REG_CHARGE_CURRENT, 0x7F, val);
 }
 
-void SY6970Component::enable_charge() {
+void SY6970Component::set_charge_enabled(bool enabled) {
   if (!this->initialized_)
     return;
 
-  this->update_register_(SY6970_REG_SYS_CONTROL, 0x10, 0x10);
+  this->update_register_(SY6970_REG_SYS_CONTROL, 0x10, enabled ? 0x10 : 0x00);
 }
 
-void SY6970Component::disable_charge() {
-  if (!this->initialized_)
-    return;
-
-  this->update_register_(SY6970_REG_SYS_CONTROL, 0x10, 0x00);
-}
-
-void SY6970Component::enable_status_led() {
+void SY6970Component::set_led_enabled(bool enabled) {
   if (!this->initialized_)
     return;
 
   // Clear bit 6 to enable LED
-  this->update_register_(SY6970_REG_TIMER_CONTROL, 0x40, 0x00);
-}
-
-void SY6970Component::disable_status_led() {
-  if (!this->initialized_)
-    return;
-
-  // Set bit 6 to disable LED
-  this->update_register_(SY6970_REG_TIMER_CONTROL, 0x40, 0x40);
+  this->update_register_(SY6970_REG_TIMER_CONTROL, 0x40, enabled ? 0x00 : 0x40);
 }
 
 void SY6970Component::enable_adc_measure() {

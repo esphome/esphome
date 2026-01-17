@@ -33,6 +33,4 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     if config[CONF_ENABLE_STATUS_LED]:
-        cg.add(var.enable_status_led())
-    else:
-        cg.add(var.disable_status_led())
+        cg.add(var.set_led_enabled(config[CONF_ENABLE_STATUS_LED]))
