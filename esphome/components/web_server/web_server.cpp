@@ -1969,7 +1969,7 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
       request->send(200, ESPHOME_F("application/json"), data.c_str());
       return;
     }
-    if (!match.method_equals("transmit")) {
+    if (!match.method_equals(ESPHOME_F("transmit"))) {
       request->send(404);
       return;
     }
