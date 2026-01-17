@@ -185,6 +185,33 @@ inline std::string operator+(const std::string &lhs, const StringRef &rhs) {
   str.append(rhs.c_str(), rhs.size());
   return str;
 }
+// String conversion functions for ADL compatibility (allows stoi(x) where x is StringRef)
+// Uses strtol/strtod directly to avoid heap allocation
+// NOLINTBEGIN(readability-identifier-naming)
+template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, F conv) {
+  char *end;
+  R result = conv(str.c_str(), &end);
+  if (pos)
+    *pos = static_cast<size_t>(end - str.c_str());
+  return result;
+}
+template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, int base, F conv) {
+  char *end;
+  R result = conv(str.c_str(), &end, base);
+  if (pos)
+    *pos = static_cast<size_t>(end - str.c_str());
+  return result;
+}
+inline int stoi(const StringRef &str, size_t *pos = nullptr, int base = 10) {
+  return static_cast<int>(parse_number<long>(str, pos, base, std::strtol));
+}
+inline long stol(const StringRef &str, size_t *pos = nullptr, int base = 10) {
+  return parse_number<long>(str, pos, base, std::strtol);
+}
+inline float stof(const StringRef &str, size_t *pos = nullptr) { return parse_number<float>(str, pos, std::strtof); }
+inline double stod(const StringRef &str, size_t *pos = nullptr) { return parse_number<double>(str, pos, std::strtod); }
+// NOLINTEND(readability-identifier-naming)
+
 #ifdef USE_JSON
 // NOLINTNEXTLINE(readability-identifier-naming)
 inline void convertToJson(const StringRef &src, JsonVariant dst) { dst.set(src.c_str()); }
