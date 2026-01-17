@@ -10,6 +10,8 @@ from esphome.const import CONF_ID, KEY_CORE, KEY_FRAMEWORK_VERSION, Framework
 from esphome.core import CORE
 from esphome.types import ConfigType
 
+CODEOWNERS = ["@tomaszduda23"]
+
 Coredump = cg.esphome_ns.namespace("zephyr_coredump").class_("Coredump", cg.Component)
 
 
