@@ -228,6 +228,9 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
     case ESP_GATTC_DIS_SRVC_CMPL_EVT:
       ESP_LOGV(TAG, "BLE ESP_GATTC_DIS_SRVC_CMPL_EVT called");
       break;
+    case ESP_GATTC_READ_MULTI_VAR_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_READ_MULTI_VAR_EVT called");
+      break;
   }
 }
 void FendtCaravan::add_command_(const std::string &cmd) {
