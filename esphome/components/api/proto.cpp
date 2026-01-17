@@ -48,7 +48,7 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
         }
         uint32_t field_length = res->as_uint32();
         ptr += consumed;
-        if (field_length > end - ptr) {
+        if (field_length > static_cast<size_t>(end - ptr)) {
           return count;  // Out of bounds
         }
         ptr += field_length;
@@ -110,7 +110,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
         }
         uint32_t field_length = res->as_uint32();
         ptr += consumed;
-        if (field_length > end - ptr) {
+        if (field_length > static_cast<size_t>(end - ptr)) {
           ESP_LOGV(TAG, "Out-of-bounds Length Delimited at offset %ld", (long) (ptr - buffer));
           return;
         }
