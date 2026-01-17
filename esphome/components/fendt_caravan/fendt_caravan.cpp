@@ -46,16 +46,24 @@ void FendtCaravan::update() {}
 void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                        esp_ble_gattc_cb_param_t *param) {
   switch (event) {
+    case ESP_GATTC_REG_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_UNREG_EVT called");
+      break;
+    case ESP_GATTC_UNREG_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_UNREG_EVT called");
+      break;
     case ESP_GATTC_OPEN_EVT:
       ESP_LOGV(TAG, "BLE connected (OPEN_EVT)");
       break;
-    case ESP_GATTC_DIS_SRVC_CMPL_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_DIS_SRVC_CMPL_EVT called");
+    case ESP_GATTC_READ_CHAR_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_READ_CHAR_EVT called");
       break;
-    case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      ESP_LOGV(TAG, "BLE ESP_GATTC_REG_FOR_NOTIFY_EVT called");
+    case ESP_GATTC_WRITE_CHAR_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_WRITE_CHAR_EVT called");
       break;
-    }
+    case ESP_GATTC_CLOSE_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_CLOSE_EVT called");
+      break;
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       ESP_LOGV(TAG, "Service discovery complete");
 
@@ -95,6 +103,15 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       this->command_enabled_ = true;
       break;
     }
+    case ESP_GATTC_SEARCH_RES_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_SEARCH_RES_EVT called");
+      break;
+    case ESP_GATTC_READ_DESCR_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_READ_DESCR_EVT called");
+      break;
+    case ESP_GATTC_WRITE_DESCR_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_WRITE_DESCR_EVT called");
+      break;
     case ESP_GATTC_NOTIFY_EVT:
       if (param->notify.handle == this->char_handle_) {
         this->wait_buffer_ = true;
@@ -115,6 +132,47 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         on_data_received_(result);
       }
       break;
+    case ESP_GATTC_PREP_WRITE_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_PREP_WRITE_EVT called");
+      break;
+    case ESP_GATTC_EXEC_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_EXEC_EVT called");
+      break;
+    case ESP_GATTC_ACL_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_ACL_EVT called");
+      break;
+    case ESP_GATTC_CANCEL_OPEN_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_CANCEL_OPEN_EVT called");
+      break;
+    case ESP_GATTC_SRVC_CHG_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_SRVC_CHG_EVT called");
+      break;
+    case ESP_GATTC_ENC_CMPL_CB_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_ENC_CMPL_CB_EVT called");
+      break;
+    case ESP_GATTC_CFG_MTU_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_CFG_MTU_EVT called");
+      break;
+    case ESP_GATTC_ADV_DATA_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_ADV_DATA_EVT called");
+      break;
+    case ESP_GATTC_MULT_ADV_ENB_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_MULT_ADV_ENB_EVT called");
+      break;
+    case ESP_GATTC_MULT_ADV_UPD_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_MULT_ADV_UPD_EVT called");
+      break;
+    case ESP_GATTC_MULT_ADV_DATA_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_MULT_ADV_DATA_EVT called");
+      break;
+
+    case ESP_GATTC_DIS_SRVC_CMPL_EVT:
+      ESP_LOGV(TAG, "BLE ESP_GATTC_DIS_SRVC_CMPL_EVT called");
+      break;
+    case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
+      ESP_LOGV(TAG, "BLE ESP_GATTC_REG_FOR_NOTIFY_EVT called");
+      break;
+    }
     case ESP_GATTC_DISCONNECT_EVT:
       ESP_LOGW(TAG, "BLE disconnected");
       break;
