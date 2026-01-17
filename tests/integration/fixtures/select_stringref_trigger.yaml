@@ -37,3 +37,21 @@ select:
         # Test 4: Use index parameter (variable name is 'i')
         - lambda: |-
             ESP_LOGI("test", "Select index: %d", (int)i);
+        # Test 5: StringRef.length() method
+        - lambda: |-
+            ESP_LOGI("test", "Length: %d", (int)x.length());
+        # Test 6: StringRef.find() method with substring
+        - lambda: |-
+            if (x.find("Option") != StringRef::npos) {
+              ESP_LOGI("test", "Found 'Option' in value");
+            }
+        # Test 7: StringRef.find() method with character
+        - lambda: |-
+            size_t space_pos = x.find(' ');
+            if (space_pos != StringRef::npos) {
+              ESP_LOGI("test", "Space at position: %d", (int)space_pos);
+            }
+        # Test 8: StringRef.substr() method
+        - lambda: |-
+            std::string prefix = x.substr(0, 6);
+            ESP_LOGI("test", "Substr prefix: %s", prefix.c_str());
