@@ -14,6 +14,7 @@ sy6970_ns = cg.esphome_ns.namespace("sy6970")
 SY6970Component = sy6970_ns.class_(
     "SY6970Component", cg.PollingComponent, i2c.I2CDevice
 )
+SY6970Listener = sy6970_ns.class_("SY6970Listener")
 
 CONFIG_SCHEMA = (
     cv.Schema(

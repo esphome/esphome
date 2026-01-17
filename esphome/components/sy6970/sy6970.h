@@ -1,10 +1,8 @@
 #pragma once
 
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/components/sensor/sensor.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/component.h"
+#include <vector>
 
 namespace esphome::sy6970 {
 
@@ -54,6 +52,12 @@ struct SY6970Data {
   uint8_t registers[21];  // Registers 0x00-0x14 (includes unused 0x0F, 0x10, 0x13)
 };
 
+// Listener interface for components that want to receive SY6970 data updates
+class SY6970Listener {
+ public:
+  virtual void on_data(const SY6970Data &data) = 0;
+};
+
 class SY6970Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
@@ -61,24 +65,8 @@ class SY6970Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  // Sensor setters
-  void set_vbus_voltage_sensor(sensor::Sensor *sensor) { this->vbus_voltage_sensor_ = sensor; }
-  void set_battery_voltage_sensor(sensor::Sensor *sensor) { this->battery_voltage_sensor_ = sensor; }
-  void set_system_voltage_sensor(sensor::Sensor *sensor) { this->system_voltage_sensor_ = sensor; }
-  void set_charge_current_sensor(sensor::Sensor *sensor) { this->charge_current_sensor_ = sensor; }
-  void set_precharge_current_sensor(sensor::Sensor *sensor) { this->precharge_current_sensor_ = sensor; }
-
-  // Binary sensor setters
-  void set_vbus_connected_binary_sensor(binary_sensor::BinarySensor *sensor) {
-    this->vbus_connected_binary_sensor_ = sensor;
-  }
-  void set_charging_binary_sensor(binary_sensor::BinarySensor *sensor) { this->charging_binary_sensor_ = sensor; }
-  void set_charge_done_binary_sensor(binary_sensor::BinarySensor *sensor) { this->charge_done_binary_sensor_ = sensor; }
-
-  // Text sensor setters
-  void set_bus_status_text_sensor(text_sensor::TextSensor *sensor) { this->bus_status_text_sensor_ = sensor; }
-  void set_charge_status_text_sensor(text_sensor::TextSensor *sensor) { this->charge_status_text_sensor_ = sensor; }
-  void set_ntc_status_text_sensor(text_sensor::TextSensor *sensor) { this->ntc_status_text_sensor_ = sensor; }
+  // Listener registration
+  void add_listener(SY6970Listener *listener) { this->listeners_.push_back(listener); }
 
   // Configuration methods
   void set_input_current_limit(uint16_t milliamps);
@@ -94,45 +82,9 @@ class SY6970Component : public PollingComponent, public i2c::I2CDevice {
   bool write_register_(uint8_t reg, uint8_t value);
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
 
-  void publish_sensors_(const SY6970Data &data);
-  void publish_binary_sensors_(const SY6970Data &data);
-  void publish_text_sensors_(const SY6970Data &data);
-
-  // Helper methods to extract data from register block
-  uint16_t get_vbus_voltage_(const SY6970Data &data);
-  uint16_t get_battery_voltage_(const SY6970Data &data);
-  uint16_t get_system_voltage_(const SY6970Data &data);
-  uint16_t get_charge_current_(const SY6970Data &data);
-  uint16_t get_precharge_current_(const SY6970Data &data);
-  bool is_vbus_connected_(const SY6970Data &data);
-  bool is_charging_(const SY6970Data &data);
-  bool is_charge_done_(const SY6970Data &data);
-  uint8_t get_bus_status_(const SY6970Data &data);
-  uint8_t get_charge_status_(const SY6970Data &data);
-  uint8_t get_ntc_status_(const SY6970Data &data);
-  const char *get_bus_status_string_(uint8_t status);
-  const char *get_charge_status_string_(uint8_t status);
-  const char *get_ntc_status_string_(uint8_t status);
-
   bool initialized_{false};
   SY6970Data data_{};
-
-  // Sensor pointers
-  sensor::Sensor *vbus_voltage_sensor_{nullptr};
-  sensor::Sensor *battery_voltage_sensor_{nullptr};
-  sensor::Sensor *system_voltage_sensor_{nullptr};
-  sensor::Sensor *charge_current_sensor_{nullptr};
-  sensor::Sensor *precharge_current_sensor_{nullptr};
-
-  // Binary sensor pointers
-  binary_sensor::BinarySensor *vbus_connected_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *charging_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *charge_done_binary_sensor_{nullptr};
-
-  // Text sensor pointers
-  text_sensor::TextSensor *bus_status_text_sensor_{nullptr};
-  text_sensor::TextSensor *charge_status_text_sensor_{nullptr};
-  text_sensor::TextSensor *ntc_status_text_sensor_{nullptr};
+  std::vector<SY6970Listener *> listeners_;
 };
 
 }  // namespace esphome::sy6970
