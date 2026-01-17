@@ -37,21 +37,21 @@ static const std::array<int16_t, 51> DECIBEL_REDUCTION_TABLE = {
 
 // Event bits for SourceSpeaker command processing
 enum SourceSpeakerEventBits : uint32_t {
-  SourceSpeakerCommandStart = (1 << 0),
-  SourceSpeakerCommandStop = (1 << 1),
-  SourceSpeakerCommandFinish = (1 << 2),
+  SOURCE_SPEAKER_COMMAND_START = (1 << 0),
+  SOURCE_SPEAKER_COMMAND_STOP = (1 << 1),
+  SOURCE_SPEAKER_COMMAND_FINISH = (1 << 2),
 };
 
 // Event bits for mixer task control and state
 enum MixerTaskEventBits : uint32_t {
-  MixerTaskCommandStart = (1 << 0),
-  MixerTaskCommandStop = (1 << 1),
-  MixerTaskStateStarting = (1 << 10),
-  MixerTaskStateRunning = (1 << 11),
-  MixerTaskStateStopping = (1 << 12),
-  MixerTaskStateStopped = (1 << 13),
-  MixerTaskErrEspNoMem = (1 << 19),
-  MixerTaskAllBits = 0x00FFFFFF,  // All valid FreeRTOS event group bits
+  MIXER_TASK_COMMAND_START = (1 << 0),
+  MIXER_TASK_COMMAND_STOP = (1 << 1),
+  MIXER_TASK_STATE_STARTING = (1 << 10),
+  MIXER_TASK_STATE_RUNNING = (1 << 11),
+  MIXER_TASK_STATE_STOPPING = (1 << 12),
+  MIXER_TASK_STATE_STOPPED = (1 << 13),
+  MIXER_TASK_ERR_ESP_NO_MEM = (1 << 19),
+  MIXER_TASK_ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
 };
 
 void SourceSpeaker::dump_config() {
@@ -115,34 +115,34 @@ void SourceSpeaker::loop() {
 
   // Process commands with priority: STOP > FINISH > START
   // This ensures stop commands take precedence over conflicting start commands
-  if (event_bits & SourceSpeakerCommandStop) {
+  if (event_bits & SOURCE_SPEAKER_COMMAND_STOP) {
     if (this->state_ == speaker::STATE_RUNNING) {
       // Clear both STOP and START bits - stop takes precedence
-      xEventGroupClearBits(this->event_group_, SourceSpeakerCommandStop | SourceSpeakerCommandStart);
+      xEventGroupClearBits(this->event_group_, SOURCE_SPEAKER_COMMAND_STOP | SOURCE_SPEAKER_COMMAND_START);
       this->state_ = speaker::STATE_STOPPING;
       this->stopping_start_ms_ = millis();
       this->transfer_buffer_.reset();  // deallocate the transfer buffer
     } else if (this->state_ == speaker::STATE_STOPPED) {
       // Already stopped, just clear the command bits
-      xEventGroupClearBits(this->event_group_, SourceSpeakerCommandStop | SourceSpeakerCommandStart);
+      xEventGroupClearBits(this->event_group_, SOURCE_SPEAKER_COMMAND_STOP | SOURCE_SPEAKER_COMMAND_START);
     }
     // Leave bits set if transitioning states (STARTING/STOPPING) - will be processed once state allows
-  } else if (event_bits & SourceSpeakerCommandFinish) {
+  } else if (event_bits & SOURCE_SPEAKER_COMMAND_FINISH) {
     if (this->state_ == speaker::STATE_RUNNING) {
-      xEventGroupClearBits(this->event_group_, SourceSpeakerCommandFinish);
+      xEventGroupClearBits(this->event_group_, SOURCE_SPEAKER_COMMAND_FINISH);
       this->stop_gracefully_ = true;
     } else if (this->state_ == speaker::STATE_STOPPED) {
       // Already stopped, just clear the command bit
-      xEventGroupClearBits(this->event_group_, SourceSpeakerCommandFinish);
+      xEventGroupClearBits(this->event_group_, SOURCE_SPEAKER_COMMAND_FINISH);
     }
     // Leave bit set if transitioning states - will be processed once state allows
-  } else if (event_bits & SourceSpeakerCommandStart) {
+  } else if (event_bits & SOURCE_SPEAKER_COMMAND_START) {
     if (this->state_ == speaker::STATE_STOPPED) {
-      xEventGroupClearBits(this->event_group_, SourceSpeakerCommandStart);
+      xEventGroupClearBits(this->event_group_, SOURCE_SPEAKER_COMMAND_START);
       this->state_ = speaker::STATE_STARTING;
     } else if (this->state_ == speaker::STATE_RUNNING) {
       // Already running, just clear the command bit
-      xEventGroupClearBits(this->event_group_, SourceSpeakerCommandStart);
+      xEventGroupClearBits(this->event_group_, SOURCE_SPEAKER_COMMAND_START);
     }
     // Leave bit set if transitioning states - will be processed once state allows
   }
@@ -217,7 +217,8 @@ void SourceSpeaker::loop() {
     case speaker::STATE_STOPPED:
       // Re-check event bits for any new commands that may have arrived
       event_bits = xEventGroupGetBits(this->event_group_);
-      if (!(event_bits & (SourceSpeakerCommandStart | SourceSpeakerCommandStop | SourceSpeakerCommandFinish))) {
+      if (!(event_bits &
+            (SOURCE_SPEAKER_COMMAND_START | SOURCE_SPEAKER_COMMAND_STOP | SOURCE_SPEAKER_COMMAND_FINISH))) {
         // No pending commands, disable loop to save CPU cycles
         this->disable_loop();
       }
@@ -242,7 +243,7 @@ size_t SourceSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_
 
 void SourceSpeaker::start() {
   this->enable_loop_soon_any_context();
-  xEventGroupSetBits(this->event_group_, SourceSpeakerCommandStart);
+  xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_START);
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
 #endif
@@ -276,7 +277,7 @@ esp_err_t SourceSpeaker::start_() {
 
 void SourceSpeaker::stop() {
   this->enable_loop_soon_any_context();
-  xEventGroupSetBits(this->event_group_, SourceSpeakerCommandStop);
+  xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_STOP);
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
 #endif
@@ -284,7 +285,7 @@ void SourceSpeaker::stop() {
 
 void SourceSpeaker::finish() {
   this->enable_loop_soon_any_context();
-  xEventGroupSetBits(this->event_group_, SourceSpeakerCommandFinish);
+  xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_FINISH);
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
 #endif
@@ -445,13 +446,13 @@ void MixerSpeaker::loop() {
   uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
 
   // Handle pending start request
-  if (event_group_bits & MixerTaskCommandStart) {
+  if (event_group_bits & MIXER_TASK_COMMAND_START) {
     // Only start the task if it's fully stopped and cleaned up
     if (!this->status_has_error() && (this->task_handle_ == nullptr) && (this->task_stack_buffer_ == nullptr)) {
       esp_err_t err = this->start_task_();
       switch (err) {
         case ESP_OK:
-          xEventGroupClearBits(this->event_group_, MixerTaskCommandStart);
+          xEventGroupClearBits(this->event_group_, MIXER_TASK_COMMAND_START);
           break;
         case ESP_ERR_NO_MEM:
           ESP_LOGE(TAG, "Failed to start; retrying in 1 second");
@@ -469,26 +470,26 @@ void MixerSpeaker::loop() {
     }
   }
 
-  if (event_group_bits & MixerTaskStateStarting) {
+  if (event_group_bits & MIXER_TASK_STATE_STARTING) {
     ESP_LOGD(TAG, "Starting speaker mixer");
-    xEventGroupClearBits(this->event_group_, MixerTaskStateStarting);
+    xEventGroupClearBits(this->event_group_, MIXER_TASK_STATE_STARTING);
   }
-  if (event_group_bits & MixerTaskErrEspNoMem) {
+  if (event_group_bits & MIXER_TASK_ERR_ESP_NO_MEM) {
     this->status_set_error(LOG_STR("Failed to allocate the mixer's internal buffer"));
-    xEventGroupClearBits(this->event_group_, MixerTaskErrEspNoMem);
+    xEventGroupClearBits(this->event_group_, MIXER_TASK_ERR_ESP_NO_MEM);
   }
-  if (event_group_bits & MixerTaskStateRunning) {
+  if (event_group_bits & MIXER_TASK_STATE_RUNNING) {
     ESP_LOGD(TAG, "Started speaker mixer");
     this->status_clear_error();
-    xEventGroupClearBits(this->event_group_, MixerTaskStateRunning);
+    xEventGroupClearBits(this->event_group_, MIXER_TASK_STATE_RUNNING);
   }
-  if (event_group_bits & MixerTaskStateStopping) {
+  if (event_group_bits & MIXER_TASK_STATE_STOPPING) {
     ESP_LOGD(TAG, "Stopping speaker mixer");
-    xEventGroupClearBits(this->event_group_, MixerTaskStateStopping);
+    xEventGroupClearBits(this->event_group_, MIXER_TASK_STATE_STOPPING);
   }
-  if (event_group_bits & MixerTaskStateStopped) {
+  if (event_group_bits & MIXER_TASK_STATE_STOPPED) {
     if (this->delete_task_() == ESP_OK) {
-      xEventGroupClearBits(this->event_group_, MixerTaskAllBits);
+      xEventGroupClearBits(this->event_group_, MIXER_TASK_ALL_BITS);
     }
   }
 
@@ -503,7 +504,7 @@ void MixerSpeaker::loop() {
 
     if (all_stopped) {
       // Send stop command signal to the mixer task since no source speakers are active
-      xEventGroupSetBits(this->event_group_, MixerTaskCommandStop);
+      xEventGroupSetBits(this->event_group_, MIXER_TASK_COMMAND_STOP);
     }
   } else if (this->task_stack_buffer_ == nullptr) {
     // Task is fully stopped and cleaned up, check if we can disable loop
@@ -536,7 +537,7 @@ esp_err_t MixerSpeaker::start(audio::AudioStreamInfo &stream_info) {
   this->enable_loop_soon_any_context();
 
   // Informs the loop function to start the task
-  xEventGroupSetBits(this->event_group_, MixerTaskCommandStart);
+  xEventGroupSetBits(this->event_group_, MIXER_TASK_COMMAND_START);
   return ESP_OK;
 }
 
@@ -648,13 +649,13 @@ void MixerSpeaker::mix_audio_samples(const int16_t *primary_buffer, audio::Audio
 void MixerSpeaker::audio_mixer_task(void *params) {
   MixerSpeaker *this_mixer = static_cast<MixerSpeaker *>(params);
 
-  xEventGroupSetBits(this_mixer->event_group_, MixerTaskStateStarting);
+  xEventGroupSetBits(this_mixer->event_group_, MIXER_TASK_STATE_STARTING);
 
   std::unique_ptr<audio::AudioSinkTransferBuffer> output_transfer_buffer = audio::AudioSinkTransferBuffer::create(
       this_mixer->audio_stream_info_.value().ms_to_bytes(TRANSFER_BUFFER_DURATION_MS));
 
   if (output_transfer_buffer == nullptr) {
-    xEventGroupSetBits(this_mixer->event_group_, MixerTaskStateStopped | MixerTaskErrEspNoMem);
+    xEventGroupSetBits(this_mixer->event_group_, MIXER_TASK_STATE_STOPPED | MIXER_TASK_ERR_ESP_NO_MEM);
 
     while (true) {
       // Continuously delay until the loop method deletes the task
@@ -664,7 +665,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
 
   output_transfer_buffer->set_sink(this_mixer->output_speaker_);
 
-  xEventGroupSetBits(this_mixer->event_group_, MixerTaskStateRunning);
+  xEventGroupSetBits(this_mixer->event_group_, MIXER_TASK_STATE_RUNNING);
 
   bool sent_finished = false;
 
@@ -676,7 +677,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
 
   while (true) {
     uint32_t event_group_bits = xEventGroupGetBits(this_mixer->event_group_);
-    if (event_group_bits & MixerTaskCommandStop) {
+    if (event_group_bits & MIXER_TASK_COMMAND_STOP) {
       break;
     }
 
@@ -813,14 +814,14 @@ void MixerSpeaker::audio_mixer_task(void *params) {
     }
   }
 
-  xEventGroupSetBits(this_mixer->event_group_, MixerTaskStateStopping);
+  xEventGroupSetBits(this_mixer->event_group_, MIXER_TASK_STATE_STOPPING);
 
   // Reset pipeline frame count since the task is stopping
   this_mixer->frames_in_pipeline_.store(0, std::memory_order_release);
 
   output_transfer_buffer.reset();
 
-  xEventGroupSetBits(this_mixer->event_group_, MixerTaskStateStopped);
+  xEventGroupSetBits(this_mixer->event_group_, MIXER_TASK_STATE_STOPPED);
 
   while (true) {
     // Continuously delay until the loop method deletes the task
