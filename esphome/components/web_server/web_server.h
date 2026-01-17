@@ -460,6 +460,13 @@ class WebServer : public Controller,
   static std::string water_heater_all_json_generator(WebServer *web_server, void *source);
 #endif
 
+#ifdef USE_INFRARED
+  /// Handle an infrared request under '/infrared/<id>/transmit'.
+  void handle_infrared_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  static std::string infrared_all_json_generator(WebServer *web_server, void *source);
+#endif
+
 #ifdef USE_EVENT
   void on_event(event::Event *obj) override;
 
@@ -661,6 +668,9 @@ class WebServer : public Controller,
 #endif
 #ifdef USE_WATER_HEATER
   std::string water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config);
+#endif
+#ifdef USE_INFRARED
+  std::string infrared_json_(infrared::Infrared *obj, JsonDetail start_config);
 #endif
 #ifdef USE_UPDATE
   std::string update_json_(update::UpdateEntity *obj, JsonDetail start_config);
