@@ -49,7 +49,7 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
         uint32_t field_length = res->as_uint32();
         ptr += consumed;
         // Use subtraction to avoid integer overflow on 32-bit systems
-        if (field_length > static_cast<size_t>(end - ptr)) {
+        if (field_length > end - ptr) {
           return count;  // Out of bounds
         }
         ptr += field_length;
@@ -57,7 +57,7 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
       }
       case WIRE_TYPE_FIXED32: {  // 32-bit - skip 4 bytes
         // Use subtraction to avoid integer overflow on 32-bit systems
-        if (static_cast<size_t>(end - ptr) < 4) {
+        if (end - ptr < 4) {
           return count;
         }
         ptr += 4;
@@ -113,7 +113,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
         uint32_t field_length = res->as_uint32();
         ptr += consumed;
         // Use subtraction to avoid integer overflow on 32-bit systems
-        if (field_length > static_cast<size_t>(end - ptr)) {
+        if (field_length > end - ptr) {
           ESP_LOGV(TAG, "Out-of-bounds Length Delimited at offset %ld", (long) (ptr - buffer));
           return;
         }
@@ -125,7 +125,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
       }
       case WIRE_TYPE_FIXED32: {  // 32-bit
         // Use subtraction to avoid integer overflow on 32-bit systems
-        if (static_cast<size_t>(end - ptr) < 4) {
+        if (end - ptr < 4) {
           ESP_LOGV(TAG, "Out-of-bounds Fixed32-bit at offset %ld", (long) (ptr - buffer));
           return;
         }
