@@ -81,26 +81,26 @@ class StringRef {
 
   operator std::string() const { return str(); }
 
-  /// Find first occurrence of substring, returns npos if not found
-  static constexpr size_type npos = static_cast<size_type>(-1);
+  /// Find first occurrence of substring, returns NPOS if not found
+  static constexpr size_type NPOS = static_cast<size_type>(-1);
   size_type find(const char *s, size_type pos = 0) const {
     if (pos >= len_)
-      return npos;
+      return NPOS;
     const char *result = std::strstr(base_ + pos, s);
-    return result ? static_cast<size_type>(result - base_) : npos;
+    return result ? static_cast<size_type>(result - base_) : NPOS;
   }
   size_type find(char c, size_type pos = 0) const {
     if (pos >= len_)
-      return npos;
+      return NPOS;
     const char *result = std::strchr(base_ + pos, c);
-    return (result && result < base_ + len_) ? static_cast<size_type>(result - base_) : npos;
+    return (result && result < base_ + len_) ? static_cast<size_type>(result - base_) : NPOS;
   }
 
   /// Return substring as std::string
-  std::string substr(size_type pos = 0, size_type count = npos) const {
+  std::string substr(size_type pos = 0, size_type count = NPOS) const {
     if (pos >= len_)
       return std::string();
-    size_type actual_count = (count == npos || pos + count > len_) ? len_ - pos : count;
+    size_type actual_count = (count == NPOS || pos + count > len_) ? len_ - pos : count;
     return std::string(base_ + pos, actual_count);
   }
 
