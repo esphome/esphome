@@ -508,12 +508,10 @@ bool SendspinMediaSource::sync_determine_raw_sync_error_(SyncContext &sync_conte
 
     // Now we are in the middle of the current audio chunk
     if (sync_context.chunk_timings.empty()) {
-      // Catastrophic error, queue a stop and start control
-      SendspinControls control_type = SendspinControls::STOP;
-      xQueueSend(pipeline_context.controls_queue, &control_type, portMAX_DELAY);
-      control_type = SendspinControls::START;
-      xQueueSend(pipeline_context.controls_queue, &control_type, portMAX_DELAY);
-      ESP_LOGE(TAG, "Catastrophic sync error. Restarting sync task");
+      // Catastrophic error - perform soft reset to preserve codec state
+      ESP_LOGE(TAG, "Catastrophic sync error. Performing soft reset");
+      this->sync_soft_reset_(sync_context, pipeline_context);
+      return false;
     } else {
       sync_context.chunk_timings.front().total_frames -= frames_played;
     }
@@ -706,6 +704,35 @@ void SendspinMediaSource::sync_soft_sync_add_audio_(SyncContext &sync_context,
     frame_corrections = 1;
     ++pipeline_context.single_frames_added_;
   }
+}
+
+void SendspinMediaSource::sync_soft_reset_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context) {
+  ESP_LOGW(TAG, "Sync soft reset - waiting for audio pipeline to drain");
+
+  // Wait for buffered audio to fully drain through the speaker
+  // TODO: Don't use a magic number
+  vTaskDelay(pdMS_TO_TICKS(1000));
+
+  // Discard any stale playback progress messages that arrived during the drain
+  PlaybackProgress discard;
+  while (xQueueReceive(pipeline_context.playback_progress_queue, &discard, 0) == pdTRUE) {
+    // Just drain the queue
+  }
+
+  // Now reset with a clean slate
+  sync_context.chunk_timings.clear();
+  sync_context.pending_frame_corrections = 0;
+  sync_context.last_error.reset();
+
+  sync_context.initial_decode = true;
+  sync_context.synced_chunks = 0;
+  sync_context.temporary_hard_sync_threshold = HARD_SYNC_THRESHOLD_US;
+
+  sync_context.encoded_chunk = nullptr;
+  sync_context.decoded_chunk = nullptr;
+  sync_context.release_chunk = true;
+
+  ESP_LOGW(TAG, "Sync soft reset complete - resuming with preserved codec state");
 }
 
 bool SendspinMediaSource::sync_decode_audio_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context) {

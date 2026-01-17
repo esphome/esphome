@@ -141,6 +141,8 @@ class SendspinMediaSource : public Component, public media_source::MediaSource, 
   void sync_soft_sync_add_audio_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context,
                                  InternalAudioTiming &timings, int32_t &frame_corrections);
 
+  void sync_soft_reset_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
+
   bool sync_decode_audio_(SyncContext &sync_context, SendspinMediaSourcePipeline &pipeline_context);
 
   void set_transfer_callbacks_(SyncContext &sync_context, int pipeline);
