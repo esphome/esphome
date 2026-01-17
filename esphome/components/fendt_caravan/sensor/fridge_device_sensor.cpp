@@ -22,7 +22,7 @@ void FridgeDeviceSensor::setup() {
                                                                Commands::update_toggle<bool>);
     this->add_variable(status);
     this->fridge_status_switch_->set_state_change_callback(
-        std::bind(&FridgeDeviceSensor::on_switch_state_change, this, std::placeholders::_1, std::placeholders::_2));
+        std::bind(&FridgeDeviceSensor::on_switch_state_change_, this, std::placeholders::_1, std::placeholders::_2));
   }
   if (this->fridge_mode_select_) {
     std::vector<std::string> list = {"Performance", "", "Quite", "Boost"};
@@ -38,7 +38,7 @@ void FridgeDeviceSensor::setup() {
         });
     this->add_variable(mode);
     this->fridge_mode_select_->set_state_change_callback(
-        std::bind(&FridgeDeviceSensor::on_select_state_change, this, std::placeholders::_1, std::placeholders::_2));
+        std::bind(&FridgeDeviceSensor::on_select_state_change_, this, std::placeholders::_1, std::placeholders::_2));
   }
   if (this->fridge_source_text_sensor_) {
     std::vector<std::string> list = {"Automatic", "Gas", "DirectCurrent", "AlternatingCurrent"};
@@ -58,7 +58,7 @@ void FridgeDeviceSensor::setup() {
                                                                   Commands::update_int);
     this->add_variable(temp);
     this->fridge_temperature_number_->set_state_change_callback(
-        std::bind(&FridgeDeviceSensor::on_number_state_change, this, std::placeholders::_1, std::placeholders::_2));
+        std::bind(&FridgeDeviceSensor::on_number_state_change_, this, std::placeholders::_1, std::placeholders::_2));
   }
 }
 
@@ -72,7 +72,7 @@ void FridgeDeviceSensor::dump_config() {
   LOG_NUMBER(TAG, "  Fridge Temperature", this->fridge_temperature_number_);
 }
 
-void FridgeDeviceSensor::on_switch_state_change(FendtSwitch *sw, bool state) {
+void FridgeDeviceSensor::on_switch_state_change_(FendtSwitch *sw, bool state) {
   std::string command = sw->get_variable()->get_command();
   if (!command.empty()) {
     ESP_LOGV(TAG, "Switch state changed command:%s", command.c_str());
@@ -80,7 +80,7 @@ void FridgeDeviceSensor::on_switch_state_change(FendtSwitch *sw, bool state) {
   }
 }
 
-void FridgeDeviceSensor::on_number_state_change(FendtNumber *num, float state) {
+void FridgeDeviceSensor::on_number_state_change_(FendtNumber *num, float state) {
   std::string command = num->get_variable()->get_command();
   if (!command.empty()) {
     ESP_LOGV(TAG, "Number state changed command:%s", command.c_str());
@@ -88,7 +88,7 @@ void FridgeDeviceSensor::on_number_state_change(FendtNumber *num, float state) {
   }
 }
 
-void FridgeDeviceSensor::on_select_state_change(FendtSelect *sel, std::string state) {
+void FridgeDeviceSensor::on_select_state_change_(FendtSelect *sel, std::string state) {
   std::string command = sel->get_variable()->get_command();
   if (!command.empty()) {
     ESP_LOGV(TAG, "Select state changed command:%s", command.c_str());

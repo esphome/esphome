@@ -23,15 +23,15 @@ class FridgeDeviceSensor : public CaravanDevice {
   FENDT_TEXT_SENSOR(fridge_source);
   FENDT_TEXT_SENSOR(fridge_type);
   FENDT_NUMBER(fridge_temperature);
+  const char *TAG = "FRG";
 
  protected:
   const char *get_tag_() override { return this->TAG; }
 
  private:
-  const char *TAG = "FRG";
-  void on_switch_state_change(FendtSwitch *sw, bool state);
-  void on_number_state_change(FendtNumber *num, float state);
-  void on_select_state_change(FendtSelect *sel, std::string state);
+  void on_switch_state_change_(FendtSwitch *sw, bool state);
+  void on_number_state_change_(FendtNumber *num, float state);
+  void on_select_state_change_(FendtSelect *sel, std::string state);
 };
 }  // namespace fendt_caravan
 }  // namespace esphome

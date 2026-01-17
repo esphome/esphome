@@ -68,7 +68,7 @@ void ControlUnitDeviceSensor::setup() {
                                                            Commands::update_toggle<bool>);
     this->add_variable(sw);
     this->floor_heater_switch_->set_state_change_callback(std::bind(
-        &ControlUnitDeviceSensor::on_switch_state_change, this, std::placeholders::_1, std::placeholders::_2));
+        &ControlUnitDeviceSensor::on_switch_state_change_, this, std::placeholders::_1, std::placeholders::_2));
   }
 
   auto temp_in_offset = new Variable<int>("TEMP_IN_OFFSET", DeviceDecoders::decode_int);
@@ -106,11 +106,11 @@ void ControlUnitDeviceSensor::setup() {
   this->add_variable(radio_config);
 
   if (this->main_switch_switch_)
-    this->main_switch_switch_->set_state_change_callback(std::bind(&ControlUnitDeviceSensor::on_switch_state_change,
+    this->main_switch_switch_->set_state_change_callback(std::bind(&ControlUnitDeviceSensor::on_switch_state_change_,
                                                                    this, std::placeholders::_1, std::placeholders::_2));
   if (this->light_status_switch_)
     this->light_status_switch_->set_state_change_callback(std::bind(
-        &ControlUnitDeviceSensor::on_switch_state_change, this, std::placeholders::_1, std::placeholders::_2));
+        &ControlUnitDeviceSensor::on_switch_state_change_, this, std::placeholders::_1, std::placeholders::_2));
 }
 
 void ControlUnitDeviceSensor::dump_config() {
@@ -138,9 +138,9 @@ void ControlUnitDeviceSensor::decode(const std::string &name, const std::string 
   }
 }
 
-void ControlUnitDeviceSensor::on_switch_state_change(FendtSwitch *sw, bool state) {
+void ControlUnitDeviceSensor::on_switch_state_change_(FendtSwitch *sw, bool state) {
   std::string command = "";
-  ESP_LOGV(TAG, "on_switch_state_change called");
+  ESP_LOGV(TAG, "on_switch_state_change_ called");
   if (sw == this->main_switch_switch_) {
     auto hs_key_long = GET_VARIABLE(bool, "HS_KEY_LONG");
     auto hs_key_state = GET_VARIABLE(int, "HS_KEY_STATE");

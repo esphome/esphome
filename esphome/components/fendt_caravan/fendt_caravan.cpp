@@ -15,14 +15,14 @@ void FendtCaravan::dump_config() { ESP_LOGCONFIG(TAG, "Fend Caravan Log"); }
 void FendtCaravan::setup() { ESP_LOGD(TAG, "Setup called"); }
 
 void FendtCaravan::loop() {
-  if (!command_enabled)
+  if (!command_enabled_)
     return;
 
   if (this->parent()->state() != espbt::ClientState::ESTABLISHED)
     return;
 
   uint32_t time_stamp = millis();
-  if (this->commands_.size() > 0 && (time_stamp - this->last_command_time_) >= WIAT_COMMAND && !this->_wait_buffer) {
+  if (this->commands_.size() > 0 && (time_stamp - this->last_command_time_) >= WIAT_COMMAND && !this->wait_buffer_) {
     std::string cmd = this->commands_.at(0);
 
     uint8_t buffer[cmd.length() + 1];
@@ -59,12 +59,12 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       ESP_LOGV(TAG, "Service discovery complete");
 
-      auto service = this->parent()->get_service(espbt::ESPBTUUID::from_raw(SERVICE_UUID));
+      auto service = this->parent()->get_service(espbt::ESPBTUUID::from_raw(service_uuid_));
       if (service == nullptr) {
         ESP_LOGW(TAG, "control service not found at device, not a Fendt Caravan..?");
         break;
       }
-      auto chr = service->get_characteristic(CHARACTERISTIC_UUID);
+      auto chr = service->get_characteristic(characteristic_uuid_);
       if (chr == nullptr) {
         ESP_LOGW(TAG, "control characteristic not found at device, not a Fendt Caravan..?");
         break;
@@ -90,14 +90,14 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         ;
       }
 
-      this->add_command("net-BT_ID-c0:ee:fb:90:b0:a7");
-      this->add_command("net-BT_VARS");
-      this->command_enabled = true;
+      this->add_command_("net-BT_ID-c0:ee:fb:90:b0:a7");
+      this->add_command_("net-BT_VARS");
+      this->command_enabled_ = true;
       break;
     }
     case ESP_GATTC_NOTIFY_EVT:
       if (param->notify.handle == this->char_handle_) {
-        this->_wait_buffer = true;
+        this->wait_buffer_ = true;
         char buffer[param->notify.value_len + 1] = {0};
         memcpy(buffer, param->notify.value, param->notify.value_len);
         std::string result = std::string(buffer);
@@ -109,9 +109,9 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
           this->last_response_.append(buffer, param->notify.value_len - 1);
           break;
         }
-        this->_wait_buffer = false;
+        this->wait_buffer_ = false;
         ESP_LOGD(TAG, "Notified value: %s", result.c_str());
-        on_data_received(result);
+        on_data_received_(result);
       }
       break;
     case ESP_GATTC_DISCONNECT_EVT:
@@ -119,7 +119,7 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       break;
   }
 }
-void FendtCaravan::add_command(const std::string &cmd) {
+void FendtCaravan::add_command_(const std::string &cmd) {
   int8_t start_index = 0;
   int8_t end_index = 17;
   int8_t last_index = cmd.length();
@@ -141,7 +141,7 @@ void FendtCaravan::add_command(const std::string &cmd) {
   }
 }
 
-void FendtCaravan::on_data_received(const std::string &data) {
+void FendtCaravan::on_data_received_(const std::string &data) {
   std::string key, value;
 
   size_t start = 0;
@@ -160,7 +160,7 @@ void FendtCaravan::on_data_received(const std::string &data) {
 
 void FendtCaravan::on_command_send(const std::string &command) {
   ESP_LOGD(TAG, "on_command_send called. Command: %s", command.c_str());
-  this->add_command(command);
+  this->add_command_(command);
 }
 
 }  // namespace fendt_caravan

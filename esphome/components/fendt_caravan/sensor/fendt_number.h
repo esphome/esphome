@@ -33,7 +33,7 @@ class FendtNumber : public FendtComponent<float>, public number::Number {
 
  private:
   CallbackManager<void(FendtNumber *, float state)> on_state_change_{};
-  const char *const TAG = "FNB";
+  const char *const tag_ = "FNB";
 };
 }  // namespace fendt_caravan
 }  // namespace esphome

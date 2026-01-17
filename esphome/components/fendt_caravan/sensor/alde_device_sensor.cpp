@@ -55,22 +55,22 @@ void AldeDeviceSensor::setup() {
 
   if (this->alde_heater_status_switch_)
     this->alde_heater_status_switch_->set_state_change_callback(
-        std::bind(&AldeDeviceSensor::on_switch_state_change, this, std::placeholders::_1, std::placeholders::_2));
+        std::bind(&AldeDeviceSensor::on_switch_state_change_, this, std::placeholders::_1, std::placeholders::_2));
   if (this->alde_heater_water_switch_)
     this->alde_heater_water_switch_->set_state_change_callback(
-        std::bind(&AldeDeviceSensor::on_switch_state_change, this, std::placeholders::_1, std::placeholders::_2));
+        std::bind(&AldeDeviceSensor::on_switch_state_change_, this, std::placeholders::_1, std::placeholders::_2));
   if (this->alde_heater_water_temperature_switch_)
     this->alde_heater_water_temperature_switch_->set_state_change_callback(
-        std::bind(&AldeDeviceSensor::on_switch_state_change, this, std::placeholders::_1, std::placeholders::_2));
+        std::bind(&AldeDeviceSensor::on_switch_state_change_, this, std::placeholders::_1, std::placeholders::_2));
   if (this->alde_heater_temperature_number_)
     this->alde_heater_temperature_number_->set_state_change_callback(
-        std::bind(&AldeDeviceSensor::on_number_state_change, this, std::placeholders::_1, std::placeholders::_2));
+        std::bind(&AldeDeviceSensor::on_number_state_change_, this, std::placeholders::_1, std::placeholders::_2));
   if (this->alde_heater_electric_select_)
     this->alde_heater_electric_select_->set_state_change_callback(
-        std::bind(&AldeDeviceSensor::on_select_state_change, this, std::placeholders::_1, std::placeholders::_2));
+        std::bind(&AldeDeviceSensor::on_select_state_change_, this, std::placeholders::_1, std::placeholders::_2));
   if (this->alde_heater_gas_switch_)
     this->alde_heater_gas_switch_->set_state_change_callback(
-        std::bind(&AldeDeviceSensor::on_switch_state_change, this, std::placeholders::_1, std::placeholders::_2));
+        std::bind(&AldeDeviceSensor::on_switch_state_change_, this, std::placeholders::_1, std::placeholders::_2));
 }
 
 void AldeDeviceSensor::dump_config() {
@@ -84,7 +84,7 @@ void AldeDeviceSensor::dump_config() {
   LOG_SWITCH(TAG, "  Heater Gas", this->alde_heater_gas_switch_);
 }
 
-void AldeDeviceSensor::on_switch_state_change(FendtSwitch *sw, bool state) {
+void AldeDeviceSensor::on_switch_state_change_(FendtSwitch *sw, bool state) {
   if (!sw->get_variable())
     return;
   std::string command = sw->get_variable()->get_command();
@@ -94,7 +94,7 @@ void AldeDeviceSensor::on_switch_state_change(FendtSwitch *sw, bool state) {
   }
 }
 
-void AldeDeviceSensor::on_number_state_change(FendtNumber *num, float state) {
+void AldeDeviceSensor::on_number_state_change_(FendtNumber *num, float state) {
   if (!num->get_variable())
     return;
   std::string command = num->get_variable()->get_command();
@@ -103,7 +103,7 @@ void AldeDeviceSensor::on_number_state_change(FendtNumber *num, float state) {
     this->command_callback_.call(command);
   }
 }
-void AldeDeviceSensor::on_select_state_change(FendtSelect *sel, std::string state) {
+void AldeDeviceSensor::on_select_state_change_(FendtSelect *sel, std::string state) {
   if (!sel->get_variable())
     return;
   std::string command = sel->get_variable()->get_command();

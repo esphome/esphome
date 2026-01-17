@@ -32,13 +32,13 @@ class ControlUnitDeviceSensor : public CaravanDevice {
   FENDT_SWITCH(light_status);
   FENDT_TEXT_SENSOR(software_version);
   FENDT_SWITCH(floor_heater);
+  const char *TAG = "MCU";
 
  protected:
   const char *get_tag_() override { return this->TAG; }
 
  private:
-  const char *TAG = "MCU";
-  void on_switch_state_change(FendtSwitch *sw, bool state);
+  void on_switch_state_change_(FendtSwitch *sw, bool state);
 };
 }  // namespace fendt_caravan
 }  // namespace esphome

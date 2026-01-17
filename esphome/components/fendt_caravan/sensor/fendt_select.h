@@ -33,7 +33,7 @@ class FendtSelect : public FendtComponent<std::string>, public select::Select {
 
  private:
   CallbackManager<void(FendtSelect *, std::string state)> on_state_change_{};
-  const char *const TAG = "FST";
+  const char *const tag_ = "FST";
 };
 }  // namespace fendt_caravan
 }  // namespace esphome

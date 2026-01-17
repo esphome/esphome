@@ -30,15 +30,15 @@ class AldeDeviceSensor : public CaravanDevice {
   FENDT_SWITCH(alde_heater_water_temperature);
   FENDT_SELECT(alde_heater_electric);
   FENDT_SWITCH(alde_heater_gas);
+  const char *const TAG = "ALD";
 
  protected:
   const char *get_tag_() override { return this->TAG; }
 
  private:
-  const char *const TAG = "ALD";
-  void on_switch_state_change(FendtSwitch *sw, bool state);
-  void on_number_state_change(FendtNumber *num, float state);
-  void on_select_state_change(FendtSelect *sel, std::string state);
+  void on_switch_state_change_(FendtSwitch *sw, bool state);
+  void on_number_state_change_(FendtNumber *num, float state);
+  void on_select_state_change_(FendtSelect *sel, std::string state);
 };
 }  // namespace fendt_caravan
 }  // namespace esphome

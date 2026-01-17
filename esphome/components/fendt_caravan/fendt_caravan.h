@@ -48,17 +48,17 @@ class FendtCaravan : public PollingComponent, public ble_client::BLEClientNode {
 
   void dump_config() override;
   void on_command_send(const std::string &command);
+  const char *TAG = "FC";
 
  protected:
-  void add_command(const std::string &cmd);
-  void on_data_received(const std::string &data);
+  void add_command_(const std::string &cmd);
+  void on_data_received_(const std::string &data);
 
  private:
-  const char *TAG = "FC";
-  const char *SERVICE_UUID = "C7841029-FE7C-4894-8532-F97908EF1AE4";  // değiştirilmesi gerekebilir
-  const uint16_t CHARACTERISTIC_UUID = 0x0001;
-  bool command_enabled = false;
-  volatile bool _wait_buffer = false;
+  const char *service_uuid_ = "C7841029-FE7C-4894-8532-F97908EF1AE4";  // değiştirilmesi gerekebilir
+  const uint16_t characteristic_uuid_ = 0x0001;
+  bool command_enabled_ = false;
+  volatile bool wait_buffer_ = false;
   uint16_t char_handle_;
   std::vector<std::string> commands_{};
   uint32_t last_command_time_ = 0;
