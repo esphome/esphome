@@ -1243,7 +1243,7 @@ void PrometheusHandler::date_base_row_(AsyncResponseStream *stream, const char *
   stream->print(ESPHOME_F("\",name=\""));
   stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\"} "));
-  // Note: grafana expects timestamp values to be in ms since the epoch. See prometheus docs.
+  // Note: grafana expects timestamp values to be in ms since the epoch. See prometheus component docs.
   stream->printf("%" PRId64 "\n", final_timestamp * 1000LL);
 }
 #endif
