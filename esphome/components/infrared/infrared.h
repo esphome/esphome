@@ -40,11 +40,11 @@ class InfraredCall {
   /// @note Usage: Primarily for lambdas/automations where the vector is in scope.
   InfraredCall &set_raw_timings(const std::vector<int32_t> &timings);
 
-  /// Set the raw timings from base85-encoded int32 data
+  /// Set the raw timings from base64url-encoded little-endian int32 data
   /// @note Lifetime: Stores a pointer to the string. The string must outlive perform().
-  /// @note Usage: For web_server where the encoded string is on the stack.
+  /// @note Usage: For web_server - base64url is fully URL-safe (uses '-' and '_').
   /// @note Decoding happens at perform() time, directly into the transmit buffer.
-  InfraredCall &set_raw_timings_base85(const std::string &base85);
+  InfraredCall &set_raw_timings_base64url(const std::string &base64url);
 
   /// Set the raw timings from packed protobuf sint32 data (zigzag + varint encoded)
   /// @note Lifetime: Stores a pointer to the buffer. The buffer must outlive perform().
@@ -59,18 +59,18 @@ class InfraredCall {
 
   /// Get the carrier frequency
   const optional<uint32_t> &get_carrier_frequency() const { return this->carrier_frequency_; }
-  /// Get the raw timings (only valid if set via set_raw_timings, not packed or base85)
+  /// Get the raw timings (only valid if set via set_raw_timings)
   const std::vector<int32_t> &get_raw_timings() const { return *this->raw_timings_; }
-  /// Check if raw timings have been set (vector, packed, or base85)
+  /// Check if raw timings have been set (any format)
   bool has_raw_timings() const {
-    return this->raw_timings_ != nullptr || this->packed_data_ != nullptr || this->base85_ptr_ != nullptr;
+    return this->raw_timings_ != nullptr || this->packed_data_ != nullptr || this->base64url_ptr_ != nullptr;
   }
   /// Check if using packed data format
   bool is_packed() const { return this->packed_data_ != nullptr; }
-  /// Check if using base85 data format
-  bool is_base85() const { return this->base85_ptr_ != nullptr; }
-  /// Get the base85 data string
-  const std::string &get_base85_data() const { return *this->base85_ptr_; }
+  /// Check if using base64url data format
+  bool is_base64url() const { return this->base64url_ptr_ != nullptr; }
+  /// Get the base64url data string
+  const std::string &get_base64url_data() const { return *this->base64url_ptr_; }
   /// Get packed data (only valid if set via set_raw_timings_packed)
   const uint8_t *get_packed_data() const { return this->packed_data_; }
   uint16_t get_packed_length() const { return this->packed_length_; }
@@ -84,8 +84,8 @@ class InfraredCall {
   optional<uint32_t> carrier_frequency_;
   // Pointer to vector-based timings (caller-owned, must outlive perform())
   const std::vector<int32_t> *raw_timings_{nullptr};
-  // Pointer to base85-encoded string (caller-owned, must outlive perform())
-  const std::string *base85_ptr_{nullptr};
+  // Pointer to base64url-encoded string (caller-owned, must outlive perform())
+  const std::string *base64url_ptr_{nullptr};
   // Pointer to packed protobuf buffer (caller-owned, must outlive perform())
   const uint8_t *packed_data_{nullptr};
   uint16_t packed_length_{0};
