@@ -8,26 +8,26 @@
 
 namespace esphome::sy6970 {
 
-// SY6970 Register addresses
-static const uint8_t SY6970_REG_00 = 0x00;
-static const uint8_t SY6970_REG_01 = 0x01;
-static const uint8_t SY6970_REG_02 = 0x02;
-static const uint8_t SY6970_REG_03 = 0x03;
-static const uint8_t SY6970_REG_04 = 0x04;
-static const uint8_t SY6970_REG_05 = 0x05;
-static const uint8_t SY6970_REG_06 = 0x06;
-static const uint8_t SY6970_REG_07 = 0x07;
-static const uint8_t SY6970_REG_08 = 0x08;
-static const uint8_t SY6970_REG_09 = 0x09;
-static const uint8_t SY6970_REG_0A = 0x0A;
-static const uint8_t SY6970_REG_0B = 0x0B;
-static const uint8_t SY6970_REG_0C = 0x0C;
-static const uint8_t SY6970_REG_0D = 0x0D;
-static const uint8_t SY6970_REG_0E = 0x0E;
-static const uint8_t SY6970_REG_11 = 0x11;
-static const uint8_t SY6970_REG_12 = 0x12;
-static const uint8_t SY6970_REG_13 = 0x13;
-static const uint8_t SY6970_REG_14 = 0x14;
+// SY6970 Register addresses with descriptive names
+static const uint8_t SY6970_REG_INPUT_CURRENT_LIMIT = 0x00;     // Input current limit control
+static const uint8_t SY6970_REG_VINDPM = 0x01;                  // Input voltage limit
+static const uint8_t SY6970_REG_ADC_CONTROL = 0x02;             // ADC control and function disable
+static const uint8_t SY6970_REG_SYS_CONTROL = 0x03;             // Charge enable and system config
+static const uint8_t SY6970_REG_CHARGE_CURRENT = 0x04;          // Fast charge current limit
+static const uint8_t SY6970_REG_PRECHARGE_CURRENT = 0x05;       // Pre-charge/termination current
+static const uint8_t SY6970_REG_CHARGE_VOLTAGE = 0x06;          // Charge voltage limit
+static const uint8_t SY6970_REG_TIMER_CONTROL = 0x07;           // Charge timer and status LED control
+static const uint8_t SY6970_REG_IR_COMP = 0x08;                 // IR compensation
+static const uint8_t SY6970_REG_FORCE_DPDM = 0x09;              // Force DPDM detection
+static const uint8_t SY6970_REG_BOOST_CONTROL = 0x0A;           // Boost mode voltage/current
+static const uint8_t SY6970_REG_STATUS = 0x0B;                  // System status (bus, charge status)
+static const uint8_t SY6970_REG_FAULT = 0x0C;                   // Fault status (NTC)
+static const uint8_t SY6970_REG_VINDPM_STATUS = 0x0D;           // Input voltage limit status (also sys voltage)
+static const uint8_t SY6970_REG_BATV = 0x0E;                    // Battery voltage
+static const uint8_t SY6970_REG_VBUS_VOLTAGE = 0x11;            // VBUS voltage
+static const uint8_t SY6970_REG_CHARGE_CURRENT_MONITOR = 0x12;  // Charge current
+static const uint8_t SY6970_REG_INPUT_VOLTAGE_LIMIT = 0x13;     // Input voltage limit
+static const uint8_t SY6970_REG_DEVICE_ID = 0x14;               // Part information
 
 // Bus Status values (REG_0B[7:5])
 enum BusStatus {

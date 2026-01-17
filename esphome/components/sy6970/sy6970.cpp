@@ -24,7 +24,7 @@ static const uint16_t INPUT_CURRENT_STEP = 50;  // mA
 bool SY6970Component::read_all_registers_() {
   // Read all registers from 0x00 to 0x14 in one transaction (21 bytes)
   // This includes unused registers 0x0F, 0x10, 0x13 for performance
-  if (!this->read_bytes(SY6970_REG_00, this->data_.registers, 21)) {
+  if (!this->read_bytes(SY6970_REG_INPUT_CURRENT_LIMIT, this->data_.registers, 21)) {
     ESP_LOGW(TAG, "Failed to read registers 0x00-0x14");
     return false;
   }
@@ -55,7 +55,7 @@ void SY6970Component::setup() {
 
   // Try to read chip ID
   uint8_t reg_value;
-  if (!this->read_byte(SY6970_REG_14, &reg_value)) {
+  if (!this->read_byte(SY6970_REG_DEVICE_ID, &reg_value)) {
     ESP_LOGE(TAG, "Failed to communicate with SY6970");
     this->mark_failed();
     return;
@@ -175,27 +175,27 @@ void SY6970Component::publish_text_sensors_(const SY6970Data &data) {
 }
 
 uint16_t SY6970Component::get_vbus_voltage_(const SY6970Data &data) {
-  uint8_t vbus_val = data.registers[0x11] & 0x7F;
+  uint8_t vbus_val = data.registers[SY6970_REG_VBUS_VOLTAGE] & 0x7F;
   return VBUS_BASE + (vbus_val * VBUS_STEP);
 }
 
 uint16_t SY6970Component::get_battery_voltage_(const SY6970Data &data) {
-  uint8_t vbat_val = data.registers[0x0E] & 0x7F;
+  uint8_t vbat_val = data.registers[SY6970_REG_BATV] & 0x7F;
   return VBAT_BASE + (vbat_val * VBAT_STEP);
 }
 
 uint16_t SY6970Component::get_system_voltage_(const SY6970Data &data) {
-  uint8_t vsys_val = data.registers[0x0D] & 0x7F;
+  uint8_t vsys_val = data.registers[SY6970_REG_VINDPM_STATUS] & 0x7F;
   return VSYS_BASE + (vsys_val * VSYS_STEP);
 }
 
 uint16_t SY6970Component::get_charge_current_(const SY6970Data &data) {
-  uint8_t ichg_val = data.registers[0x12] & 0x7F;
+  uint8_t ichg_val = data.registers[SY6970_REG_CHARGE_CURRENT_MONITOR] & 0x7F;
   return ichg_val * CHG_CURRENT_STEP;
 }
 
 uint16_t SY6970Component::get_precharge_current_(const SY6970Data &data) {
-  uint8_t iprechg = (data.registers[0x05] >> 4) & 0x0F;
+  uint8_t iprechg = (data.registers[SY6970_REG_PRECHARGE_CURRENT] >> 4) & 0x0F;
   return PRE_CHG_BASE + (iprechg * PRE_CHG_STEP);
 }
 
@@ -214,11 +214,15 @@ bool SY6970Component::is_charge_done_(const SY6970Data &data) {
   return chrg_stat == CHARGE_STATUS_CHARGE_DONE;
 }
 
-uint8_t SY6970Component::get_bus_status_(const SY6970Data &data) { return (data.registers[0x0B] >> 5) & 0x07; }
+uint8_t SY6970Component::get_bus_status_(const SY6970Data &data) {
+  return (data.registers[SY6970_REG_STATUS] >> 5) & 0x07;
+}
 
-uint8_t SY6970Component::get_charge_status_(const SY6970Data &data) { return (data.registers[0x0B] >> 3) & 0x03; }
+uint8_t SY6970Component::get_charge_status_(const SY6970Data &data) {
+  return (data.registers[SY6970_REG_STATUS] >> 3) & 0x03;
+}
 
-uint8_t SY6970Component::get_ntc_status_(const SY6970Data &data) { return data.registers[0x0C] & 0x07; }
+uint8_t SY6970Component::get_ntc_status_(const SY6970Data &data) { return data.registers[SY6970_REG_FAULT] & 0x07; }
 
 const char *SY6970Component::get_bus_status_string_(uint8_t status) {
   switch (status) {
@@ -288,7 +292,7 @@ void SY6970Component::set_input_current_limit(uint16_t milliamps) {
     val = 0x3F;
   }
 
-  this->update_register_(SY6970_REG_00, 0x3F, val);
+  this->update_register_(SY6970_REG_INPUT_CURRENT_LIMIT, 0x3F, val);
 }
 
 void SY6970Component::set_charge_target_voltage(uint16_t millivolts) {
@@ -304,7 +308,7 @@ void SY6970Component::set_charge_target_voltage(uint16_t millivolts) {
     val = 0x3F;
   }
 
-  this->update_register_(SY6970_REG_06, 0xFC, val << 2);
+  this->update_register_(SY6970_REG_CHARGE_VOLTAGE, 0xFC, val << 2);
 }
 
 void SY6970Component::set_precharge_current(uint16_t milliamps) {
@@ -320,7 +324,7 @@ void SY6970Component::set_precharge_current(uint16_t milliamps) {
     val = 0x0F;
   }
 
-  this->update_register_(SY6970_REG_05, 0xF0, val << 4);
+  this->update_register_(SY6970_REG_PRECHARGE_CURRENT, 0xF0, val << 4);
 }
 
 void SY6970Component::set_charge_current(uint16_t milliamps) {
@@ -332,21 +336,21 @@ void SY6970Component::set_charge_current(uint16_t milliamps) {
     val = 0x7F;
   }
 
-  this->update_register_(SY6970_REG_04, 0x7F, val);
+  this->update_register_(SY6970_REG_CHARGE_CURRENT, 0x7F, val);
 }
 
 void SY6970Component::enable_charge() {
   if (!this->initialized_)
     return;
 
-  this->update_register_(SY6970_REG_03, 0x10, 0x10);
+  this->update_register_(SY6970_REG_SYS_CONTROL, 0x10, 0x10);
 }
 
 void SY6970Component::disable_charge() {
   if (!this->initialized_)
     return;
 
-  this->update_register_(SY6970_REG_03, 0x10, 0x00);
+  this->update_register_(SY6970_REG_SYS_CONTROL, 0x10, 0x00);
 }
 
 void SY6970Component::enable_status_led() {
@@ -354,7 +358,7 @@ void SY6970Component::enable_status_led() {
     return;
 
   // Clear bit 6 to enable LED
-  this->update_register_(SY6970_REG_07, 0x40, 0x00);
+  this->update_register_(SY6970_REG_TIMER_CONTROL, 0x40, 0x00);
 }
 
 void SY6970Component::disable_status_led() {
@@ -362,7 +366,7 @@ void SY6970Component::disable_status_led() {
     return;
 
   // Set bit 6 to disable LED
-  this->update_register_(SY6970_REG_07, 0x40, 0x40);
+  this->update_register_(SY6970_REG_TIMER_CONTROL, 0x40, 0x40);
 }
 
 void SY6970Component::enable_adc_measure() {
@@ -370,7 +374,7 @@ void SY6970Component::enable_adc_measure() {
     return;
 
   // Set bits to enable ADC conversion
-  this->update_register_(SY6970_REG_02, 0xC0, 0xC0);
+  this->update_register_(SY6970_REG_ADC_CONTROL, 0xC0, 0xC0);
 }
 
 }  // namespace esphome::sy6970
