@@ -185,9 +185,10 @@ For creating larger displays by chaining multiple panels:
 
 - **scan_wiring** (*Optional*, enum): Panel scan wiring pattern. Defaults to `STANDARD_TWO_SCAN`. One of:
   - `STANDARD_TWO_SCAN` - Standard 1/16 or 1/32 scan (most common)
-  - `FOUR_SCAN_16PX_HIGH` - Four-scan for 16px high panels
-  - `FOUR_SCAN_32PX_HIGH` - Four-scan for 32px high panels
-  - `FOUR_SCAN_64PX_HIGH` - Four-scan for 64px high panels
+  - `SCAN_1_4_16PX_HIGH` - 1/4 scan for 16px high panels
+  - `SCAN_1_8_32PX_HIGH` - 1/8 scan for 32px high panels
+  - `SCAN_1_8_40PX_HIGH` - 1/8 scan for 40px high panels
+  - `SCAN_1_8_64PX_HIGH` - 1/8 scan for 64px high panels
 
 - **shift_driver** (*Optional*, enum): LED shift register driver chip type. Defaults to `GENERIC`. One of:
   - `GENERIC` - Standard shift register (default)
