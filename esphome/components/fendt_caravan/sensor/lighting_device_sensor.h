@@ -11,8 +11,8 @@ namespace fendt_caravan {
 
 class LightingDeviceSensor : public CaravanDevice {
  public:
-  void setup() override;
-  void dump_config() override;
+  void setup();
+  void dump_config();
 
   FENDT_SWITCH(light_sw0);
   FENDT_SWITCH(light_sw1);
@@ -27,7 +27,7 @@ class LightingDeviceSensor : public CaravanDevice {
   const char *TAG = "LDS";
 
  protected:
-  const char *get_tag_() override { return this->TAG; }
+  const char *get_tag_() { return this->TAG; }
 
  private:
   void on_switch_state_changed_(FendtSwitch *sw, bool state);

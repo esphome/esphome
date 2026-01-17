@@ -15,7 +15,7 @@ using namespace std;
 class IVariable {
  public:
   std::string get_name() { return this->name_; }
-  void set_name(std::string name) { this->name_ = std::move(name); }
+  void set_name(const std::string &name) { this->name_ = std::move(name); }
   std::string get_raw_value() { return this->raw_value_; }
 
   bool is_active() { return this->is_active_; }
