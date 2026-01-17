@@ -247,11 +247,15 @@ size_t SourceSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_
 }
 
 void SourceSpeaker::start() {
-  this->enable_loop_soon_any_context();
-  xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_START);
+  // Set SOURCE_SPEAKER_COMMAND_START bit if not already set
+  uint32_t event_bits = xEventGroupGetBits(this->event_group_);
+  if (!(event_bits && SOURCE_SPEAKER_COMMAND_START)) {
+    xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_START);
+    this->enable_loop_soon_any_context();
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-  App.wake_loop_threadsafe();
+    App.wake_loop_threadsafe();
 #endif
+  }
 }
 
 esp_err_t SourceSpeaker::start_() {
@@ -281,19 +285,27 @@ esp_err_t SourceSpeaker::start_() {
 }
 
 void SourceSpeaker::stop() {
-  this->enable_loop_soon_any_context();
-  xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_STOP);
+  // Set SOURCE_SPEAKER_COMMAND_STOP bit if not already set
+  uint32_t event_bits = xEventGroupGetBits(this->event_group_);
+  if (!(event_bits && SOURCE_SPEAKER_COMMAND_STOP)) {
+    xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_STOP);
+    this->enable_loop_soon_any_context();
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-  App.wake_loop_threadsafe();
+    App.wake_loop_threadsafe();
 #endif
+  }
 }
 
 void SourceSpeaker::finish() {
-  this->enable_loop_soon_any_context();
-  xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_FINISH);
+  // Set SOURCE_SPEAKER_COMMAND_FINISH bit if not already set
+  uint32_t event_bits = xEventGroupGetBits(this->event_group_);
+  if (!(event_bits && SOURCE_SPEAKER_COMMAND_FINISH)) {
+    xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_FINISH);
+    this->enable_loop_soon_any_context();
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-  App.wake_loop_threadsafe();
+    App.wake_loop_threadsafe();
 #endif
+  }
 }
 
 bool SourceSpeaker::has_buffered_data() const {
