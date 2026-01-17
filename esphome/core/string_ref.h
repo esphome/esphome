@@ -186,8 +186,8 @@ inline std::string operator+(const std::string &lhs, const StringRef &rhs) {
   return str;
 }
 // String conversion functions for ADL compatibility (allows stoi(x) where x is StringRef)
-// Uses strtol/strtod directly to avoid heap allocation
-// NOLINTBEGIN(readability-identifier-naming)
+// Must be in esphome namespace for ADL to find them. Uses strtol/strtod directly to avoid heap allocation.
+namespace internal {
 template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, F conv) {
   char *end;
   R result = conv(str.c_str(), &end);
@@ -202,14 +202,20 @@ template<typename R, typename F> inline R parse_number(const StringRef &str, siz
     *pos = static_cast<size_t>(end - str.c_str());
   return result;
 }
+}  // namespace internal
+// NOLINTBEGIN(readability-identifier-naming)
 inline int stoi(const StringRef &str, size_t *pos = nullptr, int base = 10) {
-  return static_cast<int>(parse_number<long>(str, pos, base, std::strtol));
+  return static_cast<int>(internal::parse_number<long>(str, pos, base, std::strtol));
 }
 inline long stol(const StringRef &str, size_t *pos = nullptr, int base = 10) {
-  return parse_number<long>(str, pos, base, std::strtol);
+  return internal::parse_number<long>(str, pos, base, std::strtol);
 }
-inline float stof(const StringRef &str, size_t *pos = nullptr) { return parse_number<float>(str, pos, std::strtof); }
-inline double stod(const StringRef &str, size_t *pos = nullptr) { return parse_number<double>(str, pos, std::strtod); }
+inline float stof(const StringRef &str, size_t *pos = nullptr) {
+  return internal::parse_number<float>(str, pos, std::strtof);
+}
+inline double stod(const StringRef &str, size_t *pos = nullptr) {
+  return internal::parse_number<double>(str, pos, std::strtod);
+}
 // NOLINTEND(readability-identifier-naming)
 
 #ifdef USE_JSON
