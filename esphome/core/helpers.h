@@ -1,8 +1,11 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdarg>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <functional>
 #include <iterator>
@@ -18,6 +21,7 @@
 
 #ifdef USE_ESP8266
 #include <Esp.h>
+#include <pgmspace.h>
 #endif
 
 #ifdef USE_RP2040
@@ -520,6 +524,7 @@ bool str_startswith(const std::string &str, const std::string &start);
 bool str_endswith(const std::string &str, const std::string &end);
 
 /// Truncate a string to a specific length.
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
 std::string str_truncate(const std::string &str, size_t length);
 
 /// Extract the part of the string until either the first occurrence of the specified character, or the end
@@ -531,11 +536,13 @@ std::string str_until(const std::string &str, char ch);
 /// Convert the string to lower case.
 std::string str_lower_case(const std::string &str);
 /// Convert the string to upper case.
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
 std::string str_upper_case(const std::string &str);
 
 /// Convert a single char to snake_case: lowercase and space to underscore.
 constexpr char to_snake_case_char(char c) { return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c; }
 /// Convert the string to snake case (lowercase with underscores).
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
 std::string str_snake_case(const std::string &str);
 
 /// Sanitize a single char: keep alphanumerics, dashes, underscores; replace others with underscore.
@@ -564,6 +571,53 @@ std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, 
 
 /// sprintf-like function returning std::string.
 std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
+
+#ifdef USE_ESP8266
+// ESP8266: Use vsnprintf_P to keep format strings in flash (PROGMEM)
+// Format strings must be wrapped with PSTR() macro
+/// Safely append formatted string to buffer, returning new position (capped at size).
+/// @param buf Output buffer
+/// @param size Total buffer size
+/// @param pos Current position in buffer
+/// @param fmt Format string (must be in PROGMEM on ESP8266)
+/// @return New position after appending (capped at size on overflow)
+inline size_t buf_append_printf_p(char *buf, size_t size, size_t pos, PGM_P fmt, ...) {
+  if (pos >= size) {
+    return size;
+  }
+  va_list args;
+  va_start(args, fmt);
+  int written = vsnprintf_P(buf + pos, size - pos, fmt, args);
+  va_end(args);
+  if (written < 0) {
+    return pos;  // encoding error
+  }
+  return std::min(pos + static_cast<size_t>(written), size);
+}
+#define buf_append_printf(buf, size, pos, fmt, ...) buf_append_printf_p(buf, size, pos, PSTR(fmt), ##__VA_ARGS__)
+#else
+/// Safely append formatted string to buffer, returning new position (capped at size).
+/// Handles snprintf edge cases: negative returns (encoding errors) and truncation.
+/// @param buf Output buffer
+/// @param size Total buffer size
+/// @param pos Current position in buffer
+/// @param fmt printf-style format string
+/// @return New position after appending (capped at size on overflow)
+__attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf, size_t size, size_t pos,
+                                                                      const char *fmt, ...) {
+  if (pos >= size) {
+    return size;
+  }
+  va_list args;
+  va_start(args, fmt);
+  int written = vsnprintf(buf + pos, size - pos, fmt, args);
+  va_end(args);
+  if (written < 0) {
+    return pos;  // encoding error
+  }
+  return std::min(pos + static_cast<size_t>(written), size);
+}
+#endif
 
 /// Concatenate a name with a separator and suffix using an efficient stack-based approach.
 /// This avoids multiple heap allocations during string construction.
@@ -758,6 +812,16 @@ inline char *format_hex_to(char (&buffer)[N], T val) {
   return format_hex_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
 }
 
+/// Format std::vector<uint8_t> as lowercase hex to buffer.
+template<size_t N> inline char *format_hex_to(char (&buffer)[N], const std::vector<uint8_t> &data) {
+  return format_hex_to(buffer, data.data(), data.size());
+}
+
+/// Format std::array<uint8_t, M> as lowercase hex to buffer.
+template<size_t N, size_t M> inline char *format_hex_to(char (&buffer)[N], const std::array<uint8_t, M> &data) {
+  return format_hex_to(buffer, data.data(), data.size());
+}
+
 /// Calculate buffer size needed for format_hex_to: "XXXXXXXX...\0" = bytes * 2 + 1
 constexpr size_t format_hex_size(size_t byte_count) { return byte_count * 2 + 1; }
 
@@ -807,6 +871,18 @@ inline char *format_hex_pretty_to(char (&buffer)[N], const uint8_t *data, size_t
   return format_hex_pretty_to(buffer, N, data, length, separator);
 }
 
+/// Format std::vector<uint8_t> as uppercase hex with separator to buffer.
+template<size_t N>
+inline char *format_hex_pretty_to(char (&buffer)[N], const std::vector<uint8_t> &data, char separator = ':') {
+  return format_hex_pretty_to(buffer, data.data(), data.size(), separator);
+}
+
+/// Format std::array<uint8_t, M> as uppercase hex with separator to buffer.
+template<size_t N, size_t M>
+inline char *format_hex_pretty_to(char (&buffer)[N], const std::array<uint8_t, M> &data, char separator = ':') {
+  return format_hex_pretty_to(buffer, data.data(), data.size(), separator);
+}
+
 /// Calculate buffer size needed for format_hex_pretty_to with uint16_t data: "XXXX:XXXX:...:XXXX\0"
 constexpr size_t format_hex_pretty_uint16_size(size_t count) { return count * 5; }
 
@@ -840,8 +916,8 @@ static constexpr size_t MAC_ADDRESS_PRETTY_BUFFER_SIZE = format_hex_pretty_size(
 static constexpr size_t MAC_ADDRESS_BUFFER_SIZE = MAC_ADDRESS_SIZE * 2 + 1;
 
 /// Format MAC address as XX:XX:XX:XX:XX:XX (uppercase, colon separators)
-inline void format_mac_addr_upper(const uint8_t *mac, char *output) {
-  format_hex_pretty_to(output, MAC_ADDRESS_PRETTY_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE, ':');
+inline char *format_mac_addr_upper(const uint8_t *mac, char *output) {
+  return format_hex_pretty_to(output, MAC_ADDRESS_PRETTY_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE, ':');
 }
 
 /// Format MAC address as xxxxxxxxxxxxxx (lowercase, no separators)
@@ -850,16 +926,27 @@ inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
 }
 
 /// Format the six-byte array \p mac into a MAC address.
+/// @warning Allocates heap memory. Use format_mac_addr_upper() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 std::string format_mac_address_pretty(const uint8_t mac[6]);
 /// Format the byte array \p data of length \p len in lowercased hex.
+/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 std::string format_hex(const uint8_t *data, size_t length);
 /// Format the vector \p data in lowercased hex.
+/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 std::string format_hex(const std::vector<uint8_t> &data);
 /// Format an unsigned integer in lowercased hex, starting with the most significant byte.
+/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
   val = convert_big_endian(val);
   return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
 }
+/// Format the std::array \p data in lowercased hex.
+/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &data) {
   return format_hex(data.data(), data.size());
 }
@@ -1049,6 +1136,12 @@ std::string base64_encode(const std::vector<uint8_t> &buf);
 std::vector<uint8_t> base64_decode(const std::string &encoded_string);
 size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len);
+
+/// Decode base64/base64url string directly into vector of little-endian int32 values
+/// @param base64 Base64 or base64url encoded string (both +/ and -_ accepted)
+/// @param out Output vector (cleared and filled with decoded int32 values)
+/// @return true if successful, false if decode failed or invalid size
+bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> &out);
 
 ///@}
 

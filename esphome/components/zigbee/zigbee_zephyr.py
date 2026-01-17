@@ -57,6 +57,7 @@ from .const_zephyr import (
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
     CONF_ZIGBEE_SENSOR,
+    CONF_ZIGBEE_SWITCH,
     KEY_EP_NUMBER,
     KEY_ZIGBEE,
     POWER_SOURCE,
@@ -64,6 +65,7 @@ from .const_zephyr import (
     ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
     ZB_ZCL_CLUSTER_ID_BASIC,
     ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
+    ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT,
     ZB_ZCL_CLUSTER_ID_IDENTIFY,
     ZB_ZCL_IDENTIFY_ATTRS_T,
     AnalogAttrs,
@@ -74,6 +76,7 @@ from .const_zephyr import (
 
 ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
 ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
+ZigbeeSwitch = zigbee_ns.class_("ZigbeeSwitch", cg.Component)
 
 # BACnet engineering units mapping (ZCL uses BACnet unit codes)
 # See: https://github.com/zigpy/zha/blob/dev/zha/application/platforms/number/bacnet.py
@@ -124,6 +127,15 @@ zephyr_sensor = cv.Schema(
         cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
         cv.OnlyWith(CONF_ZIGBEE_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
             ZigbeeSensor
+        ),
+    }
+)
+
+zephyr_switch = cv.Schema(
+    {
+        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
+        cv.OnlyWith(CONF_ZIGBEE_SWITCH, ["nrf52", "zigbee"]): cv.declare_id(
+            ZigbeeSwitch
         ),
     }
 )
@@ -329,6 +341,10 @@ async def zephyr_setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     CORE.add_job(_add_sensor, entity, config)
 
 
+async def zephyr_setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
+    CORE.add_job(_add_switch, entity, config)
+
+
 def get_slot_index() -> int:
     """Find the next available endpoint slot."""
     slot = next(
@@ -341,7 +357,7 @@ def get_slot_index() -> int:
     return slot
 
 
-async def _add_zigbee_input(
+async def _add_zigbee_ep(
     entity: cg.MockObj,
     config: ConfigType,
     component_key,
@@ -398,7 +414,7 @@ async def _add_zigbee_input(
 
 
 async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    await _add_zigbee_input(
+    await _add_zigbee_ep(
         entity,
         config,
         CONF_ZIGBEE_BINARY_SENSOR,
@@ -414,7 +430,7 @@ async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     unit = config.get(CONF_UNIT_OF_MEASUREMENT, "")
     bacnet_unit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
 
-    await _add_zigbee_input(
+    await _add_zigbee_ep(
         entity,
         config,
         CONF_ZIGBEE_SENSOR,
@@ -423,4 +439,16 @@ async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
         ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
         "ZB_HA_CUSTOM_ATTR_DEVICE_ID",
         extra_field_values={"engineering_units": bacnet_unit},
+    )
+
+
+async def _add_switch(entity: cg.MockObj, config: ConfigType) -> None:
+    await _add_zigbee_ep(
+        entity,
+        config,
+        CONF_ZIGBEE_SWITCH,
+        BinaryAttrs,
+        "ESPHOME_ZB_ZCL_DECLARE_BINARY_OUTPUT_ATTRIB_LIST",
+        ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT,
+        "ZB_HA_CUSTOM_ATTR_DEVICE_ID",
     )
