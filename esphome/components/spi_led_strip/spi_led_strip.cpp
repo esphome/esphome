@@ -48,15 +48,14 @@ void SpiLedStrip::dump_config() {
 void SpiLedStrip::write_state(light::LightState *state) {
   if (this->is_failed())
     return;
-  if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE) {
-    char strbuf[49];  // max 16 bytes * 3 chars each + null
-    size_t len = std::min(this->buffer_size_, (size_t) (sizeof(strbuf) - 1) / 3);
-    size_t pos = 0;
-    for (size_t i = 0; i != len; i++) {
-      pos = buf_append_printf(strbuf, sizeof(strbuf), pos, "%02X ", this->buf_[i]);
-    }
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  {
+    char strbuf[49];  // format_hex_pretty_size(16) = 48, fits 16 bytes
+    size_t len = std::min(this->buffer_size_, (size_t) 16);
+    format_hex_pretty_to(strbuf, sizeof(strbuf), this->buf_, len, ' ');
     esph_log_v(TAG, "write_state: buf = %s", strbuf);
   }
+#endif
   this->enable();
   this->write_array(this->buf_, this->buffer_size_);
   this->disable();
