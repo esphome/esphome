@@ -62,7 +62,6 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   Sensor *humidity_sensor_{nullptr};
   Sensor *power_sensor_{nullptr};
   float power_multiplier_{1.0f};
-
 };
 
 }  // namespace ac

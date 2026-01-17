@@ -143,7 +143,6 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_POWER_MULTIPLIER, default=1.0): cv.float_,
                 }
             ),
-
             cv.Optional(CONF_HUMIDITY_SETPOINT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_WATER_PERCENT,
