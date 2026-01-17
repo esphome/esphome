@@ -488,7 +488,7 @@ void MixerSpeaker::loop() {
   }
 
   if (event_group_bits & MIXER_TASK_STATE_STARTING) {
-    ESP_LOGD(TAG, "Starting speaker mixer");
+    ESP_LOGD(TAG, "Starting");
     xEventGroupClearBits(this->event_group_, MIXER_TASK_STATE_STARTING);
   }
   if (event_group_bits & MIXER_TASK_ERR_ESP_NO_MEM) {
@@ -496,16 +496,17 @@ void MixerSpeaker::loop() {
     xEventGroupClearBits(this->event_group_, MIXER_TASK_ERR_ESP_NO_MEM);
   }
   if (event_group_bits & MIXER_TASK_STATE_RUNNING) {
-    ESP_LOGD(TAG, "Started speaker mixer");
+    ESP_LOGV(TAG, "Started");
     this->status_clear_error();
     xEventGroupClearBits(this->event_group_, MIXER_TASK_STATE_RUNNING);
   }
   if (event_group_bits & MIXER_TASK_STATE_STOPPING) {
-    ESP_LOGD(TAG, "Stopping speaker mixer");
+    ESP_LOGV(TAG, "Stopping");
     xEventGroupClearBits(this->event_group_, MIXER_TASK_STATE_STOPPING);
   }
   if (event_group_bits & MIXER_TASK_STATE_STOPPED) {
     if (this->delete_task_() == ESP_OK) {
+      ESP_LOGD(TAG, "Stopped");
       xEventGroupClearBits(this->event_group_, MIXER_TASK_ALL_BITS);
     }
   }
