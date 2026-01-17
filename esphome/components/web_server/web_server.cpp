@@ -658,6 +658,24 @@ std::string WebServer::text_sensor_json_(text_sensor::TextSensor *obj, const std
 #endif
 
 #ifdef USE_SWITCH
+enum SwitchAction : uint8_t { SWITCH_ACTION_NONE, SWITCH_ACTION_TOGGLE, SWITCH_ACTION_TURN_ON, SWITCH_ACTION_TURN_OFF };
+
+static void execute_switch_action(switch_::Switch *obj, SwitchAction action) {
+  switch (action) {
+    case SWITCH_ACTION_TOGGLE:
+      obj->toggle();
+      break;
+    case SWITCH_ACTION_TURN_ON:
+      obj->turn_on();
+      break;
+    case SWITCH_ACTION_TURN_OFF:
+      obj->turn_off();
+      break;
+    default:
+      break;
+  }
+}
+
 void WebServer::on_switch_update(switch_::Switch *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
@@ -676,34 +694,22 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
       return;
     }
 
-    // Handle action methods with single defer and response
-    enum SwitchAction { NONE, TOGGLE, TURN_ON, TURN_OFF };
-    SwitchAction action = NONE;
+    SwitchAction action = SWITCH_ACTION_NONE;
 
     if (match.method_equals(ESPHOME_F("toggle"))) {
-      action = TOGGLE;
+      action = SWITCH_ACTION_TOGGLE;
     } else if (match.method_equals(ESPHOME_F("turn_on"))) {
-      action = TURN_ON;
+      action = SWITCH_ACTION_TURN_ON;
     } else if (match.method_equals(ESPHOME_F("turn_off"))) {
-      action = TURN_OFF;
+      action = SWITCH_ACTION_TURN_OFF;
     }
 
-    if (action != NONE) {
-      this->defer([obj, action]() {
-        switch (action) {
-          case TOGGLE:
-            obj->toggle();
-            break;
-          case TURN_ON:
-            obj->turn_on();
-            break;
-          case TURN_OFF:
-            obj->turn_off();
-            break;
-          default:
-            break;
-        }
-      });
+    if (action != SWITCH_ACTION_NONE) {
+#ifdef USE_ESP8266
+      execute_switch_action(obj, action);
+#else
+      this->defer([obj, action]() { execute_switch_action(obj, action); });
+#endif
       request->send(200);
     } else {
       request->send(404);
@@ -743,7 +749,7 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
       std::string data = this->button_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
     } else if (match.method_equals(ESPHOME_F("press"))) {
-      this->defer([obj]() { obj->press(); });
+      DEFER_ACTION(obj, obj->press());
       request->send(200);
       return;
     } else {
@@ -752,9 +758,6 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
     return;
   }
   request->send(404);
-}
-std::string WebServer::button_state_json_generator(WebServer *web_server, void *source) {
-  return web_server->button_json_((button::Button *) (source), DETAIL_STATE);
 }
 std::string WebServer::button_all_json_generator(WebServer *web_server, void *source) {
   return web_server->button_json_((button::Button *) (source), DETAIL_ALL);
@@ -831,7 +834,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       std::string data = this->fan_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
     } else if (match.method_equals(ESPHOME_F("toggle"))) {
-      this->defer([obj]() { obj->toggle().perform(); });
+      DEFER_ACTION(obj, obj->toggle().perform());
       request->send(200);
     } else {
       bool is_on = match.method_equals(ESPHOME_F("turn_on"));
@@ -862,7 +865,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
             return;
         }
       }
-      this->defer([call]() mutable { call.perform(); });
+      DEFER_ACTION(call, call.perform());
       request->send(200);
     }
     return;
@@ -912,7 +915,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
       std::string data = this->light_json_(obj, detail);
       request->send(200, "application/json", data.c_str());
     } else if (match.method_equals(ESPHOME_F("toggle"))) {
-      this->defer([obj]() { obj->toggle().perform(); });
+      DEFER_ACTION(obj, obj->toggle().perform());
       request->send(200);
     } else {
       bool is_on = match.method_equals(ESPHOME_F("turn_on"));
@@ -941,7 +944,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
         parse_string_param_(request, ESPHOME_F("effect"), call, &decltype(call)::set_effect);
       }
 
-      this->defer([call]() mutable { call.perform(); });
+      DEFER_ACTION(call, call.perform());
       request->send(200);
     }
     return;
@@ -1030,7 +1033,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
     parse_float_param_(request, ESPHOME_F("position"), call, &decltype(call)::set_position);
     parse_float_param_(request, ESPHOME_F("tilt"), call, &decltype(call)::set_tilt);
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1089,7 +1092,7 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
     auto call = obj->make_call();
     parse_float_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_value);
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1162,7 +1165,7 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
 
     parse_string_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_date);
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1226,7 +1229,7 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
 
     parse_string_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_time);
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1289,7 +1292,7 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
 
     parse_string_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_datetime);
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1349,7 +1352,7 @@ void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMat
     auto call = obj->make_call();
     parse_string_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_value);
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1407,7 +1410,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
     auto call = obj->make_call();
     parse_string_param_(request, ESPHOME_F("option"), call, &decltype(call)::set_option);
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1476,7 +1479,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     parse_float_param_(request, ESPHOME_F("target_temperature_low"), call, &decltype(call)::set_target_temperature_low);
     parse_float_param_(request, ESPHOME_F("target_temperature"), call, &decltype(call)::set_target_temperature);
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1592,6 +1595,24 @@ std::string WebServer::climate_json_(climate::Climate *obj, JsonDetail start_con
 #endif
 
 #ifdef USE_LOCK
+enum LockAction : uint8_t { LOCK_ACTION_NONE, LOCK_ACTION_LOCK, LOCK_ACTION_UNLOCK, LOCK_ACTION_OPEN };
+
+static void execute_lock_action(lock::Lock *obj, LockAction action) {
+  switch (action) {
+    case LOCK_ACTION_LOCK:
+      obj->lock();
+      break;
+    case LOCK_ACTION_UNLOCK:
+      obj->unlock();
+      break;
+    case LOCK_ACTION_OPEN:
+      obj->open();
+      break;
+    default:
+      break;
+  }
+}
+
 void WebServer::on_lock_update(lock::Lock *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
@@ -1610,34 +1631,22 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
       return;
     }
 
-    // Handle action methods with single defer and response
-    enum LockAction { NONE, LOCK, UNLOCK, OPEN };
-    LockAction action = NONE;
+    LockAction action = LOCK_ACTION_NONE;
 
     if (match.method_equals(ESPHOME_F("lock"))) {
-      action = LOCK;
+      action = LOCK_ACTION_LOCK;
     } else if (match.method_equals(ESPHOME_F("unlock"))) {
-      action = UNLOCK;
+      action = LOCK_ACTION_UNLOCK;
     } else if (match.method_equals(ESPHOME_F("open"))) {
-      action = OPEN;
+      action = LOCK_ACTION_OPEN;
     }
 
-    if (action != NONE) {
-      this->defer([obj, action]() {
-        switch (action) {
-          case LOCK:
-            obj->lock();
-            break;
-          case UNLOCK:
-            obj->unlock();
-            break;
-          case OPEN:
-            obj->open();
-            break;
-          default:
-            break;
-        }
-      });
+    if (action != LOCK_ACTION_NONE) {
+#ifdef USE_ESP8266
+      execute_lock_action(obj, action);
+#else
+      this->defer([obj, action]() { execute_lock_action(obj, action); });
+#endif
       request->send(200);
     } else {
       request->send(404);
@@ -1720,7 +1729,7 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
 
     parse_float_param_(request, ESPHOME_F("position"), call, &decltype(call)::set_position);
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1799,7 +1808,7 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
       return;
     }
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -1875,7 +1884,7 @@ void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, cons
     // Parse on/off parameter
     parse_bool_param_(request, ESPHOME_F("is_on"), base_call, &water_heater::WaterHeaterCall::set_on);
 
-    this->defer([call]() mutable { call.perform(); });
+    DEFER_ACTION(call, call.perform());
     request->send(200);
     return;
   }
@@ -2035,7 +2044,7 @@ void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlM
       return;
     }
 
-    this->defer([obj]() mutable { obj->perform(); });
+    DEFER_ACTION(obj, obj->perform());
     request->send(200);
     return;
   }
