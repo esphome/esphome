@@ -4,6 +4,7 @@
 #include <fstream>
 #include "preferences.h"
 #include "esphome/core/application.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace host {
@@ -14,13 +15,36 @@ static const char *const TAG = "host.preferences";
 void HostPreferences::setup_() {
   if (this->setup_complete_)
     return;
-  this->filename_.append(getenv("HOME"));
-  this->filename_.append("/.esphome");
-  this->filename_.append("/prefs");
-  fs::create_directories(this->filename_);
-  this->filename_.append("/");
-  this->filename_.append(App.get_name());
-  this->filename_.append(".prefs");
+  fs::path preferences_root;
+#ifdef ESPHOME_HOST_PREFERENCES_PATH
+  preferences_root = ESPHOME_HOST_PREFERENCES_PATH;
+#else
+  const char *home = getenv("HOME");
+  if (home == nullptr || *home == '\0') {
+    ESP_LOGE(TAG, "HOME is not set and no host preferences path was configured.");
+    return;
+  }
+  preferences_root = fs::path(home) / ".esphome" / "prefs";
+#endif
+  std::string preferences_root_str = preferences_root.string();
+  std::error_code error;
+  fs::create_directories(preferences_root, error);
+  if (error) {
+    ESP_LOGE(TAG, "Failed to create preferences directory '%s': %s", preferences_root_str.c_str(),
+             error.message().c_str());
+    return;
+  }
+  std::error_code status_error;
+  fs::perms permissions = fs::status(preferences_root, status_error).permissions();
+  if (!status_error) {
+    fs::perms writable = fs::perms::owner_write | fs::perms::group_write | fs::perms::others_write;
+    if ((permissions & writable) == fs::perms::none) {
+      ESP_LOGE(TAG, "Preferences directory '%s' is not writable.", preferences_root_str.c_str());
+    }
+  }
+  fs::path preferences_file = preferences_root / (App.get_name() + std::string(".prefs"));
+  this->filename_ = preferences_file.string();
+  ESP_LOGD(TAG, "Using preferences path: %s", this->filename_.c_str());
   FILE *fp = fopen(this->filename_.c_str(), "rb");
   if (fp != nullptr) {
     while (!feof((fp))) {
