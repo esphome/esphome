@@ -8,19 +8,31 @@ namespace debug {
 
 static const char *const TAG = "debug";
 
-std::string DebugComponent::get_reset_reason_() {
+const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
+  char *buf = buffer.data();
 #if !defined(CLANG_TIDY)
-  return ESP.getResetReason().c_str();
+  String reason = ESP.getResetReason();  // NOLINT
+  snprintf_P(buf, RESET_REASON_BUFFER_SIZE, PSTR("%s"), reason.c_str());
+  return buf;
 #else
-  return "";
+  buf[0] = '\0';
+  return buf;
 #endif
+}
+
+const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
+  // ESP8266 doesn't have detailed wakeup cause like ESP32
+  return "";
 }
 
 uint32_t DebugComponent::get_free_heap_() {
   return ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
 }
 
-void DebugComponent::get_device_info_(std::string &device_info) {
+size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE> buffer, size_t pos) {
+  constexpr size_t size = DEVICE_INFO_BUFFER_SIZE;
+  char *buf = buffer.data();
+
   const char *flash_mode;
   switch (ESP.getFlashChipMode()) {  // NOLINT(readability-static-accessed-through-instance)
     case FM_QIO:
@@ -38,39 +50,45 @@ void DebugComponent::get_device_info_(std::string &device_info) {
     default:
       flash_mode = "UNKNOWN";
   }
-  ESP_LOGD(TAG, "Flash Chip: Size=%ukB Speed=%uMHz Mode=%s",
-           ESP.getFlashChipSize() / 1024,                                                   // NOLINT
-           ESP.getFlashChipSpeed() / 1000000, flash_mode);                                  // NOLINT
-  device_info += "|Flash: " + to_string(ESP.getFlashChipSize() / 1024) +                    // NOLINT
-                 "kB Speed:" + to_string(ESP.getFlashChipSpeed() / 1000000) + "MHz Mode:";  // NOLINT
-  device_info += flash_mode;
+  uint32_t flash_size = ESP.getFlashChipSize() / 1024;       // NOLINT
+  uint32_t flash_speed = ESP.getFlashChipSpeed() / 1000000;  // NOLINT
+  ESP_LOGD(TAG, "Flash Chip: Size=%" PRIu32 "kB Speed=%" PRIu32 "MHz Mode=%s", flash_size, flash_speed, flash_mode);
+  pos = buf_append(buf, size, pos, "|Flash: %" PRIu32 "kB Speed:%" PRIu32 "MHz Mode:%s", flash_size, flash_speed,
+                   flash_mode);
 
 #if !defined(CLANG_TIDY)
-  auto reset_reason = get_reset_reason_();
-  ESP_LOGD(TAG, "Chip ID: 0x%08X", ESP.getChipId());
-  ESP_LOGD(TAG, "SDK Version: %s", ESP.getSdkVersion());
-  ESP_LOGD(TAG, "Core Version: %s", ESP.getCoreVersion().c_str());
-  ESP_LOGD(TAG, "Boot Version=%u Mode=%u", ESP.getBootVersion(), ESP.getBootMode());
-  ESP_LOGD(TAG, "CPU Frequency: %u", ESP.getCpuFreqMHz());
-  ESP_LOGD(TAG, "Flash Chip ID=0x%08X", ESP.getFlashChipId());
-  ESP_LOGD(TAG, "Reset Reason: %s", reset_reason.c_str());
-  ESP_LOGD(TAG, "Reset Info: %s", ESP.getResetInfo().c_str());
+  char reason_buffer[RESET_REASON_BUFFER_SIZE];
+  const char *reset_reason = get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE>(reason_buffer));
+  uint32_t chip_id = ESP.getChipId();
+  uint8_t boot_version = ESP.getBootVersion();
+  uint8_t boot_mode = ESP.getBootMode();
+  uint8_t cpu_freq = ESP.getCpuFreqMHz();
+  uint32_t flash_chip_id = ESP.getFlashChipId();
 
-  device_info += "|Chip: 0x" + format_hex(ESP.getChipId());
-  device_info += "|SDK: ";
-  device_info += ESP.getSdkVersion();
-  device_info += "|Core: ";
-  device_info += ESP.getCoreVersion().c_str();
-  device_info += "|Boot: ";
-  device_info += to_string(ESP.getBootVersion());
-  device_info += "|Mode: " + to_string(ESP.getBootMode());
-  device_info += "|CPU: " + to_string(ESP.getCpuFreqMHz());
-  device_info += "|Flash: 0x" + format_hex(ESP.getFlashChipId());
-  device_info += "|Reset: ";
-  device_info += reset_reason;
-  device_info += "|";
-  device_info += ESP.getResetInfo().c_str();
+  ESP_LOGD(TAG,
+           "Chip ID: 0x%08" PRIX32 "\n"
+           "SDK Version: %s\n"
+           "Core Version: %s\n"
+           "Boot Version=%u Mode=%u\n"
+           "CPU Frequency: %u\n"
+           "Flash Chip ID=0x%08" PRIX32 "\n"
+           "Reset Reason: %s\n"
+           "Reset Info: %s",
+           chip_id, ESP.getSdkVersion(), ESP.getCoreVersion().c_str(), boot_version, boot_mode, cpu_freq, flash_chip_id,
+           reset_reason, ESP.getResetInfo().c_str());
+
+  pos = buf_append(buf, size, pos, "|Chip: 0x%08" PRIX32, chip_id);
+  pos = buf_append(buf, size, pos, "|SDK: %s", ESP.getSdkVersion());
+  pos = buf_append(buf, size, pos, "|Core: %s", ESP.getCoreVersion().c_str());
+  pos = buf_append(buf, size, pos, "|Boot: %u", boot_version);
+  pos = buf_append(buf, size, pos, "|Mode: %u", boot_mode);
+  pos = buf_append(buf, size, pos, "|CPU: %u", cpu_freq);
+  pos = buf_append(buf, size, pos, "|Flash: 0x%08" PRIX32, flash_chip_id);
+  pos = buf_append(buf, size, pos, "|Reset: %s", reset_reason);
+  pos = buf_append(buf, size, pos, "|%s", ESP.getResetInfo().c_str());
 #endif
+
+  return pos;
 }
 
 void DebugComponent::update_platform_() {
