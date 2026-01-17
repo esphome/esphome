@@ -2,8 +2,10 @@
 
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/application.h"
 #include "preferences.h"
 
+#include <csignal>
 #include <sched.h>
 #include <time.h>
 #include <cmath>
@@ -66,12 +68,43 @@ uint32_t arch_get_cpu_freq_hz() { return 1000000000U; }
 
 void setup();
 void loop();
+namespace {
+// Flag toggled by SIGTERM/SIGINT to stop the main loop gracefully.
+volatile sig_atomic_t shutdown_requested = 0;
+
+void signal_handler(int) { shutdown_requested = 1; }
+
+void register_signal_handlers() {
+  // Allow systemd (or a user) to terminate the process cleanly.
+  struct sigaction action {};
+  action.sa_handler = signal_handler;
+  sigemptyset(&action.sa_mask);
+  action.sa_flags = 0;
+  sigaction(SIGTERM, &action, nullptr);
+  sigaction(SIGINT, &action, nullptr);
+
+  // Ignore SIGPIPE so socket write errors don't kill the process abruptly.
+  struct sigaction ignore_action {};
+  ignore_action.sa_handler = SIG_IGN;
+  sigemptyset(&ignore_action.sa_mask);
+  ignore_action.sa_flags = 0;
+  sigaction(SIGPIPE, &ignore_action, nullptr);
+}
+}  // namespace
+
 int main() {
+  register_signal_handlers();
   esphome::host::setup_preferences();
   setup();
-  while (true) {
+  // Exit the loop when shutdown has been requested.
+  while (!shutdown_requested) {
     loop();
   }
+  // Give components a chance to shut down cleanly before exit.
+  esphome::App.run_safe_shutdown_hooks();
+  esphome::App.teardown_components(esphome::TEARDOWN_TIMEOUT_REBOOT_MS);
+  esphome::App.run_powerdown_hooks();
+  return 0;
 }
 
 #endif  // USE_HOST
