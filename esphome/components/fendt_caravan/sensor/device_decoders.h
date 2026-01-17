@@ -1,14 +1,13 @@
 #pragma once
-#include <ctime>
-#include <iostream>
-#include <iomanip>
-#include <vector>
-#include <string>
-#include <vector>
+#include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 #include <algorithm>
 #include <cctype>
-#include "esphome/core/string_ref.h"
-#include "esphome/core/log.h"
+#include <ctime>
+#include <iomanip>
+#include <iostream>
+#include <string>
+#include <vector>
 
 namespace esphome {
 namespace fendt_caravan {
@@ -37,7 +36,7 @@ class DeviceDecoders {
   }
   static float decode_voltage(const std::string &data) {
     std::string value = data;
-    size_t start = value.find("V");
+    size_t start = value.find('V');
     if (start != std::string::npos)
       value.replace(start, 1, "");
     start = value.find(',');

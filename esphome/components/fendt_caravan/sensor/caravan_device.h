@@ -18,14 +18,14 @@ class CaravanDevice : public PollingComponent {
   }
   void setup() override{};
   void loop() override{};
-  virtual void update();
+  void update() override;
   void dump_config() override = 0;
 
  protected:
   std::vector<IVariable *> variables_{};
   CallbackManager<void(const std::string &)> command_callback_{};
-  std::vector<IVariable *> get_variables() { return this->variables_; }
-  IVariable *get_variable(const std::string &name) {
+  std::vector<IVariable *> get_variables_() { return this->variables_; }
+  IVariable *get_variable_(const std::string &name) {
     for (auto *variable : this->variables_) {
       if (variable->get_name() == name)
         return variable;

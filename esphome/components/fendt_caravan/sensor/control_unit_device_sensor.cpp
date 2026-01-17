@@ -4,7 +4,7 @@
 namespace esphome {
 namespace fendt_caravan {
 
-#define GET_VARIABLE(T, name) static_cast<Variable<T> *>(this->get_variable(name))
+#define GET_VARIABLE(T, name) static_cast<Variable<T> *>(this->get_variable_(name))
 
 void ControlUnitDeviceSensor::setup() {
   ESP_LOGI(TAG, "Setup called");
@@ -126,7 +126,7 @@ void ControlUnitDeviceSensor::dump_config() {
 
 void ControlUnitDeviceSensor::decode(const std::string &name, const std::string &value) {
   CaravanDevice::decode(name, value);
-  auto variable = this->get_variable(name);
+  auto variable = this->get_variable_(name);
   if (this->main_switch_switch_ && name == "HS_KEY_STATE") {
     auto hs_key_state = static_cast<Variable<int> *>(variable);
     if (hs_key_state->is_active()) {
