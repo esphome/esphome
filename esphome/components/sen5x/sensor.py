@@ -402,11 +402,9 @@ CO2_SETTING_MAP = {
 }
 
 
-def final_validate(config):
-    i2c.final_validate_device_schema("sen5x", max_frequency="100kHz")(config)
-
-
-FINAL_VALIDATE_SCHEMA = final_validate
+FINAL_VALIDATE_SCHEMA = i2c.final_validate_device_schema(
+    "sen5x", max_frequency="100kHz"
+)
 
 
 async def to_code(config):
