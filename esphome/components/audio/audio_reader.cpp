@@ -185,16 +185,18 @@ esp_err_t AudioReader::start(const std::string &uri, AudioFileType &file_type) {
       return err;
     }
 
-    if (str_endswith_ignore_case(url, ".wav")) {
+    std::string url_string = str_lower_case(url);
+
+    if (str_endswith(url_string, ".wav")) {
       file_type = AudioFileType::WAV;
     }
 #ifdef USE_AUDIO_MP3_SUPPORT
-    else if (str_endswith_ignore_case(url, ".mp3")) {
+    else if (str_endswith(url_string, ".mp3")) {
       file_type = AudioFileType::MP3;
     }
 #endif
 #ifdef USE_AUDIO_FLAC_SUPPORT
-    else if (str_endswith_ignore_case(url, ".flac")) {
+    else if (str_endswith(url_string, ".flac")) {
       file_type = AudioFileType::FLAC;
     }
 #endif

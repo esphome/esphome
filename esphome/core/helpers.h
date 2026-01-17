@@ -527,15 +527,6 @@ bool str_startswith(const std::string &str, const std::string &start);
 /// Check whether a string ends with a value.
 bool str_endswith(const std::string &str, const std::string &end);
 
-/// Case-insensitive check if string ends with suffix (no heap allocation).
-bool str_endswith_ignore_case(const char *str, size_t str_len, const char *suffix, size_t suffix_len);
-inline bool str_endswith_ignore_case(const char *str, const char *suffix) {
-  return str_endswith_ignore_case(str, strlen(str), suffix, strlen(suffix));
-}
-inline bool str_endswith_ignore_case(const std::string &str, const char *suffix) {
-  return str_endswith_ignore_case(str.c_str(), str.size(), suffix, strlen(suffix));
-}
-
 /// Truncate a string to a specific length.
 /// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
 std::string str_truncate(const std::string &str, size_t length);
