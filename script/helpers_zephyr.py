@@ -34,6 +34,7 @@ CONFIG_CRYPTO=y
 CONFIG_NVS=y
 CONFIG_SETTINGS=y
 #zigbee end
+CONFIG_DEBUG_COREDUMP=y
 """,
         encoding="utf-8",
     )
