@@ -692,8 +692,8 @@ void MixerSpeaker::audio_mixer_task(void *params) {
   // Pre-allocate vectors to avoid heap allocation in the loop (max 8 source speakers per schema)
   FixedVector<SourceSpeaker *> speakers_with_data;
   FixedVector<std::shared_ptr<audio::AudioSourceTransferBuffer>> transfer_buffers_with_data;
-  speakers_with_data.init(8);
-  transfer_buffers_with_data.init(8);
+  speakers_with_data.init(this_mixer->source_speakers_.size());
+  transfer_buffers_with_data.init(this_mixer->source_speakers_.size());
 
   while (true) {
     uint32_t event_group_bits = xEventGroupGetBits(this_mixer->event_group_);
