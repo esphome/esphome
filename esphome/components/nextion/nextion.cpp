@@ -323,6 +323,8 @@ void Nextion::loop() {
       this->set_touch_sleep_timeout(this->touch_sleep_timeout_);
     }
 
+    this->set_auto_wake_on_touch(this->connection_state_.auto_wake_on_touch_);
+
     this->connection_state_.ignore_is_setup_ = false;
   }
 
@@ -1290,9 +1292,6 @@ void Nextion::check_pending_waveform_() {
 }
 
 void Nextion::set_writer(const nextion_writer_t &writer) { this->writer_ = writer; }
-
-ESPDEPRECATED("set_wait_for_ack(bool) deprecated, no effect", "v1.20")
-void Nextion::set_wait_for_ack(bool wait_for_ack) { ESP_LOGE(TAG, "Deprecated"); }
 
 bool Nextion::is_updating() { return this->connection_state_.is_updating_; }
 

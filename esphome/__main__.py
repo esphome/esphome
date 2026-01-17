@@ -62,6 +62,43 @@ from esphome.util import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Maximum buffer size for serial log reading to prevent unbounded memory growth
+SERIAL_BUFFER_MAX_SIZE = 65536
+
+# Special non-component keys that appear in configs
+_NON_COMPONENT_KEYS = frozenset(
+    {
+        CONF_ESPHOME,
+        "substitutions",
+        "packages",
+        "globals",
+        "external_components",
+        "<<",
+    }
+)
+
+
+def detect_external_components(config: ConfigType) -> set[str]:
+    """Detect external/custom components in the configuration.
+
+    External components are those that appear in the config but are not
+    part of ESPHome's built-in components and are not special config keys.
+
+    Args:
+        config: The ESPHome configuration dictionary
+
+    Returns:
+        A set of external component names
+    """
+    from esphome.analyze_memory.helpers import get_esphome_components
+
+    builtin_components = get_esphome_components()
+    return {
+        key
+        for key in config
+        if key not in builtin_components and key not in _NON_COMPONENT_KEYS
+    }
+
 
 class ArgsProtocol(Protocol):
     device: list[str] | None
@@ -173,19 +210,26 @@ def choose_upload_log_host(
                     if has_mqtt_logging():
                         resolved.append("MQTT")
 
-                    if has_api() and has_non_ip_address():
+                    if has_api() and has_non_ip_address() and has_resolvable_address():
                         resolved.extend(_resolve_with_cache(CORE.address, purpose))
 
                 elif purpose == Purpose.UPLOADING:
                     if has_ota() and has_mqtt_ip_lookup():
                         resolved.append("MQTTIP")
 
-                    if has_ota() and has_non_ip_address():
+                    if has_ota() and has_non_ip_address() and has_resolvable_address():
                         resolved.extend(_resolve_with_cache(CORE.address, purpose))
             else:
                 resolved.append(device)
         if not resolved:
-            _LOGGER.error("All specified devices: %s could not be resolved.", defaults)
+            if CORE.dashboard:
+                hint = "If you know the IP, set 'use_address' in your network config."
+            else:
+                hint = "If you know the IP, try --device <IP>"
+            raise EsphomeError(
+                f"All specified devices {defaults} could not be resolved. "
+                f"Is the device connected to the network? {hint}"
+            )
         return resolved
 
     # No devices specified, show interactive chooser
@@ -282,7 +326,17 @@ def has_resolvable_address() -> bool:
     """Check if CORE.address is resolvable (via mDNS, DNS, or is an IP address)."""
     # Any address (IP, mDNS hostname, or regular DNS hostname) is resolvable
     # The resolve_ip_address() function in helpers.py handles all types via AsyncResolver
-    return CORE.address is not None
+    if CORE.address is None:
+        return False
+
+    if has_ip_address():
+        return True
+
+    if has_mdns():
+        return True
+
+    # .local mDNS hostnames are only resolvable if mDNS is enabled
+    return not CORE.address.endswith(".local")
 
 
 def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):
@@ -385,25 +439,37 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     while tries < 5:
         try:
             with ser:
+                buffer = b""
+                ser.timeout = 0.1  # 100ms timeout for non-blocking reads
                 while True:
                     try:
-                        raw = ser.readline()
+                        # Read all available data and timestamp it
+                        chunk = ser.read(ser.in_waiting or 1)
+                        if not chunk:
+                            continue
+                        time_ = datetime.now()
+                        milliseconds = time_.microsecond // 1000
+                        time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{milliseconds:03}]"
+
+                        # Add to buffer and process complete lines
+                        # Limit buffer size to prevent unbounded memory growth
+                        # if device sends data without newlines
+                        buffer += chunk
+                        if len(buffer) > SERIAL_BUFFER_MAX_SIZE:
+                            buffer = buffer[-SERIAL_BUFFER_MAX_SIZE:]
+                        while b"\n" in buffer:
+                            raw_line, buffer = buffer.split(b"\n", 1)
+                            line = raw_line.replace(b"\r", b"").decode(
+                                "utf8", "backslashreplace"
+                            )
+                            safe_print(parser.parse_line(line, time_str))
+
+                            backtrace_state = platformio_api.process_stacktrace(
+                                config, line, backtrace_state=backtrace_state
+                            )
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
-                    line = (
-                        raw.replace(b"\r", b"")
-                        .replace(b"\n", b"")
-                        .decode("utf8", "backslashreplace")
-                    )
-                    time_ = datetime.now()
-                    nanoseconds = time_.microsecond // 1000
-                    time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{nanoseconds:03}]"
-                    safe_print(parser.parse_line(line, time_str))
-
-                    backtrace_state = platformio_api.process_stacktrace(
-                        config, line, backtrace_state=backtrace_state
-                    )
         except serial.SerialException:
             tries += 1
             time.sleep(1)
@@ -466,12 +532,53 @@ def write_cpp_file() -> int:
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     from esphome import platformio_api
 
-    _LOGGER.info("Compiling app...")
+    # NOTE: "Build path:" format is parsed by script/ci_memory_impact_extract.py
+    # If you change this format, update the regex in that script as well
+    _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
     rc = platformio_api.run_compile(config, CORE.verbose)
     if rc != 0:
         return rc
+
+    # Check if firmware was rebuilt and emit build_info + create manifest
+    _check_and_emit_build_info()
+
     idedata = platformio_api.get_idedata(config)
     return 0 if idedata is not None else 1
+
+
+def _check_and_emit_build_info() -> None:
+    """Check if firmware was rebuilt and emit build_info."""
+    import json
+
+    firmware_path = CORE.firmware_bin
+    build_info_json_path = CORE.relative_build_path("build_info.json")
+
+    # Check if both files exist
+    if not firmware_path.exists() or not build_info_json_path.exists():
+        return
+
+    # Check if firmware is newer than build_info (indicating a relink occurred)
+    if firmware_path.stat().st_mtime <= build_info_json_path.stat().st_mtime:
+        return
+
+    # Read build_info from JSON
+    try:
+        with open(build_info_json_path, encoding="utf-8") as f:
+            build_info = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        _LOGGER.debug("Failed to read build_info: %s", e)
+        return
+
+    config_hash = build_info.get("config_hash")
+    build_time_str = build_info.get("build_time_str")
+
+    if config_hash is None or build_time_str is None:
+        return
+
+    # Emit build_info with human-readable time
+    _LOGGER.info(
+        "Build Info: config_hash=0x%08x build_time_str=%s", config_hash, build_time_str
+    )
 
 
 def upload_using_esptool(
@@ -702,7 +809,13 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     exit_code = compile_program(args, config)
     if exit_code != 0:
         return exit_code
-    _LOGGER.info("Successfully compiled program.")
+    if CORE.is_host:
+        from esphome.platformio_api import get_idedata
+
+        program_path = str(get_idedata(config).firmware_elf_path)
+        _LOGGER.info("Successfully compiled program to path '%s'", program_path)
+    else:
+        _LOGGER.info("Successfully compiled program.")
     return 0
 
 
@@ -752,10 +865,8 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     if CORE.is_host:
         from esphome.platformio_api import get_idedata
 
-        idedata = get_idedata(config)
-        if idedata is None:
-            return 1
-        program_path = idedata.raw["prog_path"]
+        program_path = str(get_idedata(config).firmware_elf_path)
+        _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
     # Get devices, resolving special identifiers like OTA
@@ -888,6 +999,73 @@ def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     return 0
 
 
+def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
+    """Analyze memory usage by component.
+
+    This command compiles the configuration and performs memory analysis.
+    Compilation is fast if sources haven't changed (just relinking).
+    """
+    from esphome import platformio_api
+    from esphome.analyze_memory.cli import MemoryAnalyzerCLI
+    from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
+
+    # Always compile to ensure fresh data (fast if no changes - just relinks)
+    exit_code = write_cpp(config)
+    if exit_code != 0:
+        return exit_code
+    exit_code = compile_program(args, config)
+    if exit_code != 0:
+        return exit_code
+    _LOGGER.info("Successfully compiled program.")
+
+    # Get idedata for analysis
+    idedata = platformio_api.get_idedata(config)
+    if idedata is None:
+        _LOGGER.error("Failed to get IDE data for memory analysis")
+        return 1
+
+    firmware_elf = Path(idedata.firmware_elf_path)
+
+    # Extract external components from config
+    external_components = detect_external_components(config)
+    _LOGGER.debug("Detected external components: %s", external_components)
+
+    # Perform component memory analysis
+    _LOGGER.info("Analyzing memory usage...")
+    analyzer = MemoryAnalyzerCLI(
+        str(firmware_elf),
+        idedata.objdump_path,
+        idedata.readelf_path,
+        external_components,
+        idedata=idedata,
+    )
+    analyzer.analyze()
+
+    # Generate and display component report
+    report = analyzer.generate_report()
+    print()
+    print(report)
+
+    # Perform RAM strings analysis
+    _LOGGER.info("Analyzing RAM strings...")
+    try:
+        ram_analyzer = RamStringsAnalyzer(
+            str(firmware_elf),
+            objdump_path=idedata.objdump_path,
+            platform=CORE.target_platform,
+        )
+        ram_analyzer.analyze()
+
+        # Generate and display RAM strings report
+        ram_report = ram_analyzer.generate_report()
+        print()
+        print(ram_report)
+    except Exception as e:  # pylint: disable=broad-except
+        _LOGGER.warning("RAM strings analysis failed: %s", e)
+
+    return 0
+
+
 def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     new_name = args.name
     for c in new_name:
@@ -1003,6 +1181,7 @@ POST_CONFIG_ACTIONS = {
     "idedata": command_idedata,
     "rename": command_rename,
     "discover": command_discover,
+    "analyze-memory": command_analyze_memory,
 }
 
 SIMPLE_CONFIG_ACTIONS = [
@@ -1222,7 +1401,7 @@ def parse_args(argv):
         "clean-all", help="Clean all build and platform files."
     )
     parser_clean_all.add_argument(
-        "configuration", help="Your YAML configuration directory.", nargs="*"
+        "configuration", help="Your YAML file or configuration directory.", nargs="*"
     )
 
     parser_dashboard = subparsers.add_parser(
@@ -1287,6 +1466,14 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file.", nargs=1
     )
     parser_rename.add_argument("name", help="The new name for the device.", type=str)
+
+    parser_analyze_memory = subparsers.add_parser(
+        "analyze-memory",
+        help="Analyze memory usage by component.",
+    )
+    parser_analyze_memory.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
 
     # Keep backward compatibility with the old command line format of
     # esphome <config> <command>.
