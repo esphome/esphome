@@ -70,10 +70,10 @@ class Event : public EntityBase, public EntityBase_DeviceClass {
   /// Check if an event has been triggered.
   bool has_event() const { return this->last_event_type_ != nullptr; }
 
-  void add_on_event_callback(std::function<void(const std::string &event_type)> &&callback);
+  void add_on_event_callback(std::function<void(StringRef event_type)> &&callback);
 
  protected:
-  LazyCallbackManager<void(const std::string &event_type)> event_callback_;
+  LazyCallbackManager<void(StringRef event_type)> event_callback_;
   FixedVector<const char *> types_;
 
  private:
