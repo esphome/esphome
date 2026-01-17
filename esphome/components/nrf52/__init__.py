@@ -170,6 +170,16 @@ BOARD_SCHEMA = cv.All(
     ),
 )
 
+
+def _validate_dcdc(config: ConfigType) -> ConfigType:
+    if CONF_DCDC not in config:
+        if zephyr_data()[KEY_BOARD].mcu in MCU_FAMILY_NRF52:
+            config[CONF_DCDC] = True
+    elif zephyr_data()[KEY_BOARD].mcu not in MCU_FAMILY_NRF52:
+        raise cv.Invalid("DCDC configuration is only supported on nRF52 MCUs")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     _set_platform,
     cv.Schema(
@@ -182,7 +192,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
                 }
             ),
-            cv.Optional(CONF_DCDC, default=True): cv.boolean,
+            cv.Optional(CONF_DCDC): cv.boolean,
             cv.Optional(CONF_REG0): cv.Schema(
                 {
                     cv.Required(CONF_VOLTAGE): cv.All(
@@ -200,10 +210,13 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     _set_core_data,
+    _validate_dcdc,
 )
 
 
 def _validate_dfu():
+    if zephyr_data()[KEY_BOARD].mcu not in MCU_FAMILY_NRF52:
+        raise cv.Invalid("DFU is only supported on nRF52 MCUs")
     bootloader = zephyr_data()[KEY_BOARD].bootloader
     if not bootloader:
         raise cv.Invalid("DFU requires a bootloader to be configured")
@@ -216,6 +229,8 @@ def _validate_dfu():
 
 
 def _final_validate(config):
+    if CONF_REG0 in config and zephyr_data()[KEY_BOARD].mcu not in MCU_FAMILY_NRF52:
+        raise cv.Invalid("REG0 configuration is only supported on nRF52 MCUs")
     if CONF_DFU in config:
         _validate_dfu()
 

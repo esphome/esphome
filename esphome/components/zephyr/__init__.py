@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 import json
 from pathlib import Path
-import shutil
 import textwrap
 from typing import TypedDict
 
@@ -265,6 +264,4 @@ def copy_files():
         )
     else:
         # Cleanup old file if no pm_static sections were added
-        shutil.rmtree(
-            CORE.relative_build_path("zephyr/pm_static.yml"), ignore_errors=True
-        )
+        CORE.relative_build_path("zephyr/pm_static.yml").unlink(missing_ok=True)
