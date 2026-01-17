@@ -1,0 +1,39 @@
+esphome:
+  name: select-stringref-test
+  friendly_name: Select StringRef Test
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+
+select:
+  - platform: template
+    name: "Test Select"
+    id: test_select
+    optimistic: true
+    options:
+      - "Option A"
+      - "Option B"
+      - "Option C"
+    initial_option: "Option A"
+    on_value:
+      then:
+        # Test 1: Log the value directly (StringRef -> const char* via c_str())
+        - logger.log:
+            format: "Select value: %s"
+            args: ['x.c_str()']
+        # Test 2: String concatenation (StringRef + const char* -> std::string)
+        - lambda: |-
+            std::string with_suffix = x + " selected";
+            ESP_LOGI("test", "Concatenated: %s", with_suffix.c_str());
+        # Test 3: Comparison (StringRef == const char*)
+        - lambda: |-
+            if (x == "Option B") {
+              ESP_LOGI("test", "Option B was selected");
+            }
+        # Test 4: Use index parameter (variable name is 'i')
+        - lambda: |-
+            ESP_LOGI("test", "Select index: %d", (int)i);
