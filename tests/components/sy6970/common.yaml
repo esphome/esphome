@@ -1,7 +1,7 @@
 sy6970:
   id: sy6970_component
   i2c_id: i2c_bus
-  address: 0x6B
+  address: 0x6A
   enable_status_led: true
   update_interval: 5s
 
