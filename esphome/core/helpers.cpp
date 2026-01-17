@@ -174,6 +174,13 @@ bool str_endswith(const std::string &str, const std::string &end) {
   return str.rfind(end) == (str.size() - end.size());
 }
 #endif
+
+bool str_endswith_ignore_case(const char *str, size_t str_len, const char *suffix, size_t suffix_len) {
+  if (suffix_len > str_len)
+    return false;
+  return strncasecmp(str + str_len - suffix_len, suffix, suffix_len) == 0;
+}
+
 std::string str_truncate(const std::string &str, size_t length) {
   return str.length() > length ? str.substr(0, length) : str;
 }
