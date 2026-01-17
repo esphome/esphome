@@ -198,7 +198,7 @@ ShellCommandResult execute_host_command(const std::string &command, const ShellC
 }
 
 std::future<ShellCommandResult> execute_host_command_async(const std::string &command,
-                                                            const ShellCommandOptions &options) {
+                                                           const ShellCommandOptions &options) {
   return std::async(std::launch::async, [command, options]() { return execute_host_command(command, options); });
 }
 
