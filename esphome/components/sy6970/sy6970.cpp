@@ -374,9 +374,3 @@ void SY6970Component::enable_adc_measure() {
 }
 
 }  // namespace esphome::sy6970
-
-uint16_t SY6970Component::get_vbus_voltage() {
-  if (!this->initialized_)
-    return 0;
-
-  uint8_t reg_value;
