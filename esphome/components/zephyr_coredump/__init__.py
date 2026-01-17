@@ -22,7 +22,6 @@ def framework_version(config: ConfigType) -> ConfigType:
     return cv.require_framework_version(
         nrf52_zephyr=cv.Version(2, 9, 2, "1"),
     )(config)
-    return config
 
 
 CONFIG_SCHEMA = cv.All(
