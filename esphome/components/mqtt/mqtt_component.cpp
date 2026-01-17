@@ -222,8 +222,15 @@ bool MQTTComponent::send_discovery_() {
         device_info[MQTT_DEVICE_SW_VERSION] = ESPHOME_PROJECT_VERSION " (ESPHome " ESPHOME_VERSION ")";
         const char *model = std::strchr(ESPHOME_PROJECT_NAME, '.');
         device_info[MQTT_DEVICE_MODEL] = model == nullptr ? ESPHOME_BOARD : model + 1;
-        device_info[MQTT_DEVICE_MANUFACTURER] =
-            model == nullptr ? ESPHOME_PROJECT_NAME : std::string(ESPHOME_PROJECT_NAME, model - ESPHOME_PROJECT_NAME);
+        if (model == nullptr) {
+          device_info[MQTT_DEVICE_MANUFACTURER] = ESPHOME_PROJECT_NAME;
+        } else {
+          char manufacturer[sizeof(ESPHOME_PROJECT_NAME)];
+          size_t len = model - ESPHOME_PROJECT_NAME;
+          memcpy(manufacturer, ESPHOME_PROJECT_NAME, len);
+          manufacturer[len] = '\0';
+          device_info[MQTT_DEVICE_MANUFACTURER] = manufacturer;
+        }
 #else
         static const char ver_fmt[] PROGMEM = ESPHOME_VERSION " (config hash 0x%08" PRIx32 ")";
         // Buffer sized for format string expansion: ~4 bytes net growth from format specifier to 8 hex digits, plus
