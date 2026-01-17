@@ -3,11 +3,11 @@ sy6970:
   i2c_id: i2c_bus
   address: 0x6B
   enable_status_led: true
+  update_interval: 5s
 
 sensor:
   - platform: sy6970
     sy6970_id: sy6970_component
-    update_interval: 60s
     vbus_voltage:
       name: "VBUS Voltage"
       id: vbus_voltage_sensor
@@ -27,7 +27,6 @@ sensor:
 binary_sensor:
   - platform: sy6970
     sy6970_id: sy6970_component
-    update_interval: 60s
     vbus_connected:
       name: "VBUS Connected"
       id: vbus_connected_binary
@@ -41,7 +40,6 @@ binary_sensor:
 text_sensor:
   - platform: sy6970
     sy6970_id: sy6970_component
-    update_interval: 60s
     bus_status:
       name: "Bus Status"
       id: bus_status_text

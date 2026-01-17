@@ -11,7 +11,9 @@ CONF_SY6970_ID = "sy6970_id"
 CONF_ENABLE_STATUS_LED = "enable_status_led"
 
 sy6970_ns = cg.esphome_ns.namespace("sy6970")
-SY6970Component = sy6970_ns.class_("SY6970Component", cg.Component, i2c.I2CDevice)
+SY6970Component = sy6970_ns.class_(
+    "SY6970Component", cg.PollingComponent, i2c.I2CDevice
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -20,7 +22,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ENABLE_STATUS_LED, default=True): cv.boolean,
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.polling_component_schema("5s"))
     .extend(i2c.i2c_device_schema(0x6B))
 )
 
