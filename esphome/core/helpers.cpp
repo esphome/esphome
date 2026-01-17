@@ -487,19 +487,26 @@ static constexpr const char *BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                             "abcdefghijklmnopqrstuvwxyz"
                                             "0123456789+/";
 
-// Helper function to find the index of a base64 character in the lookup table.
+// Helper function to find the index of a base64/base64url character in the lookup table.
 // Returns the character's position (0-63) if found, or 0 if not found.
+// Supports both standard base64 (+/) and base64url (-_) alphabets.
 // NOTE: This returns 0 for both 'A' (valid base64 char at index 0) and invalid characters.
 // This is safe because is_base64() is ALWAYS checked before calling this function,
 // preventing invalid characters from ever reaching here. The base64_decode function
 // stops processing at the first invalid character due to the is_base64() check in its
 // while loop condition, making this edge case harmless in practice.
 static inline uint8_t base64_find_char(char c) {
+  // Handle base64url variants: '-' maps to '+' (index 62), '_' maps to '/' (index 63)
+  if (c == '-')
+    return 62;
+  if (c == '_')
+    return 63;
   const char *pos = strchr(BASE64_CHARS, c);
   return pos ? (pos - BASE64_CHARS) : 0;
 }
 
-static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/')); }
+// Check if character is valid base64 or base64url
+static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/') || (c == '-') || (c == '_')); }
 
 std::string base64_encode(const std::vector<uint8_t> &buf) { return base64_encode(buf.data(), buf.size()); }
 
@@ -615,6 +622,46 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
   size_t actual_len = base64_decode(encoded_string, ret.data(), max_len);
   ret.resize(actual_len);
   return ret;
+}
+
+/// Decode base64/base64url string directly into vector of little-endian int32 values
+/// @param base64 Base64 or base64url encoded string (both +/ and -_ accepted)
+/// @param out Output vector (cleared and filled with decoded int32 values)
+/// @return true if successful, false if decode failed or invalid size
+bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> &out) {
+  // Decode in chunks to minimize stack usage
+  constexpr size_t chunk_bytes = 48;  // 12 int32 values
+  constexpr size_t chunk_chars = 64;  // 48 * 4/3 = 64 chars
+  uint8_t chunk[chunk_bytes];
+
+  out.clear();
+
+  const uint8_t *input = reinterpret_cast<const uint8_t *>(base64.data());
+  size_t remaining = base64.size();
+  size_t pos = 0;
+
+  while (remaining > 0) {
+    size_t chars_to_decode = std::min(remaining, chunk_chars);
+    size_t decoded_len = base64_decode(input + pos, chars_to_decode, chunk, chunk_bytes);
+
+    if (decoded_len == 0)
+      return false;
+
+    // Parse little-endian int32 values
+    for (size_t i = 0; i + 3 < decoded_len; i += 4) {
+      int32_t timing = static_cast<int32_t>(encode_uint32(chunk[i + 3], chunk[i + 2], chunk[i + 1], chunk[i]));
+      out.push_back(timing);
+    }
+
+    // Check for incomplete int32 in last chunk
+    if (remaining <= chunk_chars && (decoded_len % 4) != 0)
+      return false;
+
+    pos += chars_to_decode;
+    remaining -= chars_to_decode;
+  }
+
+  return !out.empty();
 }
 
 // Colors

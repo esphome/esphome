@@ -18,9 +18,9 @@ char *format_bytes_to(char *buffer, const std::vector<uint8_t> &bytes) {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-std::string format_uid(const std::vector<uint8_t> &uid) { return format_hex_pretty(uid, '-', false); }
-
-std::string format_bytes(const std::vector<uint8_t> &bytes) { return format_hex_pretty(bytes, ' ', false); }
+// Deprecated wrappers intentionally use heap-allocating version for backward compatibility
+std::string format_uid(const std::vector<uint8_t> &uid) { return format_hex_pretty(uid, '-', false); }        // NOLINT
+std::string format_bytes(const std::vector<uint8_t> &bytes) { return format_hex_pretty(bytes, ' ', false); }  // NOLINT
 #pragma GCC diagnostic pop
 
 uint8_t guess_tag_type(uint8_t uid_length) {
