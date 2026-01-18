@@ -307,11 +307,10 @@ CONFIG_SCHEMA = cv.All(
                 esp32=8,  # More RAM, can buffer more
                 rp2040=5,  # Limited RAM
                 bk72xx=8,  # Moderate RAM
-                nrf52=8,  # Moderate RAM
+                nrf52=5,  # Limited RAM
                 rtl87xx=8,  # Moderate RAM
                 host=16,  # Abundant resources
                 ln882x=8,  # Moderate RAM
-                nrf52=5,  # Limited RAM
             ): cv.int_range(min=1, max=64),
         }
     ).extend(cv.COMPONENT_SCHEMA),
