@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_INITIAL_VALUE,
     CONF_RESTORE_VALUE,
     CONF_TYPE,
+    CONF_UPDATE_INTERVAL,
     CONF_VALUE,
 )
 from esphome.core import CoroPriority, coroutine_with_priority
@@ -13,25 +14,37 @@ from esphome.core import CoroPriority, coroutine_with_priority
 CODEOWNERS = ["@esphome/core"]
 globals_ns = cg.esphome_ns.namespace("globals")
 GlobalsComponent = globals_ns.class_("GlobalsComponent", cg.Component)
-RestoringGlobalsComponent = globals_ns.class_("RestoringGlobalsComponent", cg.Component)
+RestoringGlobalsComponent = globals_ns.class_(
+    "RestoringGlobalsComponent", cg.PollingComponent
+)
 RestoringGlobalStringComponent = globals_ns.class_(
-    "RestoringGlobalStringComponent", cg.Component
+    "RestoringGlobalStringComponent", cg.PollingComponent
 )
 GlobalVarSetAction = globals_ns.class_("GlobalVarSetAction", automation.Action)
 
 CONF_MAX_RESTORE_DATA_LENGTH = "max_restore_data_length"
 
 
+def validate_update_interval(config):
+    if CONF_UPDATE_INTERVAL in config and not config.get(CONF_RESTORE_VALUE, False):
+        raise cv.Invalid("update_interval requires restore_value to be true")
+    return config
+
+
 MULTI_CONF = True
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_ID): cv.declare_id(GlobalsComponent),
-        cv.Required(CONF_TYPE): cv.string_strict,
-        cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
-        cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
-        cv.Optional(CONF_MAX_RESTORE_DATA_LENGTH): cv.int_range(0, 254),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.declare_id(GlobalsComponent),
+            cv.Required(CONF_TYPE): cv.string_strict,
+            cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
+            cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
+            cv.Optional(CONF_MAX_RESTORE_DATA_LENGTH): cv.int_range(0, 254),
+            cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    validate_update_interval,
+)
 
 
 # Run with low priority so that namespaces are registered first
@@ -65,6 +78,8 @@ async def to_code(config):
             value = value.encode()
         hash_ = int(hashlib.md5(value).hexdigest()[:8], 16)
         cg.add(glob.set_name_hash(hash_))
+        if CONF_UPDATE_INTERVAL in config:
+            cg.add(glob.set_update_interval(config[CONF_UPDATE_INTERVAL]))
 
 
 @automation.register_action(
