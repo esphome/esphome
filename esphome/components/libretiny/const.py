@@ -11,6 +11,7 @@ class LibreTinyComponent:
     board_pins: dict[str, dict[str, int]]
     pin_validation: Callable[[int], int]
     usage_validation: Callable[[dict], dict]
+    supports_atomics: bool = False  # True for Cortex-M4(F) with LDREX/STREX
 
 
 CONF_LIBRETINY = "libretiny"
