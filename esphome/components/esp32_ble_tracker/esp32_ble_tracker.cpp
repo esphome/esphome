@@ -135,8 +135,11 @@ void ESP32BLETracker::loop() {
   // if no state has changed since last loop iteration.
   //
   // How state changes ensure we reach the code below:
-  // - handle_scanner_failure_(): scanner_state_ set via set_scanner_state_() increments version
-  // - start_scan_()/update_coex_preference_(): scanner_state_ becomes IDLE via set_scanner_state_()
+  // - handle_scanner_failure_(): scanner_state_ becomes FAILED via set_scanner_state_(), or
+  //   scan_set_param_failed_ requires scanner_state_==RUNNING which can only be reached via
+  //   set_scanner_state_(RUNNING) in gap_scan_start_complete_() (scan params are set during
+  //   STARTING, not RUNNING, so version is always incremented before this condition is true)
+  // - start_scan_(): scanner_state_ becomes IDLE via set_scanner_state_() in cleanup_scan_state_()
   // - try_promote_discovered_clients_(): client enters DISCOVERED via set_state(), or
   //   connecting client finishes (state change), or scanner reaches RUNNING/IDLE
   //
