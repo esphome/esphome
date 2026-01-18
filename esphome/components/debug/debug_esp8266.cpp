@@ -116,7 +116,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
                           flash_mode);
 
   char reason_buffer[RESET_REASON_BUFFER_SIZE];
-  const char *reset_reason = get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE>(reason_buffer));
+  const char *reset_reason = get_reset_reason_(reason_buffer);
   char core_version_buffer[CORE_VERSION_BUFFER_SIZE];
   char reset_info_buffer[RESET_INFO_BUFFER_SIZE];
   // NOLINTBEGIN(readability-static-accessed-through-instance)
@@ -137,22 +137,18 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
            "Flash Chip ID=0x%08" PRIX32 "\n"
            "Reset Reason: %s\n"
            "Reset Info: %s",
-           chip_id, sdk_version, get_core_version_str(std::span<char, CORE_VERSION_BUFFER_SIZE>(core_version_buffer)),
-           boot_version, boot_mode, cpu_freq, flash_chip_id, reset_reason,
-           get_reset_info_str(std::span<char, RESET_INFO_BUFFER_SIZE>(reset_info_buffer), resetInfo.reason));
+           chip_id, sdk_version, get_core_version_str(core_version_buffer), boot_version, boot_mode, cpu_freq,
+           flash_chip_id, reset_reason, get_reset_info_str(reset_info_buffer, resetInfo.reason));
 
   pos = buf_append_printf(buf, size, pos, "|Chip: 0x%08" PRIX32, chip_id);
   pos = buf_append_printf(buf, size, pos, "|SDK: %s", sdk_version);
-  pos = buf_append_printf(buf, size, pos, "|Core: %s",
-                          get_core_version_str(std::span<char, CORE_VERSION_BUFFER_SIZE>(core_version_buffer)));
+  pos = buf_append_printf(buf, size, pos, "|Core: %s", get_core_version_str(core_version_buffer));
   pos = buf_append_printf(buf, size, pos, "|Boot: %u", boot_version);
   pos = buf_append_printf(buf, size, pos, "|Mode: %u", boot_mode);
   pos = buf_append_printf(buf, size, pos, "|CPU: %u", cpu_freq);
   pos = buf_append_printf(buf, size, pos, "|Flash: 0x%08" PRIX32, flash_chip_id);
   pos = buf_append_printf(buf, size, pos, "|Reset: %s", reset_reason);
-  pos = buf_append_printf(
-      buf, size, pos, "|%s",
-      get_reset_info_str(std::span<char, RESET_INFO_BUFFER_SIZE>(reset_info_buffer), resetInfo.reason));
+  pos = buf_append_printf(buf, size, pos, "|%s", get_reset_info_str(reset_info_buffer, resetInfo.reason));
 
   return pos;
 }
