@@ -126,7 +126,16 @@ void ESP32BLETracker::loop() {
   }
 
   // Fast path: skip expensive client state counting and processing
-  // if no state has changed since last loop iteration
+  // if no state has changed since last loop iteration.
+  //
+  // How state changes ensure we reach the code below:
+  // - handle_scanner_failure_(): scanner_state_ set via set_scanner_state_() increments version
+  // - start_scan_()/update_coex_preference_(): scanner_state_ becomes IDLE via set_scanner_state_()
+  // - try_promote_discovered_clients_(): client enters DISCOVERED via set_state(), or
+  //   connecting client finishes (state change), or scanner reaches RUNNING/IDLE
+  //
+  // All conditions that affect the logic below are tied to state changes that increment
+  // state_version_, so the fast path is safe.
   if (this->state_version_ == this->last_processed_version_) {
     return;
   }
@@ -140,6 +149,7 @@ void ESP32BLETracker::loop() {
              this->client_state_counts_.discovered, this->client_state_counts_.disconnecting);
   }
 
+  // Scanner failure: reached when set_scanner_state_(FAILED) or scan_set_param_failed_ set
   if (this->scanner_state_ == ScannerState::FAILED ||
       (this->scan_set_param_failed_ && this->scanner_state_ == ScannerState::RUNNING)) {
     this->handle_scanner_failure_();
@@ -158,6 +168,8 @@ void ESP32BLETracker::loop() {
 
   */
 
+  // Start scan: reached when scanner_state_ becomes IDLE (via set_scanner_state_()) and
+  // all clients are idle (their state changes increment version when they finish)
   if (this->scanner_state_ == ScannerState::IDLE && !counts.connecting && !counts.disconnecting && !counts.discovered) {
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
     this->update_coex_preference_(false);
@@ -166,8 +178,9 @@ void ESP32BLETracker::loop() {
       this->start_scan_(false);  // first = false
     }
   }
-  // If there is a discovered client and no connecting
-  // clients, then promote the discovered client to ready to connect.
+  // Promote discovered clients: reached when a client's state becomes DISCOVERED (via set_state()),
+  // or when a blocking condition clears (connecting client finishes, scanner reaches RUNNING/IDLE).
+  // All these trigger state_version_ increment, so we'll process and check promotion eligibility.
   // We check both RUNNING and IDLE states because:
   // - RUNNING: gap_scan_event_handler initiates stop_scan_() but promotion can happen immediately
   // - IDLE: Scanner has already stopped (naturally or by gap_scan_event_handler)
