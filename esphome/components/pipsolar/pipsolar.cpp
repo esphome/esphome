@@ -45,20 +45,20 @@ void Pipsolar::loop() {
         } else {
           ESP_LOGD(TAG, "command not successful");
         }
-        this->command_queue_[this->command_queue_position_] = std::string("");
+        this->command_queue_[this->command_queue_position_].clear();
         this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
         this->state_ = STATE_IDLE;
       } else {
         // crc failed
         // no log message necessary, check_incoming_crc_() logs
-        this->command_queue_[this->command_queue_position_] = std::string("");
+        this->command_queue_[this->command_queue_position_].clear();
         this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
         this->state_ = STATE_IDLE;
       }
     } else {
       ESP_LOGD(TAG, "command %s response length not OK: with length %zu",
                this->command_queue_[this->command_queue_position_].c_str(), this->read_pos_);
-      this->command_queue_[this->command_queue_position_] = std::string("");
+      this->command_queue_[this->command_queue_position_].clear();
       this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
       this->state_ = STATE_IDLE;
     }
@@ -127,7 +127,7 @@ void Pipsolar::loop() {
       const char *command = this->command_queue_[this->command_queue_position_].c_str();
       this->command_start_millis_ = millis();
       ESP_LOGD(TAG, "command %s timeout", command);
-      this->command_queue_[this->command_queue_position_] = std::string("");
+      this->command_queue_[this->command_queue_position_].clear();
       this->command_queue_position_ = (command_queue_position_ + 1) % COMMAND_QUEUE_LENGTH;
       this->state_ = STATE_IDLE;
       return;
@@ -722,7 +722,7 @@ void Pipsolar::publish_binary_sensor_(esphome::optional<bool> b, binary_sensor::
   }
 }
 
-esphome::optional<bool> Pipsolar::get_bit_(std::string bits, uint8_t bit_pos) {
+esphome::optional<bool> Pipsolar::get_bit_(const std::string &bits, uint8_t bit_pos) {
   if (bit_pos >= bits.length()) {
     return {};
   }

@@ -224,7 +224,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
 
   void publish_binary_sensor_(esphome::optional<bool> b, binary_sensor::BinarySensor *sensor);
 
-  esphome::optional<bool> get_bit_(std::string bits, uint8_t bit_pos);
+  esphome::optional<bool> get_bit_(const std::string &bits, uint8_t bit_pos);
 
   std::string command_queue_[COMMAND_QUEUE_LENGTH];
   uint8_t command_queue_position_ = 0;

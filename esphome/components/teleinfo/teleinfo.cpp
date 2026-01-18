@@ -172,15 +172,15 @@ void TeleInfo::loop() {
         /* Advance buf_finger to end of group */
         buf_finger += field_len + 1 + 1 + 1;
 
-        publish_value_(std::string(tag_), std::string(val_));
+        publish_value_(tag_, val_);
       }
       state_ = OFF;
       break;
   }
 }
-void TeleInfo::publish_value_(const std::string &tag, const std::string &val) {
+void TeleInfo::publish_value_(const char *tag, const char *val) {
   for (auto *element : teleinfo_listeners_) {
-    if (tag != element->tag)
+    if (strcmp(tag, element->tag) != 0)
       continue;
     element->publish_val(val);
   }
