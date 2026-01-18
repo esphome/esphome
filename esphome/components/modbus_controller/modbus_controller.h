@@ -271,9 +271,9 @@ class ServerRegister {
 
   // Formats a raw value into a string representation based on the value type for debugging
   std::string format_value(int64_t value) const {
-    // max 48: float with %.1f can be up to 42 chars (3.4e38 → 38 integer digits + decimal + 1 digit + sign + null)
-    // int64_t max is 20 chars + sign + null = 22, so 48 covers both
-    char buf[48];
+    // max 44: float with %.1f can be up to 42 chars (3.4e38 → 39 integer digits + sign + decimal + 1 digit)
+    // plus null terminator = 43, rounded to 44 for 4-byte alignment
+    char buf[44];
     switch (this->value_type) {
       case SensorValueType::U_WORD:
       case SensorValueType::U_DWORD:
