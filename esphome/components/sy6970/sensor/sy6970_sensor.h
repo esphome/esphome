@@ -16,16 +16,18 @@ static const uint16_t CHG_CURRENT_STEP_MA = 50;  // mA
 static const uint16_t PRE_CHG_BASE_MA = 64;      // mA
 static const uint16_t PRE_CHG_STEP_MA = 64;      // mA
 
-template<uint8_t REG, uint8_t MASK, uint16_t BASE, uint16_t STEP, float SCALE>
+// Template for voltage sensors (converts mV to V)
+template<uint8_t REG, uint8_t MASK, uint16_t BASE, uint16_t STEP>
 class VoltageSensor : public SY6970Listener, public sensor::Sensor {
  public:
   void on_data(const SY6970Data &data) override {
     uint8_t val = data.registers[REG] & MASK;
     uint16_t voltage_mv = BASE + (val * STEP);
-    this->publish_state(voltage_mv * SCALE);
+    this->publish_state(voltage_mv * 0.001f);  // Convert mV to V
   }
 };
 
+// Template for current sensors (returns mA)
 template<uint8_t REG, uint8_t MASK, uint16_t BASE, uint16_t STEP>
 class CurrentSensor : public SY6970Listener, public sensor::Sensor {
  public:
@@ -37,9 +39,9 @@ class CurrentSensor : public SY6970Listener, public sensor::Sensor {
 };
 
 // Specialized sensor types using templates
-using SY6970VbusVoltageSensor = VoltageSensor<SY6970_REG_VBUS_VOLTAGE, 0x7F, VBUS_BASE_MV, VBUS_STEP_MV, 0.001f>;
-using SY6970BatteryVoltageSensor = VoltageSensor<SY6970_REG_BATV, 0x7F, VBAT_BASE_MV, VBAT_STEP_MV, 0.001f>;
-using SY6970SystemVoltageSensor = VoltageSensor<SY6970_REG_VINDPM_STATUS, 0x7F, VSYS_BASE_MV, VSYS_STEP_MV, 0.001f>;
+using SY6970VbusVoltageSensor = VoltageSensor<SY6970_REG_VBUS_VOLTAGE, 0x7F, VBUS_BASE_MV, VBUS_STEP_MV>;
+using SY6970BatteryVoltageSensor = VoltageSensor<SY6970_REG_BATV, 0x7F, VBAT_BASE_MV, VBAT_STEP_MV>;
+using SY6970SystemVoltageSensor = VoltageSensor<SY6970_REG_VINDPM_STATUS, 0x7F, VSYS_BASE_MV, VSYS_STEP_MV>;
 using SY6970ChargeCurrentSensor = CurrentSensor<SY6970_REG_CHARGE_CURRENT_MONITOR, 0x7F, 0, CHG_CURRENT_STEP_MA>;
 
 // Precharge current sensor needs special handling (bit shift)
