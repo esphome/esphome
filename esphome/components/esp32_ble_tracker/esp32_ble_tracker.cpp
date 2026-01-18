@@ -106,21 +106,23 @@ void ESP32BLETracker::loop() {
 
   // Check for scan timeout - moved here from scheduler to avoid false reboots
   // when the loop is blocked. This must run every iteration for safety.
-  if (this->scanner_state_ == ScannerState::RUNNING && this->scan_timeout_state_ == ScanTimeoutState::MONITORING) {
-    // Robust time comparison that handles rollover correctly
-    // This works because unsigned arithmetic wraps around predictably
-    if ((App.get_loop_component_start_time() - this->scan_start_time_) > this->scan_timeout_ms_) {
-      // First time we've seen the timeout exceeded - wait one more loop iteration
-      // This ensures all components have had a chance to process pending events
-      // This is because esp32_ble may not have run yet and called
-      // gap_scan_event_handler yet when the loop unblocks
-      ESP_LOGW(TAG, "Scan timeout exceeded");
-      this->scan_timeout_state_ = ScanTimeoutState::EXCEEDED_WAIT;
+  if (this->scanner_state_ == ScannerState::RUNNING) {
+    if (this->scan_timeout_state_ == ScanTimeoutState::MONITORING) {
+      // Robust time comparison that handles rollover correctly
+      // This works because unsigned arithmetic wraps around predictably
+      if ((App.get_loop_component_start_time() - this->scan_start_time_) > this->scan_timeout_ms_) {
+        // First time we've seen the timeout exceeded - wait one more loop iteration
+        // This ensures all components have had a chance to process pending events
+        // This is because esp32_ble may not have run yet and called
+        // gap_scan_event_handler yet when the loop unblocks
+        ESP_LOGW(TAG, "Scan timeout exceeded");
+        this->scan_timeout_state_ = ScanTimeoutState::EXCEEDED_WAIT;
+      }
+    } else if (this->scan_timeout_state_ == ScanTimeoutState::EXCEEDED_WAIT) {
+      // We've waited at least one full loop iteration, and scan is still running
+      ESP_LOGE(TAG, "Scan never terminated, rebooting");
+      App.reboot();
     }
-  } else if (this->scan_timeout_state_ == ScanTimeoutState::EXCEEDED_WAIT) {
-    // We've waited at least one full loop iteration, and scan is still running
-    ESP_LOGE(TAG, "Scan never terminated, rebooting");
-    App.reboot();
   }
 
   // Fast path: skip expensive client state counting and processing
