@@ -11,6 +11,9 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_COUNTER,
     ICON_TIMER,
+    PLATFORM_BK72XX,
+    PLATFORM_LN882X,
+    PLATFORM_RTL87XX,
     UNIT_BYTES,
     UNIT_HERTZ,
     UNIT_MILLISECOND,
@@ -25,6 +28,7 @@ from . import (  # noqa: F401  pylint: disable=unused-import
 
 DEPENDENCIES = ["debug"]
 
+CONF_MIN_FREE = "min_free"
 CONF_PSRAM = "psram"
 
 CONFIG_SCHEMA = {
@@ -42,12 +46,31 @@ CONFIG_SCHEMA = {
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     cv.Optional(CONF_FRAGMENTATION): cv.All(
-        cv.only_on_esp8266,
-        cv.require_framework_version(esp8266_arduino=cv.Version(2, 5, 2)),
+        cv.Any(
+            cv.All(
+                cv.only_on_esp8266,
+                cv.require_framework_version(esp8266_arduino=cv.Version(2, 5, 2)),
+            ),
+            cv.only_on_esp32,
+            msg="This feature is only available on ESP8266 (Arduino 2.5.2+) and ESP32",
+        ),
         sensor.sensor_schema(
             unit_of_measurement=UNIT_PERCENT,
             icon=ICON_COUNTER,
             accuracy_decimals=1,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
+    ),
+    cv.Optional(CONF_MIN_FREE): cv.All(
+        cv.Any(
+            cv.only_on_esp32,
+            cv.only_on([PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RTL87XX]),
+            msg="This feature is only available on ESP32 and LibreTiny (BK72xx, LN882x, RTL87xx)",
+        ),
+        sensor.sensor_schema(
+            unit_of_measurement=UNIT_BYTES,
+            icon=ICON_COUNTER,
+            accuracy_decimals=0,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
     ),
@@ -92,6 +115,10 @@ async def to_code(config):
     if fragmentation_conf := config.get(CONF_FRAGMENTATION):
         sens = await sensor.new_sensor(fragmentation_conf)
         cg.add(debug_component.set_fragmentation_sensor(sens))
+
+    if min_free_conf := config.get(CONF_MIN_FREE):
+        sens = await sensor.new_sensor(min_free_conf)
+        cg.add(debug_component.set_min_free_sensor(sens))
 
     if loop_time_conf := config.get(CONF_LOOP_TIME):
         sens = await sensor.new_sensor(loop_time_conf)
