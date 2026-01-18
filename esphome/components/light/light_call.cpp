@@ -2,6 +2,7 @@
 
 #include "light_call.h"
 #include "light_state.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 
@@ -73,82 +74,100 @@ static const LogString *color_mode_to_human(ColorMode color_mode) {
   return LOG_STR("Unknown");
 }
 
-// Helper to log percentage values
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-static void log_percent(const LogString *param, float value) {
-  ESP_LOGD(TAG, "  %s: %.0f%%", LOG_STR_ARG(param), value * 100.0f);
-}
-#else
-#define log_percent(param, value)
-#endif
-
 void LightCall::perform() {
   const char *name = this->parent_->get_name().c_str();
   LightColorValues v = this->validate_();
   const bool publish = this->get_publish_();
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+  // Build combined log message in a single buffer to reduce API packet overhead
+  // Buffer sized for: name(64) + state(10) + brightness(20) + color_brightness(25) +
+  // rgb(40) + white(15) + color_temp(35) + cw_ww(40) + transition/flash/effect(40) + margin
+  constexpr size_t LOG_BUF_SIZE = 320;
+  char log_buf[LOG_BUF_SIZE];
+  size_t log_pos = 0;
+
   if (publish) {
-    ESP_LOGD(TAG, "'%s' Setting:", name);
+    log_pos = buf_append_printf(log_buf, sizeof(log_buf), log_pos, "'%s' >>", name);
 
     // Only print color mode when it's being changed
     ColorMode current_color_mode = this->parent_->remote_values.get_color_mode();
     ColorMode target_color_mode = this->has_color_mode() ? this->color_mode_ : current_color_mode;
     if (target_color_mode != current_color_mode) {
-      ESP_LOGD(TAG, "  Color mode: %s", LOG_STR_ARG(color_mode_to_human(v.get_color_mode())));
+      log_pos = buf_append_printf(log_buf, sizeof(log_buf), log_pos, " Color mode: %s",
+                                  LOG_STR_ARG(color_mode_to_human(v.get_color_mode())));
     }
 
     // Only print state when it's being changed
     bool current_state = this->parent_->remote_values.is_on();
     bool target_state = this->has_state() ? this->state_ : current_state;
     if (target_state != current_state) {
-      ESP_LOGD(TAG, "  State: %s", ONOFF(v.is_on()));
+      log_pos = buf_append_printf(log_buf, sizeof(log_buf), log_pos, " State: %s", ONOFF(v.is_on()));
     }
 
     if (this->has_brightness()) {
-      log_percent(LOG_STR("Brightness"), v.get_brightness());
+      log_pos =
+          buf_append_printf(log_buf, sizeof(log_buf), log_pos, " Brightness: %.0f%%", v.get_brightness() * 100.0f);
     }
 
     if (this->has_color_brightness()) {
-      log_percent(LOG_STR("Color brightness"), v.get_color_brightness());
+      log_pos = buf_append_printf(log_buf, sizeof(log_buf), log_pos, " Color brightness: %.0f%%",
+                                  v.get_color_brightness() * 100.0f);
     }
     if (this->has_red() || this->has_green() || this->has_blue()) {
-      ESP_LOGD(TAG, "  Red: %.0f%%, Green: %.0f%%, Blue: %.0f%%", v.get_red() * 100.0f, v.get_green() * 100.0f,
-               v.get_blue() * 100.0f);
+      log_pos = buf_append_printf(log_buf, sizeof(log_buf), log_pos, " Red: %.0f%% Green: %.0f%% Blue: %.0f%%",
+                                  v.get_red() * 100.0f, v.get_green() * 100.0f, v.get_blue() * 100.0f);
     }
 
     if (this->has_white()) {
-      log_percent(LOG_STR("White"), v.get_white());
+      log_pos = buf_append_printf(log_buf, sizeof(log_buf), log_pos, " White: %.0f%%", v.get_white() * 100.0f);
     }
     if (this->has_color_temperature()) {
-      ESP_LOGD(TAG, "  Color temperature: %.1f mireds", v.get_color_temperature());
+      log_pos = buf_append_printf(log_buf, sizeof(log_buf), log_pos, " Color temperature: %.1f mireds",
+                                  v.get_color_temperature());
     }
 
     if (this->has_cold_white() || this->has_warm_white()) {
-      ESP_LOGD(TAG, "  Cold white: %.0f%%, warm white: %.0f%%", v.get_cold_white() * 100.0f,
-               v.get_warm_white() * 100.0f);
+      log_pos = buf_append_printf(log_buf, sizeof(log_buf), log_pos, " Cold white: %.0f%%, warm white: %.0f%%",
+                                  v.get_cold_white() * 100.0f, v.get_warm_white() * 100.0f);
     }
   }
+#endif
 
   if (this->has_flash_()) {
     // FLASH
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
     if (publish) {
-      ESP_LOGD(TAG, "  Flash length: %.1fs", this->flash_length_ / 1e3f);
+      log_pos = buf_append_printf(log_buf, sizeof(log_buf), log_pos, " Flash: %.1fs", this->flash_length_ / 1e3f);
+      ESP_LOGD(TAG, "%s", log_buf);
     }
+#endif
 
     this->parent_->start_flash_(v, this->flash_length_, publish);
   } else if (this->has_transition_()) {
     // TRANSITION
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
     if (publish) {
-      ESP_LOGD(TAG, "  Transition length: %.1fs", this->transition_length_ / 1e3f);
+      log_pos =
+          buf_append_printf(log_buf, sizeof(log_buf), log_pos, " Transition: %.1fs", this->transition_length_ / 1e3f);
     }
+#endif
 
     // Special case: Transition and effect can be set when turning off
     if (this->has_effect_()) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
       if (publish) {
-        ESP_LOGD(TAG, "  Effect: 'None'");
+        log_pos = buf_append_printf(log_buf, sizeof(log_buf), log_pos, " Effect: 'None'");
       }
+#endif
       this->parent_->stop_effect_();
     }
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+    if (publish) {
+      ESP_LOGD(TAG, "%s", log_buf);
+    }
+#endif
 
     this->parent_->start_transition_(v, this->transition_length_, publish);
 
@@ -161,9 +180,13 @@ void LightCall::perform() {
       effect_s = this->parent_->effects_[this->effect_ - 1]->get_name();
     }
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
     if (publish) {
-      ESP_LOGD(TAG, "  Effect: '%.*s'", (int) effect_s.size(), effect_s.c_str());
+      log_pos = buf_append_printf(log_buf, sizeof(log_buf), log_pos, " Effect: '%.*s'", (int) effect_s.size(),
+                                  effect_s.c_str());
+      ESP_LOGD(TAG, "%s", log_buf);
     }
+#endif
 
     this->parent_->start_effect_(this->effect_);
 
@@ -172,6 +195,11 @@ void LightCall::perform() {
     this->parent_->set_immediately_(v, true);
   } else {
     // INSTANT CHANGE
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+    if (publish && log_pos > 0) {
+      ESP_LOGD(TAG, "%s", log_buf);
+    }
+#endif
     this->parent_->set_immediately_(v, publish);
   }
 
