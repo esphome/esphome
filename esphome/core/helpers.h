@@ -381,9 +381,11 @@ template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
   }
   ~SmallBufferWithHeapFallback() { delete[] this->heap_buffer_; }
 
-  // Delete copy operations to prevent double-delete
+  // Delete copy and move operations to prevent double-delete
   SmallBufferWithHeapFallback(const SmallBufferWithHeapFallback &) = delete;
   SmallBufferWithHeapFallback &operator=(const SmallBufferWithHeapFallback &) = delete;
+  SmallBufferWithHeapFallback(SmallBufferWithHeapFallback &&) = delete;
+  SmallBufferWithHeapFallback &operator=(SmallBufferWithHeapFallback &&) = delete;
 
   uint8_t *get() { return this->buffer_; }
 
