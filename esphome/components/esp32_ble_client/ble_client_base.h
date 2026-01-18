@@ -127,7 +127,8 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   // 6 bytes used, 2 bytes padding
 
   void log_event_(const char *name);
-  void log_gattc_event_(const char *name);
+  void log_gattc_lifecycle_event_(const char *name);
+  void log_gattc_data_event_(const char *name);
   void update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
                            const char *param_type);
   void set_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
