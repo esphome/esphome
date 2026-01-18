@@ -25,7 +25,6 @@ class FendtTextSensor : public FendtComponent<std::string>, public text_sensor::
   void on_decoded(const std::string value) override { this->publish_state(value); }
 
  private:
-  const char *const tag_ = "FTS";
 };
 }  // namespace fendt_caravan
 }  // namespace esphome

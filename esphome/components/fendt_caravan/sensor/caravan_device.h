@@ -9,6 +9,8 @@ namespace esphome {
 namespace fendt_caravan {
 using namespace std;
 
+static const char *const TAG = "raw.FC";
+
 class CaravanDevice : public PollingComponent {
  public:
   virtual void decode(const std::string &name, const std::string &value);
@@ -32,7 +34,6 @@ class CaravanDevice : public PollingComponent {
     }
     return nullptr;
   }
-  virtual const char *get_tag() = 0;
 
  private:
   bool log_variables_ = false;
