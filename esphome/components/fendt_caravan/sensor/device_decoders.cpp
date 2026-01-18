@@ -3,7 +3,7 @@
 #ifdef USE_ESP32
 namespace esphome {
 namespace fendt_caravan {
-static const char *TAG = "FC.COD";
+static const char *const TAG = "FC.COD";
 
 time_t DeviceDecoders::decode_date(const std::string &data) {
   std::istringstream date(data);

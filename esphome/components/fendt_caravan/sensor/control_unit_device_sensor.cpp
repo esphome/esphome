@@ -3,7 +3,7 @@
 #ifdef USE_ESP32
 namespace esphome {
 namespace fendt_caravan {
-static const char *TAG = "FC.CU";
+static const char *const TAG = "FC.CU";
 
 #define GET_VARIABLE(T, name) (static_cast<Variable<T> *>(this->get_variable_(name)))
 
