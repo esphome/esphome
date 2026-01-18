@@ -1,8 +1,11 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdarg>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <functional>
 #include <iterator>
@@ -18,6 +21,7 @@
 
 #ifdef USE_ESP8266
 #include <Esp.h>
+#include <pgmspace.h>
 #endif
 
 #ifdef USE_RP2040
@@ -391,6 +395,28 @@ constexpr uint32_t FNV1_OFFSET_BASIS = 2166136261UL;
 /// FNV-1 32-bit prime
 constexpr uint32_t FNV1_PRIME = 16777619UL;
 
+/// Extend a FNV-1 hash with an integer (hashes each byte).
+template<std::integral T> constexpr uint32_t fnv1_hash_extend(uint32_t hash, T value) {
+  using UnsignedT = std::make_unsigned_t<T>;
+  UnsignedT uvalue = static_cast<UnsignedT>(value);
+  for (size_t i = 0; i < sizeof(T); i++) {
+    hash *= FNV1_PRIME;
+    hash ^= (uvalue >> (i * 8)) & 0xFF;
+  }
+  return hash;
+}
+/// Extend a FNV-1 hash with additional string data.
+constexpr uint32_t fnv1_hash_extend(uint32_t hash, const char *str) {
+  if (str) {
+    while (*str) {
+      hash *= FNV1_PRIME;
+      hash ^= *str++;
+    }
+  }
+  return hash;
+}
+inline uint32_t fnv1_hash_extend(uint32_t hash, const std::string &str) { return fnv1_hash_extend(hash, str.c_str()); }
+
 /// Extend a FNV-1a hash with additional string data.
 constexpr uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
   if (str) {
@@ -567,6 +593,53 @@ std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, 
 
 /// sprintf-like function returning std::string.
 std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
+
+#ifdef USE_ESP8266
+// ESP8266: Use vsnprintf_P to keep format strings in flash (PROGMEM)
+// Format strings must be wrapped with PSTR() macro
+/// Safely append formatted string to buffer, returning new position (capped at size).
+/// @param buf Output buffer
+/// @param size Total buffer size
+/// @param pos Current position in buffer
+/// @param fmt Format string (must be in PROGMEM on ESP8266)
+/// @return New position after appending (capped at size on overflow)
+inline size_t buf_append_printf_p(char *buf, size_t size, size_t pos, PGM_P fmt, ...) {
+  if (pos >= size) {
+    return size;
+  }
+  va_list args;
+  va_start(args, fmt);
+  int written = vsnprintf_P(buf + pos, size - pos, fmt, args);
+  va_end(args);
+  if (written < 0) {
+    return pos;  // encoding error
+  }
+  return std::min(pos + static_cast<size_t>(written), size);
+}
+#define buf_append_printf(buf, size, pos, fmt, ...) buf_append_printf_p(buf, size, pos, PSTR(fmt), ##__VA_ARGS__)
+#else
+/// Safely append formatted string to buffer, returning new position (capped at size).
+/// Handles snprintf edge cases: negative returns (encoding errors) and truncation.
+/// @param buf Output buffer
+/// @param size Total buffer size
+/// @param pos Current position in buffer
+/// @param fmt printf-style format string
+/// @return New position after appending (capped at size on overflow)
+__attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf, size_t size, size_t pos,
+                                                                      const char *fmt, ...) {
+  if (pos >= size) {
+    return size;
+  }
+  va_list args;
+  va_start(args, fmt);
+  int written = vsnprintf(buf + pos, size - pos, fmt, args);
+  va_end(args);
+  if (written < 0) {
+    return pos;  // encoding error
+  }
+  return std::min(pos + static_cast<size_t>(written), size);
+}
+#endif
 
 /// Concatenate a name with a separator and suffix using an efficient stack-based approach.
 /// This avoids multiple heap allocations during string construction.
@@ -1045,9 +1118,66 @@ std::string format_hex_pretty(T val, char separator = '.', bool show_length = tr
   return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T), separator, show_length);
 }
 
+/// Calculate buffer size needed for format_bin_to: "01234567...\0" = bytes * 8 + 1
+constexpr size_t format_bin_size(size_t byte_count) { return byte_count * 8 + 1; }
+
+/** Format byte array as binary string to buffer.
+ *
+ * Each byte is formatted as 8 binary digits (MSB first).
+ * Truncates output if data exceeds buffer capacity.
+ *
+ * @param buffer Output buffer to write to.
+ * @param buffer_size Size of the output buffer.
+ * @param data Pointer to the byte array to format.
+ * @param length Number of bytes in the array.
+ * @return Pointer to buffer.
+ *
+ * Buffer size needed: length * 8 + 1 (use format_bin_size()).
+ *
+ * Example:
+ * @code
+ * char buf[9];  // format_bin_size(1)
+ * format_bin_to(buf, sizeof(buf), data, 1);  // "10101011"
+ * @endcode
+ */
+char *format_bin_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length);
+
+/// Format byte array as binary to buffer. Automatically deduces buffer size.
+template<size_t N> inline char *format_bin_to(char (&buffer)[N], const uint8_t *data, size_t length) {
+  static_assert(N >= 9, "Buffer must hold at least one binary byte (9 chars)");
+  return format_bin_to(buffer, N, data, length);
+}
+
+/** Format an unsigned integer in binary to buffer, MSB first.
+ *
+ * @tparam N Buffer size (must be >= sizeof(T) * 8 + 1).
+ * @tparam T Unsigned integer type.
+ * @param buffer Output buffer to write to.
+ * @param val The unsigned integer value to format.
+ * @return Pointer to buffer.
+ *
+ * Example:
+ * @code
+ * char buf[9];  // format_bin_size(sizeof(uint8_t))
+ * format_bin_to(buf, uint8_t{0xAA});  // "10101010"
+ * char buf16[17];  // format_bin_size(sizeof(uint16_t))
+ * format_bin_to(buf16, uint16_t{0x1234});  // "0001001000110100"
+ * @endcode
+ */
+template<size_t N, typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline char *format_bin_to(char (&buffer)[N], T val) {
+  static_assert(N >= sizeof(T) * 8 + 1, "Buffer too small for type");
+  val = convert_big_endian(val);
+  return format_bin_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
+}
+
 /// Format the byte array \p data of length \p len in binary.
+/// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 std::string format_bin(const uint8_t *data, size_t length);
 /// Format an unsigned integer in binary, starting with the most significant byte.
+/// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_bin(T val) {
   val = convert_big_endian(val);
   return format_bin(reinterpret_cast<uint8_t *>(&val), sizeof(T));
@@ -1085,6 +1215,12 @@ std::string base64_encode(const std::vector<uint8_t> &buf);
 std::vector<uint8_t> base64_decode(const std::string &encoded_string);
 size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len);
+
+/// Decode base64/base64url string directly into vector of little-endian int32 values
+/// @param base64 Base64 or base64url encoded string (both +/ and -_ accepted)
+/// @param out Output vector (cleared and filled with decoded int32 values)
+/// @return true if successful, false if decode failed or invalid size
+bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> &out);
 
 ///@}
 
