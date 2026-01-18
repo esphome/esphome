@@ -250,6 +250,9 @@ void ESP32BLETracker::start_scan_(bool first) {
 void ESP32BLETracker::register_client(ESPBTClient *client) {
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   client->app_id = ++this->app_id_;
+  // Give client a pointer to our state_version_ so it can notify us of state changes.
+  // This enables loop() fast-path optimization - we skip expensive work when no state changed.
+  // Safe because ESP32BLETracker (singleton) outlives all registered clients.
   client->set_tracker_state_version(&this->state_version_);
   this->clients_.push_back(client);
   this->recalculate_advertisement_parser_types();
