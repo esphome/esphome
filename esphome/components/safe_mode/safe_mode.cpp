@@ -9,8 +9,11 @@
 #include <cinttypes>
 #include <cstdio>
 
-namespace esphome {
-namespace safe_mode {
+#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+#include <esp_ota_ops.h>
+#endif
+
+namespace esphome::safe_mode {
 
 static const char *const TAG = "safe_mode";
 
@@ -23,6 +26,17 @@ void SafeModeComponent::dump_config() {
                 this->safe_mode_boot_is_good_after_ / 1000,  // because milliseconds
                 this->safe_mode_num_attempts_,
                 this->safe_mode_enable_time_ / 1000);  // because milliseconds
+#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+  const char *state_str;
+  if (this->ota_state_ == ESP_OTA_IMG_NEW) {
+    state_str = "not supported";
+  } else if (this->ota_state_ == ESP_OTA_IMG_PENDING_VERIFY) {
+    state_str = "supported";
+  } else {
+    state_str = "support unknown";
+  }
+  ESP_LOGCONFIG(TAG, "  Bootloader rollback: %s", state_str);
+#endif
 
   if (this->safe_mode_rtc_value_ > 1 && this->safe_mode_rtc_value_ != SafeModeComponent::ENTER_SAFE_MODE_MAGIC) {
     auto remaining_restarts = this->safe_mode_num_attempts_ - this->safe_mode_rtc_value_;
@@ -32,6 +46,16 @@ void SafeModeComponent::dump_config() {
       ESP_LOGW(TAG, "SAFE MODE IS ACTIVE");
     }
   }
+
+#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+  const esp_partition_t *last_invalid = esp_ota_get_last_invalid_partition();
+  if (last_invalid != nullptr) {
+    ESP_LOGW(TAG,
+             "OTA rollback detected! Rolled back from partition '%s'\n"
+             "The device reset before the boot was marked successful",
+             last_invalid->label);
+  }
+#endif
 }
 
 float SafeModeComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
@@ -42,6 +66,10 @@ void SafeModeComponent::loop() {
     ESP_LOGI(TAG, "Boot seems successful; resetting boot loop counter");
     this->clean_rtc();
     this->boot_successful_ = true;
+#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+    // Mark OTA partition as valid to prevent rollback
+    esp_ota_mark_app_valid_cancel_rollback();
+#endif
     // Disable loop since we no longer need to check
     this->disable_loop();
   }
@@ -72,6 +100,12 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
   this->safe_mode_boot_is_good_after_ = boot_is_good_after;
   this->safe_mode_num_attempts_ = num_attempts;
   this->rtc_ = global_preferences->make_preference<uint32_t>(233825507UL, false);
+
+#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+  // Check partition state to detect if bootloader supports rollback
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  esp_ota_get_state_partition(running, &this->ota_state_);
+#endif
 
   uint32_t rtc_val = this->read_rtc_();
   this->safe_mode_rtc_value_ = rtc_val;
@@ -108,7 +142,9 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
 
   ESP_LOGW(TAG, "SAFE MODE IS ACTIVE");
 
+#ifdef USE_SAFE_MODE_CALLBACK
   this->safe_mode_callback_.call();
+#endif
 
   return true;
 }
@@ -125,12 +161,18 @@ uint32_t SafeModeComponent::read_rtc_() {
   return val;
 }
 
-void SafeModeComponent::clean_rtc() { this->write_rtc_(0); }
+void SafeModeComponent::clean_rtc() {
+  // Save without sync - preferences will be written at shutdown or by IntervalSyncer.
+  // This avoids blocking the loop for 50+ ms on flash write. If the device crashes
+  // before sync, the boot wasn't really successful anyway and the counter should
+  // remain incremented.
+  uint32_t val = 0;
+  this->rtc_.save(&val);
+}
 
 void SafeModeComponent::on_safe_shutdown() {
   if (this->read_rtc_() != SafeModeComponent::ENTER_SAFE_MODE_MAGIC)
     this->clean_rtc();
 }
 
-}  // namespace safe_mode
-}  // namespace esphome
+}  // namespace esphome::safe_mode

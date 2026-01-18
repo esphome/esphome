@@ -4,6 +4,7 @@ from .const import (
     VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
@@ -17,6 +18,7 @@ STANDARD_BOARDS = {
     VARIANT_ESP32C3: "esp32-c3-devkitm-1",
     VARIANT_ESP32C5: "esp32-c5-devkitc-1",
     VARIANT_ESP32C6: "esp32-c6-devkitm-1",
+    VARIANT_ESP32C61: "esp32-c61-devkitc1-n8r2",
     VARIANT_ESP32H2: "esp32-h2-devkitm-1",
     VARIANT_ESP32P4: "esp32-p4-evboard",
     VARIANT_ESP32S2: "esp32-s2-kaluga-1",
@@ -1216,6 +1218,28 @@ ESP32_BOARD_PINS = {
         "LED_BUILTINB": 4,
     },
     "sensesiot_weizen": {},
+    "seeed_xiao_esp32c6": {
+        "D0": 0,
+        "D1": 1,
+        "D2": 2,
+        "D3": 21,
+        "D4": 22,
+        "D5": 23,
+        "D6": 16,
+        "D7": 17,
+        "D8": 19,
+        "D9": 20,
+        "D10": 18,
+        "MTDO": 7,
+        "MTCK": 6,
+        "MTDI": 5,
+        "MTMS": 4,
+        "BOOT": 9,
+        "LED": 8,
+        "LED_BUILTIN": 8,
+        "RF_SWITCH_EN": 3,
+        "RF_ANT_SELECT": 14,
+    },
     "sg-o_airMon": {},
     "sparkfun_lora_gateway_1-channel": {"MISO": 12, "MOSI": 13, "SCK": 14, "SS": 16},
     "tinypico": {},
@@ -1464,6 +1488,10 @@ BOARDS = {
         "name": "Arduino Nano ESP32",
         "variant": VARIANT_ESP32S3,
     },
+    "arduino_nesso_n1": {
+        "name": "Arduino Nesso-N1",
+        "variant": VARIANT_ESP32C6,
+    },
     "atd147_s3": {
         "name": "ArtronShop ATD1.47-S3",
         "variant": VARIANT_ESP32S3,
@@ -1632,6 +1660,10 @@ BOARDS = {
         "name": "Espressif ESP32-C6-DevKitM-1",
         "variant": VARIANT_ESP32C6,
     },
+    "esp32-c61-devkitc1-n8r2": {
+        "name": "Espressif ESP32-C61-DevKitC-1 N8R2 (8 MB Flash Quad, 2 MB PSRAM Quad)",
+        "variant": VARIANT_ESP32C61,
+    },
     "esp32-devkitlipo": {
         "name": "OLIMEX ESP32-DevKit-LiPo",
         "variant": VARIANT_ESP32,
@@ -1649,11 +1681,15 @@ BOARDS = {
         "variant": VARIANT_ESP32H2,
     },
     "esp32-p4": {
-        "name": "Espressif ESP32-P4 generic",
+        "name": "Espressif ESP32-P4 ES (pre rev.300) generic",
         "variant": VARIANT_ESP32P4,
     },
     "esp32-p4-evboard": {
-        "name": "Espressif ESP32-P4 Function EV Board",
+        "name": "Espressif ESP32-P4 Function EV Board (ES pre rev.300)",
+        "variant": VARIANT_ESP32P4,
+    },
+    "esp32-p4_r3": {
+        "name": "Espressif ESP32-P4 rev.300 generic",
         "variant": VARIANT_ESP32P4,
     },
     "esp32-pico-devkitm-2": {
@@ -2069,7 +2105,7 @@ BOARDS = {
         "variant": VARIANT_ESP32,
     },
     "m5stack-tab5-p4": {
-        "name": "M5STACK Tab5 esp32-p4 Board",
+        "name": "M5STACK Tab5 esp32-p4 Board (ES pre rev.300)",
         "variant": VARIANT_ESP32P4,
     },
     "m5stack-timer-cam": {

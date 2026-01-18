@@ -4,10 +4,12 @@ import gzip
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
+from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTH,
+    CONF_COMPRESSION,
     CONF_CSS_INCLUDE,
     CONF_CSS_URL,
     CONF_ENABLE_PRIVATE_NETWORK_ACCESS,
@@ -201,6 +203,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_OTA): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
+            cv.Optional(CONF_COMPRESSION, default="gzip"): cv.one_of("gzip", "br"),
             cv.Optional(CONF_SORTING_GROUPS): cv.ensure_list(sorting_group),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -311,6 +314,8 @@ async def to_code(config):
     if config.get(CONF_OTA) is False:
         cg.add_define("USE_WEBSERVER_OTA_DISABLED")
     cg.add(var.set_expose_log(config[CONF_LOG]))
+    if config[CONF_LOG]:
+        request_log_listener()  # Request a log listener slot for web server log streaming
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
     if CONF_AUTH in config:
@@ -330,6 +335,8 @@ async def to_code(config):
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
+    if config[CONF_COMPRESSION] == "gzip":
+        cg.add_define("USE_WEBSERVER_GZIP")
 
     if (sorting_group_config := config.get(CONF_SORTING_GROUPS)) is not None:
         cg.add_define("USE_WEBSERVER_SORTING")

@@ -70,7 +70,7 @@ void SN74HC595GPIOComponent::write_gpio() {
 void SN74HC595SPIComponent::write_gpio() {
   for (uint8_t &output_byte : std::ranges::reverse_view(this->output_bytes_)) {
     this->enable();
-    this->transfer_byte(output_byte);
+    this->write_byte(output_byte);
     this->disable();
   }
   SN74HC595Component::write_gpio();
@@ -93,7 +93,9 @@ float SN74HC595Component::get_setup_priority() const { return setup_priority::IO
 void SN74HC595GPIOPin::digital_write(bool value) {
   this->parent_->digital_write_(this->pin_, value != this->inverted_);
 }
-std::string SN74HC595GPIOPin::dump_summary() const { return str_snprintf("%u via SN74HC595", 18, pin_); }
+size_t SN74HC595GPIOPin::dump_summary(char *buffer, size_t len) const {
+  return snprintf(buffer, len, "%u via SN74HC595", this->pin_);
+}
 
 }  // namespace sn74hc595
 }  // namespace esphome

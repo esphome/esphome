@@ -9,8 +9,8 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
+#include <list>
 #include <vector>
-#include <forward_list>
 
 namespace esphome {
 
@@ -191,15 +191,15 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
     // instead of std::bind to avoid bind overhead (~16 bytes heap + faster execution)
     if constexpr (sizeof...(Ts) == 0) {
       App.scheduler.set_timer_common_(
-          this, Scheduler::SchedulerItem::TIMEOUT,
-          /* is_static_string= */ true, "delay", this->delay_.value(), [this]() { this->play_next_(); },
+          this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::STATIC_STRING, "delay", 0, this->delay_.value(),
+          [this]() { this->play_next_(); },
           /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
     } else {
       // For delays with arguments, use std::bind to preserve argument values
       // Arguments must be copied because original references may be invalid after delay
       auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
-      App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT,
-                                      /* is_static_string= */ true, "delay", this->delay_.value(x...), std::move(f),
+      App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::STATIC_STRING,
+                                      "delay", 0, this->delay_.value(x...), std::move(f),
                                       /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
     }
   }
@@ -445,9 +445,10 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     // Store for later processing
     auto now = millis();
     auto timeout = this->timeout_value_.optional_value(x...);
-    this->var_queue_.emplace_front(now, timeout, std::make_tuple(x...));
+    this->var_queue_.emplace_back(now, timeout, std::make_tuple(x...));
 
-    // Do immediate check with fresh timestamp
+    // Do immediate check with fresh timestamp - don't call loop() synchronously!
+    // Let the event loop call it to avoid reentrancy issues
     if (this->process_queue_(now)) {
       // Only enable loop if we still have pending items
       this->enable_loop();
@@ -499,7 +500,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
   }
 
   Condition<Ts...> *condition_;
-  std::forward_list<std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>> var_queue_{};
+  std::list<std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>> var_queue_{};
 };
 
 template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
