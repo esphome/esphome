@@ -214,6 +214,7 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           break;
         case media_player::MEDIA_PLAYER_COMMAND_TURN_OFF:
           this->is_turn_off_ = true;
+          // Intentional Fall-through
 #endif
         case media_player::MEDIA_PLAYER_COMMAND_STOP:
           // Pipelines do not stop immediately after calling the stop command, so confirm its stopped before unpausing.
