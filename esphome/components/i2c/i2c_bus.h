@@ -76,8 +76,8 @@ class I2CBus {
       total_len += read_buffers[i].len;
     }
 
-    SmallBufferWithHeapFallback<128> buffer_alloc;  // Most I2C reads are small
-    uint8_t *buffer = buffer_alloc.get(total_len);
+    SmallBufferWithHeapFallback<128> buffer_alloc(total_len);  // Most I2C reads are small
+    uint8_t *buffer = buffer_alloc.get();
 
     auto err = this->write_readv(address, nullptr, 0, buffer, total_len);
     if (err != ERROR_OK)
@@ -100,8 +100,8 @@ class I2CBus {
       total_len += write_buffers[i].len;
     }
 
-    SmallBufferWithHeapFallback<128> buffer_alloc;  // Most I2C writes are small
-    uint8_t *buffer = buffer_alloc.get(total_len);
+    SmallBufferWithHeapFallback<128> buffer_alloc(total_len);  // Most I2C writes are small
+    uint8_t *buffer = buffer_alloc.get();
 
     size_t pos = 0;
     for (size_t i = 0; i != count; i++) {

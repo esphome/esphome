@@ -369,28 +369,28 @@ template<typename T> class FixedVector {
 /// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
 /// This is useful when most operations need a small buffer but occasionally need larger ones.
 /// The stack buffer avoids heap allocation in the common case, while heap fallback handles edge cases.
-/// Note: get() should only be called once per instance. Multiple calls will leak memory.
 template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
  public:
-  ~SmallBufferWithHeapFallback() {
-    if (this->allocated_) {
-      delete[] this->heap_buffer_;
-    }
-  }
-
-  uint8_t *get(size_t size) {
+  explicit SmallBufferWithHeapFallback(size_t size) {
     if (size <= STACK_SIZE) {
-      return this->stack_buffer_;
+      this->buffer_ = this->stack_buffer_;
+    } else {
+      this->heap_buffer_ = new uint8_t[size];
+      this->buffer_ = this->heap_buffer_;
     }
-    this->heap_buffer_ = new uint8_t[size];
-    this->allocated_ = true;
-    return this->heap_buffer_;
   }
+  ~SmallBufferWithHeapFallback() { delete[] this->heap_buffer_; }
+
+  // Delete copy operations to prevent double-delete
+  SmallBufferWithHeapFallback(const SmallBufferWithHeapFallback &) = delete;
+  SmallBufferWithHeapFallback &operator=(const SmallBufferWithHeapFallback &) = delete;
+
+  uint8_t *get() { return this->buffer_; }
 
  private:
   uint8_t stack_buffer_[STACK_SIZE];
-  uint8_t *heap_buffer_;
-  bool allocated_{false};
+  uint8_t *heap_buffer_{nullptr};
+  uint8_t *buffer_;
 };
 
 ///@}
