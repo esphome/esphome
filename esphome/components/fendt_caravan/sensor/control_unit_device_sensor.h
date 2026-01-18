@@ -22,7 +22,7 @@ class ControlUnitDeviceSensor : public CaravanDevice {
  public:
   void setup() override;
   void dump_config() override;
-  void decode(const std::string &variable, const std::string &value) override;
+  void decode(const std::string &name, const std::string &value) override;
   FENDT_SWITCH(main_switch);
   FENDT_SENSOR(temperature_in);
   FENDT_SENSOR(temperature_out);
