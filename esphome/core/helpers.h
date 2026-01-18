@@ -366,6 +366,33 @@ template<typename T> class FixedVector {
   const T *end() const { return data_ + size_; }
 };
 
+/// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
+/// This is useful when most operations need a small buffer but occasionally need larger ones.
+/// The stack buffer avoids heap allocation in the common case, while heap fallback handles edge cases.
+/// Note: get() should only be called once per instance. Multiple calls will leak memory.
+template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
+ public:
+  ~SmallBufferWithHeapFallback() {
+    if (this->allocated_) {
+      delete[] this->heap_buffer_;
+    }
+  }
+
+  uint8_t *get(size_t size) {
+    if (size <= STACK_SIZE) {
+      return this->stack_buffer_;
+    }
+    this->heap_buffer_ = new uint8_t[size];
+    this->allocated_ = true;
+    return this->heap_buffer_;
+  }
+
+ private:
+  uint8_t stack_buffer_[STACK_SIZE];
+  uint8_t *heap_buffer_;
+  bool allocated_{false};
+};
+
 ///@}
 
 /// @name Mathematics
