@@ -395,6 +395,28 @@ constexpr uint32_t FNV1_OFFSET_BASIS = 2166136261UL;
 /// FNV-1 32-bit prime
 constexpr uint32_t FNV1_PRIME = 16777619UL;
 
+/// Extend a FNV-1 hash with an integer (hashes each byte).
+template<std::integral T> constexpr uint32_t fnv1_hash_extend(uint32_t hash, T value) {
+  using UnsignedT = std::make_unsigned_t<T>;
+  UnsignedT uvalue = static_cast<UnsignedT>(value);
+  for (size_t i = 0; i < sizeof(T); i++) {
+    hash *= FNV1_PRIME;
+    hash ^= (uvalue >> (i * 8)) & 0xFF;
+  }
+  return hash;
+}
+/// Extend a FNV-1 hash with additional string data.
+constexpr uint32_t fnv1_hash_extend(uint32_t hash, const char *str) {
+  if (str) {
+    while (*str) {
+      hash *= FNV1_PRIME;
+      hash ^= *str++;
+    }
+  }
+  return hash;
+}
+inline uint32_t fnv1_hash_extend(uint32_t hash, const std::string &str) { return fnv1_hash_extend(hash, str.c_str()); }
+
 /// Extend a FNV-1a hash with additional string data.
 constexpr uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
   if (str) {
@@ -522,6 +544,15 @@ bool str_equals_case_insensitive(StringRef a, StringRef b);
 bool str_startswith(const std::string &str, const std::string &start);
 /// Check whether a string ends with a value.
 bool str_endswith(const std::string &str, const std::string &end);
+
+/// Case-insensitive check if string ends with suffix (no heap allocation).
+bool str_endswith_ignore_case(const char *str, size_t str_len, const char *suffix, size_t suffix_len);
+inline bool str_endswith_ignore_case(const char *str, const char *suffix) {
+  return str_endswith_ignore_case(str, strlen(str), suffix, strlen(suffix));
+}
+inline bool str_endswith_ignore_case(const std::string &str, const char *suffix) {
+  return str_endswith_ignore_case(str.c_str(), str.size(), suffix, strlen(suffix));
+}
 
 /// Truncate a string to a specific length.
 /// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
