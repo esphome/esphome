@@ -1,0 +1,35 @@
+#pragma once
+
+#ifdef USE_ESP32
+#include "variable.h"
+#include "esphome/core/component.h"
+
+namespace esphome {
+namespace fendt_caravan {
+
+template<typename T> class FendtComponent : public Component {
+ public:
+  void set_variable(Variable<T> *variable) {
+    this->variable_ = variable;
+    this->variable_->set_on_decode_callback(std::bind(&FendtComponent::on_decoded, this, std::placeholders::_1));
+  }
+  Variable<T> *get_variable() { return this->variable_; }
+
+  Variable<T> *create_variable(
+      const std::string &name, std::function<T(const std::string &)> decode_funct,
+      std::function<std::string(const std::string &name, T value)> command_funct = nullptr,
+      std::function<std::string(const std::string &name, T value)> alt_command_funct = nullptr) {
+    auto variable = new Variable<T>(name, decode_funct, command_funct, alt_command_funct);
+    this->set_variable(variable);
+    return variable;
+  }
+
+ protected:
+  virtual void on_decoded(const T value) {}
+  Variable<T> *variable_{nullptr};
+
+ private:
+};
+}  // namespace fendt_caravan
+}  // namespace esphome
+#endif
