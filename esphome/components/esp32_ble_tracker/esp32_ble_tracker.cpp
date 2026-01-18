@@ -105,36 +105,32 @@ void ESP32BLETracker::loop() {
   }
 
   // Check for scan timeout - moved here from scheduler to avoid false reboots
-  // when the loop is blocked
-  if (this->scanner_state_ == ScannerState::RUNNING) {
-    switch (this->scan_timeout_state_) {
-      case ScanTimeoutState::MONITORING: {
-        uint32_t now = App.get_loop_component_start_time();
-        uint32_t timeout_ms = this->scan_duration_ * 2000;
-        // Robust time comparison that handles rollover correctly
-        // This works because unsigned arithmetic wraps around predictably
-        if ((now - this->scan_start_time_) > timeout_ms) {
-          // First time we've seen the timeout exceeded - wait one more loop iteration
-          // This ensures all components have had a chance to process pending events
-          // This is because esp32_ble may not have run yet and called
-          // gap_scan_event_handler yet when the loop unblocks
-          ESP_LOGW(TAG, "Scan timeout exceeded");
-          this->scan_timeout_state_ = ScanTimeoutState::EXCEEDED_WAIT;
-        }
-        break;
-      }
-      case ScanTimeoutState::EXCEEDED_WAIT:
-        // We've waited at least one full loop iteration, and scan is still running
-        ESP_LOGE(TAG, "Scan never terminated, rebooting");
-        App.reboot();
-        break;
-
-      case ScanTimeoutState::INACTIVE:
-        // This case should be unreachable - scanner and timeout states are always synchronized
-        break;
+  // when the loop is blocked. This must run every iteration for safety.
+  if (this->scanner_state_ == ScannerState::RUNNING && this->scan_timeout_state_ == ScanTimeoutState::MONITORING) {
+    // Robust time comparison that handles rollover correctly
+    // This works because unsigned arithmetic wraps around predictably
+    if ((App.get_loop_component_start_time() - this->scan_start_time_) > this->scan_timeout_ms_) {
+      // First time we've seen the timeout exceeded - wait one more loop iteration
+      // This ensures all components have had a chance to process pending events
+      // This is because esp32_ble may not have run yet and called
+      // gap_scan_event_handler yet when the loop unblocks
+      ESP_LOGW(TAG, "Scan timeout exceeded");
+      this->scan_timeout_state_ = ScanTimeoutState::EXCEEDED_WAIT;
     }
+  } else if (this->scan_timeout_state_ == ScanTimeoutState::EXCEEDED_WAIT) {
+    // We've waited at least one full loop iteration, and scan is still running
+    ESP_LOGE(TAG, "Scan never terminated, rebooting");
+    App.reboot();
   }
 
+  // Fast path: skip expensive client state counting and processing
+  // if no state has changed since last loop iteration
+  if (this->state_version_ == this->last_processed_version_) {
+    return;
+  }
+  this->last_processed_version_ = this->state_version_;
+
+  // State changed - do full processing
   ClientStateCounts counts = this->count_client_states_();
   if (counts != this->client_state_counts_) {
     this->client_state_counts_ = counts;
@@ -236,6 +232,7 @@ void ESP32BLETracker::start_scan_(bool first) {
   // Start timeout monitoring in loop() instead of using scheduler
   // This prevents false reboots when the loop is blocked
   this->scan_start_time_ = App.get_loop_component_start_time();
+  this->scan_timeout_ms_ = this->scan_duration_ * 2000;
   this->scan_timeout_state_ = ScanTimeoutState::MONITORING;
 
   esp_err_t err = esp_ble_gap_set_scan_params(&this->scan_params_);
@@ -253,6 +250,10 @@ void ESP32BLETracker::start_scan_(bool first) {
 void ESP32BLETracker::register_client(ESPBTClient *client) {
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   client->app_id = ++this->app_id_;
+  // Give client a pointer to our state_version_ so it can notify us of state changes.
+  // This enables loop() fast-path optimization - we skip expensive work when no state changed.
+  // Safe because ESP32BLETracker (singleton) outlives all registered clients.
+  client->set_tracker_state_version(&this->state_version_);
   this->clients_.push_back(client);
   this->recalculate_advertisement_parser_types();
 #endif
@@ -382,6 +383,7 @@ void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
 
 void ESP32BLETracker::set_scanner_state_(ScannerState state) {
   this->scanner_state_ = state;
+  this->state_version_++;
   for (auto *listener : this->scanner_state_listeners_) {
     listener->on_scanner_state(state);
   }
