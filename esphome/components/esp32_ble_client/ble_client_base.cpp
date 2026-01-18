@@ -50,7 +50,7 @@ void BLEClientBase::loop() {
     this->set_state(espbt::ClientState::INIT);
     return;
   }
-  if (this->state_ == espbt::ClientState::INIT) {
+  if (this->state() == espbt::ClientState::INIT) {
     auto ret = esp_ble_gattc_app_register(this->app_id);
     if (ret) {
       ESP_LOGE(TAG, "gattc app register failed. app_id=%d code=%d", this->app_id, ret);
@@ -60,7 +60,7 @@ void BLEClientBase::loop() {
   }
   // If idle, we can disable the loop as connect()
   // will enable it again when a connection is needed.
-  else if (this->state_ == espbt::ClientState::IDLE) {
+  else if (this->state() == espbt::ClientState::IDLE) {
     this->disable_loop();
   }
 }
@@ -86,7 +86,7 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
     return false;
   if (this->address_ == 0 || device.address_uint64() != this->address_)
     return false;
-  if (this->state_ != espbt::ClientState::IDLE)
+  if (this->state() != espbt::ClientState::IDLE)
     return false;
 
   this->log_event_("Found device");
@@ -102,10 +102,10 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
 
 void BLEClientBase::connect() {
   // Prevent duplicate connection attempts
-  if (this->state_ == espbt::ClientState::CONNECTING || this->state_ == espbt::ClientState::CONNECTED ||
-      this->state_ == espbt::ClientState::ESTABLISHED) {
+  if (this->state() == espbt::ClientState::CONNECTING || this->state() == espbt::ClientState::CONNECTED ||
+      this->state() == espbt::ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "[%d] [%s] Connection already in progress, state=%s", this->connection_index_, this->address_str_,
-             espbt::client_state_to_string(this->state_));
+             espbt::client_state_to_string(this->state()));
     return;
   }
   ESP_LOGI(TAG, "[%d] [%s] 0x%02x Connecting", this->connection_index_, this->address_str_, this->remote_addr_type_);
@@ -133,12 +133,12 @@ void BLEClientBase::connect() {
 esp_err_t BLEClientBase::pair() { return esp_ble_set_encryption(this->remote_bda_, ESP_BLE_SEC_ENCRYPT); }
 
 void BLEClientBase::disconnect() {
-  if (this->state_ == espbt::ClientState::IDLE || this->state_ == espbt::ClientState::DISCONNECTING) {
+  if (this->state() == espbt::ClientState::IDLE || this->state() == espbt::ClientState::DISCONNECTING) {
     ESP_LOGI(TAG, "[%d] [%s] Disconnect requested, but already %s", this->connection_index_, this->address_str_,
-             espbt::client_state_to_string(this->state_));
+             espbt::client_state_to_string(this->state()));
     return;
   }
-  if (this->state_ == espbt::ClientState::CONNECTING || this->conn_id_ == UNSET_CONN_ID) {
+  if (this->state() == espbt::ClientState::CONNECTING || this->conn_id_ == UNSET_CONN_ID) {
     ESP_LOGD(TAG, "[%d] [%s] Disconnect before connected, disconnect scheduled", this->connection_index_,
              this->address_str_);
     this->want_disconnect_ = true;
@@ -150,7 +150,7 @@ void BLEClientBase::disconnect() {
 void BLEClientBase::unconditional_disconnect() {
   // Disconnect without checking the state.
   ESP_LOGI(TAG, "[%d] [%s] Disconnecting (conn_id: %d).", this->connection_index_, this->address_str_, this->conn_id_);
-  if (this->state_ == espbt::ClientState::DISCONNECTING) {
+  if (this->state() == espbt::ClientState::DISCONNECTING) {
     this->log_error_("Already disconnecting");
     return;
   }
@@ -170,7 +170,7 @@ void BLEClientBase::unconditional_disconnect() {
     this->log_gattc_warning_("esp_ble_gattc_close", err);
   }
 
-  if (this->state_ == espbt::ClientState::DISCOVERED) {
+  if (this->state() == espbt::ClientState::DISCOVERED) {
     this->set_address(0);
     this->set_state(espbt::ClientState::IDLE);
   } else {
@@ -295,18 +295,18 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // ESP-IDF's BLE stack may send ESP_GATTC_OPEN_EVT after esp_ble_gattc_open() returns an
       // error, if the error occurred at the BTA/GATT layer. This can result in the event
       // arriving after we've already transitioned to IDLE state.
-      if (this->state_ == espbt::ClientState::IDLE) {
+      if (this->state() == espbt::ClientState::IDLE) {
         ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in IDLE state (status=%d), ignoring", this->connection_index_,
                  this->address_str_, param->open.status);
         break;
       }
 
-      if (this->state_ != espbt::ClientState::CONNECTING) {
+      if (this->state() != espbt::ClientState::CONNECTING) {
         // This should not happen but lets log it in case it does
         // because it means we have a bad assumption about how the
         // ESP BT stack works.
         ESP_LOGE(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in %s state (status=%d)", this->connection_index_,
-                 this->address_str_, espbt::client_state_to_string(this->state_), param->open.status);
+                 this->address_str_, espbt::client_state_to_string(this->state()), param->open.status);
       }
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
         this->log_gattc_warning_("Connection open", param->open.status);
@@ -327,7 +327,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
         // Cached connections already connected with medium parameters, no update needed
         // only set our state, subclients might have more stuff to do yet.
-        this->state_ = espbt::ClientState::ESTABLISHED;
+        this->set_state_internal_(espbt::ClientState::ESTABLISHED);
         break;
       }
       // For V3_WITHOUT_CACHE, we already set fast params before connecting
@@ -356,7 +356,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         return false;
       // Check if we were disconnected while waiting for service discovery
       if (param->disconnect.reason == ESP_GATT_CONN_TERMINATE_PEER_USER &&
-          this->state_ == espbt::ClientState::CONNECTED) {
+          this->state() == espbt::ClientState::CONNECTED) {
         this->log_warning_("Remote closed during discovery");
       } else {
         ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason 0x%02x", this->connection_index_, this->address_str_,
@@ -433,7 +433,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
 #endif
       }
       ESP_LOGI(TAG, "[%d] [%s] Service discovery complete", this->connection_index_, this->address_str_);
-      this->state_ = espbt::ClientState::ESTABLISHED;
+      this->set_state_internal_(espbt::ClientState::ESTABLISHED);
       break;
     }
     case ESP_GATTC_READ_DESCR_EVT: {
