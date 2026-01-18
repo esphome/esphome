@@ -66,7 +66,6 @@ void SY6970Component::setup() {
     ESP_LOGW(TAG, "Unexpected chip ID: 0x%02X (expected 0x00)", chip_id);
   }
 
-  this->initialized_ = true;
   ESP_LOGCONFIG(TAG, "SY6970 initialized successfully");
 }
 
@@ -81,7 +80,7 @@ void SY6970Component::dump_config() {
 }
 
 void SY6970Component::update() {
-  if (!this->initialized_) {
+  if (this->is_failed()) {
     return;
   }
 
@@ -101,7 +100,7 @@ void SY6970Component::update() {
 }
 
 void SY6970Component::set_input_current_limit(uint16_t milliamps) {
-  if (!this->initialized_)
+  if (this->is_failed())
     return;
 
   if (milliamps < INPUT_CURRENT_MIN) {
@@ -117,7 +116,7 @@ void SY6970Component::set_input_current_limit(uint16_t milliamps) {
 }
 
 void SY6970Component::set_charge_target_voltage(uint16_t millivolts) {
-  if (!this->initialized_)
+  if (this->is_failed())
     return;
 
   if (millivolts < CHG_VOLTAGE_BASE) {
@@ -133,7 +132,7 @@ void SY6970Component::set_charge_target_voltage(uint16_t millivolts) {
 }
 
 void SY6970Component::set_precharge_current(uint16_t milliamps) {
-  if (!this->initialized_)
+  if (this->is_failed())
     return;
 
   if (milliamps < PRE_CHG_BASE) {
@@ -149,7 +148,7 @@ void SY6970Component::set_precharge_current(uint16_t milliamps) {
 }
 
 void SY6970Component::set_charge_current(uint16_t milliamps) {
-  if (!this->initialized_)
+  if (this->is_failed())
     return;
 
   uint8_t val = milliamps / 64;
@@ -161,14 +160,14 @@ void SY6970Component::set_charge_current(uint16_t milliamps) {
 }
 
 void SY6970Component::set_charge_enabled(bool enabled) {
-  if (!this->initialized_)
+  if (this->is_failed())
     return;
 
   this->update_register_(SY6970_REG_SYS_CONTROL, 0x10, enabled ? 0x10 : 0x00);
 }
 
 void SY6970Component::set_led_enabled(bool enabled) {
-  if (!this->initialized_)
+  if (this->is_failed())
     return;
 
   // Clear bit 6 to enable LED
@@ -176,7 +175,7 @@ void SY6970Component::set_led_enabled(bool enabled) {
 }
 
 void SY6970Component::enable_adc_measure() {
-  if (!this->initialized_)
+  if (this->is_failed())
     return;
 
   // Set bits to enable ADC conversion

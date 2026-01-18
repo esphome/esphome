@@ -82,7 +82,6 @@ class SY6970Component : public PollingComponent, public i2c::I2CDevice {
   bool write_register_(uint8_t reg, uint8_t value);
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
 
-  bool initialized_{false};
   SY6970Data data_{};
   std::vector<SY6970Listener *> listeners_;
 };
