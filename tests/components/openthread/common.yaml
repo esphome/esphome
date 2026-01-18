@@ -1,0 +1,7 @@
+network:
+  enable_ipv6: true
+
+openthread:
+  device_type: FTD
+  force_dataset: true
+  use_address: open-thread-test.local
