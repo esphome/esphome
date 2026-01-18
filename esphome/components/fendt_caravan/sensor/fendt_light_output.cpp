@@ -4,6 +4,8 @@
 namespace esphome {
 namespace fendt_caravan {
 
+static const char *const TAG = "raw.FC";
+
 void FendtLightOutput::write_state(light::LightState *state) {
   LampStateT ls(state->current_values.is_on(), state->current_values.get_brightness());
   ESP_LOGD(TAG, "Current state: %d, %f", state->current_values.is_on(), state->current_values.get_brightness());

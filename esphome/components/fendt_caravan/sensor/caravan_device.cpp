@@ -4,6 +4,8 @@
 namespace esphome {
 namespace fendt_caravan {
 
+static const char *const TAG = "raw.FC";
+
 void CaravanDevice::decode(const std::string &name, const std::string &value) {
   auto *variable = this->get_variable_(name);
   if (variable)

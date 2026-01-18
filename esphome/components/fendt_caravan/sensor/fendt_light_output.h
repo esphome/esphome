@@ -7,8 +7,6 @@
 namespace esphome {
 namespace fendt_caravan {
 
-static const char *TAG = "FLO";
-
 #define FENDT_LIGHT_OUTPUT(name) \
  protected: \
   FendtLightOutput *name##_light_output_{nullptr}; \
