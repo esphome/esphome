@@ -53,7 +53,21 @@ static const uint8_t DEFAULT_KEY[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 static const uint8_t NDEF_KEY[6] = {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7};
 static const uint8_t MAD_KEY[6] = {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5};
 
+/// Max UID size is 10 bytes, formatted as "XX-XX-XX-XX-XX-XX-XX-XX-XX-XX\0" = 30 chars
+static constexpr size_t FORMAT_UID_BUFFER_SIZE = 30;
+/// Format UID to buffer with '-' separator (e.g., "04-11-22-33"). Returns buffer for inline use.
+char *format_uid_to(char *buffer, const std::vector<uint8_t> &uid);
+
+/// Buffer size for format_bytes_to (64 bytes max = 192 chars with space separator)
+static constexpr size_t FORMAT_BYTES_BUFFER_SIZE = 192;
+/// Format bytes to buffer with ' ' separator (e.g., "04 11 22 33"). Returns buffer for inline use.
+char *format_bytes_to(char *buffer, const std::vector<uint8_t> &bytes);
+
+// Remove before 2026.6.0
+ESPDEPRECATED("Use format_uid_to() with stack buffer instead. Removed in 2026.6.0", "2025.12.0")
 std::string format_uid(const std::vector<uint8_t> &uid);
+// Remove before 2026.6.0
+ESPDEPRECATED("Use format_bytes_to() with stack buffer instead. Removed in 2026.6.0", "2025.12.0")
 std::string format_bytes(const std::vector<uint8_t> &bytes);
 
 uint8_t guess_tag_type(uint8_t uid_length);

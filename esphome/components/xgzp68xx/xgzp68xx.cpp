@@ -72,8 +72,10 @@ void XGZP68XXComponent::update() {
     temperature_raw = encode_uint16(data[3], data[4]);
 
     // Convert the pressure data to hPa
-    ESP_LOGV(TAG, "Got raw pressure=%" PRIu32 ", raw temperature=%u", pressure_raw, temperature_raw);
-    ESP_LOGV(TAG, "K value is %u", this->k_value_);
+    ESP_LOGV(TAG,
+             "Got raw pressure=%" PRIu32 ", raw temperature=%u\n"
+             "K value is %u",
+             pressure_raw, temperature_raw, this->k_value_);
 
     // Sign extend the pressure
     float pressure_in_pa = (float) (((int32_t) pressure_raw << 8) >> 8);

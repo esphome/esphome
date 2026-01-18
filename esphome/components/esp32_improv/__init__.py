@@ -3,7 +3,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor, esp32_ble, improv_base, output
 from esphome.components.esp32_ble import BTLoggers
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_ON_STATE, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_ON_START, CONF_ON_STATE, CONF_TRIGGER_ID
 
 AUTO_LOAD = ["esp32_ble_server", "improv_base"]
 CODEOWNERS = ["@jesserockz"]
@@ -15,10 +15,13 @@ CONF_BLE_SERVER_ID = "ble_server_id"
 CONF_IDENTIFY_DURATION = "identify_duration"
 CONF_ON_PROVISIONED = "on_provisioned"
 CONF_ON_PROVISIONING = "on_provisioning"
-CONF_ON_START = "on_start"
 CONF_ON_STOP = "on_stop"
 CONF_STATUS_INDICATOR = "status_indicator"
 CONF_WIFI_TIMEOUT = "wifi_timeout"
+
+# Default WiFi timeout - aligned with WiFi component ap_timeout
+# Allows sufficient time to try all BSSIDs before starting provisioning mode
+DEFAULT_WIFI_TIMEOUT = "90s"
 
 
 improv_ns = cg.esphome_ns.namespace("improv")
@@ -59,7 +62,7 @@ CONFIG_SCHEMA = (
                 CONF_AUTHORIZED_DURATION, default="1min"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(
-                CONF_WIFI_TIMEOUT, default="1min"
+                CONF_WIFI_TIMEOUT, default=DEFAULT_WIFI_TIMEOUT
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_ON_PROVISIONED): automation.validate_automation(
                 {

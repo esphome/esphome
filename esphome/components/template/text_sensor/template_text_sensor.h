@@ -5,10 +5,9 @@
 #include "esphome/core/template_lambda.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
-class TemplateTextSensor : public text_sensor::TextSensor, public PollingComponent {
+class TemplateTextSensor final : public text_sensor::TextSensor, public PollingComponent {
  public:
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
@@ -22,5 +21,4 @@ class TemplateTextSensor : public text_sensor::TextSensor, public PollingCompone
   TemplateLambda<std::string> f_{};
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

@@ -6,10 +6,9 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/template_lambda.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
-class TemplateNumber : public number::Number, public PollingComponent {
+class TemplateNumber final : public number::Number, public PollingComponent {
  public:
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
@@ -34,5 +33,4 @@ class TemplateNumber : public number::Number, public PollingComponent {
   ESPPreferenceObject pref_;
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

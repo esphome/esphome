@@ -1,11 +1,13 @@
 #pragma once
 
 #include <cinttypes>
-#include <map>
+#include <cstring>
+#include <vector>
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
 
@@ -13,8 +15,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 #ifdef USE_BINARY_SENSOR
 enum BinarySensorFlags : uint16_t {
@@ -39,6 +40,7 @@ enum TemplateAlarmControlPanelRestoreMode {
   ALARM_CONTROL_PANEL_RESTORE_DEFAULT_DISARMED,
 };
 
+#ifdef USE_BINARY_SENSOR
 struct SensorDataStore {
   bool last_chime_state;
 };
@@ -49,7 +51,13 @@ struct SensorInfo {
   uint8_t store_index;
 };
 
-class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel, public Component {
+struct AlarmSensor {
+  binary_sensor::BinarySensor *sensor;
+  SensorInfo info;
+};
+#endif
+
+class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControlPanel, public Component {
  public:
   TemplateAlarmControlPanel();
   void dump_config() override;
@@ -63,6 +71,12 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
   void bypass_before_arming();
 
 #ifdef USE_BINARY_SENSOR
+  /** Initialize the sensors vector with the specified capacity.
+   *
+   * @param capacity The number of sensors to allocate space for.
+   */
+  void init_sensors(size_t capacity) { this->sensors_.init(capacity); }
+
   /** Add a binary_sensor to the alarm_panel.
    *
    * @param sensor The BinarySensor instance.
@@ -73,11 +87,14 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
                   AlarmSensorType type = ALARM_SENSOR_TYPE_DELAYED);
 #endif
 
-  /** add a code
+  /** Set the codes (from initializer list).
    *
-   * @param code The code
+   * @param codes The list of valid codes
    */
-  void add_code(const std::string &code) { this->codes_.push_back(code); }
+  void set_codes(std::initializer_list<const char *> codes) { this->codes_ = codes; }
+
+  // Deleted overload to catch incorrect std::string usage at compile time
+  void set_codes(std::initializer_list<std::string> codes) = delete;
 
   /** set requires a code to arm
    *
@@ -122,10 +139,13 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
  protected:
   void control(const alarm_control_panel::AlarmControlPanelCall &call) override;
 #ifdef USE_BINARY_SENSOR
-  // This maps a binary sensor to its alarm specific info
-  std::map<binary_sensor::BinarySensor *, SensorInfo> sensor_map_;
+  // List of binary sensors with their alarm-specific info
+  FixedVector<AlarmSensor> sensors_;
   // a list of automatically bypassed sensors
   std::vector<uint8_t> bypassed_sensor_indicies_;
+  // Per sensor data store
+  std::vector<SensorDataStore> sensor_data_;
+  uint8_t next_store_index_ = 0;
 #endif
   TemplateAlarmControlPanelRestoreMode restore_mode_{};
 
@@ -139,21 +159,17 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
   uint32_t pending_time_;
   // the time in trigger
   uint32_t trigger_time_;
-  // a list of codes
-  std::vector<std::string> codes_;
-  // Per sensor data store
-  std::vector<SensorDataStore> sensor_data_;
+  // a list of codes (const char* pointers to string literals in flash)
+  FixedVector<const char *> codes_;
   // requires a code to arm
   bool requires_code_to_arm_ = false;
   bool supports_arm_home_ = false;
   bool supports_arm_night_ = false;
   bool sensors_ready_ = false;
-  uint8_t next_store_index_ = 0;
   // check if the code is valid
   bool is_code_valid_(optional<std::string> code);
 
   void arm_(optional<std::string> code, alarm_control_panel::AlarmControlPanelState state, uint32_t delay);
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

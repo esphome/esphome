@@ -136,7 +136,7 @@ async def test_script_queued(
         # Test 1: Queue depth limit
         test_service = next((s for s in services if s.name == "test_queue_depth"), None)
         assert test_service is not None, "test_queue_depth service not found"
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
         await asyncio.wait_for(test1_complete, timeout=2.0)
         await asyncio.sleep(0.1)  # Give time for rejections
 
@@ -151,7 +151,7 @@ async def test_script_queued(
         # Test 2: Ring buffer order
         test_service = next((s for s in services if s.name == "test_ring_buffer"), None)
         assert test_service is not None, "test_ring_buffer service not found"
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
         await asyncio.wait_for(test2_complete, timeout=2.0)
 
         # Verify Test 2
@@ -165,7 +165,7 @@ async def test_script_queued(
         # Test 3: Stop clears queue
         test_service = next((s for s in services if s.name == "test_stop_clears"), None)
         assert test_service is not None, "test_stop_clears service not found"
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
         await asyncio.wait_for(test3_complete, timeout=2.0)
 
         # Verify Test 3
@@ -179,7 +179,7 @@ async def test_script_queued(
         # Test 4: Rejection enforcement (max_runs=3)
         test_service = next((s for s in services if s.name == "test_rejection"), None)
         assert test_service is not None, "test_rejection service not found"
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
         await asyncio.wait_for(test4_complete, timeout=2.0)
         await asyncio.sleep(0.1)  # Give time for rejections
 
@@ -194,7 +194,7 @@ async def test_script_queued(
         # Test 5: No parameters
         test_service = next((s for s in services if s.name == "test_no_params"), None)
         assert test_service is not None, "test_no_params service not found"
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
         await asyncio.wait_for(test5_complete, timeout=2.0)
 
         # Verify Test 5

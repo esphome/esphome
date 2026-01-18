@@ -4,10 +4,9 @@
 #include "esphome/core/template_lambda.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
-class TemplateBinarySensor : public Component, public binary_sensor::BinarySensor {
+class TemplateBinarySensor final : public Component, public binary_sensor::BinarySensor {
  public:
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
@@ -21,5 +20,4 @@ class TemplateBinarySensor : public Component, public binary_sensor::BinarySenso
   TemplateLambda<bool> f_;
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_
