@@ -1,6 +1,7 @@
 #include "time.h"  // NOLINT
 #include "helpers.h"
 
+#include <algorithm>
 #include <cinttypes>
 
 namespace esphome {
@@ -15,6 +16,18 @@ uint8_t days_in_month(uint8_t month, uint16_t year) {
 size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
   struct tm c_tm = this->to_c_tm();
   return ::strftime(buffer, buffer_len, format, &c_tm);
+}
+
+size_t ESPTime::strftime_to(std::span<char, STRFTIME_BUFFER_SIZE> buffer, const char *format) {
+  struct tm c_tm = this->to_c_tm();
+  size_t len = ::strftime(buffer.data(), buffer.size(), format, &c_tm);
+  if (len > 0) {
+    return len;
+  }
+  // Write "ERROR" to buffer on failure for consistent behavior
+  constexpr char error_str[] = "ERROR";
+  std::copy_n(error_str, sizeof(error_str), buffer.data());
+  return sizeof(error_str) - 1;  // Length excluding null terminator
 }
 
 ESPTime ESPTime::from_c_tm(struct tm *c_tm, time_t c_time) {
@@ -46,23 +59,13 @@ struct tm ESPTime::to_c_tm() {
   return c_tm;
 }
 
-std::string ESPTime::strftime(const std::string &format) {
-  std::string timestr;
-  timestr.resize(format.size() * 4);
-  struct tm c_tm = this->to_c_tm();
-  size_t len = ::strftime(&timestr[0], timestr.size(), format.c_str(), &c_tm);
-  while (len == 0) {
-    if (timestr.size() >= 128) {
-      // strftime has failed for reasons unrelated to the size of the buffer
-      // so return a formatting error
-      return "ERROR";
-    }
-    timestr.resize(timestr.size() * 2);
-    len = ::strftime(&timestr[0], timestr.size(), format.c_str(), &c_tm);
-  }
-  timestr.resize(len);
-  return timestr;
+std::string ESPTime::strftime(const char *format) {
+  char buf[STRFTIME_BUFFER_SIZE];
+  size_t len = this->strftime_to(buf, format);
+  return std::string(buf, len);
 }
+
+std::string ESPTime::strftime(const std::string &format) { return this->strftime(format.c_str()); }
 
 bool ESPTime::strptime(const std::string &time_to_parse, ESPTime &esp_time) {
   uint16_t year;

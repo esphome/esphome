@@ -3,16 +3,12 @@ import argparse
 
 from helpers import (
     changed_files,
-    filter_component_files,
+    filter_component_and_test_cpp_files,
+    filter_component_and_test_files,
+    get_all_component_files,
     get_components_with_dependencies,
-    git_ls_files,
+    get_cpp_changed_components,
 )
-
-
-def get_all_component_files() -> list[str]:
-    """Get all component files from git."""
-    files = git_ls_files()
-    return list(filter(filter_component_files, files))
 
 
 def main():
@@ -39,16 +35,29 @@ def main():
     parser.add_argument(
         "-b", "--branch", help="Branch to compare changed files against"
     )
+    parser.add_argument(
+        "--cpp-changed",
+        action="store_true",
+        help="List components with changed C++ files",
+    )
     args = parser.parse_args()
 
     if args.branch and not (
-        args.changed or args.changed_direct or args.changed_with_deps
+        args.changed
+        or args.changed_direct
+        or args.changed_with_deps
+        or args.cpp_changed
     ):
         parser.error(
-            "--branch requires --changed, --changed-direct, or --changed-with-deps"
+            "--branch requires --changed, --changed-direct, --changed-with-deps, or --cpp-changed"
         )
 
-    if args.changed or args.changed_direct or args.changed_with_deps:
+    if (
+        args.changed
+        or args.changed_direct
+        or args.changed_with_deps
+        or args.cpp_changed
+    ):
         # When --changed* is passed, only get the changed files
         changed = changed_files(args.branch)
 
@@ -68,6 +77,11 @@ def main():
         # - --changed-with-deps: Used by CI test determination (script/determine-jobs.py)
         #   Returns: Components with code changes + their dependencies (not infrastructure)
         #   Reason: CI needs to test changed components and their dependents
+        #
+        # - --cpp-changed: Used by CI to determine if any C++ files changed (script/determine-jobs.py)
+        #   Returns: Only components with changed C++ files
+        #   Reason: Only components with C++ changes need C++ testing
+
         base_test_changed = any(
             "tests/test_build_components" in file for file in changed
         )
@@ -80,7 +94,7 @@ def main():
             # Only look at changed component files (ignore infrastructure changes)
             # For --changed-direct: only actual component code changes matter (for isolation)
             # For --changed-with-deps: only actual component code changes matter (for testing)
-            files = [f for f in changed if filter_component_files(f)]
+            files = [f for f in changed if filter_component_and_test_files(f)]
     else:
         # Get all component files
         files = get_all_component_files()
@@ -99,6 +113,11 @@ def main():
     elif args.changed_direct:
         # Return only directly changed components (without dependencies)
         for c in get_components_with_dependencies(files, False):
+            print(c)
+    elif args.cpp_changed:
+        # Only look at changed cpp files
+        files = list(filter(filter_component_and_test_cpp_files, changed))
+        for c in get_cpp_changed_components(files):
             print(c)
     else:
         # Return all changed components (with dependencies) - default behavior

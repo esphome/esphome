@@ -85,7 +85,7 @@ network::IPAddresses get_ip_addresses() {
   return {};
 }
 
-const std::string &get_use_address() {
+const char *get_use_address() {
   // Global component pointers are guaranteed to be set by component constructors when USE_* is defined
 #ifdef USE_ETHERNET
   return ethernet::global_eth_component->get_use_address();
@@ -99,10 +99,13 @@ const std::string &get_use_address() {
   return wifi::global_wifi_component->get_use_address();
 #endif
 
-#if !defined(USE_ETHERNET) && !defined(USE_MODEM) && !defined(USE_WIFI)
+#ifdef USE_OPENTHREAD
+  return openthread::global_openthread_component->get_use_address();
+#endif
+
+#if !defined(USE_ETHERNET) && !defined(USE_MODEM) && !defined(USE_WIFI) && !defined(USE_OPENTHREAD)
   // Fallback when no network component is defined (e.g., host platform)
-  static const std::string empty;
-  return empty;
+  return "";
 #endif
 }
 

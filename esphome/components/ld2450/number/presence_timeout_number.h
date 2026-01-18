@@ -3,8 +3,7 @@
 #include "esphome/components/number/number.h"
 #include "../ld2450.h"
 
-namespace esphome {
-namespace ld2450 {
+namespace esphome::ld2450 {
 
 class PresenceTimeoutNumber : public number::Number, public Parented<LD2450Component> {
  public:
@@ -14,5 +13,4 @@ class PresenceTimeoutNumber : public number::Number, public Parented<LD2450Compo
   void control(float value) override;
 };
 
-}  // namespace ld2450
-}  // namespace esphome
+}  // namespace esphome::ld2450

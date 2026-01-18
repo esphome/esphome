@@ -375,6 +375,6 @@ def get_esp32_arduino_flash_error_help() -> str | None:
         + "For detailed migration instructions, see:\n"
         + color(
             AnsiFore.BLUE,
-            "https://esphome.io/guides/esp32_arduino_to_idf.html\n\n",
+            "https://esphome.io/guides/esp32_arduino_to_idf/\n\n",
         )
     )
