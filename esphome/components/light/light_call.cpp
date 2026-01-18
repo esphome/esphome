@@ -79,6 +79,12 @@ void LightCall::perform() {
   LightColorValues v = this->validate_();
   const bool publish = this->get_publish_();
 
+  // Skip if values unchanged and not changing effect/flash
+  // Flash is allowed to repeat, effects may need to restart
+  if (v == this->parent_->remote_values && !this->has_flash_() && !this->has_effect_()) {
+    return;
+  }
+
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
   // Build combined log message in a single buffer to reduce API packet overhead
   // Buffer sized for: name(64) + state(10) + brightness(20) + color_brightness(25) +
