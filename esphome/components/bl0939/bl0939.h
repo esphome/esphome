@@ -25,6 +25,11 @@ static const float BL0939_UREF_CT = 79931 * 24.9 * 1000 / (1.218 * 5 * 22000);
 static const float BL0939_PREF_CT = 4046 * 0.3 * 24.9 * 1000 / (1.218 * 1.218 * 5 * 22000);
 static const float BL0939_EREF_CT = 3.6e6 * 4046 * 0.3 * 24.9 * 1000 / (1638.4 * 256 * 1.218 * 1.218 * 5 * 22000);
 
+enum class BL0939Mode : uint8_t {
+  DIRECT = 0,
+  CURRENT_TRANSFORMER = 1,
+};
+
 struct ube24_t {  // NOLINT(readability-identifier-naming,altera-struct-pack-align)
   uint8_t l;
   uint8_t m;
@@ -75,7 +80,7 @@ class BL0939 : public PollingComponent, public uart::UARTDevice {
   void set_energy_sensor_1(sensor::Sensor *energy_sensor_1) { energy_sensor_1_ = energy_sensor_1; }
   void set_energy_sensor_2(sensor::Sensor *energy_sensor_2) { energy_sensor_2_ = energy_sensor_2; }
   void set_energy_sensor_sum(sensor::Sensor *energy_sensor_sum) { energy_sensor_sum_ = energy_sensor_sum; }
-  void set_work_mode(std::string work_mode) { work_mode_ = std::move(work_mode); }
+  void set_mode(BL0939Mode mode) { mode_ = mode; }
 
   void loop() override;
 
@@ -94,15 +99,15 @@ class BL0939 : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *energy_sensor_1_{nullptr};
   sensor::Sensor *energy_sensor_2_{nullptr};
   sensor::Sensor *energy_sensor_sum_{nullptr};
-  std::string work_mode_;
+  BL0939Mode mode_{BL0939Mode::DIRECT};
   // Divide by this to turn into Watt
-  float power_reference_;
+  float power_reference_ = BL0939_PREF;
   // Divide by this to turn into Volt
-  float voltage_reference_;
+  float voltage_reference_ = BL0939_UREF;
   // Divide by this to turn into Ampere
-  float current_reference_;
+  float current_reference_ = BL0939_IREF;
   // Divide by this to turn into kWh
-  float energy_reference_;
+  float energy_reference_ = BL0939_EREF;
 
   static uint32_t to_uint32_t(ube24_t input);
 

@@ -30,12 +30,17 @@ CONF_ENERGY_TOTAL = "energy_total"
 
 bl0939_ns = cg.esphome_ns.namespace("bl0939")
 BL0939 = bl0939_ns.class_("BL0939", cg.PollingComponent, uart.UARTDevice)
+BL0939Mode = bl0939_ns.enum("BL0939Mode", is_class=True)
+MODE_OPTIONS = {
+    "direct": BL0939Mode.DIRECT,
+    "current_transformer": BL0939Mode.CURRENT_TRANSFORMER,
+}
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BL0939),
-            cv.Optional(CONF_MODE, default=""): cv.string,
+            cv.Optional(CONF_MODE, default="direct"): cv.enum(MODE_OPTIONS, lower=True),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=1,
@@ -95,8 +100,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    if work_mode_config := config.get(CONF_MODE):
-        cg.add(var.set_work_mode(work_mode_config))
+    cg.add(var.set_mode(config[CONF_MODE]))
     if voltage_config := config.get(CONF_VOLTAGE):
         sens = await sensor.new_sensor(voltage_config)
         cg.add(var.set_voltage_sensor(sens))

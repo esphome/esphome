@@ -1,5 +1,6 @@
 sensor:
   - platform: bl0939
+    mode: current_transformer
     voltage:
       name: BL0939 Voltage
     current_1:
