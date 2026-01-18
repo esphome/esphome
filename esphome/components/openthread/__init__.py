@@ -251,7 +251,9 @@ def _platform_specific_validation(config):
     """Apply platform-specific validation."""
     if CORE.is_esp32:
         # ESP32 specific validation
-        only_on_variant(supported=[VARIANT_ESP32C6, VARIANT_ESP32H2])(config)
+        only_on_variant(supported=[VARIANT_ESP32C5, VARIANT_ESP32C6, VARIANT_ESP32H2])(
+            config
+        )
         cv.only_with_esp_idf(config)
     elif CORE.is_nrf52:
         # nRF52 uses Zephyr; no dedicated cv helper exists
