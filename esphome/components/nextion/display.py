@@ -103,8 +103,11 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_SKIP_CONNECTION_HANDSHAKE, default=False): cv.boolean,
-            cv.Optional(CONF_STARTUP_OVERRIDE_MS, default=8000): cv.int_range(
-                min=0, max=65535
+            cv.Optional(CONF_STARTUP_OVERRIDE_MS, default=8000): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(
+                    min=TimePeriod(milliseconds=0), max=TimePeriod(milliseconds=65535)
+                ),
             ),
             cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
             cv.Optional(CONF_TFT_URL): cv.url,
