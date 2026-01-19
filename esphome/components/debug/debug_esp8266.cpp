@@ -109,8 +109,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
     default:
       flash_mode = "UNKNOWN";
   }
-  uint32_t flash_size = ESP.getFlashChipSize() / 1024;       // NOLINT
-  uint32_t flash_speed = ESP.getFlashChipSpeed() / 1000000;  // NOLINT
+  uint32_t flash_size = ESP.getFlashChipSize() / 1024;       // NOLINT(readability-static-accessed-through-instance)
+  uint32_t flash_speed = ESP.getFlashChipSpeed() / 1000000;  // NOLINT(readability-static-accessed-through-instance)
   ESP_LOGD(TAG, "Flash Chip: Size=%" PRIu32 "kB Speed=%" PRIu32 "MHz Mode=%s", flash_size, flash_speed, flash_mode);
   pos = buf_append_printf(buf, size, pos, "|Flash: %" PRIu32 "kB Speed:%" PRIu32 "MHz Mode:%s", flash_size, flash_speed,
                           flash_mode);
