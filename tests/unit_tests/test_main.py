@@ -1988,7 +1988,7 @@ esp32:
     clean_output = strip_ansi_codes(captured.out)
 
     assert "test-device_123.yaml" in clean_output
-    assert "Updating" in clean_output
+    assert "Processing" in clean_output
     assert "SUCCESS" in clean_output
     assert "SUMMARY" in clean_output
 

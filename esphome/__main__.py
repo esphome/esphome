@@ -936,11 +936,19 @@ def command_dashboard(args: ArgsProtocol) -> int | None:
     return dashboard.start_dashboard(args)
 
 
-def command_update_all(args: ArgsProtocol) -> int | None:
+def run_multiple_configs(files: list, command_builder: callable) -> int:
+    """Run a command for each configuration file in a subprocess.
+
+    Args:
+        files: List of configuration files to process.
+        command_builder: Callable that takes a file path and returns a command list.
+
+    Returns:
+        Number of failed files.
+    """
     import click
 
     success = {}
-    files = list_yaml_files(args.configuration)
     twidth = 60
 
     def print_bar(middle_text):
@@ -950,17 +958,19 @@ def command_update_all(args: ArgsProtocol) -> int | None:
         safe_print(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
-        safe_print(f"Updating {color(AnsiFore.CYAN, str(f))}")
+        f_path = Path(f) if not isinstance(f, Path) else f
+
+        if any(f_path.name == x for x in SECRETS_FILES):
+            _LOGGER.warning("Skipping secrets file %s", f_path)
+            continue
+
+        safe_print(f"Processing {color(AnsiFore.CYAN, str(f))}")
         safe_print("-" * twidth)
         safe_print()
-        if CORE.dashboard:
-            rc = run_external_process(
-                "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
-            )
-        else:
-            rc = run_external_process(
-                "esphome", "run", f, "--no-logs", "--device", "OTA"
-            )
+
+        cmd = command_builder(f)
+        rc = run_external_process(*cmd)
+
         if rc == 0:
             print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {str(f)}")
             success[f] = True
@@ -975,12 +985,25 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     print_bar(f"[{color(AnsiFore.BOLD_WHITE, 'SUMMARY')}]")
     failed = 0
     for f in files:
+        if f not in success:
+            continue  # Skipped file
         if success[f]:
             safe_print(f"  - {str(f)}: {color(AnsiFore.GREEN, 'SUCCESS')}")
         else:
             safe_print(f"  - {str(f)}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
             failed += 1
     return failed
+
+
+def command_update_all(args: ArgsProtocol) -> int | None:
+    files = list_yaml_files(args.configuration)
+
+    def build_command(f):
+        if CORE.dashboard:
+            return ["esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"]
+        return ["esphome", "run", f, "--no-logs", "--device", "OTA"]
+
+    return run_multiple_configs(files, build_command)
 
 
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
@@ -1536,58 +1559,16 @@ def run_esphome(argv):
     # Multiple configurations: use subprocesses to avoid state leakage
     # between compilations (e.g., LVGL touchscreen state in module globals)
     if len(args.configuration) > 1:
-        import click
-
-        success = {}
-        twidth = 60
-
-        def print_bar(middle_text):
-            middle_text = f" {middle_text} "
-            width = len(click.unstyle(middle_text))
-            half_line = "=" * ((twidth - width) // 2)
-            safe_print(f"{half_line}{middle_text}{half_line}")
-
-        for f in args.configuration:
-            f_path = Path(f)
-            if any(f_path.name == x for x in SECRETS_FILES):
-                _LOGGER.warning("Skipping secrets file %s", f_path)
-                continue
-
-            safe_print(f"Processing {color(AnsiFore.CYAN, str(f))}")
-            safe_print("-" * twidth)
-            safe_print()
-
-            # Build command by reusing argv, replacing all configs with single file
-            # argv[0] is the program path, skip it since we prefix with "esphome"
-            cmd = (
+        # Build command by reusing argv, replacing all configs with single file
+        # argv[0] is the program path, skip it since we prefix with "esphome"
+        def build_command(f):
+            return (
                 ["esphome"]
                 + [arg for arg in argv[1:] if arg not in args.configuration]
                 + [str(f)]
             )
 
-            rc = run_external_process(*cmd)
-            if rc == 0:
-                print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {str(f)}")
-                success[f] = True
-            else:
-                print_bar(f"[{color(AnsiFore.BOLD_RED, 'ERROR')}] {str(f)}")
-                success[f] = False
-
-            safe_print()
-            safe_print()
-            safe_print()
-
-        print_bar(f"[{color(AnsiFore.BOLD_WHITE, 'SUMMARY')}]")
-        failed = 0
-        for f in args.configuration:
-            if f not in success:
-                continue  # Skipped file
-            if success[f]:
-                safe_print(f"  - {str(f)}: {color(AnsiFore.GREEN, 'SUCCESS')}")
-            else:
-                safe_print(f"  - {str(f)}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
-                failed += 1
-        return failed
+        return run_multiple_configs(args.configuration, build_command)
 
     # Single configuration
     conf_path = Path(args.configuration[0])
