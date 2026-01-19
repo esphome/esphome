@@ -46,16 +46,14 @@ void STCC4Component::set_rht_compensation_(uint16_t temp, uint16_t rh) {
 }
 
 void STCC4Component::set_pressure_compensation_(float pressure_hpa) {
-  uint32_t pressure_pa_32 = (uint32_t) (pressure_hpa * 50.0f);
+  uint16_t pressure_half_pa = (uint16_t) (pressure_hpa * 50.0f);
 
-  if (pressure_pa_32 < 40000)
-    pressure_pa_32 = 40000;
-  if (pressure_pa_32 > 110000)
-    pressure_pa_32 = 110000;
+  if (pressure_half_pa < 20000)
+    pressure_half_pa = 20000;
+  if (pressure_half_pa > 55000)
+    pressure_half_pa = 55000;
 
-  uint16_t pressure_pa = (uint16_t) pressure_pa_32;
-
-  write_command((uint16_t) SensorCommand::SET_PRESSURE_COMPENSATION, pressure_pa);
+  write_command((uint16_t) SensorCommand::SET_PRESSURE_COMPENSATION, pressure_half_pa);
   delay_microseconds_safe(1000 * 2);
   this->state_.is_pressure_compensated = true;
 
