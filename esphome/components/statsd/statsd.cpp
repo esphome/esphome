@@ -126,7 +126,7 @@ void StatsdComponent::update() {
     }
     out.append(s.name);
     // Buffer for ":" + value + "|g\n".
-    // %f with -DBL_MAX can produce up to 321 chars, plus ":" and "|g\n" (5) + null = 327
+    // %f with -DBL_MAX can produce up to 321 chars, plus ":" and "|g\n" (4) + null = 326
     char val_buf[330];
     buf_append_printf(val_buf, sizeof(val_buf), 0, ":%f|g\n", val);
     out.append(val_buf);
