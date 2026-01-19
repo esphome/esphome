@@ -3,8 +3,7 @@
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 static const char *const TAG = "sensor";
 
@@ -127,13 +126,12 @@ float Sensor::get_raw_state() const { return this->raw_state; }
 void Sensor::internal_send_state_to_frontend(float state) {
   this->set_has_state(true);
   this->state = state;
-  ESP_LOGD(TAG, "'%s': Sending state %.5f %s with %d decimals of accuracy", this->get_name().c_str(), state,
-           this->get_unit_of_measurement_ref().c_str(), this->get_accuracy_decimals());
+  ESP_LOGD(TAG, "'%s' >> %.*f %s", this->get_name().c_str(), std::max(0, (int) this->get_accuracy_decimals()), state,
+           this->get_unit_of_measurement_ref().c_str());
   this->callback_.call(state);
 #if defined(USE_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_sensor_update(this);
 #endif
 }
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor

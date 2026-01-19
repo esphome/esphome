@@ -39,7 +39,7 @@ bool MQTTTextSensor::send_initial_state() {
     return true;
   }
 }
-std::string MQTTTextSensor::component_type() const { return "sensor"; }
+MQTT_COMPONENT_TYPE(MQTTTextSensor, "sensor")
 const EntityBase *MQTTTextSensor::get_entity() const { return this->sensor_; }
 
 }  // namespace esphome::mqtt

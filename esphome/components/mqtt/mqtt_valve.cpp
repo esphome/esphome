@@ -65,7 +65,7 @@ void MQTTValveComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
   }
 }
 
-std::string MQTTValveComponent::component_type() const { return "valve"; }
+MQTT_COMPONENT_TYPE(MQTTValveComponent, "valve")
 const EntityBase *MQTTValveComponent::get_entity() const { return this->valve_; }
 
 bool MQTTValveComponent::send_initial_state() { return this->publish_state(); }
@@ -73,8 +73,9 @@ bool MQTTValveComponent::publish_state() {
   auto traits = this->valve_->get_traits();
   bool success = true;
   if (traits.get_supports_position()) {
-    std::string pos = value_accuracy_to_string(roundf(this->valve_->position * 100), 0);
-    if (!this->publish(this->get_position_state_topic(), pos))
+    char pos[VALUE_ACCURACY_MAX_LEN];
+    size_t len = value_accuracy_to_buf(pos, roundf(this->valve_->position * 100), 0);
+    if (!this->publish(this->get_position_state_topic(), pos, len))
       success = false;
   }
   const char *state_s = this->valve_->current_operation == VALVE_OPERATION_OPENING   ? "opening"

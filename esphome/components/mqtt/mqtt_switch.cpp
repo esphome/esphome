@@ -41,7 +41,7 @@ void MQTTSwitchComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, true);
 }
 
-std::string MQTTSwitchComponent::component_type() const { return "switch"; }
+MQTT_COMPONENT_TYPE(MQTTSwitchComponent, "switch")
 const EntityBase *MQTTSwitchComponent::get_entity() const { return this->switch_; }
 void MQTTSwitchComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
