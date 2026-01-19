@@ -366,6 +366,35 @@ template<typename T> class FixedVector {
   const T *end() const { return data_ + size_; }
 };
 
+/// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
+/// This is useful when most operations need a small buffer but occasionally need larger ones.
+/// The stack buffer avoids heap allocation in the common case, while heap fallback handles edge cases.
+template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
+ public:
+  explicit SmallBufferWithHeapFallback(size_t size) {
+    if (size <= STACK_SIZE) {
+      this->buffer_ = this->stack_buffer_;
+    } else {
+      this->heap_buffer_ = new uint8_t[size];
+      this->buffer_ = this->heap_buffer_;
+    }
+  }
+  ~SmallBufferWithHeapFallback() { delete[] this->heap_buffer_; }
+
+  // Delete copy and move operations to prevent double-delete
+  SmallBufferWithHeapFallback(const SmallBufferWithHeapFallback &) = delete;
+  SmallBufferWithHeapFallback &operator=(const SmallBufferWithHeapFallback &) = delete;
+  SmallBufferWithHeapFallback(SmallBufferWithHeapFallback &&) = delete;
+  SmallBufferWithHeapFallback &operator=(SmallBufferWithHeapFallback &&) = delete;
+
+  uint8_t *get() { return this->buffer_; }
+
+ private:
+  uint8_t stack_buffer_[STACK_SIZE];
+  uint8_t *heap_buffer_{nullptr};
+  uint8_t *buffer_;
+};
+
 ///@}
 
 /// @name Mathematics
@@ -394,6 +423,28 @@ inline uint32_t fnv1_hash(const std::string &str) { return fnv1_hash(str.c_str()
 constexpr uint32_t FNV1_OFFSET_BASIS = 2166136261UL;
 /// FNV-1 32-bit prime
 constexpr uint32_t FNV1_PRIME = 16777619UL;
+
+/// Extend a FNV-1 hash with an integer (hashes each byte).
+template<std::integral T> constexpr uint32_t fnv1_hash_extend(uint32_t hash, T value) {
+  using UnsignedT = std::make_unsigned_t<T>;
+  UnsignedT uvalue = static_cast<UnsignedT>(value);
+  for (size_t i = 0; i < sizeof(T); i++) {
+    hash *= FNV1_PRIME;
+    hash ^= (uvalue >> (i * 8)) & 0xFF;
+  }
+  return hash;
+}
+/// Extend a FNV-1 hash with additional string data.
+constexpr uint32_t fnv1_hash_extend(uint32_t hash, const char *str) {
+  if (str) {
+    while (*str) {
+      hash *= FNV1_PRIME;
+      hash ^= *str++;
+    }
+  }
+  return hash;
+}
+inline uint32_t fnv1_hash_extend(uint32_t hash, const std::string &str) { return fnv1_hash_extend(hash, str.c_str()); }
 
 /// Extend a FNV-1a hash with additional string data.
 constexpr uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
@@ -522,6 +573,15 @@ bool str_equals_case_insensitive(StringRef a, StringRef b);
 bool str_startswith(const std::string &str, const std::string &start);
 /// Check whether a string ends with a value.
 bool str_endswith(const std::string &str, const std::string &end);
+
+/// Case-insensitive check if string ends with suffix (no heap allocation).
+bool str_endswith_ignore_case(const char *str, size_t str_len, const char *suffix, size_t suffix_len);
+inline bool str_endswith_ignore_case(const char *str, const char *suffix) {
+  return str_endswith_ignore_case(str, strlen(str), suffix, strlen(suffix));
+}
+inline bool str_endswith_ignore_case(const std::string &str, const char *suffix) {
+  return str_endswith_ignore_case(str.c_str(), str.size(), suffix, strlen(suffix));
+}
 
 /// Truncate a string to a specific length.
 /// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
@@ -1096,9 +1156,66 @@ std::string format_hex_pretty(T val, char separator = '.', bool show_length = tr
   return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T), separator, show_length);
 }
 
+/// Calculate buffer size needed for format_bin_to: "01234567...\0" = bytes * 8 + 1
+constexpr size_t format_bin_size(size_t byte_count) { return byte_count * 8 + 1; }
+
+/** Format byte array as binary string to buffer.
+ *
+ * Each byte is formatted as 8 binary digits (MSB first).
+ * Truncates output if data exceeds buffer capacity.
+ *
+ * @param buffer Output buffer to write to.
+ * @param buffer_size Size of the output buffer.
+ * @param data Pointer to the byte array to format.
+ * @param length Number of bytes in the array.
+ * @return Pointer to buffer.
+ *
+ * Buffer size needed: length * 8 + 1 (use format_bin_size()).
+ *
+ * Example:
+ * @code
+ * char buf[9];  // format_bin_size(1)
+ * format_bin_to(buf, sizeof(buf), data, 1);  // "10101011"
+ * @endcode
+ */
+char *format_bin_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length);
+
+/// Format byte array as binary to buffer. Automatically deduces buffer size.
+template<size_t N> inline char *format_bin_to(char (&buffer)[N], const uint8_t *data, size_t length) {
+  static_assert(N >= 9, "Buffer must hold at least one binary byte (9 chars)");
+  return format_bin_to(buffer, N, data, length);
+}
+
+/** Format an unsigned integer in binary to buffer, MSB first.
+ *
+ * @tparam N Buffer size (must be >= sizeof(T) * 8 + 1).
+ * @tparam T Unsigned integer type.
+ * @param buffer Output buffer to write to.
+ * @param val The unsigned integer value to format.
+ * @return Pointer to buffer.
+ *
+ * Example:
+ * @code
+ * char buf[9];  // format_bin_size(sizeof(uint8_t))
+ * format_bin_to(buf, uint8_t{0xAA});  // "10101010"
+ * char buf16[17];  // format_bin_size(sizeof(uint16_t))
+ * format_bin_to(buf16, uint16_t{0x1234});  // "0001001000110100"
+ * @endcode
+ */
+template<size_t N, typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline char *format_bin_to(char (&buffer)[N], T val) {
+  static_assert(N >= sizeof(T) * 8 + 1, "Buffer too small for type");
+  val = convert_big_endian(val);
+  return format_bin_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
+}
+
 /// Format the byte array \p data of length \p len in binary.
+/// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 std::string format_bin(const uint8_t *data, size_t length);
 /// Format an unsigned integer in binary, starting with the most significant byte.
+/// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_bin(T val) {
   val = convert_big_endian(val);
   return format_bin(reinterpret_cast<uint8_t *>(&val), sizeof(T));
@@ -1137,13 +1254,11 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string);
 size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len);
 
-/// Size of buffer needed for base85 encoded int32 (5 chars + null terminator)
-static constexpr size_t BASE85_INT32_ENCODED_SIZE = 6;
-
-void base85_encode_int32(int32_t value, std::span<char, BASE85_INT32_ENCODED_SIZE> output);
-
-bool base85_decode_int32(const char *input, int32_t &out);
-bool base85_decode_int32_vector(const std::string &base85, std::vector<int32_t> &out);
+/// Decode base64/base64url string directly into vector of little-endian int32 values
+/// @param base64 Base64 or base64url encoded string (both +/ and -_ accepted)
+/// @param out Output vector (cleared and filled with decoded int32 values)
+/// @return true if successful, false if decode failed or invalid size
+bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> &out);
 
 ///@}
 
