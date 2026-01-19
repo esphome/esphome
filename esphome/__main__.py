@@ -937,7 +937,9 @@ def command_dashboard(args: ArgsProtocol) -> int | None:
     return dashboard.start_dashboard(args)
 
 
-def run_multiple_configs(files: list, command_builder: Callable) -> int:
+def run_multiple_configs(
+    files: list, command_builder: Callable[[str], list[str]]
+) -> int:
     """Run a command for each configuration file in a subprocess.
 
     Args:
