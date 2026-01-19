@@ -8,7 +8,6 @@
 ///                 wk2132_i2c, wk2168_i2c, wk2204_i2c, wk2212_i2c
 
 #pragma once
-#include <bitset>
 #include <memory>
 #include <cinttypes>
 #include "esphome/core/component.h"
