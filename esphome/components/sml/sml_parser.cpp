@@ -106,7 +106,7 @@ std::string bytes_repr(const BytesView &buffer) {
   for (auto const value : buffer) {
     // max 3: 2 hex digits + null
     char hex_buf[3];
-    snprintf(hex_buf, sizeof(hex_buf), "%02x", value & 0xff);
+    snprintf(hex_buf, sizeof(hex_buf), "%02x", static_cast<unsigned int>(value));
     repr += hex_buf;
   }
   return repr;

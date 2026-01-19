@@ -51,7 +51,7 @@ void Sim800LComponent::update() {
   } else if (state_ == STATE_RECEIVED_SMS) {
     // Serial Buffer should have flushed.
     // Send cmd to delete received sms
-    char delete_cmd[20];  // "AT+CMGD=" (8) + int (max 11) + null = 20
+    char delete_cmd[20];  // "AT+CMGD=" (8) + uint8_t (max 3) + null = 12 <= 20
     buf_append_printf(delete_cmd, sizeof(delete_cmd), 0, "AT+CMGD=%d", this->parse_index_);
     this->send_cmd_(delete_cmd);
     this->state_ = STATE_CHECK_SMS;
