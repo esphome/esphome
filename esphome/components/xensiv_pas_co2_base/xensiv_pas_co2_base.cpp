@@ -280,10 +280,6 @@ void XensivPasCO2::set_pressure_compensation(uint16_t pressure_ref) {
     return;
   }
 
-  // Pressure reference is stored as 16-bit value in hPa units (1 bit = 1 hPa)
-  uint8_t press_h = (pressure_ref >> 8) & 0xFF;  // Upper byte
-  uint8_t press_l = pressure_ref & 0xFF;         // Lower byte
-
   ESP_LOGD(TAG, "Setting pressure compensation to %d hPa", pressure_ref);
 
   // If we're inside a measurement cycle, writes can sporadically fail.
