@@ -25,6 +25,7 @@ class APCProteousCover : public cover::Cover, public PollingComponent, public ua
   uint8_t s_status_{0};
   uint8_t x_status_{0};
   bool initial_state_received_{false};
+  float target_position_{0};
 };
 
 }  // namespace apc_proteous

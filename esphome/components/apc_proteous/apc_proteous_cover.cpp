@@ -75,7 +75,7 @@ void APCProteousCover::parse_response_() {
     if (is_operating) {
       // Determine direction based on whether we're closed or not
       // If closed and operating, we're opening. Otherwise, we're closing.
-      if (is_closed || this->position < 0.5f) {
+      if (is_closed) {
         new_operation = COVER_OPERATION_OPENING;
       } else {
         new_operation = COVER_OPERATION_CLOSING;
@@ -93,24 +93,27 @@ void APCProteousCover::parse_response_() {
     this->x_status_ = (uint8_t) value;
 
     // Convert 0-100 to 0.0-1.0 range
-    // allow a little slop at the endpoints
     float new_position = this->x_status_ / 100.0f;
-    if (this->current_operation == COVER_OPERATION_IDLE) {
-      if (new_position >= 0.95f) {
-      }
-      new_position = COVER_OPEN;
-    } else if (new_position <= 0.05f) {
-      new_position = COVER_CLOSED;
-    }
     new_position = clamp(new_position, 0.0f, 1.0f);
 
-    if (fabs(this->position - new_position) > 0.01f) {
+    if (this->position != new_position) {
       this->position = new_position;
       state_changed = true;
       this->initial_state_received_ = true;
+      if (this->current_operation != COVER_OPERATION_IDLE && this->target_position_ != COVER_OPEN &&
+          this->target_position_ != COVER_CLOSED) {
+        // Check if we've reached target position
+        if ((this->current_operation == COVER_OPERATION_OPENING && this->position >= this->target_position_) ||
+            (this->current_operation == COVER_OPERATION_CLOSING && this->position <= this->target_position_)) {
+          // Send stop command
+          ESP_LOGD(TAG, "Target position %.2f reached, sending stop command", this->target_position_);
+          this->write_str("*1\r");
+          this->current_operation = COVER_OPERATION_IDLE;
+        }
+      }
     }
 
-    ESP_LOGD(TAG, "x-status: 0x%02X (%d%%, position=%.2f)", this->x_status_, this->x_status_, this->position);
+    ESP_LOGV(TAG, "x-status: 0x%02X (%d%%, position=%.2f)", this->x_status_, this->x_status_, this->position);
   }
 
   if (state_changed) {
@@ -150,6 +153,7 @@ void APCProteousCover::control(const CoverCall &call) {
     this->publish_state();
   } else if (call.get_position().has_value()) {
     float target_position = *call.get_position();
+    this->target_position_ = target_position;
 
     ESP_LOGD(TAG, "Target position: %.2f, current: %.2f", target_position, this->position);
 
