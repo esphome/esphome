@@ -92,7 +92,7 @@ async def to_code(config):
         esp32.add_idf_component(
             name="micro-opus",
             repo="https://github.com/esphome-libs/micro-opus.git",
-            ref="v0.2.0",
+            ref="v0.3.0",
         )
 
     # High performance networking is automatically configured via network.require_high_performance_networking()
