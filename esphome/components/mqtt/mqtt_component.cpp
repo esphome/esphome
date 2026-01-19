@@ -27,19 +27,22 @@ inline char *append_char(char *p, char c) {
 // Max lengths for stack-based topic building.
 // These limits are enforced at Python config validation time in mqtt/__init__.py
 // using cv.Length() validators for topic_prefix and discovery_prefix.
-// MQTT_COMPONENT_TYPE_MAX_LEN and MQTT_SUFFIX_MAX_LEN are defined in mqtt_component.h.
+// MQTT_COMPONENT_TYPE_MAX_LEN, MQTT_SUFFIX_MAX_LEN, and MQTT_DEFAULT_TOPIC_MAX_LEN are in mqtt_component.h.
 // ESPHOME_DEVICE_NAME_MAX_LEN and OBJECT_ID_MAX_LEN are defined in entity_base.h.
 // This ensures the stack buffers below are always large enough.
-static constexpr size_t TOPIC_PREFIX_MAX_LEN = 64;      // Validated in Python: cv.Length(max=64)
 static constexpr size_t DISCOVERY_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
-
-// Stack buffer sizes - safe because all inputs are length-validated at config time
-// Format: prefix + "/" + type + "/" + object_id + "/" + suffix + null
-static constexpr size_t DEFAULT_TOPIC_MAX_LEN =
-    TOPIC_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1 + MQTT_SUFFIX_MAX_LEN + 1;
 // Format: prefix + "/" + type + "/" + name + "/" + object_id + "/config" + null
 static constexpr size_t DISCOVERY_TOPIC_MAX_LEN = DISCOVERY_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 +
                                                   ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 7 + 1;
+
+// Function implementation of LOG_MQTT_COMPONENT macro to reduce code size
+void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic) {
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  if (state_topic)
+    ESP_LOGCONFIG(tag, "  State Topic: '%s'", obj->get_state_topic_to_(buf).c_str());
+  if (command_topic)
+    ESP_LOGCONFIG(tag, "  Command Topic: '%s'", obj->get_command_topic_to_(buf).c_str());
+}
 
 void MQTTComponent::set_qos(uint8_t qos) { this->qos_ = qos; }
 
@@ -69,19 +72,18 @@ std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discove
   return std::string(buf, p - buf);
 }
 
-std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) const {
+StringRef MQTTComponent::get_default_topic_for_to_(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf, const char *suffix,
+                                                   size_t suffix_len) const {
   const std::string &topic_prefix = global_mqtt_client->get_topic_prefix();
   if (topic_prefix.empty()) {
-    // If the topic_prefix is null, the default topic should be null
-    return "";
+    return StringRef();  // Empty topic_prefix means no default topic
   }
 
   const char *comp_type = this->component_type();
   char object_id_buf[OBJECT_ID_MAX_LEN];
   StringRef object_id = this->get_default_object_id_to_(object_id_buf);
 
-  char buf[DEFAULT_TOPIC_MAX_LEN];
-  char *p = buf;
+  char *p = buf.data();
 
   p = append_str(p, topic_prefix.data(), topic_prefix.size());
   p = append_char(p, '/');
@@ -89,21 +91,44 @@ std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) con
   p = append_char(p, '/');
   p = append_str(p, object_id.c_str(), object_id.size());
   p = append_char(p, '/');
-  p = append_str(p, suffix.data(), suffix.size());
+  p = append_str(p, suffix, suffix_len);
+  *p = '\0';
 
-  return std::string(buf, p - buf);
+  return StringRef(buf.data(), p - buf.data());
+}
+
+std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) const {
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  StringRef ref = this->get_default_topic_for_to_(buf, suffix.data(), suffix.size());
+  return std::string(ref.c_str(), ref.size());
+}
+
+StringRef MQTTComponent::get_state_topic_to_(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) const {
+  if (this->custom_state_topic_.has_value()) {
+    // Returns ref to existing data for static/value, uses buf only for lambda case
+    return this->custom_state_topic_.ref_or_copy_to(buf.data(), buf.size());
+  }
+  return this->get_default_topic_for_to_(buf, "state", 5);
+}
+
+StringRef MQTTComponent::get_command_topic_to_(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) const {
+  if (this->custom_command_topic_.has_value()) {
+    // Returns ref to existing data for static/value, uses buf only for lambda case
+    return this->custom_command_topic_.ref_or_copy_to(buf.data(), buf.size());
+  }
+  return this->get_default_topic_for_to_(buf, "command", 7);
 }
 
 std::string MQTTComponent::get_state_topic_() const {
-  if (this->custom_state_topic_.has_value())
-    return this->custom_state_topic_.value();
-  return this->get_default_topic_for_("state");
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  StringRef ref = this->get_state_topic_to_(buf);
+  return std::string(ref.c_str(), ref.size());
 }
 
 std::string MQTTComponent::get_command_topic_() const {
-  if (this->custom_command_topic_.has_value())
-    return this->custom_command_topic_.value();
-  return this->get_default_topic_for_("command");
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  StringRef ref = this->get_command_topic_to_(buf);
+  return std::string(ref.c_str(), ref.size());
 }
 
 bool MQTTComponent::publish(const std::string &topic, const std::string &payload) {
@@ -168,10 +193,14 @@ bool MQTTComponent::send_discovery_() {
             break;
         }
 
-        if (config.state_topic)
-          root[MQTT_STATE_TOPIC] = this->get_state_topic_();
-        if (config.command_topic)
-          root[MQTT_COMMAND_TOPIC] = this->get_command_topic_();
+        if (config.state_topic) {
+          char state_topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+          root[MQTT_STATE_TOPIC] = this->get_state_topic_to_(state_topic_buf);
+        }
+        if (config.command_topic) {
+          char command_topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+          root[MQTT_COMMAND_TOPIC] = this->get_command_topic_to_(command_topic_buf);
+        }
         if (this->command_retain_)
           root[MQTT_COMMAND_RETAIN] = true;
 
@@ -309,7 +338,9 @@ void MQTTComponent::set_availability(std::string topic, std::string payload_avai
 }
 void MQTTComponent::disable_availability() { this->set_availability("", "", ""); }
 void MQTTComponent::call_setup() {
-  if (this->is_internal())
+  // Cache is_internal result once during setup - topics don't change after this
+  this->is_internal_ = this->compute_is_internal_();
+  if (this->is_internal_)
     return;
 
   this->setup();
@@ -361,26 +392,28 @@ StringRef MQTTComponent::get_default_object_id_to_(std::span<char, OBJECT_ID_MAX
 }
 StringRef MQTTComponent::get_icon_ref_() const { return this->get_entity()->get_icon_ref(); }
 bool MQTTComponent::is_disabled_by_default_() const { return this->get_entity()->is_disabled_by_default(); }
-bool MQTTComponent::is_internal() {
+bool MQTTComponent::compute_is_internal_() {
   if (this->custom_state_topic_.has_value()) {
-    // If the custom state_topic is null, return true as it is internal and should not publish
+    // If the custom state_topic is empty, return true as it is internal and should not publish
     // else, return false, as it is explicitly set to a topic, so it is not internal and should publish
-    return this->get_state_topic_().empty();
+    // Using is_empty() avoids heap allocation for non-lambda cases
+    return this->custom_state_topic_.is_empty();
   }
 
   if (this->custom_command_topic_.has_value()) {
-    // If the custom command_topic is null, return true as it is internal and should not publish
+    // If the custom command_topic is empty, return true as it is internal and should not publish
     // else, return false, as it is explicitly set to a topic, so it is not internal and should publish
-    return this->get_command_topic_().empty();
+    // Using is_empty() avoids heap allocation for non-lambda cases
+    return this->custom_command_topic_.is_empty();
   }
 
-  // No custom topics have been set
-  if (this->get_default_topic_for_("").empty()) {
-    // If the default topic prefix is null, then the component, by default, is internal and should not publish
+  // No custom topics have been set - check topic_prefix directly to avoid allocation
+  if (global_mqtt_client->get_topic_prefix().empty()) {
+    // If the default topic prefix is empty, then the component, by default, is internal and should not publish
     return true;
   }
 
-  // Use ESPHome's component internal state if topic_prefix is not null with no custom state_topic or command_topic
+  // Use ESPHome's component internal state if topic_prefix is not empty with no custom state_topic or command_topic
   return this->get_entity()->is_internal();
 }
 
