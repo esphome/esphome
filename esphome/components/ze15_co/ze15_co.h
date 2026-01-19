@@ -1,0 +1,37 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/components/uart/uart.h"
+#include "esphome/components/sensor/sensor.h"
+
+namespace esphome {
+namespace ze15_co {
+
+enum Mode {
+  QA,
+  STREAM,
+};
+
+class ZE15COComponent : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
+  public:
+    void set_mode(Mode mode) { mode_ = mode; }
+    void set_warmup_seconds(uint32_t seconds) { warmup_seconds_ = seconds; }
+
+    void setup() override;
+    void update() override;
+    void loop() override;
+
+  protected:
+    Mode mode_{QA};
+    uint32_t warmup_seconds_{180};
+  
+    uint8_t buffer_[9];
+    uint8_t buffer_pos_{0};
+  
+    void process_stream_byte_(uint8_t byte);
+    bool ze07_co_write_command_(const uint8_t *command, uint8_t *response);    
+    
+};
+
+}  // namespace ze15_co
+}  // namespace esphome
