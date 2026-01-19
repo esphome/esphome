@@ -93,7 +93,15 @@ void APCProteousCover::parse_response_() {
     this->x_status_ = (uint8_t) value;
 
     // Convert 0-100 to 0.0-1.0 range
+    // allow a little slop at the endpoints
     float new_position = this->x_status_ / 100.0f;
+    if (this->current_operation != COVER_OPERATION_IDLE) {
+      if (new_position >= 0.95f) {
+      }
+      new_position = COVER_OPEN;
+    } else if (new_position <= 0.05f) {
+      new_position = COVER_CLOSED;
+    }
     new_position = clamp(new_position, 0.0f, 1.0f);
 
     if (fabs(this->position - new_position) > 0.01f) {
