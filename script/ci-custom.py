@@ -688,6 +688,7 @@ HEAP_ALLOCATING_HELPERS = {
     "format_mac_address_pretty": "format_mac_addr_upper() with a stack buffer",
     "get_mac_address": "get_mac_address_into_buffer() with a stack buffer",
     "get_mac_address_pretty": "get_mac_address_pretty_into_buffer() with a stack buffer",
+    "str_sanitize": "str_sanitize_to() with a stack buffer",
     "str_truncate": "removal (function is unused)",
     "str_upper_case": "removal (function is unused)",
     "str_snake_case": "removal (function is unused)",
@@ -706,6 +707,7 @@ HEAP_ALLOCATING_HELPERS = {
     r"format_mac_address_pretty|"
     r"get_mac_address_pretty(?!_)|"
     r"get_mac_address(?!_)|"
+    r"str_sanitize(?!_)|"
     r"str_truncate|"
     r"str_upper_case|"
     r"str_snake_case"
