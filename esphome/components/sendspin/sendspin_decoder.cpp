@@ -32,6 +32,7 @@ bool SendspinDecoder::process_header(std::shared_ptr<SendspinAudioChunk> header_
   switch (header_chunk->chunk_type) {
     case CHUNK_TYPE_FLAC_HEADER: {
       this->flac_decoder_ = make_unique<esp_audio_libs::flac::FLACDecoder>();
+      this->flac_decoder_->set_crc_check_enabled(false);  // Disable CRC check for small speed up
 
       auto result = this->flac_decoder_->read_header(header_chunk->get_data(),
                                                      header_chunk->size);  // get_data() already applies offset
