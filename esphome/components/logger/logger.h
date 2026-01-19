@@ -234,6 +234,7 @@ class Logger : public Component {
 #endif
 
  protected:
+  void write_msg_(const char *msg, size_t len);
   // RAII guard for recursion flags - sets flag on construction, clears on destruction
   class RecursionGuard {
    public:
@@ -260,7 +261,6 @@ class Logger : public Component {
 #endif
 #endif
   void process_messages_();
-  void write_msg_(const char *msg, size_t len);
 
   // Format a log message with printf-style arguments and write it to a buffer with header, footer, and null terminator
   // It's the caller's responsibility to initialize buffer_at (typically to 0)
