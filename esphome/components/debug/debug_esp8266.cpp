@@ -92,28 +92,29 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   constexpr size_t size = DEVICE_INFO_BUFFER_SIZE;
   char *buf = buffer.data();
 
-  const char *flash_mode;
+  const LogString *flash_mode;
   switch (ESP.getFlashChipMode()) {  // NOLINT(readability-static-accessed-through-instance)
     case FM_QIO:
-      flash_mode = "QIO";
+      flash_mode = LOG_STR("QIO");
       break;
     case FM_QOUT:
-      flash_mode = "QOUT";
+      flash_mode = LOG_STR("QOUT");
       break;
     case FM_DIO:
-      flash_mode = "DIO";
+      flash_mode = LOG_STR("DIO");
       break;
     case FM_DOUT:
-      flash_mode = "DOUT";
+      flash_mode = LOG_STR("DOUT");
       break;
     default:
-      flash_mode = "UNKNOWN";
+      flash_mode = LOG_STR("UNKNOWN");
   }
   uint32_t flash_size = ESP.getFlashChipSize() / 1024;       // NOLINT(readability-static-accessed-through-instance)
   uint32_t flash_speed = ESP.getFlashChipSpeed() / 1000000;  // NOLINT(readability-static-accessed-through-instance)
-  ESP_LOGD(TAG, "Flash Chip: Size=%" PRIu32 "kB Speed=%" PRIu32 "MHz Mode=%s", flash_size, flash_speed, flash_mode);
+  ESP_LOGD(TAG, "Flash Chip: Size=%" PRIu32 "kB Speed=%" PRIu32 "MHz Mode=%s", flash_size, flash_speed,
+           LOG_STR_ARG(flash_mode));
   pos = buf_append_printf(buf, size, pos, "|Flash: %" PRIu32 "kB Speed:%" PRIu32 "MHz Mode:%s", flash_size, flash_speed,
-                          flash_mode);
+                          LOG_STR_ARG(flash_mode));
 
   char reason_buffer[RESET_REASON_BUFFER_SIZE];
   const char *reset_reason = get_reset_reason_(reason_buffer);
