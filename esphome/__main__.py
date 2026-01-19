@@ -1533,38 +1533,90 @@ def run_esphome(argv):
 
     _LOGGER.info("ESPHome %s", const.__version__)
 
-    for conf_path in args.configuration:
-        conf_path = Path(conf_path)
-        if any(conf_path.name == x for x in SECRETS_FILES):
-            _LOGGER.warning("Skipping secrets file %s", conf_path)
-            continue
+    # Multiple configurations: use subprocesses to avoid state leakage
+    # between compilations (e.g., LVGL touchscreen state in module globals)
+    if len(args.configuration) > 1:
+        import click
 
-        CORE.config_path = conf_path
-        CORE.dashboard = args.dashboard
+        success = {}
+        twidth = 60
 
-        # For logs command, skip updating external components
-        skip_external = args.command == "logs"
-        config = read_config(
-            dict(args.substitution) if args.substitution else {},
-            skip_external_update=skip_external,
-        )
-        if config is None:
-            return 2
-        CORE.config = config
+        def print_bar(middle_text):
+            middle_text = f" {middle_text} "
+            width = len(click.unstyle(middle_text))
+            half_line = "=" * ((twidth - width) // 2)
+            safe_print(f"{half_line}{middle_text}{half_line}")
 
-        if args.command not in POST_CONFIG_ACTIONS:
-            safe_print(f"Unknown command {args.command}")
+        for f in args.configuration:
+            f_path = Path(f)
+            if any(f_path.name == x for x in SECRETS_FILES):
+                _LOGGER.warning("Skipping secrets file %s", f_path)
+                continue
 
-        try:
-            rc = POST_CONFIG_ACTIONS[args.command](args, config)
-        except EsphomeError as e:
-            _LOGGER.error(e, exc_info=args.verbose)
-            return 1
-        if rc != 0:
-            return rc
+            safe_print(f"Processing {color(AnsiFore.CYAN, str(f))}")
+            safe_print("-" * twidth)
+            safe_print()
 
-        CORE.reset()
-    return 0
+            # Build command by reusing argv, replacing all configs with single file
+            # argv[0] is the program path, skip it since we prefix with "esphome"
+            cmd = (
+                ["esphome"]
+                + [arg for arg in argv[1:] if arg not in args.configuration]
+                + [str(f)]
+            )
+
+            rc = run_external_process(*cmd)
+            if rc == 0:
+                print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {str(f)}")
+                success[f] = True
+            else:
+                print_bar(f"[{color(AnsiFore.BOLD_RED, 'ERROR')}] {str(f)}")
+                success[f] = False
+
+            safe_print()
+            safe_print()
+            safe_print()
+
+        print_bar(f"[{color(AnsiFore.BOLD_WHITE, 'SUMMARY')}]")
+        failed = 0
+        for f in args.configuration:
+            if f not in success:
+                continue  # Skipped file
+            if success[f]:
+                safe_print(f"  - {str(f)}: {color(AnsiFore.GREEN, 'SUCCESS')}")
+            else:
+                safe_print(f"  - {str(f)}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
+                failed += 1
+        return failed
+
+    # Single configuration
+    conf_path = Path(args.configuration[0])
+    if any(conf_path.name == x for x in SECRETS_FILES):
+        _LOGGER.warning("Skipping secrets file %s", conf_path)
+        return 0
+
+    CORE.config_path = conf_path
+    CORE.dashboard = args.dashboard
+
+    # For logs command, skip updating external components
+    skip_external = args.command == "logs"
+    config = read_config(
+        dict(args.substitution) if args.substitution else {},
+        skip_external_update=skip_external,
+    )
+    if config is None:
+        return 2
+    CORE.config = config
+
+    if args.command not in POST_CONFIG_ACTIONS:
+        safe_print(f"Unknown command {args.command}")
+        return 1
+
+    try:
+        return POST_CONFIG_ACTIONS[args.command](args, config)
+    except EsphomeError as e:
+        _LOGGER.error(e, exc_info=args.verbose)
+        return 1
 
 
 def main():
