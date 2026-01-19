@@ -1,6 +1,0 @@
-sensor:
-  - platform: xensiv_pas_co2_i2c
-    i2c_id: i2c_bus
-    co2:
-      name: "CO2"
-    interrupt_pin: ${interrupt_pin}
