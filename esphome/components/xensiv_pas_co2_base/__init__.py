@@ -18,7 +18,6 @@ CONF_SENSOR_RATE = "sensor_rate"
 CONF_OPERATION_MODE = "operation_mode"
 CONF_PRESSURE_COMPENSATION = "pressure_compensation"
 CONF_PRESSURE_COMPENSATION_SOURCE = "pressure_compensation_source"
-CONF_POWER_PIN = "power_pin"
 
 
 xensiv_pas_co2_ns = cg.esphome_ns.namespace("xensiv_pas_co2_base")
@@ -45,7 +44,6 @@ CONFIG_SCHEMA_BASE = cv.Schema(
         ),
         cv.Optional(CONF_PRESSURE_COMPENSATION): cv.pressure,
         cv.Optional(CONF_PRESSURE_COMPENSATION_SOURCE): cv.use_id(sensor.Sensor),
-        cv.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -75,10 +73,6 @@ async def to_code_base(config):
     if CONF_INTERRUPT_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_INTERRUPT_PIN])
         cg.add(var.set_interrupt_pin(pin))
-
-    if CONF_POWER_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_POWER_PIN])
-        cg.add(var.set_power_pin(pin))
 
     if CONF_SENSOR_RATE in config:
         # Convert TimePeriod to total seconds

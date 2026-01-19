@@ -6,12 +6,6 @@ namespace xensiv_pas_co2_base {
 static const char *const TAG = "xensiv_pas_co2.component";
 
 void XensivPasCO2::setup() {
-  // Set up power pin first if configured (for 12V MEMS sensor power)
-  if (this->power_pin_ != nullptr) {
-    this->power_pin_->setup();
-    this->power_pin_->digital_write(true);
-  }
-
   // Send blind soft reset first to abort any ongoing measurement (warm boot recovery)
   // Ignore return value - command may get through even if sensor NACKs due to busy state
   this->write_byte(XENSIV_PAS_CO2_REG_SENS_RST, XENSIV_PAS_CO2_CMD_SOFT_RESET);
