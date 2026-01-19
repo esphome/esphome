@@ -1,5 +1,6 @@
 # PYTHON_ARGCOMPLETE_OK
 import argparse
+from collections.abc import Callable
 from datetime import datetime
 import functools
 import getpass
@@ -936,7 +937,7 @@ def command_dashboard(args: ArgsProtocol) -> int | None:
     return dashboard.start_dashboard(args)
 
 
-def run_multiple_configs(files: list, command_builder: callable) -> int:
+def run_multiple_configs(files: list, command_builder: Callable) -> int:
     """Run a command for each configuration file in a subprocess.
 
     Args:
