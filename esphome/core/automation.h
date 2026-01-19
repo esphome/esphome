@@ -233,7 +233,7 @@ template<typename T, typename... X> class TemplatableValue {
     }
   }
 
- protected: enum : uint8_t {
+ protected : enum : uint8_t {
    NONE,
    VALUE,
    LAMBDA,
