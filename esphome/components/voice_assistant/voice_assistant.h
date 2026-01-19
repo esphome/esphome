@@ -81,7 +81,7 @@ struct Timer {
              this->id.c_str(), this->name.c_str(), this->total_seconds, this->seconds_left, YESNO(this->is_active));
     return buffer.data();
   }
-  std::string to_string() const {
+  std::string to_string() const {  // NOLINT
     char buffer[TO_STR_BUFFER_SIZE];
     return this->to_str(buffer);
   }

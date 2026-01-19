@@ -52,7 +52,7 @@ void SHTCXComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "SHTCx:\n"
                 "  Model: %s (%04x)",
-                to_string(this->type_), this->sensor_id_);
+                to_string(this->type_), this->sensor_id_);  // NOLINT
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);

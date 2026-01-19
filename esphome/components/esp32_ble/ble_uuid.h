@@ -46,7 +46,7 @@ class ESPBTUUID {
 
   esp_bt_uuid_t get_uuid() const;
 
-  std::string to_string() const;
+  std::string to_string() const;  // NOLINT
   const char *to_str(std::span<char, UUID_STR_LEN> output) const;
 
  protected:

@@ -732,6 +732,47 @@ def lint_no_heap_allocating_helpers(fname, match):
     )
 
 
+@lint_re_check(
+    # Match std::to_string() or unqualified to_string() calls
+    # The esphome namespace has "using std::to_string;" so unqualified calls resolve to std::to_string
+    # Use negative lookbehind to avoid matching:
+    #   - Function definitions: "const char *to_string(" or "std::string to_string("
+    #   - Method definitions: "Class::to_string("
+    #   - Method calls: ".to_string(" or "->to_string("
+    #   - Other identifiers: "_to_string("
+    r"(?<![*&.\w>:])to_string\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+    exclude=[
+        # Vendored library
+        "esphome/components/http_request/httplib.h",
+        # Deprecated helpers that return std::string
+        "esphome/core/helpers.cpp",
+        # The using declaration itself
+        "esphome/core/helpers.h",
+        # Test fixtures - not production embedded code
+        "tests/integration/fixtures/*",
+    ],
+)
+def lint_no_std_to_string(fname, match):
+    return (
+        f"{highlight('std::to_string()')} allocates heap memory. On long-running embedded "
+        f"devices, repeated heap allocations fragment memory over time.\n"
+        f"Please use {highlight('snprintf()')} with a stack buffer instead.\n"
+        f"\n"
+        f"Buffer sizes and format specifiers:\n"
+        f"  uint8_t/int8_t:   4 chars   - %u / %d (or PRIu8/PRId8)\n"
+        f"  uint16_t/int16_t: 6 chars   - %u / %d (or PRIu16/PRId16)\n"
+        f"  uint32_t/int32_t: 11 chars  - %" + "PRIu32 / %" + "PRId32\n"
+        "  uint64_t/int64_t: 21 chars  - %" + "PRIu64 / %" + "PRId64\n"
+        f"  float/double:     24 chars  - %.8g (15 digits + sign + decimal + e+XXX)\n"
+        f"                    317 chars - %f (for DBL_MAX: 309 int digits + decimal + 6 frac + sign)\n"
+        f"\n"
+        f"For sensor values, use value_accuracy_to_buf() from helpers.h.\n"
+        f'Example: char buf[11]; snprintf(buf, sizeof(buf), "%" PRIu32, value);\n'
+        f"(If strictly necessary, add `{highlight('// NOLINT')}` to the end of the line)"
+    )
+
+
 @lint_content_find_check(
     "ESP_LOG",
     include=["*.h", "*.tcc"],
