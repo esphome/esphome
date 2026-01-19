@@ -2355,6 +2355,10 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
     if (match.domain_equals(ESPHOME_F("select")))
       return true;
 #endif
+#ifdef USE_SERIAL_CHANNEL
+    if (match.domain_equals(ESPHOME_F("serial_channel")))
+      return true;
+#endif
 #ifdef USE_CLIMATE
     if (match.domain_equals(ESPHOME_F("climate")))
       return true;
