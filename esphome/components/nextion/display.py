@@ -62,8 +62,11 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_DUMP_DEVICE_INFO, default=False): cv.boolean,
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
-            cv.Optional(CONF_MAX_QUEUE_AGE, default=8000): cv.int_range(
-                min=0, max=65535
+            cv.Optional(CONF_MAX_QUEUE_AGE, default=8000): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(
+                    min=TimePeriod(milliseconds=0), max=TimePeriod(milliseconds=65535)
+                ),
             ),
             cv.Optional(CONF_MAX_COMMANDS_PER_LOOP): cv.uint16_t,
             cv.Optional(CONF_MAX_QUEUE_SIZE): cv.positive_int,
