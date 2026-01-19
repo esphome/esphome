@@ -261,6 +261,17 @@ def test_device_duplicate_id(
     assert "ID duplicate_device redefined!" in captured.out
 
 
+def test_substitution_with_id(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that a ids coming from substitutions do not cause false positive ID redefinition."""
+    load_config_from_fixture(
+        yaml_file, "id_collision_with_substitution.yaml", FIXTURES_DIR
+    )
+    captured = capsys.readouterr()
+    assert "ID some_switch_id redefined!" not in captured.out
+
+
 def test_add_platform_defines_priority() -> None:
     """Test that _add_platform_defines runs after globals.
 
@@ -515,6 +526,35 @@ def test_include_file_cpp(tmp_path: Path, mock_copy_file_if_changed: Mock) -> No
         mock_copy_file_if_changed.assert_called_once()
         # Should not add include statement for .cpp files
         mock_cg.add_global.assert_not_called()
+
+
+def test_include_file_with_c_header(
+    tmp_path: Path, mock_copy_file_if_changed: Mock
+) -> None:
+    """Test include_file wraps header in extern C block when is_c_header is True."""
+    src_file = tmp_path / "c_library.h"
+    src_file.write_text("// C library header")
+
+    CORE.build_path = tmp_path / "build"
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        # Mock RawStatement to capture the text
+        mock_raw_statement = MagicMock()
+        mock_raw_statement.text = ""
+
+        def raw_statement_side_effect(text):
+            mock_raw_statement.text = text
+            return mock_raw_statement
+
+        mock_cg.RawStatement.side_effect = raw_statement_side_effect
+
+        config.include_file(src_file, Path("c_library.h"), is_c_header=True)
+
+        mock_copy_file_if_changed.assert_called_once()
+        mock_cg.add_global.assert_called_once()
+        # Check that include statement is wrapped in extern "C" block
+        assert 'extern "C"' in mock_raw_statement.text
+        assert '#include "c_library.h"' in mock_raw_statement.text
 
 
 def test_get_usable_cpu_count() -> None:
@@ -852,3 +892,74 @@ async def test_add_includes_overwrites_existing_files(
     mock_copy_file_if_changed.assert_called_once_with(
         include_file, CORE.build_path / "src" / "header.h"
     )
+
+
+def test_config_hash_returns_int() -> None:
+    """Test that config_hash returns an integer."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test"}}
+    assert isinstance(CORE.config_hash, int)
+
+
+def test_config_hash_is_cached() -> None:
+    """Test that config_hash is computed once and cached."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test"}}
+
+    # First access computes the hash
+    hash1 = CORE.config_hash
+
+    # Modify config (without resetting cache)
+    CORE.config = {"esphome": {"name": "different"}}
+
+    # Second access returns cached value
+    hash2 = CORE.config_hash
+
+    assert hash1 == hash2
+
+
+def test_config_hash_reset_clears_cache() -> None:
+    """Test that reset() clears the cached config_hash."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test"}}
+    hash1 = CORE.config_hash
+
+    # Reset clears the cache
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "different"}}
+
+    hash2 = CORE.config_hash
+
+    # After reset, hash should be recomputed
+    assert hash1 != hash2
+
+
+def test_config_hash_deterministic_key_order() -> None:
+    """Test that config_hash is deterministic regardless of key insertion order."""
+    CORE.reset()
+    # Create two configs with same content but different key order
+    config1 = {"z_key": 1, "a_key": 2, "nested": {"z_nested": "z", "a_nested": "a"}}
+    config2 = {"a_key": 2, "z_key": 1, "nested": {"a_nested": "a", "z_nested": "z"}}
+
+    CORE.config = config1
+    hash1 = CORE.config_hash
+
+    CORE.reset()
+    CORE.config = config2
+    hash2 = CORE.config_hash
+
+    # Hashes should be equal because keys are sorted during serialization
+    assert hash1 == hash2
+
+
+def test_config_hash_different_for_different_configs() -> None:
+    """Test that different configs produce different hashes."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test1"}}
+    hash1 = CORE.config_hash
+
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test2"}}
+    hash2 = CORE.config_hash
+
+    assert hash1 != hash2

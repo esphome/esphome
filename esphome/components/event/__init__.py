@@ -85,19 +85,12 @@ def event_schema(
     return _EVENT_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-EVENT_SCHEMA = event_schema()
-EVENT_SCHEMA.add_extra(cv.deprecated_schema_constant("event"))
-
-
 async def setup_event_core_(var, config, *, event_types: list[str]):
     await setup_entity(var, config, "event")
 
     for conf in config.get(CONF_ON_EVENT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.std_string, "event_type")], conf
-        )
+        await automation.build_automation(trigger, [(cg.StringRef, "event_type")], conf)
 
     cg.add(var.set_event_types(event_types))
 

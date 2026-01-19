@@ -1,8 +1,7 @@
 #include "template_valve.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 using namespace esphome::valve;
 
@@ -33,19 +32,19 @@ void TemplateValve::setup() {
       break;
     }
   }
+  if (!this->state_f_.has_value())
+    this->disable_loop();
 }
 
 void TemplateValve::loop() {
   bool changed = false;
 
-  if (this->state_f_.has_value()) {
-    auto s = (*this->state_f_)();
-    if (s.has_value()) {
-      auto pos = clamp(*s, 0.0f, 1.0f);
-      if (pos != this->position) {
-        this->position = pos;
-        changed = true;
-      }
+  auto s = this->state_f_();
+  if (s.has_value()) {
+    auto pos = clamp(*s, 0.0f, 1.0f);
+    if (pos != this->position) {
+      this->position = pos;
+      changed = true;
     }
   }
 
@@ -55,7 +54,6 @@ void TemplateValve::loop() {
 
 void TemplateValve::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 void TemplateValve::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
-void TemplateValve::set_state_lambda(std::function<optional<float>()> &&f) { this->state_f_ = f; }
 float TemplateValve::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 Trigger<> *TemplateValve::get_open_trigger() const { return this->open_trigger_; }
@@ -128,5 +126,4 @@ void TemplateValve::stop_prev_trigger_() {
   }
 }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

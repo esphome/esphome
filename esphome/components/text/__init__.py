@@ -84,11 +84,6 @@ def text_schema(
     return _TEXT_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-TEXT_SCHEMA = text_schema()
-TEXT_SCHEMA.add_extra(cv.deprecated_schema_constant("text"))
-
-
 async def setup_text_core_(
     var,
     config,

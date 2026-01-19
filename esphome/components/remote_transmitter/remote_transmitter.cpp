@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#if defined(USE_LIBRETINY) || defined(USE_ESP8266)
+#if defined(USE_LIBRETINY) || defined(USE_ESP8266) || defined(USE_RP2040)
 
 namespace esphome {
 namespace remote_transmitter {
@@ -40,13 +40,10 @@ void RemoteTransmitterComponent::await_target_time_() {
   if (this->target_time_ == 0) {
     this->target_time_ = current_time;
   } else if ((int32_t) (this->target_time_ - current_time) > 0) {
-#if defined(USE_LIBRETINY)
-    // busy loop for libretiny is required (see the comment inside micros() in wiring.c)
+    // busy loop is required as interrupts are disabled and delayMicroseconds()
+    // may not work correctly in interrupt-disabled contexts on all platforms
     while ((int32_t) (this->target_time_ - micros()) > 0)
       ;
-#else
-    delayMicroseconds(this->target_time_ - current_time);
-#endif
   }
 }
 

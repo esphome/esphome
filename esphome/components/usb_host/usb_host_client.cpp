@@ -1,8 +1,9 @@
 // Should not be needed, but it's required to pass CI clang-tidy checks
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "usb_host.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
 #include <cinttypes>
@@ -38,37 +39,46 @@ static void print_ep_desc(const usb_ep_desc_t *ep_desc) {
       break;
   }
 
-  ESP_LOGV(TAG, "\t\t*** Endpoint descriptor ***");
-  ESP_LOGV(TAG, "\t\tbLength %d", ep_desc->bLength);
-  ESP_LOGV(TAG, "\t\tbDescriptorType %d", ep_desc->bDescriptorType);
-  ESP_LOGV(TAG, "\t\tbEndpointAddress 0x%x\tEP %d %s", ep_desc->bEndpointAddress, USB_EP_DESC_GET_EP_NUM(ep_desc),
-           USB_EP_DESC_GET_EP_DIR(ep_desc) ? "IN" : "OUT");
-  ESP_LOGV(TAG, "\t\tbmAttributes 0x%x\t%s", ep_desc->bmAttributes, ep_type_str);
-  ESP_LOGV(TAG, "\t\twMaxPacketSize %d", ep_desc->wMaxPacketSize);
-  ESP_LOGV(TAG, "\t\tbInterval %d", ep_desc->bInterval);
+  ESP_LOGV(TAG,
+           "\t\t*** Endpoint descriptor ***\n"
+           "\t\tbLength %d\n"
+           "\t\tbDescriptorType %d\n"
+           "\t\tbEndpointAddress 0x%x\tEP %d %s\n"
+           "\t\tbmAttributes 0x%x\t%s\n"
+           "\t\twMaxPacketSize %d\n"
+           "\t\tbInterval %d",
+           ep_desc->bLength, ep_desc->bDescriptorType, ep_desc->bEndpointAddress, USB_EP_DESC_GET_EP_NUM(ep_desc),
+           USB_EP_DESC_GET_EP_DIR(ep_desc) ? "IN" : "OUT", ep_desc->bmAttributes, ep_type_str, ep_desc->wMaxPacketSize,
+           ep_desc->bInterval);
 }
 
 static void usbh_print_intf_desc(const usb_intf_desc_t *intf_desc) {
-  ESP_LOGV(TAG, "\t*** Interface descriptor ***");
-  ESP_LOGV(TAG, "\tbLength %d", intf_desc->bLength);
-  ESP_LOGV(TAG, "\tbDescriptorType %d", intf_desc->bDescriptorType);
-  ESP_LOGV(TAG, "\tbInterfaceNumber %d", intf_desc->bInterfaceNumber);
-  ESP_LOGV(TAG, "\tbAlternateSetting %d", intf_desc->bAlternateSetting);
-  ESP_LOGV(TAG, "\tbNumEndpoints %d", intf_desc->bNumEndpoints);
-  ESP_LOGV(TAG, "\tbInterfaceClass 0x%x", intf_desc->bInterfaceProtocol);
-  ESP_LOGV(TAG, "\tiInterface %d", intf_desc->iInterface);
+  ESP_LOGV(TAG,
+           "\t*** Interface descriptor ***\n"
+           "\tbLength %d\n"
+           "\tbDescriptorType %d\n"
+           "\tbInterfaceNumber %d\n"
+           "\tbAlternateSetting %d\n"
+           "\tbNumEndpoints %d\n"
+           "\tbInterfaceClass 0x%x\n"
+           "\tiInterface %d",
+           intf_desc->bLength, intf_desc->bDescriptorType, intf_desc->bInterfaceNumber, intf_desc->bAlternateSetting,
+           intf_desc->bNumEndpoints, intf_desc->bInterfaceProtocol, intf_desc->iInterface);
 }
 
 static void usbh_print_cfg_desc(const usb_config_desc_t *cfg_desc) {
-  ESP_LOGV(TAG, "*** Configuration descriptor ***");
-  ESP_LOGV(TAG, "bLength %d", cfg_desc->bLength);
-  ESP_LOGV(TAG, "bDescriptorType %d", cfg_desc->bDescriptorType);
-  ESP_LOGV(TAG, "wTotalLength %d", cfg_desc->wTotalLength);
-  ESP_LOGV(TAG, "bNumInterfaces %d", cfg_desc->bNumInterfaces);
-  ESP_LOGV(TAG, "bConfigurationValue %d", cfg_desc->bConfigurationValue);
-  ESP_LOGV(TAG, "iConfiguration %d", cfg_desc->iConfiguration);
-  ESP_LOGV(TAG, "bmAttributes 0x%x", cfg_desc->bmAttributes);
-  ESP_LOGV(TAG, "bMaxPower %dmA", cfg_desc->bMaxPower * 2);
+  ESP_LOGV(TAG,
+           "*** Configuration descriptor ***\n"
+           "bLength %d\n"
+           "bDescriptorType %d\n"
+           "wTotalLength %d\n"
+           "bNumInterfaces %d\n"
+           "bConfigurationValue %d\n"
+           "iConfiguration %d\n"
+           "bmAttributes 0x%x\n"
+           "bMaxPower %dmA",
+           cfg_desc->bLength, cfg_desc->bDescriptorType, cfg_desc->wTotalLength, cfg_desc->bNumInterfaces,
+           cfg_desc->bConfigurationValue, cfg_desc->iConfiguration, cfg_desc->bmAttributes, cfg_desc->bMaxPower * 2);
 }
 
 static void usb_client_print_device_descriptor(const usb_device_desc_t *devc_desc) {
@@ -76,21 +86,27 @@ static void usb_client_print_device_descriptor(const usb_device_desc_t *devc_des
     return;
   }
 
-  ESP_LOGV(TAG, "*** Device descriptor ***");
-  ESP_LOGV(TAG, "bLength %d", devc_desc->bLength);
-  ESP_LOGV(TAG, "bDescriptorType %d", devc_desc->bDescriptorType);
-  ESP_LOGV(TAG, "bcdUSB %d.%d0", ((devc_desc->bcdUSB >> 8) & 0xF), ((devc_desc->bcdUSB >> 4) & 0xF));
-  ESP_LOGV(TAG, "bDeviceClass 0x%x", devc_desc->bDeviceClass);
-  ESP_LOGV(TAG, "bDeviceSubClass 0x%x", devc_desc->bDeviceSubClass);
-  ESP_LOGV(TAG, "bDeviceProtocol 0x%x", devc_desc->bDeviceProtocol);
-  ESP_LOGV(TAG, "bMaxPacketSize0 %d", devc_desc->bMaxPacketSize0);
-  ESP_LOGV(TAG, "idVendor 0x%x", devc_desc->idVendor);
-  ESP_LOGV(TAG, "idProduct 0x%x", devc_desc->idProduct);
-  ESP_LOGV(TAG, "bcdDevice %d.%d0", ((devc_desc->bcdDevice >> 8) & 0xF), ((devc_desc->bcdDevice >> 4) & 0xF));
-  ESP_LOGV(TAG, "iManufacturer %d", devc_desc->iManufacturer);
-  ESP_LOGV(TAG, "iProduct %d", devc_desc->iProduct);
-  ESP_LOGV(TAG, "iSerialNumber %d", devc_desc->iSerialNumber);
-  ESP_LOGV(TAG, "bNumConfigurations %d", devc_desc->bNumConfigurations);
+  ESP_LOGV(TAG,
+           "*** Device descriptor ***\n"
+           "bLength %d\n"
+           "bDescriptorType %d\n"
+           "bcdUSB %d.%d0\n"
+           "bDeviceClass 0x%x\n"
+           "bDeviceSubClass 0x%x\n"
+           "bDeviceProtocol 0x%x\n"
+           "bMaxPacketSize0 %d\n"
+           "idVendor 0x%x\n"
+           "idProduct 0x%x\n"
+           "bcdDevice %d.%d0\n"
+           "iManufacturer %d\n"
+           "iProduct %d\n"
+           "iSerialNumber %d\n"
+           "bNumConfigurations %d",
+           devc_desc->bLength, devc_desc->bDescriptorType, ((devc_desc->bcdUSB >> 8) & 0xF),
+           ((devc_desc->bcdUSB >> 4) & 0xF), devc_desc->bDeviceClass, devc_desc->bDeviceSubClass,
+           devc_desc->bDeviceProtocol, devc_desc->bMaxPacketSize0, devc_desc->idVendor, devc_desc->idProduct,
+           ((devc_desc->bcdDevice >> 8) & 0xF), ((devc_desc->bcdDevice >> 4) & 0xF), devc_desc->iManufacturer,
+           devc_desc->iProduct, devc_desc->iSerialNumber, devc_desc->bNumConfigurations);
 }
 
 static void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc,
@@ -174,6 +190,11 @@ static void client_event_cb(const usb_host_client_event_msg_t *event_msg, void *
 
   // Push to lock-free queue (always succeeds since pool size == queue size)
   client->event_queue.push(event);
+
+  // Wake main loop immediately to process USB event instead of waiting for select() timeout
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  App.wake_loop_threadsafe();
+#endif
 }
 void USBClient::setup() {
   usb_host_client_config_t config{.is_synchronous = false,
@@ -182,15 +203,15 @@ void USBClient::setup() {
   auto err = usb_host_client_register(&config, &this->handle_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "client register failed: %s", esp_err_to_name(err));
-    this->status_set_error("Client register failed");
+    this->status_set_error(LOG_STR("Client register failed"));
     this->mark_failed();
     return;
   }
   // Pre-allocate USB transfer buffers for all slots at startup
   // This avoids any dynamic allocation during runtime
-  for (size_t i = 0; i < MAX_REQUESTS; i++) {
-    usb_host_transfer_alloc(64, 0, &this->requests_[i].transfer);
-    this->requests_[i].client = this;  // Set once, never changes
+  for (auto &request : this->requests_) {
+    usb_host_transfer_alloc(64, 0, &request.transfer);
+    request.client = this;  // Set once, never changes
   }
 
   // Create and start USB task
@@ -210,8 +231,7 @@ void USBClient::usb_task_fn(void *arg) {
   auto *client = static_cast<USBClient *>(arg);
   client->usb_task_loop();
 }
-
-void USBClient::usb_task_loop() {
+void USBClient::usb_task_loop() const {
   while (true) {
     usb_host_client_handle_events(this->handle_, portMAX_DELAY);
   }
@@ -334,22 +354,23 @@ static void control_callback(const usb_transfer_t *xfer) {
 // This multi-threaded access is intentional for performance - USB task can
 // immediately restart transfers without waiting for main loop scheduling.
 TransferRequest *USBClient::get_trq_() {
-  trq_bitmask_t mask = this->trq_in_use_.load(std::memory_order_relaxed);
+  trq_bitmask_t mask = this->trq_in_use_.load(std::memory_order_acquire);
 
   // Find first available slot (bit = 0) and try to claim it atomically
   // We use a while loop to allow retrying the same slot after CAS failure
-  size_t i = 0;
-  while (i != MAX_REQUESTS) {
-    if (mask & (static_cast<trq_bitmask_t>(1) << i)) {
-      // Slot is in use, move to next slot
-      i++;
-      continue;
+  for (;;) {
+    if (mask == ALL_REQUESTS_IN_USE) {
+      ESP_LOGE(TAG, "All %zu transfer slots in use", MAX_REQUESTS);
+      return nullptr;
     }
+    // find the least significant zero bit
+    trq_bitmask_t lsb = ~mask & (mask + 1);
 
     // Slot i appears available, try to claim it atomically
-    trq_bitmask_t desired = mask | (static_cast<trq_bitmask_t>(1) << i);  // Set bit i to mark as in-use
+    trq_bitmask_t desired = mask | lsb;
 
-    if (this->trq_in_use_.compare_exchange_weak(mask, desired, std::memory_order_acquire, std::memory_order_relaxed)) {
+    if (this->trq_in_use_.compare_exchange_weak(mask, desired, std::memory_order::acquire)) {
+      auto i = __builtin_ctz(lsb);  // count trailing zeroes
       // Successfully claimed slot i - prepare the TransferRequest
       auto *trq = &this->requests_[i];
       trq->transfer->context = trq;
@@ -358,13 +379,9 @@ TransferRequest *USBClient::get_trq_() {
     }
     // CAS failed - another thread modified the bitmask
     // mask was already updated by compare_exchange_weak with the current value
-    // No need to reload - the CAS already did that for us
-    i = 0;
   }
-
-  ESP_LOGE(TAG, "All %zu transfer slots in use", MAX_REQUESTS);
-  return nullptr;
 }
+
 void USBClient::disconnect() {
   this->on_disconnected();
   auto err = usb_host_device_close(this->handle_, this->device_handle_);
@@ -446,11 +463,11 @@ static void transfer_callback(usb_transfer_t *xfer) {
  *
  * @throws None.
  */
-void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length) {
+bool USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length) {
   auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "Too many requests queued");
-    return;
+    return false;
   }
   trq->callback = callback;
   trq->transfer->callback = transfer_callback;
@@ -460,7 +477,9 @@ void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to submit transfer, address=%x, length=%d, err=%x", ep_address, length, err);
     this->release_trq(trq);
+    return false;
   }
+  return true;
 }
 
 /**
@@ -476,11 +495,11 @@ void USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
  *
  * @throws None.
  */
-void USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length) {
+bool USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length) {
   auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "Too many requests queued");
-    return;
+    return false;
   }
   trq->callback = callback;
   trq->transfer->callback = transfer_callback;
@@ -491,7 +510,9 @@ void USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, 
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to submit transfer, address=%x, length=%d, err=%x", ep_address, length, err);
     this->release_trq(trq);
+    return false;
   }
+  return true;
 }
 void USBClient::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -505,7 +526,7 @@ void USBClient::dump_config() {
 // - Main loop: When transfer submission fails
 //
 // THREAD SAFETY: Lock-free using atomic AND to clear bit
-// Thread-safe atomic operation allows multi-threaded deallocation
+// Thread-safe atomic operation allows multithreaded deallocation
 void USBClient::release_trq(TransferRequest *trq) {
   if (trq == nullptr)
     return;
@@ -517,12 +538,12 @@ void USBClient::release_trq(TransferRequest *trq) {
     return;
   }
 
-  // Atomically clear bit i to mark slot as available
+  // Atomically clear the bit to mark slot as available
   // fetch_and with inverted bitmask clears the bit atomically
-  trq_bitmask_t bit = static_cast<trq_bitmask_t>(1) << index;
-  this->trq_in_use_.fetch_and(static_cast<trq_bitmask_t>(~bit), std::memory_order_release);
+  trq_bitmask_t mask = ~(static_cast<trq_bitmask_t>(1) << index);
+  this->trq_in_use_.fetch_and(mask, std::memory_order_release);
 }
 
 }  // namespace usb_host
 }  // namespace esphome
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

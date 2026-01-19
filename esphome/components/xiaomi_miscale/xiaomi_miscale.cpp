@@ -1,4 +1,5 @@
 #include "xiaomi_miscale.h"
+#include "esphome/components/esp32_ble/ble_uuid.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -19,7 +20,9 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
   }
-  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  const char *addr_str = device.address_str_to(addr_buf);
+  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", addr_str);
 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
@@ -30,7 +33,7 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     if (!parse_message_(service_data.data, *res))
       continue;
 
-    if (!report_results_(res, device.address_str()))
+    if (!report_results_(res, addr_str))
       continue;
 
     if (res->weight.has_value() && this->weight_ != nullptr)
@@ -61,9 +64,10 @@ optional<ParseResult> XiaomiMiscale::parse_header_(const esp32_ble_tracker::Serv
   } else if (service_data.uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(0x181B) && service_data.data.size() == 13) {
     result.version = 2;
   } else {
+    char uuid_buf[esp32_ble::UUID_STR_LEN];
     ESP_LOGVV(TAG,
               "parse_header(): Couldn't identify scale version or data size was not correct. UUID: %s, data_size: %d",
-              service_data.uuid.to_string().c_str(), service_data.data.size());
+              service_data.uuid.to_str(uuid_buf), service_data.data.size());
     return {};
   }
 
@@ -145,13 +149,13 @@ bool XiaomiMiscale::parse_message_v2_(const std::vector<uint8_t> &message, Parse
   return true;
 }
 
-bool XiaomiMiscale::report_results_(const optional<ParseResult> &result, const std::string &address) {
+bool XiaomiMiscale::report_results_(const optional<ParseResult> &result, const char *address) {
   if (!result.has_value()) {
     ESP_LOGVV(TAG, "report_results(): no results available.");
     return false;
   }
 
-  ESP_LOGD(TAG, "Got Xiaomi Miscale v%d (%s):", result->version, address.c_str());
+  ESP_LOGD(TAG, "Got Xiaomi Miscale v%d (%s):", result->version, address);
 
   if (result->weight.has_value()) {
     ESP_LOGD(TAG, "  Weight: %.2fkg", *result->weight);
