@@ -3,11 +3,11 @@
 #include "esphome/core/log.h"
 
 // Direct UART register access for optimized write path
-// Arduino's Serial.write() has significant overhead:
-// - pgm_read_byte() for every character (unnecessary for RAM buffers)
-// - optimistic_yield() after every character (massive scheduler overhead)
-// - Per-character FIFO checks (could batch)
-// Direct register writes with batching are 10-50x faster for CPU-side work.
+// Arduino's Serial.write() (uart.cpp lines 545-548) has significant overhead:
+// - PROGMEM read for every character (unnecessary for RAM buffers)
+// - optimistic_yield(10000) after every character (scheduler overhead)
+// - Per-character FIFO checks via uart_do_write_char() (line 513)
+// Direct register writes with batching eliminate ~300 function calls per 100-byte message.
 #include <esp8266_peri.h>  // USF, USS, USTXC register macros
 
 namespace esphome::logger {
