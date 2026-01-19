@@ -69,7 +69,8 @@ class TimeCall {
   void perform();
   TimeCall &set_time(uint8_t hour, uint8_t minute, uint8_t second);
   TimeCall &set_time(ESPTime time);
-  TimeCall &set_time(const std::string &time);
+  TimeCall &set_time(const char *time);
+  TimeCall &set_time(const std::string &time) { return this->set_time(time.c_str()); }
 
   TimeCall &set_hour(uint8_t hour) {
     this->hour_ = hour;

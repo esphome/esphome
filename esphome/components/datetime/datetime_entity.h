@@ -71,7 +71,8 @@ class DateTimeCall {
   void perform();
   DateTimeCall &set_datetime(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second);
   DateTimeCall &set_datetime(ESPTime datetime);
-  DateTimeCall &set_datetime(const std::string &datetime);
+  DateTimeCall &set_datetime(const char *datetime);
+  DateTimeCall &set_datetime(const std::string &datetime) { return this->set_datetime(datetime.c_str()); }
   DateTimeCall &set_datetime(time_t epoch_seconds);
 
   DateTimeCall &set_year(uint16_t year) {

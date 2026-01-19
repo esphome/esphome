@@ -67,7 +67,8 @@ class DateCall {
   void perform();
   DateCall &set_date(uint16_t year, uint8_t month, uint8_t day);
   DateCall &set_date(ESPTime time);
-  DateCall &set_date(const std::string &date);
+  DateCall &set_date(const char *date);
+  DateCall &set_date(const std::string &date) { return this->set_date(date.c_str()); }
 
   DateCall &set_year(uint16_t year) {
     this->year_ = year;

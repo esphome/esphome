@@ -163,7 +163,7 @@ DateTimeCall &DateTimeCall::set_datetime(ESPTime datetime) {
                             datetime.second);
 };
 
-DateTimeCall &DateTimeCall::set_datetime(const std::string &datetime) {
+DateTimeCall &DateTimeCall::set_datetime(const char *datetime) {
   ESPTime val{};
   if (!ESPTime::strptime(datetime, val)) {
     ESP_LOGE(TAG, "Could not convert the time string to an ESPTime object");
