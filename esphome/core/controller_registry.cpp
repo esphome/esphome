@@ -82,6 +82,10 @@ CONTROLLER_REGISTRY_NOTIFY(text::Text, text)
 CONTROLLER_REGISTRY_NOTIFY(select::Select, select)
 #endif
 
+#ifdef USE_SERIAL_CHANNEL
+CONTROLLER_REGISTRY_NOTIFY(serial_channel::SerialChannel, serial_channel)
+#endif
+
 #ifdef USE_LOCK
 CONTROLLER_REGISTRY_NOTIFY(lock::Lock, lock)
 #endif

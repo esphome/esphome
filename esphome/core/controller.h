@@ -46,6 +46,9 @@
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
+#ifdef USE_SERIAL_CHANNEL
+#include "esphome/components/serial_channel/serial_channel.h"
+#endif
 #ifdef USE_LOCK
 #include "esphome/components/lock/lock.h"
 #endif
@@ -113,6 +116,9 @@ class Controller {
 #endif
 #ifdef USE_SELECT
   virtual void on_select_update(select::Select *obj){};
+#endif
+#ifdef USE_SERIAL_CHANNEL
+  virtual void on_serial_channel_update(serial_channel::SerialChannel *obj){};
 #endif
 #ifdef USE_LOCK
   virtual void on_lock_update(lock::Lock *obj){};

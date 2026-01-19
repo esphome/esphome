@@ -70,6 +70,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_SELECT
   bool on_select(select::Select *obj) override;
 #endif
+#ifdef USE_SERIAL_CHANNEL
+  bool on_serial_channel(serial_channel::SerialChannel *obj) override;
+#endif
 #ifdef USE_LOCK
   bool on_lock(lock::Lock *obj) override;
 #endif

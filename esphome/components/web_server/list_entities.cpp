@@ -127,6 +127,13 @@ bool ListEntitiesIterator::on_select(select::Select *obj) {
 }
 #endif
 
+#ifdef USE_SERIAL_CHANNEL
+bool ListEntitiesIterator::on_serial_channel(serial_channel::SerialChannel *obj) {
+  this->events_->deferrable_send_state(obj, "state_detail_all", WebServer::serial_channel_all_json_generator);
+  return true;
+}
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
 bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *obj) {
   this->events_->deferrable_send_state(obj, "state_detail_all", WebServer::alarm_control_panel_all_json_generator);

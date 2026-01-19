@@ -95,6 +95,12 @@ class Select;
 }
 #endif
 
+#ifdef USE_SERIAL_CHANNEL
+namespace serial_channel {
+class SerialChannel;
+}
+#endif
+
 #ifdef USE_LOCK
 namespace lock {
 class Lock;
@@ -216,6 +222,10 @@ class ControllerRegistry {
 
 #ifdef USE_SELECT
   static void notify_select_update(select::Select *obj);
+#endif
+
+#ifdef USE_SERIAL_CHANNEL
+  static void notify_serial_channel_update(serial_channel::SerialChannel *obj);
 #endif
 
 #ifdef USE_LOCK
