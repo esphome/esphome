@@ -35,6 +35,15 @@ static constexpr size_t DISCOVERY_PREFIX_MAX_LEN = 64;  // Validated in Python: 
 static constexpr size_t DISCOVERY_TOPIC_MAX_LEN = DISCOVERY_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 +
                                                   ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 7 + 1;
 
+// Function implementation of LOG_MQTT_COMPONENT macro to reduce code size
+void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic) {
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  if (state_topic)
+    ESP_LOGCONFIG(tag, "  State Topic: '%s'", obj->get_state_topic_to_(buf).c_str());
+  if (command_topic)
+    ESP_LOGCONFIG(tag, "  Command Topic: '%s'", obj->get_command_topic_to_(buf).c_str());
+}
+
 void MQTTComponent::set_qos(uint8_t qos) { this->qos_ = qos; }
 
 void MQTTComponent::set_subscribe_qos(uint8_t qos) { this->subscribe_qos_ = qos; }

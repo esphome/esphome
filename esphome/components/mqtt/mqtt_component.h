@@ -32,15 +32,10 @@ static constexpr size_t MQTT_TOPIC_PREFIX_MAX_LEN = 64;  // Validated in Python:
 static constexpr size_t MQTT_DEFAULT_TOPIC_MAX_LEN =
     MQTT_TOPIC_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1 + MQTT_SUFFIX_MAX_LEN + 1;
 
-#define LOG_MQTT_COMPONENT(state_topic, command_topic) \
-  if (state_topic) { \
-    char __mqtt_topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN]; \
-    ESP_LOGCONFIG(TAG, "  State Topic: '%s'", this->get_state_topic_to_(__mqtt_topic_buf).c_str()); \
-  } \
-  if (command_topic) { \
-    char __mqtt_topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN]; \
-    ESP_LOGCONFIG(TAG, "  Command Topic: '%s'", this->get_command_topic_to_(__mqtt_topic_buf).c_str()); \
-  }
+class MQTTComponent;  // Forward declaration
+void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic);
+
+#define LOG_MQTT_COMPONENT(state_topic, command_topic) log_mqtt_component(TAG, this, state_topic, command_topic)
 
 // Macro to define component_type() with compile-time length verification
 // Usage: MQTT_COMPONENT_TYPE(MQTTSensorComponent, "sensor")
@@ -84,6 +79,8 @@ static constexpr size_t MQTT_DEFAULT_TOPIC_MAX_LEN =
  * a clean separation.
  */
 class MQTTComponent : public Component {
+  friend void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic);
+
  public:
   /// Constructs a MQTTComponent.
   explicit MQTTComponent();
