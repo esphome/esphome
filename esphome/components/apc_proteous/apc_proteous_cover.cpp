@@ -95,7 +95,7 @@ void APCProteousCover::parse_response_() {
     // Convert 0-100 to 0.0-1.0 range
     // allow a little slop at the endpoints
     float new_position = this->x_status_ / 100.0f;
-    if (this->current_operation != COVER_OPERATION_IDLE) {
+    if (this->current_operation == COVER_OPERATION_IDLE) {
       if (new_position >= 0.95f) {
       }
       new_position = COVER_OPEN;
@@ -110,7 +110,7 @@ void APCProteousCover::parse_response_() {
       this->initial_state_received_ = true;
     }
 
-    ESP_LOGV(TAG, "x-status: 0x%02X (%d%%, position=%.2f)", this->x_status_, this->x_status_, this->position);
+    ESP_LOGD(TAG, "x-status: 0x%02X (%d%%, position=%.2f)", this->x_status_, this->x_status_, this->position);
   }
 
   if (state_changed) {
