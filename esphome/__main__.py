@@ -799,26 +799,6 @@ def command_vscode(args: ArgsProtocol) -> int | None:
     vscode.read_config(args)
 
 
-def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
-    exit_code = write_cpp(config)
-    if exit_code != 0:
-        return exit_code
-    if args.only_generate:
-        _LOGGER.info("Successfully generated source code.")
-        return 0
-    exit_code = compile_program(args, config)
-    if exit_code != 0:
-        return exit_code
-    if CORE.is_host:
-        from esphome.platformio_api import get_idedata
-
-        program_path = str(get_idedata(config).firmware_elf_path)
-        _LOGGER.info("Successfully compiled program to path '%s'", program_path)
-    else:
-        _LOGGER.info("Successfully compiled program.")
-    return 0
-
-
 def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
     # Get devices, resolving special identifiers like OTA
     devices = choose_upload_log_host(
@@ -934,6 +914,113 @@ def command_dashboard(args: ArgsProtocol) -> int | None:
     from esphome.dashboard import dashboard
 
     return dashboard.start_dashboard(args)
+
+
+def command_compile(args: ArgsProtocol) -> int | None:
+    """Compile one or more configurations.
+
+    For multiple files, uses subprocesses to avoid state leakage between
+    compilations (e.g., LVGL touchscreen state persisting in module globals).
+    """
+    import click
+
+    files = args.configuration
+
+    # Single file: compile directly in this process
+    if len(files) == 1:
+        conf_path = Path(files[0])
+        if any(conf_path.name == x for x in SECRETS_FILES):
+            _LOGGER.warning("Skipping secrets file %s", conf_path)
+            return 0
+
+        CORE.config_path = conf_path
+        config = read_config(dict(args.substitution) if args.substitution else {})
+        if config is None:
+            return 2
+        CORE.config = config
+
+        exit_code = write_cpp(config)
+        if exit_code != 0:
+            return exit_code
+        if args.only_generate:
+            _LOGGER.info("Successfully generated source code.")
+            return 0
+        exit_code = compile_program(args, config)
+        if exit_code != 0:
+            return exit_code
+        if CORE.is_host:
+            from esphome.platformio_api import get_idedata
+
+            program_path = str(get_idedata(config).firmware_elf_path)
+            _LOGGER.info("Successfully compiled program to path '%s'", program_path)
+        else:
+            _LOGGER.info("Successfully compiled program.")
+        CORE.reset()
+        return 0
+
+    # Multiple files: use subprocesses to avoid state leakage
+    success = {}
+    twidth = 60
+
+    def print_bar(middle_text):
+        middle_text = f" {middle_text} "
+        width = len(click.unstyle(middle_text))
+        half_line = "=" * ((twidth - width) // 2)
+        safe_print(f"{half_line}{middle_text}{half_line}")
+
+    for f in files:
+        f_path = Path(f)
+        if any(f_path.name == x for x in SECRETS_FILES):
+            _LOGGER.warning("Skipping secrets file %s", f_path)
+            continue
+
+        safe_print(f"Compiling {color(AnsiFore.CYAN, str(f))}")
+        safe_print("-" * twidth)
+        safe_print()
+
+        # Build subprocess command with current args
+        cmd = ["esphome"]
+        if CORE.dashboard:
+            cmd.append("--dashboard")
+        if args.verbose:
+            cmd.append("--verbose")
+        if getattr(args, "quiet", False):
+            cmd.append("--quiet")
+        if hasattr(args, "log_level"):
+            cmd.extend(["--log-level", args.log_level])
+        if args.substitution:
+            for key, value in args.substitution:
+                cmd.extend(["-s", key, value])
+        cmd.append("compile")
+        if getattr(args, "only_generate", False):
+            cmd.append("--only-generate")
+        if getattr(args, "native_idf", False):
+            cmd.append("--native-idf")
+        cmd.append(str(f))
+
+        rc = run_external_process(*cmd)
+        if rc == 0:
+            print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {str(f)}")
+            success[f] = True
+        else:
+            print_bar(f"[{color(AnsiFore.BOLD_RED, 'ERROR')}] {str(f)}")
+            success[f] = False
+
+        safe_print()
+        safe_print()
+        safe_print()
+
+    print_bar(f"[{color(AnsiFore.BOLD_WHITE, 'SUMMARY')}]")
+    failed = 0
+    for f in files:
+        if f not in success:
+            continue  # Skipped file
+        if success[f]:
+            safe_print(f"  - {str(f)}: {color(AnsiFore.GREEN, 'SUCCESS')}")
+        else:
+            safe_print(f"  - {str(f)}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
+            failed += 1
+    return failed
 
 
 def command_update_all(args: ArgsProtocol) -> int | None:
@@ -1167,11 +1254,11 @@ PRE_CONFIG_ACTIONS = {
     "vscode": command_vscode,
     "update-all": command_update_all,
     "clean-all": command_clean_all,
+    "compile": command_compile,
 }
 
 POST_CONFIG_ACTIONS = {
     "config": command_config,
-    "compile": command_compile,
     "upload": command_upload,
     "logs": command_logs,
     "run": command_run,
