@@ -1,7 +1,8 @@
 #pragma once
 
-#include <string>
 #include <cstdint>
+#include <span>
+#include <string>
 #include "string_ref.h"
 #include "helpers.h"
 #include "log.h"
@@ -12,14 +13,21 @@
 
 namespace esphome {
 
-// Forward declaration for friend access
-namespace api {
-class APIConnection;
-}  // namespace api
+// Maximum device name length - keep in sync with validate_hostname() in esphome/core/config.py
+static constexpr size_t ESPHOME_DEVICE_NAME_MAX_LEN = 31;
 
-namespace web_server {
-struct UrlMatch;
-}  // namespace web_server
+// Maximum friendly name length for entities and sub-devices - keep in sync with FRIENDLY_NAME_MAX_LEN in
+// esphome/core/config.py
+static constexpr size_t ESPHOME_FRIENDLY_NAME_MAX_LEN = 120;
+
+// Maximum domain length (longest: "alarm_control_panel" = 19)
+static constexpr size_t ESPHOME_DOMAIN_MAX_LEN = 20;
+
+// Maximum size for object_id buffer (friendly_name + null + margin)
+static constexpr size_t OBJECT_ID_MAX_LEN = 128;
+
+// Maximum state length that Home Assistant will accept without raising ValueError
+static constexpr size_t MAX_STATE_LEN = 255;
 
 enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_NONE = 0,
@@ -33,19 +41,36 @@ class EntityBase {
   // Get/set the name of this Entity
   const StringRef &get_name() const;
   void set_name(const char *name);
+  /// Set name with pre-computed object_id hash (avoids runtime hash calculation)
+  /// Use hash=0 for dynamic names that need runtime calculation
+  void set_name(const char *name, uint32_t object_id_hash);
 
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
 
   // Get the sanitized name of this Entity as an ID.
+  // Deprecated: object_id mangles names and all object_id methods are planned for removal.
+  // See https://github.com/esphome/backlog/issues/76
+  // Now is the time to stop using object_id entirely. If you still need it temporarily,
+  // use get_object_id_to() which will remain available longer but will also eventually be removed.
+  ESPDEPRECATED("object_id mangles names and all object_id methods are planned for removal "
+                "(see https://github.com/esphome/backlog/issues/76). "
+                "Now is the time to stop using object_id. If still needed, use get_object_id_to() "
+                "which will remain available longer. get_object_id() will be removed in 2026.7.0",
+                "2025.12.0")
   std::string get_object_id() const;
-  void set_object_id(const char *object_id);
-
-  // Set both name and object_id in one call (reduces generated code size)
-  void set_name_and_object_id(const char *name, const char *object_id);
 
   // Get the unique Object ID of this Entity
   uint32_t get_object_id_hash();
+
+  /// Get object_id with zero heap allocation
+  /// For static case: returns StringRef to internal storage (buffer unused)
+  /// For dynamic case: formats into buffer and returns StringRef to buffer
+  StringRef get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) const;
+
+  /// Write object_id directly to buffer, returns length written (excluding null)
+  /// Useful for building compound strings without intermediate buffer
+  size_t write_object_id_to(char *buf, size_t buf_size) const;
 
   // Get/set whether this Entity should be hidden outside ESPHome
   bool is_internal() const { return this->flags_.internal; }
@@ -87,6 +112,8 @@ class EntityBase {
     return this->device_->get_device_id();
   }
   void set_device(Device *device) { this->device_ = device; }
+  // Get the device this entity belongs to (nullptr if main device)
+  Device *get_device() const { return this->device_; }
 #endif
 
   // Check if this entity has state
@@ -125,20 +152,9 @@ class EntityBase {
   }
 
  protected:
-  friend class api::APIConnection;
-  friend struct web_server::UrlMatch;
-
-  // Get object_id as StringRef when it's static (for API usage)
-  // Returns empty StringRef if object_id is dynamic (needs allocation)
-  StringRef get_object_id_ref_for_api_() const;
-
   void calc_object_id_();
 
-  /// Check if the object_id is dynamic (changes with MAC suffix)
-  bool is_object_id_dynamic_() const;
-
   StringRef name_;
-  const char *object_id_c_str_{nullptr};
 #ifdef USE_ENTITY_ICON
   const char *icon_c_str_{nullptr};
 #endif
@@ -205,7 +221,7 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   virtual bool has_state() const { return this->state_.has_value(); }
   virtual const T &get_state() const { return this->state_.value(); }
   virtual T get_state_default(T default_value) const { return this->state_.value_or(default_value); }
-  void invalidate_state() { this->set_state_({}); }
+  void invalidate_state() { this->set_new_state({}); }
 
   void add_full_state_callback(std::function<void(optional<T> previous, optional<T> current)> &&callback) {
     if (this->full_state_callbacks_ == nullptr)
@@ -227,20 +243,20 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   /**
    * Set a new state for this entity. This will trigger callbacks only if the new state is different from the previous.
    *
-   * @param state The new state.
+   * @param new_state The new state.
    * @return True if the state was changed, false if it was the same as before.
    */
-  bool set_state_(const optional<T> &state) {
-    if (this->state_ != state) {
+  virtual bool set_new_state(const optional<T> &new_state) {
+    if (this->state_ != new_state) {
       // call the full state callbacks with the previous and new state
       if (this->full_state_callbacks_ != nullptr)
-        this->full_state_callbacks_->call(this->state_, state);
+        this->full_state_callbacks_->call(this->state_, new_state);
       // trigger legacy callbacks only if the new state is valid and either the trigger on initial state is enabled or
       // the previous state was valid
       auto had_state = this->has_state();
-      this->state_ = state;
-      if (this->state_callbacks_ != nullptr && state.has_value() && (this->trigger_on_initial_state_ || had_state))
-        this->state_callbacks_->call(state.value());
+      this->state_ = new_state;
+      if (this->state_callbacks_ != nullptr && new_state.has_value() && (this->trigger_on_initial_state_ || had_state))
+        this->state_callbacks_->call(new_state.value());
       return true;
     }
     return false;

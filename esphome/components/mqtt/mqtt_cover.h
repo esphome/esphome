@@ -8,8 +8,7 @@
 
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTCoverComponent : public mqtt::MQTTComponent {
  public:
@@ -30,14 +29,13 @@ class MQTTCoverComponent : public mqtt::MQTTComponent {
   void dump_config() override;
 
  protected:
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   cover::Cover *cover_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT
