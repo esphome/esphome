@@ -1010,6 +1010,8 @@ async def to_code(config):
                 "iram_fix.py",
                 Path(__file__).parent / "iram_fix.py.script",
             )
+    else:
+        cg.add_build_flag("-Wno-error=format")
 
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
