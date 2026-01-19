@@ -18,31 +18,31 @@ AnovaPacket *AnovaCodec::clean_packet_() {
 
 AnovaPacket *AnovaCodec::get_read_device_status_request() {
   this->current_query_ = READ_DEVICE_STATUS;
-  strncpy((char *) this->packet_.data, CMD_READ_DEVICE_STATUS, sizeof(this->packet_.data));
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_DEVICE_STATUS);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_read_target_temp_request() {
   this->current_query_ = READ_TARGET_TEMPERATURE;
-  strncpy((char *) this->packet_.data, CMD_READ_TARGET_TEMP, sizeof(this->packet_.data));
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_TARGET_TEMP);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_read_current_temp_request() {
   this->current_query_ = READ_CURRENT_TEMPERATURE;
-  strncpy((char *) this->packet_.data, CMD_READ_CURRENT_TEMP, sizeof(this->packet_.data));
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_CURRENT_TEMP);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_read_unit_request() {
   this->current_query_ = READ_UNIT;
-  strncpy((char *) this->packet_.data, CMD_READ_UNIT, sizeof(this->packet_.data));
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_UNIT);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_read_data_request() {
   this->current_query_ = READ_DATA;
-  strncpy((char *) this->packet_.data, CMD_READ_DATA, sizeof(this->packet_.data));
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_DATA);
   return this->clean_packet_();
 }
 
@@ -62,13 +62,13 @@ AnovaPacket *AnovaCodec::get_set_unit_request(char unit) {
 
 AnovaPacket *AnovaCodec::get_start_request() {
   this->current_query_ = START;
-  strncpy((char *) this->packet_.data, CMD_START, sizeof(this->packet_.data));
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_START);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_stop_request() {
   this->current_query_ = STOP;
-  strncpy((char *) this->packet_.data, CMD_STOP, sizeof(this->packet_.data));
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_STOP);
   return this->clean_packet_();
 }
 

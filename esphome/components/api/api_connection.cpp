@@ -1715,7 +1715,7 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
     // HA state max length is 255 characters, but attributes can be much longer
     // Use stack buffer for common case (states), heap fallback for large attributes
     size_t state_len = msg.state.size();
-    SmallBufferWithHeapFallback<256> state_buf_alloc(state_len + 1);
+    SmallBufferWithHeapFallback<MAX_STATE_LEN + 1> state_buf_alloc(state_len + 1);
     char *state_buf = reinterpret_cast<char *>(state_buf_alloc.get());
     if (state_len > 0) {
       memcpy(state_buf, msg.state.c_str(), state_len);
