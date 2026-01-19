@@ -42,41 +42,40 @@ static const LogString *get_reset_reason_str(uint32_t reason) {
   }
 }
 
-// Buffer for core version hex string (static to avoid stack/heap allocation each call)
-static char core_version_hex_[12];
+// Size for core version hex buffer
+static constexpr size_t CORE_VERSION_BUFFER_SIZE = 12;
 
 // Get core version string (no heap allocation)
-// Returns either core_release directly or formats core_version as hex
-static const char *get_core_version_str() {
+// Returns either core_release directly or formats core_version as hex into provided buffer
+static const char *get_core_version_str(std::span<char, CORE_VERSION_BUFFER_SIZE> buffer) {
   if (core_release != nullptr) {
     return core_release;
   }
-  snprintf_P(core_version_hex_, sizeof(core_version_hex_), PSTR("%08x"), core_version);
-  return core_version_hex_;
+  snprintf_P(buffer.data(), CORE_VERSION_BUFFER_SIZE, PSTR("%08x"), core_version);
+  return buffer.data();
 }
 
-// Buffer for reset info string (static to avoid stack/heap allocation each call)
-static char reset_info_buf_[200];
+// Size for reset info buffer
+static constexpr size_t RESET_INFO_BUFFER_SIZE = 200;
 
 // Get detailed reset info string (no heap allocation)
 // For watchdog/exception resets, includes detailed exception info
-// Returns LogString* for simple cases, or pointer to static buffer for detailed info
-static const char *get_reset_info_str() {
-  if (resetInfo.reason >= REASON_WDT_RST && resetInfo.reason <= REASON_SOFT_WDT_RST) {
-    snprintf_P(reset_info_buf_, sizeof(reset_info_buf_),
+static const char *get_reset_info_str(std::span<char, RESET_INFO_BUFFER_SIZE> buffer, uint32_t reason) {
+  if (reason >= REASON_WDT_RST && reason <= REASON_SOFT_WDT_RST) {
+    snprintf_P(buffer.data(), RESET_INFO_BUFFER_SIZE,
                PSTR("Fatal exception:%d flag:%d (%s) epc1:0x%08x epc2:0x%08x epc3:0x%08x excvaddr:0x%08x depc:0x%08x"),
-               static_cast<int>(resetInfo.exccause), static_cast<int>(resetInfo.reason),
-               LOG_STR_ARG(get_reset_reason_str(resetInfo.reason)), resetInfo.epc1, resetInfo.epc2, resetInfo.epc3,
+               static_cast<int>(resetInfo.exccause), static_cast<int>(reason),
+               LOG_STR_ARG(get_reset_reason_str(reason)), resetInfo.epc1, resetInfo.epc2, resetInfo.epc3,
                resetInfo.excvaddr, resetInfo.depc);
-    return reset_info_buf_;
+    return buffer.data();
   }
-  return LOG_STR_ARG(get_reset_reason_str(resetInfo.reason));
+  return LOG_STR_ARG(get_reset_reason_str(reason));
 }
 
 const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
   // Copy from flash to provided buffer
   strncpy_P(buffer.data(), (PGM_P) get_reset_reason_str(resetInfo.reason), RESET_REASON_BUFFER_SIZE - 1);
-  buffer.data()[RESET_REASON_BUFFER_SIZE - 1] = '\0';
+  buffer[RESET_REASON_BUFFER_SIZE - 1] = '\0';
   return buffer.data();
 }
 
@@ -110,20 +109,24 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
     default:
       flash_mode = "UNKNOWN";
   }
-  uint32_t flash_size = ESP.getFlashChipSize() / 1024;       // NOLINT
-  uint32_t flash_speed = ESP.getFlashChipSpeed() / 1000000;  // NOLINT
+  uint32_t flash_size = ESP.getFlashChipSize() / 1024;       // NOLINT(readability-static-accessed-through-instance)
+  uint32_t flash_speed = ESP.getFlashChipSpeed() / 1000000;  // NOLINT(readability-static-accessed-through-instance)
   ESP_LOGD(TAG, "Flash Chip: Size=%" PRIu32 "kB Speed=%" PRIu32 "MHz Mode=%s", flash_size, flash_speed, flash_mode);
   pos = buf_append_printf(buf, size, pos, "|Flash: %" PRIu32 "kB Speed:%" PRIu32 "MHz Mode:%s", flash_size, flash_speed,
                           flash_mode);
 
-#if !defined(CLANG_TIDY)
   char reason_buffer[RESET_REASON_BUFFER_SIZE];
-  const char *reset_reason = get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE>(reason_buffer));
+  const char *reset_reason = get_reset_reason_(reason_buffer);
+  char core_version_buffer[CORE_VERSION_BUFFER_SIZE];
+  char reset_info_buffer[RESET_INFO_BUFFER_SIZE];
+  // NOLINTBEGIN(readability-static-accessed-through-instance)
   uint32_t chip_id = ESP.getChipId();
   uint8_t boot_version = ESP.getBootVersion();
   uint8_t boot_mode = ESP.getBootMode();
   uint8_t cpu_freq = ESP.getCpuFreqMHz();
   uint32_t flash_chip_id = ESP.getFlashChipId();
+  const char *sdk_version = ESP.getSdkVersion();
+  // NOLINTEND(readability-static-accessed-through-instance)
 
   ESP_LOGD(TAG,
            "Chip ID: 0x%08" PRIX32 "\n"
@@ -134,19 +137,18 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
            "Flash Chip ID=0x%08" PRIX32 "\n"
            "Reset Reason: %s\n"
            "Reset Info: %s",
-           chip_id, ESP.getSdkVersion(), get_core_version_str(), boot_version, boot_mode, cpu_freq, flash_chip_id,
-           reset_reason, get_reset_info_str());
+           chip_id, sdk_version, get_core_version_str(core_version_buffer), boot_version, boot_mode, cpu_freq,
+           flash_chip_id, reset_reason, get_reset_info_str(reset_info_buffer, resetInfo.reason));
 
   pos = buf_append_printf(buf, size, pos, "|Chip: 0x%08" PRIX32, chip_id);
-  pos = buf_append_printf(buf, size, pos, "|SDK: %s", ESP.getSdkVersion());
-  pos = buf_append_printf(buf, size, pos, "|Core: %s", get_core_version_str());
+  pos = buf_append_printf(buf, size, pos, "|SDK: %s", sdk_version);
+  pos = buf_append_printf(buf, size, pos, "|Core: %s", get_core_version_str(core_version_buffer));
   pos = buf_append_printf(buf, size, pos, "|Boot: %u", boot_version);
   pos = buf_append_printf(buf, size, pos, "|Mode: %u", boot_mode);
   pos = buf_append_printf(buf, size, pos, "|CPU: %u", cpu_freq);
   pos = buf_append_printf(buf, size, pos, "|Flash: 0x%08" PRIX32, flash_chip_id);
   pos = buf_append_printf(buf, size, pos, "|Reset: %s", reset_reason);
-  pos = buf_append_printf(buf, size, pos, "|%s", get_reset_info_str());
-#endif
+  pos = buf_append_printf(buf, size, pos, "|%s", get_reset_info_str(reset_info_buffer, resetInfo.reason));
 
   return pos;
 }
