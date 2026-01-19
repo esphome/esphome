@@ -396,6 +396,12 @@ void MQTTClientComponent::loop() {
 
         this->last_connected_ = now;
         this->resubscribe_subscriptions_();
+
+        // Process pending resends for all MQTT components centrally
+        // This is more efficient than each component polling in its own loop
+        for (MQTTComponent *component : this->children_) {
+          component->process_resend();
+        }
       }
       break;
   }
