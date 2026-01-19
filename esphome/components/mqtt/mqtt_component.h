@@ -189,7 +189,7 @@ class MQTTComponent : public Component {
 
   /** Get this components state/command/... topic into a buffer.
    *
-   * @param buf The buffer to write to (must be at least DEFAULT_TOPIC_MAX_LEN).
+   * @param buf The buffer to write to (must be exactly MQTT_DEFAULT_TOPIC_MAX_LEN).
    * @param suffix The suffix/key such as "state" or "command".
    * @return StringRef pointing to the buffer with the topic.
    */
