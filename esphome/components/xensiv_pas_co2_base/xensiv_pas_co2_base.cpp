@@ -149,6 +149,7 @@ void XensivPasCO2::setup_sensor(XensivPasCO2 *arg) {
       ESP_LOGW(TAG, "Sensor not ready after single shot");
     } else {
       arg->initialized_ = true;
+      arg->measure_now();
       ESP_LOGD(TAG, "Sensor initialized");
     }
   });
