@@ -126,10 +126,9 @@ void StatsdComponent::update() {
     }
     out.append(s.name);
     // Buffer for ":" + value + "|g\n".
-    // %g uses max 13 chars for value (sign + 6 significant digits + e+xxx)
-    // Total: 1 + 13 + 4 = 18 chars + null, use 24 for safety
-    char val_buf[24];
-    buf_append_printf(val_buf, sizeof(val_buf), 0, ":%g|g\n", val);
+    // %f with -DBL_MAX can produce up to 321 chars, plus ":" and "|g\n" (5) + null = 327
+    char val_buf[330];
+    buf_append_printf(val_buf, sizeof(val_buf), 0, ":%f|g\n", val);
     out.append(val_buf);
 
     if (out.length() > SEND_THRESHOLD) {
