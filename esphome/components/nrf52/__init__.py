@@ -24,11 +24,10 @@ from esphome.components.zephyr.const import (
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
-    CONF_COMPONENTS,
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_NAME,
-    CONF_PLATFORM_VERSION,
+    CONF_PACKAGES,
     CONF_RESET_PIN,
     CONF_SOURCE,
     CONF_VERSION,
@@ -119,8 +118,10 @@ def _detect_bootloader(config: ConfigType) -> ConfigType:
 nrf52_ns = cg.esphome_ns.namespace("nrf52")
 DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
 
+CONF_ADDITIONAL_PACKAGES = "additional_packages"
 CONF_DFU = "dfu"
 CONF_DCDC = "dcdc"
+CONF_PLATFORM_SOURCE = "platform_source"
 CONF_REG0 = "reg0"
 CONF_UICR_ERASE = "uicr_erase"
 
@@ -135,33 +136,26 @@ FRAMEWORK_SOURCE_TEMPLATE = (
 )
 
 
-def _parse_package_version(value, url_template):
+def _parse_platform_version(value):
+    if value == "recommended":
+        return PLATFORM_SOURCE_TEMPLATE.format(release=PLATFORM_RECOMMENDED_VERSION)
+    return value
+
+
+def _parse_framework_version(value):
     try:
         ver = cv.Version.parse(cv.version_number(value))
         release = f"{ver.major}.{ver.minor}.{ver.patch}"
         if ver.extra:
             release += f"-{ver.extra}"
-        return url_template.format(release=release)
+        return FRAMEWORK_SOURCE_TEMPLATE.format(release=release)
     except cv.Invalid:
-        # Allow for custom URLs / local FS paths and for None
+        # Allow for custom URLs / local FS paths
         return value
 
 
-def _parse_platform_version(value):
-    return _parse_package_version(
-        value,
-        PLATFORM_SOURCE_TEMPLATE,
-    )
-
-
-def _parse_framework_version(value):
-    return _parse_package_version(value, FRAMEWORK_SOURCE_TEMPLATE)
-
-
 def _validate_framework_version(config):
-    framework_ver = cv.Version.parse(
-        cv.version_number(config[CONF_VERSION])
-    )
+    framework_ver = cv.Version.parse(cv.version_number(config[CONF_VERSION]))
     if framework_ver < cv.Version(2, 9, 2):
         return cv.require_framework_version(
             nrf52_zephyr=cv.Version(2, 6, 1, "a"),
@@ -190,18 +184,17 @@ def _validate_framework_config(config):
         # Only perform this validation when using the default source
         _validate_framework_version(config)
 
-    components = {
+    packages = {
         "platformio/framework-zephyr": config[CONF_SOURCE],
     }
 
-    for c in config.get(CONF_COMPONENTS, []):
+    for c in config.get(CONF_ADDITIONAL_PACKAGES, []):
         name = c[CONF_NAME]
-        if name in components:
+        if name in packages:
             raise cv.Invalid(f"Component {name} specified multiple times")
-        components[name] = c[CONF_VERSION]
+        packages[name] = c[CONF_VERSION]
 
-    config[CONF_COMPONENTS] = [f"{k}@{v}" for k, v in components.items() if v]
-
+    config[CONF_PACKAGES] = [f"{k}@{v}" for k, v in packages.items() if v]
     return config
 
 
@@ -211,9 +204,9 @@ FRAMEWORK_SCHEMA = cv.All(
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
             cv.Optional(CONF_SOURCE): cv.Any(cv.boolean_false, cv.string_strict),
             cv.Optional(
-                CONF_PLATFORM_VERSION, default=PLATFORM_RECOMMENDED_VERSION
+                CONF_PLATFORM_SOURCE, default="recommended"
             ): _parse_platform_version,
-            cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
+            cv.Optional(CONF_ADDITIONAL_PACKAGES, default=[]): cv.ensure_list(
                 cv.Schema(
                     {
                         cv.Required(CONF_NAME): cv.string_strict,
@@ -290,11 +283,11 @@ async def to_code(config: ConfigType) -> None:
     cg.add_platformio_option(CONF_FRAMEWORK, CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK])
     cg.add_platformio_option(
         "platform",
-        config[CONF_FRAMEWORK][CONF_PLATFORM_VERSION],
+        config[CONF_FRAMEWORK][CONF_PLATFORM_SOURCE],
     )
     cg.add_platformio_option(
         "platform_packages",
-        config[CONF_FRAMEWORK][CONF_COMPONENTS],
+        config[CONF_FRAMEWORK][CONF_PACKAGES],
     )
 
     if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
