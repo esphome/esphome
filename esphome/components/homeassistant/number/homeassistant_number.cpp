@@ -97,7 +97,7 @@ void HomeassistantNumber::control(float value) {
   entity_value.key = VALUE_KEY;
   // Stack buffer - no heap allocation; %g produces shortest representation
   char value_buf[16];
-  snprintf(value_buf, sizeof(value_buf), "%g", value);
+  buf_append_printf(value_buf, sizeof(value_buf), 0, "%g", value);
   entity_value.value = StringRef(value_buf);
 
   api::global_api_server->send_homeassistant_action(resp);
