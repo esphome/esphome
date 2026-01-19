@@ -30,7 +30,7 @@ void MQTTNumberComponent::setup() {
 
 void MQTTNumberComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Number '%s':", this->number_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, false)
+  LOG_MQTT_COMPONENT(true, false);
 }
 
 MQTT_COMPONENT_TYPE(MQTTNumberComponent, "number")
