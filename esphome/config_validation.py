@@ -697,7 +697,16 @@ only_on_esp32 = only_on(PLATFORM_ESP32)
 only_on_esp8266 = only_on(PLATFORM_ESP8266)
 only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework(Framework.ARDUINO)
-only_with_esp_idf = only_with_framework(Framework.ESP_IDF)
+
+
+def only_with_esp_idf(obj):
+    """Deprecated: use only_on_esp32 instead."""
+    _LOGGER.warning(
+        "cv.only_with_esp_idf was deprecated in 2026.1, will change behavior in 2026.6. "
+        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
+        "Use cv.only_on_esp32 and/or cv.only_with_arduino instead."
+    )
+    return only_with_framework(Framework.ESP_IDF)(obj)
 
 
 # Adapted from:
@@ -1957,7 +1966,9 @@ MQTT_COMPONENT_SCHEMA = Schema(
         Optional(CONF_RETAIN): All(requires_component("mqtt"), boolean),
         Optional(CONF_DISCOVERY): All(requires_component("mqtt"), boolean),
         Optional(CONF_SUBSCRIBE_QOS): All(requires_component("mqtt"), mqtt_qos),
-        Optional(CONF_STATE_TOPIC): All(requires_component("mqtt"), publish_topic),
+        Optional(CONF_STATE_TOPIC): All(
+            requires_component("mqtt"), templatable(publish_topic)
+        ),
         Optional(CONF_AVAILABILITY): All(
             requires_component("mqtt"), Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)
         ),
@@ -1966,10 +1977,47 @@ MQTT_COMPONENT_SCHEMA = Schema(
 
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     {
-        Optional(CONF_COMMAND_TOPIC): All(requires_component("mqtt"), subscribe_topic),
+        Optional(CONF_COMMAND_TOPIC): All(
+            requires_component("mqtt"), templatable(subscribe_topic)
+        ),
         Optional(CONF_COMMAND_RETAIN): All(requires_component("mqtt"), boolean),
     }
 )
+
+
+# Unicode FRACTION SLASH (U+2044) - visually similar to '/' but URL-safe
+FRACTION_SLASH = "\u2044"
+
+
+def _validate_no_slash(value):
+    """Validate that a name does not contain '/' characters.
+
+    The '/' character is used as a path separator in web server URLs,
+    so it cannot be used in entity or device names.
+
+    During the deprecation period, '/' is automatically replaced with
+    the visually similar Unicode FRACTION SLASH (U+2044) character.
+    """
+    if "/" in value:
+        # Remove before 2026.7.0
+        new_value = value.replace("/", FRACTION_SLASH)
+        _LOGGER.warning(
+            "'%s' contains '/' which is reserved as a URL path separator. "
+            "Automatically replacing with '%s' (Unicode FRACTION SLASH). "
+            "Please update your configuration. "
+            "This will become an error in ESPHome 2026.7.0.",
+            value,
+            new_value,
+        )
+        return new_value
+    return value
+
+
+# Maximum length for entity, device, and area names
+# This ensures web server URL IDs fit in a 280-byte buffer:
+# domain(20) + "/" + device(120) + "/" + name(120) + null = 263 bytes
+# Note: Must be < 255 because web_server UrlMatch uses uint8_t for length fields
+NAME_MAX_LENGTH = 120
 
 
 def _validate_entity_name(value):
@@ -1982,7 +2030,26 @@ def _validate_entity_name(value):
         requires_friendly_name(
             "Name cannot be None when esphome->friendly_name is not set!"
         )(value)
+    if value is not None:
+        # Validate length for web server URL compatibility
+        if len(value) > NAME_MAX_LENGTH:
+            raise Invalid(
+                f"Name is too long ({len(value)} chars). "
+                f"Maximum length is {NAME_MAX_LENGTH} characters."
+            )
+        # Validate no '/' in name for web server URL compatibility
+        value = _validate_no_slash(value)
     return value
+
+
+def string_no_slash(value):
+    """Validate a string that cannot contain '/' characters.
+
+    Used for device and area names where '/' is reserved as a URL path separator.
+    Use with cv.Length() to also enforce maximum length.
+    """
+    value = string(value)
+    return _validate_no_slash(value)
 
 
 ENTITY_BASE_SCHEMA = Schema(

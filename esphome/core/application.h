@@ -1,16 +1,21 @@
 #pragma once
 
 #include <algorithm>
+#include <ctime>
 #include <limits>
+#include <span>
 #include <string>
 #include <vector>
+#include "esphome/core/build_info_data.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/scheduler.h"
 #include "esphome/core/string_ref.h"
+#include "esphome/core/version.h"
 
 #ifdef USE_DEVICES
 #include "esphome/core/device.h"
@@ -83,6 +88,12 @@
 #ifdef USE_ALARM_CONTROL_PANEL
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
 #endif
+#ifdef USE_WATER_HEATER
+#include "esphome/components/water_heater/water_heater.h"
+#endif
+#ifdef USE_INFRARED
+#include "esphome/components/infrared/infrared.h"
+#endif
 #ifdef USE_EVENT
 #include "esphome/components/event/event.h"
 #endif
@@ -100,8 +111,7 @@ static const uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick 
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const std::string &friendly_name, const char *comment,
-                 const char *compilation_time, bool name_add_mac_suffix) {
+  void pre_setup(const std::string &name, const std::string &friendly_name, bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
@@ -120,8 +130,6 @@ class Application {
       this->name_ = name;
       this->friendly_name_ = friendly_name;
     }
-    this->comment_ = comment;
-    this->compilation_time_ = compilation_time;
   }
 
 #ifdef USE_DEVICES
@@ -214,6 +222,14 @@ class Application {
   }
 #endif
 
+#ifdef USE_WATER_HEATER
+  void register_water_heater(water_heater::WaterHeater *water_heater) { this->water_heaters_.push_back(water_heater); }
+#endif
+
+#ifdef USE_INFRARED
+  void register_infrared(infrared::Infrared *infrared) { this->infrareds_.push_back(infrared); }
+#endif
+
 #ifdef USE_EVENT
   void register_event(event::Event *event) { this->events_.push_back(event); }
 #endif
@@ -254,16 +270,46 @@ class Application {
     return "";
   }
 
-  /// Get the comment of this Application set by pre_setup().
-  std::string get_comment() const { return this->comment_; }
-  /// Get the comment as StringRef (avoids allocation)
-  StringRef get_comment_ref() const { return StringRef(this->comment_); }
+  /// Copy the comment string into the provided buffer
+  /// Buffer must be ESPHOME_COMMENT_SIZE bytes (compile-time enforced)
+  void get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE> buffer) {
+    ESPHOME_strncpy_P(buffer.data(), ESPHOME_COMMENT_STR, buffer.size());
+    buffer[buffer.size() - 1] = '\0';
+  }
+
+  /// Get the comment of this Application as a string
+  std::string get_comment() {
+    char buffer[ESPHOME_COMMENT_SIZE];
+    this->get_comment_string(buffer);
+    return std::string(buffer);
+  }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
-  std::string get_compilation_time() const { return this->compilation_time_; }
-  /// Get the compilation time as StringRef (for API usage)
-  StringRef get_compilation_time_ref() const { return StringRef(this->compilation_time_); }
+  /// Size of buffer required for build time string (including null terminator)
+  static constexpr size_t BUILD_TIME_STR_SIZE = 26;
+
+  /// Get the config hash as a 32-bit integer
+  constexpr uint32_t get_config_hash() { return ESPHOME_CONFIG_HASH; }
+
+  /// Get the config hash extended with ESPHome version
+  constexpr uint32_t get_config_version_hash() { return fnv1a_hash_extend(ESPHOME_CONFIG_HASH, ESPHOME_VERSION); }
+
+  /// Get the build time as a Unix timestamp
+  constexpr time_t get_build_time() { return ESPHOME_BUILD_TIME; }
+
+  /// Copy the build time string into the provided buffer
+  /// Buffer must be BUILD_TIME_STR_SIZE bytes (compile-time enforced)
+  void get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer);
+
+  /// Get the build time as a string (deprecated, use get_build_time_string() instead)
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use get_build_time_string() instead. Removed in 2026.7.0", "2026.1.0")
+  std::string get_compilation_time() {
+    char buf[BUILD_TIME_STR_SIZE];
+    this->get_build_time_string(buf);
+    return std::string(buf);
+  }
 
   /// Get the cached time in milliseconds from when the current component started its loop execution
   inline uint32_t IRAM_ATTR HOT get_loop_component_start_time() const { return this->loop_component_start_time_; }
@@ -413,6 +459,16 @@ class Application {
   GET_ENTITY_METHOD(alarm_control_panel::AlarmControlPanel, alarm_control_panel, alarm_control_panels)
 #endif
 
+#ifdef USE_WATER_HEATER
+  auto &get_water_heaters() const { return this->water_heaters_; }
+  GET_ENTITY_METHOD(water_heater::WaterHeater, water_heater, water_heaters)
+#endif
+
+#ifdef USE_INFRARED
+  auto &get_infrareds() const { return this->infrareds_; }
+  GET_ENTITY_METHOD(infrared::Infrared, infrared, infrareds)
+#endif
+
 #ifdef USE_EVENT
   auto &get_events() const { return this->events_; }
   GET_ENTITY_METHOD(event::Event, event, events)
@@ -477,8 +533,6 @@ class Application {
 
   // Pointer-sized members first
   Component *current_component_{nullptr};
-  const char *comment_{nullptr};
-  const char *compilation_time_{nullptr};
 
   // std::vector (3 pointers each: begin, end, capacity)
   // Partitioned vector design for looping components
@@ -610,6 +664,12 @@ class Application {
 #ifdef USE_ALARM_CONTROL_PANEL
   StaticVector<alarm_control_panel::AlarmControlPanel *, ESPHOME_ENTITY_ALARM_CONTROL_PANEL_COUNT>
       alarm_control_panels_{};
+#endif
+#ifdef USE_WATER_HEATER
+  StaticVector<water_heater::WaterHeater *, ESPHOME_ENTITY_WATER_HEATER_COUNT> water_heaters_{};
+#endif
+#ifdef USE_INFRARED
+  StaticVector<infrared::Infrared *, ESPHOME_ENTITY_INFRARED_COUNT> infrareds_{};
 #endif
 #ifdef USE_UPDATE
   StaticVector<update::UpdateEntity *, ESPHOME_ENTITY_UPDATE_COUNT> updates_{};

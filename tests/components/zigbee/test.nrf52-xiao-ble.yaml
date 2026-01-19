@@ -1,0 +1,5 @@
+<<: !include common.yaml
+
+zigbee:
+  wipe_on_boot: once
+  power_source: battery

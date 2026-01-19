@@ -19,7 +19,7 @@
 namespace esphome {
 namespace deep_sleep {
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_BK72XX)
 
 /** The values of this enum define what should be done if deep sleep is set up with a wakeup pin on the ESP32
  * and the scenario occurs that the wakeup pin is already in the wakeup state.
@@ -33,7 +33,17 @@ enum WakeupPinMode {
    */
   WAKEUP_PIN_MODE_INVERT_WAKEUP,
 };
+#endif
 
+#if defined(USE_BK72XX)
+struct WakeUpPinItem {
+  InternalGPIOPin *wakeup_pin;
+  WakeupPinMode wakeup_pin_mode;
+  bool wakeup_level;
+};
+#endif  // USE_BK72XX
+
+#ifdef USE_ESP32
 #if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
 struct Ext1Wakeup {
   uint64_t mask;
@@ -75,6 +85,13 @@ class DeepSleepComponent : public Component {
   void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode);
 #endif  // USE_ESP32
 
+#if defined(USE_BK72XX)
+  void init_wakeup_pins_(size_t capacity) { this->wakeup_pins_.init(capacity); }
+  void add_wakeup_pin(InternalGPIOPin *wakeup_pin, WakeupPinMode wakeup_pin_mode) {
+    this->wakeup_pins_.emplace_back(WakeUpPinItem{wakeup_pin, wakeup_pin_mode, !wakeup_pin->is_inverted()});
+  }
+#endif  // USE_BK72XX
+
 #if defined(USE_ESP32)
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
   void set_ext1_wakeup(Ext1Wakeup ext1_wakeup);
@@ -114,7 +131,17 @@ class DeepSleepComponent : public Component {
   bool prepare_to_sleep_();
   void deep_sleep_();
 
+#ifdef USE_BK72XX
+  bool pin_prevents_sleep_(WakeUpPinItem &pinItem) const;
+  bool get_real_pin_state_(InternalGPIOPin &pin) const { return (pin.digital_read() ^ pin.is_inverted()); }
+#endif  // USE_BK72XX
+
   optional<uint64_t> sleep_duration_;
+
+#ifdef USE_BK72XX
+  FixedVector<WakeUpPinItem> wakeup_pins_;
+#endif  // USE_BK72XX
+
 #ifdef USE_ESP32
   InternalGPIOPin *wakeup_pin_;
   WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
@@ -124,8 +151,10 @@ class DeepSleepComponent : public Component {
 #endif
 
   optional<bool> touch_wakeup_;
+
   optional<WakeupCauseToRunDuration> wakeup_cause_to_run_duration_;
 #endif  // USE_ESP32
+
   optional<uint32_t> run_duration_;
   bool next_enter_deep_sleep_{false};
   bool prevent_{false};

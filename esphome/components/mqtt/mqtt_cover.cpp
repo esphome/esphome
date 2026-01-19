@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_COVER
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.cover";
 
@@ -91,7 +90,7 @@ void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
   }
 }
 
-std::string MQTTCoverComponent::component_type() const { return "cover"; }
+MQTT_COMPONENT_TYPE(MQTTCoverComponent, "cover")
 const EntityBase *MQTTCoverComponent::get_entity() const { return this->cover_; }
 
 bool MQTTCoverComponent::send_initial_state() { return this->publish_state(); }
@@ -99,13 +98,15 @@ bool MQTTCoverComponent::publish_state() {
   auto traits = this->cover_->get_traits();
   bool success = true;
   if (traits.get_supports_position()) {
-    std::string pos = value_accuracy_to_string(roundf(this->cover_->position * 100), 0);
-    if (!this->publish(this->get_position_state_topic(), pos))
+    char pos[VALUE_ACCURACY_MAX_LEN];
+    size_t len = value_accuracy_to_buf(pos, roundf(this->cover_->position * 100), 0);
+    if (!this->publish(this->get_position_state_topic(), pos, len))
       success = false;
   }
   if (traits.get_supports_tilt()) {
-    std::string pos = value_accuracy_to_string(roundf(this->cover_->tilt * 100), 0);
-    if (!this->publish(this->get_tilt_state_topic(), pos))
+    char pos[VALUE_ACCURACY_MAX_LEN];
+    size_t len = value_accuracy_to_buf(pos, roundf(this->cover_->tilt * 100), 0);
+    if (!this->publish(this->get_tilt_state_topic(), pos, len))
       success = false;
   }
   const char *state_s = this->cover_->current_operation == COVER_OPERATION_OPENING   ? "opening"
@@ -119,8 +120,7 @@ bool MQTTCoverComponent::publish_state() {
   return success;
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

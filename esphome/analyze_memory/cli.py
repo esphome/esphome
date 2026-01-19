@@ -1,15 +1,23 @@
 """CLI interface for memory analysis with report generation."""
 
+from __future__ import annotations
+
 from collections import defaultdict
+from collections.abc import Callable
 import sys
+from typing import TYPE_CHECKING
 
 from . import (
     _COMPONENT_API,
     _COMPONENT_CORE,
     _COMPONENT_PREFIX_ESPHOME,
     _COMPONENT_PREFIX_EXTERNAL,
+    RAM_SECTIONS,
     MemoryAnalyzer,
 )
+
+if TYPE_CHECKING:
+    from . import ComponentMemory
 
 
 class MemoryAnalyzerCLI(MemoryAnalyzer):
@@ -19,6 +27,8 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
     SYMBOL_SIZE_THRESHOLD: int = (
         100  # Show symbols larger than this in detailed analysis
     )
+    # Lower threshold for RAM symbols (RAM is more constrained)
+    RAM_SYMBOL_SIZE_THRESHOLD: int = 24
 
     # Column width constants
     COL_COMPONENT: int = 29
@@ -83,6 +93,60 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         COL_CORE_PERCENT,
     )
 
+    def _add_section_header(self, lines: list[str], title: str) -> None:
+        """Add a section header with title centered between separator lines."""
+        lines.append("")
+        lines.append("=" * self.TABLE_WIDTH)
+        lines.append(title.center(self.TABLE_WIDTH))
+        lines.append("=" * self.TABLE_WIDTH)
+        lines.append("")
+
+    def _add_top_consumers(
+        self,
+        lines: list[str],
+        title: str,
+        components: list[tuple[str, ComponentMemory]],
+        get_size: Callable[[ComponentMemory], int],
+        total: int,
+        memory_type: str,
+        limit: int = 25,
+    ) -> None:
+        """Add a formatted list of top memory consumers to the report.
+
+        Args:
+            lines: List of report lines to append the output to.
+            title: Section title to print before the list.
+            components: Sequence of (name, ComponentMemory) tuples to analyze.
+            get_size: Callable that takes a ComponentMemory and returns the
+                size in bytes to use for ranking and display.
+            total: Total size in bytes for computing percentage usage.
+            memory_type: Label for the memory region (e.g., "flash" or "RAM").
+            limit: Maximum number of components to include in the list.
+        """
+        lines.append("")
+        lines.append(f"{title}:")
+        for i, (name, mem) in enumerate(components[:limit]):
+            size = get_size(mem)
+            if size > 0:
+                percentage = (size / total * 100) if total > 0 else 0
+                lines.append(
+                    f"{i + 1}. {name} ({size:,} B) - {percentage:.1f}% of analyzed {memory_type}"
+                )
+
+    def _format_symbol_with_section(
+        self, demangled: str, size: int, section: str | None = None
+    ) -> str:
+        """Format a symbol entry, optionally adding a RAM section label.
+
+        If section is one of the RAM sections (.data or .bss), a label like
+        " [data]" or " [bss]" is appended. For non-RAM sections or when
+        section is None, no section label is added.
+        """
+        section_label = ""
+        if section in RAM_SECTIONS:
+            section_label = f" [{section[1:]}]"  # .data -> [data], .bss -> [bss]
+        return f"{demangled} ({size:,} B){section_label}"
+
     def generate_report(self, detailed: bool = False) -> str:
         """Generate a formatted memory report."""
         components = sorted(
@@ -123,43 +187,70 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             f"{total_flash:>{self.COL_TOTAL_FLASH - 2},} B | {total_ram:>{self.COL_TOTAL_RAM - 2},} B"
         )
 
-        # Top consumers
-        lines.append("")
-        lines.append("Top Flash Consumers:")
-        for i, (name, mem) in enumerate(components[:25]):
-            if mem.flash_total > 0:
-                percentage = (
-                    (mem.flash_total / total_flash * 100) if total_flash > 0 else 0
-                )
-                lines.append(
-                    f"{i + 1}. {name} ({mem.flash_total:,} B) - {percentage:.1f}% of analyzed flash"
-                )
-
-        lines.append("")
-        lines.append("Top RAM Consumers:")
-        ram_components = sorted(components, key=lambda x: x[1].ram_total, reverse=True)
-        for i, (name, mem) in enumerate(ram_components[:25]):
-            if mem.ram_total > 0:
-                percentage = (mem.ram_total / total_ram * 100) if total_ram > 0 else 0
-                lines.append(
-                    f"{i + 1}. {name} ({mem.ram_total:,} B) - {percentage:.1f}% of analyzed RAM"
-                )
-
-        lines.append("")
-        lines.append(
-            "Note: This analysis covers symbols in the ELF file. Some runtime allocations may not be included."
+        # Show unattributed RAM (SDK/framework overhead)
+        unattributed_bss, unattributed_data, unattributed_total = (
+            self.get_unattributed_ram()
         )
-        lines.append("=" * self.TABLE_WIDTH)
+        if unattributed_total > 0:
+            lines.append("")
+            lines.append(
+                f"Unattributed RAM: {unattributed_total:,} B (SDK/framework overhead)"
+            )
+            if unattributed_bss > 0 and unattributed_data > 0:
+                lines.append(
+                    f"  .bss: {unattributed_bss:,} B | .data: {unattributed_data:,} B"
+                )
+
+            # Show SDK symbol breakdown if available
+            sdk_by_lib = self.get_sdk_ram_by_library()
+            if sdk_by_lib:
+                lines.append("")
+                lines.append("SDK library breakdown (static symbols not in ELF):")
+                # Sort libraries by total size
+                lib_totals = [
+                    (lib, sum(s.size for s in syms), syms)
+                    for lib, syms in sdk_by_lib.items()
+                ]
+                lib_totals.sort(key=lambda x: x[1], reverse=True)
+
+                for lib_name, lib_total, syms in lib_totals:
+                    if lib_total == 0:
+                        continue
+                    lines.append(f"  {lib_name}: {lib_total:,} B")
+                    # Show top symbols from this library
+                    for sym in sorted(syms, key=lambda s: s.size, reverse=True)[:3]:
+                        section_label = sym.section.lstrip(".")
+                        # Use demangled name (falls back to original if not demangled)
+                        display_name = sym.demangled or sym.name
+                        if len(display_name) > 50:
+                            display_name = f"{display_name[:47]}..."
+                        lines.append(
+                            f"    {sym.size:>6,} B [{section_label}] {display_name}"
+                        )
+
+        # Top consumers
+        self._add_top_consumers(
+            lines,
+            "Top Flash Consumers",
+            components,
+            lambda m: m.flash_total,
+            total_flash,
+            "flash",
+        )
+
+        ram_components = sorted(components, key=lambda x: x[1].ram_total, reverse=True)
+        self._add_top_consumers(
+            lines,
+            "Top RAM Consumers",
+            ram_components,
+            lambda m: m.ram_total,
+            total_ram,
+            "RAM",
+        )
 
         # Add ESPHome core detailed analysis if there are core symbols
         if self._esphome_core_symbols:
-            lines.append("")
-            lines.append("=" * self.TABLE_WIDTH)
-            lines.append(
-                f"{_COMPONENT_CORE} Detailed Analysis".center(self.TABLE_WIDTH)
-            )
-            lines.append("=" * self.TABLE_WIDTH)
-            lines.append("")
+            self._add_section_header(lines, f"{_COMPONENT_CORE} Detailed Analysis")
 
             # Group core symbols by subcategory
             core_subcategories: dict[str, list[tuple[str, str, int]]] = defaultdict(
@@ -211,7 +302,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 f"{_COMPONENT_CORE} Symbols > {self.SYMBOL_SIZE_THRESHOLD} B ({len(large_core_symbols)} symbols):"
             )
             for i, (symbol, demangled, size) in enumerate(large_core_symbols):
-                lines.append(f"{i + 1}. {demangled} ({size:,} B)")
+                # Core symbols only track (symbol, demangled, size) without section info,
+                # so we don't show section labels here
+                lines.append(
+                    f"{i + 1}. {self._format_symbol_with_section(demangled, size)}"
+                )
 
             lines.append("=" * self.TABLE_WIDTH)
 
@@ -267,11 +362,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             for comp_name, comp_mem in components_to_analyze:
                 if not (comp_symbols := self._component_symbols.get(comp_name, [])):
                     continue
-                lines.append("")
-                lines.append("=" * self.TABLE_WIDTH)
-                lines.append(f"{comp_name} Detailed Analysis".center(self.TABLE_WIDTH))
-                lines.append("=" * self.TABLE_WIDTH)
-                lines.append("")
+                self._add_section_header(lines, f"{comp_name} Detailed Analysis")
 
                 # Sort symbols by size
                 sorted_symbols = sorted(comp_symbols, key=lambda x: x[2], reverse=True)
@@ -282,18 +373,68 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
 
                 # Show all symbols above threshold for better visibility
                 large_symbols = [
-                    (sym, dem, size)
-                    for sym, dem, size in sorted_symbols
+                    (sym, dem, size, sec)
+                    for sym, dem, size, sec in sorted_symbols
                     if size > self.SYMBOL_SIZE_THRESHOLD
                 ]
 
                 lines.append(
                     f"{comp_name} Symbols > {self.SYMBOL_SIZE_THRESHOLD} B ({len(large_symbols)} symbols):"
                 )
-                for i, (symbol, demangled, size) in enumerate(large_symbols):
-                    lines.append(f"{i + 1}. {demangled} ({size:,} B)")
+                for i, (symbol, demangled, size, section) in enumerate(large_symbols):
+                    lines.append(
+                        f"{i + 1}. {self._format_symbol_with_section(demangled, size, section)}"
+                    )
 
                 lines.append("=" * self.TABLE_WIDTH)
+
+        # Detailed RAM analysis by component (at end, before RAM strings analysis)
+        self._add_section_header(lines, "RAM Symbol Analysis by Component")
+
+        # Show top 15 RAM consumers with their large symbols
+        for name, mem in ram_components[:15]:
+            if mem.ram_total == 0:
+                continue
+            ram_syms = self._ram_symbols.get(name, [])
+            if not ram_syms:
+                continue
+
+            # Sort by size descending
+            sorted_ram_syms = sorted(ram_syms, key=lambda x: x[2], reverse=True)
+            large_ram_syms = [
+                s for s in sorted_ram_syms if s[2] > self.RAM_SYMBOL_SIZE_THRESHOLD
+            ]
+
+            lines.append(f"{name} ({mem.ram_total:,} B total RAM):")
+
+            # Show breakdown by section type
+            data_size = sum(s[2] for s in ram_syms if s[3] == ".data")
+            bss_size = sum(s[2] for s in ram_syms if s[3] == ".bss")
+            lines.append(f"  .data (initialized): {data_size:,} B")
+            lines.append(f"  .bss (uninitialized): {bss_size:,} B")
+
+            if large_ram_syms:
+                lines.append(
+                    f"  Symbols > {self.RAM_SYMBOL_SIZE_THRESHOLD} B ({len(large_ram_syms)}):"
+                )
+                for symbol, demangled, size, section in large_ram_syms[:10]:
+                    # Format section label consistently by stripping leading dot
+                    section_label = section.lstrip(".") if section else ""
+                    # Add ellipsis if name is truncated
+                    demangled_display = (
+                        f"{demangled[:70]}..." if len(demangled) > 70 else demangled
+                    )
+                    lines.append(
+                        f"    {size:>6,} B [{section_label}] {demangled_display}"
+                    )
+                if len(large_ram_syms) > 10:
+                    lines.append(f"    ... and {len(large_ram_syms) - 10} more")
+            lines.append("")
+
+        lines.append(
+            "Note: This analysis covers symbols in the ELF file. Some runtime allocations may not be included."
+        )
+        lines.append("=" * self.TABLE_WIDTH)
 
         return "\n".join(lines)
 
