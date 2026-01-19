@@ -1,0 +1,26 @@
+sensor:
+  - platform: stcc4
+    continuous: true
+    update_interval: 60s
+    address: 0x64
+    co2:
+      id: co2
+      name: "STCC4 CO2"
+
+    temperature:
+      id: temp
+      name: "SHT45 Temperature"
+
+    humidity:
+      id: hum
+      name: "SHT45 Humidity"
+
+    compensation:
+      ambient_pressure_compensation_source: bmp_hpa
+
+  - platform: bmp3xx_i2c
+    pressure:
+      id: bmp_hpa
+      name: "BMP390 Pressure"
+    address: 0x77
+    update_interval: 60s
