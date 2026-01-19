@@ -5,8 +5,7 @@
 #include "esphome/components/network/util.h"
 #include "udp_component.h"
 
-namespace esphome {
-namespace udp {
+namespace esphome::udp {
 
 static const char *const TAG = "udp";
 
@@ -95,7 +94,7 @@ void UDPComponent::setup() {
   // 8266 and RP2040 `Duino
   for (const auto &address : this->addresses_) {
     auto ipaddr = IPAddress();
-    ipaddr.fromString(address.c_str());
+    ipaddr.fromString(address);
     this->ipaddrs_.push_back(ipaddr);
   }
   if (this->should_listen_)
@@ -130,8 +129,8 @@ void UDPComponent::dump_config() {
                 "  Listen Port: %u\n"
                 "  Broadcast Port: %u",
                 this->listen_port_, this->broadcast_port_);
-  for (const auto &address : this->addresses_)
-    ESP_LOGCONFIG(TAG, "  Address: %s", address.c_str());
+  for (const char *address : this->addresses_)
+    ESP_LOGCONFIG(TAG, "  Address: %s", address);
   if (this->listen_address_.has_value()) {
     char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
     ESP_LOGCONFIG(TAG, "  Listen address: %s", this->listen_address_.value().str_to(addr_buf));
@@ -162,7 +161,6 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
   }
 #endif
 }
-}  // namespace udp
-}  // namespace esphome
+}  // namespace esphome::udp
 
 #endif
