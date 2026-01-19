@@ -112,7 +112,11 @@ void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
 #else
   auto *response = req->beginResponse_P(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
 #endif
+#ifdef USE_CAPTIVE_PORTAL_GZIP
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
+#else
+  response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("br"));
+#endif
   req->send(response);
 }
 

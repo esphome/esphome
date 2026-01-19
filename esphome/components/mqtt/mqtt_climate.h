@@ -15,7 +15,7 @@ class MQTTClimateComponent : public mqtt::MQTTComponent {
   MQTTClimateComponent(climate::Climate *device);
   void send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) override;
   bool send_initial_state() override;
-  std::string component_type() const override;
+  const char *component_type() const override;
   void setup() override;
 
   MQTT_COMPONENT_CUSTOM_TOPIC(current_temperature, state)
