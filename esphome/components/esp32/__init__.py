@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_IGNORE_EFUSE_MAC_CRC,
     CONF_LOG_LEVEL,
     CONF_NAME,
+    CONF_OTA,
     CONF_PATH,
     CONF_PLATFORM_VERSION,
     CONF_PLATFORMIO_OPTIONS,
@@ -85,6 +86,7 @@ CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
+CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
 CONF_RELEASE = "release"
 
 LOG_LEVELS_IDF = [
@@ -107,6 +109,21 @@ COMPILER_OPTIMIZATIONS = {
     "NONE": "CONFIG_COMPILER_OPTIMIZATION_NONE",
     "PERF": "CONFIG_COMPILER_OPTIMIZATION_PERF",
     "SIZE": "CONFIG_COMPILER_OPTIMIZATION_SIZE",
+}
+
+# ESP32 (original) chip revision options
+# Setting minimum revision to 3.0 or higher:
+# - Reduces flash size by excluding workaround code for older chip bugs
+# - For PSRAM users: disables CONFIG_SPIRAM_CACHE_WORKAROUND, which saves significant
+#   IRAM by keeping C library functions in ROM instead of recompiling them
+# See: https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/chip_revision.html
+ESP32_CHIP_REVISIONS = {
+    "0.0": "CONFIG_ESP32_REV_MIN_0",
+    "1.0": "CONFIG_ESP32_REV_MIN_1",
+    "1.1": "CONFIG_ESP32_REV_MIN_1_1",
+    "2.0": "CONFIG_ESP32_REV_MIN_2",
+    "3.0": "CONFIG_ESP32_REV_MIN_3",
+    "3.1": "CONFIG_ESP32_REV_MIN_3_1",
 }
 
 # Socket limit configuration for ESP-IDF
@@ -357,11 +374,12 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 2),
-    "latest": cv.Version(3, 3, 4),
-    "dev": cv.Version(3, 3, 4),
+    "recommended": cv.Version(3, 3, 5),
+    "latest": cv.Version(3, 3, 5),
+    "dev": cv.Version(3, 3, 5),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(3, 3, 5): cv.Version(55, 3, 35),
     cv.Version(3, 3, 4): cv.Version(55, 3, 31, "2"),
     cv.Version(3, 3, 3): cv.Version(55, 3, 31, "2"),
     cv.Version(3, 3, 2): cv.Version(55, 3, 31, "2"),
@@ -374,15 +392,33 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(3, 1, 1): cv.Version(53, 3, 11),
     cv.Version(3, 1, 0): cv.Version(53, 3, 10),
 }
+# Maps Arduino framework versions to a compatible ESP-IDF version
+# These versions correspond to pioarduino/esp-idf releases
+# See: https://github.com/pioarduino/esp-idf/releases
+ARDUINO_IDF_VERSION_LOOKUP = {
+    cv.Version(3, 3, 5): cv.Version(5, 5, 2),
+    cv.Version(3, 3, 4): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 3): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 2): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 1): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 0): cv.Version(5, 5, 0),
+    cv.Version(3, 2, 1): cv.Version(5, 4, 2),
+    cv.Version(3, 2, 0): cv.Version(5, 4, 2),
+    cv.Version(3, 1, 3): cv.Version(5, 3, 2),
+    cv.Version(3, 1, 2): cv.Version(5, 3, 2),
+    cv.Version(3, 1, 1): cv.Version(5, 3, 1),
+    cv.Version(3, 1, 0): cv.Version(5, 3, 0),
+}
 
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 1),
-    "latest": cv.Version(5, 5, 1),
-    "dev": cv.Version(5, 5, 1),
+    "recommended": cv.Version(5, 5, 2),
+    "latest": cv.Version(5, 5, 2),
+    "dev": cv.Version(5, 5, 2),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(5, 5, 2): cv.Version(55, 3, 35),
     cv.Version(5, 5, 1): cv.Version(55, 3, 31, "2"),
     cv.Version(5, 5, 0): cv.Version(55, 3, 31, "2"),
     cv.Version(5, 4, 3): cv.Version(55, 3, 32),
@@ -399,9 +435,9 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 31, "2"),
-    "latest": cv.Version(55, 3, 31, "2"),
-    "dev": cv.Version(55, 3, 31, "2"),
+    "recommended": cv.Version(55, 3, 35),
+    "latest": cv.Version(55, 3, 35),
+    "dev": cv.Version(55, 3, 35),
 }
 
 
@@ -547,6 +583,16 @@ def final_validate(config):
                 path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_IGNORE_EFUSE_MAC_CRC],
             )
         )
+    if (
+        config[CONF_VARIANT] != VARIANT_ESP32
+        and advanced.get(CONF_MINIMUM_CHIP_REVISION) is not None
+    ):
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_MINIMUM_CHIP_REVISION}' is only supported on {VARIANT_ESP32}",
+                path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_MINIMUM_CHIP_REVISION],
+            )
+        )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         if config[CONF_VARIANT] != VARIANT_ESP32S3:
             errs.append(
@@ -575,11 +621,18 @@ def final_validate(config):
             )
         )
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
-        safe_mode_config = full_config.get(CONF_SAFE_MODE)
-        if safe_mode_config is None or safe_mode_config.get(CONF_DISABLED, False):
-            _LOGGER.warning(
-                "OTA rollback requires safe_mode, disabling rollback support"
-            )
+        # "disabled: false" means safe mode *is* enabled.
+        safe_mode_config = full_config.get(CONF_SAFE_MODE, {CONF_DISABLED: True})
+        safe_mode_enabled = not safe_mode_config[CONF_DISABLED]
+        ota_enabled = CONF_OTA in full_config
+        # Both need to be enabled for rollback to work
+        if not (ota_enabled and safe_mode_enabled):
+            # But only warn if ota is even possible
+            if ota_enabled:
+                _LOGGER.warning(
+                    "OTA rollback requires safe_mode, disabling rollback support"
+                )
+            # disable the rollback feature anyway since it can't be used.
             advanced[CONF_ENABLE_OTA_ROLLBACK] = False
     if errs:
         raise cv.MultipleInvalid(errs)
@@ -599,6 +652,7 @@ CONF_DISABLE_VFS_SUPPORT_SELECT = "disable_vfs_support_select"
 CONF_DISABLE_VFS_SUPPORT_DIR = "disable_vfs_support_dir"
 CONF_FREERTOS_IN_IRAM = "freertos_in_iram"
 CONF_RINGBUF_IN_IRAM = "ringbuf_in_iram"
+CONF_HEAP_IN_IRAM = "heap_in_iram"
 CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
 
 # VFS requirement tracking
@@ -675,6 +729,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_ENABLE_LWIP_ASSERT, default=True): cv.boolean,
                 cv.Optional(CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False): cv.boolean,
                 cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC, default=False): cv.boolean,
+                cv.Optional(CONF_MINIMUM_CHIP_REVISION): cv.one_of(
+                    *ESP32_CHIP_REVISIONS
+                ),
                 # DHCP server is needed for WiFi AP mode. When WiFi component is used,
                 # it will handle disabling DHCP server when AP is not configured.
                 # Default to false (disabled) when WiFi is not used.
@@ -697,6 +754,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
                 cv.Optional(CONF_FREERTOS_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_RINGBUF_IN_IRAM, default=False): cv.boolean,
+                cv.Optional(CONF_HEAP_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_EXECUTE_FROM_PSRAM, default=False): cv.boolean,
                 cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
                     min=8192, max=32768
@@ -727,12 +785,14 @@ FRAMEWORK_SCHEMA = cv.Schema(
 )
 
 
+# Remove this class in 2026.7.0
 class _FrameworkMigrationWarning:
     shown = False
 
 
 def _show_framework_migration_message(name: str, variant: str) -> None:
-    """Show a friendly message about framework migration when defaulting to Arduino."""
+    """Show a message about the framework default change and how to switch back to Arduino."""
+    # Remove this function in 2026.7.0
     if _FrameworkMigrationWarning.shown:
         return
     _FrameworkMigrationWarning.shown = True
@@ -742,41 +802,27 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
     message = (
         color(
             AnsiFore.BOLD_CYAN,
-            f"💡 IMPORTANT: {name} doesn't have a framework specified!",
+            f"💡 NOTICE: {name} does not have a framework specified.",
         )
         + "\n\n"
-        + f"Currently, {variant} defaults to the Arduino framework.\n"
-        + color(AnsiFore.YELLOW, "This will change to ESP-IDF in ESPHome 2026.1.0.\n")
+        + f"Starting with ESPHome 2026.1.0, the default framework for {variant} is ESP-IDF.\n"
+        + "(We've been warning about this change since ESPHome 2025.8.0)\n"
         + "\n"
-        + "Note: Newer ESP32 variants (C6, H2, P4, etc.) already use ESP-IDF by default.\n"
-        + "\n"
-        + "Why change? ESP-IDF offers:\n"
-        + color(AnsiFore.GREEN, "  ✨ Up to 40% smaller binaries\n")
-        + color(AnsiFore.GREEN, "  🚀 Better performance and optimization\n")
+        + "Why we made this change:\n"
+        + color(AnsiFore.GREEN, "  ✨ Up to 40% smaller firmware binaries\n")
         + color(AnsiFore.GREEN, "  ⚡ 2-3x faster compile times\n")
-        + color(AnsiFore.GREEN, "  📦 Custom-built firmware for your exact needs\n")
-        + color(
-            AnsiFore.GREEN,
-            "  🔧 Active development and testing by ESPHome developers\n",
-        )
+        + color(AnsiFore.GREEN, "  🚀 Better performance and newer features\n")
+        + color(AnsiFore.GREEN, "  🔧 More actively maintained by ESPHome\n")
         + "\n"
-        + "Trade-offs:\n"
-        + color(AnsiFore.YELLOW, "  🔄 Some components need migration\n")
+        + "To continue using Arduino, add this to your YAML under 'esp32:':\n"
+        + color(AnsiFore.WHITE, "    framework:\n")
+        + color(AnsiFore.WHITE, "      type: arduino\n")
         + "\n"
-        + "What should I do?\n"
-        + color(AnsiFore.CYAN, "  Option 1")
-        + ": Migrate to ESP-IDF (recommended)\n"
-        + "    Add this to your YAML under 'esp32:':\n"
-        + color(AnsiFore.WHITE, "      framework:\n")
-        + color(AnsiFore.WHITE, "        type: esp-idf\n")
+        + "To silence this message with ESP-IDF, explicitly set:\n"
+        + color(AnsiFore.WHITE, "    framework:\n")
+        + color(AnsiFore.WHITE, "      type: esp-idf\n")
         + "\n"
-        + color(AnsiFore.CYAN, "  Option 2")
-        + ": Keep using Arduino (still supported)\n"
-        + "    Add this to your YAML under 'esp32:':\n"
-        + color(AnsiFore.WHITE, "      framework:\n")
-        + color(AnsiFore.WHITE, "        type: arduino\n")
-        + "\n"
-        + "Need help? Check out the migration guide:\n"
+        + "Migration guide: "
         + color(
             AnsiFore.BLUE,
             "https://esphome.io/guides/esp32_arduino_to_idf/",
@@ -791,13 +837,13 @@ def _set_default_framework(config):
         config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA({})
     if CONF_TYPE not in config[CONF_FRAMEWORK]:
         variant = config[CONF_VARIANT]
+        config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ESP_IDF
+        # Show migration message for variants that previously defaulted to Arduino
+        # Remove this message in 2026.7.0
         if variant in ARDUINO_ALLOWED_VARIANTS:
-            config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ARDUINO
             _show_framework_migration_message(
                 config.get(CONF_NAME, "This device"), variant
             )
-        else:
-            config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ESP_IDF
 
     return config
 
@@ -991,6 +1037,13 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
 
+        # Add IDF framework source for Arduino builds to ensure it uses the same version as
+        # the ESP-IDF framework
+        if (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
+            cg.add_platformio_option(
+                "platform_packages", [_format_framework_espidf_version(idf_ver, None)]
+            )
+
         # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
         if get_esp32_variant() == VARIANT_ESP32S2:
             cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=1")
@@ -1003,6 +1056,16 @@ async def to_code(config):
     add_idf_sdkconfig_option(
         f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
     )
+
+    # Set minimum chip revision for ESP32 variant
+    # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
+    # and for PSRAM users saves significant IRAM by keeping C library functions in ROM.
+    if variant == VARIANT_ESP32:
+        min_rev = conf[CONF_ADVANCED].get(CONF_MINIMUM_CHIP_REVISION)
+        if min_rev is not None:
+            for rev, flag in ESP32_CHIP_REVISIONS.items():
+                add_idf_sdkconfig_option(flag, rev == min_rev)
+            cg.add_define("USE_ESP32_MIN_CHIP_REVISION_SET")
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_SINGLE_APP", False)
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM", True)
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM_FILENAME", "partitions.csv")
@@ -1036,6 +1099,12 @@ async def to_code(config):
     else:
         # Place in flash to save IRAM (default)
         add_idf_sdkconfig_option("CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH", True)
+
+    # Place heap functions into flash to save IRAM (~4-6KB savings)
+    # Safe as long as heap functions are not called from ISRs (which they shouldn't be)
+    # Users can set heap_in_iram: true as an escape hatch if needed
+    if not conf[CONF_ADVANCED][CONF_HEAP_IN_IRAM]:
+        add_idf_sdkconfig_option("CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH", True)
 
     # Setup watchdog
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT", True)

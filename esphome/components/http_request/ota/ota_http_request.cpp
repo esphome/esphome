@@ -7,7 +7,7 @@
 #include "esphome/components/md5/md5.h"
 #include "esphome/components/watchdog/watchdog.h"
 #include "esphome/components/ota/ota_backend.h"
-#include "esphome/components/ota/ota_backend_arduino_esp8266.h"
+#include "esphome/components/ota/ota_backend_esp8266.h"
 #include "esphome/components/ota/ota_backend_arduino_rp2040.h"
 #include "esphome/components/ota/ota_backend_esp_idf.h"
 
@@ -15,12 +15,6 @@ namespace esphome {
 namespace http_request {
 
 static const char *const TAG = "http_request.ota";
-
-void OtaHttpRequestComponent::setup() {
-#ifdef USE_OTA_STATE_CALLBACK
-  ota::register_ota_platform(this);
-#endif
-}
 
 void OtaHttpRequestComponent::dump_config() { ESP_LOGCONFIG(TAG, "Over-The-Air updates via HTTP request"); };
 
@@ -48,24 +42,24 @@ void OtaHttpRequestComponent::flash() {
   }
 
   ESP_LOGI(TAG, "Starting update");
-#ifdef USE_OTA_STATE_CALLBACK
-  this->state_callback_.call(ota::OTA_STARTED, 0.0f, 0);
+#ifdef USE_OTA_STATE_LISTENER
+  this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
 #endif
 
   auto ota_status = this->do_ota_();
 
   switch (ota_status) {
     case ota::OTA_RESPONSE_OK:
-#ifdef USE_OTA_STATE_CALLBACK
-      this->state_callback_.call(ota::OTA_COMPLETED, 100.0f, ota_status);
+#ifdef USE_OTA_STATE_LISTENER
+      this->notify_state_(ota::OTA_COMPLETED, 100.0f, ota_status);
 #endif
       delay(10);
       App.safe_reboot();
       break;
 
     default:
-#ifdef USE_OTA_STATE_CALLBACK
-      this->state_callback_.call(ota::OTA_ERROR, 0.0f, ota_status);
+#ifdef USE_OTA_STATE_LISTENER
+      this->notify_state_(ota::OTA_ERROR, 0.0f, ota_status);
 #endif
       this->md5_computed_.clear();  // will be reset at next attempt
       this->md5_expected_.clear();  // will be reset at next attempt
@@ -111,9 +105,8 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   // we will compute MD5 on the fly for verification -- Arduino OTA seems to ignore it
   md5_receive.init();
-  ESP_LOGV(TAG, "MD5Digest initialized");
-
-  ESP_LOGV(TAG, "OTA backend begin");
+  ESP_LOGV(TAG, "MD5Digest initialized\n"
+                "OTA backend begin");
   auto backend = ota::make_ota_backend();
   auto error_code = backend->begin(container->content_length);
   if (error_code != ota::OTA_RESPONSE_OK) {
@@ -165,8 +158,8 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
       last_progress = now;
       float percentage = container->get_bytes_read() * 100.0f / container->content_length;
       ESP_LOGD(TAG, "Progress: %0.1f%%", percentage);
-#ifdef USE_OTA_STATE_CALLBACK
-      this->state_callback_.call(ota::OTA_IN_PROGRESS, percentage, 0);
+#ifdef USE_OTA_STATE_LISTENER
+      this->notify_state_(ota::OTA_IN_PROGRESS, percentage, 0);
 #endif
     }
   }  // while
