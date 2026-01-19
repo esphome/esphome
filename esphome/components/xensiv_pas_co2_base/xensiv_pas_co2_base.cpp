@@ -6,44 +6,78 @@ namespace xensiv_pas_co2_base {
 static const char *const TAG = "xensiv_pas_co2.component";
 
 void XensivPasCO2::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up XensivPasCO2 component");
-
-  // Test I2C communication first using scratch register
-  for (int i = 0; i < 3; i++) {
-    if (this->test_scratch_register_()) {
-      ESP_LOGCONFIG(TAG, "I2C communication test passed on attempt %d", i + 1);
-      break;
-    } else if (i < 2) {
-      ESP_LOGW(TAG, "I2C communication test attempt %d failed, retrying...", i + 1);
-    } else {
-      ESP_LOGE(TAG, "I2C communication test failed");
-      this->failure_reason_ += "I2C communication test failed";
-      this->mark_failed();
-      return;
-    }
+  // Set up power pin first if configured (for 12V MEMS sensor power)
+  if (this->power_pin_ != nullptr) {
+    this->power_pin_->setup();
+    this->power_pin_->digital_write(true);
   }
 
-  // Set up pressure compensation source callback early if configured
+  // Send blind soft reset first to abort any ongoing measurement (warm boot recovery)
+  // Ignore return value - command may get through even if sensor NACKs due to busy state
+  this->write_byte(XENSIV_PAS_CO2_REG_SENS_RST, XENSIV_PAS_CO2_CMD_SOFT_RESET);
+
+  // Wait for soft reset to complete, then proceed with initialization
+  this->set_timeout(XENSIV_PAS_CO2_SOFT_RESET_DELAY_MS, [this]() { this->continue_setup_(); });
+}
+
+void XensivPasCO2::continue_setup_() {
+  // Step 1: Test I2C communication using scratch register (per official library)
+  if (!this->test_scratch_register_()) {
+    this->failure_reason_ += "I2C communication test failed; ";
+    this->mark_failed(LOG_STR("I2C communication test failed"));
+    return;
+  }
+
+  // Step 2: Soft reset to put sensor in known state
+  if (!this->write_byte(XENSIV_PAS_CO2_REG_SENS_RST, XENSIV_PAS_CO2_CMD_SOFT_RESET)) {
+    this->failure_reason_ += "Failed to write soft reset command; ";
+    this->mark_failed(LOG_STR("Failed to write soft reset command"));
+    return;
+  }
+
+  // Step 3: Wait for soft reset to complete, then verify sensor status
+  this->set_timeout(XENSIV_PAS_CO2_SOFT_RESET_DELAY_MS, [this]() { this->verify_sensor_status_(); });
+}
+
+void XensivPasCO2::verify_sensor_status_() {
+  // Step 4: Read SENS_STS and check for errors (per official library)
+  xensiv_pas_co2_status_t sens_sts;
+  if (!this->read_byte(XENSIV_PAS_CO2_REG_SENS_STS, &sens_sts.u)) {
+    this->failure_reason_ += "Failed to read SENS_STS register; ";
+    this->mark_failed(LOG_STR("Failed to read SENS_STS register"));
+    return;
+  }
+
+  // Check for errors in priority order (per official library)
+  if (sens_sts.b.iccerr) {
+    this->failure_reason_ += "Communication error detected (ICCERR); ";
+    this->mark_failed(LOG_STR("Communication error (ICCERR)"));
+    return;
+  }
+  if (sens_sts.b.orvs) {
+    this->failure_reason_ += "Out-of-range VDD12V error (ORVS); ";
+    this->mark_failed(LOG_STR("Out-of-range VDD12V (ORVS)"));
+    return;
+  }
+  if (sens_sts.b.ortmp) {
+    this->failure_reason_ += "Out-of-range temperature error (ORTMP); ";
+    this->mark_failed(LOG_STR("Out-of-range temperature (ORTMP)"));
+    return;
+  }
+  if (!sens_sts.b.sen_rdy) {
+    this->failure_reason_ += "Sensor not ready (SEN_RDY=0); ";
+    this->mark_failed(LOG_STR("Sensor not ready"));
+    return;
+  }
+
+  // Sensor is ready - set up pressure compensation source callback
   if (this->pressure_compensation_source_ != nullptr) {
-    this->pressure_compensation_source_->add_on_state_callback([this](float pressure_hpa) {
-      ESP_LOGD(TAG, "Pressure compensation source updated: %.2f hPa", pressure_hpa);
-      this->set_pressure_compensation((uint16_t) pressure_hpa);
-    });
-    ESP_LOGCONFIG(TAG, "Pressure compensation source callback registered");
+    this->pressure_compensation_source_->add_on_state_callback(
+        [this](float pressure_hpa) { this->set_pressure_compensation((uint16_t) pressure_hpa); });
   }
 
-  // Perform full sensor reset (reset sticky bits, set to idle state)
-  // Soft reset - use XENSIV_PAS_CO2_CMD_SOFT_RESET command
-  if (this->write_byte(XENSIV_PAS_CO2_REG_SENS_RST, XENSIV_PAS_CO2_CMD_SOFT_RESET)) {
-    ESP_LOGCONFIG(TAG, "Sensor soft reset");
-  } else {
-    ESP_LOGW(TAG, "Failed to perform sensor soft reset");
-    this->failure_reason_ += "Failed to perform sensor soft reset";
-    this->mark_failed();
-  }
-
-  // Schedule sensor initialization after a delay to avoid blocking setup
-  this->set_timeout(XENSIV_PAS_CO2_SOFT_RESET_DELAY_MS, [this]() { XensivPasCO2::setup_sensor(this); });
+  // Continue with sensor configuration
+  XensivPasCO2::setup_sensor(this);
 }
 
 void XensivPasCO2::loop() {
@@ -54,6 +88,7 @@ void XensivPasCO2::loop() {
 
   // Check if data is ready via interrupt
   if (this->data_ready_) {
+    ESP_LOGD(TAG, "Interrupt from CO2 detected");
     this->data_ready_ = false;  // Clear flag
 
     // Read CO2 data
@@ -106,12 +141,12 @@ void XensivPasCO2::setup_sensor(XensivPasCO2 *arg) {
   // Configure sensor interrupt register and GPIO pin if configured
   if (!arg->setup_interrupt_()) {
     arg->failure_reason_ += "Failed to set up interrupt; ";
-    arg->mark_failed();
+    arg->mark_failed(LOG_STR("Failed to set up interrupt"));
   }
 
   if (!arg->update_operation_mode_()) {
     arg->failure_reason_ += "Failed to set operation mode; ";
-    arg->mark_failed();
+    arg->mark_failed(LOG_STR("Failed to set operation mode"));
   }
 
   // Testing single shot measurement to finalize initialization
@@ -131,18 +166,21 @@ bool XensivPasCO2::test_scratch_register_() {
   // Write test pattern to scratch register
   if (!this->write_byte(XENSIV_PAS_CO2_REG_SCRATCH_PAD, XENSIV_PAS_CO2_COMM_TEST_VAL)) {
     ESP_LOGE(TAG, "Failed to write to scratch register");
+    this->failure_reason_ += "Failed to write to scratch register; ";
     return false;
   }
 
   // Read back the value
   if (!this->read_byte(XENSIV_PAS_CO2_REG_SCRATCH_PAD, &read_val)) {
     ESP_LOGE(TAG, "Failed to read from scratch register");
+    this->failure_reason_ += "Failed to read from scratch register; ";
     return false;
   }
 
   // Verify the value matches
   if (read_val != XENSIV_PAS_CO2_COMM_TEST_VAL) {
     ESP_LOGE(TAG, "Scratch register test failed: expected 0x%02X, got 0x%02X", XENSIV_PAS_CO2_COMM_TEST_VAL, read_val);
+    this->failure_reason_ += "Scratch register test failed, values don't match; ";
     return false;
   }
 
@@ -363,7 +401,7 @@ void XensivPasCO2::read_co2_ppm() {
 void XensivPasCO2::dump_config() {
   ESP_LOGCONFIG(TAG, "XENSIV PASCO2 CO2 Sensor:");
 
-  if (this->is_failed()) {
+  if (this->failure_reason_.length() > 0) {
     ESP_LOGE(TAG, "Failure Reason: %s", this->failure_reason_.c_str());
   }
 

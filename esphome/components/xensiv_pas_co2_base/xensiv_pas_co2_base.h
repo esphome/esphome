@@ -17,6 +17,7 @@ class XensivPasCO2 : public Component {
 
   void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
   void set_interrupt_pin(InternalGPIOPin *pin) { interrupt_pin_ = pin; }
+  void set_power_pin(GPIOPin *pin) { power_pin_ = pin; }
   void set_sensor_rate_value(int16_t rate) { sensor_rate_ = rate; }
   void set_operation_mode(bool mode) { continuous_operation_mode_ = mode; }
   void set_pressure_compensation(uint16_t pressure_ref);
@@ -36,6 +37,8 @@ class XensivPasCO2 : public Component {
 
   static void gpio_intr(XensivPasCO2 *arg);
   static void setup_sensor(XensivPasCO2 *arg);
+  void continue_setup_();
+  void verify_sensor_status_();
   bool test_scratch_register_();
   bool update_operation_mode_();
   bool update_sensor_rate_();
@@ -52,6 +55,7 @@ class XensivPasCO2 : public Component {
   virtual bool write_byte(uint8_t reg, uint8_t value) = 0;
 
   InternalGPIOPin *interrupt_pin_{nullptr};
+  GPIOPin *power_pin_{nullptr};
   volatile bool data_ready_{false};
 
   std::string failure_reason_;
