@@ -69,7 +69,10 @@ void Esp32HostedUpdate::setup() {
   // Get coprocessor version
   esp_hosted_coprocessor_fwver_t ver_info;
   if (esp_hosted_get_coprocessor_fwversion(&ver_info) == ESP_OK) {
-    this->update_info_.current_version = str_sprintf("%d.%d.%d", ver_info.major1, ver_info.minor1, ver_info.patch1);
+    // 16 bytes: "255.255.255" (11 chars) + null + safety margin
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d.%d.%d", ver_info.major1, ver_info.minor1, ver_info.patch1);
+    this->update_info_.current_version = buf;
   } else {
     this->update_info_.current_version = "unknown";
   }
@@ -294,8 +297,7 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
   }
 
   // Stream firmware to coprocessor while computing SHA256
-  // Hardware SHA acceleration requires 32-byte alignment on some chips (ESP32-S3 with IDF 5.5.x+)
-  alignas(32) sha256::SHA256 hasher;
+  sha256::SHA256 hasher;
   hasher.init();
 
   uint8_t buffer[CHUNK_SIZE];
@@ -352,8 +354,7 @@ bool Esp32HostedUpdate::write_embedded_firmware_to_coprocessor_() {
   }
 
   // Verify SHA256 before writing
-  // Hardware SHA acceleration requires 32-byte alignment on some chips (ESP32-S3 with IDF 5.5.x+)
-  alignas(32) sha256::SHA256 hasher;
+  sha256::SHA256 hasher;
   hasher.init();
   hasher.add(this->firmware_data_, this->firmware_size_);
   hasher.calculate();

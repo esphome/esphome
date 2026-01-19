@@ -54,6 +54,17 @@ binary_sensor:
         return false;
       }
   - platform: template
+    id: select_binary_sensor
+    name: Select is one or two
+    condition:
+      any:
+        - select.is:
+            id: template_select
+            options: [one, two]
+        - select.is:
+            id: template_select
+            lambda: return current == id(template_text).state;
+  - platform: template
     id: other_binary_sensor
     name: "Garage Door Closed"
     condition:
@@ -320,6 +331,7 @@ valve:
 
 text:
   - platform: template
+    id: template_text
     name: "Template text"
     optimistic: true
     min_length: 0
