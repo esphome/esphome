@@ -21,7 +21,7 @@ class XensivPasCO2 : public Component {
   void set_pressure_compensation(uint16_t pressure_ref);
   void set_pressure_compensation_source(sensor::Sensor *sensor) { pressure_compensation_source_ = sensor; }
   bool measure_now();
-  void reset_ABOC();
+  void reset_aboc();
 
  protected:
   sensor::Sensor *co2_sensor_{nullptr};

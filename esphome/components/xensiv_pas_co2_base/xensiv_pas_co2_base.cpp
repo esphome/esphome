@@ -351,7 +351,7 @@ bool XensivPasCO2::measure_now() {
   }
 }
 
-void XensivPasCO2::reset_ABOC() {
+void XensivPasCO2::reset_aboc() {
   // Reset Automatic Baseline Offset Compensation (ABOC)
   if (this->write_byte(XENSIV_PAS_CO2_REG_SENS_RST, XENSIV_PAS_CO2_CMD_RESET_ABOC)) {
     ESP_LOGD(TAG, "ABOC reset command sent");
@@ -396,7 +396,7 @@ void XensivPasCO2::read_co2_ppm() {
 void XensivPasCO2::dump_config() {
   ESP_LOGCONFIG(TAG, "XENSIV PASCO2 CO2 Sensor:");
 
-  if (this->failure_reason_.length() > 0) {
+  if (!this->failure_reason_.empty()) {
     ESP_LOGE(TAG, "Failure Reason: %s", this->failure_reason_.c_str());
   }
 
