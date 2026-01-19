@@ -47,29 +47,27 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
   size_t remaining = sizeof(packet);
 
   // Write PRI - abort if this fails as packet would be malformed
-  int ret = snprintf(packet, remaining, "<%d>", pri);
-  if (ret <= 0 || static_cast<size_t>(ret) >= remaining) {
-    return;
+  offset = buf_append_printf(packet, sizeof(packet), 0, "<%d>", pri);
+  if (offset == 0) {
+    return;  // PRI always produces at least "<0>" (3 chars), so 0 means error
   }
-  offset = ret;
-  remaining -= ret;
+  remaining -= offset;
 
   // Write timestamp directly into packet (RFC 5424: use "-" if time not valid or strftime fails)
   auto now = this->time_->now();
   size_t ts_written = now.is_valid() ? now.strftime(packet + offset, remaining, "%b %e %H:%M:%S") : 0;
   if (ts_written > 0) {
     offset += ts_written;
-    remaining -= ts_written;
   } else if (remaining > 0) {
     packet[offset++] = '-';
-    remaining--;
   }
 
   // Write hostname, tag, and message
-  ret = snprintf(packet + offset, remaining, " %s %s: %.*s", App.get_name().c_str(), tag, (int) len, message);
-  if (ret > 0) {
-    // snprintf returns chars that would be written; clamp to actual buffer space
-    offset += std::min(static_cast<size_t>(ret), remaining > 0 ? remaining - 1 : 0);
+  offset = buf_append_printf(packet, sizeof(packet), offset, " %s %s: %.*s", App.get_name().c_str(), tag, (int) len,
+                             message);
+  // Clamp to exclude null terminator position if buffer was filled
+  if (offset >= sizeof(packet)) {
+    offset = sizeof(packet) - 1;
   }
 
   if (offset > 0) {

@@ -163,9 +163,10 @@ bool GDK101Component::read_fw_version_(uint8_t *data) {
       return false;
     }
 
-    const std::string fw_version_str = str_sprintf("%d.%d", data[0], data[1]);
-
-    this->fw_version_text_sensor_->publish_state(fw_version_str);
+    // max 8: "255.255" (7 chars) + null
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d.%d", data[0], data[1]);
+    this->fw_version_text_sensor_->publish_state(buf);
   }
 #endif  // USE_TEXT_SENSOR
   return true;
