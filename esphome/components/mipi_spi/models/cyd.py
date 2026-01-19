@@ -21,6 +21,7 @@ ST7789V.extend(
 ILI9342.extend(
     # ESP32-2432S028 CYD board with USB C + Micro USB, has ILI9342 controller
     "ESP32-2432S028-9342",
+    data_rate="40MHz",
     cs_pin={"number": 15, "ignore_strapping_warning": True},
     dc_pin={"number": 2, "ignore_strapping_warning": True},
     initsequence=(
