@@ -786,5 +786,3 @@ ST7796.extend(
     dc_pin=0,
     invert_colors=True,
 )
-
-models = {}

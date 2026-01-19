@@ -1,6 +1,7 @@
 from .ili import ILI9341, ILI9342, ST7789V
 
 ILI9341.extend(
+    # ESP32-2432S028 CYD board with Micro USB, has ILI9341 controller
     "ESP32-2432S028",
     data_rate="40MHz",
     cs_pin={"number": 15, "ignore_strapping_warning": True},
@@ -18,9 +19,8 @@ ST7789V.extend(
 # fmt: off
 
 ILI9342.extend(
+    # ESP32-2432S028 CYD board with USB C + Micro USB, has ILI9342 controller
     "ESP32-2432S028-9342",
-    width=320,
-    height=240,
     cs_pin={"number": 15, "ignore_strapping_warning": True},
     dc_pin={"number": 2, "ignore_strapping_warning": True},
     initsequence=(
@@ -42,5 +42,3 @@ ILI9342.extend(
         (0xE1, 0x00, 0x0B, 0x11, 0x05, 0x13, 0x09, 0x33, 0x67, 0x48, 0x07, 0x0E, 0x0B, 0x23, 0x33, 0x0F),  # Negative Gamma Correction
     )
 )
-
-models = {}
