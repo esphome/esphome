@@ -660,21 +660,27 @@ void WiFiComponent::wifi_scan_done_callback_() {
   this->scan_result_.clear();
   this->scan_done_ = true;
 
-  int16_t num = WiFi.scanComplete();
-  if (num < 0)
+  // Access scan data directly to avoid String allocation from WiFi.SSID(i)
+  // WiFi.scan is public in LibreTiny (WiFi.h)
+  if (WiFi.scan == nullptr || WiFi.scan->running)
     return;
 
-  this->scan_result_.init(static_cast<unsigned int>(num));
-  for (int i = 0; i < num; i++) {
-    String ssid = WiFi.SSID(i);
-    wifi_auth_mode_t authmode = WiFi.encryptionType(i);
-    int32_t rssi = WiFi.RSSI(i);
-    uint8_t *bssid = WiFi.BSSID(i);
-    int32_t channel = WiFi.channel(i);
+  uint8_t num = WiFi.scan->count;
+  if (num == 0) {
+    WiFi.scanDelete();
+    return;
+  }
 
-    this->scan_result_.emplace_back(bssid_t{bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]},
-                                    std::string(ssid.c_str()), channel, rssi, authmode != WIFI_AUTH_OPEN,
-                                    ssid.length() == 0);
+  this->scan_result_.init(num);
+  for (uint8_t i = 0; i < num; i++) {
+    const auto &ap = WiFi.scan->ap[i];
+    const char *ssid_cstr = ap.ssid;
+    size_t ssid_len = ssid_cstr ? strlen(ssid_cstr) : 0;
+
+    this->scan_result_.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
+                                            ap.bssid.addr[4], ap.bssid.addr[5]},
+                                    std::string(ssid_cstr ? ssid_cstr : "", ssid_len), ap.channel, ap.rssi,
+                                    ap.auth != WIFI_AUTH_OPEN, ssid_len == 0);
   }
   WiFi.scanDelete();
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
