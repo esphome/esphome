@@ -2,8 +2,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <cinttypes>
-
 namespace esphome {
 namespace remote_base {
 
@@ -160,8 +158,8 @@ void RemoteTransmitData::set_data_from_packed_sint32(const uint8_t *data, size_t
   }
 }
 
-bool RemoteTransmitData::set_data_from_base85(const std::string &base85) {
-  return base85_decode_int32_vector(base85, this->data_);
+bool RemoteTransmitData::set_data_from_base64url(const std::string &base64url) {
+  return base64_decode_int32_vector(base64url, this->data_);
 }
 
 /* RemoteTransmitterBase */

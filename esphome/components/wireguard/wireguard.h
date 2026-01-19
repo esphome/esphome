@@ -2,10 +2,10 @@
 #include "esphome/core/defines.h"
 #ifdef USE_WIREGUARD
 #include <ctime>
-#include <vector>
-#include <tuple>
+#include <initializer_list>
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/time/real_time_clock.h"
 
 #ifdef USE_BINARY_SENSOR
@@ -22,8 +22,13 @@
 
 #include <esp_wireguard.h>
 
-namespace esphome {
-namespace wireguard {
+namespace esphome::wireguard {
+
+/// Allowed IP entry for WireGuard peer configuration.
+struct AllowedIP {
+  const char *ip;
+  const char *netmask;
+};
 
 /// Main Wireguard component class.
 class Wireguard : public PollingComponent {
@@ -37,15 +42,25 @@ class Wireguard : public PollingComponent {
 
   float get_setup_priority() const override { return esphome::setup_priority::BEFORE_CONNECTION; }
 
-  void set_address(const std::string &address);
-  void set_netmask(const std::string &netmask);
-  void set_private_key(const std::string &key);
-  void set_peer_endpoint(const std::string &endpoint);
-  void set_peer_public_key(const std::string &key);
-  void set_peer_port(uint16_t port);
-  void set_preshared_key(const std::string &key);
+  void set_address(const char *address) { this->address_ = address; }
+  void set_netmask(const char *netmask) { this->netmask_ = netmask; }
+  void set_private_key(const char *key) { this->private_key_ = key; }
+  void set_peer_endpoint(const char *endpoint) { this->peer_endpoint_ = endpoint; }
+  void set_peer_public_key(const char *key) { this->peer_public_key_ = key; }
+  void set_peer_port(uint16_t port) { this->peer_port_ = port; }
+  void set_preshared_key(const char *key) { this->preshared_key_ = key; }
 
-  void add_allowed_ip(const std::string &ip, const std::string &netmask);
+  /// Prevent accidental use of std::string which would dangle
+  void set_address(const std::string &address) = delete;
+  void set_netmask(const std::string &netmask) = delete;
+  void set_private_key(const std::string &key) = delete;
+  void set_peer_endpoint(const std::string &endpoint) = delete;
+  void set_peer_public_key(const std::string &key) = delete;
+  void set_preshared_key(const std::string &key) = delete;
+
+  void set_allowed_ips(std::initializer_list<AllowedIP> ips) { this->allowed_ips_ = ips; }
+  /// Prevent accidental use of std::string which would dangle
+  void set_allowed_ips(std::initializer_list<std::tuple<std::string, std::string>> ips) = delete;
 
   void set_keepalive(uint16_t seconds);
   void set_reboot_timeout(uint32_t seconds);
@@ -83,14 +98,14 @@ class Wireguard : public PollingComponent {
   time_t get_latest_handshake() const;
 
  protected:
-  std::string address_;
-  std::string netmask_;
-  std::string private_key_;
-  std::string peer_endpoint_;
-  std::string peer_public_key_;
-  std::string preshared_key_;
+  const char *address_{nullptr};
+  const char *netmask_{nullptr};
+  const char *private_key_{nullptr};
+  const char *peer_endpoint_{nullptr};
+  const char *peer_public_key_{nullptr};
+  const char *preshared_key_{nullptr};
 
-  std::vector<std::tuple<std::string, std::string>> allowed_ips_;
+  FixedVector<AllowedIP> allowed_ips_;
 
   uint16_t peer_port_;
   uint16_t keepalive_;
@@ -142,8 +157,11 @@ class Wireguard : public PollingComponent {
 void suspend_wdt();
 void resume_wdt();
 
+/// Size of buffer required for mask_key_to: 5 chars + "[...]=" + null = 12
+static constexpr size_t MASK_KEY_BUFFER_SIZE = 12;
+
 /// Strip most part of the key only for secure printing
-std::string mask_key(const std::string &key);
+void mask_key_to(char *buffer, size_t len, const char *key);
 
 /// Condition to check if remote peer is online.
 template<typename... Ts> class WireguardPeerOnlineCondition : public Condition<Ts...>, public Parented<Wireguard> {
@@ -169,6 +187,5 @@ template<typename... Ts> class WireguardDisableAction : public Action<Ts...>, pu
   void play(const Ts &...x) override { this->parent_->disable(); }
 };
 
-}  // namespace wireguard
-}  // namespace esphome
+}  // namespace esphome::wireguard
 #endif
