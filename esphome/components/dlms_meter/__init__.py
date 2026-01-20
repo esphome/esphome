@@ -52,6 +52,10 @@ CONFIG_SCHEMA = cv.All(
     cv.only_on([PLATFORM_ESP8266, PLATFORM_ESP32]),
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "dlms_meter", baud_rate=2400, require_rx=True
+)
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

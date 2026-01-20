@@ -12,25 +12,18 @@ namespace esphome::dlms_meter {
 static constexpr const char *TAG = "dlms_meter";
 
 void DlmsMeterComponent::dump_config() {
+  char key_hex[48];
   ESP_LOGCONFIG(TAG,
                 "DLMS Meter:\n"
-                "Meter Provider: %d\n"
-                "read_timeout: %u\n"
-                "decryption_key_length: %d\n"
-                "Decryption key: (actual key only logged when log-level is VERY_VERBOSE)",
-                this->provider_, this->read_timeout_, this->decryption_key_length_);
-
-  // Verbose level prints decryption key!
-  ESP_LOGVV(TAG, "decryption_key: %s",
-            format_hex_pretty(&this->decryption_key_[0], this->decryption_key_length_).c_str());
-
+                "  Provider: %d\n"
+                "  Read Timeout: %u ms\n"
+                "  Decryption Key: %s",
+                this->provider_, this->read_timeout_,
+                format_hex_pretty_to(key_hex, this->decryption_key_, this->decryption_key_length_));
 #define DLMS_METER_LOG_SENSOR(s) LOG_SENSOR("  ", #s, this->s##_sensor_);
   DLMS_METER_SENSOR_LIST(DLMS_METER_LOG_SENSOR, )
-
 #define DLMS_METER_LOG_TEXT_SENSOR(s) LOG_TEXT_SENSOR("  ", #s, this->s##_text_sensor_);
   DLMS_METER_TEXT_SENSOR_LIST(DLMS_METER_LOG_TEXT_SENSOR, )
-
-  this->check_uart_settings(2400);
 }
 
 void DlmsMeterComponent::loop() {
@@ -50,8 +43,6 @@ void DlmsMeterComponent::loop() {
   }
 
   if (!this->receive_buffer_.empty() && millis() - this->last_read_ > this->read_timeout_) {
-    this->log_packet_(this->receive_buffer_);
-
     std::vector<uint8_t> mbus_payload;  // Contains the data of the payload
     if (!this->parse_mbus_(mbus_payload))
       return;
@@ -270,8 +261,7 @@ bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t m
 #error "Invalid Platform"
 #endif
 
-  ESP_LOGV(TAG, "Decrypted payload: %d", message_length);
-  ESP_LOGV(TAG, "%s", format_hex_pretty(&payload_ptr[0], message_length).c_str());
+  ESP_LOGV(TAG, "Decrypted payload: %d bytes", message_length);
 
   if (payload_ptr[0] != DATA_NOTIFICATION || payload_ptr[5] != TIMESTAMP_DATETIME) {
     ESP_LOGE(TAG, "OBIS: Packet was decrypted but data is invalid");
@@ -536,9 +526,5 @@ void DlmsMeterComponent::set_decryption_key(const uint8_t decryption_key[], size
 }
 
 void DlmsMeterComponent::set_provider(uint32_t provider) { this->provider_ = provider; }
-
-void DlmsMeterComponent::log_packet_(const std::vector<uint8_t> &data) {
-  ESP_LOGV(TAG, "%s", format_hex_pretty(data).c_str());
-}
 
 }  // namespace esphome::dlms_meter

@@ -105,8 +105,6 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   uint32_t provider_ = PROVIDER_GENERIC;  // Provider of the meter / your grid operator
   uint8_t decryption_key_[16];            // Stores the decryption key
   size_t decryption_key_length_;          // Stores the decryption key length (usually 16 bytes)
-
-  void log_packet_(const std::vector<uint8_t> &data);
 };
 
 }  // namespace esphome::dlms_meter
