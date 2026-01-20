@@ -147,4 +147,5 @@ Available C++ enums for modes:
 
 ## See Also
 
+- {{< docref "/components/water_heater/template" >}}
 - {{< apiref "water_heater/water_heater.h" "water_heater/water_heater.h" >}}
