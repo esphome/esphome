@@ -11,6 +11,7 @@
 #include "dlms.h"
 #include "obis.h"
 
+#include <array>
 #include <vector>
 
 namespace esphome::dlms_meter {
@@ -72,8 +73,8 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   void dump_config() override;
   void loop() override;
 
-  void set_decryption_key(const uint8_t *decryption_key, size_t decryption_key_length);
-  void set_provider(uint32_t provider);
+  void set_decryption_key(const std::array<uint8_t, 16> &key) { this->decryption_key_ = key; }
+  void set_provider(uint32_t provider) { this->provider_ = provider; }
 
   void publish_sensors(MeterData &data) {
 #define DLMS_METER_PUBLISH_SENSOR(s) \
@@ -103,8 +104,7 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   uint32_t read_timeout_ = 1000;         // Time to wait after last byte before considering data complete
 
   uint32_t provider_ = PROVIDER_GENERIC;  // Provider of the meter / your grid operator
-  uint8_t decryption_key_[16];            // Stores the decryption key
-  size_t decryption_key_length_;          // Stores the decryption key length (usually 16 bytes)
+  std::array<uint8_t, 16> decryption_key_;
 };
 
 }  // namespace esphome::dlms_meter
