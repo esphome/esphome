@@ -18,31 +18,31 @@ AnovaPacket *AnovaCodec::clean_packet_() {
 
 AnovaPacket *AnovaCodec::get_read_device_status_request() {
   this->current_query_ = READ_DEVICE_STATUS;
-  sprintf((char *) this->packet_.data, "%s", CMD_READ_DEVICE_STATUS);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_DEVICE_STATUS);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_read_target_temp_request() {
   this->current_query_ = READ_TARGET_TEMPERATURE;
-  sprintf((char *) this->packet_.data, "%s", CMD_READ_TARGET_TEMP);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_TARGET_TEMP);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_read_current_temp_request() {
   this->current_query_ = READ_CURRENT_TEMPERATURE;
-  sprintf((char *) this->packet_.data, "%s", CMD_READ_CURRENT_TEMP);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_CURRENT_TEMP);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_read_unit_request() {
   this->current_query_ = READ_UNIT;
-  sprintf((char *) this->packet_.data, "%s", CMD_READ_UNIT);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_UNIT);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_read_data_request() {
   this->current_query_ = READ_DATA;
-  sprintf((char *) this->packet_.data, "%s", CMD_READ_DATA);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_DATA);
   return this->clean_packet_();
 }
 
@@ -50,25 +50,25 @@ AnovaPacket *AnovaCodec::get_set_target_temp_request(float temperature) {
   this->current_query_ = SET_TARGET_TEMPERATURE;
   if (this->fahrenheit_)
     temperature = ctof(temperature);
-  sprintf((char *) this->packet_.data, CMD_SET_TARGET_TEMP, temperature);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), CMD_SET_TARGET_TEMP, temperature);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_set_unit_request(char unit) {
   this->current_query_ = SET_UNIT;
-  sprintf((char *) this->packet_.data, CMD_SET_TEMP_UNIT, unit);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), CMD_SET_TEMP_UNIT, unit);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_start_request() {
   this->current_query_ = START;
-  sprintf((char *) this->packet_.data, CMD_START);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_START);
   return this->clean_packet_();
 }
 
 AnovaPacket *AnovaCodec::get_stop_request() {
   this->current_query_ = STOP;
-  sprintf((char *) this->packet_.data, CMD_STOP);
+  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_STOP);
   return this->clean_packet_();
 }
 

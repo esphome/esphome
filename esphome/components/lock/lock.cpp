@@ -7,37 +7,35 @@ namespace esphome::lock {
 
 static const char *const TAG = "lock";
 
-const char *lock_state_to_string(LockState state) {
+const LogString *lock_state_to_string(LockState state) {
   switch (state) {
     case LOCK_STATE_LOCKED:
-      return "LOCKED";
+      return LOG_STR("LOCKED");
     case LOCK_STATE_UNLOCKED:
-      return "UNLOCKED";
+      return LOG_STR("UNLOCKED");
     case LOCK_STATE_JAMMED:
-      return "JAMMED";
+      return LOG_STR("JAMMED");
     case LOCK_STATE_LOCKING:
-      return "LOCKING";
+      return LOG_STR("LOCKING");
     case LOCK_STATE_UNLOCKING:
-      return "UNLOCKING";
+      return LOG_STR("UNLOCKING");
     case LOCK_STATE_NONE:
     default:
-      return "UNKNOWN";
+      return LOG_STR("UNKNOWN");
   }
 }
 
 Lock::Lock() : state(LOCK_STATE_NONE) {}
 LockCall Lock::make_call() { return LockCall(this); }
 
-void Lock::lock() {
+void Lock::set_state_(LockState state) {
   auto call = this->make_call();
-  call.set_state(LOCK_STATE_LOCKED);
+  call.set_state(state);
   this->control(call);
 }
-void Lock::unlock() {
-  auto call = this->make_call();
-  call.set_state(LOCK_STATE_UNLOCKED);
-  this->control(call);
-}
+
+void Lock::lock() { this->set_state_(LOCK_STATE_LOCKED); }
+void Lock::unlock() { this->set_state_(LOCK_STATE_UNLOCKED); }
 void Lock::open() {
   if (traits.get_supports_open()) {
     ESP_LOGD(TAG, "'%s' Opening.", this->get_name().c_str());
@@ -52,7 +50,7 @@ void Lock::publish_state(LockState state) {
 
   this->state = state;
   this->rtc_.save(&this->state);
-  ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), lock_state_to_string(state));
+  ESP_LOGD(TAG, "'%s' >> %s", this->name_.c_str(), LOG_STR_ARG(lock_state_to_string(state)));
   this->state_callback_.call();
 #if defined(USE_LOCK) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_lock_update(this);
@@ -65,8 +63,7 @@ void LockCall::perform() {
   ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   this->validate_();
   if (this->state_.has_value()) {
-    const char *state_s = lock_state_to_string(*this->state_);
-    ESP_LOGD(TAG, "  State: %s", state_s);
+    ESP_LOGD(TAG, "  State: %s", LOG_STR_ARG(lock_state_to_string(*this->state_)));
   }
   this->parent_->control(*this);
 }
@@ -74,7 +71,7 @@ void LockCall::validate_() {
   if (this->state_.has_value()) {
     auto state = *this->state_;
     if (!this->parent_->traits.supports_state(state)) {
-      ESP_LOGW(TAG, "  State %s is not supported by this device!", lock_state_to_string(*this->state_));
+      ESP_LOGW(TAG, "  State %s is not supported by this device!", LOG_STR_ARG(lock_state_to_string(*this->state_)));
       this->state_.reset();
     }
   }
