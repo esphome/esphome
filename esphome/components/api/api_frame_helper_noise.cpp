@@ -257,19 +257,18 @@ APIError APINoiseFrameHelper::state_action_() {
   }
   if (state_ == State::SERVER_HELLO) {
     // send server hello
-    constexpr size_t mac_len = 13;  // 12 hex chars + null terminator
     const std::string &name = App.get_name();
-    char mac[mac_len];
+    char mac[MAC_ADDRESS_BUFFER_SIZE];
     get_mac_address_into_buffer(mac);
 
     // Calculate positions and sizes
     size_t name_len = name.size() + 1;  // including null terminator
     size_t name_offset = 1;
     size_t mac_offset = name_offset + name_len;
-    size_t total_size = 1 + name_len + mac_len;
+    size_t total_size = 1 + name_len + MAC_ADDRESS_BUFFER_SIZE;
 
     // 1 (proto) + name + null + mac + null
-    constexpr size_t max_msg_size = 1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + mac_len;
+    constexpr size_t max_msg_size = 1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + MAC_ADDRESS_BUFFER_SIZE;
     uint8_t msg[max_msg_size];
 
     // chosen proto
