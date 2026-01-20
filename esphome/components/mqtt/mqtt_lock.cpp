@@ -34,7 +34,7 @@ void MQTTLockComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, true);
 }
 
-std::string MQTTLockComponent::component_type() const { return "lock"; }
+MQTT_COMPONENT_TYPE(MQTTLockComponent, "lock")
 const EntityBase *MQTTLockComponent::get_entity() const { return this->lock_; }
 void MQTTLockComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson

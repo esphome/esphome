@@ -226,8 +226,13 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_TASK_LOG_BUFFER_SIZE,
                 esp32=768,  # Default: 768 bytes (~5-6 messages with 70-byte text plus thread names)
+                bk72xx=768,
+                ln882x=768,
+                rtl87xx=768,
             ): cv.All(
-                cv.only_on_esp32,
+                cv.only_on(
+                    [PLATFORM_ESP32, PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RTL87XX]
+                ),
                 cv.validate_bytes,
                 cv.Any(
                     cv.int_(0),  # Disabled
@@ -306,6 +311,7 @@ async def to_code(config):
     )
     if CORE.is_esp32:
         cg.add(log.create_pthread_key())
+    if CORE.is_esp32 or CORE.is_libretiny:
         task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
         if task_log_buffer_size > 0:
             cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
@@ -415,6 +421,7 @@ async def to_code(config):
     await cg.register_component(log, config)
 
     for conf in config.get(CONF_ON_MESSAGE, []):
+        request_log_listener()  # Each on_message trigger needs a listener slot
         trigger = cg.new_Pvariable(
             conf[CONF_TRIGGER_ID], log, LOG_LEVEL_SEVERITY.index(conf[CONF_LEVEL])
         )
@@ -529,12 +536,18 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_IDF,
         },
         "task_log_buffer_host.cpp": {PlatformFramework.HOST_NATIVE},
+        "task_log_buffer_libretiny.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
     }
 )
 
 # Keys for CORE.data storage
 DOMAIN = "logger"
 KEY_LEVEL_LISTENERS = "level_listeners"
+KEY_LOG_LISTENERS = "log_listeners"
 
 
 def request_logger_level_listeners() -> None:
@@ -547,8 +560,26 @@ def request_logger_level_listeners() -> None:
     CORE.data.setdefault(DOMAIN, {})[KEY_LEVEL_LISTENERS] = True
 
 
+def request_log_listener() -> None:
+    """Request a log listener slot.
+
+    Components that need to receive log messages should call this function
+    during their code generation. This increments the listener count used
+    to size the StaticVector.
+    """
+    data = CORE.data.setdefault(DOMAIN, {})
+    data[KEY_LOG_LISTENERS] = data.get(KEY_LOG_LISTENERS, 0) + 1
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional logger features."""
-    if CORE.data.get(DOMAIN, {}).get(KEY_LEVEL_LISTENERS, False):
+    domain_data = CORE.data.get(DOMAIN, {})
+    if domain_data.get(KEY_LEVEL_LISTENERS, False):
         cg.add_define("USE_LOGGER_LEVEL_LISTENERS")
+
+    # Only generate log listener code if any component needs it
+    log_listener_count = domain_data.get(KEY_LOG_LISTENERS, 0)
+    if log_listener_count > 0:
+        cg.add_define("USE_LOG_LISTENERS")
+        cg.add_define("ESPHOME_LOG_MAX_LISTENERS", log_listener_count)

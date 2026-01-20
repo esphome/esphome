@@ -12,8 +12,8 @@ namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
-#if defined(USE_ESP32) || defined(USE_HOST)
-// Implementation for multi-threaded platforms (ESP32 with FreeRTOS, Host with pthreads)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
+// Implementation for multi-threaded platforms (ESP32 with FreeRTOS, Host with pthreads, LibreTiny with FreeRTOS)
 // Main thread/task always uses direct buffer access for console output and callbacks
 //
 // For non-main threads/tasks:
@@ -23,34 +23,61 @@ static const char *const TAG = "logger";
 //    - Messages are serialized through main loop for proper console output
 //    - Fallback to emergency console logging only if ring buffer is full
 //  - WITHOUT task log buffer: Only emergency console output, no callbacks
+//
+// Optimized for the common case: 99.9% of logs come from the main thread
 void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
   if (level > this->level_for(tag))
     return;
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // Get task handle once - used for both main task check and passing to non-main thread handler
   TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-  bool is_main_task = (current_task == main_task_);
+  const bool is_main_task = (current_task == this->main_task_);
 #else  // USE_HOST
-  pthread_t current_thread = pthread_self();
-  bool is_main_task = pthread_equal(current_thread, main_thread_);
+  const bool is_main_task = pthread_equal(pthread_self(), this->main_thread_);
 #endif
 
-  // Check and set recursion guard - uses pthread TLS for per-thread/task state
-  if (this->check_and_set_task_log_recursion_(is_main_task)) {
-    return;  // Recursion detected
-  }
-
-  // Main thread/task uses the shared buffer for efficiency
-  if (is_main_task) {
+  // Fast path: main thread, no recursion (99.9% of all logs)
+  if (is_main_task && !this->main_task_recursion_guard_) [[likely]] {
+    RecursionGuard guard(this->main_task_recursion_guard_);
+    // Format and send to both console and callbacks
     this->log_message_to_buffer_and_send_(level, tag, line, format, args);
-    this->reset_task_log_recursion_(is_main_task);
     return;
   }
+
+  // Main task with recursion - silently drop to prevent infinite loop
+  if (is_main_task) {
+    return;
+  }
+
+  // Non-main thread handling (~0.1% of logs)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  this->log_vprintf_non_main_thread_(level, tag, line, format, args, current_task);
+#else  // USE_HOST
+  this->log_vprintf_non_main_thread_(level, tag, line, format, args);
+#endif
+}
+
+// Handles non-main thread logging only
+// Kept separate from hot path to improve instruction cache performance
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
+                                          TaskHandle_t current_task) {
+#else  // USE_HOST
+void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args) {
+#endif
+  // Check if already in recursion for this non-main thread/task
+  if (this->is_non_main_task_recursive_()) {
+    return;
+  }
+
+  // RAII guard - automatically resets on any return path
+  auto guard = this->make_non_main_task_guard_();
 
   bool message_sent = false;
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // For non-main threads/tasks, queue the message for callbacks
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   message_sent =
       this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), current_task, format, args);
 #else  // USE_HOST
@@ -85,23 +112,19 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
     this->write_msg_(console_buffer, buffer_at);
   }
 
-  // Reset the recursion guard for this thread/task
-  this->reset_task_log_recursion_(is_main_task);
+  // RAII guard automatically resets on return
 }
 #else
-// Implementation for all other platforms
+// Implementation for all other platforms (single-task, no threading)
 void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
 
-  global_recursion_guard_ = true;
-
+  RecursionGuard guard(global_recursion_guard_);
   // Format and send to both console and callbacks
   this->log_message_to_buffer_and_send_(level, tag, line, format, args);
-
-  global_recursion_guard_ = false;
 }
-#endif  // USE_ESP32 / USE_HOST
+#endif  // USE_ESP32 / USE_HOST / USE_LIBRETINY
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 // Implementation for ESP8266 with flash string support.
@@ -130,7 +153,7 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
 
-  global_recursion_guard_ = true;
+  RecursionGuard guard(global_recursion_guard_);
   this->tx_buffer_at_ = 0;
 
   // Copy format string from progmem
@@ -140,9 +163,8 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
     this->tx_buffer_[this->tx_buffer_at_++] = ch = (char) progmem_read_byte(format_pgm_p++);
   }
 
-  // Buffer full from copying format
+  // Buffer full from copying format - RAII guard handles cleanup on return
   if (this->tx_buffer_at_ >= this->tx_buffer_size_) {
-    global_recursion_guard_ = false;  // Make sure to reset the recursion guard before returning
     return;
   }
 
@@ -156,13 +178,13 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
       this->tx_buffer_at_ - msg_start;  // Don't subtract 1 - tx_buffer_at_ is already at the null terminator position
 
   // Listeners get message first (before console write)
+#ifdef USE_LOG_LISTENERS
   for (auto *listener : this->log_listeners_)
     listener->on_log(level, tag, this->tx_buffer_ + msg_start, msg_length);
+#endif
 
   // Write to console starting at the msg_start
   this->write_tx_buffer_to_console_(msg_start, &msg_length);
-
-  global_recursion_guard_ = false;
 }
 #endif  // USE_STORE_LOG_STR_IN_FLASH
 
@@ -191,12 +213,14 @@ void Logger::init_log_buffer(size_t total_buffer_size) {
 #ifdef USE_HOST
   // Host uses slot count instead of byte size
   this->log_buffer_ = esphome::make_unique<logger::TaskLogBufferHost>(total_buffer_size);
-#else
+#elif defined(USE_ESP32)
   this->log_buffer_ = esphome::make_unique<logger::TaskLogBuffer>(total_buffer_size);
+#elif defined(USE_LIBRETINY)
+  this->log_buffer_ = esphome::make_unique<logger::TaskLogBufferLibreTiny>(total_buffer_size);
 #endif
 
-#ifdef USE_ESP32
-  // Start with loop disabled when using task buffer (unless using USB CDC)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // Start with loop disabled when using task buffer (unless using USB CDC on ESP32)
   // The loop will be enabled automatically when messages arrive
   this->disable_loop_when_buffer_empty_();
 #endif
@@ -220,7 +244,7 @@ void Logger::process_messages_() {
       this->log_buffer_->release_message_main_loop();
       this->write_tx_buffer_to_console_();
     }
-#else  // USE_ESP32
+#elif defined(USE_ESP32)
     logger::TaskLogBuffer::LogMessage *message;
     const char *text;
     void *received_token;
@@ -232,9 +256,20 @@ void Logger::process_messages_() {
       this->log_buffer_->release_message_main_loop(received_token);
       this->write_tx_buffer_to_console_();
     }
+#elif defined(USE_LIBRETINY)
+    logger::TaskLogBufferLibreTiny::LogMessage *message;
+    const char *text;
+    while (this->log_buffer_->borrow_message_main_loop(&message, &text)) {
+      const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
+      this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, text,
+                                                message->text_length);
+      // Release the message to allow other tasks to use it as soon as possible
+      this->log_buffer_->release_message_main_loop();
+      this->write_tx_buffer_to_console_();
+    }
 #endif
   }
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   else {
     // No messages to process, disable loop if appropriate
     // This reduces overhead when there's no async logging activity

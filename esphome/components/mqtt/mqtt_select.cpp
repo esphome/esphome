@@ -28,7 +28,7 @@ void MQTTSelectComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, false)
 }
 
-std::string MQTTSelectComponent::component_type() const { return "select"; }
+MQTT_COMPONENT_TYPE(MQTTSelectComponent, "select")
 const EntityBase *MQTTSelectComponent::get_entity() const { return this->select_; }
 
 void MQTTSelectComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
@@ -43,7 +43,8 @@ void MQTTSelectComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
 }
 bool MQTTSelectComponent::send_initial_state() {
   if (this->select_->has_state()) {
-    return this->publish_state(this->select_->current_option());
+    auto option = this->select_->current_option();
+    return this->publish_state(std::string(option.c_str(), option.size()));
   } else {
     return true;
   }

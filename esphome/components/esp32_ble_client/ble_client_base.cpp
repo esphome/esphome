@@ -193,8 +193,16 @@ void BLEClientBase::log_event_(const char *name) {
   ESP_LOGD(TAG, "[%d] [%s] %s", this->connection_index_, this->address_str_, name);
 }
 
-void BLEClientBase::log_gattc_event_(const char *name) {
+void BLEClientBase::log_gattc_lifecycle_event_(const char *name) {
   ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_%s_EVT", this->connection_index_, this->address_str_, name);
+}
+
+void BLEClientBase::log_gattc_data_event_(const char *name) {
+  // Data transfer events are logged at VERBOSE level because logging to UART creates
+  // delays that cause timing issues during time-sensitive BLE operations. This is
+  // especially problematic during pairing or firmware updates which require rapid
+  // writes to many characteristics - the log spam can cause these operations to fail.
+  ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_%s_EVT", this->connection_index_, this->address_str_, name);
 }
 
 void BLEClientBase::log_gattc_warning_(const char *operation, esp_gatt_status_t status) {
@@ -280,7 +288,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     case ESP_GATTC_OPEN_EVT: {
       if (!this->check_addr(param->open.remote_bda))
         return false;
-      this->log_gattc_event_("OPEN");
+      this->log_gattc_lifecycle_event_("OPEN");
       // conn_id was already set in ESP_GATTC_CONNECT_EVT
       this->service_count_ = 0;
 
@@ -331,7 +339,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     case ESP_GATTC_CONNECT_EVT: {
       if (!this->check_addr(param->connect.remote_bda))
         return false;
-      this->log_gattc_event_("CONNECT");
+      this->log_gattc_lifecycle_event_("CONNECT");
       this->conn_id_ = param->connect.conn_id;
       // Start MTU negotiation immediately as recommended by ESP-IDF examples
       // (gatt_client, ble_throughput) which call esp_ble_gattc_send_mtu_req in
@@ -376,7 +384,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     case ESP_GATTC_CLOSE_EVT: {
       if (this->conn_id_ != param->close.conn_id)
         return false;
-      this->log_gattc_event_("CLOSE");
+      this->log_gattc_lifecycle_event_("CLOSE");
       this->release_services();
       this->set_state(espbt::ClientState::IDLE);
       this->conn_id_ = UNSET_CONN_ID;
@@ -404,7 +412,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       if (this->conn_id_ != param->search_cmpl.conn_id)
         return false;
-      this->log_gattc_event_("SEARCH_CMPL");
+      this->log_gattc_lifecycle_event_("SEARCH_CMPL");
       // For V3_WITHOUT_CACHE, switch back to medium connection parameters after service discovery
       // This balances performance with bandwidth usage after the critical discovery phase
       if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
@@ -431,35 +439,35 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     case ESP_GATTC_READ_DESCR_EVT: {
       if (this->conn_id_ != param->write.conn_id)
         return false;
-      this->log_gattc_event_("READ_DESCR");
+      this->log_gattc_data_event_("READ_DESCR");
       break;
     }
     case ESP_GATTC_WRITE_DESCR_EVT: {
       if (this->conn_id_ != param->write.conn_id)
         return false;
-      this->log_gattc_event_("WRITE_DESCR");
+      this->log_gattc_data_event_("WRITE_DESCR");
       break;
     }
     case ESP_GATTC_WRITE_CHAR_EVT: {
       if (this->conn_id_ != param->write.conn_id)
         return false;
-      this->log_gattc_event_("WRITE_CHAR");
+      this->log_gattc_data_event_("WRITE_CHAR");
       break;
     }
     case ESP_GATTC_READ_CHAR_EVT: {
       if (this->conn_id_ != param->read.conn_id)
         return false;
-      this->log_gattc_event_("READ_CHAR");
+      this->log_gattc_data_event_("READ_CHAR");
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
       if (this->conn_id_ != param->notify.conn_id)
         return false;
-      this->log_gattc_event_("NOTIFY");
+      this->log_gattc_data_event_("NOTIFY");
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      this->log_gattc_event_("REG_FOR_NOTIFY");
+      this->log_gattc_data_event_("REG_FOR_NOTIFY");
       if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
           this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
         // Client is responsible for flipping the descriptor value
@@ -491,7 +499,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       esp_err_t status =
           esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, desc_result.handle, sizeof(notify_en),
                                          (uint8_t *) &notify_en, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
-      ESP_LOGD(TAG, "Wrote notify descriptor %d, properties=%d", notify_en, char_result.properties);
+      ESP_LOGV(TAG, "Wrote notify descriptor %d, properties=%d", notify_en, char_result.properties);
       if (status) {
         this->log_gattc_warning_("esp_ble_gattc_write_char_descr", status);
       }
@@ -499,13 +507,13 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     }
 
     case ESP_GATTC_UNREG_FOR_NOTIFY_EVT: {
-      this->log_gattc_event_("UNREG_FOR_NOTIFY");
+      this->log_gattc_data_event_("UNREG_FOR_NOTIFY");
       break;
     }
 
     default:
-      // ideally would check all other events for matching conn_id
-      ESP_LOGD(TAG, "[%d] [%s] Event %d", this->connection_index_, this->address_str_, event);
+      // Unknown events logged at VERBOSE to avoid UART delays during time-sensitive operations
+      ESP_LOGV(TAG, "[%d] [%s] Event %d", this->connection_index_, this->address_str_, event);
       break;
   }
   return true;
