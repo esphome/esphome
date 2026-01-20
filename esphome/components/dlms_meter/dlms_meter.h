@@ -52,11 +52,11 @@ struct MeterData {
   float active_energy_minus = 0.0f;    // Active energy put into grid
   float reactive_energy_plus = 0.0f;   // Reactive energy taken from grid
   float reactive_energy_minus = 0.0f;  // Reactive energy put into grid
-  std::string timestamp;               // Text sensor for the timestamp value
+  char timestamp[27]{};                // Text sensor for the timestamp value
 
   // Netz NOE
   float power_factor = 0.0f;  // Power Factor
-  std::string meternumber;    // Text sensor for the meterNumber value
+  char meternumber[13]{};     // Text sensor for the meterNumber value
 };
 
 /*
@@ -84,7 +84,6 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
 #define DLMS_METER_PUBLISH_TEXT_SENSOR(s) \
   if (this->s##_text_sensor_ != nullptr) \
     s##_text_sensor_->publish_state(data.s);
-    // s##_text_sensor_->publish_state(data.s.c_str());
     DLMS_METER_TEXT_SENSOR_LIST(DLMS_METER_PUBLISH_TEXT_SENSOR, )
   }
 
@@ -107,10 +106,7 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   uint8_t decryption_key_[16];            // Stores the decryption key
   size_t decryption_key_length_;          // Stores the decryption key length (usually 16 bytes)
 
-  uint16_t swap_uint16_(uint16_t val);
-  uint32_t swap_uint32_(uint32_t val);
   void log_packet_(const std::vector<uint8_t> &data);
-  void abort_();
 };
 
 }  // namespace esphome::dlms_meter

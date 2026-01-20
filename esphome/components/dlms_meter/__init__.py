@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_RAW_DATA_ID, PLATFORM_ESP32, PLATFORM_ESP8266
 
 CODEOWNERS = ["@SimonFischer04"]
-ESP_PLATFORMS = [PLATFORM_ESP8266, PLATFORM_ESP32]
 DEPENDENCIES = ["uart"]
 
 CONF_DLMS_METER_ID = "dlms_meter_id"
@@ -42,13 +41,15 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(DlmsMeterComponent),
             cv.Required(CONF_DECRYPTION_KEY): validate_key,
-            cv.Optional(CONF_PROVIDER, "generic"): cv.enum(PROVIDERS, lower=True),
+            cv.Optional(CONF_PROVIDER, default="generic"): cv.enum(
+                PROVIDERS, lower=True
+            ),
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
-    cv.only_on(ESP_PLATFORMS),
+    cv.only_on([PLATFORM_ESP8266, PLATFORM_ESP32]),
 )
 
 

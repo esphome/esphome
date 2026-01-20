@@ -64,7 +64,7 @@ void DlmsMeterComponent::loop() {
 
     if (message_length == 0 || message_length > MAX_MESSAGE_LENGTH) {
       ESP_LOGE(TAG, "DLMS: Message length invalid: %u", message_length);
-      this->abort_();
+      this->receive_buffer_.clear();
       return;
     }
 
@@ -90,7 +90,7 @@ bool DlmsMeterComponent::parse_mbus_(std::vector<uint8_t> &mbus_payload) {
     if (this->receive_buffer_.size() - frame_offset < MBUS_HEADER_INTRO_LENGTH) {
       ESP_LOGE(TAG, "MBUS: Not enough data for frame header (need %d, have %d)", MBUS_HEADER_INTRO_LENGTH,
                (this->receive_buffer_.size() - frame_offset));
-      this->abort_();
+      this->receive_buffer_.clear();
       return false;
     }
 
@@ -98,7 +98,7 @@ bool DlmsMeterComponent::parse_mbus_(std::vector<uint8_t> &mbus_payload) {
     if (this->receive_buffer_[frame_offset + MBUS_START1_OFFSET] != START_BYTE_LONG_FRAME ||
         this->receive_buffer_[frame_offset + MBUS_START2_OFFSET] != START_BYTE_LONG_FRAME) {
       ESP_LOGE(TAG, "MBUS: Start bytes do not match");
-      this->abort_();
+      this->receive_buffer_.clear();
       return false;
     }
 
@@ -106,7 +106,7 @@ bool DlmsMeterComponent::parse_mbus_(std::vector<uint8_t> &mbus_payload) {
     if (this->receive_buffer_[frame_offset + MBUS_LENGTH1_OFFSET] !=
         this->receive_buffer_[frame_offset + MBUS_LENGTH2_OFFSET]) {
       ESP_LOGE(TAG, "MBUS: Length bytes do not match");
-      this->abort_();
+      this->receive_buffer_.clear();
       return false;
     }
 
@@ -116,7 +116,7 @@ bool DlmsMeterComponent::parse_mbus_(std::vector<uint8_t> &mbus_payload) {
     if (this->receive_buffer_.size() - frame_offset <
         frame_length + 3) {  // length field inside packet does not account for second start- + checksum- + stop- byte
       ESP_LOGE(TAG, "MBUS: Frame too big for received data");
-      this->abort_();
+      this->receive_buffer_.clear();
       return false;
     }
 
@@ -126,14 +126,14 @@ bool DlmsMeterComponent::parse_mbus_(std::vector<uint8_t> &mbus_payload) {
     if (this->receive_buffer_.size() - frame_offset < required_total) {
       ESP_LOGE(TAG, "MBUS: Incomplete frame (need %d, have %d)", (unsigned int) required_total,
                this->receive_buffer_.size() - frame_offset);
-      this->abort_();
+      this->receive_buffer_.clear();
       return false;
     }
 
     if (this->receive_buffer_[frame_offset + frame_length + MBUS_HEADER_INTRO_LENGTH + MBUS_FOOTER_LENGTH - 1] !=
         STOP_BYTE) {
       ESP_LOGE(TAG, "MBUS: Invalid stop byte");
-      this->abort_();
+      this->receive_buffer_.clear();
       return false;
     }
 
@@ -149,7 +149,7 @@ bool DlmsMeterComponent::parse_mbus_(std::vector<uint8_t> &mbus_payload) {
     if (checksum != this->receive_buffer_[frame_offset + frame_length + MBUS_HEADER_INTRO_LENGTH]) {
       ESP_LOGE(TAG, "MBUS: Invalid checksum: %x != %x", checksum,
                this->receive_buffer_[frame_offset + frame_length + MBUS_HEADER_INTRO_LENGTH]);
-      this->abort_();
+      this->receive_buffer_.clear();
       return false;
     }
 
@@ -168,13 +168,13 @@ bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, u
 
   if (mbus_payload.size() < 20) {  // If the payload is too short we need to abort
     ESP_LOGE(TAG, "DLMS: Payload too short");
-    this->abort_();
+    this->receive_buffer_.clear();
     return false;
   }
 
   if (mbus_payload[DLMS_CIPHER_OFFSET] != GLO_CIPHERING) {  // Only general-glo-ciphering is supported (0xDB)
     ESP_LOGE(TAG, "DLMS: Unsupported cipher");
-    this->abort_();
+    this->receive_buffer_.clear();
     return false;
   }
 
@@ -182,7 +182,7 @@ bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, u
 
   if (systitle_length != 0x08) {  // Only system titles with length of 8 are supported
     ESP_LOGE(TAG, "DLMS: Unsupported system title length");
-    this->abort_();
+    this->receive_buffer_.clear();
     return false;
   }
 
@@ -204,8 +204,7 @@ bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, u
     if (message_length == TWO_BYTE_LENGTH) {
       ESP_LOGV(TAG, "DLMS: Message length > 127");
 
-      memcpy(&message_length, &mbus_payload[DLMS_LENGTH_OFFSET + 1], 2);
-      message_length = swap_uint16_(message_length);
+      message_length = encode_uint16(mbus_payload[DLMS_LENGTH_OFFSET + 1], mbus_payload[DLMS_LENGTH_OFFSET + 2]);
 
       header_offset = DLMS_HEADER_EXT_OFFSET;  // Header is now 2 bytes longer due to length > 127
     } else {
@@ -218,7 +217,7 @@ bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, u
   if (mbus_payload.size() - DLMS_HEADER_LENGTH - header_offset != message_length) {
     ESP_LOGV(TAG, "lengths: %d, %d, %d, %d", mbus_payload.size(), DLMS_HEADER_LENGTH, header_offset, message_length);
     ESP_LOGE(TAG, "DLMS: Message has invalid length");
-    this->abort_();
+    this->receive_buffer_.clear();
     return false;
   }
 
@@ -226,7 +225,7 @@ bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, u
       mbus_payload[header_offset + DLMS_SECBYTE_OFFSET] !=
           0x20) {  // Only certain security suite is supported (0x21 || 0x20)
     ESP_LOGE(TAG, "DLMS: Unsupported security control byte");
-    this->abort_();
+    this->receive_buffer_.clear();
     return false;
   }
 
@@ -259,10 +258,14 @@ bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t m
   mbedtls_gcm_context gcm_ctx;
   mbedtls_gcm_init(&gcm_ctx);
   mbedtls_gcm_setkey(&gcm_ctx, MBEDTLS_CIPHER_ID_AES, this->decryption_key_, this->decryption_key_length_ * 8);
-
-  mbedtls_gcm_auth_decrypt(&gcm_ctx, message_length, iv, sizeof(iv), NULL, 0, NULL, 0, payload_ptr, payload_ptr);
-
+  auto ret =
+      mbedtls_gcm_auth_decrypt(&gcm_ctx, message_length, iv, sizeof(iv), NULL, 0, NULL, 0, payload_ptr, payload_ptr);
   mbedtls_gcm_free(&gcm_ctx);
+  if (ret != 0) {
+    ESP_LOGE(TAG, "Decryption failed with error: %d", ret);
+    this->receive_buffer_.clear();
+    return false;
+  }
 #else
 #error "Invalid Platform"
 #endif
@@ -272,7 +275,7 @@ bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t m
 
   if (payload_ptr[0] != DATA_NOTIFICATION || payload_ptr[5] != TIMESTAMP_DATETIME) {
     ESP_LOGE(TAG, "OBIS: Packet was decrypted but data is invalid");
-    this->abort_();
+    this->receive_buffer_.clear();
     return false;
   }
   return true;
@@ -288,7 +291,7 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
   while (current_position < message_length) {
     if (plaintext[current_position + OBIS_TYPE_OFFSET] != DataType::OCTET_STRING) {
       ESP_LOGE(TAG, "OBIS: Unsupported OBIS header type: %x", plaintext[current_position + OBIS_TYPE_OFFSET]);
-      this->abort_();
+      this->receive_buffer_.clear();
       return;
     }
 
@@ -296,7 +299,7 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
 
     if (obis_code_length != 0x06 && obis_code_length != 0x0C) {
       ESP_LOGE(TAG, "OBIS: Unsupported OBIS header length: %x", obis_code_length);
-      this->abort_();
+      this->receive_buffer_.clear();
       return;
     }
 
@@ -321,8 +324,6 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
 
     uint8_t data_type = plaintext[current_position];
     current_position++;  // Advance past data type
-
-    uint8_t data_length = 0x00;
 
     CodeType code_type = CodeType::UNKNOWN;
 
@@ -392,89 +393,77 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
           code_type = CodeType::METER_NUMBER;
         } else {
           ESP_LOGE(TAG, "OBIS: Unsupported OBIS medium: %x", obis_code[OBIS_A]);
-          this->abort_();
+          this->receive_buffer_.clear();
           return;
         }
       } else {
         ESP_LOGE(TAG, "OBIS: Unsupported OBIS medium: %x", obis_code[OBIS_A]);
-        this->abort_();
+        this->receive_buffer_.clear();
         return;
       }
     }
 
-    uint16_t uint16_value;
-    uint32_t uint32_value;
-    float float_value;
-
     switch (data_type) {
-      case DataType::DOUBLE_LONG_UNSIGNED:
-        data_length = 4;
-
-        memcpy(&uint32_value, &plaintext[current_position], 4);  // Copy bytes to integer
-        uint32_value = swap_uint32_(uint32_value);               // Swap bytes
-
-        float_value = uint32_value;  // Ignore decimal digits for now
-
+      case DataType::DOUBLE_LONG_UNSIGNED: {
+        uint32_t value = encode_uint32(plaintext[current_position], plaintext[current_position + 1],
+                                       plaintext[current_position + 2], plaintext[current_position + 3]);
         switch (code_type) {
           case CodeType::ACTIVE_POWER_PLUS:
-            data.active_power_plus = float_value;
+            data.active_power_plus = value;
             break;
           case CodeType::ACTIVE_POWER_MINUS:
-            data.active_power_minus = float_value;
+            data.active_power_minus = value;
             break;
           case CodeType::ACTIVE_ENERGY_PLUS:
-            data.active_energy_plus = float_value;
+            data.active_energy_plus = value;
             break;
           case CodeType::ACTIVE_ENERGY_MINUS:
-            data.active_energy_minus = float_value;
+            data.active_energy_minus = value;
             break;
           case CodeType::REACTIVE_ENERGY_PLUS:
-            data.reactive_energy_plus = float_value;
+            data.reactive_energy_plus = value;
             break;
           case CodeType::REACTIVE_ENERGY_MINUS:
-            data.reactive_energy_minus = float_value;
+            data.reactive_energy_minus = value;
             break;
           default:
             ESP_LOGW(TAG, "Unsupported CodeType '%d' for DataType '%d'", code_type, data_type);
         }
-
+        current_position += 4;
         break;
-      case DataType::LONG_UNSIGNED:
-        data_length = 2;
-
-        memcpy(&uint16_value, &plaintext[current_position], 2);  // Copy bytes to integer
-        uint16_value = swap_uint16_(uint16_value);               // Swap bytes
-
+      }
+      case DataType::LONG_UNSIGNED: {
+        uint16_t raw_value = encode_uint16(plaintext[current_position], plaintext[current_position + 1]);
+        float value;
         if (plaintext[current_position + 5] == Accuracy::SINGLE_DIGIT) {
-          float_value = uint16_value / 10.0;  // Divide by 10 to get decimal places
+          value = raw_value / 10.0f;
         } else if (plaintext[current_position + 5] == Accuracy::DOUBLE_DIGIT) {
-          float_value = uint16_value / 100.0;  // Divide by 100 to get decimal places
+          value = raw_value / 100.0f;
         } else {
-          float_value = uint16_value;  // No decimal places
+          value = raw_value;
         }
-
         switch (code_type) {
           case CodeType::VOLTAGE_L1:
-            data.voltage_l1 = float_value;
+            data.voltage_l1 = value;
             break;
           case CodeType::VOLTAGE_L2:
-            data.voltage_l2 = float_value;
+            data.voltage_l2 = value;
             break;
           case CodeType::VOLTAGE_L3:
-            data.voltage_l3 = float_value;
+            data.voltage_l3 = value;
             break;
           case CodeType::CURRENT_L1:
-            data.current_l1 = float_value;
+            data.current_l1 = value;
             break;
           case CodeType::CURRENT_L2:
-            data.current_l2 = float_value;
+            data.current_l2 = value;
             break;
           case CodeType::CURRENT_L3:
-            data.current_l3 = float_value;
+            data.current_l3 = value;
             break;
           case CodeType::POWER_FACTOR:
             if (this->provider_ == PROVIDER_NETZNOE) {
-              data.power_factor = float_value / 1000.0f;
+              data.power_factor = value / 1000.0f;
             } else {
               ESP_LOGW(TAG, "Unsupported CodeType '%d' for DataType '%d'", code_type, data_type);
             }
@@ -482,61 +471,38 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
           default:
             ESP_LOGW(TAG, "Unsupported CodeType '%d' for DataType '%d'", code_type, data_type);
         }
+        current_position += 2;
         break;
-      case DataType::OCTET_STRING:
-        ESP_LOGV(TAG, "Arrived on OctetString");
-        ESP_LOGV(TAG, "currentPosition: %d, plaintext: %d", current_position, plaintext[current_position]);
-
-        data_length = plaintext[current_position];
-        current_position++;  // Advance past string length
-
+      }
+      case DataType::OCTET_STRING: {
+        uint8_t data_length = plaintext[current_position];
+        current_position++;                      // Advance past string length
         if (code_type == CodeType::TIMESTAMP) {  // Handle timestamp generation
-          char timestamp[27];                    // 0000-00-00T00:00:00Z
-
-          uint16_t year;
-          uint8_t month;
-          uint8_t day;
-
-          uint8_t hour;
-          uint8_t minute;
-          uint8_t second;
-
-          memcpy(&uint16_value, &plaintext[current_position], 2);
-          year = swap_uint16_(uint16_value);
-
-          memcpy(&month, &plaintext[current_position + 2], 1);
-          memcpy(&day, &plaintext[current_position + 3], 1);
-
-          memcpy(&hour, &plaintext[current_position + 5], 1);
-          memcpy(&minute, &plaintext[current_position + 6], 1);
-          memcpy(&second, &plaintext[current_position + 7], 1);
+          uint16_t year = encode_uint16(plaintext[current_position], plaintext[current_position + 1]);
+          uint8_t month = plaintext[current_position + 2];
+          uint8_t day = plaintext[current_position + 3];
+          uint8_t hour = plaintext[current_position + 5];
+          uint8_t minute = plaintext[current_position + 6];
+          uint8_t second = plaintext[current_position + 7];
           if (year > 9999 || month > 12 || day > 31 || hour > 23 || minute > 59 || second > 59) {
             ESP_LOGE(TAG, "Invalid timestamp values: %04u-%02u-%02uT%02u:%02u:%02uZ", year, month, day, hour, minute,
                      second);
-            this->abort_();
+            this->receive_buffer_.clear();
             return;
           }
-          snprintf(timestamp, sizeof(timestamp), "%04u-%02u-%02uT%02u:%02u:%02uZ", year, month, day, hour, minute,
-                   second);
-
-          data.timestamp = timestamp;
+          snprintf(data.timestamp, sizeof(data.timestamp), "%04u-%02u-%02uT%02u:%02u:%02uZ", year, month, day, hour,
+                   minute, second);
         } else if (this->provider_ == PROVIDER_NETZNOE && code_type == CodeType::METER_NUMBER) {
-          ESP_LOGV(TAG, "Constructing MeterNumber...");
-          char meter_number[13];  // 121110284568
-
-          memcpy(meter_number, &plaintext[current_position], data_length);
-          meter_number[12] = '\0';
-
-          data.meternumber = meter_number;
+          snprintf(data.meternumber, sizeof(data.meternumber), "%.*s", data_length, &plaintext[current_position]);
         }
+        current_position += data_length;
         break;
+      }
       default:
         ESP_LOGE(TAG, "OBIS: Unsupported OBIS data type: %x", data_type);
-        this->abort_();
+        this->receive_buffer_.clear();
         return;
     }
-
-    current_position += data_length;  // Skip data length
 
     if (this->provider_ == PROVIDER_NETZNOE) {
       // Don't skip the break on the first Timestamp, as there's none
@@ -562,15 +528,6 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
   ESP_LOGI(TAG, "Received valid data");
   this->publish_sensors(data);
   this->status_clear_warning();
-}
-
-void DlmsMeterComponent::abort_() { this->receive_buffer_.clear(); }
-
-uint16_t DlmsMeterComponent::swap_uint16_(uint16_t val) { return (val << 8) | (val >> 8); }
-
-uint32_t DlmsMeterComponent::swap_uint32_(uint32_t val) {
-  val = ((val << 8) & 0xFF00FF00) | ((val >> 8) & 0xFF00FF);
-  return (val << 16) | (val >> 16);
 }
 
 void DlmsMeterComponent::set_decryption_key(const uint8_t decryption_key[], size_t decryption_key_length) {
