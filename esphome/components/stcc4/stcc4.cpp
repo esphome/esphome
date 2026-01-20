@@ -63,29 +63,24 @@ void STCC4Component::set_pressure_compensation_(float pressure_hpa) {
 }
 
 void STCC4Component::measure_single_shot_(uint16_t *data) {
-  // %todo% rewrite use FSM
+  if (this->state_.is_sleep) {
+    this->exit_sleep_mode_();
+    delay_microseconds_safe(5 * 1000);
+  }
 
-  // if (this->state_.is_sleep) {
-  //   this->exit_sleep_mode_();
-  //   if (this->state_.is_sleep) {
-  //     ESP_LOGW(TAG, "Sensor failed to wake from sleep mode");
-  //     this->status_set_error();
-  //     return;
-  //   }
-  // }
+  else if (!this->state_.is_idle) {
+    ESP_LOGE(TAG, "Sensor must be idle to run this command");
+    return;
+  }
 
-  // if (!this->write_command((uint16_t) SensorCommand::MEASURE_SINGLE_SHOT)) {
-  //   ESP_LOGW(TAG, "Sensor failed to ACK single shot command");
-  //   this->status_set_error();
-  //   return;
-  // }
-
-  // delay_microseconds_safe(1000 * 500);
-  // this->state_.is_idle = false;
-  // this->read_measurement_(data);
-  // this->state_.is_idle = true;
-
-  // this->enter_sleep_mode_();
+  this->write_command((uint16_t) SensorCommand::MEASURE_SINGLE_SHOT);
+  this->set_timeout(500, [this, data] {
+    this->write_command((uint16_t) SensorCommand::READ_MEASUREMENT);
+    delay_microseconds_safe(1 * 1000);
+    this->read_measurement_(data);
+    this->enter_sleep_mode_();
+    return;
+  });
 }
 
 void STCC4Component::enter_sleep_mode_() {
@@ -255,7 +250,7 @@ void STCC4Component::continue_setup_() {
         break;
       }
 
-      // Just run instant shot, which is more difficult so setup is done!
+      this->stage_ = 99;
       break;
 
     case 3: {
@@ -281,7 +276,7 @@ void STCC4Component::continue_setup_() {
 }
 
 void STCC4Component::update() {
-  if (!this->state_.is_measuring || this->state_.is_conditioning || this->state_.is_idle) {
+  if (this->state_.is_conditioning) {
     return;
   }
 
@@ -298,6 +293,8 @@ void STCC4Component::update() {
   uint16_t buffer[4] = {0};
   if (continuous_) {
     this->read_measurement_(buffer);
+  } else {
+    this->measure_single_shot_(buffer);
   }
 
   if (this->co2_sensor_ != nullptr) {
