@@ -182,8 +182,6 @@ def _final_validate(config):
             raise cv.Invalid(
                 "I2S standard max format only implemented with legacy i2s driver."
             )
-        if config.get(CONF_SPDIF_MODE, False):
-            raise cv.Invalid("SPDIF mode is only compatible with legacy i2s driver")
 
     if config.get(CONF_SPDIF_MODE, False):
         # SPDIF mode specific validations

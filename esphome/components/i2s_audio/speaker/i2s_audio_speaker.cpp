@@ -734,6 +734,81 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
     this->parent_->unlock();
   }
 #else
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+  if (this->spdif_mode_) {
+    // SPDIF mode: use fixed configuration for BMC encoding
+    dma_buffer_length = SPDIF_BLOCK_SIZE_U32;  // One SPDIF block per DMA buffer
+
+    i2s_chan_config_t chan_cfg = {
+        .id = this->parent_->get_port(),
+        .role = I2S_ROLE_MASTER,
+        .dma_desc_num = DMA_BUFFERS_COUNT,
+        .dma_frame_num = dma_buffer_length,
+        .auto_clear = true,
+        .intr_priority = 3,
+    };
+
+    esp_err_t err = i2s_new_channel(&chan_cfg, &this->tx_handle_, NULL);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to allocate new I2S channel for SPDIF");
+      this->parent_->unlock();
+      return err;
+    }
+
+    i2s_clock_src_t clk_src = I2S_CLK_SRC_DEFAULT;
+#ifdef I2S_CLK_SRC_APLL
+    clk_src = I2S_CLK_SRC_APLL;  // APLL provides better clock accuracy for SPDIF
+#endif
+
+    i2s_std_clk_config_t clk_cfg = {
+        .sample_rate_hz = this->sample_rate_ * 2,  // Double rate for BMC encoding
+        .clk_src = clk_src,
+        .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+    };
+
+    i2s_std_slot_config_t slot_cfg =
+        I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO);
+
+    // SPDIF only needs data pin, no clock pins needed
+    i2s_std_gpio_config_t gpio_cfg = {
+        .mclk = GPIO_NUM_NC,
+        .bclk = GPIO_NUM_NC,
+        .ws = GPIO_NUM_NC,
+        .dout = this->dout_pin_,
+        .din = GPIO_NUM_NC,
+        .invert_flags =
+            {
+                .mclk_inv = false,
+                .bclk_inv = false,
+                .ws_inv = false,
+            },
+    };
+
+    i2s_std_config_t std_cfg = {
+        .clk_cfg = clk_cfg,
+        .slot_cfg = slot_cfg,
+        .gpio_cfg = gpio_cfg,
+    };
+
+    err = i2s_channel_init_std_mode(this->tx_handle_, &std_cfg);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to initialize SPDIF channel");
+      i2s_del_channel(this->tx_handle_);
+      this->tx_handle_ = nullptr;
+      this->parent_->unlock();
+      return err;
+    }
+
+    if (this->i2s_event_queue_ == nullptr) {
+      this->i2s_event_queue_ = xQueueCreate(I2S_EVENT_QUEUE_COUNT, sizeof(int64_t));
+    }
+
+    i2s_channel_enable(this->tx_handle_);
+    return ESP_OK;
+  }
+#endif
+
+  // Standard I2S mode (non-SPDIF)
   i2s_chan_config_t chan_cfg = {
       .id = this->parent_->get_port(),
       .role = this->i2s_role_,
