@@ -1,7 +1,6 @@
 #include "api_frame_helper_plaintext.h"
 #ifdef USE_API
 #ifdef USE_API_PLAINTEXT
-#include "api_connection.h"  // For ClientInfo struct
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -21,8 +20,11 @@ static const char *const TAG = "api.plaintext";
 // Maximum bytes to log in hex format (168 * 3 = 504, under TX buffer size of 512)
 static constexpr size_t API_MAX_LOG_BYTES = 168;
 
-#define HELPER_LOG(msg, ...) \
-  ESP_LOGVV(TAG, "%s (%s): " msg, this->client_info_->name.c_str(), this->client_info_->peername.c_str(), ##__VA_ARGS__)
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+#define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, this->client_peername_, ##__VA_ARGS__)
+#else
+#define HELPER_LOG(msg, ...) ((void) 0)
+#endif
 
 #ifdef HELPER_LOG_PACKETS
 #define LOG_PACKET_RECEIVED(buffer) \
