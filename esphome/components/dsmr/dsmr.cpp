@@ -308,6 +308,7 @@ void Dsmr::set_decryption_key(const char *decryption_key) {
 
   if (!parse_hex(decryption_key, this->decryption_key_, 16)) {
     ESP_LOGE(TAG, "Error, decryption key must be 32 hex characters");
+    this->decryption_key_.clear();
     return;
   }
 
