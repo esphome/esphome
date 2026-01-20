@@ -6,7 +6,7 @@ title: "Water Heater Component"
 The `water_heater` component is a generic representation of water heaters (boilers) in ESPHome. A water heater handles a target temperature setpoint and an operation mode (like *Eco*, *Electric*, or *Performance*).
 
 > [!NOTE]
-> To use a water heater in Home Assistant requires Home Assistant 2024.5 or later.
+> Home Assistant integration for water heater entities is not yet available. See [home-assistant/core#159201](https://github.com/home-assistant/core/pull/159201) for progress.
 
 {{< anchor "config-water-heater" >}}
 
@@ -27,8 +27,6 @@ Configuration variables:
 > [!NOTE]
 > If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and you want the water heater
 > to use that name, you can set `name: None`.
-
-- **target_temperature** (*Optional*, float): The initial target temperature to set on boot.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the water heater in the frontend.
 
