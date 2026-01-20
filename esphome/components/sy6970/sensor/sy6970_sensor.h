@@ -5,17 +5,6 @@
 
 namespace esphome::sy6970 {
 
-// Constants for voltage and current calculations
-static const uint16_t VBUS_BASE_MV = 2600;       // mV
-static const uint16_t VBUS_STEP_MV = 100;        // mV
-static const uint16_t VBAT_BASE_MV = 2304;       // mV
-static const uint16_t VBAT_STEP_MV = 20;         // mV
-static const uint16_t VSYS_BASE_MV = 2304;       // mV
-static const uint16_t VSYS_STEP_MV = 20;         // mV
-static const uint16_t CHG_CURRENT_STEP_MA = 50;  // mA
-static const uint16_t PRE_CHG_BASE_MA = 64;      // mA
-static const uint16_t PRE_CHG_STEP_MA = 64;      // mA
-
 // Template for voltage sensors (converts mV to V)
 template<uint8_t REG, uint8_t MASK, uint16_t BASE, uint16_t STEP>
 class VoltageSensor : public SY6970Listener, public sensor::Sensor {

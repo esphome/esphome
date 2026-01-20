@@ -27,6 +27,21 @@ static const uint8_t SY6970_REG_CHARGE_CURRENT_MONITOR = 0x12;  // Charge curren
 static const uint8_t SY6970_REG_INPUT_VOLTAGE_LIMIT = 0x13;     // Input voltage limit
 static const uint8_t SY6970_REG_DEVICE_ID = 0x14;               // Part information
 
+// Constants for voltage and current calculations
+static const uint16_t VBUS_BASE_MV = 2600;       // mV
+static const uint16_t VBUS_STEP_MV = 100;        // mV
+static const uint16_t VBAT_BASE_MV = 2304;       // mV
+static const uint16_t VBAT_STEP_MV = 20;         // mV
+static const uint16_t VSYS_BASE_MV = 2304;       // mV
+static const uint16_t VSYS_STEP_MV = 20;         // mV
+static const uint16_t CHG_CURRENT_STEP_MA = 50;  // mA
+static const uint16_t PRE_CHG_BASE_MA = 64;      // mA
+static const uint16_t PRE_CHG_STEP_MA = 64;      // mA
+static const uint16_t CHG_VOLTAGE_BASE = 3840;   // mV
+static const uint16_t CHG_VOLTAGE_STEP = 16;     // mV
+static const uint16_t INPUT_CURRENT_MIN = 100;   // mA
+static const uint16_t INPUT_CURRENT_STEP = 50;   // mA
+
 // Bus Status values (REG_0B[7:5])
 enum BusStatus {
   BUS_STATUS_NO_INPUT = 0,

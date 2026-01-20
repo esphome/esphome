@@ -6,21 +6,6 @@ namespace esphome::sy6970 {
 
 static const char *const TAG = "sy6970";
 
-// Constants for voltage and current calculations
-static const uint16_t VBUS_BASE = 2600;         // mV
-static const uint16_t VBUS_STEP = 100;          // mV
-static const uint16_t VBAT_BASE = 2304;         // mV
-static const uint16_t VBAT_STEP = 20;           // mV
-static const uint16_t VSYS_BASE = 2304;         // mV
-static const uint16_t VSYS_STEP = 20;           // mV
-static const uint16_t CHG_CURRENT_STEP = 50;    // mA
-static const uint16_t PRE_CHG_BASE = 64;        // mA
-static const uint16_t PRE_CHG_STEP = 64;        // mA
-static const uint16_t CHG_VOLTAGE_BASE = 3840;  // mV
-static const uint16_t CHG_VOLTAGE_STEP = 16;    // mV
-static const uint16_t INPUT_CURRENT_MIN = 100;  // mA
-static const uint16_t INPUT_CURRENT_STEP = 50;  // mA
-
 bool SY6970Component::read_all_registers_() {
   // Read all registers from 0x00 to 0x14 in one transaction (21 bytes)
   // This includes unused registers 0x0F, 0x10, 0x13 for performance
@@ -135,11 +120,11 @@ void SY6970Component::set_precharge_current(uint16_t milliamps) {
   if (this->is_failed())
     return;
 
-  if (milliamps < PRE_CHG_BASE) {
-    milliamps = PRE_CHG_BASE;
+  if (milliamps < PRE_CHG_BASE_MA) {
+    milliamps = PRE_CHG_BASE_MA;
   }
 
-  uint8_t val = (milliamps - PRE_CHG_BASE) / PRE_CHG_STEP;
+  uint8_t val = (milliamps - PRE_CHG_BASE_MA) / PRE_CHG_STEP_MA;
   if (val > 0x0F) {
     val = 0x0F;
   }
