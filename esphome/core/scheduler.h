@@ -403,7 +403,9 @@ class Scheduler {
       for (size_t i = 0; i < remaining; i++) {
         this->defer_queue_[i] = std::move(this->defer_queue_[this->defer_queue_front_ + i]);
       }
-      this->defer_queue_.resize(remaining);
+      // Use erase() instead of resize() to avoid instantiating _M_default_append
+      // (saves ~156 bytes flash). Erasing from the end is O(1) - no shifting needed.
+      this->defer_queue_.erase(this->defer_queue_.begin() + remaining, this->defer_queue_.end());
     }
     this->defer_queue_front_ = 0;
   }
