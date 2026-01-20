@@ -17,6 +17,7 @@ class ZE15COComponent : public sensor::Sensor, public PollingComponent, public u
     void set_mode(Mode mode) { mode_ = mode; }
     void set_warmup_seconds(uint32_t seconds) { warmup_seconds_ = seconds; }
 
+    void dump_config() override;
     void update() override;
     void loop() override;
 

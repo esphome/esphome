@@ -18,6 +18,12 @@ uint8_t ze15_co_checksum(const uint8_t *command) {
     return  0xFF - sum + 0x01;
 }
 
+void ZE15COComponent::dump_config() {
+    LOG_SENSOR("  ", "ZE15-CO Sensor", this);
+    ESP_LOGCONFIG(TAG, "  Mode: %s", this->mode_ == QA ? "qa" : "stream");
+    ESP_LOGCONFIG(TAG, "  Warmup time: %" PRIu32 " s", this->warmup_seconds_);
+}
+
 void ZE15COComponent::update() {
     // This event is exclusive for the QA mode
     if (mode_ != QA)
