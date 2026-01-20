@@ -327,7 +327,7 @@ SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this
 
 SprinklerValveRunRequestOrigin SprinklerValveRunRequest::request_is_from() { return this->origin_; }
 
-Sprinkler::Sprinkler() {}
+Sprinkler::Sprinkler() : Sprinkler("") {}
 Sprinkler::Sprinkler(const char *name) : name_(name) {
   // The `name` is stored for dump_config logging
   this->timer_.init(2);
