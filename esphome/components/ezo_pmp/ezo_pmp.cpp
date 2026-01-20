@@ -404,8 +404,7 @@ void EzoPMP::send_next_command_() {
       break;
 
     case EZO_PMP_COMMAND_EXEC_ARBITRARY_COMMAND_ADDRESS:  // Run an arbitrary command
-      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), this->arbitrary_command_,
-                                       this->next_command_duration_);
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "%s", this->arbitrary_command_);
       ESP_LOGI(TAG, "Sending arbitrary command: %s", (char *) command_buffer);
       break;
 
