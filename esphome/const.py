@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.1.0-dev"
+__version__ = "2026.2.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -247,6 +247,7 @@ CONF_COMPENSATION = "compensation"
 CONF_COMPILE_PROCESS_LIMIT = "compile_process_limit"
 CONF_COMPONENT_ID = "component_id"
 CONF_COMPONENTS = "components"
+CONF_COMPRESSION = "compression"
 CONF_CONDITION = "condition"
 CONF_CONDITION_ID = "condition_id"
 CONF_CONDUCTIVITY = "conductivity"
@@ -710,6 +711,7 @@ CONF_ON_RELEASE = "on_release"
 CONF_ON_RESPONSE = "on_response"
 CONF_ON_SHUTDOWN = "on_shutdown"
 CONF_ON_SPEED_SET = "on_speed_set"
+CONF_ON_START = "on_start"
 CONF_ON_STATE = "on_state"
 CONF_ON_SUCCESS = "on_success"
 CONF_ON_TAG = "on_tag"

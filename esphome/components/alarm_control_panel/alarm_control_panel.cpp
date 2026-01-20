@@ -8,8 +8,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace alarm_control_panel {
+namespace esphome::alarm_control_panel {
 
 static const char *const TAG = "alarm_control_panel";
 
@@ -32,7 +31,8 @@ void AlarmControlPanel::publish_state(AlarmControlPanelState state) {
   this->last_update_ = millis();
   if (state != this->current_state_) {
     auto prev_state = this->current_state_;
-    ESP_LOGD(TAG, "Set state to: %s, previous: %s", LOG_STR_ARG(alarm_control_panel_state_to_string(state)),
+    ESP_LOGD(TAG, "'%s' >> %s (was %s)", this->get_name().c_str(),
+             LOG_STR_ARG(alarm_control_panel_state_to_string(state)),
              LOG_STR_ARG(alarm_control_panel_state_to_string(prev_state)));
     this->current_state_ = state;
     // Single state callback - triggers check get_state() for specific states
@@ -115,5 +115,4 @@ void AlarmControlPanel::disarm(optional<std::string> code) {
   call.perform();
 }
 
-}  // namespace alarm_control_panel
-}  // namespace esphome
+}  // namespace esphome::alarm_control_panel

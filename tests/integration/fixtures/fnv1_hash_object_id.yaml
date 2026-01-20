@@ -1,0 +1,76 @@
+esphome:
+  name: fnv1-hash-object-id-test
+  platformio_options:
+    build_flags:
+      - "-DDEBUG"
+  on_boot:
+    - lambda: |-
+        using esphome::fnv1_hash_object_id;
+
+        // Test basic lowercase (hash matches Python fnv1_hash_object_id("foo"))
+        uint32_t hash_foo = fnv1_hash_object_id("foo", 3);
+        if (hash_foo == 0x408f5e13) {
+          ESP_LOGI("FNV1_OID", "foo PASSED");
+        } else {
+          ESP_LOGE("FNV1_OID", "foo FAILED: 0x%08x != 0x408f5e13", hash_foo);
+        }
+
+        // Test uppercase conversion (should match lowercase)
+        uint32_t hash_Foo = fnv1_hash_object_id("Foo", 3);
+        if (hash_Foo == 0x408f5e13) {
+          ESP_LOGI("FNV1_OID", "upper PASSED");
+        } else {
+          ESP_LOGE("FNV1_OID", "upper FAILED: 0x%08x != 0x408f5e13", hash_Foo);
+        }
+
+        // Test space to underscore conversion ("foo bar" -> "foo_bar")
+        uint32_t hash_space = fnv1_hash_object_id("foo bar", 7);
+        if (hash_space == 0x3ae35aa1) {
+          ESP_LOGI("FNV1_OID", "space PASSED");
+        } else {
+          ESP_LOGE("FNV1_OID", "space FAILED: 0x%08x != 0x3ae35aa1", hash_space);
+        }
+
+        // Test underscore preserved ("foo_bar")
+        uint32_t hash_underscore = fnv1_hash_object_id("foo_bar", 7);
+        if (hash_underscore == 0x3ae35aa1) {
+          ESP_LOGI("FNV1_OID", "underscore PASSED");
+        } else {
+          ESP_LOGE("FNV1_OID", "underscore FAILED: 0x%08x != 0x3ae35aa1", hash_underscore);
+        }
+
+        // Test hyphen preserved ("foo-bar")
+        uint32_t hash_hyphen = fnv1_hash_object_id("foo-bar", 7);
+        if (hash_hyphen == 0x438b12e3) {
+          ESP_LOGI("FNV1_OID", "hyphen PASSED");
+        } else {
+          ESP_LOGE("FNV1_OID", "hyphen FAILED: 0x%08x != 0x438b12e3", hash_hyphen);
+        }
+
+        // Test special chars become underscore ("foo!bar" -> "foo_bar")
+        uint32_t hash_special = fnv1_hash_object_id("foo!bar", 7);
+        if (hash_special == 0x3ae35aa1) {
+          ESP_LOGI("FNV1_OID", "special PASSED");
+        } else {
+          ESP_LOGE("FNV1_OID", "special FAILED: 0x%08x != 0x3ae35aa1", hash_special);
+        }
+
+        // Test complex name ("My Sensor Name" -> "my_sensor_name")
+        uint32_t hash_complex = fnv1_hash_object_id("My Sensor Name", 14);
+        if (hash_complex == 0x2760962a) {
+          ESP_LOGI("FNV1_OID", "complex PASSED");
+        } else {
+          ESP_LOGE("FNV1_OID", "complex FAILED: 0x%08x != 0x2760962a", hash_complex);
+        }
+
+        // Test empty string returns FNV1_OFFSET_BASIS
+        uint32_t hash_empty = fnv1_hash_object_id("", 0);
+        if (hash_empty == 0x811c9dc5) {
+          ESP_LOGI("FNV1_OID", "empty PASSED");
+        } else {
+          ESP_LOGE("FNV1_OID", "empty FAILED: 0x%08x != 0x811c9dc5", hash_empty);
+        }
+
+host:
+api:
+logger:

@@ -1,5 +1,6 @@
 # PYTHON_ARGCOMPLETE_OK
 import argparse
+from collections.abc import Callable
 from datetime import datetime
 import functools
 import getpass
@@ -61,6 +62,9 @@ from esphome.util import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Maximum buffer size for serial log reading to prevent unbounded memory growth
+SERIAL_BUFFER_MAX_SIZE = 65536
 
 # Special non-component keys that appear in configs
 _NON_COMPONENT_KEYS = frozenset(
@@ -219,8 +223,13 @@ def choose_upload_log_host(
             else:
                 resolved.append(device)
         if not resolved:
+            if CORE.dashboard:
+                hint = "If you know the IP, set 'use_address' in your network config."
+            else:
+                hint = "If you know the IP, try --device <IP>"
             raise EsphomeError(
-                f"All specified devices {defaults} could not be resolved. Is the device connected to the network?"
+                f"All specified devices {defaults} could not be resolved. "
+                f"Is the device connected to the network? {hint}"
             )
         return resolved
 
@@ -431,25 +440,37 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     while tries < 5:
         try:
             with ser:
+                buffer = b""
+                ser.timeout = 0.1  # 100ms timeout for non-blocking reads
                 while True:
                     try:
-                        raw = ser.readline()
+                        # Read all available data and timestamp it
+                        chunk = ser.read(ser.in_waiting or 1)
+                        if not chunk:
+                            continue
+                        time_ = datetime.now()
+                        milliseconds = time_.microsecond // 1000
+                        time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{milliseconds:03}]"
+
+                        # Add to buffer and process complete lines
+                        # Limit buffer size to prevent unbounded memory growth
+                        # if device sends data without newlines
+                        buffer += chunk
+                        if len(buffer) > SERIAL_BUFFER_MAX_SIZE:
+                            buffer = buffer[-SERIAL_BUFFER_MAX_SIZE:]
+                        while b"\n" in buffer:
+                            raw_line, buffer = buffer.split(b"\n", 1)
+                            line = raw_line.replace(b"\r", b"").decode(
+                                "utf8", "backslashreplace"
+                            )
+                            safe_print(parser.parse_line(line, time_str))
+
+                            backtrace_state = platformio_api.process_stacktrace(
+                                config, line, backtrace_state=backtrace_state
+                            )
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
-                    line = (
-                        raw.replace(b"\r", b"")
-                        .replace(b"\n", b"")
-                        .decode("utf8", "backslashreplace")
-                    )
-                    time_ = datetime.now()
-                    nanoseconds = time_.microsecond // 1000
-                    time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{nanoseconds:03}]"
-                    safe_print(parser.parse_line(line, time_str))
-
-                    backtrace_state = platformio_api.process_stacktrace(
-                        config, line, backtrace_state=backtrace_state
-                    )
         except serial.SerialException:
             tries += 1
             time.sleep(1)
@@ -789,7 +810,13 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     exit_code = compile_program(args, config)
     if exit_code != 0:
         return exit_code
-    _LOGGER.info("Successfully compiled program.")
+    if CORE.is_host:
+        from esphome.platformio_api import get_idedata
+
+        program_path = str(get_idedata(config).firmware_elf_path)
+        _LOGGER.info("Successfully compiled program to path '%s'", program_path)
+    else:
+        _LOGGER.info("Successfully compiled program.")
     return 0
 
 
@@ -839,10 +866,8 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     if CORE.is_host:
         from esphome.platformio_api import get_idedata
 
-        idedata = get_idedata(config)
-        if idedata is None:
-            return 1
-        program_path = idedata.raw["prog_path"]
+        program_path = str(get_idedata(config).firmware_elf_path)
+        _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
     # Get devices, resolving special identifiers like OTA
@@ -912,11 +937,21 @@ def command_dashboard(args: ArgsProtocol) -> int | None:
     return dashboard.start_dashboard(args)
 
 
-def command_update_all(args: ArgsProtocol) -> int | None:
+def run_multiple_configs(
+    files: list, command_builder: Callable[[str], list[str]]
+) -> int:
+    """Run a command for each configuration file in a subprocess.
+
+    Args:
+        files: List of configuration files to process.
+        command_builder: Callable that takes a file path and returns a command list.
+
+    Returns:
+        Number of failed files.
+    """
     import click
 
     success = {}
-    files = list_yaml_files(args.configuration)
     twidth = 60
 
     def print_bar(middle_text):
@@ -926,17 +961,19 @@ def command_update_all(args: ArgsProtocol) -> int | None:
         safe_print(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
-        safe_print(f"Updating {color(AnsiFore.CYAN, str(f))}")
+        f_path = Path(f) if not isinstance(f, Path) else f
+
+        if any(f_path.name == x for x in SECRETS_FILES):
+            _LOGGER.warning("Skipping secrets file %s", f_path)
+            continue
+
+        safe_print(f"Processing {color(AnsiFore.CYAN, str(f))}")
         safe_print("-" * twidth)
         safe_print()
-        if CORE.dashboard:
-            rc = run_external_process(
-                "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
-            )
-        else:
-            rc = run_external_process(
-                "esphome", "run", f, "--no-logs", "--device", "OTA"
-            )
+
+        cmd = command_builder(f)
+        rc = run_external_process(*cmd)
+
         if rc == 0:
             print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {str(f)}")
             success[f] = True
@@ -951,12 +988,25 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     print_bar(f"[{color(AnsiFore.BOLD_WHITE, 'SUMMARY')}]")
     failed = 0
     for f in files:
+        if f not in success:
+            continue  # Skipped file
         if success[f]:
             safe_print(f"  - {str(f)}: {color(AnsiFore.GREEN, 'SUCCESS')}")
         else:
             safe_print(f"  - {str(f)}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
             failed += 1
     return failed
+
+
+def command_update_all(args: ArgsProtocol) -> int | None:
+    files = list_yaml_files(args.configuration)
+
+    def build_command(f):
+        if CORE.dashboard:
+            return ["esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"]
+        return ["esphome", "run", f, "--no-logs", "--device", "OTA"]
+
+    return run_multiple_configs(files, build_command)
 
 
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
@@ -1013,6 +1063,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
         idedata.objdump_path,
         idedata.readelf_path,
         external_components,
+        idedata=idedata,
     )
     analyzer.analyze()
 
@@ -1508,38 +1559,48 @@ def run_esphome(argv):
 
     _LOGGER.info("ESPHome %s", const.__version__)
 
-    for conf_path in args.configuration:
-        conf_path = Path(conf_path)
-        if any(conf_path.name == x for x in SECRETS_FILES):
-            _LOGGER.warning("Skipping secrets file %s", conf_path)
-            continue
+    # Multiple configurations: use subprocesses to avoid state leakage
+    # between compilations (e.g., LVGL touchscreen state in module globals)
+    if len(args.configuration) > 1:
+        # Build command by reusing argv, replacing all configs with single file
+        # argv[0] is the program path, skip it since we prefix with "esphome"
+        def build_command(f):
+            return (
+                ["esphome"]
+                + [arg for arg in argv[1:] if arg not in args.configuration]
+                + [str(f)]
+            )
 
-        CORE.config_path = conf_path
-        CORE.dashboard = args.dashboard
+        return run_multiple_configs(args.configuration, build_command)
 
-        # For logs command, skip updating external components
-        skip_external = args.command == "logs"
-        config = read_config(
-            dict(args.substitution) if args.substitution else {},
-            skip_external_update=skip_external,
-        )
-        if config is None:
-            return 2
-        CORE.config = config
+    # Single configuration
+    conf_path = Path(args.configuration[0])
+    if any(conf_path.name == x for x in SECRETS_FILES):
+        _LOGGER.warning("Skipping secrets file %s", conf_path)
+        return 0
 
-        if args.command not in POST_CONFIG_ACTIONS:
-            safe_print(f"Unknown command {args.command}")
+    CORE.config_path = conf_path
+    CORE.dashboard = args.dashboard
 
-        try:
-            rc = POST_CONFIG_ACTIONS[args.command](args, config)
-        except EsphomeError as e:
-            _LOGGER.error(e, exc_info=args.verbose)
-            return 1
-        if rc != 0:
-            return rc
+    # For logs command, skip updating external components
+    skip_external = args.command == "logs"
+    config = read_config(
+        dict(args.substitution) if args.substitution else {},
+        skip_external_update=skip_external,
+    )
+    if config is None:
+        return 2
+    CORE.config = config
 
-        CORE.reset()
-    return 0
+    if args.command not in POST_CONFIG_ACTIONS:
+        safe_print(f"Unknown command {args.command}")
+        return 1
+
+    try:
+        return POST_CONFIG_ACTIONS[args.command](args, config)
+    except EsphomeError as e:
+        _LOGGER.error(e, exc_info=args.verbose)
+        return 1
 
 
 def main():

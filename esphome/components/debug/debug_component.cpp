@@ -28,24 +28,23 @@ void DebugComponent::dump_config() {
 #endif  // defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
 #endif  // USE_SENSOR
 
-  std::string device_info;
-  device_info.reserve(256);
+  char device_info_buffer[DEVICE_INFO_BUFFER_SIZE];
   ESP_LOGD(TAG, "ESPHome version %s", ESPHOME_VERSION);
-  device_info += ESPHOME_VERSION;
+  size_t pos = buf_append(device_info_buffer, DEVICE_INFO_BUFFER_SIZE, 0, "%s", ESPHOME_VERSION);
 
   this->free_heap_ = get_free_heap_();
   ESP_LOGD(TAG, "Free Heap Size: %" PRIu32 " bytes", this->free_heap_);
 
-  get_device_info_(device_info);
+  pos = get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>(device_info_buffer), pos);
 
 #ifdef USE_TEXT_SENSOR
   if (this->device_info_ != nullptr) {
-    if (device_info.length() > 255)
-      device_info.resize(255);
-    this->device_info_->publish_state(device_info);
+    this->device_info_->publish_state(device_info_buffer, pos);
   }
   if (this->reset_reason_ != nullptr) {
-    this->reset_reason_->publish_state(get_reset_reason_());
+    char reset_reason_buffer[RESET_REASON_BUFFER_SIZE];
+    this->reset_reason_->publish_state(
+        get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE>(reset_reason_buffer)));
   }
 #endif  // USE_TEXT_SENSOR
 

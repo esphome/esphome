@@ -8,7 +8,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/macros.h"
 
-#if defined(USE_ESP_IDF) || defined(USE_LIBRETINY) || USE_ARDUINO_VERSION_CODE > VERSION_CODE(3, 0, 0)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || USE_ARDUINO_VERSION_CODE > VERSION_CODE(3, 0, 0)
 #include <lwip/ip_addr.h>
 #endif
 
@@ -40,6 +40,17 @@ using ip4_addr_t = in_addr;
 namespace esphome {
 namespace network {
 
+/// Buffer size for IP address string (IPv6 max: 39 chars + null)
+static constexpr size_t IP_ADDRESS_BUFFER_SIZE = 40;
+
+/// Lowercase hex digits in IP address string (A-F -> a-f for IPv6 per RFC 5952)
+inline void lowercase_ip_str(char *buf) {
+  for (char *p = buf; *p; ++p) {
+    if (*p >= 'A' && *p <= 'F')
+      *p += 32;
+  }
+}
+
 struct IPAddress {
  public:
 #ifdef USE_HOST
@@ -49,7 +60,16 @@ struct IPAddress {
   }
   IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
-  std::string str() const { return str_lower_case(inet_ntoa(ip_addr_)); }
+  std::string str() const {
+    char buf[IP_ADDRESS_BUFFER_SIZE];
+    this->str_to(buf);
+    return buf;
+  }
+  /// Write IP address to buffer. Buffer must be at least IP_ADDRESS_BUFFER_SIZE bytes.
+  char *str_to(char *buf) const {
+    inet_ntop(AF_INET, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE);
+    return buf;  // IPv4 only, no hex letters to lowercase
+  }
 #else
   IPAddress() { ip_addr_set_zero(&ip_addr_); }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
@@ -127,7 +147,18 @@ struct IPAddress {
   bool is_ip4() const { return IP_IS_V4(&ip_addr_); }
   bool is_ip6() const { return IP_IS_V6(&ip_addr_); }
   bool is_multicast() const { return ip_addr_ismulticast(&ip_addr_); }
-  std::string str() const { return str_lower_case(ipaddr_ntoa(&ip_addr_)); }
+  std::string str() const {
+    char buf[IP_ADDRESS_BUFFER_SIZE];
+    this->str_to(buf);
+    return buf;
+  }
+  /// Write IP address to buffer. Buffer must be at least IP_ADDRESS_BUFFER_SIZE bytes.
+  /// Output is lowercased per RFC 5952 (IPv6 hex digits a-f).
+  char *str_to(char *buf) const {
+    ipaddr_ntoa_r(&ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE);
+    lowercase_ip_str(buf);
+    return buf;
+  }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   IPAddress &operator+=(uint8_t increase) {
