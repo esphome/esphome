@@ -328,13 +328,12 @@ SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this
 SprinklerValveRunRequestOrigin SprinklerValveRunRequest::request_is_from() { return this->origin_; }
 
 Sprinkler::Sprinkler() {}
-Sprinkler::Sprinkler(const std::string &name) {
-  // The `name` is needed to set timers up, hence non-default constructor
-  // replaces `set_name()` method previously existed
-  this->name_ = name;
+Sprinkler::Sprinkler(const char *name) : name_(name) {
+  // The `name` is stored for dump_config logging
   this->timer_.init(2);
-  this->timer_.push_back({this->name_ + "sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)});
-  this->timer_.push_back({this->name_ + "vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)});
+  // Timer names only need to be unique within this component instance
+  this->timer_.push_back({"sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)});
+  this->timer_.push_back({"vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)});
 }
 
 void Sprinkler::setup() { this->all_valves_off_(true); }
@@ -1575,8 +1574,7 @@ const LogString *Sprinkler::state_as_str_(SprinklerState state) {
 
 void Sprinkler::start_timer_(const SprinklerTimerIndex timer_index) {
   if (this->timer_duration_(timer_index) > 0) {
-    // FixedVector ensures timer_ can't be resized, so .c_str() pointers remain valid
-    this->set_timeout(this->timer_[timer_index].name.c_str(), this->timer_duration_(timer_index),
+    this->set_timeout(this->timer_[timer_index].name, this->timer_duration_(timer_index),
                       this->timer_cbf_(timer_index));
     this->timer_[timer_index].start_time = millis();
     this->timer_[timer_index].active = true;
@@ -1587,7 +1585,7 @@ void Sprinkler::start_timer_(const SprinklerTimerIndex timer_index) {
 
 bool Sprinkler::cancel_timer_(const SprinklerTimerIndex timer_index) {
   this->timer_[timer_index].active = false;
-  return this->cancel_timeout(this->timer_[timer_index].name.c_str());
+  return this->cancel_timeout(this->timer_[timer_index].name);
 }
 
 bool Sprinkler::timer_active_(const SprinklerTimerIndex timer_index) { return this->timer_[timer_index].active; }
@@ -1618,7 +1616,7 @@ void Sprinkler::sm_timer_callback_() {
 }
 
 void Sprinkler::dump_config() {
-  ESP_LOGCONFIG(TAG, "Sprinkler Controller -- %s", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Sprinkler Controller -- %s", this->name_);
   if (this->manual_selection_delay_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Manual Selection Delay: %" PRIu32 " seconds", this->manual_selection_delay_.value_or(0));
   }
