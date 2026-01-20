@@ -43,13 +43,11 @@ SprinklerControllerSwitch::SprinklerControllerSwitch()
     : turn_on_trigger_(new Trigger<>()), turn_off_trigger_(new Trigger<>()) {}
 
 void SprinklerControllerSwitch::loop() {
-  if (!this->f_.has_value())
-    return;
+  // Loop is only enabled when f_ has a value (see setup())
   auto s = (*this->f_)();
-  if (!s.has_value())
-    return;
-
-  this->publish_state(*s);
+  if (s.has_value()) {
+    this->publish_state(*s);
+  }
 }
 
 void SprinklerControllerSwitch::write_state(bool state) {
@@ -74,7 +72,13 @@ float SprinklerControllerSwitch::get_setup_priority() const { return setup_prior
 Trigger<> *SprinklerControllerSwitch::get_turn_on_trigger() const { return this->turn_on_trigger_; }
 Trigger<> *SprinklerControllerSwitch::get_turn_off_trigger() const { return this->turn_off_trigger_; }
 
-void SprinklerControllerSwitch::setup() { this->state = this->get_initial_state_with_restore_mode().value_or(false); }
+void SprinklerControllerSwitch::setup() {
+  this->state = this->get_initial_state_with_restore_mode().value_or(false);
+  // Disable loop if no state lambda is set - nothing to poll
+  if (!this->f_.has_value()) {
+    this->disable_loop();
+  }
+}
 
 void SprinklerControllerSwitch::dump_config() { LOG_SWITCH("", "Sprinkler Switch", this); }
 
@@ -336,15 +340,23 @@ Sprinkler::Sprinkler(const char *name) : name_(name) {
   this->timer_.push_back({"vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)});
 }
 
-void Sprinkler::setup() { this->all_valves_off_(true); }
+void Sprinkler::setup() {
+  this->all_valves_off_(true);
+  // Start with loop disabled - nothing to do when idle
+  this->disable_loop();
+}
 
 void Sprinkler::loop() {
   for (auto &vo : this->valve_op_) {
     vo.loop();
   }
-  if (this->prev_req_.has_request() && this->prev_req_.has_valve_operator() &&
-      this->prev_req_.valve_operator()->state() == IDLE) {
-    this->prev_req_.reset();
+  if (this->prev_req_.has_request()) {
+    if (this->prev_req_.has_valve_operator() && this->prev_req_.valve_operator()->state() == IDLE) {
+      this->prev_req_.reset();
+    }
+  } else if (this->state_ == IDLE) {
+    // Nothing more to do - disable loop until next activation
+    this->disable_loop();
   }
 }
 
@@ -1332,6 +1344,8 @@ void Sprinkler::start_valve_(SprinklerValveRunRequest *req) {
   if (!this->is_a_valid_valve(req->valve())) {
     return;  // we can't do anything if the valve number isn't valid
   }
+  // Enable loop to monitor valve operator states
+  this->enable_loop();
   for (auto &vo : this->valve_op_) {  // find the first available SprinklerValveOperator, load it and start it up
     if (vo.state() == IDLE) {
       auto run_duration = req->run_duration() ? req->run_duration() : this->valve_run_duration_adjusted(req->valve());
