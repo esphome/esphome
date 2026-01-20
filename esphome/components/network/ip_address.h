@@ -60,6 +60,8 @@ struct IPAddress {
   }
   IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
+  // Remove before 2026.8.0
+  ESPDEPRECATED("Use str_to() instead. Removed in 2026.8.0", "2026.2.0")
   std::string str() const {
     char buf[IP_ADDRESS_BUFFER_SIZE];
     this->str_to(buf);
@@ -147,6 +149,8 @@ struct IPAddress {
   bool is_ip4() const { return IP_IS_V4(&ip_addr_); }
   bool is_ip6() const { return IP_IS_V6(&ip_addr_); }
   bool is_multicast() const { return ip_addr_ismulticast(&ip_addr_); }
+  // Remove before 2026.8.0
+  ESPDEPRECATED("Use str_to() instead. Removed in 2026.8.0", "2026.2.0")
   std::string str() const {
     char buf[IP_ADDRESS_BUFFER_SIZE];
     this->str_to(buf);
