@@ -35,16 +35,19 @@ def dropdown_symbol_validator(value):
     This is required because LVGL uses codepoints below 0x100 for internal symbols.
     """
     value = cv.string(value)
+    # len(value) counts Unicode code points, not grapheme clusters or bytes
     if len(value) != 1:
         raise cv.Invalid(
             f"Dropdown symbol must be a single character, got '{value}' with length {len(value)}"
         )
     codepoint = ord(value)
     if codepoint < 0x100:
+        # Format the example symbol as a Unicode escape for the error message
+        example_escape = f"\\U{ord(EXAMPLE_DROPDOWN_SYMBOL):08X}"
         raise cv.Invalid(
             f"Dropdown symbol must have a Unicode codepoint of 0x100 (256) or greater. "
             f"'{value}' has codepoint {codepoint} (0x{codepoint:X}). "
-            f"Use a character like '\\U00002190' ({EXAMPLE_DROPDOWN_SYMBOL}) or other Unicode symbols with codepoint >= 0x100."
+            f"Use a character like '{example_escape}' ({EXAMPLE_DROPDOWN_SYMBOL}) or other Unicode symbols with codepoint >= 0x100."
         )
     return value
 
