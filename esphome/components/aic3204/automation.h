@@ -13,7 +13,7 @@ template<typename... Ts> class SetAutoMuteAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(uint8_t, auto_mute_mode)
 
-  void play(Ts... x) override { this->aic3204_->set_auto_mute_mode(this->auto_mute_mode_.value(x...)); }
+  void play(const Ts &...x) override { this->aic3204_->set_auto_mute_mode(this->auto_mute_mode_.value(x...)); }
 
  protected:
   AIC3204 *aic3204_;

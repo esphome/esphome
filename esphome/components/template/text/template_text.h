@@ -6,8 +6,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/template_lambda.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 // We keep this separate so we don't have to template and duplicate
 // the text input for each different size flash allocation.
@@ -60,7 +59,7 @@ template<uint8_t SZ> class TextSaver : public TemplateTextSaverBase {
   }
 };
 
-class TemplateText : public text::Text, public PollingComponent {
+class TemplateText final : public text::Text, public PollingComponent {
  public:
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
@@ -71,18 +70,19 @@ class TemplateText : public text::Text, public PollingComponent {
 
   Trigger<std::string> *get_set_trigger() const { return this->set_trigger_; }
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-  void set_initial_value(const std::string &initial_value) { this->initial_value_ = initial_value; }
+  void set_initial_value(const char *initial_value) { this->initial_value_ = initial_value; }
+  /// Prevent accidental use of std::string which would dangle
+  void set_initial_value(const std::string &initial_value) = delete;
   void set_value_saver(TemplateTextSaverBase *restore_value_saver) { this->pref_ = restore_value_saver; }
 
  protected:
   void control(const std::string &value) override;
   bool optimistic_ = false;
-  std::string initial_value_;
+  const char *initial_value_{nullptr};
   Trigger<std::string> *set_trigger_ = new Trigger<std::string>();
   TemplateLambda<std::string> f_{};
 
   TemplateTextSaverBase *pref_ = nullptr;
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

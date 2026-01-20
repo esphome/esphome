@@ -36,20 +36,20 @@ void GDK101Component::setup() {
   uint8_t data[2];
   // first, reset the sensor
   if (!this->reset_sensor_(data)) {
-    this->status_set_error("Reset failed!");
+    this->status_set_error(LOG_STR("Reset failed!"));
     this->mark_failed();
     return;
   }
   // sensor should acknowledge success of the reset procedure
   if (data[0] != 1) {
-    this->status_set_error("Reset not acknowledged!");
+    this->status_set_error(LOG_STR("Reset not acknowledged!"));
     this->mark_failed();
     return;
   }
   delay(10);
   // read firmware version
   if (!this->read_fw_version_(data)) {
-    this->status_set_error("Failed to read firmware version");
+    this->status_set_error(LOG_STR("Failed to read firmware version"));
     this->mark_failed();
     return;
   }
@@ -62,7 +62,6 @@ void GDK101Component::dump_config() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 #ifdef USE_SENSOR
-  LOG_SENSOR("  ", "Firmware Version", this->fw_version_sensor_);
   LOG_SENSOR("  ", "Average Radaition Dose per 1 minute", this->rad_1m_sensor_);
   LOG_SENSOR("  ", "Average Radaition Dose per 10 minutes", this->rad_10m_sensor_);
   LOG_SENSOR("  ", "Status", this->status_sensor_);
@@ -72,6 +71,10 @@ void GDK101Component::dump_config() {
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Vibration Status", this->vibration_binary_sensor_);
 #endif  // USE_BINARY_SENSOR
+
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "Firmware Version", this->fw_version_text_sensor_);
+#endif  // USE_TEXT_SENSOR
 }
 
 float GDK101Component::get_setup_priority() const { return setup_priority::DATA; }
@@ -153,18 +156,19 @@ bool GDK101Component::read_status_(uint8_t *data) {
 }
 
 bool GDK101Component::read_fw_version_(uint8_t *data) {
-#ifdef USE_SENSOR
-  if (this->fw_version_sensor_ != nullptr) {
+#ifdef USE_TEXT_SENSOR
+  if (this->fw_version_text_sensor_ != nullptr) {
     if (!this->read_bytes(GDK101_REG_READ_FIRMWARE, data, 2)) {
       ESP_LOGE(TAG, "Updating GDK101 failed!");
       return false;
     }
 
-    const float fw_version = data[0] + (data[1] / 10.0f);
-
-    this->fw_version_sensor_->publish_state(fw_version);
+    // max 8: "255.255" (7 chars) + null
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d.%d", data[0], data[1]);
+    this->fw_version_text_sensor_->publish_state(buf);
   }
-#endif  // USE_SENSOR
+#endif  // USE_TEXT_SENSOR
   return true;
 }
 

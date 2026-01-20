@@ -2,8 +2,8 @@
 
 #ifdef USE_HOST
 #include "http_request.h"
-namespace esphome {
-namespace http_request {
+
+namespace esphome::http_request {
 
 class HttpRequestHost;
 class HttpContainerHost : public HttpContainer {
@@ -27,7 +27,6 @@ class HttpRequestHost : public HttpRequestComponent {
   const char *ca_path_{};
 };
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request
 
 #endif  // USE_HOST

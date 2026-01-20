@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_NUMBER
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.number";
 
@@ -34,7 +33,7 @@ void MQTTNumberComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, false)
 }
 
-std::string MQTTNumberComponent::component_type() const { return "number"; }
+MQTT_COMPONENT_TYPE(MQTTNumberComponent, "number")
 const EntityBase *MQTTNumberComponent::get_entity() const { return this->number_; }
 
 void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
@@ -44,8 +43,11 @@ void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
   root[MQTT_MIN] = traits.get_min_value();
   root[MQTT_MAX] = traits.get_max_value();
   root[MQTT_STEP] = traits.get_step();
-  if (!this->number_->traits.get_unit_of_measurement().empty())
-    root[MQTT_UNIT_OF_MEASUREMENT] = this->number_->traits.get_unit_of_measurement();
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  const auto unit_of_measurement = this->number_->traits.get_unit_of_measurement_ref();
+  if (!unit_of_measurement.empty()) {
+    root[MQTT_UNIT_OF_MEASUREMENT] = unit_of_measurement;
+  }
   switch (this->number_->traits.get_mode()) {
     case NUMBER_MODE_AUTO:
       break;
@@ -56,8 +58,11 @@ void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
       root[MQTT_MODE] = "slider";
       break;
   }
-  if (!this->number_->traits.get_device_class().empty())
-    root[MQTT_DEVICE_CLASS] = this->number_->traits.get_device_class();
+  const auto device_class = this->number_->traits.get_device_class_ref();
+  if (!device_class.empty()) {
+    root[MQTT_DEVICE_CLASS] = device_class;
+  }
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
   config.command_topic = true;
 }
@@ -74,8 +79,7 @@ bool MQTTNumberComponent::publish_state(float value) {
   return this->publish(this->get_state_topic_(), buffer);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

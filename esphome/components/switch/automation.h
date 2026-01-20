@@ -11,7 +11,7 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
  public:
   explicit TurnOnAction(Switch *a_switch) : switch_(a_switch) {}
 
-  void play(Ts... x) override { this->switch_->turn_on(); }
+  void play(const Ts &...x) override { this->switch_->turn_on(); }
 
  protected:
   Switch *switch_;
@@ -21,7 +21,7 @@ template<typename... Ts> class TurnOffAction : public Action<Ts...> {
  public:
   explicit TurnOffAction(Switch *a_switch) : switch_(a_switch) {}
 
-  void play(Ts... x) override { this->switch_->turn_off(); }
+  void play(const Ts &...x) override { this->switch_->turn_off(); }
 
  protected:
   Switch *switch_;
@@ -31,7 +31,7 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
  public:
   explicit ToggleAction(Switch *a_switch) : switch_(a_switch) {}
 
-  void play(Ts... x) override { this->switch_->toggle(); }
+  void play(const Ts &...x) override { this->switch_->toggle(); }
 
  protected:
   Switch *switch_;
@@ -43,7 +43,7 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(bool, state)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto state = this->state_.optional_value(x...);
     if (state.has_value()) {
       this->switch_->control(*state);
@@ -57,7 +57,7 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
 template<typename... Ts> class SwitchCondition : public Condition<Ts...> {
  public:
   SwitchCondition(Switch *parent, bool state) : parent_(parent), state_(state) {}
-  bool check(Ts... x) override { return this->parent_->state == this->state_; }
+  bool check(const Ts &...x) override { return this->parent_->state == this->state_; }
 
  protected:
   Switch *parent_;
@@ -98,7 +98,7 @@ template<typename... Ts> class SwitchPublishAction : public Action<Ts...> {
   SwitchPublishAction(Switch *a_switch) : switch_(a_switch) {}
   TEMPLATABLE_VALUE(bool, state)
 
-  void play(Ts... x) override { this->switch_->publish_state(this->state_.value(x...)); }
+  void play(const Ts &...x) override { this->switch_->publish_state(this->state_.value(x...)); }
 
  protected:
   Switch *switch_;

@@ -6,12 +6,11 @@
 #ifdef USE_MQTT
 #ifdef USE_BINARY_SENSOR
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.binary_sensor";
 
-std::string MQTTBinarySensorComponent::component_type() const { return "binary_sensor"; }
+MQTT_COMPONENT_TYPE(MQTTBinarySensorComponent, "binary_sensor")
 const EntityBase *MQTTBinarySensorComponent::get_entity() const { return this->binary_sensor_; }
 
 void MQTTBinarySensorComponent::setup() {
@@ -30,9 +29,12 @@ MQTTBinarySensorComponent::MQTTBinarySensorComponent(binary_sensor::BinarySensor
 }
 
 void MQTTBinarySensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  if (!this->binary_sensor_->get_device_class().empty())
-    root[MQTT_DEVICE_CLASS] = this->binary_sensor_->get_device_class();
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  const auto device_class = this->binary_sensor_->get_device_class_ref();
+  if (!device_class.empty()) {
+    root[MQTT_DEVICE_CLASS] = device_class;
+  }
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
   if (this->binary_sensor_->is_status_binary_sensor())
     root[MQTT_PAYLOAD_ON] = mqtt::global_mqtt_client->get_availability().payload_available;
   if (this->binary_sensor_->is_status_binary_sensor())
@@ -54,8 +56,7 @@ bool MQTTBinarySensorComponent::publish_state(bool state) {
   return this->publish(this->get_state_topic_(), state_s);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

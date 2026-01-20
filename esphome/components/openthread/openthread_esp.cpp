@@ -1,5 +1,5 @@
 #include "esphome/core/defines.h"
-#if defined(USE_OPENTHREAD) && defined(USE_ESP_IDF)
+#if defined(USE_OPENTHREAD) && defined(USE_ESP32)
 #include <openthread/logging.h>
 #include "openthread.h"
 
@@ -24,8 +24,7 @@
 
 static const char *const TAG = "openthread";
 
-namespace esphome {
-namespace openthread {
+namespace esphome::openthread {
 
 void OpenThreadComponent::setup() {
   // Used eventfds:
@@ -105,6 +104,35 @@ void OpenThreadComponent::ot_main() {
   esp_cli_custom_command_init();
 #endif  // CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
 
+  otLinkModeConfig link_mode_config = {0};
+#if CONFIG_OPENTHREAD_FTD
+  link_mode_config.mRxOnWhenIdle = true;
+  link_mode_config.mDeviceType = true;
+  link_mode_config.mNetworkData = true;
+#elif CONFIG_OPENTHREAD_MTD
+  if (this->poll_period > 0) {
+    if (otLinkSetPollPeriod(esp_openthread_get_instance(), this->poll_period) != OT_ERROR_NONE) {
+      ESP_LOGE(TAG, "Failed to set OpenThread pollperiod.");
+    }
+    uint32_t link_polling_period = otLinkGetPollPeriod(esp_openthread_get_instance());
+    ESP_LOGD(TAG, "Link Polling Period: %d", link_polling_period);
+  }
+  link_mode_config.mRxOnWhenIdle = this->poll_period == 0;
+  link_mode_config.mDeviceType = false;
+  link_mode_config.mNetworkData = false;
+#endif
+
+  if (otThreadSetLinkMode(esp_openthread_get_instance(), link_mode_config) != OT_ERROR_NONE) {
+    ESP_LOGE(TAG, "Failed to set OpenThread linkmode.");
+  }
+  link_mode_config = otThreadGetLinkMode(esp_openthread_get_instance());
+  ESP_LOGD(TAG,
+           "Link Mode Device Type: %s\n"
+           "Link Mode Network Data: %s\n"
+           "Link Mode RX On When Idle: %s",
+           link_mode_config.mDeviceType ? "true" : "false", link_mode_config.mNetworkData ? "true" : "false",
+           link_mode_config.mRxOnWhenIdle ? "true" : "false");
+
   // Run the main loop
 #if CONFIG_OPENTHREAD_CLI
   esp_openthread_cli_create_task();
@@ -119,8 +147,8 @@ void OpenThreadComponent::ot_main() {
     // Make sure the length is 0 so we fallback to the configuration
     dataset.mLength = 0;
   } else {
-    ESP_LOGI(TAG, "Found OpenThread-managed dataset, ignoring esphome configuration");
-    ESP_LOGI(TAG, "(set force_dataset: true to override)");
+    ESP_LOGI(TAG, "Found OpenThread-managed dataset, ignoring esphome configuration\n"
+                  "(set force_dataset: true to override)");
   }
 #endif
 
@@ -183,6 +211,5 @@ otInstance *InstanceLock::get_instance() { return esp_openthread_get_instance();
 
 InstanceLock::~InstanceLock() { esp_openthread_lock_release(); }
 
-}  // namespace openthread
-}  // namespace esphome
+}  // namespace esphome::openthread
 #endif
