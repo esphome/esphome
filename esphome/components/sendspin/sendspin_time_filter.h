@@ -1,24 +1,24 @@
+// Copyright 2025 Sendspin Contributors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #pragma once
 
-#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
-#if defined(USE_ESP_IDF)
-
-#include <cmath>
 #include <cstdint>
-#include <limits>
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
-
-namespace esphome {
-namespace sendspin {
-
-struct TimeElement {
-  int64_t last_update{0};
-  double offset{0};
-  double drift{0};
-};
+namespace esphome::sendspin {
 
 /// @brief Two-dimensional Kalman filter for NTP-style time synchronization between client and server.
 ///
@@ -31,11 +31,27 @@ struct TimeElement {
 /// adjustments.
 ///
 /// All computations use double precision arithmetic to maintain microsecond-level accuracy over extended periods.
-/// Thread-safe access to the current time transformation is provided via FreeRTOS queues.
+/// Thread-safe access to the current time transformation is provided via std::mutex.
 class SendspinTimeFilter {
  public:
-  SendspinTimeFilter(double process_std_dev, double forget_factor);
-  ~SendspinTimeFilter();
+  /// @brief Constructs a Kalman filter for time synchronization.
+  ///
+  /// @param process_std_dev Standard deviation of the offset process noise in microseconds, modeling clock jitter.
+  /// @param drift_process_std_dev Standard deviation of the drift process noise in microseconds/second, modeling
+  ///                              frequency wander.
+  /// @param forget_factor Forgetting factor (>1) applied to covariances when large residuals are detected.
+  ///                      Higher values enable faster recovery from disruptions but may reduce stability.
+  /// @param adaptive_cutoff Fraction of max_error (0-1) that triggers adaptive forgetting. Default 0.75.
+  ///                        When residual > adaptive_cutoff * max_error, forgetting is applied.
+  /// @param min_samples Minimum number of samples before adaptive forgetting is enabled. Default 100.
+  ///                    Building sufficient history before enabling forgetting improves stability.
+  /// @param drift_significance_threshold SNR threshold for applying drift compensation in time conversions.
+  /// Default 2.0.
+  ///                                     Drift is only used when drift² > threshold² * drift_covariance, ensuring
+  ///                                     the drift estimate is statistically significant before applying corrections.
+  SendspinTimeFilter(double process_std_dev, double drift_process_std_dev, double forget_factor,
+                     double adaptive_cutoff = 0.75, uint8_t min_samples = 100,
+                     double drift_significance_threshold = 2.0);
 
   /// @brief Processes a new time synchronization measurement through the Kalman filter.
   ///
@@ -43,7 +59,6 @@ class SendspinTimeFilter {
   /// drift model then correct using the new measurement. The measurement uncertainty is derived from the network
   /// round-trip delay.
   ///
-  /// @note Thread-safe when called concurrently with compute_server_time() or compute_client_time().
   /// @param measurement Computed offset from NTP-style exchange: ((T2-T1)+(T3-T4))/2 in microseconds.
   /// @param max_error Half the round-trip delay: ((T4-T1)-(T3-T2))/2, representing maximum measurement uncertainty in
   ///                  microseconds.
@@ -55,20 +70,18 @@ class SendspinTimeFilter {
   /// Applies the current offset and drift compensation to transform from client time domain to server time domain. The
   /// transformation accounts for both static offset and dynamic drift accumulated since the last filter update.
   ///
-  /// @note Not thread-safe when called concurrently with compute_client_time().
   /// @param client_time Client timestamp in microseconds.
   /// @return Equivalent server timestamp in microseconds.
-  int64_t compute_server_time(int64_t client_time);
+  int64_t compute_server_time(int64_t client_time) const;
 
   /// @brief Converts a server timestamp to the equivalent client timestamp.
   ///
   /// Inverts the time transformation to convert from server time domain to client time domain. Accounts for both offset
   /// and drift effects in the inverse transformation.
   ///
-  /// @note Not thread-safe when called concurrently with compute_server_time().
   /// @param server_time Server timestamp in microseconds.
   /// @return Equivalent client timestamp in microseconds.
-  int64_t compute_client_time(int64_t server_time);
+  int64_t compute_client_time(int64_t server_time) const;
 
   /// @brief Resets the filter to its initial uninitialized state.
   ///
@@ -76,28 +89,42 @@ class SendspinTimeFilter {
   /// re-establish synchronization.
   void reset();
 
-  int64_t get_error() const { return std::round(sqrt(this->offset_covariance_)); }
-  int64_t get_covariance() const { return std::round(this->offset_covariance_); }
+  /// @brief Returns the estimated standard deviation of the offset in microseconds.
+  ///
+  /// Provides a measure of the current synchronization accuracy by computing the square root of the offset covariance.
+  /// Smaller values indicate higher confidence in the time synchronization.
+  ///
+  /// @return Standard deviation of the offset estimate in microseconds.
+  int64_t get_error() const;
+
+  /// @brief Returns the offset variance in microseconds squared.
+  ///
+  /// Provides the raw variance value from the Kalman filter's covariance matrix. This represents the statistical
+  /// uncertainty in the offset estimate.
+  ///
+  /// @return Variance of the offset estimate in microseconds squared.
+  int64_t get_covariance() const;
 
  protected:
-  int64_t last_update_{0};
-  uint8_t count_{0};
+  int64_t last_update_;
 
-  double offset_{0.0};
-  double drift_{0.0};
+  double offset_;
+  double drift_;
 
-  double offset_covariance_{std::numeric_limits<double>::infinity()};
-  double offset_drift_covariance_{0.0};
-  double drift_covariance_{0.0};
+  double offset_covariance_;
+  double offset_drift_covariance_;
+  double drift_covariance_;
 
-  double process_variance_;
-  double forget_variance_factor_;
+  const double process_variance_;
+  const double drift_process_variance_;
+  const double forget_variance_factor_;
+  const double adaptive_forgetting_cutoff_;
+  const double drift_significance_threshold_squared_;
 
-  QueueHandle_t time_element_queue_;
-  TimeElement current_time_element_;
+  mutable esphome::Mutex state_mutex_;
+
+  bool use_drift_;
+  uint8_t count_;
+  const uint8_t min_samples_for_forgetting_;
 };
-
-}  // namespace sendspin
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::sendspin

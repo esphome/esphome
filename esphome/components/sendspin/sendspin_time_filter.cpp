@@ -1,31 +1,47 @@
-#if defined(USE_ESP_IDF)
+// Copyright 2025 Sendspin Contributors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 #include "sendspin_time_filter.h"
 
-namespace esphome {
-namespace sendspin {
+#include <cmath>
+#include <cstdint>
+#include <limits>
 
-// Residual threshold as fraction of max_error for triggering adaptive forgetting.
-// When residual > CUTOFF * max_error, the filter applies forgetting to recover from outliers.
-const double ADAPTIVE_FORGETTING_CUTOFF = 0.75;
+namespace esphome::sendspin {
 
-SendspinTimeFilter::SendspinTimeFilter(double process_std_dev, double forget_factor) {
-  this->process_variance_ = process_std_dev * process_std_dev;
-  this->forget_variance_factor_ = forget_factor * forget_factor;
-
-  // Thread-safe queue for atomic transfer of time transformation parameters
-  this->time_element_queue_ = xQueueCreate(1, sizeof(TimeElement));
-};
-
-SendspinTimeFilter::~SendspinTimeFilter() { vQueueDelete(this->time_element_queue_); };
+SendspinTimeFilter::SendspinTimeFilter(double process_std_dev, double drift_process_std_dev, double forget_factor,
+                                       double adaptive_cutoff, uint8_t min_samples, double drift_significance_threshold)
+    : process_variance_(process_std_dev * process_std_dev),
+      drift_process_variance_(drift_process_std_dev * drift_process_std_dev),
+      forget_variance_factor_(forget_factor * forget_factor),
+      adaptive_forgetting_cutoff_(adaptive_cutoff),
+      min_samples_for_forgetting_(min_samples),
+      drift_significance_threshold_squared_(drift_significance_threshold * drift_significance_threshold) {
+  this->reset();
+}
 
 void SendspinTimeFilter::update(int64_t measurement, int64_t max_error, int64_t time_added) {
-  if (time_added == this->last_update_) {
-    // Skip duplicate timestamps to avoid division by zero in drift calculation
+  esphome::LockGuard lock(this->state_mutex_);
+
+  if (time_added <= this->last_update_) {
+    // Skip non-monotonic timestamps (duplicates or out-of-order packets)
+    // This protects against division by zero and backwards time progression
     return;
   }
 
-  double dt = time_added - this->last_update_;
+  const double dt = time_added - this->last_update_;
+  const double dt_squared = dt * dt;
   this->last_update_ = time_added;
 
   const double update_std_dev = max_error;
@@ -39,9 +55,6 @@ void SendspinTimeFilter::update(int64_t measurement, int64_t max_error, int64_t 
     this->offset_covariance_ = measurement_variance;
     this->drift_ = 0;  // No drift information available yet
 
-    TimeElement time_element = {.last_update = this->last_update_, .offset = this->offset_, .drift = this->drift_};
-    xQueueOverwrite(this->time_element_queue_, &time_element);
-
     return;
   }
 
@@ -53,11 +66,8 @@ void SendspinTimeFilter::update(int64_t measurement, int64_t max_error, int64_t 
     this->offset_ = measurement;
 
     // Drift variance estimated from propagation of offset uncertainties
-    this->drift_covariance_ = (this->offset_covariance_ + measurement_variance) / dt;
+    this->drift_covariance_ = (this->offset_covariance_ + measurement_variance) / dt_squared;
     this->offset_covariance_ = measurement_variance;
-
-    TimeElement time_element = {.last_update = this->last_update_, .offset = this->offset_, .drift = this->drift_};
-    xQueueOverwrite(this->time_element_queue_, &time_element);
 
     return;
   }
@@ -68,15 +78,13 @@ void SendspinTimeFilter::update(int64_t measurement, int64_t max_error, int64_t 
 
   // Covariance prediction: P_k|k-1 = F * P_k-1|k-1 * F^T + Q
   // State transition matrix F = [1, dt; 0, 1]
-  const double dt_squared = dt * dt;
 
-  // Process noise only applied to offset (modeling clock jitter/wander)
-  const double drift_process_variance = 0.0;  // Drift assumed stable
+  // Process noise for both offset and drift (full random walk model)
+  // We assume clock jitter (offset noise) and wander (drift noise) are independent processes
+  const double drift_process_variance = dt * this->drift_process_variance_;
   double new_drift_covariance = this->drift_covariance_ + drift_process_variance;
 
-  const double offset_drift_process_variance = 0.0;
-  double new_offset_drift_covariance =
-      this->offset_drift_covariance_ + this->drift_covariance_ * dt + offset_drift_process_variance;
+  double new_offset_drift_covariance = this->offset_drift_covariance_ + this->drift_covariance_ * dt;
 
   const double offset_process_variance = dt * this->process_variance_;
   double new_offset_covariance = this->offset_covariance_ + 2 * this->offset_drift_covariance_ * dt +
@@ -84,9 +92,9 @@ void SendspinTimeFilter::update(int64_t measurement, int64_t max_error, int64_t 
 
   /*** Innovation and Adaptive Forgetting ***/
   const double residual = measurement - offset;  // Innovation: y_k = z_k - H * x_k|k-1
-  const double max_residual_cutoff = max_error * ADAPTIVE_FORGETTING_CUTOFF;
+  const double max_residual_cutoff = max_error * this->adaptive_forgetting_cutoff_;
 
-  if (this->count_ < 100) {
+  if (this->count_ < this->min_samples_for_forgetting_) {
     // Build sufficient history before enabling adaptive forgetting
     ++this->count_;
   } else if (std::abs(residual) > max_residual_cutoff) {
@@ -115,51 +123,57 @@ void SendspinTimeFilter::update(int64_t measurement, int64_t max_error, int64_t 
   this->offset_drift_covariance_ = new_offset_drift_covariance - drift_gain * new_offset_covariance;
   this->offset_covariance_ = new_offset_covariance - offset_gain * new_offset_covariance;
 
-  TimeElement time_element = {.last_update = this->last_update_, .offset = this->offset_, .drift = this->drift_};
-  xQueueOverwrite(this->time_element_queue_, &time_element);
+  // Update drift significance flag for time conversion methods
+  // Only apply drift compensation if statistically significant (SNR check)
+  const double drift_squared = this->drift_ * this->drift_;
+  this->use_drift_ = drift_squared > this->drift_significance_threshold_squared_ * this->drift_covariance_;
 }
 
-int64_t SendspinTimeFilter::compute_server_time(int64_t client_time) {
+int64_t SendspinTimeFilter::compute_server_time(int64_t client_time) const {
   // Transform: T_server = T_client + offset + drift * (T_client - T_last_update)
   // Compute instantaneous offset accounting for linear drift:
   // offset(t) = offset_base + drift * (t - t_last_update)
 
-  // Atomically retrieve latest time transformation parameters
-  xQueueReceive(this->time_element_queue_, &this->current_time_element_, 0);
+  esphome::LockGuard lock(this->state_mutex_);
+  const double dt = client_time - this->last_update_;
+  const double effective_drift = this->use_drift_ ? this->drift_ : 0.0;
 
-  const double dt = client_time - this->current_time_element_.last_update;
-  const int64_t offset = std::round(this->current_time_element_.offset + this->current_time_element_.drift * dt);
-
+  const int64_t offset = std::round(this->offset_ + effective_drift * dt);
   return client_time + offset;
 }
 
-int64_t SendspinTimeFilter::compute_client_time(int64_t server_time) {
+int64_t SendspinTimeFilter::compute_client_time(int64_t server_time) const {
   // Inverse transform solving for T_client:
   // T_server = T_client + offset + drift * (T_client - T_last_update)
   // T_server = (1 + drift) * T_client + offset - drift * T_last_update
   // T_client = (T_server - offset + drift * T_last_update) / (1 + drift)
 
-  // Atomically retrieve latest time transformation parameters
-  xQueueReceive(this->time_element_queue_, &this->current_time_element_, 0);
+  esphome::LockGuard lock(this->state_mutex_);
+  const double effective_drift = this->use_drift_ ? this->drift_ : 0.0;
 
-  return std::round((static_cast<double>(server_time) - this->current_time_element_.offset +
-                     this->current_time_element_.drift * this->current_time_element_.last_update) /
-                    (1.0 + this->current_time_element_.drift));
+  return std::round((static_cast<double>(server_time) - this->offset_ + effective_drift * this->last_update_) /
+                    (1.0 + effective_drift));
 }
 
 void SendspinTimeFilter::reset() {
+  esphome::LockGuard lock(this->state_mutex_);
   this->count_ = 0;
   this->offset_ = 0.0;
   this->drift_ = 0.0;
   this->offset_covariance_ = std::numeric_limits<double>::infinity();
   this->offset_drift_covariance_ = 0.0;
   this->drift_covariance_ = 0.0;
-
-  xQueueReset(this->time_element_queue_);
-  this->current_time_element_ = TimeElement();
+  this->last_update_ = 0;
+  this->use_drift_ = false;
 }
 
-}  // namespace sendspin
-}  // namespace esphome
+int64_t SendspinTimeFilter::get_error() const {
+  esphome::LockGuard lock(this->state_mutex_);
+  return std::round(sqrt(this->offset_covariance_));
+}
 
-#endif
+int64_t SendspinTimeFilter::get_covariance() const {
+  esphome::LockGuard lock(this->state_mutex_);
+  return std::round(this->offset_covariance_);
+}
+}  // namespace esphome::sendspin

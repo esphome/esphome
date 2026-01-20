@@ -62,7 +62,7 @@ void SendspinHub::setup() {
     this->mark_failed();
   }
 
-  this->time_filter_ = make_unique<SendspinTimeFilter>(this->kalman_process_error_, this->kalman_forget_factor_);
+  this->time_filter_ = make_unique<SendspinTimeFilter>(this->kalman_process_error_, 0.0, this->kalman_forget_factor_);
   if (this->time_filter_ == nullptr) {
     ESP_LOGE(TAG, "Couldn't create sendspin time filter.");
     this->mark_failed();
