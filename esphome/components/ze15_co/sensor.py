@@ -16,7 +16,7 @@ CONF_WARMUP_TIME = "warmup_time"
 
 ze15_ns = cg.esphome_ns.namespace("ze15_co")
 ZE15COComponent = ze15_ns.class_(
-    "ZE07COComponent", sensor.Sensor, cg.PollingComponent, uart.UARTDevice
+    "ZE15COComponent", sensor.Sensor, cg.PollingComponent, uart.UARTDevice
 )
 
 Mode = ze15_ns.enum("Mode")

@@ -7,8 +7,6 @@ namespace ze15_co {
 static const char *TAG = "ze15_co";
 static const uint8_t ZE15_CO_REQUEST_LENGTH = 8;
 static const uint8_t ZE15_CO_RESPONSE_LENGTH = 9;
-static const uint8_t ZE15_CO_COMMAND_SWITCH_MODE_TO_QA[] = {0xFF, 0x01, 0x78, 0x41, 0x00, 0x00, 0x00, 0x00};
-static const uint8_t ZE15_CO_COMMAND_SWITCH_MODE_TO_STREAM[] = {0xFF, 0x01, 0x78, 0x40, 0x00, 0x00, 0x00, 0x00};
 static const uint8_t ZE15_CO_COMMAND_QA_MODE_REQUEST_DATA[] = {0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 
@@ -18,25 +16,6 @@ uint8_t ze15_co_checksum(const uint8_t *command) {
         sum += command[i];
     }
     return  0xFF - sum + 0x01;
-}
-
-void ZE15COComponent::setup() {
-    ESP_LOGD(TAG, "Setting up ZE15-CO Sensor...");
-
-    // Clear RX Buffer
-    while (available()) {
-        read();
-    }
-
-    if (mode_ == QA) {
-        ESP_LOGD(TAG, "Configuring sensor in QA mode");
-        this->ze15_co_write_command_(ZE15_CO_COMMAND_SWITCH_MODE_TO_QA, nullptr);
-    } else if (mode_ == STREAM){
-        ESP_LOGD(TAG, "Configuring sensor in STREAM mode");
-        this->ze15_co_write_command_(ZE15_CO_COMMAND_SWITCH_MODE_TO_STREAM, nullptr);
-    } else {
-        ESP_LOGW(TAG, "Invalid mode");
-    }
 }
 
 void ZE15COComponent::update() {
