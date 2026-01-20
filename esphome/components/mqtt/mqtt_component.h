@@ -81,8 +81,6 @@ class MQTTComponent : public Component {
   /// Override setup_ so that we can call send_discovery() when needed.
   void call_setup() override;
 
-  void call_loop() override;
-
   void call_dump_config() override;
 
   /// Send discovery info the Home Assistant, override this.
@@ -132,6 +130,9 @@ class MQTTComponent : public Component {
 
   /// Internal method for the MQTT client base to schedule a resend of the state on reconnect.
   void schedule_resend_state();
+
+  /// Process pending resend if needed (called by MQTTClientComponent)
+  void process_resend();
 
   /** Send a MQTT message.
    *
