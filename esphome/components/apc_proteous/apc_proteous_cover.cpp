@@ -6,6 +6,14 @@ namespace esphome {
 namespace apc_proteous {
 
 static const char *const TAG = "apc_proteous.cover";
+static const char *START_CMD = "*1\r";
+static const char *START_PARTIAL_CMD = "*2\r";
+static const char *AUX1_CMD = "*4\r";
+static const char *AUX2_CMD = "*5\r";
+static const char *OPEN_CMD = "*6\r";
+static const char *CLOSE_CMD = "*7\r";
+static const char *QUERY_S = "?s\r";
+static const char *QUERY_X = "?x\r";
 
 using namespace esphome::cover;
 
@@ -107,7 +115,7 @@ void APCProteousCover::parse_response_() {
             (this->current_operation == COVER_OPERATION_CLOSING && this->position <= this->target_position_)) {
           // Send stop command
           ESP_LOGD(TAG, "Target position %.2f reached, sending stop command", this->target_position_);
-          this->write_str("*1\r");
+          this->write_str(START_CMD);
           this->current_operation = COVER_OPERATION_IDLE;
         }
       }
@@ -124,9 +132,9 @@ void APCProteousCover::parse_response_() {
 void APCProteousCover::update() {
   // Alternate between querying s-status and x-status
   if (this->query_s_next_) {
-    this->write_str("?s\r");
+    this->write_str(QUERY_S);
   } else {
-    this->write_str("?x\r");
+    this->write_str(QUERY_X);
   }
   this->query_s_next_ = !this->query_s_next_;
 }
@@ -149,9 +157,11 @@ void APCProteousCover::control(const CoverCall &call) {
   if (call.get_stop()) {
     // Send stop/start command
     ESP_LOGD(TAG, "Sending stop command");
-    this->write_str("*1\r");
-    this->current_operation = COVER_OPERATION_IDLE;
-    this->publish_state();
+    if (this->current_operation != COVER_OPERATION_IDLE) {
+      this->write_str(START_CMD);
+      this->current_operation = COVER_OPERATION_IDLE;
+      this->publish_state();
+    }
   } else if (call.get_position().has_value()) {
     float target_position = *call.get_position();
     this->target_position_ = target_position;
@@ -161,12 +171,12 @@ void APCProteousCover::control(const CoverCall &call) {
     if (target_position == COVER_OPEN) {
       // Fully open
       ESP_LOGD(TAG, "Sending open command");
-      this->write_str("*6\r");
+      this->write_str(OPEN_CMD);
       this->current_operation = COVER_OPERATION_OPENING;
     } else if (target_position == COVER_CLOSED) {
       // Fully close
       ESP_LOGD(TAG, "Sending close command");
-      this->write_str("*7\r");
+      this->write_str(CLOSE_CMD);
       this->current_operation = COVER_OPERATION_CLOSING;
     } else {
       // Partial position - open or close to approximate position
@@ -174,16 +184,17 @@ void APCProteousCover::control(const CoverCall &call) {
       // open/close and monitor the position, then send stop when reached
       if (target_position > this->position) {
         ESP_LOGD(TAG, "Sending open command (target partial position)");
-        this->write_str("*6\r");
+        this->write_str(OPEN_CMD);
         this->current_operation = COVER_OPERATION_OPENING;
       } else if (target_position < this->position) {
         ESP_LOGD(TAG, "Sending close command (target partial position)");
-        this->write_str("*7\r");
+        this->write_str(START_CMD);
         this->current_operation = COVER_OPERATION_CLOSING;
       }
     }
-
     this->publish_state();
+  } else if (call.get_toggle()) {
+    this->write_str(START_CMD);
   }
 }
 
