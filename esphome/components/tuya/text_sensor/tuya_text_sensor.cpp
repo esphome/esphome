@@ -24,7 +24,7 @@ void TuyaTextSensor::setup() {
       }
       case TuyaDatapointType::ENUM: {
         char buf[4];  // uint8_t max is 3 digits + null
-        snprintf(buf, sizeof(buf), "%u", datapoint.value_enum);
+        buf_append_printf(buf, sizeof(buf), 0, "%u", datapoint.value_enum);
         ESP_LOGD(TAG, "MCU reported text sensor %u is: %s", datapoint.id, buf);
         this->publish_state(buf);
         break;
