@@ -83,14 +83,14 @@ template<typename... Ts> class ResetAction : public Action<Ts...> {
 };
 
 template<typename... Ts> class SetValueAction : public Action<Ts...> {
-public:
-	SetValueAction(IntegrationSensor *parent) : parent_(parent) {}
-	TEMPLATABLE_VALUE(double, value)
+ public:
+  SetValueAction(IntegrationSensor *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(double, value)
 
-	void play(const Ts &...x) override { this->parent_->set_value(this->value_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->set_value(this->value_.value(x...)); }
 
-protected:
-	IntegrationSensor *parent_;
+ protected:
+  IntegrationSensor *parent_;
 };
 
 }  // namespace integration
