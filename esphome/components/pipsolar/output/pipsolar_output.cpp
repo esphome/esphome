@@ -8,7 +8,7 @@ namespace pipsolar {
 static const char *const TAG = "pipsolar.output";
 
 void PipsolarOutput::write_state(float state) {
-  char tmp[10];
+  char tmp[16];
   snprintf(tmp, sizeof(tmp), this->set_command_, state);
 
   if (std::find(this->possible_values_.begin(), this->possible_values_.end(), state) != this->possible_values_.end()) {
