@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_TASK_STACK_IN_PSRAM,
     PLATFORM_ESP32,
 )
-from esphome.core import CORE
 
 # json handles server messages, mdns for autodiscovering, media player for stream commands (for now is autoloaded), psram for memory
 AUTO_LOAD = ["json", "mdns", "media_player", "psram"]
@@ -65,9 +64,7 @@ CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(SendspinHub),
-            cv.SplitDefault(CONF_TASK_STACK_IN_PSRAM, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
-            ),
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM, default=False): cv.boolean,
             cv.Optional(CONF_KALMAN_PROCESS_ERROR, default=0.01): cv.float_,
             cv.Optional(CONF_KALMAN_FORGET_FACTOR, default=1.001): cv.float_,
             cv.Optional(CONF_BUFFER_SIZE): cv.invalid(
@@ -76,7 +73,6 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.only_on([PLATFORM_ESP32]),
-    cv.only_with_esp_idf,  # TODO: Is this still necessary in recent versions of ESPHome?
     _request_high_performance_networking,
 )
 
@@ -88,19 +84,14 @@ async def to_code(config):
 
     # TODO: Opus should be included with the audio component. We should also only define FLAC support if we have components that require the audio stream
     cg.add_define("USE_AUDIO_FLAC_SUPPORT", True)
-    if CORE.using_esp_idf:
-        esp32.add_idf_component(
-            name="micro-opus",
-            repo="https://github.com/esphome-libs/micro-opus.git",
-            ref="v0.3.0",
-        )
-
-    # High performance networking is automatically configured via network.require_high_performance_networking()
-    # called in CONFIG_SCHEMA validation. WiFi and lwip settings are applied by the wifi and network components.
+    esp32.add_idf_component(
+        name="micro-opus",
+        repo="https://github.com/esphome-libs/micro-opus.git",
+        ref="v0.3.0",
+    )
 
     # Enable WebSocket support for the Sendspin HTTP server
-    if CORE.using_esp_idf:
-        esp32.add_idf_sdkconfig_option("CONFIG_HTTPD_WS_SUPPORT", True)
+    esp32.add_idf_sdkconfig_option("CONFIG_HTTPD_WS_SUPPORT", True)
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
