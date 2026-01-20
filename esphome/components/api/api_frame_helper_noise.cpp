@@ -3,6 +3,7 @@
 #ifdef USE_API_NOISE
 #include "api_connection.h"  // For ClientInfo struct
 #include "esphome/core/application.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -267,17 +268,19 @@ APIError APINoiseFrameHelper::state_action_() {
     size_t mac_offset = name_offset + name_len;
     size_t total_size = 1 + name_len + mac_len;
 
-    auto msg = std::make_unique<uint8_t[]>(total_size);
+    // 1 (proto) + name + null + mac + null
+    constexpr size_t max_msg_size = 1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + mac_len;
+    uint8_t msg[max_msg_size];
 
     // chosen proto
     msg[0] = 0x01;
 
     // node name, terminated by null byte
-    std::memcpy(msg.get() + name_offset, name.c_str(), name_len);
+    std::memcpy(msg + name_offset, name.c_str(), name_len);
     // node mac, terminated by null byte
-    std::memcpy(msg.get() + mac_offset, mac, mac_len);
+    std::memcpy(msg + mac_offset, mac, mac_len);
 
-    aerr = write_frame_(msg.get(), total_size);
+    aerr = write_frame_(msg, total_size);
     if (aerr != APIError::OK)
       return aerr;
 
@@ -353,35 +356,31 @@ APIError APINoiseFrameHelper::state_action_() {
   return APIError::OK;
 }
 void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reason) {
+  // Max reject message: "Bad handshake packet len" (24) + 1 (failure byte) = 25 bytes
+  uint8_t data[32];
+  data[0] = 0x01;  // failure
+
 #ifdef USE_STORE_LOG_STR_IN_FLASH
   // On ESP8266 with flash strings, we need to use PROGMEM-aware functions
   size_t reason_len = strlen_P(reinterpret_cast<PGM_P>(reason));
-  size_t data_size = reason_len + 1;
-  auto data = std::make_unique<uint8_t[]>(data_size);
-  data[0] = 0x01;  // failure
-
-  // Copy error message from PROGMEM
   if (reason_len > 0) {
-    memcpy_P(data.get() + 1, reinterpret_cast<PGM_P>(reason), reason_len);
+    memcpy_P(data + 1, reinterpret_cast<PGM_P>(reason), reason_len);
   }
 #else
   // Normal memory access
   const char *reason_str = LOG_STR_ARG(reason);
   size_t reason_len = strlen(reason_str);
-  size_t data_size = reason_len + 1;
-  auto data = std::make_unique<uint8_t[]>(data_size);
-  data[0] = 0x01;  // failure
-
-  // Copy error message in bulk
   if (reason_len > 0) {
-    std::memcpy(data.get() + 1, reason_str, reason_len);
+    std::memcpy(data + 1, reason_str, reason_len);
   }
 #endif
+
+  size_t data_size = reason_len + 1;
 
   // temporarily remove failed state
   auto orig_state = state_;
   state_ = State::EXPLICIT_REJECT;
-  write_frame_(data.get(), data_size);
+  write_frame_(data, data_size);
   state_ = orig_state;
 }
 APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
