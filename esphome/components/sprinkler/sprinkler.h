@@ -504,7 +504,7 @@ class Sprinkler : public Component {
   uint32_t start_delay_{0};
   uint32_t stop_delay_{0};
 
-  const char *name_;
+  const char *name_{""};
 
   /// Sprinkler controller state
   SprinklerState state_{IDLE};
