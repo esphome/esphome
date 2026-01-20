@@ -68,7 +68,7 @@ void MQTTClientComponent::setup() {
         2);
 
     // Format topic on stack - subscribe() copies it
-    // "esphome/ping/" (13) + name (31) + null (1) = 45
+    // "esphome/ping/" (13) + name (ESPHOME_DEVICE_NAME_MAX_LEN) + null (1)
     constexpr size_t ping_topic_buffer_size = 13 + ESPHOME_DEVICE_NAME_MAX_LEN + 1;
     char ping_topic[ping_topic_buffer_size];
     buf_append_printf(ping_topic, sizeof(ping_topic), 0, "esphome/ping/%s", App.get_name().c_str());
@@ -86,7 +86,7 @@ void MQTTClientComponent::send_device_info_() {
     return;
   }
   // Format topic on stack to avoid heap allocation
-  // "esphome/discover/" (17) + name (31) + null (1) = 49
+  // "esphome/discover/" (17) + name (ESPHOME_DEVICE_NAME_MAX_LEN) + null (1)
   constexpr size_t topic_buffer_size = 17 + ESPHOME_DEVICE_NAME_MAX_LEN + 1;
   char topic[topic_buffer_size];
   buf_append_printf(topic, sizeof(topic), 0, "esphome/discover/%s", App.get_name().c_str());
