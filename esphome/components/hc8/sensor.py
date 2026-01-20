@@ -10,11 +10,10 @@ from esphome.const import (
     ICON_MOLECULE_CO2,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
+    CONF_WARMUP_TIME,
 )
 
 DEPENDENCIES = ["uart"]
-
-CONF_WARMUP_TIME = "warmup_time"
 
 hc8_ns = cg.esphome_ns.namespace("hc8")
 HC8Component = hc8_ns.class_("HC8Component", cg.PollingComponent, uart.UARTDevice)

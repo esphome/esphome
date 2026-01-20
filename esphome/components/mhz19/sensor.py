@@ -13,12 +13,12 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PARTS_PER_MILLION,
+    CONF_WARMUP_TIME,
 )
 
 DEPENDENCIES = ["uart"]
 
 CONF_AUTOMATIC_BASELINE_CALIBRATION = "automatic_baseline_calibration"
-CONF_WARMUP_TIME = "warmup_time"
 CONF_DETECTION_RANGE = "detection_range"
 
 mhz19_ns = cg.esphome_ns.namespace("mhz19")
