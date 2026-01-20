@@ -1430,16 +1430,23 @@ template<typename... X> class LazyCallbackManager;
  * - CallbackManager: 12 bytes (empty std::vector)
  * - LazyCallbackManager: 4 bytes (nullptr pointer)
  *
- * Note: Uses plain pointer instead of unique_ptr since callbacks are never freed
- * (entities live for device lifetime). This avoids destructor template overhead.
+ * Uses plain pointer instead of unique_ptr to avoid template instantiation overhead.
+ * The class is explicitly non-copyable/non-movable for Rule of Five compliance.
  *
  * @tparam Ts The arguments for the callbacks, wrapped in void().
  */
 template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
  public:
+  LazyCallbackManager() = default;
   /// Destructor - clean up allocated CallbackManager if any.
   /// In practice this never runs (entities live for device lifetime) but included for correctness.
   ~LazyCallbackManager() { delete this->callbacks_; }
+
+  // Non-copyable and non-movable (entities are never copied or moved)
+  LazyCallbackManager(const LazyCallbackManager &) = delete;
+  LazyCallbackManager &operator=(const LazyCallbackManager &) = delete;
+  LazyCallbackManager(LazyCallbackManager &&) = delete;
+  LazyCallbackManager &operator=(LazyCallbackManager &&) = delete;
 
   /// Add a callback to the list. Allocates the underlying CallbackManager on first use.
   void add(std::function<void(Ts...)> &&callback) {
