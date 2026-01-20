@@ -371,6 +371,7 @@ void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reaso
   const char *reason_str = LOG_STR_ARG(reason);
   size_t reason_len = strlen(reason_str);
   if (reason_len > 0) {
+    // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - binary protocol, not a C string
     std::memcpy(data + 1, reason_str, reason_len);
   }
 #endif
