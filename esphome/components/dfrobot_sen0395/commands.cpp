@@ -127,7 +127,9 @@ DetRangeCfgCommand::DetRangeCfgCommand(float min1, float max1, float min2, float
     this->min2_ = min2 = this->max2_ = max2 = this->min3_ = min3 = this->max3_ = max3 = this->min4_ = min4 =
         this->max4_ = max4 = -1;
 
-    this->cmd_ = str_sprintf("detRangeCfg -1 %.0f %.0f", min1 / 0.15, max1 / 0.15);
+    char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
+    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f", min1 / 0.15, max1 / 0.15);
+    this->cmd_ = buf;
   } else if (min3 < 0 || max3 < 0) {
     this->min1_ = min1 = round(min1 / 0.15) * 0.15;
     this->max1_ = max1 = round(max1 / 0.15) * 0.15;
@@ -135,7 +137,10 @@ DetRangeCfgCommand::DetRangeCfgCommand(float min1, float max1, float min2, float
     this->max2_ = max2 = round(max2 / 0.15) * 0.15;
     this->min3_ = min3 = this->max3_ = max3 = this->min4_ = min4 = this->max4_ = max4 = -1;
 
-    this->cmd_ = str_sprintf("detRangeCfg -1 %.0f %.0f %.0f %.0f", min1 / 0.15, max1 / 0.15, min2 / 0.15, max2 / 0.15);
+    char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
+    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f", min1 / 0.15, max1 / 0.15, min2 / 0.15,
+             max2 / 0.15);
+    this->cmd_ = buf;
   } else if (min4 < 0 || max4 < 0) {
     this->min1_ = min1 = round(min1 / 0.15) * 0.15;
     this->max1_ = max1 = round(max1 / 0.15) * 0.15;
@@ -145,9 +150,10 @@ DetRangeCfgCommand::DetRangeCfgCommand(float min1, float max1, float min2, float
     this->max3_ = max3 = round(max3 / 0.15) * 0.15;
     this->min4_ = min4 = this->max4_ = max4 = -1;
 
-    this->cmd_ = str_sprintf("detRangeCfg -1 "
-                             "%.0f %.0f %.0f %.0f %.0f %.0f",
-                             min1 / 0.15, max1 / 0.15, min2 / 0.15, max2 / 0.15, min3 / 0.15, max3 / 0.15);
+    char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
+    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f %.0f %.0f", min1 / 0.15, max1 / 0.15, min2 / 0.15,
+             max2 / 0.15, min3 / 0.15, max3 / 0.15);
+    this->cmd_ = buf;
   } else {
     this->min1_ = min1 = round(min1 / 0.15) * 0.15;
     this->max1_ = max1 = round(max1 / 0.15) * 0.15;
@@ -158,10 +164,10 @@ DetRangeCfgCommand::DetRangeCfgCommand(float min1, float max1, float min2, float
     this->min4_ = min4 = round(min4 / 0.15) * 0.15;
     this->max4_ = max4 = round(max4 / 0.15) * 0.15;
 
-    this->cmd_ = str_sprintf("detRangeCfg -1 "
-                             "%.0f %.0f %.0f %.0f %.0f %.0f %.0f %.0f",
-                             min1 / 0.15, max1 / 0.15, min2 / 0.15, max2 / 0.15, min3 / 0.15, max3 / 0.15, min4 / 0.15,
-                             max4 / 0.15);
+    char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
+    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f %.0f %.0f %.0f %.0f", min1 / 0.15, max1 / 0.15,
+             min2 / 0.15, max2 / 0.15, min3 / 0.15, max3 / 0.15, min4 / 0.15, max4 / 0.15);
+    this->cmd_ = buf;
   }
 
   this->min1_ = min1;
@@ -203,7 +209,10 @@ SetLatencyCommand::SetLatencyCommand(float delay_after_detection, float delay_af
   delay_after_disappear = std::round(delay_after_disappear / 0.025f) * 0.025f;
   this->delay_after_detection_ = clamp(delay_after_detection, 0.0f, 1638.375f);
   this->delay_after_disappear_ = clamp(delay_after_disappear, 0.0f, 1638.375f);
-  this->cmd_ = str_sprintf("setLatency %.03f %.03f", this->delay_after_detection_, this->delay_after_disappear_);
+  // max 32: "setLatency "(11) + float(8) + " "(1) + float(8) + null, rounded to 32
+  char buf[32];
+  snprintf(buf, sizeof(buf), "setLatency %.03f %.03f", this->delay_after_detection_, this->delay_after_disappear_);
+  this->cmd_ = buf;
 };
 
 uint8_t SetLatencyCommand::on_message(std::string &message) {

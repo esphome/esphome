@@ -28,8 +28,9 @@ static const char *const TAG = "mqtt";
 
 MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
-  const std::string mac_addr = get_mac_address();
-  this->credentials_.client_id = make_name_with_suffix(App.get_name(), '-', mac_addr.c_str(), mac_addr.size());
+  char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
+  get_mac_address_into_buffer(mac_addr);
+  this->credentials_.client_id = make_name_with_suffix(App.get_name(), '-', mac_addr, MAC_ADDRESS_BUFFER_SIZE - 1);
 }
 
 // Connection
@@ -102,7 +103,9 @@ void MQTTClientComponent::send_device_info_() {
         root[ESPHOME_F("port")] = api::global_api_server->get_port();
 #endif
         root[ESPHOME_F("version")] = ESPHOME_VERSION;
-        root[ESPHOME_F("mac")] = get_mac_address();
+        char mac_buf[MAC_ADDRESS_BUFFER_SIZE];
+        get_mac_address_into_buffer(mac_buf);
+        root[ESPHOME_F("mac")] = mac_buf;
 
 #ifdef USE_ESP8266
         root[ESPHOME_F("platform")] = ESPHOME_F("ESP8266");
@@ -632,7 +635,8 @@ void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
 void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix) {
   if (App.is_name_add_mac_suffix_enabled() && (topic_prefix == check_topic_prefix)) {
-    this->topic_prefix_ = str_sanitize(App.get_name());
+    char buf[ESPHOME_DEVICE_NAME_MAX_LEN + 1];
+    this->topic_prefix_ = str_sanitize_to(buf, App.get_name().c_str());
   } else {
     this->topic_prefix_ = topic_prefix;
   }
