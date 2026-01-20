@@ -214,13 +214,8 @@ async def to_code(config):
     else:
         cg.add(var.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
 
-        # Enable SPDIF mode if requested
-        if config.get(CONF_SPDIF_MODE, False):
-            cg.add_define("USE_I2S_AUDIO_SPDIF_MODE")
-            cg.add(var.set_spdif_mode(True))
-            cg.add(var.set_fill_silence(config[CONF_FILL_SILENCE]))
-        elif use_legacy():
-            # Standard I2S mode
+        # Set communication format based on driver type
+        if use_legacy():
             cg.add(
                 var.set_i2s_comm_fmt(I2C_COMM_FMT_OPTIONS[config[CONF_I2S_COMM_FMT]])
             )
@@ -231,6 +226,13 @@ async def to_code(config):
             elif config[CONF_I2S_COMM_FMT] in ["stand_pcm_short", "pcm_short", "pcm"]:
                 fmt = "pcm"
             cg.add(var.set_i2s_comm_fmt(fmt))
+
+        # Enable SPDIF mode if requested
+        if config.get(CONF_SPDIF_MODE, False):
+            cg.add_define("USE_I2S_AUDIO_SPDIF_MODE")
+            cg.add(var.set_spdif_mode(True))
+            cg.add(var.set_fill_silence(config[CONF_FILL_SILENCE]))
+
     if config[CONF_TIMEOUT] != CONF_NEVER:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_buffer_duration(config[CONF_BUFFER_DURATION]))
