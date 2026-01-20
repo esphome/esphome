@@ -610,18 +610,10 @@ static bool topic_match(const char *message, const char *subscription) {
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
-#ifdef USE_ESP8266
-  // on ESP8266, this is called in lwIP/AsyncTCP task; some components do not like running
-  // from a different task.
-  this->defer([this, topic, payload]() {
-#endif
-    for (auto &subscription : this->subscriptions_) {
-      if (topic_match(topic.c_str(), subscription.topic.c_str()))
-        subscription.callback(topic, payload);
-    }
-#ifdef USE_ESP8266
-  });
-#endif
+  for (auto &subscription : this->subscriptions_) {
+    if (topic_match(topic.c_str(), subscription.topic.c_str()))
+      subscription.callback(topic, payload);
+  }
 }
 
 // Setters
