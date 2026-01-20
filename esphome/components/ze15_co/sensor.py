@@ -1,11 +1,11 @@
 import esphome.codegen as cg
-from esphome.components import uart, sensor
+from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
-    UNIT_PARTS_PER_MILLION,
-    STATE_CLASS_MEASUREMENT,
-    DEVICE_CLASS_CARBON_MONOXIDE,
     CONF_MODE,
+    DEVICE_CLASS_CARBON_MONOXIDE,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_PARTS_PER_MILLION,
 )
 
 DEPENDENCIES = ["uart"]
@@ -25,7 +25,7 @@ MODE = {
     "stream": Mode.STREAM,
 }
 
-CONFIG_SCHEMA = cv.All( 
+CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         ZE15COComponent,
         unit_of_measurement=UNIT_PARTS_PER_MILLION,
@@ -37,7 +37,9 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.Optional(CONF_MODE, default="qa"): cv.enum(MODE),
-            cv.Optional(CONF_WARMUP_TIME, default="30s"): cv.positive_time_period_seconds
+            cv.Optional(
+                CONF_WARMUP_TIME, default="30s"
+            ): cv.positive_time_period_seconds,
         }
     )
     .extend(cv.polling_component_schema("60s"))
