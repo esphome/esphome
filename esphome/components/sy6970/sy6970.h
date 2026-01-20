@@ -83,7 +83,7 @@ class SY6970Component : public PollingComponent, public i2c::I2CDevice {
   // Listener registration
   void add_listener(SY6970Listener *listener) { this->listeners_.push_back(listener); }
 
-  // Configuration methods
+  // Configuration methods to be called from lambdas
   void set_input_current_limit(uint16_t milliamps);
   void set_charge_target_voltage(uint16_t millivolts);
   void set_precharge_current(uint16_t milliamps);
@@ -92,6 +92,9 @@ class SY6970Component : public PollingComponent, public i2c::I2CDevice {
   void set_led_enabled(bool enabled);
   void enable_adc_measure();
 
+  // Action methods to be called from config
+  void led_enabled_action_handler(bool enabled);
+
  protected:
   bool read_all_registers_();
   bool write_register_(uint8_t reg, uint8_t value);
@@ -99,6 +102,11 @@ class SY6970Component : public PollingComponent, public i2c::I2CDevice {
 
   SY6970Data data_{};
   std::vector<SY6970Listener *> listeners_;
+
+  // if an action has been requested to set LED state during setup
+  bool led_enabled_requested_{false};
+  // the requested LED state to set from config
+  bool led_enabled_requested_state_{true};
 };
 
 }  // namespace esphome::sy6970
