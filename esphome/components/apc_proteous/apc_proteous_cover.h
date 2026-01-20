@@ -17,6 +17,9 @@ class APCProteousCover : public cover::Cover, public PollingComponent, public ua
   cover::CoverTraits get_traits() override;
 
  protected:
+  void open_cmd_();
+  void close_cmd_();
+  void stop_cmd_();
   void control(const cover::CoverCall &call) override;
   void parse_response_();
 

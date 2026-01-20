@@ -115,8 +115,7 @@ void APCProteousCover::parse_response_() {
             (this->current_operation == COVER_OPERATION_CLOSING && this->position <= this->target_position_)) {
           // Send stop command
           ESP_LOGD(TAG, "Target position %.2f reached, sending stop command", this->target_position_);
-          this->write_str(START_CMD);
-          this->current_operation = COVER_OPERATION_IDLE;
+          this->stop_cmd_();
         }
       }
     }
@@ -153,15 +152,39 @@ CoverTraits APCProteousCover::get_traits() {
   return traits;
 }
 
+void APCProteousCover::open_cmd_() {
+  if (this->current_operation != COVER_OPERATION_OPENING) {
+    ESP_LOGD(TAG, "Sending open command");
+    this->write_str(OPEN_CMD);
+    this->current_operation = COVER_OPERATION_OPENING;
+    this->publish_state();
+  }
+}
+
+void APCProteousCover::close_cmd_() {
+  if (this->current_operation != COVER_OPERATION_CLOSING) {
+    ESP_LOGD(TAG, "Sending close command");
+    this->write_str(CLOSE_CMD);
+    this->current_operation = COVER_OPERATION_CLOSING;
+    this->publish_state();
+  }
+}
+
+void APCProteousCover::stop_cmd_() {
+  ESP_LOGD(TAG, "Sending stop command");
+  if (this->current_operation == COVER_OPERATION_IDLE) {
+    ESP_LOGD(TAG, "Cover already idle, ignoring stop command");
+    return;
+  }
+  this->write_str(START_CMD);
+  this->current_operation = COVER_OPERATION_IDLE;
+  this->publish_state();
+}
+
 void APCProteousCover::control(const CoverCall &call) {
   if (call.get_stop()) {
     // Send stop/start command
-    ESP_LOGD(TAG, "Sending stop command");
-    if (this->current_operation != COVER_OPERATION_IDLE) {
-      this->write_str(START_CMD);
-      this->current_operation = COVER_OPERATION_IDLE;
-      this->publish_state();
-    }
+    this->stop_cmd_();
   } else if (call.get_position().has_value()) {
     float target_position = *call.get_position();
     this->target_position_ = target_position;
@@ -170,29 +193,23 @@ void APCProteousCover::control(const CoverCall &call) {
 
     if (target_position == COVER_OPEN) {
       // Fully open
-      ESP_LOGD(TAG, "Sending open command");
-      this->write_str(OPEN_CMD);
-      this->current_operation = COVER_OPERATION_OPENING;
+      this->open_cmd_();
     } else if (target_position == COVER_CLOSED) {
       // Fully close
       ESP_LOGD(TAG, "Sending close command");
-      this->write_str(CLOSE_CMD);
-      this->current_operation = COVER_OPERATION_CLOSING;
+      this->close_cmd_();
     } else {
       // Partial position - open or close to approximate position
       // Since we don't have direct position control, we'll need to
       // open/close and monitor the position, then send stop when reached
       if (target_position > this->position) {
         ESP_LOGD(TAG, "Sending open command (target partial position)");
-        this->write_str(OPEN_CMD);
-        this->current_operation = COVER_OPERATION_OPENING;
+        this->open_cmd_();
       } else if (target_position < this->position) {
         ESP_LOGD(TAG, "Sending close command (target partial position)");
-        this->write_str(START_CMD);
-        this->current_operation = COVER_OPERATION_CLOSING;
+        this->close_cmd_();
       }
     }
-    this->publish_state();
   } else if (call.get_toggle()) {
     this->write_str(START_CMD);
   }
