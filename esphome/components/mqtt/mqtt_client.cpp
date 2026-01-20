@@ -538,6 +538,7 @@ bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t
   if (!logging_topic) {
     if (ret) {
       ESP_LOGV(TAG, "Publish(topic='%s' retain=%d qos=%d)", topic, retain, qos);
+      ESP_LOGVV(TAG, "Publish payload (len=%u): '%.*s'", payload_length, static_cast<int>(payload_length), payload);
     } else {
       ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). Will retry", topic, payload_length);
       this->status_momentary_warning("publish", 1000);
