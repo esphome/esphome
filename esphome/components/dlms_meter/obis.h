@@ -4,10 +4,7 @@
 
 namespace esphome::dlms_meter {
 
-/*
- * Data types as per specification
- */
-
+// Data types as per specification
 enum DataType {
   NULL_DATA = 0x00,
   BOOLEAN = 0x03,
@@ -73,18 +70,11 @@ enum CodeType {
 
 enum Accuracy { SINGLE_DIGIT = 0xFF, DOUBLE_DIGIT = 0xFE };
 
-/*
- * Data structure
- */
-
-static constexpr uint8_t DECODER_START_OFFSET =
-    20;  // Offset for start of OBIS decoding, skip header, timestamp and break block
-
+// Data structure
+static constexpr uint8_t DECODER_START_OFFSET = 20;  // Skip header, timestamp and break block
 static constexpr uint8_t OBIS_TYPE_OFFSET = 0;
 static constexpr uint8_t OBIS_LENGTH_OFFSET = 1;
-
 static constexpr uint8_t OBIS_CODE_OFFSET = 2;
-
 static constexpr uint8_t OBIS_A = 0;
 static constexpr uint8_t OBIS_B = 1;
 static constexpr uint8_t OBIS_C = 2;
@@ -92,62 +82,34 @@ static constexpr uint8_t OBIS_D = 3;
 static constexpr uint8_t OBIS_E = 4;
 static constexpr uint8_t OBIS_F = 5;
 
-/*
- * Metadata
- */
-
+// Metadata
 static constexpr uint8_t ESPDM_TIMESTAMP[]{0x01, 0x00};
-
 static constexpr uint8_t ESPDM_SERIAL_NUMBER[]{0x60, 0x01};
-
 static constexpr uint8_t ESPDM_DEVICE_NAME[]{0x2A, 0x00};
 
-/*
- * Voltage
- */
-
+// Voltage
 static constexpr uint8_t ESPDM_VOLTAGE_L1[]{0x20, 0x07};
-
 static constexpr uint8_t ESPDM_VOLTAGE_L2[]{0x34, 0x07};
-
 static constexpr uint8_t ESPDM_VOLTAGE_L3[]{0x48, 0x07};
 
-/*
- * Current
- */
-
+// Current
 static constexpr uint8_t ESPDM_CURRENT_L1[]{0x1F, 0x07};
-
 static constexpr uint8_t ESPDM_CURRENT_L2[]{0x33, 0x07};
-
 static constexpr uint8_t ESPDM_CURRENT_L3[]{0x47, 0x07};
 
-/*
- * Power
- */
-
+// Power
 static constexpr uint8_t ESPDM_ACTIVE_POWER_PLUS[]{0x01, 0x07};
-
 static constexpr uint8_t ESPDM_ACTIVE_POWER_MINUS[]{0x02, 0x07};
 
-/*
- * Active energy
- */
-
+// Active energy
 static constexpr uint8_t ESPDM_ACTIVE_ENERGY_PLUS[]{0x01, 0x08};
 static constexpr uint8_t ESPDM_ACTIVE_ENERGY_MINUS[]{0x02, 0x08};
 
-/*
- * Reactive energy
- */
-
+// Reactive energy
 static constexpr uint8_t ESPDM_REACTIVE_ENERGY_PLUS[]{0x03, 0x08};
 static constexpr uint8_t ESPDM_REACTIVE_ENERGY_MINUS[]{0x04, 0x08};
 
-/*
- * Netz NOE Special
- */
-
+// Netz NOE specific
 static constexpr uint8_t ESPDM_POWER_FACTOR[]{0x0D, 0x07};
 
 }  // namespace esphome::dlms_meter

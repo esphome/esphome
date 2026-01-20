@@ -69,14 +69,9 @@ void DlmsMeterComponent::loop() {
 }
 
 bool DlmsMeterComponent::parse_mbus_(std::vector<uint8_t> &mbus_payload) {
-  // Verify and parse M-Bus frames
-  ESP_LOGV(TAG, "Parsing M-Bus frames");
-
   uint16_t frame_offset = 0;  // Offset is used if the M-Bus message is split into multiple frames
 
   while (frame_offset < this->receive_buffer_.size()) {
-    ESP_LOGV(TAG, "MBUS: Parsing frame");
-
     // Ensure enough bytes remain for the minimal intro header before accessing indices
     if (this->receive_buffer_.size() - frame_offset < MBUS_HEADER_INTRO_LENGTH) {
       ESP_LOGE(TAG, "MBUS: Not enough data for frame header (need %d, have %d)", MBUS_HEADER_INTRO_LENGTH,
@@ -128,11 +123,7 @@ bool DlmsMeterComponent::parse_mbus_(std::vector<uint8_t> &mbus_payload) {
       return false;
     }
 
-    /*
-     * verify checksum:
-     * sum of all bytes starting with c (so start at MBUS_HEADER_INTRO_LENGTH) until the last byte before the checksum
-     * only take last byte of the sum
-     */
+    // Verify checksum: sum of all bytes starting at MBUS_HEADER_INTRO_LENGTH, take last byte
     uint8_t checksum = 0;  // use uint8_t so only the 8 least significant bits are stored
     for (uint8_t i = 0; i < frame_length; i++) {
       checksum += this->receive_buffer_[frame_offset + MBUS_HEADER_INTRO_LENGTH + i];
@@ -154,9 +145,6 @@ bool DlmsMeterComponent::parse_mbus_(std::vector<uint8_t> &mbus_payload) {
 
 bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, uint16_t &message_length,
                                      uint8_t &systitle_length, uint16_t &header_offset) {
-  // Verify and parse DLMS header
-  ESP_LOGV(TAG, "Parsing DLMS header");
-
   if (mbus_payload.size() < 20) {  // If the payload is too short we need to abort
     ESP_LOGE(TAG, "DLMS: Payload too short");
     this->receive_buffer_.clear();
@@ -193,13 +181,8 @@ bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, u
     }
   } else {
     if (message_length == TWO_BYTE_LENGTH) {
-      ESP_LOGV(TAG, "DLMS: Message length > 127");
-
       message_length = encode_uint16(mbus_payload[DLMS_LENGTH_OFFSET + 1], mbus_payload[DLMS_LENGTH_OFFSET + 2]);
-
-      header_offset = DLMS_HEADER_EXT_OFFSET;  // Header is now 2 bytes longer due to length > 127
-    } else {
-      ESP_LOGV(TAG, "DLMS: Message length <= 127");
+      header_offset = DLMS_HEADER_EXT_OFFSET;
     }
   }
 
@@ -225,9 +208,6 @@ bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, u
 
 bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t message_length, uint8_t systitle_length,
                                   uint16_t header_offset) {
-  // Decryption
-  ESP_LOGV(TAG, "Decrypting payload");
-
   uint8_t iv[12];  // Reserve space for the IV, always 12 bytes
   // Copy system title to IV (System title is before length; no header offset needed!)
   // Add 1 to the offset in order to skip the system title length byte
@@ -261,8 +241,6 @@ bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t m
 #error "Invalid Platform"
 #endif
 
-  ESP_LOGV(TAG, "Decrypted payload: %d bytes", message_length);
-
   if (payload_ptr[0] != DATA_NOTIFICATION || payload_ptr[5] != TIMESTAMP_DATETIME) {
     ESP_LOGE(TAG, "OBIS: Packet was decrypted but data is invalid");
     this->receive_buffer_.clear();
@@ -272,9 +250,6 @@ bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t m
 }
 
 void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_length) {
-  // Decoding
-  ESP_LOGV(TAG, "Decoding payload");
-
   MeterData data{};
   uint16_t current_position = DECODER_START_OFFSET;
 
@@ -317,9 +292,6 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
 
     CodeType code_type = CodeType::UNKNOWN;
 
-    ESP_LOGV(TAG, "obisCode (OBIS_A): %d", obis_code[OBIS_A]);
-    ESP_LOGV(TAG, "currentPosition: %d", current_position);
-
     if (obis_code[OBIS_A] == Medium::ELECTRICITY) {
       // Compare C and D against code
       if (memcmp(&obis_code[OBIS_C], ESPDM_VOLTAGE_L1, 2) == 0) {
@@ -328,31 +300,23 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
         code_type = CodeType::VOLTAGE_L2;
       } else if (memcmp(&obis_code[OBIS_C], ESPDM_VOLTAGE_L3, 2) == 0) {
         code_type = CodeType::VOLTAGE_L3;
-      }
-
-      else if (memcmp(&obis_code[OBIS_C], ESPDM_CURRENT_L1, 2) == 0) {
+      } else if (memcmp(&obis_code[OBIS_C], ESPDM_CURRENT_L1, 2) == 0) {
         code_type = CodeType::CURRENT_L1;
       } else if (memcmp(&obis_code[OBIS_C], ESPDM_CURRENT_L2, 2) == 0) {
         code_type = CodeType::CURRENT_L2;
       } else if (memcmp(&obis_code[OBIS_C], ESPDM_CURRENT_L3, 2) == 0) {
         code_type = CodeType::CURRENT_L3;
-      }
-
-      else if (memcmp(&obis_code[OBIS_C], ESPDM_ACTIVE_POWER_PLUS, 2) == 0) {
+      } else if (memcmp(&obis_code[OBIS_C], ESPDM_ACTIVE_POWER_PLUS, 2) == 0) {
         code_type = CodeType::ACTIVE_POWER_PLUS;
       } else if (memcmp(&obis_code[OBIS_C], ESPDM_ACTIVE_POWER_MINUS, 2) == 0) {
         code_type = CodeType::ACTIVE_POWER_MINUS;
       } else if (this->provider_ == PROVIDER_NETZNOE && memcmp(&obis_code[OBIS_C], ESPDM_POWER_FACTOR, 2) == 0) {
         code_type = CodeType::POWER_FACTOR;
-      }
-
-      else if (memcmp(&obis_code[OBIS_C], ESPDM_ACTIVE_ENERGY_PLUS, 2) == 0) {
+      } else if (memcmp(&obis_code[OBIS_C], ESPDM_ACTIVE_ENERGY_PLUS, 2) == 0) {
         code_type = CodeType::ACTIVE_ENERGY_PLUS;
       } else if (memcmp(&obis_code[OBIS_C], ESPDM_ACTIVE_ENERGY_MINUS, 2) == 0) {
         code_type = CodeType::ACTIVE_ENERGY_MINUS;
-      }
-
-      else if (memcmp(&obis_code[OBIS_C], ESPDM_REACTIVE_ENERGY_PLUS, 2) == 0) {
+      } else if (memcmp(&obis_code[OBIS_C], ESPDM_REACTIVE_ENERGY_PLUS, 2) == 0) {
         code_type = CodeType::REACTIVE_ENERGY_PLUS;
       } else if (memcmp(&obis_code[OBIS_C], ESPDM_REACTIVE_ENERGY_MINUS, 2) == 0) {
         code_type = CodeType::REACTIVE_ENERGY_MINUS;
@@ -366,9 +330,7 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
         code_type = CodeType::SERIAL_NUMBER;
       } else if (memcmp(&obis_code[OBIS_C], ESPDM_DEVICE_NAME, 2) == 0) {
         code_type = CodeType::DEVICE_NAME;
-      }
-
-      else {
+      } else {
         ESP_LOGW(TAG, "OBIS: Unsupported OBIS code OBIS_C: %d, OBIS_D: %d", obis_code[OBIS_C], obis_code[OBIS_D]);
       }
     } else {

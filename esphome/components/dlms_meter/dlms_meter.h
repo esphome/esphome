@@ -60,10 +60,7 @@ struct MeterData {
   char meternumber[13]{};     // Text sensor for the meterNumber value
 };
 
-/*
- * Provider constants
- */
-
+// Provider constants
 enum Providers : uint32_t { PROVIDER_GENERIC = 0x00, PROVIDER_NETZNOE = 0x01 };
 
 class DlmsMeterComponent : public Component, public uart::UARTDevice {

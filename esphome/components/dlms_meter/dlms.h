@@ -5,10 +5,6 @@
 namespace esphome::dlms_meter {
 
 /*
- * Data structure
- */
-
-/*
 +-------------------------------+
 |       Ciphering Service       |
 +-------------------------------+
@@ -51,40 +47,23 @@ Security Control Byte:
 - Bit 7: Indicates the use of compression.
  */
 
-static constexpr uint8_t DLMS_HEADER_LENGTH = 16;  // Length of the header (total message length <= 127)
-static constexpr uint8_t DLMS_HEADER_EXT_OFFSET =
-    2;  // Length to offset when header is extended length (total message length > 127)
-
-static constexpr uint8_t DLMS_CIPHER_OFFSET = 0;  // Offset at which used cipher suite is stored
-static constexpr uint8_t DLMS_SYST_OFFSET = 1;    // Offset at which length of system title is stored
-
-static constexpr uint8_t DLMS_LENGTH_OFFSET = 10;  // Offset at which message length is stored
-static constexpr uint8_t TWO_BYTE_LENGTH = 0x82;   // Two byte length indicator / prefix
-static constexpr uint8_t DLMS_LENGTH_CORRECTION =
-    5;  // Part of the header is included in the DLMS length field and needs to be removed
-
-// Bytes after length may be shifted depending on length field
-
-static constexpr uint8_t DLMS_SECBYTE_OFFSET = 11;  // Offset of the security byte
-
-static constexpr uint8_t DLMS_FRAMECOUNTER_OFFSET = 12;  // Offset of the frame counter
-static constexpr uint8_t DLMS_FRAMECOUNTER_LENGTH = 4;   // Length of the frame counter (always 4)
-
-static constexpr uint8_t DLMS_PAYLOAD_OFFSET = 16;  // Offset at which the encrypted payload
-
+static constexpr uint8_t DLMS_HEADER_LENGTH = 16;
+static constexpr uint8_t DLMS_HEADER_EXT_OFFSET = 2;  // Extra offset for extended length header
+static constexpr uint8_t DLMS_CIPHER_OFFSET = 0;
+static constexpr uint8_t DLMS_SYST_OFFSET = 1;
+static constexpr uint8_t DLMS_LENGTH_OFFSET = 10;
+static constexpr uint8_t TWO_BYTE_LENGTH = 0x82;
+static constexpr uint8_t DLMS_LENGTH_CORRECTION = 5;  // Header bytes included in length field
+static constexpr uint8_t DLMS_SECBYTE_OFFSET = 11;
+static constexpr uint8_t DLMS_FRAMECOUNTER_OFFSET = 12;
+static constexpr uint8_t DLMS_FRAMECOUNTER_LENGTH = 4;
+static constexpr uint8_t DLMS_PAYLOAD_OFFSET = 16;
 static constexpr uint8_t GLO_CIPHERING = 0xDB;
 static constexpr uint8_t DATA_NOTIFICATION = 0x0F;
 static constexpr uint8_t TIMESTAMP_DATETIME = 0x0C;
+static constexpr uint16_t MAX_MESSAGE_LENGTH = 512;  // Maximum size of message (when having 2 bytes length in header).
 
-static constexpr uint16_t MAX_MESSAGE_LENGTH =
-    512;  // Maximum size of message (when having 2 bytes length in header).
-          // Technically max possible with 2 bytes would be 0xFFFF, but yet to see a message this large in practice and
-          // 64k would overflow stack
-
-/*
- * provider specific quirks
- */
-
+// Provider specific quirks
 static constexpr uint8_t NETZ_NOE_MAGIC_BYTE = 0x81;  // Magic length byte used by Netz NOE
 static constexpr uint8_t NETZ_NOE_EXPECTED_MESSAGE_LENGTH = 0xF8;
 static constexpr uint8_t NETZ_NOE_EXPECTED_SECURITY_CONTROL_BYTE = 0x20;
