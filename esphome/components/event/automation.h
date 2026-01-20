@@ -14,10 +14,10 @@ template<typename... Ts> class TriggerEventAction : public Action<Ts...>, public
   void play(const Ts &...x) override { this->parent_->trigger(this->event_type_.value(x...)); }
 };
 
-class EventTrigger : public Trigger<std::string> {
+class EventTrigger : public Trigger<StringRef> {
  public:
   EventTrigger(Event *event) {
-    event->add_on_event_callback([this](const std::string &event_type) { this->trigger(event_type); });
+    event->add_on_event_callback([this](StringRef event_type) { this->trigger(event_type); });
   }
 };
 
