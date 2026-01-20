@@ -1,5 +1,6 @@
 import esphome.config_validation as cv
 from esphome.const import CONF_OPTIONS
+from esphome.helpers import cpp_string_escape
 
 from ..defines import (
     CONF_DIR,
@@ -14,7 +15,7 @@ from ..defines import (
     literal,
 )
 from ..helpers import lvgl_components_required
-from ..lv_validation import LValidator, lv_int, lv_text, option_string
+from ..lv_validation import lv_int, lv_text, option_string
 from ..lvcode import LocalVariable, lv, lv_add, lv_expr
 from ..schemas import part_schema
 from ..types import LvCompound, LvSelect, LvType, lv_obj_t
@@ -52,8 +53,6 @@ def dropdown_symbol_validator(value):
     return value
 
 
-lv_dropdown_symbol = LValidator(dropdown_symbol_validator, lv_text.rtype)
-
 lv_dropdown_t = LvSelect("LvDropdownType", parents=(LvCompound,))
 
 lv_dropdown_list_t = LvType("lv_dropdown_list_t")
@@ -63,7 +62,7 @@ dropdown_list_spec = WidgetType(
 
 DROPDOWN_BASE_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_SYMBOL): lv_dropdown_symbol,
+        cv.Optional(CONF_SYMBOL): dropdown_symbol_validator,
         cv.Exclusive(CONF_SELECTED_INDEX, CONF_SELECTED_TEXT): lv_int,
         cv.Exclusive(CONF_SELECTED_TEXT, CONF_SELECTED_TEXT): lv_text,
         cv.Optional(CONF_DROPDOWN_LIST): part_schema(dropdown_list_spec.parts),
@@ -100,7 +99,7 @@ class DropdownType(WidgetType):
         if options := config.get(CONF_OPTIONS):
             lv_add(w.var.set_options(options))
         if symbol := config.get(CONF_SYMBOL):
-            lv.dropdown_set_symbol(w.var.obj, await lv_dropdown_symbol.process(symbol))
+            lv.dropdown_set_symbol(w.var.obj, cpp_string_escape(symbol))
         if (selected := config.get(CONF_SELECTED_INDEX)) is not None:
             value = await lv_int.process(selected)
             lv_add(w.var.set_selected_index(value, literal("LV_ANIM_OFF")))
