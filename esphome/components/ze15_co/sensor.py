@@ -8,6 +8,7 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
 )
 
+CODEOWNERS = ["@maikeljkwak"]
 DEPENDENCIES = ["uart"]
 
 ICON_MOLECULE_CO = "mdi:molecule-co"

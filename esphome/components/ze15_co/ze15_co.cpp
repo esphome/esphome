@@ -5,7 +5,7 @@
 namespace esphome {
 namespace ze15_co {
 
-static const char *TAG = "ze15_co";
+static const char *const TAG = "ze15_co";
 static const uint8_t ZE15_CO_REQUEST_LENGTH = 8;
 static const uint8_t ZE15_CO_RESPONSE_LENGTH = 9;
 static const uint8_t ZE15_CO_COMMAND_QA_MODE_REQUEST_DATA[] = {0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00};
