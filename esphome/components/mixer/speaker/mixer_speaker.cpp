@@ -247,11 +247,12 @@ size_t SourceSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_
 }
 
 void SourceSpeaker::start() {
-  // Set SOURCE_SPEAKER_COMMAND_START bit if not already set
+  this->enable_loop_soon_any_context();  // ensure loop processes command
+
   uint32_t event_bits = xEventGroupGetBits(this->event_group_);
   if (!(event_bits & SOURCE_SPEAKER_COMMAND_START)) {
+    // Set SOURCE_SPEAKER_COMMAND_START bit if not already set, and then immediately wake for low latency
     xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_START);
-    this->enable_loop_soon_any_context();
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
     App.wake_loop_threadsafe();
 #endif
@@ -285,27 +286,13 @@ esp_err_t SourceSpeaker::start_() {
 }
 
 void SourceSpeaker::stop() {
-  // Set SOURCE_SPEAKER_COMMAND_STOP bit if not already set
-  uint32_t event_bits = xEventGroupGetBits(this->event_group_);
-  if (!(event_bits & SOURCE_SPEAKER_COMMAND_STOP)) {
-    xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_STOP);
-    this->enable_loop_soon_any_context();
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-    App.wake_loop_threadsafe();
-#endif
-  }
+  this->enable_loop_soon_any_context();  // ensure loop processes command
+  xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_STOP);
 }
 
 void SourceSpeaker::finish() {
-  // Set SOURCE_SPEAKER_COMMAND_FINISH bit if not already set
-  uint32_t event_bits = xEventGroupGetBits(this->event_group_);
-  if (!(event_bits & SOURCE_SPEAKER_COMMAND_FINISH)) {
-    xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_FINISH);
-    this->enable_loop_soon_any_context();
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-    App.wake_loop_threadsafe();
-#endif
-  }
+  this->enable_loop_soon_any_context();  // ensure loop processes command
+  xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_FINISH);
 }
 
 bool SourceSpeaker::has_buffered_data() const {
@@ -551,14 +538,17 @@ esp_err_t MixerSpeaker::start(audio::AudioStreamInfo &stream_info) {
     }
   }
 
-  // Informs the loop function to start the task
-  xEventGroupSetBits(this->event_group_, MIXER_TASK_COMMAND_START);
+  this->enable_loop_soon_any_context();  // ensure loop processes command
 
-  // Ensure loop runs to process the start command
-  this->enable_loop_soon_any_context();
+  uint32_t event_bits = xEventGroupGetBits(this->event_group_);
+  if (!(event_bits & MIXER_TASK_COMMAND_START)) {
+    // Set MIXER_TASK_COMMAND_START bit if not already set, and then immediately wake for low latency
+    xEventGroupSetBits(this->event_group_, MIXER_TASK_COMMAND_START);
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-  App.wake_loop_threadsafe();
+    App.wake_loop_threadsafe();
 #endif
+  }
+
   return ESP_OK;
 }
 
