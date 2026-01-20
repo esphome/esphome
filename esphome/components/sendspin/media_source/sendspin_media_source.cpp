@@ -652,7 +652,7 @@ void SendspinMediaSource::sync_soft_sync_remove_audio_(SyncContext &sync_context
           audio::unpack_audio_sample_to_q31(sync_context.output_transfer_buffer->get_buffer_end() -
                                                 sync_context.bytes_per_frame + chan * bytes_per_sample,
                                             bytes_per_sample);
-      int32_t replacement_sample = (first_sample + second_sample) / 2;
+      int32_t replacement_sample = first_sample / 2 + second_sample / 2;
       audio::pack_q31_as_audio_sample(replacement_sample,
                                       sync_context.output_transfer_buffer->get_buffer_end() -
                                           2 * sync_context.bytes_per_frame + chan * bytes_per_sample,
@@ -684,7 +684,7 @@ void SendspinMediaSource::sync_soft_sync_add_audio_(SyncContext &sync_context,
           audio::unpack_audio_sample_to_q31(sync_context.output_transfer_buffer->get_buffer_start() +
                                                 chan * bytes_per_sample + sync_context.bytes_per_frame,
                                             bytes_per_sample);
-      int32_t new_sample = (first_sample + second_sample) / 2;
+      int32_t new_sample = first_sample / 2 + second_sample / 2;
       audio::pack_q31_as_audio_sample(new_sample,
                                       sync_context.output_transfer_buffer->get_buffer_start() + chan * bytes_per_sample,
                                       bytes_per_sample);
