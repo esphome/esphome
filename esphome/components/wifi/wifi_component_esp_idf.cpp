@@ -827,7 +827,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
 
     uint16_t number = it.number;
-    auto records = std::make_unique<wifi_ap_record_t[]>(number);
+    // Stack buffer for up to 38 APs (~3.5KB), heap fallback for dense environments
+    SmallBufferWithHeapFallback<38, wifi_ap_record_t> records(number);
     err = esp_wifi_scan_get_ap_records(&number, records.get());
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(err));
