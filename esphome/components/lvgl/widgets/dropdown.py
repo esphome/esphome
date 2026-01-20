@@ -24,6 +24,9 @@ from .label import CONF_LABEL
 CONF_DROPDOWN = "dropdown"
 CONF_DROPDOWN_LIST = "dropdown_list"
 
+# Example valid dropdown symbol (left arrow) for error messages
+EXAMPLE_DROPDOWN_SYMBOL = "\U00002190"  # ←
+
 
 def dropdown_symbol_validator(value):
     """
@@ -41,7 +44,7 @@ def dropdown_symbol_validator(value):
         raise cv.Invalid(
             f"Dropdown symbol must have a Unicode codepoint of 0x100 (256) or greater. "
             f"'{value}' has codepoint {codepoint} (0x{codepoint:X}). "
-            f"Use a character like '\\U00002190' (←) or other Unicode symbols with codepoint >= 0x100."
+            f"Use a character like '\\U00002190' ({EXAMPLE_DROPDOWN_SYMBOL}) or other Unicode symbols with codepoint >= 0x100."
         )
     return value
 
