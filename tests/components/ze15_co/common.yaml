@@ -1,0 +1,7 @@
+sensor:
+  - platform: ze15_co
+    name: ZE15-CO CO Value
+    mode: qa
+    warmup_time: 30s
+    update_interval: 15s
+    accuracy_decimals: 1
