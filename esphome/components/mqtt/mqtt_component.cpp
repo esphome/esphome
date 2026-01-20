@@ -308,15 +308,11 @@ void MQTTComponent::call_setup() {
   }
 }
 
-void MQTTComponent::call_loop() {
-  if (this->is_internal())
+void MQTTComponent::process_resend() {
+  // Called by MQTTClientComponent when connected to process pending resends
+  // Note: is_internal() check not needed - internal components are never registered
+  if (!this->resend_state_)
     return;
-
-  this->loop();
-
-  if (!this->resend_state_ || !this->is_connected_()) {
-    return;
-  }
 
   this->resend_state_ = false;
   if (this->is_discovery_enabled()) {
