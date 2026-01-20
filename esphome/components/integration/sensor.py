@@ -126,6 +126,7 @@ async def sensor_integration_reset_to_code(config, action_id, template_arg, args
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
+
 async def sensor_integration_set_value_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
