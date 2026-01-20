@@ -835,6 +835,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       err = esp_wifi_scan_get_ap_record(&record);
       if (err != ESP_OK) {
         ESP_LOGW(TAG, "esp_wifi_scan_get_ap_record failed: %s", esp_err_to_name(err));
+        esp_wifi_clear_ap_list();  // Free remaining records not yet retrieved
         break;
       }
       bssid_t bssid;
