@@ -6,7 +6,7 @@
 #include <driver/i2s.h>
 #else
 #include <driver/i2s_std.h>
-#endif
+#endif  // USE_I2S_LEGACY
 
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/audio/audio_transfer_buffer.h"
@@ -29,7 +29,7 @@ static const size_t TASK_STACK_SIZE = 4096;
 // 192 samples * 2 channels * 2 bytes per sample = 768 bytes
 // Stored in flash (.rodata section) to avoid stack/heap usage
 static const int16_t SPDIF_SILENCE_BUFFER[SPDIF_BLOCK_SAMPLES * 2] = {0};
-#endif
+#endif  // USE_I2S_AUDIO_SPDIF_MODE
 static const ssize_t TASK_PRIORITY = 19;
 
 static const size_t I2S_EVENT_QUEUE_COUNT = DMA_BUFFERS_COUNT + 1;
@@ -91,14 +91,14 @@ void I2SAudioSpeaker::setup() {
       err = i2s_write(this->parent_->get_port(), data, size, &bytes_written, ticks_to_wait);
 #else
       err = i2s_channel_write(this->tx_handle_, data, size, &bytes_written, ticks_to_wait);
-#endif
+#endif  // USE_I2S_LEGACY
       if (err != ESP_OK) {
         ESP_LOGW(TAG, "SPDIF I2S write failed: %s (wrote %zu/%zu bytes)", esp_err_to_name(err), bytes_written, size);
       }
       return err;
     });
   }
-#endif
+#endif  // USE_I2S_AUDIO_SPDIF_MODE
 }
 
 void I2SAudioSpeaker::dump_config() {
@@ -118,16 +118,16 @@ void I2SAudioSpeaker::dump_config() {
                   "  Sample Rate: %" PRIu32 " Hz",
                   YESNO(this->spdif_mode_), YESNO(this->fill_silence_), this->sample_rate_);
   } else
-#endif
+#endif  // USE_I2S_AUDIO_SPDIF_MODE
   {
 #ifdef USE_I2S_LEGACY
 #if SOC_I2S_SUPPORTS_DAC
     ESP_LOGCONFIG(TAG, "  Internal DAC mode: %d", static_cast<int8_t>(this->internal_dac_mode_));
-#endif
+#endif  // SOC_I2S_SUPPORTS_DAC
     ESP_LOGCONFIG(TAG, "  Communication format: %d", static_cast<int8_t>(this->i2s_comm_fmt_));
 #else
     ESP_LOGCONFIG(TAG, "  Communication format: %s", this->i2s_comm_fmt_.c_str());
-#endif
+#endif  // USE_I2S_LEGACY
   }
 }
 
@@ -219,7 +219,7 @@ void I2SAudioSpeaker::set_volume(float volume) {
     }
     this->audio_dac_->set_volume(volume);
   } else
-#endif
+#endif  // USE_AUDIO_DAC
   {
     // Fallback to software volume control by using a Q15 fixed point scaling factor
     ssize_t decibel_index = remap<ssize_t, float>(volume, 0.0f, 1.0f, 0, Q15_VOLUME_SCALING_FACTORS.size() - 1);
@@ -237,7 +237,7 @@ void I2SAudioSpeaker::set_mute_state(bool mute_state) {
       this->audio_dac_->set_mute_off();
     }
   } else
-#endif
+#endif  // USE_AUDIO_DAC
   {
     if (mute_state) {
       // Fallback to software volume control and scale by 0
@@ -354,7 +354,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
             this_speaker->spdif_encoder_->write(reinterpret_cast<const uint8_t *>(SPDIF_SILENCE_BUFFER),
                                                 sizeof(SPDIF_SILENCE_BUFFER), 0);
           }
-#endif
+#endif  // USE_I2S_AUDIO_SPDIF_MODE
         }
       }
 #else
@@ -376,7 +376,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
           this_speaker->audio_output_callback_(frames_sent, write_timestamp);
         }
       }
-#endif
+#endif  // USE_I2S_LEGACY
 
       if (this_speaker->pause_state_) {
         // Pause state is accessed atomically, so thread safe
@@ -433,7 +433,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
             tmp_buf[i + 1] = tmp;
           }
         }
-#endif
+#endif  // USE_ESP32_VARIANT_ESP32
       }
 
       if (transfer_buffer->available() == 0) {
@@ -452,7 +452,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
             bytes_written = transfer_buffer->available();
           }
         } else
-#endif
+#endif  // USE_I2S_AUDIO_SPDIF_MODE
         {
 #ifdef USE_I2S_LEGACY
           if (this_speaker->current_stream_info_.get_bits_per_sample() == (uint8_t) this_speaker->bits_per_sample_) {
@@ -481,7 +481,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
             i2s_channel_write(this_speaker->tx_handle_, transfer_buffer->get_buffer_start(),
                               transfer_buffer->available(), &bytes_written, DMA_BUFFER_DURATION_MS);
           }
-#endif
+#endif     // USE_I2S_LEGACY
         }  // Close the else block for non-SPDIF mode
         if (bytes_written > 0) {
           last_data_received_time = millis();
@@ -502,14 +502,14 @@ void I2SAudioSpeaker::speaker_task(void *params) {
             i2s_channel_register_event_callback(this_speaker->tx_handle_, &callbacks, this_speaker);
 
             i2s_channel_enable(this_speaker->tx_handle_);
-#endif
+#endif  // USE_I2S_LEGACY
           }
 #ifdef USE_I2S_LEGACY
           // The legacy driver doesn't easily support the callback approach for timestamps, so fall back to a direct but
           // less accurate approach.
           this_speaker->audio_output_callback_(this_speaker->current_stream_info_.bytes_to_frames(bytes_written),
                                                esp_timer_get_time() + dma_buffers_duration_ms * 1000);
-#endif
+#endif  // USE_I2S_LEGACY
         }
       }
     }
@@ -575,13 +575,13 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
       return ESP_ERR_NOT_SUPPORTED;
     }
   } else
-#endif
+#endif  // USE_I2S_AUDIO_SPDIF_MODE
   {
 #ifdef USE_I2S_LEGACY
     if ((this->i2s_mode_ & I2S_MODE_SLAVE) && (this->sample_rate_ != audio_stream_info.get_sample_rate())) {  // NOLINT
 #else
     if ((this->i2s_role_ & I2S_ROLE_SLAVE) && (this->sample_rate_ != audio_stream_info.get_sample_rate())) {  // NOLINT
-#endif
+#endif  // USE_I2S_LEGACY
       // Can't reconfigure I2S bus, so the sample rate must match the configured value
       ESP_LOGE(TAG, "Incompatible stream settings");
       return ESP_ERR_NOT_SUPPORTED;
@@ -593,7 +593,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
 #else
   if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO &&
       (i2s_slot_bit_width_t) audio_stream_info.get_bits_per_sample() > this->slot_bit_width_) {
-#endif
+#endif  // USE_I2S_LEGACY
     // Currently can't handle the case when the incoming audio has more bits per sample than the configured value
     ESP_LOGE(TAG, "Stream bits per sample must be less than or equal to the speaker's configuration");
     return ESP_ERR_NOT_SUPPORTED;
@@ -633,7 +633,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
       .big_edin = false,
       .bit_order_msb = false,
       .skip_msk = false,
-#endif
+#endif  // SOC_I2S_SUPPORTS_TDM
     };
 
     esp_err_t err =
@@ -661,7 +661,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
     }
     return err;
   }
-#endif
+#endif  // USE_I2S_AUDIO_SPDIF_MODE
 
   // Standard I2S mode
   i2s_channel_fmt_t channel = this->channel_;
@@ -697,13 +697,13 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
     .big_edin = false,
     .bit_order_msb = false,
     .skip_msk = false,
-#endif
+#endif  // SOC_I2S_SUPPORTS_TDM
   };
 #if SOC_I2S_SUPPORTS_DAC
   if (this->internal_dac_mode_ != I2S_DAC_CHANNEL_DISABLE) {
     config.mode = (i2s_mode_t) (config.mode | I2S_MODE_DAC_BUILT_IN);
   }
-#endif
+#endif  // SOC_I2S_SUPPORTS_DAC
 
   esp_err_t err =
       i2s_driver_install(this->parent_->get_port(), &config, I2S_EVENT_QUEUE_COUNT, &this->i2s_event_queue_);
@@ -716,7 +716,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
 
 #if SOC_I2S_SUPPORTS_DAC
   if (this->internal_dac_mode_ == I2S_DAC_CHANNEL_DISABLE) {
-#endif
+#endif  // SOC_I2S_SUPPORTS_DAC
     i2s_pin_config_t pin_config = this->parent_->get_pin_config();
     pin_config.data_out_num = this->dout_pin_;
 
@@ -725,7 +725,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
   } else {
     i2s_set_dac_mode(this->internal_dac_mode_);
   }
-#endif
+#endif  // SOC_I2S_SUPPORTS_DAC
 
   if (err != ESP_OK) {
     // Failed to set the data out pin, so uninstall the driver and unlock the I2S port
@@ -745,15 +745,15 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
     i2s_role = I2S_ROLE_MASTER;
 #ifdef I2S_CLK_SRC_APLL
     clk_src = I2S_CLK_SRC_APLL;  // APLL provides better clock accuracy for SPDIF
-#endif
+#endif  // I2S_CLK_SRC_APLL
   } else
-#endif
+#endif  // USE_I2S_AUDIO_SPDIF_MODE
   {
 #ifdef I2S_CLK_SRC_APLL
     if (this->use_apll_) {
       clk_src = I2S_CLK_SRC_APLL;
     }
-#endif
+#endif  // I2S_CLK_SRC_APLL
   }
 
   // Allocate I2S channel (shared between SPDIF and standard modes)
@@ -803,7 +803,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
             },
     };
   } else
-#endif
+#endif  // USE_I2S_AUDIO_SPDIF_MODE
   {
     // Standard I2S mode
     clk_cfg = {
@@ -844,7 +844,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
     }
 #else
     slot_cfg.slot_bit_width = this->slot_bit_width_;
-#endif
+#endif  // USE_ESP32_VARIANT_ESP32
     slot_cfg.slot_mask = slot_mask;
 
     gpio_cfg = this->parent_->get_pin_config();
@@ -872,7 +872,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
   }
 
   i2s_channel_enable(this->tx_handle_);
-#endif
+#endif  // USE_I2S_LEGACY
 
   return err;
 }
@@ -898,7 +898,7 @@ bool IRAM_ATTR I2SAudioSpeaker::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s_eve
 
   return need_yield1 | need_yield2 | need_yield3;
 }
-#endif
+#endif  // USE_I2S_LEGACY
 
 void I2SAudioSpeaker::stop_i2s_driver_() {
 #ifdef USE_I2S_LEGACY
@@ -907,7 +907,7 @@ void I2SAudioSpeaker::stop_i2s_driver_() {
   i2s_channel_disable(this->tx_handle_);
   i2s_del_channel(this->tx_handle_);
   this->tx_handle_ = nullptr;
-#endif
+#endif  // USE_I2S_LEGACY
   this->parent_->unlock();
 }
 
