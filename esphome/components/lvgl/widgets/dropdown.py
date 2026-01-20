@@ -1,6 +1,5 @@
 import esphome.config_validation as cv
 from esphome.const import CONF_OPTIONS
-from esphome.helpers import cpp_string_escape
 
 from ..defines import (
     CONF_DIR,
