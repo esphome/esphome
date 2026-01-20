@@ -1343,16 +1343,23 @@ template<typename... X> class LazyCallbackManager;
  *
  * Memory overhead comparison (32-bit systems):
  * - CallbackManager: 12 bytes (empty std::vector)
- * - LazyCallbackManager: 4 bytes (nullptr unique_ptr)
+ * - LazyCallbackManager: 4 bytes (nullptr pointer)
+ *
+ * Note: Uses plain pointer instead of unique_ptr since callbacks are never freed
+ * (entities live for device lifetime). This avoids destructor template overhead.
  *
  * @tparam Ts The arguments for the callbacks, wrapped in void().
  */
 template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
  public:
+  /// Destructor - clean up allocated CallbackManager if any.
+  /// In practice this never runs (entities live for device lifetime) but included for correctness.
+  ~LazyCallbackManager() { delete this->callbacks_; }
+
   /// Add a callback to the list. Allocates the underlying CallbackManager on first use.
   void add(std::function<void(Ts...)> &&callback) {
     if (!this->callbacks_) {
-      this->callbacks_ = make_unique<CallbackManager<void(Ts...)>>();
+      this->callbacks_ = new CallbackManager<void(Ts...)>();
     }
     this->callbacks_->add(std::move(callback));
   }
@@ -1374,7 +1381,7 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   void operator()(Ts... args) { this->call(args...); }
 
  protected:
-  std::unique_ptr<CallbackManager<void(Ts...)>> callbacks_;
+  CallbackManager<void(Ts...)> *callbacks_{nullptr};
 };
 
 /// Helper class to deduplicate items in a series of values.
