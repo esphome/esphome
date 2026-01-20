@@ -108,7 +108,7 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_SKIP_CONNECTION_HANDSHAKE, default=False): cv.boolean,
-            cv.Optional(CONF_STARTUP_OVERRIDE_MS, default=8000): cv.All(
+            cv.Optional(CONF_STARTUP_OVERRIDE_MS, default="8000ms"): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(
                     min=TimePeriod(milliseconds=0), max=TimePeriod(milliseconds=65535)
