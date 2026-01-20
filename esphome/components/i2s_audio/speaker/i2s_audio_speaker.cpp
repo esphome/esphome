@@ -734,43 +734,62 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
     this->parent_->unlock();
   }
 #else
+  // Determine mode-specific parameters
+  i2s_role_t i2s_role = this->i2s_role_;
+  i2s_clock_src_t clk_src = I2S_CLK_SRC_DEFAULT;
+
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
   if (this->spdif_mode_) {
-    // SPDIF mode: use fixed configuration for BMC encoding
-    dma_buffer_length = SPDIF_BLOCK_SIZE_U32;  // One SPDIF block per DMA buffer
-
-    i2s_chan_config_t chan_cfg = {
-        .id = this->parent_->get_port(),
-        .role = I2S_ROLE_MASTER,
-        .dma_desc_num = DMA_BUFFERS_COUNT,
-        .dma_frame_num = dma_buffer_length,
-        .auto_clear = true,
-        .intr_priority = 3,
-    };
-
-    esp_err_t err = i2s_new_channel(&chan_cfg, &this->tx_handle_, NULL);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to allocate new I2S channel for SPDIF");
-      this->parent_->unlock();
-      return err;
-    }
-
-    i2s_clock_src_t clk_src = I2S_CLK_SRC_DEFAULT;
+    // SPDIF mode: fixed configuration for BMC encoding
+    dma_buffer_length = SPDIF_BLOCK_SIZE_U32;
+    i2s_role = I2S_ROLE_MASTER;
 #ifdef I2S_CLK_SRC_APLL
     clk_src = I2S_CLK_SRC_APLL;  // APLL provides better clock accuracy for SPDIF
 #endif
+  } else
+#endif
+  {
+#ifdef I2S_CLK_SRC_APLL
+    if (this->use_apll_) {
+      clk_src = I2S_CLK_SRC_APLL;
+    }
+#endif
+  }
 
-    i2s_std_clk_config_t clk_cfg = {
-        .sample_rate_hz = this->sample_rate_ * 2,  // Double rate for BMC encoding
+  // Allocate I2S channel (shared between SPDIF and standard modes)
+  i2s_chan_config_t chan_cfg = {
+      .id = this->parent_->get_port(),
+      .role = i2s_role,
+      .dma_desc_num = DMA_BUFFERS_COUNT,
+      .dma_frame_num = dma_buffer_length,
+      .auto_clear = true,
+      .intr_priority = 3,
+  };
+
+  esp_err_t err = i2s_new_channel(&chan_cfg, &this->tx_handle_, NULL);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to allocate new I2S channel");
+    this->parent_->unlock();
+    return err;
+  }
+
+  // Build mode-specific configuration
+  i2s_std_clk_config_t clk_cfg;
+  i2s_std_slot_config_t slot_cfg;
+  i2s_std_gpio_config_t gpio_cfg;
+
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+  if (this->spdif_mode_) {
+    // SPDIF: double sample rate for BMC, 32-bit stereo, only data pin needed
+    clk_cfg = {
+        .sample_rate_hz = this->sample_rate_ * 2,
         .clk_src = clk_src,
         .mclk_multiple = I2S_MCLK_MULTIPLE_256,
     };
 
-    i2s_std_slot_config_t slot_cfg =
-        I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO);
+    slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO);
 
-    // SPDIF only needs data pin, no clock pins needed
-    i2s_std_gpio_config_t gpio_cfg = {
+    gpio_cfg = {
         .mclk = GPIO_NUM_NC,
         .bclk = GPIO_NUM_NC,
         .ws = GPIO_NUM_NC,
@@ -783,115 +802,71 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
                 .ws_inv = false,
             },
     };
-
-    i2s_std_config_t std_cfg = {
-        .clk_cfg = clk_cfg,
-        .slot_cfg = slot_cfg,
-        .gpio_cfg = gpio_cfg,
+  } else
+#endif
+  {
+    // Standard I2S mode
+    clk_cfg = {
+        .sample_rate_hz = audio_stream_info.get_sample_rate(),
+        .clk_src = clk_src,
+        .mclk_multiple = this->mclk_multiple_,
     };
 
-    err = i2s_channel_init_std_mode(this->tx_handle_, &std_cfg);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to initialize SPDIF channel");
-      i2s_del_channel(this->tx_handle_);
-      this->tx_handle_ = nullptr;
-      this->parent_->unlock();
-      return err;
+    i2s_slot_mode_t slot_mode = this->slot_mode_;
+    i2s_std_slot_mask_t slot_mask = this->std_slot_mask_;
+    if (audio_stream_info.get_channels() == 1) {
+      slot_mode = I2S_SLOT_MODE_MONO;
+    } else if (audio_stream_info.get_channels() == 2) {
+      slot_mode = I2S_SLOT_MODE_STEREO;
+      slot_mask = I2S_STD_SLOT_BOTH;
     }
 
-    if (this->i2s_event_queue_ == nullptr) {
-      this->i2s_event_queue_ = xQueueCreate(I2S_EVENT_QUEUE_COUNT, sizeof(int64_t));
+    if (this->i2s_comm_fmt_ == "std") {
+      slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(),
+                                                     slot_mode);
+    } else if (this->i2s_comm_fmt_ == "pcm") {
+      slot_cfg =
+          I2S_STD_PCM_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(), slot_mode);
+    } else {
+      slot_cfg =
+          I2S_STD_MSB_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(), slot_mode);
     }
-
-    i2s_channel_enable(this->tx_handle_);
-    return ESP_OK;
-  }
-#endif
-
-  // Standard I2S mode (non-SPDIF)
-  i2s_chan_config_t chan_cfg = {
-      .id = this->parent_->get_port(),
-      .role = this->i2s_role_,
-      .dma_desc_num = DMA_BUFFERS_COUNT,
-      .dma_frame_num = dma_buffer_length,
-      .auto_clear = true,
-      .intr_priority = 3,
-  };
-  /* Allocate a new TX channel and get the handle of this channel */
-  esp_err_t err = i2s_new_channel(&chan_cfg, &this->tx_handle_, NULL);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to allocate new I2S channel");
-    this->parent_->unlock();
-    return err;
-  }
-
-  i2s_clock_src_t clk_src = I2S_CLK_SRC_DEFAULT;
-#ifdef I2S_CLK_SRC_APLL
-  if (this->use_apll_) {
-    clk_src = I2S_CLK_SRC_APLL;
-  }
-#endif
-  i2s_std_gpio_config_t pin_config = this->parent_->get_pin_config();
-
-  i2s_std_clk_config_t clk_cfg = {
-      .sample_rate_hz = audio_stream_info.get_sample_rate(),
-      .clk_src = clk_src,
-      .mclk_multiple = this->mclk_multiple_,
-  };
-
-  i2s_slot_mode_t slot_mode = this->slot_mode_;
-  i2s_std_slot_mask_t slot_mask = this->std_slot_mask_;
-  if (audio_stream_info.get_channels() == 1) {
-    slot_mode = I2S_SLOT_MODE_MONO;
-  } else if (audio_stream_info.get_channels() == 2) {
-    slot_mode = I2S_SLOT_MODE_STEREO;
-    slot_mask = I2S_STD_SLOT_BOTH;
-  }
-
-  i2s_std_slot_config_t std_slot_cfg;
-  if (this->i2s_comm_fmt_ == "std") {
-    std_slot_cfg =
-        I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(), slot_mode);
-  } else if (this->i2s_comm_fmt_ == "pcm") {
-    std_slot_cfg =
-        I2S_STD_PCM_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(), slot_mode);
-  } else {
-    std_slot_cfg =
-        I2S_STD_MSB_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(), slot_mode);
-  }
 #ifdef USE_ESP32_VARIANT_ESP32
-  // There seems to be a bug on the ESP32 (non-variant) platform where setting the slot bit width higher then the bits
-  // per sample causes the audio to play too fast. Setting the ws_width to the configured slot bit width seems to
-  // make it play at the correct speed while sending more bits per slot.
-  if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
-    uint32_t configured_bit_width = static_cast<uint32_t>(this->slot_bit_width_);
-    std_slot_cfg.ws_width = configured_bit_width;
-    if (configured_bit_width > 16) {
-      std_slot_cfg.msb_right = false;
+    // There seems to be a bug on the ESP32 (non-variant) platform where setting the slot bit width higher than the
+    // bits per sample causes the audio to play too fast. Setting the ws_width to the configured slot bit width seems
+    // to make it play at the correct speed while sending more bits per slot.
+    if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
+      uint32_t configured_bit_width = static_cast<uint32_t>(this->slot_bit_width_);
+      slot_cfg.ws_width = configured_bit_width;
+      if (configured_bit_width > 16) {
+        slot_cfg.msb_right = false;
+      }
     }
-  }
 #else
-  std_slot_cfg.slot_bit_width = this->slot_bit_width_;
+    slot_cfg.slot_bit_width = this->slot_bit_width_;
 #endif
-  std_slot_cfg.slot_mask = slot_mask;
+    slot_cfg.slot_mask = slot_mask;
 
-  pin_config.dout = this->dout_pin_;
+    gpio_cfg = this->parent_->get_pin_config();
+    gpio_cfg.dout = this->dout_pin_;
+  }
 
+  // Initialize channel with mode-specific configuration (shared)
   i2s_std_config_t std_cfg = {
       .clk_cfg = clk_cfg,
-      .slot_cfg = std_slot_cfg,
-      .gpio_cfg = pin_config,
+      .slot_cfg = slot_cfg,
+      .gpio_cfg = gpio_cfg,
   };
-  /* Initialize the channel */
-  err = i2s_channel_init_std_mode(this->tx_handle_, &std_cfg);
 
+  err = i2s_channel_init_std_mode(this->tx_handle_, &std_cfg);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to initialize channel");
+    ESP_LOGE(TAG, "Failed to initialize I2S channel");
     i2s_del_channel(this->tx_handle_);
     this->tx_handle_ = nullptr;
     this->parent_->unlock();
     return err;
   }
+
   if (this->i2s_event_queue_ == nullptr) {
     this->i2s_event_queue_ = xQueueCreate(I2S_EVENT_QUEUE_COUNT, sizeof(int64_t));
   }
