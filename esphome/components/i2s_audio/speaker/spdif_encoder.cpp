@@ -15,8 +15,10 @@ static constexpr uint32_t BMC_W = 0x331b3333;  // right ch
 static constexpr uint32_t BMC_MW_DIF = (BMC_M ^ BMC_W);
 static constexpr uint8_t SYNC_OFFSET = 2;  // byte offset of SYNC
 static constexpr uint32_t SYNC_FLIP = ((BMC_B ^ BMC_M) >> (SYNC_OFFSET * 8));
+static constexpr uint32_t MSB_CLEAR_MASK = 0x7FFFFFFF;  // mask to clear bit 31
 
-// 8-bit PCM to 16-bit BMC conversion table, LSb first, 1 end
+// BMC (Biphase Mark Code) lookup table: maps each 8-bit PCM byte to its 16-bit BMC encoding
+// Each entry encodes 8 PCM bits as 16 BMC bits (2 BMC bits per PCM bit), LSB first, ending high
 static constexpr uint16_t BMC_TABLE[256] = {
     0x3333, 0xb333, 0xd333, 0x5333, 0xcb33, 0x4b33, 0x2b33, 0xab33, 0xcd33, 0x4d33, 0x2d33, 0xad33, 0x3533, 0xb533,
     0xd533, 0x5533, 0xccb3, 0x4cb3, 0x2cb3, 0xacb3, 0x34b3, 0xb4b3, 0xd4b3, 0x54b3, 0x32b3, 0xb2b3, 0xd2b3, 0x52b3,
@@ -60,50 +62,30 @@ bool SPDIFEncoder::setup() {
 }
 
 esp_err_t SPDIFEncoder::write(const uint8_t *src, size_t size, TickType_t ticks_to_wait) {
-  // SPDIF requires 16-bit stereo samples (2 bytes per sample, 2 channels = 4 bytes per frame)
-  if (size % 4 != 0) {
-    ESP_LOGE(TAG, "Invalid buffer size: %zu (must be multiple of 4 bytes)", size);
-    return ESP_ERR_INVALID_SIZE;
-  }
+  const uint8_t *pcm_data = src;
+  const uint8_t *pcm_end = src + size;
 
-  const uint8_t *p = src;
-  const uint8_t *end = src + size;
-
-  while (p < end) {
-    // Ensure we have at least 2 bytes remaining to read
-    if (p + 1 >= end) {
-      ESP_LOGW(TAG, "Incomplete sample at end of buffer, dropping %zu bytes", end - p);
-      break;
-    }
-
-    // Calculate the current position in the SPDIF block (in uint32_t units)
-    size_t block_offset = this->spdif_block_ptr_ - this->spdif_block_buf_.get();
-
+  while (pcm_data < pcm_end) {
     // Convert PCM 16-bit data to BMC 32-bit pulse pattern (64 I2S bits to emulate BMC)
-    // Each SPDIF frame uses 2 uint32_t entries: [0] = preamble, [1] = audio data
-    // BMC_TABLE contains unsigned 16-bit values, we combine them into a 32-bit pattern
-    uint32_t low_byte_bmc = static_cast<uint32_t>(BMC_TABLE[p[0]]);
-    uint32_t high_byte_bmc = static_cast<uint32_t>(BMC_TABLE[p[1]]);
-    uint32_t bmc_data = (low_byte_bmc << 16) ^ high_byte_bmc;
+    // Sign extension via int16_t enables the XOR to handle BMC phase continuity
+    int16_t bmc_low = static_cast<int16_t>(BMC_TABLE[pcm_data[0]]);
+    int16_t bmc_high = static_cast<int16_t>(BMC_TABLE[pcm_data[1]]);
+    int bmc_combined = (bmc_low << 16) ^ bmc_high;  // int promotion handles sign extension
+    this->spdif_block_ptr_[1] = static_cast<uint32_t>(bmc_combined) & MSB_CLEAR_MASK;
 
-    this->spdif_block_ptr_[1] = bmc_data;
+    pcm_data += 2;
+    this->spdif_block_ptr_ += 2;  // advance to next audio data
 
-    p += 2;
-    this->spdif_block_ptr_ += 2;  // Advance to next frame (skip preamble and data slots)
-
-    // Check if we've filled the entire SPDIF block
-    if (block_offset + 2 >= SPDIF_BLOCK_SIZE_U32) {
-      // Set block start preamble by flipping the sync bits
+    if (this->spdif_block_ptr_ >= &this->spdif_block_buf_[SPDIF_BLOCK_SIZE_U32]) {
+      // set block start preamble
       reinterpret_cast<uint8_t *>(this->spdif_block_buf_.get())[SYNC_OFFSET] ^= SYNC_FLIP;
 
-      // Send the complete block via callback
       esp_err_t err =
           this->block_complete_callback_(this->spdif_block_buf_.get(), SPDIF_BLOCK_SIZE_BYTES, ticks_to_wait);
       if (err != ESP_OK) {
         return err;
       }
 
-      // Reset to start of buffer for next block
       this->spdif_block_ptr_ = this->spdif_block_buf_.get();
     }
   }
