@@ -366,6 +366,35 @@ template<typename T> class FixedVector {
   const T *end() const { return data_ + size_; }
 };
 
+/// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
+/// This is useful when most operations need a small buffer but occasionally need larger ones.
+/// The stack buffer avoids heap allocation in the common case, while heap fallback handles edge cases.
+template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
+ public:
+  explicit SmallBufferWithHeapFallback(size_t size) {
+    if (size <= STACK_SIZE) {
+      this->buffer_ = this->stack_buffer_;
+    } else {
+      this->heap_buffer_ = new uint8_t[size];
+      this->buffer_ = this->heap_buffer_;
+    }
+  }
+  ~SmallBufferWithHeapFallback() { delete[] this->heap_buffer_; }
+
+  // Delete copy and move operations to prevent double-delete
+  SmallBufferWithHeapFallback(const SmallBufferWithHeapFallback &) = delete;
+  SmallBufferWithHeapFallback &operator=(const SmallBufferWithHeapFallback &) = delete;
+  SmallBufferWithHeapFallback(SmallBufferWithHeapFallback &&) = delete;
+  SmallBufferWithHeapFallback &operator=(SmallBufferWithHeapFallback &&) = delete;
+
+  uint8_t *get() { return this->buffer_; }
+
+ private:
+  uint8_t stack_buffer_[STACK_SIZE];
+  uint8_t *heap_buffer_{nullptr};
+  uint8_t *buffer_;
+};
+
 ///@}
 
 /// @name Mathematics
@@ -580,7 +609,25 @@ std::string str_snake_case(const std::string &str);
 constexpr char to_sanitized_char(char c) {
   return (c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) ? c : '_';
 }
+
+/** Sanitize a string to buffer, keeping only alphanumerics, dashes, and underscores.
+ *
+ * @param buffer Output buffer to write to.
+ * @param buffer_size Size of the output buffer.
+ * @param str Input string to sanitize.
+ * @return Pointer to buffer.
+ *
+ * Buffer size needed: strlen(str) + 1.
+ */
+char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str);
+
+/// Sanitize a string to buffer. Automatically deduces buffer size.
+template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *str) {
+  return str_sanitize_to(buffer, N, str);
+}
+
 /// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
+/// @warning Allocates heap memory. Use str_sanitize_to() with a stack buffer instead.
 std::string str_sanitize(const std::string &str);
 
 /// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.

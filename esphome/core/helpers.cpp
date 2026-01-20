@@ -206,11 +206,22 @@ std::string str_snake_case(const std::string &str) {
   }
   return result;
 }
-std::string str_sanitize(const std::string &str) {
-  std::string result = str;
-  for (char &c : result) {
-    c = to_sanitized_char(c);
+char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
+  if (buffer_size == 0) {
+    return buffer;
   }
+  size_t i = 0;
+  while (*str && i < buffer_size - 1) {
+    buffer[i++] = to_sanitized_char(*str++);
+  }
+  buffer[i] = '\0';
+  return buffer;
+}
+
+std::string str_sanitize(const std::string &str) {
+  std::string result;
+  result.resize(str.size());
+  str_sanitize_to(&result[0], str.size() + 1, str.c_str());
   return result;
 }
 std::string str_snprintf(const char *fmt, size_t len, ...) {
