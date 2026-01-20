@@ -99,7 +99,7 @@ class DropdownType(WidgetType):
         if options := config.get(CONF_OPTIONS):
             lv_add(w.var.set_options(options))
         if symbol := config.get(CONF_SYMBOL):
-            lv.dropdown_set_symbol(w.var.obj, cpp_string_escape(symbol))
+            lv.dropdown_set_symbol(w.var.obj, cg.safe_exp(symbol))
         if (selected := config.get(CONF_SELECTED_INDEX)) is not None:
             value = await lv_int.process(selected)
             lv_add(w.var.set_selected_index(value, literal("LV_ANIM_OFF")))
