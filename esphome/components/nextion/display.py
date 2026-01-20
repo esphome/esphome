@@ -67,7 +67,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_DUMP_DEVICE_INFO, default=False): cv.boolean,
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
-            cv.Optional(CONF_MAX_QUEUE_AGE, default=8000): cv.All(
+            cv.Optional(CONF_MAX_QUEUE_AGE, default="8000ms"): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(
                     min=TimePeriod(milliseconds=0), max=TimePeriod(milliseconds=65535)
