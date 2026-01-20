@@ -1,8 +1,7 @@
 #include "esphome/core/log.h"
 #include "xensiv_pas_co2_base.h"
 
-namespace esphome {
-namespace xensiv_pas_co2_base {
+namespace esphome::xensiv_pas_co2_base {
 static const char *const TAG = "xensiv_pas_co2.component";
 
 void XensivPasCO2::setup() {
@@ -417,5 +416,4 @@ void XensivPasCO2::dump_config() {
   }
 }
 
-}  // namespace xensiv_pas_co2_base
-}  // namespace esphome
+}  // namespace esphome::xensiv_pas_co2_base

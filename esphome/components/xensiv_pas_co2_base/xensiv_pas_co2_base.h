@@ -5,8 +5,7 @@
 #include "esphome/core/gpio.h"
 #include "xensiv_pas_co2_regs.h"
 
-namespace esphome {
-namespace xensiv_pas_co2_base {
+namespace esphome::xensiv_pas_co2_base {
 
 class XensivPasCO2 : public Component {
  public:
@@ -59,5 +58,4 @@ class XensivPasCO2 : public Component {
   std::string failure_reason_;
 };
 
-}  // namespace xensiv_pas_co2_base
-}  // namespace esphome
+}  // namespace esphome::xensiv_pas_co2_base
