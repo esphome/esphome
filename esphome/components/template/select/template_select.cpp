@@ -41,7 +41,7 @@ void TemplateSelect::update() {
 }
 
 void TemplateSelect::control(size_t index) {
-  this->set_trigger_->trigger(std::string(this->option_at(index)));
+  this->set_trigger_->trigger(StringRef(this->option_at(index)));
 
   if (this->optimistic_)
     this->publish_state(index);

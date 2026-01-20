@@ -87,7 +87,17 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
 std::unique_ptr<Socket> socket_ip_loop_monitored(int type, int protocol);
 
 /// Set a sockaddr to the specified address and port for the IP version used by socket_ip().
-socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::string &ip_address, uint16_t port);
+/// @param addr Destination sockaddr structure
+/// @param addrlen Size of the addr buffer
+/// @param ip_address Null-terminated IP address string (IPv4 or IPv6)
+/// @param port Port number in host byte order
+/// @return Size of the sockaddr structure used, or 0 on error
+socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_address, uint16_t port);
+
+/// Convenience overload for std::string (backward compatible).
+inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::string &ip_address, uint16_t port) {
+  return set_sockaddr(addr, addrlen, ip_address.c_str(), port);
+}
 
 /// Set a sockaddr to the any address and specified port for the IP version used by socket_ip().
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);

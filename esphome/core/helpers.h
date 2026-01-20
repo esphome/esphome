@@ -348,6 +348,8 @@ template<typename T> class FixedVector {
 
   size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
+  size_t capacity() const { return capacity_; }
+  bool full() const { return size_ == capacity_; }
 
   /// Access element without bounds checking (matches std::vector behavior)
   /// Caller must ensure index is valid (i < size())
@@ -364,6 +366,35 @@ template<typename T> class FixedVector {
   T *end() { return data_ + size_; }
   const T *begin() const { return data_; }
   const T *end() const { return data_ + size_; }
+};
+
+/// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
+/// This is useful when most operations need a small buffer but occasionally need larger ones.
+/// The stack buffer avoids heap allocation in the common case, while heap fallback handles edge cases.
+template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
+ public:
+  explicit SmallBufferWithHeapFallback(size_t size) {
+    if (size <= STACK_SIZE) {
+      this->buffer_ = this->stack_buffer_;
+    } else {
+      this->heap_buffer_ = new uint8_t[size];
+      this->buffer_ = this->heap_buffer_;
+    }
+  }
+  ~SmallBufferWithHeapFallback() { delete[] this->heap_buffer_; }
+
+  // Delete copy and move operations to prevent double-delete
+  SmallBufferWithHeapFallback(const SmallBufferWithHeapFallback &) = delete;
+  SmallBufferWithHeapFallback &operator=(const SmallBufferWithHeapFallback &) = delete;
+  SmallBufferWithHeapFallback(SmallBufferWithHeapFallback &&) = delete;
+  SmallBufferWithHeapFallback &operator=(SmallBufferWithHeapFallback &&) = delete;
+
+  uint8_t *get() { return this->buffer_; }
+
+ private:
+  uint8_t stack_buffer_[STACK_SIZE];
+  uint8_t *heap_buffer_{nullptr};
+  uint8_t *buffer_;
 };
 
 ///@}
@@ -545,6 +576,15 @@ bool str_startswith(const std::string &str, const std::string &start);
 /// Check whether a string ends with a value.
 bool str_endswith(const std::string &str, const std::string &end);
 
+/// Case-insensitive check if string ends with suffix (no heap allocation).
+bool str_endswith_ignore_case(const char *str, size_t str_len, const char *suffix, size_t suffix_len);
+inline bool str_endswith_ignore_case(const char *str, const char *suffix) {
+  return str_endswith_ignore_case(str, strlen(str), suffix, strlen(suffix));
+}
+inline bool str_endswith_ignore_case(const std::string &str, const char *suffix) {
+  return str_endswith_ignore_case(str.c_str(), str.size(), suffix, strlen(suffix));
+}
+
 /// Truncate a string to a specific length.
 /// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
 std::string str_truncate(const std::string &str, size_t length);
@@ -571,7 +611,25 @@ std::string str_snake_case(const std::string &str);
 constexpr char to_sanitized_char(char c) {
   return (c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) ? c : '_';
 }
+
+/** Sanitize a string to buffer, keeping only alphanumerics, dashes, and underscores.
+ *
+ * @param buffer Output buffer to write to.
+ * @param buffer_size Size of the output buffer.
+ * @param str Input string to sanitize.
+ * @return Pointer to buffer.
+ *
+ * Buffer size needed: strlen(str) + 1.
+ */
+char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str);
+
+/// Sanitize a string to buffer. Automatically deduces buffer size.
+template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *str) {
+  return str_sanitize_to(buffer, N, str);
+}
+
 /// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
+/// @warning Allocates heap memory. Use str_sanitize_to() with a stack buffer instead.
 std::string str_sanitize(const std::string &str);
 
 /// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
