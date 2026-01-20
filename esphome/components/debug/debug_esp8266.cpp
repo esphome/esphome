@@ -53,8 +53,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   uint32_t flash_size = ESP.getFlashChipSize() / 1024;       // NOLINT
   uint32_t flash_speed = ESP.getFlashChipSpeed() / 1000000;  // NOLINT
   ESP_LOGD(TAG, "Flash Chip: Size=%" PRIu32 "kB Speed=%" PRIu32 "MHz Mode=%s", flash_size, flash_speed, flash_mode);
-  pos = buf_append(buf, size, pos, "|Flash: %" PRIu32 "kB Speed:%" PRIu32 "MHz Mode:%s", flash_size, flash_speed,
-                   flash_mode);
+  pos = buf_append_printf(buf, size, pos, "|Flash: %" PRIu32 "kB Speed:%" PRIu32 "MHz Mode:%s", flash_size, flash_speed,
+                          flash_mode);
 
 #if !defined(CLANG_TIDY)
   char reason_buffer[RESET_REASON_BUFFER_SIZE];
@@ -77,15 +77,15 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
            chip_id, ESP.getSdkVersion(), ESP.getCoreVersion().c_str(), boot_version, boot_mode, cpu_freq, flash_chip_id,
            reset_reason, ESP.getResetInfo().c_str());
 
-  pos = buf_append(buf, size, pos, "|Chip: 0x%08" PRIX32, chip_id);
-  pos = buf_append(buf, size, pos, "|SDK: %s", ESP.getSdkVersion());
-  pos = buf_append(buf, size, pos, "|Core: %s", ESP.getCoreVersion().c_str());
-  pos = buf_append(buf, size, pos, "|Boot: %u", boot_version);
-  pos = buf_append(buf, size, pos, "|Mode: %u", boot_mode);
-  pos = buf_append(buf, size, pos, "|CPU: %u", cpu_freq);
-  pos = buf_append(buf, size, pos, "|Flash: 0x%08" PRIX32, flash_chip_id);
-  pos = buf_append(buf, size, pos, "|Reset: %s", reset_reason);
-  pos = buf_append(buf, size, pos, "|%s", ESP.getResetInfo().c_str());
+  pos = buf_append_printf(buf, size, pos, "|Chip: 0x%08" PRIX32, chip_id);
+  pos = buf_append_printf(buf, size, pos, "|SDK: %s", ESP.getSdkVersion());
+  pos = buf_append_printf(buf, size, pos, "|Core: %s", ESP.getCoreVersion().c_str());
+  pos = buf_append_printf(buf, size, pos, "|Boot: %u", boot_version);
+  pos = buf_append_printf(buf, size, pos, "|Mode: %u", boot_mode);
+  pos = buf_append_printf(buf, size, pos, "|CPU: %u", cpu_freq);
+  pos = buf_append_printf(buf, size, pos, "|Flash: 0x%08" PRIX32, flash_chip_id);
+  pos = buf_append_printf(buf, size, pos, "|Reset: %s", reset_reason);
+  pos = buf_append_printf(buf, size, pos, "|%s", ESP.getResetInfo().c_str());
 #endif
 
   return pos;
