@@ -242,9 +242,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       return;
     }
 
-    size_t content_length = container->content_length;
-    size_t max_length = std::min(content_length, this->max_response_buffer_size_);
-
+    size_t max_length = this->max_response_buffer_size_;
 #ifdef USE_HTTP_REQUEST_RESPONSE
     if (this->capture_response_.value(x...)) {
       std::string response_body;
