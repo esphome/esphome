@@ -62,9 +62,16 @@ void ZE15COComponent::update() {
         this->status_set_warning();
         return;
     }
+
+    //Check the sensor fault judgement bit
+    if ((response[2] & 0x80) != 0) {
+        ESP_LOGW(TAG, "Received a faulty bit notification from the sensor");
+        this->status_set_warning();
+        return;
+    }
   
     this->status_clear_warning();
-    uint16_t raw = (response[2] << 8) | response[3];
+    uint16_t raw = ((response[2] & 0x1F) << 8) | response[3];
     float ppm = raw * 0.1f;
     this->publish_state(ppm);
   
@@ -111,6 +118,7 @@ void ZE15COComponent::process_stream_byte_(uint8_t byte) {
         return;
     }
 
+    // Check the response checksum
     uint8_t checksum = ze15_co_checksum(buffer_);
     if (buffer_[8] != checksum) {
         ESP_LOGVV(TAG, "Received values from ZE15-CO: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X", buffer_[0], buffer_[1], buffer_[2], buffer_[3], buffer_[4], buffer_[5], buffer_[6], buffer_[7], buffer_[8]);
@@ -119,8 +127,15 @@ void ZE15COComponent::process_stream_byte_(uint8_t byte) {
         return;
     }
 
+    //Check the sensor fault judgement bit
+    if ((buffer_[4] & 0x80) != 0) {
+        ESP_LOGW(TAG, "Received a faulty bit notification from the sensor");
+        this->status_set_warning();
+        return;
+    }
+
     this->status_clear_warning();
-    uint16_t raw = (buffer_[4] << 8) | buffer_[5];
+    uint16_t raw = ((buffer_[4] & 0x1F) << 8) | buffer_[5];
     float ppm = raw * 0.1f;
     this->publish_state(ppm);
 }
