@@ -277,7 +277,7 @@ APIError APINoiseFrameHelper::state_action_() {
     // node name, terminated by null byte
     std::memcpy(msg + name_offset, name.c_str(), name_len);
     // node mac, terminated by null byte
-    std::memcpy(msg + mac_offset, mac, mac_len);
+    std::memcpy(msg + mac_offset, mac, MAC_ADDRESS_BUFFER_SIZE);
 
     aerr = write_frame_(msg, total_size);
     if (aerr != APIError::OK)
