@@ -235,19 +235,33 @@ bool BTHomeMiThermometer::handle_service_data_(const esp32_ble_tracker::ServiceD
     return false;
   }
 
+  uint64_t source_address = device.address_uint64();
+  bool address_matches = source_address == this->address_;
+  if (!is_encrypted && mac_included && data.size() >= 7) {
+    uint64_t advertised_address = 0;
+    for (int i = 5; i >= 0; i--) {
+      advertised_address = (advertised_address << 8) | data[1 + i];
+    }
+    address_matches = address_matches || advertised_address == this->address_;
+  }
+
   if (is_encrypted && !this->has_bindkey_) {
-    char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-    ESP_LOGE(TAG, "Encrypted BTHome frame received but no bindkey configured for %s", device.address_str_to(addr_buf));
+    if (address_matches) {
+      char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      ESP_LOGE(TAG, "Encrypted BTHome frame received but no bindkey configured for %s",
+               device.address_str_to(addr_buf));
+    }
     return false;
   }
 
   if (!is_encrypted && this->has_bindkey_) {
-    char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-    ESP_LOGE(TAG, "Unencrypted BTHome frame received with bindkey configured for %s", device.address_str_to(addr_buf));
+    if (address_matches) {
+      char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      ESP_LOGE(TAG, "Unencrypted BTHome frame received with bindkey configured for %s",
+               device.address_str_to(addr_buf));
+    }
     return false;
   }
-
-  uint64_t source_address = device.address_uint64();
   std::vector<uint8_t> decrypted_payload;
   const uint8_t *payload = nullptr;
   size_t payload_size = 0;
