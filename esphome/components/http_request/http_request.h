@@ -79,6 +79,9 @@ inline bool is_redirect(int const status) {
  */
 inline bool is_success(int const status) { return status >= HTTP_STATUS_OK && status < HTTP_STATUS_MULTIPLE_CHOICES; }
 
+/// Error code returned by HttpContainer::read() when connection closed prematurely
+static constexpr int HTTP_ERROR_CONNECTION_CLOSED = -1;
+
 /// Status of a read operation
 enum class HttpReadStatus : uint8_t {
   OK,       ///< Read completed successfully
@@ -131,6 +134,27 @@ class HttpContainer : public Parented<HttpRequestComponent> {
   int status_code;
   uint32_t duration_ms;
 
+  /**
+   * @brief Read data from the HTTP response body.
+   *
+   * This is a non-blocking read operation. The semantics are consistent across
+   * all platforms (Arduino and ESP-IDF):
+   *
+   * @param buf Buffer to read data into
+   * @param max_len Maximum number of bytes to read
+   * @return
+   *   - > 0: Number of bytes read successfully
+   *   - 0: No data available yet, caller should retry (data may still be arriving)
+   *   - HTTP_ERROR_CONNECTION_CLOSED (-1): Connection closed prematurely
+   *   - < -1: Other error (platform-specific error code)
+   *
+   * The caller should use get_bytes_read() and content_length to track progress.
+   * When get_bytes_read() >= content_length, all expected data has been received.
+   *
+   * For non-blocking read loops, use http_read_loop_result() helper which handles
+   * timeout tracking and converts return values to HttpReadLoopResult enum.
+   * For simple buffer reads, use http_read_fully() helper.
+   */
   virtual int read(uint8_t *buf, size_t max_len) = 0;
   virtual void end() = 0;
 

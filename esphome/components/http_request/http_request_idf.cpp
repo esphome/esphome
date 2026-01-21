@@ -210,6 +210,19 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   return container;
 }
 
+// ESP-IDF HTTP read implementation
+//
+// Uses non-blocking mode (config.is_async = true) for consistent behavior with Arduino.
+// esp_http_client_read() in async mode returns:
+//   > 0: bytes read
+//   0: connection closed (end of stream)
+//   -ESP_ERR_HTTP_EAGAIN (0x7007): no data available yet (would block)
+//   other negative: error
+//
+// We normalize these to the HttpContainer::read() contract:
+//   > 0: bytes read
+//   0: no data yet, retry
+//   < 0: error (connection closed prematurely, or other error)
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
@@ -217,7 +230,7 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   // Check if we've already read all expected content
   if (this->bytes_read_ >= this->content_length) {
     this->duration_ms += (millis() - start);
-    return 0;  // All content read
+    return 0;  // All content read successfully
   }
 
   this->feed_wdt();
@@ -231,16 +244,17 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
     return read_len_or_error;
   }
 
-  // read_len_or_error < 0: check for EAGAIN (no data available in non-blocking mode)
-  // ESP_ERR_HTTP_EAGAIN is returned as a negative error code
+  // No data available yet in non-blocking mode
+  // ESP_ERR_HTTP_EAGAIN (0x7007) is returned as negative
   if (read_len_or_error == -ESP_ERR_HTTP_EAGAIN) {
-    return 0;  // No data available yet, caller should retry
+    return 0;  // No data yet, caller should retry
   }
 
+  // Connection closed by server
   if (read_len_or_error == 0) {
-    // Connection closed, but we haven't read all content yet (early check handles success case)
-    // This is a premature close - return error
-    return -1;
+    // We haven't read all content yet (early check handles success case)
+    // Return error so caller exits immediately instead of waiting for timeout
+    return HTTP_ERROR_CONNECTION_CLOSED;
   }
 
   // Other negative value - real error, return the actual error code for debugging
