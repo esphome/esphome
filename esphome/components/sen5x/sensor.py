@@ -1,5 +1,3 @@
-import logging
-
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -18,7 +16,6 @@ from esphome.const import (
     CONF_INDEX_OFFSET,
     CONF_LEARNING_TIME_GAIN_HOURS,
     CONF_LEARNING_TIME_OFFSET_HOURS,
-    CONF_MODEL,
     CONF_NORMALIZED_OFFSET_SLOPE,
     CONF_NOX,
     CONF_OFFSET,
@@ -58,15 +55,12 @@ CODEOWNERS = ["@martgras", "@mikelawrence"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
 
-_LOGGER = logging.getLogger(__name__)
-
 sen5x_ns = cg.esphome_ns.namespace("sen5x")
 SEN5XComponent = sen5x_ns.class_(
     "SEN5XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
 Sen5xModel = sen5x_ns.enum("Sen5xModel")
 RhtAccelerationMode = sen5x_ns.enum("RhtAccelerationMode")
-
 
 CONF_ACCELERATION_MODE = "acceleration_mode"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
@@ -322,21 +316,7 @@ SEN62_SCHEMA = PM_SCHEMA.extend(SEN6X_TH_SCHEMA).extend(i2c.i2c_device_schema(0x
 SEN65_SCHEMA = SEN62_SCHEMA.extend(VOC_SCHEMA).extend(NOX_SCHEMA)
 
 
-def validate_model(config):
-    if model := config.get(CONF_MODEL):
-        _LOGGER.warning(
-            "The 'model' option is deprecated and will be removed very soon. "
-            "Update your configuration to use 'type' instead. "
-            "'type: %s' was added to your configuration automatically.",
-            model,
-        )
-        config[CONF_TYPE] = model
-        del config[CONF_MODEL]
-    return config
-
-
-CONFIG_SCHEMA = cv.All(
-    validate_model,
+CONFIG_SCHEMA = cv.Schema(
     cv.typed_schema(
         {
             SEN50: SEN50_SCHEMA,
@@ -391,9 +371,11 @@ CO2_SETTING_MAP = {
 }
 
 
-FINAL_VALIDATE_SCHEMA = i2c.final_validate_device_schema(
-    "sen5x", max_frequency="100kHz"
-)
+def final_validate(config):
+    i2c.final_validate_device_schema("sen5x", max_frequency="100kHz")(config)
+
+
+FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config):
@@ -511,21 +493,19 @@ async def sen5x_saph_to_code(config, action_id, template_arg, args):
 
 
 SEN5X_TEMPERATURE_COMPENSATION_SCHEMA = cv.Schema(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(SEN5XComponent),
-            cv.Optional(CONF_OFFSET, default=0.0): cv.templatable(
-                cv.float_range(min=-100.0, max=100.0)
-            ),
-            cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0.0): cv.templatable(
-                cv.float_range(min=-3.0000, max=3.0000)
-            ),
-            cv.Optional(CONF_TIME_CONSTANT, default=0): cv.templatable(
-                cv.int_range(min=0, max=65535),
-            ),
-            cv.Optional(CONF_SLOT, default=0): cv.templatable(cv.int_range(0, 4)),
-        }
-    )
+    {
+        cv.GenerateID(): cv.use_id(SEN5XComponent),
+        cv.Optional(CONF_OFFSET, default=0.0): cv.templatable(
+            cv.float_range(min=-100.0, max=100.0)
+        ),
+        cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0.0): cv.templatable(
+            cv.float_range(min=-3.0000, max=3.0000)
+        ),
+        cv.Optional(CONF_TIME_CONSTANT, default=0): cv.templatable(
+            cv.int_range(min=0, max=65535),
+        ),
+        cv.Optional(CONF_SLOT, default=0): cv.templatable(cv.int_range(0, 4)),
+    },
 )
 
 
