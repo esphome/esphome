@@ -1226,7 +1226,7 @@ template<typename VectorType> static void insertion_sort_scan_results(VectorType
 // has overhead from UART transmission, so combining INFO+DEBUG into one line halves
 // the blocking time. Do NOT split this into separate ESP_LOGI/ESP_LOGD calls.
 __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res) {
-  char bssid_s[18];
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   auto bssid = res.get_bssid();
   format_mac_addr_upper(bssid.data(), bssid_s);
 
