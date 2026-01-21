@@ -231,18 +231,19 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
     return read_len_or_error;
   }
 
-  if (read_len_or_error == 0) {
-    // Connection closed gracefully
-    return 0;
-  }
-
   // read_len_or_error < 0: check for EAGAIN (no data available in non-blocking mode)
   // ESP_ERR_HTTP_EAGAIN = 0x7007, returned as negative
   if (read_len_or_error == -ESP_ERR_HTTP_EAGAIN) {
-    return 0;  // No data available yet, consistent with Arduino behavior
+    return 0;  // No data available yet, caller should retry
   }
 
-  // Real error - return the actual error code for debugging
+  if (read_len_or_error == 0) {
+    // Connection closed, but we haven't read all content yet (early check handles success case)
+    // This is a premature close - return error
+    return -1;
+  }
+
+  // Other negative value - real error, return the actual error code for debugging
   return read_len_or_error;
 }
 
