@@ -783,7 +783,7 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
       WiFiComponent::log_discarded_scan_result(ssid_cstr, it->bssid, it->rssi, it->channel);
     }
   }
-  ESP_LOGD(TAG, "Scan complete: %zu found, %zu stored%s", total, this->scan_result_.size(),
+  ESP_LOGV(TAG, "Scan complete: %zu found, %zu stored%s", total, this->scan_result_.size(),
            needs_full ? "" : " (filtered)");
   this->scan_done_ = true;
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
