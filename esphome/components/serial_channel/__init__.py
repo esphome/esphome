@@ -15,7 +15,7 @@ from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 # and ESPHome's UART component is not implemented be used as a platform, we implement it
 # directly as a component that requires a pre-configured uart.
 
-CODEOWNERS = ["@esphome/core"]
+CODEOWNERS = ["@clydebarrow"]
 
 serial_channel_ns = cg.esphome_ns.namespace("serial_channel")
 SerialChannel = serial_channel_ns.class_(
