@@ -79,15 +79,30 @@ def final_validate(config):
         if uart_conf[CONF_ID] == config[CONF_UART_ID]:
             current_buffer_size = uart_conf.get(CONF_RX_BUFFER_SIZE, 256)
             if current_buffer_size < MINIMUM_RX_BUFFER_SIZE:
-                uart_conf[CONF_RX_BUFFER_SIZE] = MINIMUM_RX_BUFFER_SIZE
-                import logging
+                uart_id_str = str(config[CONF_UART_ID])
 
-                _LOGGER = logging.getLogger(__name__)
-                _LOGGER.info(
-                    "emontx: Increasing UART rx_buffer_size from %d to %d bytes (minimum required)",
-                    current_buffer_size,
-                    MINIMUM_RX_BUFFER_SIZE,
-                )
+                # If value is exactly 256 (UART default), assume it's the default and auto-upgrade
+                # If it's any other value below 2048, assume user explicitly set it and raise error
+                if current_buffer_size == 256:
+                    # Using default value - auto-upgrade with info message
+                    uart_conf[CONF_RX_BUFFER_SIZE] = MINIMUM_RX_BUFFER_SIZE
+                    import logging
+
+                    _LOGGER = logging.getLogger(__name__)
+                    _LOGGER.info(
+                        "emontx: Automatically setting UART rx_buffer_size to %d bytes (minimum required by emonTx firmware)",
+                        MINIMUM_RX_BUFFER_SIZE,
+                    )
+                else:
+                    # User explicitly configured a non-default value that's too small
+                    raise cv.Invalid(
+                        f"Component emontx requires UART '{uart_id_str}' to have "
+                        f"rx_buffer_size of at least {MINIMUM_RX_BUFFER_SIZE} bytes "
+                        f"(currently set to {current_buffer_size} bytes). "
+                        f"The emonTx firmware sends ~2KB configuration bursts that would overflow smaller buffers. "
+                        f"Please increase rx_buffer_size in your uart configuration.",
+                        path=[CONF_UART_ID],
+                    )
             break
 
     # Validate UART settings
