@@ -51,10 +51,8 @@ void SY6970Component::setup() {
     ESP_LOGW(TAG, "Unexpected chip ID: 0x%02X (expected 0x00)", chip_id);
   }
 
-  if (this->led_enabled_requested_) {
-    ESP_LOGCONFIG(TAG, "Setting LED enabled to %s", ONOFF(led_enabled_requested_state_));
-    this->set_led_enabled(led_enabled_requested_state_);
-  }
+  ESP_LOGCONFIG(TAG, "Setting LED enabled to %s", ONOFF(led_enabled_));
+  this->set_led_enabled(led_enabled_);
 
   ESP_LOGCONFIG(TAG, "SY6970 initialized successfully");
 }
@@ -154,12 +152,6 @@ void SY6970Component::set_charge_enabled(bool enabled) {
     return;
 
   this->update_register_(SY6970_REG_SYS_CONTROL, 0x10, enabled ? 0x10 : 0x00);
-}
-
-void SY6970Component::led_enabled_action_handler(bool enabled) {
-  // method to be called from config to subsequently set LED state during setup
-  this->led_enabled_requested_ = true;
-  this->led_enabled_requested_state_ = enabled;
 }
 
 void SY6970Component::set_led_enabled(bool enabled) {
