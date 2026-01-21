@@ -100,7 +100,7 @@ void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
   char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
   StringRef url = req->url_to(url_buf);
 #else
-  auto url = req->url();
+  const auto &url = req->url();
 #endif
   if (url == ESPHOME_F("/config.json")) {
     this->handle_config(req);
