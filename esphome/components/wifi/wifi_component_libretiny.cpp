@@ -674,7 +674,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
   size_t count = 0;
   for (int i = 0; i < num; i++) {
     const char *ssid_cstr = scan->ap[i].ssid;
-    if (needs_full || this->matches_configured_ssid_(ssid_cstr)) {
+    if (needs_full || this->matches_configured_network_(ssid_cstr, scan->ap[i].bssid.addr)) {
       count++;
     }
   }
@@ -684,7 +684,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
   // Second pass: store matching networks
   for (int i = 0; i < num; i++) {
     const char *ssid_cstr = scan->ap[i].ssid;
-    if (needs_full || this->matches_configured_ssid_(ssid_cstr)) {
+    if (needs_full || this->matches_configured_network_(ssid_cstr, scan->ap[i].bssid.addr)) {
       auto &ap = scan->ap[i];
       this->scan_result_.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
                                               ap.bssid.addr[4], ap.bssid.addr[5]},

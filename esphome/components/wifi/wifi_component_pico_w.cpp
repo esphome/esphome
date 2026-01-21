@@ -139,8 +139,8 @@ int WiFiComponent::s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *r
 void WiFiComponent::wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result) {
   const char *ssid_cstr = reinterpret_cast<const char *>(result->ssid);
 
-  // Skip networks that don't match any configured SSID (unless full results needed)
-  if (!this->needs_full_scan_results_() && !this->matches_configured_ssid_(ssid_cstr)) {
+  // Skip networks that don't match any configured network (unless full results needed)
+  if (!this->needs_full_scan_results_() && !this->matches_configured_network_(ssid_cstr, result->bssid)) {
     WiFiComponent::log_discarded_scan_result_(ssid_cstr, result->bssid, result->rssi, result->channel);
     return;
   }

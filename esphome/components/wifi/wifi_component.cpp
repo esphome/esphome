@@ -399,16 +399,25 @@ bool WiFiComponent::needs_full_scan_results_() const {
   return false;
 }
 
-bool WiFiComponent::matches_configured_ssid_(const char *ssid) const {
+bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t *bssid) const {
   // Hidden networks in scan results have empty SSIDs - skip them
   if (ssid[0] == '\0') {
     return false;
   }
   for (const auto &sta : this->sta_) {
     // Skip hidden network configs (they don't appear in normal scans)
-    // For BSSID-only configs (empty SSID), match all networks since we can't filter by SSID
-    // Otherwise, match only the specific configured SSID
-    if (!sta.get_hidden() && (sta.get_ssid().empty() || sta.get_ssid() == ssid)) {
+    if (sta.get_hidden()) {
+      continue;
+    }
+    // For BSSID-only configs (empty SSID), match by BSSID
+    if (sta.get_ssid().empty()) {
+      if (sta.has_bssid() && std::memcmp(sta.get_bssid().data(), bssid, 6) == 0) {
+        return true;
+      }
+      continue;
+    }
+    // Match by SSID
+    if (sta.get_ssid() == ssid) {
       return true;
     }
   }

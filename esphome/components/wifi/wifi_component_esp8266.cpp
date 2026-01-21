@@ -763,7 +763,7 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
   size_t count = 0;
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
     const char *ssid_cstr = reinterpret_cast<const char *>(it->ssid);
-    if (needs_full || this->matches_configured_ssid_(ssid_cstr)) {
+    if (needs_full || this->matches_configured_network_(ssid_cstr, it->bssid)) {
       count++;
     }
   }
@@ -773,7 +773,7 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
   // Second pass: store matching networks
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
     const char *ssid_cstr = reinterpret_cast<const char *>(it->ssid);
-    if (needs_full || this->matches_configured_ssid_(ssid_cstr)) {
+    if (needs_full || this->matches_configured_network_(ssid_cstr, it->bssid)) {
       this->scan_result_.emplace_back(
           bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
           std::string(ssid_cstr, it->ssid_len), it->channel, it->rssi, it->authmode != AUTH_OPEN, it->is_hidden != 0);

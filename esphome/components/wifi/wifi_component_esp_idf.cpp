@@ -850,7 +850,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
 
       // Only construct std::string and store if needed
-      if (needs_full || this->matches_configured_ssid_(ssid_cstr)) {
+      if (needs_full || this->matches_configured_network_(ssid_cstr, record.bssid)) {
         bssid_t bssid;
         std::copy(record.bssid, record.bssid + 6, bssid.begin());
         std::string ssid(ssid_cstr);
