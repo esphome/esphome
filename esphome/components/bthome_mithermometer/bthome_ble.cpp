@@ -237,13 +237,13 @@ bool BTHomeMiThermometer::handle_service_data_(const esp32_ble_tracker::ServiceD
 
   if (is_encrypted && !this->has_bindkey_) {
     char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-    ESP_LOGV(TAG, "Ignoring encrypted BTHome frame without bindkey from %s", device.address_str_to(addr_buf));
+    ESP_LOGE(TAG, "Encrypted BTHome frame received but no bindkey configured for %s", device.address_str_to(addr_buf));
     return false;
   }
 
   if (!is_encrypted && this->has_bindkey_) {
     char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-    ESP_LOGV(TAG, "Ignoring unencrypted BTHome frame for bindkey device %s", device.address_str_to(addr_buf));
+    ESP_LOGE(TAG, "Unencrypted BTHome frame received with bindkey configured for %s", device.address_str_to(addr_buf));
     return false;
   }
 
