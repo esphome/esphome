@@ -64,7 +64,7 @@ enum ChargeStatus {
 
 // Structure to hold all register data read in one transaction
 struct SY6970Data {
-  uint8_t registers[21];  // Registers 0x00-0x14 (includes unused 0x0F, 0x10, 0x13)
+  uint8_t registers[21];  // Registers 0x00-0x14 (includes unused 0x0F, 0x10)
 };
 
 // Listener interface for components that want to receive SY6970 data updates
