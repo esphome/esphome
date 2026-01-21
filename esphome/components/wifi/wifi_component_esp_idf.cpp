@@ -827,16 +827,17 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
 
     uint16_t number = it.number;
-    auto records = std::make_unique<wifi_ap_record_t[]>(number);
-    err = esp_wifi_scan_get_ap_records(&number, records.get());
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(err));
-      return;
-    }
-
     scan_result_.init(number);
-    for (int i = 0; i < number; i++) {
-      auto &record = records[i];
+
+    // Process one record at a time to avoid large buffer allocation
+    wifi_ap_record_t record;
+    for (uint16_t i = 0; i < number; i++) {
+      err = esp_wifi_scan_get_ap_record(&record);
+      if (err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_scan_get_ap_record failed: %s", esp_err_to_name(err));
+        esp_wifi_clear_ap_list();  // Free remaining records not yet retrieved
+        break;
+      }
       bssid_t bssid;
       std::copy(record.bssid, record.bssid + 6, bssid.begin());
       std::string ssid(reinterpret_cast<const char *>(record.ssid));

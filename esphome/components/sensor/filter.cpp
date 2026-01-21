@@ -291,22 +291,27 @@ optional<float> ThrottleWithPriorityFilter::new_value(float value) {
 }
 
 // DeltaFilter
-DeltaFilter::DeltaFilter(float delta, bool percentage_mode)
-    : delta_(delta), current_delta_(delta), last_value_(NAN), percentage_mode_(percentage_mode) {}
+DeltaFilter::DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1)
+    : min_a0_(min_a0), min_a1_(min_a1), max_a0_(max_a0), max_a1_(max_a1) {}
+
+void DeltaFilter::set_baseline(float (*fn)(float)) { this->baseline_ = fn; }
+
 optional<float> DeltaFilter::new_value(float value) {
-  if (std::isnan(value)) {
-    if (std::isnan(this->last_value_)) {
-      return {};
-    } else {
-      return this->last_value_ = value;
-    }
+  // Always yield the first value.
+  if (std::isnan(this->last_value_)) {
+    this->last_value_ = value;
+    return value;
   }
-  float diff = fabsf(value - this->last_value_);
-  if (std::isnan(this->last_value_) || (diff > 0.0f && diff >= this->current_delta_)) {
-    if (this->percentage_mode_) {
-      this->current_delta_ = fabsf(value * this->delta_);
-    }
-    return this->last_value_ = value;
+  // calculate min and max using the linear equation
+  float ref = this->baseline_(this->last_value_);
+  float min = fabsf(this->min_a0_ + ref * this->min_a1_);
+  float max = fabsf(this->max_a0_ + ref * this->max_a1_);
+  float delta = fabsf(value - ref);
+  // if there is no reference, e.g. for the first value, just accept this one,
+  // otherwise accept only if within range.
+  if (delta > min && delta <= max) {
+    this->last_value_ = value;
+    return value;
   }
   return {};
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) || defined(USE_ESP32)
 
 #include "esphome/components/remote_base/remote_base.h"
 #include <IRSender.h>  // arduino-heatpump library
