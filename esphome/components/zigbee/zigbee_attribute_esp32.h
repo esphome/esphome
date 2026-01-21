@@ -32,12 +32,14 @@ class ZigbeeAttribute : public Component {
         max_size_(max_size) {}
   void loop() override;
   template<typename T> void add_attr(uint8_t attr_access, T value);
+  esp_zb_zcl_reporting_info_t get_reporting_info();
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
   void set_report(bool force);
 #ifdef USE_BINARY_SENSOR
   template<typename T> void connect(binary_sensor::BinarySensor *sensor);
 #endif
+  bool report_enabled = false;
 
  protected:
   void set_attr_();

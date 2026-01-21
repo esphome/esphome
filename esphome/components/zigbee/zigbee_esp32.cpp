@@ -33,10 +33,6 @@ static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask) {
   }
 }
 
-void ZigbeeComponent::set_report(ZigbeeAttribute *attribute, esp_zb_zcl_reporting_info_t reporting_info) {
-  this->reporting_list.push_back(std::make_tuple(attribute, reporting_info));
-}
-
 void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
   static uint8_t steering_retry_count = 0;
   uint32_t *p_sg_p = signal_struct->p_app_signal;
@@ -123,8 +119,16 @@ static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id,
 }
 
 void ZigbeeComponent::create_default_cluster(uint8_t endpoint_id, zb_ha_standard_devs_e device_id) {
-  this->cluster_list_[endpoint_id] = esphome_zb_default_clusters_create((esp_zb_ha_standard_devices_t) device_id);
-  this->endpoint_list_[endpoint_id] = device_id;
+  esp_zb_cluster_list_t *cluster_list = esphome_zb_default_clusters_create((esp_zb_ha_standard_devices_t) device_id);
+  this->endpoint_list_[endpoint_id] =
+      std::tuple<zb_ha_standard_devs_e, esp_zb_cluster_list_t *>(device_id, cluster_list);
+  // Add basic cluster
+  this->add_cluster(endpoint_id, ESP_ZB_ZCL_CLUSTER_ID_BASIC, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+  // Add identify cluster if not already present
+  if (esp_zb_cluster_list_get_cluster(cluster_list, ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE) ==
+      nullptr) {
+    this->add_cluster(endpoint_id, ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+  }
 }
 
 void ZigbeeComponent::add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role) {
@@ -163,8 +167,8 @@ esp_zb_attribute_list_t *ZigbeeComponent::create_basic_cluster_() {
   return attr_list;
 }
 
-esp_err_t ZigbeeComponent::create_endpoint(uint8_t endpoint_id, zb_ha_standard_devs_e device_id) {
-  esp_zb_cluster_list_t *esp_zb_cluster_list = this->cluster_list_[endpoint_id];
+esp_err_t ZigbeeComponent::create_endpoint(uint8_t endpoint_id, zb_ha_standard_devs_e device_id,
+                                           esp_zb_cluster_list_t *esp_zb_cluster_list) {
   esp_zb_endpoint_config_t endpoint_config = {.endpoint = endpoint_id,
                                               .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
                                               .app_device_id = device_id,
@@ -218,16 +222,17 @@ void ZigbeeComponent::setup() {
 
   esp_err_t ret;
   for (auto const &[key, val] : this->attribute_list_) {
-    esp_zb_cluster_list_t *esp_zb_cluster_list = this->cluster_list_[std::get<0>(key)];
+    esp_zb_cluster_list_t *esp_zb_cluster_list = std::get<1>(this->endpoint_list_[std::get<0>(key)]);
     ret = esphome_zb_cluster_list_add_or_update_cluster(std::get<1>(key), esp_zb_cluster_list, val, std::get<2>(key));
     if (ret != ESP_OK) {
       ESP_LOGE(TAG, "Could not create cluster 0x%04X with role %u: %s", std::get<1>(key), std::get<2>(key),
                esp_err_to_name(ret));
     }
   }
+  this->attribute_list_.clear();
 
   for (auto const &[ep_id, dev_id] : this->endpoint_list_) {
-    if (create_endpoint(ep_id, dev_id) != ESP_OK) {
+    if (create_endpoint(ep_id, std::get<0>(dev_id), std::get<1>(dev_id)) != ESP_OK) {
       ESP_LOGE(TAG, "Could not create endpoint %u", ep_id);
     }
   }
@@ -245,10 +250,14 @@ void ZigbeeComponent::setup() {
     this->mark_failed();
     return;
   }
-  for (auto &[_, reporting_info] : this->reporting_list) {
-    if (esp_zb_zcl_update_reporting_info(&reporting_info) != ESP_OK) {
-      ESP_LOGE(TAG, "Could not configure reporting for attribute 0x%04X in cluster 0x%04X in endpoint %u",
-               reporting_info.attr_id, reporting_info.cluster_id, reporting_info.ep);
+  for (auto &[_, attribute] : this->attributes_) {
+    if (attribute->report_enabled) {
+      esp_zb_zcl_reporting_info_t reporting_info = attribute->get_reporting_info();
+      ESP_LOGD(TAG, "set reporting for cluster: %u", reporting_info.cluster_id);
+      if (esp_zb_zcl_update_reporting_info(&reporting_info) != ESP_OK) {
+        ESP_LOGE(TAG, "Could not configure reporting for attribute 0x%04X in cluster 0x%04X in endpoint %u",
+                 reporting_info.attr_id, reporting_info.cluster_id, reporting_info.ep);
+      }
     }
   }
   xTaskCreate(esp_zb_task_, "Zigbee_main", 4096, NULL, 24, NULL);

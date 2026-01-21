@@ -35,7 +35,6 @@ from .const import (
 from .const_esp32 import (
     ATTR_TYPE,
     CLUSTER_ID,
-    CLUSTER_ROLE,
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
@@ -101,10 +100,6 @@ def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
     ep = copy.deepcopy(ep_configs["binary_input"])
     for cl in ep.get(CONF_CLUSTERS, []):
         for attr in cl[CONF_ATTRIBUTES]:
-            if CONF_DEVICE in attr:  # connect device
-                attr[CONF_DEVICE] = config[CONF_ID]
-                if CONF_REPORT in config:
-                    attr[CONF_REPORT] = config[CONF_REPORT]
             if (
                 attr[CONF_ATTRIBUTE_ID] == 0x1C
                 and CONF_VALUE not in attr
@@ -115,11 +110,17 @@ def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
                 )  # use unidecode
                 attr[CONF_VALUE] = str(name)
                 attr[CONF_MAX_LENGTH] = len(str(name))
+            if CONF_DEVICE in attr:  # connect device
+                attr[CONF_DEVICE] = config[CONF_ID]
+                if CONF_REPORT in config:
+                    attr[CONF_REPORT] = config[CONF_REPORT]
+                attr[CONF_ID] = cv.declare_id(ZigbeeAttribute)(None)
+                if "zb_attr_ids" not in config:
+                    config["zb_attr_ids"] = []
+                config["zb_attr_ids"].append(attr[CONF_ID])
+            else:
+                attr[CONF_ID] = None
             validate_attributes(attr)
-            attr[CONF_ID] = cv.declare_id(ZigbeeAttribute)(None)
-            if "zb_attr_ids" not in config:
-                config["zb_attr_ids"] = []
-            config["zb_attr_ids"].append(attr[CONF_ID])
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     binary_sensor_ep: list[dict] = zb_data.setdefault(KEY_BS_EP, [])
     binary_sensor_ep.append(ep)
@@ -138,6 +139,20 @@ async def attributes_to_code(
     var: cg.Pvariable, ep_num: int, cl: dict[str, Any]
 ) -> None:
     for attr in cl.get(CONF_ATTRIBUTES, []):
+        if attr.get(CONF_ID) is None:
+            cg.add(
+                var.add_attr(
+                    ep_num,
+                    CLUSTER_ID.get(cl[CONF_ID], cl[CONF_ID]),
+                    cl[ROLE],
+                    attr[CONF_ATTRIBUTE_ID],
+                    ATTR_TYPE[attr[CONF_TYPE]],
+                    0,
+                    attr.get(CONF_MAX_LENGTH, 0),
+                    attr[CONF_VALUE],
+                )
+            )
+            continue
         attr_var = cg.new_Pvariable(
             attr[CONF_ID],
             var,
@@ -197,9 +212,6 @@ async def esp32_to_code(config: ConfigType) -> None:
     )
     for ep in ep_list:
         cg.add(var.create_default_cluster(ep[CONF_NUM], DEVICE_ID[ep[DEVICE_TYPE]]))
-        cg.add(
-            var.add_cluster(ep[CONF_NUM], CLUSTER_ID["BASIC"], CLUSTER_ROLE["SERVER"])
-        )
         for cl in ep.get(CONF_CLUSTERS, []):
             cg.add(
                 var.add_cluster(

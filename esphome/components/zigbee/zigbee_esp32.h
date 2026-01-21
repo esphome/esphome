@@ -6,7 +6,6 @@
 
 #include <map>
 #include <tuple>
-#include <deque>
 
 #include "esp_zigbee_core.h"
 #include "zboss_api.h"
@@ -48,7 +47,8 @@ class ZigbeeComponent : public Component {
  public:
   void setup() override;
   void dump_config() override;
-  esp_err_t create_endpoint(uint8_t endpoint_id, zb_ha_standard_devs_e device_id);
+  esp_err_t create_endpoint(uint8_t endpoint_id, zb_ha_standard_devs_e device_id,
+                            esp_zb_cluster_list_t *esp_zb_cluster_list);
   void set_basic_cluster(std::string model, std::string manufacturer, std::string date);
   void add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role);
   void create_default_cluster(uint8_t endpoint_id, zb_ha_standard_devs_e device_id);
@@ -56,6 +56,10 @@ class ZigbeeComponent : public Component {
   template<typename T>
   void add_attr(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                 uint8_t attr_type, uint8_t attr_access, uint8_t max_size, T value);
+
+  template<typename T>
+  void add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id, uint8_t attr_type,
+                uint8_t attr_access, uint8_t max_size, T value);
 
   void set_report(ZigbeeAttribute *attribute, esp_zb_zcl_reporting_info_t reporting_info);
   void handle_attribute(esp_zb_device_cb_common_info_t info, esp_zb_zcl_attribute_t attribute);
@@ -73,7 +77,6 @@ class ZigbeeComponent : public Component {
   bool connected_ = false;
   bool started_ = false;
 
-  std::deque<std::tuple<ZigbeeAttribute *, esp_zb_zcl_reporting_info_t>> reporting_list;
   struct {
     std::string model;
     std::string manufacturer;
@@ -90,14 +93,19 @@ class ZigbeeComponent : public Component {
   template<typename T>
   void add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                  uint8_t attr_type, uint8_t attr_access, T *value_p);
-  std::map<uint8_t, zb_ha_standard_devs_e> endpoint_list_;
-  std::map<uint8_t, esp_zb_cluster_list_t *> cluster_list_;
+  std::map<uint8_t, std::tuple<zb_ha_standard_devs_e, esp_zb_cluster_list_t *>> endpoint_list_;
   std::map<std::tuple<uint8_t, uint16_t, uint8_t>, esp_zb_attribute_list_t *> attribute_list_;
   std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
   esp_zb_ep_list_t *esp_zb_ep_list_ = esp_zb_ep_list_create();
 };
 
 extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct);
+
+template<typename T>
+void ZigbeeComponent::add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
+                               uint8_t attr_type, uint8_t attr_access, uint8_t max_size, T value) {
+  this->add_attr<T>(nullptr, endpoint_id, cluster_id, role, attr_id, attr_type, attr_access, max_size, value);
+}
 
 template<typename T>
 void ZigbeeComponent::add_attr(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
@@ -123,7 +131,10 @@ void ZigbeeComponent::add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint
   esp_zb_attribute_list_t *attr_list = this->attribute_list_[{endpoint_id, cluster_id, role}];
   esp_err_t ret =
       esphome_zb_cluster_add_or_update_attr(cluster_id, attr_list, attr_id, attr_type, attr_access, value_p);
-  this->attributes_[{endpoint_id, cluster_id, role, attr_id}] = attr;
+
+  if (attr != nullptr) {
+    this->attributes_[{endpoint_id, cluster_id, role, attr_id}] = attr;
+  }
 }
 
 }  // namespace esphome::zigbee

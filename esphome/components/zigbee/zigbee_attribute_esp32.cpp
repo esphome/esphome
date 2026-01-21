@@ -48,7 +48,7 @@ void ZigbeeAttribute::report_(bool has_lock) {
   }
 }
 
-void ZigbeeAttribute::set_report(bool force) {
+esp_zb_zcl_reporting_info_t ZigbeeAttribute::get_reporting_info() {
   esp_zb_zcl_reporting_info_t reporting_info = {
       .direction = ESP_ZB_ZCL_CMD_DIRECTION_TO_SRV,
       .ep = this->endpoint_id_,
@@ -57,7 +57,6 @@ void ZigbeeAttribute::set_report(bool force) {
       .attr_id = this->attr_id_,
       .manuf_code = ESP_ZB_ZCL_ATTR_NON_MANUFACTURER_SPECIFIC,
   };
-
   reporting_info.dst.profile_id = ESP_ZB_AF_HA_PROFILE_ID;
   reporting_info.u.send_info.min_interval = 10;     /*!< Actual minimum reporting interval */
   reporting_info.u.send_info.max_interval = 0;      /*!< Actual maximum reporting interval */
@@ -65,7 +64,11 @@ void ZigbeeAttribute::set_report(bool force) {
   reporting_info.u.send_info.def_max_interval = 0;  /*!< Default maximum reporting interval */
   reporting_info.u.send_info.delta.s16 = 0;         /*!< Actual reportable change */
 
-  this->zb_->set_report(this, reporting_info);
+  return reporting_info;
+}
+
+void ZigbeeAttribute::set_report(bool force) {
+  this->report_enabled = true;
   this->force_report_ = force;
 }
 
