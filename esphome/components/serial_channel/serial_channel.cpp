@@ -4,7 +4,6 @@
 #include "esphome/core/log.h"
 
 namespace esphome::serial_channel {
-
 static const char *const TAG = "serial_channel";
 
 void SerialChannel::setup() {}
@@ -43,10 +42,10 @@ void SerialChannel::loop() {
       // unexpected read failure, will be logged in read_byte
       break;
     }
-    if (!this->rx_buffer_.empty()) {
-      this->publish_state(this->rx_buffer_.begin(), this->rx_buffer_.size());
-      this->rx_buffer_.clear();
-    }
+  }
+  if (!this->rx_buffer_.empty()) {
+    this->publish_state(this->rx_buffer_.begin(), this->rx_buffer_.size());
+    this->rx_buffer_.clear();
   }
 }
 
@@ -62,5 +61,4 @@ void SerialChannel::control(const uint8_t *data, size_t len) {
   this->flush();
   ESP_LOGV(TAG, "'%s': Sent %d bytes to UART", this->get_name().c_str(), len);
 }
-
 }  // namespace esphome::serial_channel
