@@ -319,6 +319,9 @@ void I2SAudioSpeaker::speaker_task(void *params) {
   } else {
     bool stop_gracefully = false;
     bool tx_dma_underflow = true;
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+    bool spdif_callback_registered = false;  // Track if SPDIF callback has been registered
+#endif
 
     uint32_t frames_written = 0;
     uint32_t last_data_received_time = millis();
@@ -445,11 +448,28 @@ void I2SAudioSpeaker::speaker_task(void *params) {
         size_t bytes_written = 0;
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
         if (this_speaker->spdif_mode_) {
-          // SPDIF mode: encode PCM to BMC and write directly to I2S
+#ifndef USE_I2S_LEGACY
+          if (!spdif_callback_registered) {
+            // For SPDIF mode: register callback once at startup
+            // (SPDIF encoder uses i2s_channel_write which requires enabled channel)
+            ESP_LOGV(TAG, "SPDIF: Registering callback and enabling channel");
+            i2s_channel_disable(this_speaker->tx_handle_);
+            xQueueReset(this_speaker->i2s_event_queue_);
+            const i2s_event_callbacks_t callbacks = {
+                .on_sent = i2s_on_sent_cb,
+            };
+            i2s_channel_register_event_callback(this_speaker->tx_handle_, &callbacks, this_speaker);
+            i2s_channel_enable(this_speaker->tx_handle_);
+            spdif_callback_registered = true;
+          }
+#endif  // USE_I2S_LEGACY
+        // SPDIF mode: encode PCM to BMC and write directly to I2S
           esp_err_t err = this_speaker->spdif_encoder_->write(transfer_buffer->get_buffer_start(),
                                                               transfer_buffer->available(), portMAX_DELAY);
           if (err == ESP_OK) {
             bytes_written = transfer_buffer->available();
+          } else {
+            ESP_LOGW(TAG, "SPDIF: Write failed with error %s", esp_err_to_name(err));
           }
         } else
 #endif  // USE_I2S_AUDIO_SPDIF_MODE
@@ -487,23 +507,27 @@ void I2SAudioSpeaker::speaker_task(void *params) {
           last_data_received_time = millis();
           frames_written += this_speaker->current_stream_info_.bytes_to_frames(bytes_written);
           transfer_buffer->decrease_buffer_length(bytes_written);
-          if (tx_dma_underflow) {
-            tx_dma_underflow = false;
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+          // SPDIF mode handles callback registration separately, skip for non-SPDIF only
+          if (!this_speaker->spdif_mode_)
+#endif
+            if (tx_dma_underflow) {
+              tx_dma_underflow = false;
 #ifndef USE_I2S_LEGACY
-            // Reset the event queue timestamps
-            // Enable the on_sent callback to accurately track the timestamps of played audio
-            // Enable the I2S channel to start sending the preloaded audio
+              // Reset the event queue timestamps
+              // Enable the on_sent callback to accurately track the timestamps of played audio
+              // Enable the I2S channel to start sending the preloaded audio
 
-            xQueueReset(this_speaker->i2s_event_queue_);
+              xQueueReset(this_speaker->i2s_event_queue_);
 
-            const i2s_event_callbacks_t callbacks = {
-                .on_sent = i2s_on_sent_cb,
-            };
-            i2s_channel_register_event_callback(this_speaker->tx_handle_, &callbacks, this_speaker);
+              const i2s_event_callbacks_t callbacks = {
+                  .on_sent = i2s_on_sent_cb,
+              };
+              i2s_channel_register_event_callback(this_speaker->tx_handle_, &callbacks, this_speaker);
 
-            i2s_channel_enable(this_speaker->tx_handle_);
+              i2s_channel_enable(this_speaker->tx_handle_);
 #endif  // USE_I2S_LEGACY
-          }
+            }
 #ifdef USE_I2S_LEGACY
           // The legacy driver doesn't easily support the callback approach for timestamps, so fall back to a direct but
           // less accurate approach.
