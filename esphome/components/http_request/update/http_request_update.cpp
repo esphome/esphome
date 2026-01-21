@@ -78,6 +78,11 @@ void HttpRequestUpdate::update_task(void *params) {
     } else {
       ESP_LOGE(TAG, "Error reading manifest: %d", read_result.error_code);
     }
+    // Defer to main loop to avoid race condition on component_state_ read-modify-write
+    this_update->defer([this_update]() { this_update->status_set_error(LOG_STR("Failed to read manifest")); });
+    allocator.deallocate(data, container->content_length);
+    container->end();
+    UPDATE_RETURN;
   }
   size_t read_index = container->get_bytes_read();
 
