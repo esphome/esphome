@@ -412,6 +412,14 @@ bool WiFiComponent::matches_configured_ssid_(const char *ssid) const {
   return false;
 }
 
+void WiFiComponent::log_discarded_scan_result_(const char *ssid, const uint8_t *bssid, int8_t rssi, uint8_t channel) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char bssid_s[18];
+  format_mac_addr_upper(bssid, bssid_s);
+  ESP_LOGV(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " %ddB Ch:%u", ssid, bssid_s, rssi, channel);
+#endif
+}
+
 int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
   // Find next SSID to try in RETRY_HIDDEN phase.
   //
@@ -1234,18 +1242,6 @@ __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res)
 #endif
 }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-// Helper function to log non-matching scan results at verbose level
-__attribute__((noinline)) static void log_scan_result_non_matching(const WiFiScanResult &res) {
-  char bssid_s[18];
-  auto bssid = res.get_bssid();
-  format_mac_addr_upper(bssid.data(), bssid_s);
-
-  ESP_LOGV(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
-           LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-}
-#endif
-
 void WiFiComponent::check_scanning_finished() {
   if (!this->scan_done_) {
     if (millis() - this->action_started_ > WIFI_SCAN_TIMEOUT_MS) {
@@ -1282,20 +1278,11 @@ void WiFiComponent::check_scanning_finished() {
   // Sort scan results using insertion sort for better memory efficiency
   insertion_sort_scan_results(this->scan_result_);
 
-  size_t non_matching_count = 0;
+  // Log matching networks (non-matching already logged at VERBOSE in scan callback)
   for (auto &res : this->scan_result_) {
     if (res.get_matches()) {
       log_scan_result(res);
-    } else {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      log_scan_result_non_matching(res);
-#else
-      non_matching_count++;
-#endif
     }
-  }
-  if (non_matching_count > 0) {
-    ESP_LOGD(TAG, "- %zu non-matching (VERBOSE to show)", non_matching_count);
   }
 
   // SYNCHRONIZATION POINT: Establish link between scan_result_[0] and selected_sta_index_

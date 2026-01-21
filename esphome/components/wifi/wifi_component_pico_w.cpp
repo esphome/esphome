@@ -141,6 +141,7 @@ void WiFiComponent::wifi_scan_result(void *env, const cyw43_ev_scan_result_t *re
 
   // Skip networks that don't match any configured SSID (unless full results needed)
   if (!this->needs_full_scan_results_() && !this->matches_configured_ssid_(ssid_cstr)) {
+    WiFiComponent::log_discarded_scan_result_(ssid_cstr, result->bssid, result->rssi, result->channel);
     return;
   }
 

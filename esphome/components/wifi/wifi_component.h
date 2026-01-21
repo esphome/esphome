@@ -543,6 +543,8 @@ class WiFiComponent : public Component {
   bool needs_full_scan_results_() const;
   /// Check if SSID matches any configured network (for scan result filtering)
   bool matches_configured_ssid_(const char *ssid) const;
+  /// Log a discarded scan result at VERBOSE level
+  static void log_discarded_scan_result_(const char *ssid, const uint8_t *bssid, int8_t rssi, uint8_t channel);
   /// Find next SSID that wasn't in scan results (might be hidden)
   /// Returns index of next potentially hidden SSID, or -1 if none found
   /// @param start_index Start searching from index after this (-1 to start from beginning)

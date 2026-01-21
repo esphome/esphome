@@ -689,6 +689,9 @@ void WiFiComponent::wifi_scan_done_callback_() {
       this->scan_result_.emplace_back(
           bssid_t{ap.bssid[0], ap.bssid[1], ap.bssid[2], ap.bssid[3], ap.bssid[4], ap.bssid[5]}, std::string(ssid_cstr),
           ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
+    } else {
+      auto &ap = scan->ap[i];
+      WiFiComponent::log_discarded_scan_result_(ssid_cstr, ap.bssid, ap.rssi, ap.channel);
     }
   }
   WiFi.scanDelete();
