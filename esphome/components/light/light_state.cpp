@@ -162,19 +162,11 @@ void LightState::publish_state() {
 
 LightOutput *LightState::get_output() const { return this->output_; }
 
-static constexpr const char *EFFECT_NONE = "None";
 static constexpr auto EFFECT_NONE_REF = StringRef::from_lit("None");
 
-std::string LightState::get_effect_name() {
+StringRef LightState::get_effect_name() {
   if (this->active_effect_index_ > 0) {
     return this->effects_[this->active_effect_index_ - 1]->get_name();
-  }
-  return EFFECT_NONE;
-}
-
-StringRef LightState::get_effect_name_ref() {
-  if (this->active_effect_index_ > 0) {
-    return StringRef(this->effects_[this->active_effect_index_ - 1]->get_name());
   }
   return EFFECT_NONE_REF;
 }
