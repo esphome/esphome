@@ -1,8 +1,20 @@
+import logging
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_COMMAND, CONF_ID, CONF_ON_DATA, CONF_TRIGGER_ID
+from esphome.const import (
+    CONF_COMMAND,
+    CONF_ID,
+    CONF_ON_DATA,
+    CONF_RX_BUFFER_SIZE,
+    CONF_TRIGGER_ID,
+    CONF_UART_ID,
+)
+import esphome.final_validate as fv
+
+_LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["json"]
 CODEOWNERS = ["@FredM67", "@TrystanLea", "@glynhudson"]
@@ -69,6 +81,33 @@ def final_validate(config):
         parity=None,
         stop_bits=1,
     )
+
+    # Ensure UART has adequate rx_buffer_size for large data bursts (settings dumps, etc.)
+    # The firmware can send ~2KB of configuration data in bursts
+    full_config = fv.full_config.get()
+    uart_id = config.get(CONF_UART_ID)
+    uart_config = full_config.get(uart_id)
+
+    if uart_config:
+        min_recommended_buffer = 2048
+        current_buffer = uart_config.get(CONF_RX_BUFFER_SIZE, 256)  # Default is 256
+
+        if current_buffer < min_recommended_buffer:
+            # Automatically set buffer size if user hasn't explicitly configured it
+            _LOGGER.warning(
+                "EmonTx component requires UART rx_buffer_size >= %d bytes for reliable operation. "
+                "Current UART '%s' has rx_buffer_size=%d bytes. "
+                "Automatically increasing to %d bytes. "
+                "To silence this warning, explicitly set 'rx_buffer_size: %d' in your UART configuration.",
+                min_recommended_buffer,
+                uart_id,
+                current_buffer,
+                min_recommended_buffer,
+                min_recommended_buffer,
+            )
+            # Modify the UART config to increase buffer size
+            uart_config[CONF_RX_BUFFER_SIZE] = min_recommended_buffer
+
     return schema(config)
 
 

@@ -101,9 +101,9 @@ void EmonTx::loop() {
     return;
   }
 
-  uint16_t bytes_read = 0;
-  while (available() > 0 && bytes_read < 512) {
-    bytes_read++;
+  // Read all available data to prevent UART buffer overflow
+  // No artificial limit - drain the hardware buffer completely each loop
+  while (available() > 0) {
     uint8_t received = read();
 
     // Handle different characters
@@ -112,8 +112,21 @@ void EmonTx::loop() {
     } else if (received == '\n') {
       // End of line - process the buffer
       if (!buffer_.empty()) {
-        std::string line = buffer_;
-        buffer_.clear();
+        // Use static string to avoid repeated allocations
+        // Reserve same capacity as buffer_ to maintain allocation across swaps
+        static std::string line = []() {
+          std::string s;
+          s.reserve(1024);
+          return s;
+        }();
+        // Swap pointers with buffer_ (O(1), zero copy, both reuse allocations)
+        ESP_LOGVV(TAG, "Before swap: buffer_ size=%zu capacity=%zu data=%p, line size=%zu capacity=%zu data=%p",
+                  buffer_.size(), buffer_.capacity(), (const void *) buffer_.data(), line.size(), line.capacity(),
+                  (const void *) line.data());
+        line.swap(buffer_);
+        ESP_LOGVV(TAG, "After swap: buffer_ size=%zu capacity=%zu data=%p, line size=%zu capacity=%zu data=%p",
+                  buffer_.size(), buffer_.capacity(), (const void *) buffer_.data(), line.size(), line.capacity(),
+                  (const void *) line.data());
 
         ESP_LOGD(TAG, "Received line: %s", line.c_str());
 
@@ -172,10 +185,6 @@ void EmonTx::loop() {
         buffer_ += received;
       }
     }
-  }
-
-  if (bytes_read >= 512 && available() > 0) {
-    ESP_LOGV(TAG, "Reached per-iteration read limit (512 bytes), will continue in next loop()");
   }
 }
 
