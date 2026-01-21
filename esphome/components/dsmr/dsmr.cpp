@@ -1,4 +1,5 @@
 #include "dsmr.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <AES.h>
@@ -294,8 +295,8 @@ void Dsmr::dump_config() {
   DSMR_TEXT_SENSOR_LIST(DSMR_LOG_TEXT_SENSOR, )
 }
 
-void Dsmr::set_decryption_key(const std::string &decryption_key) {
-  if (decryption_key.empty()) {
+void Dsmr::set_decryption_key(const char *decryption_key) {
+  if (decryption_key == nullptr || decryption_key[0] == '\0') {
     ESP_LOGI(TAG, "Disabling decryption");
     this->decryption_key_.clear();
     if (this->crypt_telegram_ != nullptr) {
@@ -305,21 +306,15 @@ void Dsmr::set_decryption_key(const std::string &decryption_key) {
     return;
   }
 
-  if (decryption_key.length() != 32) {
-    ESP_LOGE(TAG, "Error, decryption key must be 32 character long");
+  if (!parse_hex(decryption_key, this->decryption_key_, 16)) {
+    ESP_LOGE(TAG, "Error, decryption key must be 32 hex characters");
+    this->decryption_key_.clear();
     return;
   }
-  this->decryption_key_.clear();
 
   ESP_LOGI(TAG, "Decryption key is set");
   // Verbose level prints decryption key
-  ESP_LOGV(TAG, "Using decryption key: %s", decryption_key.c_str());
-
-  char temp[3] = {0};
-  for (int i = 0; i < 16; i++) {
-    strncpy(temp, &(decryption_key.c_str()[i * 2]), 2);
-    this->decryption_key_.push_back(std::strtoul(temp, nullptr, 16));
-  }
+  ESP_LOGV(TAG, "Using decryption key: %s", decryption_key);
 
   if (this->crypt_telegram_ == nullptr) {
     this->crypt_telegram_ = new uint8_t[this->max_telegram_len_];  // NOLINT

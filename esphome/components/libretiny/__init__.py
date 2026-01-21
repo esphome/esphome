@@ -382,4 +382,11 @@ async def component_to_code(config):
             "custom_options.sys_config#h", _BK7231N_SYS_CONFIG_OPTIONS
         )
 
+    # Disable LWIP statistics to save RAM - not needed in production
+    # Must explicitly disable all sub-stats to avoid redefinition warnings
+    cg.add_platformio_option(
+        "custom_options.lwip",
+        ["LWIP_STATS=0", "MEM_STATS=0", "MEMP_STATS=0"],
+    )
+
     await cg.register_component(var, config)

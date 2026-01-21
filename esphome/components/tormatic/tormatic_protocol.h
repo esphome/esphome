@@ -55,6 +55,7 @@ enum MessageType : uint16_t {
   COMMAND = 0x0106,
 };
 
+// Max string length: 7 ("Unknown"/"Command"). Update print() buffer sizes if adding longer strings.
 inline const char *message_type_to_str(MessageType t) {
   switch (t) {
     case STATUS:
@@ -83,7 +84,11 @@ struct MessageHeader {
   }
 
   std::string print() {
-    return str_sprintf("MessageHeader: seq %d, len %d, type %s", this->seq, this->len, message_type_to_str(this->type));
+    // 64 bytes: "MessageHeader: seq " + uint16 + ", len " + uint32 + ", type " + type + safety margin
+    char buf[64];
+    buf_append_printf(buf, sizeof(buf), 0, "MessageHeader: seq %d, len %d, type %s", this->seq, this->len,
+                      message_type_to_str(this->type));
+    return buf;
   }
 
   void byteswap() {
@@ -131,6 +136,7 @@ inline CoverOperation gate_status_to_cover_operation(GateStatus s) {
   return COVER_OPERATION_IDLE;
 }
 
+// Max string length: 11 ("Ventilating"). Update print() buffer sizes if adding longer strings.
 inline const char *gate_status_to_str(GateStatus s) {
   switch (s) {
     case PAUSED:
@@ -170,7 +176,12 @@ struct StatusReply {
   GateStatus state;
   uint8_t trailer = 0x0;
 
-  std::string print() { return str_sprintf("StatusReply: state %s", gate_status_to_str(this->state)); }
+  std::string print() {
+    // 48 bytes: "StatusReply: state " (19) + state (11) + safety margin
+    char buf[48];
+    buf_append_printf(buf, sizeof(buf), 0, "StatusReply: state %s", gate_status_to_str(this->state));
+    return buf;
+  }
 
   void byteswap(){};
 } __attribute__((packed));
@@ -202,7 +213,12 @@ struct CommandRequestReply {
   CommandRequestReply() = default;
   CommandRequestReply(GateStatus state) { this->state = state; }
 
-  std::string print() { return str_sprintf("CommandRequestReply: state %s", gate_status_to_str(this->state)); }
+  std::string print() {
+    // 56 bytes: "CommandRequestReply: state " (27) + state (11) + safety margin
+    char buf[56];
+    buf_append_printf(buf, sizeof(buf), 0, "CommandRequestReply: state %s", gate_status_to_str(this->state));
+    return buf;
+  }
 
   void byteswap() { this->type = convert_big_endian(this->type); }
 } __attribute__((packed));
