@@ -2,6 +2,7 @@
 
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
+#include <optional>
 #include <vector>
 
 namespace esphome::sy6970 {
