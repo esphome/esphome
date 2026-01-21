@@ -61,10 +61,7 @@ class ZigbeeComponent : public Component {
   void add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id, uint8_t attr_type,
                 uint8_t attr_access, uint8_t max_size, T value);
 
-  void set_report(ZigbeeAttribute *attribute, esp_zb_zcl_reporting_info_t reporting_info);
   void handle_attribute(esp_zb_device_cb_common_info_t info, esp_zb_zcl_attribute_t attribute);
-  void search_bindings();
-  static void binding_table_cb(const esp_zb_zdo_binding_table_info_t *table_info, void *user_ctx);
 
   void factory_reset() {
     esp_zb_lock_acquire(portMAX_DELAY);
