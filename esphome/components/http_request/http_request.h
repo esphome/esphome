@@ -350,14 +350,18 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       uint8_t *buf = allocator.allocate(max_length);
       if (buf != nullptr) {
         size_t read_index = 0;
+        uint32_t last_data_time = millis();
+        const uint32_t read_timeout = this->parent_->get_timeout();
         while (container->get_bytes_read() < max_length) {
-          int read = container->read(buf + read_index, std::min<size_t>(max_length - read_index, 512));
-          if (read <= 0) {
-            break;
-          }
+          int read_or_error = container->read(buf + read_index, std::min<size_t>(max_length - read_index, 512));
           App.feed_wdt();
           yield();
-          read_index += read;
+          auto result = http_read_loop_result(read_or_error, last_data_time, read_timeout);
+          if (result == HttpReadLoopResult::RETRY)
+            continue;
+          if (result != HttpReadLoopResult::DATA)
+            break;  // ERROR or TIMEOUT
+          read_index += read_or_error;
         }
         response_body.reserve(read_index);
         response_body.assign((char *) buf, read_index);
