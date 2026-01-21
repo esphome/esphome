@@ -686,12 +686,13 @@ void WiFiComponent::wifi_scan_done_callback_() {
     const char *ssid_cstr = scan->ap[i].ssid;
     if (needs_full || this->matches_configured_ssid_(ssid_cstr)) {
       auto &ap = scan->ap[i];
-      this->scan_result_.emplace_back(
-          bssid_t{ap.bssid[0], ap.bssid[1], ap.bssid[2], ap.bssid[3], ap.bssid[4], ap.bssid[5]}, std::string(ssid_cstr),
-          ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
+      this->scan_result_.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
+                                              ap.bssid.addr[4], ap.bssid.addr[5]},
+                                      std::string(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
+                                      ssid_cstr[0] == '\0');
     } else {
       auto &ap = scan->ap[i];
-      WiFiComponent::log_discarded_scan_result_(ssid_cstr, ap.bssid, ap.rssi, ap.channel);
+      WiFiComponent::log_discarded_scan_result_(ssid_cstr, ap.bssid.addr, ap.rssi, ap.channel);
     }
   }
   WiFi.scanDelete();
