@@ -855,7 +855,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
         std::copy(record.bssid, record.bssid + 6, bssid.begin());
         std::string ssid(ssid_cstr);
         this->scan_result_.emplace_back(bssid, std::move(ssid), record.primary, record.rssi,
-                                        record.authmode != WIFI_AUTH_OPEN, ssid.empty());
+                                        record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
       } else {
         WiFiComponent::log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
       }
