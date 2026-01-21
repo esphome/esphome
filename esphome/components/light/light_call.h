@@ -1,7 +1,6 @@
 #pragma once
 
 #include "light_color_values.h"
-#include <set>
 
 namespace esphome {
 
@@ -130,7 +129,9 @@ class LightCall {
   /// Set the effect of the light by its name.
   LightCall &set_effect(optional<std::string> effect);
   /// Set the effect of the light by its name.
-  LightCall &set_effect(const std::string &effect);
+  LightCall &set_effect(const std::string &effect) { return this->set_effect(effect.data(), effect.size()); }
+  /// Set the effect of the light by its name and length (zero-copy from API).
+  LightCall &set_effect(const char *effect, size_t len);
   /// Set the effect of the light by its internal index number (only for internal use).
   LightCall &set_effect(uint32_t effect_number);
   LightCall &set_effect(optional<uint32_t> effect_number);
@@ -186,8 +187,8 @@ class LightCall {
 
   //// Compute the color mode that should be used for this call.
   ColorMode compute_color_mode_();
-  /// Get potential color modes for this light call.
-  std::set<ColorMode> get_suitable_color_modes_();
+  /// Get potential color modes bitmask for this light call.
+  color_mode_bitmask_t get_suitable_color_modes_mask_();
   /// Some color modes also can be set using non-native parameters, transform those calls.
   void transform_parameters_();
 

@@ -1,6 +1,6 @@
 #include "http_request_idf.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/components/network/util.h"
 #include "esphome/components/watchdog/watchdog.h"
@@ -14,8 +14,7 @@
 
 #include "esp_task_wdt.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 static const char *const TAG = "http_request.idf";
 
@@ -55,7 +54,7 @@ esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
 std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, const std::string &method,
                                                        const std::string &body,
                                                        const std::list<Header> &request_headers,
-                                                       std::set<std::string> collect_headers) {
+                                                       const std::set<std::string> &collect_headers) {
   if (!network::is_connected()) {
     this->status_momentary_error("failed", 1000);
     ESP_LOGE(TAG, "HTTP Request failed; Not connected to network");
@@ -214,18 +213,12 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
 
-  int bufsize = std::min(max_len, this->content_length - this->bytes_read_);
-
-  if (bufsize == 0) {
-    this->duration_ms += (millis() - start);
-    return 0;
+  this->feed_wdt();
+  int read_len = esp_http_client_read(this->client_, (char *) buf, max_len);
+  this->feed_wdt();
+  if (read_len > 0) {
+    this->bytes_read_ += read_len;
   }
-
-  this->feed_wdt();
-  int read_len = esp_http_client_read(this->client_, (char *) buf, bufsize);
-  this->feed_wdt();
-  this->bytes_read_ += read_len;
-
   this->duration_ms += (millis() - start);
 
   return read_len;
@@ -245,7 +238,6 @@ void HttpContainerIDF::feed_wdt() {
   }
 }
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

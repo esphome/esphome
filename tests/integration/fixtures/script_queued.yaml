@@ -1,0 +1,170 @@
+esphome:
+  name: test-script-queued
+
+host:
+api:
+  actions:
+    # Test 1: Queue depth with default max_runs=5
+    - action: test_queue_depth
+      then:
+        - logger.log: "=== TEST 1: Queue depth (max_runs=5 means 5 total, reject 6-7) ==="
+        - script.execute:
+            id: queue_depth_script
+            value: 1
+        - script.execute:
+            id: queue_depth_script
+            value: 2
+        - script.execute:
+            id: queue_depth_script
+            value: 3
+        - script.execute:
+            id: queue_depth_script
+            value: 4
+        - script.execute:
+            id: queue_depth_script
+            value: 5
+        - script.execute:
+            id: queue_depth_script
+            value: 6
+        - script.execute:
+            id: queue_depth_script
+            value: 7
+
+    # Test 2: Ring buffer wrap test
+    - action: test_ring_buffer
+      then:
+        - logger.log: "=== TEST 2: Ring buffer wrap (should process A, B, C in order) ==="
+        - script.execute:
+            id: wrap_script
+            msg: "A"
+        - script.execute:
+            id: wrap_script
+            msg: "B"
+        - script.execute:
+            id: wrap_script
+            msg: "C"
+
+    # Test 3: Stop clears queue
+    - action: test_stop_clears
+      then:
+        - logger.log: "=== TEST 3: Stop clears queue (should only see 1, then 'STOPPED') ==="
+        - script.execute:
+            id: stop_script
+            num: 1
+        - script.execute:
+            id: stop_script
+            num: 2
+        - script.execute:
+            id: stop_script
+            num: 3
+        - delay: 50ms
+        - logger.log: "STOPPING script now"
+        - script.stop: stop_script
+
+    # Test 4: Verify rejection (max_runs=3)
+    - action: test_rejection
+      then:
+        - logger.log: "=== TEST 4: Verify rejection (max_runs=3 means 3 total, reject 4-8) ==="
+        - script.execute:
+            id: rejection_script
+            val: 1
+        - script.execute:
+            id: rejection_script
+            val: 2
+        - script.execute:
+            id: rejection_script
+            val: 3
+        - script.execute:
+            id: rejection_script
+            val: 4
+        - script.execute:
+            id: rejection_script
+            val: 5
+        - script.execute:
+            id: rejection_script
+            val: 6
+        - script.execute:
+            id: rejection_script
+            val: 7
+        - script.execute:
+            id: rejection_script
+            val: 8
+
+    # Test 5: No parameters test
+    - action: test_no_params
+      then:
+        - logger.log: "=== TEST 5: No params (should process 3 times) ==="
+        - script.execute: no_params_script
+        - script.execute: no_params_script
+        - script.execute: no_params_script
+
+logger:
+  level: DEBUG
+
+script:
+  # Test script 1: Queue depth test (default max_runs=5)
+  - id: queue_depth_script
+    mode: queued
+    parameters:
+      value: int
+    then:
+      - logger.log:
+          format: "Queue test: START item %d"
+          args: ['value']
+      - delay: 100ms
+      - logger.log:
+          format: "Queue test: END item %d"
+          args: ['value']
+
+  # Test script 2: Ring buffer wrap test (max_runs=3)
+  - id: wrap_script
+    mode: queued
+    max_runs: 3
+    parameters:
+      msg: string
+    then:
+      - logger.log:
+          format: "Ring buffer: START '%s'"
+          args: ['msg.c_str()']
+      - delay: 50ms
+      - logger.log:
+          format: "Ring buffer: END '%s'"
+          args: ['msg.c_str()']
+
+  # Test script 3: Stop test
+  - id: stop_script
+    mode: queued
+    max_runs: 5
+    parameters:
+      num: int
+    then:
+      - logger.log:
+          format: "Stop test: START %d"
+          args: ['num']
+      - delay: 100ms
+      - logger.log:
+          format: "Stop test: END %d"
+          args: ['num']
+
+  # Test script 4: Rejection test (max_runs=3)
+  - id: rejection_script
+    mode: queued
+    max_runs: 3
+    parameters:
+      val: int
+    then:
+      - logger.log:
+          format: "Rejection test: START %d"
+          args: ['val']
+      - delay: 200ms
+      - logger.log:
+          format: "Rejection test: END %d"
+          args: ['val']
+
+  # Test script 5: No parameters
+  - id: no_params_script
+    mode: queued
+    then:
+      - logger.log: "No params: START"
+      - delay: 50ms
+      - logger.log: "No params: END"

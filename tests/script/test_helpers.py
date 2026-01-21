@@ -1,5 +1,6 @@
 """Unit tests for script/helpers.py module."""
 
+from collections.abc import Generator
 import json
 import os
 from pathlib import Path
@@ -28,6 +29,13 @@ _filter_changed_local = helpers._filter_changed_local
 build_all_include = helpers.build_all_include
 print_file_list = helpers.print_file_list
 get_all_dependencies = helpers.get_all_dependencies
+
+
+@pytest.fixture(autouse=True)
+def clear_helpers_cache() -> None:
+    """Clear cached functions before each test."""
+    helpers._get_github_event_data.cache_clear()
+    helpers._get_changed_files_github_actions.cache_clear()
 
 
 @pytest.mark.parametrize(
@@ -1065,3 +1073,303 @@ def test_parse_list_components_output(output: str, expected: list[str]) -> None:
     """Test parse_list_components_output function."""
     result = helpers.parse_list_components_output(output)
     assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("file_path", "expected_component"),
+    [
+        # Component files
+        ("esphome/components/wifi/wifi.cpp", "wifi"),
+        ("esphome/components/uart/uart.h", "uart"),
+        ("esphome/components/api/api_server.cpp", "api"),
+        ("esphome/components/sensor/sensor.cpp", "sensor"),
+        # Test files
+        ("tests/components/uart/test.esp32-idf.yaml", "uart"),
+        ("tests/components/wifi/test.esp8266-ard.yaml", "wifi"),
+        ("tests/components/sensor/test.esp32-idf.yaml", "sensor"),
+        ("tests/components/api/test_api.cpp", "api"),
+        ("tests/components/uart/common.h", "uart"),
+        # Non-component files
+        ("esphome/core/component.cpp", None),
+        ("esphome/core/helpers.h", None),
+        ("tests/integration/test_api.py", None),
+        ("tests/unit_tests/test_helpers.py", None),
+        ("README.md", None),
+        ("script/helpers.py", None),
+        # Edge cases
+        ("esphome/components/", None),  # No component name
+        ("tests/components/", None),  # No component name
+        ("esphome/components", None),  # No trailing slash
+        ("tests/components", None),  # No trailing slash
+        # Files in component directories that are not components
+        ("tests/components/.gitignore", None),  # Hidden file
+        ("tests/components/README.md", None),  # Documentation file
+        ("esphome/components/__init__.py", None),  # Python init file
+        ("tests/components/main.cpp", None),  # File with extension
+    ],
+)
+def test_get_component_from_path(
+    file_path: str, expected_component: str | None
+) -> None:
+    """Test extraction of component names from file paths."""
+    result = helpers.get_component_from_path(file_path)
+    assert result == expected_component
+
+
+# Components graph cache tests
+
+
+@pytest.fixture
+def mock_git_output() -> str:
+    """Fixture for mock git ls-files output with realistic component files.
+
+    Includes examples of AUTO_LOAD in sensor.py and binary_sensor.py files,
+    which is why we need to hash all .py files, not just __init__.py.
+    """
+    return (
+        "100644 abc123... 0 esphome/components/wifi/__init__.py\n"
+        "100644 def456... 0 esphome/components/api/__init__.py\n"
+        "100644 ghi789... 0 esphome/components/xiaomi_lywsd03mmc/__init__.py\n"
+        "100644 jkl012... 0 esphome/components/xiaomi_lywsd03mmc/sensor.py\n"
+        "100644 mno345... 0 esphome/components/xiaomi_cgpr1/__init__.py\n"
+        "100644 pqr678... 0 esphome/components/xiaomi_cgpr1/binary_sensor.py\n"
+    )
+
+
+@pytest.fixture
+def mock_cache_file(tmp_path: Path) -> Path:
+    """Fixture for a temporary cache file path."""
+    return tmp_path / "components_graph.json"
+
+
+@pytest.fixture(autouse=True)
+def clear_cache_key_cache() -> None:
+    """Clear the components graph cache key cache before each test."""
+    helpers.get_components_graph_cache_key.cache_clear()
+
+
+@pytest.fixture
+def mock_subprocess_run() -> Generator[Mock, None, None]:
+    """Fixture to mock subprocess.run for git commands."""
+    with patch("subprocess.run") as mock_run:
+        yield mock_run
+
+
+def test_cache_key_generation(mock_git_output: str, mock_subprocess_run: Mock) -> None:
+    """Test that cache key is generated based on git file hashes."""
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    key = helpers.get_components_graph_cache_key()
+
+    # Should be a 64-character hex string (SHA256)
+    assert len(key) == 64
+    assert all(c in "0123456789abcdef" for c in key)
+
+
+def test_cache_key_consistent_for_same_files(
+    mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that same git output produces same cache key."""
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    key1 = helpers.get_components_graph_cache_key()
+    key2 = helpers.get_components_graph_cache_key()
+
+    assert key1 == key2
+
+
+def test_cache_key_different_for_changed_files(mock_subprocess_run: Mock) -> None:
+    """Test that different git output produces different cache key.
+
+    This test demonstrates that changes to any .py file (not just __init__.py)
+    will invalidate the cache, which is important because AUTO_LOAD can be
+    defined in sensor.py, binary_sensor.py, etc.
+    """
+    mock_result1 = Mock()
+    mock_result1.stdout = (
+        "100644 abc123... 0 esphome/components/xiaomi_lywsd03mmc/sensor.py\n"
+    )
+
+    mock_result2 = Mock()
+    # Same file, different hash - simulates a change to AUTO_LOAD
+    mock_result2.stdout = (
+        "100644 xyz789... 0 esphome/components/xiaomi_lywsd03mmc/sensor.py\n"
+    )
+
+    mock_subprocess_run.return_value = mock_result1
+    key1 = helpers.get_components_graph_cache_key()
+
+    helpers.get_components_graph_cache_key.cache_clear()
+    mock_subprocess_run.return_value = mock_result2
+    key2 = helpers.get_components_graph_cache_key()
+
+    assert key1 != key2
+
+
+def test_cache_key_uses_git_ls_files(
+    mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that git ls-files command is called correctly."""
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    helpers.get_components_graph_cache_key()
+
+    # Verify git ls-files was called with correct arguments
+    mock_subprocess_run.assert_called_once()
+    call_args = mock_subprocess_run.call_args
+    assert call_args[0][0] == [
+        "git",
+        "ls-files",
+        "-s",
+        "esphome/components/**/*.py",
+    ]
+    assert call_args[1]["capture_output"] is True
+    assert call_args[1]["text"] is True
+    assert call_args[1]["check"] is True
+    assert call_args[1]["close_fds"] is False
+
+
+def test_cache_hit_returns_cached_graph(
+    tmp_path: Path, mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that cache hit returns cached data without rebuilding."""
+    mock_graph = {"wifi": ["network"], "api": ["socket"]}
+    cache_key = "a" * 64
+    cache_data = {
+        "_version": helpers.COMPONENTS_GRAPH_CACHE_VERSION,
+        "_cache_key": cache_key,
+        "graph": mock_graph,
+    }
+
+    # Write cache file
+    cache_file = tmp_path / "components_graph.json"
+    cache_file.write_text(json.dumps(cache_data))
+
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    with (
+        patch("helpers.get_components_graph_cache_key", return_value=cache_key),
+        patch("helpers.temp_folder", str(tmp_path)),
+    ):
+        result = helpers.create_components_graph()
+        assert result == mock_graph
+
+
+def test_cache_miss_no_cache_file(
+    tmp_path: Path, mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that cache miss rebuilds graph when no cache file exists."""
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    # Create minimal components directory structure
+    components_dir = tmp_path / "esphome" / "components"
+    components_dir.mkdir(parents=True)
+
+    with (
+        patch("helpers.root_path", str(tmp_path)),
+        patch("helpers.temp_folder", str(tmp_path / ".temp")),
+        patch("helpers.get_components_graph_cache_key", return_value="test_key"),
+    ):
+        result = helpers.create_components_graph()
+        # Should return empty graph for empty components directory
+        assert result == {}
+
+
+def test_cache_miss_version_mismatch(
+    tmp_path: Path, mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that cache miss rebuilds graph when version doesn't match."""
+    cache_data = {
+        "_version": 999,  # Wrong version
+        "_cache_key": "test_key",
+        "graph": {"old": ["data"]},
+    }
+
+    cache_file = tmp_path / ".temp" / "components_graph.json"
+    cache_file.parent.mkdir(parents=True)
+    cache_file.write_text(json.dumps(cache_data))
+
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    # Create minimal components directory structure
+    components_dir = tmp_path / "esphome" / "components"
+    components_dir.mkdir(parents=True)
+
+    with (
+        patch("helpers.root_path", str(tmp_path)),
+        patch("helpers.temp_folder", str(tmp_path / ".temp")),
+        patch("helpers.get_components_graph_cache_key", return_value="test_key"),
+    ):
+        result = helpers.create_components_graph()
+        # Should rebuild and return empty graph, not use cached data
+        assert result == {}
+
+
+def test_cache_miss_key_mismatch(
+    tmp_path: Path, mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that cache miss rebuilds graph when cache key doesn't match."""
+    cache_data = {
+        "_version": helpers.COMPONENTS_GRAPH_CACHE_VERSION,
+        "_cache_key": "old_key",
+        "graph": {"old": ["data"]},
+    }
+
+    cache_file = tmp_path / ".temp" / "components_graph.json"
+    cache_file.parent.mkdir(parents=True)
+    cache_file.write_text(json.dumps(cache_data))
+
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    # Create minimal components directory structure
+    components_dir = tmp_path / "esphome" / "components"
+    components_dir.mkdir(parents=True)
+
+    with (
+        patch("helpers.root_path", str(tmp_path)),
+        patch("helpers.temp_folder", str(tmp_path / ".temp")),
+        patch("helpers.get_components_graph_cache_key", return_value="new_key"),
+    ):
+        result = helpers.create_components_graph()
+        # Should rebuild and return empty graph, not use cached data with old key
+        assert result == {}
+
+
+def test_cache_miss_corrupted_json(
+    tmp_path: Path, mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that cache miss rebuilds graph when cache file has invalid JSON."""
+    cache_file = tmp_path / ".temp" / "components_graph.json"
+    cache_file.parent.mkdir(parents=True)
+    cache_file.write_text("{invalid json")
+
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    # Create minimal components directory structure
+    components_dir = tmp_path / "esphome" / "components"
+    components_dir.mkdir(parents=True)
+
+    with (
+        patch("helpers.root_path", str(tmp_path)),
+        patch("helpers.temp_folder", str(tmp_path / ".temp")),
+        patch("helpers.get_components_graph_cache_key", return_value="test_key"),
+    ):
+        result = helpers.create_components_graph()
+        # Should handle corruption gracefully and rebuild
+        assert result == {}
