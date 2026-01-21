@@ -3,6 +3,7 @@ ld2450:
 
 button:
   - platform: ld2450
+    id: ld2450_button
     ld2450_id: ld2450_radar
     factory_reset:
       name: LD2450 Factory Reset
@@ -13,6 +14,7 @@ button:
 
 sensor:
   - platform: ld2450
+    id: ld2450_sensor
     ld2450_id: ld2450_radar
     target_count:
       name: Presence Target Count
@@ -83,6 +85,7 @@ sensor:
 
 binary_sensor:
   - platform: ld2450
+    id: ld2450_binary
     ld2450_id: ld2450_radar
     has_target:
       name: Presence
@@ -93,6 +96,7 @@ binary_sensor:
 
 switch:
   - platform: ld2450
+    id: ld2450_switch
     ld2450_id: ld2450_radar
     bluetooth:
       name: Bluetooth
@@ -101,6 +105,7 @@ switch:
 
 text_sensor:
   - platform: ld2450
+    id: ld2450_textsensor
     ld2450_id: ld2450_radar
     version:
       name: LD2450 Firmware
@@ -118,6 +123,7 @@ text_sensor:
 
 number:
   - platform: ld2450
+    id: ld2450_number
     ld2450_id: ld2450_radar
     presence_timeout:
       name: Timeout
@@ -151,6 +157,7 @@ number:
 
 select:
   - platform: ld2450
+    id: ld2450_select
     ld2450_id: ld2450_radar
     baud_rate:
       name: Baud Rate
