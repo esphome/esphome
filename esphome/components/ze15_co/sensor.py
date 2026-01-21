@@ -3,10 +3,10 @@ from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_MODE,
+    CONF_WARMUP_TIME,
     DEVICE_CLASS_CARBON_MONOXIDE,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
-    CONF_WARMUP_TIME,
 )
 
 CODEOWNERS = ["@maikeljkwak"]
