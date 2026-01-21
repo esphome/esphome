@@ -264,10 +264,14 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
 }
 
 void HttpContainerIDF::end() {
+  if (this->client_ == nullptr) {
+    return;  // Already cleaned up
+  }
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
 
   esp_http_client_close(this->client_);
   esp_http_client_cleanup(this->client_);
+  this->client_ = nullptr;
 }
 
 void HttpContainerIDF::feed_wdt() {
