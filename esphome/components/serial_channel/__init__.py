@@ -18,11 +18,10 @@ from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 CODEOWNERS = ["@esphome/core"]
 
 serial_channel_ns = cg.esphome_ns.namespace("serial_channel")
-SerialChannel = serial_channel_ns.class_("SerialChannel", cg.EntityBase)
-SerialChannelPtr = SerialChannel.operator("ptr")
-UARTSerialChannel = serial_channel_ns.class_(
-    "UARTSerialChannel", SerialChannel, uart.UARTDevice, cg.Component
+SerialChannel = serial_channel_ns.class_(
+    "SerialChannel", cg.EntityBase, uart.UARTDevice, cg.Component
 )
+SerialChannelPtr = SerialChannel.operator("ptr")
 
 # Triggers
 CONF_ON_DATA = "on_data"
@@ -40,7 +39,7 @@ CONFIG_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(UARTSerialChannel),
+            cv.GenerateID(): cv.declare_id(SerialChannel),
             cv.Optional(CONF_BUFFER_SIZE, default=256): cv.positive_int,
             cv.Optional(CONF_ON_DATA): automation.validate_automation(
                 {
@@ -60,13 +59,12 @@ CONFIG_SCHEMA.add_extra(entity_duplicate_validator("serial_channel"))
 
 async def to_code(config):
     cg.add_define("USE_SERIAL_CHANNEL")
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_BUFFER_SIZE])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     await setup_entity(var, config, "serial_channel")
 
     cg.add(cg.App.register_serial_channel(var))
-    cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
 
     for conf in config.get(CONF_ON_DATA, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
