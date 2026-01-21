@@ -103,7 +103,7 @@ inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const st
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
 
 /// Format sockaddr into caller-provided buffer, returns length written (excluding null)
-size_t format_sockaddr_to(struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf);
+size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf);
 
 #if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 /// Delay that can be woken early by socket activity.
