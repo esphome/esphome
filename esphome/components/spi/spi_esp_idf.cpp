@@ -201,6 +201,8 @@ class SPIDelegateHw : public SPIDelegate {
       config.flags |= SPI_DEVICE_BIT_LSBFIRST;
     if (this->write_only_) {
       config.flags |= SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_NO_DUMMY;
+      ESP_LOGD(TAG, "SPI device with CS pin %d using half-duplex mode (write-only)",
+               Utility::get_pin_no(this->cs_pin_));
     } else if (this->data_rate_ > MAX_FULL_DUPLEX_SPEED) {
       // Full-duplex mode has a lower speed limit due to GPIO matrix timing constraints.
       // Cap the speed and warn instead of failing.
