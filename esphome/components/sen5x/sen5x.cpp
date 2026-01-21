@@ -121,7 +121,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       }
       // In order to query the device periodic measurement must be ceased
       if (raw_read_status) {
-        ESP_LOGV(TAG, "Stopping periodic measurement");
+        ESP_LOGW(TAG, "Stopping periodic measurement");
         if (!this->stop_measurements_()) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
@@ -129,6 +129,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
         }
         this->set_timeout(1400, [this]() { this->internal_setup_(SEN5X_SM_GET_SN); });
       } else {
+        ESP_LOGW(TAG, "Sensor is in idle mode");
         this->internal_setup_(SEN5X_SM_GET_SN);
       }
       break;
@@ -139,7 +140,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
         return;
       }
       this->serial_number_ = convert_to_string(string_number, 16);
-      ESP_LOGV(TAG, "Serial number %s", this->serial_number_.c_str());
+      ESP_LOGW(TAG, "Serial number %s", this->serial_number_.c_str());
       this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_GET_PN); });
       break;
     case SEN5X_SM_GET_PN:
@@ -160,7 +161,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
           return;
         }
       }
-      ESP_LOGV(TAG, "Product Name %s", this->product_name_.c_str());
+      ESP_LOGW(TAG, "Product Name %s", this->product_name_.c_str());
       this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_GET_FW); });
       break;
     case SEN5X_SM_GET_FW:
@@ -173,11 +174,11 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       if (this->is_sen6x_()) {
         this->firmware_minor_ = firmware & 0xFF;
         this->firmware_major_ = firmware >> 8;
-        ESP_LOGV(TAG, "Firmware version %u.%u", this->firmware_major_, this->firmware_minor_);
+        ESP_LOGW(TAG, "Firmware version %u.%u", this->firmware_major_, this->firmware_minor_);
       } else {
         this->firmware_major_ = firmware >> 8;
         this->firmware_minor_ = 0xFF;  // not defined
-        ESP_LOGV(TAG, "Firmware version %u", this->firmware_major_);
+        ESP_LOGW(TAG, "Firmware version %u", this->firmware_major_);
       }
       this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_VOCB); });
       break;
@@ -186,9 +187,9 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
         // Hash with serial number. Serial numbers are unique, so multiple sensors can be used without conflict
         uint32_t hash = fnv1a_hash(this->serial_number_);
         this->pref_ = global_preferences->make_preference<uint16_t[4]>(hash, true);
-        this->baseline_state_time_ = App.get_loop_component_start_time();
+        this->baseline_time_ = App.get_loop_component_start_time();
         if (this->pref_.load(&this->baseline_state_)) {
-          if (!this->write_command(CMD_VOC_ALGORITHM_STATE, this->baseline_state_, 4)) {
+          if (this->write_command(CMD_VOC_ALGORITHM_STATE, this->baseline_state_, 4)) {
             ESP_LOGV(TAG, "Baseline State loaded from flash");
             this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_ACI); });
             return;
@@ -204,6 +205,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
+        ESP_LOGW(TAG, "Set Auto Cleaning Interval to %" PRId32 " seconds", this->auto_cleaning_interval_.value());
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_ACCEL); });
       } else {
         this->internal_setup_(SEN5X_SM_SET_ACCEL);
@@ -216,6 +218,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
+        ESP_LOGW(TAG, "Set RHT Acceleration Mode to %s", rht_accel_mode_to_string(this->acceleration_mode_.value()));
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_VOCT); });
       } else if (this->temperature_acceleration_.has_value()) {
         if (!this->write_temperature_acceleration_()) {
@@ -223,6 +226,9 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
+        ESP_LOGW(TAG, "Set Temperature Acceleration to T1: %.1f, T2: %.1f, K: %.1f, P: %.1f",
+                 this->temperature_acceleration_.value().t1 / 10.0, this->temperature_acceleration_.value().t2 / 10.0,
+                 this->temperature_acceleration_.value().k / 10.0, this->temperature_acceleration_.value().p / 10.0);
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_VOCT); });
       } else {
         this->internal_setup_(SEN5X_SM_SET_VOCT);
@@ -235,6 +241,12 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
+        ESP_LOGW(
+            TAG,
+            "Set VOC Algorithm Tuning Parameters to Index Offset %u, Learning Time Offset %u hours, "
+            "Gating Max Duration %u minutes, Gain Factor %u",
+            this->voc_tuning_params_.value().index_offset, this->voc_tuning_params_.value().learning_time_offset_hours,
+            this->voc_tuning_params_.value().gating_max_duration_minutes, this->voc_tuning_params_.value().gain_factor);
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_NOXT); });
       } else {
         this->internal_setup_(SEN5X_SM_SET_NOXT);
@@ -247,6 +259,12 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
+        ESP_LOGW(
+            TAG,
+            "Set NOx Algorithm Tuning Parameters to Index Offset %u, Learning Time Offset %u hours, "
+            "Gating Max Duration %du minutes, Gain Factor %u",
+            this->nox_tuning_params_.value().index_offset, this->nox_tuning_params_.value().learning_time_offset_hours,
+            this->nox_tuning_params_.value().gating_max_duration_minutes, this->nox_tuning_params_.value().gain_factor);
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_TP); });
       } else {
         this->internal_setup_(SEN5X_SM_SET_TP);
@@ -259,6 +277,10 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
+        ESP_LOGW(TAG, "Set Temperature Compensation to Offset %.3f, Normalized Offset Slope %.6f, Time Constant %u",
+                 this->temperature_compensation_.value().offset / 200.0,
+                 this->temperature_compensation_.value().normalized_offset_slope / 10000.0,
+                 this->temperature_compensation_.value().time_constant);
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_CO2ASC); });
       } else {
         this->internal_setup_(SEN5X_SM_SET_CO2ASC);
@@ -272,6 +294,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
+        ESP_LOGW(TAG, "Set Auto Self Calibration to %s", TRUEFALSE(this->auto_self_calibration_.value()));
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_CO2AC); });
       } else {
         this->internal_setup_(SEN5X_SM_SET_CO2AC);
@@ -284,6 +307,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
+        ESP_LOGW(TAG, "Set Altitude Compensation to %u", this->altitude_compensation_.value());
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_START_MEAS); });
       } else {
         this->internal_setup_(SEN5X_SM_START_MEAS);
@@ -509,10 +533,10 @@ void SEN5XComponent::update() {
     }
     this->set_timeout(timeout, [this]() {
       if (!this->store_baseline_.has_value() || !this->store_baseline_.value() ||
-          (App.get_loop_component_start_time() - this->baseline_state_time_) < SHORTEST_BASELINE_STORE_INTERVAL) {
+          (App.get_loop_component_start_time() - this->baseline_time_) < SHORTEST_BASELINE_STORE_INTERVAL) {
         this->status_clear_warning();
       } else {
-        this->baseline_state_time_ = App.get_loop_component_start_time();
+        this->baseline_time_ = App.get_loop_component_start_time();
         if (!this->write_command(CMD_VOC_ALGORITHM_STATE)) {
           this->status_set_warning();
           ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -572,6 +596,10 @@ bool SEN5XComponent::write_tuning_parameters_(uint16_t i2c_command, const GasTun
   params[3] = tuning.gating_max_duration_minutes;
   params[4] = tuning.std_initial;
   params[5] = tuning.gain_factor;
+  ESP_LOGW(TAG,
+           "Writing tuning parameters: index_offset=%u, learning_time_offset_hours=%u, "
+           "learning_time_gain_hours=%u, gating_max_duration_minutes=%u, std_initial=%u, gain_factor=%u",
+           params[0], params[1], params[2], params[3], params[4], params[5]);
   auto result = this->write_command(i2c_command, params, 6);
   if (!result) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -586,6 +614,10 @@ bool SEN5XComponent::write_temperature_compensation_(const TemperatureCompensati
   params[2] = compensation.time_constant;
   params[3] = compensation.slot;
   uint8_t write_cnt = this->is_sen6x_() ? 4 : 3;
+  ESP_LOGW(TAG,
+           "Writing temperature compensation: offset=%u, normalized_offset_slope=%u, "
+           "time_constant=%u, slot=%u",
+           params[0], params[1], params[2], params[3]);
   auto result = this->write_command(CMD_TEMPERATURE_COMPENSATION, params, write_cnt);
   if (!result) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -601,6 +633,8 @@ bool SEN5XComponent::write_temperature_acceleration_() {
     params[1] = accel_param.p;
     params[2] = accel_param.t1;
     params[3] = accel_param.t2;
+    ESP_LOGW(TAG, "Writing temperature acceleration: k=%u, p=%u, t1=%u, t2=%u", params[0], params[1], params[2],
+             params[3]);
     auto result = this->write_command(SEN6X_CMD_TEMPERATURE_ACCEL_PARAMETERS, params, 4);
     if (!result) {
       ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -617,7 +651,7 @@ bool SEN5XComponent::write_ambient_pressure_compensation_(uint16_t pressure_in_h
       ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       return false;
     }
-    ESP_LOGD(TAG, "Ambient Pressure Compensation updated, pres=%d hPa", pressure_in_hpa);
+    ESP_LOGD(TAG, "Ambient Pressure Compensation updated, pres=%u hPa", pressure_in_hpa);
   }
   return true;
 }
@@ -647,7 +681,7 @@ void SEN5XComponent::set_ambient_pressure_compensation(uint16_t pressure_in_hpa)
 void SEN5XComponent::start_fan_cleaning() {
   if (this->busy_ || !this->initialized_) {
     ESP_LOGW(TAG, "Fan Autoclean aborted, sensor is busy");
-    return;
+    return;  // only one action at a time and must be initialized
   }
   this->busy_ = true;
   ESP_LOGD(TAG, "Fan Autoclean started (12s)");
