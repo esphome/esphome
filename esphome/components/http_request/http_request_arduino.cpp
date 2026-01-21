@@ -161,7 +161,7 @@ int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   WiFiClient *stream_ptr = this->client_.getStreamPtr();
   if (stream_ptr == nullptr) {
     ESP_LOGE(TAG, "Stream pointer vanished!");
-    return -1;
+    return HTTP_ERROR_CONNECTION_CLOSED;
   }
 
   int available_data = stream_ptr->available();
