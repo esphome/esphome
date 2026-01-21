@@ -4,13 +4,13 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/template_lambda.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
-class TemplateNumber : public number::Number, public PollingComponent {
+class TemplateNumber final : public number::Number, public PollingComponent {
  public:
-  void set_template(std::function<optional<float>()> &&f) { this->f_ = f; }
+  template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
   void setup() override;
   void update() override;
@@ -28,10 +28,9 @@ class TemplateNumber : public number::Number, public PollingComponent {
   float initial_value_{NAN};
   bool restore_value_{false};
   Trigger<float> *set_trigger_ = new Trigger<float>();
-  optional<std::function<optional<float>()>> f_;
+  TemplateLambda<float> f_;
 
   ESPPreferenceObject pref_;
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

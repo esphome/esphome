@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 class SensorStateTrigger : public Trigger<float> {
  public:
@@ -26,7 +25,7 @@ template<typename... Ts> class SensorPublishAction : public Action<Ts...> {
   SensorPublishAction(Sensor *sensor) : sensor_(sensor) {}
   TEMPLATABLE_VALUE(float, state)
 
-  void play(Ts... x) override { this->sensor_->publish_state(this->state_.value(x...)); }
+  void play(const Ts &...x) override { this->sensor_->publish_state(this->state_.value(x...)); }
 
  protected:
   Sensor *sensor_;
@@ -90,7 +89,7 @@ template<typename... Ts> class SensorInRangeCondition : public Condition<Ts...> 
 
   void set_min(float min) { this->min_ = min; }
   void set_max(float max) { this->max_ = max; }
-  bool check(Ts... x) override {
+  bool check(const Ts &...x) override {
     const float state = this->parent_->state;
     if (std::isnan(this->min_)) {
       return state <= this->max_;
@@ -107,5 +106,4 @@ template<typename... Ts> class SensorInRangeCondition : public Condition<Ts...> 
   float max_{NAN};
 };
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor

@@ -26,6 +26,15 @@ sx126x:
       - lambda: |-
           ESP_LOGD("lambda", "packet %.2f %.2f %s", rssi, snr, format_hex(x).c_str());
 
+number:
+  - platform: template
+    name: "SX126x Number"
+    id: my_number
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+
 button:
   - platform: template
     name: "SX126x Button"
@@ -37,3 +46,5 @@ button:
         - sx126x.set_mode_rx
         - sx126x.send_packet:
             data: [0xC5, 0x51, 0x78, 0x82, 0xB7, 0xF9, 0x9C, 0x5C]
+        - sx126x.send_packet: !lambda |-
+            return {0x01, 0x02, (uint8_t)id(my_number).state};

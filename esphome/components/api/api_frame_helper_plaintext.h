@@ -7,8 +7,7 @@ namespace esphome::api {
 
 class APIPlaintextFrameHelper final : public APIFrameHelper {
  public:
-  APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket, const ClientInfo *client_info)
-      : APIFrameHelper(std::move(socket), client_info) {
+  explicit APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket) : APIFrameHelper(std::move(socket)) {
     // Plaintext header structure (worst case):
     // Pos 0: indicator (0x00)
     // Pos 1-3: payload size varint (up to 3 bytes)
@@ -21,7 +20,7 @@ class APIPlaintextFrameHelper final : public APIFrameHelper {
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
-  APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) override;
+  APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) override;
 
  protected:
   APIError try_read_frame_();

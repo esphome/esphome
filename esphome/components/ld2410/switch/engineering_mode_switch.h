@@ -3,8 +3,7 @@
 #include "esphome/components/switch/switch.h"
 #include "../ld2410.h"
 
-namespace esphome {
-namespace ld2410 {
+namespace esphome::ld2410 {
 
 class EngineeringModeSwitch : public switch_::Switch, public Parented<LD2410Component> {
  public:
@@ -14,5 +13,4 @@ class EngineeringModeSwitch : public switch_::Switch, public Parented<LD2410Comp
   void write_state(bool state) override;
 };
 
-}  // namespace ld2410
-}  // namespace esphome
+}  // namespace esphome::ld2410

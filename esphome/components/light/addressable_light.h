@@ -8,14 +8,13 @@
 #include "esphome/core/defines.h"
 #include "light_output.h"
 #include "light_state.h"
-#include "transformers.h"
+#include "light_transformer.h"
 
 #ifdef USE_POWER_SUPPLY
 #include "esphome/components/power_supply/power_supply.h"
 #endif
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 /// Convert the color information from a `LightColorValues` object to a `Color` object (does not apply brightness).
 Color color_from_light_color_values(LightColorValues val);
@@ -71,7 +70,7 @@ class AddressableLight : public LightOutput, public Component {
     this->state_parent_ = state;
   }
   void update_state(LightState *state) override;
-  void schedule_show() { this->state_parent_->next_write_ = true; }
+  void schedule_show() { this->state_parent_->schedule_write_(); }
 
 #ifdef USE_POWER_SUPPLY
   void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }
@@ -103,7 +102,7 @@ class AddressableLight : public LightOutput, public Component {
   bool effect_active_{false};
 };
 
-class AddressableLightTransformer : public LightTransitionTransformer {
+class AddressableLightTransformer : public LightTransformer {
  public:
   AddressableLightTransformer(AddressableLight &light) : light_(light) {}
 
@@ -113,9 +112,7 @@ class AddressableLightTransformer : public LightTransitionTransformer {
  protected:
   AddressableLight &light_;
   float last_transition_progress_{0.0f};
-  float accumulated_alpha_{0.0f};
   Color target_color_{};
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

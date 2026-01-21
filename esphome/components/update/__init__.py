@@ -29,6 +29,9 @@ UpdateInfo = update_ns.struct("UpdateInfo")
 PerformAction = update_ns.class_(
     "PerformAction", automation.Action, cg.Parented.template(UpdateEntity)
 )
+CheckAction = update_ns.class_(
+    "CheckAction", automation.Action, cg.Parented.template(UpdateEntity)
+)
 IsAvailableCondition = update_ns.class_(
     "IsAvailableCondition", automation.Condition, cg.Parented.template(UpdateEntity)
 )
@@ -82,11 +85,6 @@ def update_schema(
             schema[cv.Optional(key, default=default)] = validator
 
     return _UPDATE_SCHEMA.extend(schema)
-
-
-# Remove before 2025.11.0
-UPDATE_SCHEMA = update_schema()
-UPDATE_SCHEMA.add_extra(cv.deprecated_schema_constant("update"))
 
 
 async def setup_update_core_(var, config):
@@ -145,6 +143,21 @@ async def update_perform_action_to_code(config, action_id, template_arg, args):
 
     force = await cg.templatable(config[CONF_FORCE_UPDATE], args, cg.bool_)
     cg.add(var.set_force(force))
+    return var
+
+
+@automation.register_action(
+    "update.check",
+    CheckAction,
+    automation.maybe_simple_id(
+        {
+            cv.GenerateID(): cv.use_id(UpdateEntity),
+        }
+    ),
+)
+async def update_check_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
     return var
 
 
