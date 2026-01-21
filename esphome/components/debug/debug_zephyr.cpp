@@ -170,7 +170,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
     pos = buf_append(buf, size, pos, "|Regulator stage 0: %s, %s", reg0_type, reg0_voltage);
 #ifdef USE_NRF52_REG0_VOUT
     if ((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) >> UICR_REGOUT0_VOUT_Pos != USE_NRF52_REG0_VOUT) {
-      ESP_LOGE(TAG, "Regulator stage 0: shall be %s", regout0_to_str(USE_NRF52_REG0_VOUT));
+      ESP_LOGE(TAG, "Regulator stage 0: expected %s", regout0_to_str(USE_NRF52_REG0_VOUT));
     }
 #endif
   } else {
