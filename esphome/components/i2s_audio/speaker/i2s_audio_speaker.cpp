@@ -511,6 +511,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
           // SPDIF mode handles callback registration separately, skip for non-SPDIF only
           if (!this_speaker->spdif_mode_)
 #endif
+          {
             if (tx_dma_underflow) {
               tx_dma_underflow = false;
 #ifndef USE_I2S_LEGACY
@@ -528,6 +529,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
               i2s_channel_enable(this_speaker->tx_handle_);
 #endif  // USE_I2S_LEGACY
             }
+          }
 #ifdef USE_I2S_LEGACY
           // The legacy driver doesn't easily support the callback approach for timestamps, so fall back to a direct but
           // less accurate approach.
