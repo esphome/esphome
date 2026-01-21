@@ -319,7 +319,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
   } else {
     bool stop_gracefully = false;
     bool tx_dma_underflow = true;
-#ifdef USE_I2S_AUDIO_SPDIF_MODE
+#if defined(USE_I2S_AUDIO_SPDIF_MODE) && !defined(USE_I2S_LEGACY)
     bool spdif_callback_registered = false;  // Track if SPDIF callback has been registered
 #endif
 
