@@ -154,14 +154,14 @@ void OpenthermHub::process_response(OpenthermData &data) {
     return;
   }
 
-  // switch (data.id) {
-  //   OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_RESPONSE_MESSAGE, OPENTHERM_MESSAGE_RESPONSE_ENTITY, ,
-  //                                     OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT, )
-  // }
-  // switch (data.id) {
-  //   OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_RESPONSE_MESSAGE, OPENTHERM_MESSAGE_RESPONSE_ENTITY, ,
-  //                                            OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT, )
-  // }
+  switch (data.id) {
+    OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_RESPONSE_MESSAGE, OPENTHERM_MESSAGE_RESPONSE_ENTITY, ,
+                                      OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT, )
+  }
+  switch (data.id) {
+    OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_RESPONSE_MESSAGE, OPENTHERM_MESSAGE_RESPONSE_ENTITY, ,
+                                             OPENTHERM_MESSAGE_RESPONSE_POSTSCRIPT, )
+  }
 }
 
 void OpenthermHub::setup() {
