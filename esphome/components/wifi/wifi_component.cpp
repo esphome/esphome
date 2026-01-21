@@ -414,7 +414,7 @@ bool WiFiComponent::matches_configured_ssid_(const char *ssid) const {
 
 void WiFiComponent::log_discarded_scan_result_(const char *ssid, const uint8_t *bssid, int8_t rssi, uint8_t channel) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char bssid_s[18];
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(bssid, bssid_s);
   ESP_LOGV(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " %ddB Ch:%u", ssid, bssid_s, rssi, channel);
 #endif
