@@ -45,6 +45,7 @@ async def to_code(config):
 
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
+    cg.add(var.set_write_only(True))
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))

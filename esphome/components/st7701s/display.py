@@ -174,6 +174,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
+    cg.add(var.set_write_only(True))
 
     sequence = []
     for seq in config[CONF_INIT_SEQUENCE]:
