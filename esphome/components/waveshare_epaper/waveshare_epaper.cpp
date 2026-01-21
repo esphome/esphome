@@ -4806,7 +4806,7 @@ void WaveshareEPaper3P7In::initialize() {
 
   // COMMAND SOFT RESET
   this->command(0x12);
-  delay(300);
+  this->wait_until_idle_();
 
   // COMMAND INTERNAL TEMPERATURE SENSOR CONTROL (0x46)
   this->command(0x46);
