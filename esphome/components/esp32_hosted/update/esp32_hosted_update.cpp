@@ -306,6 +306,8 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
   }
 
   // Stream firmware to coprocessor while computing SHA256
+  // NOTE: HttpContainer::read() has non-BSD socket semantics - see http_request.h
+  // Use http_read_loop_result() helper instead of checking return values directly
   sha256::SHA256 hasher;
   hasher.init();
 

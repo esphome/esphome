@@ -115,6 +115,8 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
     return error_code;
   }
 
+  // NOTE: HttpContainer::read() has non-BSD socket semantics - see http_request.h
+  // Use http_read_loop_result() helper instead of checking return values directly
   uint32_t last_data_time = millis();
   const uint32_t read_timeout = this->parent_->get_timeout();
 
