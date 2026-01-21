@@ -371,13 +371,15 @@ template<typename T> class FixedVector {
 /// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
 /// This is useful when most operations need a small buffer but occasionally need larger ones.
 /// The stack buffer avoids heap allocation in the common case, while heap fallback handles edge cases.
-template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
+/// @tparam STACK_SIZE Number of elements in the stack buffer
+/// @tparam T Element type (default: uint8_t)
+template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallback {
  public:
   explicit SmallBufferWithHeapFallback(size_t size) {
     if (size <= STACK_SIZE) {
       this->buffer_ = this->stack_buffer_;
     } else {
-      this->heap_buffer_ = new uint8_t[size];
+      this->heap_buffer_ = new T[size];
       this->buffer_ = this->heap_buffer_;
     }
   }
@@ -389,12 +391,12 @@ template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
   SmallBufferWithHeapFallback(SmallBufferWithHeapFallback &&) = delete;
   SmallBufferWithHeapFallback &operator=(SmallBufferWithHeapFallback &&) = delete;
 
-  uint8_t *get() { return this->buffer_; }
+  T *get() { return this->buffer_; }
 
  private:
-  uint8_t stack_buffer_[STACK_SIZE];
-  uint8_t *heap_buffer_{nullptr};
-  uint8_t *buffer_;
+  T stack_buffer_[STACK_SIZE];
+  T *heap_buffer_{nullptr};
+  T *buffer_;
 };
 
 ///@}
@@ -1345,16 +1347,30 @@ template<typename... X> class LazyCallbackManager;
  *
  * Memory overhead comparison (32-bit systems):
  * - CallbackManager: 12 bytes (empty std::vector)
- * - LazyCallbackManager: 4 bytes (nullptr unique_ptr)
+ * - LazyCallbackManager: 4 bytes (nullptr pointer)
+ *
+ * Uses plain pointer instead of unique_ptr to avoid template instantiation overhead.
+ * The class is explicitly non-copyable/non-movable for Rule of Five compliance.
  *
  * @tparam Ts The arguments for the callbacks, wrapped in void().
  */
 template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
  public:
+  LazyCallbackManager() = default;
+  /// Destructor - clean up allocated CallbackManager if any.
+  /// In practice this never runs (entities live for device lifetime) but included for correctness.
+  ~LazyCallbackManager() { delete this->callbacks_; }
+
+  // Non-copyable and non-movable (entities are never copied or moved)
+  LazyCallbackManager(const LazyCallbackManager &) = delete;
+  LazyCallbackManager &operator=(const LazyCallbackManager &) = delete;
+  LazyCallbackManager(LazyCallbackManager &&) = delete;
+  LazyCallbackManager &operator=(LazyCallbackManager &&) = delete;
+
   /// Add a callback to the list. Allocates the underlying CallbackManager on first use.
   void add(std::function<void(Ts...)> &&callback) {
     if (!this->callbacks_) {
-      this->callbacks_ = make_unique<CallbackManager<void(Ts...)>>();
+      this->callbacks_ = new CallbackManager<void(Ts...)>();
     }
     this->callbacks_->add(std::move(callback));
   }
@@ -1376,7 +1392,7 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   void operator()(Ts... args) { this->call(args...); }
 
  protected:
-  std::unique_ptr<CallbackManager<void(Ts...)>> callbacks_;
+  CallbackManager<void(Ts...)> *callbacks_{nullptr};
 };
 
 /// Helper class to deduplicate items in a series of values.

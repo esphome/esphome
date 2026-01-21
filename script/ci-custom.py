@@ -732,6 +732,26 @@ def lint_no_heap_allocating_helpers(fname, match):
     )
 
 
+@lint_re_check(
+    # Match sprintf/vsprintf but not snprintf/vsnprintf
+    # [^\w] ensures we don't match the safe variants
+    r"[^\w](v?sprintf)\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_sprintf(fname, match):
+    func = match.group(1)
+    safe_func = func.replace("sprintf", "snprintf")
+    return (
+        f"{highlight(func + '()')} is not allowed in ESPHome. It has no buffer size limit "
+        f"and can cause buffer overflows.\n"
+        f"Please use one of these alternatives:\n"
+        f"  - {highlight(safe_func + '(buf, sizeof(buf), fmt, ...)')} for general formatting\n"
+        f"  - {highlight('buf_append_printf(buf, sizeof(buf), pos, fmt, ...)')} for "
+        f"offset-based formatting (also stores format strings in flash on ESP8266)\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
 @lint_content_find_check(
     "ESP_LOG",
     include=["*.h", "*.tcc"],
