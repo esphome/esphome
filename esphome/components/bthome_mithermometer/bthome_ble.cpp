@@ -139,8 +139,7 @@ void BTHomeMiThermometer::dump_config() {
   ESP_LOGCONFIG(TAG, "  MAC Address: %s", format_mac_address(addr_buf, this->address_));
   if (this->has_bindkey_) {
     char bindkey_hex[format_hex_pretty_size(BTHOME_BINDKEY_SIZE)];
-    ESP_LOGCONFIG(TAG, "  Bindkey: %s",
-                  format_hex_pretty_to(bindkey_hex, this->bindkey_, BTHOME_BINDKEY_SIZE, '.'));
+    ESP_LOGCONFIG(TAG, "  Bindkey: %s", format_hex_pretty_to(bindkey_hex, this->bindkey_, BTHOME_BINDKEY_SIZE, '.'));
   }
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
@@ -168,7 +167,7 @@ void BTHomeMiThermometer::set_bindkey(const char *bindkey) {
 }
 
 bool BTHomeMiThermometer::decrypt_bthome_payload_(const std::vector<uint8_t> &data, uint64_t source_address,
-                                                 std::vector<uint8_t> &payload) const {
+                                                  std::vector<uint8_t> &payload) const {
   if (data.size() <= 1 + BTHOME_COUNTER_SIZE + BTHOME_MIC_SIZE) {
     ESP_LOGVV(TAG, "Encrypted BTHome payload too short: %zu", data.size());
     return false;
