@@ -185,6 +185,8 @@ bool Esp32HostedUpdate::fetch_manifest_() {
   }
 
   // Read manifest JSON into string (manifest is small, ~1KB max)
+  // NOTE: HttpContainer::read() has non-BSD socket semantics - see http_request.h
+  // Use http_read_loop_result() helper instead of checking return values directly
   std::string json_str;
   json_str.reserve(container->content_length);
   uint8_t buf[256];

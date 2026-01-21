@@ -141,6 +141,8 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
 
 // Arduino HTTP read implementation
 //
+// WARNING: Return values differ from BSD sockets! See http_request.h for full documentation.
+//
 // Arduino's WiFiClient is inherently non-blocking - available() returns 0 when
 // no data is ready. We use connected() to distinguish "no data yet" from
 // "connection closed".
@@ -150,10 +152,10 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
 //   available() == 0 && connected(): no data yet, still connected
 //   available() == 0 && !connected(): connection closed
 //
-// We normalize these to the HttpContainer::read() contract:
+// We normalize to HttpContainer::read() contract (NOT BSD socket semantics!):
 //   > 0: bytes read
-//   0: no data yet, retry
-//   < 0: error (connection closed prematurely, or stream vanished)
+//   0: no data yet, retry            <-- NOTE: 0 means retry, NOT EOF!
+//   < 0: error/connection closed     <-- connection closed returns -1, not 0
 int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());

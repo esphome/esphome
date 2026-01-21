@@ -79,7 +79,35 @@ inline bool is_redirect(int const status) {
  */
 inline bool is_success(int const status) { return status >= HTTP_STATUS_OK && status < HTTP_STATUS_MULTIPLE_CHOICES; }
 
+/*
+ * HTTP Container Read Semantics
+ * =============================
+ *
+ * IMPORTANT: These semantics differ from standard BSD sockets!
+ *
+ * BSD socket read() returns:
+ *   > 0: bytes read
+ *   == 0: connection closed (EOF)
+ *   < 0: error (check errno)
+ *
+ * HttpContainer::read() returns:
+ *   > 0: bytes read successfully
+ *   == 0: no data available yet (non-blocking, caller should RETRY)
+ *   < 0: error or connection closed (caller should EXIT)
+ *        HTTP_ERROR_CONNECTION_CLOSED (-1) = connection closed prematurely
+ *        other negative values = platform-specific errors
+ *
+ * This non-blocking design allows consistent behavior across:
+ *   - ESP-IDF (async mode with EAGAIN handling)
+ *   - Arduino (available() + connected() checks)
+ *
+ * Use the helper functions below instead of checking return values directly:
+ *   - http_read_loop_result(): for manual loops with per-chunk processing
+ *   - http_read_fully(): for simple "read N bytes into buffer" operations
+ */
+
 /// Error code returned by HttpContainer::read() when connection closed prematurely
+/// NOTE: Unlike BSD sockets where 0 means EOF, here 0 means "no data yet, retry"
 static constexpr int HTTP_ERROR_CONNECTION_CLOSED = -1;
 
 /// Status of a read operation
@@ -135,25 +163,26 @@ class HttpContainer : public Parented<HttpRequestComponent> {
   uint32_t duration_ms;
 
   /**
-   * @brief Read data from the HTTP response body.
+   * @brief Read data from the HTTP response body (non-blocking).
    *
-   * This is a non-blocking read operation. The semantics are consistent across
-   * all platforms (Arduino and ESP-IDF):
+   * WARNING: These semantics differ from BSD sockets!
+   * BSD sockets: 0 = EOF (connection closed)
+   * This method: 0 = no data yet (retry), negative = error/closed
    *
    * @param buf Buffer to read data into
    * @param max_len Maximum number of bytes to read
    * @return
    *   - > 0: Number of bytes read successfully
-   *   - 0: No data available yet, caller should retry (data may still be arriving)
+   *   - 0: No data available yet (NOT EOF!), caller should retry
    *   - HTTP_ERROR_CONNECTION_CLOSED (-1): Connection closed prematurely
    *   - < -1: Other error (platform-specific error code)
    *
-   * The caller should use get_bytes_read() and content_length to track progress.
-   * When get_bytes_read() >= content_length, all expected data has been received.
+   * Use get_bytes_read() and content_length to track progress.
+   * When get_bytes_read() >= content_length, all data has been received.
    *
-   * For non-blocking read loops, use http_read_loop_result() helper which handles
-   * timeout tracking and converts return values to HttpReadLoopResult enum.
-   * For simple buffer reads, use http_read_fully() helper.
+   * IMPORTANT: Do not use raw return values directly. Use these helpers:
+   *   - http_read_loop_result(): for loops with per-chunk processing
+   *   - http_read_fully(): for simple "read N bytes" operations
    */
   virtual int read(uint8_t *buf, size_t max_len) = 0;
   virtual void end() = 0;
