@@ -7,7 +7,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <strings.h>
 #include <functional>
 #include <iterator>
 #include <limits>
@@ -17,6 +16,8 @@
 #include <type_traits>
 #include <vector>
 #include <concepts>
+
+#include <strings.h>
 
 #include "esphome/core/optional.h"
 
