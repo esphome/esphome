@@ -2205,7 +2205,7 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
 #endif
 
   // Parse URL for component checks
-  UrlMatch match = match_url(url.c_str(), url.size(), true);
+  UrlMatch match = match_url(url.c_str(), url.length(), true);
   if (!match.valid)
     return false;
 
@@ -2359,7 +2359,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 
   // Parse URL for component routing
   // Pass HTTP method to disambiguate 3-segment URLs (GET=sub-device state, POST=main device action)
-  UrlMatch match = match_url(url.c_str(), url.size(), false, request->method() == HTTP_POST);
+  UrlMatch match = match_url(url.c_str(), url.length(), false, request->method() == HTTP_POST);
 
   // Route to appropriate handler based on domain
   // NOLINTNEXTLINE(readability-simplify-boolean-expr)
