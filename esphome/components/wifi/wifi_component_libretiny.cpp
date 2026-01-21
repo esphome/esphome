@@ -460,13 +460,15 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
         listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
       }
 #endif
-      // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
-#if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
+      // For static IP configurations, GOT_IP event may not fire, so set connected state here
+#ifdef USE_WIFI_MANUAL_IP
       if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
         s_sta_state = LTWiFiSTAState::CONNECTED;
+#ifdef USE_WIFI_IP_STATE_LISTENERS
         for (auto *listener : this->ip_state_listeners_) {
           listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
         }
+#endif
       }
 #endif
       break;
