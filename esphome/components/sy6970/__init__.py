@@ -44,12 +44,12 @@ async def to_code(config):
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_ENABLE_STATUS_LED],
-        config.get(CONF_INPUT_CURRENT_LIMIT),
-        config.get(CONF_CHARGE_VOLTAGE),
-        config.get(CONF_CHARGE_CURRENT),
-        config.get(CONF_PRECHARGE_CURRENT),
-        config.get(CONF_CHARGE_ENABLED),
-        config[CONF_ENABLE_ADC],
+        config.get(CONF_INPUT_CURRENT_LIMIT, cg.RawExpression("std::nullopt")),
+        config.get(CONF_CHARGE_VOLTAGE, cg.RawExpression("std::nullopt")),
+        config.get(CONF_CHARGE_CURRENT, cg.RawExpression("std::nullopt")),
+        config.get(CONF_PRECHARGE_CURRENT, cg.RawExpression("std::nullopt")),
+        config.get(CONF_CHARGE_ENABLED, cg.RawExpression("std::nullopt")),
+        config.get(CONF_ENABLE_ADC, True),
     )
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
