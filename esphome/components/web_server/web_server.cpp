@@ -2179,7 +2179,7 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
   StringRef url = request->url_to(url_buf);
 #else
-  auto url = request->url();
+  const auto &url = request->url();
 #endif
   const auto method = request->method();
 
@@ -2320,7 +2320,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
   StringRef url = request->url_to(url_buf);
 #else
-  auto url = request->url();
+  const auto &url = request->url();
 #endif
 
   // Handle static routes first
