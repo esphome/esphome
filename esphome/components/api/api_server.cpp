@@ -558,8 +558,10 @@ bool APIServer::clear_noise_psk(bool make_active) {
 #ifdef USE_HOMEASSISTANT_TIME
 void APIServer::request_time() {
   for (auto &client : this->clients_) {
-    if (!client->flags_.remove && client->is_authenticated())
+    if (!client->flags_.remove && client->is_authenticated()) {
       client->send_time_request();
+      return;  // Only request from one client to avoid clock conflicts
+    }
   }
 }
 #endif

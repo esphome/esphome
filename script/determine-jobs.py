@@ -93,6 +93,7 @@ class Platform(StrEnum):
     RTL87XX_ARD = "rtl87xx-ard"  # LibreTiny RTL8720x
     LN882X_ARD = "ln882x-ard"  # LibreTiny LN882x
     RP2040_ARD = "rp2040-ard"  # Raspberry Pi Pico
+    NRF52_ZEPHYR = "nrf52-adafruit"  # Nordic nRF52 (Zephyr)
 
 
 # Memory impact analysis constants
@@ -112,7 +113,7 @@ PLATFORM_SPECIFIC_COMPONENTS = frozenset(
         "rtl87xx",  # Realtek RTL87xx platform implementation (uses LibreTiny)
         "ln882x",  # Winner Micro LN882x platform implementation (uses LibreTiny)
         "host",  # Host platform (for testing on development machine)
-        "nrf52",  # Nordic nRF52 platform implementation
+        "nrf52",  # Nordic nRF52 platform implementation (uses Zephyr)
     }
 )
 
@@ -126,6 +127,7 @@ PLATFORM_SPECIFIC_COMPONENTS = frozenset(
 # 4-6. Other ESP32 variants - Less commonly used but still supported
 # 7-9. LibreTiny platforms (BK72XX, RTL87XX, LN882X) - good for detecting LibreTiny-specific changes
 # 10. RP2040 - Raspberry Pi Pico platform
+# 11. nRF52 - Nordic nRF52 with Zephyr (good for detecting Zephyr-specific changes)
 MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_C6_IDF,  # ESP32-C6 IDF (newest, supports Thread/Zigbee)
     Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained, fastest builds)
@@ -137,6 +139,7 @@ MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.RTL87XX_ARD,  # LibreTiny RTL8720x
     Platform.LN882X_ARD,  # LibreTiny LN882x
     Platform.RP2040_ARD,  # Raspberry Pi Pico
+    Platform.NRF52_ZEPHYR,  # Nordic nRF52 (Zephyr)
 ]
 
 
@@ -462,6 +465,10 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     # RP2040 / Raspberry Pi Pico
     if "pico" in filename_lower or "rp2040" in filename_lower:
         return Platform.RP2040_ARD
+
+    # nRF52 / Zephyr
+    if "nrf52" in filename_lower or "zephyr" in filename_lower:
+        return Platform.NRF52_ZEPHYR
 
     return None
 
