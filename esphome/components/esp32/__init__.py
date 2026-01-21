@@ -182,6 +182,12 @@ def set_core_data(config):
             path=[CONF_CPU_FREQUENCY],
         )
 
+    if variant == VARIANT_ESP32P4 and cpu_frequency == "400MHZ":
+        _LOGGER.warning(
+            "400MHz on ESP32-P4 is experimental and may not boot. "
+            "Consider using 360MHz instead. See https://github.com/esphome/esphome/issues/13425"
+        )
+
     CORE.data[KEY_ESP32] = {}
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_ESP32
     conf = config[CONF_FRAMEWORK]
