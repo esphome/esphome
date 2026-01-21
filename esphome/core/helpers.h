@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <strings.h>
 #include <functional>
 #include <iterator>
 #include <limits>
