@@ -79,6 +79,49 @@ inline bool is_redirect(int const status) {
  */
 inline bool is_success(int const status) { return status >= HTTP_STATUS_OK && status < HTTP_STATUS_MULTIPLE_CHOICES; }
 
+/// Status of a read operation
+enum class HttpReadStatus : uint8_t {
+  OK,       ///< Read completed successfully
+  ERROR,    ///< Read error occurred
+  TIMEOUT,  ///< Timeout waiting for data
+};
+
+/// Result of an HTTP read operation
+struct HttpReadResult {
+  HttpReadStatus status;  ///< Status of the read operation
+  int error_code;         ///< Error code from read() on failure, 0 on success
+};
+
+/// Result of processing a non-blocking read with timeout (for manual loops)
+enum class HttpReadLoopResult : uint8_t {
+  DATA,     ///< Data was read, process it
+  RETRY,    ///< No data yet, already delayed, caller should continue loop
+  ERROR,    ///< Read error, caller should exit loop
+  TIMEOUT,  ///< Timeout waiting for data, caller should exit loop
+};
+
+/// Process a read result with timeout tracking and delay handling
+/// @param bytes_read_or_error Return value from read() - positive for bytes read, negative for error
+/// @param last_data_time Time of last successful read, updated when data received
+/// @param timeout_ms Maximum time to wait for data
+/// @return DATA if data received, RETRY if should continue loop, ERROR/TIMEOUT if should exit
+inline HttpReadLoopResult http_read_loop_result(int bytes_read_or_error, uint32_t &last_data_time,
+                                                uint32_t timeout_ms) {
+  if (bytes_read_or_error > 0) {
+    last_data_time = millis();
+    return HttpReadLoopResult::DATA;
+  }
+  if (bytes_read_or_error < 0) {
+    return HttpReadLoopResult::ERROR;
+  }
+  // bytes_read_or_error == 0: no data available yet
+  if (millis() - last_data_time >= timeout_ms) {
+    return HttpReadLoopResult::TIMEOUT;
+  }
+  delay(1);  // Small delay to prevent tight spinning
+  return HttpReadLoopResult::RETRY;
+}
+
 class HttpRequestComponent;
 
 class HttpContainer : public Parented<HttpRequestComponent> {
@@ -110,6 +153,38 @@ class HttpContainer : public Parented<HttpRequestComponent> {
   std::map<std::string, std::list<std::string>> response_headers_{};
 };
 
+/// Read data from HTTP container into buffer with timeout handling
+/// Handles feed_wdt, yield, and timeout checking internally
+/// @param container The HTTP container to read from
+/// @param buffer Buffer to read into
+/// @param total_size Total bytes to read
+/// @param chunk_size Maximum bytes per read call
+/// @param timeout_ms Read timeout in milliseconds
+/// @return HttpReadResult with status and error_code on failure
+inline HttpReadResult http_read_fully(HttpContainer *container, uint8_t *buffer, size_t total_size, size_t chunk_size,
+                                      uint32_t timeout_ms) {
+  size_t read_index = 0;
+  uint32_t last_data_time = millis();
+
+  while (read_index < total_size) {
+    int read_bytes_or_error = container->read(buffer + read_index, std::min(chunk_size, total_size - read_index));
+
+    App.feed_wdt();
+    yield();
+
+    auto result = http_read_loop_result(read_bytes_or_error, last_data_time, timeout_ms);
+    if (result == HttpReadLoopResult::RETRY)
+      continue;
+    if (result == HttpReadLoopResult::ERROR)
+      return {HttpReadStatus::ERROR, read_bytes_or_error};
+    if (result == HttpReadLoopResult::TIMEOUT)
+      return {HttpReadStatus::TIMEOUT, 0};
+
+    read_index += read_bytes_or_error;
+  }
+  return {HttpReadStatus::OK, 0};
+}
+
 class HttpRequestResponseTrigger : public Trigger<std::shared_ptr<HttpContainer>, std::string &> {
  public:
   void process(const std::shared_ptr<HttpContainer> &container, std::string &response_body) {
@@ -124,6 +199,7 @@ class HttpRequestComponent : public Component {
 
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
+  uint32_t get_timeout() const { return this->timeout_; }
   void set_watchdog_timeout(uint32_t watchdog_timeout) { this->watchdog_timeout_ = watchdog_timeout; }
   uint32_t get_watchdog_timeout() const { return this->watchdog_timeout_; }
   void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }

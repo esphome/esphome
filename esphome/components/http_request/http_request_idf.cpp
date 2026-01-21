@@ -100,6 +100,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
 
   config.buffer_size = this->buffer_size_rx_;
   config.buffer_size_tx = this->buffer_size_tx_;
+  config.is_async = true;  // Enable non-blocking mode
 
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
@@ -213,15 +214,36 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
 
-  this->feed_wdt();
-  int read_len = esp_http_client_read(this->client_, (char *) buf, max_len);
-  this->feed_wdt();
-  if (read_len > 0) {
-    this->bytes_read_ += read_len;
+  // Check if we've already read all expected content
+  if (this->bytes_read_ >= this->content_length) {
+    this->duration_ms += (millis() - start);
+    return 0;  // All content read
   }
+
+  this->feed_wdt();
+  int read_len_or_error = esp_http_client_read(this->client_, (char *) buf, max_len);
+  this->feed_wdt();
+
   this->duration_ms += (millis() - start);
 
-  return read_len;
+  if (read_len_or_error > 0) {
+    this->bytes_read_ += read_len_or_error;
+    return read_len_or_error;
+  }
+
+  if (read_len_or_error == 0) {
+    // Connection closed gracefully
+    return 0;
+  }
+
+  // read_len_or_error < 0: check for EAGAIN (no data available in non-blocking mode)
+  // ESP_ERR_HTTP_EAGAIN = 0x7007, returned as negative
+  if (read_len_or_error == -ESP_ERR_HTTP_EAGAIN) {
+    return 0;  // No data available yet, consistent with Arduino behavior
+  }
+
+  // Real error - return the actual error code for debugging
+  return read_len_or_error;
 }
 
 void HttpContainerIDF::end() {
