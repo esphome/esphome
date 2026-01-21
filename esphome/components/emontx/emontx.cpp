@@ -35,6 +35,18 @@ void EmonTx::setup() {
   // three phases. But go with 1024 just to be sure.
   this->buffer_.reserve(1024);
 
+  // Verify clear() preserves capacity (compile-time test for std::string behavior)
+  {
+    std::string test;
+    test.reserve(1024);
+    size_t cap_after_reserve = test.capacity();
+    test = "test data";
+    test.clear();
+    size_t cap_after_clear = test.capacity();
+    ESP_LOGCONFIG(TAG, "std::string clear() test: capacity after reserve=%zu, after clear=%zu %s", cap_after_reserve,
+                  cap_after_clear, (cap_after_clear >= cap_after_reserve) ? "[OK]" : "[FAILED - capacity lost!]");
+  }
+
   ESP_LOGCONFIG(TAG, "Setting up EmonTx component");
 
 #ifdef USE_API_CUSTOM_SERVICES
