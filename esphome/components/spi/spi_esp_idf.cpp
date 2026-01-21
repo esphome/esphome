@@ -188,12 +188,11 @@ class SPIDelegateHw : public SPIDelegate {
 
  protected:
   // Get maximum SPI clock speed for full-duplex mode on GPIO matrix pins.
-  // ESP-IDF limit is "less than APB_CLK/3". We subtract 1 to ensure we're strictly less than.
-  // This varies by chip: ESP32/S2/S3/C3=26.67MHz, C5/C6=13.33MHz, H2=10.67MHz, etc.
+  // ESP-IDF limit is APB_CLK/3. Varies by chip: ESP32/S2/S3/C3=26.67MHz, C5/C6=13.33MHz, H2=10.67MHz, P4=30MHz.
   static uint32_t get_max_full_duplex_speed_() {
     uint32_t apb_freq = 0;
     esp_clk_tree_src_get_freq_hz(SOC_MOD_CLK_APB, ESP_CLK_TREE_SRC_FREQ_PRECISION_EXACT, &apb_freq);
-    return (apb_freq / 3) - 1;
+    return apb_freq / 3;
   }
 
   bool add_device_() {
