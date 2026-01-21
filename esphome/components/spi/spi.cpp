@@ -64,9 +64,9 @@ void SPIComponent::setup() {
 
 void SPIComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SPI bus:");
-  LOG_PIN("  CLK Pin: ", this->clk_pin_)
-  LOG_PIN("  SDI Pin: ", this->sdi_pin_)
-  LOG_PIN("  SDO Pin: ", this->sdo_pin_)
+  LOG_PIN("  CLK Pin: ", this->clk_pin_);
+  LOG_PIN("  SDI Pin: ", this->sdi_pin_);
+  LOG_PIN("  SDO Pin: ", this->sdo_pin_);
   for (size_t i = 0; i != this->data_pins_.size(); i++) {
     ESP_LOGCONFIG(TAG, "  Data pin %u: GPIO%d", i, this->data_pins_[i]);
   }

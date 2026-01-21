@@ -243,6 +243,16 @@ class ESP32TouchBinarySensor : public binary_sensor::BinarySensor {
 
   uint32_t get_wakeup_threshold() const { return this->wakeup_threshold_; }
 
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+  /// Ensure benchmark value is read (v2 touch hardware only).
+  /// Called from multiple places - kept as helper to document shared usage.
+  void ensure_benchmark_read() {
+    if (this->benchmark_ == 0) {
+      touch_pad_read_benchmark(this->touch_pad_, &this->benchmark_);
+    }
+  }
+#endif
+
  protected:
   friend ESP32TouchComponent;
 
