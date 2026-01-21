@@ -547,8 +547,8 @@ class WiFiComponent : public Component {
   /// Check if network matches any configured network (for scan result filtering)
   /// Matches by SSID when configured, or by BSSID for BSSID-only configs
   bool matches_configured_network_(const char *ssid, const uint8_t *bssid) const;
-  /// Log a discarded scan result at VERBOSE level
-  static void log_discarded_scan_result(const char *ssid, const uint8_t *bssid, int8_t rssi, uint8_t channel);
+  /// Log a discarded scan result at VERBOSE level (skipped during roaming scans to avoid log overflow)
+  void log_discarded_scan_result(const char *ssid, const uint8_t *bssid, int8_t rssi, uint8_t channel);
   /// Find next SSID that wasn't in scan results (might be hidden)
   /// Returns index of next potentially hidden SSID, or -1 if none found
   /// @param start_index Start searching from index after this (-1 to start from beginning)

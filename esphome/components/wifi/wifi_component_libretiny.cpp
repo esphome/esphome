@@ -692,7 +692,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
                                       ssid_cstr[0] == '\0');
     } else {
       auto &ap = scan->ap[i];
-      WiFiComponent::log_discarded_scan_result(ssid_cstr, ap.bssid.addr, ap.rssi, ap.channel);
+      this->log_discarded_scan_result(ssid_cstr, ap.bssid.addr, ap.rssi, ap.channel);
     }
   }
   ESP_LOGV(TAG, "Scan complete: %d found, %zu stored%s", num, this->scan_result_.size(),
