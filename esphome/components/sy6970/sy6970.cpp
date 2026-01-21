@@ -8,7 +8,7 @@ static const char *const TAG = "sy6970";
 
 bool SY6970Component::read_all_registers_() {
   // Read all registers from 0x00 to 0x14 in one transaction (21 bytes)
-  // This includes unused registers 0x0F, 0x10, 0x13 for performance
+  // This includes unused registers 0x0F, 0x10 for performance
   if (!this->read_bytes(SY6970_REG_INPUT_CURRENT_LIMIT, this->data_.registers, 21)) {
     ESP_LOGW(TAG, "Failed to read registers 0x00-0x14");
     return false;
