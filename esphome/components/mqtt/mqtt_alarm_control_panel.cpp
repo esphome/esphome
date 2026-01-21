@@ -119,7 +119,8 @@ bool MQTTAlarmControlPanelComponent::publish_state() {
     default:
       state_s = "unknown";
   }
-  return this->publish(this->get_state_topic_(), state_s);
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish(this->get_state_topic_to_(topic_buf), state_s);
 }
 
 }  // namespace esphome::mqtt
