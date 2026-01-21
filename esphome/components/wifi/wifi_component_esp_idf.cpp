@@ -860,7 +860,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
         WiFiComponent::log_discarded_scan_result(ssid_cstr, record.bssid, record.rssi, record.primary);
       }
     }
-    ESP_LOGD(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),
+    ESP_LOGV(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),
              needs_full ? "" : " (filtered)");
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
     for (auto *listener : this->scan_results_listeners_) {
