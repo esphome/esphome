@@ -6,6 +6,7 @@ from esphome.const import (
     DEVICE_CLASS_CARBON_MONOXIDE,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
+    CONF_WARMUP_TIME,
 )
 
 CODEOWNERS = ["@maikeljkwak"]
@@ -13,7 +14,6 @@ DEPENDENCIES = ["uart"]
 
 ICON_MOLECULE_CO = "mdi:molecule-co"
 CONF_CO = "co"
-CONF_WARMUP_TIME = "warmup_time"
 
 ze15_ns = cg.esphome_ns.namespace("ze15_co")
 ZE15COComponent = ze15_ns.class_(
