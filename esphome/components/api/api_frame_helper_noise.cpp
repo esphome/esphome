@@ -267,7 +267,8 @@ APIError APINoiseFrameHelper::state_action_() {
     size_t mac_offset = name_offset + name_len;
     size_t total_size = 1 + name_len + MAC_ADDRESS_BUFFER_SIZE;
 
-    // 1 (proto) + name + null + mac + null
+    // 1 (proto) + name (max ESPHOME_DEVICE_NAME_MAX_LEN) + 1 (name null)
+    // + mac (MAC_ADDRESS_BUFFER_SIZE - 1) + 1 (mac null)
     constexpr size_t max_msg_size = 1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + MAC_ADDRESS_BUFFER_SIZE;
     uint8_t msg[max_msg_size];
 
@@ -370,6 +371,7 @@ void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reaso
   const char *reason_str = LOG_STR_ARG(reason);
   size_t reason_len = strlen(reason_str);
   if (reason_len > 0) {
+    // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - binary protocol, not a C string
     std::memcpy(data + 1, reason_str, reason_len);
   }
 #endif
