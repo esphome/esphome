@@ -370,7 +370,8 @@ bool WiFiComponent::ssid_was_seen_in_scan_(const std::string &ssid) const {
 }
 
 bool WiFiComponent::needs_full_scan_results_() const {
-  // Listeners always need full results
+  // Components that require full scan results (for example, scan result listeners)
+  // are expected to call request_wifi_scan_results(), which sets keep_scan_results_.
   if (this->keep_scan_results_) {
     return true;
   }
