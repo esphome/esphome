@@ -1,0 +1,8 @@
+nrf52:
+  framework:
+    version: 2.9.2-2
+    source: https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v2.9.2-2.zip
+    platform_source: https://github.com/tomaszduda23/platform-nordicnrf52/archive/refs/tags/v10.3.0-5.zip
+    additional_packages:
+      - name: platformio/tool-cmake
+        version: 3.21.3
