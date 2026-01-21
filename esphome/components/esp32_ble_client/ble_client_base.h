@@ -44,7 +44,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void unconditional_disconnect();
   void release_services();
 
-  bool connected() { return this->state_ == espbt::ClientState::ESTABLISHED; }
+  bool connected() { return this->state() == espbt::ClientState::ESTABLISHED; }
 
   void set_auto_connect(bool auto_connect) { this->auto_connect_ = auto_connect; }
 

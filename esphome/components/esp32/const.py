@@ -2,6 +2,7 @@ import esphome.codegen as cg
 
 KEY_ESP32 = "esp32"
 KEY_BOARD = "board"
+KEY_FLASH_SIZE = "flash_size"
 KEY_VARIANT = "variant"
 KEY_SDKCONFIG_OPTIONS = "sdkconfig_options"
 KEY_COMPONENTS = "components"

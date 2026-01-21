@@ -43,6 +43,7 @@ from esphome.const import (
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
     ENV_NOGITIGNORE,
+    KEY_NATIVE_IDF,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
@@ -116,6 +117,7 @@ class ArgsProtocol(Protocol):
     configuration: str
     name: str
     upload_speed: str | None
+    native_idf: bool
 
 
 def choose_prompt(options, purpose: str = None):
@@ -500,12 +502,15 @@ def wrap_to_code(name, comp):
     return wrapped
 
 
-def write_cpp(config: ConfigType) -> int:
+def write_cpp(config: ConfigType, native_idf: bool = False) -> int:
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
 
+    # Store native_idf flag so esp32 component can check it
+    CORE.data[KEY_NATIVE_IDF] = native_idf
+
     generate_cpp_contents(config)
-    return write_cpp_file()
+    return write_cpp_file(native_idf=native_idf)
 
 
 def generate_cpp_contents(config: ConfigType) -> None:
@@ -519,32 +524,54 @@ def generate_cpp_contents(config: ConfigType) -> None:
     CORE.flush_tasks()
 
 
-def write_cpp_file() -> int:
+def write_cpp_file(native_idf: bool = False) -> int:
     code_s = indent(CORE.cpp_main_section)
     writer.write_cpp(code_s)
 
-    from esphome.build_gen import platformio
+    if native_idf and CORE.is_esp32 and CORE.target_framework == "esp-idf":
+        from esphome.build_gen import espidf
 
-    platformio.write_project()
+        espidf.write_project()
+    else:
+        from esphome.build_gen import platformio
+
+        platformio.write_project()
 
     return 0
 
 
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
-    from esphome import platformio_api
+    native_idf = getattr(args, "native_idf", False)
 
     # NOTE: "Build path:" format is parsed by script/ci_memory_impact_extract.py
     # If you change this format, update the regex in that script as well
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
-    rc = platformio_api.run_compile(config, CORE.verbose)
-    if rc != 0:
-        return rc
+
+    if native_idf and CORE.is_esp32 and CORE.target_framework == "esp-idf":
+        from esphome import espidf_api
+
+        rc = espidf_api.run_compile(config, CORE.verbose)
+        if rc != 0:
+            return rc
+
+        # Create factory.bin and ota.bin
+        espidf_api.create_factory_bin()
+        espidf_api.create_ota_bin()
+    else:
+        from esphome import platformio_api
+
+        rc = platformio_api.run_compile(config, CORE.verbose)
+        if rc != 0:
+            return rc
+
+        idedata = platformio_api.get_idedata(config)
+        if idedata is None:
+            return 1
 
     # Check if firmware was rebuilt and emit build_info + create manifest
     _check_and_emit_build_info()
 
-    idedata = platformio_api.get_idedata(config)
-    return 0 if idedata is not None else 1
+    return 0
 
 
 def _check_and_emit_build_info() -> None:
@@ -801,7 +828,8 @@ def command_vscode(args: ArgsProtocol) -> int | None:
 
 
 def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
-    exit_code = write_cpp(config)
+    native_idf = getattr(args, "native_idf", False)
+    exit_code = write_cpp(config, native_idf=native_idf)
     if exit_code != 0:
         return exit_code
     if args.only_generate:
@@ -856,7 +884,8 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
-    exit_code = write_cpp(config)
+    native_idf = getattr(args, "native_idf", False)
+    exit_code = write_cpp(config, native_idf=native_idf)
     if exit_code != 0:
         return exit_code
     exit_code = compile_program(args, config)
@@ -1310,6 +1339,11 @@ def parse_args(argv):
         help="Only generate source code, do not compile.",
         action="store_true",
     )
+    parser_compile.add_argument(
+        "--native-idf",
+        help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
+        action="store_true",
+    )
 
     parser_upload = subparsers.add_parser(
         "upload",
@@ -1390,6 +1424,11 @@ def parse_args(argv):
         action="store_true",
         help="Reset the device before starting serial logs.",
         default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
+    )
+    parser_run.add_argument(
+        "--native-idf",
+        help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
+        action="store_true",
     )
 
     parser_clean = subparsers.add_parser(
