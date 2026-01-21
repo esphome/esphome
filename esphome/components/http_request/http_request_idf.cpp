@@ -218,7 +218,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
 // esp_http_client_read() in async mode returns:
 //   > 0: bytes read
 //   0: connection closed (end of stream) <-- BSD socket EOF semantics
-//   -ESP_ERR_HTTP_EAGAIN (0x7007): no data available yet (would block)
+//   -ESP_ERR_HTTP_EAGAIN: no data available yet (would block)
 //   other negative: error
 //
 // We normalize to HttpContainer::read() contract (NOT BSD socket semantics!):
