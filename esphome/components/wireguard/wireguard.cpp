@@ -13,8 +13,7 @@
 #include <esp_wireguard.h>
 #include <esp_wireguard_err.h>
 
-namespace esphome {
-namespace wireguard {
+namespace esphome::wireguard {
 
 static const char *const TAG = "wireguard";
 
@@ -28,16 +27,16 @@ static const char *const LOGMSG_ONLINE = "online";
 static const char *const LOGMSG_OFFLINE = "offline";
 
 void Wireguard::setup() {
-  this->wg_config_.address = this->address_.c_str();
-  this->wg_config_.private_key = this->private_key_.c_str();
-  this->wg_config_.endpoint = this->peer_endpoint_.c_str();
-  this->wg_config_.public_key = this->peer_public_key_.c_str();
+  this->wg_config_.address = this->address_;
+  this->wg_config_.private_key = this->private_key_;
+  this->wg_config_.endpoint = this->peer_endpoint_;
+  this->wg_config_.public_key = this->peer_public_key_;
   this->wg_config_.port = this->peer_port_;
-  this->wg_config_.netmask = this->netmask_.c_str();
+  this->wg_config_.netmask = this->netmask_;
   this->wg_config_.persistent_keepalive = this->keepalive_;
 
-  if (!this->preshared_key_.empty())
-    this->wg_config_.preshared_key = this->preshared_key_.c_str();
+  if (this->preshared_key_ != nullptr)
+    this->wg_config_.preshared_key = this->preshared_key_;
 
   this->publish_enabled_state();
 
@@ -131,6 +130,10 @@ void Wireguard::update() {
 }
 
 void Wireguard::dump_config() {
+  char private_key_masked[MASK_KEY_BUFFER_SIZE];
+  char preshared_key_masked[MASK_KEY_BUFFER_SIZE];
+  mask_key_to(private_key_masked, sizeof(private_key_masked), this->private_key_);
+  mask_key_to(preshared_key_masked, sizeof(preshared_key_masked), this->preshared_key_);
   // clang-format off
   ESP_LOGCONFIG(
       TAG,
@@ -142,13 +145,13 @@ void Wireguard::dump_config() {
       "  Peer Port: " LOG_SECRET("%d") "\n"
       "  Peer Public Key: " LOG_SECRET("%s") "\n"
       "  Peer Pre-shared Key: " LOG_SECRET("%s"),
-      this->address_.c_str(), this->netmask_.c_str(), mask_key(this->private_key_).c_str(),
-      this->peer_endpoint_.c_str(), this->peer_port_, this->peer_public_key_.c_str(),
-      (!this->preshared_key_.empty() ? mask_key(this->preshared_key_).c_str() : "NOT IN USE"));
+      this->address_, this->netmask_, private_key_masked,
+      this->peer_endpoint_, this->peer_port_, this->peer_public_key_,
+      (this->preshared_key_ != nullptr ? preshared_key_masked : "NOT IN USE"));
   // clang-format on
   ESP_LOGCONFIG(TAG, "  Peer Allowed IPs:");
-  for (auto &allowed_ip : this->allowed_ips_) {
-    ESP_LOGCONFIG(TAG, "    - %s/%s", std::get<0>(allowed_ip).c_str(), std::get<1>(allowed_ip).c_str());
+  for (const AllowedIP &allowed_ip : this->allowed_ips_) {
+    ESP_LOGCONFIG(TAG, "    - %s/%s", allowed_ip.ip, allowed_ip.netmask);
   }
   ESP_LOGCONFIG(TAG, "  Peer Persistent Keepalive: %d%s", this->keepalive_,
                 (this->keepalive_ > 0 ? "s" : " (DISABLED)"));
@@ -174,18 +177,6 @@ time_t Wireguard::get_latest_handshake() const {
     result = 0;
   }
   return result;
-}
-
-void Wireguard::set_address(const std::string &address) { this->address_ = address; }
-void Wireguard::set_netmask(const std::string &netmask) { this->netmask_ = netmask; }
-void Wireguard::set_private_key(const std::string &key) { this->private_key_ = key; }
-void Wireguard::set_peer_endpoint(const std::string &endpoint) { this->peer_endpoint_ = endpoint; }
-void Wireguard::set_peer_public_key(const std::string &key) { this->peer_public_key_ = key; }
-void Wireguard::set_peer_port(const uint16_t port) { this->peer_port_ = port; }
-void Wireguard::set_preshared_key(const std::string &key) { this->preshared_key_ = key; }
-
-void Wireguard::add_allowed_ip(const std::string &ip, const std::string &netmask) {
-  this->allowed_ips_.emplace_back(ip, netmask);
 }
 
 void Wireguard::set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
@@ -274,9 +265,8 @@ void Wireguard::start_connection_() {
 
   ESP_LOGD(TAG, "Configuring allowed IPs list");
   bool allowed_ips_ok = true;
-  for (std::tuple<std::string, std::string> ip : this->allowed_ips_) {
-    allowed_ips_ok &=
-        (esp_wireguard_add_allowed_ip(&(this->wg_ctx_), std::get<0>(ip).c_str(), std::get<1>(ip).c_str()) == ESP_OK);
+  for (const AllowedIP &ip : this->allowed_ips_) {
+    allowed_ips_ok &= (esp_wireguard_add_allowed_ip(&(this->wg_ctx_), ip.ip, ip.netmask) == ESP_OK);
   }
 
   if (allowed_ips_ok) {
@@ -299,8 +289,25 @@ void Wireguard::stop_connection_() {
   }
 }
 
-std::string mask_key(const std::string &key) { return (key.substr(0, 5) + "[...]="); }
+void mask_key_to(char *buffer, size_t len, const char *key) {
+  // Format: "XXXXX[...]=\0" = MASK_KEY_BUFFER_SIZE chars minimum
+  if (len < MASK_KEY_BUFFER_SIZE || key == nullptr) {
+    if (len > 0)
+      buffer[0] = '\0';
+    return;
+  }
+  // Copy first 5 characters of the key
+  size_t i = 0;
+  for (; i < 5 && key[i] != '\0'; ++i) {
+    buffer[i] = key[i];
+  }
+  // Append "[...]="
+  const char *suffix = "[...]=";
+  for (size_t j = 0; suffix[j] != '\0' && (i + j) < len - 1; ++j) {
+    buffer[i + j] = suffix[j];
+  }
+  buffer[i + 6] = '\0';
+}
 
-}  // namespace wireguard
-}  // namespace esphome
+}  // namespace esphome::wireguard
 #endif

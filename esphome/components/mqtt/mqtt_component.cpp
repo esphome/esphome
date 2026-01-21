@@ -48,7 +48,8 @@ void MQTTComponent::set_subscribe_qos(uint8_t qos) { this->subscribe_qos_ = qos;
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
-  std::string sanitized_name = str_sanitize(App.get_name());
+  char sanitized_name[ESPHOME_DEVICE_NAME_MAX_LEN + 1];
+  str_sanitize_to(sanitized_name, App.get_name().c_str());
   const char *comp_type = this->component_type();
   char object_id_buf[OBJECT_ID_MAX_LEN];
   StringRef object_id = this->get_default_object_id_to_(object_id_buf);
@@ -60,7 +61,7 @@ std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discove
   p = append_char(p, '/');
   p = append_str(p, comp_type, strlen(comp_type));
   p = append_char(p, '/');
-  p = append_str(p, sanitized_name.data(), sanitized_name.size());
+  p = append_str(p, sanitized_name, strlen(sanitized_name));
   p = append_char(p, '/');
   p = append_str(p, object_id.c_str(), object_id.size());
   p = append_str(p, "/config", 7);
@@ -94,21 +95,25 @@ std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) con
 }
 
 std::string MQTTComponent::get_state_topic_() const {
-  if (this->has_custom_state_topic_)
-    return this->custom_state_topic_.str();
+  if (this->custom_state_topic_.has_value())
+    return this->custom_state_topic_.value();
   return this->get_default_topic_for_("state");
 }
 
 std::string MQTTComponent::get_command_topic_() const {
-  if (this->has_custom_command_topic_)
-    return this->custom_command_topic_.str();
+  if (this->custom_command_topic_.has_value())
+    return this->custom_command_topic_.value();
   return this->get_default_topic_for_("command");
 }
 
 bool MQTTComponent::publish(const std::string &topic, const std::string &payload) {
+  return this->publish(topic, payload.data(), payload.size());
+}
+
+bool MQTTComponent::publish(const std::string &topic, const char *payload, size_t payload_length) {
   if (topic.empty())
     return false;
-  return global_mqtt_client->publish(topic, payload, this->qos_, this->retain_);
+  return global_mqtt_client->publish(topic, payload, payload_length, this->qos_, this->retain_);
 }
 
 bool MQTTComponent::publish_json(const std::string &topic, const json::json_build_t &f) {
@@ -185,9 +190,14 @@ bool MQTTComponent::send_discovery_() {
         StringRef object_id = this->get_default_object_id_to_(object_id_buf);
         if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
           char friendly_name_hash[9];
-          sprintf(friendly_name_hash, "%08" PRIx32, fnv1_hash(this->friendly_name_()));
-          friendly_name_hash[8] = 0;  // ensure the hash-string ends with null
-          root[MQTT_UNIQUE_ID] = get_mac_address() + "-" + this->component_type() + "-" + friendly_name_hash;
+          snprintf(friendly_name_hash, sizeof(friendly_name_hash), "%08" PRIx32, fnv1_hash(this->friendly_name_()));
+          // Format: mac-component_type-hash (e.g. "aabbccddeeff-sensor-12345678")
+          // MAC (12) + "-" (1) + domain (max 20) + "-" (1) + hash (8) + null (1) = 43
+          char unique_id[MAC_ADDRESS_BUFFER_SIZE + ESPHOME_DOMAIN_MAX_LEN + 11];
+          char mac_buf[MAC_ADDRESS_BUFFER_SIZE];
+          get_mac_address_into_buffer(mac_buf);
+          snprintf(unique_id, sizeof(unique_id), "%s-%s-%s", mac_buf, this->component_type(), friendly_name_hash);
+          root[MQTT_UNIQUE_ID] = unique_id;
         } else {
           // default to almost-unique ID. It's a hack but the only way to get that
           // gorgeous device registry view.
@@ -203,7 +213,8 @@ bool MQTTComponent::send_discovery_() {
         std::string node_area = App.get_area();
 
         JsonObject device_info = root[MQTT_DEVICE].to<JsonObject>();
-        const auto mac = get_mac_address();
+        char mac[MAC_ADDRESS_BUFFER_SIZE];
+        get_mac_address_into_buffer(mac);
         device_info[MQTT_DEVICE_IDENTIFIERS] = mac;
         device_info[MQTT_DEVICE_NAME] = node_friendly_name;
 #ifdef ESPHOME_PROJECT_NAME
@@ -266,14 +277,6 @@ MQTTComponent::MQTTComponent() = default;
 
 float MQTTComponent::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 void MQTTComponent::disable_discovery() { this->discovery_enabled_ = false; }
-void MQTTComponent::set_custom_state_topic(const char *custom_state_topic) {
-  this->custom_state_topic_ = StringRef(custom_state_topic);
-  this->has_custom_state_topic_ = true;
-}
-void MQTTComponent::set_custom_command_topic(const char *custom_command_topic) {
-  this->custom_command_topic_ = StringRef(custom_command_topic);
-  this->has_custom_command_topic_ = true;
-}
 void MQTTComponent::set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }
 
 void MQTTComponent::set_availability(std::string topic, std::string payload_available,
@@ -305,15 +308,11 @@ void MQTTComponent::call_setup() {
   }
 }
 
-void MQTTComponent::call_loop() {
-  if (this->is_internal())
+void MQTTComponent::process_resend() {
+  // Called by MQTTClientComponent when connected to process pending resends
+  // Note: is_internal() check not needed - internal components are never registered
+  if (!this->resend_state_)
     return;
-
-  this->loop();
-
-  if (!this->resend_state_ || !this->is_connected_()) {
-    return;
-  }
 
   this->resend_state_ = false;
   if (this->is_discovery_enabled()) {
@@ -342,13 +341,13 @@ StringRef MQTTComponent::get_default_object_id_to_(std::span<char, OBJECT_ID_MAX
 StringRef MQTTComponent::get_icon_ref_() const { return this->get_entity()->get_icon_ref(); }
 bool MQTTComponent::is_disabled_by_default_() const { return this->get_entity()->is_disabled_by_default(); }
 bool MQTTComponent::is_internal() {
-  if (this->has_custom_state_topic_) {
+  if (this->custom_state_topic_.has_value()) {
     // If the custom state_topic is null, return true as it is internal and should not publish
     // else, return false, as it is explicitly set to a topic, so it is not internal and should publish
     return this->get_state_topic_().empty();
   }
 
-  if (this->has_custom_command_topic_) {
+  if (this->custom_command_topic_.has_value()) {
     // If the custom command_topic is null, return true as it is internal and should not publish
     // else, return false, as it is explicitly set to a topic, so it is not internal and should publish
     return this->get_command_topic_().empty();

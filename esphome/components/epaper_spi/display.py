@@ -184,6 +184,7 @@ async def to_code(config):
         height,
         init_sequence_id,
         init_sequence_length,
+        *model.get_constructor_args(config),
     )
 
     # Rotation is handled by setting the transform

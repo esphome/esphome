@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.1.0-dev"
+__version__ = "2026.2.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -1379,6 +1379,7 @@ KEY_FRAMEWORK_VERSION = "framework_version"
 KEY_NAME = "name"
 KEY_VARIANT = "variant"
 KEY_PAST_SAFE_MODE = "past_safe_mode"
+KEY_NATIVE_IDF = "native_idf"
 
 # Entity categories
 ENTITY_CATEGORY_NONE = ""
