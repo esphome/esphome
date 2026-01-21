@@ -60,11 +60,18 @@ struct TemperatureCompensation {
   }
 };
 
-struct AccelerationParameters {
+struct TemperatureAcceleration {
   uint16_t k;
   uint16_t p;
   uint16_t t1;
   uint16_t t2;
+  TemperatureAcceleration() : k(20), p(20), t1(100), t2(300) {}
+  TemperatureAcceleration(float k, float p, float t1, float t2) {
+    this->k = static_cast<uint16_t>(k * 10.0);
+    this->p = static_cast<uint16_t>(p * 10.0);
+    this->t1 = static_cast<uint16_t>(t1 * 10.0);
+    this->t2 = static_cast<uint16_t>(t2 * 10.0);
+  }
 };
 
 // Shortest time interval of 3H for storing baseline values.
@@ -120,12 +127,8 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant,
                                     uint8_t slot = 0);
   void set_temperature_acceleration(float k, float p, float t1, float t2) {
-    AccelerationParameters accel_param;
-    accel_param.k = k * 10;
-    accel_param.p = p * 10;
-    accel_param.t1 = t1 * 10;
-    accel_param.t2 = t2 * 10;
-    this->temperature_acceleration_ = accel_param;
+    TemperatureAcceleration accel(k, p, t1, t2);
+    this->temperature_acceleration_ = accel;
   }
   void set_automatic_self_calibration(bool value) { this->auto_self_calibration_ = value; }
   void set_altitude_compensation(uint16_t altitude) { this->altitude_compensation_ = altitude; }
@@ -147,7 +150,8 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool write_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
   bool write_temperature_acceleration_();
 
-  uint32_t last_store_time_;
+  uint16_t baseline_state_[4]{0};
+  uint32_t baseline_state_time_;
   uint16_t ambient_pressure_compensation_{0};
   uint8_t firmware_major_{0xFF};
   uint8_t firmware_minor_{0xFF};
@@ -169,7 +173,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
 
   optional<Sen5xType> model_;
   optional<RhtAccelerationMode> acceleration_mode_;
-  optional<AccelerationParameters> temperature_acceleration_;
+  optional<TemperatureAcceleration> temperature_acceleration_;
   optional<uint32_t> auto_cleaning_interval_;
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
