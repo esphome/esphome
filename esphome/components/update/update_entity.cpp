@@ -10,7 +10,7 @@ static const char *const TAG = "update";
 
 void UpdateEntity::publish_state() {
   ESP_LOGD(TAG,
-           "'%s' - Publishing:\n"
+           "'%s' >>\n"
            "  Current Version: %s",
            this->name_.c_str(), this->update_info_.current_version.c_str());
 

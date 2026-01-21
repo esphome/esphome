@@ -281,7 +281,7 @@ bool WiFiComponent::wifi_apply_power_save_() {
       break;
   }
   bool success = esp_wifi_set_ps(power_save) == ESP_OK;
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_POWER_SAVE_LISTENERS
   if (success) {
     for (auto *listener : this->power_save_listeners_) {
       listener->on_wifi_power_save(this->power_save_);
@@ -741,18 +741,18 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
              (const char *) it.ssid, bssid_buf, it.channel, get_auth_mode_str(it.authmode));
 #endif
     s_sta_connected = true;
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     for (auto *listener : this->connect_state_listeners_) {
       listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
     }
+#endif
     // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
-#ifdef USE_WIFI_MANUAL_IP
+#if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
     if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
       for (auto *listener : this->ip_state_listeners_) {
         listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
       }
     }
-#endif
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_DISCONNECTED) {
@@ -774,7 +774,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connected = false;
     s_sta_connecting = false;
     error_from_callback_ = true;
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     static constexpr uint8_t EMPTY_BSSID[6] = {};
     for (auto *listener : this->connect_state_listeners_) {
       listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
@@ -788,7 +788,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif /* USE_NETWORK_IPV6 */
     ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
     this->got_ipv4_address_ = true;
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_IP_STATE_LISTENERS
     for (auto *listener : this->ip_state_listeners_) {
       listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
     }
@@ -799,7 +799,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     const auto &it = data->data.ip_got_ip6;
     ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
     this->num_ipv6_addresses_++;
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_IP_STATE_LISTENERS
     for (auto *listener : this->ip_state_listeners_) {
       listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
     }
@@ -827,23 +827,24 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
 
     uint16_t number = it.number;
-    auto records = std::make_unique<wifi_ap_record_t[]>(number);
-    err = esp_wifi_scan_get_ap_records(&number, records.get());
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(err));
-      return;
-    }
-
     scan_result_.init(number);
-    for (int i = 0; i < number; i++) {
-      auto &record = records[i];
+
+    // Process one record at a time to avoid large buffer allocation
+    wifi_ap_record_t record;
+    for (uint16_t i = 0; i < number; i++) {
+      err = esp_wifi_scan_get_ap_record(&record);
+      if (err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_scan_get_ap_record failed: %s", esp_err_to_name(err));
+        esp_wifi_clear_ap_list();  // Free remaining records not yet retrieved
+        break;
+      }
       bssid_t bssid;
       std::copy(record.bssid, record.bssid + 6, bssid.begin());
       std::string ssid(reinterpret_cast<const char *>(record.ssid));
       scan_result_.emplace_back(bssid, ssid, record.primary, record.rssi, record.authmode != WIFI_AUTH_OPEN,
                                 ssid.empty());
     }
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
     for (auto *listener : this->scan_results_listeners_) {
       listener->on_wifi_scan_results(this->scan_result_);
     }

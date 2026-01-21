@@ -1,4 +1,5 @@
 #include "tuya_text_sensor.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -14,15 +15,18 @@ void TuyaTextSensor::setup() {
         this->publish_state(datapoint.value_string);
         break;
       case TuyaDatapointType::RAW: {
-        std::string data = format_hex_pretty(datapoint.value_raw);
-        ESP_LOGD(TAG, "MCU reported text sensor %u is: %s", datapoint.id, data.c_str());
-        this->publish_state(data);
+        char hex_buf[MAX_STATE_LEN + 1];
+        const char *formatted =
+            format_hex_pretty_to(hex_buf, sizeof(hex_buf), datapoint.value_raw.data(), datapoint.value_raw.size());
+        ESP_LOGD(TAG, "MCU reported text sensor %u is: %s", datapoint.id, formatted);
+        this->publish_state(formatted);
         break;
       }
       case TuyaDatapointType::ENUM: {
-        std::string data = to_string(datapoint.value_enum);
-        ESP_LOGD(TAG, "MCU reported text sensor %u is: %s", datapoint.id, data.c_str());
-        this->publish_state(data);
+        char buf[4];  // uint8_t max is 3 digits + null
+        buf_append_printf(buf, sizeof(buf), 0, "%u", datapoint.value_enum);
+        ESP_LOGD(TAG, "MCU reported text sensor %u is: %s", datapoint.id, buf);
+        this->publish_state(buf);
         break;
       }
       default:

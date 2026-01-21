@@ -181,6 +181,11 @@ void HeatpumpIRClimate::transmit_state() {
       power_mode_cmd = POWER_ON;
       operating_mode_cmd = MODE_HEAT;
       break;
+    // Map HEAT_COOL to hardware AUTO mode (automatic heat/cool changeover based on temperature).
+    // In hardware AUTO mode, the device automatically switches between heating and cooling
+    // based on the current temperature versus the target temperature.
+    // See https://github.com/esphome/esphome/issues/11161 for further discussion.
+    case climate::CLIMATE_MODE_HEAT_COOL:
     case climate::CLIMATE_MODE_AUTO:
       power_mode_cmd = POWER_ON;
       operating_mode_cmd = MODE_AUTO;
