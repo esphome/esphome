@@ -857,7 +857,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
         this->scan_result_.emplace_back(bssid, std::move(ssid), record.primary, record.rssi,
                                         record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
       } else {
-        this->log_discarded_scan_result(ssid_cstr, record.bssid, record.rssi, record.primary);
+        this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
       }
     }
     ESP_LOGV(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),

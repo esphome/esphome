@@ -425,7 +425,7 @@ bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t 
   return false;
 }
 
-void WiFiComponent::log_discarded_scan_result(const char *ssid, const uint8_t *bssid, int8_t rssi, uint8_t channel) {
+void WiFiComponent::log_discarded_scan_result_(const char *ssid, const uint8_t *bssid, int8_t rssi, uint8_t channel) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   // Skip logging during roaming scans to avoid log buffer overflow
   // (roaming scans typically find many networks but only care about same-SSID APs)
