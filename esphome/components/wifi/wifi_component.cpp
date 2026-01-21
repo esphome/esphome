@@ -39,6 +39,10 @@
 #include "esphome/components/esp32_improv/esp32_improv_component.h"
 #endif
 
+#ifdef USE_IMPROV_SERIAL
+#include "esphome/components/improv_serial/improv_serial_component.h"
+#endif
+
 namespace esphome::wifi {
 
 static const char *const TAG = "wifi";
@@ -363,6 +367,69 @@ bool WiFiComponent::ssid_was_seen_in_scan_(const std::string &ssid) const {
     }
   }
   return false;
+}
+
+bool WiFiComponent::needs_full_scan_results_() const {
+  // Listeners always need full results
+  if (this->keep_scan_results_) {
+    return true;
+  }
+
+#ifdef USE_CAPTIVE_PORTAL
+  // Captive portal needs full results when active (showing network list to user)
+  if (captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active()) {
+    return true;
+  }
+#endif
+
+#ifdef USE_IMPROV_SERIAL
+  // Improv serial needs results during provisioning (before connected)
+  if (improv_serial::global_improv_serial_component != nullptr && !this->is_connected()) {
+    return true;
+  }
+#endif
+
+#ifdef USE_IMPROV
+  // BLE improv also needs results during provisioning
+  if (esp32_improv::global_improv_component != nullptr && esp32_improv::global_improv_component->is_active()) {
+    return true;
+  }
+#endif
+
+  return false;
+}
+
+bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t *bssid) const {
+  // Hidden networks in scan results have empty SSIDs - skip them
+  if (ssid[0] == '\0') {
+    return false;
+  }
+  for (const auto &sta : this->sta_) {
+    // Skip hidden network configs (they don't appear in normal scans)
+    if (sta.get_hidden()) {
+      continue;
+    }
+    // For BSSID-only configs (empty SSID), match by BSSID
+    if (sta.get_ssid().empty()) {
+      if (sta.has_bssid() && std::memcmp(sta.get_bssid().data(), bssid, 6) == 0) {
+        return true;
+      }
+      continue;
+    }
+    // Match by SSID
+    if (sta.get_ssid() == ssid) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void WiFiComponent::log_discarded_scan_result(const char *ssid, const uint8_t *bssid, int8_t rssi, uint8_t channel) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  format_mac_addr_upper(bssid, bssid_s);
+  ESP_LOGV(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " %ddB Ch:%u", ssid, bssid_s, rssi, channel);
+#endif
 }
 
 int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
@@ -1171,7 +1238,7 @@ template<typename VectorType> static void insertion_sort_scan_results(VectorType
 // has overhead from UART transmission, so combining INFO+DEBUG into one line halves
 // the blocking time. Do NOT split this into separate ESP_LOGI/ESP_LOGD calls.
 __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res) {
-  char bssid_s[18];
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   auto bssid = res.get_bssid();
   format_mac_addr_upper(bssid.data(), bssid_s);
 
@@ -1186,18 +1253,6 @@ __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res)
            LOG_STR_ARG(get_signal_bars(res.get_rssi())));
 #endif
 }
-
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-// Helper function to log non-matching scan results at verbose level
-__attribute__((noinline)) static void log_scan_result_non_matching(const WiFiScanResult &res) {
-  char bssid_s[18];
-  auto bssid = res.get_bssid();
-  format_mac_addr_upper(bssid.data(), bssid_s);
-
-  ESP_LOGV(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
-           LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-}
-#endif
 
 void WiFiComponent::check_scanning_finished() {
   if (!this->scan_done_) {
@@ -1235,20 +1290,11 @@ void WiFiComponent::check_scanning_finished() {
   // Sort scan results using insertion sort for better memory efficiency
   insertion_sort_scan_results(this->scan_result_);
 
-  size_t non_matching_count = 0;
+  // Log matching networks (non-matching already logged at VERBOSE in scan callback)
   for (auto &res : this->scan_result_) {
     if (res.get_matches()) {
       log_scan_result(res);
-    } else {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      log_scan_result_non_matching(res);
-#else
-      non_matching_count++;
-#endif
     }
-  }
-  if (non_matching_count > 0) {
-    ESP_LOGD(TAG, "- %zu non-matching (VERBOSE to show)", non_matching_count);
   }
 
   // SYNCHRONIZATION POINT: Establish link between scan_result_[0] and selected_sta_index_
@@ -2080,7 +2126,7 @@ void WiFiComponent::clear_roaming_state_() {
 
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {
-#ifdef USE_RP2040
+#if defined(USE_RP2040) || defined(USE_ESP32)
     // std::vector - use swap trick since shrink_to_fit is non-binding
     decltype(this->scan_result_)().swap(this->scan_result_);
 #else

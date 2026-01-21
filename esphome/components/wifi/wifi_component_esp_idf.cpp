@@ -827,7 +827,14 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
 
     uint16_t number = it.number;
-    scan_result_.init(number);
+    bool needs_full = this->needs_full_scan_results_();
+
+    // Smart reserve: full capacity if needed, small reserve otherwise
+    if (needs_full) {
+      this->scan_result_.reserve(number);
+    } else {
+      this->scan_result_.reserve(WIFI_SCAN_RESULT_FILTERED_RESERVE);
+    }
 
     // Process one record at a time to avoid large buffer allocation
     wifi_ap_record_t record;
@@ -838,12 +845,23 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
         esp_wifi_clear_ap_list();  // Free remaining records not yet retrieved
         break;
       }
-      bssid_t bssid;
-      std::copy(record.bssid, record.bssid + 6, bssid.begin());
-      std::string ssid(reinterpret_cast<const char *>(record.ssid));
-      scan_result_.emplace_back(bssid, ssid, record.primary, record.rssi, record.authmode != WIFI_AUTH_OPEN,
-                                ssid.empty());
+
+      // Check C string first - avoid std::string construction for non-matching networks
+      const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
+
+      // Only construct std::string and store if needed
+      if (needs_full || this->matches_configured_network_(ssid_cstr, record.bssid)) {
+        bssid_t bssid;
+        std::copy(record.bssid, record.bssid + 6, bssid.begin());
+        std::string ssid(ssid_cstr);
+        this->scan_result_.emplace_back(bssid, std::move(ssid), record.primary, record.rssi,
+                                        record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
+      } else {
+        WiFiComponent::log_discarded_scan_result(ssid_cstr, record.bssid, record.rssi, record.primary);
+      }
     }
+    ESP_LOGD(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),
+             needs_full ? "" : " (filtered)");
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
     for (auto *listener : this->scan_results_listeners_) {
       listener->on_wifi_scan_results(this->scan_result_);
