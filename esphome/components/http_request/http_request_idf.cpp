@@ -247,7 +247,7 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   }
 
   // No data available yet in non-blocking mode
-  // ESP_ERR_HTTP_EAGAIN (0x7007) is returned as negative
+  // ESP_ERR_HTTP_EAGAIN is returned as a negative error code
   if (read_len_or_error == -ESP_ERR_HTTP_EAGAIN) {
     return 0;  // No data yet, caller should retry
   }
