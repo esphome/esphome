@@ -89,7 +89,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   config.max_redirection_count = this->redirect_limit_;
   config.auth_type = HTTP_AUTH_TYPE_BASIC;
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
-  if (secure) {
+  if (secure && this->verify_ssl_) {
     config.crt_bundle_attach = esp_crt_bundle_attach;
   }
 #endif
