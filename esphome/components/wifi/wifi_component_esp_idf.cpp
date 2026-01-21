@@ -827,7 +827,14 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
 
     uint16_t number = it.number;
-    scan_result_.init(number);
+    bool needs_full = this->needs_full_scan_results_();
+
+    // Smart reserve: full capacity if needed, small reserve otherwise
+    if (needs_full) {
+      this->scan_result_.reserve(number);
+    } else {
+      this->scan_result_.reserve(8);  // Typical: 1-3 matching networks
+    }
 
     // Process one record at a time to avoid large buffer allocation
     wifi_ap_record_t record;
@@ -838,11 +845,18 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
         esp_wifi_clear_ap_list();  // Free remaining records not yet retrieved
         break;
       }
-      bssid_t bssid;
-      std::copy(record.bssid, record.bssid + 6, bssid.begin());
-      std::string ssid(reinterpret_cast<const char *>(record.ssid));
-      scan_result_.emplace_back(bssid, ssid, record.primary, record.rssi, record.authmode != WIFI_AUTH_OPEN,
-                                ssid.empty());
+
+      // Check C string first - avoid std::string construction for non-matching networks
+      const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
+
+      // Only construct std::string and store if needed
+      if (needs_full || this->matches_configured_ssid_(ssid_cstr)) {
+        bssid_t bssid;
+        std::copy(record.bssid, record.bssid + 6, bssid.begin());
+        std::string ssid(ssid_cstr);
+        this->scan_result_.emplace_back(bssid, std::move(ssid), record.primary, record.rssi,
+                                        record.authmode != WIFI_AUTH_OPEN, ssid.empty());
+      }
     }
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
     for (auto *listener : this->scan_results_listeners_) {

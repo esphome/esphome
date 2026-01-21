@@ -39,6 +39,10 @@
 #include "esphome/components/esp32_improv/esp32_improv_component.h"
 #endif
 
+#ifdef USE_IMPROV_SERIAL
+#include "esphome/components/improv_serial/improv_serial_component.h"
+#endif
+
 namespace esphome::wifi {
 
 static const char *const TAG = "wifi";
@@ -359,6 +363,49 @@ bool WiFiComponent::ssid_was_seen_in_scan_(const std::string &ssid) const {
   // Otherwise, check if we saw it in scan results
   for (const auto &scan : this->scan_result_) {
     if (scan.get_ssid() == ssid) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool WiFiComponent::needs_full_scan_results_() const {
+  // Listeners always need full results
+  if (this->keep_scan_results_) {
+    return true;
+  }
+
+#ifdef USE_CAPTIVE_PORTAL
+  // Captive portal needs full results when active (showing network list to user)
+  if (captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active()) {
+    return true;
+  }
+#endif
+
+#ifdef USE_IMPROV_SERIAL
+  // Improv serial needs results during provisioning (before connected)
+  if (improv_serial::global_improv_serial_component != nullptr && !this->is_connected()) {
+    return true;
+  }
+#endif
+
+#ifdef USE_IMPROV
+  // BLE improv also needs results during provisioning
+  if (esp32_improv::global_improv_component != nullptr && esp32_improv::global_improv_component->is_active()) {
+    return true;
+  }
+#endif
+
+  return false;
+}
+
+bool WiFiComponent::matches_configured_ssid_(const char *ssid) const {
+  // Hidden networks in scan results have empty SSIDs - skip them
+  if (ssid[0] == '\0') {
+    return false;
+  }
+  for (const auto &sta : this->sta_) {
+    if (!sta.get_hidden() && (sta.get_ssid().empty() || sta.get_ssid() == ssid)) {
       return true;
     }
   }
@@ -2079,7 +2126,7 @@ void WiFiComponent::clear_roaming_state_() {
 
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {
-#ifdef USE_RP2040
+#if defined(USE_RP2040) || defined(USE_ESP32)
     // std::vector - use swap trick since shrink_to_fit is non-binding
     decltype(this->scan_result_)().swap(this->scan_result_);
 #else

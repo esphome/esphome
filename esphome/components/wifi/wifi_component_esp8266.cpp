@@ -756,19 +756,28 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
     return;
   }
 
-  // Count the number of results first
   auto *head = reinterpret_cast<bss_info *>(arg);
+  bool needs_full = this->needs_full_scan_results_();
+
+  // First pass: count matching networks (linked list is non-destructive)
   size_t count = 0;
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
-    count++;
+    const char *ssid_cstr = reinterpret_cast<const char *>(it->ssid);
+    if (needs_full || this->matches_configured_ssid_(ssid_cstr)) {
+      count++;
+    }
   }
 
-  this->scan_result_.init(count);
+  this->scan_result_.init(count);  // Exact allocation
+
+  // Second pass: store matching networks
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
-    this->scan_result_.emplace_back(
-        bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
-        std::string(reinterpret_cast<char *>(it->ssid), it->ssid_len), it->channel, it->rssi, it->authmode != AUTH_OPEN,
-        it->is_hidden != 0);
+    const char *ssid_cstr = reinterpret_cast<const char *>(it->ssid);
+    if (needs_full || this->matches_configured_ssid_(ssid_cstr)) {
+      this->scan_result_.emplace_back(
+          bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
+          std::string(ssid_cstr, it->ssid_len), it->channel, it->rssi, it->authmode != AUTH_OPEN, it->is_hidden != 0);
+    }
   }
   this->scan_done_ = true;
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
