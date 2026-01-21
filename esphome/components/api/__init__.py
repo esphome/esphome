@@ -4,6 +4,7 @@ import logging
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
+from esphome.components.logger import request_log_listener
 from esphome.config_helpers import get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
@@ -325,6 +326,9 @@ async def to_code(config: ConfigType) -> None:
 
     # Track controller registration for StaticVector sizing
     CORE.register_controller()
+
+    # Request a log listener slot for API log streaming
+    request_log_listener()
 
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))

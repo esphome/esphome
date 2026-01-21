@@ -1,5 +1,6 @@
+#ifdef USE_ESP32
 
-#include "task_log_buffer.h"
+#include "task_log_buffer_esp32.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -134,3 +135,4 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
 }  // namespace esphome::logger
 
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER
+#endif  // USE_ESP32

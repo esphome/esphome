@@ -31,8 +31,10 @@ void PN532::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "Found chip PN5%02X", version_data[0]);
-  ESP_LOGD(TAG, "Firmware ver. %d.%d", version_data[1], version_data[2]);
+  ESP_LOGD(TAG,
+           "Found chip PN5%02X\n"
+           "Firmware ver. %d.%d",
+           version_data[0], version_data[1], version_data[2]);
 
   if (!this->write_command_({
           PN532_COMMAND_SAMCONFIGURATION,
@@ -195,7 +197,8 @@ void PN532::loop() {
       trigger->process(tag);
 
     if (report) {
-      ESP_LOGD(TAG, "Found new tag '%s'", nfc::format_uid(nfcid).c_str());
+      char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
+      ESP_LOGD(TAG, "Found new tag '%s'", nfc::format_uid_to(uid_buf, nfcid));
       if (tag->has_ndef_message()) {
         const auto &message = tag->get_ndef_message();
         const auto &records = message->get_records();
