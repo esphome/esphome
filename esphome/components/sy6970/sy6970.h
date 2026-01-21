@@ -75,9 +75,7 @@ class SY6970Listener {
 
 class SY6970Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  SY6970Component(bool led_enabled) : 
-    led_enabled_(led_enabled) 
-  {}
+  SY6970Component(bool led_enabled) : led_enabled_(led_enabled) {}
   void setup() override;
   void dump_config() override;
   void update() override;
