@@ -405,6 +405,9 @@ bool WiFiComponent::matches_configured_ssid_(const char *ssid) const {
     return false;
   }
   for (const auto &sta : this->sta_) {
+    // Skip hidden network configs (they don't appear in normal scans)
+    // For BSSID-only configs (empty SSID), match all networks since we can't filter by SSID
+    // Otherwise, match only the specific configured SSID
     if (!sta.get_hidden() && (sta.get_ssid().empty() || sta.get_ssid() == ssid)) {
       return true;
     }
