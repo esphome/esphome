@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import esp32_ble_tracker
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_MAC_ADDRESS
+from esphome.const import CONF_BINDKEY, CONF_ID, CONF_MAC_ADDRESS
 
 CODEOWNERS = ["@nagyrobi"]
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -22,6 +22,7 @@ def bthome_mithermometer_base_schema(extra_schema=None):
             {
                 cv.GenerateID(CONF_ID): cv.declare_id(BTHomeMiThermometer),
                 cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
+                cv.Optional(CONF_BINDKEY): cv.bind_key,
             }
         )
         .extend(BLE_DEVICE_SCHEMA)
@@ -34,3 +35,5 @@ async def setup_bthome_mithermometer(var, config):
     await cg.register_component(var, config)
     await esp32_ble_tracker.register_ble_device(var, config)
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
+    if CONF_BINDKEY in config:
+        cg.add(var.set_bindkey(config[CONF_BINDKEY]))
