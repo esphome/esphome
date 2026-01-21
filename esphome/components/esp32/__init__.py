@@ -348,7 +348,12 @@ def add_extra_build_file(filename: str, path: Path) -> bool:
 def _format_framework_arduino_version(ver: cv.Version) -> str:
     # format the given arduino (https://github.com/espressif/arduino-esp32/releases) version to
     # a PIO pioarduino/framework-arduinoespressif32 value
-    return f"pioarduino/framework-arduinoespressif32@https://github.com/espressif/arduino-esp32/releases/download/{str(ver)}/esp32-{str(ver)}.zip"
+    # 3.3.6+ changed filename from esp32-{ver}.zip to esp32-core-{ver}.tar.xz
+    if ver >= cv.Version(3, 3, 6):
+        filename = f"esp32-core-{ver}.tar.xz"
+    else:
+        filename = f"esp32-{ver}.zip"
+    return f"pioarduino/framework-arduinoespressif32@https://github.com/espressif/arduino-esp32/releases/download/{ver}/{filename}"
 
 
 def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
@@ -383,11 +388,12 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 5),
-    "latest": cv.Version(3, 3, 5),
-    "dev": cv.Version(3, 3, 5),
+    "recommended": cv.Version(3, 3, 6),
+    "latest": cv.Version(3, 3, 6),
+    "dev": cv.Version(3, 3, 6),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(3, 3, 6): cv.Version(55, 3, 36),
     cv.Version(3, 3, 5): cv.Version(55, 3, 35),
     cv.Version(3, 3, 4): cv.Version(55, 3, 31, "2"),
     cv.Version(3, 3, 3): cv.Version(55, 3, 31, "2"),
@@ -405,6 +411,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
+    cv.Version(3, 3, 6): cv.Version(5, 5, 2),
     cv.Version(3, 3, 5): cv.Version(5, 5, 2),
     cv.Version(3, 3, 4): cv.Version(5, 5, 1),
     cv.Version(3, 3, 3): cv.Version(5, 5, 1),
@@ -427,7 +434,7 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
     "dev": cv.Version(5, 5, 2),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
-    cv.Version(5, 5, 2): cv.Version(55, 3, 35),
+    cv.Version(5, 5, 2): cv.Version(55, 3, 36),
     cv.Version(5, 5, 1): cv.Version(55, 3, 31, "2"),
     cv.Version(5, 5, 0): cv.Version(55, 3, 31, "2"),
     cv.Version(5, 4, 3): cv.Version(55, 3, 32),
@@ -444,9 +451,9 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 35),
-    "latest": cv.Version(55, 3, 35),
-    "dev": cv.Version(55, 3, 35),
+    "recommended": cv.Version(55, 3, 36),
+    "latest": cv.Version(55, 3, 36),
+    "dev": cv.Version(55, 3, 36),
 }
 
 
