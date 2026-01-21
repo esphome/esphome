@@ -49,6 +49,20 @@ esp32:
 
 ESPHome supports two framework options for ESP32 chips:
 
+### ESP-IDF Framework
+
+ESP-IDF is Espressif's native development framework. It is required for ESP32-C2, ESP32-C5, ESP32-C6, ESP32-C61,
+ESP32-H2, and ESP32-P4 variants, as these are not supported by the Arduino framework. It is the default and recommended for
+all ESP32 chips when possible. See the {{< docref "/guides/esp32_arduino_to_idf" "migration guide" >}} for help transitioning from Arduino.
+
+```yaml
+# Example configuration entry
+esp32:
+  board: ...
+  framework:
+    type: esp-idf
+```
+
 ### Arduino Framework
 
 The Arduino framework is integrated as an ESP-IDF component. This provides Arduino API compatibility
@@ -62,23 +76,9 @@ esp32:
     type: arduino
 ```
 
-### ESP-IDF Framework
-
-ESP-IDF is Espressif's native development framework. It is required for ESP32-C2, ESP32-C5, ESP32-C6, ESP32-C61,
-ESP32-H2, and ESP32-P4 variants, as these are not supported by the Arduino framework. It is recommended for
-all ESP32 chips when possible. See the {{< docref "/guides/esp32_arduino_to_idf" "migration guide" >}} for help transitioning from Arduino.
-
-```yaml
-# Example configuration entry
-esp32:
-  board: ...
-  framework:
-    type: esp-idf
-```
-
 ### Configuration variables
 
-- **type** (*Optional*, string): The framework type, either `esp-idf` or `arduino`. Defaults to `arduino` for ESP32 (classic), ESP32-C3, ESP32-S2, and ESP32-S3. Defaults to `esp-idf` for ESP32-C2, ESP32-C5, ESP32-C6, ESP32-C61, ESP32-H2, and ESP32-P4 (Arduino is not supported on these variants)
+- **type** (*Optional*, string): The framework type, either `esp-idf` or `arduino`. Defaults to `esp-idf` for all ESP32 variants.
 
 - **version** (*Optional*, string): The base framework version number to use, from
   [ESP32 ESP-IDF releases](https://github.com/espressif/esp-idf/releases) or
