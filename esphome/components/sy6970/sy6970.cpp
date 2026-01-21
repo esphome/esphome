@@ -51,8 +51,41 @@ void SY6970Component::setup() {
     ESP_LOGW(TAG, "Unexpected chip ID: 0x%02X (expected 0x00)", chip_id);
   }
 
-  ESP_LOGCONFIG(TAG, "Setting LED enabled to %s", ONOFF(led_enabled_));
-  this->set_led_enabled(led_enabled_);
+  // Apply configuration options
+  if (this->led_enabled_.has_value()) {
+    ESP_LOGCONFIG(TAG, "Setting LED enabled to %s", ONOFF(this->led_enabled_.value()));
+    this->set_led_enabled(this->led_enabled_.value());
+  }
+
+  if (this->input_current_limit_.has_value()) {
+    ESP_LOGCONFIG(TAG, "Setting input current limit to %u mA", this->input_current_limit_.value());
+    this->set_input_current_limit(this->input_current_limit_.value());
+  }
+
+  if (this->charge_voltage_.has_value()) {
+    ESP_LOGCONFIG(TAG, "Setting charge voltage to %u mV", this->charge_voltage_.value());
+    this->set_charge_target_voltage(this->charge_voltage_.value());
+  }
+
+  if (this->charge_current_.has_value()) {
+    ESP_LOGCONFIG(TAG, "Setting charge current to %u mA", this->charge_current_.value());
+    this->set_charge_current(this->charge_current_.value());
+  }
+
+  if (this->precharge_current_.has_value()) {
+    ESP_LOGCONFIG(TAG, "Setting precharge current to %u mA", this->precharge_current_.value());
+    this->set_precharge_current(this->precharge_current_.value());
+  }
+
+  if (this->charge_enabled_.has_value()) {
+    ESP_LOGCONFIG(TAG, "Setting charge enabled to %s", ONOFF(this->charge_enabled_.value()));
+    this->set_charge_enabled(this->charge_enabled_.value());
+  }
+
+  if (this->enable_adc_.has_value()) {
+    ESP_LOGCONFIG(TAG, "Enabling ADC measurements");
+    this->set_enable_adc_measure(this->enable_adc_.value());
+  }
 
   ESP_LOGCONFIG(TAG, "SY6970 initialized successfully");
 }
@@ -162,12 +195,12 @@ void SY6970Component::set_led_enabled(bool enabled) {
   this->update_register_(SY6970_REG_TIMER_CONTROL, 0x40, enabled ? 0x00 : 0x40);
 }
 
-void SY6970Component::enable_adc_measure() {
+void SY6970Component::set_enable_adc_measure(bool enabled) {
   if (this->is_failed())
     return;
 
   // Set bits to enable ADC conversion
-  this->update_register_(SY6970_REG_ADC_CONTROL, 0xC0, 0xC0);
+  this->update_register_(SY6970_REG_ADC_CONTROL, 0xC0, enabled ? 0xC0 : 0x00);
 }
 
 }  // namespace esphome::sy6970
