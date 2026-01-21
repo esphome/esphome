@@ -127,6 +127,8 @@ void EmonTx::loop() {
         ESP_LOGVV(TAG, "After swap: buffer_ size=%zu capacity=%zu data=%p, line size=%zu capacity=%zu data=%p",
                   buffer_.size(), buffer_.capacity(), (const void *) buffer_.data(), line.size(), line.capacity(),
                   (const void *) line.data());
+        // Clear buffer_ for next line (it now contains old line data from previous iteration)
+        buffer_.clear();
 
         ESP_LOGD(TAG, "Received line: %s", line.c_str());
 
