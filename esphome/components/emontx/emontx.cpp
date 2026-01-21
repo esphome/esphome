@@ -35,18 +35,6 @@ void EmonTx::setup() {
   // three phases. But go with 1024 just to be sure.
   this->buffer_.reserve(1024);
 
-  // Verify clear() preserves capacity (compile-time test for std::string behavior)
-  {
-    std::string test;
-    test.reserve(1024);
-    size_t cap_after_reserve = test.capacity();
-    test = "test data";
-    test.clear();
-    size_t cap_after_clear = test.capacity();
-    ESP_LOGCONFIG(TAG, "std::string clear() test: capacity after reserve=%zu, after clear=%zu %s", cap_after_reserve,
-                  cap_after_clear, (cap_after_clear >= cap_after_reserve) ? "[OK]" : "[FAILED - capacity lost!]");
-  }
-
   ESP_LOGCONFIG(TAG, "Setting up EmonTx component");
 
 #ifdef USE_API_CUSTOM_SERVICES
@@ -132,13 +120,7 @@ void EmonTx::loop() {
           return s;
         }();
         // Swap pointers with buffer_ (O(1), zero copy, both reuse allocations)
-        ESP_LOGVV(TAG, "Before swap: buffer_ size=%zu capacity=%zu data=%p, line size=%zu capacity=%zu data=%p",
-                  buffer_.size(), buffer_.capacity(), (const void *) buffer_.data(), line.size(), line.capacity(),
-                  (const void *) line.data());
         line.swap(buffer_);
-        ESP_LOGVV(TAG, "After swap: buffer_ size=%zu capacity=%zu data=%p, line size=%zu capacity=%zu data=%p",
-                  buffer_.size(), buffer_.capacity(), (const void *) buffer_.data(), line.size(), line.capacity(),
-                  (const void *) line.data());
         // Clear buffer_ for next line (it now contains old line data from previous iteration)
         buffer_.clear();
 

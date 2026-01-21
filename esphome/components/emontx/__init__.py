@@ -6,9 +6,11 @@ from esphome.const import (
     CONF_COMMAND,
     CONF_ID,
     CONF_ON_DATA,
+    CONF_RX_BUFFER_SIZE,
     CONF_TRIGGER_ID,
     CONF_UART_ID,
 )
+import esphome.final_validate as fv
 
 AUTO_LOAD = ["json"]
 CODEOWNERS = ["@FredM67", "@TrystanLea", "@glynhudson"]
@@ -65,6 +67,29 @@ def final_validate(config):
     # TX is required if config_panel is enabled (send_command action requires config_panel)
     require_tx = config.get(CONF_CONFIG_PANEL, False)
 
+    # Ensure UART RX buffer size is large enough to handle data bursts from firmware
+    # The firmware can send ~2KB of configuration data in bursts which would
+    # overflow the default 256-byte buffer causing data loss and corruption
+    MINIMUM_RX_BUFFER_SIZE = 2048
+
+    full_config = fv.full_config.get()
+
+    # Find the UART component config and ensure rx_buffer_size is adequate
+    for uart_conf in full_config["uart"]:
+        if uart_conf[CONF_ID] == config[CONF_UART_ID]:
+            current_buffer_size = uart_conf.get(CONF_RX_BUFFER_SIZE, 256)
+            if current_buffer_size < MINIMUM_RX_BUFFER_SIZE:
+                uart_conf[CONF_RX_BUFFER_SIZE] = MINIMUM_RX_BUFFER_SIZE
+                import logging
+
+                _LOGGER = logging.getLogger(__name__)
+                _LOGGER.info(
+                    "emontx: Increasing UART rx_buffer_size from %d to %d bytes (minimum required)",
+                    current_buffer_size,
+                    MINIMUM_RX_BUFFER_SIZE,
+                )
+            break
+
     # Validate UART settings
     schema = uart.final_validate_device_schema(
         "emontx",
@@ -75,7 +100,6 @@ def final_validate(config):
         parity=None,
         stop_bits=1,
     )
-    # Note: RX buffer size is automatically set to 2048 bytes in to_code()
     return schema(config)
 
 
@@ -86,12 +110,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-
-    # Increase UART RX buffer size to handle large data bursts from firmware
-    # The firmware can send ~2KB of configuration data in bursts which would
-    # overflow the default 256-byte buffer causing data loss and corruption
-    uart_component = await cg.get_variable(config[CONF_UART_ID])
-    cg.add(uart_component.set_rx_buffer_size(2048))
 
     # Set config_panel option
     cg.add(var.set_config_panel(config[CONF_CONFIG_PANEL]))
