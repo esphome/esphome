@@ -686,6 +686,38 @@ light:
 - **lambda** (**Required**, [lambda](/automations/templates#config-lambda)): The code to execute. `static` variables are especially
   useful.
 
+{{< anchor "light-effect-get_name" >}}
+
+#### Accessing Effect Names
+
+You can access the name of a light effect using the `get_name()` method, which returns a `StringRef`:
+
+```cpp
+// Get all effects for a light
+auto &effects = id(my_light).get_effects();
+for (auto *effect : effects) {
+  StringRef name = effect->get_name();
+  // Compare with string literal
+  if (name == "My Custom Effect") {
+    ESP_LOGI("light", "Found my effect!");
+  }
+  // Safe logging with explicit size
+  ESP_LOGI("light", "Effect: %.*s", (int) name.size(), name.c_str());
+}
+```
+
+You can also get the currently active effect name from a light state using `get_effect_name()`:
+
+```cpp
+// Get currently active effect
+StringRef current = id(my_light).get_effect_name();
+if (current == "None") {
+  ESP_LOGI("light", "No effect active");
+} else {
+  ESP_LOGI("light", "Active effect: %.*s", (int) current.size(), current.c_str());
+}
+```
+
 ### Addressable Rainbow Effect
 
 A light effect for individually-addressable LEDs that creates a moving rainbow over the whole LED strip using the HSV

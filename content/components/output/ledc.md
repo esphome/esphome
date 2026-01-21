@@ -17,8 +17,8 @@ bit depth which means the output is not that accurate for frequencies above ~300
 
 - **pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin to use LEDC on. Can only be GPIO0-GPIO33.
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The id to use for this output component.
-- **frequency** (*Optional*, float): At which frequency to run the LEDC
-  channel's timer. Defaults to 1000Hz.
+- **frequency** (*Optional*, frequency): At which frequency to run the LEDC
+  channel's timer. Defaults to `1kHz`.
 
 - All other options from [Output](/components/output#config-output).
 
@@ -34,8 +34,6 @@ which chooses adjacent channels with shared timers. See
 
 - **phase_angle** (*Optional*, float): Set a phase angle to the other channel of this timer.
   Range 0-360°, defaults to 0°
-
-Note: this variable is only available for the esp-idf framework
 
 ### Example Usage For a Light
 
@@ -77,7 +75,7 @@ on_press:
     ######################################################
     - output.ledc.set_frequency:
         id: buzzer
-        frequency: "1000Hz"
+        frequency: "1kHz"
     ######################################################
     # level sets the %age time the PWM is on
     ######################################################
@@ -99,9 +97,9 @@ a long transition, e.g. turning slowly off.
 | ------------- | ------------- | ----------------------------------- |
 | 1220Hz        | 16            | 65536                               |
 | 2441Hz        | 15            | 32768                               |
-| 4882Hz | 14 | 16384 |
-| 9765Hz | 13 | 8192 |
-| 19531Hz | 12 | 4096 |
+| 4882Hz        | 14            | 16384                               |
+| 9765Hz        | 13            | 8192                                |
+| 19531Hz       | 12            | 4096                                |
 
 The ESP8266 for instance has *usually* a frequency of 1000Hz with a resolution of 10 bits.
 This means that there are only 4 steps between each value.
@@ -123,8 +121,8 @@ on_...:
 Configuration variables:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the LEDC output to change.
-- **frequency** (**Required**, [templatable](/automations/templates), float): The frequency
-  to set in hertz.
+- **frequency** (**Required**, [templatable](/automations/templates), frequency): The frequency
+  to set in Hz.
 
 ## See Also
 

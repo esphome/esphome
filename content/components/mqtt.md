@@ -97,18 +97,18 @@ mqtt:
   for verifying SSL connections. See [SSL Fingerprints](#mqtt-ssl_fingerprints).
   for more information.
 
-- **certificate_authority** (*Optional*, string): Only with `esp-idf`. CA certificate in PEM format. See
-  [TLS with esp-idf (esp32)](#mqtt-tls-idf) for more information.
+- **certificate_authority** (*Optional*, string): Only on ESP32. CA certificate in PEM format. See
+  [TLS (ESP32)](#mqtt-tls-idf) for more information.
 
 > [!TIP]
 > For MQTT security recommendations including TLS configuration, see the [Security Best Practices](/guides/security_best_practices#mqtt) guide.
 
 - **client_certificate** (*Optional*, string): Only on `esp32`. Client certificate in PEM format.
 - **client_certificate_key** (*Optional*, string): Only on `esp32`. Client private key in PEM format.
-- **skip_cert_cn_check** (*Optional*, bool): Only with `esp-idf`. Don't verify if the common name in the server
+- **skip_cert_cn_check** (*Optional*, bool): Only on ESP32. Don't verify if the common name in the server
   certificate matches the value of `broker`.
 
-- **idf_send_async** (*Optional*, bool): Only with `esp-idf`. If true publishing the message happens from a separate mqtt task.
+- **idf_send_async** (*Optional*, bool): Only on ESP32. If true publishing the message happens from a separate mqtt task.
   The client only enqueues the message. Defaults to `false`.
   The advantage of asynchronous publishing is that it doesn't block the esphome main thread for potentially tens of seconds.
   The disadvantage is additional memory usage for the thread.
@@ -387,10 +387,10 @@ mqtt:
 
 {{< anchor "mqtt-tls-idf" >}}
 
-## TLS with esp-idf (esp32)
+## TLS (ESP32)
 
-If used with the esp-idf framework a TLS connection to a MQTT broker can be established.
-The servers CA certificate is required to validate the connection.
+On ESP32, a TLS connection to an MQTT broker can be established.
+The server's CA certificate is required to validate the connection.
 
 You have to download the server CA certificate in PEM format and add it to `certificate_authority`.
 Usually these are .crt files and you can open them with any text editor.
@@ -488,20 +488,20 @@ command_retain: false
    Home Assistant for showing entity availability. Default derived from
    [global birth/last will message](#mqtt-last_will_birth).
 
-- **state_topic** (*Optional*, string): The topic to publish state
+- **state_topic** (*Optional*, string, [templatable](/automations/templates)): The topic to publish state
    updates to. Defaults to
    `<TOPIC_PREFIX>/<COMPONENT_TYPE>/<COMPONENT_NAME>/state`.
 
    ESPHome will always publish a manually configured state topic, even if
-   the component is internal. Use `null` to disable publishing the
+   the component is internal. Use `null` (or return `""` in the lambda) to disable publishing the
    component's state.
 
-- **command_topic** (*Optional*, string): The topic to subscribe to for
+- **command_topic** (*Optional*, string, [templatable](/automations/templates)): The topic to subscribe to for
    commands from the remote. Defaults to
    `<TOPIC_PREFIX>/<COMPONENT_TYPE>/<COMPONENT_NAME>/command`.
 
    ESPHome will always subscribe to a manually configured command topic,
-   even if the component is internal. Use `null` to disable subscribing
+   even if the component is internal. Use `null` (or return `""` in the lambda) to disable subscribing
    to the component's command topic.
 
 - **command_retain** (*Optional*, boolean): Whether MQTT command messages
@@ -513,19 +513,54 @@ command_retain: false
 
 ## Triggers
 
-{{< anchor "mqtt-on_connect_disconnect" >}}
+{{< anchor "mqtt-on_connect" >}}
 
-### `on_connect` / `on_disconnect` Trigger
+### `on_connect` Trigger
 
-This trigger is activated when a connection to the MQTT broker is established or dropped.
+This trigger is activated when a connection to the MQTT broker is established. To retrieve if the session is present,
+use a [lambda](/automations/templates#config-lambda) template, it is available under the name `session_present` inside that lambda.
+`session_present` indicates whether the broker has a persistent session for this client from a previous connection. When `true`,
+the broker retained subscriptions and queued messages. When `false`, the session is new.
 
 ```yaml
 mqtt:
   # ...
   on_connect:
     - switch.turn_on: switch1
+    - lambda: |-
+        ESP_LOGI("mqtt", "Session present: %s", session_present ? "true" : "false");
+        if (!session_present) {
+          // Do something if session is not present
+        }
+```
+
+{{< anchor "mqtt-on_disconnect" >}}
+
+### `on_disconnect` Trigger
+
+This trigger is activated when a connection to the MQTT broker is dropped. To retrieve the disconnect reason,
+use a [lambda](/automations/templates#config-lambda) template, the reason is available under the name `reason` inside that lambda.
+
+```yaml
+mqtt:
+  # ...
   on_disconnect:
     - switch.turn_off: switch1
+    - lambda: |-
+        // reason is of type MQTTClientDisconnectReason
+        // Possible values:
+        //   TCP_DISCONNECTED (0)
+        //   MQTT_UNACCEPTABLE_PROTOCOL_VERSION (1)
+        //   MQTT_IDENTIFIER_REJECTED (2)
+        //   MQTT_SERVER_UNAVAILABLE (3)
+        //   MQTT_MALFORMED_CREDENTIALS (4)
+        //   MQTT_NOT_AUTHORIZED (5)
+        //   ESP8266_NOT_ENOUGH_SPACE (6)
+        //   TLS_BAD_FINGERPRINT (7)
+        //   DNS_RESOLVE_ERROR (8)
+        if (reason == mqtt::MQTTClientDisconnectReason::MQTT_NOT_AUTHORIZED) {
+          ESP_LOGE("mqtt", "Not authorized!");
+        }
 ```
 
 {{< anchor "mqtt-on_message" >}}

@@ -205,6 +205,7 @@ on_...:
 
 ## See Also
 
+- {{< docref "/components/sensor/aqi" >}}
 - [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "absolute_humidity/" >}}
 - {{< docref "sds011/" >}}

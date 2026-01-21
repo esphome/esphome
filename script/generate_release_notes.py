@@ -73,6 +73,7 @@ For further help, see the ESPHome documentation or contact maintainers.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 import json
@@ -368,37 +369,77 @@ class ReleaseNotesGenerator:
 
         return sorted(pr_numbers)
 
-    def _get_patch_release_prs(self, base_version: Version) -> list[int]:
-        """Get all PRs that were included in patch releases (e.g., 2025.10.1, 2025.10.2)"""
-        patch_prs = set()
-        patch_num = 1
-        max_patches = 100  # Safety limit to prevent infinite loops
+    def _collect_prs_from_tags(
+        self,
+        all_tags: set[str],
+        tag_format: Callable[[int], str],
+        prev_tag_format: Callable[[int], str | None],
+        release_type: str,
+        max_releases: int = 100,
+    ) -> set[int]:
+        """Collect PRs from a sequence of releases.
 
-        print(
-            f"Checking for patch releases of {base_version.year}.{base_version.month}.x..."
-        )
+        Args:
+            all_tags: Set of all available tags
+            tag_format: Function(n) -> tag name for release n
+            prev_tag_format: Function(n) -> tag name for the previous release to compare against
+            release_type: Description for logging (e.g., "beta release", "patch release")
+            max_releases: Maximum number of releases to check
+        """
+        prs: set[int] = set()
+        release_num = 1
 
-        while patch_num <= max_patches:
-            patch_tag = f"{base_version.year}.{base_version.month}.{patch_num}"
+        while release_num <= max_releases:
+            tag = tag_format(release_num)
 
-            if not self.tag_exists(patch_tag):
+            if tag not in all_tags:
                 break
 
-            print(f"  Found patch release: {patch_tag}")
+            print(f"  Found {release_type}: {tag}")
 
-            # Get PRs between base and this patch
-            base_tag = f"{base_version.year}.{base_version.month}.{patch_num - 1}"
-            prs = self.get_pr_numbers_from_commits(base_tag, patch_tag)
-            patch_prs.update(prs)
+            prev_tag = prev_tag_format(release_num)
+            if prev_tag is not None:
+                found_prs = self.get_pr_numbers_from_commits(prev_tag, tag)
+                prs.update(found_prs)
 
-            patch_num += 1
+            release_num += 1
 
-        if patch_num > max_patches:
-            print(
-                f"Warning: Reached maximum patch limit ({max_patches}). Some patches may have been skipped."
-            )
+        return prs
 
-        return sorted(patch_prs)
+    def _get_previous_release_prs(self, base_version: Version) -> set[int]:
+        """Get all PRs from the previous release cycle (betas + patches).
+
+        This finds PRs that were included in:
+        1. Beta releases (e.g., 2025.11.0b1, b2, b3, etc.)
+        2. Patch releases (e.g., 2025.11.1, 2025.11.2, etc.)
+
+        These PRs should be excluded from the current release notes since they
+        were already released, even if their commits appear in the comparison
+        due to different branch structures (dev vs release branch).
+        """
+        all_tags = self._fetch_all_tags()
+        year = base_version.year
+        month = base_version.month
+
+        # Get PRs from beta releases
+        print(f"Checking for beta releases of {year}.{month}.0...")
+        beta_prs = self._collect_prs_from_tags(
+            all_tags,
+            tag_format=lambda n: f"{year}.{month}.0b{n}",
+            prev_tag_format=lambda n: f"{year}.{month}.0b{n - 1}" if n > 1 else None,
+            release_type="beta release",
+        )
+
+        # Get PRs from patch releases
+        print(f"Checking for patch releases of {year}.{month}.x...")
+        patch_prs = self._collect_prs_from_tags(
+            all_tags,
+            tag_format=lambda n: f"{year}.{month}.{n}",
+            prev_tag_format=lambda n: f"{year}.{month}.{n - 1}",
+            release_type="patch release",
+        )
+
+        return beta_prs | patch_prs
 
     def discover_prs(self) -> list[int]:
         """Discover PRs for this release"""
@@ -422,25 +463,28 @@ class ReleaseNotesGenerator:
             print("Cannot determine which PRs are new")
             sys.exit(1)
 
+        # Get PRs from the previous release cycle (betas + patches) to exclude.
+        # These PRs were already released, but may appear in the commit comparison
+        # due to different branch structures (dev vs release branch).
+        previous_prs = self._get_previous_release_prs(previous_base)
+
         if beta_tag_exists:
             # Beta branch exists - use everything from previous release to beta
             print(f"Beta tag '{beta_tag}' exists")
             print(f"Comparing tags: {previous_tag}...{beta_tag}")
-            pr_numbers = self.get_pr_numbers_from_commits(previous_tag, beta_tag)
+            all_prs = self.get_pr_numbers_from_commits(previous_tag, beta_tag)
         else:
-            # Beta doesn't exist yet - use dev branch but exclude patch releases
+            # Beta doesn't exist yet - use dev branch
             print(f"Beta tag '{beta_tag}' does not exist yet")
-            print("Using dev branch and excluding patch releases")
-
-            # Get all PRs from previous version to dev
+            print(f"Comparing tags: {previous_tag}...dev")
             all_prs = self.get_pr_numbers_from_commits(previous_tag, "dev")
 
-            # Find and exclude PRs from patch releases
-            patch_prs = self._get_patch_release_prs(previous_version)
-            pr_numbers = sorted(set(all_prs) - set(patch_prs))
-
-            if patch_prs:
-                print(f"Excluded {len(patch_prs)} PRs from patch releases")
+        # Exclude PRs already in previous release cycle
+        all_prs_set = set(all_prs)
+        pr_numbers = sorted(all_prs_set - previous_prs)
+        if previous_prs:
+            excluded = len(all_prs_set & previous_prs)
+            print(f"Excluded {excluded} PRs already in previous release cycle")
 
         return pr_numbers
 
@@ -838,7 +882,7 @@ class ReleaseNotesGenerator:
         """Replace version placeholders"""
         # Format date
         now = datetime.now()
-        date_str = now.strftime('%B %Y')
+        date_str = now.strftime("%B %Y")
 
         template = template.replace("{VERSION}", str(self.version))
         template = template.replace("{DATE}", date_str)

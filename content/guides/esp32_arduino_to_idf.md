@@ -117,8 +117,6 @@ when available:
 
 The following components currently require Arduino framework and don't have ESP-IDF alternatives or native ESP-IDF support yet:
 
-- {{< docref "/components/output/ac_dimmer" "ac_dimmer" >}} - AC dimmer control
-- {{< docref "/components/sensor/dsmr" "dsmr" >}} - Dutch Smart Meter integration
 - {{< docref "/components/climate/climate_ir" "heatpumpir" >}} - IR-based heat pump control
 - {{< docref "/components/climate/midea" "midea" >}} - Midea air conditioner control
 - {{< docref "/components/light/index" "WLED Effect" >}} - WLED UDP Realtime Control integration

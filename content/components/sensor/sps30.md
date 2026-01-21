@@ -189,6 +189,7 @@ on_...:
 
 ## See Also
 
+- {{< docref "/components/sensor/aqi" >}}
 - [Sensor Filters](/components/sensor#sensor-filters)
 - {{< docref "sds011/" >}}
 - {{< docref "pmsx003/" >}}

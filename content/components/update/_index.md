@@ -57,6 +57,14 @@ Configuration variables:
 - **force_update** (*Optional*, boolean): Perform the update even if the device is already running the same version.
   Defaults to `false`.
 
+### `update.check` Action
+
+This action allows you to trigger the update entity to check for, but not install, updates.
+
+Configuration variables:
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the update entity.
+
 ### `update.is_available` Condition
 
 This condition checks if an update is available for the device.

@@ -112,6 +112,7 @@ ESPHome-specific components or components supporting ESPHome device provisioning
 "StatsD","components/statsd","connection.svg","dark-invert"
 "UDP","components/udp","udp.svg",""
 "Packet Transport","components/packet_transport/index","packet_transport.svg","dark-invert"
+"Zigbee End Device","components/zigbee","zigbee.svg",""
 {{< /imgtable >}}
 
 ## Bluetooth/BLE
@@ -233,6 +234,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 
 {{< imgtable >}}
 "AGS10","components/sensor/ags10","ags10.jpg","Volatile organics","",""
+"Air Quality Index","components/sensor/aqi","aqi.svg","AQI from PM sensors","",""
 "AirThings BLE","components/sensor/airthings_ble","airthings_logo.png","Radon","CO₂","Volatile organics"
 "CCS811","components/sensor/ccs811","ccs811.jpg","eCO₂ & Volatile organics","",""
 "CM1106","components/sensor/cm1106","cm1106.png","CO₂","",""
@@ -521,6 +523,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "LD2412","components/sensor/ld2412","ld2412.jpg","Motion & Presence"
 "LD2420","components/sensor/ld2420","ld2420.jpg","Motion & Presence"
 "LD2450","components/sensor/ld2450","ld2450.png","Motion & Presence"
+"RD-03D","components/sensor/rd03d","rd03d.webp","Motion & Presence"
 "MPU6050","components/sensor/mpu6050","mpu6050.jpg","Accelerometer & Gyroscope"
 "MPU6886","components/sensor/mpu6886","mpu6886.jpg","Accelerometer & Gyroscope"
 "MSA301","components/sensor/msa3xx","msa301.jpg","Accelerometer"
@@ -618,6 +621,7 @@ Often known as "tag" or "card" readers within the community.
 "LD2412","components/sensor/ld2412","ld2412.jpg"
 "LD2420","components/sensor/ld2420","ld2420.jpg"
 "LD2450","components/sensor/ld2450","ld2450.png"
+"RD-03D","components/sensor/rd03d","rd03d.webp"
 "Seeed Studio MR24HPC1 mmWave","components/seeed_mr24hpc1","seeed-mr24hpc1.jpg"
 {{< /imgtable >}}
 
@@ -803,6 +807,7 @@ Often known as "tag" or "card" readers within the community.
 {{< imgtable >}}
 "Event Core","components/event/index","folder-open.svg","dark-invert"
 "Template Event","components/event/template","description.svg","dark-invert"
+"UART Event","components/event/uart","uart.svg",""
 {{< /imgtable >}}
 
 ## Fan Components
@@ -829,6 +834,15 @@ Components specifically for interacting with Home Assistant.
 "Switch","components/switch/homeassistant","home-assistant.svg","dark-invert"
 "Text Sensor","components/text_sensor/homeassistant","home-assistant.svg","dark-invert"
 "Voice Assistant","components/voice_assistant","voice-assistant.svg","dark-invert"
+{{< /imgtable >}}
+
+## Infrared Components
+
+Used for creating infrared (IR) remote control transmitters and/or receivers.
+
+{{< imgtable >}}
+"Infrared Core","components/infrared/index","folder-open.svg","dark-invert"
+"IR/RF Proxy","components/ir_rf_proxy","remote.svg","dark-invert"
 {{< /imgtable >}}
 
 ## Light Components
@@ -1037,6 +1051,13 @@ at the {{< docref "light/fastled" "FastLED Light" >}}.
 {{< imgtable >}}
 "Valve Core","components/valve/index","folder-open.svg","dark-invert"
 "Template Valve","components/valve/template","description.svg","dark-invert"
+{{< /imgtable >}}
+
+## Water Heater Components
+
+{{< imgtable >}}
+"Water Heater Core","components/water_heater/index","folder-open.svg","dark-invert"
+"Template Water Heater","components/water_heater/template","description.svg","dark-invert"
 {{< /imgtable >}}
 
 ## Wireless Communication

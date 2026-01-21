@@ -193,6 +193,22 @@ nrf52:
   dcdc: false
 ```
 
+## Framework
+
+```yaml
+# Example configuration entry
+nrf52:
+  framework:
+    version: 2.6.1-7
+```
+
+### Configuration variables
+
+- **version** (*Optional*, string): The nrf-sdk version. One of:
+  - `2.6.1-7`  : Stable (default)
+  - `2.9.2-0`  : Experimental
+  - `3.2.0-0`  : Experimental (no Zigbee support)
+
 ## See Also
 
 - {{< docref "esphome/" >}}

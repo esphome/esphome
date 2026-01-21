@@ -61,9 +61,12 @@ light:
   If this is set, along with **color_datapoint**, then ESPHome will use this value to format
   the color sent to **color_datapoint**.
 
-  - `rgb`  : Use a 6 digit hex RGB value
-  - `hsv`  : Use a 12 digit hex HSV value
-  - `rgbhsv`  : Use a 14 digit hex RGBHSV value
+  - `RGB`  : Use a 6 digit hex RGB value
+  - `HSV`  : Use a 12 digit hex HSV value
+  - `RGBHSV`  : Use a 14 digit hex RGBHSV value
+
+- **color_type_lowercase** (*Optional*, boolean): Some lights require the color hex string to be lowercase.
+  Defaults to false.
 
 - **min_value** (*Optional*, int): The lowest dimmer value allowed. My dimmer had a
   minimum of 25 and wouldn't even accept anything lower, but this option is available if necessary.

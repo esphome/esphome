@@ -125,13 +125,26 @@ Configuration variables:
 
 ### lambda Calls
 
-From [lambdas](/automations/templates#config-lambda), you can trigger an event.
+From [lambdas](/automations/templates#config-lambda), you can interact with an event.
 
-- `trigger(std::string event_type)`  : Trigger an event with the specified type.
+- `trigger(std::string event_type)`: Trigger an event with the specified type.
+- `has_event()`: Returns `true` if an event has been triggered, `false` otherwise.
+- `get_last_event_type()`: Returns the last triggered event type as `StringRef`, or an empty StringRef if no event has been triggered yet.
 
 ```cpp
     // Within lambda, trigger the event.
     id(my_event).trigger("custom_event");
+
+    // Check if an event has been triggered
+    if (id(my_event).has_event()) {
+      auto event_type = id(my_event).get_last_event_type();
+      // Compare with string literal using ==
+      if (event_type == "custom_event") {
+        ESP_LOGD("main", "Custom event was triggered");
+      }
+      // Log using %.*s format for StringRef
+      ESP_LOGD("main", "Last event: %.*s", (int) event_type.size(), event_type.c_str());
+    }
 ```
 
 ## See Also
