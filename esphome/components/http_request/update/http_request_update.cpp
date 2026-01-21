@@ -11,7 +11,12 @@ namespace http_request {
 
 // The update function runs in a task only on ESP32s.
 #ifdef USE_ESP32
-#define UPDATE_RETURN vTaskDelete(nullptr)  // Delete the current update task
+// vTaskDelete doesn't return, but clang-tidy doesn't know that
+#define UPDATE_RETURN \
+  do { \
+    vTaskDelete(nullptr); \
+    __builtin_unreachable(); \
+  } while (0)
 #else
 #define UPDATE_RETURN return
 #endif
