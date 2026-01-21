@@ -378,6 +378,8 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       RAMAllocator<uint8_t> allocator;
       uint8_t *buf = allocator.allocate(max_length);
       if (buf != nullptr) {
+        // NOTE: HttpContainer::read() has non-BSD socket semantics - see top of this file
+        // Use http_read_loop_result() helper instead of checking return values directly
         size_t read_index = 0;
         uint32_t last_data_time = millis();
         const uint32_t read_timeout = this->parent_->get_timeout();
