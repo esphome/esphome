@@ -721,8 +721,12 @@ void WiFiComponent::loop() {
         ESP_LOGI(TAG, "Starting fallback AP");
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
-        if (captive_portal::global_captive_portal != nullptr)
+        if (captive_portal::global_captive_portal != nullptr) {
+          // Reset so we force one full scan after captive portal starts
+          // (previous scans were filtered because captive portal wasn't active yet)
+          this->has_completed_scan_after_captive_portal_start_ = false;
           captive_portal::global_captive_portal->start();
+        }
 #endif
       }
     }
@@ -1264,6 +1268,8 @@ void WiFiComponent::check_scanning_finished() {
     return;
   }
   this->scan_done_ = false;
+  this->has_completed_scan_after_captive_portal_start_ =
+      true;  // Track that we've done a scan since captive portal started
   this->retry_hidden_mode_ = RetryHiddenMode::SCAN_BASED;
 
   if (this->scan_result_.empty()) {
@@ -1560,7 +1566,10 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       if (this->went_through_explicit_hidden_phase_()) {
         return WiFiRetryPhase::EXPLICIT_HIDDEN;
       }
-      // Skip scanning when captive portal/improv is active to avoid disrupting AP.
+      // Skip scanning when captive portal/improv is active to avoid disrupting AP,
+      // BUT only if we've already completed at least one scan AFTER the portal started.
+      // When captive portal first starts, scan results may be filtered/stale, so we need
+      // to do one full scan to populate available networks for the captive portal UI.
       //
       // WHY SCANNING DISRUPTS AP MODE:
       // WiFi scanning requires the radio to leave the AP's channel and hop through
@@ -1577,7 +1586,16 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       //
       // This allows users to configure WiFi via captive portal while the device keeps
       // attempting to connect to all configured networks in sequence.
-      if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
+      // Captive portal needs scan results to show available networks.
+      // If captive portal is active, only skip scanning if we've done a scan after it started.
+      // If only improv is active (no captive portal), skip scanning since improv doesn't need results.
+      if (this->is_captive_portal_active_()) {
+        if (this->has_completed_scan_after_captive_portal_start_) {
+          return WiFiRetryPhase::RETRY_HIDDEN;
+        }
+        // Need to scan for captive portal
+      } else if (this->is_esp32_improv_active_()) {
+        // Improv doesn't need scan results
         return WiFiRetryPhase::RETRY_HIDDEN;
       }
       return WiFiRetryPhase::SCAN_CONNECTING;

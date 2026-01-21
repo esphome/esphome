@@ -720,6 +720,8 @@ class WiFiComponent : public Component {
   bool enable_on_boot_{true};
   bool got_ipv4_address_{false};
   bool keep_scan_results_{false};
+  bool has_completed_scan_after_captive_portal_start_{
+      false};  // Tracks if we've completed a scan after captive portal started
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   bool skip_cooldown_next_cycle_{false};
   bool post_connect_roaming_{true};  // Enabled by default
