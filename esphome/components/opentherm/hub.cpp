@@ -107,23 +107,23 @@ OpenthermData OpenthermHub::build_request_(MessageId request_id) const {
       break;
   }
 
-  // // Finally, handle the simple read requests, which only change with the message id.
-  // switch (request_id) {
-  //   OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE, , , )
-  //   default:
-  //     break;
-  // }
-  // switch (request_id) {
-  //   OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE, , , )
-  //   default:
-  //     break;
-  // }
+  // Finally, handle the simple read requests, which only change with the message id.
+  switch (request_id) {
+    OPENTHERM_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE, , , )
+    default:
+      break;
+  }
+  switch (request_id) {
+    OPENTHERM_BINARY_SENSOR_MESSAGE_HANDLERS(OPENTHERM_MESSAGE_READ_MESSAGE, OPENTHERM_IGNORE, , , )
+    default:
+      break;
+  }
 
-  // // And if we get here, a message was requested which somehow wasn't handled.
-  // // This shouldn't happen due to the way the defines are configured, so we
-  // // log an error and just return a 0 message.
-  // ESP_LOGE(TAG, "Tried to create a request with unknown id %d. This should never happen, so please open an issue.",
-  //          request_id);
+  // And if we get here, a message was requested which somehow wasn't handled.
+  // This shouldn't happen due to the way the defines are configured, so we
+  // log an error and just return a 0 message.
+  ESP_LOGE(TAG, "Tried to create a request with unknown id %d. This should never happen, so please open an issue.",
+           request_id);
   return {};
 }
 
