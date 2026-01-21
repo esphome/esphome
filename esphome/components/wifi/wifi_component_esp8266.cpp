@@ -760,8 +760,10 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
   bool needs_full = this->needs_full_scan_results_();
 
   // First pass: count matching networks (linked list is non-destructive)
+  size_t total = 0;
   size_t count = 0;
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
+    total++;
     const char *ssid_cstr = reinterpret_cast<const char *>(it->ssid);
     if (needs_full || this->matches_configured_network_(ssid_cstr, it->bssid)) {
       count++;
@@ -781,6 +783,8 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
       WiFiComponent::log_discarded_scan_result_(ssid_cstr, it->bssid, it->rssi, it->channel);
     }
   }
+  ESP_LOGD(TAG, "Scan complete: %zu found, %zu stored%s", total, this->scan_result_.size(),
+           needs_full ? "" : " (filtered)");
   this->scan_done_ = true;
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
   for (auto *listener : global_wifi_component->scan_results_listeners_) {
