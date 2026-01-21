@@ -833,7 +833,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     if (needs_full) {
       this->scan_result_.reserve(number);
     } else {
-      this->scan_result_.reserve(8);  // Typical: 1-3 matching networks
+      this->scan_result_.reserve(WIFI_SCAN_RESULT_FILTERED_RESERVE);
     }
 
     // Process one record at a time to avoid large buffer allocation
