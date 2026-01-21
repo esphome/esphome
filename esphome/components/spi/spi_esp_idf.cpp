@@ -1,5 +1,8 @@
 #include "spi.h"
 #include <vector>
+#ifdef USE_ESP32
+#include <esp_clk_tree.h>
+#endif
 
 namespace esphome::spi {
 
@@ -184,9 +187,14 @@ class SPIDelegateHw : public SPIDelegate {
   void read_array(uint8_t *ptr, size_t length) override { this->transfer(nullptr, ptr, length); }
 
  protected:
-  // Maximum SPI clock speed for full-duplex mode on GPIO matrix pins
-  // ESP-IDF limit is "less than APB_CLK/3" (26.67MHz), so we use 26MHz to be safe
-  static constexpr uint32_t MAX_FULL_DUPLEX_SPEED = 26000000;
+  // Get maximum SPI clock speed for full-duplex mode on GPIO matrix pins.
+  // ESP-IDF limit is "less than APB_CLK/3". We subtract 1 to ensure we're strictly less than.
+  // This varies by chip: ESP32/S2/S3/C3=26.67MHz, C5/C6=13.33MHz, H2=10.67MHz, etc.
+  static uint32_t get_max_full_duplex_speed_() {
+    uint32_t apb_freq = 0;
+    esp_clk_tree_src_get_freq_hz(SOC_MOD_CLK_APB, ESP_CLK_TREE_SRC_FREQ_PRECISION_EXACT, &apb_freq);
+    return (apb_freq / 3) - 1;
+  }
 
   bool add_device_() {
     spi_device_interface_config_t config = {};
@@ -203,15 +211,18 @@ class SPIDelegateHw : public SPIDelegate {
       config.flags |= SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_NO_DUMMY;
       ESP_LOGD(TAG, "SPI device with CS pin %d using half-duplex mode (write-only)",
                Utility::get_pin_no(this->cs_pin_));
-    } else if (this->data_rate_ > MAX_FULL_DUPLEX_SPEED) {
-      // Full-duplex mode has a lower speed limit due to GPIO matrix timing constraints.
-      // Cap the speed and warn instead of failing.
-      int cs_pin = Utility::get_pin_no(this->cs_pin_);
-      ESP_LOGW(TAG,
-               "SPI device with CS pin %d requested %u Hz, but full-duplex is limited to %u Hz. "
-               "Capping speed. To fix: ensure the component sets write-only mode, or lower data_rate.",
-               cs_pin, this->data_rate_, MAX_FULL_DUPLEX_SPEED);
-      config.clock_speed_hz = MAX_FULL_DUPLEX_SPEED;
+    } else {
+      uint32_t max_speed = get_max_full_duplex_speed_();
+      if (this->data_rate_ > max_speed) {
+        // Full-duplex mode has a lower speed limit due to GPIO matrix timing constraints.
+        // Cap the speed and warn instead of failing.
+        int cs_pin = Utility::get_pin_no(this->cs_pin_);
+        ESP_LOGW(TAG,
+                 "SPI device with CS pin %d requested %u Hz, but full-duplex is limited to %u Hz. "
+                 "Capping speed. To fix: ensure the component sets write-only mode, or lower data_rate.",
+                 cs_pin, this->data_rate_, max_speed);
+        config.clock_speed_hz = static_cast<int>(max_speed);
+      }
     }
     esp_err_t const err = spi_bus_add_device(this->channel_, &config, &this->handle_);
     if (err != ESP_OK) {
