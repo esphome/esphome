@@ -191,7 +191,7 @@ void SY6970Component::set_led_enabled(bool enabled) {
   if (this->is_failed())
     return;
 
-  // Clear bit 6 to enable LED
+  // Bit 6: 0 = LED enabled, 1 = LED disabled
   this->update_register_(SY6970_REG_TIMER_CONTROL, 0x40, enabled ? 0x00 : 0x40);
 }
 
