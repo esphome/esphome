@@ -565,6 +565,11 @@ void WiFiComponent::start() {
 void WiFiComponent::restart_adapter() {
   ESP_LOGW(TAG, "Restarting adapter");
   this->wifi_mode_(false, {});
+  // Clear error flag here because restart_adapter() enters COOLDOWN state,
+  // and check_connecting_finished() is called after cooldown without going
+  // through start_connecting() first. Without this clear, stale errors would
+  // trigger spurious "failed (callback)" logs. The canonical clear location
+  // is in start_connecting(); this is the only exception to that pattern.
   this->error_from_callback_ = false;
 }
 
@@ -618,8 +623,6 @@ void WiFiComponent::loop() {
         if (!this->is_connected()) {
           ESP_LOGW(TAG, "Connection lost; reconnecting");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
-          // Clear error flag before reconnecting so first attempt is not seen as immediate failure
-          this->error_from_callback_ = false;
           this->retry_connect();
         } else {
           this->status_clear_warning();
@@ -963,6 +966,12 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   ESP_LOGV(TAG, "  Hidden: %s", YESNO(ap.get_hidden()));
 #endif
 
+  // Clear any stale error from previous connection attempt.
+  // This is the canonical location for clearing the flag since all connection
+  // attempts go through start_connecting(). The only other clear is in
+  // restart_adapter() which enters COOLDOWN without calling start_connecting().
+  this->error_from_callback_ = false;
+
   if (!this->wifi_sta_connect_(ap)) {
     ESP_LOGE(TAG, "wifi_sta_connect_ failed");
     // Enter cooldown to allow WiFi hardware to stabilize
@@ -1068,7 +1077,6 @@ void WiFiComponent::enable() {
     return;
 
   ESP_LOGD(TAG, "Enabling");
-  this->error_from_callback_ = false;
   this->state_ = WIFI_COMPONENT_STATE_OFF;
   this->start();
 }
@@ -1329,11 +1337,6 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     // Reset to initial phase on successful connection (don't log transition, just reset state)
     this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
     this->num_retried_ = 0;
-    // Ensure next connection attempt does not inherit error state
-    // so when WiFi disconnects later we start fresh and don't see
-    // the first connection as a failure.
-    this->error_from_callback_ = false;
-
     if (this->has_ap()) {
 #ifdef USE_CAPTIVE_PORTAL
       if (this->is_captive_portal_active_()) {
@@ -1844,8 +1847,6 @@ void WiFiComponent::retry_connect() {
     this->advance_to_next_target_or_increment_retry_();
   }
 
-  this->error_from_callback_ = false;
-
   yield();
   // Check if we have a valid target before building params
   // After exhausting all networks in a phase, selected_sta_index_ may be -1
@@ -2171,7 +2172,6 @@ void WiFiComponent::process_roaming_scan_() {
   this->roaming_state_ = RoamingState::CONNECTING;
 
   // Connect directly - wifi_sta_connect_ handles disconnect internally
-  this->error_from_callback_ = false;
   this->start_connecting(roam_params);
 }
 
