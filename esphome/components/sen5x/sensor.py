@@ -264,15 +264,10 @@ _TH_BASE = cv.Schema(
                 cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_,
             }
         ),
+        cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES),
     }
 )
-_SEN5X_TH_BASE = _TH_BASE.extend(
-    cv.Schema(
-        {
-            cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES),
-        }
-    )
-)
+
 _SEN6X_TH_BASE = _TH_BASE.extend(
     cv.Schema(
         {
@@ -318,7 +313,7 @@ _CO2_BASE = cv.Schema(
 _SEN5X_BASE = _PM_BASE.extend(
     cv.Schema({cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval})
 ).extend(i2c.i2c_device_schema(0x69))
-_SEN54_BASE = _SEN5X_BASE.extend(_SEN5X_TH_BASE).extend(_VOC_BASE)
+_SEN54_BASE = _SEN5X_BASE.extend(_TH_BASE).extend(_VOC_BASE)
 _SEN6X_BASE = _PM_BASE.extend(_SEN6X_TH_BASE).extend(i2c.i2c_device_schema(0x6B))
 _SEN65_BASE = _SEN6X_BASE.extend(_VOC_BASE).extend(_NOX_BASE)
 
