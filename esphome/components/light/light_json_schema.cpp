@@ -1,4 +1,5 @@
 #include "light_json_schema.h"
+#include "color_mode.h"
 #include "light_output.h"
 #include "esphome/core/progmem.h"
 
@@ -8,35 +9,38 @@ namespace esphome::light {
 
 // See https://www.home-assistant.io/integrations/light.mqtt/#json-schema for documentation on the schema
 
-// Get JSON string for color mode using linear search (avoids large switch jump table)
-static const char *get_color_mode_json_str(ColorMode mode) {
-  // Parallel arrays: mode values and their corresponding strings
-  // Uses less RAM than a switch jump table on sparse enum values
-  static constexpr ColorMode MODES[] = {
-      ColorMode::ON_OFF,
-      ColorMode::BRIGHTNESS,
-      ColorMode::WHITE,
-      ColorMode::COLOR_TEMPERATURE,
-      ColorMode::COLD_WARM_WHITE,
-      ColorMode::RGB,
-      ColorMode::RGB_WHITE,
-      ColorMode::RGB_COLOR_TEMPERATURE,
-      ColorMode::RGB_COLD_WARM_WHITE,
-  };
-  static constexpr const char *STRINGS[] = {
-      "onoff", "brightness", "white", "color_temp", "cwww", "rgb", "rgbw", "rgbct", "rgbww",
-  };
-  for (size_t i = 0; i < sizeof(MODES) / sizeof(MODES[0]); i++) {
-    if (MODES[i] == mode)
-      return STRINGS[i];
+// Get JSON string for color mode.
+// ColorMode enum values are sparse bitmasks (0, 1, 3, 7, 11, 19, 35, 39, 47, 51) which would
+// generate a large jump table. Converting to bit index (0-9) allows a compact switch.
+static ProgmemStr get_color_mode_json_str(ColorMode mode) {
+  switch (ColorModeBitPolicy::to_bit(mode)) {
+    case 1:
+      return ESPHOME_F("onoff");
+    case 2:
+      return ESPHOME_F("brightness");
+    case 3:
+      return ESPHOME_F("white");
+    case 4:
+      return ESPHOME_F("color_temp");
+    case 5:
+      return ESPHOME_F("cwww");
+    case 6:
+      return ESPHOME_F("rgb");
+    case 7:
+      return ESPHOME_F("rgbw");
+    case 8:
+      return ESPHOME_F("rgbct");
+    case 9:
+      return ESPHOME_F("rgbww");
+    default:
+      return nullptr;
   }
-  return nullptr;
 }
 
 void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   if (state.supports_effects()) {
-    root[ESPHOME_F("effect")] = state.get_effect_name();
+    root[ESPHOME_F("effect")] = state.get_effect_name().c_str();
     root[ESPHOME_F("effect_index")] = state.get_current_effect_index();
     root[ESPHOME_F("effect_count")] = state.get_effect_count();
   }
@@ -44,7 +48,7 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
   auto values = state.remote_values;
 
   const auto color_mode = values.get_color_mode();
-  const char *mode_str = get_color_mode_json_str(color_mode);
+  const auto *mode_str = get_color_mode_json_str(color_mode);
   if (mode_str != nullptr) {
     root[ESPHOME_F("color_mode")] = mode_str;
   }
@@ -160,7 +164,7 @@ void LightJSONSchema::parse_json(LightState &state, LightCall &call, JsonObject 
 
   if (root[ESPHOME_F("effect")].is<const char *>()) {
     const char *effect = root[ESPHOME_F("effect")];
-    call.set_effect(effect);
+    call.set_effect(effect, strlen(effect));
   }
 
   if (root[ESPHOME_F("effect_index")].is<uint32_t>()) {

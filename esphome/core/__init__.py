@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
+    KEY_NATIVE_IDF,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_BK72XX,
@@ -608,6 +609,8 @@ class EsphomeCore:
         self.current_component: str | None = None
         # Address cache for DNS and mDNS lookups from command line arguments
         self.address_cache: AddressCache | None = None
+        # Cached config hash (computed lazily)
+        self._config_hash: int | None = None
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -636,6 +639,7 @@ class EsphomeCore:
         self.unique_ids = {}
         self.current_component = None
         self.address_cache = None
+        self._config_hash = None
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
@@ -686,6 +690,21 @@ class EsphomeCore:
         return None
 
     @property
+    def config_hash(self) -> int:
+        """Get the FNV-1a 32-bit hash of the config.
+
+        The hash is computed lazily and cached for performance.
+        Uses sort_keys=True to ensure deterministic ordering.
+        """
+        if self._config_hash is None:
+            from esphome import yaml_util
+            from esphome.helpers import fnv1a_32bit_hash
+
+            config_str = yaml_util.dump(self.config, show_secrets=True, sort_keys=True)
+            self._config_hash = fnv1a_32bit_hash(config_str)
+        return self._config_hash
+
+    @property
     def config_dir(self) -> Path:
         if self.config_path.is_dir():
             return self.config_path.absolute()
@@ -702,6 +721,25 @@ class EsphomeCore:
     @property
     def config_filename(self) -> str:
         return self.config_path.name
+
+    def has_at_least_one_component(self, *components: str) -> bool:
+        """
+        Are any of the given components configured?
+        :param components: component names
+        :return: true if so
+        """
+        if self.config is None:
+            raise ValueError("Config has not been loaded yet")
+
+        return any(component in self.config for component in components)
+
+    @property
+    def has_networking(self) -> bool:
+        """
+        Is a network component configured?
+        :return: true if so
+        """
+        return self.has_at_least_one_component("wifi", "ethernet", "openthread")
 
     def relative_config_path(self, *path: str | Path) -> Path:
         path_ = Path(*path).expanduser()
@@ -726,6 +764,9 @@ class EsphomeCore:
 
     @property
     def firmware_bin(self) -> Path:
+        # Check if using native ESP-IDF build (--native-idf)
+        if self.data.get(KEY_NATIVE_IDF, False):
+            return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
         return self.relative_pioenvs_path(self.name, "firmware.bin")
@@ -780,6 +821,11 @@ class EsphomeCore:
 
     @property
     def using_esp_idf(self):
+        _LOGGER.warning(
+            "CORE.using_esp_idf was deprecated in 2026.1, will change behavior in 2026.6. "
+            "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
+            "Use CORE.is_esp32 and/or CORE.using_arduino instead."
+        )
         return self.target_framework == "esp-idf"
 
     @property

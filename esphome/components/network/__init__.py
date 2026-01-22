@@ -170,7 +170,7 @@ async def to_code(config):
             "High performance networking disabled by user configuration (overriding component request)"
         )
 
-    if CORE.is_esp32 and CORE.using_esp_idf and should_enable:
+    if CORE.is_esp32 and should_enable:
         # Check if PSRAM is guaranteed (set by psram component during final validation)
         psram_guaranteed = psram_is_guaranteed()
 

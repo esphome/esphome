@@ -1,8 +1,7 @@
 #include "template_select.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 static const char *const TAG = "template.select";
 
@@ -42,7 +41,7 @@ void TemplateSelect::update() {
 }
 
 void TemplateSelect::control(size_t index) {
-  this->set_trigger_->trigger(std::string(this->option_at(index)));
+  this->set_trigger_->trigger(StringRef(this->option_at(index)));
 
   if (this->optimistic_)
     this->publish_state(index);
@@ -63,5 +62,4 @@ void TemplateSelect::dump_config() {
                 YESNO(this->optimistic_), this->option_at(this->initial_option_index_), YESNO(this->restore_value_));
 }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_
