@@ -61,36 +61,109 @@ bool SPDIFEncoder::setup() {
   return true;
 }
 
-esp_err_t SPDIFEncoder::write(const uint8_t *src, size_t size, TickType_t ticks_to_wait) {
+void SPDIFEncoder::encode_sample_(const uint8_t *pcm_sample) {
+  // Convert PCM 16-bit data to BMC 32-bit pulse pattern (64 I2S bits to emulate BMC)
+  // Sign extension via int16_t enables the XOR to handle BMC phase continuity
+  int16_t bmc_low = static_cast<int16_t>(BMC_TABLE[pcm_sample[0]]);
+  int16_t bmc_high = static_cast<int16_t>(BMC_TABLE[pcm_sample[1]]);
+  int bmc_combined = (bmc_low << 16) ^ bmc_high;  // int promotion handles sign extension
+  this->spdif_block_ptr_[1] = static_cast<uint32_t>(bmc_combined) & MSB_CLEAR_MASK;
+  this->spdif_block_ptr_ += 2;  // advance to next audio data slot
+}
+
+esp_err_t SPDIFEncoder::send_block_(TickType_t ticks_to_wait) {
+  // Set block start preamble
+  reinterpret_cast<uint8_t *>(this->spdif_block_buf_.get())[SYNC_OFFSET] ^= SYNC_FLIP;
+
+  // Use the appropriate callback based on preload mode
+  SPDIFBlockCallback &callback = this->preload_mode_ ? this->preload_callback_ : this->write_callback_;
+
+  esp_err_t err = callback(this->spdif_block_buf_.get(), SPDIF_BLOCK_SIZE_BYTES, ticks_to_wait);
+
+  if (err == ESP_OK) {
+    // Only reset pointer for next block if write succeeded
+    this->spdif_block_ptr_ = this->spdif_block_buf_.get();
+  } else {
+    // Undo the preamble XOR so it can be applied again on retry
+    reinterpret_cast<uint8_t *>(this->spdif_block_buf_.get())[SYNC_OFFSET] ^= SYNC_FLIP;
+  }
+
+  return err;
+}
+
+size_t SPDIFEncoder::get_pending_pcm_bytes() const {
+  if (this->spdif_block_ptr_ == nullptr || this->spdif_block_buf_ == nullptr) {
+    return 0;
+  }
+  // Each PCM sample (2 bytes) produces 2 uint32_t values in the SPDIF buffer
+  // So pending uint32s / 2 = pending samples, and each sample is 2 bytes
+  size_t pending_uint32s = this->spdif_block_ptr_ - this->spdif_block_buf_.get();
+  size_t pending_samples = pending_uint32s / 2;
+  return pending_samples * 2;  // 2 bytes per sample
+}
+
+esp_err_t SPDIFEncoder::write(const uint8_t *src, size_t size, TickType_t ticks_to_wait, uint32_t *blocks_sent) {
   const uint8_t *pcm_data = src;
   const uint8_t *pcm_end = src + size;
+  uint32_t block_count = 0;
 
   while (pcm_data < pcm_end) {
-    // Convert PCM 16-bit data to BMC 32-bit pulse pattern (64 I2S bits to emulate BMC)
-    // Sign extension via int16_t enables the XOR to handle BMC phase continuity
-    int16_t bmc_low = static_cast<int16_t>(BMC_TABLE[pcm_data[0]]);
-    int16_t bmc_high = static_cast<int16_t>(BMC_TABLE[pcm_data[1]]);
-    int bmc_combined = (bmc_low << 16) ^ bmc_high;  // int promotion handles sign extension
-    this->spdif_block_ptr_[1] = static_cast<uint32_t>(bmc_combined) & MSB_CLEAR_MASK;
-
-    pcm_data += 2;
-    this->spdif_block_ptr_ += 2;  // advance to next audio data
-
+    // Check if there's a pending complete block from a previous failed send
     if (this->spdif_block_ptr_ >= &this->spdif_block_buf_[SPDIF_BLOCK_SIZE_U32]) {
-      // set block start preamble
-      reinterpret_cast<uint8_t *>(this->spdif_block_buf_.get())[SYNC_OFFSET] ^= SYNC_FLIP;
-
-      esp_err_t err =
-          this->block_complete_callback_(this->spdif_block_buf_.get(), SPDIF_BLOCK_SIZE_BYTES, ticks_to_wait);
+      esp_err_t err = this->send_block_(ticks_to_wait);
       if (err != ESP_OK) {
+        if (blocks_sent != nullptr) {
+          *blocks_sent = block_count;
+        }
         return err;
       }
+      ++block_count;
+    }
 
-      this->spdif_block_ptr_ = this->spdif_block_buf_.get();
+    // Encode one 16-bit sample
+    this->encode_sample_(pcm_data);
+    pcm_data += 2;
+  }
+
+  // Send any complete block that was just finished
+  if (this->spdif_block_ptr_ >= &this->spdif_block_buf_[SPDIF_BLOCK_SIZE_U32]) {
+    esp_err_t err = this->send_block_(ticks_to_wait);
+    if (err != ESP_OK) {
+      if (blocks_sent != nullptr) {
+        *blocks_sent = block_count;
+      }
+      return err;
+    }
+    ++block_count;
+  }
+
+  if (blocks_sent != nullptr) {
+    *blocks_sent = block_count;
+  }
+  return ESP_OK;
+}
+
+esp_err_t SPDIFEncoder::flush_with_silence(TickType_t ticks_to_wait) {
+  // First, send any pending complete block from a previous failed send
+  if (this->spdif_block_ptr_ >= &this->spdif_block_buf_[SPDIF_BLOCK_SIZE_U32]) {
+    esp_err_t err = this->send_block_(ticks_to_wait);
+    if (err != ESP_OK) {
+      return err;
     }
   }
 
-  return ESP_OK;
+  if (!this->has_pending_data()) {
+    return ESP_OK;  // Nothing to flush
+  }
+
+  // Encode silence (zeros) until the block is complete
+  static const uint8_t silence[2] = {0, 0};
+
+  while (this->spdif_block_ptr_ < &this->spdif_block_buf_[SPDIF_BLOCK_SIZE_U32]) {
+    this->encode_sample_(silence);
+  }
+
+  return this->send_block_(ticks_to_wait);
 }
 
 }  // namespace esphome::i2s_audio

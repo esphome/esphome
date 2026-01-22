@@ -19,7 +19,18 @@ static constexpr uint16_t SPDIF_BLOCK_SAMPLES = 192;
 //  as many bits per sample so that we can generate the transitions this encoding requires.
 static constexpr uint8_t EMULATED_BMC_BITS_PER_SAMPLE = SPDIF_BITS_PER_SAMPLE * 2;
 static constexpr uint16_t SPDIF_BLOCK_SIZE_BYTES = SPDIF_BLOCK_SAMPLES * (EMULATED_BMC_BITS_PER_SAMPLE / 8);
-static constexpr uint32_t SPDIF_BLOCK_SIZE_U32 = SPDIF_BLOCK_SIZE_BYTES / sizeof(uint32_t);  // One block, 1536 bytes
+static constexpr uint32_t SPDIF_BLOCK_SIZE_U32 = SPDIF_BLOCK_SIZE_BYTES / sizeof(uint32_t);  // 3072 bytes / 4 = 768
+// I2S frame count for one SPDIF block (for new driver where frame = 8 bytes for 32-bit stereo)
+static constexpr uint32_t SPDIF_BLOCK_I2S_FRAMES = SPDIF_BLOCK_SIZE_BYTES / 8;  // 3072 / 8 = 384 frames
+// PCM bytes needed for one complete SPDIF block (192 stereo frames * 2 bytes per sample * 2 channels)
+static constexpr uint16_t SPDIF_PCM_BYTES_PER_BLOCK = SPDIF_BLOCK_SAMPLES * 2 * 2;  // = 768 bytes
+
+/// Callback signature for block completion
+/// @param data Pointer to SPDIF encoded block data
+/// @param size Size of the block in bytes (always SPDIF_BLOCK_SIZE_BYTES)
+/// @param ticks_to_wait FreeRTOS ticks to wait for write completion
+/// @return ESP_OK on success, or an error code
+using SPDIFBlockCallback = std::function<esp_err_t(uint32_t *data, size_t size, TickType_t ticks_to_wait)>;
 
 class SPDIFEncoder {
  public:
@@ -27,23 +38,56 @@ class SPDIFEncoder {
   /// @return true if setup was successful, false if allocation failed
   bool setup();
 
-  /// @brief Function to call when a block of data is complete (called from write)
-  void set_block_complete_callback(
-      std::function<esp_err_t(uint32_t *data, size_t size, TickType_t ticks_to_wait)> callback) {
-    this->block_complete_callback_ = std::move(callback);
-  }
+  /// @brief Set callback for normal writes (used when channel is running)
+  void set_write_callback(SPDIFBlockCallback callback) { this->write_callback_ = std::move(callback); }
+
+  /// @brief Set callback for preload writes (used when preloading to DMA before enabling channel)
+  void set_preload_callback(SPDIFBlockCallback callback) { this->preload_callback_ = std::move(callback); }
+
+  /// @brief Enable or disable preload mode
+  /// When in preload mode, completed blocks use the preload callback instead of write callback
+  void set_preload_mode(bool preload) { this->preload_mode_ = preload; }
+
+  /// @brief Check if currently in preload mode
+  bool is_preload_mode() const { return this->preload_mode_; }
 
   /// @brief Convert PCM audio data to SPDIF BMC encoded data
-  /// @param src Source PCM audio data
+  /// @param src Source PCM audio data (16-bit stereo)
   /// @param size Size of source data in bytes
-  /// @return esp_err_t as returned from block_complete_callback_
-  esp_err_t write(const uint8_t *src, size_t size, TickType_t ticks_to_wait);
+  /// @param ticks_to_wait Timeout for blocking writes
+  /// @param blocks_sent Optional pointer to receive the number of complete SPDIF blocks sent
+  /// @return esp_err_t as returned from the callback
+  esp_err_t write(const uint8_t *src, size_t size, TickType_t ticks_to_wait, uint32_t *blocks_sent = nullptr);
 
-  /// @brief Reset the SPDIF block buffer
+  /// @brief Get the number of PCM bytes currently pending in the partial block buffer
+  /// @return Number of pending PCM bytes (0 to SPDIF_PCM_BYTES_PER_BLOCK - 1)
+  size_t get_pending_pcm_bytes() const;
+
+  /// @brief Get the number of PCM frames currently pending in the partial block buffer
+  /// @return Number of pending PCM frames (0 to SPDIF_BLOCK_SAMPLES - 1)
+  uint32_t get_pending_frames() const { return this->get_pending_pcm_bytes() / 4; }
+
+  /// @brief Check if there is a partial block pending
+  bool has_pending_data() const { return this->spdif_block_ptr_ != this->spdif_block_buf_.get(); }
+
+  /// @brief Flush any pending partial block by padding with silence and sending
+  /// @param ticks_to_wait Timeout for blocking writes
+  /// @return esp_err_t as returned from the callback, or ESP_OK if nothing to flush
+  esp_err_t flush_with_silence(TickType_t ticks_to_wait);
+
+  /// @brief Reset the SPDIF block buffer, discarding any partial block
   void reset() { this->spdif_block_ptr_ = this->spdif_block_buf_.get(); }
 
  protected:
-  std::function<esp_err_t(uint32_t *data, size_t size, TickType_t ticks_to_wait)> block_complete_callback_;
+  /// @brief Encode a single 16-bit PCM sample into the current block position
+  void encode_sample_(const uint8_t *pcm_sample);
+
+  /// @brief Send the completed block via the appropriate callback
+  esp_err_t send_block_(TickType_t ticks_to_wait);
+
+  SPDIFBlockCallback write_callback_;
+  SPDIFBlockCallback preload_callback_;
+  bool preload_mode_{false};
 
   // Working buffer that holds an entire SPDIF block ready for I2S output (heap allocated, 1536 bytes)
   std::unique_ptr<uint32_t[]> spdif_block_buf_;
