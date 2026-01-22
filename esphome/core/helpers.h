@@ -18,8 +18,6 @@
 #include <concepts>
 #include <strings.h>
 
-#include <strings.h>
-
 #include "esphome/core/optional.h"
 
 #ifdef USE_ESP8266
