@@ -231,7 +231,6 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
 
   // Check if we've already read all expected content
   if (this->bytes_read_ >= this->content_length) {
-    this->duration_ms += (millis() - start);
     return 0;  // All content read successfully
   }
 
