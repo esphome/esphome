@@ -33,7 +33,7 @@ SelectPtr = Select.operator("ptr")
 # Triggers
 SelectStateTrigger = select_ns.class_(
     "SelectStateTrigger",
-    automation.Trigger.template(cg.std_string, cg.size_t),
+    automation.Trigger.template(cg.StringRef, cg.size_t),
 )
 
 # Actions
@@ -100,7 +100,7 @@ async def setup_select_core_(var, config, *, options: list[str]):
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
-            trigger, [(cg.std_string, "x"), (cg.size_t, "i")], conf
+            trigger, [(cg.StringRef, "x"), (cg.size_t, "i")], conf
         )
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
