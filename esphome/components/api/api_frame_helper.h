@@ -143,7 +143,7 @@ class APIFrameHelper {
       return;
     }
 
-    // Log message: -1 -> 1 -> 2 -> -1 (flush)
+    // Log messages 1-3: state transitions -1 -> 1 -> 2 -> -1 (flush on 3rd)
     if (this->nodelay_state_ == NODELAY_ON) {
       this->set_nodelay_raw_(false);
       this->nodelay_state_ = 1;
