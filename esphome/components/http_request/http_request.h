@@ -92,14 +92,15 @@ inline bool is_success(int const status) { return status >= HTTP_STATUS_OK && st
  *
  * HttpContainer::read() returns:
  *   > 0: bytes read successfully
- *   == 0: no data available yet (non-blocking, caller should RETRY)
+ *   == 0: no data available yet OR all content read
+ *         (caller should check bytes_read vs content_length)
  *   < 0: error or connection closed (caller should EXIT)
  *        HTTP_ERROR_CONNECTION_CLOSED (-1) = connection closed prematurely
  *        other negative values = platform-specific errors
  *
- * This non-blocking design allows consistent behavior across:
- *   - ESP-IDF (async mode with EAGAIN handling)
- *   - Arduino (available() + connected() checks)
+ * Platform behaviors:
+ *   - ESP-IDF: blocking reads, 0 only returned when all content read
+ *   - Arduino: non-blocking, 0 means "no data yet" or "all content read"
  *
  * Use the helper functions below instead of checking return values directly:
  *   - http_read_loop_result(): for manual loops with per-chunk processing
@@ -163,19 +164,24 @@ class HttpContainer : public Parented<HttpRequestComponent> {
   uint32_t duration_ms;
 
   /**
-   * @brief Read data from the HTTP response body (non-blocking).
+   * @brief Read data from the HTTP response body.
    *
    * WARNING: These semantics differ from BSD sockets!
    * BSD sockets: 0 = EOF (connection closed)
-   * This method: 0 = no data yet (retry), negative = error/closed
+   * This method: 0 = no data yet OR all content read, negative = error/closed
    *
    * @param buf Buffer to read data into
    * @param max_len Maximum number of bytes to read
    * @return
    *   - > 0: Number of bytes read successfully
-   *   - 0: No data available yet (NOT EOF!), caller should retry
+   *   - 0: No data available yet OR all content read
+   *        (check get_bytes_read() >= content_length to distinguish)
    *   - HTTP_ERROR_CONNECTION_CLOSED (-1): Connection closed prematurely
    *   - < -1: Other error (platform-specific error code)
+   *
+   * Platform notes:
+   *   - ESP-IDF: blocking read, 0 only when all content read
+   *   - Arduino: non-blocking, 0 can mean "no data yet" or "all content read"
    *
    * Use get_bytes_read() and content_length to track progress.
    * When get_bytes_read() >= content_length, all data has been received.

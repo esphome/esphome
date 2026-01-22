@@ -100,7 +100,6 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
 
   config.buffer_size = this->buffer_size_rx_;
   config.buffer_size_tx = this->buffer_size_tx_;
-  config.is_async = true;  // Enable non-blocking mode
 
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
@@ -210,21 +209,19 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   return container;
 }
 
-// ESP-IDF HTTP read implementation
+// ESP-IDF HTTP read implementation (blocking mode)
 //
 // WARNING: Return values differ from BSD sockets! See http_request.h for full documentation.
 //
-// Uses non-blocking mode (config.is_async = true) for consistent behavior with Arduino.
-// esp_http_client_read() in async mode returns:
+// esp_http_client_read() in blocking mode returns:
 //   > 0: bytes read
-//   0: connection closed (end of stream) <-- BSD socket EOF semantics
-//   -ESP_ERR_HTTP_EAGAIN: no data available yet (would block)
-//   other negative: error
+//   0: connection closed (end of stream)
+//   < 0: error
 //
-// We normalize to HttpContainer::read() contract (NOT BSD socket semantics!):
+// We normalize to HttpContainer::read() contract:
 //   > 0: bytes read
-//   0: no data yet, retry            <-- NOTE: 0 means retry, NOT EOF!
-//   < 0: error/connection closed     <-- connection closed returns -1, not 0
+//   0: no data yet / all content read (caller should check bytes_read vs content_length)
+//   < 0: error/connection closed
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
@@ -245,20 +242,12 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
     return read_len_or_error;
   }
 
-  // No data available yet in non-blocking mode
-  // ESP_ERR_HTTP_EAGAIN is returned as a negative error code
-  if (read_len_or_error == -ESP_ERR_HTTP_EAGAIN) {
-    return 0;  // No data yet, caller should retry
-  }
-
-  // Connection closed by server
+  // Connection closed by server before all content received
   if (read_len_or_error == 0) {
-    // We haven't read all content yet (early check handles success case)
-    // Return error so caller exits immediately instead of waiting for timeout
     return HTTP_ERROR_CONNECTION_CLOSED;
   }
 
-  // Other negative value - real error, return the actual error code for debugging
+  // Negative value - error, return the actual error code for debugging
   return read_len_or_error;
 }
 
