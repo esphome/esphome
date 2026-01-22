@@ -218,6 +218,14 @@ class MQTTComponent : public Component {
    */
   void subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos = 0);
 
+  /// Subscribe with const char* topic (avoids temporary std::string allocation)
+  void subscribe(const char *topic, mqtt_callback_t callback, uint8_t qos = 0);
+
+  /// Subscribe with StringRef topic (for use with get_command_topic_to_())
+  void subscribe(StringRef topic, mqtt_callback_t callback, uint8_t qos = 0) {
+    this->subscribe(topic.c_str(), std::move(callback), qos);
+  }
+
   /** Subscribe to a MQTT topic and automatically parse JSON payload.
    *
    * If an invalid JSON payload is received, the callback will not be called.
@@ -228,6 +236,14 @@ class MQTTComponent : public Component {
    * @param qos The MQTT quality of service. Defaults to 0.
    */
   void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
+
+  /// Subscribe JSON with const char* topic (avoids temporary std::string allocation)
+  void subscribe_json(const char *topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
+
+  /// Subscribe JSON with StringRef topic (for use with get_command_topic_to_())
+  void subscribe_json(StringRef topic, const mqtt_json_callback_t &callback, uint8_t qos = 0) {
+    this->subscribe_json(topic.c_str(), callback, qos);
+  }
 
  protected:
   /// Helper method to get the discovery topic for this component.

@@ -466,6 +466,10 @@ void MQTTClientComponent::resubscribe_subscriptions_() {
 }
 
 void MQTTClientComponent::subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos) {
+  this->subscribe(topic.c_str(), std::move(callback), qos);
+}
+
+void MQTTClientComponent::subscribe(const char *topic, mqtt_callback_t callback, uint8_t qos) {
   MQTTSubscription subscription{
       .topic = topic,
       .qos = qos,
@@ -474,10 +478,14 @@ void MQTTClientComponent::subscribe(const std::string &topic, mqtt_callback_t ca
       .resubscribe_timeout = 0,
   };
   this->resubscribe_subscription_(&subscription);
-  this->subscriptions_.push_back(subscription);
+  this->subscriptions_.push_back(std::move(subscription));
 }
 
 void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
+  this->subscribe_json(topic.c_str(), callback, qos);
+}
+
+void MQTTClientComponent::subscribe_json(const char *topic, const mqtt_json_callback_t &callback, uint8_t qos) {
   auto f = [callback](const std::string &topic, const std::string &payload) {
     json::parse_json(payload, [topic, callback](JsonObject root) -> bool {
       callback(topic, root);
@@ -492,7 +500,7 @@ void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_js
       .resubscribe_timeout = 0,
   };
   this->resubscribe_subscription_(&subscription);
-  this->subscriptions_.push_back(subscription);
+  this->subscriptions_.push_back(std::move(subscription));
 }
 
 void MQTTClientComponent::unsubscribe(const std::string &topic) {

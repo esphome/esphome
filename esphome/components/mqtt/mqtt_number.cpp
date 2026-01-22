@@ -15,7 +15,8 @@ using namespace esphome::number;
 MQTTNumberComponent::MQTTNumberComponent(Number *number) : number_(number) {}
 
 void MQTTNumberComponent::setup() {
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  this->subscribe(this->get_command_topic_to_(topic_buf), [this](const std::string &topic, const std::string &state) {
     auto val = parse_number<float>(state);
     if (!val.has_value()) {
       ESP_LOGW(TAG, "Can't convert '%s' to number!", state.c_str());

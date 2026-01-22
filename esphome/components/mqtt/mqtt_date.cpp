@@ -17,7 +17,8 @@ using namespace esphome::datetime;
 MQTTDateComponent::MQTTDateComponent(DateEntity *date) : date_(date) {}
 
 void MQTTDateComponent::setup() {
-  this->subscribe_json(this->get_command_topic_(), [this](const std::string &topic, JsonObject root) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  this->subscribe_json(this->get_command_topic_to_(topic_buf), [this](const std::string &topic, JsonObject root) {
     auto call = this->date_->make_call();
     if (root[ESPHOME_F("year")].is<uint16_t>()) {
       call.set_year(root[ESPHOME_F("year")]);

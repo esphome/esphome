@@ -192,6 +192,9 @@ class MQTTClientComponent : public Component
    */
   void subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos = 0);
 
+  /// Subscribe with const char* topic (avoids temporary std::string allocation)
+  void subscribe(const char *topic, mqtt_callback_t callback, uint8_t qos = 0);
+
   /** Subscribe to a MQTT topic and automatically parse JSON payload.
    *
    * If an invalid JSON payload is received, the callback will not be called.
@@ -202,6 +205,9 @@ class MQTTClientComponent : public Component
    * @param qos The QoS of this subscription.
    */
   void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
+
+  /// Subscribe JSON with const char* topic (avoids temporary std::string allocation)
+  void subscribe_json(const char *topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
 
   /** Unsubscribe from an MQTT topic.
    *

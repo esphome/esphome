@@ -19,7 +19,8 @@ MQTT_COMPONENT_TYPE(MQTTFanComponent, "fan")
 const EntityBase *MQTTFanComponent::get_entity() const { return this->state_; }
 
 void MQTTFanComponent::setup() {
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  this->subscribe(this->get_command_topic_to_(topic_buf), [this](const std::string &topic, const std::string &payload) {
     auto val = parse_on_off(payload.c_str());
     switch (val) {
       case PARSE_ON:

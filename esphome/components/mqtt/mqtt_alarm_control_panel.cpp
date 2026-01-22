@@ -15,8 +15,9 @@ using namespace esphome::alarm_control_panel;
 MQTTAlarmControlPanelComponent::MQTTAlarmControlPanelComponent(AlarmControlPanel *alarm_control_panel)
     : alarm_control_panel_(alarm_control_panel) {}
 void MQTTAlarmControlPanelComponent::setup() {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   this->alarm_control_panel_->add_on_state_callback([this]() { this->publish_state(); });
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
+  this->subscribe(this->get_command_topic_to_(topic_buf), [this](const std::string &topic, const std::string &payload) {
     auto call = this->alarm_control_panel_->make_call();
     if (strcasecmp(payload.c_str(), "ARM_AWAY") == 0) {
       call.arm_away();

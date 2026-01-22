@@ -15,7 +15,8 @@ using namespace esphome::select;
 MQTTSelectComponent::MQTTSelectComponent(Select *select) : select_(select) {}
 
 void MQTTSelectComponent::setup() {
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  this->subscribe(this->get_command_topic_to_(topic_buf), [this](const std::string &topic, const std::string &state) {
     auto call = this->select_->make_call();
     call.set_option(state);
     call.perform();

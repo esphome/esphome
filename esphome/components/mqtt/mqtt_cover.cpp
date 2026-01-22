@@ -14,9 +14,10 @@ using namespace esphome::cover;
 
 MQTTCoverComponent::MQTTCoverComponent(Cover *cover) : cover_(cover) {}
 void MQTTCoverComponent::setup() {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   auto traits = this->cover_->get_traits();
   this->cover_->add_on_state_callback([this]() { this->publish_state(); });
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
+  this->subscribe(this->get_command_topic_to_(topic_buf), [this](const std::string &topic, const std::string &payload) {
     auto call = this->cover_->make_call();
     call.set_command(payload.c_str());
     call.perform();
