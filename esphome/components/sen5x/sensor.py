@@ -257,10 +257,6 @@ TH_SCHEMA = cv.Schema(
         ),
     }
 )
-SEN5X_TH_SCHEMA = TH_SCHEMA.extend(
-    {cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES)}
-)
-SEN6X_TH_SCHEMA = TH_SCHEMA
 
 CO2_SCHEMA = cv.Schema(
     {
@@ -289,21 +285,25 @@ CO2_SCHEMA = cv.Schema(
     }
 )
 
-SEN50_SCHEMA = PM_SCHEMA.extend(
-    {cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval}
+SEN5X_SCHEMA = (
+    PM_SCHEMA.extend({cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval})
 ).extend(i2c.i2c_device_schema(0x69))
-SEN54_SCHEMA = SEN50_SCHEMA.extend(SEN5X_TH_SCHEMA).extend(VOC_SCHEMA)
-SEN62_SCHEMA = PM_SCHEMA.extend(SEN6X_TH_SCHEMA).extend(i2c.i2c_device_schema(0x6B))
-SEN65_SCHEMA = SEN62_SCHEMA.extend(VOC_SCHEMA).extend(NOX_SCHEMA)
+SEN54_SCHEMA = (
+    SEN5X_SCHEMA.extend(TH_SCHEMA)
+    .extend({cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES)})
+    .extend(VOC_SCHEMA)
+)
+SEN6X_SCHEMA = PM_SCHEMA.extend(TH_SCHEMA).extend(i2c.i2c_device_schema(0x6B))
+SEN65_SCHEMA = SEN6X_SCHEMA.extend(VOC_SCHEMA).extend(NOX_SCHEMA)
 
-CONFIG_SCHEMA = cv.All(
+CONFIG_SCHEMA = cv.Schema(
     cv.typed_schema(
         {
-            SEN50: SEN50_SCHEMA,
+            SEN50: SEN5X_SCHEMA,
             SEN54: SEN54_SCHEMA,
             SEN55: SEN54_SCHEMA.extend(NOX_SCHEMA),
-            SEN62: SEN62_SCHEMA,
-            SEN63C: SEN62_SCHEMA.extend(CO2_SCHEMA),
+            SEN62: SEN6X_SCHEMA,
+            SEN63C: SEN6X_SCHEMA.extend(CO2_SCHEMA),
             SEN65: SEN65_SCHEMA,
             SEN66: SEN65_SCHEMA.extend(CO2_SCHEMA),
             SEN68: SEN65_SCHEMA.extend(HCHO_SCHEMA),
@@ -324,7 +324,6 @@ CONFIG_SCHEMA = cv.All(
         CONF_HCHO,
     ),
 )
-
 
 SENSOR_MAP = {
     CONF_PM_1_0: "set_pm_1_0_sensor",
