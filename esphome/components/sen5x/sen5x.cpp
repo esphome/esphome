@@ -222,7 +222,8 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
-        ESP_LOGD(TAG, "Set RHT Acceleration Mode to %s", rht_accel_mode_to_string(this->acceleration_mode_.value()));
+        ESP_LOGD(TAG, "Set RHT Acceleration Mode to %s",
+                 LOG_STR_ARG(rht_accel_mode_to_string(this->acceleration_mode_.value())));
         this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_VOCT); });
       } else if (this->temperature_acceleration_.has_value()) {
         if (!this->write_temperature_acceleration_()) {
