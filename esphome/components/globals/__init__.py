@@ -40,8 +40,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
             cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
             cv.Optional(CONF_MAX_RESTORE_DATA_LENGTH): cv.int_range(0, 254),
+            cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
         }
-    ).extend(cv.polling_component_schema("1s")),
+    ).extend(cv.COMPONENT_SCHEMA),
     validate_update_interval,
 )
 
@@ -77,6 +78,8 @@ async def to_code(config):
             value = value.encode()
         hash_ = int(hashlib.md5(value).hexdigest()[:8], 16)
         cg.add(glob.set_name_hash(hash_))
+        if CONF_UPDATE_INTERVAL in config:
+            cg.add(glob.set_update_interval(config[CONF_UPDATE_INTERVAL]))
 
 
 @automation.register_action(
