@@ -20,7 +20,8 @@ enum ERRORCODE : uint8_t {
 struct Sen6xBaselines {
   int32_t state0;
   int32_t state1;
-} PACKED;  // NOLINT
+  uint32_t config_hash;  // Used to detect config/version changes and invalidate old baselines
+} PACKED;                // NOLINT
 
 struct GasTuning {
   uint16_t index_offset;
