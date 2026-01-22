@@ -36,7 +36,7 @@ bool SY6970Component::update_register_(uint8_t reg, uint8_t mask, uint8_t value)
 }
 
 void SY6970Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SY6970...");
+  ESP_LOGV(TAG, "Setting up SY6970...");
 
   // Try to read chip ID
   uint8_t reg_value;
@@ -52,28 +52,28 @@ void SY6970Component::setup() {
   }
 
   // Apply configuration options (all have defaults now)
-  ESP_LOGCONFIG(TAG, "Setting LED enabled to %s", ONOFF(this->led_enabled_));
+  ESP_LOGV(TAG, "Setting LED enabled to %s", ONOFF(this->led_enabled_));
   this->set_led_enabled(this->led_enabled_);
 
-  ESP_LOGCONFIG(TAG, "Setting input current limit to %u mA", this->input_current_limit_);
+  ESP_LOGV(TAG, "Setting input current limit to %u mA", this->input_current_limit_);
   this->set_input_current_limit(this->input_current_limit_);
 
-  ESP_LOGCONFIG(TAG, "Setting charge voltage to %u mV", this->charge_voltage_);
+  ESP_LOGV(TAG, "Setting charge voltage to %u mV", this->charge_voltage_);
   this->set_charge_target_voltage(this->charge_voltage_);
 
-  ESP_LOGCONFIG(TAG, "Setting charge current to %u mA", this->charge_current_);
+  ESP_LOGV(TAG, "Setting charge current to %u mA", this->charge_current_);
   this->set_charge_current(this->charge_current_);
 
-  ESP_LOGCONFIG(TAG, "Setting precharge current to %u mA", this->precharge_current_);
+  ESP_LOGV(TAG, "Setting precharge current to %u mA", this->precharge_current_);
   this->set_precharge_current(this->precharge_current_);
 
-  ESP_LOGCONFIG(TAG, "Setting charge enabled to %s", ONOFF(this->charge_enabled_));
+  ESP_LOGV(TAG, "Setting charge enabled to %s", ONOFF(this->charge_enabled_));
   this->set_charge_enabled(this->charge_enabled_);
 
-  ESP_LOGCONFIG(TAG, "Setting ADC measurements to %s", ONOFF(this->enable_adc_));
+  ESP_LOGV(TAG, "Setting ADC measurements to %s", ONOFF(this->enable_adc_));
   this->set_enable_adc_measure(this->enable_adc_);
 
-  ESP_LOGCONFIG(TAG, "SY6970 initialized successfully");
+  ESP_LOGV(TAG, "SY6970 initialized successfully");
 }
 
 void SY6970Component::dump_config() {
@@ -83,6 +83,13 @@ void SY6970Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with SY6970 failed!");
   }
+  ESP_LOGCONFIG(TAG, "LED enabled is %s", ONOFF(this->led_enabled_));
+  ESP_LOGCONFIG(TAG, "Input current limit is %u mA", this->input_current_limit_);
+  ESP_LOGCONFIG(TAG, "Charge voltage is %u mV", this->charge_voltage_);
+  ESP_LOGCONFIG(TAG, "Charge current is %u mA", this->charge_current_);
+  ESP_LOGCONFIG(TAG, "Precharge current is %u mA", this->precharge_current_);
+  ESP_LOGCONFIG(TAG, "Charge enabled is %s", ONOFF(this->charge_enabled_));
+  ESP_LOGCONFIG(TAG, "ADC measurements are %s", ONOFF(this->enable_adc_));
   ESP_LOGCONFIG(TAG, "  Listeners: %d", this->listeners_.size());
 }
 
