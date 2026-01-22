@@ -39,6 +39,7 @@
   .types input {
     position: absolute;
     left: 16px;
+    top: .5em;
   }
   .types .name {
     font-weight: bold;
@@ -144,7 +145,8 @@
     <div class="text">
       <div class="name">Media Player</div>
       <div class="description">
-        Create an internet connected smart media player.
+        Create a multi-speaker music listening experience powered by
+        <a href="https://www.sendspin-audio.com" target="_blank">Sendspin</a>.
       </div>
     </div>
   </label>
@@ -608,57 +610,9 @@
         type="radio"
         name="media-device"
         class="device-option"
-        value="raspiaudio-muse-luxe"
-        checked
-      />
-      <img
-        src="/projects/media-player/esp_muse_luxe.png"
-        alt="Raspiaudio ESP Muse Luxe"
-      />
-    </label>
-    <label>
-      <input
-        type="radio"
-        name="media-device"
-        class="device-option"
-        value="raspiaudio-muse-proto"
-      />
-      <img
-        src="/projects/media-player/esp_muse_proto.png"
-        alt="Raspiaudio ESP Muse Proto"
-      />
-    </label>
-    <label>
-      <input
-        type="radio"
-        name="media-device"
-        class="device-option"
-        value="m5stack-atom-speaker-kit"
-      />
-      <img
-        src="/projects/media-player/atom_speaker_kit.png"
-        alt="M5Stack Atom Speaker Kit"
-      />
-    </label>
-    <label>
-      <input
-        type="radio"
-        name="media-device"
-        class="device-option"
-        value="m5stack-atom-echo"
-      />
-      <img
-        src="/projects/media-player/atom_echo.png"
-        alt="M5Stack Atom Echo Development Kit"
-      />
-    </label>
-    <label>
-      <input
-        type="radio"
-        name="media-device"
-        class="device-option"
         value="home-assistant-voice"
         data-manifest-root="https://firmware.esphome.io/home-assistant-voice-pe"
+        checked
       />
       <img
         src="/projects/voice-assistant/home-assistant-voice.png"
@@ -669,96 +623,6 @@
 
   <div class="question-prompt">Start the installation:</div>
   <esp-web-install-button></esp-web-install-button>
-
-  <div class="hidden info raspiaudio-muse-luxe">
-    <h3>Raspiaudio ESP Muse Luxe</h3>
-    <p>
-      Portable speaker with two 5 Watt speakers built-in. Can run 4 hours off
-      the built-in battery or be powered by a cable.
-    </p>
-    <p>
-      This is a powerful device. If you want to use it solely as a media player,
-      we recommend to use the
-      <a href="https://raspiaudio.github.io/">Squeezelite-ESP32 firmware</a>.
-    </p>
-    <p>Buy</p>
-    <ul>
-      <li>
-        <a href="https://raspiaudio.com/produit/esp-muse-luxe">Raspiaudio</a>
-      </li>
-      <li>
-        <a
-          href="https://www.amazon.com/gp/product/B09N3S9S29/?&_encoding=UTF8&tag=homeassista0e-20&linkCode=ur2&linkId=71c80756dcd782eba9f1a80dc576c7d3&camp=1789&creative=9325"
-          >Amazon</a
-        >
-      </li>
-    </ul>
-  </div>
-
-  <div class="hidden info raspiaudio-muse-proto">
-    <h3>Raspiaudio ESP Muse Proto</h3>
-    <p>Powerful audio prototyping board to create your own smart speakers.</p>
-    <p>
-      This is a powerful device. If you want to use it solely as a media player,
-      we recommend to use the
-      <a href="https://raspiaudio.github.io/">Squeezelite-ESP32 firmware</a>.
-    </p>
-    <p>Buy</p>
-    <ul>
-      <li>
-        <a href="https://raspiaudio.com/produit/muse-proto">Raspiaudio</a>
-      </li>
-      <li>
-        <a
-          href="https://www.amazon.com/gp/product/B097F884WL/?&_encoding=UTF8&tag=homeassista0e-20&linkCode=ur2&linkId=71c80756dcd782eba9f1a80dc576c7d3&camp=1789&creative=9325"
-          >Amazon</a
-        >
-      </li>
-    </ul>
-  </div>
-
-  <div class="hidden info m5stack-atom-speaker-kit">
-    <h3>M5Stack Atom Speaker Kit</h3>
-    <p>Small ESP32 board with a built-in speaker and a headphone jack.</p>
-    <p>Buy</p>
-    <ul>
-      <li>
-        <a
-          href="https://shop.m5stack.com/products/atom-speaker-kit-ns4168?ref=NabuCasa"
-          >M5Stack Shop</a
-        >
-      </li>
-      <li>
-        <a
-          href="https://www.aliexpress.com/item/1005003297368240.html?aff_platform=portals-tool&sk=_A8G2YF&aff_trace_key=90326d2a90444b4887632f62dd533ce4-1654058373639-07963-_A8G2YF&terminal_id=c5517a8c9bb44b4fb32147398fbc2576&aff_fcid=90326d2a90444b4887632f62dd533ce4-1654058373639-07963-_A8G2YF&tt=CPS_NORMAL&aff_fsk=_A8G2YF"
-          >AliExpress</a
-        >
-      </li>
-    </ul>
-  </div>
-
-  <div class="hidden info m5stack-atom-echo">
-    <h3>M5Stack Atom Echo Development Kit</h3>
-    <p>Tiny ESP32 board with a built-in speaker.</p>
-    <p>Buy</p>
-    <ul>
-      <li>
-        <a href="https://amzn.to/47wcAx2">Amazon</a>
-      </li>
-      <li>
-        <a
-          href="https://shop.m5stack.com/collections/m5-controllers/products/atom-echo-smart-speaker-dev-kit?ref=NabuCasa"
-          >M5Stack Shop</a
-        >
-      </li>
-      <li>
-        <a
-          href="https://www.aliexpress.com/item/1005003299332198.html?aff_platform=portals-tool&sk=_A8G2YF&aff_trace_key=90326d2a90444b4887632f62dd533ce4-1654058373639-07963-_A8G2YF&terminal_id=c5517a8c9bb44b4fb32147398fbc2576&aff_fcid=90326d2a90444b4887632f62dd533ce4-1654058373639-07963-_A8G2YF&tt=CPS_NORMAL&aff_fsk=_A8G2YF"
-          >AliExpress</a
-        >
-      </li>
-    </ul>
-  </div>
 
   <div class="hidden info home-assistant-voice">
     <h3>Home Assistant Voice: Preview Edition</h3>
