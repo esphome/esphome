@@ -36,10 +36,10 @@ void MQTTTimeComponent::setup() {
 
 void MQTTTimeComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Time '%s':", this->time_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true)
+  LOG_MQTT_COMPONENT(true, true);
 }
 
-std::string MQTTTimeComponent::component_type() const { return "time"; }
+MQTT_COMPONENT_TYPE(MQTTTimeComponent, "time")
 const EntityBase *MQTTTimeComponent::get_entity() const { return this->time_; }
 
 void MQTTTimeComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {

@@ -43,7 +43,7 @@ void MQTTAlarmControlPanelComponent::setup() {
 
 void MQTTAlarmControlPanelComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT alarm_control_panel '%s':", this->alarm_control_panel_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true)
+  LOG_MQTT_COMPONENT(true, true);
   ESP_LOGCONFIG(TAG,
                 "  Supported Features: %" PRIu32 "\n"
                 "  Requires Code to Disarm: %s\n"
@@ -79,7 +79,7 @@ void MQTTAlarmControlPanelComponent::send_discovery(JsonObject root, mqtt::SendD
   root[MQTT_CODE_ARM_REQUIRED] = this->alarm_control_panel_->get_requires_code_to_arm();
 }
 
-std::string MQTTAlarmControlPanelComponent::component_type() const { return "alarm_control_panel"; }
+MQTT_COMPONENT_TYPE(MQTTAlarmControlPanelComponent, "alarm_control_panel")
 const EntityBase *MQTTAlarmControlPanelComponent::get_entity() const { return this->alarm_control_panel_; }
 
 bool MQTTAlarmControlPanelComponent::send_initial_state() { return this->publish_state(); }

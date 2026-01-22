@@ -23,7 +23,7 @@ void NTC::process_(float value) {
   double v = this->a_ + this->b_ * lr + this->c_ * lr * lr * lr;
   auto temp = float(1.0 / v - 273.15);
 
-  ESP_LOGD(TAG, "'%s' - Temperature: %.1f°C", this->name_.c_str(), temp);
+  ESP_LOGV(TAG, "'%s' - Temperature: %.1f°C", this->name_.c_str(), temp);
   this->publish_state(temp);
 }
 
