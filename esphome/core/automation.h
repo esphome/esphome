@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/string_ref.h"
 #include <concepts>
 #include <functional>
 #include <utility>
@@ -42,6 +43,10 @@ template<int... S> struct gens<0, S...> { using type = seq<S...>; };
 #define TEMPLATABLE_VALUE(type, name) TEMPLATABLE_VALUE_(type, name)
 
 template<typename T, typename... X> class TemplatableValue {
+  // For std::string, store pointer to heap-allocated string to keep union pointer-sized.
+  // For other types, store value inline.
+  static constexpr bool USE_HEAP_STORAGE = std::same_as<T, std::string>;
+
  public:
   TemplatableValue() : type_(NONE) {}
 
@@ -52,7 +57,11 @@ template<typename T, typename... X> class TemplatableValue {
   }
 
   template<typename F> TemplatableValue(F value) requires(!std::invocable<F, X...>) : type_(VALUE) {
-    new (&this->value_) T(std::move(value));
+    if constexpr (USE_HEAP_STORAGE) {
+      this->value_ = new T(std::move(value));
+    } else {
+      new (&this->value_) T(std::move(value));
+    }
   }
 
   // For stateless lambdas (convertible to function pointer): use function pointer
@@ -71,7 +80,11 @@ template<typename T, typename... X> class TemplatableValue {
   // Copy constructor
   TemplatableValue(const TemplatableValue &other) : type_(other.type_) {
     if (this->type_ == VALUE) {
-      new (&this->value_) T(other.value_);
+      if constexpr (USE_HEAP_STORAGE) {
+        this->value_ = new T(*other.value_);
+      } else {
+        new (&this->value_) T(other.value_);
+      }
     } else if (this->type_ == LAMBDA) {
       this->f_ = new std::function<T(X...)>(*other.f_);
     } else if (this->type_ == STATELESS_LAMBDA) {
@@ -84,7 +97,12 @@ template<typename T, typename... X> class TemplatableValue {
   // Move constructor
   TemplatableValue(TemplatableValue &&other) noexcept : type_(other.type_) {
     if (this->type_ == VALUE) {
-      new (&this->value_) T(std::move(other.value_));
+      if constexpr (USE_HEAP_STORAGE) {
+        this->value_ = other.value_;
+        other.value_ = nullptr;
+      } else {
+        new (&this->value_) T(std::move(other.value_));
+      }
     } else if (this->type_ == LAMBDA) {
       this->f_ = other.f_;
       other.f_ = nullptr;
@@ -115,23 +133,31 @@ template<typename T, typename... X> class TemplatableValue {
 
   ~TemplatableValue() {
     if (this->type_ == VALUE) {
-      this->value_.~T();
+      if constexpr (USE_HEAP_STORAGE) {
+        delete this->value_;
+      } else {
+        this->value_.~T();
+      }
     } else if (this->type_ == LAMBDA) {
       delete this->f_;
     }
     // STATELESS_LAMBDA/STATIC_STRING/NONE: no cleanup needed (pointers, not heap-allocated)
   }
 
-  bool has_value() { return this->type_ != NONE; }
+  bool has_value() const { return this->type_ != NONE; }
 
-  T value(X... x) {
+  T value(X... x) const {
     switch (this->type_) {
       case STATELESS_LAMBDA:
         return this->stateless_f_(x...);  // Direct function pointer call
       case LAMBDA:
         return (*this->f_)(x...);  // std::function call
       case VALUE:
-        return this->value_;
+        if constexpr (USE_HEAP_STORAGE) {
+          return *this->value_;
+        } else {
+          return this->value_;
+        }
       case STATIC_STRING:
         // if constexpr required: code must compile for all T, but STATIC_STRING
         // can only be set when T is std::string (enforced by constructor constraint)
@@ -159,17 +185,66 @@ template<typename T, typename... X> class TemplatableValue {
     return this->value(x...);
   }
 
- protected:
-  enum : uint8_t {
-    NONE,
-    VALUE,
-    LAMBDA,
-    STATELESS_LAMBDA,
-    STATIC_STRING,  // For const char* when T is std::string - avoids heap allocation
-  } type_;
+  /// Check if this holds a static string (const char* stored without allocation)
+  bool is_static_string() const { return this->type_ == STATIC_STRING; }
 
+  /// Get the static string pointer (only valid if is_static_string() returns true)
+  const char *get_static_string() const { return this->static_str_; }
+
+  /// Check if the string value is empty without allocating (for std::string specialization).
+  /// For NONE, returns true. For STATIC_STRING/VALUE, checks without allocation.
+  /// For LAMBDA/STATELESS_LAMBDA, must call value() which may allocate.
+  bool is_empty() const requires std::same_as<T, std::string> {
+    switch (this->type_) {
+      case NONE:
+        return true;
+      case STATIC_STRING:
+        return this->static_str_ == nullptr || this->static_str_[0] == '\0';
+      case VALUE:
+        return this->value_->empty();
+      default:  // LAMBDA/STATELESS_LAMBDA - must call value()
+        return this->value().empty();
+    }
+  }
+
+  /// Get a StringRef to the string value without heap allocation when possible.
+  /// For STATIC_STRING/VALUE, returns reference to existing data (no allocation).
+  /// For LAMBDA/STATELESS_LAMBDA, calls value(), copies to provided buffer, returns ref to buffer.
+  /// @param lambda_buf Buffer used only for lambda case (must remain valid while StringRef is used).
+  /// @param lambda_buf_size Size of the buffer.
+  /// @return StringRef pointing to the string data.
+  StringRef ref_or_copy_to(char *lambda_buf, size_t lambda_buf_size) const requires std::same_as<T, std::string> {
+    switch (this->type_) {
+      case NONE:
+        return StringRef();
+      case STATIC_STRING:
+        if (this->static_str_ == nullptr)
+          return StringRef();
+        return StringRef(this->static_str_, strlen(this->static_str_));
+      case VALUE:
+        return StringRef(this->value_->data(), this->value_->size());
+      default: {  // LAMBDA/STATELESS_LAMBDA - must call value() and copy
+        std::string result = this->value();
+        size_t copy_len = std::min(result.size(), lambda_buf_size - 1);
+        memcpy(lambda_buf, result.data(), copy_len);
+        lambda_buf[copy_len] = '\0';
+        return StringRef(lambda_buf, copy_len);
+      }
+    }
+  }
+
+ protected : enum : uint8_t {
+   NONE,
+   VALUE,
+   LAMBDA,
+   STATELESS_LAMBDA,
+   STATIC_STRING,  // For const char* when T is std::string - avoids heap allocation
+ } type_;
+  // For std::string, use heap pointer to minimize union size (4 bytes vs 12+).
+  // For other types, store value inline as before.
+  using ValueStorage = std::conditional_t<USE_HEAP_STORAGE, T *, T>;
   union {
-    T value_;
+    ValueStorage value_;  // T for inline storage, T* for heap storage
     std::function<T(X...)> *f_;
     T (*stateless_f_)(X...);
     const char *static_str_;  // For STATIC_STRING type
