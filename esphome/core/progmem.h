@@ -12,6 +12,8 @@
 #define ESPHOME_strncpy_P strncpy_P
 #define ESPHOME_strncat_P strncat_P
 #define ESPHOME_snprintf_P snprintf_P
+// Type for pointers to PROGMEM strings (for use with ESPHOME_F return values)
+using ProgmemStr = const __FlashStringHelper *;
 #else
 #define ESPHOME_F(string_literal) (string_literal)
 #define ESPHOME_PGM_P const char *
@@ -19,4 +21,6 @@
 #define ESPHOME_strncpy_P strncpy
 #define ESPHOME_strncat_P strncat
 #define ESPHOME_snprintf_P snprintf
+// Type for pointers to strings (no PROGMEM on non-ESP8266 platforms)
+using ProgmemStr = const char *;
 #endif
