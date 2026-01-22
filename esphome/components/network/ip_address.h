@@ -28,13 +28,11 @@
 #endif
 
 #ifdef USE_ZEPHYR
-// Zephyr networking uses IPv6-only for Thread
+// Zephyr networking only supports IPv6
 using ip_addr_t = in6_addr;
 using ip6_addr_t = in6_addr;
-// IPv6-only address parsing
 static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) { return inet_pton(AF_INET6, cp, addr) == 1 ? 1 : 0; }
 #elif defined(USE_HOST)
-// HOST platform uses IPv4 addresses
 using ip_addr_t = in_addr;
 using ip4_addr_t = in_addr;
 #define ipaddr_aton(x, y) inet_aton((x), (y))
@@ -59,72 +57,37 @@ namespace network {
 struct IPAddress {
  public:
 #ifdef USE_ZEPHYR
-  // Zephyr networking IPv6-only implementation for Thread
+  // Zephyr networking IPv6-only implementation
   IPAddress() { memset(&ip_addr_, 0, sizeof(ip_addr_)); }
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
 
   operator ip_addr_t() const { return ip_addr_; }
 
-  bool is_set() {
-    // Check if address is all zeros
-    for (int i = 0; i < 16; i++) {
-      if (ip_addr_.s6_addr[i] != 0)
-        return true;
-    }
-    return false;
-  }
+  bool is_set() { return !net_ipv6_is_addr_unspecified(&ip_addr_); }
   bool is_ip4() { return false; }
   bool is_ip6() { return this->is_set(); }
-  bool is_multicast() {
-    // For IPv6, check if first byte is 0xff
-    return ip_addr_.s6_addr[0] == 0xff;
-  }
+  bool is_multicast() { return net_ipv6_is_addr_mcast(&ip_addr_); }
   std::string str() const {
     char buffer[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET6, &ip_addr_, buffer, sizeof(buffer));
     return str_lower_case(buffer);
   }
-  bool operator==(const IPAddress &other) const { return memcmp(&ip_addr_, &other.ip_addr_, sizeof(ip_addr_)) == 0; }
-  bool operator!=(const IPAddress &other) const { return memcmp(&ip_addr_, &other.ip_addr_, sizeof(ip_addr_)) != 0; }
+  bool operator==(const IPAddress &other) const { return net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
+  bool operator!=(const IPAddress &other) const { return !net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
   IPAddress &operator+=(uint8_t increase) {
-    // Increment last byte of IPv6 address
-    ip_addr_.s6_addr[15] += increase;
+    ip_addr_.s6_addr32[3] += increase;
     return *this;
   }
 
 #elif defined(USE_HOST)
-  // HOST platform IPv4 implementation
   IPAddress() { ip_addr_.s_addr = 0; }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
     this->ip_addr_.s_addr = htonl((first << 24) | (second << 16) | (third << 8) | fourth);
   }
-  IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
+  IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
-
-  operator ip_addr_t() const { return ip_addr_; }
-
-  bool is_set() { return ip_addr_.s_addr != 0; }
-  bool is_ip4() { return true; }
-  bool is_ip6() { return false; }
-  bool is_multicast() {
-    uint32_t addr = ntohl(ip_addr_.s_addr);
-    return (addr & 0xF0000000) == 0xE0000000;
-  }
-  std::string str() const {
-    char buffer[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &ip_addr_, buffer, sizeof(buffer));
-    return str_lower_case(buffer);
-  }
-  bool operator==(const IPAddress &other) const { return ip_addr_.s_addr == other.ip_addr_.s_addr; }
-  bool operator!=(const IPAddress &other) const { return ip_addr_.s_addr != other.ip_addr_.s_addr; }
-  IPAddress &operator+=(uint8_t increase) {
-    uint32_t addr = ntohl(ip_addr_.s_addr);
-    addr += increase;
-    ip_addr_.s_addr = htonl(addr);
-    return *this;
-  }
-
+  std::string str() const { return str_lower_case(inet_ntoa(ip_addr_)); }
 #else
   IPAddress() { ip_addr_set_zero(&ip_addr_); }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {

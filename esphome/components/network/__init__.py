@@ -4,6 +4,7 @@ import logging
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
+from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_IPV6, CONF_MIN_IPV6_ADDR_COUNT
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -105,28 +106,37 @@ def has_high_performance_networking() -> bool:
     return CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
 
 
+def _validate_nrf52(value):
+    if CORE.is_nrf52 and not value:
+        raise cv.Invalid("nRF52 requires IPv6 to be enabled.")
+    return value
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
-        # IPv6 configuration (not applicable to nRF52 - always enabled for Thread)
         cv.SplitDefault(
             CONF_ENABLE_IPV6,
             esp8266=False,
             esp32=False,
             rp2040=False,
             bk72xx=False,
+            host=False,
+            nrf52=True,
         ): cv.All(
             cv.boolean,
             cv.Any(
                 cv.require_framework_version(
-                    bk72xx_arduino=cv.Version(1, 7, 0),
                     esp_idf=cv.Version(0, 0, 0),
                     esp32_arduino=cv.Version(0, 0, 0),
                     esp8266_arduino=cv.Version(0, 0, 0),
-                    host=cv.Version(0, 0, 0),
                     rp2040_arduino=cv.Version(0, 0, 0),
+                    bk72xx_arduino=cv.Version(1, 7, 0),
+                    host=cv.Version(0, 0, 0),
+                    nrf52_zephyr=cv.Version(0, 0, 0),
                 ),
                 cv.boolean_false,
             ),
+            _validate_nrf52,
         ),
         cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
         cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(cv.boolean, cv.only_on_esp32),
@@ -139,6 +149,10 @@ async def to_code(config):
     cg.add_define("USE_NETWORK")
     if CORE.using_arduino and CORE.is_esp32:
         cg.add_library("Networking", None)
+    elif CORE.using_zephyr:
+        zephyr_add_prj_conf("NETWORKING", True)
+        zephyr_add_prj_conf("NET_TCP", True)
+        zephyr_add_prj_conf("NET_UDP", True)
 
     # Apply high performance networking settings
     # Config can explicitly enable/disable, or default to component-driven behavior
@@ -203,10 +217,7 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
 
-    # Force IPv6 for nRF52 (Thread is IPv6-only)
-    enable_ipv6 = True if CORE.is_nrf52 else config.get(CONF_ENABLE_IPV6, None)
-
-    if enable_ipv6 is not None:
+    if (enable_ipv6 := config.get(CONF_ENABLE_IPV6, None)) is not None:
         cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
         if enable_ipv6:
             cg.add_define(
@@ -219,6 +230,9 @@ async def to_code(config):
             else:
                 add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", True)
                 add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", True)
+        elif CORE.is_nrf52:
+            zephyr_add_prj_conf("NET_IPV6", True)
+            zephyr_add_prj_conf("NET_IPV4", False)
         elif enable_ipv6:
             cg.add_build_flag("-DCONFIG_LWIP_IPV6")
             cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")
