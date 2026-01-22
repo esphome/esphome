@@ -3,5 +3,4 @@ substitutions:
   rx_pin: GPIO5
 
 <<: !include common.yaml
-<<: !include common-tx.yaml
 <<: !include common-rx.yaml
