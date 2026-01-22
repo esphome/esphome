@@ -2381,8 +2381,6 @@ void GDEY042T81::reset_() {
 }
 
 void GDEY042T81::init_display_() {
-
-
   // Specify number of lines for the driver: 300 (MUX 300)
   // https://v4.cecdn.yun300.cn/100001_1909185148/SSD1683.PDF (section 8.1)
   // https://github.com/ZinggJM/GxEPD2/blob/03d8e7a533c1493f762e392ead12f1bcb7fab8f9/src/gdey/GxEPD2_420_GDEY042T81.cpp#L354
