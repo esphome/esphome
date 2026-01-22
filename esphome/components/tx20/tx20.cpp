@@ -48,8 +48,9 @@ void Tx20Component::decode_and_publish_() {
   std::array<bool, MAX_BUFFER_SIZE> bit_buffer{};
   size_t bit_pos = 0;
   bool current_bit = true;
-  // Cap at MAX_BUFFER_SIZE to prevent out-of-bounds access (buffer_index can exceed MAX_BUFFER_SIZE in ISR)
-  const int max_buffer_index = std::min(static_cast<int>(this->store_.buffer_index), static_cast<int>(MAX_BUFFER_SIZE));
+  // Cap at MAX_BUFFER_SIZE - 1 to prevent out-of-bounds access (buffer_index can exceed MAX_BUFFER_SIZE in ISR)
+  const int max_buffer_index =
+      std::min(static_cast<int>(this->store_.buffer_index), static_cast<int>(MAX_BUFFER_SIZE - 1));
 
   for (int i = 1; i <= max_buffer_index; i++) {
     uint8_t repeat = this->store_.buffer[i] / TX20_BIT_TIME;
@@ -109,7 +110,7 @@ void Tx20Component::decode_and_publish_() {
   // 4. Check that Wind Speed matches Wind Speed (Inverted)
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   // Build debug strings from completed data
-  char debug_buf[320];  // buffer values: max 42 entries * 7 chars each
+  char debug_buf[320];  // buffer values: max 40 entries * 7 chars each
   size_t debug_pos = 0;
   for (int i = 1; i <= max_buffer_index; i++) {
     debug_pos = buf_append_printf(debug_buf, sizeof(debug_buf), debug_pos, "%u, ", this->store_.buffer[i]);
