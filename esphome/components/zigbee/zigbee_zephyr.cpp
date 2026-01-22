@@ -104,9 +104,15 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   ESP_LOGI(TAG, "Zcl_device_cb %s id %hd, cluster_id %d, attr_id %d, endpoint: %d", __func__, device_cb_id, cluster_id,
            attr_id, endpoint);
 
+  /* Set default response value. */
+  p_device_cb_param->status = RET_OK;
+
   // endpoints are enumerated from 1
   if (global_zigbee->callbacks_.size() >= endpoint) {
-    global_zigbee->callbacks_[endpoint - 1](bufid);
+    const auto &cb = global_zigbee->callbacks_[endpoint - 1];
+    if (cb) {
+      cb(bufid);
+    }
     return;
   }
   p_device_cb_param->status = RET_ERROR;
