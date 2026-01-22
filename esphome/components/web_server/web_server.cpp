@@ -33,6 +33,10 @@
 #include "esphome/components/water_heater/water_heater.h"
 #endif
 
+#ifdef USE_INFRARED
+#include "esphome/components/infrared/infrared.h"
+#endif
+
 #ifdef USE_WEBSERVER_LOCAL
 #if USE_WEBSERVER_VERSION == 2
 #include "server_index_v2.h"
@@ -1184,11 +1188,7 @@ std::string WebServer::date_json_(datetime::DateEntity *obj, JsonDetail start_co
 
   // Format: YYYY-MM-DD (max 10 chars + null)
   char value[12];
-#ifdef USE_ESP8266
-  snprintf_P(value, sizeof(value), PSTR("%d-%02d-%02d"), obj->year, obj->month, obj->day);
-#else
-  snprintf(value, sizeof(value), "%d-%02d-%02d", obj->year, obj->month, obj->day);
-#endif
+  buf_append_printf(value, sizeof(value), 0, "%d-%02d-%02d", obj->year, obj->month, obj->day);
   set_json_icon_state_value(root, obj, "date", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1247,11 +1247,7 @@ std::string WebServer::time_json_(datetime::TimeEntity *obj, JsonDetail start_co
 
   // Format: HH:MM:SS (8 chars + null)
   char value[12];
-#ifdef USE_ESP8266
-  snprintf_P(value, sizeof(value), PSTR("%02d:%02d:%02d"), obj->hour, obj->minute, obj->second);
-#else
-  snprintf(value, sizeof(value), "%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
-#endif
+  buf_append_printf(value, sizeof(value), 0, "%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
   set_json_icon_state_value(root, obj, "time", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1310,13 +1306,8 @@ std::string WebServer::datetime_json_(datetime::DateTimeEntity *obj, JsonDetail 
 
   // Format: YYYY-MM-DD HH:MM:SS (max 19 chars + null)
   char value[24];
-#ifdef USE_ESP8266
-  snprintf_P(value, sizeof(value), PSTR("%d-%02d-%02d %02d:%02d:%02d"), obj->year, obj->month, obj->day, obj->hour,
-             obj->minute, obj->second);
-#else
-  snprintf(value, sizeof(value), "%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour, obj->minute,
-           obj->second);
-#endif
+  buf_append_printf(value, sizeof(value), 0, "%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour,
+                    obj->minute, obj->second);
   set_json_icon_state_value(root, obj, "datetime", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1952,6 +1943,110 @@ std::string WebServer::water_heater_json_(water_heater::WaterHeater *obj, JsonDe
 }
 #endif
 
+#ifdef USE_INFRARED
+void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (infrared::Infrared *obj : App.get_infrareds()) {
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
+      continue;
+
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
+      auto detail = get_request_detail(request);
+      std::string data = this->infrared_json_(obj, detail);
+      request->send(200, ESPHOME_F("application/json"), data.c_str());
+      return;
+    }
+    if (!match.method_equals(ESPHOME_F("transmit"))) {
+      request->send(404);
+      return;
+    }
+
+    // Only allow transmit if the device supports it
+    if (!obj->has_transmitter()) {
+      request->send(400, ESPHOME_F("text/plain"), "Device does not support transmission");
+      return;
+    }
+
+    // Parse parameters
+    auto call = obj->make_call();
+
+    // Parse carrier frequency (optional)
+    if (request->hasParam(ESPHOME_F("carrier_frequency"))) {
+      auto value = parse_number<uint32_t>(request->getParam(ESPHOME_F("carrier_frequency"))->value().c_str());
+      if (value.has_value()) {
+        call.set_carrier_frequency(*value);
+      }
+    }
+
+    // Parse repeat count (optional, defaults to 1)
+    if (request->hasParam(ESPHOME_F("repeat_count"))) {
+      auto value = parse_number<uint32_t>(request->getParam(ESPHOME_F("repeat_count"))->value().c_str());
+      if (value.has_value()) {
+        call.set_repeat_count(*value);
+      }
+    }
+
+    // Parse base64url-encoded raw timings (required)
+    // Base64url is URL-safe: uses A-Za-z0-9-_ (no special characters needing escaping)
+    if (!request->hasParam(ESPHOME_F("data"))) {
+      request->send(400, ESPHOME_F("text/plain"), "Missing 'data' parameter");
+      return;
+    }
+
+    // .c_str() is required for Arduino framework where value() returns Arduino String instead of std::string
+    std::string encoded =
+        request->getParam(ESPHOME_F("data"))->value().c_str();  // NOLINT(readability-redundant-string-cstr)
+
+    // Validate base64url is not empty
+    if (encoded.empty()) {
+      request->send(400, ESPHOME_F("text/plain"), "Empty 'data' parameter");
+      return;
+    }
+
+#ifdef USE_ESP8266
+    // ESP8266 is single-threaded, call directly
+    call.set_raw_timings_base64url(encoded);
+    call.perform();
+#else
+    // Defer to main loop for thread safety. Move encoded string into lambda to ensure
+    // it outlives the call - set_raw_timings_base64url stores a pointer, so the string
+    // must remain valid until perform() completes.
+    this->defer([call, encoded = std::move(encoded)]() mutable {
+      call.set_raw_timings_base64url(encoded);
+      call.perform();
+    });
+#endif
+
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+std::string WebServer::infrared_all_json_generator(WebServer *web_server, void *source) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  return web_server->infrared_json_(static_cast<infrared::Infrared *>(source), DETAIL_ALL);
+}
+
+std::string WebServer::infrared_json_(infrared::Infrared *obj, JsonDetail start_config) {
+  json::JsonBuilder builder;
+  JsonObject root = builder.root();
+
+  set_json_icon_state_value(root, obj, "infrared", "", 0, start_config);
+
+  auto traits = obj->get_traits();
+
+  root[ESPHOME_F("supports_transmitter")] = traits.get_supports_transmitter();
+  root[ESPHOME_F("supports_receiver")] = traits.get_supports_receiver();
+
+  if (start_config == DETAIL_ALL) {
+    this->add_sorting_info_(root, obj);
+  }
+
+  return builder.serialize();
+}
+#endif
+
 #ifdef USE_EVENT
 void WebServer::on_event(event::Event *obj) {
   if (!this->include_internal_ && obj->is_internal())
@@ -2083,24 +2178,21 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   const auto &url = request->url();
   const auto method = request->method();
 
-  // Static URL checks
-  static const char *const STATIC_URLS[] = {
-    "/",
+  // Static URL checks - use ESPHOME_F to keep strings in flash on ESP8266
+  if (url == ESPHOME_F("/"))
+    return true;
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
-    "/events",
+  if (url == ESPHOME_F("/events"))
+    return true;
 #endif
 #ifdef USE_WEBSERVER_CSS_INCLUDE
-    "/0.css",
+  if (url == ESPHOME_F("/0.css"))
+    return true;
 #endif
 #ifdef USE_WEBSERVER_JS_INCLUDE
-    "/0.js",
+  if (url == ESPHOME_F("/0.js"))
+    return true;
 #endif
-  };
-
-  for (const auto &static_url : STATIC_URLS) {
-    if (url == static_url)
-      return true;
-  }
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
   if (method == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network")))
@@ -2120,90 +2212,100 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   if (!is_get_or_post)
     return false;
 
-  // Use lookup tables for domain checks
-  static const char *const GET_ONLY_DOMAINS[] = {
+  // Check GET-only domains - use ESPHOME_F to keep strings in flash on ESP8266
+  if (is_get) {
 #ifdef USE_SENSOR
-      "sensor",
+    if (match.domain_equals(ESPHOME_F("sensor")))
+      return true;
 #endif
 #ifdef USE_BINARY_SENSOR
-      "binary_sensor",
+    if (match.domain_equals(ESPHOME_F("binary_sensor")))
+      return true;
 #endif
 #ifdef USE_TEXT_SENSOR
-      "text_sensor",
+    if (match.domain_equals(ESPHOME_F("text_sensor")))
+      return true;
 #endif
 #ifdef USE_EVENT
-      "event",
+    if (match.domain_equals(ESPHOME_F("event")))
+      return true;
 #endif
-  };
-
-  static const char *const GET_POST_DOMAINS[] = {
-#ifdef USE_SWITCH
-      "switch",
-#endif
-#ifdef USE_BUTTON
-      "button",
-#endif
-#ifdef USE_FAN
-      "fan",
-#endif
-#ifdef USE_LIGHT
-      "light",
-#endif
-#ifdef USE_COVER
-      "cover",
-#endif
-#ifdef USE_NUMBER
-      "number",
-#endif
-#ifdef USE_DATETIME_DATE
-      "date",
-#endif
-#ifdef USE_DATETIME_TIME
-      "time",
-#endif
-#ifdef USE_DATETIME_DATETIME
-      "datetime",
-#endif
-#ifdef USE_TEXT
-      "text",
-#endif
-#ifdef USE_SELECT
-      "select",
-#endif
-#ifdef USE_CLIMATE
-      "climate",
-#endif
-#ifdef USE_LOCK
-      "lock",
-#endif
-#ifdef USE_VALVE
-      "valve",
-#endif
-#ifdef USE_ALARM_CONTROL_PANEL
-      "alarm_control_panel",
-#endif
-#ifdef USE_UPDATE
-      "update",
-#endif
-#ifdef USE_WATER_HEATER
-      "water_heater",
-#endif
-  };
-
-  // Check GET-only domains
-  if (is_get) {
-    for (const auto &domain : GET_ONLY_DOMAINS) {
-      if (match.domain_equals(domain))
-        return true;
-    }
   }
 
   // Check GET+POST domains
   if (is_get_or_post) {
-    for (const auto &domain : GET_POST_DOMAINS) {
-      if (match.domain_equals(domain))
-        return true;
-    }
+#ifdef USE_SWITCH
+    if (match.domain_equals(ESPHOME_F("switch")))
+      return true;
+#endif
+#ifdef USE_BUTTON
+    if (match.domain_equals(ESPHOME_F("button")))
+      return true;
+#endif
+#ifdef USE_FAN
+    if (match.domain_equals(ESPHOME_F("fan")))
+      return true;
+#endif
+#ifdef USE_LIGHT
+    if (match.domain_equals(ESPHOME_F("light")))
+      return true;
+#endif
+#ifdef USE_COVER
+    if (match.domain_equals(ESPHOME_F("cover")))
+      return true;
+#endif
+#ifdef USE_NUMBER
+    if (match.domain_equals(ESPHOME_F("number")))
+      return true;
+#endif
+#ifdef USE_DATETIME_DATE
+    if (match.domain_equals(ESPHOME_F("date")))
+      return true;
+#endif
+#ifdef USE_DATETIME_TIME
+    if (match.domain_equals(ESPHOME_F("time")))
+      return true;
+#endif
+#ifdef USE_DATETIME_DATETIME
+    if (match.domain_equals(ESPHOME_F("datetime")))
+      return true;
+#endif
+#ifdef USE_TEXT
+    if (match.domain_equals(ESPHOME_F("text")))
+      return true;
+#endif
+#ifdef USE_SELECT
+    if (match.domain_equals(ESPHOME_F("select")))
+      return true;
+#endif
+#ifdef USE_CLIMATE
+    if (match.domain_equals(ESPHOME_F("climate")))
+      return true;
+#endif
+#ifdef USE_LOCK
+    if (match.domain_equals(ESPHOME_F("lock")))
+      return true;
+#endif
+#ifdef USE_VALVE
+    if (match.domain_equals(ESPHOME_F("valve")))
+      return true;
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+    if (match.domain_equals(ESPHOME_F("alarm_control_panel")))
+      return true;
+#endif
+#ifdef USE_UPDATE
+    if (match.domain_equals(ESPHOME_F("update")))
+      return true;
+#endif
+#ifdef USE_WATER_HEATER
+    if (match.domain_equals(ESPHOME_F("water_heater")))
+      return true;
+#endif
+#ifdef USE_INFRARED
+    if (match.domain_equals(ESPHOME_F("infrared")))
+      return true;
+#endif
   }
 
   return false;
@@ -2351,6 +2453,11 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_WATER_HEATER
   else if (match.domain_equals(ESPHOME_F("water_heater"))) {
     this->handle_water_heater_request(request, match);
+  }
+#endif
+#ifdef USE_INFRARED
+  else if (match.domain_equals(ESPHOME_F("infrared"))) {
+    this->handle_infrared_request(request, match);
   }
 #endif
   else {

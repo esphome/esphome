@@ -487,7 +487,7 @@ void AsyncEventSource::deferrable_send_state(void *source, const char *event_typ
 AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *request,
                                                    esphome::web_server_idf::AsyncEventSource *server,
                                                    esphome::web_server::WebServer *ws)
-    : server_(server), web_server_(ws), entities_iterator_(new esphome::web_server::ListEntitiesIterator(ws, server)) {
+    : server_(server), web_server_(ws), entities_iterator_(ws, server) {
   httpd_req_t *req = *request;
 
   httpd_resp_set_status(req, HTTPD_200);
@@ -531,12 +531,12 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   }
 #endif
 
-  this->entities_iterator_->begin(ws->include_internal_);
+  this->entities_iterator_.begin(ws->include_internal_);
 
   // just dump them all up-front and take advantage of the deferred queue
   //     on second thought that takes too long, but leaving the commented code here for debug purposes
-  // while(!this->entities_iterator_->completed()) {
-  //  this->entities_iterator_->advance();
+  // while(!this->entities_iterator_.completed()) {
+  //  this->entities_iterator_.advance();
   //}
 }
 
@@ -634,8 +634,8 @@ void AsyncEventSourceResponse::process_buffer_() {
 void AsyncEventSourceResponse::loop() {
   process_buffer_();
   process_deferred_queue_();
-  if (!this->entities_iterator_->completed())
-    this->entities_iterator_->advance();
+  if (!this->entities_iterator_.completed())
+    this->entities_iterator_.advance();
 }
 
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char *event, uint32_t id,
@@ -781,7 +781,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
                                                      message_generator_t *message_generator) {
   // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
   // up in the web GUI and reduces event load during initial connect
-  if (!entities_iterator_->completed() && 0 != strcmp(event_type, "state_detail_all"))
+  if (!this->entities_iterator_.completed() && 0 != strcmp(event_type, "state_detail_all"))
     return;
 
   if (source == nullptr)

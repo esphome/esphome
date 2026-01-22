@@ -34,7 +34,7 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
   }
 
   char range_header[32];
-  sprintf(range_header, "bytes=%" PRIu32 "-%" PRIu32, range_start, range_end);
+  buf_append_printf(range_header, sizeof(range_header), 0, "bytes=%" PRIu32 "-%" PRIu32, range_start, range_end);
   ESP_LOGV(TAG, "Range: %s", range_header);
   http_client.addHeader("Range", range_header);
   int code = http_client.GET();
