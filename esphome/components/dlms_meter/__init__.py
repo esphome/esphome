@@ -24,8 +24,8 @@ def validate_key(value):
         raise cv.Invalid("Decryption key must be 32 hex characters (16 bytes)")
     try:
         return [int(value[i : i + 2], 16) for i in range(0, 32, 2)]
-    except ValueError:
-        raise cv.Invalid("Decryption key must be hex values from 00 to FF")
+    except ValueError as exc:
+        raise cv.Invalid("Decryption key must be hex values from 00 to FF") from exc
 
 
 CONFIG_SCHEMA = cv.All(
