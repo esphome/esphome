@@ -76,8 +76,8 @@ class SY6970Listener {
 
 class SY6970Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  SY6970Component(bool led_enabled, uint16_t input_current_limit, uint16_t charge_voltage,
-                  uint16_t charge_current, uint16_t precharge_current, bool charge_enabled, bool enable_adc)
+  SY6970Component(bool led_enabled, uint16_t input_current_limit, uint16_t charge_voltage, uint16_t charge_current,
+                  uint16_t precharge_current, bool charge_enabled, bool enable_adc)
       : led_enabled_(led_enabled),
         input_current_limit_(input_current_limit),
         charge_voltage_(charge_voltage),
