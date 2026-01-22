@@ -209,26 +209,57 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   return container;
 }
 
+// ESP-IDF HTTP read implementation (blocking mode)
+//
+// WARNING: Return values differ from BSD sockets! See http_request.h for full documentation.
+//
+// esp_http_client_read() in blocking mode returns:
+//   > 0: bytes read
+//   0: connection closed (end of stream)
+//   < 0: error
+//
+// We normalize to HttpContainer::read() contract:
+//   > 0: bytes read
+//   0: no data yet / all content read (caller should check bytes_read vs content_length)
+//   < 0: error/connection closed
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
 
-  this->feed_wdt();
-  int read_len = esp_http_client_read(this->client_, (char *) buf, max_len);
-  this->feed_wdt();
-  if (read_len > 0) {
-    this->bytes_read_ += read_len;
+  // Check if we've already read all expected content
+  if (this->bytes_read_ >= this->content_length) {
+    return 0;  // All content read successfully
   }
+
+  this->feed_wdt();
+  int read_len_or_error = esp_http_client_read(this->client_, (char *) buf, max_len);
+  this->feed_wdt();
+
   this->duration_ms += (millis() - start);
 
-  return read_len;
+  if (read_len_or_error > 0) {
+    this->bytes_read_ += read_len_or_error;
+    return read_len_or_error;
+  }
+
+  // Connection closed by server before all content received
+  if (read_len_or_error == 0) {
+    return HTTP_ERROR_CONNECTION_CLOSED;
+  }
+
+  // Negative value - error, return the actual error code for debugging
+  return read_len_or_error;
 }
 
 void HttpContainerIDF::end() {
+  if (this->client_ == nullptr) {
+    return;  // Already cleaned up
+  }
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
 
   esp_http_client_close(this->client_);
   esp_http_client_cleanup(this->client_);
+  this->client_ = nullptr;
 }
 
 void HttpContainerIDF::feed_wdt() {
