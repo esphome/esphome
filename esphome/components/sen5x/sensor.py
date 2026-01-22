@@ -168,7 +168,7 @@ def float_previously_pct(value):
 
 GROUP_COMPENSATION = "Compensation Group: 'altitude_compensation' and 'ambient_pressure_compensation_source'"
 
-_PM_BASE = cv.Schema(
+_PM_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(SEN5XComponent),
         cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
@@ -201,7 +201,7 @@ _PM_BASE = cv.Schema(
     }
 ).extend(cv.polling_component_schema("60s"))
 
-_VOC_BASE = cv.Schema(
+_VOC_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_STORE_BASELINE): cv.boolean,
         cv.Optional(CONF_VOC): _gas_sensor(
@@ -215,7 +215,7 @@ _VOC_BASE = cv.Schema(
     }
 )
 
-_NOX_BASE = cv.Schema(
+_NOX_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_NOX): _gas_sensor(
             index_offset=1,
@@ -228,7 +228,7 @@ _NOX_BASE = cv.Schema(
     }
 )
 
-_HCHO_BASE = cv.Schema(
+_HCHO_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_HCHO): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_BILLION,
@@ -239,7 +239,7 @@ _HCHO_BASE = cv.Schema(
     }
 )
 
-_TH_BASE = cv.Schema(
+_TH_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
@@ -264,26 +264,10 @@ _TH_BASE = cv.Schema(
                 cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_,
             }
         ),
-        cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES),
     }
 )
 
-_SEN6X_TH_BASE = _TH_BASE.extend(
-    cv.Schema(
-        {
-            cv.Optional(CONF_TEMPERATURE_ACCELERATION): cv.Schema(
-                {
-                    cv.Required(CONF_K): cv.float_range(min=0.0, max=6535.5),
-                    cv.Required(CONF_P): cv.float_range(min=0.0, max=6535.5),
-                    cv.Required(CONF_T1): cv.float_range(min=0.0, max=6535.5),
-                    cv.Required(CONF_T2): cv.float_range(min=0.0, max=6535.5),
-                }
-            )
-        }
-    )
-)
-
-_CO2_BASE = cv.Schema(
+_CO2_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_CO2): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_MILLION,
@@ -310,26 +294,52 @@ _CO2_BASE = cv.Schema(
     }
 )
 
-_SEN5X_BASE = _PM_BASE.extend(
+_SEN5X_SCHEMA = _PM_SCHEMA.extend(
     cv.Schema({cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval})
 ).extend(i2c.i2c_device_schema(0x69))
-_SEN54_BASE = _SEN5X_BASE.extend(_TH_BASE).extend(_VOC_BASE)
-_SEN6X_BASE = _PM_BASE.extend(_SEN6X_TH_BASE).extend(i2c.i2c_device_schema(0x6B))
-_SEN65_BASE = _SEN6X_BASE.extend(_VOC_BASE).extend(_NOX_BASE)
+
+_SEN54_SCHEMA = (
+    _SEN5X_SCHEMA.extend(_TH_SCHEMA)
+    .extend(
+        cv.Schema({cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES)})
+    )
+    .extend(_VOC_SCHEMA)
+)
+
+_SEN6X_SCHEMA = (
+    _PM_SCHEMA.extend(_TH_SCHEMA)
+    .extend(
+        cv.Schema(
+            {
+                cv.Optional(CONF_TEMPERATURE_ACCELERATION): cv.Schema(
+                    {
+                        cv.Required(CONF_K): cv.float_range(min=0.0, max=6535.5),
+                        cv.Required(CONF_P): cv.float_range(min=0.0, max=6535.5),
+                        cv.Required(CONF_T1): cv.float_range(min=0.0, max=6535.5),
+                        cv.Required(CONF_T2): cv.float_range(min=0.0, max=6535.5),
+                    }
+                )
+            }
+        )
+    )
+    .extend(i2c.i2c_device_schema(0x6B))
+)
+
+_SEN65_SCHEMA = _SEN6X_SCHEMA.extend(_VOC_SCHEMA).extend(_NOX_SCHEMA)
 
 
 CONFIG_SCHEMA = cv.Schema(
     cv.typed_schema(
         {
-            SEN50: _SEN5X_BASE,
-            SEN54: _SEN54_BASE,
-            SEN55: _SEN54_BASE.extend(_NOX_BASE),
-            SEN62: _SEN6X_BASE,
-            SEN63C: _SEN6X_BASE.extend(_CO2_BASE),
-            SEN65: _SEN65_BASE,
-            SEN66: _SEN65_BASE.extend(_CO2_BASE),
-            SEN68: _SEN65_BASE.extend(_HCHO_BASE),
-            SEN69C: _SEN65_BASE.extend(_CO2_BASE).extend(_HCHO_BASE),
+            SEN50: _SEN5X_SCHEMA,
+            SEN54: _SEN54_SCHEMA,
+            SEN55: _SEN54_SCHEMA.extend(_NOX_SCHEMA),
+            SEN62: _SEN6X_SCHEMA,
+            SEN63C: _SEN6X_SCHEMA.extend(_CO2_SCHEMA),
+            SEN65: _SEN65_SCHEMA,
+            SEN66: _SEN65_SCHEMA.extend(_CO2_SCHEMA),
+            SEN68: _SEN65_SCHEMA.extend(_HCHO_SCHEMA),
+            SEN69C: _SEN65_SCHEMA.extend(_CO2_SCHEMA).extend(_HCHO_SCHEMA),
         },
         upper=True,
     ),
