@@ -10,6 +10,7 @@ globals:
     type: int
     restore_value: true
     initial_value: "0"
+    update_interval: 5s
   - id: glob_float
     type: float
     restore_value: true
