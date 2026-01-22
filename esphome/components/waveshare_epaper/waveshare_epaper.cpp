@@ -2352,9 +2352,14 @@ void GDEW0154M09::dump_config() {
 // ========================================================
 
 void GDEY042T81::initialize() {
+  this->reset_();
+  this->wait_until_idle_();
+  this->command(0x12);  // SWRESET
+  this->wait_until_idle_();
   this->init_display_();
   ESP_LOGD(TAG, "Initialization complete, set the display to deep sleep");
-  this->deep_sleep();
+  this->command(0x02);  // Power OFF
+  this->wait_until_idle_();
 }
 
 // conflicting documentation / examples regarding reset timings
@@ -2376,11 +2381,7 @@ void GDEY042T81::reset_() {
 }
 
 void GDEY042T81::init_display_() {
-  this->reset_();
 
-  this->wait_until_idle_();
-  this->command(0x12);  // SWRESET
-  this->wait_until_idle_();
 
   // Specify number of lines for the driver: 300 (MUX 300)
   // https://v4.cecdn.yun300.cn/100001_1909185148/SSD1683.PDF (section 8.1)
@@ -2456,7 +2457,6 @@ void GDEY042T81::update_part_() {
 
 void HOT GDEY042T81::display() {
   ESP_LOGD(TAG, "Wake up the display");
-  this->init_display_();
 
   if (!this->wait_until_idle_()) {
     this->status_set_warning();
@@ -2464,23 +2464,18 @@ void HOT GDEY042T81::display() {
     return;
   }
 
-  // basic code structure copied from WaveshareEPaper2P9InV2R2
-  if (this->full_update_every_ == 1) {
-    ESP_LOGD(TAG, "Full update");
-    // do single full update
-    this->command(0x24);
-    this->start_data_();
-    this->write_array(this->buffer_, this->get_buffer_length_());
-    this->end_data_();
-
-    // TurnOnDisplay
-    this->update_full_();
-    return;
-  }
+  this->command(0x4E);
+  this->data(0x00);
+  this->command(0x4F);
+  this->data(0x00);
+  this->data(0x00);
 
   // if (this->full_update_every_ == 1 ||
   if (this->at_update_ == 0) {
     ESP_LOGD(TAG, "Update");
+    this->command(0x3C);
+    this->data(0x01);
+
     // do base update
     this->command(0x24);
     this->start_data_();
@@ -2498,17 +2493,9 @@ void HOT GDEY042T81::display() {
     // do partial update (full screen)
     // no need to load a LUT for GoodDisplays as they seem to have the LUT onboard
     // GD example code (Display_EPD_W21.cpp@283ff)
-    //
-    // not setting the BorderWaveform here again (contrary to the GD example) because according to
-    // https://github.com/ZinggJM/GxEPD2/blob/03d8e7a533c1493f762e392ead12f1bcb7fab8f9/src/gdey/GxEPD2_420_GDEY042T81.cpp#L358
-    // it seems to be enough to set it during display initialization
     ESP_LOGD(TAG, "Partial update");
-    this->reset_();
-    if (!this->wait_until_idle_()) {
-      this->status_set_warning();
-      ESP_LOGE(TAG, "Failed to perform partial update, display is busy");
-      return;
-    }
+    this->command(0x3C);
+    this->data(0x80);
 
     this->command(0x24);
     this->start_data_();
@@ -2522,7 +2509,8 @@ void HOT GDEY042T81::display() {
   this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
   this->wait_until_idle_();
   ESP_LOGD(TAG, "Set the display back to deep sleep");
-  this->deep_sleep();
+  this->command(0x02);  // Power OFF
+  this->wait_until_idle_();
 }
 void GDEY042T81::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 int GDEY042T81::get_width_internal() { return 400; }
@@ -3013,7 +3001,7 @@ void GDEY0583T81::deep_sleep() {
 
   // Deep sleep (DSLP)
   this->command(0x07);
-  this->data(0xA5);
+  this->data(0xB5);
   this->is_deep_sleep_ = true;
 }
 
