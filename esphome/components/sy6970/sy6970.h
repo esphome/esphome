@@ -2,6 +2,7 @@
 
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
+#include <optional>
 #include <vector>
 
 namespace esphome::sy6970 {
@@ -75,9 +76,8 @@ class SY6970Listener {
 
 class SY6970Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  SY6970Component(optional<bool> led_enabled, optional<uint16_t> input_current_limit, optional<uint16_t> charge_voltage,
-                  optional<uint16_t> charge_current, optional<uint16_t> precharge_current,
-                  optional<bool> charge_enabled, optional<bool> enable_adc)
+  SY6970Component(bool led_enabled, uint16_t input_current_limit, uint16_t charge_voltage,
+                  uint16_t charge_current, uint16_t precharge_current, bool charge_enabled, bool enable_adc)
       : led_enabled_(led_enabled),
         input_current_limit_(input_current_limit),
         charge_voltage_(charge_voltage),
@@ -111,13 +111,13 @@ class SY6970Component : public PollingComponent, public i2c::I2CDevice {
   std::vector<SY6970Listener *> listeners_;
 
   // Configuration values to set during setup()
-  optional<bool> led_enabled_{true};
-  optional<uint16_t> input_current_limit_;
-  optional<uint16_t> charge_voltage_;
-  optional<uint16_t> charge_current_;
-  optional<uint16_t> precharge_current_;
-  optional<bool> charge_enabled_;
-  optional<bool> enable_adc_{true};
+  bool led_enabled_;
+  uint16_t input_current_limit_;
+  uint16_t charge_voltage_;
+  uint16_t charge_current_;
+  uint16_t precharge_current_;
+  bool charge_enabled_;
+  bool enable_adc_;
 };
 
 }  // namespace esphome::sy6970

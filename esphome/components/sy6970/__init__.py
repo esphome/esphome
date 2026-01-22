@@ -27,11 +27,11 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SY6970Component),
             cv.Optional(CONF_ENABLE_STATUS_LED, default=True): cv.boolean,
-            cv.Optional(CONF_INPUT_CURRENT_LIMIT): cv.int_range(min=100, max=3200),
-            cv.Optional(CONF_CHARGE_VOLTAGE): cv.int_range(min=3840, max=4608),
-            cv.Optional(CONF_CHARGE_CURRENT): cv.int_range(min=0, max=5056),
-            cv.Optional(CONF_PRECHARGE_CURRENT): cv.int_range(min=64, max=1024),
-            cv.Optional(CONF_CHARGE_ENABLED): cv.boolean,
+            cv.Optional(CONF_INPUT_CURRENT_LIMIT, default=500): cv.int_range(min=100, max=3200),
+            cv.Optional(CONF_CHARGE_VOLTAGE, default=4208): cv.int_range(min=3840, max=4608),
+            cv.Optional(CONF_CHARGE_CURRENT, default=2048): cv.int_range(min=0, max=5056),
+            cv.Optional(CONF_PRECHARGE_CURRENT, default=128): cv.int_range(min=64, max=1024),
+            cv.Optional(CONF_CHARGE_ENABLED, default=True): cv.boolean,
             cv.Optional(CONF_ENABLE_ADC, default=True): cv.boolean,
         }
     )
@@ -44,12 +44,12 @@ async def to_code(config):
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_ENABLE_STATUS_LED],
-        config.get(CONF_INPUT_CURRENT_LIMIT, cg.RawExpression("{}")),
-        config.get(CONF_CHARGE_VOLTAGE, cg.RawExpression("{}")),
-        config.get(CONF_CHARGE_CURRENT, cg.RawExpression("{}")),
-        config.get(CONF_PRECHARGE_CURRENT, cg.RawExpression("{}")),
-        config.get(CONF_CHARGE_ENABLED, cg.RawExpression("{}")),
-        config.get(CONF_ENABLE_ADC, True),
+        config[CONF_INPUT_CURRENT_LIMIT],
+        config[CONF_CHARGE_VOLTAGE],
+        config[CONF_CHARGE_CURRENT],
+        config[CONF_PRECHARGE_CURRENT],
+        config[CONF_CHARGE_ENABLED],
+        config[CONF_ENABLE_ADC],
     )
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
