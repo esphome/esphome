@@ -62,6 +62,7 @@ SEN5XComponent = sen5x_ns.class_(
 Sen5xModel = sen5x_ns.enum("Sen5xModel")
 RhtAccelerationMode = sen5x_ns.enum("RhtAccelerationMode")
 
+
 CONF_ACCELERATION_MODE = "acceleration_mode"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
 CONF_K = "k"

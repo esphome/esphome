@@ -150,8 +150,8 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool write_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
   bool write_temperature_acceleration_();
 
-  uint16_t baseline_state_[4]{0};
-  uint32_t baseline_time_;
+  uint16_t voc_baseline_state_[4]{0};
+  uint32_t voc_baseline_time_;
   uint16_t ambient_pressure_compensation_{0};
   uint8_t firmware_major_{0xFF};
   uint8_t firmware_minor_{0xFF};
