@@ -1,7 +1,7 @@
 sensor:
   - platform: sen5x
     id: sen55
-    model: SEN55
+    type: SEN55
     temperature:
       name: Temperature
       accuracy_decimals: 1
