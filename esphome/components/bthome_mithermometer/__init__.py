@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import esp32_ble_tracker
 import esphome.config_validation as cv
 from esphome.const import CONF_BINDKEY, CONF_ID, CONF_MAC_ADDRESS
+from esphome.core import HexInt
 
 CODEOWNERS = ["@nagyrobi"]
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -35,7 +36,9 @@ async def setup_bthome_mithermometer(var, config):
     await cg.register_component(var, config)
     await esp32_ble_tracker.register_ble_device(var, config)
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
-    if CONF_BINDKEY in config:
     if bindkey := config.get(CONF_BINDKEY):
-        # Parse the hex here and create an array of bytes
-        cg.add(var.set_bindkey(bindkey_initialiser)
+        bindkey_bytes = [
+            HexInt(int(bindkey[index : index + 2], 16))
+            for index in range(0, len(bindkey), 2)
+        ]
+        cg.add(var.set_bindkey(cg.ArrayInitializer(*bindkey_bytes)))

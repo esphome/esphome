@@ -3,6 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <span>
@@ -161,8 +162,12 @@ bool BTHomeMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &dev
   return matched;
 }
 
-void BTHomeMiThermometer::set_bindkey(const char *bindkey) {
-  parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_));
+void BTHomeMiThermometer::set_bindkey(std::initializer_list<uint8_t> bindkey) {
+  if (bindkey.size() != sizeof(this->bindkey_)) {
+    ESP_LOGW(TAG, "BTHome bindkey size mismatch: %zu", bindkey.size());
+    return;
+  }
+  std::copy(bindkey.begin(), bindkey.end(), this->bindkey_);
   this->has_bindkey_ = true;
 }
 

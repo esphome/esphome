@@ -5,6 +5,7 @@
 #include "esphome/core/component.h"
 
 #include <cstdint>
+#include <initializer_list>
 #include <vector>
 
 #ifdef USE_ESP32
@@ -15,7 +16,7 @@ namespace bthome_mithermometer {
 class BTHomeMiThermometer : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
  public:
   void set_address(uint64_t address) { this->address_ = address; }
-  void set_bindkey(const char *bindkey);
+  void set_bindkey(std::initializer_list<uint8_t> bindkey);
 
   void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { this->humidity_ = humidity; }
