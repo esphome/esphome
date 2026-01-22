@@ -36,4 +36,6 @@ async def setup_bthome_mithermometer(var, config):
     await esp32_ble_tracker.register_ble_device(var, config)
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     if CONF_BINDKEY in config:
-        cg.add(var.set_bindkey(config[CONF_BINDKEY]))
+    if bindkey := config.get(CONF_BINDKEY):
+        # Parse the hex here and create an array of bytes
+        cg.add(var.set_bindkey(bindkey_initialiser)
