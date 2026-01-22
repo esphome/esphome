@@ -565,6 +565,12 @@ void WiFiComponent::start() {
 void WiFiComponent::restart_adapter() {
   ESP_LOGW(TAG, "Restarting adapter");
   this->wifi_mode_(false, {});
+  // Clear error flag here because restart_adapter() enters COOLDOWN state,
+  // and check_connecting_finished() is called after cooldown without going
+  // through start_connecting() first. Without this clear, stale errors would
+  // trigger spurious "failed (callback)" logs. The canonical clear location
+  // is in start_connecting(); this is the only exception to that pattern.
+  this->error_from_callback_ = false;
 }
 
 void WiFiComponent::loop() {
@@ -960,7 +966,10 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   ESP_LOGV(TAG, "  Hidden: %s", YESNO(ap.get_hidden()));
 #endif
 
-  // Clear any stale error from previous connection attempt
+  // Clear any stale error from previous connection attempt.
+  // This is the canonical location for clearing the flag since all connection
+  // attempts go through start_connecting(). The only other clear is in
+  // restart_adapter() which enters COOLDOWN without calling start_connecting().
   this->error_from_callback_ = false;
 
   if (!this->wifi_sta_connect_(ap)) {
