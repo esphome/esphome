@@ -148,11 +148,17 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(
                 CONF_FRAMEWORK,
-                default={CONF_VERSION: "2.6.1-7", CONF_ENABLE_OTA_ROLLBACK: True},
+                default={},
             ): cv.Schema(
                 {
                     cv.Optional(CONF_VERSION, default="2.6.1-7"): cv.string_strict,
-                    cv.Optional(CONF_ENABLE_OTA_ROLLBACK, default=True): cv.boolean,
+                    cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+                        {
+                            cv.Optional(
+                                CONF_ENABLE_OTA_ROLLBACK, default=True
+                            ): cv.boolean,
+                        }
+                    ),
                 }
             ),
         }
@@ -268,7 +274,7 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
     # disable console
     zephyr_add_prj_conf("UART_CONSOLE", False)
-    zephyr_add_prj_conf("CONSOLE", False)
+    zephyr_add_prj_conf("CONSOLE", False, False)
     # use NFC pins as GPIO
     if framework_ver < cv.Version(2, 9, 2):
         zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
