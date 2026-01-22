@@ -1,4 +1,40 @@
-packages:
-  common: !include common.yaml
+udp:
+  listen_address: 239.0.60.53
+  addresses: ["239.0.60.53"]
 
-wifi: !remove
+packet_transport:
+  platform: udp
+  update_interval: 5s
+  encryption: "our key goes here"
+  rolling_code_enable: true
+  ping_pong_enable: true
+  binary_sensors:
+    - binary_sensor_id1
+    - id: binary_sensor_id1
+      broadcast_id: other_id
+  sensors:
+    - sensor_id1
+    - id: sensor_id1
+      broadcast_id: other_id
+  providers:
+    - name: some-device-name
+      encryption: "their key goes here"
+
+sensor:
+  - platform: template
+    id: sensor_id1
+  - platform: packet_transport
+    provider: some-device-name
+    id: our_id
+    remote_id: some_sensor_id
+
+binary_sensor:
+  - platform: packet_transport
+    provider: unencrypted-device
+    id: other_binary_sensor_id
+  - platform: packet_transport
+    provider: some-device-name
+    type: status
+    name: Some-Device Status
+  - platform: template
+    id: binary_sensor_id1

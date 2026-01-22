@@ -1,9 +1,12 @@
 #pragma once
 
 #include "light_color_values.h"
-#include <set>
 
 namespace esphome {
+
+// Forward declaration
+struct LogString;
+
 namespace light {
 
 class LightState;
@@ -126,7 +129,9 @@ class LightCall {
   /// Set the effect of the light by its name.
   LightCall &set_effect(optional<std::string> effect);
   /// Set the effect of the light by its name.
-  LightCall &set_effect(const std::string &effect);
+  LightCall &set_effect(const std::string &effect) { return this->set_effect(effect.data(), effect.size()); }
+  /// Set the effect of the light by its name and length (zero-copy from API).
+  LightCall &set_effect(const char *effect, size_t len);
   /// Set the effect of the light by its internal index number (only for internal use).
   LightCall &set_effect(uint32_t effect_number);
   LightCall &set_effect(optional<uint32_t> effect_number);
@@ -182,8 +187,8 @@ class LightCall {
 
   //// Compute the color mode that should be used for this call.
   ColorMode compute_color_mode_();
-  /// Get potential color modes for this light call.
-  std::set<ColorMode> get_suitable_color_modes_();
+  /// Get potential color modes bitmask for this light call.
+  color_mode_bitmask_t get_suitable_color_modes_mask_();
   /// Some color modes also can be set using non-native parameters, transform those calls.
   void transform_parameters_();
 
@@ -207,20 +212,26 @@ class LightCall {
     FLAG_SAVE = 1 << 15,
   };
 
-  bool has_transition_() { return (this->flags_ & FLAG_HAS_TRANSITION) != 0; }
-  bool has_flash_() { return (this->flags_ & FLAG_HAS_FLASH) != 0; }
-  bool has_effect_() { return (this->flags_ & FLAG_HAS_EFFECT) != 0; }
-  bool get_publish_() { return (this->flags_ & FLAG_PUBLISH) != 0; }
-  bool get_save_() { return (this->flags_ & FLAG_SAVE) != 0; }
+  inline bool has_transition_() { return (this->flags_ & FLAG_HAS_TRANSITION) != 0; }
+  inline bool has_flash_() { return (this->flags_ & FLAG_HAS_FLASH) != 0; }
+  inline bool has_effect_() { return (this->flags_ & FLAG_HAS_EFFECT) != 0; }
+  inline bool get_publish_() { return (this->flags_ & FLAG_PUBLISH) != 0; }
+  inline bool get_save_() { return (this->flags_ & FLAG_SAVE) != 0; }
 
-  // Helper to set flag
-  void set_flag_(FieldFlags flag, bool value) {
+  // Helper to set flag - defaults to true for common case
+  void set_flag_(FieldFlags flag, bool value = true) {
     if (value) {
       this->flags_ |= flag;
     } else {
       this->flags_ &= ~flag;
     }
   }
+
+  // Helper to clear flag - reduces code size for common case
+  void clear_flag_(FieldFlags flag) { this->flags_ &= ~flag; }
+
+  // Helper to log unsupported feature and clear flag - reduces code duplication
+  void log_and_clear_unsupported_(FieldFlags flag, const LogString *feature, bool use_color_mode_log);
 
   LightState *parent_;
 

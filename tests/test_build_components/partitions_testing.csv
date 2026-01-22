@@ -1,0 +1,10 @@
+# ESP-IDF Partition Table for ESPHome Component Testing
+# Single app partition to maximize space for large component group testing
+# Fits in 4MB flash
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,  0x4000,
+otadata,  data, ota,     ,        0x2000,
+phy_init, data, phy,     ,        0x1000,
+factory,  app,  factory, 0x10000, 0x300000,
+nvs_key,  data, nvs_keys,,        0x1000,
+coredump, data, coredump,,        0xEB000,

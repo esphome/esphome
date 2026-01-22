@@ -13,7 +13,12 @@ def test_coro_priority_enum_values() -> None:
     assert CoroPriority.CORE == 100
     assert CoroPriority.DIAGNOSTICS == 90
     assert CoroPriority.STATUS == 80
+    assert CoroPriority.WEB_SERVER_BASE == 65
+    assert CoroPriority.CAPTIVE_PORTAL == 64
     assert CoroPriority.COMMUNICATION == 60
+    assert CoroPriority.NETWORK_SERVICES == 55
+    assert CoroPriority.OTA_UPDATES == 54
+    assert CoroPriority.WEB_SERVER_OTA == 52
     assert CoroPriority.APPLICATION == 50
     assert CoroPriority.WEB == 40
     assert CoroPriority.AUTOMATION == 30
@@ -70,7 +75,12 @@ def test_float_and_enum_are_interchangeable() -> None:
         (CoroPriority.CORE, 100.0),
         (CoroPriority.DIAGNOSTICS, 90.0),
         (CoroPriority.STATUS, 80.0),
+        (CoroPriority.WEB_SERVER_BASE, 65.0),
+        (CoroPriority.CAPTIVE_PORTAL, 64.0),
         (CoroPriority.COMMUNICATION, 60.0),
+        (CoroPriority.NETWORK_SERVICES, 55.0),
+        (CoroPriority.OTA_UPDATES, 54.0),
+        (CoroPriority.WEB_SERVER_OTA, 52.0),
         (CoroPriority.APPLICATION, 50.0),
         (CoroPriority.WEB, 40.0),
         (CoroPriority.AUTOMATION, 30.0),
@@ -164,8 +174,13 @@ def test_enum_priority_comparison() -> None:
     assert CoroPriority.NETWORK_TRANSPORT > CoroPriority.CORE
     assert CoroPriority.CORE > CoroPriority.DIAGNOSTICS
     assert CoroPriority.DIAGNOSTICS > CoroPriority.STATUS
-    assert CoroPriority.STATUS > CoroPriority.COMMUNICATION
-    assert CoroPriority.COMMUNICATION > CoroPriority.APPLICATION
+    assert CoroPriority.STATUS > CoroPriority.WEB_SERVER_BASE
+    assert CoroPriority.WEB_SERVER_BASE > CoroPriority.CAPTIVE_PORTAL
+    assert CoroPriority.CAPTIVE_PORTAL > CoroPriority.COMMUNICATION
+    assert CoroPriority.COMMUNICATION > CoroPriority.NETWORK_SERVICES
+    assert CoroPriority.NETWORK_SERVICES > CoroPriority.OTA_UPDATES
+    assert CoroPriority.OTA_UPDATES > CoroPriority.WEB_SERVER_OTA
+    assert CoroPriority.WEB_SERVER_OTA > CoroPriority.APPLICATION
     assert CoroPriority.APPLICATION > CoroPriority.WEB
     assert CoroPriority.WEB > CoroPriority.AUTOMATION
     assert CoroPriority.AUTOMATION > CoroPriority.BUS

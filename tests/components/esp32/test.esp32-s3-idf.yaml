@@ -4,6 +4,7 @@ esp32:
     type: esp-idf
     advanced:
       execute_from_psram: true
+      disable_libc_locks_in_iram: true  # Test default RAM optimization enabled
 
 psram:
   mode: octal

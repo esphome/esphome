@@ -1,4 +1,4 @@
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "usb_uart.h"
 #include "usb/usb_host.h"
 #include "esphome/core/log.h"
@@ -58,8 +58,10 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
     ESP_LOGE(TAG, "get_active_config_descriptor failed");
     return {};
   }
-  ESP_LOGD(TAG, "bDeviceClass: %u, bDeviceSubClass: %u", device_desc->bDeviceClass, device_desc->bDeviceSubClass);
-  ESP_LOGD(TAG, "bNumInterfaces: %u", config_desc->bNumInterfaces);
+  ESP_LOGD(TAG,
+           "bDeviceClass: %u, bDeviceSubClass: %u\n"
+           "bNumInterfaces: %u",
+           device_desc->bDeviceClass, device_desc->bDeviceSubClass, config_desc->bNumInterfaces);
   if (device_desc->bDeviceClass != 0) {
     ESP_LOGE(TAG, "bDeviceClass != 0");
     return {};
@@ -100,12 +102,12 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
 void USBUartTypeCP210X::enable_channels() {
   // enable the channels
   for (auto channel : this->channels_) {
-    if (!channel->initialised_)
+    if (!channel->initialised_.load())
       continue;
     usb_host::transfer_cb_t callback = [=](const usb_host::TransferStatus &status) {
       if (!status.success) {
         ESP_LOGE(TAG, "Control transfer failed, status=%s", esp_err_to_name(status.error_code));
-        channel->initialised_ = false;
+        channel->initialised_.store(false);
       }
     };
     this->control_transfer(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, IFC_ENABLE, 1, channel->index_, callback);
@@ -123,4 +125,4 @@ void USBUartTypeCP210X::enable_channels() {
 }
 }  // namespace usb_uart
 }  // namespace esphome
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

@@ -1,4 +1,5 @@
 #include "pn532_spi.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 // Based on:
@@ -10,6 +11,9 @@ namespace esphome {
 namespace pn532_spi {
 
 static const char *const TAG = "pn532_spi";
+
+// Maximum bytes to log in verbose hex output
+static constexpr size_t PN532_MAX_LOG_BYTES = 64;
 
 void PN532Spi::setup() {
   this->spi_setup();
@@ -32,7 +36,10 @@ bool PN532Spi::write_data(const std::vector<uint8_t> &data) {
   delay(2);
   // First byte, communication mode: Write data
   this->write_byte(0x01);
-  ESP_LOGV(TAG, "Writing data: %s", format_hex_pretty(data).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(PN532_MAX_LOG_BYTES)];
+#endif
+  ESP_LOGV(TAG, "Writing data: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
   this->write_array(data.data(), data.size());
   this->disable();
 
@@ -55,7 +62,10 @@ bool PN532Spi::read_data(std::vector<uint8_t> &data, uint8_t len) {
   this->read_array(data.data(), len);
   this->disable();
   data.insert(data.begin(), 0x01);
-  ESP_LOGV(TAG, "Read data: %s", format_hex_pretty(data).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(PN532_MAX_LOG_BYTES)];
+#endif
+  ESP_LOGV(TAG, "Read data: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
   return true;
 }
 
@@ -73,7 +83,10 @@ bool PN532Spi::read_response(uint8_t command, std::vector<uint8_t> &data) {
   std::vector<uint8_t> header(7);
   this->read_array(header.data(), 7);
 
-  ESP_LOGV(TAG, "Header data: %s", format_hex_pretty(header).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(PN532_MAX_LOG_BYTES)];
+#endif
+  ESP_LOGV(TAG, "Header data: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), header.data(), header.size()));
 
   if (header[0] != 0x00 && header[1] != 0x00 && header[2] != 0xFF) {
     // invalid packet
@@ -103,7 +116,7 @@ bool PN532Spi::read_response(uint8_t command, std::vector<uint8_t> &data) {
   this->read_array(data.data(), len + 1);
   this->disable();
 
-  ESP_LOGV(TAG, "Response data: %s", format_hex_pretty(data).c_str());
+  ESP_LOGV(TAG, "Response data: %s", format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
 
   uint8_t checksum = header[5] + header[6];  // TFI + Command response code
   for (int i = 0; i < len - 1; i++) {

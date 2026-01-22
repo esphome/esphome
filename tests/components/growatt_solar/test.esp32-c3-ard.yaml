@@ -1,6 +1,0 @@
-substitutions:
-  tx_pin: GPIO4
-  rx_pin: GPIO5
-  flow_control_pin: GPIO3
-
-<<: !include common.yaml

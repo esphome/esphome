@@ -90,10 +90,37 @@ class CoroPriority(enum.IntEnum):
     # Examples: status_led (80)
     STATUS = 80
 
+    # Web server infrastructure
+    # Examples: web_server_base (65)
+    WEB_SERVER_BASE = 65
+
+    # Network portal services
+    # Examples: captive_portal (64)
+    CAPTIVE_PORTAL = 64
+
     # Communication protocols and services
-    # Examples: web_server_base (65), captive_portal (64), wifi (60), ethernet (60),
-    # mdns (55), ota_updates (54), web_server_ota (52)
+    # Examples: wifi (60), ethernet (60)
     COMMUNICATION = 60
+
+    # Network discovery and management services
+    # Examples: mdns (55)
+    NETWORK_SERVICES = 55
+
+    # OTA update services
+    # Examples: ota_updates (54)
+    OTA_UPDATES = 54
+
+    # Web-based OTA services
+    # Examples: web_server_ota (52)
+    WEB_SERVER_OTA = 52
+
+    # Preferences - must run before APPLICATION (safe_mode) because safe_mode
+    # uses an early return when entering safe mode, skipping all lower priority
+    # component registration. Without IntervalSyncer registered, preferences
+    # cannot be synced during shutdown in safe mode, causing issues like the
+    # boot counter never being cleared and devices getting stuck in safe mode.
+    # Examples: preferences (51)
+    PREFERENCES = 51
 
     # Application-level services
     # Examples: safe_mode (50)

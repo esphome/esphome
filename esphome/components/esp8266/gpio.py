@@ -165,7 +165,10 @@ async def esp8266_pin_to_code(config):
     num = config[CONF_NUMBER]
     mode = config[CONF_MODE]
     cg.add(var.set_pin(num))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
+    # Only set if true to avoid bloating setup() function
+    # (inverted bit in pin_flags_ bitfield is zero-initialized to false)
+    if config[CONF_INVERTED]:
+        cg.add(var.set_inverted(True))
     cg.add(var.set_flags(pins.gpio_flags_expr(mode)))
     if num < 16:
         initial_state: PinInitialState = CORE.data[KEY_ESP8266][KEY_PIN_INITIAL_STATES][

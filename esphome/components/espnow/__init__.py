@@ -1,6 +1,6 @@
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.components import wifi
+from esphome.components import socket, wifi
 from esphome.components.udp import CONF_ON_RECEIVE
 import esphome.config_validation as cv
 from esphome.const import (
@@ -17,6 +17,7 @@ from esphome.core import CORE, HexInt
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
+AUTO_LOAD = ["socket"]
 
 byte_vector = cg.std_vector.template(cg.uint8)
 peer_address_t = cg.std_ns.class_("array").template(cg.uint8, 6)
@@ -65,11 +66,17 @@ CONF_WAIT_FOR_SENT = "wait_for_sent"
 MAX_ESPNOW_PACKET_SIZE = 250  # Maximum size of the payload in bytes
 
 
+def validate_channel(value):
+    if value is None:
+        raise cv.Invalid("channel is required if wifi is not configured")
+    return wifi.validate_channel(value)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ESPNowComponent),
-            cv.OnlyWithout(CONF_CHANNEL, CONF_WIFI): wifi.validate_channel,
+            cv.OnlyWithout(CONF_CHANNEL, CONF_WIFI): validate_channel,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_AUTO_ADD_PEER, default=False): cv.boolean,
             cv.Optional(CONF_PEERS): cv.ensure_list(cv.mac_address),
@@ -119,6 +126,10 @@ async def to_code(config):
 
     if CORE.using_arduino:
         cg.add_library("WiFi", None)
+
+    # ESP-NOW uses wake_loop_threadsafe() to wake the main loop from ESP-NOW callbacks
+    # This enables low-latency event processing instead of waiting for select() timeout
+    socket.require_wake_loop_threadsafe()
 
     cg.add_define("USE_ESPNOW")
     if wifi_channel := config.get(CONF_CHANNEL):

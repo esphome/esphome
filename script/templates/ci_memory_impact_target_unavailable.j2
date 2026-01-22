@@ -1,0 +1,19 @@
+{{ comment_marker }}
+## Memory Impact Analysis
+
+**Components:** {{ components_str }}
+**Platform:** `{{ platform }}`
+
+| Metric | This PR |
+|--------|---------|
+| **RAM** | {{ pr_ram }} |
+| **Flash** | {{ pr_flash }} |
+
+> ⚠️ **Target branch comparison unavailable** - The target branch failed to build.
+> This can happen when the target branch has a build issue, or when this PR fixes a build issue on the target branch.
+> The PR branch compiled successfully with the memory usage shown above.
+
+---
+> **Note:** This analysis measures **static RAM and Flash usage** only (compile-time allocation).
+
+*This analysis runs automatically when components change.*

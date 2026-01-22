@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_mics_4514
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: mics_4514
+    i2c_id: i2c_bus
     update_interval: 60s
     nitrogen_dioxide:
       name: MICS-4514 NO2
