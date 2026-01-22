@@ -17,6 +17,7 @@ def load_idedata(environment, temp_folder, platformio_ini):
         """
 #include <zephyr/kernel.h>
 int main() { return 0;}
+extern "C" void zboss_signal_handler() {};
 """,
         encoding="utf-8",
     )
@@ -43,6 +44,12 @@ CONFIG_MCUMGR_GRP_IMG_STATUS_HOOKS=y
 CONFIG_MCUMGR_GRP_IMG_UPLOAD_CHECK_HOOK=y
 CONFIG_MCUMGR_TRANSPORT_UART=y
 #mcumgr end
+#zigbee begin
+CONFIG_ZIGBEE=y
+CONFIG_CRYPTO=y
+CONFIG_NVS=y
+CONFIG_SETTINGS=y
+#zigbee end
 """,
         encoding="utf-8",
     )
@@ -60,10 +67,11 @@ CONFIG_MCUMGR_TRANSPORT_UART=y
 
     def extract_defines(command):
         define_pattern = re.compile(r"-D\s*([^\s]+)")
+        ignore_prefixes = ("_ASMLANGUAGE", "NRF_802154_ECB_PRIORITY=")
         return [
-            match
+            match.replace("\\", "")
             for match in define_pattern.findall(command)
-            if match not in ("_ASMLANGUAGE")
+            if not any(match.startswith(prefix) for prefix in ignore_prefixes)
         ]
 
     def find_cxx_path(commands):
