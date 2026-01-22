@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/string_ref.h"
 #include <concepts>
 #include <functional>
 #include <utility>
@@ -190,15 +191,55 @@ template<typename T, typename... X> class TemplatableValue {
   /// Get the static string pointer (only valid if is_static_string() returns true)
   const char *get_static_string() const { return this->static_str_; }
 
- protected:
-  enum : uint8_t {
-    NONE,
-    VALUE,
-    LAMBDA,
-    STATELESS_LAMBDA,
-    STATIC_STRING,  // For const char* when T is std::string - avoids heap allocation
-  } type_;
+  /// Check if the string value is empty without allocating (for std::string specialization).
+  /// For NONE, returns true. For STATIC_STRING/VALUE, checks without allocation.
+  /// For LAMBDA/STATELESS_LAMBDA, must call value() which may allocate.
+  bool is_empty() const requires std::same_as<T, std::string> {
+    switch (this->type_) {
+      case NONE:
+        return true;
+      case STATIC_STRING:
+        return this->static_str_ == nullptr || this->static_str_[0] == '\0';
+      case VALUE:
+        return this->value_->empty();
+      default:  // LAMBDA/STATELESS_LAMBDA - must call value()
+        return this->value().empty();
+    }
+  }
 
+  /// Get a StringRef to the string value without heap allocation when possible.
+  /// For STATIC_STRING/VALUE, returns reference to existing data (no allocation).
+  /// For LAMBDA/STATELESS_LAMBDA, calls value(), copies to provided buffer, returns ref to buffer.
+  /// @param lambda_buf Buffer used only for lambda case (must remain valid while StringRef is used).
+  /// @param lambda_buf_size Size of the buffer.
+  /// @return StringRef pointing to the string data.
+  StringRef ref_or_copy_to(char *lambda_buf, size_t lambda_buf_size) const requires std::same_as<T, std::string> {
+    switch (this->type_) {
+      case NONE:
+        return StringRef();
+      case STATIC_STRING:
+        if (this->static_str_ == nullptr)
+          return StringRef();
+        return StringRef(this->static_str_, strlen(this->static_str_));
+      case VALUE:
+        return StringRef(this->value_->data(), this->value_->size());
+      default: {  // LAMBDA/STATELESS_LAMBDA - must call value() and copy
+        std::string result = this->value();
+        size_t copy_len = std::min(result.size(), lambda_buf_size - 1);
+        memcpy(lambda_buf, result.data(), copy_len);
+        lambda_buf[copy_len] = '\0';
+        return StringRef(lambda_buf, copy_len);
+      }
+    }
+  }
+
+ protected : enum : uint8_t {
+   NONE,
+   VALUE,
+   LAMBDA,
+   STATELESS_LAMBDA,
+   STATIC_STRING,  // For const char* when T is std::string - avoids heap allocation
+ } type_;
   // For std::string, use heap pointer to minimize union size (4 bytes vs 12+).
   // For other types, store value inline as before.
   using ValueStorage = std::conditional_t<USE_HEAP_STORAGE, T *, T>;
