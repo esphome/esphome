@@ -40,6 +40,9 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
     // Unsigned subtraction handles wraparound correctly, then cast to signed
     int32_t diff = static_cast<int32_t>(epoch - static_cast<uint32_t>(current_time));
     if (diff >= -1 && diff <= 1) {
+      // Time is already synchronized, but still call callbacks so components
+      // waiting for time sync (e.g., uptime timestamp sensor) can initialize
+      this->time_sync_callback_.call();
       return;
     }
   }

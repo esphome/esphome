@@ -920,7 +920,16 @@ bssid_t WiFiComponent::wifi_bssid() {
   }
   return bssid;
 }
-std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
+std::string WiFiComponent::wifi_ssid() {
+  struct station_config conf {};
+  if (!wifi_station_get_config(&conf)) {
+    return "";
+  }
+  // conf.ssid is uint8[32], not null-terminated if full
+  auto *ssid_s = reinterpret_cast<const char *>(conf.ssid);
+  size_t len = strnlen(ssid_s, sizeof(conf.ssid));
+  return {ssid_s, len};
+}
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
   struct station_config conf {};
   if (!wifi_station_get_config(&conf)) {
@@ -934,16 +943,24 @@ const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer
   return buffer.data();
 }
 int8_t WiFiComponent::wifi_rssi() {
-  if (WiFi.status() != WL_CONNECTED)
+  if (wifi_station_get_connect_status() != STATION_GOT_IP)
     return WIFI_RSSI_DISCONNECTED;
-  int8_t rssi = WiFi.RSSI();
+  sint8 rssi = wifi_station_get_rssi();
   // Values >= 31 are error codes per NONOS SDK API, not valid RSSI readings
   return rssi >= 31 ? WIFI_RSSI_DISCONNECTED : rssi;
 }
-int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
-network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {(const ip_addr_t *) WiFi.subnetMask()}; }
-network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {(const ip_addr_t *) WiFi.gatewayIP()}; }
-network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {(const ip_addr_t *) WiFi.dnsIP(num)}; }
+int32_t WiFiComponent::get_wifi_channel() { return wifi_get_channel(); }
+network::IPAddress WiFiComponent::wifi_subnet_mask_() {
+  struct ip_info ip {};
+  wifi_get_ip_info(STATION_IF, &ip);
+  return network::IPAddress(&ip.netmask);
+}
+network::IPAddress WiFiComponent::wifi_gateway_ip_() {
+  struct ip_info ip {};
+  wifi_get_ip_info(STATION_IF, &ip);
+  return network::IPAddress(&ip.gw);
+}
+network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return network::IPAddress(dns_getserver(num)); }
 void WiFiComponent::wifi_loop_() {}
 
 }  // namespace esphome::wifi

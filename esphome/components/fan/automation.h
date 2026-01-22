@@ -208,7 +208,7 @@ class FanSpeedSetTrigger : public Trigger<int> {
   int last_speed_;
 };
 
-class FanPresetSetTrigger : public Trigger<std::string> {
+class FanPresetSetTrigger : public Trigger<StringRef> {
  public:
   FanPresetSetTrigger(Fan *state) {
     state->add_on_state_callback([this, state]() {
@@ -216,7 +216,7 @@ class FanPresetSetTrigger : public Trigger<std::string> {
       auto should_trigger = preset_mode != this->last_preset_mode_;
       this->last_preset_mode_ = preset_mode;
       if (should_trigger) {
-        this->trigger(std::string(preset_mode));
+        this->trigger(preset_mode);
       }
     });
     this->last_preset_mode_ = state->get_preset_mode();

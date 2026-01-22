@@ -13,11 +13,14 @@
 #include <utility>
 #include <vector>
 
+#ifdef USE_WEBSERVER
+#include "esphome/components/web_server/list_entities.h"
+#endif
+
 namespace esphome {
 #ifdef USE_WEBSERVER
 namespace web_server {
 class WebServer;
-class ListEntitiesIterator;
 };  // namespace web_server
 #endif
 namespace web_server_idf {
@@ -284,7 +287,7 @@ class AsyncEventSourceResponse {
   std::atomic<int> fd_{};
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
-  std::unique_ptr<esphome::web_server::ListEntitiesIterator> entities_iterator_;
+  esphome::web_server::ListEntitiesIterator entities_iterator_;
   std::string event_buffer_{""};
   size_t event_bytes_sent_;
   uint16_t consecutive_send_failures_{0};

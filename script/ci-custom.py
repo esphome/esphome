@@ -688,6 +688,7 @@ HEAP_ALLOCATING_HELPERS = {
     "format_mac_address_pretty": "format_mac_addr_upper() with a stack buffer",
     "get_mac_address": "get_mac_address_into_buffer() with a stack buffer",
     "get_mac_address_pretty": "get_mac_address_pretty_into_buffer() with a stack buffer",
+    "str_sanitize": "str_sanitize_to() with a stack buffer",
     "str_truncate": "removal (function is unused)",
     "str_upper_case": "removal (function is unused)",
     "str_snake_case": "removal (function is unused)",
@@ -706,6 +707,7 @@ HEAP_ALLOCATING_HELPERS = {
     r"format_mac_address_pretty|"
     r"get_mac_address_pretty(?!_)|"
     r"get_mac_address(?!_)|"
+    r"str_sanitize(?!_)|"
     r"str_truncate|"
     r"str_upper_case|"
     r"str_snake_case"
@@ -726,6 +728,26 @@ def lint_no_heap_allocating_helpers(fname, match):
         f"become time bombs - the heap eventually cannot satisfy requests even with free "
         f"memory available.\n"
         f"Please use {replacement} instead.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    # Match sprintf/vsprintf but not snprintf/vsnprintf
+    # [^\w] ensures we don't match the safe variants
+    r"[^\w](v?sprintf)\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_sprintf(fname, match):
+    func = match.group(1)
+    safe_func = func.replace("sprintf", "snprintf")
+    return (
+        f"{highlight(func + '()')} is not allowed in ESPHome. It has no buffer size limit "
+        f"and can cause buffer overflows.\n"
+        f"Please use one of these alternatives:\n"
+        f"  - {highlight(safe_func + '(buf, sizeof(buf), fmt, ...)')} for general formatting\n"
+        f"  - {highlight('buf_append_printf(buf, sizeof(buf), pos, fmt, ...)')} for "
+        f"offset-based formatting (also stores format strings in flash on ESP8266)\n"
         f"(If strictly necessary, add `// NOLINT` to the end of the line)"
     )
 
