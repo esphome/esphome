@@ -157,6 +157,7 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
   }
 #endif
 
+  ESP_LOGD(TAG, "Id = '%.*s', Entity name = '%s'", (int) this->id.size(), this->id.c_str(), entity->get_name().c_str());
   // Try matching by entity name (new format)
   if (this->id == entity->get_name()) {
     result.matched = true;
@@ -1433,6 +1434,82 @@ std::string WebServer::select_json_(select::Select *obj, StringRef value, JsonDe
 }
 #endif
 
+#ifdef USE_SERIAL_CHANNEL
+void WebServer::on_serial_channel_update(serial_channel::SerialChannel *obj) {
+  if (!this->include_internal_ && obj->is_internal())
+    return;
+  this->events_.deferrable_send_state(obj, "state", serial_channel_state_json_generator);
+}
+void WebServer::handle_serial_channel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_serial_channels()) {
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
+      continue;
+
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
+      auto detail = get_request_detail(request);
+      std::string data = this->serial_channel_json_(obj, obj->get_state(), detail);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+
+    if (!match.method_equals(ESPHOME_F("send"))) {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+    parse_string_param_(request, ESPHOME_F("value"), call, &decltype(call)::set_data);
+
+    DEFER_ACTION(call, call.perform());
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+std::string WebServer::serial_channel_state_json_generator(WebServer *web_server, void *source) {
+  return web_server->serial_channel_json_((serial_channel::SerialChannel *) (source),
+                                          ((serial_channel::SerialChannel *) (source))->get_state(), DETAIL_STATE);
+}
+std::string WebServer::serial_channel_all_json_generator(WebServer *web_server, void *source) {
+  return web_server->serial_channel_json_((serial_channel::SerialChannel *) (source),
+                                          ((serial_channel::SerialChannel *) (source))->get_state(), DETAIL_ALL);
+}
+std::string WebServer::serial_channel_json_(serial_channel::SerialChannel *obj, const std::string &value,
+                                            JsonDetail start_config) {
+  json::JsonBuilder builder;
+  JsonObject root = builder.root();
+
+  // the channel has no state to send here, don't duplicate.
+  set_json_icon_state_value(root, obj, "serial_channel", "", value.c_str(), start_config);
+  if (start_config == DETAIL_ALL) {
+    auto &traits = obj->traits;
+    root[ESPHOME_F("baud_rate")] = traits.get_baud_rate();
+    root[ESPHOME_F("data_bits")] = traits.get_data_bits();
+    root[ESPHOME_F("stop_bits")] = traits.get_stop_bits();
+
+    // Convert parity enum to string
+    const char *parity_str = "NONE";
+    switch (traits.get_parity()) {
+      case uart::UART_CONFIG_PARITY_EVEN:
+        parity_str = "EVEN";
+        break;
+      case uart::UART_CONFIG_PARITY_ODD:
+        parity_str = "ODD";
+        break;
+      default:
+        break;
+    }
+    root[ESPHOME_F("parity")] = parity_str;
+
+    this->add_sorting_info_(root, obj);
+  }
+
+  return builder.serialize();
+}
+#endif
+
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
   if (!this->include_internal_ && obj->is_internal())
@@ -2278,6 +2355,10 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
     if (match.domain_equals(ESPHOME_F("select")))
       return true;
 #endif
+#ifdef USE_SERIAL_CHANNEL
+    if (match.domain_equals(ESPHOME_F("serial_channel")))
+      return true;
+#endif
 #ifdef USE_CLIMATE
     if (match.domain_equals(ESPHOME_F("climate")))
       return true;
@@ -2350,6 +2431,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   // Parse URL for component routing
   // Pass HTTP method to disambiguate 3-segment URLs (GET=sub-device state, POST=main device action)
   UrlMatch match = match_url(url.c_str(), url.length(), false, request->method() == HTTP_POST);
+  ESP_LOGD(TAG, "Handling request for URL: %s", url.c_str());
 
   // Route to appropriate handler based on domain
   // NOLINTNEXTLINE(readability-simplify-boolean-expr)
@@ -2423,6 +2505,11 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_SELECT
   else if (match.domain_equals(ESPHOME_F("select"))) {
     this->handle_select_request(request, match);
+  }
+#endif
+#ifdef USE_SERIAL_CHANNEL
+  else if (match.domain_equals(ESPHOME_F("serial_channel"))) {
+    this->handle_serial_channel_request(request, match);
   }
 #endif
 #ifdef USE_CLIMATE

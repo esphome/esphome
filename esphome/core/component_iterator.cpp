@@ -139,6 +139,12 @@ void ComponentIterator::advance() {
       break;
 #endif
 
+#ifdef USE_SERIAL_CHANNEL
+    case IteratorState::SERIAL_CHANNEL:
+      this->process_platform_item_(App.get_serial_channels(), &ComponentIterator::on_serial_channel);
+      break;
+#endif
+
 #ifdef USE_LOCK
     case IteratorState::LOCK:
       this->process_platform_item_(App.get_locks(), &ComponentIterator::on_lock);

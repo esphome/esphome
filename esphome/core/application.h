@@ -76,6 +76,9 @@
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
+#ifdef USE_SERIAL_CHANNEL
+#include "esphome/components/serial_channel/serial_channel.h"
+#endif
 #ifdef USE_LOCK
 #include "esphome/components/lock/lock.h"
 #endif
@@ -202,6 +205,12 @@ class Application {
 
 #ifdef USE_SELECT
   void register_select(select::Select *select) { this->selects_.push_back(select); }
+#endif
+
+#ifdef USE_SERIAL_CHANNEL
+  void register_serial_channel(serial_channel::SerialChannel *serial_channel) {
+    this->serial_channels_.push_back(serial_channel);
+  }
 #endif
 
 #ifdef USE_LOCK
@@ -441,6 +450,10 @@ class Application {
   auto &get_selects() const { return this->selects_; }
   GET_ENTITY_METHOD(select::Select, select, selects)
 #endif
+#ifdef USE_SERIAL_CHANNEL
+  auto &get_serial_channels() const { return this->serial_channels_; }
+  GET_ENTITY_METHOD(serial_channel::SerialChannel, serial_channel, serial_channels)
+#endif
 #ifdef USE_LOCK
   auto &get_locks() const { return this->locks_; }
   GET_ENTITY_METHOD(lock::Lock, lock, locks)
@@ -648,6 +661,9 @@ class Application {
 #endif
 #ifdef USE_SELECT
   StaticVector<select::Select *, ESPHOME_ENTITY_SELECT_COUNT> selects_{};
+#endif
+#ifdef USE_SERIAL_CHANNEL
+  std::vector<serial_channel::SerialChannel *> serial_channels_{};
 #endif
 #ifdef USE_TEXT
   StaticVector<text::Text *, ESPHOME_ENTITY_TEXT_COUNT> texts_{};

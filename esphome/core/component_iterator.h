@@ -78,6 +78,9 @@ class ComponentIterator {
 #ifdef USE_SELECT
   virtual bool on_select(select::Select *select) = 0;
 #endif
+#ifdef USE_SERIAL_CHANNEL
+  virtual bool on_serial_channel(serial_channel::SerialChannel *obj) = 0;
+#endif
 #ifdef USE_LOCK
   virtual bool on_lock(lock::Lock *a_lock) = 0;
 #endif
@@ -160,6 +163,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_SELECT
     SELECT,
+#endif
+#ifdef USE_SERIAL_CHANNEL
+    SERIAL_CHANNEL,
 #endif
 #ifdef USE_LOCK
     LOCK,

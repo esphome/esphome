@@ -411,6 +411,15 @@ class WebServer : public Controller,
   static std::string select_all_json_generator(WebServer *web_server, void *source);
 #endif
 
+#ifdef USE_SERIAL_CHANNEL
+  void on_serial_channel_update(serial_channel::SerialChannel *obj) override;
+  /// Handle a serial channel request under '/serial_channel/<id>'.
+  void handle_serial_channel_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  static std::string serial_channel_state_json_generator(WebServer *web_server, void *source);
+  static std::string serial_channel_all_json_generator(WebServer *web_server, void *source);
+#endif
+
 #ifdef USE_CLIMATE
   void on_climate_update(climate::Climate *obj) override;
   /// Handle a climate request under '/climate/<id>'.
@@ -649,6 +658,10 @@ class WebServer : public Controller,
 #endif
 #ifdef USE_SELECT
   std::string select_json_(select::Select *obj, StringRef value, JsonDetail start_config);
+#endif
+#ifdef USE_SERIAL_CHANNEL
+  std::string serial_channel_json_(serial_channel::SerialChannel *obj, const std::string &value,
+                                   JsonDetail start_config);
 #endif
 #ifdef USE_CLIMATE
   std::string climate_json_(climate::Climate *obj, JsonDetail start_config);
