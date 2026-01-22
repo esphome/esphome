@@ -314,7 +314,7 @@ _CO2_BASE = cv.Schema(
 _SEN5X_BASE = _PM_BASE.extend(
     cv.Schema({cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval})
 ).extend(i2c.i2c_device_schema(0x69))
-_SEN54_BASE = _SEN5X_BASE.extend(_SEN5X_TH_BASE).extend(_VOC_BASE)
+# _SEN54_BASE = _SEN5X_BASE.extend(_SEN5X_TH_BASE).extend(_VOC_BASE)
 _SEN6X_BASE = _PM_BASE.extend(_SEN6X_TH_BASE).extend(i2c.i2c_device_schema(0x6B))
 _SEN65_BASE = _SEN6X_BASE.extend(_VOC_BASE).extend(_NOX_BASE)
 
@@ -323,8 +323,8 @@ CONFIG_SCHEMA = cv.Schema(
     cv.typed_schema(
         {
             SEN50: _SEN5X_BASE,
-            SEN54: _SEN54_BASE,
-            SEN55: _SEN54_BASE.extend(_NOX_BASE),
+            SEN54: _SEN5X_BASE,
+            SEN55: _SEN5X_BASE.extend(_NOX_BASE),
             SEN62: _SEN6X_BASE,
             SEN63C: _SEN6X_BASE.extend(_CO2_BASE),
             SEN65: _SEN65_BASE,
