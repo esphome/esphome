@@ -147,7 +147,7 @@ class APIFrameHelper {
     if (this->nodelay_state_ == NODELAY_ON) {
       this->set_nodelay_raw_(false);
       this->nodelay_state_ = 1;
-    } else if (this->nodelay_state_ >= LOG_BATCH_MAX) {
+    } else if (this->nodelay_state_ >= LOG_NAGLE_COUNT) {
       this->set_nodelay_raw_(true);
       this->nodelay_state_ = NODELAY_ON;
     } else {
@@ -244,9 +244,9 @@ class APIFrameHelper {
   uint8_t tx_buf_count_{0};
   // Nagle batching state for log messages. NODELAY_ON (-1) means NODELAY is enabled
   // (immediate send). Values 1-2 count log messages in the current Nagle batch.
-  // After LOG_BATCH_MAX logs, we switch to NODELAY to flush and reset.
+  // After LOG_NAGLE_COUNT logs, we switch to NODELAY to flush and reset.
   static constexpr int8_t NODELAY_ON = -1;
-  static constexpr int8_t LOG_BATCH_MAX = 2;
+  static constexpr int8_t LOG_NAGLE_COUNT = 2;
   int8_t nodelay_state_{NODELAY_ON};
 
   // Internal helper to set TCP_NODELAY socket option
