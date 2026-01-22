@@ -26,7 +26,7 @@ void MQTTTextComponent::setup() {
 
 void MQTTTextComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT text '%s':", this->text_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true)
+  LOG_MQTT_COMPONENT(true, true);
 }
 
 MQTT_COMPONENT_TYPE(MQTTTextComponent, "text")

@@ -41,7 +41,7 @@ jobs:
           python script/run-in-env.py pre-commit run --all-files
 
       - name: Commit changes
-        uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 # v8.0.0
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         with:
           commit-message: "Synchronise Device Classes from Home Assistant"
           committer: esphomebot <esphome@openhomefoundation.org>

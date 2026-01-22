@@ -173,7 +173,7 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     sequence = []
     for seq in config[CONF_INIT_SEQUENCE]:
