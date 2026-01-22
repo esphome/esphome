@@ -226,11 +226,12 @@ bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t m
   br_gcm_flip(&gcm_ctx);
   br_gcm_run(&gcm_ctx, 0, payload_ptr, message_length);
 #elif defined(USE_ESP32)
+  size_t outlen = 0;
   mbedtls_gcm_context gcm_ctx;
   mbedtls_gcm_init(&gcm_ctx);
   mbedtls_gcm_setkey(&gcm_ctx, MBEDTLS_CIPHER_ID_AES, this->decryption_key_.data(), this->decryption_key_.size() * 8);
-  auto ret =
-      mbedtls_gcm_auth_decrypt(&gcm_ctx, message_length, iv, sizeof(iv), NULL, 0, NULL, 0, payload_ptr, payload_ptr);
+  mbedtls_gcm_starts(&gcm_ctx, MBEDTLS_GCM_DECRYPT, iv, sizeof(iv));
+  auto ret = mbedtls_gcm_update(&gcm_ctx, payload_ptr, message_length, payload_ptr, message_length, &outlen);
   mbedtls_gcm_free(&gcm_ctx);
   if (ret != 0) {
     ESP_LOGE(TAG, "Decryption failed with error: %d", ret);
