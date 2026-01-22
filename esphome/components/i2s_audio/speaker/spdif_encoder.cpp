@@ -157,10 +157,10 @@ esp_err_t SPDIFEncoder::flush_with_silence(TickType_t ticks_to_wait) {
   }
 
   // Encode silence (zeros) until the block is complete
-  static const uint8_t silence[2] = {0, 0};
+  static const uint8_t SILENCE[2] = {0, 0};
 
   while (this->spdif_block_ptr_ < &this->spdif_block_buf_[SPDIF_BLOCK_SIZE_U32]) {
-    this->encode_sample_(silence);
+    this->encode_sample_(SILENCE);
   }
 
   return this->send_block_(ticks_to_wait);
