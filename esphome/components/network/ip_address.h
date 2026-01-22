@@ -75,10 +75,10 @@ struct IPAddress {
 
   operator ip_addr_t() const { return ip_addr_; }
 
-  bool is_set() { return !net_ipv6_is_addr_unspecified(&ip_addr_); }
-  bool is_ip4() { return false; }
-  bool is_ip6() { return this->is_set(); }
-  bool is_multicast() { return net_ipv6_is_addr_mcast(&ip_addr_); }
+  bool is_set() const { return !net_ipv6_is_addr_unspecified(&ip_addr_); }
+  bool is_ip4() const { return false; }
+  bool is_ip6() const { return this->is_set(); }
+  bool is_multicast() const { return net_ipv6_is_addr_mcast(&ip_addr_); }
   std::string str() const {
     char buffer[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET6, &ip_addr_, buffer, sizeof(buffer));
@@ -87,7 +87,9 @@ struct IPAddress {
   bool operator==(const IPAddress &other) const { return net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
   IPAddress &operator+=(uint8_t increase) {
-    ip_addr_.s6_addr32[3] += increase;
+    uint32_t last_word_host = ntohl(ip_addr_.s6_addr32[3]);
+    last_word_host += increase;
+    ip_addr_.s6_addr32[3] = htonl(last_word_host);
     return *this;
   }
 
