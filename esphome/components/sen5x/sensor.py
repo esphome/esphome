@@ -168,7 +168,7 @@ def float_previously_pct(value):
 
 GROUP_COMPENSATION = "Compensation Group: 'altitude_compensation' and 'ambient_pressure_compensation_source'"
 
-_PM_SCHEMA = cv.Schema(
+PM_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(SEN5XComponent),
         cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
@@ -201,7 +201,7 @@ _PM_SCHEMA = cv.Schema(
     }
 ).extend(cv.polling_component_schema("60s"))
 
-_VOC_SCHEMA = cv.Schema(
+VOC_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_STORE_BASELINE): cv.boolean,
         cv.Optional(CONF_VOC): _gas_sensor(
@@ -215,7 +215,7 @@ _VOC_SCHEMA = cv.Schema(
     }
 )
 
-_NOX_SCHEMA = cv.Schema(
+NOX_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_NOX): _gas_sensor(
             index_offset=1,
@@ -228,7 +228,7 @@ _NOX_SCHEMA = cv.Schema(
     }
 )
 
-_HCHO_SCHEMA = cv.Schema(
+HCHO_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_HCHO): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_BILLION,
@@ -239,7 +239,7 @@ _HCHO_SCHEMA = cv.Schema(
     }
 )
 
-_TH_SCHEMA = cv.Schema(
+TH_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
@@ -267,7 +267,7 @@ _TH_SCHEMA = cv.Schema(
     }
 )
 
-_CO2_SCHEMA = cv.Schema(
+CO2_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_CO2): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_MILLION,
@@ -294,20 +294,16 @@ _CO2_SCHEMA = cv.Schema(
     }
 )
 
-_SEN5X_SCHEMA = _PM_SCHEMA.extend(
-    cv.Schema({cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval})
+SEN5X_SCHEMA = (
+    PM_SCHEMA.extend({cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval})
 ).extend(i2c.i2c_device_schema(0x69))
-
-_SEN54_SCHEMA = (
-    _SEN5X_SCHEMA.extend(_TH_SCHEMA)
-    .extend(
-        cv.Schema({cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES)})
-    )
-    .extend(_VOC_SCHEMA)
+SEN54_SCHEMA = (
+    SEN5X_SCHEMA.extend(TH_SCHEMA)
+    .extend({cv.Optional(CONF_ACCELERATION_MODE): cv.enum(ACCELERATION_MODES)})
+    .extend(VOC_SCHEMA)
 )
-
-_SEN6X_SCHEMA = (
-    _PM_SCHEMA.extend(_TH_SCHEMA)
+SEN6X_SCHEMA = (
+    PM_SCHEMA.extend(TH_SCHEMA)
     .extend(
         cv.Schema(
             {
@@ -324,22 +320,21 @@ _SEN6X_SCHEMA = (
     )
     .extend(i2c.i2c_device_schema(0x6B))
 )
-
-_SEN65_SCHEMA = _SEN6X_SCHEMA.extend(_VOC_SCHEMA).extend(_NOX_SCHEMA)
+SEN65_SCHEMA = SEN6X_SCHEMA.extend(VOC_SCHEMA).extend(NOX_SCHEMA)
 
 
 CONFIG_SCHEMA = cv.Schema(
     cv.typed_schema(
         {
-            SEN50: _SEN5X_SCHEMA,
-            SEN54: _SEN54_SCHEMA,
-            SEN55: _SEN54_SCHEMA.extend(_NOX_SCHEMA),
-            SEN62: _SEN6X_SCHEMA,
-            SEN63C: _SEN6X_SCHEMA.extend(_CO2_SCHEMA),
-            SEN65: _SEN65_SCHEMA,
-            SEN66: _SEN65_SCHEMA.extend(_CO2_SCHEMA),
-            SEN68: _SEN65_SCHEMA.extend(_HCHO_SCHEMA),
-            SEN69C: _SEN65_SCHEMA.extend(_CO2_SCHEMA).extend(_HCHO_SCHEMA),
+            SEN50: SEN5X_SCHEMA,
+            SEN54: SEN54_SCHEMA,
+            SEN55: SEN54_SCHEMA.extend(NOX_SCHEMA),
+            SEN62: SEN6X_SCHEMA,
+            SEN63C: SEN6X_SCHEMA.extend(CO2_SCHEMA),
+            SEN65: SEN65_SCHEMA,
+            SEN66: SEN65_SCHEMA.extend(CO2_SCHEMA),
+            SEN68: SEN65_SCHEMA.extend(HCHO_SCHEMA),
+            SEN69C: SEN65_SCHEMA.extend(CO2_SCHEMA).extend(HCHO_SCHEMA),
         },
         upper=True,
     ),
