@@ -132,7 +132,6 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureCompensation> temperature_compensation_;
   ESPPreferenceObject pref_;
-  std::string product_name_;
   Sen5xBaselines voc_baselines_storage_;
 };
 
