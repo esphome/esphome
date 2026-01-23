@@ -86,7 +86,8 @@ StopAction = cover_ns.class_("StopAction", automation.Action)
 ToggleAction = cover_ns.class_("ToggleAction", automation.Action)
 ControlAction = cover_ns.class_("ControlAction", automation.Action)
 CoverPublishAction = cover_ns.class_("CoverPublishAction", automation.Action)
-CoverIsCondition = cover_ns.class_("CoverIsCondition", Condition)
+CoverIsOpenCondition = cover_ns.class_("CoverIsOpenCondition", Condition)
+CoverIsClosedCondition = cover_ns.class_("CoverIsClosedCondition", Condition)
 CoverOpenedTrigger = cover_ns.class_(
     "CoverOpenedTrigger", automation.Trigger.template()
 )
@@ -303,6 +304,26 @@ async def cover_control_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(tilt, args, float)
         cg.add(var.set_tilt(template_))
     return var
+
+
+@automation.register_condition(
+    "cover.is_open",
+    CoverIsOpenCondition,
+    cv.maybe_simple_value({cv.Required(CONF_ID): cv.use_id(Cover)}, key=CONF_ID),
+)
+async def cover_is_open_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)
+
+
+@automation.register_condition(
+    "cover.is_closed",
+    CoverIsClosedCondition,
+    cv.maybe_simple_value({cv.Required(CONF_ID): cv.use_id(Cover)}, key=CONF_ID),
+)
+async def cover_is_closed_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

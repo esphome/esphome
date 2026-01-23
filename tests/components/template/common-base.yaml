@@ -272,6 +272,17 @@ cover:
       - logger.log: "Cover started closing"
     on_idle:
       - logger.log: "Cover stopped moving"
+      - logger.log: "Cover stopped moving"
+      - if:
+          condition:
+            cover.is_open: template_cover_with_triggers
+          then:
+            logger.log: Cover is open
+      - if:
+          condition:
+            cover.is_closed: template_cover_with_triggers
+          then:
+            logger.log: Cover is closed
 
 number:
   - platform: template
