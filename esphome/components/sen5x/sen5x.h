@@ -24,11 +24,6 @@ enum RhtAccelerationMode : uint16_t {
   HIGH_ACCELERATION = 2,
 };
 
-struct Sen5xBaselines {
-  int32_t state0;
-  int32_t state1;
-} PACKED;  // NOLINT
-
 struct GasTuning {
   uint16_t index_offset;
   uint16_t learning_time_offset_hours;
@@ -44,11 +39,9 @@ struct TemperatureCompensation {
   uint16_t time_constant;
 };
 
-// Shortest time interval of 3H for storing baseline values.
+// Shortest time interval of 2H for storing baseline values.
 // Prevents wear of the flash because of too many write operations
-static const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 10800;
-// Store anyway if the baseline difference exceeds the max storage diff value
-static const uint32_t MAXIMUM_STORAGE_DIFF = 50;
+static const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 2 * 60 * 60 * 1000;
 
 class SEN5XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
@@ -67,7 +60,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_nox_sensor(sensor::Sensor *nox_sensor) { nox_sensor_ = nox_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
+  void set_store_baseline(bool store_baseline) { this->store_baseline_ = store_baseline; }
   void set_acceleration_mode(RhtAccelerationMode mode) { acceleration_mode_ = mode; }
   void set_auto_cleaning_interval(uint32_t auto_cleaning_interval) { auto_cleaning_interval_ = auto_cleaning_interval; }
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
@@ -107,12 +100,12 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
 
-  uint32_t seconds_since_last_store_;
+  uint16_t voc_baseline_state_[4]{0};
+  uint32_t voc_baseline_time_;
   uint16_t firmware_version_;
   ERRORCODE error_code_;
   uint8_t serial_number_[4];
   bool initialized_{false};
-  bool store_baseline_;
 
   sensor::Sensor *pm_1_0_sensor_{nullptr};
   sensor::Sensor *pm_2_5_sensor_{nullptr};
@@ -130,9 +123,9 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureCompensation> temperature_compensation_;
+  optional<bool> store_baseline_;
   ESPPreferenceObject pref_;
   std::string product_name_;
-  Sen5xBaselines voc_baselines_storage_;
 };
 
 }  // namespace sen5x

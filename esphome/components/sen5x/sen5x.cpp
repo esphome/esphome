@@ -82,10 +82,11 @@ void SEN5XComponent::setup() {
         this->mark_failed();
         return;
       }
+
       this->serial_number_[0] = static_cast<bool>(uint16_t(raw_serial_number[0]) & 0xFF);
       this->serial_number_[1] = static_cast<uint16_t>(raw_serial_number[0] & 0xFF);
       this->serial_number_[2] = static_cast<uint16_t>(raw_serial_number[1] >> 8);
-      ESP_LOGV(TAG, "Serial number %02d.%02d.%02d", this->serial_number_[0], this->serial_number_[1],
+      ESP_LOGD(TAG, "Serial number %02d.%02d.%02d", this->serial_number_[0], this->serial_number_[1],
                this->serial_number_[2]);
 
       uint16_t raw_product_name[16];
@@ -124,8 +125,8 @@ void SEN5XComponent::setup() {
             sen5x_type = SEN55;
           }
         }
-        ESP_LOGD(TAG, "Product name: %s", this->product_name_.c_str());
       }
+      ESP_LOGD(TAG, "Product name: %s", this->product_name_.c_str());
       if (this->humidity_sensor_ && sen5x_type == SEN50) {
         ESP_LOGE(TAG, "Relative humidity requires a SEN54 or SEN55");
         this->humidity_sensor_ = nullptr;  // mark as not used
@@ -142,7 +143,10 @@ void SEN5XComponent::setup() {
         ESP_LOGE(TAG, "NOx requires a SEN55");
         this->nox_sensor_ = nullptr;  // mark as not used
       }
-
+      if (this->store_baseline_.has_value() && sen5x_type == SEN50) {
+        ESP_LOGE(TAG, "Store Baseline requires a SEN54 or SEN55");
+        this->store_baseline_.reset();
+      }
       if (!this->get_register(SEN5X_CMD_GET_FIRMWARE_VERSION, this->firmware_version_, 20)) {
         ESP_LOGE(TAG, "Failed to read firmware version");
         this->error_code_ = FIRMWARE_FAILED;
@@ -152,35 +156,25 @@ void SEN5XComponent::setup() {
       this->firmware_version_ >>= 8;
       ESP_LOGV(TAG, "Firmware version %d", this->firmware_version_);
 
-      if (this->voc_sensor_ && this->store_baseline_) {
+      if (this->store_baseline_.has_value() && this->store_baseline_.value()) {
         uint32_t combined_serial =
             encode_uint24(this->serial_number_[0], this->serial_number_[1], this->serial_number_[2]);
         // Hash with config hash, version, and serial number
         // This ensures the baseline storage is cleared after OTA
         // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
         uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), combined_serial);
-        this->pref_ = global_preferences->make_preference<Sen5xBaselines>(hash, true);
-
-        if (this->pref_.load(&this->voc_baselines_storage_)) {
-          ESP_LOGI(TAG, "Loaded VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
-                   this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
-        }
-
-        // Initialize storage timestamp
-        this->seconds_since_last_store_ = 0;
-
-        if (this->voc_baselines_storage_.state0 > 0 && this->voc_baselines_storage_.state1 > 0) {
-          ESP_LOGI(TAG, "Setting VOC baseline from save state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
-                   this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
-          uint16_t states[4];
-
-          states[0] = this->voc_baselines_storage_.state0 >> 16;
-          states[1] = this->voc_baselines_storage_.state0 & 0xFFFF;
-          states[2] = this->voc_baselines_storage_.state1 >> 16;
-          states[3] = this->voc_baselines_storage_.state1 & 0xFFFF;
-
-          if (!this->write_command(SEN5X_CMD_VOC_ALGORITHM_STATE, states, 4)) {
-            ESP_LOGE(TAG, "Failed to set VOC baseline from saved state");
+        this->pref_ = global_preferences->make_preference<uint16_t[4]>(hash, true);
+        this->voc_baseline_time_ = App.get_loop_component_start_time();
+        if (this->pref_.load(&this->voc_baseline_state_)) {
+          if (!this->write_command(SEN5X_CMD_VOC_ALGORITHM_STATE, this->voc_baseline_state_, 4)) {
+            ESP_LOGE(TAG, "VOC Baseline State write to sensor failed");
+          } else {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
+            char hex_buf[5 * 4];
+            format_hex_pretty_to(hex_buf, this->voc_baseline_state_, 4, 0);
+            ESP_LOGV(TAG, "VOC Baseline State loaded: %s", hex_buf);
+            delay(20);
+#endif
           }
         }
       }
@@ -278,7 +272,7 @@ void SEN5XComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Product name: %s\n"
                 "  Firmware version: %d\n"
-                "  Serial number %02d.%02d.%02d",
+                "  Partial Serial number: %02d.%02d.%02d",
                 this->product_name_.c_str(), this->firmware_version_, this->serial_number_[0], this->serial_number_[1],
                 this->serial_number_[2]);
   if (this->auto_cleaning_interval_.has_value()) {
@@ -287,6 +281,14 @@ void SEN5XComponent::dump_config() {
   if (this->acceleration_mode_.has_value()) {
     ESP_LOGCONFIG(TAG, "  RH/T acceleration mode: %s",
                   LOG_STR_ARG(rht_accel_mode_to_string(this->acceleration_mode_.value())));
+  }
+  if (this->store_baseline_.has_value()) {
+    char hex_buf[5 * 4];
+    format_hex_pretty_to(hex_buf, this->voc_baseline_state_, 4, 0);
+    ESP_LOGCONFIG(TAG,
+                  "  Store Baseline: %s\n"
+                  "    State: %s\n",
+                  TRUEFALSE(this->store_baseline_.value()), hex_buf);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
@@ -302,36 +304,6 @@ void SEN5XComponent::dump_config() {
 void SEN5XComponent::update() {
   if (!this->initialized_) {
     return;
-  }
-
-  // Store baselines after defined interval or if the difference between current and stored baseline becomes too
-  // much
-  if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
-    if (this->write_command(SEN5X_CMD_VOC_ALGORITHM_STATE)) {
-      // run it a bit later to avoid adding a delay here
-      this->set_timeout(550, [this]() {
-        uint16_t states[4];
-        if (this->read_data(states, 4)) {
-          uint32_t state0 = states[0] << 16 | states[1];
-          uint32_t state1 = states[2] << 16 | states[3];
-          if ((uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state0 - state0)) >
-                  MAXIMUM_STORAGE_DIFF ||
-              (uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state1 - state1)) >
-                  MAXIMUM_STORAGE_DIFF) {
-            this->seconds_since_last_store_ = 0;
-            this->voc_baselines_storage_.state0 = state0;
-            this->voc_baselines_storage_.state1 = state1;
-
-            if (this->pref_.save(&this->voc_baselines_storage_)) {
-              ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
-                       this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
-            } else {
-              ESP_LOGW(TAG, "Could not store VOC baselines");
-            }
-          }
-        }
-      });
-    }
   }
 
   if (!this->write_command(SEN5X_CMD_READ_MEASUREMENT)) {
@@ -402,7 +374,33 @@ void SEN5XComponent::update() {
     if (this->nox_sensor_ != nullptr) {
       this->nox_sensor_->publish_state(nox);
     }
-    this->status_clear_warning();
+
+    if (!this->store_baseline_.has_value() || !this->store_baseline_.value() ||
+        (App.get_loop_component_start_time() - this->voc_baseline_time_) < SHORTEST_BASELINE_STORE_INTERVAL) {
+      this->status_clear_warning();
+    } else {
+      this->voc_baseline_time_ = App.get_loop_component_start_time();
+      if (!this->write_command(SEN5X_CMD_VOC_ALGORITHM_STATE)) {
+        this->status_set_warning();
+        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
+      } else {
+        this->set_timeout(20, [this]() {
+          if (!this->read_data(this->voc_baseline_state_, 4)) {
+            this->status_set_warning();
+            ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
+          } else {
+            if (this->pref_.save(&this->voc_baseline_state_)) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+              char hex_buf[5 * 4];
+              format_hex_pretty_to(hex_buf, this->voc_baseline_state_, 4, 0);
+              ESP_LOGD(TAG, "VOC Baseline State saved: %s", hex_buf);
+#endif
+            }
+            this->status_clear_warning();
+          }
+        });
+      }
+    }
   });
 }
 
