@@ -12,11 +12,12 @@ namespace esphome::dlms_meter {
 static constexpr const char *TAG = "dlms_meter";
 
 void DlmsMeterComponent::dump_config() {
+  const char *provider_name = this->provider_ == PROVIDER_NETZNOE ? "Netz NOE" : "Generic";
   ESP_LOGCONFIG(TAG,
                 "DLMS Meter:\n"
-                "  Provider: %d\n"
+                "  Provider: %s\n"
                 "  Read Timeout: %u ms",
-                this->provider_, this->read_timeout_);
+                provider_name, this->read_timeout_);
 #define DLMS_METER_LOG_SENSOR(s) LOG_SENSOR("  ", #s, this->s##_sensor_);
   DLMS_METER_SENSOR_LIST(DLMS_METER_LOG_SENSOR, )
 #define DLMS_METER_LOG_TEXT_SENSOR(s) LOG_TEXT_SENSOR("  ", #s, this->s##_text_sensor_);
@@ -24,30 +25,27 @@ void DlmsMeterComponent::dump_config() {
 }
 
 void DlmsMeterComponent::loop() {
-  while (this->available()) {  // Read while data is available
-    uint8_t c;
-    this->read_byte(&c);
-    // Bounds check to avoid unbounded growth
-    if (this->receive_buffer_.size() <
-        MBUS_MAX_FRAME_LENGTH * 2) {  // netznoe uses a second mbus frame directly following the first
-      this->receive_buffer_.push_back(c);
-    } else {
-      ESP_LOGW(TAG, "Receive buffer full, dropping byte");
+  // Read while data is available, netznoe uses two frames so allow 2x max frame length
+  while (this->available()) {
+    if (this->receive_buffer_.size() >= MBUS_MAX_FRAME_LENGTH * 2) {
+      ESP_LOGW(TAG, "Receive buffer full, dropping remaining bytes");
       break;
     }
-
+    uint8_t c;
+    this->read_byte(&c);
+    this->receive_buffer_.push_back(c);
     this->last_read_ = millis();
   }
 
   if (!this->receive_buffer_.empty() && millis() - this->last_read_ > this->read_timeout_) {
-    std::vector<uint8_t> mbus_payload;  // Contains the data of the payload
-    if (!this->parse_mbus_(mbus_payload))
+    this->mbus_payload_.clear();
+    if (!this->parse_mbus_(this->mbus_payload_))
       return;
 
     uint16_t message_length;
     uint8_t systitle_length;
     uint16_t header_offset;
-    if (!this->parse_dlms_(mbus_payload, message_length, systitle_length, header_offset))
+    if (!this->parse_dlms_(this->mbus_payload_, message_length, systitle_length, header_offset))
       return;
 
     if (message_length == 0 || message_length > MAX_MESSAGE_LENGTH) {
@@ -57,10 +55,10 @@ void DlmsMeterComponent::loop() {
     }
 
     // Decrypt in place inside mbus_payload
-    if (!this->decrypt_(mbus_payload, message_length, systitle_length, header_offset))
+    if (!this->decrypt_(this->mbus_payload_, message_length, systitle_length, header_offset))
       return;
 
-    uint8_t *plaintext = &mbus_payload[header_offset + DLMS_PAYLOAD_OFFSET];
+    uint8_t *plaintext = &this->mbus_payload_[header_offset + DLMS_PAYLOAD_OFFSET];
     this->decode_obis_(plaintext, message_length);
   }
 }
@@ -144,7 +142,7 @@ bool DlmsMeterComponent::parse_mbus_(std::vector<uint8_t> &mbus_payload) {
 bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, uint16_t &message_length,
                                      uint8_t &systitle_length, uint16_t &header_offset) {
   ESP_LOGV(TAG, "Parsing DLMS header");
-  if (mbus_payload.size() < 20) {  // If the payload is too short we need to abort
+  if (mbus_payload.size() < DLMS_HEADER_LENGTH + DLMS_HEADER_EXT_OFFSET) {
     ESP_LOGE(TAG, "DLMS: Payload too short");
     this->receive_buffer_.clear();
     return false;
@@ -184,7 +182,11 @@ bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, u
       header_offset = DLMS_HEADER_EXT_OFFSET;
     }
   }
-
+  if (message_length < DLMS_LENGTH_CORRECTION) {
+    ESP_LOGE(TAG, "DLMS: Message length too short: %u", message_length);
+    this->receive_buffer_.clear();
+    return false;
+  }
   message_length -= DLMS_LENGTH_CORRECTION;  // Correct message length due to part of header being included in length
 
   if (mbus_payload.size() - DLMS_HEADER_LENGTH - header_offset != message_length) {
@@ -257,7 +259,7 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
   MeterData data{};
   uint16_t current_position = DECODER_START_OFFSET;
 
-  while (current_position < message_length) {
+  while (current_position + OBIS_CODE_OFFSET <= message_length) {
     if (plaintext[current_position + OBIS_TYPE_OFFSET] != DataType::OCTET_STRING) {
       ESP_LOGE(TAG, "OBIS: Unsupported OBIS header type: %x", plaintext[current_position + OBIS_TYPE_OFFSET]);
       this->receive_buffer_.clear();
@@ -265,9 +267,15 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
     }
 
     uint8_t obis_code_length = plaintext[current_position + OBIS_LENGTH_OFFSET];
-
-    if (obis_code_length != 0x06 && obis_code_length != 0x0C) {
+    if (obis_code_length != OBIS_CODE_LENGTH_STANDARD && obis_code_length != OBIS_CODE_LENGTH_EXTENDED) {
       ESP_LOGE(TAG, "OBIS: Unsupported OBIS header length: %x", obis_code_length);
+      this->receive_buffer_.clear();
+      return;
+    }
+
+    // Check we have enough bytes for the OBIS code
+    if (current_position + OBIS_CODE_OFFSET + obis_code_length > message_length) {
+      ESP_LOGE(TAG, "OBIS: Buffer too short for OBIS code");
       this->receive_buffer_.clear();
       return;
     }
@@ -280,9 +288,9 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
     bool meter_number_found = false;
     if (this->provider_ == PROVIDER_NETZNOE) {
       // Do not advance Position when reading the Timestamp at DECODER_START_OFFSET
-      if ((obis_code_length == 0x0C) && (current_position == DECODER_START_OFFSET)) {
+      if ((obis_code_length == OBIS_CODE_LENGTH_EXTENDED) && (current_position == DECODER_START_OFFSET)) {
         timestamp_found = true;
-      } else if ((current_position != DECODER_START_OFFSET) && plaintext[current_position - 1] == 0xFF) {
+      } else if (current_position != DECODER_START_OFFSET && plaintext[current_position - 1] == 0xFF) {
         meter_number_found = true;
       } else {
         current_position += obis_code_length + 2;  // Advance past code and position
@@ -302,6 +310,11 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
 
     switch (data_type) {
       case DataType::DOUBLE_LONG_UNSIGNED: {
+        if (current_position + 4 > message_length) {
+          ESP_LOGE(TAG, "OBIS: Buffer too short for DOUBLE_LONG_UNSIGNED");
+          this->receive_buffer_.clear();
+          return;
+        }
         uint32_t value = encode_uint32(plaintext[current_position], plaintext[current_position + 1],
                                        plaintext[current_position + 2], plaintext[current_position + 3]);
         switch (obis_cd) {
@@ -330,6 +343,11 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
         break;
       }
       case DataType::LONG_UNSIGNED: {
+        if (current_position + 6 > message_length) {
+          ESP_LOGE(TAG, "OBIS: Buffer too short for LONG_UNSIGNED");
+          this->receive_buffer_.clear();
+          return;
+        }
         uint16_t raw_value = encode_uint16(plaintext[current_position], plaintext[current_position + 1]);
         float value;
         if (plaintext[current_position + 5] == Accuracy::SINGLE_DIGIT) {
@@ -374,6 +392,11 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
       case DataType::OCTET_STRING: {
         uint8_t data_length = plaintext[current_position];
         current_position++;  // Advance past string length
+        if (current_position + data_length > message_length) {
+          ESP_LOGE(TAG, "OBIS: Buffer too short for OCTET_STRING");
+          this->receive_buffer_.clear();
+          return;
+        }
         // Handle timestamp (normal OBIS code or NETZNOE special case)
         if (obis_cd == OBIS_TIMESTAMP || timestamp_found) {
           uint16_t year = encode_uint16(plaintext[current_position], plaintext[current_position + 1]);
