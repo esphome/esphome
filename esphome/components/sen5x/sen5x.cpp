@@ -161,14 +161,28 @@ void SEN5XComponent::setup() {
         // This ensures the baseline storage is cleared after OTA
         // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
         uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), combined_serial);
-        this->pref_ = global_preferences->make_preference<uint16_t[4]>(hash, true);
-        this->voc_baseline_time_ = App.get_loop_component_start_time();
-        if (this->pref_.load(&this->voc_baseline_state_)) {
-          if (!this->write_command(SEN5X_CMD_VOC_ALGORITHM_STATE, this->voc_baseline_state_, 4)) {
-            ESP_LOGE(TAG, "VOC Baseline State write to sensor failed");
-          } else {
-            ESP_LOGV(TAG, "VOC Baseline State loaded");
-            delay(20);
+        this->pref_ = global_preferences->make_preference<Sen5xBaselines>(hash, true);
+
+        if (this->pref_.load(&this->voc_baselines_storage_)) {
+          ESP_LOGI(TAG, "Loaded VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
+                   this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
+        }
+
+        // Initialize storage timestamp
+        this->seconds_since_last_store_ = 0;
+
+        if (this->voc_baselines_storage_.state0 > 0 && this->voc_baselines_storage_.state1 > 0) {
+          ESP_LOGI(TAG, "Setting VOC baseline from save state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
+                   this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
+          uint16_t states[4];
+
+          states[0] = this->voc_baselines_storage_.state0 >> 16;
+          states[1] = this->voc_baselines_storage_.state0 & 0xFFFF;
+          states[2] = this->voc_baselines_storage_.state1 >> 16;
+          states[3] = this->voc_baselines_storage_.state1 & 0xFFFF;
+
+          if (!this->write_command(SEN5X_CMD_VOC_ALGORITHM_STATE, states, 4)) {
+            ESP_LOGE(TAG, "Failed to set VOC baseline from saved state");
           }
         }
       }
@@ -264,7 +278,7 @@ void SEN5XComponent::dump_config() {
     }
   }
   ESP_LOGCONFIG(TAG,
-                "  Product name: %s\n"
+                "  Model: %s\n"
                 "  Firmware version: %d\n"
                 "  Serial number %02d.%02d.%02d",
                 LOG_STR_ARG(model_to_string(this->model_)), this->firmware_version_, this->serial_number_[0],
@@ -275,14 +289,6 @@ void SEN5XComponent::dump_config() {
   if (this->acceleration_mode_.has_value()) {
     ESP_LOGCONFIG(TAG, "  RH/T acceleration mode: %s",
                   LOG_STR_ARG(rht_accel_mode_to_string(this->acceleration_mode_.value())));
-  }
-  if (this->voc_sensor_) {
-    char hex_buf[5 * 4];
-    format_hex_pretty_to(hex_buf, this->voc_baseline_state_, 4, 0);
-    ESP_LOGCONFIG(TAG,
-                  "  Store Baseline: %s\n"
-                  "    State: %s\n",
-                  TRUEFALSE(this->store_baseline_), hex_buf);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
@@ -368,29 +374,7 @@ void SEN5XComponent::update() {
     if (this->nox_sensor_ != nullptr) {
       this->nox_sensor_->publish_state(nox);
     }
-
-    if (!this->voc_sensor_ || !this->store_baseline_ ||
-        (App.get_loop_component_start_time() - this->voc_baseline_time_) < SHORTEST_BASELINE_STORE_INTERVAL) {
-      this->status_clear_warning();
-    } else {
-      this->voc_baseline_time_ = App.get_loop_component_start_time();
-      if (!this->write_command(SEN5X_CMD_VOC_ALGORITHM_STATE)) {
-        this->status_set_warning();
-        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-      } else {
-        this->set_timeout(20, [this]() {
-          if (!this->read_data(this->voc_baseline_state_, 4)) {
-            this->status_set_warning();
-            ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-          } else {
-            if (this->pref_.save(&this->voc_baseline_state_)) {
-              ESP_LOGD(TAG, "VOC Baseline State saved");
-            }
-            this->status_clear_warning();
-          }
-        });
-      }
-    }
+    this->status_clear_warning();
   });
 }
 
