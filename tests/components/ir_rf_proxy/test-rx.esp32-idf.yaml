@@ -5,4 +5,3 @@ substitutions:
 packages:
   common: !include common.yaml
   rx: !include common-rx.yaml
-  tx: !include common-tx.yaml
