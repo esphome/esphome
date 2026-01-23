@@ -2,8 +2,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace fendt_caravan {
+namespace esphome::fendt_caravan {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -42,32 +41,11 @@ void FendtCaravan::loop() {
   }
 }
 
-void FendtCaravan::update() {}
-
 void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                        esp_ble_gattc_cb_param_t *param) {
   switch (event) {
-    case ESP_GATTC_REG_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_UNREG_EVT called");
-      break;
-    case ESP_GATTC_UNREG_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_UNREG_EVT called");
-      break;
-    case ESP_GATTC_OPEN_EVT:
-      ESP_LOGV(TAG, "BLE connected (OPEN_EVT)");
-      break;
-    case ESP_GATTC_READ_CHAR_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_READ_CHAR_EVT called");
-      break;
-    case ESP_GATTC_WRITE_CHAR_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_WRITE_CHAR_EVT called");
-      break;
-    case ESP_GATTC_CLOSE_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_CLOSE_EVT called");
-      break;
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       ESP_LOGV(TAG, "Service discovery complete");
-
       auto *service = this->parent()->get_service(espbt::ESPBTUUID::from_raw(service_uuid_));
       if (service == nullptr) {
         ESP_LOGW(TAG, "control service not found at device, not a Fendt Caravan..?");
@@ -104,15 +82,6 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       this->command_enabled_ = true;
       break;
     }
-    case ESP_GATTC_SEARCH_RES_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_SEARCH_RES_EVT called");
-      break;
-    case ESP_GATTC_READ_DESCR_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_READ_DESCR_EVT called");
-      break;
-    case ESP_GATTC_WRITE_DESCR_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_WRITE_DESCR_EVT called");
-      break;
     case ESP_GATTC_NOTIFY_EVT:
       if (param->notify.handle == this->char_handle_) {
         this->wait_buffer_ = true;
@@ -133,104 +102,7 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         on_data_received_(result);
       }
       break;
-    case ESP_GATTC_PREP_WRITE_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_PREP_WRITE_EVT called");
-      break;
-    case ESP_GATTC_EXEC_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_EXEC_EVT called");
-      break;
-    case ESP_GATTC_ACL_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_ACL_EVT called");
-      break;
-    case ESP_GATTC_CANCEL_OPEN_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_CANCEL_OPEN_EVT called");
-      break;
-    case ESP_GATTC_SRVC_CHG_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_SRVC_CHG_EVT called");
-      break;
-    case ESP_GATTC_ENC_CMPL_CB_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_ENC_CMPL_CB_EVT called");
-      break;
-    case ESP_GATTC_CFG_MTU_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_CFG_MTU_EVT called");
-      break;
-    case ESP_GATTC_ADV_DATA_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_ADV_DATA_EVT called");
-      break;
-    case ESP_GATTC_MULT_ADV_ENB_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_MULT_ADV_ENB_EVT called");
-      break;
-    case ESP_GATTC_MULT_ADV_UPD_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_MULT_ADV_UPD_EVT called");
-      break;
-    case ESP_GATTC_MULT_ADV_DATA_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_MULT_ADV_DATA_EVT called");
-      break;
-    case ESP_GATTC_MULT_ADV_DIS_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_MULT_ADV_DIS_EVT called");
-      break;
-    case ESP_GATTC_CONGEST_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_CONGEST_EVT called");
-      break;
-    case ESP_GATTC_BTH_SCAN_ENB_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_BTH_SCAN_ENB_EVT called");
-      break;
-    case ESP_GATTC_BTH_SCAN_CFG_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_BTH_SCAN_CFG_EVT called");
-      break;
-    case ESP_GATTC_BTH_SCAN_RD_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_BTH_SCAN_RD_EVT called");
-      break;
-    case ESP_GATTC_BTH_SCAN_THR_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_BTH_SCAN_THR_EVT called");
-      break;
-    case ESP_GATTC_BTH_SCAN_PARAM_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_BTH_SCAN_PARAM_EVT called");
-      break;
-    case ESP_GATTC_BTH_SCAN_DIS_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_BTH_SCAN_DIS_EVT called");
-      break;
-    case ESP_GATTC_SCAN_FLT_CFG_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_SCAN_FLT_CFG_EVT called");
-      break;
-    case ESP_GATTC_SCAN_FLT_PARAM_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_SCAN_FLT_PARAM_EVT called");
-      break;
-    case ESP_GATTC_SCAN_FLT_STATUS_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_SCAN_FLT_STATUS_EVT called");
-      break;
-    case ESP_GATTC_ADV_VSC_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_ADV_VSC_EVT called");
-      break;
-    case ESP_GATTC_UNREG_FOR_NOTIFY_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_UNREG_FOR_NOTIFY_EVT called");
-      break;
-    case ESP_GATTC_REG_FOR_NOTIFY_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_REG_FOR_NOTIFY_EVT called");
-      break;
-    case ESP_GATTC_CONNECT_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_CONNECT_EVT called");
-      break;
-    case ESP_GATTC_DISCONNECT_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_DISCONNECT_EVT called");
-      break;
-    case ESP_GATTC_READ_MULTIPLE_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_READ_MULTIPLE_EVT called");
-      break;
-    case ESP_GATTC_QUEUE_FULL_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_QUEUE_FULL_EVT called");
-      break;
-    case ESP_GATTC_SET_ASSOC_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_SET_ASSOC_EVT called");
-      break;
-    case ESP_GATTC_GET_ADDR_LIST_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_GET_ADDR_LIST_EVT called");
-      break;
-    case ESP_GATTC_DIS_SRVC_CMPL_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_DIS_SRVC_CMPL_EVT called");
-      break;
-    case ESP_GATTC_READ_MULTI_VAR_EVT:
-      ESP_LOGV(TAG, "BLE ESP_GATTC_READ_MULTI_VAR_EVT called");
+    default:
       break;
   }
 }
@@ -263,14 +135,6 @@ void FendtCaravan::on_data_received_(const std::string &data) {
   size_t end = data.find(':');
   key = data.substr(start, end);
   value = data.substr(end + 1);
-  // if (this->control_unit_device_)
-  //   this->control_unit_device_->decode(key, value);
-  // if (this->alde_device_)
-  //   this->alde_device_->decode(key, value);
-  // if (this->fridge_device_)
-  //   this->fridge_device_->decode(key, value);
-  // if (this->lighting_device_)
-  //   this->lighting_device_->decode(key, value);
 }
 
 void FendtCaravan::on_command_send(const std::string &command) {
@@ -278,6 +142,5 @@ void FendtCaravan::on_command_send(const std::string &command) {
   this->add_command_(command);
 }
 
-}  // namespace fendt_caravan
-}  // namespace esphome
+}  // namespace esphome::fendt_caravan
 #endif
