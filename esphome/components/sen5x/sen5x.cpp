@@ -30,6 +30,19 @@ static const int8_t SEN5X_INDEX_SCALE_FACTOR = 10;                            //
 static const int8_t SEN5X_MIN_INDEX_VALUE = 1 * SEN5X_INDEX_SCALE_FACTOR;     // must be adjusted by the scale factor
 static const int16_t SEN5X_MAX_INDEX_VALUE = 500 * SEN5X_INDEX_SCALE_FACTOR;  // must be adjusted by the scale factor
 
+static const LogString *model_to_string(Sen5xType model) {
+  switch (model) {
+    case Sen5xType::SEN50:
+      return LOG_STR("SEN50");
+    case Sen5xType::SEN54:
+      return LOG_STR("SEN54");
+    case Sen5xType::SEN55:
+      return LOG_STR("SEN55");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
+
 static const LogString *rht_accel_mode_to_string(RhtAccelerationMode mode) {
   switch (mode) {
     case LOW_ACCELERATION:
@@ -41,6 +54,14 @@ static const LogString *rht_accel_mode_to_string(RhtAccelerationMode mode) {
     default:
       return LOG_STR("UNKNOWN");
   }
+}
+
+static inline const char *sensirion_convert_to_string(uint16_t *array, size_t length) {
+  for (size_t i = 0; i < length; i++) {
+    array[i] = convert_big_endian(array[i]);
+  }
+  array[length - 1] &= 0xFF;  // force null terminate last byte, JIC
+  return reinterpret_cast<const char *>(array);
 }
 
 void SEN5XComponent::setup() {
@@ -95,50 +116,31 @@ void SEN5XComponent::setup() {
         this->mark_failed();
         return;
       }
-      // 2 ASCII bytes are encoded in an int
-      const uint16_t *current_int = raw_product_name;
-      char current_char;
-      uint8_t max = 16;
-      do {
-        // first char
-        current_char = *current_int >> 8;
-        if (current_char) {
-          this->product_name_.push_back(current_char);
-          // second char
-          current_char = *current_int & 0xFF;
-          if (current_char) {
-            this->product_name_.push_back(current_char);
-          }
-        }
-        current_int++;
-      } while (current_char && --max);
-
-      Sen5xType sen5x_type = UNKNOWN;
-      if (this->product_name_ == "SEN50") {
-        sen5x_type = SEN50;
+      const char *product_name = sensirion_convert_to_string(raw_product_name, 16);
+      if (strncmp(product_name, "SEN50", 5) == 0) {
+        this->model_ = Sen5xType::SEN50;
+      } else if (strncmp(product_name, "SEN54", 5) == 0) {
+        this->model_ = Sen5xType::SEN54;
+      } else if (strncmp(product_name, "SEN55", 5) == 0) {
+        this->model_ = Sen5xType::SEN55;
       } else {
-        if (this->product_name_ == "SEN54") {
-          sen5x_type = SEN54;
-        } else {
-          if (this->product_name_ == "SEN55") {
-            sen5x_type = SEN55;
-          }
-        }
+        this->model_ = Sen5xType::UNKNOWN;
       }
-      ESP_LOGD(TAG, "Product name: %s", this->product_name_.c_str());
-      if (this->humidity_sensor_ && sen5x_type == SEN50) {
+
+      ESP_LOGD(TAG, "Product name: %s", LOG_STR_ARG(model_to_string(this->model_)));
+      if (this->humidity_sensor_ && this->model_ == Sen5xType::SEN50) {
         ESP_LOGE(TAG, "Relative humidity requires a SEN54 or SEN55");
         this->humidity_sensor_ = nullptr;  // mark as not used
       }
-      if (this->temperature_sensor_ && sen5x_type == SEN50) {
+      if (this->temperature_sensor_ && this->model_ == Sen5xType::SEN50) {
         ESP_LOGE(TAG, "Temperature requires a SEN54 or SEN55");
         this->temperature_sensor_ = nullptr;  // mark as not used
       }
-      if (this->voc_sensor_ && sen5x_type == SEN50) {
+      if (this->voc_sensor_ && this->model_ == Sen5xType::SEN50) {
         ESP_LOGE(TAG, "VOC requires a SEN54 or SEN55");
         this->voc_sensor_ = nullptr;  // mark as not used
       }
-      if (this->nox_sensor_ && sen5x_type != SEN55) {
+      if (this->nox_sensor_ && this->model_ != Sen5xType::SEN55) {
         ESP_LOGE(TAG, "NOx requires a SEN55");
         this->nox_sensor_ = nullptr;  // mark as not used
       }
@@ -265,8 +267,8 @@ void SEN5XComponent::dump_config() {
                 "  Product name: %s\n"
                 "  Firmware version: %d\n"
                 "  Serial number %02d.%02d.%02d",
-                this->product_name_.c_str(), this->firmware_version_, this->serial_number_[0], this->serial_number_[1],
-                this->serial_number_[2]);
+                LOG_STR_ARG(model_to_string(this->model_)), this->firmware_version_, this->serial_number_[0],
+                this->serial_number_[1], this->serial_number_[2]);
   if (this->auto_cleaning_interval_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Auto cleaning interval: %" PRId32 "s", this->auto_cleaning_interval_.value());
   }
@@ -274,7 +276,7 @@ void SEN5XComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RH/T acceleration mode: %s",
                   LOG_STR_ARG(rht_accel_mode_to_string(this->acceleration_mode_.value())));
   }
-  if (!this->voc_sensor_) {
+  if (this->voc_sensor_) {
     char hex_buf[5 * 4];
     format_hex_pretty_to(hex_buf, this->voc_baseline_state_, 4, 0);
     ESP_LOGCONFIG(TAG,

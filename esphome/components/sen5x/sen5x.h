@@ -24,6 +24,8 @@ enum RhtAccelerationMode : uint16_t {
   HIGH_ACCELERATION = 2,
 };
 
+enum class Sen5xType : uint8_t { SEN50, SEN54, SEN55, UNKNOWN };
+
 struct GasTuning {
   uint16_t index_offset;
   uint16_t learning_time_offset_hours;
@@ -48,8 +50,6 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void setup() override;
   void dump_config() override;
   void update() override;
-
-  enum Sen5xType { SEN50, SEN54, SEN55, UNKNOWN };
 
   void set_pm_1_0_sensor(sensor::Sensor *pm_1_0) { pm_1_0_sensor_ = pm_1_0; }
   void set_pm_2_5_sensor(sensor::Sensor *pm_2_5) { pm_2_5_sensor_ = pm_2_5; }
@@ -103,6 +103,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   uint16_t voc_baseline_state_[4]{0};
   uint32_t voc_baseline_time_;
   uint16_t firmware_version_;
+  Sen5xType model_;
   ERRORCODE error_code_;
   uint8_t serial_number_[4];
   bool initialized_{false};
@@ -125,7 +126,6 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureCompensation> temperature_compensation_;
   ESPPreferenceObject pref_;
-  std::string product_name_;
 };
 
 }  // namespace sen5x
