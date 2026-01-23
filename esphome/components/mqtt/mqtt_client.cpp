@@ -98,7 +98,17 @@ void MQTTClientComponent::send_device_info_() {
         uint8_t index = 0;
         for (auto &ip : network::get_ip_addresses()) {
           if (ip.is_set()) {
-            root["ip" + (index == 0 ? "" : esphome::to_string(index))] = ip.str();
+            char key[8];  // "ip" + up to 3 digits + null
+            char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+            if (index == 0) {
+              key[0] = 'i';
+              key[1] = 'p';
+              key[2] = '\0';
+            } else {
+              buf_append_printf(key, sizeof(key), 0, "ip%u", index);
+            }
+            ip.str_to(ip_buf);
+            root[key] = ip_buf;
             index++;
           }
         }
