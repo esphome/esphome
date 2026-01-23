@@ -2,6 +2,7 @@ substitutions:
   tx_pin: GPIO4
   rx_pin: GPIO5
 
-<<: !include common.yaml
-<<: !include common-tx.yaml
-<<: !include common-rx.yaml
+packages:
+  common: !include common.yaml
+  rx: !include common-rx.yaml
+  tx: !include common-tx.yaml
