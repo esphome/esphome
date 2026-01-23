@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import light, number, select, sensor, switch, text_sensor
-import esphome.config_validation as cv
+
+# import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_MAX_VALUE,
@@ -19,11 +20,12 @@ from .. import (
     FendtSwitch,
     FendtTextSensor,
 )
-from .control_unit_sensor import (
-    CONF_CONTROL_UNIT_DEVICE,
-    CONFIG_CONTROL_UNIT_SCHEMA,
-    CONTROL_UNITS,
-)
+
+# from .control_unit_sensor import (
+#    CONF_CONTROL_UNIT_DEVICE,
+#    CONFIG_CONTROL_UNIT_SCHEMA,
+#    CONTROL_UNITS,
+# )
 
 # from .alde_sensor import ALDES, CONF_ALDE_DEVICE, CONFIG_ALDE_SCHEMA
 # from .fridge_sensor import CONF_FRIDGE_DEVICE, CONFIG_FRIDGE_SCHEMA, FRIDGES
@@ -31,7 +33,7 @@ from .control_unit_sensor import (
 
 CONFIG_SCHEMA = CONFIG_FENDT_SCHEMA.extend(
     {
-        cv.Required(CONF_CONTROL_UNIT_DEVICE): CONFIG_CONTROL_UNIT_SCHEMA,
+        # cv.Required(CONF_CONTROL_UNIT_DEVICE): CONFIG_CONTROL_UNIT_SCHEMA,
         #       cv.Optional(CONF_FRIDGE_DEVICE): CONFIG_FRIDGE_SCHEMA,
         #       cv.Optional(CONF_ALDE_DEVICE): CONFIG_ALDE_SCHEMA,
         #       cv.Optional(CONF_LIGHTING_DEVICE): CONFIG_LIGHTING_SCHEMA,
@@ -73,11 +75,12 @@ async def device_to_code(parent, types, config):
 
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_FENDT_CARAVAN_ID])
-    conf_unit = config[CONF_CONTROL_UNIT_DEVICE]
-    unit = cg.new_Pvariable(conf_unit[CONF_ID])
-    await cg.register_component(unit, conf_unit)
-    cg.add(parent.set_control_unit(unit))
-    await device_to_code(unit, CONTROL_UNITS, conf_unit)
+    print(parent)
+    # conf_unit = config[CONF_CONTROL_UNIT_DEVICE]
+    # unit = cg.new_Pvariable(conf_unit[CONF_ID])
+    # await cg.register_component(unit, conf_unit)
+    # cg.add(parent.set_control_unit(unit))
+    # await device_to_code(unit, CONTROL_UNITS, conf_unit)
     # if conf_alde := config.get(CONF_ALDE_DEVICE):
     #    var = cg.new_Pvariable(conf_alde[CONF_ID])
     #    await cg.register_component(var, conf_alde)
