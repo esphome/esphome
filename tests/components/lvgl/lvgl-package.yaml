@@ -34,6 +34,15 @@ sensor:
     id: random_sensor
     lambda: return random_uint32() % 100;
 
+text_sensor:
+  - platform: template
+    id: text_sensor_id
+    on_value:
+      - lvgl.label.update:
+          id: hello_label
+          text:
+            argument: x
+
 lvgl:
   log_level: debug
   resume_on_input: true
@@ -837,7 +846,8 @@ lvgl:
               then:
                 - lvgl.bar.update:
                     id: bar_id
-                    value: random_sensor.state
+                    value:
+                      entity_state: random_sensor
                     start_value: !lambda return (int)((float)rand() / RAND_MAX * 100);
                     mode: range
                 - logger.log:

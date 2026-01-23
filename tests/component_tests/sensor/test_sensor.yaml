@@ -17,4 +17,5 @@ binary_sensor:
   - platform: analog_threshold
     id: threshold_id
     sensor_id: s_1
-    threshold: s_1.state
+    threshold:
+      entity_state: s_1
