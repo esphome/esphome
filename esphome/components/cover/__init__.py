@@ -9,11 +9,7 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
-    CONF_ON_CLOSING,
-    CONF_ON_IDLE,
     CONF_ON_OPEN,
-    CONF_ON_OPENED,
-    CONF_ON_OPENING,
     CONF_POSITION,
     CONF_POSITION_COMMAND_TOPIC,
     CONF_POSITION_STATE_TOPIC,
@@ -98,7 +94,12 @@ CoverOpeningTrigger = cover_ns.class_("CoverOpeningTrigger", automation.Trigger.
 CoverClosingTrigger = cover_ns.class_("CoverClosingTrigger", automation.Trigger.template())
 CoverIdleTrigger = cover_ns.class_("CoverIdleTrigger", automation.Trigger.template())
 
+# Cover-specific constants
 CONF_ON_CLOSED = "on_closed"
+CONF_ON_OPENED = "on_opened"
+CONF_ON_OPENING = "on_opening"
+CONF_ON_CLOSING = "on_closing"
+CONF_ON_IDLE = "on_idle"
 
 _COVER_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
