@@ -64,7 +64,7 @@ void SEN5XComponent::setup() {
     uint32_t stop_measurement_delay = 0;
     // In order to query the device periodic measurement must be ceased
     if (raw_read_status) {
-      ESP_LOGD(TAG, "Data is available; stopping periodic measurement");
+      ESP_LOGV(TAG, "Data is available; stopping periodic measurement");
       if (!this->write_command(SEN5X_CMD_STOP_MEASUREMENTS)) {
         ESP_LOGE(TAG, "Failed to stop measurements");
         this->mark_failed();
@@ -82,11 +82,10 @@ void SEN5XComponent::setup() {
         this->mark_failed();
         return;
       }
-
       this->serial_number_[0] = static_cast<bool>(uint16_t(raw_serial_number[0]) & 0xFF);
       this->serial_number_[1] = static_cast<uint16_t>(raw_serial_number[0] & 0xFF);
       this->serial_number_[2] = static_cast<uint16_t>(raw_serial_number[1] >> 8);
-      ESP_LOGD(TAG, "Serial number %02d.%02d.%02d", this->serial_number_[0], this->serial_number_[1],
+      ESP_LOGV(TAG, "Serial number %02d.%02d.%02d", this->serial_number_[0], this->serial_number_[1],
                this->serial_number_[2]);
 
       uint16_t raw_product_name[16];
@@ -126,7 +125,7 @@ void SEN5XComponent::setup() {
           }
         }
       }
-      ESP_LOGD(TAG, "Product name: %s", this->product_name_.c_str());
+      ESP_LOGV(TAG, "Product name: %s", this->product_name_.c_str());
       if (this->humidity_sensor_ && sen5x_type == SEN50) {
         ESP_LOGE(TAG, "Relative humidity requires a SEN54 or SEN55");
         this->humidity_sensor_ = nullptr;  // mark as not used
@@ -142,10 +141,6 @@ void SEN5XComponent::setup() {
       if (this->nox_sensor_ && sen5x_type != SEN55) {
         ESP_LOGE(TAG, "NOx requires a SEN55");
         this->nox_sensor_ = nullptr;  // mark as not used
-      }
-      if (this->store_baseline_.has_value() && sen5x_type == SEN50) {
-        ESP_LOGE(TAG, "Store Baseline requires a SEN54 or SEN55");
-        this->store_baseline_.reset();
       }
       if (!this->get_register(SEN5X_CMD_GET_FIRMWARE_VERSION, this->firmware_version_, 20)) {
         ESP_LOGE(TAG, "Failed to read firmware version");
@@ -272,7 +267,7 @@ void SEN5XComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Product name: %s\n"
                 "  Firmware version: %d\n"
-                "  Partial Serial number: %02d.%02d.%02d",
+                "  Serial number %02d.%02d.%02d",
                 this->product_name_.c_str(), this->firmware_version_, this->serial_number_[0], this->serial_number_[1],
                 this->serial_number_[2]);
   if (this->auto_cleaning_interval_.has_value()) {
