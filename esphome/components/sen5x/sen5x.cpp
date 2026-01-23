@@ -306,6 +306,36 @@ void SEN5XComponent::update() {
     return;
   }
 
+  // Store baselines after defined interval or if the difference between current and stored baseline becomes too
+  // much
+  if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
+    if (this->write_command(SEN5X_CMD_VOC_ALGORITHM_STATE)) {
+      // run it a bit later to avoid adding a delay here
+      this->set_timeout(550, [this]() {
+        uint16_t states[4];
+        if (this->read_data(states, 4)) {
+          uint32_t state0 = states[0] << 16 | states[1];
+          uint32_t state1 = states[2] << 16 | states[3];
+          if ((uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state0 - state0)) >
+                  MAXIMUM_STORAGE_DIFF ||
+              (uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state1 - state1)) >
+                  MAXIMUM_STORAGE_DIFF) {
+            this->seconds_since_last_store_ = 0;
+            this->voc_baselines_storage_.state0 = state0;
+            this->voc_baselines_storage_.state1 = state1;
+
+            if (this->pref_.save(&this->voc_baselines_storage_)) {
+              ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
+                       this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
+            } else {
+              ESP_LOGW(TAG, "Could not store VOC baselines");
+            }
+          }
+        }
+      });
+    }
+  }
+
   if (!this->write_command(SEN5X_CMD_READ_MEASUREMENT)) {
     this->status_set_warning();
     ESP_LOGD(TAG, "Write error: read measurement (%d)", this->last_error_);
