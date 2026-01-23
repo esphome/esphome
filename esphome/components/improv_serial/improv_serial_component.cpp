@@ -267,7 +267,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       for (auto &scan : results) {
         if (scan.get_is_hidden())
           continue;
-        const std::string &ssid = scan.get_ssid();
+        std::string ssid = scan.get_ssid().c_str();
         if (std::find(networks.begin(), networks.end(), ssid) != networks.end())
           continue;
         // Send each ssid separately to avoid overflowing the buffer

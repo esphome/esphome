@@ -853,8 +853,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       if (needs_full || this->matches_configured_network_(ssid_cstr, record.bssid)) {
         bssid_t bssid;
         std::copy(record.bssid, record.bssid + 6, bssid.begin());
-        std::string ssid(ssid_cstr);
-        this->scan_result_.emplace_back(bssid, std::move(ssid), record.primary, record.rssi,
+        this->scan_result_.emplace_back(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
                                         record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
       } else {
         this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);

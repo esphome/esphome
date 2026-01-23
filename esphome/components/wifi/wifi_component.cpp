@@ -351,7 +351,7 @@ bool WiFiComponent::needs_scan_results_() const {
   return this->scan_result_.empty() || !this->scan_result_[0].get_matches();
 }
 
-bool WiFiComponent::ssid_was_seen_in_scan_(const std::string &ssid) const {
+bool WiFiComponent::ssid_was_seen_in_scan_(const CompactString &ssid) const {
   // Check if this SSID is configured as hidden
   // If explicitly marked hidden, we should always try hidden mode regardless of scan results
   for (const auto &conf : this->sta_) {
@@ -939,9 +939,12 @@ WiFiAP WiFiComponent::get_sta() const {
   return config ? *config : WiFiAP{};
 }
 void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
+  this->save_wifi_sta(ssid.c_str(), password.c_str());
+}
+void WiFiComponent::save_wifi_sta(const char *ssid, const char *password) {
   SavedWifiSettings save{};  // zero-initialized - all bytes set to \0, guaranteeing null termination
-  strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid) - 1);              // max 32 chars, byte 32 remains \0
-  strncpy(save.password, password.c_str(), sizeof(save.password) - 1);  // max 64 chars, byte 64 remains \0
+  strncpy(save.ssid, ssid, sizeof(save.ssid) - 1);              // max 32 chars, byte 32 remains \0
+  strncpy(save.password, password, sizeof(save.password) - 1);  // max 64 chars, byte 64 remains \0
   this->pref_.save(&save);
   // ensure it's written immediately
   global_preferences->sync();
@@ -1786,11 +1789,11 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   }
 
   // Get SSID for logging (use pointer to avoid copy)
-  const std::string *ssid = nullptr;
+  const char *ssid = nullptr;
   if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
-    ssid = &this->scan_result_[0].get_ssid();
+    ssid = this->scan_result_[0].get_ssid().c_str();
   } else if (const WiFiAP *config = this->get_selected_sta_()) {
-    ssid = &config->get_ssid();
+    ssid = config->get_ssid().c_str();
   }
 
   // Only decrease priority on the last attempt for this phase
@@ -1810,8 +1813,8 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   }
   char bssid_s[18];
   format_mac_addr_upper(failed_bssid.value().data(), bssid_s);
-  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d",
-           ssid != nullptr ? ssid->c_str() : "", bssid_s, old_priority, new_priority);
+  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid != nullptr ? ssid : "",
+           bssid_s, old_priority, new_priority);
 
   // After adjusting priority, check if all priorities are now at minimum
   // If so, clear the vector to save memory and reset for fresh start
@@ -2059,10 +2062,14 @@ void WiFiComponent::save_fast_connect_settings_() {
 }
 #endif
 
-void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }
+void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
+void WiFiAP::set_ssid(const char *ssid) { this->ssid_ = CompactString(ssid, strlen(ssid)); }
 void WiFiAP::set_bssid(const bssid_t &bssid) { this->bssid_ = bssid; }
 void WiFiAP::clear_bssid() { this->bssid_ = {}; }
-void WiFiAP::set_password(const std::string &password) { this->password_ = password; }
+void WiFiAP::set_password(const std::string &password) {
+  this->password_ = CompactString(password.c_str(), password.size());
+}
+void WiFiAP::set_password(const char *password) { this->password_ = CompactString(password, strlen(password)); }
 #ifdef USE_WIFI_WPA2_EAP
 void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
 #endif
@@ -2072,10 +2079,8 @@ void WiFiAP::clear_channel() { this->channel_ = 0; }
 void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
 #endif
 void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
-const std::string &WiFiAP::get_ssid() const { return this->ssid_; }
 const bssid_t &WiFiAP::get_bssid() const { return this->bssid_; }
 bool WiFiAP::has_bssid() const { return this->bssid_ != bssid_t{}; }
-const std::string &WiFiAP::get_password() const { return this->password_; }
 #ifdef USE_WIFI_WPA2_EAP
 const optional<EAPAuth> &WiFiAP::get_eap() const { return this->eap_; }
 #endif
@@ -2086,12 +2091,12 @@ const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip
 #endif
 bool WiFiAP::get_hidden() const { return this->hidden_; }
 
-WiFiScanResult::WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth,
-                               bool is_hidden)
+WiFiScanResult::WiFiScanResult(const bssid_t &bssid, const char *ssid, size_t ssid_len, uint8_t channel, int8_t rssi,
+                               bool with_auth, bool is_hidden)
     : bssid_(bssid),
       channel_(channel),
       rssi_(rssi),
-      ssid_(std::move(ssid)),
+      ssid_(ssid, ssid_len),
       with_auth_(with_auth),
       is_hidden_(is_hidden) {}
 bool WiFiScanResult::matches(const WiFiAP &config) const {
@@ -2134,7 +2139,6 @@ bool WiFiScanResult::matches(const WiFiAP &config) const {
 bool WiFiScanResult::get_matches() const { return this->matches_; }
 void WiFiScanResult::set_matches(bool matches) { this->matches_ = matches; }
 const bssid_t &WiFiScanResult::get_bssid() const { return this->bssid_; }
-const std::string &WiFiScanResult::get_ssid() const { return this->ssid_; }
 uint8_t WiFiScanResult::get_channel() const { return this->channel_; }
 int8_t WiFiScanResult::get_rssi() const { return this->rssi_; }
 bool WiFiScanResult::get_with_auth() const { return this->with_auth_; }
@@ -2207,7 +2211,7 @@ void WiFiComponent::process_roaming_scan_() {
 
   for (const auto &result : this->scan_result_) {
     // Must be same SSID, different BSSID
-    if (current_ssid != result.get_ssid() || result.get_bssid() == current_bssid)
+    if (result.get_ssid() != current_ssid.c_str() || result.get_bssid() == current_bssid)
       continue;
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
