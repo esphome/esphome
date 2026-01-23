@@ -29,6 +29,8 @@ struct Sen5xBaselines {
   int32_t state1;
 } PACKED;  // NOLINT
 
+enum class Sen5xType : uint8_t { SEN50, SEN54, SEN55, UNKNOWN };
+
 struct GasTuning {
   uint16_t index_offset;
   uint16_t learning_time_offset_hours;
@@ -55,8 +57,6 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void setup() override;
   void dump_config() override;
   void update() override;
-
-  enum Sen5xType { SEN50, SEN54, SEN55, UNKNOWN };
 
   void set_pm_1_0_sensor(sensor::Sensor *pm_1_0) { pm_1_0_sensor_ = pm_1_0; }
   void set_pm_2_5_sensor(sensor::Sensor *pm_2_5) { pm_2_5_sensor_ = pm_2_5; }
@@ -109,6 +109,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
 
   uint32_t seconds_since_last_store_;
   uint16_t firmware_version_;
+  Sen5xType type_{Sen5xType::UNKNOWN};
   ERRORCODE error_code_;
   uint8_t serial_number_[4];
   bool initialized_{false};
@@ -131,7 +132,6 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureCompensation> temperature_compensation_;
   ESPPreferenceObject pref_;
-  std::string product_name_;
   Sen5xBaselines voc_baselines_storage_;
 };
 
