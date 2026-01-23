@@ -1,3 +1,5 @@
+import logging
+
 from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
 import esphome.codegen as cg
@@ -9,6 +11,7 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
+    CONF_ON_IDLE,
     CONF_ON_OPEN,
     CONF_POSITION,
     CONF_POSITION_COMMAND_TOPIC,
@@ -53,6 +56,8 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_WINDOW,
 ]
 
+_LOGGER = logging.getLogger(__name__)
+
 cover_ns = cg.esphome_ns.namespace("cover")
 
 Cover = cover_ns.class_("Cover", cg.EntityBase)
@@ -81,25 +86,28 @@ StopAction = cover_ns.class_("StopAction", automation.Action)
 ToggleAction = cover_ns.class_("ToggleAction", automation.Action)
 ControlAction = cover_ns.class_("ControlAction", automation.Action)
 CoverPublishAction = cover_ns.class_("CoverPublishAction", automation.Action)
-CoverIsOpenCondition = cover_ns.class_("CoverIsOpenCondition", Condition)
-CoverIsClosedCondition = cover_ns.class_("CoverIsClosedCondition", Condition)
-
-# Triggers
-CoverOpenTrigger = cover_ns.class_("CoverOpenTrigger", automation.Trigger.template())
-CoverOpenedTrigger = cover_ns.class_("CoverOpenedTrigger", automation.Trigger.template())
-CoverClosedTrigger = cover_ns.class_(
-    "CoverClosedTrigger", automation.Trigger.template()
+CoverIsCondition = cover_ns.class_("CoverIsCondition", Condition)
+CoverPositionTrigger = cover_ns.class_(
+    "CoverPositionTrigger", automation.Trigger.template()
 )
-CoverOpeningTrigger = cover_ns.class_("CoverOpeningTrigger", automation.Trigger.template())
-CoverClosingTrigger = cover_ns.class_("CoverClosingTrigger", automation.Trigger.template())
-CoverIdleTrigger = cover_ns.class_("CoverIdleTrigger", automation.Trigger.template())
+CoverTrigger = cover_ns.class_("CoverTrigger", automation.Trigger.template())
 
 # Cover-specific constants
 CONF_ON_CLOSED = "on_closed"
 CONF_ON_OPENED = "on_opened"
 CONF_ON_OPENING = "on_opening"
 CONF_ON_CLOSING = "on_closing"
-CONF_ON_IDLE = "on_idle"
+
+OPERATIONS = (
+    CONF_ON_CLOSING,
+    CONF_ON_OPENING,
+    CONF_ON_IDLE,
+)
+
+
+def get_operation_from_conf_(conf: str) -> CoverOperation:
+    return getattr(CoverOperation, "COVER_OPERATION_" + conf.split("_")[1].upper())
+
 
 _COVER_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
@@ -120,36 +128,38 @@ _COVER_SCHEMA = (
             cv.Optional(CONF_TILT_STATE_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.subscribe_topic
             ),
+            # Deprecated trigger
             cv.Optional(CONF_ON_OPEN): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        CoverPositionTrigger.template(1.0)
+                    ),
                 }
             ),
             cv.Optional(CONF_ON_OPENED): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenedTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        CoverPositionTrigger.template(1.0)
+                    ),
                 }
             ),
             cv.Optional(CONF_ON_CLOSED): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverClosedTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        CoverPositionTrigger.template(0.0)
+                    ),
                 }
             ),
-            cv.Optional(CONF_ON_OPENING): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpeningTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_CLOSING): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverClosingTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_IDLE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverIdleTrigger),
-                }
-            ),
+            **{
+                cv.Optional(conf): automation.validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                            CoverTrigger.template(get_operation_from_conf_(conf))
+                        ),
+                    }
+                )
+                for conf in OPERATIONS
+            },
         }
     )
 )
@@ -186,24 +196,23 @@ async def setup_cover_core_(var, config):
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))
 
-    for conf in config.get(CONF_ON_OPEN, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_OPENED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_CLOSED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_OPENING, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_CLOSING, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_IDLE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    if on_opens := config.get(CONF_ON_OPEN):
+        _LOGGER.warning(
+            "The 'on_open' trigger for covers is deprecated and will be removed in a future release. Please use 'on_opened' instead."
+        )
+        for conf in on_opens:
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+            await automation.build_automation(trigger, [], conf)
+    for on_op in OPERATIONS:
+        if triggers := config.get(on_op):
+            for conf in triggers:
+                trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+                await automation.build_automation(trigger, [], conf)
+    for on_state in [CONF_ON_OPENED, CONF_ON_CLOSED]:
+        if triggers := config.get(on_state):
+            for conf in triggers:
+                trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+                await automation.build_automation(trigger, [], conf)
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)

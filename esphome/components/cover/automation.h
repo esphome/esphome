@@ -5,7 +5,6 @@
 #include "cover.h"
 
 namespace esphome::cover {
-
 template<typename... Ts> class OpenAction : public Action<Ts...> {
  public:
   explicit OpenAction(Cover *cover) : cover_(cover) {}
@@ -72,6 +71,7 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
 template<typename... Ts> class CoverPublishAction : public Action<Ts...> {
  public:
   CoverPublishAction(Cover *cover) : cover_(cover) {}
+
   TEMPLATABLE_VALUE(float, position)
   TEMPLATABLE_VALUE(float, tilt)
   TEMPLATABLE_VALUE(CoverOperation, current_operation)
@@ -90,66 +90,39 @@ template<typename... Ts> class CoverPublishAction : public Action<Ts...> {
   Cover *cover_;
 };
 
-template<typename... Ts> class CoverIsOpenCondition : public Condition<Ts...> {
+template<float POS, typename... Ts> class CoverIsCondition : public Condition<Ts...> {
  public:
-  CoverIsOpenCondition(Cover *cover) : cover_(cover) {}
-  bool check(const Ts &...x) override { return this->cover_->is_fully_open(); }
+  CoverIsCondition(Cover *cover) : cover_(cover) {}
+
+  bool check(const Ts &...x) override { return this->cover_->position == POS; }
 
  protected:
   Cover *cover_;
 };
 
-template<typename... Ts> class CoverIsClosedCondition : public Condition<Ts...> {
+template<float POS> class CoverPositionTrigger : public Trigger<> {
  public:
-  CoverIsClosedCondition(Cover *cover) : cover_(cover) {}
-  bool check(const Ts &...x) override { return this->cover_->is_fully_closed(); }
+  CoverPositionTrigger(Cover *a_cover) {
+    a_cover->add_on_state_callback([this, a_cover]() {
+      if (a_cover->position != this->last_position_) {
+        this->last_position_ = a_cover->position;
+        if (a_cover->position == POS)
+          this->trigger();
+      }
+    });
+  }
 
  protected:
-  Cover *cover_;
+  float last_position_{NAN};
 };
 
-class CoverOpenTrigger : public Trigger<> {
+template<CoverOperation OP> class CoverTrigger : public Trigger<> {
  public:
-  CoverOpenTrigger(Cover *a_cover) {
-    a_cover->add_on_state_callback([this, a_cover]() {
-      if (a_cover->is_fully_open()) {
-        this->trigger();
-      }
-    });
-  }
-};
-
-// Separate CoverOpenedTrigger class for improved naming clarity.
-// Both on_open and on_opened are supported for backward compatibility.
-class CoverOpenedTrigger : public Trigger<> {
- public:
-  CoverOpenedTrigger(Cover *a_cover) {
-    a_cover->add_on_state_callback([this, a_cover]() {
-      if (a_cover->is_fully_open()) {
-        this->trigger();
-      }
-    });
-  }
-};
-
-class CoverClosedTrigger : public Trigger<> {
- public:
-  CoverClosedTrigger(Cover *a_cover) {
-    a_cover->add_on_state_callback([this, a_cover]() {
-      if (a_cover->is_fully_closed()) {
-        this->trigger();
-      }
-    });
-  }
-};
-
-class CoverOpeningTrigger : public Trigger<> {
- public:
-  CoverOpeningTrigger(Cover *a_cover) {
+  CoverTrigger(Cover *a_cover) {
     a_cover->add_on_state_callback([this, a_cover]() {
       auto current_op = a_cover->current_operation;
-      if (current_op == COVER_OPERATION_OPENING) {
-        if (!this->last_operation_.has_value() || this->last_operation_.value() != COVER_OPERATION_OPENING) {
+      if (current_op == OP) {
+        if (!this->last_operation_.has_value() || this->last_operation_.value() != OP) {
           this->trigger();
         }
       }
@@ -160,41 +133,4 @@ class CoverOpeningTrigger : public Trigger<> {
  protected:
   optional<CoverOperation> last_operation_{};
 };
-
-class CoverClosingTrigger : public Trigger<> {
- public:
-  CoverClosingTrigger(Cover *a_cover) {
-    a_cover->add_on_state_callback([this, a_cover]() {
-      auto current_op = a_cover->current_operation;
-      if (current_op == COVER_OPERATION_CLOSING) {
-        if (!this->last_operation_.has_value() || this->last_operation_.value() != COVER_OPERATION_CLOSING) {
-          this->trigger();
-        }
-      }
-      this->last_operation_ = current_op;
-    });
-  }
-
- protected:
-  optional<CoverOperation> last_operation_{};
-};
-
-class CoverIdleTrigger : public Trigger<> {
- public:
-  CoverIdleTrigger(Cover *a_cover) {
-    a_cover->add_on_state_callback([this, a_cover]() {
-      auto current_op = a_cover->current_operation;
-      if (current_op == COVER_OPERATION_IDLE) {
-        if (this->last_operation_.has_value() && this->last_operation_.value() != COVER_OPERATION_IDLE) {
-          this->trigger();
-        }
-      }
-      this->last_operation_ = current_op;
-    });
-  }
-
- protected:
-  optional<CoverOperation> last_operation_{};
-};
-
 }  // namespace esphome::cover
