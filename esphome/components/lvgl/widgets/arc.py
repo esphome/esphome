@@ -43,6 +43,9 @@ ARC_SCHEMA = cv.Schema(
 ARC_MODIFY_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_VALUE): lv_float,
+        cv.Optional(CONF_ROTATION): lv_angle_degrees,
+        cv.Optional(CONF_START_ANGLE): lv_angle_degrees,
+        cv.Optional(CONF_END_ANGLE): lv_angle_degrees,
     }
 )
 
@@ -62,13 +65,22 @@ class ArcType(NumberType):
             max_value = await lv_int.process(config[CONF_MAX_VALUE])
             min_value = await lv_int.process(config[CONF_MIN_VALUE])
             lv.arc_set_range(w.obj, min_value, max_value)
-            start = await lv_angle_degrees.process(config[CONF_START_ANGLE])
-            end = await lv_angle_degrees.process(config[CONF_END_ANGLE])
-            rotation = await lv_angle_degrees.process(config[CONF_ROTATION])
-            lv.arc_set_bg_angles(w.obj, start, end)
-            lv.arc_set_rotation(w.obj, rotation)
             lv.arc_set_mode(w.obj, literal(config[CONF_MODE]))
             lv.arc_set_change_rate(w.obj, config[CONF_CHANGE_RATE])
+
+        start_angle = CONF_START_ANGLE in config
+        end_angle = CONF_END_ANGLE in config
+
+        if start_angle or end_angle:
+            if not start_angle or not end_angle:
+                raise cv.Invalid("start_angle and end_angle must be specified together for update")
+            start = await lv_angle_degrees.process(config[CONF_START_ANGLE])
+            end = await lv_angle_degrees.process(config[CONF_END_ANGLE])
+            lv.arc_set_bg_angles(w.obj, start, end)
+
+        if CONF_ROTATION in config:
+            rotation = await lv_angle_degrees.process(config[CONF_ROTATION])
+            lv.arc_set_rotation(w.obj, rotation)
 
         if CONF_ADJUSTABLE in config:
             if not config[CONF_ADJUSTABLE]:
