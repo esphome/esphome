@@ -882,16 +882,7 @@ CompactString::CompactString(const char *str, size_t len) {
   }
 }
 
-CompactString::CompactString(const CompactString &other) : length_(other.length_), is_heap_(other.is_heap_) {
-  if (!other.is_heap_) {
-    // Copy inline storage including null terminator
-    std::memcpy(this->storage_, other.storage_, other.length_ + 1);
-  } else {
-    char *heap_data = new char[other.length_ + 1];  // NOLINT(cppcoreguidelines-owning-memory)
-    std::memcpy(heap_data, other.get_heap_ptr_(), other.length_ + 1);
-    this->set_heap_ptr_(heap_data);
-  }
-}
+CompactString::CompactString(const CompactString &other) : CompactString(other.data(), other.size()) {}
 
 CompactString &CompactString::operator=(const CompactString &other) {
   if (this != &other) {
