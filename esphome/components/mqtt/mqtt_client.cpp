@@ -5,7 +5,6 @@
 #include <utility>
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
-#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
@@ -45,6 +44,7 @@ void MQTTClientComponent::setup() {
     this->check_topic_prefix(this->birth_message_.topic, check_prefix);
     this->check_topic_prefix(this->shutdown_message_.topic, check_prefix);
     this->recalculate_availability_();
+    ESP_LOGD(TAG, "this->topic_prefix_ %s", this->topic_prefix_.c_str());
   }
 
   this->mqtt_backend_.set_on_message(
@@ -78,13 +78,10 @@ void MQTTClientComponent::setup() {
         "esphome/discover", [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); },
         2);
 
-    // Format topic on stack - subscribe() copies it
-    // "esphome/ping/" (13) + name (ESPHOME_DEVICE_NAME_MAX_LEN) + null (1)
-    constexpr size_t ping_topic_buffer_size = 13 + ESPHOME_DEVICE_NAME_MAX_LEN + 1;
-    char ping_topic[ping_topic_buffer_size];
-    buf_append_printf(ping_topic, sizeof(ping_topic), 0, "esphome/ping/%s", App.get_name().c_str());
+    std::string topic = "esphome/ping/";
+    topic.append(App.get_name());
     this->subscribe(
-        ping_topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
+        topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
   }
 
   if (this->enable_on_boot_) {
@@ -96,11 +93,8 @@ void MQTTClientComponent::send_device_info_() {
   if (!this->is_connected() or !this->is_discovery_ip_enabled()) {
     return;
   }
-  // Format topic on stack to avoid heap allocation
-  // "esphome/discover/" (17) + name (ESPHOME_DEVICE_NAME_MAX_LEN) + null (1)
-  constexpr size_t topic_buffer_size = 17 + ESPHOME_DEVICE_NAME_MAX_LEN + 1;
-  char topic[topic_buffer_size];
-  buf_append_printf(topic, sizeof(topic), 0, "esphome/discover/%s", App.get_name().c_str());
+  std::string topic = "esphome/discover/";
+  topic.append(App.get_name());
 
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   this->publish_json(
@@ -109,17 +103,7 @@ void MQTTClientComponent::send_device_info_() {
         uint8_t index = 0;
         for (auto &ip : network::get_ip_addresses()) {
           if (ip.is_set()) {
-            char key[8];  // "ip" + up to 3 digits + null
-            char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
-            if (index == 0) {
-              key[0] = 'i';
-              key[1] = 'p';
-              key[2] = '\0';
-            } else {
-              buf_append_printf(key, sizeof(key), 0, "ip%u", index);
-            }
-            ip.str_to(ip_buf);
-            root[key] = ip_buf;
+            root["ip" + (index == 0 ? "" : esphome::to_string(index))] = ip.str();
             index++;
           }
         }
@@ -424,12 +408,6 @@ void MQTTClientComponent::loop() {
 
         this->last_connected_ = now;
         this->resubscribe_subscriptions_();
-
-        // Process pending resends for all MQTT components centrally
-        // This is more efficient than each component polling in its own loop
-        for (MQTTComponent *component : this->children_) {
-          component->process_resend();
-        }
       }
       break;
   }
@@ -534,49 +512,39 @@ bool MQTTClientComponent::publish(const std::string &topic, const std::string &p
 
 bool MQTTClientComponent::publish(const std::string &topic, const char *payload, size_t payload_length, uint8_t qos,
                                   bool retain) {
-  return this->publish(topic.c_str(), payload, payload_length, qos, retain);
+  return publish({.topic = topic, .payload = std::string(payload, payload_length), .qos = qos, .retain = retain});
 }
 
 bool MQTTClientComponent::publish(const MQTTMessage &message) {
-  return this->publish(message.topic.c_str(), message.payload.c_str(), message.payload.length(), message.qos,
-                       message.retain);
-}
-bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos,
-                                       bool retain) {
-  return this->publish_json(topic.c_str(), f, qos, retain);
-}
-
-bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t payload_length, uint8_t qos,
-                                  bool retain) {
   if (!this->is_connected()) {
+    // critical components will re-transmit their messages
     return false;
   }
-  size_t topic_len = strlen(topic);
-  bool logging_topic = (topic_len == this->log_message_.topic.size()) &&
-                       (memcmp(this->log_message_.topic.c_str(), topic, topic_len) == 0);
-  bool ret = this->mqtt_backend_.publish(topic, payload, payload_length, qos, retain);
+  bool logging_topic = this->log_message_.topic == message.topic;
+  bool ret = this->mqtt_backend_.publish(message);
   delay(0);
   if (!ret && !logging_topic && this->is_connected()) {
     delay(0);
-    ret = this->mqtt_backend_.publish(topic, payload, payload_length, qos, retain);
+    ret = this->mqtt_backend_.publish(message);
     delay(0);
   }
 
   if (!logging_topic) {
     if (ret) {
-      ESP_LOGV(TAG, "Publish(topic='%s' retain=%d qos=%d)", topic, retain, qos);
-      ESP_LOGVV(TAG, "Publish payload (len=%u): '%.*s'", payload_length, static_cast<int>(payload_length), payload);
+      ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d qos=%d)", message.topic.c_str(), message.payload.c_str(),
+               message.retain, message.qos);
     } else {
-      ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). Will retry", topic, payload_length);
+      ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). Will retry", message.topic.c_str(),
+               message.payload.length());
       this->status_momentary_warning("publish", 1000);
     }
   }
   return ret != 0;
 }
-
-bool MQTTClientComponent::publish_json(const char *topic, const json::json_build_t &f, uint8_t qos, bool retain) {
+bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos,
+                                       bool retain) {
   std::string message = json::build_json(f);
-  return this->publish(topic, message.c_str(), message.length(), qos, retain);
+  return this->publish(topic, message, qos, retain);
 }
 
 void MQTTClientComponent::enable() {
@@ -654,10 +622,18 @@ static bool topic_match(const char *message, const char *subscription) {
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
-  for (auto &subscription : this->subscriptions_) {
-    if (topic_match(topic.c_str(), subscription.topic.c_str()))
-      subscription.callback(topic, payload);
-  }
+#ifdef USE_ESP8266
+  // on ESP8266, this is called in lwIP/AsyncTCP task; some components do not like running
+  // from a different task.
+  this->defer([this, topic, payload]() {
+#endif
+    for (auto &subscription : this->subscriptions_) {
+      if (topic_match(topic.c_str(), subscription.topic.c_str()))
+        subscription.callback(topic, payload);
+    }
+#ifdef USE_ESP8266
+  });
+#endif
 }
 
 // Setters
@@ -669,13 +645,9 @@ void MQTTClientComponent::set_log_level(int level) { this->log_level_ = level; }
 void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_backend_.set_keep_alive(keep_alive_s); }
 void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
-void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix) {
-  if (App.is_name_add_mac_suffix_enabled() && (topic_prefix == check_topic_prefix)) {
-    char buf[ESPHOME_DEVICE_NAME_MAX_LEN + 1];
-    this->topic_prefix_ = str_sanitize_to(buf, App.get_name().c_str());
-  } else {
-    this->topic_prefix_ = topic_prefix;
-  }
+void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix) {
+  char buf[ESPHOME_DEVICE_NAME_MAX_LEN + 1];
+  this->topic_prefix_ = str_sanitize_to(buf, topic_prefix.c_str());
 }
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
 void MQTTClientComponent::set_publish_nan_as_none(bool publish_nan_as_none) {
