@@ -9,7 +9,11 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
+    CONF_ON_CLOSING,
+    CONF_ON_IDLE,
     CONF_ON_OPEN,
+    CONF_ON_OPENED,
+    CONF_ON_OPENING,
     CONF_POSITION,
     CONF_POSITION_COMMAND_TOPIC,
     CONF_POSITION_STATE_TOPIC,
@@ -86,9 +90,13 @@ CoverIsClosedCondition = cover_ns.class_("CoverIsClosedCondition", Condition)
 
 # Triggers
 CoverOpenTrigger = cover_ns.class_("CoverOpenTrigger", automation.Trigger.template())
+CoverOpenedTrigger = cover_ns.class_("CoverOpenedTrigger", automation.Trigger.template())
 CoverClosedTrigger = cover_ns.class_(
     "CoverClosedTrigger", automation.Trigger.template()
 )
+CoverOpeningTrigger = cover_ns.class_("CoverOpeningTrigger", automation.Trigger.template())
+CoverClosingTrigger = cover_ns.class_("CoverClosingTrigger", automation.Trigger.template())
+CoverIdleTrigger = cover_ns.class_("CoverIdleTrigger", automation.Trigger.template())
 
 CONF_ON_CLOSED = "on_closed"
 
@@ -111,14 +119,37 @@ _COVER_SCHEMA = (
             cv.Optional(CONF_TILT_STATE_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.subscribe_topic
             ),
-            cv.Optional(CONF_ON_OPEN): automation.validate_automation(
+            cv.Optional(CONF_ON_OPEN): cv.All(
+                cv.deprecated(CONF_ON_OPENED, "2026.2.0"),
+                automation.validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenTrigger),
+                    }
+                ),
+            ),
+            cv.Optional(CONF_ON_OPENED): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenedTrigger),
                 }
             ),
             cv.Optional(CONF_ON_CLOSED): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverClosedTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_OPENING): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpeningTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_CLOSING): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverClosingTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_IDLE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverIdleTrigger),
                 }
             ),
         }
@@ -160,7 +191,19 @@ async def setup_cover_core_(var, config):
     for conf in config.get(CONF_ON_OPEN, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_OPENED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_CLOSED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_OPENING, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_CLOSING, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_IDLE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 

@@ -119,6 +119,17 @@ class CoverOpenTrigger : public Trigger<> {
   }
 };
 
+class CoverOpenedTrigger : public Trigger<> {
+ public:
+  CoverOpenedTrigger(Cover *a_cover) {
+    a_cover->add_on_state_callback([this, a_cover]() {
+      if (a_cover->is_fully_open()) {
+        this->trigger();
+      }
+    });
+  }
+};
+
 class CoverClosedTrigger : public Trigger<> {
  public:
   CoverClosedTrigger(Cover *a_cover) {
@@ -128,6 +139,54 @@ class CoverClosedTrigger : public Trigger<> {
       }
     });
   }
+};
+
+class CoverOpeningTrigger : public Trigger<> {
+ public:
+  CoverOpeningTrigger(Cover *a_cover) {
+    a_cover->add_on_state_callback([this, a_cover]() {
+      auto current_op = a_cover->current_operation;
+      if (current_op == COVER_OPERATION_OPENING && this->last_operation_ != COVER_OPERATION_OPENING) {
+        this->trigger();
+      }
+      this->last_operation_ = current_op;
+    });
+  }
+
+ protected:
+  CoverOperation last_operation_{COVER_OPERATION_IDLE};
+};
+
+class CoverClosingTrigger : public Trigger<> {
+ public:
+  CoverClosingTrigger(Cover *a_cover) {
+    a_cover->add_on_state_callback([this, a_cover]() {
+      auto current_op = a_cover->current_operation;
+      if (current_op == COVER_OPERATION_CLOSING && this->last_operation_ != COVER_OPERATION_CLOSING) {
+        this->trigger();
+      }
+      this->last_operation_ = current_op;
+    });
+  }
+
+ protected:
+  CoverOperation last_operation_{COVER_OPERATION_IDLE};
+};
+
+class CoverIdleTrigger : public Trigger<> {
+ public:
+  CoverIdleTrigger(Cover *a_cover) {
+    a_cover->add_on_state_callback([this, a_cover]() {
+      auto current_op = a_cover->current_operation;
+      if (current_op == COVER_OPERATION_IDLE && this->last_operation_ != COVER_OPERATION_IDLE) {
+        this->trigger();
+      }
+      this->last_operation_ = current_op;
+    });
+  }
+
+ protected:
+  CoverOperation last_operation_{COVER_OPERATION_IDLE};
 };
 
 }  // namespace esphome::cover
