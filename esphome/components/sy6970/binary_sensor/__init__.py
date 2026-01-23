@@ -12,13 +12,13 @@ CONF_CHARGING = "charging"
 CONF_CHARGE_DONE = "charge_done"
 
 SY6970VbusConnectedBinarySensor = sy6970_ns.class_(
-    "SY6970VbusConnectedBinarySensor", binary_sensor.BinarySensor, cg.Component
+    "SY6970VbusConnectedBinarySensor", binary_sensor.BinarySensor
 )
 SY6970ChargingBinarySensor = sy6970_ns.class_(
-    "SY6970ChargingBinarySensor", binary_sensor.BinarySensor, cg.Component
+    "SY6970ChargingBinarySensor", binary_sensor.BinarySensor
 )
 SY6970ChargeDoneBinarySensor = sy6970_ns.class_(
-    "SY6970ChargeDoneBinarySensor", binary_sensor.BinarySensor, cg.Component
+    "SY6970ChargeDoneBinarySensor", binary_sensor.BinarySensor
 )
 
 CONFIG_SCHEMA = cv.Schema(

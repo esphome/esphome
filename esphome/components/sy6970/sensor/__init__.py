@@ -19,20 +19,14 @@ CONF_SYSTEM_VOLTAGE = "system_voltage"
 CONF_CHARGE_CURRENT = "charge_current"
 CONF_PRECHARGE_CURRENT = "precharge_current"
 
-SY6970VbusVoltageSensor = sy6970_ns.class_(
-    "SY6970VbusVoltageSensor", sensor.Sensor, cg.Component
-)
+SY6970VbusVoltageSensor = sy6970_ns.class_("SY6970VbusVoltageSensor", sensor.Sensor)
 SY6970BatteryVoltageSensor = sy6970_ns.class_(
-    "SY6970BatteryVoltageSensor", sensor.Sensor, cg.Component
+    "SY6970BatteryVoltageSensor", sensor.Sensor
 )
-SY6970SystemVoltageSensor = sy6970_ns.class_(
-    "SY6970SystemVoltageSensor", sensor.Sensor, cg.Component
-)
-SY6970ChargeCurrentSensor = sy6970_ns.class_(
-    "SY6970ChargeCurrentSensor", sensor.Sensor, cg.Component
-)
+SY6970SystemVoltageSensor = sy6970_ns.class_("SY6970SystemVoltageSensor", sensor.Sensor)
+SY6970ChargeCurrentSensor = sy6970_ns.class_("SY6970ChargeCurrentSensor", sensor.Sensor)
 SY6970PrechargeCurrentSensor = sy6970_ns.class_(
-    "SY6970PrechargeCurrentSensor", sensor.Sensor, cg.Component
+    "SY6970PrechargeCurrentSensor", sensor.Sensor
 )
 
 CONFIG_SCHEMA = cv.Schema(

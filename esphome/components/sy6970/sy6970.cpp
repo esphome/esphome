@@ -77,20 +77,22 @@ void SY6970Component::setup() {
 }
 
 void SY6970Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "SY6970:");
+  ESP_LOGCONFIG(TAG,
+                "SY6970:\n"
+                "  LED Enabled: %s\n"
+                "  Input Current Limit: %u mA\n"
+                "  Charge Voltage: %u mV\n"
+                "  Charge Current: %u mA\n"
+                "  Precharge Current: %u mA\n"
+                "  Charge Enabled: %s\n"
+                "  ADC Enabled: %s",
+                ONOFF(this->led_enabled_), this->input_current_limit_, this->charge_voltage_, this->charge_current_,
+                this->precharge_current_, ONOFF(this->charge_enabled_), ONOFF(this->enable_adc_));
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with SY6970 failed!");
   }
-  ESP_LOGCONFIG(TAG, "LED enabled is %s", ONOFF(this->led_enabled_));
-  ESP_LOGCONFIG(TAG, "Input current limit is %u mA", this->input_current_limit_);
-  ESP_LOGCONFIG(TAG, "Charge voltage is %u mV", this->charge_voltage_);
-  ESP_LOGCONFIG(TAG, "Charge current is %u mA", this->charge_current_);
-  ESP_LOGCONFIG(TAG, "Precharge current is %u mA", this->precharge_current_);
-  ESP_LOGCONFIG(TAG, "Charge enabled is %s", ONOFF(this->charge_enabled_));
-  ESP_LOGCONFIG(TAG, "ADC measurements are %s", ONOFF(this->enable_adc_));
-  ESP_LOGCONFIG(TAG, "  Listeners: %d", this->listeners_.size());
 }
 
 void SY6970Component::update() {

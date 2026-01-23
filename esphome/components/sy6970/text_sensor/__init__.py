@@ -11,13 +11,13 @@ CONF_CHARGE_STATUS = "charge_status"
 CONF_NTC_STATUS = "ntc_status"
 
 SY6970BusStatusTextSensor = sy6970_ns.class_(
-    "SY6970BusStatusTextSensor", text_sensor.TextSensor, cg.Component
+    "SY6970BusStatusTextSensor", text_sensor.TextSensor
 )
 SY6970ChargeStatusTextSensor = sy6970_ns.class_(
-    "SY6970ChargeStatusTextSensor", text_sensor.TextSensor, cg.Component
+    "SY6970ChargeStatusTextSensor", text_sensor.TextSensor
 )
 SY6970NtcStatusTextSensor = sy6970_ns.class_(
-    "SY6970NtcStatusTextSensor", text_sensor.TextSensor, cg.Component
+    "SY6970NtcStatusTextSensor", text_sensor.TextSensor
 )
 
 CONFIG_SCHEMA = cv.Schema(
