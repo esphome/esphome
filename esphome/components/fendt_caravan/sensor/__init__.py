@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import light, number, select, sensor, switch, text_sensor
-
-# import esphome.config_validation as cv
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_MAX_VALUE,
@@ -20,23 +19,15 @@ from .. import (
     FendtSwitch,
     FendtTextSensor,
 )
-
-# from .control_unit_sensor import (
-#    CONF_CONTROL_UNIT_DEVICE,
-#    CONFIG_CONTROL_UNIT_SCHEMA,
-#    CONTROL_UNITS,
-# )
-
-# from .alde_sensor import ALDES, CONF_ALDE_DEVICE, CONFIG_ALDE_SCHEMA
-# from .fridge_sensor import CONF_FRIDGE_DEVICE, CONFIG_FRIDGE_SCHEMA, FRIDGES
-# from .lighting_sensor import CONF_LIGHTING_DEVICE, CONFIG_LIGHTING_SCHEMA, LIGHTINGS
+from .control_unit_sensor import (
+    CONF_CONTROL_UNIT_DEVICE,
+    CONFIG_CONTROL_UNIT_SCHEMA,
+    CONTROL_UNITS,
+)
 
 CONFIG_SCHEMA = CONFIG_FENDT_SCHEMA.extend(
     {
-        # cv.Required(CONF_CONTROL_UNIT_DEVICE): CONFIG_CONTROL_UNIT_SCHEMA,
-        #       cv.Optional(CONF_FRIDGE_DEVICE): CONFIG_FRIDGE_SCHEMA,
-        #       cv.Optional(CONF_ALDE_DEVICE): CONFIG_ALDE_SCHEMA,
-        #       cv.Optional(CONF_LIGHTING_DEVICE): CONFIG_LIGHTING_SCHEMA,
+        cv.Required(CONF_CONTROL_UNIT_DEVICE): CONFIG_CONTROL_UNIT_SCHEMA,
     }
 )
 
@@ -75,24 +66,8 @@ async def device_to_code(parent, types, config):
 
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_FENDT_CARAVAN_ID])
-    print(parent)
-    # conf_unit = config[CONF_CONTROL_UNIT_DEVICE]
-    # unit = cg.new_Pvariable(conf_unit[CONF_ID])
-    # await cg.register_component(unit, conf_unit)
-    # cg.add(parent.set_control_unit(unit))
-    # await device_to_code(unit, CONTROL_UNITS, conf_unit)
-    # if conf_alde := config.get(CONF_ALDE_DEVICE):
-    #    var = cg.new_Pvariable(conf_alde[CONF_ID])
-    #    await cg.register_component(var, conf_alde)
-    #    cg.add(parent.set_alde_device(var))
-    #    await device_to_code(var, ALDES, conf_alde)
-    # if conf_fridge := config.get(CONF_FRIDGE_DEVICE):
-    #    var = cg.new_Pvariable(conf_fridge[CONF_ID])
-    #    await cg.register_component(var, conf_fridge)
-    #    cg.add(parent.set_fridge_device(var))
-    #    await device_to_code(var, FRIDGES, conf_fridge)
-    # if conf_lighting := config.get(CONF_LIGHTING_DEVICE):
-    #    var = cg.new_Pvariable(conf_lighting[CONF_ID])
-    #    await cg.register_component(var, conf_lighting)
-    #    cg.add(parent.set_lighting_device(var))
-    #    await device_to_code(var, LIGHTINGS, conf_lighting)
+    conf_unit = config[CONF_CONTROL_UNIT_DEVICE]
+    unit = cg.new_Pvariable(conf_unit[CONF_ID])
+    await cg.register_component(unit, conf_unit)
+    cg.add(parent.set_control_unit(unit))
+    await device_to_code(unit, CONTROL_UNITS, conf_unit)

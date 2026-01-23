@@ -13,3 +13,25 @@ fendt_caravan:
 sensor:
   - platform: fendt_caravan
     fendt_caravan_id: my_caravan
+    control_unit_device:
+      id: control_unit
+      main_switch:
+        name: "Main Switch"
+      temperature_in:
+        name: "In Temperature"
+        filters:
+          - median:
+              window_size: 5
+      temperature_out:
+        name: "Out Temperature"
+        filters:
+          - median:
+              window_size: 5
+      power_status:
+        name: "AC Status"
+      light_status:
+        name: "Main Light"
+      software_version:
+        name: "Software Version"
+      floor_heater:
+        name: "Floot Heater"
