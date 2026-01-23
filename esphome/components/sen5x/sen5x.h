@@ -24,6 +24,11 @@ enum RhtAccelerationMode : uint16_t {
   HIGH_ACCELERATION = 2,
 };
 
+struct Sen5xBaselines {
+  int32_t state0;
+  int32_t state1;
+} PACKED;  // NOLINT
+
 enum class Sen5xType : uint8_t { SEN50, SEN54, SEN55, UNKNOWN };
 
 struct GasTuning {
@@ -104,7 +109,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
 
   uint32_t seconds_since_last_store_;
   uint16_t firmware_version_;
-  Sen5xType model_;
+  Sen5xType model_{Sen5xType::UNKNOWN};
   ERRORCODE error_code_;
   uint8_t serial_number_[4];
   bool initialized_{false};
