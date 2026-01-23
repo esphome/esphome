@@ -79,6 +79,81 @@ inline bool is_redirect(int const status) {
  */
 inline bool is_success(int const status) { return status >= HTTP_STATUS_OK && status < HTTP_STATUS_MULTIPLE_CHOICES; }
 
+/*
+ * HTTP Container Read Semantics
+ * =============================
+ *
+ * IMPORTANT: These semantics differ from standard BSD sockets!
+ *
+ * BSD socket read() returns:
+ *   > 0: bytes read
+ *   == 0: connection closed (EOF)
+ *   < 0: error (check errno)
+ *
+ * HttpContainer::read() returns:
+ *   > 0: bytes read successfully
+ *   == 0: no data available yet OR all content read
+ *         (caller should check bytes_read vs content_length)
+ *   < 0: error or connection closed (caller should EXIT)
+ *        HTTP_ERROR_CONNECTION_CLOSED (-1) = connection closed prematurely
+ *        other negative values = platform-specific errors
+ *
+ * Platform behaviors:
+ *   - ESP-IDF: blocking reads, 0 only returned when all content read
+ *   - Arduino: non-blocking, 0 means "no data yet" or "all content read"
+ *
+ * Use the helper functions below instead of checking return values directly:
+ *   - http_read_loop_result(): for manual loops with per-chunk processing
+ *   - http_read_fully(): for simple "read N bytes into buffer" operations
+ */
+
+/// Error code returned by HttpContainer::read() when connection closed prematurely
+/// NOTE: Unlike BSD sockets where 0 means EOF, here 0 means "no data yet, retry"
+static constexpr int HTTP_ERROR_CONNECTION_CLOSED = -1;
+
+/// Status of a read operation
+enum class HttpReadStatus : uint8_t {
+  OK,       ///< Read completed successfully
+  ERROR,    ///< Read error occurred
+  TIMEOUT,  ///< Timeout waiting for data
+};
+
+/// Result of an HTTP read operation
+struct HttpReadResult {
+  HttpReadStatus status;  ///< Status of the read operation
+  int error_code;         ///< Error code from read() on failure, 0 on success
+};
+
+/// Result of processing a non-blocking read with timeout (for manual loops)
+enum class HttpReadLoopResult : uint8_t {
+  DATA,     ///< Data was read, process it
+  RETRY,    ///< No data yet, already delayed, caller should continue loop
+  ERROR,    ///< Read error, caller should exit loop
+  TIMEOUT,  ///< Timeout waiting for data, caller should exit loop
+};
+
+/// Process a read result with timeout tracking and delay handling
+/// @param bytes_read_or_error Return value from read() - positive for bytes read, negative for error
+/// @param last_data_time Time of last successful read, updated when data received
+/// @param timeout_ms Maximum time to wait for data
+/// @return DATA if data received, RETRY if should continue loop, ERROR/TIMEOUT if should exit
+inline HttpReadLoopResult http_read_loop_result(int bytes_read_or_error, uint32_t &last_data_time,
+                                                uint32_t timeout_ms) {
+  if (bytes_read_or_error > 0) {
+    last_data_time = millis();
+    return HttpReadLoopResult::DATA;
+  }
+  if (bytes_read_or_error < 0) {
+    return HttpReadLoopResult::ERROR;
+  }
+  // bytes_read_or_error == 0: no data available yet
+  if (millis() - last_data_time >= timeout_ms) {
+    return HttpReadLoopResult::TIMEOUT;
+  }
+  delay(1);  // Small delay to prevent tight spinning
+  return HttpReadLoopResult::RETRY;
+}
+
 class HttpRequestComponent;
 
 class HttpContainer : public Parented<HttpRequestComponent> {
@@ -88,6 +163,33 @@ class HttpContainer : public Parented<HttpRequestComponent> {
   int status_code;
   uint32_t duration_ms;
 
+  /**
+   * @brief Read data from the HTTP response body.
+   *
+   * WARNING: These semantics differ from BSD sockets!
+   * BSD sockets: 0 = EOF (connection closed)
+   * This method: 0 = no data yet OR all content read, negative = error/closed
+   *
+   * @param buf Buffer to read data into
+   * @param max_len Maximum number of bytes to read
+   * @return
+   *   - > 0: Number of bytes read successfully
+   *   - 0: No data available yet OR all content read
+   *        (check get_bytes_read() >= content_length to distinguish)
+   *   - HTTP_ERROR_CONNECTION_CLOSED (-1): Connection closed prematurely
+   *   - < -1: Other error (platform-specific error code)
+   *
+   * Platform notes:
+   *   - ESP-IDF: blocking read, 0 only when all content read
+   *   - Arduino: non-blocking, 0 can mean "no data yet" or "all content read"
+   *
+   * Use get_bytes_read() and content_length to track progress.
+   * When get_bytes_read() >= content_length, all data has been received.
+   *
+   * IMPORTANT: Do not use raw return values directly. Use these helpers:
+   *   - http_read_loop_result(): for loops with per-chunk processing
+   *   - http_read_fully(): for simple "read N bytes" operations
+   */
   virtual int read(uint8_t *buf, size_t max_len) = 0;
   virtual void end() = 0;
 
@@ -110,6 +212,38 @@ class HttpContainer : public Parented<HttpRequestComponent> {
   std::map<std::string, std::list<std::string>> response_headers_{};
 };
 
+/// Read data from HTTP container into buffer with timeout handling
+/// Handles feed_wdt, yield, and timeout checking internally
+/// @param container The HTTP container to read from
+/// @param buffer Buffer to read into
+/// @param total_size Total bytes to read
+/// @param chunk_size Maximum bytes per read call
+/// @param timeout_ms Read timeout in milliseconds
+/// @return HttpReadResult with status and error_code on failure
+inline HttpReadResult http_read_fully(HttpContainer *container, uint8_t *buffer, size_t total_size, size_t chunk_size,
+                                      uint32_t timeout_ms) {
+  size_t read_index = 0;
+  uint32_t last_data_time = millis();
+
+  while (read_index < total_size) {
+    int read_bytes_or_error = container->read(buffer + read_index, std::min(chunk_size, total_size - read_index));
+
+    App.feed_wdt();
+    yield();
+
+    auto result = http_read_loop_result(read_bytes_or_error, last_data_time, timeout_ms);
+    if (result == HttpReadLoopResult::RETRY)
+      continue;
+    if (result == HttpReadLoopResult::ERROR)
+      return {HttpReadStatus::ERROR, read_bytes_or_error};
+    if (result == HttpReadLoopResult::TIMEOUT)
+      return {HttpReadStatus::TIMEOUT, 0};
+
+    read_index += read_bytes_or_error;
+  }
+  return {HttpReadStatus::OK, 0};
+}
+
 class HttpRequestResponseTrigger : public Trigger<std::shared_ptr<HttpContainer>, std::string &> {
  public:
   void process(const std::shared_ptr<HttpContainer> &container, std::string &response_body) {
@@ -124,6 +258,7 @@ class HttpRequestComponent : public Component {
 
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
+  uint32_t get_timeout() const { return this->timeout_; }
   void set_watchdog_timeout(uint32_t watchdog_timeout) { this->watchdog_timeout_ = watchdog_timeout; }
   uint32_t get_watchdog_timeout() const { return this->watchdog_timeout_; }
   void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }
@@ -249,15 +384,21 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       RAMAllocator<uint8_t> allocator;
       uint8_t *buf = allocator.allocate(max_length);
       if (buf != nullptr) {
+        // NOTE: HttpContainer::read() has non-BSD socket semantics - see top of this file
+        // Use http_read_loop_result() helper instead of checking return values directly
         size_t read_index = 0;
+        uint32_t last_data_time = millis();
+        const uint32_t read_timeout = this->parent_->get_timeout();
         while (container->get_bytes_read() < max_length) {
-          int read = container->read(buf + read_index, std::min<size_t>(max_length - read_index, 512));
-          if (read <= 0) {
-            break;
-          }
+          int read_or_error = container->read(buf + read_index, std::min<size_t>(max_length - read_index, 512));
           App.feed_wdt();
           yield();
-          read_index += read;
+          auto result = http_read_loop_result(read_or_error, last_data_time, read_timeout);
+          if (result == HttpReadLoopResult::RETRY)
+            continue;
+          if (result != HttpReadLoopResult::DATA)
+            break;  // ERROR or TIMEOUT
+          read_index += read_or_error;
         }
         response_body.reserve(read_index);
         response_body.assign((char *) buf, read_index);
