@@ -190,7 +190,7 @@ async def to_code(config):
     # Rotation is handled by setting the transform
     display_config = {k: v for k, v in config.items() if k != CONF_ROTATION}
     await display.register_display(var, display_config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
