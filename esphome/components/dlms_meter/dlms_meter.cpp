@@ -12,14 +12,11 @@ namespace esphome::dlms_meter {
 static constexpr const char *TAG = "dlms_meter";
 
 void DlmsMeterComponent::dump_config() {
-  char key_hex[48];
   ESP_LOGCONFIG(TAG,
                 "DLMS Meter:\n"
                 "  Provider: %d\n"
-                "  Read Timeout: %u ms\n"
-                "  Decryption Key: %s",
-                this->provider_, this->read_timeout_,
-                format_hex_pretty_to(key_hex, this->decryption_key_.data(), this->decryption_key_.size()));
+                "  Read Timeout: %u ms",
+                this->provider_, this->read_timeout_);
 #define DLMS_METER_LOG_SENSOR(s) LOG_SENSOR("  ", #s, this->s##_sensor_);
   DLMS_METER_SENSOR_LIST(DLMS_METER_LOG_SENSOR, )
 #define DLMS_METER_LOG_TEXT_SENSOR(s) LOG_TEXT_SENSOR("  ", #s, this->s##_text_sensor_);
@@ -69,6 +66,7 @@ void DlmsMeterComponent::loop() {
 }
 
 bool DlmsMeterComponent::parse_mbus_(std::vector<uint8_t> &mbus_payload) {
+  ESP_LOGV(TAG, "Parsing M-Bus frames");
   uint16_t frame_offset = 0;  // Offset is used if the M-Bus message is split into multiple frames
 
   while (frame_offset < this->receive_buffer_.size()) {
@@ -145,6 +143,7 @@ bool DlmsMeterComponent::parse_mbus_(std::vector<uint8_t> &mbus_payload) {
 
 bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, uint16_t &message_length,
                                      uint8_t &systitle_length, uint16_t &header_offset) {
+  ESP_LOGV(TAG, "Parsing DLMS header");
   if (mbus_payload.size() < 20) {  // If the payload is too short we need to abort
     ESP_LOGE(TAG, "DLMS: Payload too short");
     this->receive_buffer_.clear();
@@ -189,7 +188,8 @@ bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, u
   message_length -= DLMS_LENGTH_CORRECTION;  // Correct message length due to part of header being included in length
 
   if (mbus_payload.size() - DLMS_HEADER_LENGTH - header_offset != message_length) {
-    ESP_LOGV(TAG, "lengths: %d, %d, %d, %d", mbus_payload.size(), DLMS_HEADER_LENGTH, header_offset, message_length);
+    ESP_LOGV(TAG, "DLMS: Length mismatch - payload=%d, header=%d, offset=%d, message=%d", mbus_payload.size(),
+             DLMS_HEADER_LENGTH, header_offset, message_length);
     ESP_LOGE(TAG, "DLMS: Message has invalid length");
     this->receive_buffer_.clear();
     return false;
@@ -208,6 +208,7 @@ bool DlmsMeterComponent::parse_dlms_(const std::vector<uint8_t> &mbus_payload, u
 
 bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t message_length, uint8_t systitle_length,
                                   uint16_t header_offset) {
+  ESP_LOGV(TAG, "Decrypting payload");
   uint8_t iv[12];  // Reserve space for the IV, always 12 bytes
   // Copy system title to IV (System title is before length; no header offset needed!)
   // Add 1 to the offset in order to skip the system title length byte
@@ -247,10 +248,12 @@ bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t m
     this->receive_buffer_.clear();
     return false;
   }
+  ESP_LOGV(TAG, "Decrypted payload: %d bytes", message_length);
   return true;
 }
 
 void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_length) {
+  ESP_LOGV(TAG, "Decoding payload");
   MeterData data{};
   uint16_t current_position = DECODER_START_OFFSET;
 
