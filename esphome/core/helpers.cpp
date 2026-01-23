@@ -12,6 +12,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <new>
 
 #ifdef USE_ESP32
 #include "rom/crc.h"
@@ -894,19 +895,8 @@ CompactString::CompactString(const CompactString &other) : length_(other.length_
 
 CompactString &CompactString::operator=(const CompactString &other) {
   if (this != &other) {
-    if (this->is_heap_) {
-      delete[] this->get_heap_ptr_();  // NOLINT(cppcoreguidelines-owning-memory)
-    }
-    this->length_ = other.length_;
-    this->is_heap_ = other.is_heap_;
-    if (!other.is_heap_) {
-      // Copy inline storage including null terminator
-      std::memcpy(this->storage_, other.storage_, other.length_ + 1);
-    } else {
-      char *heap_data = new char[other.length_ + 1];  // NOLINT(cppcoreguidelines-owning-memory)
-      std::memcpy(heap_data, other.get_heap_ptr_(), other.length_ + 1);
-      this->set_heap_ptr_(heap_data);
-    }
+    this->~CompactString();
+    new (this) CompactString(other);
   }
   return *this;
 }
@@ -921,15 +911,8 @@ CompactString::CompactString(CompactString &&other) noexcept : length_(other.len
 
 CompactString &CompactString::operator=(CompactString &&other) noexcept {
   if (this != &other) {
-    if (this->is_heap_) {
-      delete[] this->get_heap_ptr_();  // NOLINT(cppcoreguidelines-owning-memory)
-    }
-    this->length_ = other.length_;
-    this->is_heap_ = other.is_heap_;
-    std::memcpy(this->storage_, other.storage_, INLINE_CAPACITY + 1);
-    other.length_ = 0;
-    other.is_heap_ = 0;
-    other.storage_[0] = '\0';
+    this->~CompactString();
+    new (this) CompactString(std::move(other));
   }
   return *this;
 }
