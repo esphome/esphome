@@ -274,12 +274,14 @@ void SEN5XComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RH/T acceleration mode: %s",
                   LOG_STR_ARG(rht_accel_mode_to_string(this->acceleration_mode_.value())));
   }
-  char hex_buf[5 * 4];
-  format_hex_pretty_to(hex_buf, this->voc_baseline_state_, 4, 0);
-  ESP_LOGCONFIG(TAG,
-                "  Store Baseline: %s\n"
-                "    State: %s\n",
-                TRUEFALSE(this->store_baseline_), hex_buf);
+  if (!this->voc_sensor_) {
+    char hex_buf[5 * 4];
+    format_hex_pretty_to(hex_buf, this->voc_baseline_state_, 4, 0);
+    ESP_LOGCONFIG(TAG,
+                  "  Store Baseline: %s\n"
+                  "    State: %s\n",
+                  TRUEFALSE(this->store_baseline_), hex_buf);
+  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
