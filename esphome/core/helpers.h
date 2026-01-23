@@ -1769,6 +1769,9 @@ class CompactString {
   size_t size() const { return this->length_; }
   bool empty() const { return this->length_ == 0; }
 
+  // Implicit conversion to std::string for backwards compatibility
+  operator std::string() const { return std::string(this->data(), this->size()); }
+
   bool operator==(const CompactString &other) const {
     return this->size() == other.size() && std::memcmp(this->data(), other.data(), this->size()) == 0;
   }
