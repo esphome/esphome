@@ -87,8 +87,11 @@ ToggleAction = cover_ns.class_("ToggleAction", automation.Action)
 ControlAction = cover_ns.class_("ControlAction", automation.Action)
 CoverPublishAction = cover_ns.class_("CoverPublishAction", automation.Action)
 CoverIsCondition = cover_ns.class_("CoverIsCondition", Condition)
-CoverPositionTrigger = cover_ns.class_(
-    "CoverPositionTrigger", automation.Trigger.template()
+CoverOpenedTrigger = cover_ns.class_(
+    "CoverOpenedTrigger", automation.Trigger.template()
+)
+CoverClosedTrigger = cover_ns.class_(
+    "CoverClosedTrigger", automation.Trigger.template()
 )
 CoverTrigger = cover_ns.class_("CoverTrigger", automation.Trigger.template())
 
@@ -131,23 +134,17 @@ _COVER_SCHEMA = (
             # Deprecated trigger
             cv.Optional(CONF_ON_OPEN): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        CoverPositionTrigger.template(COVER_OPEN)
-                    ),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenedTrigger),
                 }
             ),
             cv.Optional(CONF_ON_OPENED): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        CoverPositionTrigger.template(COVER_OPEN)
-                    ),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenedTrigger),
                 }
             ),
             cv.Optional(CONF_ON_CLOSED): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        CoverPositionTrigger.template(COVER_CLOSED)
-                    ),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverClosedTrigger),
                 }
             ),
             **{
