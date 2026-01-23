@@ -31,6 +31,7 @@ from esphome.const import (
     CONF_TRANSFORM,
     CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
+    SCHEDULER_DONT_RUN,
 )
 from esphome.cpp_generator import RawExpression
 from esphome.final_validate import full_config
@@ -72,12 +73,10 @@ TRANSFORM_OPTIONS = {CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY}
 def model_schema(config):
     model = MODELS[config[CONF_MODEL]]
     class_name = epaper_spi_ns.class_(model.class_name, EPaperBase)
-    minimum_update_interval = update_interval(
-        model.get_default(CONF_MINIMUM_UPDATE_INTERVAL, "1s")
-    )
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
     return (
-        display.FULL_DISPLAY_SCHEMA.extend(
+        display.full_display_schema("60s")
+        .extend(
             spi.spi_device_schema(
                 cs_pin_required=False,
                 default_mode="MODE0",
@@ -94,9 +93,6 @@ def model_schema(config):
             {
                 cv.Optional(CONF_ROTATION, default=0): validate_rotation,
                 cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
-                cv.Optional(CONF_UPDATE_INTERVAL, default=cv.UNDEFINED): cv.All(
-                    update_interval, cv.Range(min=minimum_update_interval)
-                ),
                 cv.Optional(CONF_TRANSFORM): cv.Schema(
                     {
                         cv.Required(CONF_MIRROR_X): cv.boolean,
@@ -150,15 +146,22 @@ def _final_validate(config):
     global_config = full_config.get()
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
 
-    if CONF_LAMBDA not in config and CONF_PAGES not in config:
-        if LVGL_DOMAIN in global_config:
-            if CONF_UPDATE_INTERVAL not in config:
-                config[CONF_UPDATE_INTERVAL] = update_interval("never")
-        else:
-            # If no drawing methods are configured, and LVGL is not enabled, show a test card
-            config[CONF_SHOW_TEST_CARD] = True
-    elif CONF_UPDATE_INTERVAL not in config:
-        config[CONF_UPDATE_INTERVAL] = update_interval("1min")
+    # If no drawing methods are configured, and LVGL is not enabled, show a test card
+    if (
+        CONF_LAMBDA not in config
+        and CONF_PAGES not in config
+        and LVGL_DOMAIN not in global_config
+    ):
+        config[CONF_SHOW_TEST_CARD] = True
+
+    interval = config[CONF_UPDATE_INTERVAL]
+    if interval != SCHEDULER_DONT_RUN:
+        model = MODELS[config[CONF_MODEL]]
+        minimum = update_interval(model.get_default(CONF_MINIMUM_UPDATE_INTERVAL, "1s"))
+        if interval < minimum:
+            raise cv.Invalid(
+                f"update_interval must be at least {minimum} for {model.name}, got {interval}"
+            )
     return config
 
 

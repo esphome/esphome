@@ -453,6 +453,7 @@ def test_clean_build(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.return_value = dependencies_lock
+    mock_core.platformio_cache_dir = str(platformio_cache_dir)
 
     # Verify all exist before
     assert pioenvs_dir.exists()

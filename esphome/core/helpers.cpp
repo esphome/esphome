@@ -348,7 +348,10 @@ std::string format_hex(const uint8_t *data, size_t length) {
   format_hex_to(&ret[0], length * 2 + 1, data, length);
   return ret;
 }
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
+#pragma GCC diagnostic pop
 
 char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator) {
   return format_hex_internal(buffer, buffer_size, data, length, separator, 'A');
@@ -517,10 +520,8 @@ int8_t step_to_accuracy_decimals(float step) {
   return str.length() - dot_pos - 1;
 }
 
-// Use C-style string constant to store in ROM instead of RAM (saves 24 bytes)
-static constexpr const char *BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                            "abcdefghijklmnopqrstuvwxyz"
-                                            "0123456789+/";
+// Store BASE64 characters as array - automatically placed in flash/ROM on embedded platforms
+static const char BASE64_CHARS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 // Helper function to find the index of a base64/base64url character in the lookup table.
 // Returns the character's position (0-63) if found, or 0 if not found.
