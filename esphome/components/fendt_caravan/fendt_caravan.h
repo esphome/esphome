@@ -5,7 +5,7 @@
 
 #include <numbers>
 #include "esphome/core/log.h"
-#include "sensor/caravan_device.h"
+//#include "sensor/caravan_device.h"
 #include "esphome/core/component.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/components/ble_client/ble_client.h"
