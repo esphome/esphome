@@ -132,21 +132,21 @@ _COVER_SCHEMA = (
             cv.Optional(CONF_ON_OPEN): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        CoverPositionTrigger.template(1.0)
+                        CoverPositionTrigger.template(COVER_OPEN)
                     ),
                 }
             ),
             cv.Optional(CONF_ON_OPENED): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        CoverPositionTrigger.template(1.0)
+                        CoverPositionTrigger.template(COVER_OPEN)
                     ),
                 }
             ),
             cv.Optional(CONF_ON_CLOSED): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        CoverPositionTrigger.template(0.0)
+                        CoverPositionTrigger.template(COVER_CLOSED)
                     ),
                 }
             ),
