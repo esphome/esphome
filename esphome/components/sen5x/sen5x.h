@@ -60,9 +60,9 @@ struct TemperatureCompensation {
   }
 };
 
-// Shortest time interval of 3H for storing baseline values.
+// Shortest time interval of 2H (in milliseconds) for storing baseline values.
 // Prevents wear of the flash because of too many write operations
-static const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 3 * 60 * 60 * 1000;
+static const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 2 * 60 * 60 * 1000;
 
 class SEN5XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
