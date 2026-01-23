@@ -17,6 +17,7 @@ DOMAIN = "bme690"
 
 CONF_BME690_ID = "bme690_id"
 CONF_BSEC_LIBRARY = "bsec_library"
+CONF_STATE_SAVE_INTERVAL = "state_save_interval"
 
 bme690_ns = cg.esphome_ns.namespace("bme690")
 BME690Component = bme690_ns.class_(
@@ -53,6 +54,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(BME690Component),
             cv.Required(CONF_BSEC_LIBRARY): cv.Any(cv.file_, cv.url),
+            cv.Optional(
+                CONF_STATE_SAVE_INTERVAL, default="6hours"
+            ): cv.positive_time_period_minutes,
         }
     )
     .extend(cv.polling_component_schema("5s"))
@@ -81,4 +85,10 @@ async def to_code(config):
     build_dir = CORE.relative_build_path()
     cg.add_build_flag(
         f"-L{build_dir} -Wl,--whole-archive -lalgobsec -Wl,--no-whole-archive"
+    )
+
+    cg.add(
+        var.set_state_save_interval(
+            config[CONF_STATE_SAVE_INTERVAL].total_milliseconds
+        )
     )
