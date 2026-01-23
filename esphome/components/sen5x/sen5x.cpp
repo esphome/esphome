@@ -159,8 +159,6 @@ void SEN5XComponent::setup() {
       ESP_LOGV(TAG, "Firmware version %d", this->firmware_version_);
 
       if (this->voc_sensor_ && this->store_baseline_) {
-        uint32_t combined_serial =
-            encode_uint24(this->serial_number_[0], this->serial_number_[1], this->serial_number_[2]);
         // Hash with serial number, serial number are unique, so multiple sensors can be used without conflict
         uint32_t hash = fnv1a_hash(this->serial_number_);
         this->pref_ = global_preferences->make_preference<Sen5xBaselines>(hash, true);
