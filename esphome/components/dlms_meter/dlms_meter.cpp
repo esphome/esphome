@@ -269,9 +269,9 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
       return;
     }
 
-    uint8_t obis_code[0x0C];  // max of the supported lengths above
-    memcpy(&obis_code[0], &plaintext[current_position + OBIS_CODE_OFFSET],
-           obis_code_length);  // Copy OBIS code to array
+    uint8_t *obis_code = &plaintext[current_position + OBIS_CODE_OFFSET];
+    uint8_t obis_medium = obis_code[OBIS_A];
+    uint16_t obis_cd = encode_uint16(obis_code[OBIS_C], obis_code[OBIS_D]);
 
     bool timestamp_found = false;
     bool meter_number_found = false;
@@ -287,100 +287,41 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
     } else {
       current_position += obis_code_length + 2;  // Advance past code, position and type
     }
+    if (!timestamp_found && !meter_number_found && obis_medium != Medium::ELECTRICITY &&
+        obis_medium != Medium::ABSTRACT) {
+      ESP_LOGE(TAG, "OBIS: Unsupported OBIS medium: %x", obis_medium);
+      this->receive_buffer_.clear();
+      return;
+    }
 
     uint8_t data_type = plaintext[current_position];
     current_position++;  // Advance past data type
-
-    CodeType code_type = CodeType::UNKNOWN;
-
-    if (obis_code[OBIS_A] == Medium::ELECTRICITY) {
-      // Compare C and D against code
-      if (memcmp(&obis_code[OBIS_C], ESPDM_VOLTAGE_L1, 2) == 0) {
-        code_type = CodeType::VOLTAGE_L1;
-      } else if (memcmp(&obis_code[OBIS_C], ESPDM_VOLTAGE_L2, 2) == 0) {
-        code_type = CodeType::VOLTAGE_L2;
-      } else if (memcmp(&obis_code[OBIS_C], ESPDM_VOLTAGE_L3, 2) == 0) {
-        code_type = CodeType::VOLTAGE_L3;
-      } else if (memcmp(&obis_code[OBIS_C], ESPDM_CURRENT_L1, 2) == 0) {
-        code_type = CodeType::CURRENT_L1;
-      } else if (memcmp(&obis_code[OBIS_C], ESPDM_CURRENT_L2, 2) == 0) {
-        code_type = CodeType::CURRENT_L2;
-      } else if (memcmp(&obis_code[OBIS_C], ESPDM_CURRENT_L3, 2) == 0) {
-        code_type = CodeType::CURRENT_L3;
-      } else if (memcmp(&obis_code[OBIS_C], ESPDM_ACTIVE_POWER_PLUS, 2) == 0) {
-        code_type = CodeType::ACTIVE_POWER_PLUS;
-      } else if (memcmp(&obis_code[OBIS_C], ESPDM_ACTIVE_POWER_MINUS, 2) == 0) {
-        code_type = CodeType::ACTIVE_POWER_MINUS;
-      } else if (this->provider_ == PROVIDER_NETZNOE && memcmp(&obis_code[OBIS_C], ESPDM_POWER_FACTOR, 2) == 0) {
-        code_type = CodeType::POWER_FACTOR;
-      } else if (memcmp(&obis_code[OBIS_C], ESPDM_ACTIVE_ENERGY_PLUS, 2) == 0) {
-        code_type = CodeType::ACTIVE_ENERGY_PLUS;
-      } else if (memcmp(&obis_code[OBIS_C], ESPDM_ACTIVE_ENERGY_MINUS, 2) == 0) {
-        code_type = CodeType::ACTIVE_ENERGY_MINUS;
-      } else if (memcmp(&obis_code[OBIS_C], ESPDM_REACTIVE_ENERGY_PLUS, 2) == 0) {
-        code_type = CodeType::REACTIVE_ENERGY_PLUS;
-      } else if (memcmp(&obis_code[OBIS_C], ESPDM_REACTIVE_ENERGY_MINUS, 2) == 0) {
-        code_type = CodeType::REACTIVE_ENERGY_MINUS;
-      } else {
-        ESP_LOGW(TAG, "OBIS: Unsupported OBIS code OBIS_C: %d, OBIS_D: %d", obis_code[OBIS_C], obis_code[OBIS_D]);
-      }
-    } else if (obis_code[OBIS_A] == Medium::ABSTRACT) {
-      if (memcmp(&obis_code[OBIS_C], ESPDM_TIMESTAMP, 2) == 0) {
-        code_type = CodeType::TIMESTAMP;
-      } else if (memcmp(&obis_code[OBIS_C], ESPDM_SERIAL_NUMBER, 2) == 0) {
-        code_type = CodeType::SERIAL_NUMBER;
-      } else if (memcmp(&obis_code[OBIS_C], ESPDM_DEVICE_NAME, 2) == 0) {
-        code_type = CodeType::DEVICE_NAME;
-      } else {
-        ESP_LOGW(TAG, "OBIS: Unsupported OBIS code OBIS_C: %d, OBIS_D: %d", obis_code[OBIS_C], obis_code[OBIS_D]);
-      }
-    } else {
-      if (this->provider_ == PROVIDER_NETZNOE) {
-        // Needed so the Timestamp at DECODER_START_OFFSET gets read correctly
-        // as it doesn't have an obisMedium
-        if (timestamp_found) {
-          ESP_LOGV(TAG, "Found Timestamp without obisMedium");
-          code_type = CodeType::TIMESTAMP;
-        } else if (meter_number_found) {
-          ESP_LOGV(TAG, "Found MeterNumber without obisMedium");
-          code_type = CodeType::METER_NUMBER;
-        } else {
-          ESP_LOGE(TAG, "OBIS: Unsupported OBIS medium: %x", obis_code[OBIS_A]);
-          this->receive_buffer_.clear();
-          return;
-        }
-      } else {
-        ESP_LOGE(TAG, "OBIS: Unsupported OBIS medium: %x", obis_code[OBIS_A]);
-        this->receive_buffer_.clear();
-        return;
-      }
-    }
 
     switch (data_type) {
       case DataType::DOUBLE_LONG_UNSIGNED: {
         uint32_t value = encode_uint32(plaintext[current_position], plaintext[current_position + 1],
                                        plaintext[current_position + 2], plaintext[current_position + 3]);
-        switch (code_type) {
-          case CodeType::ACTIVE_POWER_PLUS:
+        switch (obis_cd) {
+          case OBIS_ACTIVE_POWER_PLUS:
             data.active_power_plus = value;
             break;
-          case CodeType::ACTIVE_POWER_MINUS:
+          case OBIS_ACTIVE_POWER_MINUS:
             data.active_power_minus = value;
             break;
-          case CodeType::ACTIVE_ENERGY_PLUS:
+          case OBIS_ACTIVE_ENERGY_PLUS:
             data.active_energy_plus = value;
             break;
-          case CodeType::ACTIVE_ENERGY_MINUS:
+          case OBIS_ACTIVE_ENERGY_MINUS:
             data.active_energy_minus = value;
             break;
-          case CodeType::REACTIVE_ENERGY_PLUS:
+          case OBIS_REACTIVE_ENERGY_PLUS:
             data.reactive_energy_plus = value;
             break;
-          case CodeType::REACTIVE_ENERGY_MINUS:
+          case OBIS_REACTIVE_ENERGY_MINUS:
             data.reactive_energy_minus = value;
             break;
           default:
-            ESP_LOGW(TAG, "Unsupported CodeType '%d' for DataType '%d'", code_type, data_type);
+            ESP_LOGW(TAG, "Unsupported code 0x%04X for DOUBLE_LONG_UNSIGNED", obis_cd);
         }
         current_position += 4;
         break;
@@ -395,42 +336,43 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
         } else {
           value = raw_value;
         }
-        switch (code_type) {
-          case CodeType::VOLTAGE_L1:
+        switch (obis_cd) {
+          case OBIS_VOLTAGE_L1:
             data.voltage_l1 = value;
             break;
-          case CodeType::VOLTAGE_L2:
+          case OBIS_VOLTAGE_L2:
             data.voltage_l2 = value;
             break;
-          case CodeType::VOLTAGE_L3:
+          case OBIS_VOLTAGE_L3:
             data.voltage_l3 = value;
             break;
-          case CodeType::CURRENT_L1:
+          case OBIS_CURRENT_L1:
             data.current_l1 = value;
             break;
-          case CodeType::CURRENT_L2:
+          case OBIS_CURRENT_L2:
             data.current_l2 = value;
             break;
-          case CodeType::CURRENT_L3:
+          case OBIS_CURRENT_L3:
             data.current_l3 = value;
             break;
-          case CodeType::POWER_FACTOR:
+          case OBIS_POWER_FACTOR:
             if (this->provider_ == PROVIDER_NETZNOE) {
               data.power_factor = value / 1000.0f;
             } else {
-              ESP_LOGW(TAG, "Unsupported CodeType '%d' for DataType '%d'", code_type, data_type);
+              ESP_LOGW(TAG, "Unsupported code 0x%04X for LONG_UNSIGNED", obis_cd);
             }
             break;
           default:
-            ESP_LOGW(TAG, "Unsupported CodeType '%d' for DataType '%d'", code_type, data_type);
+            ESP_LOGW(TAG, "Unsupported code 0x%04X for LONG_UNSIGNED", obis_cd);
         }
         current_position += 2;
         break;
       }
       case DataType::OCTET_STRING: {
         uint8_t data_length = plaintext[current_position];
-        current_position++;                      // Advance past string length
-        if (code_type == CodeType::TIMESTAMP) {  // Handle timestamp generation
+        current_position++;  // Advance past string length
+        // Handle timestamp (normal OBIS code or NETZNOE special case)
+        if (obis_cd == OBIS_TIMESTAMP || timestamp_found) {
           uint16_t year = encode_uint16(plaintext[current_position], plaintext[current_position + 1]);
           uint8_t month = plaintext[current_position + 2];
           uint8_t day = plaintext[current_position + 3];
@@ -445,7 +387,7 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
           }
           snprintf(data.timestamp, sizeof(data.timestamp), "%04u-%02u-%02uT%02u:%02u:%02uZ", year, month, day, hour,
                    minute, second);
-        } else if (this->provider_ == PROVIDER_NETZNOE && code_type == CodeType::METER_NUMBER) {
+        } else if (meter_number_found) {
           snprintf(data.meternumber, sizeof(data.meternumber), "%.*s", data_length, &plaintext[current_position]);
         }
         current_position += data_length;
@@ -458,7 +400,7 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
     }
 
     if (this->provider_ == PROVIDER_NETZNOE) {
-      // Don't skip the break on the first Timestamp, as there's none
+      // Don't skip the break on the first timestamp, as there's none
       if (!timestamp_found) {
         current_position += 2;  // Skip break after data
       }

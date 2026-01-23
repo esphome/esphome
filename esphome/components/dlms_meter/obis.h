@@ -47,27 +47,6 @@ enum Medium {
   NITROGEN = 0x12
 };
 
-enum CodeType {
-  UNKNOWN,
-  TIMESTAMP,
-  SERIAL_NUMBER,
-  DEVICE_NAME,
-  VOLTAGE_L1,
-  VOLTAGE_L2,
-  VOLTAGE_L3,
-  CURRENT_L1,
-  CURRENT_L2,
-  CURRENT_L3,
-  ACTIVE_POWER_PLUS,
-  ACTIVE_POWER_MINUS,
-  ACTIVE_ENERGY_PLUS,
-  ACTIVE_ENERGY_MINUS,
-  REACTIVE_ENERGY_PLUS,
-  REACTIVE_ENERGY_MINUS,
-  METER_NUMBER,  // Netz NOE Special
-  POWER_FACTOR   // Netz NOE Special
-};
-
 enum Accuracy { SINGLE_DIGIT = 0xFF, DOUBLE_DIGIT = 0xFE };
 
 // Data structure
@@ -83,33 +62,33 @@ static constexpr uint8_t OBIS_E = 4;
 static constexpr uint8_t OBIS_F = 5;
 
 // Metadata
-static constexpr uint8_t ESPDM_TIMESTAMP[]{0x01, 0x00};
-static constexpr uint8_t ESPDM_SERIAL_NUMBER[]{0x60, 0x01};
-static constexpr uint8_t ESPDM_DEVICE_NAME[]{0x2A, 0x00};
+static constexpr uint16_t OBIS_TIMESTAMP = 0x0100;
+static constexpr uint16_t OBIS_SERIAL_NUMBER = 0x6001;
+static constexpr uint16_t OBIS_DEVICE_NAME = 0x2A00;
 
 // Voltage
-static constexpr uint8_t ESPDM_VOLTAGE_L1[]{0x20, 0x07};
-static constexpr uint8_t ESPDM_VOLTAGE_L2[]{0x34, 0x07};
-static constexpr uint8_t ESPDM_VOLTAGE_L3[]{0x48, 0x07};
+static constexpr uint16_t OBIS_VOLTAGE_L1 = 0x2007;
+static constexpr uint16_t OBIS_VOLTAGE_L2 = 0x3407;
+static constexpr uint16_t OBIS_VOLTAGE_L3 = 0x4807;
 
 // Current
-static constexpr uint8_t ESPDM_CURRENT_L1[]{0x1F, 0x07};
-static constexpr uint8_t ESPDM_CURRENT_L2[]{0x33, 0x07};
-static constexpr uint8_t ESPDM_CURRENT_L3[]{0x47, 0x07};
+static constexpr uint16_t OBIS_CURRENT_L1 = 0x1F07;
+static constexpr uint16_t OBIS_CURRENT_L2 = 0x3307;
+static constexpr uint16_t OBIS_CURRENT_L3 = 0x4707;
 
 // Power
-static constexpr uint8_t ESPDM_ACTIVE_POWER_PLUS[]{0x01, 0x07};
-static constexpr uint8_t ESPDM_ACTIVE_POWER_MINUS[]{0x02, 0x07};
+static constexpr uint16_t OBIS_ACTIVE_POWER_PLUS = 0x0107;
+static constexpr uint16_t OBIS_ACTIVE_POWER_MINUS = 0x0207;
 
 // Active energy
-static constexpr uint8_t ESPDM_ACTIVE_ENERGY_PLUS[]{0x01, 0x08};
-static constexpr uint8_t ESPDM_ACTIVE_ENERGY_MINUS[]{0x02, 0x08};
+static constexpr uint16_t OBIS_ACTIVE_ENERGY_PLUS = 0x0108;
+static constexpr uint16_t OBIS_ACTIVE_ENERGY_MINUS = 0x0208;
 
 // Reactive energy
-static constexpr uint8_t ESPDM_REACTIVE_ENERGY_PLUS[]{0x03, 0x08};
-static constexpr uint8_t ESPDM_REACTIVE_ENERGY_MINUS[]{0x04, 0x08};
+static constexpr uint16_t OBIS_REACTIVE_ENERGY_PLUS = 0x0308;
+static constexpr uint16_t OBIS_REACTIVE_ENERGY_MINUS = 0x0408;
 
 // Netz NOE specific
-static constexpr uint8_t ESPDM_POWER_FACTOR[]{0x0D, 0x07};
+static constexpr uint16_t OBIS_POWER_FACTOR = 0x0D07;
 
 }  // namespace esphome::dlms_meter
