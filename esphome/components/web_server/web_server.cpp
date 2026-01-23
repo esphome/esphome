@@ -533,6 +533,17 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
 
   root[ESPHOME_F("id")] = id_buf;
 
+  // Add legacy_id for backward compatibility with third-party integrations
+  // Old format: {prefix}-{object_id} (e.g., "cover-garage_door")
+  // Remove before 2026.7.0 when object_id support is fully removed
+  char legacy_buf[ESPHOME_DOMAIN_MAX_LEN + 1 + OBJECT_ID_MAX_LEN];
+  char *lp = legacy_buf;
+  memcpy(lp, prefix, prefix_len);
+  lp += prefix_len;
+  *lp++ = '-';
+  obj->write_object_id_to(lp, sizeof(legacy_buf) - (lp - legacy_buf));
+  root[ESPHOME_F("legacy_id")] = legacy_buf;
+
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("domain")] = prefix;
     root[ESPHOME_F("name")] = name;
