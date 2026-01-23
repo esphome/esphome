@@ -52,6 +52,7 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   void set_gas_percentage_sensor(sensor::Sensor *sensor) { gas_percentage_sensor = sensor; }
   void set_comp_temperature_sensor(sensor::Sensor *sensor) { comp_temperature_sensor = sensor; }
   void set_comp_humidity_sensor(sensor::Sensor *sensor) { comp_humidity_sensor = sensor; }
+  void set_state_save_interval(uint32_t interval) { state_save_interval_ms_ = interval; }
 #ifdef USE_TEXT_SENSOR
   void set_iaq_accuracy_text_sensor(text_sensor::TextSensor *sensor) { iaq_accuracy_text_sensor_ = sensor; }
 #endif
@@ -105,7 +106,7 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   uint32_t last_state_save_ms_{0};
   uint8_t last_iaq_accuracy_{0};
   bool state_dirty_{false};
-  static constexpr uint32_t STATE_SAVE_INTERVAL_MS = 6 * 60 * 60 * 1000UL;  // 6h
+  uint32_t state_save_interval_ms_{6 * 60 * 60 * 1000UL};  // 6h
 };
 
 inline bool BME690Component::check_result(const char *label, int8_t rslt) {
@@ -229,6 +230,7 @@ inline void BME690Component::dump_config() {
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "IAQ Accuracy", this->iaq_accuracy_text_sensor_);
 #endif
+  ESP_LOGCONFIG(TAG, "  State Save Interval: %ums", this->state_save_interval_ms_);
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -553,7 +555,7 @@ inline void BME690Component::save_bsec_state() {
   }
 
   const uint32_t now = millis();
-  if (!this->state_dirty_ || (now - this->last_state_save_ms_ < STATE_SAVE_INTERVAL_MS)) {
+  if (!this->state_dirty_ || (now - this->last_state_save_ms_ < this->state_save_interval_ms_)) {
     return;
   }
 
