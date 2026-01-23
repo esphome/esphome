@@ -274,7 +274,7 @@ void SEN5XComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RH/T acceleration mode: %s",
                   LOG_STR_ARG(rht_accel_mode_to_string(this->acceleration_mode_.value())));
   }
-  if (!this->voc_sensor_) {
+  if (this->voc_sensor_) {
     char hex_buf[5 * 4];
     format_hex_pretty_to(hex_buf, this->voc_baseline_state_, 4, 0);
     ESP_LOGCONFIG(TAG,
