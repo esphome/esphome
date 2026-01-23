@@ -45,6 +45,7 @@ class NextionBase {
   virtual void set_component_pressed_font_color(const char *component, Color color) = 0;
   virtual void set_component_font(const char *component, uint8_t font_id) = 0;
 
+  virtual void set_component_visibility(const char *component, bool show) = 0;
   virtual void show_component(const char *component) = 0;
   virtual void hide_component(const char *component) = 0;
 

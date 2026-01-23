@@ -1,4 +1,11 @@
-packages:
-  common: !include common.yaml
+udp:
+  addresses: ["239.0.60.53"]
 
-wifi: !remove
+time:
+  platform: host
+
+syslog:
+  port: 514
+  strip: true
+  level: info
+  facility: 16

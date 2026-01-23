@@ -35,13 +35,18 @@ static size_t IRAM_ATTR HOT encoder_callback(const void *data, size_t size, size
     if (symbols_free < RMT_SYMBOLS_PER_BYTE) {
       return 0;
     }
-    for (int32_t i = 0; i < RMT_SYMBOLS_PER_BYTE; i++) {
+    for (size_t i = 0; i < RMT_SYMBOLS_PER_BYTE; i++) {
       if (bytes[index] & (1 << (7 - i))) {
         symbols[i] = params->bit1;
       } else {
         symbols[i] = params->bit0;
       }
     }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
+    if ((index + 1) >= size && params->reset.duration0 == 0 && params->reset.duration1 == 0) {
+      *done = true;
+    }
+#endif
     return RMT_SYMBOLS_PER_BYTE;
   }
 
@@ -93,7 +98,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
   channel.trans_queue_depth = 1;
   channel.flags.io_loop_back = 0;
   channel.flags.io_od_mode = 0;
-  channel.flags.invert_out = 0;
+  channel.flags.invert_out = this->invert_out_;
   channel.flags.with_dma = this->use_dma_;
   channel.intr_priority = 0;
   if (rmt_new_tx_channel(&channel, &this->channel_) != ESP_OK) {

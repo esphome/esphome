@@ -2,11 +2,20 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ALGORITHM_TUNING,
     CONF_COMPENSATION,
     CONF_GAIN_FACTOR,
+    CONF_GATING_MAX_DURATION_MINUTES,
     CONF_ID,
+    CONF_INDEX_OFFSET,
+    CONF_LEARNING_TIME_GAIN_HOURS,
+    CONF_LEARNING_TIME_OFFSET_HOURS,
+    CONF_NOX,
+    CONF_STD_INITIAL,
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE_SOURCE,
+    CONF_VOC,
+    CONF_VOC_BASELINE,
     DEVICE_CLASS_AQI,
     ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
@@ -24,16 +33,7 @@ SGP4xComponent = sgp4x_ns.class_(
     sensirion_common.SensirionI2CDevice,
 )
 
-CONF_ALGORITHM_TUNING = "algorithm_tuning"
-CONF_GATING_MAX_DURATION_MINUTES = "gating_max_duration_minutes"
 CONF_HUMIDITY_SOURCE = "humidity_source"
-CONF_INDEX_OFFSET = "index_offset"
-CONF_LEARNING_TIME_GAIN_HOURS = "learning_time_gain_hours"
-CONF_LEARNING_TIME_OFFSET_HOURS = "learning_time_offset_hours"
-CONF_NOX = "nox"
-CONF_STD_INITIAL = "std_initial"
-CONF_VOC = "voc"
-CONF_VOC_BASELINE = "voc_baseline"
 
 
 def validate_sensors(config):

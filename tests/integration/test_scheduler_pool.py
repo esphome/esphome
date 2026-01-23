@@ -120,42 +120,42 @@ async def test_scheduler_pool(
 
         try:
             # Phase 1: Component lifecycle
-            client.execute_service(phase_services[1], {})
+            await client.execute_service(phase_services[1], {})
             await asyncio.wait_for(phase_futures[1], timeout=1.0)
             await asyncio.sleep(0.05)  # Let timeouts complete
 
             # Phase 2: Sensor polling
-            client.execute_service(phase_services[2], {})
+            await client.execute_service(phase_services[2], {})
             await asyncio.wait_for(phase_futures[2], timeout=1.0)
             await asyncio.sleep(0.1)  # Let intervals run a bit
 
             # Phase 3: Communication patterns
-            client.execute_service(phase_services[3], {})
+            await client.execute_service(phase_services[3], {})
             await asyncio.wait_for(phase_futures[3], timeout=1.0)
             await asyncio.sleep(0.1)  # Let heartbeat run
 
             # Phase 4: Defer patterns
-            client.execute_service(phase_services[4], {})
+            await client.execute_service(phase_services[4], {})
             await asyncio.wait_for(phase_futures[4], timeout=1.0)
             await asyncio.sleep(0.2)  # Let everything settle and recycle
 
             # Phase 5: Pool reuse verification
-            client.execute_service(phase_services[5], {})
+            await client.execute_service(phase_services[5], {})
             await asyncio.wait_for(phase_futures[5], timeout=1.0)
             await asyncio.sleep(0.1)  # Let Phase 5 timeouts complete and recycle
 
             # Phase 6: Full pool reuse verification
-            client.execute_service(phase_services[6], {})
+            await client.execute_service(phase_services[6], {})
             await asyncio.wait_for(phase_futures[6], timeout=1.0)
             await asyncio.sleep(0.1)  # Let Phase 6 timeouts complete
 
             # Phase 7: Same-named defer optimization
-            client.execute_service(phase_services[7], {})
+            await client.execute_service(phase_services[7], {})
             await asyncio.wait_for(phase_futures[7], timeout=1.0)
             await asyncio.sleep(0.05)  # Let the single defer execute
 
             # Complete test
-            client.execute_service(complete_service, {})
+            await client.execute_service(complete_service, {})
             await asyncio.wait_for(test_complete_future, timeout=0.5)
 
         except TimeoutError as e:

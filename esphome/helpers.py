@@ -35,6 +35,10 @@ IS_MACOS = platform.system() == "Darwin"
 IS_WINDOWS = platform.system() == "Windows"
 IS_LINUX = platform.system() == "Linux"
 
+# FNV-1 hash constants (must match C++ in esphome/core/helpers.h)
+FNV1_OFFSET_BASIS = 2166136261
+FNV1_PRIME = 16777619
+
 
 def ensure_unique_string(preferred_string, current_strings):
     test_string = preferred_string
@@ -49,8 +53,17 @@ def ensure_unique_string(preferred_string, current_strings):
     return test_string
 
 
+def fnv1_hash(string: str) -> int:
+    """FNV-1 32-bit hash function (multiply then XOR)."""
+    hash_value = FNV1_OFFSET_BASIS
+    for char in string:
+        hash_value = (hash_value * FNV1_PRIME) & 0xFFFFFFFF
+        hash_value ^= ord(char)
+    return hash_value
+
+
 def fnv1a_32bit_hash(string: str) -> int:
-    """FNV-1a 32-bit hash function.
+    """FNV-1a 32-bit hash function (XOR then multiply).
 
     Note: This uses 32-bit hash instead of 64-bit for several reasons:
     1. ESPHome targets 32-bit microcontrollers with limited RAM (often <320KB)
@@ -63,11 +76,20 @@ def fnv1a_32bit_hash(string: str) -> int:
     a handful of area_ids and device_ids (typically <10 areas and <100
     devices), making collisions virtually impossible.
     """
-    hash_value = 2166136261
+    hash_value = FNV1_OFFSET_BASIS
     for char in string:
         hash_value ^= ord(char)
-        hash_value = (hash_value * 16777619) & 0xFFFFFFFF
+        hash_value = (hash_value * FNV1_PRIME) & 0xFFFFFFFF
     return hash_value
+
+
+def fnv1_hash_object_id(name: str) -> int:
+    """Compute FNV-1 hash of name with snake_case + sanitize transformations.
+
+    IMPORTANT: Must produce same result as C++ fnv1_hash_object_id() in helpers.h.
+    Used for pre-computing entity object_id hashes at code generation time.
+    """
+    return fnv1_hash(sanitize(snake_case(name)))
 
 
 def strip_accents(value: str) -> str:
@@ -224,36 +246,37 @@ def resolve_ip_address(
         return res
 
     # Process hosts
-    cached_addresses: list[str] = []
+
     uncached_hosts: list[str] = []
-    has_cache = address_cache is not None
 
     for h in hosts:
         if is_ip_address(h):
-            if has_cache:
-                # If we have a cache, treat IPs as cached
-                cached_addresses.append(h)
-            else:
-                # If no cache, pass IPs through to resolver with hostnames
-                uncached_hosts.append(h)
+            _add_ip_addresses_to_addrinfo([h], port, res)
         elif address_cache and (cached := address_cache.get_addresses(h)):
-            # Found in cache
-            cached_addresses.extend(cached)
+            _add_ip_addresses_to_addrinfo(cached, port, res)
         else:
             # Not cached, need to resolve
             if address_cache and address_cache.has_cache():
                 _LOGGER.info("Host %s not in cache, will need to resolve", h)
             uncached_hosts.append(h)
 
-    # Process cached addresses (includes direct IPs and cached lookups)
-    _add_ip_addresses_to_addrinfo(cached_addresses, port, res)
-
     # If we have uncached hosts (only non-IP hostnames), resolve them
     if uncached_hosts:
+        from aioesphomeapi.host_resolver import AddrInfo as AioAddrInfo
+
+        from esphome.core import EsphomeError
         from esphome.resolver import AsyncResolver
 
         resolver = AsyncResolver(uncached_hosts, port)
-        addr_infos = resolver.resolve()
+        addr_infos: list[AioAddrInfo] = []
+        try:
+            addr_infos = resolver.resolve()
+        except EsphomeError as err:
+            if not res:
+                # No pre-resolved addresses available, DNS resolution is fatal
+                raise
+            _LOGGER.info("%s (using %d already resolved IP addresses)", err, len(res))
+
         # Convert aioesphomeapi AddrInfo to our format
         for addr_info in addr_infos:
             sockaddr = addr_info.sockaddr
@@ -423,9 +446,13 @@ def write_file_if_changed(path: Path, text: str) -> bool:
     return True
 
 
-def copy_file_if_changed(src: Path, dst: Path) -> None:
+def copy_file_if_changed(src: Path, dst: Path) -> bool:
+    """Copy file from src to dst if contents differ.
+
+    Returns True if file was copied, False if files already matched.
+    """
     if file_compare(src, dst):
-        return
+        return False
     dst.parent.mkdir(parents=True, exist_ok=True)
     try:
         shutil.copyfile(src, dst)
@@ -440,11 +467,12 @@ def copy_file_if_changed(src: Path, dst: Path) -> None:
             with suppress(OSError):
                 os.unlink(dst)
                 shutil.copyfile(src, dst)
-                return
+                return True
 
         from esphome.core import EsphomeError
 
         raise EsphomeError(f"Error copying file {src} to {dst}: {err}") from err
+    return True
 
 
 def list_starts_with(list_, sub):

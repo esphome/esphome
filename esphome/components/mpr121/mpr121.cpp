@@ -11,6 +11,7 @@ namespace mpr121 {
 static const char *const TAG = "mpr121";
 
 void MPR121Component::setup() {
+  this->disable_loop();
   // soft reset device
   this->write_byte(MPR121_SOFTRESET, 0x63);
   this->set_timeout(100, [this]() {
@@ -51,7 +52,7 @@ void MPR121Component::setup() {
     this->write_byte(MPR121_ECR, 0x80 | (this->max_touch_channel_ + 1));
 
     this->flush_gpio_();
-    this->setup_complete_ = true;
+    this->enable_loop();
   });
 }
 
@@ -80,9 +81,6 @@ void MPR121Component::dump_config() {
   }
 }
 void MPR121Component::loop() {
-  if (!this->setup_complete_)
-    return;
-
   uint16_t val = 0;
   this->read_byte_16(MPR121_TOUCHSTATUS_L, &val);
 
@@ -155,10 +153,8 @@ void MPR121GPIOPin::digital_write(bool value) {
   this->parent_->digital_write(this->pin_ - 4, value != this->inverted_);
 }
 
-std::string MPR121GPIOPin::dump_summary() const {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "ELE%u on MPR121", this->pin_);
-  return buffer;
+size_t MPR121GPIOPin::dump_summary(char *buffer, size_t len) const {
+  return buf_append_printf(buffer, len, 0, "ELE%u on MPR121", this->pin_);
 }
 
 }  // namespace mpr121

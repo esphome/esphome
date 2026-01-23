@@ -4,7 +4,7 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_RECEIVE_TIMEOUT, CONF_UART_ID
 
-CODEOWNERS = ["@glmnet", "@zuidwijk"]
+CODEOWNERS = ["@glmnet", "@zuidwijk", "@PolarGoose"]
 
 MULTI_CONF = True
 
@@ -25,29 +25,13 @@ dsmr_ns = cg.esphome_ns.namespace("esphome::dsmr")
 Dsmr = dsmr_ns.class_("Dsmr", cg.Component, uart.UARTDevice)
 
 
-def _validate_key(value):
-    value = cv.string_strict(value)
-    parts = [value[i : i + 2] for i in range(0, len(value), 2)]
-    if len(parts) != 16:
-        raise cv.Invalid("Decryption key must consist of 16 hexadecimal numbers")
-    parts_int = []
-    if any(len(part) != 2 for part in parts):
-        raise cv.Invalid("Decryption key must be format XX")
-    for part in parts:
-        try:
-            parts_int.append(int(part, 16))
-        except ValueError:
-            # pylint: disable=raise-missing-from
-            raise cv.Invalid("Decryption key must be hex values from 00 to FF")
-
-    return "".join(f"{part:02X}" for part in parts_int)
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Dsmr),
-            cv.Optional(CONF_DECRYPTION_KEY): _validate_key,
+            cv.Optional(CONF_DECRYPTION_KEY): lambda value: cv.bind_key(
+                value, name="Decryption key"
+            ),
             cv.Optional(CONF_CRC_CHECK, default=True): cv.boolean,
             cv.Optional(CONF_GAS_MBUS_ID, default=1): cv.int_,
             cv.Optional(CONF_WATER_MBUS_ID, default=2): cv.int_,
@@ -61,7 +45,6 @@ CONFIG_SCHEMA = cv.All(
             ): cv.positive_time_period_milliseconds,
         }
     ).extend(uart.UART_DEVICE_SCHEMA),
-    cv.only_with_arduino,
 )
 
 
@@ -83,7 +66,7 @@ async def to_code(config):
     cg.add_build_flag("-DDSMR_WATER_MBUS_ID=" + str(config[CONF_WATER_MBUS_ID]))
 
     # DSMR Parser
-    cg.add_library("glmnet/Dsmr", "0.8")
+    cg.add_library("esphome/dsmr_parser", "1.0.0")
 
     # Crypto
-    cg.add_library("rweather/Crypto", "0.4.0")
+    cg.add_library("polargoose/Crypto-no-arduino", "0.4.0")

@@ -1,0 +1,6 @@
+sensor:
+  - platform: bh1900nux
+    i2c_id: i2c_bus
+    name: Temperature Living Room
+    address: 0x48
+    update_interval: 30s
