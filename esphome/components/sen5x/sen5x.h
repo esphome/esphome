@@ -60,7 +60,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_nox_sensor(sensor::Sensor *nox_sensor) { nox_sensor_ = nox_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_store_baseline(bool store_baseline) { this->store_baseline_ = store_baseline; }
+  void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
   void set_acceleration_mode(RhtAccelerationMode mode) { acceleration_mode_ = mode; }
   void set_auto_cleaning_interval(uint32_t auto_cleaning_interval) { auto_cleaning_interval_ = auto_cleaning_interval; }
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
@@ -106,6 +106,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   ERRORCODE error_code_;
   uint8_t serial_number_[4];
   bool initialized_{false};
+  bool store_baseline_;
 
   sensor::Sensor *pm_1_0_sensor_{nullptr};
   sensor::Sensor *pm_2_5_sensor_{nullptr};
@@ -123,7 +124,6 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureCompensation> temperature_compensation_;
-  optional<bool> store_baseline_;
   ESPPreferenceObject pref_;
   std::string product_name_;
 };
