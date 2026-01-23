@@ -119,13 +119,10 @@ _COVER_SCHEMA = (
             cv.Optional(CONF_TILT_STATE_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.subscribe_topic
             ),
-            cv.Optional(CONF_ON_OPEN): cv.All(
-                cv.deprecated(CONF_ON_OPENED, "2026.2.0"),
-                automation.validate_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenTrigger),
-                    }
-                ),
+            cv.Optional(CONF_ON_OPEN): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenTrigger),
+                }
             ),
             cv.Optional(CONF_ON_OPENED): automation.validate_automation(
                 {
