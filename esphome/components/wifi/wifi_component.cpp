@@ -746,16 +746,32 @@ void WiFiComponent::setup_ap_config_() {
     return;
 
   if (this->ap_.get_ssid().empty()) {
-    std::string name = App.get_name();
-    if (name.length() > 32) {
+    // Build AP SSID from app name without heap allocation
+    // WiFi SSID max is 32 bytes, with MAC suffix we keep first 25 + last 7
+    static constexpr size_t max_ssid_len = 32;
+    static constexpr size_t prefix_len = 25;
+    static constexpr size_t suffix_len = 7;
+
+    const std::string &app_name = App.get_name();
+    const char *name_ptr = app_name.c_str();
+    size_t name_len = app_name.length();
+
+    if (name_len <= max_ssid_len) {
+      // Name fits, use directly
+      this->ap_.set_ssid(name_ptr);
+    } else {
+      // Name too long, need to truncate into stack buffer
+      char ssid_buf[max_ssid_len + 1];
       if (App.is_name_add_mac_suffix_enabled()) {
         // Keep first 25 chars and last 7 chars (MAC suffix), remove middle
-        name.erase(25, name.length() - 32);
+        memcpy(ssid_buf, name_ptr, prefix_len);
+        memcpy(ssid_buf + prefix_len, name_ptr + name_len - suffix_len, suffix_len);
       } else {
-        name.resize(32);
+        memcpy(ssid_buf, name_ptr, max_ssid_len);
       }
+      ssid_buf[max_ssid_len] = '\0';
+      this->ap_.set_ssid(ssid_buf);
     }
-    this->ap_.set_ssid(name);
   }
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
 
