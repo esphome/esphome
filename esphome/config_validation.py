@@ -28,6 +28,7 @@ from esphome import core
 import esphome.codegen as cg
 from esphome.const import (
     ALLOWED_NAME_CHARS,
+    CONF_ARGUMENT,
     CONF_AVAILABILITY,
     CONF_COMMAND_RETAIN,
     CONF_COMMAND_TOPIC,
@@ -36,6 +37,7 @@ from esphome.const import (
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ENTITY_CATEGORY,
+    CONF_ENTITY_STATE,
     CONF_HOUR,
     CONF_ICON,
     CONF_ID,
@@ -633,12 +635,26 @@ def declare_id(type):
 
 def convert_id_state_to_lambda(value) -> Lambda | None:
     """
-    Convert an ID state to a lambda that returns the state of the ID.
+    Convert an ID state to a lambda that returns the state of the ID, or the value of an argument.
     If not well-formed, return None.
     """
-    if isinstance(value, str) and value.endswith(".state"):
-        ident = validate_id_name(value.removesuffix(".state"))
-        return Lambda(f"return id({ident}).state;")
+    if isinstance(value, dict):
+        value = has_exactly_one_key(CONF_ARGUMENT, CONF_ENTITY_STATE)(
+            Schema(
+                {
+                    Optional(CONF_ENTITY_STATE): validate_id_name,
+                    Optional(CONF_ARGUMENT): validate_id_name,
+                },
+                extra=vol.ALLOW_EXTRA,
+            )(value)
+        )
+        if len(value) != 1:
+            raise Invalid(
+                f"The only valid keys are '{CONF_ARGUMENT}' or '{CONF_ENTITY_STATE}'"
+            )
+        if entity_state := value.get(CONF_ENTITY_STATE):
+            return Lambda(f"return id({entity_state}).state;")
+        return Lambda(f"return {value[CONF_ARGUMENT]};")
     return None
 
 
@@ -656,17 +672,12 @@ def templatable(other_validators):
         if value == SCHEMA_EXTRACT:
             return other_validators
 
+        if id_state := convert_id_state_to_lambda(value):
+            return id_state
         if isinstance(value, Lambda):
             return returning_lambda(value)
-        # If the supplied value does not validate, but is a string like
-        # some_id.state
-        # then turn it into a lambda
-        try:
-            return schema(value)
-        except Invalid as exc:
-            if value := convert_id_state_to_lambda(value):
-                return value
-            raise exc
+
+        return schema(value)
 
     return validator
 
@@ -1624,6 +1635,8 @@ def returning_lambda(value):
 
     Additionally, make sure the lambda returns something.
     """
+    if id_state := convert_id_state_to_lambda(value):
+        return id_state
     value = lambda_(value)
     if "return" not in value.value:
         raise Invalid(
