@@ -39,7 +39,7 @@ struct TemperatureCompensation {
   uint16_t time_constant;
 };
 
-// Shortest time interval of 2H for storing baseline values.
+// Shortest time interval of 2H (in milliseconds) for storing baseline values.
 // Prevents wear of the flash because of too many write operations
 static const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 2 * 60 * 60 * 1000;
 
