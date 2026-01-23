@@ -121,7 +121,7 @@ bool DlmsMeterComponent::parse_mbus_(std::vector<uint8_t> &mbus_payload) {
 
     // Verify checksum: sum of all bytes starting at MBUS_HEADER_INTRO_LENGTH, take last byte
     uint8_t checksum = 0;  // use uint8_t so only the 8 least significant bits are stored
-    for (uint8_t i = 0; i < frame_length; i++) {
+    for (uint16_t i = 0; i < frame_length; i++) {
       checksum += this->receive_buffer_[frame_offset + MBUS_HEADER_INTRO_LENGTH + i];
     }
     if (checksum != this->receive_buffer_[frame_offset + frame_length + MBUS_HEADER_INTRO_LENGTH]) {
