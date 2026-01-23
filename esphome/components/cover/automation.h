@@ -119,6 +119,8 @@ class CoverOpenTrigger : public Trigger<> {
   }
 };
 
+// Separate CoverOpenedTrigger class for improved naming clarity.
+// Both on_open and on_opened are supported for backward compatibility.
 class CoverOpenedTrigger : public Trigger<> {
  public:
   CoverOpenedTrigger(Cover *a_cover) {
@@ -146,15 +148,17 @@ class CoverOpeningTrigger : public Trigger<> {
   CoverOpeningTrigger(Cover *a_cover) {
     a_cover->add_on_state_callback([this, a_cover]() {
       auto current_op = a_cover->current_operation;
-      if (current_op == COVER_OPERATION_OPENING && this->last_operation_ != COVER_OPERATION_OPENING) {
-        this->trigger();
+      if (current_op == COVER_OPERATION_OPENING) {
+        if (!this->last_operation_.has_value() || this->last_operation_.value() != COVER_OPERATION_OPENING) {
+          this->trigger();
+        }
       }
       this->last_operation_ = current_op;
     });
   }
 
  protected:
-  CoverOperation last_operation_{COVER_OPERATION_IDLE};
+  optional<CoverOperation> last_operation_{};
 };
 
 class CoverClosingTrigger : public Trigger<> {
@@ -162,15 +166,17 @@ class CoverClosingTrigger : public Trigger<> {
   CoverClosingTrigger(Cover *a_cover) {
     a_cover->add_on_state_callback([this, a_cover]() {
       auto current_op = a_cover->current_operation;
-      if (current_op == COVER_OPERATION_CLOSING && this->last_operation_ != COVER_OPERATION_CLOSING) {
-        this->trigger();
+      if (current_op == COVER_OPERATION_CLOSING) {
+        if (!this->last_operation_.has_value() || this->last_operation_.value() != COVER_OPERATION_CLOSING) {
+          this->trigger();
+        }
       }
       this->last_operation_ = current_op;
     });
   }
 
  protected:
-  CoverOperation last_operation_{COVER_OPERATION_IDLE};
+  optional<CoverOperation> last_operation_{};
 };
 
 class CoverIdleTrigger : public Trigger<> {
@@ -178,15 +184,17 @@ class CoverIdleTrigger : public Trigger<> {
   CoverIdleTrigger(Cover *a_cover) {
     a_cover->add_on_state_callback([this, a_cover]() {
       auto current_op = a_cover->current_operation;
-      if (current_op == COVER_OPERATION_IDLE && this->last_operation_ != COVER_OPERATION_IDLE) {
-        this->trigger();
+      if (current_op == COVER_OPERATION_IDLE) {
+        if (this->last_operation_.has_value() && this->last_operation_.value() != COVER_OPERATION_IDLE) {
+          this->trigger();
+        }
       }
       this->last_operation_ = current_op;
     });
   }
 
  protected:
-  CoverOperation last_operation_{COVER_OPERATION_IDLE};
+  optional<CoverOperation> last_operation_{};
 };
 
 }  // namespace esphome::cover
