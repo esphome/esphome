@@ -22,12 +22,19 @@ extern "C" {
 #include "esphome/core/preferences.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 namespace esphome {
 namespace bme690 {
 
 static const char *const TAG = "bme690";
 #define BSEC_CHECK_INPUT(x, shift) ((x) & (1U << ((shift)-1)))
+static const char *const IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
 class BME690Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -45,6 +52,9 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   void set_gas_percentage_sensor(sensor::Sensor *sensor) { gas_percentage_sensor = sensor; }
   void set_comp_temperature_sensor(sensor::Sensor *sensor) { comp_temperature_sensor = sensor; }
   void set_comp_humidity_sensor(sensor::Sensor *sensor) { comp_humidity_sensor = sensor; }
+#ifdef USE_TEXT_SENSOR
+  void set_iaq_accuracy_text_sensor(text_sensor::TextSensor *sensor) { iaq_accuracy_text_sensor_ = sensor; }
+#endif
 
   sensor::Sensor *temperature_sensor{nullptr};
   sensor::Sensor *humidity_sensor{nullptr};
@@ -58,6 +68,10 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *gas_percentage_sensor{nullptr};
   sensor::Sensor *comp_temperature_sensor{nullptr};
   sensor::Sensor *comp_humidity_sensor{nullptr};
+
+#ifdef USE_TEXT_SENSOR
+  text_sensor::TextSensor *iaq_accuracy_text_sensor_{nullptr};
+#endif
 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
@@ -212,6 +226,9 @@ inline void BME690Component::dump_config() {
   LOG_SENSOR("  ", "Gas percentage", this->gas_percentage_sensor);
   LOG_SENSOR("  ", "Compensated temperature", this->comp_temperature_sensor);
   LOG_SENSOR("  ", "Compensated humidity", this->comp_humidity_sensor);
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "IAQ Accuracy", this->iaq_accuracy_text_sensor_);
+#endif
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -452,6 +469,11 @@ inline void BME690Component::handle_bsec_outputs(const bsec_output_t *outputs, u
         if (this->iaq_accuracy_sensor != nullptr) {
           this->iaq_accuracy_sensor->publish_state(out.accuracy);
         }
+#ifdef USE_TEXT_SENSOR
+        if (this->iaq_accuracy_text_sensor_ != nullptr && out.accuracy < 4) {
+          this->iaq_accuracy_text_sensor_->publish_state(IAQ_ACCURACY_STATES[out.accuracy]);
+        }
+#endif
         this->last_iaq_accuracy_ = out.accuracy;
         if (out.accuracy >= 2) {
           this->state_dirty_ = true;
