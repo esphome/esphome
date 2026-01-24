@@ -19,9 +19,11 @@ char *format_bytes_to(char *buffer, std::span<const uint8_t> bytes) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 // Deprecated wrappers intentionally use heap-allocating version for backward compatibility
-std::string format_uid(std::span<const uint8_t> uid) { return format_hex_pretty(uid.data(), uid.size(), '-', false); }
+std::string format_uid(std::span<const uint8_t> uid) {
+  return format_hex_pretty(uid.data(), uid.size(), '-', false);  // NOLINT
+}
 std::string format_bytes(std::span<const uint8_t> bytes) {
-  return format_hex_pretty(bytes.data(), bytes.size(), ' ', false);
+  return format_hex_pretty(bytes.data(), bytes.size(), ' ', false);  // NOLINT
 }
 #pragma GCC diagnostic pop
 
