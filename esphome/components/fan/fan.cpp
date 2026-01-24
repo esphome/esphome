@@ -227,8 +227,7 @@ void Fan::publish_state() {
 constexpr uint32_t RESTORE_STATE_VERSION = 0x71700ABA;
 optional<FanRestoreState> Fan::restore_state_() {
   FanRestoreState recovered{};
-  this->rtc_ =
-      global_preferences->make_preference<FanRestoreState>(this->get_preference_hash() ^ RESTORE_STATE_VERSION);
+  this->rtc_ = this->make_entity_preference<FanRestoreState>(RESTORE_STATE_VERSION);
   bool restored = this->rtc_.load(&recovered);
 
   switch (this->restore_mode_) {

@@ -146,9 +146,7 @@ void WaterHeaterCall::validate_() {
   }
 }
 
-void WaterHeater::setup() {
-  this->pref_ = global_preferences->make_preference<SavedWaterHeaterState>(this->get_preference_hash());
-}
+void WaterHeater::setup() { this->pref_ = this->make_entity_preference<SavedWaterHeaterState>(); }
 
 void WaterHeater::publish_state() {
   auto traits = this->get_traits();
