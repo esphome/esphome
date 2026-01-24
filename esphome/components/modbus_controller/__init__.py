@@ -279,7 +279,7 @@ def modbus_calc_properties(config):
             if isinstance(value, str):
                 value = value.encode()
             config[CONF_ADDRESS] = binascii.crc_hqx(value, 0)
-        config[CONF_REGISTER_TYPE] = ModbusRegisterType.CUSTOM
+        config[CONF_REGISTER_TYPE] = cv.enum(MODBUS_REGISTER_TYPE)("custom")
         config[CONF_FORCE_NEW_RANGE] = True
     return byte_offset, reg_count
 
