@@ -56,11 +56,12 @@ static const LogString *rht_accel_mode_to_string(RhtAccelerationMode mode) {
   }
 }
 
-static inline const char *sensirion_convert_to_string(uint16_t *array, size_t length) {
+// This function performs an in-place conversion of the provided buffer
+// from uint16_t values to big endianness, null termination is not guaranteed
+static inline const char *sensirion_convert_to_string_in_place(uint16_t *array, size_t length) {
   for (size_t i = 0; i < length; i++) {
     array[i] = convert_big_endian(array[i]);
   }
-  array[length - 1] &= 0xFF;  // force null terminate last byte, JIC
   return reinterpret_cast<const char *>(array);
 }
 
@@ -106,7 +107,7 @@ void SEN5XComponent::setup() {
       this->serial_number_[0] = static_cast<bool>(uint16_t(raw_serial_number[0]) & 0xFF);
       this->serial_number_[1] = static_cast<uint16_t>(raw_serial_number[0] & 0xFF);
       this->serial_number_[2] = static_cast<uint16_t>(raw_serial_number[1] >> 8);
-      ESP_LOGV(TAG, "Serial number %02d.%02d.%02d", this->serial_number_[0], this->serial_number_[1],
+      ESP_LOGV(TAG, "Serial number: %02d.%02d.%02d", this->serial_number_[0], this->serial_number_[1],
                this->serial_number_[2]);
 
       uint16_t raw_product_name[16];
@@ -116,7 +117,7 @@ void SEN5XComponent::setup() {
         this->mark_failed();
         return;
       }
-      const char *product_name = sensirion_convert_to_string(raw_product_name, 16);
+      const char *product_name = sensirion_convert_to_string_in_place(raw_product_name, 16);
       if (strncmp(product_name, "SEN50", 5) == 0) {
         this->type_ = Sen5xType::SEN50;
       } else if (strncmp(product_name, "SEN54", 5) == 0) {
@@ -125,9 +126,13 @@ void SEN5XComponent::setup() {
         this->type_ = Sen5xType::SEN55;
       } else {
         this->type_ = Sen5xType::UNKNOWN;
+        ESP_LOGE(TAG, "Unknown product name: %.32s", product_name);
+        this->error_code_ = PRODUCT_NAME_FAILED;
+        this->mark_failed();
+        return;
       }
 
-      ESP_LOGD(TAG, "Product name: %s", LOG_STR_ARG(type_to_string(this->type_)));
+      ESP_LOGD(TAG, "Type: %s", LOG_STR_ARG(type_to_string(this->type_)));
       if (this->humidity_sensor_ && this->type_ == Sen5xType::SEN50) {
         ESP_LOGE(TAG, "Relative humidity requires a SEN54 or SEN55");
         this->humidity_sensor_ = nullptr;  // mark as not used
@@ -266,7 +271,7 @@ void SEN5XComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Type: %s\n"
                 "  Firmware version: %d\n"
-                "  Serial number %02d.%02d.%02d",
+                "  Serial number: %02d.%02d.%02d",
                 LOG_STR_ARG(type_to_string(this->type_)), this->firmware_version_, this->serial_number_[0],
                 this->serial_number_[1], this->serial_number_[2]);
   if (this->auto_cleaning_interval_.has_value()) {
