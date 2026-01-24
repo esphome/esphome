@@ -8,64 +8,37 @@
 
 namespace esphome::ethernet_info {
 
-class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextSensor {
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+class IPAddressEthernetInfo final : public Component,
+                                    public text_sensor::TextSensor,
+                                    public ethernet::EthernetIPStateListener {
  public:
-  void update() override {
-    auto ips = ethernet::global_eth_component->get_ip_addresses();
-    if (ips != this->last_ips_) {
-      this->last_ips_ = ips;
-      char buf[network::IP_ADDRESS_BUFFER_SIZE];
-      ips[0].str_to(buf);
-      this->publish_state(buf);
-      uint8_t sensor = 0;
-      for (auto &ip : ips) {
-        if (ip.is_set()) {
-          if (this->ip_sensors_[sensor] != nullptr) {
-            ip.str_to(buf);
-            this->ip_sensors_[sensor]->publish_state(buf);
-          }
-          sensor++;
-        }
-      }
-    }
-  }
-
-  float get_setup_priority() const override { return setup_priority::ETHERNET; }
+  void setup() override;
   void dump_config() override;
   void add_ip_sensors(uint8_t index, text_sensor::TextSensor *s) { this->ip_sensors_[index] = s; }
 
+  // EthernetIPStateListener interface
+  void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
+                   const network::IPAddress &dns2) override;
+
  protected:
-  network::IPAddresses last_ips_;
-  std::array<text_sensor::TextSensor *, 5> ip_sensors_;
+  std::array<text_sensor::TextSensor *, 5> ip_sensors_{};
 };
 
-class DNSAddressEthernetInfo : public PollingComponent, public text_sensor::TextSensor {
+class DNSAddressEthernetInfo final : public Component,
+                                     public text_sensor::TextSensor,
+                                     public ethernet::EthernetIPStateListener {
  public:
-  void update() override {
-    auto dns1 = ethernet::global_eth_component->get_dns_address(0);
-    auto dns2 = ethernet::global_eth_component->get_dns_address(1);
-
-    if (dns1 != this->last_dns1_ || dns2 != this->last_dns2_) {
-      this->last_dns1_ = dns1;
-      this->last_dns2_ = dns2;
-      // IP_ADDRESS_BUFFER_SIZE (40) = max IP (39) + null; space reuses first null's slot
-      char buf[network::IP_ADDRESS_BUFFER_SIZE * 2];
-      dns1.str_to(buf);
-      size_t len1 = strlen(buf);
-      buf[len1] = ' ';
-      dns2.str_to(buf + len1 + 1);
-      this->publish_state(buf);
-    }
-  }
-  float get_setup_priority() const override { return setup_priority::ETHERNET; }
+  void setup() override;
   void dump_config() override;
 
- protected:
-  network::IPAddress last_dns1_;
-  network::IPAddress last_dns2_;
+  // EthernetIPStateListener interface
+  void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
+                   const network::IPAddress &dns2) override;
 };
+#endif  // USE_ETHERNET_IP_STATE_LISTENERS
 
-class MACAddressEthernetInfo : public Component, public text_sensor::TextSensor {
+class MACAddressEthernetInfo final : public Component, public text_sensor::TextSensor {
  public:
   void setup() override {
     char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];

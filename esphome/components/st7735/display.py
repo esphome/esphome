@@ -99,7 +99,7 @@ async def to_code(config):
         config[CONF_INVERT_COLORS],
     )
     await setup_st7735(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
