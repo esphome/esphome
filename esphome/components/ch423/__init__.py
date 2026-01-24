@@ -72,14 +72,13 @@ def pin_mode_check(pin_config, _):
             raise cv.Invalid(
                 "CH423 GPIO pins (0-7) must all be configured as input or all as output"
             )
-    else:
-        # GPO pins (8-23): all must have same open-drain setting
-        if _ch423_modes[ch423_id]["gpo_open_drain"] is None:
-            _ch423_modes[ch423_id]["gpo_open_drain"] = is_open_drain
-        elif _ch423_modes[ch423_id]["gpo_open_drain"] != is_open_drain:
-            raise cv.Invalid(
-                "CH423 GPO pins (8-23) must all be configured as push-pull or all as open-drain"
-            )
+    # GPO pins (8-23): all must have same open-drain setting
+    elif _ch423_modes[ch423_id]["gpo_open_drain"] is None:
+        _ch423_modes[ch423_id]["gpo_open_drain"] = is_open_drain
+    elif _ch423_modes[ch423_id]["gpo_open_drain"] != is_open_drain:
+        raise cv.Invalid(
+            "CH423 GPO pins (8-23) must all be configured as push-pull or all as open-drain"
+        )
 
 
 CH423_PIN_SCHEMA = pins.gpio_base_schema(
