@@ -1,6 +1,6 @@
 #include "http_request_arduino.h"
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
 
 #include "esphome/components/network/util.h"
 #include "esphome/components/watchdog/watchdog.h"
@@ -9,14 +9,14 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 static const char *const TAG = "http_request.arduino";
 
-std::shared_ptr<HttpContainer> HttpRequestArduino::perform(std::string url, std::string method, std::string body,
-                                                           std::list<Header> request_headers,
-                                                           std::set<std::string> collect_headers) {
+std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &url, const std::string &method,
+                                                           const std::string &body,
+                                                           const std::list<Header> &request_headers,
+                                                           const std::set<std::string> &collect_headers) {
   if (!network::is_connected()) {
     this->status_momentary_error("failed", 1000);
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
@@ -74,8 +74,6 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(std::string url, std:
     container->client_.setInsecure();
   }
   bool status = container->client_.begin(url.c_str());
-#elif defined(USE_ESP32)
-  bool status = container->client_.begin(url.c_str());
 #endif
 
   App.feed_wdt();
@@ -89,9 +87,6 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(std::string url, std:
 
   container->client_.setReuse(true);
   container->client_.setTimeout(this->timeout_);
-#if defined(USE_ESP32)
-  container->client_.setConnectTimeout(this->timeout_);
-#endif
 
   if (this->useragent_ != nullptr) {
     container->client_.setUserAgent(this->useragent_);
@@ -144,6 +139,23 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(std::string url, std:
   return container;
 }
 
+// Arduino HTTP read implementation
+//
+// WARNING: Return values differ from BSD sockets! See http_request.h for full documentation.
+//
+// Arduino's WiFiClient is inherently non-blocking - available() returns 0 when
+// no data is ready. We use connected() to distinguish "no data yet" from
+// "connection closed".
+//
+// WiFiClient behavior:
+//   available() > 0: data ready to read
+//   available() == 0 && connected(): no data yet, still connected
+//   available() == 0 && !connected(): connection closed
+//
+// We normalize to HttpContainer::read() contract (NOT BSD socket semantics!):
+//   > 0: bytes read
+//   0: no data yet, retry            <-- NOTE: 0 means retry, NOT EOF!
+//   < 0: error/connection closed     <-- connection closed returns -1, not 0
 int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
@@ -151,7 +163,7 @@ int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   WiFiClient *stream_ptr = this->client_.getStreamPtr();
   if (stream_ptr == nullptr) {
     ESP_LOGE(TAG, "Stream pointer vanished!");
-    return -1;
+    return HTTP_ERROR_CONNECTION_CLOSED;
   }
 
   int available_data = stream_ptr->available();
@@ -159,7 +171,15 @@ int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
 
   if (bufsize == 0) {
     this->duration_ms += (millis() - start);
-    return 0;
+    // Check if we've read all expected content
+    if (this->bytes_read_ >= this->content_length) {
+      return 0;  // All content read successfully
+    }
+    // No data available - check if connection is still open
+    if (!stream_ptr->connected()) {
+      return HTTP_ERROR_CONNECTION_CLOSED;  // Connection closed prematurely
+    }
+    return 0;  // No data yet, caller should retry
   }
 
   App.feed_wdt();
@@ -176,7 +196,6 @@ void HttpContainerArduino::end() {
   this->client_.end();
 }
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO && !USE_ESP32

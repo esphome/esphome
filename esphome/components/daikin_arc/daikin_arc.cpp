@@ -26,7 +26,7 @@ void DaikinArcClimate::transmit_query_() {
   uint8_t remote_header[8] = {0x11, 0xDA, 0x27, 0x00, 0x84, 0x87, 0x20, 0x00};
 
   // Calculate checksum
-  for (int i = 0; i < sizeof(remote_header) - 1; i++) {
+  for (size_t i = 0; i < sizeof(remote_header) - 1; i++) {
     remote_header[sizeof(remote_header) - 1] += remote_header[i];
   }
 
@@ -102,7 +102,7 @@ void DaikinArcClimate::transmit_state() {
   remote_state[9] = fan_speed & 0xff;
 
   // Calculate checksum
-  for (int i = 0; i < sizeof(remote_header) - 1; i++) {
+  for (size_t i = 0; i < sizeof(remote_header) - 1; i++) {
     remote_header[sizeof(remote_header) - 1] += remote_header[i];
   }
 
@@ -241,9 +241,7 @@ uint8_t DaikinArcClimate::humidity_() {
 
 climate::ClimateTraits DaikinArcClimate::traits() {
   climate::ClimateTraits traits = climate_ir::ClimateIR::traits();
-  traits.set_supports_current_temperature(true);
-  traits.set_supports_current_humidity(false);
-  traits.set_supports_target_humidity(true);
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE | climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY);
   traits.set_visual_min_humidity(38);
   traits.set_visual_max_humidity(52);
   return traits;
@@ -260,8 +258,9 @@ bool DaikinArcClimate::parse_state_frame_(const uint8_t frame[]) {
   }
 
   char buf[DAIKIN_STATE_FRAME_SIZE * 3 + 1] = {0};
+  size_t pos = 0;
   for (size_t i = 0; i < DAIKIN_STATE_FRAME_SIZE; i++) {
-    sprintf(buf, "%s%02x ", buf, frame[i]);
+    pos = buf_append_printf(buf, sizeof(buf), pos, "%02x ", frame[i]);
   }
   ESP_LOGD(TAG, "FRAME %s", buf);
 
@@ -350,9 +349,10 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
   bool valid_daikin_frame = false;
   if (data.expect_item(DAIKIN_HEADER_MARK, DAIKIN_HEADER_SPACE)) {
     valid_daikin_frame = true;
-    int bytes_count = data.size() / 2 / 8;
-    std::unique_ptr<char[]> buf(new char[bytes_count * 3 + 1]);
-    buf[0] = '\0';
+    size_t bytes_count = data.size() / 2 / 8;
+    size_t buf_size = bytes_count * 3 + 1;
+    std::unique_ptr<char[]> buf(new char[buf_size]());  // value-initialize (zero-fill)
+    size_t buf_pos = 0;
     for (size_t i = 0; i < bytes_count; i++) {
       uint8_t byte = 0;
       for (int8_t bit = 0; bit < 8; bit++) {
@@ -363,44 +363,52 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
           break;
         }
       }
-      sprintf(buf.get(), "%s%02x ", buf.get(), byte);
+      buf_pos = buf_append_printf(buf.get(), buf_size, buf_pos, "%02x ", byte);
     }
     ESP_LOGD(TAG, "WHOLE FRAME %s  size: %d", buf.get(), data.size());
   }
   if (!valid_daikin_frame) {
-    char sbuf[16 * 10 + 1];
-    sbuf[0] = '\0';
-    for (size_t j = 0; j < data.size(); j++) {
+    char sbuf[16 * 10 + 1] = {0};
+    size_t sbuf_pos = 0;
+    for (size_t j = 0; j < static_cast<size_t>(data.size()); j++) {
       if ((j - 2) % 16 == 0) {
         if (j > 0) {
           ESP_LOGD(TAG, "DATA %04x: %s", (j - 16 > 0xffff ? 0 : j - 16), sbuf);
         }
-        sbuf[0] = '\0';
+        sbuf_pos = 0;
       }
       char type_ch = ' ';
       // debug_tolerance = 25%
 
-      if (DAIKIN_DBG_LOWER(DAIKIN_ARC_PRE_MARK) <= data[j] && data[j] <= DAIKIN_DBG_UPPER(DAIKIN_ARC_PRE_MARK))
+      if (static_cast<int32_t>(DAIKIN_DBG_LOWER(DAIKIN_ARC_PRE_MARK)) <= data[j] &&
+          data[j] <= static_cast<int32_t>(DAIKIN_DBG_UPPER(DAIKIN_ARC_PRE_MARK)))
         type_ch = 'P';
-      if (DAIKIN_DBG_LOWER(DAIKIN_ARC_PRE_SPACE) <= -data[j] && -data[j] <= DAIKIN_DBG_UPPER(DAIKIN_ARC_PRE_SPACE))
+      if (static_cast<int32_t>(DAIKIN_DBG_LOWER(DAIKIN_ARC_PRE_SPACE)) <= -data[j] &&
+          -data[j] <= static_cast<int32_t>(DAIKIN_DBG_UPPER(DAIKIN_ARC_PRE_SPACE)))
         type_ch = 'a';
-      if (DAIKIN_DBG_LOWER(DAIKIN_HEADER_MARK) <= data[j] && data[j] <= DAIKIN_DBG_UPPER(DAIKIN_HEADER_MARK))
+      if (static_cast<int32_t>(DAIKIN_DBG_LOWER(DAIKIN_HEADER_MARK)) <= data[j] &&
+          data[j] <= static_cast<int32_t>(DAIKIN_DBG_UPPER(DAIKIN_HEADER_MARK)))
         type_ch = 'H';
-      if (DAIKIN_DBG_LOWER(DAIKIN_HEADER_SPACE) <= -data[j] && -data[j] <= DAIKIN_DBG_UPPER(DAIKIN_HEADER_SPACE))
+      if (static_cast<int32_t>(DAIKIN_DBG_LOWER(DAIKIN_HEADER_SPACE)) <= -data[j] &&
+          -data[j] <= static_cast<int32_t>(DAIKIN_DBG_UPPER(DAIKIN_HEADER_SPACE)))
         type_ch = 'h';
-      if (DAIKIN_DBG_LOWER(DAIKIN_BIT_MARK) <= data[j] && data[j] <= DAIKIN_DBG_UPPER(DAIKIN_BIT_MARK))
+      if (static_cast<int32_t>(DAIKIN_DBG_LOWER(DAIKIN_BIT_MARK)) <= data[j] &&
+          data[j] <= static_cast<int32_t>(DAIKIN_DBG_UPPER(DAIKIN_BIT_MARK)))
         type_ch = 'B';
-      if (DAIKIN_DBG_LOWER(DAIKIN_ONE_SPACE) <= -data[j] && -data[j] <= DAIKIN_DBG_UPPER(DAIKIN_ONE_SPACE))
+      if (static_cast<int32_t>(DAIKIN_DBG_LOWER(DAIKIN_ONE_SPACE)) <= -data[j] &&
+          -data[j] <= static_cast<int32_t>(DAIKIN_DBG_UPPER(DAIKIN_ONE_SPACE)))
         type_ch = '1';
-      if (DAIKIN_DBG_LOWER(DAIKIN_ZERO_SPACE) <= -data[j] && -data[j] <= DAIKIN_DBG_UPPER(DAIKIN_ZERO_SPACE))
+      if (static_cast<int32_t>(DAIKIN_DBG_LOWER(DAIKIN_ZERO_SPACE)) <= -data[j] &&
+          -data[j] <= static_cast<int32_t>(DAIKIN_DBG_UPPER(DAIKIN_ZERO_SPACE)))
         type_ch = '0';
 
       if (abs(data[j]) > 100000) {
-        sprintf(sbuf, "%s%-5d[%c] ", sbuf, data[j] > 0 ? 99999 : -99999, type_ch);
+        sbuf_pos = buf_append_printf(sbuf, sizeof(sbuf), sbuf_pos, "%-5d[%c] ", data[j] > 0 ? 99999 : -99999, type_ch);
       } else {
-        sprintf(sbuf, "%s%-5d[%c] ", sbuf, (int) (round(data[j] / 10.) * 10), type_ch);
+        sbuf_pos =
+            buf_append_printf(sbuf, sizeof(sbuf), sbuf_pos, "%-5d[%c] ", (int) (round(data[j] / 10.) * 10), type_ch);
       }
-      if (j == data.size() - 1) {
+      if (j + 1 == static_cast<size_t>(data.size())) {
         ESP_LOGD(TAG, "DATA %04x: %s", (j - 8 > 0xffff ? 0 : j - 8), sbuf);
       }
     }

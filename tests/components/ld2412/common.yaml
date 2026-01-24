@@ -1,14 +1,9 @@
-uart:
-  - id: uart_ld2412
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 ld2412:
   id: my_ld2412
 
 binary_sensor:
   - platform: ld2412
+    id: ld2412_binary
     dynamic_background_correction_status:
       name: Dynamic Background Correction Status
     has_target:
@@ -20,6 +15,7 @@ binary_sensor:
 
 button:
   - platform: ld2412
+    id: ld2412_button
     factory_reset:
       name: Factory reset
     restart:
@@ -31,6 +27,7 @@ button:
 
 number:
   - platform: ld2412
+    id: ld2412_number
     light_threshold:
       name: Light Threshold
     timeout:
@@ -112,6 +109,7 @@ number:
 
 select:
   - platform: ld2412
+    id: ld2412_select
     light_function:
       name: Light Function
     out_pin_level:
@@ -123,18 +121,19 @@ select:
       on_value:
         - delay: 3s
         - lambda: |-
-            id(uart_ld2412).flush();
+            id(uart_bus).flush();
             uint32_t new_baud_rate = stoi(x);
-            ESP_LOGD("change_baud_rate", "Changing baud rate from %i to %i",id(uart_ld2412).get_baud_rate(), new_baud_rate);
-            if (id(uart_ld2412).get_baud_rate() != new_baud_rate) {
-              id(uart_ld2412).set_baud_rate(new_baud_rate);
+            ESP_LOGD("change_baud_rate", "Changing baud rate from %i to %i",id(uart_bus).get_baud_rate(), new_baud_rate);
+            if (id(uart_bus).get_baud_rate() != new_baud_rate) {
+              id(uart_bus).set_baud_rate(new_baud_rate);
             #if defined(USE_ESP8266) || defined(USE_ESP32)
-              id(uart_ld2412).load_settings();
+              id(uart_bus).load_settings();
             #endif
             }
 
 sensor:
   - platform: ld2412
+    id: ld2412_sensor
     light:
       name: Light
     moving_distance:
@@ -220,6 +219,7 @@ sensor:
 
 switch:
   - platform: ld2412
+    id: ld2412_switch
     bluetooth:
       name: Bluetooth
     engineering_mode:
@@ -227,6 +227,7 @@ switch:
 
 text_sensor:
   - platform: ld2412
+    id: ld2412_textsensor
     version:
       name: Firmware version
     mac_address:

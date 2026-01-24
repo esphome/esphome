@@ -12,3 +12,4 @@ ethernet:
     gateway: 192.168.178.1
     subnet: 255.255.255.0
   domain: .local
+  mac_address: "02:AA:BB:CC:DD:01"

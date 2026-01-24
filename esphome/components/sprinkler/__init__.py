@@ -19,6 +19,7 @@ from esphome.const import (
     UNIT_MINUTE,
     UNIT_SECOND,
 )
+from esphome.helpers import docs_url
 
 AUTO_LOAD = ["number", "switch"]
 CODEOWNERS = ["@kbx81"]
@@ -162,55 +163,9 @@ def validate_sprinkler(config):
                 raise cv.Invalid(
                     f"{CONF_RUN_DURATION} must be greater than {CONF_VALVE_OPEN_DELAY}"
                 )
-            if (
-                CONF_PUMP_OFF_SWITCH_ID in valve and CONF_PUMP_ON_SWITCH_ID not in valve
-            ) or (
-                CONF_PUMP_ON_SWITCH_ID in valve and CONF_PUMP_OFF_SWITCH_ID not in valve
-            ):
+            if CONF_VALVE_SWITCH_ID not in valve:
                 raise cv.Invalid(
-                    f"Both {CONF_PUMP_OFF_SWITCH_ID} and {CONF_PUMP_ON_SWITCH_ID} must be specified for latching pump configuration"
-                )
-            if CONF_PUMP_SWITCH_ID in valve and (
-                CONF_PUMP_OFF_SWITCH_ID in valve or CONF_PUMP_ON_SWITCH_ID in valve
-            ):
-                raise cv.Invalid(
-                    f"Do not specify {CONF_PUMP_OFF_SWITCH_ID} or {CONF_PUMP_ON_SWITCH_ID} when using {CONF_PUMP_SWITCH_ID}"
-                )
-            if CONF_PUMP_PULSE_DURATION not in sprinkler_controller and (
-                CONF_PUMP_OFF_SWITCH_ID in valve or CONF_PUMP_ON_SWITCH_ID in valve
-            ):
-                raise cv.Invalid(
-                    f"{CONF_PUMP_PULSE_DURATION} must be specified when using {CONF_PUMP_OFF_SWITCH_ID} and {CONF_PUMP_ON_SWITCH_ID}"
-                )
-            if (
-                CONF_VALVE_OFF_SWITCH_ID in valve
-                and CONF_VALVE_ON_SWITCH_ID not in valve
-            ) or (
-                CONF_VALVE_ON_SWITCH_ID in valve
-                and CONF_VALVE_OFF_SWITCH_ID not in valve
-            ):
-                raise cv.Invalid(
-                    f"Both {CONF_VALVE_OFF_SWITCH_ID} and {CONF_VALVE_ON_SWITCH_ID} must be specified for latching valve configuration"
-                )
-            if CONF_VALVE_SWITCH_ID in valve and (
-                CONF_VALVE_OFF_SWITCH_ID in valve or CONF_VALVE_ON_SWITCH_ID in valve
-            ):
-                raise cv.Invalid(
-                    f"Do not specify {CONF_VALVE_OFF_SWITCH_ID} or {CONF_VALVE_ON_SWITCH_ID} when using {CONF_VALVE_SWITCH_ID}"
-                )
-            if CONF_VALVE_PULSE_DURATION not in sprinkler_controller and (
-                CONF_VALVE_OFF_SWITCH_ID in valve or CONF_VALVE_ON_SWITCH_ID in valve
-            ):
-                raise cv.Invalid(
-                    f"{CONF_VALVE_PULSE_DURATION} must be specified when using {CONF_VALVE_OFF_SWITCH_ID} and {CONF_VALVE_ON_SWITCH_ID}"
-                )
-            if (
-                CONF_VALVE_SWITCH_ID not in valve
-                and CONF_VALVE_OFF_SWITCH_ID not in valve
-                and CONF_VALVE_ON_SWITCH_ID not in valve
-            ):
-                raise cv.Invalid(
-                    f"Either {CONF_VALVE_SWITCH_ID} or {CONF_VALVE_OFF_SWITCH_ID} and {CONF_VALVE_ON_SWITCH_ID} must be specified in valve configuration"
+                    f"{CONF_VALVE_SWITCH_ID} must be specified in valve configuration"
                 )
             if CONF_RUN_DURATION not in valve and CONF_RUN_DURATION_NUMBER not in valve:
                 raise cv.Invalid(
@@ -290,8 +245,15 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
             ),
             key=CONF_NAME,
         ),
-        cv.Optional(CONF_PUMP_OFF_SWITCH_ID): cv.use_id(switch.Switch),
-        cv.Optional(CONF_PUMP_ON_SWITCH_ID): cv.use_id(switch.Switch),
+        # Removed latching pump keys - accepted for validation error reporting
+        cv.Optional(CONF_PUMP_OFF_SWITCH_ID): cv.invalid(
+            f"This option was removed in 2026.1.0; for latching pumps, use {CONF_PUMP_SWITCH_ID} with an H-Bridge switch. "
+            f"See {docs_url('components/switch/h_bridge')} for more information"
+        ),
+        cv.Optional(CONF_PUMP_ON_SWITCH_ID): cv.invalid(
+            f"This option was removed in 2026.1.0; for latching pumps, use {CONF_PUMP_SWITCH_ID} with an H-Bridge switch. "
+            f"See {docs_url('components/switch/h_bridge')} for more information"
+        ),
         cv.Optional(CONF_PUMP_SWITCH_ID): cv.use_id(switch.Switch),
         cv.Optional(CONF_RUN_DURATION): cv.positive_time_period_seconds,
         cv.Optional(CONF_RUN_DURATION_NUMBER): cv.maybe_simple_value(
@@ -321,8 +283,15 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
             switch.switch_schema(SprinklerControllerSwitch),
             key=CONF_NAME,
         ),
-        cv.Optional(CONF_VALVE_OFF_SWITCH_ID): cv.use_id(switch.Switch),
-        cv.Optional(CONF_VALVE_ON_SWITCH_ID): cv.use_id(switch.Switch),
+        # Removed latching valve keys - accepted for validation error reporting
+        cv.Optional(CONF_VALVE_OFF_SWITCH_ID): cv.invalid(
+            f"This option was removed in 2026.1.0; for latching valves, use {CONF_VALVE_SWITCH_ID} with an H-Bridge switch. "
+            f"See {docs_url('components/switch/h_bridge')} for more information"
+        ),
+        cv.Optional(CONF_VALVE_ON_SWITCH_ID): cv.invalid(
+            f"This option was removed in 2026.1.0; for latching valves, use {CONF_VALVE_SWITCH_ID} with an H-Bridge switch. "
+            f"See {docs_url('components/switch/h_bridge')} for more information"
+        ),
         cv.Optional(CONF_VALVE_SWITCH_ID): cv.use_id(switch.Switch),
     }
 )
@@ -410,8 +379,15 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
             validate_min_max,
             key=CONF_NAME,
         ),
-        cv.Optional(CONF_PUMP_PULSE_DURATION): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_VALVE_PULSE_DURATION): cv.positive_time_period_milliseconds,
+        # Removed latching valve keys - accepted for validation error reporting
+        cv.Optional(CONF_PUMP_PULSE_DURATION): cv.invalid(
+            f"This option was removed in 2026.1.0; for latching pumps, use {CONF_PUMP_SWITCH_ID} with an H-Bridge switch. "
+            f"See {docs_url('components/switch/h_bridge')} for more information"
+        ),
+        cv.Optional(CONF_VALVE_PULSE_DURATION): cv.invalid(
+            f"This option was removed in 2026.1.0; for latching valves, use {CONF_VALVE_SWITCH_ID} with an H-Bridge switch. "
+            f"See {docs_url('components/switch/h_bridge')} for more information"
+        ),
         cv.Exclusive(
             CONF_PUMP_START_PUMP_DELAY, "pump_start_xxxx_delay"
         ): cv.positive_time_period_seconds,
@@ -765,35 +741,10 @@ async def to_code(config):
                         valve_index, valve_switch, valve[CONF_RUN_DURATION]
                     )
                 )
-            elif CONF_VALVE_OFF_SWITCH_ID in valve and CONF_VALVE_ON_SWITCH_ID in valve:
-                valve_switch_off = await cg.get_variable(
-                    valve[CONF_VALVE_OFF_SWITCH_ID]
-                )
-                valve_switch_on = await cg.get_variable(valve[CONF_VALVE_ON_SWITCH_ID])
-                cg.add(
-                    var.configure_valve_switch_pulsed(
-                        valve_index,
-                        valve_switch_off,
-                        valve_switch_on,
-                        sprinkler_controller[CONF_VALVE_PULSE_DURATION],
-                        valve[CONF_RUN_DURATION],
-                    )
-                )
 
             if CONF_PUMP_SWITCH_ID in valve:
                 pump = await cg.get_variable(valve[CONF_PUMP_SWITCH_ID])
                 cg.add(var.configure_valve_pump_switch(valve_index, pump))
-            elif CONF_PUMP_OFF_SWITCH_ID in valve and CONF_PUMP_ON_SWITCH_ID in valve:
-                pump_off = await cg.get_variable(valve[CONF_PUMP_OFF_SWITCH_ID])
-                pump_on = await cg.get_variable(valve[CONF_PUMP_ON_SWITCH_ID])
-                cg.add(
-                    var.configure_valve_pump_switch_pulsed(
-                        valve_index,
-                        pump_off,
-                        pump_on,
-                        sprinkler_controller[CONF_PUMP_PULSE_DURATION],
-                    )
-                )
 
             if CONF_RUN_DURATION_NUMBER in valve:
                 num_rd_var = await number.new_number(

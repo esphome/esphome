@@ -1,6 +1,6 @@
 #include "streaming_model.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"

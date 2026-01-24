@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import suppress
 import functools
 import inspect
 from io import BytesIO, TextIOBase, TextIOWrapper
@@ -69,7 +70,7 @@ class ESPHomeDataBase:
         self._content_offset = database.content_offset
 
 
-class ESPForceValue:
+class ESPLiteralValue:
     pass
 
 
@@ -348,9 +349,15 @@ class ESPHomeLoaderMixin:
         return Lambda(str(node.value))
 
     @_add_data_ref
-    def construct_force(self, node: yaml.Node) -> ESPForceValue:
-        obj = self.construct_scalar(node)
-        return add_class_to_obj(obj, ESPForceValue)
+    def construct_literal(self, node: yaml.Node) -> ESPLiteralValue:
+        obj = None
+        if isinstance(node, yaml.ScalarNode):
+            obj = self.construct_scalar(node)
+        elif isinstance(node, yaml.SequenceNode):
+            obj = self.construct_sequence(node)
+        elif isinstance(node, yaml.MappingNode):
+            obj = self.construct_mapping(node)
+        return add_class_to_obj(obj, ESPLiteralValue)
 
     @_add_data_ref
     def construct_extend(self, node: yaml.Node) -> Extend:
@@ -407,7 +414,7 @@ for _loader in (ESPHomeLoader, ESPHomePurePythonLoader):
         "!include_dir_merge_named", _loader.construct_include_dir_merge_named
     )
     _loader.add_constructor("!lambda", _loader.construct_lambda)
-    _loader.add_constructor("!force", _loader.construct_force)
+    _loader.add_constructor("!literal", _loader.construct_literal)
     _loader.add_constructor("!extend", _loader.construct_extend)
     _loader.add_constructor("!remove", _loader.construct_remove)
 
@@ -495,13 +502,17 @@ def _load_yaml_internal_with_type(
         loader.dispose()
 
 
-def dump(dict_, show_secrets=False):
+def dump(dict_, show_secrets=False, sort_keys=False):
     """Dump YAML to a string and remove null."""
     if show_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
     return yaml.dump(
-        dict_, default_flow_style=False, allow_unicode=True, Dumper=ESPHomeDumper
+        dict_,
+        default_flow_style=False,
+        allow_unicode=True,
+        Dumper=ESPHomeDumper,
+        sort_keys=sort_keys,
     )
 
 
@@ -537,6 +548,9 @@ class ESPHomeDumper(yaml.SafeDumper):
         best_style = True
         if hasattr(mapping, "items"):
             mapping = list(mapping.items())
+        if self.sort_keys:
+            with suppress(TypeError):
+                mapping = sorted(mapping)
         for item_key, item_value in mapping:
             node_key = self.represent_data(item_key)
             node_value = self.represent_data(item_value)

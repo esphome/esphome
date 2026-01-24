@@ -4,8 +4,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace button {
+namespace esphome::button {
 
 class Button;
 void log_button(const char *tag, const char *prefix, const char *type, Button *obj);
@@ -42,8 +41,7 @@ class Button : public EntityBase, public EntityBase_DeviceClass {
    */
   virtual void press_action() = 0;
 
-  CallbackManager<void()> press_callback_{};
+  LazyCallbackManager<void()> press_callback_{};
 };
 
-}  // namespace button
-}  // namespace esphome
+}  // namespace esphome::button

@@ -1,5 +1,5 @@
 #pragma once
-#ifdef USE_OTA_STATE_CALLBACK
+#ifdef USE_OTA_STATE_LISTENER
 #include "ota_backend.h"
 
 #include "esphome/core/automation.h"
@@ -7,70 +7,64 @@
 namespace esphome {
 namespace ota {
 
-class OTAStateChangeTrigger : public Trigger<OTAState> {
+class OTAStateChangeTrigger final : public Trigger<OTAState>, public OTAStateListener {
  public:
-  explicit OTAStateChangeTrigger(OTAComponent *parent) {
-    parent->add_on_state_callback([this, parent](OTAState state, float progress, uint8_t error) {
-      if (!parent->is_failed()) {
-        trigger(state);
-      }
-    });
+  explicit OTAStateChangeTrigger(OTAComponent *parent) : parent_(parent) { parent->add_state_listener(this); }
+
+  void on_ota_state(OTAState state, float progress, uint8_t error) override {
+    if (!this->parent_->is_failed()) {
+      this->trigger(state);
+    }
   }
+
+ protected:
+  OTAComponent *parent_;
 };
 
-class OTAStartTrigger : public Trigger<> {
+template<OTAState State> class OTAStateTrigger final : public Trigger<>, public OTAStateListener {
  public:
-  explicit OTAStartTrigger(OTAComponent *parent) {
-    parent->add_on_state_callback([this, parent](OTAState state, float progress, uint8_t error) {
-      if (state == OTA_STARTED && !parent->is_failed()) {
-        trigger();
-      }
-    });
+  explicit OTAStateTrigger(OTAComponent *parent) : parent_(parent) { parent->add_state_listener(this); }
+
+  void on_ota_state(OTAState state, float progress, uint8_t error) override {
+    if (state == State && !this->parent_->is_failed()) {
+      this->trigger();
+    }
   }
+
+ protected:
+  OTAComponent *parent_;
 };
 
-class OTAProgressTrigger : public Trigger<float> {
+using OTAStartTrigger = OTAStateTrigger<OTA_STARTED>;
+using OTAEndTrigger = OTAStateTrigger<OTA_COMPLETED>;
+using OTAAbortTrigger = OTAStateTrigger<OTA_ABORT>;
+
+class OTAProgressTrigger final : public Trigger<float>, public OTAStateListener {
  public:
-  explicit OTAProgressTrigger(OTAComponent *parent) {
-    parent->add_on_state_callback([this, parent](OTAState state, float progress, uint8_t error) {
-      if (state == OTA_IN_PROGRESS && !parent->is_failed()) {
-        trigger(progress);
-      }
-    });
+  explicit OTAProgressTrigger(OTAComponent *parent) : parent_(parent) { parent->add_state_listener(this); }
+
+  void on_ota_state(OTAState state, float progress, uint8_t error) override {
+    if (state == OTA_IN_PROGRESS && !this->parent_->is_failed()) {
+      this->trigger(progress);
+    }
   }
+
+ protected:
+  OTAComponent *parent_;
 };
 
-class OTAEndTrigger : public Trigger<> {
+class OTAErrorTrigger final : public Trigger<uint8_t>, public OTAStateListener {
  public:
-  explicit OTAEndTrigger(OTAComponent *parent) {
-    parent->add_on_state_callback([this, parent](OTAState state, float progress, uint8_t error) {
-      if (state == OTA_COMPLETED && !parent->is_failed()) {
-        trigger();
-      }
-    });
-  }
-};
+  explicit OTAErrorTrigger(OTAComponent *parent) : parent_(parent) { parent->add_state_listener(this); }
 
-class OTAAbortTrigger : public Trigger<> {
- public:
-  explicit OTAAbortTrigger(OTAComponent *parent) {
-    parent->add_on_state_callback([this, parent](OTAState state, float progress, uint8_t error) {
-      if (state == OTA_ABORT && !parent->is_failed()) {
-        trigger();
-      }
-    });
+  void on_ota_state(OTAState state, float progress, uint8_t error) override {
+    if (state == OTA_ERROR && !this->parent_->is_failed()) {
+      this->trigger(error);
+    }
   }
-};
 
-class OTAErrorTrigger : public Trigger<uint8_t> {
- public:
-  explicit OTAErrorTrigger(OTAComponent *parent) {
-    parent->add_on_state_callback([this, parent](OTAState state, float progress, uint8_t error) {
-      if (state == OTA_ERROR && !parent->is_failed()) {
-        trigger(error);
-      }
-    });
-  }
+ protected:
+  OTAComponent *parent_;
 };
 
 }  // namespace ota
