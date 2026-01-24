@@ -181,7 +181,8 @@ class ESP32Preferences : public ESPPreferences {
     if (actual_len != to_save.len) {
       return true;
     }
-    auto stored_data = std::make_unique<uint8_t[]>(actual_len);
+    // Most preferences are small, use stack buffer with heap fallback for large ones
+    SmallBufferWithHeapFallback<256> stored_data(actual_len);
     err = nvs_get_blob(nvs_handle, key_str, stored_data.get(), &actual_len);
     if (err != 0) {
       ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", key_str, esp_err_to_name(err));

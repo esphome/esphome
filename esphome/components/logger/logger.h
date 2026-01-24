@@ -412,11 +412,11 @@ class Logger : public Component {
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
 #ifdef USE_HOST
-  std::unique_ptr<logger::TaskLogBufferHost> log_buffer_;  // Will be initialized with init_log_buffer
+  logger::TaskLogBufferHost *log_buffer_{nullptr};  // Allocated once, never freed
 #elif defined(USE_ESP32)
-  std::unique_ptr<logger::TaskLogBuffer> log_buffer_;  // Will be initialized with init_log_buffer
+  logger::TaskLogBuffer *log_buffer_{nullptr};  // Allocated once, never freed
 #elif defined(USE_LIBRETINY)
-  std::unique_ptr<logger::TaskLogBufferLibreTiny> log_buffer_;  // Will be initialized with init_log_buffer
+  logger::TaskLogBufferLibreTiny *log_buffer_{nullptr};  // Allocated once, never freed
 #endif
 #endif
 

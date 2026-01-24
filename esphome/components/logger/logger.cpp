@@ -1,8 +1,5 @@
 #include "logger.h"
 #include <cinttypes>
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-#include <memory>  // For unique_ptr
-#endif
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -199,7 +196,8 @@ inline uint8_t Logger::level_for(const char *tag) {
 
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size) {
   // add 1 to buffer size for null terminator
-  this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
+  this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   this->main_task_ = xTaskGetCurrentTaskHandle();
 #elif defined(USE_ZEPHYR)
@@ -212,11 +210,14 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate
 void Logger::init_log_buffer(size_t total_buffer_size) {
 #ifdef USE_HOST
   // Host uses slot count instead of byte size
-  this->log_buffer_ = esphome::make_unique<logger::TaskLogBufferHost>(total_buffer_size);
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
+  this->log_buffer_ = new logger::TaskLogBufferHost(total_buffer_size);
 #elif defined(USE_ESP32)
-  this->log_buffer_ = esphome::make_unique<logger::TaskLogBuffer>(total_buffer_size);
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
+  this->log_buffer_ = new logger::TaskLogBuffer(total_buffer_size);
 #elif defined(USE_LIBRETINY)
-  this->log_buffer_ = esphome::make_unique<logger::TaskLogBufferLibreTiny>(total_buffer_size);
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
+  this->log_buffer_ = new logger::TaskLogBufferLibreTiny(total_buffer_size);
 #endif
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)

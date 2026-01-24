@@ -1,1 +1,5 @@
 <<: !include common.yaml
+
+nrf52:
+  reg0:
+    voltage: 2.1V
