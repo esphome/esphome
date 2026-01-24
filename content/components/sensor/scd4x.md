@@ -107,9 +107,9 @@ api:
       variables:
         co2_ppm: int
       then:
-      - scd4x.perform_forced_calibration:
-          value: !lambda 'return co2_ppm;'
-          id: my_scd41
+        - scd4x.perform_forced_calibration:
+            value: !lambda 'return co2_ppm;'
+            id: my_scd41
 ```
 
 {{< anchor "factory_reset_action" >}}
