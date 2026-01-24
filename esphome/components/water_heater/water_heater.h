@@ -177,7 +177,7 @@ class WaterHeaterTraits {
   WaterHeaterModeMask supported_modes_;
 };
 
-class WaterHeater : public EntityBase, public Component {
+class WaterHeater : public EntityBase {
  public:
   WaterHeaterMode get_mode() const { return this->mode_; }
   float get_current_temperature() const { return this->current_temperature_; }
@@ -204,7 +204,7 @@ class WaterHeater : public EntityBase, public Component {
 #endif
   virtual void control(const WaterHeaterCall &call) = 0;
 
-  void setup() override;
+  void setup();
 
   optional<WaterHeaterCall> restore_state();
 
