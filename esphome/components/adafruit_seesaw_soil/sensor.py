@@ -2,10 +2,10 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_HUMIDITY,
     CONF_ID,
+    CONF_MOISTURE,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_MOISTURE,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
@@ -28,10 +28,10 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
+            cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
                 # unit_of_measurement=UNIT_PERCENT,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
+                device_class=DEVICE_CLASS_MOISTURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
@@ -50,6 +50,6 @@ async def to_code(config):
         sens = await sensor.new_sensor(temperature)
         cg.add(var.set_temperature_sensor(sens))
 
-    if humidity := config.get(CONF_HUMIDITY):
-        sens = await sensor.new_sensor(humidity)
-        cg.add(var.set_humidity_sensor(sens))
+    if moisture := config.get(CONF_MOISTURE):
+        sens = await sensor.new_sensor(moisture)
+        cg.add(var.set_moisture_sensor(sens))

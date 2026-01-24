@@ -60,86 +60,138 @@ enum class SeesawHwId : uint8_t {
 
 void AdafruitSeesawSoil::setup() {
   hardware_type_ = 0;
-  for (uint8_t retries = 0; retries < SEESAW_STARTUP_RETRIES && hardware_type_ == 0; ++retries) {
-    if (this->write(SEESAW_RESET_CMD, sizeof(SEESAW_RESET_CMD)) != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, "Reset failed");
-      continue;
-    }
-    delay(SEESAW_RST_DELAY_MS);
-    // Get the HW_ID
-    if (this->write(SEESAW_HW_ID_CMD, sizeof(SEESAW_HW_ID_CMD)) != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, "Failed to send HW ID command");
-      continue;
-    }
-    delay(SEESAW_RST_DELAY_MS);
-    if (this->read_register16(SEESAW_HW_ID_REG, &hardware_type_, 1) != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      continue;
-    }
-    delay(SEESAW_RST_DELAY_MS);
-    ESP_LOGV(TAG, "Required %u tries to restart", retries);
-    break;
-  }
-  if (hardware_type_ == 0) {
-    ESP_LOGE(TAG, "Initialization failed to detect HW ID");
-    this->mark_failed();
-    return;
-  } else {
-    switch (static_cast<SeesawHwId>(hardware_type_)) {
-      case SeesawHwId::CODE_SAMD09:
-      case SeesawHwId::CODE_TINY806:
-      case SeesawHwId::CODE_TINY807:
-      case SeesawHwId::CODE_TINY816:
-      case SeesawHwId::CODE_TINY817:
-      case SeesawHwId::CODE_TINY1616:
-      case SeesawHwId::CODE_TINY1617:
-        break;  // no-op valid code
-      default:
-        ESP_LOGE(TAG, "Initialization detected invalid HW ID %#04x", hardware_type_);
+  loop_state_ = LoopState::BOOT;
+}
+
+void AdafruitSeesawSoil::loop() {
+  // State machine for handling long-running setup and sensor read commands
+
+  ESP_LOGV(TAG, "Looping: setup state %d", loop_state_);
+
+  // Setup State
+  switch (loop_state_) {
+    case LoopState::BOOT:
+      if (setup_retry_count_ >= SEESAW_STARTUP_RETRIES) {
+        // Maximum retries, setup failed
+        ESP_LOGE(TAG, "Initialization failed to detect HW ID");
         this->mark_failed();
-        return;
-    }
-  }
-  version_ = get_version();
-  if (version_.has_value()) {
-    ESP_LOGD(TAG, "%04u.%02u.%02u-%u", version_->year, version_->month, version_->day, version_->pid);
-  } else {
-    ESP_LOGE(TAG, "Failed to read version");
+        loop_state_ = LoopState::SETUP_FAILED;
+      } else if (this->write(SEESAW_RESET_CMD, sizeof(SEESAW_RESET_CMD)) != i2c::ERROR_OK) {
+        ESP_LOGE(TAG, "Reset failed");
+        ++setup_retry_count_;
+        loop_state_ = LoopState::BOOT;
+      } else {
+        loop_state_ = LoopState::RESET_COMMAND_SENT;
+      }
+      break;
+    case LoopState::RESET_COMMAND_SENT:
+      if (this->write(SEESAW_HW_ID_CMD, sizeof(SEESAW_HW_ID_CMD)) != i2c::ERROR_OK) {
+        ESP_LOGE(TAG, "Failed to send HW ID command");
+        ++setup_retry_count_;
+        loop_state_ = LoopState::BOOT;
+      } else {
+        loop_state_ = LoopState::HW_ID_COMMAND_SENT;
+      }
+      break;
+    case LoopState::HW_ID_COMMAND_SENT:
+      if (this->read_register16(SEESAW_HW_ID_REG, &hardware_type_, 1) != i2c::ERROR_OK) {
+        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+        ++setup_retry_count_;
+        loop_state_ = LoopState::BOOT;
+      } else {
+        switch (static_cast<SeesawHwId>(hardware_type_)) {
+          case SeesawHwId::CODE_SAMD09:
+          case SeesawHwId::CODE_TINY806:
+          case SeesawHwId::CODE_TINY807:
+          case SeesawHwId::CODE_TINY816:
+          case SeesawHwId::CODE_TINY817:
+          case SeesawHwId::CODE_TINY1616:
+          case SeesawHwId::CODE_TINY1617:
+            this->version_ = this->get_version();
+            if (this->version_.has_value()) {
+              ESP_LOGD(TAG, "%04u.%02u.%02u-%u", this->version_->year, this->version_->month, this->version_->day,
+                       this->version_->pid);
+            } else {
+              ESP_LOGE(TAG, "Failed to read version");
+            }
+            loop_state_ = LoopState::WAITING_TO_START_READING;
+            break;
+          default:
+            ESP_LOGE(TAG, "Initialization detected invalid HW ID %#04x", hardware_type_);
+            this->mark_failed();
+            loop_state_ = LoopState::SETUP_FAILED;
+        }
+      }
+      break;
+    case LoopState::SETUP_FAILED:
+    case LoopState::WAITING_TO_START_READING:
+      // No-op;
+      break;
+    case LoopState::WAITING_TO_UPDATE_TEMP:
+      if (this->write(SEESAW_TEMP_CMD, sizeof(SEESAW_TEMP_CMD)) != i2c::ERROR_OK) {
+        this->temperature_sensor_->publish_state(NAN);
+        this->status_set_error(LOG_STR("Temperature reading failed"));
+      } else {
+        loop_state_ = LoopState::READ_TEMP_COMMAND_SENT;
+        last_temperature_read_op_ = millis();
+      }
+      break;
+    case LoopState::READ_TEMP_COMMAND_SENT:
+      // Check time, read the register after a brief delay
+      if (millis() - last_temperature_read_op_ > 10) {
+        const auto temperature = get_temperature_c();
+        this->temperature_sensor_->publish_state(temperature.value_or(NAN));
+        if (!temperature) {
+          this->status_set_error(LOG_STR("Temperature reading failed"));
+        }
+        if (this->moisture_sensor_) {
+          loop_state_ = LoopState::WAITING_TO_UPDATE_MOIST;
+        } else {
+          loop_state_ = LoopState::WAITING_TO_START_READING;
+        }
+      }
+      break;
+    case LoopState::WAITING_TO_UPDATE_MOIST:
+      if (this->moisture_sensor_) {
+        if (this->write(SEESAW_MOIST_CMD, sizeof(SEESAW_MOIST_CMD)) != i2c::ERROR_OK) {
+          this->moisture_sensor_->publish_state(NAN);
+          this->status_set_error(LOG_STR("Moisture reading failed"));
+        } else {
+          loop_state_ = LoopState::READ_MOIST_COMMAND_SENT;
+          last_moisture_read_op_ = millis();
+        }
+      } else {
+        loop_state_ = LoopState::WAITING_TO_START_READING;
+      }
+      break;
+    case LoopState::READ_MOIST_COMMAND_SENT:
+      if (millis() - last_moisture_read_op_ > 30) {
+        const auto moisture = get_moisture();
+        this->moisture_sensor_->publish_state(moisture.value_or(NAN));
+        if (!moisture) {
+          this->status_set_error(LOG_STR("Moisture reading failed"));
+        }
+        loop_state_ = LoopState::WAITING_TO_START_READING;
+      }
+      break;
   }
 }
+
 void AdafruitSeesawSoil::update() {
-  this->set_timeout(SEESAW_READ_DELAY_MS, [this] {
-    if (temperature_sensor_) {
-      std::optional<float> temp_reading;
-      for (read_count_ = 0; temperature_sensor_ && !temp_reading && read_count_ < SEESAW_READ_RETRIES; ++read_count_) {
-        temp_reading = get_temperature_c();
-      }
-      this->temperature_sensor_->publish_state(temp_reading.value_or(NAN));
-      if (!temp_reading) {
-        this->status_set_error(LOG_STR("Reading timed out"));
-      }
-      ESP_LOGV(TAG, "Required %u tries to read temperature", read_count_);
-    }
-    if (humidity_sensor_) {
-      std::optional<uint16_t> moist_reading;
-      for (read_count_ = 0; humidity_sensor_ && !moist_reading && read_count_ < SEESAW_READ_RETRIES; ++read_count_) {
-        moist_reading = get_moisture();
-      }
-      this->humidity_sensor_->publish_state(moist_reading.value_or(NAN));
-      if (!moist_reading) {
-        this->status_set_error(LOG_STR("Reading timed out"));
-      }
-      ESP_LOGV(TAG, "Required %u tries to read moisture", read_count_);
-    }
-  });
+  // Start a reading for each enabled sensor
+  if (temperature_sensor_) {
+    loop_state_ = LoopState::WAITING_TO_UPDATE_TEMP;
+  } else if (moisture_sensor_) {
+    loop_state_ = LoopState::WAITING_TO_UPDATE_MOIST;
+  }
 }
 
 float AdafruitSeesawSoil::get_setup_priority() const { return setup_priority::DATA; }
 
 void AdafruitSeesawSoil::dump_config() {
-  if (version_.has_value()) {
-    ESP_LOGCONFIG(TAG, "Adafruit Seesaw Soil: version %02u.%02u.%02u-%u hardwareType %#04x", version_->year,
-                  version_->month, version_->day, version_->pid, hardware_type_);
+  if (this->version_.has_value()) {
+    ESP_LOGCONFIG(TAG, "Adafruit Seesaw Soil: version %02u.%02u.%02u-%u hardwareType %#04x", this->version_->year,
+                  this->version_->month, this->version_->day, this->version_->pid, hardware_type_);
   } else {
     ESP_LOGCONFIG(TAG, "Adafruit Seesaw Soil:");
   }
@@ -149,7 +201,7 @@ void AdafruitSeesawSoil::dump_config() {
   }
 
   LOG_SENSOR("  ", "Ambient Temperature", this->temperature_sensor_);
-  LOG_SENSOR("  ", "Soil Moisture", this->humidity_sensor_);
+  LOG_SENSOR("  ", "Soil Moisture", this->moisture_sensor_);
 }
 
 std::optional<AdafruitSeesawSoil::Version> AdafruitSeesawSoil::get_version() {
@@ -161,8 +213,7 @@ std::optional<AdafruitSeesawSoil::Version> AdafruitSeesawSoil::get_version() {
   if (this->read_register16(SEESAW_VERSION_REG, buf.data(), buf.size()) != i2c::ERROR_OK) {
     return std::nullopt;
   }
-  const uint32_t raw = (static_cast<uint32_t>(buf[0]) << 24) | (static_cast<uint32_t>(buf[1]) << 16) |
-                       (static_cast<uint32_t>(buf[2]) << 8) | static_cast<uint32_t>(buf[3]);
+  const uint32_t raw = encode_uint32(buf[0], buf[1], buf[2], buf[3]);
   return Version{.pid = static_cast<uint16_t>(raw >> 16),
                  .year = static_cast<uint8_t>(raw & 0x3F),
                  .month = static_cast<uint8_t>((raw >> 7) & 0xF),
@@ -170,29 +221,20 @@ std::optional<AdafruitSeesawSoil::Version> AdafruitSeesawSoil::get_version() {
 }
 
 std::optional<float> AdafruitSeesawSoil::get_temperature_c() {
-  if (this->write(SEESAW_TEMP_CMD, sizeof(SEESAW_TEMP_CMD)) != i2c::ERROR_OK) {
-    return std::nullopt;
-  }
   std::array<uint8_t, 4> buf{SEESAW_STATUS_BASE, SEESAW_STATUS_TEMP, 0xFF, 0xFF};
-  delayMicroseconds(1000);
   if (this->read_register16(SEESAW_TEMP_REG, buf.data(), buf.size()) != i2c::ERROR_OK) {
     return std::nullopt;
   }
-  const uint32_t raw = (static_cast<uint32_t>(buf[0]) << 24) | (static_cast<uint32_t>(buf[1]) << 16) |
-                       (static_cast<uint32_t>(buf[2]) << 8) | static_cast<uint32_t>(buf[3]);
+  const uint32_t raw = encode_uint32(buf[0], buf[1], buf[2], buf[3]);
   return static_cast<float>(raw) / static_cast<float>(1 << 16);
 }
 
 std::optional<uint16_t> AdafruitSeesawSoil::get_moisture() {
-  if (this->write(SEESAW_MOIST_CMD, sizeof(SEESAW_MOIST_CMD)) != i2c::ERROR_OK) {
-    return std::nullopt;
-  }
   std::array<uint8_t, 2> buf{0xFF, 0xFF};
-  delayMicroseconds(3000 + this->read_count_ * 1000);
   if (this->read_register16(SEESAW_MOIST_REG, buf.data(), buf.size()) != i2c::ERROR_OK) {
     return std::nullopt;
   }
-  uint16_t raw = (static_cast<uint16_t>(buf[0]) << 8) | (static_cast<uint16_t>(buf[1]));
+  uint16_t raw = encode_uint16(buf[0], buf[1]);
   return raw;
 }
 
