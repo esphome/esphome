@@ -88,7 +88,8 @@ esphome/components/bmp3xx/* @latonita
 esphome/components/bmp3xx_base/* @latonita @martgras
 esphome/components/bmp3xx_i2c/* @latonita
 esphome/components/bmp3xx_spi/* @latonita
-esphome/components/bmp581/* @kahrendt
+esphome/components/bmp581_base/* @danielkent-net @kahrendt
+esphome/components/bmp581_i2c/* @danielkent-net @kahrendt
 esphome/components/bp1658cj/* @Cossid
 esphome/components/bp5758d/* @Cossid
 esphome/components/bthome_mithermometer/* @nagyrobi
