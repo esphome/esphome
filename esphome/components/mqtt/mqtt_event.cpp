@@ -50,7 +50,7 @@ bool MQTTEventComponent::publish_event_(const std::string &event_type) {
   });
 }
 
-std::string MQTTEventComponent::component_type() const { return "event"; }
+MQTT_COMPONENT_TYPE(MQTTEventComponent, "event")
 const EntityBase *MQTTEventComponent::get_entity() const { return this->event_; }
 
 }  // namespace esphome::mqtt

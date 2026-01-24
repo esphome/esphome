@@ -3,6 +3,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/number/number.h"
 #include "esphome/components/switch/switch.h"
 
@@ -10,7 +11,7 @@
 
 namespace esphome::sprinkler {
 
-const std::string MIN_STR = "min";
+inline constexpr const char *MIN_STR = "min";
 
 enum SprinklerState : uint8_t {
   // NOTE: these states are used by both SprinklerValveOperator and Sprinkler (the controller)!
@@ -48,7 +49,7 @@ struct SprinklerQueueItem {
 };
 
 struct SprinklerTimer {
-  const std::string name;
+  const char *name;
   bool active;
   uint32_t time;
   uint32_t start_time;
@@ -175,7 +176,7 @@ class SprinklerValveRunRequest {
 class Sprinkler : public Component {
  public:
   Sprinkler();
-  Sprinkler(const std::string &name);
+  Sprinkler(const char *name);
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -503,7 +504,7 @@ class Sprinkler : public Component {
   uint32_t start_delay_{0};
   uint32_t stop_delay_{0};
 
-  std::string name_;
+  const char *name_{""};
 
   /// Sprinkler controller state
   SprinklerState state_{IDLE};
@@ -553,8 +554,8 @@ class Sprinkler : public Component {
   /// Sprinkler valve operator objects
   std::vector<SprinklerValveOperator> valve_op_{2};
 
-  /// Valve control timers
-  std::vector<SprinklerTimer> timer_{};
+  /// Valve control timers - FixedVector enforces that this can never grow beyond init() size
+  FixedVector<SprinklerTimer> timer_;
 
   /// Other Sprinkler instances we should be aware of (used to check if pumps are in use)
   std::vector<Sprinkler *> other_controllers_;

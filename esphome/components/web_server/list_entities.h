@@ -82,6 +82,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_WATER_HEATER
   bool on_water_heater(water_heater::WaterHeater *obj) override;
 #endif
+#ifdef USE_INFRARED
+  bool on_infrared(infrared::Infrared *obj) override;
+#endif
 #ifdef USE_EVENT
   bool on_event(event::Event *obj) override;
 #endif

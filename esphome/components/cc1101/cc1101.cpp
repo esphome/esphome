@@ -152,6 +152,13 @@ void CC1101Component::setup() {
   }
 }
 
+void CC1101Component::call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi) {
+  for (auto &listener : this->listeners_) {
+    listener->on_packet(packet, freq_offset, rssi, lqi);
+  }
+  this->packet_trigger_->trigger(packet, freq_offset, rssi, lqi);
+}
+
 void CC1101Component::loop() {
   if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr ||
       !this->gdo0_pin_->digital_read()) {
@@ -198,7 +205,7 @@ void CC1101Component::loop() {
   bool crc_ok = (this->state_.LQI & STATUS_CRC_OK_MASK) != 0;
   uint8_t lqi = this->state_.LQI & STATUS_LQI_MASK;
   if (this->state_.CRC_EN == 0 || crc_ok) {
-    this->packet_trigger_->trigger(this->packet_, freq_offset, rssi, lqi);
+    this->call_listeners_(this->packet_, freq_offset, rssi, lqi);
   }
 
   // Return to rx

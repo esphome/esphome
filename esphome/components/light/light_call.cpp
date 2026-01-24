@@ -1,4 +1,5 @@
 #include <cinttypes>
+
 #include "light_call.h"
 #include "light_state.h"
 #include "esphome/core/log.h"
@@ -153,15 +154,15 @@ void LightCall::perform() {
 
   } else if (this->has_effect_()) {
     // EFFECT
-    const char *effect_s;
+    StringRef effect_s;
     if (this->effect_ == 0u) {
-      effect_s = "None";
+      effect_s = StringRef::from_lit("None");
     } else {
       effect_s = this->parent_->effects_[this->effect_ - 1]->get_name();
     }
 
     if (publish) {
-      ESP_LOGD(TAG, "  Effect: '%s'", effect_s);
+      ESP_LOGD(TAG, "  Effect: '%.*s'", (int) effect_s.size(), effect_s.c_str());
     }
 
     this->parent_->start_effect_(this->effect_);
@@ -390,7 +391,10 @@ void LightCall::transform_parameters_() {
       min_mireds > 0.0f && max_mireds > 0.0f) {
     ESP_LOGD(TAG, "'%s': setting cold/warm white channels using white/color temperature values",
              this->parent_->get_name().c_str());
-    if (this->has_color_temperature()) {
+    // Only compute cold_white/warm_white from color_temperature if they're not already explicitly set.
+    // This is important for state restoration, where both color_temperature and cold_white/warm_white
+    // are restored from flash - we want to preserve the saved cold_white/warm_white values.
+    if (this->has_color_temperature() && !this->has_cold_white() && !this->has_warm_white()) {
       const float color_temp = clamp(this->color_temperature_, min_mireds, max_mireds);
       const float range = max_mireds - min_mireds;
       const float ww_fraction = (color_temp - min_mireds) / range;
@@ -511,11 +515,9 @@ LightCall &LightCall::set_effect(const char *effect, size_t len) {
   }
 
   bool found = false;
+  StringRef effect_ref(effect, len);
   for (uint32_t i = 0; i < this->parent_->effects_.size(); i++) {
-    LightEffect *e = this->parent_->effects_[i];
-    const char *name = e->get_name();
-
-    if (strncasecmp(effect, name, len) == 0 && name[len] == '\0') {
+    if (str_equals_case_insensitive(effect_ref, this->parent_->effects_[i]->get_name())) {
       this->set_effect(i + 1);
       found = true;
       break;
