@@ -6,6 +6,7 @@
 #include "string_ref.h"
 #include "helpers.h"
 #include "log.h"
+#include "preferences.h"
 
 #ifdef USE_DEVICES
 #include "device.h"
@@ -151,7 +152,18 @@ class EntityBase {
 #endif
   }
 
+  /// Create a preference object for storing this entity's state/settings.
+  /// @tparam T The type of data to store (must be trivially copyable)
+  /// @param version Optional version hash XORed with preference key (change when struct layout changes)
+  template<typename T> ESPPreferenceObject make_entity_preference(uint32_t version = 0) {
+    return this->make_entity_preference_(sizeof(T), version);
+  }
+
  protected:
+  /// Non-template helper for make_entity_preference() to avoid code bloat.
+  /// When preference hash algorithm changes, migration logic goes here.
+  ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);
+
   void calc_object_id_();
 
   StringRef name_;

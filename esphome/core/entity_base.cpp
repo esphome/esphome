@@ -92,6 +92,33 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
 
 uint32_t EntityBase::get_object_id_hash() { return this->object_id_hash_; }
 
+ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
+  // This helper exists to centralize preference creation so we can fix hash collisions.
+  //
+  // PROBLEM: get_preference_hash() uses fnv1_hash on the sanitized object_id, which can
+  // collide when different entity names sanitize to the same string (e.g., "Living Room"
+  // and "living_room" both become "living_room"). This causes entities to overwrite
+  // each other's stored preferences.
+  //
+  // FUTURE MIGRATION (when implementing get_preference_hash_v2):
+  //   uint32_t old_key = this->get_preference_hash() ^ version;
+  //   uint32_t new_key = this->get_preference_hash_v2() ^ version;
+  //   if (old_key != new_key) {
+  //     auto old_pref = global_preferences->make_preference(size, old_key);
+  //     auto new_pref = global_preferences->make_preference(size, new_key);
+  //     SmallBufferWithHeapFallback<64> buffer(size);
+  //     if (old_pref.load(buffer.data(), size)) {
+  //       new_pref.save(buffer.data(), size);
+  //     }
+  //   }
+  //   return global_preferences->make_preference(size, new_key);
+  //
+  // NOTE: Will need raw load/save methods on ESPPreferenceObject that take uint8_t* and size.
+  //
+  uint32_t key = this->get_preference_hash() ^ version;
+  return global_preferences->make_preference(size, key);
+}
+
 std::string EntityBase_DeviceClass::get_device_class() {
   if (this->device_class_ == nullptr) {
     return "";
