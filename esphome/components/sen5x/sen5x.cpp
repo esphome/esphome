@@ -310,7 +310,7 @@ void SEN5XComponent::dump_config() {
                 "  Type: %s\n"
                 "  Update Interval: %ums\n"
                 "  Serial number: %s",
-                TRUEFALSE(this->initialized_), type_to_string(this->type_.value()), this->update_interval_,
+                TRUEFALSE(this->initialized_), LOG_STR_ARG(type_to_string(this->type_.value())), this->update_interval_,
                 this->serial_number_);
   if (this->is_sen6x_()) {
     ESP_LOGCONFIG(TAG, "  Firmware version: %u.%u", this->firmware_major_, this->firmware_minor_);
