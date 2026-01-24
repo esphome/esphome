@@ -41,7 +41,6 @@ class AdafruitSeesawSoil : public PollingComponent, public i2c::I2CDevice {
     BOOT,
     RESET_COMMAND_SENT,
     HW_ID_COMMAND_SENT,
-    HW_ID_RESPONSE_READ,
     WAITING_TO_START_READING,
     SETUP_FAILED,
     WAITING_TO_UPDATE_TEMP,
