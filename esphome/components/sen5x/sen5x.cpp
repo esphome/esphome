@@ -134,26 +134,26 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       }
       break;
     case SEN5X_SM_GET_SN: {
-      uint16_t string_sn[8];
-      if (!this->get_register(CMD_GET_SERIAL_NUMBER, string_sn, 8, 20)) {
+      uint16_t raw_serial_number[8];
+      if (!this->get_register(CMD_GET_SERIAL_NUMBER, raw_serial_number, 8, 20)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
-      const char *serial_number = sensirion_convert_to_string_in_place(string_sn, 8);
+      const char *serial_number = sensirion_convert_to_string_in_place(raw_serial_number, 8);
       snprintf(this->serial_number_, sizeof(this->serial_number_), "%s", serial_number);
       ESP_LOGV(TAG, "Read Serial number: %s", this->serial_number_);
       this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_GET_PN); });
       break;
     }
     case SEN5X_SM_GET_PN: {
-      uint16_t string_pn[16];
-      if (!this->get_register(CMD_GET_PRODUCT_NAME, string_pn, 16, 20)) {
+      uint16_t raw_product_name[16];
+      if (!this->get_register(CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         this->mark_failed(LOG_STR("Product Name failed"));
         return;
       }
-      const char *product_name = sensirion_convert_to_string_in_place(string_pn, 16);
+      const char *product_name = sensirion_convert_to_string_in_place(raw_product_name, 16);
       if (strlen(product_name) == 0) {
         // Can't verify configuration type matches connected sensor
         ESP_LOGW(TAG, "Product Name is empty");
@@ -194,8 +194,10 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
         this->pref_ = global_preferences->make_preference<uint16_t[4]>(hash, true);
         this->voc_baseline_time_ = App.get_loop_component_start_time();
         if (this->pref_.load(&this->voc_baseline_state_)) {
-          if (this->write_command(CMD_VOC_ALGORITHM_STATE, this->voc_baseline_state_, 4)) {
-            ESP_LOGV(TAG, "VOC Baseline State loaded from flash");
+          if (!this->write_command(CMD_VOC_ALGORITHM_STATE, this->voc_baseline_state_, 4)) {
+            ESP_LOGE(TAG, "VOC Baseline State write to sensor failed");
+          } else {
+            ESP_LOGV(TAG, "VOC Baseline State loaded");
             this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_SET_ACI); });
             return;
           }
@@ -480,42 +482,40 @@ void SEN5XComponent::update() {
       float hcho = measurements[8] == UINT16_MAX ? NAN : measurements[8] / 10.0f;
       this->hcho_sensor_->publish_state(hcho);
     }
-    uint32_t timeout = 0;
-    if (this->ambient_pressure_compensation_source_ != nullptr) {
-      float pressure = this->ambient_pressure_compensation_source_->state;
-      if (!std::isnan(pressure)) {
-        uint16_t new_ambient_pressure = static_cast<uint16_t>(pressure);
-        if (!write_ambient_pressure_compensation_(new_ambient_pressure)) {
-          this->status_set_warning();
-          return;
+
+    if (this->store_baseline_.has_value() && this->store_baseline_.value() &&
+        (App.get_loop_component_start_time() - this->voc_baseline_time_) >= SHORTEST_BASELINE_STORE_INTERVAL) {
+      this->voc_baseline_time_ = App.get_loop_component_start_time();
+      if (!this->write_command(CMD_VOC_ALGORITHM_STATE)) {
+        this->status_set_warning();
+        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
+      } else {
+        this->set_timeout(20, [this]() {
+          if (!this->read_data(this->voc_baseline_state_, 4)) {
+            this->status_set_warning();
+            ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
+          } else {
+            if (this->pref_.save(&this->voc_baseline_state_)) {
+              ESP_LOGD(TAG, "VOC Baseline State saved");
+            }
+            this->status_clear_warning();
+          }
+        });
+      }
+    } else {
+      if (this->ambient_pressure_compensation_source_ != nullptr) {
+        float pressure = this->ambient_pressure_compensation_source_->state;
+        if (!std::isnan(pressure)) {
+          uint16_t new_ambient_pressure = static_cast<uint16_t>(pressure);
+          if (!write_ambient_pressure_compensation_(new_ambient_pressure)) {
+            this->status_set_warning();
+            return;
+          } else {
+            this->set_timeout(20, [this]() { this->status_clear_warning(); });
+          }
         }
-        timeout = 20;
       }
     }
-    this->set_timeout(timeout, [this]() {
-      if (!this->store_baseline_.has_value() || !this->store_baseline_.value() ||
-          (App.get_loop_component_start_time() - this->voc_baseline_time_) < SHORTEST_BASELINE_STORE_INTERVAL) {
-        this->status_clear_warning();
-      } else {
-        this->voc_baseline_time_ = App.get_loop_component_start_time();
-        if (!this->write_command(CMD_VOC_ALGORITHM_STATE)) {
-          this->status_set_warning();
-          ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-        } else {
-          this->set_timeout(20, [this]() {
-            if (!this->read_data(this->voc_baseline_state_, 4)) {
-              this->status_set_warning();
-              ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-            } else {
-              if (this->pref_.save(&this->voc_baseline_state_)) {
-                ESP_LOGD(TAG, "VOC Baseline State saved to flash");
-              }
-              this->status_clear_warning();
-            }
-          });
-        }
-      }
-    });
   });
 }
 
