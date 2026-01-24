@@ -24,11 +24,6 @@ enum RhtAccelerationMode : uint16_t {
   HIGH_ACCELERATION = 2,
 };
 
-struct Sen5xBaselines {
-  int32_t state0;
-  int32_t state1;
-} PACKED;  // NOLINT
-
 enum class Sen5xType : uint8_t { SEN50, SEN54, SEN55, UNKNOWN };
 
 struct GasTuning {
@@ -55,8 +50,6 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void setup() override;
   void dump_config() override;
   void update() override;
-
-  enum Sen5xType { SEN50, SEN54, SEN55, UNKNOWN };
 
   void set_pm_1_0_sensor(sensor::Sensor *pm_1_0) { this->pm_1_0_sensor_ = pm_1_0; }
   void set_pm_2_5_sensor(sensor::Sensor *pm_2_5) { this->pm_2_5_sensor_ = pm_2_5; }
