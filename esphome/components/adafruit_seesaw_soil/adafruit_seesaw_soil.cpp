@@ -65,11 +65,7 @@ void AdafruitSeesawSoil::setup() {
 
 void AdafruitSeesawSoil::loop() {
   // State machine for handling long-running setup and sensor read commands
-
-  ESP_LOGV(TAG, "Looping: setup state %d", loop_state_);
-
-  // Setup State
-  switch (loop_state_) {
+  switch (this->loop_state_) {
     case LoopState::BOOT:
       if (this->setup_retry_count_ >= SEESAW_STARTUP_RETRIES) {
         // Maximum retries, setup failed
