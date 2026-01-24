@@ -159,7 +159,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
         ESP_LOGW(TAG, "Product Name is empty");
       } else {
         // product name and type must match
-        if (strncmp(product_name, LOG_STR_ARG(type_to_string(this->type_.value())), 10)) {
+        if (strncmp(product_name, LOG_STR_ARG(type_to_string(this->type_.value())), 10) != 0) {
           ESP_LOGE(TAG, "Product Name does not match: %.32s", product_name);
           this->mark_failed(LOG_STR("Product Name failed"));
           return;
@@ -326,7 +326,7 @@ void SEN5XComponent::dump_config() {
   }
   if (this->store_baseline_.has_value()) {
     char hex_buf[5 * 4];
-    format_hex_pretty_to(hex_buf, this->voc_baseline_state_, 4, '.');
+    format_hex_pretty_to(hex_buf, this->voc_baseline_state_, 4, 0);
     ESP_LOGCONFIG(TAG,
                   "  Store Baseline: %s\n"
                   "    State: %s\n",
