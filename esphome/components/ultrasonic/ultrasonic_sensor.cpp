@@ -25,7 +25,6 @@ void IRAM_ATTR UltrasonicSensorComponent::send_trigger_pulse_() {
   this->store_.echo_end_us = 0;
   this->store_.echo_start = false;
   this->store_.echo_end = false;
-  this->store_.error = false;
   this->trigger_pin_isr_.digital_write(true);
   delayMicroseconds(this->pulse_time_us_);
   this->trigger_pin_isr_.digital_write(false);
