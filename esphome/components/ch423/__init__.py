@@ -48,8 +48,8 @@ def _final_validate(config):
     gpio_pins = {}  # pin_number -> (is_output, component_type, index)
     gpo_pins = {}  # pin_number -> (is_open_drain, component_type, index)
 
-    # Check binary_sensor and switch components for pins using this CH423
-    for component_type in [CONF_BINARY_SENSOR, CONF_SWITCH]:
+    # Check binary_sensor, switch, and output components for pins using this CH423
+    for component_type in [CONF_BINARY_SENSOR, CONF_SWITCH, CONF_OUTPUT]:
         if (components := fconf.get(component_type)) is not None:
             for idx, component in enumerate(components):
                 if CONF_PIN not in component:
