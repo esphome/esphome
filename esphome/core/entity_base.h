@@ -139,9 +139,12 @@ class EntityBase {
    * from previous versions, so existing single-device configurations will continue to work.
    *
    * @return uint32_t The unique hash for preferences, including device_id if available.
-   * @deprecated Use make_entity_preference<T>() instead for automatic migration support.
+   * @deprecated Use make_entity_preference<T>() instead, or preferences won't be migrated.
+   * See https://github.com/esphome/backlog/issues/85
    */
-  ESPDEPRECATED("Use make_entity_preference<T>() instead. Will be removed in 2027.1.0.", "2026.7.0")
+  ESPDEPRECATED("Use make_entity_preference<T>() instead, or preferences won't be migrated. "
+                "See https://github.com/esphome/backlog/issues/85. Will be removed in 2027.1.0.",
+                "2026.7.0")
   uint32_t get_preference_hash() {
 #ifdef USE_DEVICES
     // Combine object_id_hash with device_id to ensure uniqueness across devices
