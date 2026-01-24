@@ -121,55 +121,55 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_altitude_compensation(uint16_t altitude) { this->altitude_compensation_ = altitude; }
   void set_ambient_pressure_compensation_source(sensor::Sensor *pressure) {
     this->ambient_pressure_compensation_source_ = pressure;
-  void set_ambient_pressure_compensation(uint16_t pressure_in_hpa);
-  void start_fan_cleaning();
-  void activate_heater();
-  void perform_forced_co2_recalibration(uint16_t co2);
+    void set_ambient_pressure_compensation(uint16_t pressure_in_hpa);
+    void start_fan_cleaning();
+    void activate_heater();
+    void perform_forced_co2_recalibration(uint16_t co2);
 
- protected:
-  bool is_sen6x_();
-  void internal_setup_(Sen5xSetupStates state);
-  bool start_measurements_();
-  bool stop_measurements_();
-  bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
-  bool write_temperature_compensation_(const TemperatureCompensation &compensation);
-  bool write_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
+   protected:
+    bool is_sen6x_();
+    void internal_setup_(Sen5xSetupStates state);
+    bool start_measurements_();
+    bool stop_measurements_();
+    bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
+    bool write_temperature_compensation_(const TemperatureCompensation &compensation);
+    bool write_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
 
-  uint16_t voc_baseline_state_[4]{0};
-  uint32_t voc_baseline_time_;
-  uint16_t ambient_pressure_compensation_{0};
-  uint8_t firmware_major_{0xFF};
-  uint8_t firmware_minor_{0xFF};
-  bool initialized_{false};
-  bool running_{false};
-  bool busy_{false};
+    uint16_t voc_baseline_state_[4]{0};
+    uint32_t voc_baseline_time_;
+    uint16_t ambient_pressure_compensation_{0};
+    uint8_t firmware_major_{0xFF};
+    uint8_t firmware_minor_{0xFF};
+    bool initialized_{false};
+    bool running_{false};
+    bool busy_{false};
 
-  sensor::Sensor *pm_1_0_sensor_{nullptr};
-  sensor::Sensor *pm_2_5_sensor_{nullptr};
-  sensor::Sensor *pm_4_0_sensor_{nullptr};
-  sensor::Sensor *pm_10_0_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
-  sensor::Sensor *voc_sensor_{nullptr};
-  sensor::Sensor *nox_sensor_{nullptr};
-  sensor::Sensor *hcho_sensor_{nullptr};
-  sensor::Sensor *co2_sensor_{nullptr};
-  sensor::Sensor *ambient_pressure_compensation_source_{nullptr};
+    sensor::Sensor *pm_1_0_sensor_{nullptr};
+    sensor::Sensor *pm_2_5_sensor_{nullptr};
+    sensor::Sensor *pm_4_0_sensor_{nullptr};
+    sensor::Sensor *pm_10_0_sensor_{nullptr};
+    sensor::Sensor *temperature_sensor_{nullptr};
+    sensor::Sensor *humidity_sensor_{nullptr};
+    sensor::Sensor *voc_sensor_{nullptr};
+    sensor::Sensor *nox_sensor_{nullptr};
+    sensor::Sensor *hcho_sensor_{nullptr};
+    sensor::Sensor *co2_sensor_{nullptr};
+    sensor::Sensor *ambient_pressure_compensation_source_{nullptr};
 
-  optional<Sen5xType> model_;
-  optional<RhtAccelerationMode> acceleration_mode_;
-  optional<uint32_t> auto_cleaning_interval_;
-  optional<GasTuning> voc_tuning_params_;
-  optional<GasTuning> nox_tuning_params_;
-  optional<TemperatureCompensation> temperature_compensation_;
-  optional<bool> auto_self_calibration_;
-  optional<uint16_t> altitude_compensation_;
-  optional<bool> store_baseline_;
+    optional<Sen5xType> model_;
+    optional<RhtAccelerationMode> acceleration_mode_;
+    optional<uint32_t> auto_cleaning_interval_;
+    optional<GasTuning> voc_tuning_params_;
+    optional<GasTuning> nox_tuning_params_;
+    optional<TemperatureCompensation> temperature_compensation_;
+    optional<bool> auto_self_calibration_;
+    optional<uint16_t> altitude_compensation_;
+    optional<bool> store_baseline_;
 
-  ESPPreferenceObject pref_;
-  std::string product_name_ = "Unknown";
-  std::string serial_number_ = "Unknown";
-};
+    ESPPreferenceObject pref_;
+    std::string product_name_ = "Unknown";
+    std::string serial_number_ = "Unknown";
+  };
 
 }  // namespace sen5x
 }  // namespace esphome
