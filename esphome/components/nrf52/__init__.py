@@ -75,7 +75,7 @@ def set_framework(config: ConfigType) -> ConfigType:
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
     if framework_ver < cv.Version(2, 9, 2):
         return cv.require_framework_version(
-            nrf52_zephyr=cv.Version(2, 6, 1, "10"),
+            nrf52_zephyr=cv.Version(2, 6, 1, "a"),
         )(config)
     if framework_ver < cv.Version(3, 2, 0):
         return cv.require_framework_version(
@@ -152,7 +152,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_UICR_ERASE, default=False): cv.boolean,
                 }
             ),
-            cv.Optional(CONF_FRAMEWORK, default={CONF_VERSION: "2.6.1-10"}): cv.Schema(
+            cv.Optional(CONF_FRAMEWORK, default={CONF_VERSION: "2.6.1-a"}): cv.Schema(
                 {
                     cv.Required(CONF_VERSION): cv.string_strict,
                 }
