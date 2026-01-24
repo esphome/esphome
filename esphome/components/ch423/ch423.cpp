@@ -110,8 +110,6 @@ uint8_t CH423Component::read_reg_(uint8_t reg) {
   return value;
 }
 
-bool CH423Component::set_mode_(uint8_t mode) { return this->write_reg_(CH423_REG_SYS, mode); }
-
 bool CH423Component::write_outputs_() {
   bool success = true;
   // Write IO7-IO0

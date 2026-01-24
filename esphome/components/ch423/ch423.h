@@ -28,7 +28,6 @@ class CH423Component : public Component, public i2c::I2CDevice {
  protected:
   bool write_reg_(uint8_t reg, uint8_t value);
   uint8_t read_reg_(uint8_t reg);
-  bool set_mode_(uint8_t mode);
   bool read_inputs_();
   bool write_outputs_();
 
