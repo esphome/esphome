@@ -156,6 +156,7 @@ class EntityBase {
   /// @tparam T The type of data to store (must be trivially copyable)
   /// @param version Optional version hash XORed with preference key (change when struct layout changes)
   template<typename T> ESPPreferenceObject make_entity_preference(uint32_t version = 0) {
+    static_assert(std::is_trivially_copyable<T>::value, "T must be trivially copyable");
     return this->make_entity_preference_(sizeof(T), version);
   }
 
