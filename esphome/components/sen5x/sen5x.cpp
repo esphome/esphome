@@ -43,11 +43,12 @@ static const LogString *rht_accel_mode_to_string(RhtAccelerationMode mode) {
   }
 }
 
-static inline const char *sensirion_convert_to_string(uint16_t *array, size_t length) {
+// This function performs an in-place conversion of the provided buffer
+// from uint16_t values to big endianness
+static inline const char *sensirion_convert_to_string_in_place(uint16_t *array, size_t length) {
   for (size_t i = 0; i < length; i++) {
     array[i] = convert_big_endian(array[i]);
   }
-  array[length - 1] &= 0xFF;  // force null terminate last byte, JIC
   return reinterpret_cast<const char *>(array);
 }
 
@@ -83,15 +84,15 @@ void SEN5XComponent::setup() {
       stop_measurement_delay = 200;
     }
     this->set_timeout(stop_measurement_delay, [this]() {
-      uint16_t raw_serial_number[9];
+      uint16_t raw_serial_number[8];
       if (!this->get_register(SEN5X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 9, 20)) {
         ESP_LOGE(TAG, "Failed to read serial number");
         this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
         this->mark_failed();
         return;
       }
-      const char *serial_number = sensirion_convert_to_string(raw_serial_number, 9);
-      strncpy(this->serial_number_, serial_number, 17);
+      const char *serial_number = sensirion_convert_to_string_in_place(raw_serial_number, 8);
+      snprintf(this->serial_number_, sizeof(this->serial_number_), "%s", serial_number);
       ESP_LOGV(TAG, "Serial number %s", this->serial_number_);
 
       uint16_t raw_product_name[16];
@@ -159,12 +160,8 @@ void SEN5XComponent::setup() {
       ESP_LOGV(TAG, "Firmware version %d", this->firmware_version_);
 
       if (this->voc_sensor_ && this->store_baseline_) {
-        uint32_t combined_serial =
-            encode_uint24(this->serial_number_[0], this->serial_number_[1], this->serial_number_[2]);
-        // Hash with config hash, version, and serial number
-        // This ensures the baseline storage is cleared after OTA
-        // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
-        uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), combined_serial);
+        // Hash with serial number, serial numbers are unique, so multiple sensors can be used without conflict
+        uint32_t hash = fnv1a_hash(this->serial_number_);
         this->pref_ = global_preferences->make_preference<uint16_t[4]>(hash, true);
         this->voc_baseline_time_ = App.get_loop_component_start_time();
         if (this->pref_.load(&this->voc_baseline_state_)) {
