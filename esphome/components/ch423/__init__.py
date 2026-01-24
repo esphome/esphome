@@ -12,9 +12,7 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_OPEN_DRAIN,
     CONF_OUTPUT,
-    CONF_PIN,
 )
-import esphome.final_validate as fv
 
 CODEOWNERS = ["@dwmw2"]
 DEPENDENCIES = ["i2c"]
