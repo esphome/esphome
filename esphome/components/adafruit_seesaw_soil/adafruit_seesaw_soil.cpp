@@ -59,8 +59,8 @@ enum class SeesawHwId : uint8_t {
 };
 
 void AdafruitSeesawSoil::setup() {
-  hardware_type_ = 0;
-  loop_state_ = LoopState::BOOT;
+  this->hardware_type_ = 0;
+  this->loop_state_ = LoopState::BOOT;
 }
 
 void AdafruitSeesawSoil::loop() {
@@ -71,35 +71,35 @@ void AdafruitSeesawSoil::loop() {
   // Setup State
   switch (loop_state_) {
     case LoopState::BOOT:
-      if (setup_retry_count_ >= SEESAW_STARTUP_RETRIES) {
+      if (this->setup_retry_count_ >= SEESAW_STARTUP_RETRIES) {
         // Maximum retries, setup failed
         ESP_LOGE(TAG, "Initialization failed to detect HW ID");
         this->mark_failed();
-        loop_state_ = LoopState::SETUP_FAILED;
+        this->loop_state_ = LoopState::SETUP_FAILED;
       } else if (this->write(SEESAW_RESET_CMD, sizeof(SEESAW_RESET_CMD)) != i2c::ERROR_OK) {
         ESP_LOGE(TAG, "Reset failed");
-        ++setup_retry_count_;
-        loop_state_ = LoopState::BOOT;
+        ++this->setup_retry_count_;
+        this->loop_state_ = LoopState::BOOT;
       } else {
-        loop_state_ = LoopState::RESET_COMMAND_SENT;
+        this->loop_state_ = LoopState::RESET_COMMAND_SENT;
       }
       break;
     case LoopState::RESET_COMMAND_SENT:
       if (this->write(SEESAW_HW_ID_CMD, sizeof(SEESAW_HW_ID_CMD)) != i2c::ERROR_OK) {
         ESP_LOGE(TAG, "Failed to send HW ID command");
-        ++setup_retry_count_;
-        loop_state_ = LoopState::BOOT;
+        ++this->setup_retry_count_;
+        this->loop_state_ = LoopState::BOOT;
       } else {
-        loop_state_ = LoopState::HW_ID_COMMAND_SENT;
+        this->loop_state_ = LoopState::HW_ID_COMMAND_SENT;
       }
       break;
     case LoopState::HW_ID_COMMAND_SENT:
-      if (this->read_register16(SEESAW_HW_ID_REG, &hardware_type_, 1) != i2c::ERROR_OK) {
+      if (this->read_register16(SEESAW_HW_ID_REG, &this->hardware_type_, 1) != i2c::ERROR_OK) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        ++setup_retry_count_;
-        loop_state_ = LoopState::BOOT;
+        ++this->setup_retry_count_;
+        this->loop_state_ = LoopState::BOOT;
       } else {
-        switch (static_cast<SeesawHwId>(hardware_type_)) {
+        switch (static_cast<SeesawHwId>(this->hardware_type_)) {
           case SeesawHwId::CODE_SAMD09:
           case SeesawHwId::CODE_TINY806:
           case SeesawHwId::CODE_TINY807:
@@ -114,12 +114,12 @@ void AdafruitSeesawSoil::loop() {
             } else {
               ESP_LOGE(TAG, "Failed to read version");
             }
-            loop_state_ = LoopState::WAITING_TO_START_READING;
+            this->loop_state_ = LoopState::WAITING_TO_START_READING;
             break;
           default:
-            ESP_LOGE(TAG, "Initialization detected invalid HW ID %#04x", hardware_type_);
+            ESP_LOGE(TAG, "Initialization detected invalid HW ID %#04x", this->hardware_type_);
             this->mark_failed();
-            loop_state_ = LoopState::SETUP_FAILED;
+            this->loop_state_ = LoopState::SETUP_FAILED;
         }
       }
       break;
@@ -132,8 +132,8 @@ void AdafruitSeesawSoil::loop() {
         this->temperature_sensor_->publish_state(NAN);
         this->status_set_error(LOG_STR("Temperature reading failed"));
       } else {
-        loop_state_ = LoopState::READ_TEMP_COMMAND_SENT;
-        last_temperature_read_op_ = millis();
+        this->loop_state_ = LoopState::READ_TEMP_COMMAND_SENT;
+        this->last_temperature_read_op_ = millis();
       }
       break;
     case LoopState::READ_TEMP_COMMAND_SENT:
@@ -145,9 +145,9 @@ void AdafruitSeesawSoil::loop() {
           this->status_set_error(LOG_STR("Temperature reading failed"));
         }
         if (this->moisture_sensor_) {
-          loop_state_ = LoopState::WAITING_TO_UPDATE_MOIST;
+          this->loop_state_ = LoopState::WAITING_TO_UPDATE_MOIST;
         } else {
-          loop_state_ = LoopState::WAITING_TO_START_READING;
+          this->loop_state_ = LoopState::WAITING_TO_START_READING;
         }
       }
       break;
@@ -157,21 +157,21 @@ void AdafruitSeesawSoil::loop() {
           this->moisture_sensor_->publish_state(NAN);
           this->status_set_error(LOG_STR("Moisture reading failed"));
         } else {
-          loop_state_ = LoopState::READ_MOIST_COMMAND_SENT;
-          last_moisture_read_op_ = millis();
+          this->loop_state_ = LoopState::READ_MOIST_COMMAND_SENT;
+          this->last_moisture_read_op_ = millis();
         }
       } else {
-        loop_state_ = LoopState::WAITING_TO_START_READING;
+        this->loop_state_ = LoopState::WAITING_TO_START_READING;
       }
       break;
     case LoopState::READ_MOIST_COMMAND_SENT:
-      if (millis() - last_moisture_read_op_ > 30) {
+      if (millis() - this->last_moisture_read_op_ > 30) {
         const auto moisture = get_moisture();
         this->moisture_sensor_->publish_state(moisture.value_or(NAN));
         if (!moisture) {
           this->status_set_error(LOG_STR("Moisture reading failed"));
         }
-        loop_state_ = LoopState::WAITING_TO_START_READING;
+        this->loop_state_ = LoopState::WAITING_TO_START_READING;
       }
       break;
   }
@@ -179,10 +179,10 @@ void AdafruitSeesawSoil::loop() {
 
 void AdafruitSeesawSoil::update() {
   // Start a reading for each enabled sensor
-  if (temperature_sensor_) {
-    loop_state_ = LoopState::WAITING_TO_UPDATE_TEMP;
-  } else if (moisture_sensor_) {
-    loop_state_ = LoopState::WAITING_TO_UPDATE_MOIST;
+  if (this->temperature_sensor_) {
+    this->loop_state_ = LoopState::WAITING_TO_UPDATE_TEMP;
+  } else if (this->moisture_sensor_) {
+    this->loop_state_ = LoopState::WAITING_TO_UPDATE_MOIST;
   }
 }
 
