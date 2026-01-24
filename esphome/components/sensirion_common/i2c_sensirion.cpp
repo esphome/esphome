@@ -39,18 +39,9 @@ bool SensirionI2CDevice::read_data(uint16_t *data, const uint8_t len) {
  */
 bool SensirionI2CDevice::write_command_(uint16_t command, CommandLen command_len, const uint16_t *data,
                                         const uint8_t data_len) {
-  uint8_t temp_stack[BUFFER_STACK_SIZE];
-  std::unique_ptr<uint8_t[]> temp_heap;
-  uint8_t *temp;
   size_t required_buffer_len = data_len * 3 + 2;
-
-  // Is a dynamic allocation required ?
-  if (required_buffer_len >= BUFFER_STACK_SIZE) {
-    temp_heap = std::unique_ptr<uint8_t[]>(new uint8_t[required_buffer_len]);
-    temp = temp_heap.get();
-  } else {
-    temp = temp_stack;
-  }
+  SmallBufferWithHeapFallback<BUFFER_STACK_SIZE> buffer(required_buffer_len);
+  uint8_t *temp = buffer.get();
   // First byte or word is the command
   uint8_t raw_idx = 0;
   if (command_len == 1) {
