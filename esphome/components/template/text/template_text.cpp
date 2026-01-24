@@ -20,6 +20,10 @@ void TemplateText::setup() {
 
   // Need std::string for pref_->setup() to fill from flash
   std::string value{this->initial_value_ != nullptr ? this->initial_value_ : ""};
+  // For future hash migration: use migrate_entity_preference_() with:
+  //   old_key = get_preference_hash() + extra
+  //   new_key = get_preference_hash_v2() + extra
+  // See: https://github.com/esphome/backlog/issues/85
   uint32_t key = this->get_preference_hash();
   key += this->traits.get_min_length() << 2;
   key += this->traits.get_max_length() << 4;
