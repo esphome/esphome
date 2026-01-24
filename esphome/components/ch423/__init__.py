@@ -4,7 +4,6 @@ from esphome.components import i2c
 from esphome.components.i2c import I2CBus
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_BINARY_SENSOR,
     CONF_I2C_ID,
     CONF_ID,
     CONF_INPUT,
@@ -14,7 +13,6 @@ from esphome.const import (
     CONF_OPEN_DRAIN,
     CONF_OUTPUT,
     CONF_PIN,
-    CONF_SWITCH,
 )
 import esphome.final_validate as fv
 
@@ -39,62 +37,6 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def _final_validate(config):
-    """Validate global CH423 pin mode restrictions."""
-    fconf = fv.full_config.get()
-    ch423_id = config[CONF_ID]
-
-    # Collect all pins used by this CH423 instance
-    gpio_pins = {}  # pin_number -> (is_output, component_type, index)
-    gpo_pins = {}  # pin_number -> (is_open_drain, component_type, index)
-
-    # Check binary_sensor, switch, and output components for pins using this CH423
-    for component_type in [CONF_BINARY_SENSOR, CONF_SWITCH, CONF_OUTPUT]:
-        if (components := fconf.get(component_type)) is not None:
-            for idx, component in enumerate(components):
-                if CONF_PIN not in component:
-                    continue
-                pin_conf = component[CONF_PIN]
-                if (
-                    not isinstance(pin_conf, dict)
-                    or pin_conf.get(CONF_CH423) != ch423_id
-                ):
-                    continue
-
-                pin_num = pin_conf[CONF_NUMBER]
-                mode = pin_conf.get(CONF_MODE, {})
-
-                if pin_num < 8:
-                    # GPIO pins (0-7)
-                    is_output = mode.get(CONF_OUTPUT, False)
-                    gpio_pins[pin_num] = (is_output, component_type, idx)
-                else:
-                    # GPO pins (8-23)
-                    is_open_drain = mode.get(CONF_OPEN_DRAIN, False)
-                    gpo_pins[pin_num] = (is_open_drain, component_type, idx)
-
-    # Validate GPIO pins (0-7): all must have same direction
-    if gpio_pins:
-        directions = {is_output for is_output, _, _ in gpio_pins.values()}
-        if len(directions) > 1:
-            raise cv.Invalid(
-                f"CH423 GPIO pins (0-7) must all be configured as input or all as output. "
-                f"Found mixed configuration on pins {sorted(gpio_pins.keys())}"
-            )
-
-    # Validate GPO pins (8-23): all must have same open-drain setting
-    if gpo_pins:
-        od_modes = {is_od for is_od, _, _ in gpo_pins.values()}
-        if len(od_modes) > 1:
-            raise cv.Invalid(
-                f"CH423 GPO pins (8-23) must all be configured as push-pull or all as open-drain. "
-                f"Found mixed configuration on pins {sorted(gpo_pins.keys())}"
-            )
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
-
-
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -103,12 +45,63 @@ async def to_code(config):
     cg.add(var.set_i2c_bus(parent))
 
 
+# Track pin modes per CH423 instance for validation
+_ch423_pin_modes = {}
+
+
 # This is used as a final validation step so that modes have been fully transformed.
 def pin_mode_check(pin_config, _):
     if pin_config[CONF_MODE][CONF_INPUT] and pin_config[CONF_NUMBER] >= 8:
         raise cv.Invalid("CH423 only supports input on pins 0-7")
     if pin_config[CONF_MODE][CONF_OPEN_DRAIN] and pin_config[CONF_NUMBER] < 8:
         raise cv.Invalid("CH423 only supports open drain output on pins 8-23")
+
+    # Track pin modes for global validation
+    ch423_id = pin_config[CONF_CH423]
+    pin_num = pin_config[CONF_NUMBER]
+    is_output = pin_config[CONF_MODE][CONF_OUTPUT]
+    is_open_drain = pin_config[CONF_MODE][CONF_OPEN_DRAIN]
+
+    if ch423_id not in _ch423_pin_modes:
+        _ch423_pin_modes[ch423_id] = {"gpio": {}, "gpo": {}}
+
+    if pin_num < 8:
+        # GPIO pins (0-7): track output mode
+        _ch423_pin_modes[ch423_id]["gpio"][pin_num] = is_output
+    else:
+        # GPO pins (8-23): track open-drain mode
+        _ch423_pin_modes[ch423_id]["gpo"][pin_num] = is_open_drain
+
+
+def _final_validate(config):
+    """Validate global CH423 pin mode restrictions."""
+    ch423_id = config[CONF_ID]
+
+    if ch423_id not in _ch423_pin_modes:
+        return
+
+    modes = _ch423_pin_modes[ch423_id]
+
+    # Validate GPIO pins (0-7): all must have same direction
+    if modes["gpio"]:
+        directions = set(modes["gpio"].values())
+        if len(directions) > 1:
+            raise cv.Invalid(
+                f"CH423 GPIO pins (0-7) must all be configured as input or all as output. "
+                f"Found mixed configuration on pins {sorted(modes['gpio'].keys())}"
+            )
+
+    # Validate GPO pins (8-23): all must have same open-drain setting
+    if modes["gpo"]:
+        od_modes = set(modes["gpo"].values())
+        if len(od_modes) > 1:
+            raise cv.Invalid(
+                f"CH423 GPO pins (8-23) must all be configured as push-pull or all as open-drain. "
+                f"Found mixed configuration on pins {sorted(modes['gpo'].keys())}"
+            )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 CH423_PIN_SCHEMA = pins.gpio_base_schema(
