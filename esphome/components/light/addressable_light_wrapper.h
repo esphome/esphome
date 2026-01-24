@@ -116,7 +116,7 @@ class AddressableLightWrapper : public light::AddressableLight {
   }
 
   light::LightState *light_state_;
-  uint8_t wrapper_state_[5]{};
+  mutable uint8_t wrapper_state_[5]{};
   ColorMode color_mode_{ColorMode::UNKNOWN};
 };
 
