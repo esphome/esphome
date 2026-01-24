@@ -59,7 +59,7 @@ sen5x_ns = cg.esphome_ns.namespace("sen5x")
 SEN5XComponent = sen5x_ns.class_(
     "SEN5XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
-Sen5xModel = sen5x_ns.enum("Sen5xModel")
+Sen5xType = sen5x_ns.enum("Sen5xType")
 RhtAccelerationMode = sen5x_ns.enum("RhtAccelerationMode")
 
 
@@ -88,16 +88,16 @@ SEN66 = "SEN66"
 SEN68 = "SEN68"
 SEN69C = "SEN69C"
 
-SEN5X_MODELS = {
-    SEN50: Sen5xModel.SEN50,
-    SEN54: Sen5xModel.SEN54,
-    SEN55: Sen5xModel.SEN55,
-    SEN62: Sen5xModel.SEN62,
-    SEN63C: Sen5xModel.SEN63C,
-    SEN65: Sen5xModel.SEN65,
-    SEN66: Sen5xModel.SEN66,
-    SEN68: Sen5xModel.SEN68,
-    SEN69C: Sen5xModel.SEN69C,
+SEN5X_TYPES = {
+    SEN50: Sen5xType.SEN50,
+    SEN54: Sen5xType.SEN54,
+    SEN55: Sen5xType.SEN55,
+    SEN62: Sen5xType.SEN62,
+    SEN63C: Sen5xType.SEN63C,
+    SEN65: Sen5xType.SEN65,
+    SEN66: Sen5xType.SEN66,
+    SEN68: Sen5xType.SEN68,
+    SEN69C: Sen5xType.SEN69C,
 }
 
 ACCELERATION_MODES = {
@@ -362,7 +362,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_model(SEN5X_MODELS[config[CONF_TYPE]]))
+    cg.add(var.set_type(SEN5X_TYPES[config[CONF_TYPE]]))
     for key, funcName in SETTING_MAP.items():
         if cfg := config.get(key):
             cg.add(getattr(var, funcName)(cfg))

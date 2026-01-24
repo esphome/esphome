@@ -48,28 +48,28 @@ static const int8_t SEN5X_INDEX_SCALE_FACTOR = 10;                            //
 static const int8_t SEN5X_MIN_INDEX_VALUE = 1 * SEN5X_INDEX_SCALE_FACTOR;     // must be adjusted by the scale factor
 static const int16_t SEN5X_MAX_INDEX_VALUE = 500 * SEN5X_INDEX_SCALE_FACTOR;  // must be adjusted by the scale factor
 
-static inline const char *model_to_str(Sen5xType model) {
-  switch (model) {
-    case SEN50:
-      return "SEN50";
-    case SEN54:
-      return "SEN54";
-    case SEN55:
-      return "SEN55";
-    case SEN62:
-      return "SEN62";
-    case SEN63C:
-      return "SEN63C";
-    case SEN65:
-      return "SEN65";
-    case SEN66:
-      return "SEN66";
-    case SEN68:
-      return "SEN68";
-    case SEN69C:
-      return "SEN69C";
+static inline const LogString *type_to_string(Sen5xType type) {
+  switch (type) {
+    case Sen5xType::SEN50:
+      return LOG_STR("SEN50");
+    case Sen5xType::SEN54:
+      return LOG_STR("SEN54");
+    case Sen5xType::SEN55:
+      return LOG_STR("SEN55");
+    case Sen5xType::SEN62:
+      return LOG_STR("SEN62");
+    case Sen5xType::SEN63C:
+      return LOG_STR("SEN63C");
+    case Sen5xType::SEN65:
+      return LOG_STR("SEN65");
+    case Sen5xType::SEN66:
+      return LOG_STR("SEN66");
+    case Sen5xType::SEN68:
+      return LOG_STR("SEN68");
+    case Sen5xType::SEN69C:
+      return LOG_STR("SEN69C");
     default:
-      return "UNKNOWN MODEL";
+      return LOG_STR("UNKNOWN");
   }
 }
 
@@ -98,7 +98,6 @@ static inline const char *sensirion_convert_to_string_in_place(uint16_t *array, 
 void SEN5XComponent::setup() { this->internal_setup_(SEN5X_SM_START); }
 
 void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
-  uint16_t string_number[16] = {0};
   switch (state) {
     case SEN5X_SM_START:
       // the sensor needs 100 ms after power up before i2c bus communication can be established
@@ -134,37 +133,42 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
         this->internal_setup_(SEN5X_SM_GET_SN);
       }
       break;
-    case SEN5X_SM_GET_SN:
-      if (!this->get_register(CMD_GET_SERIAL_NUMBER, string_number, 16, 20)) {
+    case SEN5X_SM_GET_SN: {
+      uint16_t string_sn[8];
+      if (!this->get_register(CMD_GET_SERIAL_NUMBER, string_sn, 8, 20)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
-      this->serial_number_ = convert_to_string(string_number, 16);
-      ESP_LOGV(TAG, "Read Serial number: %s", this->serial_number_.c_str());
+      const char *serial_number = sensirion_convert_to_string_in_place(string_sn, 8);
+      snprintf(this->serial_number_, sizeof(this->serial_number_), "%s", serial_number);
+      ESP_LOGV(TAG, "Read Serial number: %s", this->serial_number_);
       this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_GET_PN); });
       break;
-    case SEN5X_SM_GET_PN:
-      if (!this->get_register(CMD_GET_PRODUCT_NAME, string_number, 16, 20)) {
+    }
+    case SEN5X_SM_GET_PN: {
+      uint16_t string_pn[16];
+      if (!this->get_register(CMD_GET_PRODUCT_NAME, string_pn, 16, 20)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         this->mark_failed(LOG_STR("Product Name failed"));
         return;
       }
-      this->product_name_ = convert_to_string(string_number, 16);
-      if (this->product_name_.empty()) {
-        // Can't verify configuration model matches connected sensor
+      const char *product_name = sensirion_convert_to_string_in_place(string_pn, 16);
+      if (strlen(product_name) == 0) {
+        // Can't verify configuration type matches connected sensor
         ESP_LOGW(TAG, "Product Name is empty");
       } else {
-        // product name and model must match
-        if (this->product_name_ != model_to_str(this->model_.value())) {
-          ESP_LOGE(TAG, "Product Name failed");
+        // product name and type must match
+        if (strncmp(product_name, LOG_STR_ARG(type_to_string(this->type_.value())), 10)) {
+          ESP_LOGE(TAG, "Product Name does not match: %.32s", product_name);
           this->mark_failed(LOG_STR("Product Name failed"));
           return;
         }
       }
-      ESP_LOGV(TAG, "Read Product Name: %s", this->product_name_.c_str());
+      ESP_LOGV(TAG, "Read Product Name: %.32s", product_name);
       this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_GET_FW); });
       break;
+    }
     case SEN5X_SM_GET_FW:
       uint16_t firmware;
       if (!this->get_register(CMD_GET_FIRMWARE_VERSION, &firmware, 1, 20)) {
@@ -303,11 +307,11 @@ void SEN5XComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "SEN5X:\n"
                 "  Initialized: %s\n"
-                "  Model: %s\n"
+                "  Type: %s\n"
                 "  Update Interval: %ums\n"
                 "  Serial number: %s",
-                TRUEFALSE(this->initialized_), model_to_str(this->model_.value()), this->update_interval_,
-                this->serial_number_.c_str());
+                TRUEFALSE(this->initialized_), type_to_string(this->type_.value()), this->update_interval_,
+                this->serial_number_);
   if (this->is_sen6x_()) {
     ESP_LOGCONFIG(TAG, "  Firmware version: %u.%u", this->firmware_major_, this->firmware_minor_);
   } else {
@@ -354,40 +358,40 @@ void SEN5XComponent::update() {
     return;
   uint16_t cmd;
   uint8_t length;
-  switch (this->model_.value()) {
-    case SEN50:
+  switch (this->type_.value()) {
+    case Sen5xType::SEN50:
       cmd = SEN5X_CMD_READ_MEASUREMENT;
       length = 4;
       break;
-    case SEN54:
+    case Sen5xType::SEN54:
       cmd = SEN5X_CMD_READ_MEASUREMENT;
       length = 7;
       break;
-    case SEN55:
+    case Sen5xType::SEN55:
       cmd = SEN5X_CMD_READ_MEASUREMENT;
       length = 8;
       break;
-    case SEN62:
+    case Sen5xType::SEN62:
       cmd = SEN62_CMD_READ_MEASUREMENT;
       length = 6;
       break;
-    case SEN63C:
+    case Sen5xType::SEN63C:
       cmd = SEN63C_CMD_READ_MEASUREMENT;
       length = 7;
       break;
-    case SEN65:
+    case Sen5xType::SEN65:
       cmd = SEN65_CMD_READ_MEASUREMENT;
       length = 8;
       break;
-    case SEN66:
+    case Sen5xType::SEN66:
       cmd = SEN66_CMD_READ_MEASUREMENT;
       length = 9;
       break;
-    case SEN68:
+    case Sen5xType::SEN68:
       cmd = SEN68_CMD_READ_MEASUREMENT;
       length = 9;
       break;
-    case SEN69C:
+    case Sen5xType::SEN69C:
       cmd = SEN69C_CMD_READ_MEASUREMENT;
       length = 10;
       break;
@@ -457,9 +461,9 @@ void SEN5XComponent::update() {
       this->nox_sensor_->publish_state(nox);
     }
     if (this->co2_sensor_ != nullptr) {
-      if (this->model_.value() == SEN63C || this->model_.value() == SEN69C) {
+      if (this->type_.value() == Sen5xType::SEN63C || this->type_.value() == Sen5xType::SEN69C) {
         int16_t value = static_cast<int16_t>(measurements[6]);  // SEN63C reports as signed
-        if (this->model_.value() == SEN69C) {
+        if (this->type_.value() == Sen5xType::SEN69C) {
           value = static_cast<int16_t>(measurements[9]);  // SEN69C reports as signed
         }
         ESP_LOGV(TAG, "co2 = 0x%.4x", value);
@@ -589,11 +593,13 @@ bool SEN5XComponent::write_ambient_pressure_compensation_(uint16_t pressure_in_h
 }
 
 bool SEN5XComponent::is_sen6x_() {
-  return this->model_.value() != SEN50 && this->model_.value() != SEN54 && this->model_.value() != SEN55;
+  return this->type_.value() != Sen5xType::SEN50 && this->type_.value() != Sen5xType::SEN54 &&
+         this->type_.value() != Sen5xType::SEN55;
 }
 
 void SEN5XComponent::set_ambient_pressure_compensation(uint16_t pressure_in_hpa) {
-  if (this->model_.value() == SEN63C || this->model_.value() == SEN66 || this->model_.value() == SEN69C) {
+  if (this->type_.value() == Sen5xType::SEN63C || this->type_.value() == Sen5xType::SEN66 ||
+      this->type_.value() == Sen5xType::SEN69C) {
     if (this->busy_ || !this->initialized_) {
       ESP_LOGW(TAG, "Ambient Pressure Compensation aborted, sensor is busy");
       return;  // only one action at a time and must be initialized
@@ -685,7 +691,8 @@ void SEN5XComponent::activate_heater() {
 }
 
 void SEN5XComponent::perform_forced_co2_recalibration(uint16_t co2) {
-  if (this->model_.value() == SEN63C || this->model_.value() == SEN66 || this->model_.value() == SEN69C) {
+  if (this->type_.value() == Sen5xType::SEN63C || this->type_.value() == Sen5xType::SEN66 ||
+      this->type_.value() == Sen5xType::SEN69C) {
     if (this->busy_ || !this->initialized_) {
       ESP_LOGW(TAG, "Forced CO₂ Recalibration aborted, sensor is busy");
       return;
@@ -728,7 +735,7 @@ void SEN5XComponent::perform_forced_co2_recalibration(uint16_t co2) {
 
 void SEN5XComponent::set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant,
                                                   uint8_t slot) {
-  if (this->model_.value() != SEN50) {
+  if (this->type_.value() != Sen5xType::SEN50) {
     TemperatureCompensation comp(offset, normalized_offset_slope, time_constant, slot);
     this->temperature_compensation_ = comp;
     if (!this->initialized_) {
