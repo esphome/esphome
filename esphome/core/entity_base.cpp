@@ -93,14 +93,18 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
 uint32_t EntityBase::get_object_id_hash() { return this->object_id_hash_; }
 
 ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
-  // This helper exists to centralize preference creation so we can fix hash collisions.
+  // This helper centralizes preference creation to enable fixing hash collisions.
+  // See: https://github.com/esphome/backlog/issues/85
   //
-  // PROBLEM: get_preference_hash() uses fnv1_hash on the sanitized object_id, which can
-  // collide when different entity names sanitize to the same string (e.g., "Living Room"
-  // and "living_room" both become "living_room"). This causes entities to overwrite
-  // each other's stored preferences.
+  // COLLISION PROBLEM: get_preference_hash() uses fnv1_hash on sanitized object_id.
+  // Multiple entity names can sanitize to the same object_id:
+  //   - "Living Room" and "living_room" both become "living_room"
+  //   - UTF-8 names like "温度" and "湿度" both become "__" (underscores)
+  // This causes entities to overwrite each other's stored preferences.
   //
-  // FUTURE MIGRATION (when implementing get_preference_hash_v2):
+  // FUTURE MIGRATION: When implementing get_preference_hash_v2() that hashes
+  // the original entity name (not sanitized object_id), migration logic goes here:
+  //
   //   uint32_t old_key = this->get_preference_hash() ^ version;
   //   uint32_t new_key = this->get_preference_hash_v2() ^ version;
   //   if (old_key != new_key) {
@@ -113,7 +117,7 @@ ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t ve
   //   }
   //   return global_preferences->make_preference(size, new_key);
   //
-  // NOTE: Will need raw load/save methods on ESPPreferenceObject that take uint8_t* and size.
+  // This will require raw load/save methods on ESPPreferenceObject (uint8_t*, size).
   //
   uint32_t key = this->get_preference_hash() ^ version;
   return global_preferences->make_preference(size, key);
