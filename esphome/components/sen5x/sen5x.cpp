@@ -43,6 +43,15 @@ static const LogString *rht_accel_mode_to_string(RhtAccelerationMode mode) {
   }
 }
 
+// This function performs an in-place conversion of the provided buffer
+// from uint16_t values to big endianness
+static inline const char *sensirion_convert_to_string_in_place(uint16_t *array, size_t length) {
+  for (size_t i = 0; i < length; i++) {
+    array[i] = convert_big_endian(array[i]);
+  }
+  return reinterpret_cast<const char *>(array);
+}
+
 void SEN5XComponent::setup() {
   // the sensor needs 1000 ms to enter the idle state
   this->set_timeout(1000, [this]() {
@@ -75,18 +84,18 @@ void SEN5XComponent::setup() {
       stop_measurement_delay = 200;
     }
     this->set_timeout(stop_measurement_delay, [this]() {
-      uint16_t raw_serial_number[3];
-      if (!this->get_register(SEN5X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 20)) {
+      // note: serial number register is actually 32-bytes long but we grab only the first 16-bytes,
+      // this appears to be all that Sensirion uses for serial numbers, this could change
+      uint16_t raw_serial_number[8];
+      if (!this->get_register(SEN5X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 8, 20)) {
         ESP_LOGE(TAG, "Failed to read serial number");
         this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
         this->mark_failed();
         return;
       }
-      this->serial_number_[0] = static_cast<bool>(uint16_t(raw_serial_number[0]) & 0xFF);
-      this->serial_number_[1] = static_cast<uint16_t>(raw_serial_number[0] & 0xFF);
-      this->serial_number_[2] = static_cast<uint16_t>(raw_serial_number[1] >> 8);
-      ESP_LOGV(TAG, "Serial number %02d.%02d.%02d", this->serial_number_[0], this->serial_number_[1],
-               this->serial_number_[2]);
+      const char *serial_number = sensirion_convert_to_string_in_place(raw_serial_number, 8);
+      snprintf(this->serial_number_, sizeof(this->serial_number_), "%s", serial_number);
+      ESP_LOGV(TAG, "Serial number %s", this->serial_number_);
 
       uint16_t raw_product_name[16];
       if (!this->get_register(SEN5X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
@@ -153,12 +162,8 @@ void SEN5XComponent::setup() {
       ESP_LOGV(TAG, "Firmware version %d", this->firmware_version_);
 
       if (this->voc_sensor_ && this->store_baseline_) {
-        uint32_t combined_serial =
-            encode_uint24(this->serial_number_[0], this->serial_number_[1], this->serial_number_[2]);
-        // Hash with config hash, version, and serial number
-        // This ensures the baseline storage is cleared after OTA
-        // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
-        uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), combined_serial);
+        // Hash with serial number, serial numbers are unique, so multiple sensors can be used without conflict
+        uint32_t hash = fnv1a_hash(this->serial_number_);
         this->pref_ = global_preferences->make_preference<uint16_t[4]>(hash, true);
         this->voc_baseline_time_ = App.get_loop_component_start_time();
         if (this->pref_.load(&this->voc_baseline_state_)) {
@@ -264,9 +269,8 @@ void SEN5XComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Product name: %s\n"
                 "  Firmware version: %d\n"
-                "  Serial number %02d.%02d.%02d",
-                this->product_name_.c_str(), this->firmware_version_, this->serial_number_[0], this->serial_number_[1],
-                this->serial_number_[2]);
+                "  Serial number: %s",
+                this->product_name_.c_str(), this->firmware_version_, this->serial_number_);
   if (this->auto_cleaning_interval_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Auto cleaning interval: %" PRId32 "s", this->auto_cleaning_interval_.value());
   }

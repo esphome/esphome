@@ -102,11 +102,11 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
 
+  char serial_number_[17] = "UNKNOWN";
   uint16_t voc_baseline_state_[4]{0};
   uint32_t voc_baseline_time_;
   uint16_t firmware_version_;
   ERRORCODE error_code_;
-  uint8_t serial_number_[4];
   bool initialized_{false};
   bool store_baseline_;
 
