@@ -84,8 +84,10 @@ void SEN5XComponent::setup() {
       stop_measurement_delay = 200;
     }
     this->set_timeout(stop_measurement_delay, [this]() {
+      // note: serial number register is actually 32-bytes long but we grab only the first 16-bytes,
+      // this appears to be all that Sensirion uses for serial numbers, this could change
       uint16_t raw_serial_number[8];
-      if (!this->get_register(SEN5X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 9, 20)) {
+      if (!this->get_register(SEN5X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 8, 20)) {
         ESP_LOGE(TAG, "Failed to read serial number");
         this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
         this->mark_failed();
