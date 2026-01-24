@@ -173,9 +173,9 @@ void SEN5XComponent::setup() {
       bool result;
       if (this->auto_cleaning_interval_.has_value()) {
         // override default value
-        result = write_command(SEN5X_CMD_AUTO_CLEANING_INTERVAL, this->auto_cleaning_interval_.value());
+        result = this->write_command(SEN5X_CMD_AUTO_CLEANING_INTERVAL, this->auto_cleaning_interval_.value());
       } else {
-        result = write_command(SEN5X_CMD_AUTO_CLEANING_INTERVAL);
+        result = this->write_command(SEN5X_CMD_AUTO_CLEANING_INTERVAL);
       }
       if (result) {
         delay(20);

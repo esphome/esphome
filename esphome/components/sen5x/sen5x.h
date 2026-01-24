@@ -51,18 +51,20 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
 
   enum Sen5xType { SEN50, SEN54, SEN55, UNKNOWN };
 
-  void set_pm_1_0_sensor(sensor::Sensor *pm_1_0) { pm_1_0_sensor_ = pm_1_0; }
-  void set_pm_2_5_sensor(sensor::Sensor *pm_2_5) { pm_2_5_sensor_ = pm_2_5; }
-  void set_pm_4_0_sensor(sensor::Sensor *pm_4_0) { pm_4_0_sensor_ = pm_4_0; }
-  void set_pm_10_0_sensor(sensor::Sensor *pm_10_0) { pm_10_0_sensor_ = pm_10_0; }
+  void set_pm_1_0_sensor(sensor::Sensor *pm_1_0) { this->pm_1_0_sensor_ = pm_1_0; }
+  void set_pm_2_5_sensor(sensor::Sensor *pm_2_5) { this->pm_2_5_sensor_ = pm_2_5; }
+  void set_pm_4_0_sensor(sensor::Sensor *pm_4_0) { this->pm_4_0_sensor_ = pm_4_0; }
+  void set_pm_10_0_sensor(sensor::Sensor *pm_10_0) { this->pm_10_0_sensor_ = pm_10_0; }
 
-  void set_voc_sensor(sensor::Sensor *voc_sensor) { voc_sensor_ = voc_sensor; }
-  void set_nox_sensor(sensor::Sensor *nox_sensor) { nox_sensor_ = nox_sensor; }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
-  void set_acceleration_mode(RhtAccelerationMode mode) { acceleration_mode_ = mode; }
-  void set_auto_cleaning_interval(uint32_t auto_cleaning_interval) { auto_cleaning_interval_ = auto_cleaning_interval; }
+  void set_voc_sensor(sensor::Sensor *voc_sensor) { this->voc_sensor_ = voc_sensor; }
+  void set_nox_sensor(sensor::Sensor *nox_sensor) { this->nox_sensor_ = nox_sensor; }
+  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
+  void set_store_baseline(bool store_baseline) { this->store_baseline_ = store_baseline; }
+  void set_acceleration_mode(RhtAccelerationMode mode) { this->acceleration_mode_ = mode; }
+  void set_auto_cleaning_interval(uint32_t auto_cleaning_interval) {
+    this->auto_cleaning_interval_ = auto_cleaning_interval;
+  }
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
                                 uint16_t std_initial, uint16_t gain_factor) {
@@ -73,7 +75,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
     tuning_params.gating_max_duration_minutes = gating_max_duration_minutes;
     tuning_params.std_initial = std_initial;
     tuning_params.gain_factor = gain_factor;
-    voc_tuning_params_ = tuning_params;
+    this->voc_tuning_params_ = tuning_params;
   }
   void set_nox_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
@@ -85,14 +87,14 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
     tuning_params.gating_max_duration_minutes = gating_max_duration_minutes;
     tuning_params.std_initial = 50;
     tuning_params.gain_factor = gain_factor;
-    nox_tuning_params_ = tuning_params;
+    this->nox_tuning_params_ = tuning_params;
   }
   void set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant) {
     TemperatureCompensation temp_comp;
     temp_comp.offset = offset * 200;
     temp_comp.normalized_offset_slope = normalized_offset_slope * 10000;
     temp_comp.time_constant = time_constant;
-    temperature_compensation_ = temp_comp;
+    this->temperature_compensation_ = temp_comp;
   }
   bool start_fan_cleaning();
 
