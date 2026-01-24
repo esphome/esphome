@@ -86,12 +86,13 @@ static const LogString *rht_accel_mode_to_string(RhtAccelerationMode mode) {
   }
 }
 
-static inline std::string convert_to_string(uint16_t array[], uint8_t length) {
-  for (int i = 0; i < length; i++) {
+// This function performs an in-place conversion of the provided buffer
+// from uint16_t values to big endianness
+static inline const char *sensirion_convert_to_string_in_place(uint16_t *array, size_t length) {
+  for (size_t i = 0; i < length; i++) {
     array[i] = convert_big_endian(array[i]);
   }
-  std::string new_string = reinterpret_cast<const char *>(array);
-  return new_string;
+  return reinterpret_cast<const char *>(array);
 }
 
 void SEN5XComponent::setup() { this->internal_setup_(SEN5X_SM_START); }
