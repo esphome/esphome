@@ -506,6 +506,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
 "Resol VBus","components/vbus","resol_deltasol_bs_plus.jpg",""
 "Rotary Encoder","components/sensor/rotary_encoder","rotary_encoder.jpg",""
 "SMT100","components/sensor/smt100","smt100.jpg","Moisture & Temperature"
+"SY6970","components/sensor/sy6970","sy6970.jpg","Battery charge IC"
 "Sound Level","components/sensor/sound_level","waveform.svg","dark-invert"
 "Tuya Sensor","components/sensor/tuya","tuya.png",""
 "TX20","components/sensor/tx20","tx20.jpg","Wind speed & Wind direction"
