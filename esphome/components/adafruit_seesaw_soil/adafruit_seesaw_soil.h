@@ -52,10 +52,7 @@ class AdafruitSeesawSoil : public PollingComponent, public i2c::I2CDevice {
 
   LoopState loop_state_{LoopState::BOOT};
   unsigned setup_retry_count_{0};
-  unsigned last_setup_op_{0};
-  unsigned moisture_read_count_{0};
   unsigned last_moisture_read_op_{0};
-  unsigned temperature_read_count_{0};
   unsigned last_temperature_read_op_{0};
 };
 
