@@ -1,5 +1,5 @@
 sensor:
-  - platform: ds1603l 
+  - platform: ds1603l
     id: ds1603l_sensor
     name: ds1603l Distance
     update_interval: 60s
