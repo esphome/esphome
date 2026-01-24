@@ -34,9 +34,9 @@ class CH423Component : public Component, public i2c::I2CDevice {
   /// The mask to write as output state - 1 means HIGH, 0 means LOW
   uint32_t output_bits_{0x00};
   /// Flags to check if read previously during this loop
-  uint8_t pin_read_flags_ = {0x00};
+  uint8_t pin_read_flags_{0x00};
   /// Copy of last read values
-  uint8_t input_bits_ = {0x00};
+  uint8_t input_bits_{0x00};
   /// System parameters
   uint8_t sys_params_{0x00};
 };
