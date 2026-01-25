@@ -278,9 +278,13 @@ LAMBDA_PROG = re.compile(r"\bid\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
 
 class Lambda:
     def __init__(self, value):
+        from esphome.cpp_generator import Expression, statement
+
         # pylint: disable=protected-access
         if isinstance(value, Lambda):
             self._value = value._value
+        elif isinstance(value, Expression):
+            self._value = str(statement(value))
         else:
             self._value = value
         self._parts = None

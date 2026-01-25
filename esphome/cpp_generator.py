@@ -665,7 +665,7 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
 
 
 async def process_lambda(
-    value: Lambda,
+    value: Lambda | Expression,
     parameters: TemplateArgsType,
     capture: str = "",
     return_type: SafeExpType = None,
@@ -689,6 +689,14 @@ async def process_lambda(
 
     if value is None:
         return None
+    # Inadvertently passing a malformed parameters value will lead to the build process mysteriously hanging at the
+    # "Generating C++ source..." stage, so check here to save the developer's hair.
+    assert isinstance(parameters, list) and all(
+        isinstance(p, tuple) and len(p) == 2 for p in parameters
+    )
+    if isinstance(value, Expression):
+        value = Lambda(value)
+
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
         full_id, var = await get_variable_with_full_id(id)
