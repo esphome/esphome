@@ -35,6 +35,7 @@ from esphome.const import (
     CONF_TIMES,
     CONF_TRIGGER_ID,
     CONF_TYPE_ID,
+    CONF_VALUE,
     CONF_WAIT_TIME,
     CONF_WAND_ID,
     CONF_ZERO,
@@ -880,7 +881,6 @@ async def nec_action(var, config, args):
 ) = declare_protocol("FSLScoreboard")
 
 CONF_FIELD = "field"
-CONF_VALUE = "value"
 
 FSL_SCOREBOARD_SCHEMA = cv.Schema(
     {
