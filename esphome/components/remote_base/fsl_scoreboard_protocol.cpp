@@ -7,6 +7,7 @@ namespace remote_base {
 static const char *const TAG = "remote.fsl_scoreboard";
 
 static constexpr uint32_t BIT_TIME_US = 528;
+static constexpr uint8_t SYNC_BITS = 4;
 
 void FSLScoreboardProtocol::encode(RemoteTransmitData *dst, const FSLScoreboardData &data) {
   ESP_LOGD(TAG, "Sending FSL Scoreboard: field=%d, value=%d", data.field, data.value);
@@ -27,10 +28,10 @@ void FSLScoreboardProtocol::encode(RemoteTransmitData *dst, const FSLScoreboardD
   payload |= (uint32_t) 0x0 << 4;  // Position marker 0
   payload |= (uint32_t) (units & 0xF);
 
-  dst->reserve(40 + 72 * 10);
+  dst->reserve(38 + 72 * 10);
 
-  // Preamble: 20 pairs of [528µs, -528µs] = 40 bits
-  for (int i = 0; i < 20; i++) {
+  // Preamble: 19 pairs of [528µs, -528µs] = 38 bits
+  for (int i = 0; i < 19; i++) {
     dst->mark(BIT_TIME_US);
     dst->space(BIT_TIME_US);
   }
@@ -53,8 +54,12 @@ void FSLScoreboardProtocol::encode(RemoteTransmitData *dst, const FSLScoreboardD
       }
     }
 
-    // Postamble: 0000 (4 bits = 2112µs space)
-    dst->space(BIT_TIME_US * 4);
+    // 33rd Manchester bit (encode as 0 = 10)
+    dst->mark(BIT_TIME_US);
+    dst->space(BIT_TIME_US);
+
+    // Postamble: 000 (3 bits = 1584µs space)
+    dst->space(BIT_TIME_US * 3);
   }
 }
 
@@ -81,109 +86,220 @@ optional<FSLScoreboardData> FSLScoreboardProtocol::decode(RemoteReceiveData src)
 
   ESP_LOGVV(TAG, "Found preamble: %d pairs", preamble_count);
 
-  // After preamble, look for sync mark (3-bit '111')
-  // May merge with first Manchester bit: 3 or 4 bits total
-  int32_t sync_mark = src.peek(0);
-  if (sync_mark <= 0) {
-    ESP_LOGVV(TAG, "Expected mark after preamble, got: %d", sync_mark);
-    return {};
-  }
+  // Try to decode up to 10 blocks
+  for (int block = 0; block < 10 && src.peek(0) != 0; block++) {
+    // Scan for sync mark (3-bit '111', may merge with first Manchester bit)
+    int scanned = 0;
+    while (src.peek(0) != 0) {
+      int32_t sync_mark = src.peek(0);
 
-  int sync_bits = (sync_mark + BIT_TIME_US / 2) / BIT_TIME_US;
-  if (sync_bits < 3 || sync_bits > 4) {
-    ESP_LOGVV(TAG, "Invalid sync mark: %d (%d bits)", sync_mark, sync_bits);
-    return {};
-  }
+      if (sync_mark > 0) {
+        int sync_bits = (sync_mark + BIT_TIME_US / 2) / BIT_TIME_US;
+        if (sync_bits >= 3 && sync_bits <= 4) {
+          // Found valid sync
+          ESP_LOGVV(TAG, "Block %d: found sync at offset %d: %d (%d bits)", block, scanned, sync_mark, sync_bits);
+          break;
+        }
+      }
 
-  src.advance(1);
-  ESP_LOGVV(TAG, "Found sync mark: %d (%d bits)", sync_mark, sync_bits);
+      // Not a sync, keep scanning
+      src.advance(1);
+      scanned++;
+    }
 
-  // Decode 32 data bits from Manchester pairs
-  uint32_t payload = 0;
-  int pending_bit = (sync_bits == 4) ? 1 : -1;
-  int pending_count = (sync_bits == 4) ? 1 : 0;
+    if (src.peek(0) == 0) {
+      ESP_LOGVV(TAG, "No more data after scanning %d items", scanned);
+      break;
+    }
 
-  for (int data_bit = 0; data_bit < 32; data_bit++) {
-    int first_bit, second_bit;
+    int32_t sync_mark = src.peek(0);
+    int sync_bits = (sync_mark + BIT_TIME_US / 2) / BIT_TIME_US;
 
-    // Get first Manchester bit
+    // Found potential sync, try to decode this block
+
+    src.advance(1);
+
+    // Decode 32 data bits from Manchester pairs
+    uint32_t payload = 0;
+    int pending_bit = (sync_bits == 4) ? 1 : -1;
+    int pending_count = (sync_bits == 4) ? 1 : 0;
+    bool decode_failed = false;
+
+    for (int data_bit = 0; data_bit < 32; data_bit++) {
+      int first_bit, second_bit;
+
+      // Get first Manchester bit
+      if (pending_count > 0) {
+        first_bit = pending_bit;
+        pending_count--;
+      } else {
+        int32_t val = src.peek(0);
+        if (val == 0) {
+          ESP_LOGVV(TAG, "Block %d: ran out of data getting first Manchester bit at data bit %d", block, data_bit);
+          decode_failed = true;
+          break;
+        }
+        int num_bits = (abs(val) + BIT_TIME_US / 2) / BIT_TIME_US;
+        first_bit = (val > 0) ? 1 : 0;
+        pending_bit = first_bit;
+        pending_count = num_bits - 1;
+        src.advance(1);
+      }
+
+      // Get second Manchester bit
+      if (pending_count > 0) {
+        second_bit = pending_bit;
+        pending_count--;
+      } else {
+        int32_t val = src.peek(0);
+        if (val == 0) {
+          ESP_LOGVV(TAG, "Block %d: ran out of data getting second Manchester bit at data bit %d", block, data_bit);
+          decode_failed = true;
+          break;
+        }
+        int num_bits = (abs(val) + BIT_TIME_US / 2) / BIT_TIME_US;
+        second_bit = (val > 0) ? 1 : 0;
+        pending_bit = second_bit;
+        pending_count = num_bits - 1;
+        src.advance(1);
+      }
+
+      // Decode Manchester pair: 10=0, 01=1
+      if (first_bit == 1 && second_bit == 0) {
+        payload = (payload << 1) | 0;
+      } else if (first_bit == 0 && second_bit == 1) {
+        payload = (payload << 1) | 1;
+      } else {
+        ESP_LOGVV(TAG, "Block %d: invalid Manchester pair at data bit %d: %d%d", block, data_bit, first_bit,
+                  second_bit);
+        decode_failed = true;
+        break;
+      }
+    }
+
+    if (decode_failed) {
+      ESP_LOGVV(TAG, "Block %d: Manchester decode failed", block);
+      src.advance(1);
+      continue;
+    }
+
+    // Validate 33rd Manchester bit (must be valid pair: 10 or 01)
+    int bit_33_first, bit_33_second;
+
+    // Get first bit
     if (pending_count > 0) {
-      first_bit = pending_bit;
+      bit_33_first = pending_bit;
       pending_count--;
     } else {
       int32_t val = src.peek(0);
       if (val == 0) {
-        ESP_LOGVV(TAG, "Ran out of data at bit %d", data_bit);
-        return {};
+        ESP_LOGVV(TAG, "Block %d: missing 33rd bit", block);
+        decode_failed = true;
+      } else {
+        int num_bits = (abs(val) + BIT_TIME_US / 2) / BIT_TIME_US;
+        bit_33_first = (val > 0) ? 1 : 0;
+        pending_bit = bit_33_first;
+        pending_count = num_bits - 1;
+        src.advance(1);
       }
-      int num_bits = (abs(val) + BIT_TIME_US / 2) / BIT_TIME_US;
-      first_bit = (val > 0) ? 1 : 0;
-      pending_bit = first_bit;
-      pending_count = num_bits - 1;
-      src.advance(1);
     }
 
-    // Get second Manchester bit
-    if (pending_count > 0) {
-      second_bit = pending_bit;
-      pending_count--;
-    } else {
+    // Get second bit
+    if (!decode_failed) {
+      if (pending_count > 0) {
+        bit_33_second = pending_bit;
+        pending_count--;
+      } else {
+        int32_t val = src.peek(0);
+        if (val == 0) {
+          ESP_LOGVV(TAG, "Block %d: missing 33rd bit second half", block);
+          decode_failed = true;
+        } else {
+          int num_bits = (abs(val) + BIT_TIME_US / 2) / BIT_TIME_US;
+          bit_33_second = (val > 0) ? 1 : 0;
+          pending_bit = bit_33_second;
+          pending_count = num_bits - 1;
+          src.advance(1);
+        }
+      }
+    }
+
+    // Validate it's a valid Manchester pair
+    if (!decode_failed) {
+      if (!((bit_33_first == 1 && bit_33_second == 0) || (bit_33_first == 0 && bit_33_second == 1))) {
+        ESP_LOGVV(TAG, "Block %d: invalid 33rd Manchester pair: %d%d", block, bit_33_first, bit_33_second);
+        decode_failed = true;
+      }
+    }
+
+    if (decode_failed) {
+      // Clear pending bits to avoid misalignment in next block
+      pending_count = 0;
+      continue;
+    }
+
+    // Validate postamble: at least 3 space bits
+    int space_bits = 0;
+
+    // Count pending space bits
+    if (pending_count > 0 && pending_bit == 0) {
+      space_bits += pending_count;
+    }
+    pending_count = 0;
+
+    // Read more timings if needed
+    while (space_bits < 3 && src.peek(0) != 0) {
       int32_t val = src.peek(0);
-      if (val == 0) {
-        ESP_LOGVV(TAG, "Ran out of data at bit %d", data_bit);
-        return {};
+      if (val < 0) {
+        int num_bits = (abs(val) + BIT_TIME_US / 2) / BIT_TIME_US;
+        space_bits += num_bits;
+        src.advance(1);
+      } else {
+        // Hit next sync mark, stop
+        break;
       }
-      int num_bits = (abs(val) + BIT_TIME_US / 2) / BIT_TIME_US;
-      second_bit = (val > 0) ? 1 : 0;
-      pending_bit = second_bit;
-      pending_count = num_bits - 1;
+    }
+
+    if (space_bits < 3) {
+      ESP_LOGVV(TAG, "Block %d: insufficient postamble space: %d bits", block, space_bits);
       src.advance(1);
+      continue;
     }
 
-    // Decode Manchester pair: 10=0, 01=1
-    if (first_bit == 1 && second_bit == 0) {
-      payload = (payload << 1) | 0;
-    } else if (first_bit == 0 && second_bit == 1) {
-      payload = (payload << 1) | 1;
-    } else {
-      ESP_LOGVV(TAG, "Invalid Manchester pair at bit %d: %d%d", data_bit, first_bit, second_bit);
-      return {};
+    // Validate position markers
+    uint8_t pos3 = (payload >> 28) & 0xF;
+    uint8_t field = (payload >> 24) & 0xF;
+    uint8_t pos2 = (payload >> 20) & 0xF;
+    uint8_t hundreds = (payload >> 16) & 0xF;
+    uint8_t pos1 = (payload >> 12) & 0xF;
+    uint8_t tens = (payload >> 8) & 0xF;
+    uint8_t pos0 = (payload >> 4) & 0xF;
+    uint8_t units = payload & 0xF;
+
+    if (pos3 != 0x3 || pos2 != 0x2 || pos1 != 0x1 || pos0 != 0x0) {
+      ESP_LOGVV(TAG, "Block %d: invalid position markers: %X %X %X %X", block, pos3, pos2, pos1, pos0);
+      src.advance(1);
+      continue;
     }
+
+    // Valid block found!
+    uint16_t value = 0;
+    if (hundreds != 0xF)
+      value += hundreds * 100;
+    if (tens != 0xF)
+      value += tens * 10;
+    if (units != 0xF)
+      value += units;
+
+    ESP_LOGD(TAG, "Decoded block %d: field=%d, value=%d", block, field, value);
+    return FSLScoreboardData{
+        .field = field,
+        .value = value,
+    };
   }
 
-  ESP_LOGVV(TAG, "Decoded payload: 0x%08X", payload);
-
-  // Extract nybbles
-  uint8_t pos3 = (payload >> 28) & 0xF;
-  uint8_t field = (payload >> 24) & 0xF;
-  uint8_t pos2 = (payload >> 20) & 0xF;
-  uint8_t hundreds = (payload >> 16) & 0xF;
-  uint8_t pos1 = (payload >> 12) & 0xF;
-  uint8_t tens = (payload >> 8) & 0xF;
-  uint8_t pos0 = (payload >> 4) & 0xF;
-  uint8_t units = payload & 0xF;
-
-  ESP_LOGVV(TAG, "Position markers: %X %X %X %X", pos3, pos2, pos1, pos0);
-
-  // Validate position markers
-  if (pos3 != 0x3 || pos2 != 0x2 || pos1 != 0x1 || pos0 != 0x0) {
-    ESP_LOGVV(TAG, "Invalid position markers");
-    return {};
-  }
-
-  // Calculate value
-  uint16_t value = 0;
-  if (hundreds != 0xF)
-    value += hundreds * 100;
-  if (tens != 0xF)
-    value += tens * 10;
-  if (units != 0xF)
-    value += units;
-
-  return FSLScoreboardData{
-      .field = field,
-      .value = value,
-  };
+  // No valid blocks found
+  return {};
 }
 
 void FSLScoreboardProtocol::dump(const FSLScoreboardData &data) {
