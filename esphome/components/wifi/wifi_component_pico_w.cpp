@@ -192,12 +192,16 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   }
 #endif
 
-  WiFi.beginAP(ap.get_ssid().c_str(), ap.get_password().c_str(), ap.has_channel() ? ap.get_channel() : 1);
+  const char *password = ap.get_password().empty() ? nullptr : ap.get_password().c_str();
+  WiFi.beginAP(ap.get_ssid().c_str(), password, ap.has_channel() ? ap.get_channel() : 1);
 
   return true;
 }
 
-network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {(const ip_addr_t *) WiFi.localIP()}; }
+network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
+  struct netif *ap_netif = &cyw43_state.netif[CYW43_ITF_AP];
+  return {&ap_netif->ip_addr};
+}
 #endif  // USE_WIFI_AP
 
 bool WiFiComponent::wifi_disconnect_() {
@@ -229,12 +233,21 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   network::IPAddresses addresses;
   uint8_t index = 0;
   for (auto addr : addrList) {
-    addresses[index++] = addr.ipFromNetifNum();
+    // Only include addresses from the STA interface (CYW43_ITF_STA = 0)
+    if (addr.ifnumber() == CYW43_ITF_STA) {
+      addresses[index++] = addr.ipFromNetifNum();
+    }
   }
   return addresses;
 }
-network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {(const ip_addr_t *) WiFi.subnetMask()}; }
-network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {(const ip_addr_t *) WiFi.gatewayIP()}; }
+network::IPAddress WiFiComponent::wifi_subnet_mask_() {
+  struct netif *sta_netif = &cyw43_state.netif[CYW43_ITF_STA];
+  return {&sta_netif->netmask};
+}
+network::IPAddress WiFiComponent::wifi_gateway_ip_() {
+  struct netif *sta_netif = &cyw43_state.netif[CYW43_ITF_STA];
+  return {&sta_netif->gw};
+}
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   const ip_addr_t *dns_ip = dns_getserver(num);
   return network::IPAddress(dns_ip);
