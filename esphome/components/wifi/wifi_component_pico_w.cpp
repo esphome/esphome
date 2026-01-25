@@ -161,19 +161,18 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 
 #ifdef USE_WIFI_AP
 bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
-  esphome::network::IPAddress ip_address, gateway, subnet, dns;
+  IPAddress ip_address, gateway, subnet;
   if (manual_ip.has_value()) {
-    ip_address = manual_ip->static_ip;
-    gateway = manual_ip->gateway;
-    subnet = manual_ip->subnet;
-    dns = manual_ip->static_ip;
+    ip_address = IPAddress(manual_ip->static_ip);
+    gateway = IPAddress(manual_ip->gateway);
+    subnet = IPAddress(manual_ip->subnet);
   } else {
-    ip_address = network::IPAddress(192, 168, 4, 1);
-    gateway = network::IPAddress(192, 168, 4, 1);
-    subnet = network::IPAddress(255, 255, 255, 0);
-    dns = network::IPAddress(192, 168, 4, 1);
+    ip_address = IPAddress(192, 168, 4, 1);
+    gateway = IPAddress(192, 168, 4, 1);
+    subnet = IPAddress(255, 255, 255, 0);
   }
-  WiFi.config(ip_address, dns, gateway, subnet);
+  // Use softAPConfig for AP mode - WiFi.config() would disable DHCP for STA mode
+  WiFi.softAPConfig(ip_address, gateway, subnet);
   return true;
 }
 
@@ -254,8 +253,8 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
 }
 
 void WiFiComponent::wifi_loop_() {
-  // Handle scan completion
-  if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !cyw43_wifi_scan_active(&cyw43_state)) {
+  // Handle scan completion - only process once when scan finishes
+  if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !this->scan_done_ && !cyw43_wifi_scan_active(&cyw43_state)) {
     this->scan_done_ = true;
     ESP_LOGV(TAG, "Scan done");
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
