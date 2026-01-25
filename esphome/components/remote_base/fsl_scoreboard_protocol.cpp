@@ -225,7 +225,7 @@ optional<FSLScoreboardData> FSLScoreboardProtocol::decode(RemoteReceiveData src)
 
     // Validate it's a valid Manchester pair
     if (!decode_failed) {
-      if (!((bit_33_first == 1 && bit_33_second == 0) || (bit_33_first == 0 && bit_33_second == 1))) {
+      if ((bit_33_first != 1 || bit_33_second != 0) && (bit_33_first != 0 || bit_33_second != 1)) {
         ESP_LOGVV(TAG, "Block %d: invalid 33rd Manchester pair: %d%d", block, bit_33_first, bit_33_second);
         decode_failed = true;
       }
