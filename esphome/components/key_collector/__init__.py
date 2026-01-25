@@ -36,7 +36,9 @@ CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(KeyCollector),
-            cv.Optional(CONF_SOURCE_ID): cv.use_id(key_provider.KeyProvider),
+            cv.Optional(CONF_SOURCE_ID): cv.ensure_list(
+                cv.use_id(key_provider.KeyProvider)
+            ),
             cv.Optional(CONF_MIN_LENGTH): cv.int_,
             cv.Optional(CONF_MAX_LENGTH): cv.int_,
             cv.Optional(CONF_START_KEYS): cv.string,
@@ -45,9 +47,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BACK_KEYS): cv.string,
             cv.Optional(CONF_CLEAR_KEYS): cv.string,
             cv.Optional(CONF_ALLOWED_KEYS): cv.string,
-            cv.Optional(CONF_ON_PROGRESS): automation.validate_automation(single=True),
-            cv.Optional(CONF_ON_RESULT): automation.validate_automation(single=True),
-            cv.Optional(CONF_ON_TIMEOUT): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_PROGRESS): automation.validate_automation(),
+            cv.Optional(CONF_ON_RESULT): automation.validate_automation(),
+            cv.Optional(CONF_ON_TIMEOUT): automation.validate_automation(),
             cv.Optional(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
         }
@@ -60,8 +62,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     if CONF_SOURCE_ID in config:
-        source = await cg.get_variable(config[CONF_SOURCE_ID])
-        cg.add(var.set_provider(source))
+        for source_conf in config[CONF_SOURCE_ID]:
+            source = await cg.get_variable(source_conf)
+            cg.add(var.add_provider(source))
     if CONF_MIN_LENGTH in config:
         cg.add(var.set_min_length(config[CONF_MIN_LENGTH]))
     if CONF_MAX_LENGTH in config:
@@ -79,23 +82,50 @@ async def to_code(config):
     if CONF_ALLOWED_KEYS in config:
         cg.add(var.set_allowed_keys(config[CONF_ALLOWED_KEYS]))
     if CONF_ON_PROGRESS in config:
-        await automation.build_automation(
-            var.get_progress_trigger(),
-            [(cg.std_string, "x"), (cg.uint8, "start")],
-            config[CONF_ON_PROGRESS],
-        )
+        for conf in config[CONF_ON_PROGRESS]:
+            trigger = cg.new_Pvariable(conf[CONF_ID])
+            await automation.build_automation(
+                trigger,
+                [(cg.std_string, "x"), (cg.uint8, "start")],
+                conf,
+            )
+            cg.add(
+                var.add_on_progress_callback(
+                    cg.RawExpression(
+                        "[trigger](std::string x, uint8_t start) { trigger->trigger(x, start); }"
+                    )
+                )
+            )
     if CONF_ON_RESULT in config:
-        await automation.build_automation(
-            var.get_result_trigger(),
-            [(cg.std_string, "x"), (cg.uint8, "start"), (cg.uint8, "end")],
-            config[CONF_ON_RESULT],
-        )
+        for conf in config[CONF_ON_RESULT]:
+            trigger = cg.new_Pvariable(conf[CONF_ID])
+            await automation.build_automation(
+                trigger,
+                [(cg.std_string, "x"), (cg.uint8, "start"), (cg.uint8, "end")],
+                conf,
+            )
+            cg.add(
+                var.add_on_result_callback(
+                    cg.RawExpression(
+                        "[trigger](std::string x, uint8_t start, uint8_t end) { trigger->trigger(x, start, end); }"
+                    )
+                )
+            )
     if CONF_ON_TIMEOUT in config:
-        await automation.build_automation(
-            var.get_timeout_trigger(),
-            [(cg.std_string, "x"), (cg.uint8, "start")],
-            config[CONF_ON_TIMEOUT],
-        )
+        for conf in config[CONF_ON_TIMEOUT]:
+            trigger = cg.new_Pvariable(conf[CONF_ID])
+            await automation.build_automation(
+                trigger,
+                [(cg.std_string, "x"), (cg.uint8, "start")],
+                conf,
+            )
+            cg.add(
+                var.add_on_timeout_callback(
+                    cg.RawExpression(
+                        "[trigger](std::string x, uint8_t start) { trigger->trigger(x, start); }"
+                    )
+                )
+            )
     if CONF_TIMEOUT in config:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_enabled(config[CONF_ENABLE_ON_BOOT]))
