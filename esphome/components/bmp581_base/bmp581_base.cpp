@@ -10,12 +10,11 @@
  *  - All datasheet page references refer to Bosch Document Number BST-BMP581-DS004-04 (revision number 1.4)
  */
 
-#include "bmp581.h"
+#include "bmp581_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace bmp581 {
+namespace esphome::bmp581_base {
 
 static const char *const TAG = "bmp581";
 
@@ -91,7 +90,6 @@ void BMP581Component::dump_config() {
       break;
   }
 
-  LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
 
   ESP_LOGCONFIG(TAG, "  Measurement conversion time: %ums", this->conversion_time_);
@@ -149,7 +147,7 @@ void BMP581Component::setup() {
   uint8_t chip_id;
 
   // read chip id from sensor
-  if (!this->read_byte(BMP581_CHIP_ID, &chip_id)) {
+  if (!this->bmp_read_byte(BMP581_CHIP_ID, &chip_id)) {
     ESP_LOGE(TAG, "Read chip ID failed");
 
     this->error_code_ = ERROR_COMMUNICATION_FAILED;
@@ -172,7 +170,7 @@ void BMP581Component::setup() {
   // 3) Verify sensor status (check if NVM is okay) //
   ////////////////////////////////////////////////////
 
-  if (!this->read_byte(BMP581_STATUS, &this->status_.reg)) {
+  if (!this->bmp_read_byte(BMP581_STATUS, &this->status_.reg)) {
     ESP_LOGE(TAG, "Failed to read status register");
 
     this->error_code_ = ERROR_COMMUNICATION_FAILED;
@@ -359,7 +357,7 @@ bool BMP581Component::check_data_readiness_() {
 
   uint8_t status;
 
-  if (!this->read_byte(BMP581_INT_STATUS, &status)) {
+  if (!this->bmp_read_byte(BMP581_INT_STATUS, &status)) {
     ESP_LOGE(TAG, "Failed to read interrupt status register");
     return false;
   }
@@ -400,7 +398,7 @@ bool BMP581Component::prime_iir_filter_() {
 
   // flush the IIR filter with forced measurements (we will only flush once)
   this->dsp_config_.bit.iir_flush_forced_en = true;
-  if (!this->write_byte(BMP581_DSP, this->dsp_config_.reg)) {
+  if (!this->bmp_write_byte(BMP581_DSP, this->dsp_config_.reg)) {
     ESP_LOGE(TAG, "Failed to write IIR source register");
 
     return false;
@@ -430,7 +428,7 @@ bool BMP581Component::prime_iir_filter_() {
 
   // disable IIR filter flushings on future forced measurements
   this->dsp_config_.bit.iir_flush_forced_en = false;
-  if (!this->write_byte(BMP581_DSP, this->dsp_config_.reg)) {
+  if (!this->bmp_write_byte(BMP581_DSP, this->dsp_config_.reg)) {
     ESP_LOGE(TAG, "Failed to write IIR source register");
 
     return false;
@@ -454,7 +452,7 @@ bool BMP581Component::read_temperature_(float &temperature) {
   }
 
   uint8_t data[3];
-  if (!this->read_bytes(BMP581_MEASUREMENT_DATA, &data[0], 3)) {
+  if (!this->bmp_read_bytes(BMP581_MEASUREMENT_DATA, &data[0], 3)) {
     ESP_LOGW(TAG, "Failed to read measurement");
     this->status_set_warning();
 
@@ -483,7 +481,7 @@ bool BMP581Component::read_temperature_and_pressure_(float &temperature, float &
   }
 
   uint8_t data[6];
-  if (!this->read_bytes(BMP581_MEASUREMENT_DATA, &data[0], 6)) {
+  if (!this->bmp_read_bytes(BMP581_MEASUREMENT_DATA, &data[0], 6)) {
     ESP_LOGW(TAG, "Failed to read measurement");
     this->status_set_warning();
 
@@ -507,7 +505,7 @@ bool BMP581Component::reset_() {
   // - returns the Power-On-Reboot interrupt status, which is asserted if successful
 
   // writes reset command to BMP's command register
-  if (!this->write_byte(BMP581_COMMAND, RESET_COMMAND)) {
+  if (!this->bmp_write_byte(BMP581_COMMAND, RESET_COMMAND)) {
     ESP_LOGE(TAG, "Failed to write reset command");
 
     return false;
@@ -518,7 +516,7 @@ bool BMP581Component::reset_() {
   delay(3);
 
   // read interrupt status register
-  if (!this->read_byte(BMP581_INT_STATUS, &this->int_status_.reg)) {
+  if (!this->bmp_read_byte(BMP581_INT_STATUS, &this->int_status_.reg)) {
     ESP_LOGE(TAG, "Failed to read interrupt status register");
 
     return false;
@@ -562,7 +560,7 @@ bool BMP581Component::write_iir_settings_(IIRFilter temperature_iir, IIRFilter p
   // BMP581_DSP register and BMP581_DSP_IIR registers are successive
   //  - allows us to write the IIR configuration with one command to both registers
   uint8_t register_data[2] = {this->dsp_config_.reg, this->iir_config_.reg};
-  return this->write_bytes(BMP581_DSP, register_data, sizeof(register_data));
+  return this->bmp_write_bytes(BMP581_DSP, register_data, sizeof(register_data));
 }
 
 bool BMP581Component::write_interrupt_source_settings_(bool data_ready_enable) {
@@ -572,7 +570,7 @@ bool BMP581Component::write_interrupt_source_settings_(bool data_ready_enable) {
   this->int_source_.bit.drdy_data_reg_en = data_ready_enable;
 
   // write interrupt source register
-  return this->write_byte(BMP581_INT_SOURCE, this->int_source_.reg);
+  return this->bmp_write_byte(BMP581_INT_SOURCE, this->int_source_.reg);
 }
 
 bool BMP581Component::write_oversampling_settings_(Oversampling temperature_oversampling,
@@ -583,7 +581,7 @@ bool BMP581Component::write_oversampling_settings_(Oversampling temperature_over
   this->osr_config_.bit.osr_t = temperature_oversampling;
   this->osr_config_.bit.osr_p = pressure_oversampling;
 
-  return this->write_byte(BMP581_OSR, this->osr_config_.reg);
+  return this->bmp_write_byte(BMP581_OSR, this->osr_config_.reg);
 }
 
 bool BMP581Component::write_power_mode_(OperationMode mode) {
@@ -593,8 +591,7 @@ bool BMP581Component::write_power_mode_(OperationMode mode) {
   this->odr_config_.bit.pwr_mode = mode;
 
   // write odr register
-  return this->write_byte(BMP581_ODR, this->odr_config_.reg);
+  return this->bmp_write_byte(BMP581_ODR, this->odr_config_.reg);
 }
 
-}  // namespace bmp581
-}  // namespace esphome
+}  // namespace esphome::bmp581_base

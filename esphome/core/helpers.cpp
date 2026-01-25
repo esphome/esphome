@@ -174,6 +174,13 @@ bool str_endswith(const std::string &str, const std::string &end) {
   return str.rfind(end) == (str.size() - end.size());
 }
 #endif
+
+bool str_endswith_ignore_case(const char *str, size_t str_len, const char *suffix, size_t suffix_len) {
+  if (suffix_len > str_len)
+    return false;
+  return strncasecmp(str + str_len - suffix_len, suffix, suffix_len) == 0;
+}
+
 std::string str_truncate(const std::string &str, size_t length) {
   return str.length() > length ? str.substr(0, length) : str;
 }
@@ -199,11 +206,22 @@ std::string str_snake_case(const std::string &str) {
   }
   return result;
 }
-std::string str_sanitize(const std::string &str) {
-  std::string result = str;
-  for (char &c : result) {
-    c = to_sanitized_char(c);
+char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
+  if (buffer_size == 0) {
+    return buffer;
   }
+  size_t i = 0;
+  while (*str && i < buffer_size - 1) {
+    buffer[i++] = to_sanitized_char(*str++);
+  }
+  buffer[i] = '\0';
+  return buffer;
+}
+
+std::string str_sanitize(const std::string &str) {
+  std::string result;
+  result.resize(str.size());
+  str_sanitize_to(&result[0], str.size() + 1, str.c_str());
   return result;
 }
 std::string str_snprintf(const char *fmt, size_t len, ...) {
@@ -404,15 +422,31 @@ std::string format_hex_pretty(const std::string &data, char separator, bool show
   return format_hex_pretty_uint8(reinterpret_cast<const uint8_t *>(data.data()), data.length(), separator, show_length);
 }
 
+char *format_bin_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
+  if (buffer_size == 0) {
+    return buffer;
+  }
+  // Calculate max bytes we can format: each byte needs 8 chars
+  size_t max_bytes = (buffer_size - 1) / 8;
+  if (max_bytes == 0 || length == 0) {
+    buffer[0] = '\0';
+    return buffer;
+  }
+  size_t bytes_to_format = std::min(length, max_bytes);
+
+  for (size_t byte_idx = 0; byte_idx < bytes_to_format; byte_idx++) {
+    for (size_t bit_idx = 0; bit_idx < 8; bit_idx++) {
+      buffer[byte_idx * 8 + bit_idx] = ((data[byte_idx] >> (7 - bit_idx)) & 1) + '0';
+    }
+  }
+  buffer[bytes_to_format * 8] = '\0';
+  return buffer;
+}
+
 std::string format_bin(const uint8_t *data, size_t length) {
   std::string result;
   result.resize(length * 8);
-  for (size_t byte_idx = 0; byte_idx < length; byte_idx++) {
-    for (size_t bit_idx = 0; bit_idx < 8; bit_idx++) {
-      result[byte_idx * 8 + bit_idx] = ((data[byte_idx] >> (7 - bit_idx)) & 1) + '0';
-    }
-  }
-
+  format_bin_to(&result[0], length * 8 + 1, data, length);
   return result;
 }
 
@@ -624,53 +658,44 @@ std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
   return ret;
 }
 
-/// Encode int32 to 5 base85 characters + null terminator
-/// Standard ASCII85 alphabet: '!' (33) = 0 through 'u' (117) = 84
-inline void base85_encode_int32(int32_t value, std::span<char, BASE85_INT32_ENCODED_SIZE> output) {
-  uint32_t v = static_cast<uint32_t>(value);
-  // Encode least significant digit first, then reverse
-  for (int i = 4; i >= 0; i--) {
-    output[i] = static_cast<char>('!' + (v % 85));
-    v /= 85;
-  }
-  output[5] = '\0';
-}
-
-/// Decode 5 base85 characters to int32
-inline bool base85_decode_int32(const char *input, int32_t &out) {
-  uint8_t c0 = static_cast<uint8_t>(input[0] - '!');
-  uint8_t c1 = static_cast<uint8_t>(input[1] - '!');
-  uint8_t c2 = static_cast<uint8_t>(input[2] - '!');
-  uint8_t c3 = static_cast<uint8_t>(input[3] - '!');
-  uint8_t c4 = static_cast<uint8_t>(input[4] - '!');
-
-  // Each digit must be 0-84. Since uint8_t wraps, chars below '!' become > 84
-  if (c0 > 84 || c1 > 84 || c2 > 84 || c3 > 84 || c4 > 84)
-    return false;
-
-  // 85^4 = 52200625, 85^3 = 614125, 85^2 = 7225, 85^1 = 85
-  out = static_cast<int32_t>(c0 * 52200625u + c1 * 614125u + c2 * 7225u + c3 * 85u + c4);
-  return true;
-}
-
-/// Decode base85 string directly into vector (no intermediate buffer)
-bool base85_decode_int32_vector(const std::string &base85, std::vector<int32_t> &out) {
-  size_t len = base85.size();
-  if (len % 5 != 0)
-    return false;
+/// Decode base64/base64url string directly into vector of little-endian int32 values
+/// @param base64 Base64 or base64url encoded string (both +/ and -_ accepted)
+/// @param out Output vector (cleared and filled with decoded int32 values)
+/// @return true if successful, false if decode failed or invalid size
+bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> &out) {
+  // Decode in chunks to minimize stack usage
+  constexpr size_t chunk_bytes = 48;  // 12 int32 values
+  constexpr size_t chunk_chars = 64;  // 48 * 4/3 = 64 chars
+  uint8_t chunk[chunk_bytes];
 
   out.clear();
-  const char *ptr = base85.data();
-  const char *end = ptr + len;
 
-  while (ptr < end) {
-    int32_t value;
-    if (!base85_decode_int32(ptr, value))
+  const uint8_t *input = reinterpret_cast<const uint8_t *>(base64.data());
+  size_t remaining = base64.size();
+  size_t pos = 0;
+
+  while (remaining > 0) {
+    size_t chars_to_decode = std::min(remaining, chunk_chars);
+    size_t decoded_len = base64_decode(input + pos, chars_to_decode, chunk, chunk_bytes);
+
+    if (decoded_len == 0)
       return false;
-    out.push_back(value);
-    ptr += 5;
+
+    // Parse little-endian int32 values
+    for (size_t i = 0; i + 3 < decoded_len; i += 4) {
+      int32_t timing = static_cast<int32_t>(encode_uint32(chunk[i + 3], chunk[i + 2], chunk[i + 1], chunk[i]));
+      out.push_back(timing);
+    }
+
+    // Check for incomplete int32 in last chunk
+    if (remaining <= chunk_chars && (decoded_len % 4) != 0)
+      return false;
+
+    pos += chars_to_decode;
+    remaining -= chars_to_decode;
   }
-  return true;
+
+  return !out.empty();
 }
 
 // Colors

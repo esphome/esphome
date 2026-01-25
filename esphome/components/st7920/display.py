@@ -28,7 +28,7 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
