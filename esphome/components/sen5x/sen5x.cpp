@@ -69,20 +69,19 @@ void SEN5XComponent::setup() { this->internal_setup_(Sen5xSetupStates::SEN5X_SM_
 
 void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
   switch (state) {
-    using enum Sen5xSetupStates;
-    case SEN5X_SM_START:
+    case Sen5xSetupStates::SEN5X_SM_START:
       // the sensor needs 100 ms after power up before i2c bus communication can be established
-      this->set_timeout(100, [this]() { this->internal_setup_(SEN5X_SM_START_1); });
+      this->set_timeout(100, [this]() { this->internal_setup_(Sen5xSetupStates::SEN5X_SM_START_1); });
       break;
-    case SEN5X_SM_START_1:
+    case Sen5xSetupStates::SEN5X_SM_START_1:
       if (!this->write_command(SEN5X_CMD_GET_DATA_READY_STATUS)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
-      this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_START_2); });
+      this->set_timeout(20, [this]() { this->internal_setup_(Sen5xSetupStates::SEN5X_SM_START_2); });
       break;
-    case SEN5X_SM_START_2: {
+    case Sen5xSetupStates::SEN5X_SM_START_2: {
       uint16_t raw_read_status = {0};
       if (!this->read_data(raw_read_status)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -97,22 +96,22 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
           return;
         }
         ESP_LOGV(TAG, "Stopping periodic measurement");
-        this->set_timeout(200, [this]() { this->internal_setup_(SEN5X_SM_GET_SN); });
+        this->set_timeout(200, [this]() { this->internal_setup_(Sen5xSetupStates::SEN5X_SM_GET_SN); });
       } else {
         ESP_LOGV(TAG, "Sensor is in idle mode");
-        this->internal_setup_(SEN5X_SM_GET_SN);
+        this->internal_setup_(Sen5xSetupStates::SEN5X_SM_GET_SN);
       }
       break;
     }
-    case SEN5X_SM_GET_SN:
+    case Sen5xSetupStates::SEN5X_SM_GET_SN:
       if (!this->write_command(SEN5X_CMD_GET_SERIAL_NUMBER)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
-      this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_GET_SN_1); });
+      this->set_timeout(20, [this]() { this->internal_setup_(Sen5xSetupStates::SEN5X_SM_GET_SN_1); });
       break;
-    case SEN5X_SM_GET_SN_1: {
+    case Sen5xSetupStates::SEN5X_SM_GET_SN_1: {
       uint16_t raw_serial_number[8] = {0};
       if (!this->read_data(raw_serial_number, 8)) {
         ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);

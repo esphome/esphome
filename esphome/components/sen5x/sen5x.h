@@ -24,7 +24,6 @@ enum class Sen5xSetupStates : uint8_t {
   SEN5X_SM_START_2,
   SEN5X_SM_GET_SN,
   SEN5X_SM_GET_SN_1,
-  SEN5X_SM_GET_PN
 };
 
 enum RhtAccelerationMode : uint16_t {
