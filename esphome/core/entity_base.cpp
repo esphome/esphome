@@ -127,7 +127,10 @@ ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t ve
   //   this->migrate_entity_preference_(size, old_key, new_key);
   //   return global_preferences->make_preference(size, new_key);
   //
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   uint32_t key = this->get_preference_hash() ^ version;
+#pragma GCC diagnostic pop
   return global_preferences->make_preference(size, key);
 }
 
