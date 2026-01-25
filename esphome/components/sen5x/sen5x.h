@@ -18,6 +18,15 @@ enum ERRORCODE : uint8_t {
   UNKNOWN
 };
 
+enum class Sen5xSetupStates : uint8_t {
+  SEN5X_SM_START,
+  SEN5X_SM_START_1,
+  SEN5X_SM_START_2,
+  SEN5X_SM_GET_SN,
+  SEN5X_SM_GET_SN_1,
+  SEN5X_SM_GET_PN
+};
+
 enum RhtAccelerationMode : uint16_t {
   LOW_ACCELERATION = 0,
   MEDIUM_ACCELERATION = 1,
@@ -99,6 +108,8 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool start_fan_cleaning();
 
  protected:
+  void internal_setup_(Sen5xSetupStates state);
+  bool stop_measurements_();
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
 

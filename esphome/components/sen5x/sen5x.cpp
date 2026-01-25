@@ -65,56 +65,76 @@ static inline const char *sensirion_convert_to_string_in_place(uint16_t *array, 
   return reinterpret_cast<const char *>(array);
 }
 
-void SEN5XComponent::setup() {
-  // the sensor needs 1000 ms to enter the idle state
-  this->set_timeout(1000, [this]() {
-    // Check if measurement is ready before reading the value
-    if (!this->write_command(SEN5X_CMD_GET_DATA_READY_STATUS)) {
-      ESP_LOGE(TAG, "Failed to write data ready status command");
-      this->mark_failed();
-      return;
-    }
-    delay(20);  // per datasheet
+void SEN5XComponent::setup() { this->internal_setup_(Sen5xSetupStates::SEN5X_SM_START); }
 
-    uint16_t raw_read_status;
-    if (!this->read_data(raw_read_status)) {
-      ESP_LOGE(TAG, "Failed to read data ready status");
-      this->mark_failed();
-      return;
-    }
-
-    uint32_t stop_measurement_delay = 0;
-    // In order to query the device periodic measurement must be ceased
-    if (raw_read_status) {
-      ESP_LOGD(TAG, "Data is available; stopping periodic measurement");
-      if (!this->write_command(SEN5X_CMD_STOP_MEASUREMENTS)) {
-        ESP_LOGE(TAG, "Failed to stop measurements");
-        this->mark_failed();
+void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
+  switch (state) {
+    using enum Sen5xSetupStates;
+    case SEN5X_SM_START:
+      // the sensor needs 100 ms after power up before i2c bus communication can be established
+      this->set_timeout(100, [this]() { this->internal_setup_(SEN5X_SM_START_1); });
+      break;
+    case SEN5X_SM_START_1:
+      if (!this->write_command(SEN5X_CMD_GET_DATA_READY_STATUS)) {
+        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
-      // According to the SEN5x datasheet the sensor will only respond to other commands after waiting 200 ms after
-      // issuing the stop_periodic_measurement command
-      stop_measurement_delay = 200;
+      this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_START_2); });
+      break;
+    case SEN5X_SM_START_2: {
+      uint16_t raw_read_status = {0};
+      if (!this->read_data(raw_read_status)) {
+        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+        return;
+      }
+      if (raw_read_status) {
+        // sensor has measurements ready, we need to stop measurements first
+        if (!this->stop_measurements_()) {
+          ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+          this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+          return;
+        }
+        ESP_LOGV(TAG, "Stopping periodic measurement");
+        this->set_timeout(200, [this]() { this->internal_setup_(SEN5X_SM_GET_SN); });
+      } else {
+        ESP_LOGV(TAG, "Sensor is in idle mode");
+        this->internal_setup_(SEN5X_SM_GET_SN);
+      }
+      break;
     }
-    this->set_timeout(stop_measurement_delay, [this]() {
-      // note: serial number register is actually 32-bytes long but we grab only the first 16-bytes,
-      // this appears to be all that Sensirion uses for serial numbers, this could change
-      uint16_t raw_serial_number[8];
-      if (!this->get_register(SEN5X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 8, 20)) {
-        ESP_LOGE(TAG, "Failed to read serial number");
-        this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
-        this->mark_failed();
+    case SEN5X_SM_GET_SN:
+      if (!this->write_command(SEN5X_CMD_GET_SERIAL_NUMBER)) {
+        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+        return;
+      }
+      this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_GET_SN_1); });
+      break;
+    case SEN5X_SM_GET_SN_1: {
+      uint16_t raw_serial_number[8] = {0};
+      if (!this->read_data(raw_serial_number, 8)) {
+        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
       const char *serial_number = sensirion_convert_to_string_in_place(raw_serial_number, 8);
       snprintf(this->serial_number_, sizeof(this->serial_number_), "%s", serial_number);
       ESP_LOGV(TAG, "Serial number %s", this->serial_number_);
-
+      if (!this->write_command(SEN5X_CMD_GET_PRODUCT_NAME)) {
+        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+        return;
+      }
+      this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_GET_PN); });
+      break;
+    }
+    case SEN5X_SM_GET_PN: {
       uint16_t raw_product_name[16];
-      if (!this->get_register(SEN5X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
-        ESP_LOGE(TAG, "Failed to read product name");
-        this->error_code_ = PRODUCT_NAME_FAILED;
-        this->mark_failed();
+      if (!this->read_data(raw_product_name, 16)) {
+        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
       const char *product_name = sensirion_convert_to_string_in_place(raw_product_name, 16);
@@ -235,8 +255,9 @@ void SEN5XComponent::setup() {
         return;
       }
       this->initialized_ = true;
-    });
-  });
+      break;
+    }
+  }
 }
 
 void SEN5XComponent::dump_config() {
@@ -392,6 +413,16 @@ void SEN5XComponent::update() {
       }
     }
   });
+}
+
+bool SEN5XComponent::stop_measurements_() {
+  auto result = this->write_command(SEN5X_CMD_STOP_MEASUREMENTS);
+  if (!result) {
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  } else {
+    ESP_LOGD(TAG, "Measurements Stopped");
+  }
+  return result;
 }
 
 bool SEN5XComponent::write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning) {
