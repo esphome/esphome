@@ -114,8 +114,12 @@ def prepare(
             CONF_CLIENT_CERTIFICATE_KEY
         ):
             with (
-                tempfile.NamedTemporaryFile(mode="w+", delete_on_close=False) as cert_file,
-                tempfile.NamedTemporaryFile(mode="w+", delete_on_close=False) as key_file,
+                tempfile.NamedTemporaryFile(
+                    mode="w+", delete_on_close=False
+                ) as cert_file,
+                tempfile.NamedTemporaryFile(
+                    mode="w+", delete_on_close=False
+                ) as key_file,
             ):
                 cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
                 cert_file.flush()
