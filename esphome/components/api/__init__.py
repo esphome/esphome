@@ -292,7 +292,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_MAX_CONNECTIONS,
                 esp8266=4,  # ~40KB free RAM, each connection uses ~500-1000 bytes
                 esp32=8,  # 520KB RAM available
-                rp2040=4,  # 264KB RAM but LWIP constraints
+                rp2040=8,  # 264KB RAM, plenty of heap available
                 bk72xx=8,  # Moderate RAM
                 rtl87xx=8,  # Moderate RAM
                 host=8,  # Abundant resources
