@@ -27,6 +27,8 @@ class Text : public EntityBase {
   TextTraits traits;
 
   void publish_state(const std::string &state);
+  void publish_state(const char *state);
+  void publish_state(const char *state, size_t len);
 
   /// Instantiate a TextCall object to modify this text component's state.
   TextCall make_call() { return TextCall(this); }
@@ -44,7 +46,7 @@ class Text : public EntityBase {
    */
   virtual void control(const std::string &value) = 0;
 
-  CallbackManager<void(const std::string &)> state_callback_;
+  LazyCallbackManager<void(const std::string &)> state_callback_;
 };
 
 }  // namespace text

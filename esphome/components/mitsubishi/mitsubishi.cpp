@@ -1,10 +1,14 @@
 #include "mitsubishi.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace mitsubishi {
 
 static const char *const TAG = "mitsubishi.climate";
+
+// IR frame size for Mitsubishi climate
+static constexpr size_t MITSUBISHI_FRAME_SIZE = 18;
 
 const uint8_t MITSUBISHI_OFF = 0x00;
 
@@ -388,7 +392,10 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
   }
 
-  ESP_LOGV(TAG, "Receiving: %s", format_hex_pretty(state_frame, 18).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(MITSUBISHI_FRAME_SIZE)];
+#endif
+  ESP_LOGV(TAG, "Receiving: %s", format_hex_pretty_to(hex_buf, state_frame, MITSUBISHI_FRAME_SIZE));
 
   this->publish_state();
   return true;

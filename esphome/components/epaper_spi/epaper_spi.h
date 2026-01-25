@@ -36,14 +36,16 @@ class EPaperBase : public Display,
                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                          spi::DATA_RATE_2MHZ> {
  public:
-  EPaperBase(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
-             size_t init_sequence_length, DisplayType display_type = DISPLAY_TYPE_BINARY)
+  EPaperBase(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence = nullptr,
+             size_t init_sequence_length = 0, DisplayType display_type = DISPLAY_TYPE_BINARY)
       : name_(name),
         width_(width),
         height_(height),
         init_sequence_(init_sequence),
         init_sequence_length_(init_sequence_length),
-        display_type_(display_type) {}
+        display_type_(display_type) {
+    this->row_width_ = (this->width_ + 7) / 8;  // width of a row in bytes
+  }
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
@@ -54,8 +56,12 @@ class EPaperBase : public Display,
   void dump_config() override;
 
   void command(uint8_t value);
-  void data(uint8_t value);
   void cmd_data(uint8_t command, const uint8_t *ptr, size_t length);
+
+  // variant with in-place initializer list
+  void cmd_data(uint8_t command, std::initializer_list<uint8_t> data) {
+    this->cmd_data(command, data.begin(), data.size());
+  }
 
   void update() override;
   void loop() override;
@@ -76,6 +82,12 @@ class EPaperBase : public Display,
     return 0;
   }
   void fill(Color color) override {
+    // If clipping is active, fall back to base implementation
+    if (this->get_clipping().is_set()) {
+      Display::fill(color);
+      return;
+    }
+
     auto pixel_color = color_to_bit(color) ? 0xFF : 0x00;
 
     // We store 8 pixels per byte
@@ -103,7 +115,7 @@ class EPaperBase : public Display,
   bool is_idle_() const;
   void setup_pins_() const;
   virtual bool reset();
-  void initialise_();
+  virtual void initialise(bool partial);
   void wait_for_idle_(bool should_wait);
   bool init_buffer_(size_t buffer_length);
   bool rotate_coordinates_(int &x, int &y);
@@ -137,14 +149,12 @@ class EPaperBase : public Display,
 
   void set_state_(EPaperState state, uint16_t delay = 0);
 
-  void start_command_();
-  void end_command_();
   void start_data_();
-  void end_data_();
 
   // properties initialised in the constructor
   const char *name_;
   uint16_t width_;
+  uint16_t row_width_;  // width of a row in bytes
   uint16_t height_;
   const uint8_t *init_sequence_;
   size_t init_sequence_length_;
@@ -157,7 +167,8 @@ class EPaperBase : public Display,
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
   bool waiting_for_idle_{};
-  uint32_t delay_until_{};
+  uint32_t delay_until_{};  // timestamp until which to delay processing
+  uint16_t next_delay_{};   // milliseconds to delay before next state
   uint8_t transform_{};
   uint8_t update_count_{};
   // these values represent the bounds of the updated buffer. Note that x_high and y_high
