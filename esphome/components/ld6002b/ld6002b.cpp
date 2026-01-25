@@ -793,11 +793,14 @@ void LD6002BComponent::handle_version_report_(const uint8_t *data, uint16_t len)
   uint8_t minor = data[2];
   uint8_t patch = data[3];
   char buf[32];
-  if (project == 0) {
-    std::snprintf(buf, sizeof(buf), "%u.%u.%u", major, minor, patch);
-  } else {
-    std::snprintf(buf, sizeof(buf), "p%u %u.%u.%u", project, major, minor, patch);
+  int offset = 0;
+  if (project != 0) {
+    offset = std::snprintf(buf, sizeof(buf), "p%u ", project);
   }
+  if (offset < 0 || static_cast<size_t>(offset) >= sizeof(buf)) {
+    return;
+  }
+  std::snprintf(buf + offset, sizeof(buf) - static_cast<size_t>(offset), "%u.%u.%u", major, minor, patch);
   this->ota_version_text_sensor_->publish_state(buf);
   this->save_version_pref_(buf);
 #endif
@@ -1036,26 +1039,29 @@ void LD6002BComponent::set_number_value(NumberType type, float value) {
 void LD6002BComponent::set_select_value(SelectType type, size_t index) {
   switch (type) {
     case SelectType::SENSITIVITY:
-      if (index == 0)
+      if (index == 0) {
         this->send_control_command_(CMD_SENSITIVITY_LOW);
-      else if (index == 1)
+      } else if (index == 1) {
         this->send_control_command_(CMD_SENSITIVITY_MEDIUM);
-      else if (index == 2)
+      } else if (index == 2) {
         this->send_control_command_(CMD_SENSITIVITY_HIGH);
+      }
       break;
     case SelectType::TRIGGER_SPEED:
-      if (index == 0)
+      if (index == 0) {
         this->send_control_command_(CMD_TRIGGER_SLOW);
-      else if (index == 1)
+      } else if (index == 1) {
         this->send_control_command_(CMD_TRIGGER_MEDIUM);
-      else if (index == 2)
+      } else if (index == 2) {
         this->send_control_command_(CMD_TRIGGER_FAST);
+      }
       break;
     case SelectType::INSTALLATION_MODE:
-      if (index == 0)
+      if (index == 0) {
         this->send_control_command_(CMD_INSTALL_TOP);
-      else if (index == 1)
+      } else if (index == 1) {
         this->send_control_command_(CMD_INSTALL_SIDE);
+      }
       if (index <= 1) {
         this->save_installation_pref_(static_cast<uint8_t>(index));
       }

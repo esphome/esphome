@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, ENTITY_CATEGORY_CONFIG
+from esphome.const import CONF_AREA_ID, CONF_ID, CONF_SENSITIVITY, ENTITY_CATEGORY_CONFIG
 
 from .. import CONF_LD6002B_ID, LD6002BComponent, ld6002b_ns
 
@@ -10,10 +10,8 @@ DEPENDENCIES = ["ld6002b"]
 LD6002BSelect = ld6002b_ns.class_("LD6002BSelect", select.Select)
 SelectType = ld6002b_ns.enum("SelectType", is_class=True)
 
-CONF_SENSITIVITY = "sensitivity"
 CONF_TRIGGER_SPEED = "trigger_speed"
 CONF_INSTALLATION_MODE = "installation_mode"
-CONF_AREA_ID = "area_id"
 
 AREA_ID_OPTIONS = [
     "interference_0",

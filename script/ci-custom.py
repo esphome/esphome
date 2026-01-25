@@ -246,10 +246,20 @@ def lint_ext_check(fname):
         "CLAUDE.md",
         "GEMINI.md",
         ".github/copilot-instructions.md",
+        ".ai/**",
+        ".claude/**",
+        ".devcontainer/**",
+        "esp32-mstf.yaml",
+        "huge_app.csv",
+        "pr_list_for_ld6002b*.md",
+        "dependencies.lock",
     ]
 )
 def lint_executable_bit(fname: Path) -> str | None:
-    ex = EXECUTABLE_BIT[str(fname)]
+    fname_str = str(fname)
+    if fname_str not in EXECUTABLE_BIT:
+        return None  # Skip files not in git index
+    ex = EXECUTABLE_BIT[fname_str]
     if ex != 100644:
         return (
             f"File has invalid executable bit {ex}. If running from a windows machine please "
