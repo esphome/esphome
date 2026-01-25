@@ -88,6 +88,8 @@ bool WiFiComponent::wifi_sta_pre_setup_() { return this->wifi_mode_(true, {}); }
 
 bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   if (!manual_ip.has_value()) {
+    // Explicitly enable DHCP by passing all zeros - this resets any previous static IP config
+    WiFi.config(IPAddress(0, 0, 0, 0), IPAddress(0, 0, 0, 0), IPAddress(0, 0, 0, 0), IPAddress(0, 0, 0, 0));
     return true;
   }
 
