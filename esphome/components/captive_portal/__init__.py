@@ -13,6 +13,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
+    PLATFORM_RP2040,
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
@@ -53,6 +54,7 @@ CONFIG_SCHEMA = cv.All(
             PLATFORM_ESP8266,
             PLATFORM_BK72XX,
             PLATFORM_LN882X,
+            PLATFORM_RP2040,
             PLATFORM_RTL87XX,
         ]
     ),
@@ -105,6 +107,8 @@ async def to_code(config):
         if CORE.is_esp8266:
             cg.add_library("DNSServer", None)
         if CORE.is_libretiny:
+            cg.add_library("DNSServer", None)
+        if CORE.is_rp2040:
             cg.add_library("DNSServer", None)
 
 
