@@ -19,7 +19,6 @@ from esphome.const import (
     CONF_DUMMY_RECEIVER_ID,
     CONF_FLOW_CONTROL_PIN,
     CONF_ID,
-    CONF_INVERT,
     CONF_LAMBDA,
     CONF_NUMBER,
     CONF_PORT,
@@ -304,9 +303,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
                 UART_PARITY_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_INVERT): cv.invalid(
-                "This option has been removed. Please instead use invert in the tx/rx pin schemas."
-            ),
             cv.Optional(CONF_DEBUG): maybe_empty_debug,
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -381,6 +377,28 @@ async def to_code(config):
 
     if CONF_DEBUG in config:
         await debug_to_code(config[CONF_DEBUG], var)
+
+    # ESP8266: Enable the Arduino Serial objects that might be used based on pin config
+    # The C++ code selects hardware serial at runtime based on these pin combinations:
+    # - Serial (UART0): TX=1 or null, RX=3 or null
+    # - Serial (UART0 swap): TX=15 or null, RX=13 or null
+    # - Serial1: TX=2 or null, RX=8 or null
+    if CORE.is_esp8266:
+        from esphome.components.esp8266.const import enable_serial, enable_serial1
+
+        tx_num = config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None
+        rx_num = config[CONF_RX_PIN][CONF_NUMBER] if CONF_RX_PIN in config else None
+
+        # Check if this config could use Serial (UART0 regular or swap)
+        if (tx_num is None or tx_num in (1, 15)) and (
+            rx_num is None or rx_num in (3, 13)
+        ):
+            enable_serial()
+            cg.add_define("USE_ESP8266_UART_SERIAL")
+        # Check if this config could use Serial1
+        if (tx_num is None or tx_num == 2) and (rx_num is None or rx_num == 8):
+            enable_serial1()
+            cg.add_define("USE_ESP8266_UART_SERIAL1")
 
     CORE.add_job(final_step)
 
@@ -486,7 +504,7 @@ def final_validate_device_schema(
 async def register_uart_device(var, config):
     """Register a UART device, setting up all the internal values.
 
-    This is a coroutine, you need to await it with a 'yield' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
     """
     parent = await cg.get_variable(config[CONF_UART_ID])
     cg.add(var.set_uart_parent(parent))

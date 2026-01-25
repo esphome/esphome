@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <cstring>
 #include <vector>
 
 #include "esphome/core/automation.h"
@@ -86,11 +87,14 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
                   AlarmSensorType type = ALARM_SENSOR_TYPE_DELAYED);
 #endif
 
-  /** add a code
+  /** Set the codes (from initializer list).
    *
-   * @param code The code
+   * @param codes The list of valid codes
    */
-  void add_code(const std::string &code) { this->codes_.push_back(code); }
+  void set_codes(std::initializer_list<const char *> codes) { this->codes_ = codes; }
+
+  // Deleted overload to catch incorrect std::string usage at compile time
+  void set_codes(std::initializer_list<std::string> codes) = delete;
 
   /** set requires a code to arm
    *
@@ -155,8 +159,8 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   uint32_t pending_time_;
   // the time in trigger
   uint32_t trigger_time_;
-  // a list of codes
-  std::vector<std::string> codes_;
+  // a list of codes (const char* pointers to string literals in flash)
+  FixedVector<const char *> codes_;
   // requires a code to arm
   bool requires_code_to_arm_ = false;
   bool supports_arm_home_ = false;

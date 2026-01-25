@@ -30,7 +30,7 @@ void DateEntity::publish_state() {
     return;
   }
   this->set_has_state(true);
-  ESP_LOGD(TAG, "'%s': Sending date %d-%d-%d", this->get_name().c_str(), this->year_, this->month_, this->day_);
+  ESP_LOGD(TAG, "'%s' >> %d-%d-%d", this->get_name().c_str(), this->year_, this->month_, this->day_);
   this->state_callback_.call();
 #if defined(USE_DATETIME_DATE) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_date_update(this);
@@ -106,9 +106,9 @@ DateCall &DateCall::set_date(uint16_t year, uint8_t month, uint8_t day) {
 
 DateCall &DateCall::set_date(ESPTime time) { return this->set_date(time.year, time.month, time.day_of_month); };
 
-DateCall &DateCall::set_date(const std::string &date) {
+DateCall &DateCall::set_date(const char *date, size_t len) {
   ESPTime val{};
-  if (!ESPTime::strptime(date, val)) {
+  if (!ESPTime::strptime(date, len, val)) {
     ESP_LOGE(TAG, "Could not convert the date string to an ESPTime object");
     return *this;
   }
