@@ -531,7 +531,19 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
   memcpy(p, name.c_str(), name_len);
   p[name_len] = '\0';
 
-  root[ESPHOME_F("id")] = id_buf;
+  // name_id: new format {prefix}/{device?}/{name} - frontend should prefer this
+  // Remove in 2026.8.0 when id switches to new format permanently
+  root[ESPHOME_F("name_id")] = id_buf;
+
+  // id: old format {prefix}-{object_id} for backward compatibility
+  // Will switch to new format in 2026.8.0
+  char legacy_buf[ESPHOME_DOMAIN_MAX_LEN + 1 + OBJECT_ID_MAX_LEN];
+  char *lp = legacy_buf;
+  memcpy(lp, prefix, prefix_len);
+  lp += prefix_len;
+  *lp++ = '-';
+  obj->write_object_id_to(lp, sizeof(legacy_buf) - (lp - legacy_buf));
+  root[ESPHOME_F("id")] = legacy_buf;
 
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("domain")] = prefix;
