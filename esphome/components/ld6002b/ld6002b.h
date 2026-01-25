@@ -396,4 +396,3 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
 };
 
 }  // namespace esphome::ld6002b
-

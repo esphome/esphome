@@ -70,9 +70,7 @@ static constexpr uint16_t AREA_CONFIG_LEN = 28;  // int32 + 6 floats
 static constexpr uint8_t AREA_ID_DEFAULT = 4;  // detection_0 for initial display
 
 static constexpr uint8_t VERSION_QUERY_DATA[] = {0x01, 0x01, 0x00, 0x00};
-uint16_t LD6002BComponent::read_u16_be(const uint8_t *data) {
-  return (static_cast<uint16_t>(data[0]) << 8) | data[1];
-}
+uint16_t LD6002BComponent::read_u16_be(const uint8_t *data) { return (static_cast<uint16_t>(data[0]) << 8) | data[1]; }
 
 uint32_t LD6002BComponent::read_u32_le(const uint8_t *data) {
   return static_cast<uint32_t>(data[0]) | (static_cast<uint32_t>(data[1]) << 8) |
