@@ -10,27 +10,31 @@ DEPENDENCIES = ["ld6002b"]
 MAX_TARGETS = 3
 AREA_COUNT = 4
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
-        cv.Optional(CONF_TARGET): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_OCCUPANCY,
-        ),
-    }
-).extend(
-    {
-        cv.Optional(f"target_{i + 1}"): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_OCCUPANCY,
-        )
-        for i in range(MAX_TARGETS)
-    }
-).extend(
-    {
-        cv.Optional(f"area_{i}"): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_OCCUPANCY,
-        )
-        for i in range(AREA_COUNT)
-    }
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
+            cv.Optional(CONF_TARGET): binary_sensor.binary_sensor_schema(
+                device_class=DEVICE_CLASS_OCCUPANCY,
+            ),
+        }
+    )
+    .extend(
+        {
+            cv.Optional(f"target_{i + 1}"): binary_sensor.binary_sensor_schema(
+                device_class=DEVICE_CLASS_OCCUPANCY,
+            )
+            for i in range(MAX_TARGETS)
+        }
+    )
+    .extend(
+        {
+            cv.Optional(f"area_{i}"): binary_sensor.binary_sensor_schema(
+                device_class=DEVICE_CLASS_OCCUPANCY,
+            )
+            for i in range(AREA_COUNT)
+        }
+    )
 )
 
 

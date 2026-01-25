@@ -19,13 +19,19 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
         cv.Optional(CONF_LOW_POWER): switch.switch_schema(
-            LD6002BSwitch, device_class=DEVICE_CLASS_SWITCH, entity_category=ENTITY_CATEGORY_CONFIG
+            LD6002BSwitch,
+            device_class=DEVICE_CLASS_SWITCH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         cv.Optional(CONF_POINT_CLOUD): switch.switch_schema(
-            LD6002BSwitch, device_class=DEVICE_CLASS_SWITCH, entity_category=ENTITY_CATEGORY_CONFIG
+            LD6002BSwitch,
+            device_class=DEVICE_CLASS_SWITCH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         cv.Optional(CONF_TARGET_DISPLAY): switch.switch_schema(
-            LD6002BSwitch, device_class=DEVICE_CLASS_SWITCH, entity_category=ENTITY_CATEGORY_CONFIG
+            LD6002BSwitch,
+            device_class=DEVICE_CLASS_SWITCH,
+            entity_category=ENTITY_CATEGORY_CONFIG,
         ),
     }
 )

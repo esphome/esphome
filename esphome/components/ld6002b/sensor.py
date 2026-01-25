@@ -101,21 +101,28 @@ AREA_SCHEMA = cv.Schema(
     }
 )
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
-        cv.Optional(CONF_TARGET_COUNT): sensor.sensor_schema(
-            accuracy_decimals=0,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_POINT_COUNT): sensor.sensor_schema(
-            accuracy_decimals=0,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-    }
-).extend({cv.Optional(f"target_{i + 1}"): TARGET_SCHEMA for i in range(MAX_TARGETS)}).extend(
-    {cv.Optional(f"interference_area_{i}"): AREA_SCHEMA for i in range(AREA_COUNT)}
-).extend({cv.Optional(f"detection_area_{i}"): AREA_SCHEMA for i in range(AREA_COUNT)})
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
+            cv.Optional(CONF_TARGET_COUNT): sensor.sensor_schema(
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_POINT_COUNT): sensor.sensor_schema(
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+        }
+    )
+    .extend({cv.Optional(f"target_{i + 1}"): TARGET_SCHEMA for i in range(MAX_TARGETS)})
+    .extend(
+        {cv.Optional(f"interference_area_{i}"): AREA_SCHEMA for i in range(AREA_COUNT)}
+    )
+    .extend(
+        {cv.Optional(f"detection_area_{i}"): AREA_SCHEMA for i in range(AREA_COUNT)}
+    )
+)
 
 
 async def to_code(config):

@@ -63,9 +63,9 @@ static constexpr uint32_t CMD_GET_LOW_POWER = 0x18;
 static constexpr uint32_t CMD_GET_LOW_POWER_SLEEP = 0x19;
 static constexpr uint32_t CMD_RESET_UNATTENDED = 0x1A;
 
-static constexpr uint16_t TARGET_DATA_LEN = 20;     // x,y,z,dop_idx,cluster_id
-static constexpr uint16_t AREA_DATA_LEN = 24;       // 6 floats
-static constexpr uint16_t AREA_CONFIG_LEN = 28;     // int32 + 6 floats
+static constexpr uint16_t TARGET_DATA_LEN = 20;  // x,y,z,dop_idx,cluster_id
+static constexpr uint16_t AREA_DATA_LEN = 24;    // 6 floats
+static constexpr uint16_t AREA_CONFIG_LEN = 28;  // int32 + 6 floats
 
 static constexpr uint8_t AREA_ID_DEFAULT = 4;  // detection_0 for initial display
 
@@ -224,8 +224,9 @@ void LD6002BComponent::setup() {
     }
 #endif
 #ifdef USE_NUMBER
-    if (this->area_x_min_number_ != nullptr || this->area_x_max_number_ != nullptr || this->area_y_min_number_ != nullptr ||
-        this->area_y_max_number_ != nullptr || this->area_z_min_number_ != nullptr || this->area_z_max_number_ != nullptr) {
+    if (this->area_x_min_number_ != nullptr || this->area_x_max_number_ != nullptr ||
+        this->area_y_min_number_ != nullptr || this->area_y_max_number_ != nullptr ||
+        this->area_z_min_number_ != nullptr || this->area_z_max_number_ != nullptr) {
       want_area_report = true;
     }
 #endif
@@ -1163,8 +1164,7 @@ void LD6002BComponent::init_area_id_pref_() {
   if (this->area_id_select_ == nullptr) {
     return;
   }
-  this->area_id_pref_ =
-      global_preferences->make_preference<uint8_t>(this->area_id_select_->get_preference_hash());
+  this->area_id_pref_ = global_preferences->make_preference<uint8_t>(this->area_id_select_->get_preference_hash());
   this->area_id_pref_initialized_ = true;
 
   uint8_t value = 0;
