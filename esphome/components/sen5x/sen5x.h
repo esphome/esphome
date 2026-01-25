@@ -109,7 +109,6 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
 
  protected:
   void internal_setup_(Sen5xSetupStates state);
-  bool stop_measurements_();
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
 

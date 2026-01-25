@@ -91,7 +91,7 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       }
       if (raw_read_status) {
         // sensor has measurements ready, we need to stop measurements first
-        if (!this->stop_measurements_()) {
+        if (!this->write_command(SEN5X_CMD_STOP_MEASUREMENTS)) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
@@ -122,19 +122,12 @@ void SEN5XComponent::internal_setup_(Sen5xSetupStates state) {
       const char *serial_number = sensirion_convert_to_string_in_place(raw_serial_number, 8);
       snprintf(this->serial_number_, sizeof(this->serial_number_), "%s", serial_number);
       ESP_LOGV(TAG, "Serial number %s", this->serial_number_);
-      if (!this->write_command(SEN5X_CMD_GET_PRODUCT_NAME)) {
-        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-        return;
-      }
-      this->set_timeout(20, [this]() { this->internal_setup_(SEN5X_SM_GET_PN); });
-      break;
-    }
-    case SEN5X_SM_GET_PN: {
+
       uint16_t raw_product_name[16];
-      if (!this->read_data(raw_product_name, 16)) {
-        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      if (!this->get_register(SEN5X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
+        ESP_LOGE(TAG, "Failed to read product name");
+        this->error_code_ = PRODUCT_NAME_FAILED;
+        this->mark_failed();
         return;
       }
       const char *product_name = sensirion_convert_to_string_in_place(raw_product_name, 16);
@@ -413,16 +406,6 @@ void SEN5XComponent::update() {
       }
     }
   });
-}
-
-bool SEN5XComponent::stop_measurements_() {
-  auto result = this->write_command(SEN5X_CMD_STOP_MEASUREMENTS);
-  if (!result) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  } else {
-    ESP_LOGD(TAG, "Measurements Stopped");
-  }
-  return result;
 }
 
 bool SEN5XComponent::write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning) {
