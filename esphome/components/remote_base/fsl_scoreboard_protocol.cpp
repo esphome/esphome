@@ -233,7 +233,6 @@ optional<FSLScoreboardData> FSLScoreboardProtocol::decode(RemoteReceiveData src)
 
     if (decode_failed) {
       // Clear pending bits to avoid misalignment in next block
-      pending_count = 0;
       continue;
     }
 
@@ -244,7 +243,6 @@ optional<FSLScoreboardData> FSLScoreboardProtocol::decode(RemoteReceiveData src)
     if (pending_count > 0 && pending_bit == 0) {
       space_bits += pending_count;
     }
-    pending_count = 0;
 
     // Read more timings if needed
     while (space_bits < 3 && src.peek(0) != 0) {
