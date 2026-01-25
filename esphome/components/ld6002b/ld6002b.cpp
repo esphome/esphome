@@ -70,30 +70,30 @@ static constexpr uint16_t AREA_CONFIG_LEN = 28;     // int32 + 6 floats
 static constexpr uint8_t AREA_ID_DEFAULT = 4;  // detection_0 for initial display
 
 static constexpr uint8_t VERSION_QUERY_DATA[] = {0x01, 0x01, 0x00, 0x00};
-uint16_t LD6002BComponent::read_u16_be_(const uint8_t *data) {
+uint16_t LD6002BComponent::read_u16_be(const uint8_t *data) {
   return (static_cast<uint16_t>(data[0]) << 8) | data[1];
 }
 
-uint32_t LD6002BComponent::read_u32_le_(const uint8_t *data) {
+uint32_t LD6002BComponent::read_u32_le(const uint8_t *data) {
   return static_cast<uint32_t>(data[0]) | (static_cast<uint32_t>(data[1]) << 8) |
          (static_cast<uint32_t>(data[2]) << 16) | (static_cast<uint32_t>(data[3]) << 24);
 }
 
-int32_t LD6002BComponent::read_i32_le_(const uint8_t *data) {
-  uint32_t raw = read_u32_le_(data);
+int32_t LD6002BComponent::read_int32_le(const uint8_t *data) {
+  uint32_t raw = read_u32_le(data);
   int32_t value;
   std::memcpy(&value, &raw, sizeof(value));
   return value;
 }
 
-float LD6002BComponent::read_f32_le_(const uint8_t *data) {
-  uint32_t raw = read_u32_le_(data);
+float LD6002BComponent::read_f32_le(const uint8_t *data) {
+  uint32_t raw = read_u32_le(data);
   float value;
   std::memcpy(&value, &raw, sizeof(value));
   return value;
 }
 
-bool LD6002BComponent::should_publish_float_(float previous, float next, float epsilon) {
+bool LD6002BComponent::should_publish_float(float previous, float next, float epsilon) {
   if (std::isnan(previous) && std::isnan(next)) {
     return false;
   }
@@ -103,21 +103,21 @@ bool LD6002BComponent::should_publish_float_(float previous, float next, float e
   return std::fabs(previous - next) > epsilon;
 }
 
-void LD6002BComponent::write_u32_le_(uint8_t *data, uint32_t value) {
+void LD6002BComponent::write_u32_le(uint8_t *data, uint32_t value) {
   data[0] = value & 0xFF;
   data[1] = (value >> 8) & 0xFF;
   data[2] = (value >> 16) & 0xFF;
   data[3] = (value >> 24) & 0xFF;
 }
 
-void LD6002BComponent::write_i32_le_(uint8_t *data, int32_t value) {
-  write_u32_le_(data, static_cast<uint32_t>(value));
+void LD6002BComponent::write_int32_le(uint8_t *data, int32_t value) {
+  write_u32_le(data, static_cast<uint32_t>(value));
 }
 
-void LD6002BComponent::write_f32_le_(uint8_t *data, float value) {
+void LD6002BComponent::write_f32_le(uint8_t *data, float value) {
   uint32_t raw;
   std::memcpy(&raw, &value, sizeof(raw));
-  write_u32_le_(data, raw);
+  write_u32_le(data, raw);
 }
 
 void LD6002BComponent::setup() {
@@ -335,9 +335,9 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
         this->header_xor_ ^= byte;
         this->header_pos_++;
         if (this->header_pos_ == 6) {
-          this->frame_id_ = read_u16_be_(this->data_buf_.data());
-          this->data_len_ = read_u16_be_(this->data_buf_.data() + 2);
-          this->frame_type_ = read_u16_be_(this->data_buf_.data() + 4);
+          this->frame_id_ = read_u16_be(this->data_buf_.data());
+          this->data_len_ = read_u16_be(this->data_buf_.data() + 2);
+          this->frame_type_ = read_u16_be(this->data_buf_.data() + 4);
           if (this->data_len_ > MAX_DATA_LEN) {
             ESP_LOGW(TAG, "Frame too large: %u", this->data_len_);
             this->reset_parser_();
@@ -457,7 +457,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
   if (len < 4)
     return;
 
-  uint32_t target_num = read_u32_le_(data);
+  uint32_t target_num = read_u32_le(data);
   uint16_t available = (len - 4) / TARGET_DATA_LEN;
   uint8_t count = static_cast<uint8_t>(std::min<uint32_t>(target_num, available));
 
@@ -483,33 +483,33 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
     bool has_target = i < count;
     if (has_target) {
       uint16_t offset = 4 + (i * TARGET_DATA_LEN);
-      float x = read_f32_le_(data + offset + 0);
-      float y = read_f32_le_(data + offset + 4);
-      float z = read_f32_le_(data + offset + 8);
-      int32_t dop_idx = read_i32_le_(data + offset + 12);
-      int32_t cluster_id = static_cast<int32_t>(read_u32_le_(data + offset + 16));
+      float x = read_f32_le(data + offset + 0);
+      float y = read_f32_le(data + offset + 4);
+      float z = read_f32_le(data + offset + 8);
+      int32_t dop_idx = read_int32_le(data + offset + 12);
+      int32_t cluster_id = static_cast<int32_t>(read_u32_le(data + offset + 16));
       this->target_cluster_ids_[i] = cluster_id;
 #ifdef USE_SENSOR
       TargetSensors &target = this->targets_[i];
-      if (target.x != nullptr && should_publish_float_(this->last_target_x_[i], x)) {
+      if (target.x != nullptr && should_publish_float(this->last_target_x_[i], x)) {
         target.x->publish_state(x);
         this->last_target_x_[i] = x;
       }
-      if (target.y != nullptr && should_publish_float_(this->last_target_y_[i], y)) {
+      if (target.y != nullptr && should_publish_float(this->last_target_y_[i], y)) {
         target.y->publish_state(y);
         this->last_target_y_[i] = y;
       }
-      if (target.z != nullptr && should_publish_float_(this->last_target_z_[i], z)) {
+      if (target.z != nullptr && should_publish_float(this->last_target_z_[i], z)) {
         target.z->publish_state(z);
         this->last_target_z_[i] = z;
       }
       float dop_value = static_cast<float>(dop_idx);
-      if (target.dop_idx != nullptr && should_publish_float_(this->last_target_dop_[i], dop_value)) {
+      if (target.dop_idx != nullptr && should_publish_float(this->last_target_dop_[i], dop_value)) {
         target.dop_idx->publish_state(dop_value);
         this->last_target_dop_[i] = dop_value;
       }
       float cluster_value = static_cast<float>(cluster_id);
-      if (target.cluster_id != nullptr && should_publish_float_(this->last_target_cluster_[i], cluster_value)) {
+      if (target.cluster_id != nullptr && should_publish_float(this->last_target_cluster_[i], cluster_value)) {
         target.cluster_id->publish_state(cluster_value);
         this->last_target_cluster_[i] = cluster_value;
       }
@@ -557,7 +557,7 @@ void LD6002BComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
 
-  uint32_t point_num = read_u32_le_(data);
+  uint32_t point_num = read_u32_le(data);
   this->point_cloud_enabled_ = true;
 
 #ifdef USE_SENSOR
@@ -576,7 +576,7 @@ void LD6002BComponent::handle_area_presence_(const uint8_t *data, uint16_t len) 
 
   this->area_presence_any_ = false;
   for (uint8_t i = 0; i < AREA_COUNT; i++) {
-    uint32_t state = read_u32_le_(data + (i * 4));
+    uint32_t state = read_u32_le(data + (i * 4));
     bool present = state != 0;
     this->area_presence_any_ = this->area_presence_any_ || present;
 #ifdef USE_BINARY_SENSOR
@@ -602,12 +602,12 @@ void LD6002BComponent::handle_area_report_(bool interference, const uint8_t *dat
 
   for (uint8_t i = 0; i < AREA_COUNT; i++) {
     uint16_t offset = i * AREA_DATA_LEN;
-    float x_min = read_f32_le_(data + offset + 0);
-    float x_max = read_f32_le_(data + offset + 4);
-    float y_min = read_f32_le_(data + offset + 8);
-    float y_max = read_f32_le_(data + offset + 12);
-    float z_min = read_f32_le_(data + offset + 16);
-    float z_max = read_f32_le_(data + offset + 20);
+    float x_min = read_f32_le(data + offset + 0);
+    float x_max = read_f32_le(data + offset + 4);
+    float y_min = read_f32_le(data + offset + 8);
+    float y_max = read_f32_le(data + offset + 12);
+    float z_min = read_f32_le(data + offset + 16);
+    float z_max = read_f32_le(data + offset + 20);
 
 #ifdef USE_SENSOR
     AreaSensors &area = interference ? this->interference_areas_[i] : this->detection_areas_[i];
@@ -646,7 +646,7 @@ void LD6002BComponent::handle_area_report_(bool interference, const uint8_t *dat
 void LD6002BComponent::handle_delay_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
-  uint32_t delay = read_u32_le_(data);
+  uint32_t delay = read_u32_le(data);
   this->hold_delay_seconds_ = delay;
 #ifdef USE_NUMBER
   if (this->hold_delay_number_ != nullptr) {
@@ -684,8 +684,8 @@ void LD6002BComponent::handle_trigger_speed_report_(const uint8_t *data, uint16_
 void LD6002BComponent::handle_z_range_report_(const uint8_t *data, uint16_t len) {
   if (len < 8)
     return;
-  float z_min = read_f32_le_(data);
-  float z_max = read_f32_le_(data + 4);
+  float z_min = read_f32_le(data);
+  float z_max = read_f32_le(data + 4);
   this->z_min_ = z_min;
   this->z_max_ = z_max;
 #ifdef USE_NUMBER
@@ -734,7 +734,7 @@ void LD6002BComponent::handle_low_power_report_(const uint8_t *data, uint16_t le
 void LD6002BComponent::handle_low_power_sleep_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
-  uint32_t sleep_ms = read_u32_le_(data);
+  uint32_t sleep_ms = read_u32_le(data);
   this->low_power_sleep_ms_ = sleep_ms;
 #ifdef USE_NUMBER
   if (this->low_power_sleep_number_ != nullptr) {
@@ -922,7 +922,7 @@ void LD6002BComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t 
 
 void LD6002BComponent::send_control_command_(uint32_t command) {
   uint8_t data[4];
-  write_u32_le_(data, command);
+  write_u32_le(data, command);
   this->queue_command_(TYPE_CONTROL, data, sizeof(data));
 }
 
@@ -983,7 +983,7 @@ void LD6002BComponent::set_number_value(NumberType type, float value) {
       uint32_t delay = static_cast<uint32_t>(value);
       this->hold_delay_seconds_ = delay;
       uint8_t data[4];
-      write_u32_le_(data, delay);
+      write_u32_le(data, delay);
       this->queue_command_(TYPE_SET_HOLD_DELAY, data, sizeof(data));
       break;
     }
@@ -991,8 +991,8 @@ void LD6002BComponent::set_number_value(NumberType type, float value) {
       this->z_min_ = value;
       if (!std::isnan(this->z_min_) && !std::isnan(this->z_max_)) {
         uint8_t data[8];
-        write_f32_le_(data, this->z_min_);
-        write_f32_le_(data + 4, this->z_max_);
+        write_f32_le(data, this->z_min_);
+        write_f32_le(data + 4, this->z_max_);
         this->queue_command_(TYPE_SET_Z_RANGE, data, sizeof(data));
       }
       break;
@@ -1000,8 +1000,8 @@ void LD6002BComponent::set_number_value(NumberType type, float value) {
       this->z_max_ = value;
       if (!std::isnan(this->z_min_) && !std::isnan(this->z_max_)) {
         uint8_t data[8];
-        write_f32_le_(data, this->z_min_);
-        write_f32_le_(data + 4, this->z_max_);
+        write_f32_le(data, this->z_min_);
+        write_f32_le(data + 4, this->z_max_);
         this->queue_command_(TYPE_SET_Z_RANGE, data, sizeof(data));
       }
       break;
@@ -1009,7 +1009,7 @@ void LD6002BComponent::set_number_value(NumberType type, float value) {
       uint32_t sleep_ms = static_cast<uint32_t>(value);
       this->low_power_sleep_ms_ = sleep_ms;
       uint8_t data[4];
-      write_u32_le_(data, sleep_ms);
+      write_u32_le(data, sleep_ms);
       this->queue_command_(TYPE_SET_LOW_POWER_SLEEP, data, sizeof(data));
       break;
     }
@@ -1104,13 +1104,13 @@ void LD6002BComponent::update_area_numbers_for_id_(uint8_t area_id) {
 
 void LD6002BComponent::queue_area_config_(uint8_t area_id, const AreaConfig &desired) {
   uint8_t data[AREA_CONFIG_LEN];
-  write_i32_le_(data, static_cast<int32_t>(area_id));
-  write_f32_le_(data + 4, desired.x_min);
-  write_f32_le_(data + 8, desired.x_max);
-  write_f32_le_(data + 12, desired.y_min);
-  write_f32_le_(data + 16, desired.y_max);
-  write_f32_le_(data + 20, desired.z_min);
-  write_f32_le_(data + 24, desired.z_max);
+  write_int32_le(data, static_cast<int32_t>(area_id));
+  write_f32_le(data + 4, desired.x_min);
+  write_f32_le(data + 8, desired.x_max);
+  write_f32_le(data + 12, desired.y_min);
+  write_f32_le(data + 16, desired.y_max);
+  write_f32_le(data + 20, desired.z_min);
+  write_f32_le(data + 24, desired.z_max);
 
   this->queue_command_(TYPE_SET_AREA, data, sizeof(data));
   this->area_write_pending_ = true;

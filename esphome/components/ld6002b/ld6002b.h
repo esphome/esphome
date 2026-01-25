@@ -268,14 +268,14 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void apply_area_config_();
   void wake_();
 
-  static uint16_t read_u16_be_(const uint8_t *data);
-  static uint32_t read_u32_le_(const uint8_t *data);
-  static int32_t read_i32_le_(const uint8_t *data);
-  static float read_f32_le_(const uint8_t *data);
-  static void write_u32_le_(uint8_t *data, uint32_t value);
-  static void write_i32_le_(uint8_t *data, int32_t value);
-  static void write_f32_le_(uint8_t *data, float value);
-  static bool should_publish_float_(float previous, float next, float epsilon = 0.0001f);
+  static uint16_t read_u16_be(const uint8_t *data);
+  static uint32_t read_u32_le(const uint8_t *data);
+  static int32_t read_int32_le(const uint8_t *data);
+  static float read_f32_le(const uint8_t *data);
+  static void write_u32_le(uint8_t *data, uint32_t value);
+  static void write_int32_le(uint8_t *data, int32_t value);
+  static void write_f32_le(uint8_t *data, float value);
+  static bool should_publish_float(float previous, float next, float epsilon = 0.0001f);
 
 #ifdef USE_SENSOR
   std::array<TargetSensors, MAX_TARGETS> targets_{};
@@ -397,3 +397,4 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
 };
 
 }  // namespace esphome::ld6002b
+
