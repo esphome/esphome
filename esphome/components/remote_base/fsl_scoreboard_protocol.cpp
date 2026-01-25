@@ -66,20 +66,36 @@ optional<FSLScoreboardData> FSLScoreboardProtocol::decode(RemoteReceiveData src)
   ESP_LOGVV(TAG, "Decode attempt, data size: %d, first items: [%d, %d, %d, %d]", src.size(), src.peek(0), src.peek(1),
             src.peek(2), src.peek(3));
 
-  // Skip to first mark if we start with a space
-  if (src.peek(0) < 0)
-    src.advance(1);
-
-  // Look for preamble: at least 15 alternating 528µs mark/space pairs
+  // Scan for preamble: at least 15 consecutive alternating 528µs mark/space pairs
+  bool found_preamble = false;
   int preamble_count = 0;
-  while (src.peek_item(BIT_TIME_US, BIT_TIME_US)) {
-    src.advance(2);  // Advance by 2 since peek_item checks mark+space
-    preamble_count++;
+
+  while (src.peek(0) != 0) {
+    // Skip to next mark if current is space
+    if (src.peek(0) < 0) {
+      src.advance(1);
+      preamble_count = 0;  // Reset count
+      continue;
+    }
+
+    // Check if this starts a preamble sequence
+    if (src.peek_item(BIT_TIME_US, BIT_TIME_US)) {
+      src.advance(2);
+      preamble_count++;
+
+      if (preamble_count >= 15) {
+        found_preamble = true;
+        break;
+      }
+    } else {
+      // Not a preamble pair, skip and reset
+      src.advance(1);
+      preamble_count = 0;
+    }
   }
 
-  if (preamble_count < 15) {
-    ESP_LOGVV(TAG, "Preamble too short: %d, next items: [%d, %d, %d, %d]", preamble_count, src.peek(0), src.peek(1),
-              src.peek(2), src.peek(3));
+  if (!found_preamble) {
+    ESP_LOGVV(TAG, "Preamble not found");
     return {};
   }
 
