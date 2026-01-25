@@ -281,6 +281,7 @@ esphome/components/ld2412/* @Rihan9
 esphome/components/ld2420/* @descipher
 esphome/components/ld2450/* @hareeshmu
 esphome/components/ld24xx/* @kbx81
+esphome/components/ld6002b/* @hepter
 esphome/components/ledc/* @OttoWinter
 esphome/components/libretiny/* @kuba2k2
 esphome/components/libretiny_pwm/* @kuba2k2
