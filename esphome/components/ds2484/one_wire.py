@@ -9,7 +9,7 @@ ds2484_ns = cg.esphome_ns.namespace("ds2484")
 CONF_ACTIVE_PULLUP = "active_pullup"
 CONF_STRONG_PULLUP = "strong_pullup"
 
-CODEOWNERS = ["@mrk-its"]
+CODEOWNERS = ["@mrk-its", "@bytenik"]
 AUTO_LOAD = ["ds248x_base"]
 DEPENDENCIES = ["i2c"]
 

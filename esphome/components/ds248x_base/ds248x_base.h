@@ -41,7 +41,11 @@ class DS248xOneWireBusBase : public one_wire::OneWireBus, public i2c::I2CDevice,
   /// Wait for DS248x to complete current operation
   bool wait_for_completion_();
   /// Internal write8 implementation (no channel selection)
-  void write8_(uint8_t value);
+  /// @return true on success, false on I2C error
+  bool write8_(uint8_t value);
+  /// Internal read8 implementation (no channel selection)
+  /// @return true on success, false on I2C error
+  bool read8_(uint8_t *value);
   /// Perform 1-Wire triplet operation (used in search algorithm)
   bool one_wire_triple_(bool *branch, bool *id_bit, bool *cmp_id_bit);
 

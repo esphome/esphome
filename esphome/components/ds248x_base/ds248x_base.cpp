@@ -106,11 +106,14 @@ int DS248xOneWireBusBase::reset_int() {
   return this->wait_for_completion_() ? 1 : 0;
 }
 
-void DS248xOneWireBusBase::write8_(uint8_t value) {
+bool DS248xOneWireBusBase::write8_(uint8_t value) {
   // Send 1-Wire write byte command (0xA5) + data
   uint8_t buffer[2] = {0xa5, value};
-  this->write(buffer, 2);
-  this->wait_for_completion_();
+  if (this->write(buffer, 2) != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "write8_: I2C write failed");
+    return false;
+  }
+  return this->wait_for_completion_();
 }
 
 void DS248xOneWireBusBase::write8(uint8_t value) {
@@ -122,7 +125,9 @@ void DS248xOneWireBusBase::write8(uint8_t value) {
     return;
   }
 
-  this->write8_(value);
+  if (!this->write8_(value)) {
+    ESP_LOGE(TAG, "write8: write failed");
+  }
 }
 
 void DS248xOneWireBusBase::write64(uint64_t value) {
@@ -136,8 +141,40 @@ void DS248xOneWireBusBase::write64(uint64_t value) {
 
   // Write 8 bytes, LSB first
   for (uint8_t i = 0; i < 8; i++) {
-    this->write8_((value >> (i * 8)) & 0xff);
+    if (!this->write8_((value >> (i * 8)) & 0xff)) {
+      ESP_LOGE(TAG, "write64: write failed at byte %d", i);
+      return;
+    }
   }
+}
+
+bool DS248xOneWireBusBase::read8_(uint8_t *value) {
+  // Send 1-Wire read byte command (0x96)
+  uint8_t read8_cmd = 0x96;
+  if (this->write(&read8_cmd, 1) != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "read8_: can't write read8 cmd");
+    return false;
+  }
+
+  if (!this->wait_for_completion_()) {
+    ESP_LOGE(TAG, "read8_: wait_for_completion failed");
+    return false;
+  }
+
+  // Set read pointer to read data register (0xE1, 0xE1)
+  uint8_t set_read_reg_cmd[2] = {0xe1, 0xe1};
+  if (this->write(set_read_reg_cmd, 2) != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "read8_: can't set read data reg");
+    return false;
+  }
+
+  // Read the data byte
+  if (this->read(value, 1) != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "read8_: can't read response");
+    return false;
+  }
+
+  return true;
 }
 
 uint8_t DS248xOneWireBusBase::read8() {
@@ -147,39 +184,34 @@ uint8_t DS248xOneWireBusBase::read8() {
     return 0;
   }
 
-  // Send 1-Wire read byte command (0x96)
-  uint8_t read8_cmd = 0x96;
-  if (this->write(&read8_cmd, 1) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "can't write read8 cmd");
-    return 0;
-  }
-  this->wait_for_completion_();
-
-  // Set read pointer to read data register (0xE1, 0xE1)
-  uint8_t set_read_reg_cmd[2] = {0xe1, 0xe1};
-  if (this->write(set_read_reg_cmd, 2) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "can't set read data reg");
+  uint8_t value;
+  if (!this->read8_(&value)) {
+    ESP_LOGE(TAG, "read8: read failed");
     return 0;
   }
 
-  // Read the data byte
-  uint8_t response = 0;
-  if (this->read(&response, 1) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "can't read read8 response");
-    return 0;
-  }
-
-  ESP_LOGVV(TAG, "read8: %02x", response);
-  return response;
+  ESP_LOGVV(TAG, "read8: %02x", value);
+  return value;
 }
 
 uint64_t DS248xOneWireBusBase::read64() {
   ESP_LOGVV(TAG, "read64");
 
+  // Call subclass hook once (DS2482 selects channel here)
+  if (!this->pre_operation_hook_()) {
+    ESP_LOGE(TAG, "read64: pre_operation_hook failed");
+    return 0;
+  }
+
   // Read 8 bytes, LSB first
   uint64_t response = 0;
   for (uint8_t i = 0; i < 8; i++) {
-    response |= ((uint64_t) this->read8() << (i * 8));
+    uint8_t byte_val;
+    if (!this->read8_(&byte_val)) {
+      ESP_LOGE(TAG, "read64: read failed at byte %d", i);
+      return 0;
+    }
+    response |= ((uint64_t) byte_val << (i * 8));
   }
 
   ESP_LOGVV(TAG, "read64: %llx", response);
