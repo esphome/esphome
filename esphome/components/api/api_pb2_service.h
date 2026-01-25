@@ -303,6 +303,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_VALVE
   virtual void valve_command(const ValveCommandRequest &msg) = 0;
 #endif
+#ifdef USE_WATER_HEATER
+  virtual void water_heater_command(const WaterHeaterCommandRequest &msg) = 0;
+#endif
 #ifdef USE_BLUETOOTH_PROXY
   virtual void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) = 0;
 #endif
@@ -431,6 +434,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_VALVE
   void on_valve_command_request(const ValveCommandRequest &msg) override;
+#endif
+#ifdef USE_WATER_HEATER
+  void on_water_heater_command_request(const WaterHeaterCommandRequest &msg) override;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;

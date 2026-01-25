@@ -18,7 +18,11 @@
 namespace esphome::api {
 
 // Keepalive timeout in milliseconds
+#ifdef USE_API_KEEPALIVE_INTERVAL
+static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = USE_API_KEEPALIVE_INTERVAL;
+#else
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
+#endif
 // Maximum number of entities to process in a single batch during initial state/info sending
 // API 1.14+ clients compute object_id client-side, so messages are smaller and we can fit more per batch
 // TODO: Remove MAX_INITIAL_PER_BATCH_LEGACY before 2026.7.0 - all clients should support API 1.14 by then

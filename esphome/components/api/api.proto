@@ -45,6 +45,7 @@ service APIConnection {
   rpc time_command (TimeCommandRequest) returns (void) {}
   rpc update_command (UpdateCommandRequest) returns (void) {}
   rpc valve_command (ValveCommandRequest) returns (void) {}
+  rpc water_heater_command (WaterHeaterCommandRequest) returns (void) {}
 
   rpc subscribe_bluetooth_le_advertisements(SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc bluetooth_device_request(BluetoothDeviceRequest) returns (void) {}
@@ -126,6 +127,7 @@ message HelloResponse {
 
   // The name of the server (App.get_name())
   string name = 4;
+  uint32 server_keepalive_interval = 5;
 }
 
 // DEPRECATED in ESPHome 2026.1.0 - Password authentication is no longer supported.

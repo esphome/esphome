@@ -1,7 +1,7 @@
 import base64
 import logging
 
-from esphome import automation
+from esphome import automation, core
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.logger import request_log_listener
@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_ACTION,
     CONF_ACTIONS,
     CONF_CAPTURE_RESPONSE,
+    CONF_CLIENT_KEEPALIVE_INTERVAL,
     CONF_DATA,
     CONF_DATA_TEMPLATE,
     CONF_EVENT,
@@ -25,6 +26,7 @@ from esphome.const import (
     CONF_PORT,
     CONF_REBOOT_TIMEOUT,
     CONF_RESPONSE_TEMPLATE,
+    CONF_SERVER_KEEPALIVE_INTERVAL,
     CONF_SERVICE,
     CONF_SERVICES,
     CONF_TAG,
@@ -312,6 +314,14 @@ CONFIG_SCHEMA = cv.All(
                 host=16,  # Abundant resources
                 ln882x=8,  # Moderate RAM
             ): cv.int_range(min=1, max=64),
+            cv.Optional(CONF_CLIENT_KEEPALIVE_INTERVAL, default="60sec"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=core.TimePeriod(milliseconds=60000)),
+            ),
+            cv.Optional(CONF_SERVER_KEEPALIVE_INTERVAL, default="20sec"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=core.TimePeriod(milliseconds=20000)),
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
@@ -447,6 +457,14 @@ async def to_code(config: ConfigType) -> None:
         cg.add_library("esphome/noise-c", "0.1.10")
     else:
         cg.add_define("USE_API_PLAINTEXT")
+    if (
+        keepalive_interval := config.get(CONF_CLIENT_KEEPALIVE_INTERVAL, None)
+    ) is not None:
+        cg.add_define("USE_API_KEEPALIVE_INTERVAL", keepalive_interval)
+    if (
+        keepalive_interval := config.get(CONF_SERVER_KEEPALIVE_INTERVAL, None)
+    ) is not None:
+        cg.add(var.set_server_keepalive_interval(keepalive_interval))
 
     cg.add_define("USE_API")
     cg.add_global(api_ns.using)

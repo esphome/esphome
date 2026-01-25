@@ -746,6 +746,11 @@ void APIServerConnection::on_update_command_request(const UpdateCommandRequest &
 #ifdef USE_VALVE
 void APIServerConnection::on_valve_command_request(const ValveCommandRequest &msg) { this->valve_command(msg); }
 #endif
+#ifdef USE_WATER_HEATER
+void APIServerConnection::on_water_heater_command_request(const WaterHeaterCommandRequest &msg) {
+  this->water_heater_command(msg);
+}
+#endif
 #ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_subscribe_bluetooth_le_advertisements_request(
     const SubscribeBluetoothLEAdvertisementsRequest &msg) {

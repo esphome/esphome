@@ -761,6 +761,7 @@ const char *HelloResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, "api_version_minor", this->api_version_minor);
   dump_field(out, "server_info", this->server_info);
   dump_field(out, "name", this->name);
+  dump_field(out, "server_keepalive_interval", this->server_keepalive_interval);
   return out.c_str();
 }
 const char *DisconnectRequest::dump_to(DumpBuffer &out) const {

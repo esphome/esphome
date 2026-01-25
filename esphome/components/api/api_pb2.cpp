@@ -36,12 +36,14 @@ void HelloResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(2, this->api_version_minor);
   buffer.encode_string(3, this->server_info);
   buffer.encode_string(4, this->name);
+  buffer.encode_uint32(5, this->server_keepalive_interval);
 }
 void HelloResponse::calculate_size(ProtoSize &size) const {
   size.add_uint32(1, this->api_version_major);
   size.add_uint32(1, this->api_version_minor);
   size.add_length(1, this->server_info.size());
   size.add_length(1, this->name.size());
+  size.add_uint32(1, this->server_keepalive_interval);
 }
 #ifdef USE_AREAS
 void AreaInfo::encode(ProtoWriteBuffer buffer) const {

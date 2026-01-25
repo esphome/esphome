@@ -235,6 +235,9 @@ class APIServer : public Component,
   }
 #endif
 
+  void set_server_keepalive_interval(uint32_t interval) { this->server_keepalive_interval_ = interval; }
+  uint32_t get_server_keepalive_interval() { return this->server_keepalive_interval_; }
+
  protected:
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
@@ -262,6 +265,7 @@ class APIServer : public Component,
   // 4-byte aligned types
   uint32_t reboot_timeout_{300000};
   uint32_t last_connected_{0};
+  uint32_t server_keepalive_interval_{20000};
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;
