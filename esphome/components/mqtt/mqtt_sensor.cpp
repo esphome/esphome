@@ -28,7 +28,7 @@ void MQTTSensorComponent::dump_config() {
   if (this->get_expire_after() > 0) {
     ESP_LOGCONFIG(TAG, "  Expire After: %" PRIu32 "s", this->get_expire_after() / 1000);
   }
-  LOG_MQTT_COMPONENT(true, false)
+  LOG_MQTT_COMPONENT(true, false);
 }
 
 MQTT_COMPONENT_TYPE(MQTTSensorComponent, "sensor")
@@ -80,9 +80,11 @@ bool MQTTSensorComponent::send_initial_state() {
 }
 bool MQTTSensorComponent::publish_state(float value) {
   if (mqtt::global_mqtt_client->is_publish_nan_as_none() && std::isnan(value))
-    return this->publish(this->get_state_topic_(), "None");
+    return this->publish(this->get_state_topic_(), "None", 4);
   int8_t accuracy = this->sensor_->get_accuracy_decimals();
-  return this->publish(this->get_state_topic_(), value_accuracy_to_string(value, accuracy));
+  char buf[VALUE_ACCURACY_MAX_LEN];
+  size_t len = value_accuracy_to_buf(buf, value, accuracy);
+  return this->publish(this->get_state_topic_(), buf, len);
 }
 
 }  // namespace esphome::mqtt

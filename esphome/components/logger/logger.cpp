@@ -1,8 +1,5 @@
 #include "logger.h"
 #include <cinttypes>
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-#include <memory>  // For unique_ptr
-#endif
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -23,29 +20,56 @@ static const char *const TAG = "logger";
 //    - Messages are serialized through main loop for proper console output
 //    - Fallback to emergency console logging only if ring buffer is full
 //  - WITHOUT task log buffer: Only emergency console output, no callbacks
+//
+// Optimized for the common case: 99.9% of logs come from the main thread
 void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
   if (level > this->level_for(tag))
     return;
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // Get task handle once - used for both main task check and passing to non-main thread handler
   TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-  bool is_main_task = (current_task == main_task_);
+  const bool is_main_task = (current_task == this->main_task_);
 #else  // USE_HOST
-  pthread_t current_thread = pthread_self();
-  bool is_main_task = pthread_equal(current_thread, main_thread_);
+  const bool is_main_task = pthread_equal(pthread_self(), this->main_thread_);
 #endif
 
-  // Check and set recursion guard - uses pthread TLS for per-thread/task state
-  if (this->check_and_set_task_log_recursion_(is_main_task)) {
-    return;  // Recursion detected
-  }
-
-  // Main thread/task uses the shared buffer for efficiency
-  if (is_main_task) {
+  // Fast path: main thread, no recursion (99.9% of all logs)
+  if (is_main_task && !this->main_task_recursion_guard_) [[likely]] {
+    RecursionGuard guard(this->main_task_recursion_guard_);
+    // Format and send to both console and callbacks
     this->log_message_to_buffer_and_send_(level, tag, line, format, args);
-    this->reset_task_log_recursion_(is_main_task);
     return;
   }
+
+  // Main task with recursion - silently drop to prevent infinite loop
+  if (is_main_task) {
+    return;
+  }
+
+  // Non-main thread handling (~0.1% of logs)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  this->log_vprintf_non_main_thread_(level, tag, line, format, args, current_task);
+#else  // USE_HOST
+  this->log_vprintf_non_main_thread_(level, tag, line, format, args);
+#endif
+}
+
+// Handles non-main thread logging only
+// Kept separate from hot path to improve instruction cache performance
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
+                                          TaskHandle_t current_task) {
+#else  // USE_HOST
+void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args) {
+#endif
+  // Check if already in recursion for this non-main thread/task
+  if (this->is_non_main_task_recursive_()) {
+    return;
+  }
+
+  // RAII guard - automatically resets on any return path
+  auto guard = this->make_non_main_task_guard_();
 
   bool message_sent = false;
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
@@ -85,21 +109,17 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
     this->write_msg_(console_buffer, buffer_at);
   }
 
-  // Reset the recursion guard for this thread/task
-  this->reset_task_log_recursion_(is_main_task);
+  // RAII guard automatically resets on return
 }
 #else
-// Implementation for all other platforms
+// Implementation for all other platforms (single-task, no threading)
 void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args) {  // NOLINT
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
 
-  global_recursion_guard_ = true;
-
+  RecursionGuard guard(global_recursion_guard_);
   // Format and send to both console and callbacks
   this->log_message_to_buffer_and_send_(level, tag, line, format, args);
-
-  global_recursion_guard_ = false;
 }
 #endif  // USE_ESP32 / USE_HOST / USE_LIBRETINY
 
@@ -130,7 +150,7 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
 
-  global_recursion_guard_ = true;
+  RecursionGuard guard(global_recursion_guard_);
   this->tx_buffer_at_ = 0;
 
   // Copy format string from progmem
@@ -140,9 +160,8 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
     this->tx_buffer_[this->tx_buffer_at_++] = ch = (char) progmem_read_byte(format_pgm_p++);
   }
 
-  // Buffer full from copying format
+  // Buffer full from copying format - RAII guard handles cleanup on return
   if (this->tx_buffer_at_ >= this->tx_buffer_size_) {
-    global_recursion_guard_ = false;  // Make sure to reset the recursion guard before returning
     return;
   }
 
@@ -156,13 +175,13 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
       this->tx_buffer_at_ - msg_start;  // Don't subtract 1 - tx_buffer_at_ is already at the null terminator position
 
   // Listeners get message first (before console write)
+#ifdef USE_LOG_LISTENERS
   for (auto *listener : this->log_listeners_)
     listener->on_log(level, tag, this->tx_buffer_ + msg_start, msg_length);
+#endif
 
   // Write to console starting at the msg_start
   this->write_tx_buffer_to_console_(msg_start, &msg_length);
-
-  global_recursion_guard_ = false;
 }
 #endif  // USE_STORE_LOG_STR_IN_FLASH
 
@@ -177,7 +196,8 @@ inline uint8_t Logger::level_for(const char *tag) {
 
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size) {
   // add 1 to buffer size for null terminator
-  this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
+  this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   this->main_task_ = xTaskGetCurrentTaskHandle();
 #elif defined(USE_ZEPHYR)
@@ -190,11 +210,14 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate
 void Logger::init_log_buffer(size_t total_buffer_size) {
 #ifdef USE_HOST
   // Host uses slot count instead of byte size
-  this->log_buffer_ = esphome::make_unique<logger::TaskLogBufferHost>(total_buffer_size);
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
+  this->log_buffer_ = new logger::TaskLogBufferHost(total_buffer_size);
 #elif defined(USE_ESP32)
-  this->log_buffer_ = esphome::make_unique<logger::TaskLogBuffer>(total_buffer_size);
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
+  this->log_buffer_ = new logger::TaskLogBuffer(total_buffer_size);
 #elif defined(USE_LIBRETINY)
-  this->log_buffer_ = esphome::make_unique<logger::TaskLogBufferLibreTiny>(total_buffer_size);
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
+  this->log_buffer_ = new logger::TaskLogBufferLibreTiny(total_buffer_size);
 #endif
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)

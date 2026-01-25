@@ -309,8 +309,8 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
   }
   httpd_resp_set_hdr(*this, "Accept-Ranges", "none");
 
-  for (const auto &pair : DefaultHeaders::Instance().headers_) {
-    httpd_resp_set_hdr(*this, pair.first.c_str(), pair.second.c_str());
+  for (const auto &header : DefaultHeaders::Instance().headers_) {
+    httpd_resp_set_hdr(*this, header.name, header.value);
   }
 
   delete this->rsp_;
@@ -335,17 +335,29 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
     return false;
   }
 
-  std::string user_info;
-  user_info += username;
-  user_info += ':';
-  user_info += password;
+  // Build user:pass in stack buffer to avoid heap allocation
+  constexpr size_t max_user_info_len = 256;
+  char user_info[max_user_info_len];
+  size_t user_len = strlen(username);
+  size_t pass_len = strlen(password);
+  size_t user_info_len = user_len + 1 + pass_len;
+
+  if (user_info_len >= max_user_info_len) {
+    ESP_LOGW(TAG, "Credentials too long for authentication");
+    return false;
+  }
+
+  memcpy(user_info, username, user_len);
+  user_info[user_len] = ':';
+  memcpy(user_info + user_len + 1, password, pass_len);
+  user_info[user_info_len] = '\0';
 
   size_t n = 0, out;
-  esp_crypto_base64_encode(nullptr, 0, &n, reinterpret_cast<const uint8_t *>(user_info.c_str()), user_info.size());
+  esp_crypto_base64_encode(nullptr, 0, &n, reinterpret_cast<const uint8_t *>(user_info), user_info_len);
 
   auto digest = std::unique_ptr<char[]>(new char[n + 1]);
   esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest.get()), n, &out,
-                           reinterpret_cast<const uint8_t *>(user_info.c_str()), user_info.size());
+                           reinterpret_cast<const uint8_t *>(user_info), user_info_len);
 
   return strcmp(digest.get(), auth_str + auth_prefix_len) == 0;
 }
@@ -475,7 +487,7 @@ void AsyncEventSource::deferrable_send_state(void *source, const char *event_typ
 AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *request,
                                                    esphome::web_server_idf::AsyncEventSource *server,
                                                    esphome::web_server::WebServer *ws)
-    : server_(server), web_server_(ws), entities_iterator_(new esphome::web_server::ListEntitiesIterator(ws, server)) {
+    : server_(server), web_server_(ws), entities_iterator_(ws, server) {
   httpd_req_t *req = *request;
 
   httpd_resp_set_status(req, HTTPD_200);
@@ -483,8 +495,8 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
   httpd_resp_set_hdr(req, "Connection", "keep-alive");
 
-  for (const auto &pair : DefaultHeaders::Instance().headers_) {
-    httpd_resp_set_hdr(req, pair.first.c_str(), pair.second.c_str());
+  for (const auto &header : DefaultHeaders::Instance().headers_) {
+    httpd_resp_set_hdr(req, header.name, header.value);
   }
 
   httpd_resp_send_chunk(req, CRLF_STR, CRLF_LEN);
@@ -519,12 +531,12 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   }
 #endif
 
-  this->entities_iterator_->begin(ws->include_internal_);
+  this->entities_iterator_.begin(ws->include_internal_);
 
   // just dump them all up-front and take advantage of the deferred queue
   //     on second thought that takes too long, but leaving the commented code here for debug purposes
-  // while(!this->entities_iterator_->completed()) {
-  //  this->entities_iterator_->advance();
+  // while(!this->entities_iterator_.completed()) {
+  //  this->entities_iterator_.advance();
   //}
 }
 
@@ -622,8 +634,8 @@ void AsyncEventSourceResponse::process_buffer_() {
 void AsyncEventSourceResponse::loop() {
   process_buffer_();
   process_deferred_queue_();
-  if (!this->entities_iterator_->completed())
-    this->entities_iterator_->advance();
+  if (!this->entities_iterator_.completed())
+    this->entities_iterator_.advance();
 }
 
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char *event, uint32_t id,
@@ -769,7 +781,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
                                                      message_generator_t *message_generator) {
   // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
   // up in the web GUI and reduces event load during initial connect
-  if (!entities_iterator_->completed() && 0 != strcmp(event_type, "state_detail_all"))
+  if (!this->entities_iterator_.completed() && 0 != strcmp(event_type, "state_detail_all"))
     return;
 
   if (source == nullptr)
