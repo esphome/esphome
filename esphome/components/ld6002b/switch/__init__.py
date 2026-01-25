@@ -4,7 +4,12 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, DEVICE_CLASS_SWITCH, ENTITY_CATEGORY_CONFIG
 
 from .. import LD6002BComponent, ld6002b_ns
-from ..const import CONF_LD6002B_ID, CONF_LOW_POWER, CONF_POINT_CLOUD, CONF_TARGET_DISPLAY
+from ..const import (
+    CONF_LD6002B_ID,
+    CONF_LOW_POWER,
+    CONF_POINT_CLOUD,
+    CONF_TARGET_DISPLAY,
+)
 
 DEPENDENCIES = ["ld6002b"]
 
