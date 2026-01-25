@@ -120,26 +120,39 @@ class APIFrameHelper {
     }
     return APIError::OK;
   }
-  /// Toggle TCP_NODELAY socket option to control Nagle's algorithm.
-  ///
-  /// This is used to allow log messages to coalesce (Nagle enabled) while keeping
-  /// state updates low-latency (NODELAY enabled). Without this, many small log
-  /// packets fill the TCP send buffer, crowding out important state updates.
-  ///
-  /// State is tracked to minimize setsockopt() overhead - on lwip_raw (ESP8266/RP2040)
-  /// this is just a boolean assignment; on other platforms it's a lightweight syscall.
-  ///
-  /// @param enable true to enable NODELAY (disable Nagle), false to enable Nagle
-  /// @return true if successful or already in desired state
-  bool set_nodelay(bool enable) {
-    if (this->nodelay_enabled_ == enable)
-      return true;
-    int val = enable ? 1 : 0;
-    int err = this->socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &val, sizeof(int));
-    if (err == 0) {
-      this->nodelay_enabled_ = enable;
+  // Manage TCP_NODELAY (Nagle's algorithm) based on message type.
+  //
+  // For non-log messages (sensor data, state updates): Always disable Nagle
+  // (NODELAY on) for immediate delivery - these are time-sensitive.
+  //
+  // For log messages: Use Nagle to coalesce multiple small log packets into
+  // fewer larger packets, reducing WiFi overhead. However, we limit batching
+  // to 3 messages to avoid excessive LWIP buffer pressure on memory-constrained
+  // devices like ESP8266. LWIP's TCP_OVERSIZE option coalesces the data into
+  // shared pbufs, but holding data too long waiting for Nagle's timer causes
+  // buffer exhaustion and dropped messages.
+  //
+  // Flow: Log 1 (Nagle on) -> Log 2 (Nagle on) -> Log 3 (NODELAY, flush all)
+  //
+  void set_nodelay_for_message(bool is_log_message) {
+    if (!is_log_message) {
+      if (this->nodelay_state_ != NODELAY_ON) {
+        this->set_nodelay_raw_(true);
+        this->nodelay_state_ = NODELAY_ON;
+      }
+      return;
     }
-    return err == 0;
+
+    // Log messages 1-3: state transitions -1 -> 1 -> 2 -> -1 (flush on 3rd)
+    if (this->nodelay_state_ == NODELAY_ON) {
+      this->set_nodelay_raw_(false);
+      this->nodelay_state_ = 1;
+    } else if (this->nodelay_state_ >= LOG_NAGLE_COUNT) {
+      this->set_nodelay_raw_(true);
+      this->nodelay_state_ = NODELAY_ON;
+    } else {
+      this->nodelay_state_++;
+    }
   }
   virtual APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) = 0;
   // Write multiple protobuf messages in a single operation
@@ -229,10 +242,18 @@ class APIFrameHelper {
   uint8_t tx_buf_head_{0};
   uint8_t tx_buf_tail_{0};
   uint8_t tx_buf_count_{0};
-  // Tracks TCP_NODELAY state to minimize setsockopt() calls. Initialized to true
-  // since init_common_() enables NODELAY. Used by set_nodelay() to allow log
-  // messages to coalesce while keeping state updates low-latency.
-  bool nodelay_enabled_{true};
+  // Nagle batching state for log messages. NODELAY_ON (-1) means NODELAY is enabled
+  // (immediate send). Values 1-2 count log messages in the current Nagle batch.
+  // After LOG_NAGLE_COUNT logs, we switch to NODELAY to flush and reset.
+  static constexpr int8_t NODELAY_ON = -1;
+  static constexpr int8_t LOG_NAGLE_COUNT = 2;
+  int8_t nodelay_state_{NODELAY_ON};
+
+  // Internal helper to set TCP_NODELAY socket option
+  void set_nodelay_raw_(bool enable) {
+    int val = enable ? 1 : 0;
+    this->socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &val, sizeof(int));
+  }
 
   // Common initialization for both plaintext and noise protocols
   APIError init_common_();

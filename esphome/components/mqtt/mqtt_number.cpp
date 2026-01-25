@@ -30,7 +30,7 @@ void MQTTNumberComponent::setup() {
 
 void MQTTNumberComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Number '%s':", this->number_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, false)
+  LOG_MQTT_COMPONENT(true, false);
 }
 
 MQTT_COMPONENT_TYPE(MQTTNumberComponent, "number")
@@ -75,7 +75,7 @@ bool MQTTNumberComponent::send_initial_state() {
 }
 bool MQTTNumberComponent::publish_state(float value) {
   char buffer[64];
-  snprintf(buffer, sizeof(buffer), "%f", value);
+  buf_append_printf(buffer, sizeof(buffer), 0, "%f", value);
   return this->publish(this->get_state_topic_(), buffer);
 }
 
