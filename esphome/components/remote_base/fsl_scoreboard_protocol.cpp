@@ -58,7 +58,7 @@ void FSLScoreboardProtocol::encode(RemoteTransmitData *dst, const FSLScoreboardD
 }
 
 optional<FSLScoreboardData> FSLScoreboardProtocol::decode(RemoteReceiveData src) {
-  // Look for preamble: alternating pattern
+  // Look for preamble: at least 15 alternating 528us mark/space pairs
   int preamble_count = 0;
   while (src.peek_item(BIT_TIME_US, BIT_TIME_US)) {
     src.advance(1);
@@ -70,19 +70,26 @@ optional<FSLScoreboardData> FSLScoreboardProtocol::decode(RemoteReceiveData src)
   if (preamble_count < 15)
     return {};
 
-  // Look for sync: 111 (3 * BIT_TIME_US mark)
+  // After preamble (ends with space), look for sync: 3 * BIT_TIME_US mark
   if (!src.expect_mark(BIT_TIME_US * 3))
     return {};
 
   // Manchester decode 32 bits
+  // After sync mark, first transition depends on first bit
   uint32_t payload = 0;
   for (int i = 0; i < 32; i++) {
-    if (src.expect_space(BIT_TIME_US) && src.expect_mark(BIT_TIME_US)) {
-      // 01 = 1
+    // Peek at next two items to determine bit value
+    int32_t first = src.peek(0);
+    int32_t second = src.peek(1);
+
+    if (first < 0 && abs(first) <= BIT_TIME_US * 1.5 && second > 0 && second <= BIT_TIME_US * 1.5) {
+      // space-mark = 1
       payload = (payload << 1) | 1;
-    } else if (src.expect_mark(BIT_TIME_US) && src.expect_space(BIT_TIME_US)) {
-      // 10 = 0
+      src.advance(2);
+    } else if (first > 0 && first <= BIT_TIME_US * 1.5 && second < 0 && abs(second) <= BIT_TIME_US * 1.5) {
+      // mark-space = 0
       payload = (payload << 1) | 0;
+      src.advance(2);
     } else {
       return {};
     }
