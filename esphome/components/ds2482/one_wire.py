@@ -1,4 +1,4 @@
-"""DS2482-800 8-channel I2C-to-1-Wire bridge."""
+"""DS2482 I2C-to-1-Wire bridge (DS2482-100 and DS2482-800)."""
 
 from dataclasses import dataclass, field
 
@@ -85,7 +85,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DS2482OneWireBus),
-            cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=7),
+            cv.Optional(CONF_CHANNEL, default=0): cv.int_range(min=0, max=7),
             cv.Optional(CONF_ACTIVE_PULLUP, default=False): cv.boolean,
             cv.Optional(CONF_STRONG_PULLUP, default=False): cv.boolean,
         }

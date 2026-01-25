@@ -10,6 +10,7 @@ namespace ds2482 {
 /// https://www.analog.com/media/en/technical-documentation/data-sheets/ds2482-800.pdf
 class DS2482OneWireBus : public ds248x_base::DS248xOneWireBusBase {
  public:
+  void setup() override;
   void dump_config() override;
 
   /// Set which channel (0-7) this bus instance uses
@@ -22,12 +23,17 @@ class DS2482OneWireBus : public ds248x_base::DS248xOneWireBusBase {
   /// Hook called after device reset to invalidate channel cache
   void post_reset_hook_() override;
 
+  /// Detect whether this is a DS2482-800 (8-channel) or DS2482-100 (single-channel)
+  /// @return true if DS2482-800, false if DS2482-100
+  bool detect_variant_();
+
   /// Select the configured channel on the DS2482
   /// @return true on success, false on I2C error or verification failure
   bool select_channel_();
 
   uint8_t channel_{0};             ///< Configured channel (0-7)
   uint8_t current_channel_{0xFF};  ///< Currently selected channel (0xFF = none)
+  bool is_ds2482_800_{false};      ///< true if DS2482-800, false if DS2482-100
 };
 
 }  // namespace ds2482
