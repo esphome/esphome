@@ -4,6 +4,11 @@ namespace esphome {
 namespace ds2482 {
 static const char *const TAG = "ds2482.onewire";
 
+// Shared channel cache across all DS2482 instances
+// Maps I2C address (0x18-0x1F) to currently selected channel
+// Indexed by (address - 0x18), value 0xFF means no channel selected
+static uint8_t g_channel_cache[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
 // DS2482-800 channel selection codes
 // Based on DS2482-800 datasheet Table 2
 // Write codes sent with channel select command (0xC3)
@@ -49,7 +54,7 @@ bool DS2482OneWireBus::detect_variant_() {
   // DS2482-100 will reject this command
   ESP_LOGVV(TAG, "Detecting DS2482 variant...");
 
-  uint8_t channel_select_cmd[2] = {0xC3, 0x87};  // Select channel 7
+  uint8_t channel_select_cmd[2] = {0xC3, CHANNEL_WRITE_CODES[7]};  // Select channel 7
   if (this->write(channel_select_cmd, 2) != i2c::ERROR_OK) {
     ESP_LOGVV(TAG, "Channel select failed - likely DS2482-100");
     return false;  // DS2482-100
@@ -61,8 +66,8 @@ bool DS2482OneWireBus::detect_variant_() {
     return false;  // DS2482-100
   }
 
-  // If we got the expected response (0x87), it's a DS2482-800
-  if (response == 0x87) {
+  // If we got the expected response, it's a DS2482-800
+  if (response == CHANNEL_READ_CODES[7]) {
     ESP_LOGVV(TAG, "Got channel 7 response - DS2482-800 detected");
     return true;  // DS2482-800
   }
@@ -72,20 +77,24 @@ bool DS2482OneWireBus::detect_variant_() {
 }
 
 bool DS2482OneWireBus::select_channel_() {
-  // Optimization: only send channel select if different from current
-  if (this->current_channel_ == this->channel_) {
-    ESP_LOGVV(TAG, "Channel %d already selected", this->channel_);
+  // Get I2C address and compute cache index
+  uint8_t i2c_addr = this->get_i2c_address();
+  uint8_t cache_idx = i2c_addr - 0x18;  // DS2482 addresses are 0x18-0x1F
+
+  // Check shared cache to see if this channel is already selected on this chip
+  if (g_channel_cache[cache_idx] == this->channel_) {
+    ESP_LOGVV(TAG, "Channel %d already selected on chip 0x%02X", this->channel_, i2c_addr);
     return true;
   }
 
-  ESP_LOGVV(TAG, "Selecting channel %d", this->channel_);
+  ESP_LOGVV(TAG, "Selecting channel %d on chip 0x%02X (was %d)", this->channel_, i2c_addr, g_channel_cache[cache_idx]);
 
   // Send channel select command (0xC3) + channel code
   uint8_t channel_select_cmd[2] = {0xC3, CHANNEL_WRITE_CODES[this->channel_]};
 
   if (this->write(channel_select_cmd, 2) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Failed to write channel select command");
-    this->current_channel_ = 0xFF;  // Invalidate cache
+    g_channel_cache[cache_idx] = 0xFF;  // Invalidate cache
     return false;
   }
 
@@ -93,7 +102,7 @@ bool DS2482OneWireBus::select_channel_() {
   uint8_t response;
   if (this->read(&response, 1) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Failed to read channel select response");
-    this->current_channel_ = 0xFF;
+    g_channel_cache[cache_idx] = 0xFF;
     return false;
   }
 
@@ -101,12 +110,13 @@ bool DS2482OneWireBus::select_channel_() {
   if (response != CHANNEL_READ_CODES[this->channel_]) {
     ESP_LOGE(TAG, "Channel select verification failed: expected 0x%02X, got 0x%02X", CHANNEL_READ_CODES[this->channel_],
              response);
-    this->current_channel_ = 0xFF;
+    g_channel_cache[cache_idx] = 0xFF;
     return false;
   }
 
-  this->current_channel_ = this->channel_;
-  ESP_LOGVV(TAG, "Channel %d selected successfully", this->channel_);
+  // Update shared cache
+  g_channel_cache[cache_idx] = this->channel_;
+  ESP_LOGVV(TAG, "Channel %d selected successfully on chip 0x%02X", this->channel_, i2c_addr);
   return true;
 }
 
@@ -147,9 +157,11 @@ bool DS2482OneWireBus::pre_operation_hook_() {
 }
 
 void DS2482OneWireBus::post_reset_hook_() {
-  // After device reset, channel selection is lost - invalidate cache
-  ESP_LOGVV(TAG, "Device reset - invalidating channel cache");
-  this->current_channel_ = 0xFF;
+  // After device reset, channel selection is lost - invalidate shared cache for this chip
+  uint8_t i2c_addr = this->get_i2c_address();
+  uint8_t cache_idx = i2c_addr - 0x18;
+  ESP_LOGVV(TAG, "Device reset - invalidating channel cache for chip 0x%02X", i2c_addr);
+  g_channel_cache[cache_idx] = 0xFF;
 }
 
 }  // namespace ds2482

@@ -31,9 +31,8 @@ class DS2482OneWireBus : public ds248x_base::DS248xOneWireBusBase {
   /// @return true on success, false on I2C error or verification failure
   bool select_channel_();
 
-  uint8_t channel_{0};             ///< Configured channel (0-7)
-  uint8_t current_channel_{0xFF};  ///< Currently selected channel (0xFF = none)
-  bool is_ds2482_800_{false};      ///< true if DS2482-800, false if DS2482-100
+  uint8_t channel_{0};         ///< Configured channel (0-7)
+  bool is_ds2482_800_{false};  ///< true if DS2482-800, false if DS2482-100
 };
 
 }  // namespace ds2482
