@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
 from pathlib import Path
+import re
+import subprocess
 
 from esphome import pins
 import esphome.codegen as cg
@@ -343,6 +347,28 @@ def _upload_using_platformio(
     return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
 
 
+def _west_env() -> dict[str, str]:
+    path = CORE.relative_pioenvs_path(CORE.name, "compile_commands.json")
+    if not path.is_file():
+        raise EsphomeError("please run compile first")
+
+    env = os.environ.copy()
+    compile_commands = json.loads(path.read_text(encoding="utf-8"))
+    m = re.search(
+        r"-fmacro-prefix-map=([^=]+)=WEST_TOPDIR", compile_commands[0]["command"]
+    )
+    if not m:
+        raise cv.Invalid("Unable to find WEST_TOPDIR")
+    env["WEST_TOPDIR"] = m.group(1)
+    m = re.search(
+        r"-fmacro-prefix-map=([^=]+)=ZEPHYR_BASE", compile_commands[0]["command"]
+    )
+    if not m:
+        raise cv.Invalid("Unable to find ZEPHYR_BASE")
+    env["ZEPHYR_BASE"] = m.group(1)
+    return env
+
+
 def upload_program(config: ConfigType, args, host: str) -> bool:
     from esphome.__main__ import check_permissions, get_port_type
 
@@ -355,7 +381,19 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         handled = True
 
     if host == "PYOCD":
-        result = _upload_using_platformio(config, host, ["-t", "flash_pyocd"])
+        env = _west_env()
+        subprocess.run(
+            [
+                "west",
+                "flash",
+                "-d",
+                str(CORE.relative_pioenvs_path(CORE.name)),
+                "-r",
+                "pyocd",
+            ],
+            env=env,
+            check=True,
+        )
         handled = True
 
     if result != 0:
