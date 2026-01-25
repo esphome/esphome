@@ -828,8 +828,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
     uint16_t number = it.number;
     scan_result_.init(number);
-#ifdef USE_ESP32_VARIANT_ESP32P4
-    // getting records one at a time fails on P4
+#ifdef USE_ESP32_HOSTED
+    // getting records one at a time fails on P4 with hosted esp32 WiFi coprocessor
+    // Presumably an upstream bug, work-around by getting all records at once
     auto records = std::make_unique<wifi_ap_record_t[]>(number);
     err = esp_wifi_scan_get_ap_records(&number, records.get());
     if (err != ESP_OK) {
@@ -848,7 +849,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
         esp_wifi_clear_ap_list();  // Free remaining records not yet retrieved
         break;
       }
-#endif  // USE_ESP32_VARIANT_ESP32P4
+#endif  // USE_ESP32_HOSTED
       bssid_t bssid;
       std::copy(record.bssid, record.bssid + 6, bssid.begin());
       std::string ssid(reinterpret_cast<const char *>(record.ssid));
