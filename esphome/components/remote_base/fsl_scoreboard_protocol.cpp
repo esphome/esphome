@@ -7,7 +7,6 @@ namespace remote_base {
 static const char *const TAG = "remote.fsl_scoreboard";
 
 static constexpr uint32_t BIT_TIME_US = 528;
-static constexpr uint8_t SYNC_BITS = 4;
 
 void FSLScoreboardProtocol::encode(RemoteTransmitData *dst, const FSLScoreboardData &data) {
   ESP_LOGD(TAG, "Sending FSL Scoreboard: field=%d, value=%d", data.field, data.value);
@@ -41,13 +40,8 @@ void FSLScoreboardProtocol::encode(RemoteTransmitData *dst, const FSLScoreboardD
     // Sync: 111 (3 bits = 1584µs mark)
     dst->mark(BIT_TIME_US * 3);
 
-    // First Manchester bit is always '0' (part of the '1110' pattern)
-    // which is 10 in Manchester, so mark then space
-    dst->mark(BIT_TIME_US);
-    dst->space(BIT_TIME_US);
-
-    // Manchester encode remaining 31 bits (MSB first, skipping bit 31 which we just sent)
-    for (int i = 30; i >= 0; i--) {
+    // Manchester encode 32 bits (MSB first)
+    for (int i = 31; i >= 0; i--) {
       if (payload & (1U << i)) {
         // 1 = 01 (space then mark)
         dst->space(BIT_TIME_US);
@@ -87,46 +81,72 @@ optional<FSLScoreboardData> FSLScoreboardProtocol::decode(RemoteReceiveData src)
 
   ESP_LOGVV(TAG, "Found preamble: %d pairs", preamble_count);
 
-  // After preamble (ends with space), look for sync: 4 * BIT_TIME_US mark (2112µs)
-  if (!src.expect_mark(BIT_TIME_US * 4)) {
-    ESP_LOGVV(TAG, "Sync mark not found, got: %d", src.peek(0));
+  // After preamble, look for sync mark (3-bit '111')
+  // May merge with first Manchester bit: 3 or 4 bits total
+  int32_t sync_mark = src.peek(0);
+  if (sync_mark <= 0) {
+    ESP_LOGVV(TAG, "Expected mark after preamble, got: %d", sync_mark);
     return {};
   }
 
-  ESP_LOGVV(TAG, "Found sync mark");
+  int sync_bits = (sync_mark + BIT_TIME_US / 2) / BIT_TIME_US;
+  if (sync_bits < 3 || sync_bits > 4) {
+    ESP_LOGVV(TAG, "Invalid sync mark: %d (%d bits)", sync_mark, sync_bits);
+    return {};
+  }
 
-  // Sync is 4 PCM bits '1110' - the last '0' is first Manchester bit
-  // Build Manchester bitstream from timings
-  std::vector<uint8_t> manchester_bits;
-  manchester_bits.push_back(1);  // The 4th bit of sync
+  src.advance(1);
+  ESP_LOGVV(TAG, "Found sync mark: %d (%d bits)", sync_mark, sync_bits);
 
-  while (manchester_bits.size() < 64 && src.peek(0) != 0) {
-    int32_t val = src.peek(0);
-    int width = abs(val);
-    bool is_mark = (val > 0);
-    int num_bits = (width + BIT_TIME_US / 2) / BIT_TIME_US;
+  // Decode 32 data bits from Manchester pairs
+  uint32_t payload = 0;
+  int pending_bit = (sync_bits == 4) ? 1 : -1;
+  int pending_count = (sync_bits == 4) ? 1 : 0;
 
-    for (int i = 0; i < num_bits && manchester_bits.size() < 64; i++) {
-      manchester_bits.push_back(is_mark ? 1 : 0);
+  for (int data_bit = 0; data_bit < 32; data_bit++) {
+    int first_bit, second_bit;
+
+    // Get first Manchester bit
+    if (pending_count > 0) {
+      first_bit = pending_bit;
+      pending_count--;
+    } else {
+      int32_t val = src.peek(0);
+      if (val == 0) {
+        ESP_LOGVV(TAG, "Ran out of data at bit %d", data_bit);
+        return {};
+      }
+      int num_bits = (abs(val) + BIT_TIME_US / 2) / BIT_TIME_US;
+      first_bit = (val > 0) ? 1 : 0;
+      pending_bit = first_bit;
+      pending_count = num_bits - 1;
+      src.advance(1);
     }
 
-    src.advance(1);
-  }
+    // Get second Manchester bit
+    if (pending_count > 0) {
+      second_bit = pending_bit;
+      pending_count--;
+    } else {
+      int32_t val = src.peek(0);
+      if (val == 0) {
+        ESP_LOGVV(TAG, "Ran out of data at bit %d", data_bit);
+        return {};
+      }
+      int num_bits = (abs(val) + BIT_TIME_US / 2) / BIT_TIME_US;
+      second_bit = (val > 0) ? 1 : 0;
+      pending_bit = second_bit;
+      pending_count = num_bits - 1;
+      src.advance(1);
+    }
 
-  if (manchester_bits.size() < 64) {
-    ESP_LOGVV(TAG, "Not enough Manchester bits: %zu", manchester_bits.size());
-    return {};
-  }
-
-  // Decode Manchester pairs: 10=0, 01=1
-  uint32_t payload = 0;
-  for (size_t i = 0; i < 64; i += 2) {
-    if (manchester_bits[i] == 1 && manchester_bits[i + 1] == 0) {
+    // Decode Manchester pair: 10=0, 01=1
+    if (first_bit == 1 && second_bit == 0) {
       payload = (payload << 1) | 0;
-    } else if (manchester_bits[i] == 0 && manchester_bits[i + 1] == 1) {
+    } else if (first_bit == 0 && second_bit == 1) {
       payload = (payload << 1) | 1;
     } else {
-      ESP_LOGVV(TAG, "Invalid Manchester pair at bit %zu: %d%d", i, manchester_bits[i], manchester_bits[i + 1]);
+      ESP_LOGVV(TAG, "Invalid Manchester pair at bit %d: %d%d", data_bit, first_bit, second_bit);
       return {};
     }
   }
