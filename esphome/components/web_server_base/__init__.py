@@ -48,5 +48,4 @@ async def to_code(config):
         if CORE.is_libretiny:
             CORE.add_platformio_option("lib_ignore", ["ESPAsyncTCP", "RPAsyncTCP"])
         # https://github.com/ESP32Async/ESPAsyncWebServer/blob/main/library.json
-        # Testing PR #370 for ESP8266 SSE crash fix
-        cg.add_library("https://github.com/bdraco/ESPAsyncWebServer.git#pr-370", None)
+        cg.add_library("ESP32Async/ESPAsyncWebServer", "3.9.5")
