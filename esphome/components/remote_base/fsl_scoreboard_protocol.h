@@ -2,8 +2,7 @@
 
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct FSLScoreboardData {
   uint8_t field;
@@ -34,5 +33,4 @@ template<typename... Ts> class FSLScoreboardAction : public RemoteTransmitterAct
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

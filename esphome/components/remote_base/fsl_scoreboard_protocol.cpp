@@ -1,8 +1,7 @@
 #include "fsl_scoreboard_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.fsl_scoreboard";
 
@@ -306,5 +305,4 @@ void FSLScoreboardProtocol::dump(const FSLScoreboardData &data) {
   ESP_LOGI(TAG, "Received FSL Scoreboard: field=%d, value=%d", data.field, data.value);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base
