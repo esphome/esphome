@@ -8,11 +8,9 @@ static const char *const TAG = "template.water_heater";
 TemplateWaterHeater::TemplateWaterHeater() : set_trigger_(new Trigger<>()) {}
 
 void TemplateWaterHeater::setup() {
-  this->water_heater::WaterHeater::setup();
-
   if (this->restore_mode_ == TemplateWaterHeaterRestoreMode::WATER_HEATER_RESTORE ||
       this->restore_mode_ == TemplateWaterHeaterRestoreMode::WATER_HEATER_RESTORE_AND_CALL) {
-    auto restore = this->restore_state();
+    auto restore = this->restore_state_();
 
     if (restore.has_value()) {
       restore->perform();
