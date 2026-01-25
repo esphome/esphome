@@ -870,6 +870,59 @@ async def nec_action(var, config, args):
     cg.add(var.set_command_repeats(template_))
 
 
+# FSL Scoreboard
+(
+    FSLScoreboardData,
+    FSLScoreboardBinarySensor,
+    FSLScoreboardTrigger,
+    FSLScoreboardAction,
+    FSLScoreboardDumper,
+) = declare_protocol("FSLScoreboard")
+
+CONF_FIELD = "field"
+CONF_VALUE = "value"
+
+FSL_SCOREBOARD_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_FIELD): cv.uint8_t,
+        cv.Required(CONF_VALUE): cv.uint16_t,
+    }
+)
+
+
+@register_binary_sensor(
+    "fsl_scoreboard", FSLScoreboardBinarySensor, FSL_SCOREBOARD_SCHEMA
+)
+def fsl_scoreboard_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                FSLScoreboardData,
+                ("field", config[CONF_FIELD]),
+                ("value", config[CONF_VALUE]),
+            )
+        )
+    )
+
+
+@register_trigger("fsl_scoreboard", FSLScoreboardTrigger, FSLScoreboardData)
+def fsl_scoreboard_trigger(var, config):
+    pass
+
+
+@register_dumper("fsl_scoreboard", FSLScoreboardDumper)
+def fsl_scoreboard_dumper(var, config):
+    pass
+
+
+@register_action("fsl_scoreboard", FSLScoreboardAction, FSL_SCOREBOARD_SCHEMA)
+async def fsl_scoreboard_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_FIELD], args, cg.uint8)
+    cg.add(var.set_field(template_))
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
+    cg.add(var.set_value(template_))
+
+
 # Pioneer
 (
     PioneerData,
