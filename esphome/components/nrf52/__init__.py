@@ -381,7 +381,6 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         handled = True
 
     if host == "PYOCD":
-        env = _west_env()
         subprocess.run(
             [
                 "west",
@@ -391,7 +390,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 "-r",
                 "pyocd",
             ],
-            env=env,
+            env=_west_env(),
             check=True,
         )
         handled = True
