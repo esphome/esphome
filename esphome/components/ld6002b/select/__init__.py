@@ -51,13 +51,17 @@ async def to_code(config):
 
     if sensitivity_config := config.get(CONF_SENSITIVITY):
         s = cg.new_Pvariable(sensitivity_config[CONF_ID], SelectType.SENSITIVITY)
-        await select.register_select(s, sensitivity_config, options=["low", "medium", "high"])
+        await select.register_select(
+            s, sensitivity_config, options=["low", "medium", "high"]
+        )
         await cg.register_parented(s, config[CONF_LD6002B_ID])
         cg.add(hub.set_sensitivity_select(s))
 
     if trigger_config := config.get(CONF_TRIGGER_SPEED):
         s = cg.new_Pvariable(trigger_config[CONF_ID], SelectType.TRIGGER_SPEED)
-        await select.register_select(s, trigger_config, options=["slow", "medium", "fast"])
+        await select.register_select(
+            s, trigger_config, options=["slow", "medium", "fast"]
+        )
         await cg.register_parented(s, config[CONF_LD6002B_ID])
         cg.add(hub.set_trigger_speed_select(s))
 

@@ -1,5 +1,5 @@
-import esphome.codegen as cg
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_THROTTLE, CONF_WAKEUP_PIN
@@ -20,11 +20,13 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(LD6002BComponent),
             cv.Optional(CONF_WAKEUP_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_WAKEUP_PULSE_MS, default="50ms"):
-                cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_WAKEUP_PULSE_MS, default="50ms"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_AUTO_WAKE, default=True): cv.boolean,
-            cv.Optional(CONF_THROTTLE, default="1000ms"):
-                cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_THROTTLE, default="1000ms"
+            ): cv.positive_time_period_milliseconds,
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)

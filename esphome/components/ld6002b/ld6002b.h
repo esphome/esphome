@@ -393,7 +393,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   std::array<float, MAX_TARGETS> last_target_z_{{NAN, NAN, NAN}};
   std::array<float, MAX_TARGETS> last_target_dop_{{NAN, NAN, NAN}};
   std::array<float, MAX_TARGETS> last_target_cluster_{{NAN, NAN, NAN}};
-
 };
 
 }  // namespace esphome::ld6002b
