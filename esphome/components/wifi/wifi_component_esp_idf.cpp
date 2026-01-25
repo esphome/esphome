@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <memory>
 #include <utility>
 #ifdef USE_WIFI_WPA2_EAP
 #if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
@@ -834,6 +835,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     auto records = std::make_unique<wifi_ap_record_t[]>(number);
     err = esp_wifi_scan_get_ap_records(&number, records.get());
     if (err != ESP_OK) {
+      esp_wifi_clear_ap_list();
       ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(err));
       return;
     }
