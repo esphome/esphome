@@ -78,11 +78,8 @@ optional<std::string> query_key_value(const std::string &query_url, const std::s
     return {};
   }
 
-  auto val = std::unique_ptr<char[]>(new char[query_url.size()]);
-  if (!val) {
-    ESP_LOGE(TAG, "Not enough memory to the query key value");
-    return {};
-  }
+  // Use stack buffer for typical query strings, heap fallback for large ones
+  SmallBufferWithHeapFallback<256, char> val(query_url.size());
 
   if (httpd_query_key_value(query_url.c_str(), key.c_str(), val.get(), query_url.size()) != ESP_OK) {
     return {};
