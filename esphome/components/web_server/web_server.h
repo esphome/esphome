@@ -243,6 +243,11 @@ class WebServer : public Controller,
    * @param expose_log.
    */
   void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
+  /** Set whether to use legacy object_id format for JSON entity IDs.
+   *
+   * @param use_legacy_id If true, use legacy object_id format; otherwise use new entity name format.
+   */
+  void set_use_legacy_id(bool use_legacy_id) { this->use_legacy_id_ = use_legacy_id; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -606,6 +611,7 @@ class WebServer : public Controller,
   const char *js_include_{nullptr};
 #endif
   bool expose_log_{true};
+  bool use_legacy_id_{false};
 
  private:
 #ifdef USE_SENSOR

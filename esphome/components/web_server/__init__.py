@@ -42,6 +42,7 @@ AUTO_LOAD = ["json", "web_server_base"]
 CONF_SORTING_GROUP_ID = "sorting_group_id"
 CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
+CONF_USE_LEGACY_ID = "use_legacy_id"
 
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
@@ -205,6 +206,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LOCAL): cv.boolean,
             cv.Optional(CONF_COMPRESSION, default="gzip"): cv.one_of("gzip", "br"),
             cv.Optional(CONF_SORTING_GROUPS): cv.ensure_list(sorting_group),
+            cv.Optional(CONF_USE_LEGACY_ID, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on(
@@ -341,6 +343,9 @@ async def to_code(config):
     if (sorting_group_config := config.get(CONF_SORTING_GROUPS)) is not None:
         cg.add_define("USE_WEBSERVER_SORTING")
         add_sorting_groups(var, sorting_group_config)
+
+    if config[CONF_USE_LEGACY_ID]:
+        cg.add(var.set_use_legacy_id(True))
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
