@@ -32,7 +32,7 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
   void calibrate_zero();
   void abc_enable();
   void abc_disable();
-  void range_set(MHZ19DetectionRange detection_ppm);
+  void range_set(MHZ19DetectionRange detection_range);
 
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
