@@ -1,8 +1,7 @@
 #include "uln2003.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace uln2003 {
+namespace esphome::uln2003 {
 
 static const char *const TAG = "uln2003.stepper";
 
@@ -88,5 +87,4 @@ void ULN2003::write_step_(int32_t step) {
   this->pin_d_->digital_write((res >> 3) & 1);
 }
 
-}  // namespace uln2003
-}  // namespace esphome
+}  // namespace esphome::uln2003
