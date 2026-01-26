@@ -277,7 +277,7 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
   }
 
   // Get PR head SHA to fetch files from the PR branch
-  const prHeadSha = context.payload.pull_request.head.sha;
+  const prNumber = context.payload.pull_request.number;
 
   // Check each component's __init__.py for DEPRECATED_COMPONENT constant
   for (const component of components) {
@@ -288,7 +288,7 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
         owner,
         repo,
         path: initFile,
-        ref: prHeadSha
+        ref: `refs/pull/${prNumber}/head`
       });
 
       // Decode base64 content
@@ -306,7 +306,7 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
         labels.add('deprecated-component');
         deprecatedInfo.push({
           component: component,
-          message: deprecatedMatch[1]
+          message: deprecatedMatch[1].trim()
         });
         console.log(`Found deprecated component: ${component}`);
       }
