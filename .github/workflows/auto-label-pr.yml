@@ -416,9 +416,9 @@ jobs:
                   
                   // Look for DEPRECATED_COMPONENT = "message" or DEPRECATED_COMPONENT = 'message'
                   // Support single quotes, double quotes, and triple quotes (for multiline)
-                  const doubleQuoteMatch = content.match(/DEPRECATED_COMPONENT\s*=\s*"""((?:[^\\]|\\.)*)"""/s) ||
+                  const doubleQuoteMatch = content.match(/DEPRECATED_COMPONENT\s*=\s*"""([\s\S]*?)"""/s) ||
                                           content.match(/DEPRECATED_COMPONENT\s*=\s*"((?:[^"\\]|\\.)*)"/);
-                  const singleQuoteMatch = content.match(/DEPRECATED_COMPONENT\s*=\s*'''((?:[^\\]|\\.)*)'''/s) ||
+                  const singleQuoteMatch = content.match(/DEPRECATED_COMPONENT\s*=\s*'''([\s\S]*?)'''/s) ||
                                           content.match(/DEPRECATED_COMPONENT\s*=\s*'((?:[^'\\]|\\.)*)'/);
                   const deprecatedMatch = doubleQuoteMatch || singleQuoteMatch;
                   
