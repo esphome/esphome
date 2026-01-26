@@ -482,6 +482,7 @@ esphome/components/switch/* @esphome/core
 esphome/components/switch/binary_sensor/* @ssieb
 esphome/components/sx126x/* @swoboda1337
 esphome/components/sx127x/* @swoboda1337
+esphome/components/sy6970/* @linkedupbits
 esphome/components/syslog/* @clydebarrow
 esphome/components/t6615/* @tylermenezes
 esphome/components/tc74/* @sethgirvan

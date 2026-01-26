@@ -13,7 +13,7 @@ enum TemplateWaterHeaterRestoreMode {
   WATER_HEATER_RESTORE_AND_CALL,
 };
 
-class TemplateWaterHeater : public water_heater::WaterHeater {
+class TemplateWaterHeater : public Component, public water_heater::WaterHeater {
  public:
   TemplateWaterHeater();
 
