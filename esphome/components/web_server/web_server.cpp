@@ -1,3 +1,4 @@
+// Trigger CI memory impact (uses updated ESPAsyncWebServer from web_server_base)
 #include "web_server.h"
 #ifdef USE_WEBSERVER
 #include "esphome/components/json/json_util.h"
