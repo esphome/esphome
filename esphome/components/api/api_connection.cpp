@@ -179,8 +179,8 @@ void APIConnection::begin_iterator_(ActiveIterator type) {
 
 void APIConnection::loop() {
   if (this->flags_.next_close) {
-    // requested a disconnect
-    this->helper_->close();
+    // requested a disconnect - don't close socket here, let APIServer::loop() do it
+    // so getpeername() still works for the disconnect trigger
     this->flags_.remove = true;
     return;
   }
@@ -293,7 +293,8 @@ bool APIConnection::send_disconnect_response(const DisconnectRequest &msg) {
   return this->send_message(resp, DisconnectResponse::MESSAGE_TYPE);
 }
 void APIConnection::on_disconnect_response(const DisconnectResponse &value) {
-  this->helper_->close();
+  // Don't close socket here, let APIServer::loop() do it
+  // so getpeername() still works for the disconnect trigger
   this->flags_.remove = true;
 }
 
