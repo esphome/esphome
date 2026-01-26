@@ -1,10 +1,10 @@
 #include "cover.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
+#include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <strings.h>
-
-#include "esphome/core/log.h"
 
 namespace esphome::cover {
 
@@ -39,13 +39,13 @@ Cover::Cover() : position{COVER_OPEN} {}
 
 CoverCall::CoverCall(Cover *parent) : parent_(parent) {}
 CoverCall &CoverCall::set_command(const char *command) {
-  if (strcasecmp(command, "OPEN") == 0) {
+  if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("OPEN")) == 0) {
     this->set_command_open();
-  } else if (strcasecmp(command, "CLOSE") == 0) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("CLOSE")) == 0) {
     this->set_command_close();
-  } else if (strcasecmp(command, "STOP") == 0) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("STOP")) == 0) {
     this->set_command_stop();
-  } else if (strcasecmp(command, "TOGGLE") == 0) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("TOGGLE")) == 0) {
     this->set_command_toggle();
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
