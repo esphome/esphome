@@ -46,6 +46,7 @@ jobs:
             const BOT_COMMENT_MARKER = '<!-- auto-label-pr-bot -->';
             const CODEOWNERS_MARKER = '<!-- codeowners-request -->';
             const TOO_BIG_MARKER = '<!-- too-big-request -->';
+            const DEPRECATED_COMPONENT_MARKER = '<!-- deprecated-component-request -->';
 
             const MANAGED_LABELS = [
               'new-component',
@@ -69,7 +70,8 @@ jobs:
               'new-feature',
               'breaking-change',
               'developer-breaking-change',
-              'code-quality'
+              'code-quality',
+              'deprecated_component'
             ];
 
             const DOCS_PR_PATTERNS = [
@@ -382,6 +384,75 @@ jobs:
               return labels;
             }
 
+            // Strategy: Deprecated component detection
+            async function detectDeprecatedComponents() {
+              const labels = new Set();
+              const deprecatedInfo = [];
+
+              // Compile regex once for better performance
+              const componentFileRegex = /^esphome\/components\/([^\/]+)\/[^/]*\.py$/;
+
+              // Get files that are modified or added in components directory
+              const componentFiles = changedFiles.filter(file => componentFileRegex.test(file));
+
+              if (componentFiles.length === 0) {
+                return { labels, deprecatedInfo };
+              }
+
+              // Extract unique component names using the same regex
+              const components = new Set();
+              for (const file of componentFiles) {
+                const match = file.match(componentFileRegex);
+                if (match) {
+                  components.add(match[1]);
+                }
+              }
+
+              // Get PR head SHA to fetch files from the PR branch
+              const prHeadSha = context.payload.pull_request.head.sha;
+
+              // Check each component's __init__.py for DEPRECATED_COMPONENT constant
+              for (const component of components) {
+                const initFile = `esphome/components/${component}/__init__.py`;
+                try {
+                  // Fetch file content from PR head using GitHub API
+                  const { data: fileData } = await github.rest.repos.getContent({
+                    owner,
+                    repo,
+                    path: initFile,
+                    ref: prHeadSha
+                  });
+
+                  // Decode base64 content
+                  const content = Buffer.from(fileData.content, 'base64').toString('utf8');
+
+                  // Look for DEPRECATED_COMPONENT = "message" or DEPRECATED_COMPONENT = 'message'
+                  // Support single quotes, double quotes, and triple quotes (for multiline)
+                  const doubleQuoteMatch = content.match(/DEPRECATED_COMPONENT\s*=\s*"""([\s\S]*?)"""/s) ||
+                                          content.match(/DEPRECATED_COMPONENT\s*=\s*"((?:[^"\\]|\\.)*)"/);
+                  const singleQuoteMatch = content.match(/DEPRECATED_COMPONENT\s*=\s*'''([\s\S]*?)'''/s) ||
+                                          content.match(/DEPRECATED_COMPONENT\s*=\s*'((?:[^'\\]|\\.)*)'/);
+                  const deprecatedMatch = doubleQuoteMatch || singleQuoteMatch;
+
+                  if (deprecatedMatch) {
+                    labels.add('deprecated_component');
+                    deprecatedInfo.push({
+                      component: component,
+                      message: deprecatedMatch[1]
+                    });
+                    console.log(`Found deprecated component: ${component}`);
+                  }
+                } catch (error) {
+                  // Only log if it's not a simple "file not found" error (404)
+                  if (error.status !== 404) {
+                    console.log(`Error reading ${initFile}:`, error.message);
+                  }
+                }
+              }
+
+              return { labels, deprecatedInfo };
+            }
+
             // Strategy: Requirements detection
             async function detectRequirements(allLabels) {
               const labels = new Set();
@@ -418,9 +489,25 @@ jobs:
             }
 
             // Generate review messages
-            function generateReviewMessages(finalLabels, originalLabelCount) {
+            function generateReviewMessages(finalLabels, originalLabelCount, deprecatedInfo) {
               const messages = [];
               const prAuthor = context.payload.pull_request.user.login;
+
+              // Deprecated component message
+              if (finalLabels.includes('deprecated_component') && deprecatedInfo && deprecatedInfo.length > 0) {
+                let message = `${DEPRECATED_COMPONENT_MARKER}\n### ⚠️ Deprecated Component\n\n`;
+                message += `Hey there @${prAuthor},\n`;
+                message += `This PR modifies one or more deprecated components. Please be aware:\n\n`;
+
+                for (const info of deprecatedInfo) {
+                  message += `#### Component: \`${info.component}\`\n`;
+                  message += `${info.message}\n\n`;
+                }
+
+                message += `Consider migrating to the recommended alternative if applicable.`;
+
+                messages.push(message);
+              }
 
               // Too big message
               if (finalLabels.includes('too-big')) {
@@ -468,10 +555,10 @@ jobs:
             }
 
             // Handle reviews
-            async function handleReviews(finalLabels, originalLabelCount) {
-              const reviewMessages = generateReviewMessages(finalLabels, originalLabelCount);
+            async function handleReviews(finalLabels, originalLabelCount, deprecatedInfo) {
+              const reviewMessages = generateReviewMessages(finalLabels, originalLabelCount, deprecatedInfo);
               const hasReviewableLabels = finalLabels.some(label =>
-                ['too-big', 'needs-codeowners'].includes(label)
+                ['too-big', 'needs-codeowners', 'deprecated_component'].includes(label)
               );
 
               const { data: reviews } = await github.rest.pulls.listReviews({
@@ -580,7 +667,8 @@ jobs:
               actionsLabels,
               codeOwnerLabels,
               testLabels,
-              checkboxLabels
+              checkboxLabels,
+              deprecatedResult
             ] = await Promise.all([
               detectMergeBranch(),
               detectComponentPlatforms(apiData),
@@ -592,8 +680,13 @@ jobs:
               detectGitHubActionsChanges(),
               detectCodeOwner(),
               detectTests(),
-              detectPRTemplateCheckboxes()
+              detectPRTemplateCheckboxes(),
+              detectDeprecatedComponents()
             ]);
+
+            // Extract deprecated component info
+            const deprecatedLabels = deprecatedResult.labels;
+            const deprecatedInfo = deprecatedResult.deprecatedInfo;
 
             // Combine all labels
             const allLabels = new Set([
@@ -607,7 +700,8 @@ jobs:
               ...actionsLabels,
               ...codeOwnerLabels,
               ...testLabels,
-              ...checkboxLabels
+              ...checkboxLabels,
+              ...deprecatedLabels
             ]);
 
             // Detect requirements based on all other labels
@@ -638,7 +732,7 @@ jobs:
             console.log('Computed labels:', finalLabels.join(', '));
 
             // Handle reviews
-            await handleReviews(finalLabels, originalLabelCount);
+            await handleReviews(finalLabels, originalLabelCount, deprecatedInfo);
 
             // Apply labels
             if (finalLabels.length > 0) {
