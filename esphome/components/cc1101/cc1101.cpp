@@ -391,6 +391,13 @@ CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet)
   return CC1101Error::NONE;
 }
 
+size_t CC1101Component::get_max_packet_size() {
+  if (this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_FIXED)) {
+    return this->state_.PKTLEN;
+  }
+  return 64 - 1;  // FIFO size - length indicator
+}
+
 // Setters
 void CC1101Component::set_output_power(float value) {
   this->output_power_requested_ = value;
