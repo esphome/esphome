@@ -4,6 +4,7 @@
 
 #if defined(USE_ESP32) && defined(USE_I2S_AUDIO_SPDIF_MODE)
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -78,6 +79,14 @@ class SPDIFEncoder {
   /// @brief Reset the SPDIF block buffer and position tracking, discarding any partial block
   void reset();
 
+  /// @brief Set the sample rate for Channel Status Block encoding
+  /// @param sample_rate Sample rate in Hz (e.g., 44100, 48000, 96000)
+  /// Call this before writing audio data to ensure correct channel status.
+  void set_sample_rate(uint32_t sample_rate);
+
+  /// @brief Get the currently configured sample rate
+  uint32_t get_sample_rate() const { return this->sample_rate_; }
+
  protected:
   /// @brief Encode a single 16-bit PCM sample into the current block position
   void encode_sample_(const uint8_t *pcm_sample);
@@ -92,6 +101,14 @@ class SPDIFEncoder {
   /// @return BMC-encoded output (2 bits per input bit)
   static uint32_t bmc_encode_(uint32_t data, uint8_t num_bits, bool &phase);
 
+  /// @brief Build the channel status block from current configuration
+  void build_channel_status_();
+
+  /// @brief Get the channel status bit for a specific frame
+  /// @param frame Frame number (0-191)
+  /// @return The C bit value for this frame
+  bool get_channel_status_bit_(uint8_t frame) const;
+
   SPDIFBlockCallback write_callback_;
   SPDIFBlockCallback preload_callback_;
   bool preload_mode_{false};
@@ -103,6 +120,11 @@ class SPDIFEncoder {
   // Position tracking within the SPDIF block
   uint8_t frame_in_block_{0};   // 0-191, tracks stereo frame position within block
   bool is_left_channel_{true};  // Alternates L/R for stereo samples
+
+  // Channel Status Block (192 bits = 24 bytes, transmitted over 192 frames)
+  // Built from configuration, one bit transmitted per frame via the C bit
+  uint32_t sample_rate_{48000};
+  std::array<uint8_t, 24> channel_status_{};
 };
 
 }  // namespace esphome::i2s_audio

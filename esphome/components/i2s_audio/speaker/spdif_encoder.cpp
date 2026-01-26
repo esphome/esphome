@@ -25,6 +25,9 @@ bool SPDIFEncoder::setup() {
   }
   ESP_LOGV(TAG, "Buffer allocated (%zu bytes)", SPDIF_BLOCK_SIZE_BYTES);
 
+  // Build initial channel status block with default sample rate
+  this->build_channel_status_();
+
   this->reset();
   return true;
 }
@@ -33,6 +36,101 @@ void SPDIFEncoder::reset() {
   this->spdif_block_ptr_ = this->spdif_block_buf_.get();
   this->frame_in_block_ = 0;
   this->is_left_channel_ = true;
+}
+
+void SPDIFEncoder::set_sample_rate(uint32_t sample_rate) {
+  if (this->sample_rate_ != sample_rate) {
+    this->sample_rate_ = sample_rate;
+    this->build_channel_status_();
+    ESP_LOGD(TAG, "Sample rate set to %lu Hz", (unsigned long) sample_rate);
+  }
+}
+
+void SPDIFEncoder::build_channel_status_() {
+  // IEC 60958-3 Consumer Channel Status Block (192 bits = 24 bytes)
+  // Transmitted LSB-first within each byte, one bit per frame via C bit
+  //
+  // Byte 0: Control bits
+  //   Bit 0: 0 = Consumer format (not professional AES3)
+  //   Bit 1: 0 = PCM audio (not non-audio data like AC3)
+  //   Bit 2: 0 = No copyright assertion
+  //   Bits 3-5: 000 = No pre-emphasis
+  //   Bits 6-7: 00 = Mode 0 (basic consumer format)
+  //
+  // Byte 1: Category code (0x00 = general, 0x01 = CD, etc.)
+  //
+  // Byte 2: Source/channel numbers
+  //   Bits 0-3: Source number (0 = unspecified)
+  //   Bits 4-7: Channel number (0 = unspecified)
+  //
+  // Byte 3: Sample frequency and clock accuracy
+  //   Bits 0-3: Sample frequency code
+  //   Bits 4-5: Clock accuracy (00 = Level II, ±1000 ppm, appropriate for ESP32)
+  //   Bits 6-7: Reserved (0)
+  //
+  // Bytes 4-23: Reserved (zeros for basic compliance)
+
+  // Clear all bytes first
+  this->channel_status_.fill(0);
+
+  // Byte 0: Consumer, PCM audio, no copyright, no pre-emphasis, Mode 0
+  // All bits are 0, which is already set
+
+  // Byte 1: Category code = 0x00 (general)
+  // Already 0
+
+  // Byte 2: Source/channel unspecified
+  // Already 0
+
+  // Byte 3: Sample frequency code (bits 0-3) + clock accuracy (bits 4-5)
+  // Clock accuracy = 00 (Level II, ±1000 ppm) - appropriate for ESP32
+  uint8_t freq_code;
+  switch (this->sample_rate_) {
+    case 22050:
+      freq_code = 0x4;  // 0100
+      break;
+    case 24000:
+      freq_code = 0x6;  // 0110
+      break;
+    case 32000:
+      freq_code = 0x3;  // 0011
+      break;
+    case 44100:
+      freq_code = 0x0;  // 0000
+      break;
+    case 48000:
+      freq_code = 0x2;  // 0010
+      break;
+    case 88200:
+      freq_code = 0x8;  // 1000
+      break;
+    case 96000:
+      freq_code = 0xA;  // 1010
+      break;
+    case 176400:
+      freq_code = 0xC;  // 1100
+      break;
+    case 192000:
+      freq_code = 0xE;  // 1110
+      break;
+    default:
+      freq_code = 0x1;  // 0001 = not indicated
+      ESP_LOGW(TAG, "Unsupported sample rate %lu Hz, channel status will indicate 'not specified'",
+               (unsigned long) this->sample_rate_);
+      break;
+  }
+  // Byte 3: freq_code in bits 0-3, clock accuracy (00) in bits 4-5
+  this->channel_status_[3] = freq_code;  // Clock accuracy bits 4-5 are already 0
+
+  // Bytes 4-23 remain zero (word length not specified, no original sample freq, etc.)
+}
+
+bool SPDIFEncoder::get_channel_status_bit_(uint8_t frame) const {
+  // Channel status is 192 bits transmitted over 192 frames
+  // Bit N is transmitted in frame N, LSB-first within each byte
+  uint8_t byte_idx = frame / 8;
+  uint8_t bit_idx = frame % 8;
+  return (this->channel_status_[byte_idx] >> bit_idx) & 1;
 }
 
 // LUT-free BMC encoding
@@ -76,14 +174,19 @@ void SPDIFEncoder::encode_sample_(const uint8_t *pcm_sample) {
   //   Bits 12-27: 16-bit audio sample (MSB-aligned in 20-bit audio field)
   //   Bit 28:     V (Validity) - 0 = valid audio
   //   Bit 29:     U (User data) - 0
-  //   Bit 30:     C (Channel status) - 0 (simplified, no channel status block)
+  //   Bit 30:     C (Channel status) - from channel status block
   //   Bit 31:     P (Parity) - even parity over bits 4-31
   // ============================================================================
 
   // Place 16-bit audio sample at bits 12-27 (little-endian input: [0]=LSB, [1]=MSB)
   uint32_t raw_subframe = (static_cast<uint32_t>(pcm_sample[1]) << 20) | (static_cast<uint32_t>(pcm_sample[0]) << 12);
 
-  // V, U, C are all 0 for basic operation (bits 28-30 already zero)
+  // V = 0 (valid audio), U = 0 (no user data)
+  // C = channel status bit for current frame (same bit used for both L and R subframes)
+  bool c_bit = this->get_channel_status_bit_(this->frame_in_block_);
+  if (c_bit) {
+    raw_subframe |= (1U << 30);
+  }
 
   // Calculate even parity over bits 4-30
   // This ensures consistent BMC ending phase regardless of audio content

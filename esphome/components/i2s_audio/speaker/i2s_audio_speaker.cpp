@@ -84,6 +84,9 @@ void I2SAudioSpeaker::setup() {
       return;
     }
 
+    // Configure channel status block with the sample rate
+    this->spdif_encoder_->set_sample_rate(this->sample_rate_);
+
 #ifdef USE_I2S_LEGACY
     // Legacy driver: use a single write callback
     this->spdif_encoder_->set_write_callback([this](uint32_t *data, size_t size,
