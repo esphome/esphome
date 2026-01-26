@@ -106,10 +106,10 @@ class Seesaw : public i2c::I2CDevice, public Component {
   void update_neopixel();
 
  protected:
-  i2c::ErrorCode write8(SeesawModule mod, uint8_t reg, uint8_t value);
-  i2c::ErrorCode write16(SeesawModule mod, uint8_t reg, uint16_t value);
-  i2c::ErrorCode write32(SeesawModule mod, uint8_t reg, uint32_t value);
-  i2c::ErrorCode readbuf(SeesawModule mod, uint8_t reg, uint8_t *buf, uint8_t len, int wait = 0);
+  i2c::ErrorCode write8_(SeesawModule mod, uint8_t reg, uint8_t value);
+  i2c::ErrorCode write16_(SeesawModule mod, uint8_t reg, uint16_t value);
+  i2c::ErrorCode write32_(SeesawModule mod, uint8_t reg, uint32_t value);
+  i2c::ErrorCode readbuf_(SeesawModule mod, uint8_t reg, uint8_t *buf, uint8_t len, int wait = 0);
 
   uint8_t cpuid_;
   uint32_t version_;
