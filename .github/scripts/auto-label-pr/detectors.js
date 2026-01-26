@@ -276,7 +276,7 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
     }
   }
 
-  // Get PR head SHA to fetch files from the PR branch
+  // Get PR head to fetch files from the PR branch
   const prNumber = context.payload.pull_request.number;
 
   // Check each component's __init__.py for DEPRECATED_COMPONENT constant
