@@ -192,9 +192,9 @@ def _notify_old_style(config):
 
 # The dev and latest branches will be at *least* this version, which is what matters.
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(1, 10, 0), "https://github.com/libretiny-eu/libretiny.git"),
-    "latest": (cv.Version(1, 10, 0), "libretiny"),
-    "recommended": (cv.Version(1, 10, 0), None),
+    "dev": (cv.Version(1, 11, 0), "https://github.com/libretiny-eu/libretiny.git"),
+    "latest": (cv.Version(1, 11, 0), "libretiny"),
+    "recommended": (cv.Version(1, 11, 0), None),
 }
 
 
