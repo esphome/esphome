@@ -1,5 +1,6 @@
 #include "mqtt_alarm_control_panel.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "mqtt_const.h"
 
@@ -18,21 +19,21 @@ void MQTTAlarmControlPanelComponent::setup() {
   this->alarm_control_panel_->add_on_state_callback([this]() { this->publish_state(); });
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
     auto call = this->alarm_control_panel_->make_call();
-    if (strcasecmp(payload.c_str(), "ARM_AWAY") == 0) {
+    if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("ARM_AWAY")) == 0) {
       call.arm_away();
-    } else if (strcasecmp(payload.c_str(), "ARM_HOME") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("ARM_HOME")) == 0) {
       call.arm_home();
-    } else if (strcasecmp(payload.c_str(), "ARM_NIGHT") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("ARM_NIGHT")) == 0) {
       call.arm_night();
-    } else if (strcasecmp(payload.c_str(), "ARM_VACATION") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("ARM_VACATION")) == 0) {
       call.arm_vacation();
-    } else if (strcasecmp(payload.c_str(), "ARM_CUSTOM_BYPASS") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("ARM_CUSTOM_BYPASS")) == 0) {
       call.arm_custom_bypass();
-    } else if (strcasecmp(payload.c_str(), "DISARM") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("DISARM")) == 0) {
       call.disarm();
-    } else if (strcasecmp(payload.c_str(), "PENDING") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("PENDING")) == 0) {
       call.pending();
-    } else if (strcasecmp(payload.c_str(), "TRIGGERED") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("TRIGGERED")) == 0) {
       call.triggered();
     } else {
       ESP_LOGW(TAG, "'%s': Received unknown command payload %s", this->friendly_name_().c_str(), payload.c_str());
