@@ -408,11 +408,23 @@ jobs:
                 }
               }
               
+              // Get PR head SHA to fetch files from the PR branch
+              const prHeadSha = context.payload.pull_request.head.sha;
+              
               // Check each component's __init__.py for DEPRECATED_COMPONENT constant
               for (const component of components) {
                 const initFile = `esphome/components/${component}/__init__.py`;
                 try {
-                  const content = fs.readFileSync(initFile, 'utf8');
+                  // Fetch file content from PR head using GitHub API
+                  const { data: fileData } = await github.rest.repos.getContent({
+                    owner,
+                    repo,
+                    path: initFile,
+                    ref: prHeadSha
+                  });
+                  
+                  // Decode base64 content
+                  const content = Buffer.from(fileData.content, 'base64').toString('utf8');
                   
                   // Look for DEPRECATED_COMPONENT = "message" or DEPRECATED_COMPONENT = 'message'
                   // Support single quotes, double quotes, and triple quotes (for multiline)
@@ -431,8 +443,8 @@ jobs:
                     console.log(`Found deprecated component: ${component}`);
                   }
                 } catch (error) {
-                  // Only log if it's not a simple "file not found" error
-                  if (error.code !== 'ENOENT') {
+                  // Only log if it's not a simple "file not found" error (404)
+                  if (error.status !== 404) {
                     console.log(`Error reading ${initFile}:`, error.message);
                   }
                 }
