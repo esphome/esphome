@@ -92,7 +92,7 @@ class APIFrameHelper {
   const char *get_client_name() const { return this->client_name_; }
   // Get client peername/IP into caller-provided buffer (fetches on-demand from socket)
   // Returns pointer to buf for convenience in printf-style calls
-  const char *get_peername_to(char *buf) const;
+  const char *get_peername_to(std::span<char, socket::SOCKADDR_STR_LEN> buf) const;
   // Set client name from buffer with length (truncates if needed)
   void set_client_name(const char *name, size_t len) {
     size_t copy_len = std::min(len, sizeof(this->client_name_) - 1);
