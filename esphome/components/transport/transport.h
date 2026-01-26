@@ -23,24 +23,29 @@ static const char *TAG = "transport";
  */
 class Transport : public Component {
  public:
-  bool transmit(const std::vector<uint8_t> &data) {
-    auto result = this->send_data_(data);
-    ESP_LOGV(TAG, "send_data returns %s for data  %s", TRUEFALSE(result), format_hex_pretty(data).c_str());
-    return result;
-  }
+  /**
+   *
+   * @param data The data to be sent
+   * @return True if the data was queued for transmission, false if it could not be sent
+   */
+  bool transmit(const std::vector<uint8_t> &data);
 
-  void add(std::function<void(const std::vector<uint8_t> &)> callback) { this->callback_.add(std::move(callback)); }
+  /**
+   * Add a listener that will be called when data is received.
+   *
+   * @param callback The callback to be called when data is received.
+   */
+  void add_transport_listener(std::function<void(const std::vector<uint8_t> &)> callback) {
+    this->callback_.add(std::move(callback));
+  }
 
  protected:
   /**
-   * This function should be called by implementing classes when data is received and will be passed to any listeners.
+   * This function should be called by implementing classes with received data to be passed to any listeners.
    *
    * @param data The received data
    */
-  void on_receive_data_(const std::vector<uint8_t> &data) {
-    ESP_LOGV(TAG, "Received data %s", format_hex_pretty(data.data(), data.size()).c_str());
-    this->callback_.call(data);
-  }
+  void on_receive_data_(const std::vector<uint8_t> &data);
   virtual ~Transport() = default;
 
   /**
@@ -49,7 +54,7 @@ class Transport : public Component {
    * @return True if the data was queued for transmission, false if it could not be sent
    */
   virtual bool send_data_(const std::vector<uint8_t> &data) = 0;
-  CallbackManager<void(const std::vector<uint8_t> &)> callback_;
+  LazyCallbackManager<void(const std::vector<uint8_t> &)> callback_;
 };
 }  // namespace transport
 }  // namespace esphome
