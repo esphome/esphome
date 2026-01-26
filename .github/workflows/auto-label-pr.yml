@@ -390,7 +390,7 @@ jobs:
               const deprecatedInfo = [];
               
               // Compile regex once for better performance
-              const componentFileRegex = /^esphome\/components\/([^\/]+)\/.+\.py$/;
+              const componentFileRegex = /^esphome\/components\/([^\/]+)\/[^/]*\.py$/;
               
               // Get files that are modified or added in components directory
               const componentFiles = changedFiles.filter(file => componentFileRegex.test(file));
@@ -399,11 +399,10 @@ jobs:
                 return { labels, deprecatedInfo };
               }
               
-              // Extract unique component names
+              // Extract unique component names using the same regex
               const components = new Set();
-              const componentMatchRegex = /^esphome\/components\/([^\/]+)\//;
               for (const file of componentFiles) {
-                const match = file.match(componentMatchRegex);
+                const match = file.match(componentFileRegex);
                 if (match) {
                   components.add(match[1]);
                 }
@@ -416,9 +415,11 @@ jobs:
                   const content = fs.readFileSync(initFile, 'utf8');
                   
                   // Look for DEPRECATED_COMPONENT = "message" or DEPRECATED_COMPONENT = 'message'
-                  // Support both single and double quotes, and handle escaped quotes
-                  const doubleQuoteMatch = content.match(/DEPRECATED_COMPONENT\s*=\s*"((?:[^"\\]|\\.)*)"/);
-                  const singleQuoteMatch = content.match(/DEPRECATED_COMPONENT\s*=\s*'((?:[^'\\]|\\.)*)'/);
+                  // Support single quotes, double quotes, and triple quotes (for multiline)
+                  const doubleQuoteMatch = content.match(/DEPRECATED_COMPONENT\s*=\s*"""((?:[^\\]|\\.)*)"""/s) ||
+                                          content.match(/DEPRECATED_COMPONENT\s*=\s*"((?:[^"\\]|\\.)*)"/);
+                  const singleQuoteMatch = content.match(/DEPRECATED_COMPONENT\s*=\s*'''((?:[^\\]|\\.)*)'''/s) ||
+                                          content.match(/DEPRECATED_COMPONENT\s*=\s*'((?:[^'\\]|\\.)*)'/);
                   const deprecatedMatch = doubleQuoteMatch || singleQuoteMatch;
                   
                   if (deprecatedMatch) {
@@ -430,8 +431,10 @@ jobs:
                     console.log(`Found deprecated component: ${component}`);
                   }
                 } catch (error) {
-                  // File doesn't exist or can't be read - not an error, just skip
-                  console.log(`Could not read ${initFile}:`, error.message);
+                  // Only log if it's not a simple "file not found" error
+                  if (error.code !== 'ENOENT') {
+                    console.log(`Error reading ${initFile}:`, error.message);
+                  }
                 }
               }
               
