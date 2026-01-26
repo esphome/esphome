@@ -11,5 +11,3 @@ ST7789V.extend(
     dc_pin=21,
     reset_pin=18,
 )
-
-models = {}
