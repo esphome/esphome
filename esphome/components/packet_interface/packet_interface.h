@@ -39,11 +39,13 @@ class PacketInterface : public Component {
  public:
   /**
    *
+   * Method to be implemented by child classes to send data to the interface.
+   *
    * @param data The data to be sent
    * @param meta_data Metadata about the packet to be sent
    * @return True if the data was queued for transmission, false if it could not be sent
    */
-  bool transmit(const std::vector<uint8_t> &data, PacketMetaData meta_data = {});
+  virtual bool send_to_interface(const std::vector<uint8_t> &data, PacketMetaData meta_data = {}) = 0;
 
   /**
    * Add a listener that will be called when data is received.
@@ -51,7 +53,7 @@ class PacketInterface : public Component {
    * @param callback The callback to be called when data is received.
    */
   void add_packet_interface_listener(
-      std::function<void(const std::vector<uint8_t> &, const PacketMetaData meta_data)> callback) {
+      std::function<void(const std::vector<uint8_t> &, PacketMetaData meta_data)> callback) {
     this->callback_.add(std::move(callback));
   }
 
@@ -60,17 +62,11 @@ class PacketInterface : public Component {
    * This function should be called by implementing classes with received data to be passed to any listeners.
    *
    * @param data The received data
-   * @param meta_data
+   * @param meta_data Metadata about the received packet
    */
-  void on_receive_data_(const std::vector<uint8_t> &data, PacketMetaData meta_data);
+  void on_receive_from_interface_(const std::vector<uint8_t> &data, PacketMetaData meta_data);
   virtual ~PacketInterface() = default;
 
-  /**
-   *
-   * @param data The data packet to be sent
-   * @return True if the packet was queued for transmission, false if it could not be sent
-   */
-  virtual bool send_data_(const std::vector<uint8_t> &data, PacketMetaData meta_data = {}) = 0;
   LazyCallbackManager<void(const std::vector<uint8_t> &, PacketMetaData meta_data)> callback_;
 };
 }  // namespace esphome::packet_interface
