@@ -21,7 +21,7 @@ def base_config():
 
 
 def test_uart_packet_interface_schema_includes_packet_interface():
-    """Test that UartTransport schema includes packet_interface schema."""
+    """Test that UartPacketInterface schema includes packet_interface schema."""
     schema = packet_interface.CONFIG_SCHEMA
 
     # Verify schema is a cv.Schema instance
@@ -32,7 +32,7 @@ def test_uart_packet_interface_schema_includes_packet_interface():
 
 
 def test_uart_packet_interface_schema_includes_rx_buffer_size():
-    """Test that UartTransport schema includes rx_buffer_size configuration."""
+    """Test that UartPacketInterface schema includes rx_buffer_size configuration."""
     schema = packet_interface.CONFIG_SCHEMA
 
     # Verify rx_buffer_size is in schema
@@ -63,7 +63,7 @@ def test_uart_packet_interface_schema_rx_buffer_size_validation():
 
 @pytest.mark.asyncio
 async def test_uart_packet_interface_to_code_creates_instance(setup_core, base_config):
-    """Test that to_code creates and configures UartTransport instance correctly."""
+    """Test that to_code creates and configures UartPacketInterface instance correctly."""
     with (
         patch(
             "esphome.components.packet_interface.new_packet_interface"
@@ -97,7 +97,7 @@ async def test_uart_packet_interface_to_code_creates_instance(setup_core, base_c
 async def test_uart_packet_interface_to_code_registers_uart_device(
     setup_core, base_config
 ):
-    """Test that to_code registers UartTransport as a UART device."""
+    """Test that to_code registers UartPacketInterface as a UART device."""
     with (
         patch(
             "esphome.components.packet_interface.new_packet_interface"
@@ -131,7 +131,7 @@ async def test_uart_packet_interface_to_code_registers_uart_device(
 async def test_uart_packet_interface_to_code_sets_rx_buffer_size(
     setup_core, base_config
 ):
-    """Test that to_code sets rx_buffer_size on the UartTransport instance."""
+    """Test that to_code sets rx_buffer_size on the UartPacketInterface instance."""
     with (
         patch(
             "esphome.components.packet_interface.new_packet_interface"
@@ -235,12 +235,12 @@ async def test_uart_packet_interface_to_code_integration(setup_core, base_config
 
 
 def test_uart_packet_interface_class_inheritance():
-    """Test that UartTransport inherits from PacketInterface and UARTDevice."""
+    """Test that UartPacketInterface inherits from PacketInterface and UARTDevice."""
     # Verify the class definition includes proper inheritance
-    uart_transport_class = packet_interface.UARTTransport
+    uart_packet_interface_class = packet_interface.UartPacketInterface
 
     # The class should be defined with correct parent classes
-    assert uart_transport_class is not None
+    assert uart_packet_interface_class is not None
 
 
 def test_uart_packet_interface_has_dependencies():
@@ -256,7 +256,7 @@ def test_uart_packet_interface_has_codeowner():
 
 
 def test_uart_packet_interface_extends_uart_device_schema():
-    """Test that UartTransport schema extends UART_DEVICE_SCHEMA."""
+    """Test that UartPacketInterface schema extends UART_DEVICE_SCHEMA."""
     # The schema should include uart device configuration
     schema = packet_interface.CONFIG_SCHEMA
 

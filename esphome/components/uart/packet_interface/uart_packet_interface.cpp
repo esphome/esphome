@@ -1,9 +1,9 @@
-#include "uart_transport.h"
+#include "uart_packet_interface.h"
 
 namespace esphome {
 namespace uart {
 
-void UartTransport::loop() {
+void UartPacketInterface::loop() {
   auto cnt = this->available();
   if (cnt > this->rx_buffer_size_) {
     cnt = this->rx_buffer_size_;
@@ -16,7 +16,7 @@ void UartTransport::loop() {
     this->rx_data_.clear();
   }
 }
-bool UartTransport::send_data_(const std::vector<uint8_t> &data) {
+bool UartPacketInterface::send_data_(const std::vector<uint8_t> &data) {
   this->write_array(data.data(), data.size());
   return true;
 }

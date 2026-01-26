@@ -10,15 +10,15 @@ CODEOWNERS = ["@clydebarrow"]
 
 DEPENDENCIES = ["uart"]
 
-UARTTransport = uart_ns.class_(
-    "UartTransport",
+UartPacketInterface = uart_ns.class_(
+    "UartPacketInterface",
     packet_interface.PacketInterface,
     uart.UARTDevice,
     cg.PollingComponent,
 )
 
 CONFIG_SCHEMA = (
-    packet_interface_schema(UARTTransport)
+    packet_interface_schema(UartPacketInterface)
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(
         {

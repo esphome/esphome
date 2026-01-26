@@ -7,7 +7,7 @@
 namespace esphome {
 namespace uart {
 
-class UartTransport : public packet_interface::PacketInterface, public UARTDevice {
+class UartPacketInterface : public packet_interface::PacketInterface, public UARTDevice {
  public:
   void loop() override;
   void set_rx_buffer_size(size_t rx_buffer_size) { this->rx_buffer_size_ = rx_buffer_size; }
