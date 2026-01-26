@@ -159,10 +159,11 @@ bool MQTTComponent::publish(const char *topic, ProgmemStr payload) {
   if (topic[0] == '\0')
     return false;
   // On ESP8266, ProgmemStr is __FlashStringHelper* - need to copy from flash
-  size_t len = strlen_P(reinterpret_cast<const char *>(payload));
-  char buf[len + 1];
-  memcpy_P(buf, reinterpret_cast<const char *>(payload), len + 1);
-  return global_mqtt_client->publish(topic, buf, len, this->qos_, this->retain_);
+  // Max state string is "armed_custom_bypass" (19 chars) + null = 20 bytes
+  char buf[24];
+  strncpy_P(buf, reinterpret_cast<const char *>(payload), sizeof(buf) - 1);
+  buf[sizeof(buf) - 1] = '\0';
+  return global_mqtt_client->publish(topic, buf, strlen(buf), this->qos_, this->retain_);
 }
 #endif
 
