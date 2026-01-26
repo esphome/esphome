@@ -430,12 +430,14 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
   }
 
   if (this->api_client_ != nullptr) {
+    char current_peername[socket::SOCKADDR_STR_LEN];
+    char new_peername[socket::SOCKADDR_STR_LEN];
     ESP_LOGE(TAG,
              "Multiple API Clients attempting to connect to Voice Assistant\n"
              "Current client: %s (%s)\n"
              "New client: %s (%s)",
-             this->api_client_->get_name(), this->api_client_->get_peername(), client->get_name(),
-             client->get_peername());
+             this->api_client_->get_name(), this->api_client_->get_peername_to(current_peername), client->get_name(),
+             client->get_peername_to(new_peername));
     return;
   }
 
