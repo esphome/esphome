@@ -7,9 +7,9 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace transport {
+namespace packet_interface {
 
-static const char *TAG = "transport";
+static const char *TAG = "packet_interface";
 
 /**
  * A class that will transport data to and from an abstract channel.
@@ -21,7 +21,7 @@ static const char *TAG = "transport";
  *
  * Receive: The callbacks for an instance of this class are called with currently received data.
  */
-class Transport : public Component {
+class PacketInterface : public Component {
  public:
   /**
    *
@@ -35,7 +35,7 @@ class Transport : public Component {
    *
    * @param callback The callback to be called when data is received.
    */
-  void add_transport_listener(std::function<void(const std::vector<uint8_t> &)> callback) {
+  void add_packet_interface_listener(std::function<void(const std::vector<uint8_t> &)> callback) {
     this->callback_.add(std::move(callback));
   }
 
@@ -46,7 +46,7 @@ class Transport : public Component {
    * @param data The received data
    */
   void on_receive_data_(const std::vector<uint8_t> &data);
-  virtual ~Transport() = default;
+  virtual ~PacketInterface() = default;
 
   /**
    *
@@ -56,5 +56,5 @@ class Transport : public Component {
   virtual bool send_data_(const std::vector<uint8_t> &data) = 0;
   LazyCallbackManager<void(const std::vector<uint8_t> &)> callback_;
 };
-}  // namespace transport
+}  // namespace packet_interface
 }  // namespace esphome

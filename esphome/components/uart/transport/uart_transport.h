@@ -1,13 +1,13 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/components/transport/transport.h"
+#include "esphome/components/packet_interface/packet_interface.h"
 #include "esphome/components/uart/uart.h"
 
 namespace esphome {
 namespace uart {
 
-class UartTransport : public transport::Transport, public UARTDevice {
+class UartTransport : public packet_interface::PacketInterface, public UARTDevice {
  public:
   void loop() override;
   void set_rx_buffer_size(size_t rx_buffer_size) { this->rx_buffer_size_ = rx_buffer_size; }
