@@ -75,8 +75,8 @@ class SPDIFEncoder {
   /// @return esp_err_t as returned from the callback, or ESP_OK if nothing to flush
   esp_err_t flush_with_silence(TickType_t ticks_to_wait);
 
-  /// @brief Reset the SPDIF block buffer, discarding any partial block
-  void reset() { this->spdif_block_ptr_ = this->spdif_block_buf_.get(); }
+  /// @brief Reset the SPDIF block buffer and position tracking, discarding any partial block
+  void reset();
 
  protected:
   /// @brief Encode a single 16-bit PCM sample into the current block position
@@ -85,13 +85,24 @@ class SPDIFEncoder {
   /// @brief Send the completed block via the appropriate callback
   esp_err_t send_block_(TickType_t ticks_to_wait);
 
+  /// @brief BMC-encode a range of bits (LUT-free)
+  /// @param data The data bits to encode (LSB first)
+  /// @param num_bits Number of bits to encode
+  /// @param phase Current BMC phase state (updated on return)
+  /// @return BMC-encoded output (2 bits per input bit)
+  static uint32_t bmc_encode_(uint32_t data, uint8_t num_bits, bool &phase);
+
   SPDIFBlockCallback write_callback_;
   SPDIFBlockCallback preload_callback_;
   bool preload_mode_{false};
 
-  // Working buffer that holds an entire SPDIF block ready for I2S output (heap allocated, 1536 bytes)
+  // Working buffer that holds an entire SPDIF block ready for I2S output (heap allocated)
   std::unique_ptr<uint32_t[]> spdif_block_buf_;
   uint32_t *spdif_block_ptr_{nullptr};
+
+  // Position tracking within the SPDIF block
+  uint8_t frame_in_block_{0};   // 0-191, tracks stereo frame position within block
+  bool is_left_channel_{true};  // Alternates L/R for stereo samples
 };
 
 }  // namespace esphome::i2s_audio
