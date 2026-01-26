@@ -2,15 +2,29 @@
 
 #include <utility>
 
+#include "esphome/core/string_ref.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace packet_interface {
+namespace esphome::packet_interface {
 
 static const char *TAG = "packet_interface";
 
+/**
+ * A struct to hold metadata about a packet.
+ * @param info Additional information about the packet
+ * @param rssi The RSSI of the packet
+ * @param snr The SNR of the packet
+ * @param mac_address The MAC address of the sender/receiver
+ */
+class PacketMetaData {
+ public:
+  StringRef info{};
+  float rssi{NAN};
+  float snr{NAN};
+  uint8_t mac_address[MAC_ADDRESS_SIZE]{};
+};
 /**
  * A class that will transport data to and from an abstract channel.
  *
@@ -26,16 +40,18 @@ class PacketInterface : public Component {
   /**
    *
    * @param data The data to be sent
+   * @param meta_data Metadata about the packet to be sent
    * @return True if the data was queued for transmission, false if it could not be sent
    */
-  bool transmit(const std::vector<uint8_t> &data);
+  bool transmit(const std::vector<uint8_t> &data, PacketMetaData meta_data = {});
 
   /**
    * Add a listener that will be called when data is received.
    *
    * @param callback The callback to be called when data is received.
    */
-  void add_packet_interface_listener(std::function<void(const std::vector<uint8_t> &)> callback) {
+  void add_packet_interface_listener(
+      std::function<void(const std::vector<uint8_t> &, const PacketMetaData meta_data)> callback) {
     this->callback_.add(std::move(callback));
   }
 
@@ -44,17 +60,17 @@ class PacketInterface : public Component {
    * This function should be called by implementing classes with received data to be passed to any listeners.
    *
    * @param data The received data
+   * @param meta_data
    */
-  void on_receive_data_(const std::vector<uint8_t> &data);
+  void on_receive_data_(const std::vector<uint8_t> &data, PacketMetaData meta_data);
   virtual ~PacketInterface() = default;
 
   /**
    *
-   * @param data The data to be sent
-   * @return True if the data was queued for transmission, false if it could not be sent
+   * @param data The data packet to be sent
+   * @return True if the packet was queued for transmission, false if it could not be sent
    */
-  virtual bool send_data_(const std::vector<uint8_t> &data) = 0;
-  LazyCallbackManager<void(const std::vector<uint8_t> &)> callback_;
+  virtual bool send_data_(const std::vector<uint8_t> &data, PacketMetaData meta_data = {}) = 0;
+  LazyCallbackManager<void(const std::vector<uint8_t> &, PacketMetaData meta_data)> callback_;
 };
-}  // namespace packet_interface
-}  // namespace esphome
+}  // namespace esphome::packet_interface

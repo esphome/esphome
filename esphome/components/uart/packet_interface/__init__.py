@@ -22,9 +22,7 @@ CONFIG_SCHEMA = (
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(
         {
-            cv.Optional(CONF_RX_BUFFER_SIZE, default=1024): cv.int_range(
-                256, 8192, min_included=True, max_included=True
-            ),
+            cv.Optional(CONF_RX_BUFFER_SIZE, default=1024): cv.int_range(256, 8192),
         }
     )
 )
