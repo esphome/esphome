@@ -245,13 +245,13 @@ APIError APIFrameHelper::try_send_tx_buf_() {
   return APIError::OK;  // All buffers sent successfully
 }
 
-const char *APIFrameHelper::get_peername_to(char *buf) const {
+const char *APIFrameHelper::get_peername_to(std::span<char, socket::SOCKADDR_STR_LEN> buf) const {
   if (this->socket_) {
-    this->socket_->getpeername_to(std::span<char, socket::SOCKADDR_STR_LEN>(buf, socket::SOCKADDR_STR_LEN));
+    this->socket_->getpeername_to(buf);
   } else {
     buf[0] = '\0';
   }
-  return buf;
+  return buf.data();
 }
 
 APIError APIFrameHelper::init_common_() {

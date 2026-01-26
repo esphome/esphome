@@ -282,7 +282,9 @@ class APIConnection final : public APIServerConnection {
 
   const char *get_name() const { return this->helper_->get_client_name(); }
   /// Get peer name (IP address) into caller-provided buffer, returns buf for convenience
-  const char *get_peername_to(char *buf) const { return this->helper_->get_peername_to(buf); }
+  const char *get_peername_to(std::span<char, socket::SOCKADDR_STR_LEN> buf) const {
+    return this->helper_->get_peername_to(buf);
+  }
 
  protected:
   // Helper function to handle authentication completion
