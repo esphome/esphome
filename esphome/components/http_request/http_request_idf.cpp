@@ -92,12 +92,11 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   if (secure && this->verify_ssl_) {
     if (this->ca_certificate_ != nullptr) {
       config.cert_pem = this->ca_certificate_;
-    }
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
-    else {
+    } else {
       config.crt_bundle_attach = esp_crt_bundle_attach;
-    }
 #endif
+    }
   }
 
   if (this->useragent_ != nullptr) {
