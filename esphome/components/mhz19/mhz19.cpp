@@ -3,8 +3,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace mhz19 {
+namespace esphome::mhz19 {
 
 static const char *const TAG = "mhz19";
 static const uint8_t MHZ19_REQUEST_LENGTH = 8;
@@ -156,5 +155,4 @@ void MHZ19Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Detection range: %s", LOG_STR_ARG(detection_range_to_log_string(this->detection_range_)));
 }
 
-}  // namespace mhz19
-}  // namespace esphome
+}  // namespace esphome::mhz19
