@@ -389,10 +389,11 @@ jobs:
               const labels = new Set();
               const deprecatedInfo = [];
               
+              // Compile regex once for better performance
+              const componentFileRegex = /^esphome\/components\/([^\/]+)\/.+\.py$/;
+              
               // Get files that are modified or added in components directory
-              const componentFiles = changedFiles.filter(file => 
-                file.match(/^esphome\/components\/([^\/]+)\/.+\.py$/)
-              );
+              const componentFiles = changedFiles.filter(file => componentFileRegex.test(file));
               
               if (componentFiles.length === 0) {
                 return { labels, deprecatedInfo };
@@ -400,8 +401,9 @@ jobs:
               
               // Extract unique component names
               const components = new Set();
+              const componentMatchRegex = /^esphome\/components\/([^\/]+)\//;
               for (const file of componentFiles) {
-                const match = file.match(/^esphome\/components\/([^\/]+)\//);
+                const match = file.match(componentMatchRegex);
                 if (match) {
                   components.add(match[1]);
                 }
@@ -414,7 +416,10 @@ jobs:
                   const content = fs.readFileSync(initFile, 'utf8');
                   
                   // Look for DEPRECATED_COMPONENT = "message" or DEPRECATED_COMPONENT = 'message'
-                  const deprecatedMatch = content.match(/DEPRECATED_COMPONENT\s*=\s*["'](.+?)["']/s);
+                  // Support both single and double quotes, and handle escaped quotes
+                  const doubleQuoteMatch = content.match(/DEPRECATED_COMPONENT\s*=\s*"((?:[^"\\]|\\.)*)"/);
+                  const singleQuoteMatch = content.match(/DEPRECATED_COMPONENT\s*=\s*'((?:[^'\\]|\\.)*)'/);
+                  const deprecatedMatch = doubleQuoteMatch || singleQuoteMatch;
                   
                   if (deprecatedMatch) {
                     labels.add('deprecated_component');
