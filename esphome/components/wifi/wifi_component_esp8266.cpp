@@ -698,6 +698,10 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   if (!this->wifi_mode_(true, {}))
     return false;
 
+  // Reset scan_done_ before starting new scan to prevent stale flag from previous scan
+  // (e.g., roaming scan completed just before unexpected disconnect)
+  this->scan_done_ = false;
+
   struct scan_config config {};
   memset(&config, 0, sizeof(config));
   config.ssid = nullptr;

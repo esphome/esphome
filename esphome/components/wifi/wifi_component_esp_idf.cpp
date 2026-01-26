@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <memory>
 #include <utility>
 #ifdef USE_WIFI_WPA2_EAP
 #if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
@@ -836,15 +837,29 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       this->scan_result_.reserve(WIFI_SCAN_RESULT_FILTERED_RESERVE);
     }
 
-    // Process one record at a time to avoid large buffer allocation
-    wifi_ap_record_t record;
+#ifdef USE_ESP32_HOSTED
+    // getting records one at a time fails on P4 with hosted esp32 WiFi coprocessor
+    // Presumably an upstream bug, work-around by getting all records at once
+    auto records = std::make_unique<wifi_ap_record_t[]>(number);
+    err = esp_wifi_scan_get_ap_records(&number, records.get());
+    if (err != ESP_OK) {
+      esp_wifi_clear_ap_list();
+      ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(err));
+      return;
+    }
     for (uint16_t i = 0; i < number; i++) {
+      wifi_ap_record_t &record = records[i];
+#else
+    // Process one record at a time to avoid large buffer allocation
+    for (uint16_t i = 0; i < number; i++) {
+      wifi_ap_record_t record;
       err = esp_wifi_scan_get_ap_record(&record);
       if (err != ESP_OK) {
         ESP_LOGW(TAG, "esp_wifi_scan_get_ap_record failed: %s", esp_err_to_name(err));
         esp_wifi_clear_ap_list();  // Free remaining records not yet retrieved
         break;
       }
+#endif  // USE_ESP32_HOSTED
 
       // Check C string first - avoid std::string construction for non-matching networks
       const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
