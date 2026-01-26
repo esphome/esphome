@@ -219,6 +219,7 @@ cover:
     name: Template Cover
     state_topic: some/topic/cover
     qos: 2
+    mqtt_json_state_payload: true
     lambda: |-
       if (id(some_binary_sensor).state) {
         return COVER_OPEN;

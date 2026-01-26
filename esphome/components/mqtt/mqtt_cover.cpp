@@ -67,17 +67,20 @@ void MQTTCoverComponent::dump_config() {
   auto traits = this->cover_->get_traits();
   bool has_command_topic = traits.get_supports_position() || !traits.get_supports_tilt();
   LOG_MQTT_COMPONENT(true, has_command_topic);
+#ifdef USE_MQTT_COVER_JSON
+  ESP_LOGCONFIG(TAG, "  JSON State Payload: YES");
+#endif
   if (traits.get_supports_position()) {
-    ESP_LOGCONFIG(TAG,
-                  "  Position State Topic: '%s'\n"
-                  "  Position Command Topic: '%s'",
-                  this->get_position_state_topic().c_str(), this->get_position_command_topic().c_str());
+#ifndef USE_MQTT_COVER_JSON
+    ESP_LOGCONFIG(TAG, "  Position State Topic: '%s'", this->get_position_state_topic().c_str());
+#endif
+    ESP_LOGCONFIG(TAG, "  Position Command Topic: '%s'", this->get_position_command_topic().c_str());
   }
   if (traits.get_supports_tilt()) {
-    ESP_LOGCONFIG(TAG,
-                  "  Tilt State Topic: '%s'\n"
-                  "  Tilt Command Topic: '%s'",
-                  this->get_tilt_state_topic().c_str(), this->get_tilt_command_topic().c_str());
+#ifndef USE_MQTT_COVER_JSON
+    ESP_LOGCONFIG(TAG, "  Tilt State Topic: '%s'", this->get_tilt_state_topic().c_str());
+#endif
+    ESP_LOGCONFIG(TAG, "  Tilt Command Topic: '%s'", this->get_tilt_command_topic().c_str());
   }
 }
 void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
@@ -92,6 +95,21 @@ void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
   if (traits.get_is_assumed_state()) {
     root[MQTT_OPTIMISTIC] = true;
   }
+#ifdef USE_MQTT_COVER_JSON
+  // JSON mode: all state published to state_topic as JSON, use templates to extract
+  root[MQTT_VALUE_TEMPLATE] = ESPHOME_F("{{ value_json.state }}");
+  if (traits.get_supports_position()) {
+    root[MQTT_POSITION_TOPIC] = this->get_state_topic_();
+    root[MQTT_POSITION_TEMPLATE] = ESPHOME_F("{{ value_json.position }}");
+    root[MQTT_SET_POSITION_TOPIC] = this->get_position_command_topic();
+  }
+  if (traits.get_supports_tilt()) {
+    root[MQTT_TILT_STATUS_TOPIC] = this->get_state_topic_();
+    root[MQTT_TILT_STATUS_TEMPLATE] = ESPHOME_F("{{ value_json.tilt }}");
+    root[MQTT_TILT_COMMAND_TOPIC] = this->get_tilt_command_topic();
+  }
+#else
+  // Standard mode: separate topics for position and tilt
   if (traits.get_supports_position()) {
     root[MQTT_POSITION_TOPIC] = this->get_position_state_topic();
     root[MQTT_SET_POSITION_TOPIC] = this->get_position_command_topic();
@@ -100,6 +118,7 @@ void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
     root[MQTT_TILT_STATUS_TOPIC] = this->get_tilt_state_topic();
     root[MQTT_TILT_COMMAND_TOPIC] = this->get_tilt_command_topic();
   }
+#endif
   if (traits.get_supports_tilt() && !traits.get_supports_position()) {
     config.command_topic = false;
   }
@@ -111,6 +130,21 @@ const EntityBase *MQTTCoverComponent::get_entity() const { return this->cover_; 
 bool MQTTCoverComponent::send_initial_state() { return this->publish_state(); }
 bool MQTTCoverComponent::publish_state() {
   auto traits = this->cover_->get_traits();
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+#ifdef USE_MQTT_COVER_JSON
+  return this->publish_json(this->get_state_topic_to_(topic_buf), [this, traits](JsonObject root) {
+    // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+    root[ESPHOME_F("state")] = cover_state_to_mqtt_str(this->cover_->current_operation, this->cover_->position,
+                                                       traits.get_supports_position());
+    if (traits.get_supports_position()) {
+      root[ESPHOME_F("position")] = static_cast<int>(roundf(this->cover_->position * 100));
+    }
+    if (traits.get_supports_tilt()) {
+      root[ESPHOME_F("tilt")] = static_cast<int>(roundf(this->cover_->tilt * 100));
+    }
+    // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
+  });
+#else
   bool success = true;
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   if (traits.get_supports_position()) {
@@ -130,6 +164,7 @@ bool MQTTCoverComponent::publish_state() {
                                              traits.get_supports_position())))
     success = false;
   return success;
+#endif
 }
 
 }  // namespace esphome::mqtt
