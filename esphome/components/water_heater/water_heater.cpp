@@ -146,10 +146,6 @@ void WaterHeaterCall::validate_() {
   }
 }
 
-void WaterHeater::setup() {
-  this->pref_ = global_preferences->make_preference<SavedWaterHeaterState>(this->get_preference_hash());
-}
-
 void WaterHeater::publish_state() {
   auto traits = this->get_traits();
   ESP_LOGD(TAG,
@@ -188,7 +184,8 @@ void WaterHeater::publish_state() {
   this->pref_.save(&saved);
 }
 
-optional<WaterHeaterCall> WaterHeater::restore_state() {
+optional<WaterHeaterCall> WaterHeater::restore_state_() {
+  this->pref_ = global_preferences->make_preference<SavedWaterHeaterState>(this->get_preference_hash());
   SavedWaterHeaterState recovered{};
   if (!this->pref_.load(&recovered))
     return {};
