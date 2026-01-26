@@ -149,9 +149,8 @@ void WiFiComponent::wifi_scan_result(void *env, const cyw43_ev_scan_result_t *re
 
   bssid_t bssid;
   std::copy(result->bssid, result->bssid + 6, bssid.begin());
-  std::string ssid(ssid_cstr);
-  WiFiScanResult res(bssid, std::move(ssid), result->channel, result->rssi, result->auth_mode != CYW43_AUTH_OPEN,
-                     ssid_cstr[0] == '\0');
+  WiFiScanResult res(bssid, ssid_cstr, strlen(ssid_cstr), result->channel, result->rssi,
+                     result->auth_mode != CYW43_AUTH_OPEN, ssid_cstr[0] == '\0');
   if (std::find(this->scan_result_.begin(), this->scan_result_.end(), res) == this->scan_result_.end()) {
     this->scan_result_.push_back(res);
   }

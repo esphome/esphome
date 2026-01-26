@@ -694,7 +694,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
       auto &ap = scan->ap[i];
       this->scan_result_.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
                                               ap.bssid.addr[4], ap.bssid.addr[5]},
-                                      std::string(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
+                                      ssid_cstr, strlen(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
                                       ssid_cstr[0] == '\0');
     } else {
       auto &ap = scan->ap[i];

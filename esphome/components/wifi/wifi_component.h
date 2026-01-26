@@ -175,9 +175,13 @@ template<typename T> using wifi_scan_vector_t = FixedVector<T>;
 class WiFiAP {
  public:
   void set_ssid(const std::string &ssid);
+  void set_ssid(const char *ssid);
+  void set_ssid(const CompactString &ssid) { this->ssid_ = ssid; }
   void set_bssid(const bssid_t &bssid);
   void clear_bssid();
   void set_password(const std::string &password);
+  void set_password(const char *password);
+  void set_password(const CompactString &password) { this->password_ = password; }
 #ifdef USE_WIFI_WPA2_EAP
   void set_eap(optional<EAPAuth> eap_auth);
 #endif  // USE_WIFI_WPA2_EAP
@@ -188,10 +192,10 @@ class WiFiAP {
   void set_manual_ip(optional<ManualIP> manual_ip);
 #endif
   void set_hidden(bool hidden);
-  const std::string &get_ssid() const;
+  const CompactString &get_ssid() const { return this->ssid_; }
+  const CompactString &get_password() const { return this->password_; }
   const bssid_t &get_bssid() const;
   bool has_bssid() const;
-  const std::string &get_password() const;
 #ifdef USE_WIFI_WPA2_EAP
   const optional<EAPAuth> &get_eap() const;
 #endif  // USE_WIFI_WPA2_EAP
@@ -204,8 +208,8 @@ class WiFiAP {
   bool get_hidden() const;
 
  protected:
-  std::string ssid_;
-  std::string password_;
+  CompactString ssid_;
+  CompactString password_;
 #ifdef USE_WIFI_WPA2_EAP
   optional<EAPAuth> eap_;
 #endif  // USE_WIFI_WPA2_EAP
@@ -221,14 +225,15 @@ class WiFiAP {
 
 class WiFiScanResult {
  public:
-  WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth, bool is_hidden);
+  WiFiScanResult(const bssid_t &bssid, const char *ssid, size_t ssid_len, uint8_t channel, int8_t rssi, bool with_auth,
+                 bool is_hidden);
 
   bool matches(const WiFiAP &config) const;
 
   bool get_matches() const;
   void set_matches(bool matches);
   const bssid_t &get_bssid() const;
-  const std::string &get_ssid() const;
+  const CompactString &get_ssid() const { return this->ssid_; }
   uint8_t get_channel() const;
   int8_t get_rssi() const;
   bool get_with_auth() const;
@@ -242,7 +247,7 @@ class WiFiScanResult {
   bssid_t bssid_;
   uint8_t channel_;
   int8_t rssi_;
-  std::string ssid_;
+  CompactString ssid_;
   int8_t priority_{0};
   bool matches_{false};
   bool with_auth_;
@@ -381,6 +386,10 @@ class WiFiComponent : public Component {
   void set_passive_scan(bool passive);
 
   void save_wifi_sta(const std::string &ssid, const std::string &password);
+  void save_wifi_sta(const char *ssid, const char *password);
+  void save_wifi_sta(const CompactString &ssid, const CompactString &password) {
+    this->save_wifi_sta(ssid.c_str(), password.c_str());
+  }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -541,7 +550,7 @@ class WiFiComponent : public Component {
   int8_t find_first_non_hidden_index_() const;
   /// Check if an SSID was seen in the most recent scan results
   /// Used to skip hidden mode for SSIDs we know are visible
-  bool ssid_was_seen_in_scan_(const std::string &ssid) const;
+  bool ssid_was_seen_in_scan_(const CompactString &ssid) const;
   /// Check if full scan results are needed (captive portal active, improv, listeners)
   bool needs_full_scan_results_() const;
   /// Check if network matches any configured network (for scan result filtering)

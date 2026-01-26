@@ -781,8 +781,8 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
     const char *ssid_cstr = reinterpret_cast<const char *>(it->ssid);
     if (needs_full || this->matches_configured_network_(ssid_cstr, it->bssid)) {
       this->scan_result_.emplace_back(
-          bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]},
-          std::string(ssid_cstr, it->ssid_len), it->channel, it->rssi, it->authmode != AUTH_OPEN, it->is_hidden != 0);
+          bssid_t{it->bssid[0], it->bssid[1], it->bssid[2], it->bssid[3], it->bssid[4], it->bssid[5]}, ssid_cstr,
+          it->ssid_len, it->channel, it->rssi, it->authmode != AUTH_OPEN, it->is_hidden != 0);
     } else {
       this->log_discarded_scan_result_(ssid_cstr, it->bssid, it->rssi, it->channel);
     }
