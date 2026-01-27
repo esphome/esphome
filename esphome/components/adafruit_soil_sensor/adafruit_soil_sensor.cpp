@@ -79,7 +79,7 @@ bool AdafruitSoilSensor::read_temp_c_(float &temp_c) {
   uint8_t buf[4];
   i2c::ErrorCode res = this->read(buf, 4);
   if (res != i2c::ErrorCode::ERROR_OK) {
-    ESP_LOGW(TAG, "Failed to read from bus %v", res);
+    ESP_LOGW(TAG, "Failed to read from bus %d", res);
     return false;
   }
   int32_t ret = ((uint32_t) buf[0] << 24) | ((uint32_t) buf[1] << 16) | ((uint32_t) buf[2] << 8) | (uint32_t) buf[3];
@@ -91,7 +91,7 @@ bool AdafruitSoilSensor::read_capacitance_(uint16_t &touch_value) {
   uint8_t buf[2];
   i2c::ErrorCode res = this->read(buf, 2);
   if (res != i2c::ErrorCode::ERROR_OK) {
-    ESP_LOGW(TAG, "Failed to read from bus %v", res);
+    ESP_LOGW(TAG, "Failed to read from bus %d", res);
     return false;
   }
   touch_value = ((uint16_t) buf[0] << 8) | buf[1];
