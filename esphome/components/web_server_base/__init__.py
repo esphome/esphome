@@ -48,4 +48,4 @@ async def to_code(config):
         if CORE.is_libretiny:
             CORE.add_platformio_option("lib_ignore", ["ESPAsyncTCP", "RPAsyncTCP"])
         # https://github.com/ESP32Async/ESPAsyncWebServer/blob/main/library.json
-        cg.add_library("ESP32Async/ESPAsyncWebServer", "3.7.10")
+        cg.add_library("ESP32Async/ESPAsyncWebServer", "3.9.5")

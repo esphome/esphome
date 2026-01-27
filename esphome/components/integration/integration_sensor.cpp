@@ -10,7 +10,7 @@ static const char *const TAG = "integration";
 
 void IntegrationSensor::setup() {
   if (this->restore_) {
-    this->pref_ = global_preferences->make_preference<float>(this->get_preference_hash());
+    this->pref_ = this->make_entity_preference<float>();
     float preference_value = 0;
     this->pref_.load(&preference_value);
     this->result_ = preference_value;
