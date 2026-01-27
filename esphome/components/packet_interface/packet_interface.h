@@ -9,7 +9,7 @@
 
 namespace esphome::packet_interface {
 
-static const char *TAG = "packet_interface";
+static const char *const TAG = "packet_interface";
 
 /**
  * A struct to hold metadata about a packet.
