@@ -168,11 +168,11 @@ void PN532::loop() {
   }
 
   uint8_t nfcid_length = read[5];
-  nfc::NfcTagUid nfcid(read.begin() + 6, read.begin() + 6 + nfcid_length);
-  if (read.size() < 6U + nfcid_length) {
+  if (nfcid_length > nfc::NFC_UID_MAX_LENGTH || read.size() < 6U + nfcid_length) {
     // oops, pn532 returned invalid data
     return;
   }
+  nfc::NfcTagUid nfcid(read.begin() + 6, read.begin() + 6 + nfcid_length);
 
   bool report = true;
   for (auto *bin_sens : this->binary_sensors_) {
@@ -448,7 +448,7 @@ void PN532::dump_config() {
   }
 }
 
-bool PN532BinarySensor::process(nfc::NfcTagUid &data) {
+bool PN532BinarySensor::process(const nfc::NfcTagUid &data) {
   if (data.size() != this->uid_.size())
     return false;
 
