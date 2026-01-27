@@ -30,7 +30,7 @@ light::LightTraits SeesawNeopixel::get_traits() {
 }
 
 void SeesawNeopixel::write_state(light::LightState *state) {
-  for (uint16_t i = 0; i < this->size(); i++) {
+  for (int32_t i = 0; i < this->size(); i++) {
     auto view = get_view_internal(i);
     this->parent_->color_neopixel(i, view.get_red(), view.get_green(), view.get_blue());
   }
