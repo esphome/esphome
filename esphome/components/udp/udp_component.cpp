@@ -9,6 +9,11 @@ namespace esphome::udp {
 
 static const char *const TAG = "udp";
 
+void UDPComponent::set_should_listen(bool should_listen) {
+  this->should_listen_ = should_listen;
+  this->enable_loop();
+}
+
 void UDPComponent::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const auto &address : this->addresses_) {
@@ -81,7 +86,7 @@ void UDPComponent::setup() {
       }
     }
 
-    err = this->listen_socket_->bind((struct sockaddr *) &server, sizeof(server));
+    err = this->listen_socket_->bind((sockaddr *) &server, sizeof(server));
     if (err != 0) {
       ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
       this->status_set_error(LOG_STR("Unable to bind socket"));
@@ -104,22 +109,24 @@ void UDPComponent::setup() {
 
 void UDPComponent::loop() {
   auto buf = std::vector<uint8_t>(MAX_PACKET_SIZE);
-  if (this->should_listen_) {
-    for (;;) {
+  if (!this->should_listen_) {
+    this->disable_loop();
+    return;
+  }
+  for (;;) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-      auto len = this->listen_socket_->read(buf.data(), buf.size());
+    auto len = this->listen_socket_->read(buf.data(), buf.size());
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
-      auto len = this->udp_client_.parsePacket();
-      if (len > 0)
-        len = this->udp_client_.read(buf.data(), buf.size());
+    auto len = this->udp_client_.parsePacket();
+    if (len > 0)
+      len = this->udp_client_.read(buf.data(), buf.size());
 #endif
-      if (len <= 0)
-        break;
-      buf.resize(len);
-      ESP_LOGV(TAG, "Received packet of length %zu", len);
-      this->packet_listeners_.call(buf);
-    }
+    if (len <= 0)
+      break;
+    buf.resize(len);
+    ESP_LOGV(TAG, "Received packet of length %zu", len);
+    this->packet_listeners_.call(buf);
   }
 }
 
@@ -143,6 +150,10 @@ void UDPComponent::dump_config() {
 
 void UDPComponent::send_packet(const uint8_t *data, size_t size) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+  if (this->broadcast_socket_ == nullptr) {
+    ESP_LOGW(TAG, "Broadcast socket not initialized");
+    return;
+  }
   for (const auto &saddr : this->sockaddrs_) {
     auto result = this->broadcast_socket_->sendto(data, size, 0, &saddr, sizeof(saddr));
     if (result < 0)

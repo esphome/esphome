@@ -23,7 +23,5 @@ CONFIG_SCHEMA = transport_schema(PacketInterfaceTransport).extend(
 
 
 async def to_code(config):
-    var, _ = await new_packet_transport(config)
     pi = await cg.get_variable(config[CONF_PACKET_INTERFACE])
-    cg.add(var.set_packet_interface(pi))
-    cg.add(pi.add_packet_interface_listener(var.method("on_packet_")))
+    await new_packet_transport(config, pi)

@@ -45,7 +45,10 @@ class PacketInterface : public Component {
    * @param meta_data Metadata about the packet to be sent
    * @return True if the data was queued for transmission, false if it could not be sent
    */
-  virtual bool send_to_interface(const std::vector<uint8_t> &data, PacketMetaData meta_data = {}) = 0;
+  virtual bool send_to_interface(const std::vector<uint8_t> &data, PacketMetaData meta_data) = 0;
+
+  virtual size_t get_max_packet_size() { return this->max_packet_size_; }
+  void set_max_packet_size(size_t size) { this->max_packet_size_ = size; }
 
   /**
    * Add a listener that will be called when data is received.
@@ -57,7 +60,10 @@ class PacketInterface : public Component {
     this->callback_.add(std::move(callback));
   }
 
+  void dump_config() override;
+
  protected:
+  size_t max_packet_size_{512};
   /**
    * This function should be called by implementing classes with received data to be passed to any listeners.
    *

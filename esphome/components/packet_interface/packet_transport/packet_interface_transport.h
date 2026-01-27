@@ -16,7 +16,8 @@ class PacketInterfaceTransport : public PacketTransport {
   PacketInterfaceTransport(PacketInterface *interface) : interface_(interface) {}
 
   void setup() override {
-    interface_->add_packet_interface_listener(
+    PacketTransport::setup();
+    this->interface_->add_packet_interface_listener(
         [this](const std::vector<uint8_t> &data, const PacketMetaData meta_data) { this->process_(data); });
   }
 
@@ -24,10 +25,8 @@ class PacketInterfaceTransport : public PacketTransport {
 
  protected:
   // implementing PacketTransport virtual methods
-  void send_packet(const std::vector<uint8_t> &buf) const override { this->interface_->send_to_interface(buf); }
-
-  size_t get_max_packet_size() override { return 508; }  // Default max packet size
-
+  size_t get_max_packet_size() override { return this->interface_->get_max_packet_size(); }
+  void send_packet(const std::vector<uint8_t> &buf) const override { this->interface_->send_to_interface(buf, {}); }
   PacketInterface *interface_;
 };
 
