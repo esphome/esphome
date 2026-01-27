@@ -61,33 +61,6 @@ PMSX003_TYPES = {
 }
 
 SENSORS_TO_TYPE = {
-    CONF_PM_1_0: [
-        TYPE_PMS1003,
-        TYPE_PMS3003,
-        TYPE_PMSX003,
-        TYPE_PMS5003S,
-        TYPE_PMS5003T,
-        TYPE_PMS5003ST,
-        TYPE_PMS9003M,
-    ],
-    CONF_PM_2_5: [
-        TYPE_PMS1003,
-        TYPE_PMS3003,
-        TYPE_PMSX003,
-        TYPE_PMS5003S,
-        TYPE_PMS5003T,
-        TYPE_PMS5003ST,
-        TYPE_PMS9003M,
-    ],
-    CONF_PM_10_0: [
-        TYPE_PMS1003,
-        TYPE_PMS3003,
-        TYPE_PMSX003,
-        TYPE_PMS5003S,
-        TYPE_PMS5003T,
-        TYPE_PMS5003ST,
-        TYPE_PMS9003M,
-    ],
     CONF_PM_1_0_STD: [
         TYPE_PMS1003,
         TYPE_PMS3003,
@@ -107,6 +80,33 @@ SENSORS_TO_TYPE = {
         TYPE_PMS9003M,
     ],
     CONF_PM_10_0_STD: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_1_0: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_2_5: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_10_0: [
         TYPE_PMS1003,
         TYPE_PMS3003,
         TYPE_PMSX003,
