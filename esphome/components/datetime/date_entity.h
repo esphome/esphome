@@ -10,8 +10,7 @@
 
 #include "datetime_base.h"
 
-namespace esphome {
-namespace datetime {
+namespace esphome::datetime {
 
 #define LOG_DATETIME_DATE(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -68,7 +67,9 @@ class DateCall {
   void perform();
   DateCall &set_date(uint16_t year, uint8_t month, uint8_t day);
   DateCall &set_date(ESPTime time);
-  DateCall &set_date(const std::string &date);
+  DateCall &set_date(const char *date, size_t len);
+  DateCall &set_date(const char *date) { return this->set_date(date, strlen(date)); }
+  DateCall &set_date(const std::string &date) { return this->set_date(date.c_str(), date.size()); }
 
   DateCall &set_year(uint16_t year) {
     this->year_ = year;
@@ -111,7 +112,6 @@ template<typename... Ts> class DateSetAction : public Action<Ts...>, public Pare
   }
 };
 
-}  // namespace datetime
-}  // namespace esphome
+}  // namespace esphome::datetime
 
 #endif  // USE_DATETIME_DATE

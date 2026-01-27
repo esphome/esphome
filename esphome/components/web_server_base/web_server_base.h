@@ -6,20 +6,7 @@
 #include <vector>
 
 #include "esphome/core/component.h"
-
-// Platform-agnostic macros for web server components
-// On ESP32 (both Arduino and IDF): Use plain strings (no PROGMEM)
-// On ESP8266: Use Arduino's F() macro for PROGMEM strings
-#ifdef USE_ESP32
-#define ESPHOME_F(string_literal) (string_literal)
-#define ESPHOME_PGM_P const char *
-#define ESPHOME_strncpy_P strncpy
-#else
-// ESP8266 uses Arduino macros
-#define ESPHOME_F(string_literal) F(string_literal)
-#define ESPHOME_PGM_P PGM_P
-#define ESPHOME_strncpy_P strncpy_P
-#endif
+#include "esphome/core/progmem.h"
 
 #if USE_ESP32
 #include "esphome/core/hal.h"
@@ -113,7 +100,9 @@ class WebServerBase : public Component {
     }
     this->server_ = std::make_unique<AsyncWebServer>(this->port_);
     // All content is controlled and created by user - so allowing all origins is fine here.
-    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
+    // NOTE: Currently 1 header. If more are added, update in __init__.py:
+    //   cg.add_define("WEB_SERVER_DEFAULT_HEADERS_COUNT", 1)
+    DefaultHeaders::Instance().addHeader(ESPHOME_F("Access-Control-Allow-Origin"), ESPHOME_F("*"));
     this->server_->begin();
 
     for (auto *handler : this->handlers_)

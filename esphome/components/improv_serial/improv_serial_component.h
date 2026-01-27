@@ -11,8 +11,8 @@
 
 #ifdef USE_ESP32
 #include <driver/uart.h>
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32H2)
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32C61) || \
+    defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include <driver/usb_serial_jtag.h>
 #include <hal/usb_serial_jtag_ll.h>
 #endif
