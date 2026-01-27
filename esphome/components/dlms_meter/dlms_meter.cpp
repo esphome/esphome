@@ -272,8 +272,6 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
       this->receive_buffer_.clear();
       return;
     }
-
-    // Check we have enough bytes for the OBIS code
     if (current_position + OBIS_CODE_OFFSET + obis_code_length > message_length) {
       ESP_LOGE(TAG, "OBIS: Buffer too short for OBIS code");
       this->receive_buffer_.clear();
