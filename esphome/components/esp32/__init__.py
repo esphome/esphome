@@ -1108,21 +1108,19 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
 
-        # Use CMN (common CAs) bundle by default to save ~35KB flash
-        # CMN covers CAs with >1% market share (~99% of websites)
-        # Components needing uncommon CAs can call require_full_certificate_bundle()
-        use_full_bundle = conf[CONF_ADVANCED].get(
-            CONF_USE_FULL_CERTIFICATE_BUNDLE, False
-        ) or CORE.data[KEY_ESP32].get(KEY_FULL_CERT_BUNDLE, False)
-        add_idf_sdkconfig_option(
-            "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL", use_full_bundle
-        )
-        if not use_full_bundle:
-            add_idf_sdkconfig_option(
-                "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True
-            )
-
     cg.add_build_flag("-Wno-nonnull-compare")
+
+    # Use CMN (common CAs) bundle by default to save ~35KB flash
+    # CMN covers CAs with >1% market share (~99% of websites)
+    # Components needing uncommon CAs can call require_full_certificate_bundle()
+    use_full_bundle = conf[CONF_ADVANCED].get(
+        CONF_USE_FULL_CERTIFICATE_BUNDLE, False
+    ) or CORE.data[KEY_ESP32].get(KEY_FULL_CERT_BUNDLE, False)
+    add_idf_sdkconfig_option(
+        "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL", use_full_bundle
+    )
+    if not use_full_bundle:
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True)
 
     add_idf_sdkconfig_option(f"CONFIG_IDF_TARGET_{variant}", True)
     add_idf_sdkconfig_option(
