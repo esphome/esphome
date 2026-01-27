@@ -60,7 +60,7 @@ void SGP4xComponent::setup() {
     // Hash with config hash, version, and serial number
     // This ensures the baseline storage is cleared after OTA
     // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
-    uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), std::to_string(this->serial_number_));
+    uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), this->serial_number_);
     this->pref_ = global_preferences->make_preference<SGP4xBaselines>(hash, true);
 
     if (this->pref_.load(&this->voc_baselines_storage_)) {

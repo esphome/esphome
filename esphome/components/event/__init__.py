@@ -90,9 +90,7 @@ async def setup_event_core_(var, config, *, event_types: list[str]):
 
     for conf in config.get(CONF_ON_EVENT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.std_string, "event_type")], conf
-        )
+        await automation.build_automation(trigger, [(cg.StringRef, "event_type")], conf)
 
     cg.add(var.set_event_types(event_types))
 

@@ -1060,11 +1060,11 @@ bool ThermostatClimate::cooling_required_() {
   auto temperature = this->supports_two_points_ ? this->target_temperature_high : this->target_temperature;
 
   if (this->supports_cool_) {
-    if (this->current_temperature > temperature + this->cooling_deadband_) {
-      // if the current temperature exceeds the target + deadband, cooling is required
+    if (this->current_temperature >= temperature + this->cooling_deadband_) {
+      // if the current temperature reaches or exceeds the target + deadband, cooling is required
       return true;
-    } else if (this->current_temperature < temperature - this->cooling_overrun_) {
-      // if the current temperature is less than the target - overrun, cooling should stop
+    } else if (this->current_temperature <= temperature - this->cooling_overrun_) {
+      // if the current temperature is less than or equal to the target - overrun, cooling should stop
       return false;
     } else {
       // if we get here, the current temperature is between target + deadband and target - overrun,
@@ -1081,11 +1081,11 @@ bool ThermostatClimate::fanning_required_() {
 
   if (this->supports_fan_only_) {
     if (this->supports_fan_only_cooling_) {
-      if (this->current_temperature > temperature + this->cooling_deadband_) {
-        // if the current temperature exceeds the target + deadband, fanning is required
+      if (this->current_temperature >= temperature + this->cooling_deadband_) {
+        // if the current temperature reaches or exceeds the target + deadband, fanning is required
         return true;
-      } else if (this->current_temperature < temperature - this->cooling_overrun_) {
-        // if the current temperature is less than the target - overrun, fanning should stop
+      } else if (this->current_temperature <= temperature - this->cooling_overrun_) {
+        // if the current temperature is less than or equal to the target - overrun, fanning should stop
         return false;
       } else {
         // if we get here, the current temperature is between target + deadband and target - overrun,
@@ -1103,11 +1103,12 @@ bool ThermostatClimate::heating_required_() {
   auto temperature = this->supports_two_points_ ? this->target_temperature_low : this->target_temperature;
 
   if (this->supports_heat_) {
-    if (this->current_temperature < temperature - this->heating_deadband_) {
-      // if the current temperature is below the target - deadband, heating is required
+    if (this->current_temperature <= temperature - this->heating_deadband_) {
+      // if the current temperature is below or equal to the target - deadband, heating is required
       return true;
-    } else if (this->current_temperature > temperature + this->heating_overrun_) {
-      // if the current temperature is above the target + overrun, heating should stop
+    } else if (this->current_temperature >= temperature + this->heating_overrun_) {
+      // if the current temperature is above or equal to the target + overrun, heating should stop
+
       return false;
     } else {
       // if we get here, the current temperature is between target - deadband and target + overrun,
@@ -1218,11 +1219,12 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   }
 }
 
-void ThermostatClimate::change_custom_preset_(const char *custom_preset) {
+void ThermostatClimate::change_custom_preset_(const char *custom_preset, size_t len) {
   // Linear search through custom preset configurations
   const ThermostatClimateTargetTempConfig *config = nullptr;
   for (const auto &entry : this->custom_preset_config_) {
-    if (strcmp(entry.name, custom_preset) == 0) {
+    // Compare first len chars, then verify entry.name ends there (same length)
+    if (strncmp(entry.name, custom_preset, len) == 0 && entry.name[len] == '\0') {
       config = &entry.config;
       break;
     }
@@ -1231,7 +1233,7 @@ void ThermostatClimate::change_custom_preset_(const char *custom_preset) {
   if (config != nullptr) {
     ESP_LOGV(TAG, "Custom preset %s requested", custom_preset);
     if (this->change_preset_internal_(*config) || !this->has_custom_preset() ||
-        strcmp(this->get_custom_preset(), custom_preset) != 0) {
+        this->get_custom_preset() != custom_preset) {
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
       // Use the base class method which handles pointer lookup and preset reset internally
