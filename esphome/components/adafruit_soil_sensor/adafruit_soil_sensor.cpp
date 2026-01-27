@@ -30,7 +30,7 @@ void AdafruitSoilSensor::dump_config() {
 }
 
 void AdafruitSoilSensor::update() {
-  ESP_LOGW(TAG, "Updating sensor");
+  ESP_LOGD(TAG, "Updating sensor");
   if (this->is_failed())
     return;
 
