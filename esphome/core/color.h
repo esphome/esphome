@@ -91,19 +91,19 @@ struct Color {
                                                                      cw(cold_white),
                                                                      ww(warm_white) {}
 
-  inline explicit constexpr Color(uint32_t colorcode) ESPHOME_ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
-                                                                              g((colorcode >> 8) & 0xFF),
-                                                                              b((colorcode >> 0) & 0xFF),
-                                                                              w((colorcode >> 24) & 0xFF),
+  inline explicit constexpr Color(uint32_t colorcode) ESPHOME_ALWAYS_INLINE : r((colorcode >> 24) & 0xFF),
+                                                                              g((colorcode >> 16) & 0xFF),
+                                                                              b((colorcode >> 8) & 0xFF),
+                                                                              w((colorcode >> 0) & 0xFF),
                                                                               cw(0),
                                                                               ww(0) {}
 
-  inline explicit constexpr Color(uint64_t colorcode) ESPHOME_ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
-                                                                              g((colorcode >> 8) & 0xFF),
-                                                                              b((colorcode >> 0) & 0xFF),
+  inline explicit constexpr Color(uint64_t colorcode) ESPHOME_ALWAYS_INLINE : r((colorcode >> 32) & 0xFF),
+                                                                              g((colorcode >> 24) & 0xFF),
+                                                                              b((colorcode >> 16) & 0xFF),
                                                                               w(0),
-                                                                              cw((colorcode >> 24) & 0xFF),
-                                                                              ww((colorcode >> 32) & 0xFF) {}
+                                                                              cw((colorcode >> 8) & 0xFF),
+                                                                              ww((colorcode >> 0) & 0xFF) {}
 
   inline bool is_on() ESPHOME_ALWAYS_INLINE { return this->raw_64 != 0; }
 
@@ -132,7 +132,8 @@ struct Color {
                  esp_scale8(this->warm_white, scale));
   }
   inline Color operator~() const ESPHOME_ALWAYS_INLINE {
-    return Color(255 - this->red, 255 - this->green, 255 - this->blue);
+    return Color(255 - this->red, 255 - this->green, 255 - this->blue, 255 - this->white, 255 - this->cold_white,
+                 255 - this->warm_white);
   }
   inline Color &operator*=(uint8_t scale) ESPHOME_ALWAYS_INLINE {
     this->red = esp_scale8(this->red, scale);
@@ -192,7 +193,9 @@ struct Color {
     return ret;
   }
   inline Color &operator+=(const Color &add) ESPHOME_ALWAYS_INLINE { return *this = (*this) + add; }
-  inline Color operator+(uint8_t add) const ESPHOME_ALWAYS_INLINE { return (*this) + Color(add, add, add, add); }
+  inline Color operator+(uint8_t add) const ESPHOME_ALWAYS_INLINE {
+    return (*this) + Color(add, add, add, add, add, add);
+  }
   inline Color &operator+=(uint8_t add) ESPHOME_ALWAYS_INLINE { return *this = (*this) + add; }
   inline Color operator-(const Color &subtract) const ESPHOME_ALWAYS_INLINE {
     Color ret;
@@ -230,7 +233,7 @@ struct Color {
   }
   inline Color &operator-=(const Color &subtract) ESPHOME_ALWAYS_INLINE { return *this = (*this) - subtract; }
   inline Color operator-(uint8_t subtract) const ESPHOME_ALWAYS_INLINE {
-    return (*this) - Color(subtract, subtract, subtract, subtract);
+    return (*this) - Color(subtract, subtract, subtract, subtract, subtract, subtract);
   }
   inline Color &operator-=(uint8_t subtract) ESPHOME_ALWAYS_INLINE { return *this = (*this) - subtract; }
   static Color random_color() {
