@@ -31,9 +31,8 @@ void MAX31888Sensor::update() {
   this->status_clear_warning();
 
   this->send_command_(MAX31888_COMMAND_START_CONVERSION);
-  uint16_t crc = this->bus_->read8() | (this->bus_->read8() << 8);
-  // this->bus_->strong_pullup ();
-  // ESP_LOGI(TAG, "CRC: %02X.%02X", crc[0], crc[1]);
+  uint16_t crc = this->bus_->read8() | (this->bus_->read8() << 8); // this must be read to start conversion
+  ESP_LOGV(TAG, "CRC: %02X.%02X", crc[0], crc[1]);
 
   this->set_timeout(this->get_address_name(), MAX31888_MILIS_TO_WAIT, [this] {
     if (!this->read_fifo_()) {
@@ -55,7 +54,7 @@ bool MAX31888Sensor::read_fifo_() {
       this->bus_->write8(data[1]);  // Starting Adddress -> FIFO Data Register
       this->bus_->write8(data[2]);  // Length (Bytes -1) -> 2 Bytes
 
-      for (uint8_t i = 3; i < sizeof(data); i++)
+      for (uint32_t i = 3; i < sizeof(data); i++)
         data[i] = this->bus_->read8();
     }
   }
@@ -81,7 +80,8 @@ void MAX31888Sensor::setup() {
   {
     InterruptLock lock;
     if (this->send_command_(MAX31888_COMMAND_SOFT_RESET)) {
-      uint16_t crc = this->bus_->read8() | (this->bus_->read8() << 8);
+      uint16_t crc = this->bus_->read8() | (this->bus_->read8() << 8);  // this must be read to perform reset
+      ESP_LOGV(TAG, "CRC: %02X.%02X", crc[0], crc[1]);
     }
   }
 }
