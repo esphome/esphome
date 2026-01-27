@@ -1,5 +1,7 @@
 #include "dlms_meter.h"
 
+#include <cmath>
+
 #if defined(USE_ESP8266_FRAMEWORK_ARDUINO)
 #include <bearssl/bearssl.h>
 #elif defined(USE_ESP32)
@@ -258,6 +260,7 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
   ESP_LOGV(TAG, "Decoding payload");
   MeterData data{};
   uint16_t current_position = DECODER_START_OFFSET;
+  bool power_factor_found = false;
 
   while (current_position + OBIS_CODE_OFFSET <= message_length) {
     if (plaintext[current_position + OBIS_TYPE_OFFSET] != DataType::OCTET_STRING) {
@@ -288,8 +291,9 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
       // Do not advance Position when reading the Timestamp at DECODER_START_OFFSET
       if ((obis_code_length == OBIS_CODE_LENGTH_EXTENDED) && (current_position == DECODER_START_OFFSET)) {
         timestamp_found = true;
-      } else if (current_position != DECODER_START_OFFSET && plaintext[current_position - 1] == 0xFF) {
+      } else if (power_factor_found) {
         meter_number_found = true;
+        power_factor_found = false;
       } else {
         current_position += obis_code_length + OBIS_CODE_OFFSET;  // Advance past code and position
       }
@@ -391,12 +395,11 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
 
     // Check for additional data (scaler-unit structure)
     if (current_position < message_length && plaintext[current_position] == DataType::INTEGER) {
-      // Apply scaler if present
+      // Apply scaler: real_value = raw_value × 10^scaler
       if (current_position + 1 < message_length) {
-        if (plaintext[current_position + 1] == Accuracy::SINGLE_DIGIT) {
-          value /= 10.0f;
-        } else if (plaintext[current_position + 1] == Accuracy::DOUBLE_DIGIT) {
-          value /= 100.0f;
+        int8_t scaler = static_cast<int8_t>(plaintext[current_position + 1]);
+        if (scaler != 0) {
+          value *= powf(10.0f, scaler);
         }
       }
 
@@ -448,11 +451,8 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
           data.reactive_energy_minus = value;
           break;
         case OBIS_POWER_FACTOR:
-          if (this->provider_ == PROVIDER_NETZNOE) {
-            data.power_factor = value / 1000.0f;
-          } else {
-            ESP_LOGW(TAG, "Unsupported OBIS code 0x%04X", obis_cd);
-          }
+          data.power_factor = value;
+          power_factor_found = true;
           break;
         default:
           ESP_LOGW(TAG, "Unsupported OBIS code 0x%04X", obis_cd);
