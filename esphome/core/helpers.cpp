@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 #include <strings.h>
@@ -451,15 +452,15 @@ std::string format_bin(const uint8_t *data, size_t length) {
 }
 
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
-  if (on == nullptr && strcasecmp(str, "on") == 0)
+  if (on == nullptr && ESPHOME_strcasecmp_P(str, ESPHOME_PSTR("on")) == 0)
     return PARSE_ON;
   if (on != nullptr && strcasecmp(str, on) == 0)
     return PARSE_ON;
-  if (off == nullptr && strcasecmp(str, "off") == 0)
+  if (off == nullptr && ESPHOME_strcasecmp_P(str, ESPHOME_PSTR("off")) == 0)
     return PARSE_OFF;
   if (off != nullptr && strcasecmp(str, off) == 0)
     return PARSE_OFF;
-  if (strcasecmp(str, "toggle") == 0)
+  if (ESPHOME_strcasecmp_P(str, ESPHOME_PSTR("toggle")) == 0)
     return PARSE_TOGGLE;
 
   return PARSE_NONE;
