@@ -12,7 +12,7 @@ Color ESPHSVColor::to_rgb() const {
   // third of the offset, 255/3 = 85 (actually only up to 82; 164)
   const uint8_t third = esp_scale8(offset8, 85);
   const uint8_t two_thirds = esp_scale8(offset8, 170);
-  Color rgb(255, 255, 255, 0);
+  Color rgb(255, 255, 255, 0, 0, 0);
   switch (hue >> 5) {
     case 0b000:
       rgb.r = 255 - third;

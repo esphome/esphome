@@ -23,7 +23,7 @@ class ESPColorSettable {
   void set(const ESPHSVColor &color) { this->set_hsv(color); }
   void set_hsv(const ESPHSVColor &color) {
     Color rgb = color.to_rgb();
-    this->set_rgb(rgb.r, rgb.g, rgb.b);
+    this->set_all(rgb.r, rgb.g, rgb.b, rgb.w, rgb.cw, rgb.ww);
   }
   void set_rgb(uint8_t red, uint8_t green, uint8_t blue) {
     this->set_red(red);
@@ -36,6 +36,11 @@ class ESPColorSettable {
   }
   void set_rgbcct(uint8_t red, uint8_t green, uint8_t blue, uint8_t cold_white, uint8_t warm_white) {
     this->set_rgb(red, green, blue);
+    this->set_cold_white(cold_white);
+    this->set_warm_white(warm_white);
+  }
+  void set_all(uint8_t red, uint8_t green, uint8_t blue, uint8_t white, uint8_t cold_white, uint8_t warm_white) {
+    this->set_rgbw(red, green, blue, white);
     this->set_cold_white(cold_white);
     this->set_warm_white(warm_white);
   }
@@ -72,7 +77,9 @@ class ESPColorView : public ESPColorSettable {
     this->set_hsv(rhs);
     return *this;
   }
-  void set(const Color &color) override { this->set_rgbw(color.r, color.g, color.b, color.w); }
+  void set(const Color &color) override {
+    this->set_all(color.red, color.green, color.blue, color.white, color.cold_white, color.warm_white);
+  }
   void set_red(uint8_t red) override { *this->red_ = this->color_correction_->color_correct_red(red); }
   void set_green(uint8_t green) override { *this->green_ = this->color_correction_->color_correct_green(green); }
   void set_blue(uint8_t blue) override { *this->blue_ = this->color_correction_->color_correct_blue(blue); }
@@ -100,7 +107,10 @@ class ESPColorView : public ESPColorSettable {
   void fade_to_black(uint8_t amnt) override { this->set(this->get().fade_to_black(amnt)); }
   void lighten(uint8_t delta) override { this->set(this->get().lighten(delta)); }
   void darken(uint8_t delta) override { this->set(this->get().darken(delta)); }
-  Color get() const { return Color(this->get_red(), this->get_green(), this->get_blue(), this->get_white()); }
+  Color get() const {
+    return Color(this->get_red(), this->get_green(), this->get_blue(), this->get_white(), this->get_cold_white(),
+                 this->get_warm_white());
+  }
   uint8_t get_red() const { return this->color_correction_->color_uncorrect_red(*this->red_); }
   uint8_t get_red_raw() const { return *this->red_; }
   uint8_t get_green() const { return this->color_correction_->color_uncorrect_green(*this->green_); }
