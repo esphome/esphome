@@ -19,13 +19,9 @@ void AdafruitSoilSensor::dump_config() {
     ESP_LOGCONFIG(TAG, "  Temperature Sensor:");
     LOG_SENSOR("", "Temperature", this->temperature_);
   }
-  if (this->moisture_raw_ != nullptr) {
+  if (this->capacitance_raw_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Raw Moisture Sensor:");
-    LOG_SENSOR("", "Raw Moisture", this->moisture_raw_);
-  }
-  if (this->moisture_raw_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Calibrated Moisture Sensor:");
-    LOG_SENSOR("", "Calibrated Moisture", this->moisture_calibrated_);
+    LOG_SENSOR("", "Raw Moisture", this->capacitance_raw_);
   }
 }
 
@@ -43,33 +39,18 @@ void AdafruitSoilSensor::update() {
     }
   }
 
-  if (this->moisture_raw_ != nullptr) {
+  if (this->capacitance_raw_ != nullptr) {
     uint16_t raw;
-    if (this->read_touch_(raw)) {
+    if (this->read_capacitance_(raw)) {
       float raw_f = static_cast<float>(raw);
-      this->moisture_raw_->publish_state(raw_f);
-      if (this->moisture_calibrated_ != nullptr) {
-        if (dry_ == wet_) {
-          ESP_LOGE(TAG, "Dry and wet calibration values are equal");
-        }
-        if (dry_ != 0 && wet_ != 0) {
-          float moisture_percent = ((raw_f - dry_) / (wet_ - dry_)) * 100;
-          if (moisture_percent > 100) {
-            ESP_LOGD(TAG, "Calibrated value %f greater than 100%, clamping.", moisture_percent);
-            moisture_percent = 100;
-          }
-          this->moisture_calibrated_->publish_state(moisture_percent);
-        } else {
-          ESP_LOGW(TAG, "Calibration sensor is configured but both values are 0");
-        }
-      }
+      this->capacitance_raw_->publish_state(raw_f);
     }
   }
 }
 
 bool AdafruitSoilSensor::read_temp_c_(float &temp_c) {
   uint8_t buf[4];
-  if (!this->read_(BaseAddress::STATUS, StatusAddress::TEMPERATURE, buf, 4, 100)) {
+  if (!this->read_(BaseAddress::STATUS, StatusAddress::TEMPERATURE, buf, 4)) {
     return false;
   }
   int32_t ret = ((uint32_t) buf[0] << 24) | ((uint32_t) buf[1] << 16) | ((uint32_t) buf[2] << 8) | (uint32_t) buf[3];
@@ -77,11 +58,11 @@ bool AdafruitSoilSensor::read_temp_c_(float &temp_c) {
   return true;
 }
 
-bool AdafruitSoilSensor::read_touch_(uint16_t &touch_value) {
+bool AdafruitSoilSensor::read_capacitance_(uint16_t &touch_value) {
   uint8_t buf[2];
   uint8_t p = 0;  // only one channel
   for (uint8_t retry = 0; retry < 5; retry++) {
-    if (this->read_(BaseAddress::TOUCH, TouchAddress::CHAN_0 + p, buf, 2, 300 + retry * 100)) {
+    if (this->read_(BaseAddress::TOUCH, TouchAddress::CHAN_0 + p, buf, 2)) {
       touch_value = ((uint16_t) buf[0] << 8) | buf[1];
       return true;
     }
@@ -89,15 +70,12 @@ bool AdafruitSoilSensor::read_touch_(uint16_t &touch_value) {
   return false;
 }
 
-bool AdafruitSoilSensor::read_(uint8_t reg_high, uint8_t reg_low, uint8_t *buf, uint16_t len, uint16_t delay_ms) {
+bool AdafruitSoilSensor::read_(uint8_t reg_high, uint8_t reg_low, uint8_t *buf, uint16_t len) {
   uint8_t cmd[2] = {reg_high, reg_low};
   i2c::ErrorCode res = this->write(cmd, 2);
   if (res != i2c::ErrorCode::ERROR_OK) {
     ESP_LOGW(TAG, "Error starting i2c txn");
     return false;
-  }
-  if (delay_ms > 0) {
-    delay(delay_ms);
   }
   res = this->read(buf, len);
   if (res != i2c::ErrorCode::ERROR_OK) {

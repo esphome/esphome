@@ -10,8 +10,7 @@ namespace adafruit_soil_sensor {
 class AdafruitSoilSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
-  void set_moisture_calibrated(sensor::Sensor *moisture) { moisture_calibrated_ = moisture; }
-  void set_moisture_raw(sensor::Sensor *moisture) { moisture_raw_ = moisture; }
+  void set_capacitance(sensor::Sensor *capacitance) { capacitance_raw_ = capacitance; }
   void set_calibration(uint16_t dry, uint16_t wet) {
     dry_ = dry;
     wet_ = wet;
@@ -23,13 +22,12 @@ class AdafruitSoilSensor : public sensor::Sensor, public PollingComponent, publi
 
  protected:
   sensor::Sensor *temperature_{nullptr};
-  sensor::Sensor *moisture_raw_{nullptr};
-  sensor::Sensor *moisture_calibrated_{nullptr};
+  sensor::Sensor *capacitance_raw_{nullptr};
   uint16_t dry_;
   uint16_t wet_;
-  bool read_(uint8_t reg_start, uint8_t reg_end, uint8_t *buf, uint16_t len, uint16_t delay_ms);
+  bool read_(uint8_t reg_start, uint8_t reg_end, uint8_t *buf, uint16_t len);
   bool read_temp_c_(float &temp_c);
-  bool read_touch_(uint16_t &touch_value);
+  bool read_capacitance_(uint16_t &touch_value);
 
  private:
   enum BaseAddress { STATUS = 0x00, TOUCH = 0x0F };
