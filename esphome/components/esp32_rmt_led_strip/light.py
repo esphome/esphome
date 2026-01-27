@@ -9,7 +9,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
     CONF_INVERTED,
-    CONF_IS_RGBW, # Deprecated (in favor of channel_map)
+    CONF_IS_RGBW,  # Deprecated (in favor of channel_map)
     CONF_MAX_REFRESH_RATE,
     CONF_NUM_LEDS,
     CONF_NUMBER,
