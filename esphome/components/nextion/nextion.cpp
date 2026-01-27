@@ -166,11 +166,9 @@ void Nextion::dump_config() {
                 "  Touch Timeout: %" PRIu16,
 #ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
                 this->device_model_.c_str(), this->firmware_version_.c_str(), this->serial_number_.c_str(),
-                this->flash_size_.c_str(), this->max_q_age_ms_,
-                this->startup_override_ms_,
+                this->flash_size_.c_str(), this->max_q_age_ms_, this->startup_override_ms_,
 #endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-                    YESNO(this->connection_state_.auto_wake_on_touch_),
-                this->touch_sleep_timeout_);
+                YESNO(this->connection_state_.auto_wake_on_touch_), this->touch_sleep_timeout_);
 #endif  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
 
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
