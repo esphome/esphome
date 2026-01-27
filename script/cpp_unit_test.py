@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import traceback
 
 from helpers import get_all_components, get_all_dependencies, root_path
 
@@ -113,12 +114,26 @@ def run_tests(selected_components: list[str]) -> int:
     CORE.config_path = COMPONENTS_TESTS_DIR / "dummy.yaml"
     CORE.dashboard = None
 
-    # Validate config will expand the above with defaults:
-    config = validate_config(config, {})
-
     # Add all components and dependencies to the base configuration after validation, so their files
     # are added to the build.
-    config.update({key: {} for key in components_with_dependencies})
+
+    # Check for a cpp_config.yaml file in each component's test directory
+    # and load it if it exists. Otherwise an empty config is used.
+    for component in components_with_dependencies:
+        component_test_dir = COMPONENTS_TESTS_DIR / component
+        cpp_config_path = component_test_dir / "cpp_config.yaml"
+        if cpp_config_path.is_file():
+            # Load the cpp_config.yaml file
+            import yaml
+
+            with open(cpp_config_path) as f:
+                component_config = yaml.safe_load(f)
+            config.update(component_config)
+        else:
+            config.update({component: {}})
+
+    # Validate config will expand the above with defaults:
+    config = validate_config(config, {})
 
     print(f"Testing components: {', '.join(components)}")
     CORE.config = config
@@ -130,6 +145,8 @@ def run_tests(selected_components: list[str]) -> int:
             print(f"Error compiling unit tests for {', '.join(components)}")
             return exit_code
     except Exception as e:
+        # Print the stack trace for debugging
+        traceback.print_exc()
         print(
             f"Error compiling unit tests for {', '.join(components)}. Check path. : {e}"
         )

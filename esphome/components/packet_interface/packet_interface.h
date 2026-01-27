@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
+#include "packet_buffer.h"
 
 namespace esphome::packet_interface {
 
@@ -30,7 +31,7 @@ class PacketMetaData {
  *
  * The operations defined are:
  *
- * Transmit: the function transmit() takes a vector of bytes, and returns when all bytes are queued for
+ * Transmit: the function transmit() takes a PacketBuffer of bytes, and returns when all bytes are queued for
  * transmission at least.
  *
  * Receive: The callbacks for an instance of this class are called with currently received data.
@@ -45,7 +46,7 @@ class PacketInterface : public Component {
    * @param meta_data Metadata about the packet to be sent
    * @return True if the data was queued for transmission, false if it could not be sent
    */
-  virtual bool send_to_interface(const std::vector<uint8_t> &data, PacketMetaData meta_data) = 0;
+  virtual bool send_to_interface(const PacketBuffer &data, PacketMetaData meta_data) = 0;
 
   virtual size_t get_max_packet_size() { return this->max_packet_size_; }
   void set_max_packet_size(size_t size) { this->max_packet_size_ = size; }
@@ -55,8 +56,7 @@ class PacketInterface : public Component {
    *
    * @param callback The callback to be called when data is received.
    */
-  void add_packet_interface_listener(
-      std::function<void(const std::vector<uint8_t> &, PacketMetaData meta_data)> callback) {
+  void add_packet_interface_listener(std::function<void(const PacketBuffer &, PacketMetaData meta_data)> callback) {
     this->callback_.add(std::move(callback));
   }
 
@@ -70,9 +70,9 @@ class PacketInterface : public Component {
    * @param data The received data
    * @param meta_data Metadata about the received packet
    */
-  void on_receive_from_interface_(const std::vector<uint8_t> &data, PacketMetaData meta_data);
+  void on_receive_from_interface_(const PacketBuffer &data, PacketMetaData meta_data);
   virtual ~PacketInterface() = default;
 
-  LazyCallbackManager<void(const std::vector<uint8_t> &, PacketMetaData meta_data)> callback_;
+  LazyCallbackManager<void(const PacketBuffer &, PacketMetaData meta_data)> callback_;
 };
 }  // namespace esphome::packet_interface

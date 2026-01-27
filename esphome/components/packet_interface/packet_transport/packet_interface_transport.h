@@ -17,8 +17,11 @@ class PacketInterfaceTransport : public PacketTransport {
 
   void setup() override {
     PacketTransport::setup();
-    this->interface_->add_packet_interface_listener(
-        [this](const std::vector<uint8_t> &data, const PacketMetaData meta_data) { this->process_(data); });
+    this->interface_->add_packet_interface_listener([this](const PacketBuffer &data, PacketMetaData meta_data) {
+      // PacketTransport expects std::vector, so convert
+      std::vector<uint8_t> vec = data.to_vector();
+      this->process_(vec);
+    });
   }
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
@@ -26,7 +29,10 @@ class PacketInterfaceTransport : public PacketTransport {
  protected:
   // implementing PacketTransport virtual methods
   size_t get_max_packet_size() override { return this->interface_->get_max_packet_size(); }
-  void send_packet(const std::vector<uint8_t> &buf) const override { this->interface_->send_to_interface(buf, {}); }
+  void send_packet(const std::vector<uint8_t> &buf) const override {
+    PacketBuffer buffer(buf);
+    this->interface_->send_to_interface(buffer, {});
+  }
   PacketInterface *interface_;
 };
 
