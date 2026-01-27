@@ -149,7 +149,7 @@ bool SPDIFEncoder::get_channel_status_bit_(uint8_t frame) const {
 // Output bit placement (for MSB-first I2S transmission):
 // - Data bit 0's encoding goes to MSB of output (transmitted first)
 // - Data bit N-1's encoding goes to LSB of output (transmitted last)
-uint32_t SPDIFEncoder::bmc_encode_(uint32_t data, uint8_t num_bits, bool &phase) {
+uint32_t SPDIFEncoder::bmc_encode(uint32_t data, uint8_t num_bits, bool &phase) {
   uint32_t bmc = 0;
   for (uint8_t i = 0; i < num_bits; i++) {
     bool bit = (data >> i) & 1;
@@ -232,23 +232,23 @@ void SPDIFEncoder::encode_sample_(const uint8_t *pcm_sample) {
 
   // Encode subframe bits 4-7 (4 bits -> 8 BMC bits) - first aux nibble
   uint32_t bits_4_7 = 0;  // Always zeros for 16-bit audio
-  uint32_t bmc_4_7 = bmc_encode_(bits_4_7, 4, phase);
+  uint32_t bmc_4_7 = bmc_encode(bits_4_7, 4, phase);
 
   // Encode subframe bits 8-11 (4 bits -> 8 BMC bits) - second aux nibble
   uint32_t bits_8_11 = 0;  // Always zeros for 16-bit audio
-  uint32_t bmc_8_11 = bmc_encode_(bits_8_11, 4, phase);
+  uint32_t bmc_8_11 = bmc_encode(bits_8_11, 4, phase);
 
   // Encode subframe bits 12-15 (4 bits -> 8 BMC bits) - audio low nibble
   uint32_t bits_12_15 = (raw_subframe >> 12) & 0xF;
-  uint32_t bmc_12_15 = bmc_encode_(bits_12_15, 4, phase);
+  uint32_t bmc_12_15 = bmc_encode(bits_12_15, 4, phase);
 
   // Encode subframe bits 16-23 (8 bits -> 16 BMC bits) - audio mid byte
   uint32_t bits_16_23 = (raw_subframe >> 16) & 0xFF;
-  uint32_t bmc_16_23 = bmc_encode_(bits_16_23, 8, phase);
+  uint32_t bmc_16_23 = bmc_encode(bits_16_23, 8, phase);
 
   // Encode subframe bits 24-31 (8 bits -> 16 BMC bits) - audio high nibble + VUCP
   uint32_t bits_24_31 = (raw_subframe >> 24) & 0xFF;
-  uint32_t bmc_24_31 = bmc_encode_(bits_24_31, 8, phase);
+  uint32_t bmc_24_31 = bmc_encode(bits_24_31, 8, phase);
 
   // ============================================================================
   // Combine with correct positioning for I2S transmission

@@ -99,7 +99,7 @@ class SPDIFEncoder {
   /// @param num_bits Number of bits to encode
   /// @param phase Current BMC phase state (updated on return)
   /// @return BMC-encoded output (2 bits per input bit)
-  static uint32_t bmc_encode_(uint32_t data, uint8_t num_bits, bool &phase);
+  static uint32_t bmc_encode(uint32_t data, uint8_t num_bits, bool &phase);
 
   /// @brief Build the channel status block from current configuration
   void build_channel_status_();
