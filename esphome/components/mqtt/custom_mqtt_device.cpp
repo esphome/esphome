@@ -18,7 +18,7 @@ bool CustomMQTTDevice::publish(const std::string &topic, float value, int8_t num
 }
 bool CustomMQTTDevice::publish(const std::string &topic, int value) {
   char buffer[24];
-  int len = snprintf(buffer, sizeof(buffer), "%d", value);
+  size_t len = buf_append_printf(buffer, sizeof(buffer), 0, "%d", value);
   return global_mqtt_client->publish(topic, buffer, len);
 }
 bool CustomMQTTDevice::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos, bool retain) {

@@ -34,7 +34,7 @@ optional<bool> Switch::get_initial_state() {
   if (!(restore_mode & RESTORE_MODE_PERSISTENT_MASK))
     return {};
 
-  this->rtc_ = global_preferences->make_preference<bool>(this->get_preference_hash());
+  this->rtc_ = this->make_entity_preference<bool>();
   bool initial_state;
   if (!this->rtc_.load(&initial_state))
     return {};

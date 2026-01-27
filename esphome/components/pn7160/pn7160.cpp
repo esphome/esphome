@@ -506,7 +506,7 @@ uint8_t PN7160::read_endpoint_data_(nfc::NfcTag &tag) {
   return nfc::STATUS_FAILED;
 }
 
-uint8_t PN7160::clean_endpoint_(std::vector<uint8_t> &uid) {
+uint8_t PN7160::clean_endpoint_(nfc::NfcTagUid &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   switch (type) {
     case nfc::TAG_TYPE_MIFARE_CLASSIC:
@@ -522,7 +522,7 @@ uint8_t PN7160::clean_endpoint_(std::vector<uint8_t> &uid) {
   return nfc::STATUS_FAILED;
 }
 
-uint8_t PN7160::format_endpoint_(std::vector<uint8_t> &uid) {
+uint8_t PN7160::format_endpoint_(nfc::NfcTagUid &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   switch (type) {
     case nfc::TAG_TYPE_MIFARE_CLASSIC:
@@ -538,7 +538,7 @@ uint8_t PN7160::format_endpoint_(std::vector<uint8_t> &uid) {
   return nfc::STATUS_FAILED;
 }
 
-uint8_t PN7160::write_endpoint_(std::vector<uint8_t> &uid, std::shared_ptr<nfc::NdefMessage> &message) {
+uint8_t PN7160::write_endpoint_(nfc::NfcTagUid &uid, std::shared_ptr<nfc::NdefMessage> &message) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   switch (type) {
     case nfc::TAG_TYPE_MIFARE_CLASSIC:
@@ -562,7 +562,7 @@ std::unique_ptr<nfc::NfcTag> PN7160::build_tag_(const uint8_t mode_tech, const s
         ESP_LOGE(TAG, "UID length cannot be zero");
         return nullptr;
       }
-      std::vector<uint8_t> uid(data.begin() + 3, data.begin() + 3 + uid_length);
+      nfc::NfcTagUid uid(data.begin() + 3, data.begin() + 3 + uid_length);
       const auto *tag_type_str =
           nfc::guess_tag_type(uid_length) == nfc::TAG_TYPE_MIFARE_CLASSIC ? nfc::MIFARE_CLASSIC : nfc::NFC_FORUM_TYPE_2;
       return make_unique<nfc::NfcTag>(uid, tag_type_str);
@@ -571,7 +571,7 @@ std::unique_ptr<nfc::NfcTag> PN7160::build_tag_(const uint8_t mode_tech, const s
   return nullptr;
 }
 
-optional<size_t> PN7160::find_tag_uid_(const std::vector<uint8_t> &uid) {
+optional<size_t> PN7160::find_tag_uid_(const nfc::NfcTagUid &uid) {
   if (!this->discovered_endpoint_.empty()) {
     for (size_t i = 0; i < this->discovered_endpoint_.size(); i++) {
       auto existing_tag_uid = this->discovered_endpoint_[i].tag->get_uid();

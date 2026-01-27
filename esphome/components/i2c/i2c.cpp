@@ -42,8 +42,8 @@ ErrorCode I2CDevice::read_register16(uint16_t a_register, uint8_t *data, size_t 
 }
 
 ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, size_t len) const {
-  SmallBufferWithHeapFallback<17> buffer_alloc;  // Most I2C writes are <= 16 bytes
-  uint8_t *buffer = buffer_alloc.get(len + 1);
+  SmallBufferWithHeapFallback<17> buffer_alloc(len + 1);  // Most I2C writes are <= 16 bytes
+  uint8_t *buffer = buffer_alloc.get();
 
   buffer[0] = a_register;
   std::copy(data, data + len, buffer + 1);
@@ -51,8 +51,8 @@ ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, siz
 }
 
 ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, size_t len) const {
-  SmallBufferWithHeapFallback<18> buffer_alloc;  // Most I2C writes are <= 16 bytes + 2 for register
-  uint8_t *buffer = buffer_alloc.get(len + 2);
+  SmallBufferWithHeapFallback<18> buffer_alloc(len + 2);  // Most I2C writes are <= 16 bytes + 2 for register
+  uint8_t *buffer = buffer_alloc.get();
 
   buffer[0] = a_register >> 8;
   buffer[1] = a_register;
