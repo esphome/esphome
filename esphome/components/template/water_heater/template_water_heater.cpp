@@ -10,7 +10,7 @@ TemplateWaterHeater::TemplateWaterHeater() : set_trigger_(new Trigger<>()) {}
 void TemplateWaterHeater::setup() {
   if (this->restore_mode_ == TemplateWaterHeaterRestoreMode::WATER_HEATER_RESTORE ||
       this->restore_mode_ == TemplateWaterHeaterRestoreMode::WATER_HEATER_RESTORE_AND_CALL) {
-    auto restore = this->restore_state();
+    auto restore = this->restore_state_();
 
     if (restore.has_value()) {
       restore->perform();
