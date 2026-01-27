@@ -313,85 +313,31 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
     uint8_t data_type = plaintext[current_position];
     current_position++;
 
+    float value = 0.0f;
+    uint8_t value_size = 0;
+
     switch (data_type) {
       case DataType::DOUBLE_LONG_UNSIGNED: {
-        if (current_position + 4 > message_length) {
+        value_size = 4;
+        if (current_position + value_size > message_length) {
           ESP_LOGE(TAG, "OBIS: Buffer too short for DOUBLE_LONG_UNSIGNED");
           this->receive_buffer_.clear();
           return;
         }
-        uint32_t value = encode_uint32(plaintext[current_position], plaintext[current_position + 1],
-                                       plaintext[current_position + 2], plaintext[current_position + 3]);
-        switch (obis_cd) {
-          case OBIS_ACTIVE_POWER_PLUS:
-            data.active_power_plus = value;
-            break;
-          case OBIS_ACTIVE_POWER_MINUS:
-            data.active_power_minus = value;
-            break;
-          case OBIS_ACTIVE_ENERGY_PLUS:
-            data.active_energy_plus = value;
-            break;
-          case OBIS_ACTIVE_ENERGY_MINUS:
-            data.active_energy_minus = value;
-            break;
-          case OBIS_REACTIVE_ENERGY_PLUS:
-            data.reactive_energy_plus = value;
-            break;
-          case OBIS_REACTIVE_ENERGY_MINUS:
-            data.reactive_energy_minus = value;
-            break;
-          default:
-            ESP_LOGW(TAG, "Unsupported code 0x%04X for DOUBLE_LONG_UNSIGNED", obis_cd);
-        }
-        current_position += 4;
+        value = encode_uint32(plaintext[current_position + 0], plaintext[current_position + 1],
+                              plaintext[current_position + 2], plaintext[current_position + 3]);
+        current_position += value_size;
         break;
       }
       case DataType::LONG_UNSIGNED: {
-        if (current_position + 2 > message_length) {
+        value_size = 2;
+        if (current_position + value_size > message_length) {
           ESP_LOGE(TAG, "OBIS: Buffer too short for LONG_UNSIGNED");
           this->receive_buffer_.clear();
           return;
         }
-        float value = encode_uint16(plaintext[current_position], plaintext[current_position + 1]);
-        if (current_position + 5 < message_length && plaintext[current_position + 4] == DATA_NOTIFICATION) {
-          if (plaintext[current_position + 5] == Accuracy::SINGLE_DIGIT) {
-            value /= 10.0f;
-          } else if (plaintext[current_position + 5] == Accuracy::DOUBLE_DIGIT) {
-            value /= 100.0f;
-          }
-        }
-
-        switch (obis_cd) {
-          case OBIS_VOLTAGE_L1:
-            data.voltage_l1 = value;
-            break;
-          case OBIS_VOLTAGE_L2:
-            data.voltage_l2 = value;
-            break;
-          case OBIS_VOLTAGE_L3:
-            data.voltage_l3 = value;
-            break;
-          case OBIS_CURRENT_L1:
-            data.current_l1 = value;
-            break;
-          case OBIS_CURRENT_L2:
-            data.current_l2 = value;
-            break;
-          case OBIS_CURRENT_L3:
-            data.current_l3 = value;
-            break;
-          case OBIS_POWER_FACTOR:
-            if (this->provider_ == PROVIDER_NETZNOE) {
-              data.power_factor = value / 1000.0f;
-            } else {
-              ESP_LOGW(TAG, "Unsupported code 0x%04X for LONG_UNSIGNED", obis_cd);
-            }
-            break;
-          default:
-            ESP_LOGW(TAG, "Unsupported code 0x%04X for LONG_UNSIGNED", obis_cd);
-        }
-        current_position += 2;
+        value = encode_uint16(plaintext[current_position + 0], plaintext[current_position + 1]);
+        current_position += value_size;
         break;
       }
       case DataType::OCTET_STRING: {
@@ -409,7 +355,7 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
             this->receive_buffer_.clear();
             return;
           }
-          uint16_t year = encode_uint16(plaintext[current_position], plaintext[current_position + 1]);
+          uint16_t year = encode_uint16(plaintext[current_position + 0], plaintext[current_position + 1]);
           uint8_t month = plaintext[current_position + 2];
           uint8_t day = plaintext[current_position + 3];
           uint8_t hour = plaintext[current_position + 5];
@@ -445,13 +391,73 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
       current_position += 2;
     }
 
-    // Check for additional data
-    if (current_position < message_length && plaintext[current_position] == DATA_NOTIFICATION) {
+    // Check for additional data (scaler-unit structure)
+    if (current_position < message_length && plaintext[current_position] == DataType::INTEGER) {
+      // Apply scaler if present
+      if (current_position + 1 < message_length) {
+        if (plaintext[current_position + 1] == Accuracy::SINGLE_DIGIT) {
+          value /= 10.0f;
+        } else if (plaintext[current_position + 1] == Accuracy::DOUBLE_DIGIT) {
+          value /= 100.0f;
+        }
+      }
+
       // on EVN Meters there is no additional break
       if (this->provider_ == PROVIDER_NETZNOE) {
         current_position += 4;
       } else {
         current_position += 6;
+      }
+    }
+
+    // Handle numeric values (LONG_UNSIGNED and DOUBLE_LONG_UNSIGNED)
+    if (value_size > 0) {
+      switch (obis_cd) {
+        case OBIS_VOLTAGE_L1:
+          data.voltage_l1 = value;
+          break;
+        case OBIS_VOLTAGE_L2:
+          data.voltage_l2 = value;
+          break;
+        case OBIS_VOLTAGE_L3:
+          data.voltage_l3 = value;
+          break;
+        case OBIS_CURRENT_L1:
+          data.current_l1 = value;
+          break;
+        case OBIS_CURRENT_L2:
+          data.current_l2 = value;
+          break;
+        case OBIS_CURRENT_L3:
+          data.current_l3 = value;
+          break;
+        case OBIS_ACTIVE_POWER_PLUS:
+          data.active_power_plus = value;
+          break;
+        case OBIS_ACTIVE_POWER_MINUS:
+          data.active_power_minus = value;
+          break;
+        case OBIS_ACTIVE_ENERGY_PLUS:
+          data.active_energy_plus = value;
+          break;
+        case OBIS_ACTIVE_ENERGY_MINUS:
+          data.active_energy_minus = value;
+          break;
+        case OBIS_REACTIVE_ENERGY_PLUS:
+          data.reactive_energy_plus = value;
+          break;
+        case OBIS_REACTIVE_ENERGY_MINUS:
+          data.reactive_energy_minus = value;
+          break;
+        case OBIS_POWER_FACTOR:
+          if (this->provider_ == PROVIDER_NETZNOE) {
+            data.power_factor = value / 1000.0f;
+          } else {
+            ESP_LOGW(TAG, "Unsupported OBIS code 0x%04X", obis_cd);
+          }
+          break;
+        default:
+          ESP_LOGW(TAG, "Unsupported OBIS code 0x%04X", obis_cd);
       }
     }
   }
