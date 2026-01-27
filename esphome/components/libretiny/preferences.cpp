@@ -166,8 +166,8 @@ class LibreTinyPreferences : public ESPPreferences {
       return true;
     }
 
-    // Allocate buffer on heap to avoid stack allocation for large data
-    auto stored_data = std::make_unique<uint8_t[]>(kv.value_len);
+    // Most preferences are small, use stack buffer with heap fallback for large ones
+    SmallBufferWithHeapFallback<256> stored_data(kv.value_len);
     fdb_blob_make(&this->blob, stored_data.get(), kv.value_len);
     size_t actual_len = fdb_kv_get_blob(db, key_str, &this->blob);
     if (actual_len != kv.value_len) {

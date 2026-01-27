@@ -8,20 +8,24 @@ static const char *const TAG = "copy.fan";
 
 void CopyFan::setup() {
   source_->add_on_state_callback([this]() {
-    this->state = source_->state;
-    this->oscillating = source_->oscillating;
-    this->speed = source_->speed;
-    this->direction = source_->direction;
-    this->set_preset_mode_(source_->get_preset_mode());
+    this->copy_state_from_source_();
     this->publish_state();
   });
 
+  this->copy_state_from_source_();
+  this->publish_state();
+}
+
+void CopyFan::copy_state_from_source_() {
   this->state = source_->state;
   this->oscillating = source_->oscillating;
   this->speed = source_->speed;
   this->direction = source_->direction;
-  this->set_preset_mode_(source_->get_preset_mode());
-  this->publish_state();
+  if (source_->has_preset_mode()) {
+    this->set_preset_mode_(source_->get_preset_mode());
+  } else {
+    this->clear_preset_mode_();
+  }
 }
 
 void CopyFan::dump_config() { LOG_FAN("", "Copy Fan", this); }
