@@ -1049,16 +1049,18 @@ async def to_code(config):
         if use_platformio:
             cg.add_platformio_option("framework", "espidf")
 
-        # Wrap std::__throw_* functions to abort immediately, eliminating ~1KB of
+        # Wrap std::__throw_* functions to abort immediately, eliminating ~3KB of
         # exception class overhead. See throw_stubs.cpp for implementation.
-        # ESP-IDF wraps __cxa_throw but not these higher-level functions.
-        # Mangled names: _ZSt = std::, number = identifier length, PKc = char const*
-        cg.add_build_flag("-Wl,--wrap=_ZSt20__throw_length_errorPKc")
-        cg.add_build_flag("-Wl,--wrap=_ZSt19__throw_logic_errorPKc")
-        cg.add_build_flag("-Wl,--wrap=_ZSt20__throw_out_of_rangePKc")
-        cg.add_build_flag("-Wl,--wrap=_ZSt24__throw_out_of_range_fmtPKcz")
-        cg.add_build_flag("-Wl,--wrap=_ZSt17__throw_bad_allocv")
-        cg.add_build_flag("-Wl,--wrap=_ZSt25__throw_bad_function_callv")
+        # ESP-IDF already compiles with -fno-exceptions, so this code was dead anyway.
+        for mangled in [
+            "_ZSt20__throw_length_errorPKc",
+            "_ZSt19__throw_logic_errorPKc",
+            "_ZSt20__throw_out_of_rangePKc",
+            "_ZSt24__throw_out_of_range_fmtPKcz",
+            "_ZSt17__throw_bad_allocv",
+            "_ZSt25__throw_bad_function_callv",
+        ]:
+            cg.add_build_flag(f"-Wl,--wrap={mangled}")
     else:
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")

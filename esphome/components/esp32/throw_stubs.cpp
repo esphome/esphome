@@ -23,31 +23,33 @@
 #ifdef USE_ESP_IDF
 #include "esp_system.h"
 
+namespace esphome::esp32 {}
+
+// Linker wraps for std::__throw_* - must be extern "C" at global scope.
+// Names must be __wrap_ + mangled name for the linker's --wrap option.
+
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
 
-// std::__throw_length_error(char const*)
-// Called when container size exceeds max_size()
+// std::__throw_length_error(char const*) - called when container size exceeds max_size()
 void __wrap__ZSt20__throw_length_errorPKc(const char *) { esp_system_abort("std::length_error"); }
 
-// std::__throw_logic_error(char const*)
-// Called for logic errors (e.g., promise already satisfied)
+// std::__throw_logic_error(char const*) - called for logic errors (e.g., promise already satisfied)
 void __wrap__ZSt19__throw_logic_errorPKc(const char *) { esp_system_abort("std::logic_error"); }
 
-// std::__throw_out_of_range(char const*)
-// Called by at() when index is out of bounds
+// std::__throw_out_of_range(char const*) - called by at() when index is out of bounds
 void __wrap__ZSt20__throw_out_of_rangePKc(const char *) { esp_system_abort("std::out_of_range"); }
 
-// std::__throw_out_of_range_fmt(char const*, ...)
-// Called by bitset::to_ulong when value doesn't fit
+// std::__throw_out_of_range_fmt(char const*, ...) - called by bitset::to_ulong when value doesn't fit
 void __wrap__ZSt24__throw_out_of_range_fmtPKcz(const char *, ...) { esp_system_abort("std::out_of_range"); }
 
-// std::__throw_bad_alloc()
-// Called when operator new fails
+// std::__throw_bad_alloc() - called when operator new fails
 void __wrap__ZSt17__throw_bad_allocv() { esp_system_abort("std::bad_alloc"); }
 
-// std::__throw_bad_function_call()
-// Called when invoking empty std::function
+// std::__throw_bad_function_call() - called when invoking empty std::function
 void __wrap__ZSt25__throw_bad_function_callv() { esp_system_abort("std::bad_function_call"); }
 
 }  // extern "C"
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+
 #endif  // USE_ESP_IDF
