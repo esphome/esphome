@@ -155,6 +155,9 @@ void MHZ19Component::dump_config() {
     case MHZ19_DETECTION_RANGE_0_10000PPM:
       range_str = "0 to 10000ppm";
       break;
+    default:
+      range_str = "default";
+      break;
   }
   ESP_LOGCONFIG(TAG, "  Detection range: %s", range_str);
 }
