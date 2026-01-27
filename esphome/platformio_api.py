@@ -420,3 +420,8 @@ class IDEData:
             if path.endswith(".exe")
             else f"{path[:-3]}readelf"
         )
+
+    @property
+    def defines(self) -> list[str]:
+        """Return the list of preprocessor defines from idedata."""
+        return self.raw.get("defines", [])

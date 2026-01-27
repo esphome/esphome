@@ -13,17 +13,12 @@
 #include "esphome/components/display/display_color_utils.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
-#ifdef USE_ARDUINO
 #ifdef USE_ESP32
-#include <HTTPClient.h>
-#endif  // USE_ESP32
-#ifdef USE_ESP8266
+#include <esp_http_client.h>
+#elif defined(USE_ESP8266)
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
-#endif  // USE_ESP8266
-#elif defined(USE_ESP_IDF)
-#include <esp_http_client.h>
-#endif  // ARDUINO vs USE_ESP_IDF
+#endif  // USE_ESP32 vs USE_ESP8266
 #endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome {
@@ -1078,7 +1073,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef USE_NEXTION_TFT_UPLOAD
   /**
-   * Set the tft file URL. https seems problematic with Arduino..
+   * Set the tft file URL.
    */
   void set_tft_url(const std::string &tft_url) { this->tft_url_ = tft_url; }
 
@@ -1314,6 +1309,30 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   bool is_connected() { return this->connection_state_.is_connected_; }
 
+  /**
+   * @brief Set the maximum age for queue items
+   * @param age_ms Maximum age in milliseconds before queue items are removed
+   */
+  inline void set_max_queue_age(uint16_t age_ms) { this->max_q_age_ms_ = age_ms; }
+
+  /**
+   * @brief Get the maximum age for queue items
+   * @return Maximum age in milliseconds
+   */
+  inline uint16_t get_max_queue_age() const { return this->max_q_age_ms_; }
+
+  /**
+   * @brief Set the startup override timeout
+   * @param timeout_ms Time in milliseconds to wait before forcing setup complete
+   */
+  inline void set_startup_override_ms(uint16_t timeout_ms) { this->startup_override_ms_ = timeout_ms; }
+
+  /**
+   * @brief Get the startup override timeout
+   * @return Startup override timeout in milliseconds
+   */
+  inline uint16_t get_startup_override_ms() const { return this->startup_override_ms_; }
+
  protected:
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
   uint16_t max_commands_per_loop_{1000};
@@ -1422,16 +1441,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   uint32_t original_baud_rate_ = 0;
   bool upload_first_chunk_sent_ = false;
 
-#ifdef USE_ARDUINO
-  /**
-   * will request chunk_size chunks from the web server
-   * and send each to the nextion
-   * @param HTTPClient http_client HTTP client handler.
-   * @param int range_start Position of next byte to transfer.
-   * @return position of last byte transferred, -1 for failure.
-   */
-  int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
-#elif defined(USE_ESP_IDF)
+#ifdef USE_ESP32
   /**
    * will request 4096 bytes chunks from the web server
    * and send each to Nextion
@@ -1440,7 +1450,16 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start);
-#endif  // USE_ARDUINO vs USE_ESP_IDF
+#elif defined(USE_ARDUINO)
+  /**
+   * will request chunk_size chunks from the web server
+   * and send each to the nextion
+   * @param HTTPClient http_client HTTP client handler.
+   * @param int range_start Position of next byte to transfer.
+   * @return position of last byte transferred, -1 for failure.
+   */
+  int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
+#endif  // USE_ESP32 vs USE_ARDUINO
 
   /**
    * Ends the upload process, restart Nextion and, if successful,
@@ -1449,12 +1468,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return bool True: Transfer completed successfuly, False: Transfer failed.
    */
   bool upload_end_(bool successful);
-
-  /**
-   * Returns the ESP Free Heap memory. This is framework independent.
-   * @return Free Heap in bytes.
-   */
-  uint32_t get_free_heap_();
 
 #endif  // USE_NEXTION_TFT_UPLOAD
 
@@ -1490,9 +1503,10 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void reset_(bool reset_nextion = true);
 
   std::string command_data_;
-  const uint16_t startup_override_ms_ = 8000;
-  const uint16_t max_q_age_ms_ = 8000;
   uint32_t started_ms_ = 0;
+
+  uint16_t startup_override_ms_ = 8000;  ///< Timeout before forcing setup complete
+  uint16_t max_q_age_ms_ = 8000;         ///< Maximum age for queue items in ms
 };
 
 }  // namespace nextion

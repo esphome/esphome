@@ -85,6 +85,7 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   }
 
   void set_pin(uint8_t pin) { this->pin_ = pin; }
+  void set_inverted(bool inverted) { this->invert_out_ = inverted; }
   void set_num_leds(uint16_t num_leds) { this->num_leds_ = num_leds; }
   void set_rgb_order(RGBOrder rgb_order) {
     this->deprecated_settings_.rgb_order_ = rgb_order;
@@ -147,6 +148,7 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
 
   bool use_dma_{false};
   bool use_psram_{false};
+  bool invert_out_{false};
 
   uint32_t last_refresh_{0};
   optional<uint32_t> max_refresh_rate_{};

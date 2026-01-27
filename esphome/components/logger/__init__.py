@@ -226,8 +226,13 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_TASK_LOG_BUFFER_SIZE,
                 esp32=768,  # Default: 768 bytes (~5-6 messages with 70-byte text plus thread names)
+                bk72xx=768,
+                ln882x=768,
+                rtl87xx=768,
             ): cv.All(
-                cv.only_on_esp32,
+                cv.only_on(
+                    [PLATFORM_ESP32, PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RTL87XX]
+                ),
                 cv.validate_bytes,
                 cv.Any(
                     cv.int_(0),  # Disabled
@@ -241,9 +246,12 @@ CONFIG_SCHEMA = cv.All(
                 CONF_HARDWARE_UART,
                 esp8266=UART0,
                 esp32=UART0,
+                esp32_c2=UART0,
                 esp32_c3=USB_SERIAL_JTAG,
                 esp32_c5=USB_SERIAL_JTAG,
                 esp32_c6=USB_SERIAL_JTAG,
+                esp32_c61=USB_SERIAL_JTAG,
+                esp32_h2=USB_SERIAL_JTAG,
                 esp32_p4=USB_SERIAL_JTAG,
                 esp32_s2=USB_CDC,
                 esp32_s3=USB_SERIAL_JTAG,
@@ -303,10 +311,15 @@ async def to_code(config):
     )
     if CORE.is_esp32:
         cg.add(log.create_pthread_key())
+    if CORE.is_esp32 or CORE.is_libretiny:
         task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
         if task_log_buffer_size > 0:
             cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
             cg.add(log.init_log_buffer(task_log_buffer_size))
+    elif CORE.is_host:
+        cg.add(log.create_pthread_key())
+        cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
+        cg.add(log.init_log_buffer(64))  # Fixed 64 slots for host
 
     cg.add(log.set_log_level(initial_level))
     if CONF_HARDWARE_UART in config:
@@ -333,6 +346,18 @@ async def to_code(config):
     is_at_least_verbose = this_severity >= verbose_severity
     is_at_least_very_verbose = this_severity >= very_verbose_severity
     has_serial_logging = baud_rate != 0
+
+    # Add defines for which Serial object is needed (allows linker to exclude unused)
+    if CORE.is_esp8266:
+        from esphome.components.esp8266.const import enable_serial, enable_serial1
+
+        hw_uart = config.get(CONF_HARDWARE_UART, UART0)
+        if has_serial_logging and hw_uart in (UART0, UART0_SWAP):
+            cg.add_define("USE_ESP8266_LOGGER_SERIAL")
+            enable_serial()
+        elif has_serial_logging and hw_uart == UART1:
+            cg.add_define("USE_ESP8266_LOGGER_SERIAL1")
+            enable_serial1()
 
     if (
         (CORE.is_esp8266 or CORE.is_rp2040)
@@ -383,7 +408,7 @@ async def to_code(config):
     except cv.Invalid:
         pass
 
-    if CORE.using_zephyr:
+    if CORE.is_nrf52:
         if config[CONF_HARDWARE_UART] == UART0:
             zephyr_add_overlay("""&uart0 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == UART1:
@@ -396,6 +421,7 @@ async def to_code(config):
     await cg.register_component(log, config)
 
     for conf in config.get(CONF_ON_MESSAGE, []):
+        request_log_listener()  # Each on_message trigger needs a listener slot
         trigger = cg.new_Pvariable(
             conf[CONF_TRIGGER_ID], log, LOG_LEVEL_SEVERITY.index(conf[CONF_LEVEL])
         )
@@ -505,9 +531,15 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.LN882X_ARDUINO,
         },
         "logger_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
-        "task_log_buffer.cpp": {
+        "task_log_buffer_esp32.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
+        },
+        "task_log_buffer_host.cpp": {PlatformFramework.HOST_NATIVE},
+        "task_log_buffer_libretiny.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
         },
     }
 )
@@ -515,6 +547,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
 # Keys for CORE.data storage
 DOMAIN = "logger"
 KEY_LEVEL_LISTENERS = "level_listeners"
+KEY_LOG_LISTENERS = "log_listeners"
 
 
 def request_logger_level_listeners() -> None:
@@ -527,8 +560,26 @@ def request_logger_level_listeners() -> None:
     CORE.data.setdefault(DOMAIN, {})[KEY_LEVEL_LISTENERS] = True
 
 
+def request_log_listener() -> None:
+    """Request a log listener slot.
+
+    Components that need to receive log messages should call this function
+    during their code generation. This increments the listener count used
+    to size the StaticVector.
+    """
+    data = CORE.data.setdefault(DOMAIN, {})
+    data[KEY_LOG_LISTENERS] = data.get(KEY_LOG_LISTENERS, 0) + 1
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional logger features."""
-    if CORE.data.get(DOMAIN, {}).get(KEY_LEVEL_LISTENERS, False):
+    domain_data = CORE.data.get(DOMAIN, {})
+    if domain_data.get(KEY_LEVEL_LISTENERS, False):
         cg.add_define("USE_LOGGER_LEVEL_LISTENERS")
+
+    # Only generate log listener code if any component needs it
+    log_listener_count = domain_data.get(KEY_LOG_LISTENERS, 0)
+    if log_listener_count > 0:
+        cg.add_define("USE_LOG_LISTENERS")
+        cg.add_define("ESPHOME_LOG_MAX_LISTENERS", log_listener_count)
