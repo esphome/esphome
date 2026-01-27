@@ -50,18 +50,16 @@ void DlmsMeterComponent::loop() {
     if (!this->parse_dlms_(this->mbus_payload_, message_length, systitle_length, header_offset))
       return;
 
-    if (message_length == 0 || message_length > MAX_MESSAGE_LENGTH) {
+    if (message_length < DECODER_START_OFFSET || message_length > MAX_MESSAGE_LENGTH) {
       ESP_LOGE(TAG, "DLMS: Message length invalid: %u", message_length);
       this->receive_buffer_.clear();
       return;
     }
 
-    // Decrypt in place inside mbus_payload
+    // Decrypt in place and then decode the OBIS codes
     if (!this->decrypt_(this->mbus_payload_, message_length, systitle_length, header_offset))
       return;
-
-    uint8_t *plaintext = &this->mbus_payload_[header_offset + DLMS_PAYLOAD_OFFSET];
-    this->decode_obis_(plaintext, message_length);
+    this->decode_obis_(&this->mbus_payload_[header_offset + DLMS_PAYLOAD_OFFSET], message_length);
   }
 }
 
