@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -16,20 +17,20 @@ using NfcTagUid = StaticVector<uint8_t, NFC_UID_MAX_LENGTH>;
 class NfcTag {
  public:
   NfcTag() { this->tag_type_ = "Unknown"; };
-  NfcTag(NfcTagUid &uid) {
+  NfcTag(const NfcTagUid &uid) {
     this->uid_ = uid;
     this->tag_type_ = "Unknown";
   };
-  NfcTag(NfcTagUid &uid, const std::string &tag_type) {
+  NfcTag(const NfcTagUid &uid, const std::string &tag_type) {
     this->uid_ = uid;
     this->tag_type_ = tag_type;
   };
-  NfcTag(NfcTagUid &uid, const std::string &tag_type, std::unique_ptr<nfc::NdefMessage> ndef_message) {
+  NfcTag(const NfcTagUid &uid, const std::string &tag_type, std::unique_ptr<nfc::NdefMessage> ndef_message) {
     this->uid_ = uid;
     this->tag_type_ = tag_type;
     this->ndef_message_ = std::move(ndef_message);
   };
-  NfcTag(NfcTagUid &uid, const std::string &tag_type, std::vector<uint8_t> &ndef_data) {
+  NfcTag(const NfcTagUid &uid, const std::string &tag_type, std::vector<uint8_t> &ndef_data) {
     this->uid_ = uid;
     this->tag_type_ = tag_type;
     this->ndef_message_ = make_unique<NdefMessage>(ndef_data);

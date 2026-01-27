@@ -120,7 +120,7 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
  public:
   void set_uid(const nfc::NfcTagUid &uid) { uid_ = uid; }
 
-  bool process(nfc::NfcTagUid &data);
+  bool process(const nfc::NfcTagUid &data);
 
   void on_scan_end() {
     if (!this->found_) {

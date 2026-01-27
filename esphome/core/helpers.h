@@ -216,6 +216,10 @@ template<typename T, size_t N> class StaticVector {
   reverse_iterator rend() { return reverse_iterator(begin()); }
   const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
   const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
+
+  // Conversion to std::span for compatibility with span-based APIs
+  operator std::span<T>() { return std::span<T>(data_.data(), count_); }
+  operator std::span<const T>() const { return std::span<const T>(data_.data(), count_); }
 };
 
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
