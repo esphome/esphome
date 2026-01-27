@@ -305,8 +305,13 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
       return;
     }
 
+    if (current_position >= message_length) {
+      ESP_LOGE(TAG, "OBIS: Buffer too short for data type");
+      this->receive_buffer_.clear();
+      return;
+    }
     uint8_t data_type = plaintext[current_position];
-    current_position++;  // Advance past data type
+    current_position++;
 
     switch (data_type) {
       case DataType::DOUBLE_LONG_UNSIGNED: {
@@ -343,20 +348,20 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
         break;
       }
       case DataType::LONG_UNSIGNED: {
-        if (current_position + 6 > message_length) {
+        if (current_position + 2 > message_length) {
           ESP_LOGE(TAG, "OBIS: Buffer too short for LONG_UNSIGNED");
           this->receive_buffer_.clear();
           return;
         }
-        uint16_t raw_value = encode_uint16(plaintext[current_position], plaintext[current_position + 1]);
-        float value;
-        if (plaintext[current_position + 5] == Accuracy::SINGLE_DIGIT) {
-          value = raw_value / 10.0f;
-        } else if (plaintext[current_position + 5] == Accuracy::DOUBLE_DIGIT) {
-          value = raw_value / 100.0f;
-        } else {
-          value = raw_value;
+        float value = encode_uint16(plaintext[current_position], plaintext[current_position + 1]);
+        if (current_position + 5 < message_length && plaintext[current_position + 4] == DATA_NOTIFICATION) {
+          if (plaintext[current_position + 5] == Accuracy::SINGLE_DIGIT) {
+            value /= 10.0f;
+          } else if (plaintext[current_position + 5] == Accuracy::DOUBLE_DIGIT) {
+            value /= 100.0f;
+          }
         }
+
         switch (obis_cd) {
           case OBIS_VOLTAGE_L1:
             data.voltage_l1 = value;
@@ -399,6 +404,11 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
         }
         // Handle timestamp (normal OBIS code or NETZNOE special case)
         if (obis_cd == OBIS_TIMESTAMP || timestamp_found) {
+          if (data_length < 8) {
+            ESP_LOGE(TAG, "OBIS: Timestamp data too short: %u", data_length);
+            this->receive_buffer_.clear();
+            return;
+          }
           uint16_t year = encode_uint16(plaintext[current_position], plaintext[current_position + 1]);
           uint8_t month = plaintext[current_position + 2];
           uint8_t day = plaintext[current_position + 3];
@@ -425,26 +435,28 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
         return;
     }
 
+    // Skip break after data
     if (this->provider_ == PROVIDER_NETZNOE) {
       // Don't skip the break on the first timestamp, as there's none
       if (!timestamp_found) {
-        current_position += 2;  // Skip break after data
+        current_position += 2;
       }
     } else {
-      current_position += 2;  // Skip break after data
+      current_position += 2;
     }
 
-    if (plaintext[current_position] == DATA_NOTIFICATION) {  // There is still additional data for this type, skip it
-      // on EVN Meters the additional data (no additional Break) is only 3 Bytes + 1 Byte for the "there is data" Byte
+    // Check for additional data
+    if (current_position < message_length && plaintext[current_position] == DATA_NOTIFICATION) {
+      // on EVN Meters there is no additional break
       if (this->provider_ == PROVIDER_NETZNOE) {
-        current_position += 4;  // Skip additional data and additional break; this will jump out of bounds on last frame
+        current_position += 4;
       } else {
-        current_position += 6;  // Skip additional data and additional break; this will jump out of bounds on last frame
+        current_position += 6;
       }
     }
   }
 
-  this->receive_buffer_.clear();  // Reset buffer
+  this->receive_buffer_.clear();
 
   ESP_LOGI(TAG, "Received valid data");
   this->publish_sensors(data);
