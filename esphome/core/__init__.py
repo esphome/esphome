@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
+    KEY_NATIVE_IDF,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_BK72XX,
@@ -721,6 +722,25 @@ class EsphomeCore:
     def config_filename(self) -> str:
         return self.config_path.name
 
+    def has_at_least_one_component(self, *components: str) -> bool:
+        """
+        Are any of the given components configured?
+        :param components: component names
+        :return: true if so
+        """
+        if self.config is None:
+            raise ValueError("Config has not been loaded yet")
+
+        return any(component in self.config for component in components)
+
+    @property
+    def has_networking(self) -> bool:
+        """
+        Is a network component configured?
+        :return: true if so
+        """
+        return self.has_at_least_one_component("wifi", "ethernet", "openthread")
+
     def relative_config_path(self, *path: str | Path) -> Path:
         path_ = Path(*path).expanduser()
         return self.config_dir / path_
@@ -744,6 +764,9 @@ class EsphomeCore:
 
     @property
     def firmware_bin(self) -> Path:
+        # Check if using native ESP-IDF build (--native-idf)
+        if self.data.get(KEY_NATIVE_IDF, False):
+            return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
         return self.relative_pioenvs_path(self.name, "firmware.bin")

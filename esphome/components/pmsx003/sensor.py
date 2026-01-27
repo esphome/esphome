@@ -1,6 +1,5 @@
 import esphome.codegen as cg
 from esphome.components import sensor, uart
-from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FORMALDEHYDE,
@@ -21,7 +20,6 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TYPE,
     CONF_UPDATE_INTERVAL,
-    DEVICE_CLASS_AQI,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
@@ -37,13 +35,10 @@ from esphome.const import (
 
 CODEOWNERS = ["@ximex"]
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["aqi"]
 
 pmsx003_ns = cg.esphome_ns.namespace("pmsx003")
 PMSX003Component = pmsx003_ns.class_("PMSX003Component", uart.UARTDevice, cg.Component)
 PMSX003Sensor = pmsx003_ns.class_("PMSX003Sensor", sensor.Sensor)
-
-UNIT_INDEX = "index"
 
 TYPE_PMS1003 = "PMS1003"
 TYPE_PMS3003 = "PMS3003"
@@ -176,10 +171,6 @@ def validate_pmsx003_sensors(value):
     for key, types in SENSORS_TO_TYPE.items():
         if key in value and value[CONF_TYPE] not in types:
             raise cv.Invalid(f"{value[CONF_TYPE]} does not have {key} sensor!")
-    if CONF_AQI in value and CONF_PM_2_5 not in value:
-        raise cv.Invalid("AQI computation requires PM 2.5 sensor")
-    if CONF_AQI in value and CONF_PM_10_0 not in value:
-        raise cv.Invalid("AQI computation requires PM 10 sensor")
     return value
 
 
@@ -295,19 +286,6 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_AQI): sensor.sensor_schema(
-                unit_of_measurement=UNIT_INDEX,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_AQI,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(
-                {
-                    cv.Required(CONF_CALCULATION_TYPE): cv.enum(
-                        AQI_CALCULATION_TYPE, upper=True
-                    ),
-                }
-            ),
             cv.Optional(CONF_UPDATE_INTERVAL, default="0s"): validate_update_interval,
         }
     )
@@ -393,10 +371,5 @@ async def to_code(config):
     if CONF_HUMIDITY in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY])
         cg.add(var.set_humidity_sensor(sens))
-
-    if CONF_AQI in config:
-        sens = await sensor.new_sensor(config[CONF_AQI])
-        cg.add(var.set_aqi_sensor(sens))
-        cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))
 
     cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))

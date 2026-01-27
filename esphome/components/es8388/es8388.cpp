@@ -116,9 +116,8 @@ void ES8388::setup() {
   if (this->dac_output_select_ != nullptr) {
     auto dac_power = this->get_dac_power();
     if (dac_power.has_value()) {
-      auto dac_power_str = this->dac_output_select_->at(dac_power.value());
-      if (dac_power_str.has_value()) {
-        this->dac_output_select_->publish_state(dac_power_str.value());
+      if (this->dac_output_select_->has_index(dac_power.value())) {
+        this->dac_output_select_->publish_state(dac_power.value());
       } else {
         ESP_LOGW(TAG, "Unknown DAC output power value: %d", dac_power.value());
       }
@@ -127,9 +126,8 @@ void ES8388::setup() {
   if (this->adc_input_mic_select_ != nullptr) {
     auto mic_input = this->get_mic_input();
     if (mic_input.has_value()) {
-      auto mic_input_str = this->adc_input_mic_select_->at(mic_input.value());
-      if (mic_input_str.has_value()) {
-        this->adc_input_mic_select_->publish_state(mic_input_str.value());
+      if (this->adc_input_mic_select_->has_index(mic_input.value())) {
+        this->adc_input_mic_select_->publish_state(mic_input.value());
       } else {
         ESP_LOGW(TAG, "Unknown ADC input mic value: %d", mic_input.value());
       }
@@ -210,9 +208,11 @@ bool ES8388::set_dac_output(DacOutputLine line) {
       return false;
   };
 
-  ESP_LOGV(TAG, "Setting ES8388_DACPOWER to 0x%02X", dac_power);
-  ESP_LOGV(TAG, "Setting ES8388_DACCONTROL24 / ES8388_DACCONTROL25 to 0x%02X", reg_out1);
-  ESP_LOGV(TAG, "Setting ES8388_DACCONTROL26 / ES8388_DACCONTROL27  to 0x%02X", reg_out2);
+  ESP_LOGV(TAG,
+           "Setting ES8388_DACPOWER to 0x%02X\n"
+           "Setting ES8388_DACCONTROL24 / ES8388_DACCONTROL25 to 0x%02X\n"
+           "Setting ES8388_DACCONTROL26 / ES8388_DACCONTROL27  to 0x%02X",
+           dac_power, reg_out1, reg_out2);
 
   ES8388_ERROR_CHECK(this->write_byte(ES8388_DACCONTROL24, reg_out1));  // LOUT1VOL
   ES8388_ERROR_CHECK(this->write_byte(ES8388_DACCONTROL25, reg_out1));  // ROUT1VOL

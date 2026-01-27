@@ -64,18 +64,6 @@ static const LogString *espnow_error_to_str(esp_err_t error) {
   }
 }
 
-std::string peer_str(uint8_t *peer) {
-  if (peer == nullptr || peer[0] == 0) {
-    return "[Not Set]";
-  } else if (memcmp(peer, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0) {
-    return "[Broadcast]";
-  } else if (memcmp(peer, ESPNOW_MULTICAST_ADDR, ESP_NOW_ETH_ALEN) == 0) {
-    return "[Multicast]";
-  } else {
-    return format_mac_address_pretty(peer);
-  }
-}
-
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
 void on_send_report(const esp_now_send_info_t *info, esp_now_send_status_t status)
 #else
@@ -140,11 +128,13 @@ void ESPNowComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Disabled");
     return;
   }
+  char own_addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  format_mac_addr_upper(this->own_address_, own_addr_buf);
   ESP_LOGCONFIG(TAG,
                 "  Own address: %s\n"
                 "  Version: v%" PRIu32 "\n"
                 "  Wi-Fi channel: %d",
-                format_mac_address_pretty(this->own_address_).c_str(), version, this->wifi_channel_);
+                own_addr_buf, version, this->wifi_channel_);
 #ifdef USE_WIFI
   ESP_LOGCONFIG(TAG, "  Wi-Fi enabled: %s", YESNO(this->is_wifi_enabled()));
 #endif
@@ -300,9 +290,12 @@ void ESPNowComponent::loop() {
         // Intentionally left as if instead of else in case the peer is added above
         if (esp_now_is_peer_exist(info.src_addr)) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+          char src_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+          char dst_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
           char hex_buf[format_hex_pretty_size(ESP_NOW_MAX_DATA_LEN)];
-          ESP_LOGV(TAG, "<<< [%s -> %s] %s", format_mac_address_pretty(info.src_addr).c_str(),
-                   format_mac_address_pretty(info.des_addr).c_str(),
+          format_mac_addr_upper(info.src_addr, src_buf);
+          format_mac_addr_upper(info.des_addr, dst_buf);
+          ESP_LOGV(TAG, "<<< [%s -> %s] %s", src_buf, dst_buf,
                    format_hex_pretty_to(hex_buf, packet->packet_.receive.data, packet->packet_.receive.size));
 #endif
           if (memcmp(info.des_addr, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0) {
@@ -321,8 +314,9 @@ void ESPNowComponent::loop() {
       }
       case ESPNowPacket::SENT: {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-        ESP_LOGV(TAG, ">>> [%s] %s", format_mac_address_pretty(packet->packet_.sent.address).c_str(),
-                 LOG_STR_ARG(espnow_error_to_str(packet->packet_.sent.status)));
+        char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+        format_mac_addr_upper(packet->packet_.sent.address, addr_buf);
+        ESP_LOGV(TAG, ">>> [%s] %s", addr_buf, LOG_STR_ARG(espnow_error_to_str(packet->packet_.sent.status)));
 #endif
         if (this->current_send_packet_ != nullptr) {
           this->current_send_packet_->callback_(packet->packet_.sent.status);
@@ -409,8 +403,9 @@ void ESPNowComponent::send_() {
   this->current_send_packet_ = packet;
   esp_err_t err = esp_now_send(packet->address_, packet->data_, packet->size_);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to send packet to %s - %s", format_mac_address_pretty(packet->address_).c_str(),
-             LOG_STR_ARG(espnow_error_to_str(err)));
+    char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+    format_mac_addr_upper(packet->address_, addr_buf);
+    ESP_LOGE(TAG, "Failed to send packet to %s - %s", addr_buf, LOG_STR_ARG(espnow_error_to_str(err)));
     if (packet->callback_ != nullptr) {
       packet->callback_(err);
     }
@@ -439,8 +434,9 @@ esp_err_t ESPNowComponent::add_peer(const uint8_t *peer) {
     esp_err_t err = esp_now_add_peer(&peer_info);
 
     if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to add peer %s - %s", format_mac_address_pretty(peer).c_str(),
-               LOG_STR_ARG(espnow_error_to_str(err)));
+      char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(peer, peer_buf);
+      ESP_LOGE(TAG, "Failed to add peer %s - %s", peer_buf, LOG_STR_ARG(espnow_error_to_str(err)));
       this->status_momentary_warning("peer-add-failed");
       return err;
     }
@@ -468,8 +464,9 @@ esp_err_t ESPNowComponent::del_peer(const uint8_t *peer) {
   if (esp_now_is_peer_exist(peer)) {
     esp_err_t err = esp_now_del_peer(peer);
     if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to delete peer %s - %s", format_mac_address_pretty(peer).c_str(),
-               LOG_STR_ARG(espnow_error_to_str(err)));
+      char peer_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(peer, peer_buf);
+      ESP_LOGE(TAG, "Failed to delete peer %s - %s", peer_buf, LOG_STR_ARG(espnow_error_to_str(err)));
       this->status_momentary_warning("peer-del-failed");
       return err;
     }
