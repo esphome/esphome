@@ -52,6 +52,8 @@ void ModemHandler::modem_create_dte_dce(int baud_rate) {
     this->dce = create_SIM800_dce(&dce_config, this->dte, this->ppp_netif);
   } else if (this->model == "SIM7000" || this->model == "SIM7080") {
     this->dce = create_SIM7000_dce(&dce_config, this->dte, this->ppp_netif);
+  } else if (this->model == "SIM7070") {
+    this->dce = create_SIM7070_dce(&dce_config, this->dte, this->ppp_netif);
   } else if (this->model == "SIM7600" || this->model == "SIM7670") {
     this->dce = create_SIM7600_dce(&dce_config, this->dte, this->ppp_netif);
   } else {
