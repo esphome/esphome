@@ -272,7 +272,7 @@ text_sensor:
 
 display:
   - platform: nextion
-    id: lcd_1
+    id: main_lcd
     max_commands_per_loop: 20
     max_queue_size: 50
     update_interval: 5s
