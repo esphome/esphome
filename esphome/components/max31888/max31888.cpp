@@ -32,7 +32,7 @@ void MAX31888Sensor::update() {
 
   this->send_command_(MAX31888_COMMAND_START_CONVERSION);
   uint16_t crc = this->bus_->read8() | (this->bus_->read8() << 8);  // this must be read to start conversion
-  ESP_LOGV(TAG, "CRC: %02X.%02X", crc[0], crc[1]);
+  ESP_LOGV(TAG, "CRC: %04X", crc);
 
   this->set_timeout(this->get_address_name(), MAX31888_MILIS_TO_WAIT, [this] {
     if (!this->read_fifo_()) {
@@ -81,7 +81,7 @@ void MAX31888Sensor::setup() {
     InterruptLock lock;
     if (this->send_command_(MAX31888_COMMAND_SOFT_RESET)) {
       uint16_t crc = this->bus_->read8() | (this->bus_->read8() << 8);  // this must be read to perform reset
-      ESP_LOGV(TAG, "CRC: %02X.%02X", crc[0], crc[1]);
+      ESP_LOGV(TAG, "CRC: %04X", crc);
     }
   }
 }
