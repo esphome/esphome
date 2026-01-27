@@ -4,7 +4,7 @@ namespace esphome {
 namespace uart {
 
 void UartPacketInterface::loop() {
-  auto cnt = this->available();
+  size_t cnt = this->available();
   if (cnt > this->rx_buffer_size_) {
     cnt = this->rx_buffer_size_;
   }
