@@ -152,9 +152,9 @@ bool Seesaw::digital_read(uint8_t pin) {
 void Seesaw::digital_write(uint8_t pin, bool state) {
   uint32_t pins = 1 << pin;
   if (state) {
-    this->write32_(SEESAW_GPIO, SEESAW_GPIO_BULK_SET, pin);
+    this->write32_(SEESAW_GPIO, SEESAW_GPIO_BULK_SET, pins);
   } else {
-    this->write32_(SEESAW_GPIO, SEESAW_GPIO_BULK_CLR, pin);
+    this->write32_(SEESAW_GPIO, SEESAW_GPIO_BULK_CLR, pins);
   }
 }
 
