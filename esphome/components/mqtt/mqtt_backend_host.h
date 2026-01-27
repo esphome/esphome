@@ -33,16 +33,24 @@ class MQTTBackendHost final : public MQTTBackend {
   void set_server(network::IPAddress ip, uint16_t port) final;
   void set_server(const char *host, uint16_t port) final;
 #
-  void set_on_connect(std::function<on_connect_callback_t> &&callback) final { this->on_connect_ = std::move(callback); }
+  void set_on_connect(std::function<on_connect_callback_t> &&callback) final {
+    this->on_connect_ = std::move(callback);
+  }
   void set_on_disconnect(std::function<on_disconnect_callback_t> &&callback) final {
     this->on_disconnect_ = std::move(callback);
   }
-  void set_on_subscribe(std::function<on_subscribe_callback_t> &&callback) final { this->on_subscribe_ = std::move(callback); }
+  void set_on_subscribe(std::function<on_subscribe_callback_t> &&callback) final {
+    this->on_subscribe_ = std::move(callback);
+  }
   void set_on_unsubscribe(std::function<on_unsubscribe_callback_t> &&callback) final {
     this->on_unsubscribe_ = std::move(callback);
   }
-  void set_on_message(std::function<on_message_callback_t> &&callback) final { this->on_message_ = std::move(callback); }
-  void set_on_publish(std::function<on_publish_user_callback_t> &&callback) final { this->on_publish_ = std::move(callback); }
+  void set_on_message(std::function<on_message_callback_t> &&callback) final {
+    this->on_message_ = std::move(callback);
+  }
+  void set_on_publish(std::function<on_publish_user_callback_t> &&callback) final {
+    this->on_publish_ = std::move(callback);
+  }
 #
   bool connected() const final;
   void connect() final;
@@ -115,4 +123,3 @@ class MQTTBackendHost final : public MQTTBackend {
 
 #endif  // USE_HOST
 #endif  // USE_MQTT
-

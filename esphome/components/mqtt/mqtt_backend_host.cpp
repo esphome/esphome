@@ -456,4 +456,3 @@ void MQTTBackendHost::process_rx_() {
 
 #endif  // USE_HOST
 #endif  // USE_MQTT
-

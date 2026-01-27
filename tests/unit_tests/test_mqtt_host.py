@@ -33,4 +33,3 @@ def test_mqtt_schema_allows_host_platform() -> None:
         CORE.data.clear()
         CORE.data.update(old_data)
         CORE.name = old_name
-
