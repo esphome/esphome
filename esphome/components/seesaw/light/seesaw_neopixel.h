@@ -14,10 +14,7 @@ class SeesawNeopixel : public light::AddressableLight {
   void set_pin(int pin) { this->pin_ = pin; }
   light::LightTraits get_traits() override;
   void write_state(light::LightState *state) override;
-  void clear_effect_data() override {
-    for (int i = 0; i < this->size(); i++)
-      this->effect_data_[i] = 0;
-  }
+  void clear_effect_data() override;
   int32_t size() const override { return this->num_leds_; }
 
  protected:

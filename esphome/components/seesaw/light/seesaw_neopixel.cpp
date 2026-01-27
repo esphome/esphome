@@ -8,22 +8,20 @@ static const char *const TAG = "seesaw.neopixel";
 void SeesawNeopixel::setup() { this->parent_->setup_neopixel(this->pin_, this->num_leds_); }
 
 void SeesawNeopixel::set_num_leds(uint16_t num_leds) {
+  if (this->num_leds_)
+    return;
   this->num_leds_ = num_leds;
 
-  // Cleanup if already allocated
-  if (this->buf_ != nullptr)
-    delete[] this->buf_;
-  if (this->effect_data_ != nullptr)
-    delete[] this->effect_data_;
-
   // Byte each for Red, Green, and Blue
-  this->buf_ = new uint8_t[this->size() * 3];      // NOLINT
-  this->effect_data_ = new uint8_t[this->size()];  // NOLINT
+  this->buf_ = new uint8_t[num_leds * 3];      // NOLINT
+  this->effect_data_ = new uint8_t[num_leds];  // NOLINT
 
   // Clear buffer
-  memset(this->buf_, 0x00, this->size() * 3);
-  memset(this->effect_data_, 0x00, this->size());
+  memset(this->buf_, 0, num_leds * 3);
+  memset(this->effect_data_, 0, num_leds);
 }
+
+void SeesawNeopixel::clear_effect_data() { memset(this->effect_data_, 0, this->size()); }
 
 light::LightTraits SeesawNeopixel::get_traits() {
   auto traits = light::LightTraits();

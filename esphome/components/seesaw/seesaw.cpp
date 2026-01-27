@@ -48,10 +48,16 @@ void Seesaw::setup() {
   }
   this->cpuid_ = c;
   uint8_t buf[4];
-  this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_VERSION, buf, 4);
-  this->version_ = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
-  this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_OPTIONS, buf, 4);
-  this->options_ = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
+  if (this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_VERSION, buf, 4) == i2c::ERROR_OK) {
+    this->version_ = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
+  } else {
+    this->version_ = 0;
+  }
+  if (this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_OPTIONS, buf, 4) == i2c::ERROR_OK) {
+    this->options_ = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
+  } else {
+    this->options_ = 0;
+  }
 }
 
 void Seesaw::dump_config() {
@@ -126,16 +132,21 @@ void Seesaw::set_gpio_interrupt(uint32_t pin, bool enabled) {
 
 uint16_t Seesaw::analog_read(uint8_t pin) {
   uint8_t buf[2];
-  this->readbuf_(SEESAW_ADC, SEESAW_ADC_CHANNEL_OFFSET + pin, buf, 2, 1);
-  return (buf[0] << 8) + buf[1];
+  i2c::ErrorCode err = this->readbuf_(SEESAW_ADC, SEESAW_ADC_CHANNEL_OFFSET + pin, buf, 2, 1);
+  if (err == i2c::ERROR_OK)
+    return (buf[0] << 8) + buf[1];
+  return 0xffff;
 }
 
 bool Seesaw::digital_read(uint8_t pin) {
   uint32_t pins = 1 << pin;
   uint8_t buf[4];
-  this->readbuf_(SEESAW_GPIO, SEESAW_GPIO_BULK, buf, 4);
-  uint32_t ret = (buf[0] << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3];
-  return ret & pins;
+  i2c::ErrorCode err = this->readbuf_(SEESAW_GPIO, SEESAW_GPIO_BULK, buf, 4);
+  if (err == i2c::ERROR_OK) {
+    uint32_t ret = (buf[0] << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3];
+    return ret & pins;
+  }
+  return false;
 }
 
 void Seesaw::digital_write(uint8_t pin, bool state) {
