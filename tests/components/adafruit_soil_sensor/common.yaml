@@ -1,0 +1,8 @@
+sensor:
+  - platform: adafruit_soil_sensor
+    i2c_id: i2c_bus
+    temperature:
+      name: "Temperature"
+    capacitance:
+      name: "Raw Soil Moisture"
+    update_interval: 60s
