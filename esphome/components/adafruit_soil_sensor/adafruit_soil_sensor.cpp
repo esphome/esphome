@@ -77,7 +77,9 @@ void AdafruitSoilSensor::update() {
 
 bool AdafruitSoilSensor::read_temp_c_(float &temp_c) {
   uint8_t buf[4];
-  if (!this->read(buf, 4)) {
+  i2c::ErrorCode res = this->read(buf, 4);
+  if (res != i2c::ErrorCode::ERROR_OK) {
+    ESP_LOGW(TAG, "Failed to read from bus %v", res);
     return false;
   }
   int32_t ret = ((uint32_t) buf[0] << 24) | ((uint32_t) buf[1] << 16) | ((uint32_t) buf[2] << 8) | (uint32_t) buf[3];
@@ -87,11 +89,13 @@ bool AdafruitSoilSensor::read_temp_c_(float &temp_c) {
 
 bool AdafruitSoilSensor::read_capacitance_(uint16_t &touch_value) {
   uint8_t buf[2];
-  if (this->read(buf, 2)) {
-    touch_value = ((uint16_t) buf[0] << 8) | buf[1];
-    return true;
+  i2c::ErrorCode res = this->read(buf, 2);
+  if (res != i2c::ErrorCode::ERROR_OK) {
+    ESP_LOGW(TAG, "Failed to read from bus %v", res);
+    return false;
   }
-  return false;
+  touch_value = ((uint16_t) buf[0] << 8) | buf[1];
+  return true;
 }
 
 bool AdafruitSoilSensor::set_seesaw_port_(uint8_t base_address, uint8_t specific_address) {
