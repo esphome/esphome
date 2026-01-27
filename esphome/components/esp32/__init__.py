@@ -701,7 +701,7 @@ def require_full_certificate_bundle() -> None:
     """Request the full certificate bundle instead of the common-CAs-only bundle.
 
     By default, ESPHome uses CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN which
-    includes only CAs with >1% market share (~35 KB smaller than full bundle).
+    includes only CAs with >1% market share (~51 KB smaller than full bundle).
     This covers ~99% of websites including Let's Encrypt, DigiCert, Google, Amazon.
 
     Call this from components that need to connect to services using uncommon CAs.
