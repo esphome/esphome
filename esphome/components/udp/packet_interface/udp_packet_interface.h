@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+// ifdefed for no *good* reason - but needed to stop CI failures
+#ifdef USE_NETWORK
 #include "esphome/components/packet_interface/packet_interface.h"
 #include "../udp_component.h"
 
@@ -27,3 +31,4 @@ class UdpPacketInterface : public PacketInterface {
   UDPComponent *parent_;
 };
 }  // namespace esphome::udp
+#endif
