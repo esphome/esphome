@@ -12,9 +12,12 @@
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
+#include "mqtt_component.h"
+
+#ifndef USE_HOST
 #include "lwip/dns.h"
 #include "lwip/err.h"
-#include "mqtt_component.h"
+#endif
 
 #ifdef USE_API
 #include "esphome/components/api/api_server.h"
@@ -216,6 +219,13 @@ void MQTTClientComponent::start_dnslookup_() {
   this->status_set_warning();
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
+#ifdef USE_HOST
+  // Host mode: let the backend resolve and connect using the configured broker address.
+  this->ip_ = network::IPAddress(0, 0, 0, 0);
+  this->start_connect_();
+  return;
+#endif
+#ifndef USE_HOST
   ip_addr_t addr;
   err_t err;
   {
@@ -251,8 +261,12 @@ void MQTTClientComponent::start_dnslookup_() {
 
   this->state_ = MQTT_CLIENT_RESOLVING_ADDRESS;
   this->connect_begin_ = millis();
+#endif  // !USE_HOST
 }
 void MQTTClientComponent::check_dnslookup_() {
+#ifdef USE_HOST
+  return;
+#endif
   if (!this->dns_resolved_ && millis() - this->connect_begin_ > 20000) {
     this->dns_resolve_error_ = true;
   }
@@ -273,6 +287,7 @@ void MQTTClientComponent::check_dnslookup_() {
   ESP_LOGD(TAG, "Resolved broker IP address to %s", this->ip_.str_to(ip_buf));
   this->start_connect_();
 }
+#ifndef USE_HOST
 #if defined(USE_ESP8266) && LWIP_VERSION_MAJOR == 1
 void MQTTClientComponent::dns_found_callback(const char *name, ip_addr_t *ipaddr, void *callback_arg) {
 #else
@@ -286,6 +301,7 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
     a_this->dns_resolved_ = true;
   }
 }
+#endif  // !USE_HOST
 
 void MQTTClientComponent::start_connect_() {
   if (!network::is_connected())

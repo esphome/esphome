@@ -55,6 +55,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_HOST,
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
@@ -69,6 +70,9 @@ def AUTO_LOAD():
         return ["async_tcp", "json"]
     # ESP32 needs socket for wake_loop_threadsafe()
     if CORE.is_esp32:
+        return ["json", "socket"]
+    # Host backend uses BSD sockets and needs the socket component sources available.
+    if CORE.is_host:
         return ["json", "socket"]
     return ["json"]
 
@@ -329,7 +333,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX, PLATFORM_HOST]),
     _consume_mqtt_sockets,
 )
 
@@ -646,5 +650,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
+        "mqtt_backend_host.cpp": {PlatformFramework.HOST_NATIVE},
     }
 )

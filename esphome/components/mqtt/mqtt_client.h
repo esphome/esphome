@@ -19,8 +19,12 @@
 #include "mqtt_backend_esp8266.h"
 #elif defined(USE_LIBRETINY)
 #include "mqtt_backend_libretiny.h"
+#elif defined(USE_HOST)
+#include "mqtt_backend_host.h"
 #endif
+#ifndef USE_HOST
 #include "lwip/ip_addr.h"
+#endif
 
 #include <vector>
 
@@ -294,11 +298,13 @@ class MQTTClientComponent : public Component
   void start_connect_();
   void start_dnslookup_();
   void check_dnslookup_();
+#ifndef USE_HOST
 #if defined(USE_ESP8266) && LWIP_VERSION_MAJOR == 1
   static void dns_found_callback(const char *name, ip_addr_t *ipaddr, void *callback_arg);
 #else
   static void dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
 #endif
+#endif  // !USE_HOST
 
   /// Re-calculate the availability property.
   void recalculate_availability_();
@@ -340,6 +346,8 @@ class MQTTClientComponent : public Component
   MQTTBackendESP8266 mqtt_backend_;
 #elif defined(USE_LIBRETINY)
   MQTTBackendLibreTiny mqtt_backend_;
+#elif defined(USE_HOST)
+  MQTTBackendHost mqtt_backend_;
 #endif
 
   MQTTClientState state_{MQTT_CLIENT_DISABLED};
