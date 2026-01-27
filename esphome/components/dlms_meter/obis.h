@@ -47,8 +47,6 @@ enum Medium {
   NITROGEN = 0x12
 };
 
-enum Accuracy { SINGLE_DIGIT = 0xFF, DOUBLE_DIGIT = 0xFE };
-
 // Data structure
 static constexpr uint8_t DECODER_START_OFFSET = 20;  // Skip header, timestamp and break block
 static constexpr uint8_t OBIS_TYPE_OFFSET = 0;
