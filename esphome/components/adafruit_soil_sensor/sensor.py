@@ -14,6 +14,7 @@ from esphome.const import (
 CODEOWNERS = ["@thegreatco"]
 
 DEPENDENCIES = ["i2c"]
+READ_DELAY = "read_delay"
 
 adafruit_soil_sensor_ns = cg.esphome_ns.namespace("adafruit_soil_sensor")
 AdafruitSoilSensor = adafruit_soil_sensor_ns.class_(
@@ -35,6 +36,7 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(READ_DELAY): cv.uint32_t,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -47,10 +49,13 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
+    read_delay = config.get(READ_DELAY, 10)
     if (conf_temperature := config.get(CONF_TEMPERATURE)) is not None:
         ct = await sensor.new_sensor(conf_temperature)
         cg.add(var.set_temperature(ct))
+        cg.add(var.set_read_delay(read_delay))
 
     if (conf_capacitance := config.get(CONF_CAPACITANCE)) is not None:
         cmr = await sensor.new_sensor(conf_capacitance)
         cg.add(var.set_capacitance(cmr))
+        cg.add(var.set_read_delay(read_delay))
