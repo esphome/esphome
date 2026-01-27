@@ -291,10 +291,10 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
       } else if (current_position != DECODER_START_OFFSET && plaintext[current_position - 1] == 0xFF) {
         meter_number_found = true;
       } else {
-        current_position += obis_code_length + 2;  // Advance past code and position
+        current_position += obis_code_length + OBIS_CODE_OFFSET;  // Advance past code and position
       }
     } else {
-      current_position += obis_code_length + 2;  // Advance past code, position and type
+      current_position += obis_code_length + OBIS_CODE_OFFSET;  // Advance past code, position and type
     }
     if (!timestamp_found && !meter_number_found && obis_medium != Medium::ELECTRICITY &&
         obis_medium != Medium::ABSTRACT) {
