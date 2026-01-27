@@ -292,8 +292,6 @@ display:
       then:
         logger.log: "Nextion reported a buffer overflow!"
 
-  - platform: nextion  # For testing non-default settings which may enable different code paths
-    id: lcd_2
     command_spacing: 5ms
     dump_device_info: true
     max_queue_age: 5000ms         # Remove queue items after 5s
