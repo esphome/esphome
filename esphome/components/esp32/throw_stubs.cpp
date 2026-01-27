@@ -1,15 +1,17 @@
 /*
  * Linker wrap stubs for std::__throw_* functions.
  *
- * ESP-IDF disables C++ exceptions but doesn't wrap the std::__throw_*
- * functions that construct exception objects before calling __cxa_throw.
- * This wastes ~1KB on exception class code that can never execute.
+ * ESP-IDF compiles with -fno-exceptions, so C++ exceptions always abort.
+ * However, ESP-IDF only wraps low-level functions (__cxa_throw, etc.),
+ * not the std::__throw_* functions that construct exception objects first.
+ * This pulls in ~3KB of dead exception class code that can never run.
+ *
+ * ESP8266 Arduino already solved this: their toolchain rebuilds libstdc++
+ * with throw functions that just call abort(). We achieve the same result
+ * using linker --wrap without requiring toolchain changes.
  *
  * These stubs abort immediately with a descriptive message, allowing
  * the linker to dead-code eliminate the exception class infrastructure.
- *
- * The ESP8266 Arduino toolchain solves this by rebuilding libstdc++ with
- * similar stubs. We achieve the same result using linker --wrap.
  *
  * Wrapped functions and their callers:
  * - std::__throw_length_error: std::string::reserve, std::vector::reserve
