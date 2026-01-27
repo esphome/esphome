@@ -565,6 +565,11 @@ void WiFiComponent::start() {
 void WiFiComponent::restart_adapter() {
   ESP_LOGW(TAG, "Restarting adapter");
   this->wifi_mode_(false, {});
+  // Clear error flag here because restart_adapter() enters COOLDOWN state,
+  // and check_connecting_finished() is called after cooldown without going
+  // through start_connecting() first. Without this clear, stale errors would
+  // trigger spurious "failed (callback)" logs. The canonical clear location
+  // is in start_connecting(); this is the only exception to that pattern.
   this->error_from_callback_ = false;
 }
 
@@ -618,8 +623,6 @@ void WiFiComponent::loop() {
         if (!this->is_connected()) {
           ESP_LOGW(TAG, "Connection lost; reconnecting");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
-          // Clear error flag before reconnecting so first attempt is not seen as immediate failure
-          this->error_from_callback_ = false;
           this->retry_connect();
         } else {
           this->status_clear_warning();
@@ -743,16 +746,32 @@ void WiFiComponent::setup_ap_config_() {
     return;
 
   if (this->ap_.get_ssid().empty()) {
-    std::string name = App.get_name();
-    if (name.length() > 32) {
+    // Build AP SSID from app name without heap allocation
+    // WiFi SSID max is 32 bytes, with MAC suffix we keep first 25 + last 7
+    static constexpr size_t AP_SSID_MAX_LEN = 32;
+    static constexpr size_t AP_SSID_PREFIX_LEN = 25;
+    static constexpr size_t AP_SSID_SUFFIX_LEN = 7;
+
+    const std::string &app_name = App.get_name();
+    const char *name_ptr = app_name.c_str();
+    size_t name_len = app_name.length();
+
+    if (name_len <= AP_SSID_MAX_LEN) {
+      // Name fits, use directly
+      this->ap_.set_ssid(name_ptr);
+    } else {
+      // Name too long, need to truncate into stack buffer
+      char ssid_buf[AP_SSID_MAX_LEN + 1];
       if (App.is_name_add_mac_suffix_enabled()) {
         // Keep first 25 chars and last 7 chars (MAC suffix), remove middle
-        name.erase(25, name.length() - 32);
+        memcpy(ssid_buf, name_ptr, AP_SSID_PREFIX_LEN);
+        memcpy(ssid_buf + AP_SSID_PREFIX_LEN, name_ptr + name_len - AP_SSID_SUFFIX_LEN, AP_SSID_SUFFIX_LEN);
       } else {
-        name.resize(32);
+        memcpy(ssid_buf, name_ptr, AP_SSID_MAX_LEN);
       }
+      ssid_buf[AP_SSID_MAX_LEN] = '\0';
+      this->ap_.set_ssid(ssid_buf);
     }
-    this->ap_.set_ssid(name);
   }
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
 
@@ -963,6 +982,12 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   ESP_LOGV(TAG, "  Hidden: %s", YESNO(ap.get_hidden()));
 #endif
 
+  // Clear any stale error from previous connection attempt.
+  // This is the canonical location for clearing the flag since all connection
+  // attempts go through start_connecting(). The only other clear is in
+  // restart_adapter() which enters COOLDOWN without calling start_connecting().
+  this->error_from_callback_ = false;
+
   if (!this->wifi_sta_connect_(ap)) {
     ESP_LOGE(TAG, "wifi_sta_connect_ failed");
     // Enter cooldown to allow WiFi hardware to stabilize
@@ -1068,7 +1093,6 @@ void WiFiComponent::enable() {
     return;
 
   ESP_LOGD(TAG, "Enabling");
-  this->error_from_callback_ = false;
   this->state_ = WIFI_COMPONENT_STATE_OFF;
   this->start();
 }
@@ -1329,11 +1353,6 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     // Reset to initial phase on successful connection (don't log transition, just reset state)
     this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
     this->num_retried_ = 0;
-    // Ensure next connection attempt does not inherit error state
-    // so when WiFi disconnects later we start fresh and don't see
-    // the first connection as a failure.
-    this->error_from_callback_ = false;
-
     if (this->has_ap()) {
 #ifdef USE_CAPTIVE_PORTAL
       if (this->is_captive_portal_active_()) {
@@ -1844,8 +1863,6 @@ void WiFiComponent::retry_connect() {
     this->advance_to_next_target_or_increment_retry_();
   }
 
-  this->error_from_callback_ = false;
-
   yield();
   // Check if we have a valid target before building params
   // After exhausting all networks in a phase, selected_sta_index_ may be -1
@@ -2171,7 +2188,6 @@ void WiFiComponent::process_roaming_scan_() {
   this->roaming_state_ = RoamingState::CONNECTING;
 
   // Connect directly - wifi_sta_connect_ handles disconnect internally
-  this->error_from_callback_ = false;
   this->start_connecting(roam_params);
 }
 
