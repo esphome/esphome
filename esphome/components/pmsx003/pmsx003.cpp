@@ -182,16 +182,17 @@ bool PMSX003Component::check_payload_length_(uint16_t payload_length) {
   // https://avaldebe.github.io/PyPMS/sensors/Plantower/
   switch (this->type_) {
     case Type::PMS1003:
-    case Type::PMS3003:
-      return payload_length == 20;  // PMS1003: 2*13+2, PMS3003: 2*9+2 (Data 7/8/9 not set/reserved)
-    case Type::PMSX003:
+      return payload_length == 28;  // 2*13+2
+    case Type::PMS3003:             // Data 7/8/9 not set/reserved
+      return payload_length == 20;  // 2*9+2
+    case Type::PMSX003:             // Data 13 not set/reserved
       // Deprecated: Length 20 is for PMS3003 backwards compatibility
-      return payload_length == 28 || payload_length == 20;  // 2*13+2 (Data 13 not set/reserved)
+      return payload_length == 28 || payload_length == 20;  // 2*13+2
     case Type::PMS5003S:
-    case Type::PMS5003T:
-      return payload_length == 28;  // 2*13+2 (Data 13 not set/reserved)
-    case Type::PMS5003ST:
-      return payload_length == 36;  // 2*17+2 (Data 16 not set/reserved)
+    case Type::PMS5003T:            // Data 13 not set/reserved
+      return payload_length == 28;  // 2*13+2
+    case Type::PMS5003ST:           // Data 16 not set/reserved
+      return payload_length == 36;  // 2*17+2
     case Type::PMS9003M:
       return payload_length == 28;  // 2*13+2
   }
