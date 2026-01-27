@@ -8,7 +8,7 @@ namespace pn532 {
 
 static const char *const TAG = "pn532.mifare_ultralight";
 
-std::unique_ptr<nfc::NfcTag> PN532::read_mifare_ultralight_tag_(std::vector<uint8_t> &uid) {
+std::unique_ptr<nfc::NfcTag> PN532::read_mifare_ultralight_tag_(nfc::NfcTagUid &uid) {
   std::vector<uint8_t> data;
   // pages 3 to 6 contain various info we are interested in -- do one read to grab it all
   if (!this->read_mifare_ultralight_bytes_(3, nfc::MIFARE_ULTRALIGHT_PAGE_SIZE * nfc::MIFARE_ULTRALIGHT_READ_SIZE,
@@ -114,7 +114,7 @@ bool PN532::find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6
   return false;
 }
 
-bool PN532::write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message) {
+bool PN532::write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message) {
   uint32_t capacity = this->read_mifare_ultralight_capacity_();
 
   auto encoded = message->encode();
