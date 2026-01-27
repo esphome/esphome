@@ -64,12 +64,12 @@ bool MAX31888Sensor::read_fifo_() {
   if (crc16(data, sizeof(data) - 2, 0, 0xa001, false, true) == (data[5] | (data[6] << 8))) {
     this->fifo_[0] = data[3];
     this->fifo_[1] = data[4];
-    return 1;
+    return true;
   } else {
     ESP_LOGW(TAG, "'%s' - CRC failed: %02x.%02x.%02x.%02x", this->get_name().c_str(), data[3], data[4], data[5],
              data[6]);
     // this->status_set_warning ("bus reset failed");
-    return 0;
+    return false;
   }
 }
 
