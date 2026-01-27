@@ -48,6 +48,11 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   void set_fill_silence(bool enable) { this->fill_silence_ = enable; }
 #endif
 
+#ifndef USE_I2S_LEGACY
+  /// @brief Get the I2S TX channel handle (for SPDIF callbacks)
+  i2s_chan_handle_t get_tx_handle() const { return this->tx_handle_; }
+#endif
+
   void start() override;
   void stop() override;
   void finish() override;

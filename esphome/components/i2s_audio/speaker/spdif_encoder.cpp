@@ -128,9 +128,8 @@ void SPDIFEncoder::build_channel_status_() {
 bool SPDIFEncoder::get_channel_status_bit_(uint8_t frame) const {
   // Channel status is 192 bits transmitted over 192 frames
   // Bit N is transmitted in frame N, LSB-first within each byte
-  uint8_t byte_idx = frame / 8;
-  uint8_t bit_idx = frame % 8;
-  return (this->channel_status_[byte_idx] >> bit_idx) & 1;
+  // Use bit operations instead of division/modulo for speed
+  return (this->channel_status_[frame >> 3] >> (frame & 7)) & 1;
 }
 
 // LUT-free BMC encoding
@@ -230,15 +229,16 @@ void SPDIFEncoder::encode_sample_(const uint8_t *pcm_sample) {
   // All preambles end at phase HIGH (last bit = 1 for B, M, and W preambles)
   bool phase = true;
 
-  // Encode subframe bits 4-7 (4 bits -> 8 BMC bits) - first aux nibble
-  uint32_t bits_4_7 = 0;  // Always zeros for 16-bit audio
-  uint32_t bmc_4_7 = bmc_encode(bits_4_7, 4, phase);
-
-  // Encode subframe bits 8-11 (4 bits -> 8 BMC bits) - second aux nibble
-  uint32_t bits_8_11 = 0;  // Always zeros for 16-bit audio
-  uint32_t bmc_8_11 = bmc_encode(bits_8_11, 4, phase);
+  // Bits 4-11 are always zero for 16-bit audio.
+  // Pre-computed BMC for 4 zeros starting at phase HIGH:
+  // Each '0' bit produces 00 (HIGH) or 11 (LOW) and flips phase.
+  // 4 zeros flip phase 4 times → ends at same phase (HIGH).
+  // MSB-first output: 00_11_00_11 = 0x33
+  // Since both aux nibbles are zero and phase is preserved, both are 0x33.
+  static constexpr uint32_t BMC_ZERO_NIBBLE = 0x33;
 
   // Encode subframe bits 12-15 (4 bits -> 8 BMC bits) - audio low nibble
+  // Phase is still HIGH after the two zero nibbles (4 + 4 phase flips = back to HIGH)
   uint32_t bits_12_15 = (raw_subframe >> 12) & 0xF;
   uint32_t bmc_12_15 = bmc_encode(bits_12_15, 4, phase);
 
@@ -262,15 +262,16 @@ void SPDIFEncoder::encode_sample_(const uint8_t *pcm_sample) {
   // Desired S/PDIF order: preamble → bmc_4_7 → bmc_8_11 → bmc_12_15
   //
   // word[0] layout for correct transmission:
-  //   bits 24-31: preamble  (transmitted 1st, as MSB of upper halfword)
-  //   bits 16-23: bmc_4_7   (transmitted 2nd, as LSB of upper halfword)
-  //   bits 8-15:  bmc_8_11  (transmitted 3rd, as MSB of lower halfword)
-  //   bits 0-7:   bmc_12_15 (transmitted 4th, as LSB of lower halfword)
+  //   bits 24-31: preamble        (transmitted 1st, as MSB of upper halfword)
+  //   bits 16-23: BMC_ZERO_NIBBLE (transmitted 2nd, aux bits 4-7)
+  //   bits 8-15:  BMC_ZERO_NIBBLE (transmitted 3rd, aux bits 8-11)
+  //   bits 0-7:   bmc_12_15       (transmitted 4th, audio low nibble)
   //
   // word[1] layout:
   //   bits 16-31: bmc_16_23 (transmitted 5th)
   //   bits 0-15:  bmc_24_31 (transmitted 6th)
-  this->spdif_block_ptr_[0] = bmc_12_15 | (bmc_8_11 << 8) | (bmc_4_7 << 16) | (static_cast<uint32_t>(preamble) << 24);
+  this->spdif_block_ptr_[0] =
+      bmc_12_15 | (BMC_ZERO_NIBBLE << 8) | (BMC_ZERO_NIBBLE << 16) | (static_cast<uint32_t>(preamble) << 24);
   this->spdif_block_ptr_[1] = bmc_24_31 | (bmc_16_23 << 16);
   this->spdif_block_ptr_ += 2;
 
@@ -285,10 +286,23 @@ void SPDIFEncoder::encode_sample_(const uint8_t *pcm_sample) {
 }
 
 esp_err_t SPDIFEncoder::send_block_(TickType_t ticks_to_wait) {
-  // Use the appropriate callback based on preload mode
-  SPDIFBlockCallback &callback = this->preload_mode_ ? this->preload_callback_ : this->write_callback_;
+  // Use the appropriate callback and context based on preload mode
+  SPDIFBlockCallback callback;
+  void *ctx;
 
-  esp_err_t err = callback(this->spdif_block_buf_.get(), SPDIF_BLOCK_SIZE_BYTES, ticks_to_wait);
+  if (this->preload_mode_) {
+    callback = this->preload_callback_;
+    ctx = this->preload_callback_ctx_;
+  } else {
+    callback = this->write_callback_;
+    ctx = this->write_callback_ctx_;
+  }
+
+  if (callback == nullptr) {
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  esp_err_t err = callback(ctx, this->spdif_block_buf_.get(), SPDIF_BLOCK_SIZE_BYTES, ticks_to_wait);
 
   if (err == ESP_OK) {
     // Reset pointer for next block; position tracking continues from where it left off

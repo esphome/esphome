@@ -66,6 +66,42 @@ static const std::vector<int16_t> Q15_VOLUME_SCALING_FACTORS = {
     8218,  8706,  9222,  9770,  10349, 10963, 11613, 12302, 13032, 13805, 14624, 15491, 16410, 17384, 18415,
     19508, 20665, 21891, 23189, 24565, 26022, 27566, 29201, 30933, 32767};
 
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+// Static callback functions for SPDIF encoder (avoids std::function overhead)
+#ifdef USE_I2S_LEGACY
+static esp_err_t spdif_write_cb(void *user_ctx, uint32_t *data, size_t size, TickType_t ticks_to_wait) {
+  auto *speaker = static_cast<I2SAudioSpeaker *>(user_ctx);
+  size_t bytes_written = 0;
+  esp_err_t err = i2s_write(speaker->get_parent()->get_port(), data, size, &bytes_written, ticks_to_wait);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "SPDIF I2S write failed: %s (wrote %zu/%zu bytes)", esp_err_to_name(err), bytes_written, size);
+  }
+  return err;
+}
+#else
+static esp_err_t spdif_preload_cb(void *user_ctx, uint32_t *data, size_t size, TickType_t ticks_to_wait) {
+  auto *speaker = static_cast<I2SAudioSpeaker *>(user_ctx);
+  size_t bytes_written = 0;
+  esp_err_t err = i2s_channel_preload_data(speaker->get_tx_handle(), data, size, &bytes_written);
+  if (err != ESP_OK || bytes_written != size) {
+    ESP_LOGW(TAG, "SPDIF preload failed: %s (wrote %zu/%zu bytes)", esp_err_to_name(err), bytes_written, size);
+    return (err != ESP_OK) ? err : ESP_ERR_NO_MEM;
+  }
+  return ESP_OK;
+}
+
+static esp_err_t spdif_write_cb(void *user_ctx, uint32_t *data, size_t size, TickType_t ticks_to_wait) {
+  auto *speaker = static_cast<I2SAudioSpeaker *>(user_ctx);
+  size_t bytes_written = 0;
+  esp_err_t err = i2s_channel_write(speaker->get_tx_handle(), data, size, &bytes_written, ticks_to_wait);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "SPDIF I2S write failed: %s (wrote %zu/%zu bytes)", esp_err_to_name(err), bytes_written, size);
+  }
+  return err;
+}
+#endif  // USE_I2S_LEGACY
+#endif  // USE_I2S_AUDIO_SPDIF_MODE
+
 void I2SAudioSpeaker::setup() {
   this->event_group_ = xEventGroupCreate();
 
@@ -89,37 +125,11 @@ void I2SAudioSpeaker::setup() {
 
 #ifdef USE_I2S_LEGACY
     // Legacy driver: use a single write callback
-    this->spdif_encoder_->set_write_callback([this](uint32_t *data, size_t size,
-                                                    TickType_t ticks_to_wait) -> esp_err_t {
-      size_t bytes_written = 0;
-      esp_err_t err = i2s_write(this->parent_->get_port(), data, size, &bytes_written, ticks_to_wait);
-      if (err != ESP_OK) {
-        ESP_LOGW(TAG, "SPDIF I2S write failed: %s (wrote %zu/%zu bytes)", esp_err_to_name(err), bytes_written, size);
-      }
-      return err;
-    });
+    this->spdif_encoder_->set_write_callback(spdif_write_cb, this);
 #else
     // New driver: separate callbacks for preload (during underflow recovery) and normal writes
-    this->spdif_encoder_->set_preload_callback(
-        [this](uint32_t *data, size_t size, TickType_t ticks_to_wait) -> esp_err_t {
-          size_t bytes_written = 0;
-          esp_err_t err = i2s_channel_preload_data(this->tx_handle_, data, size, &bytes_written);
-          if (err != ESP_OK || bytes_written != size) {
-            ESP_LOGW(TAG, "SPDIF preload failed: %s (wrote %zu/%zu bytes)", esp_err_to_name(err), bytes_written, size);
-            return (err != ESP_OK) ? err : ESP_ERR_NO_MEM;
-          }
-          return ESP_OK;
-        });
-
-    this->spdif_encoder_->set_write_callback([this](uint32_t *data, size_t size,
-                                                    TickType_t ticks_to_wait) -> esp_err_t {
-      size_t bytes_written = 0;
-      esp_err_t err = i2s_channel_write(this->tx_handle_, data, size, &bytes_written, ticks_to_wait);
-      if (err != ESP_OK) {
-        ESP_LOGW(TAG, "SPDIF I2S write failed: %s (wrote %zu/%zu bytes)", esp_err_to_name(err), bytes_written, size);
-      }
-      return err;
-    });
+    this->spdif_encoder_->set_preload_callback(spdif_preload_cb, this);
+    this->spdif_encoder_->set_write_callback(spdif_write_cb, this);
 #endif  // USE_I2S_LEGACY
   }
 #endif  // USE_I2S_AUDIO_SPDIF_MODE
