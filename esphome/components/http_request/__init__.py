@@ -126,7 +126,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_CA_CERTIFICATE_PATH): cv.All(
                 cv.file_,
-                cv.only_on(PLATFORM_HOST),
+                cv.Any(cv.only_on(PLATFORM_HOST), cv.only_on_esp32),
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -160,7 +160,14 @@ async def to_code(config):
         cg.add(var.set_verify_ssl(config[CONF_VERIFY_SSL]))
 
         if config.get(CONF_VERIFY_SSL):
-            esp32.add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
+            if ca_cert_path := config.get(CONF_CA_CERTIFICATE_PATH):
+                with open(ca_cert_path, encoding="utf-8") as f:
+                    ca_cert_content = f.read()
+                cg.add(var.set_ca_certificate(ca_cert_content))
+            else:
+                esp32.add_idf_sdkconfig_option(
+                    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True
+                )
 
         esp32.add_idf_sdkconfig_option(
             "CONFIG_ESP_TLS_INSECURE",
