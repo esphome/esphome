@@ -149,7 +149,7 @@ bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
 }
 
 pulse_counter_t HwPulseCounterStorage::read_raw_value() {
-  pulse_counter_t counter;
+  int16_t counter;
   pcnt_get_counter_value(this->pcnt_unit, &counter);
   pulse_counter_t ret = counter - this->last_value;
   this->last_value = counter;
