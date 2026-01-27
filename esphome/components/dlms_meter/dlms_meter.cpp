@@ -308,11 +308,11 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
       this->receive_buffer_.clear();
       return;
     }
-    uint8_t data_type = plaintext[current_position];
-    current_position++;
 
     float value = 0.0f;
     uint8_t value_size = 0;
+    uint8_t data_type = plaintext[current_position];
+    current_position++;
 
     switch (data_type) {
       case DataType::DOUBLE_LONG_UNSIGNED: {
