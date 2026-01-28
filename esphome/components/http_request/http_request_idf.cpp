@@ -27,8 +27,9 @@ void HttpRequestIDF::dump_config() {
   HttpRequestComponent::dump_config();
   ESP_LOGCONFIG(TAG,
                 "  Buffer Size RX: %u\n"
-                "  Buffer Size TX: %u",
-                this->buffer_size_rx_, this->buffer_size_tx_);
+                "  Buffer Size TX: %u\n"
+                "  Custom CA Certificate: %s",
+                this->buffer_size_rx_, this->buffer_size_tx_, YESNO(this->ca_certificate_ != nullptr));
 }
 
 esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
@@ -88,11 +89,15 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   config.disable_auto_redirect = !this->follow_redirects_;
   config.max_redirection_count = this->redirect_limit_;
   config.auth_type = HTTP_AUTH_TYPE_BASIC;
-#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
   if (secure && this->verify_ssl_) {
-    config.crt_bundle_attach = esp_crt_bundle_attach;
-  }
+    if (this->ca_certificate_ != nullptr) {
+      config.cert_pem = this->ca_certificate_;
+#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+    } else {
+      config.crt_bundle_attach = esp_crt_bundle_attach;
 #endif
+    }
+  }
 
   if (this->useragent_ != nullptr) {
     config.user_agent = this->useragent_;
