@@ -3,8 +3,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace mhz19 {
+namespace esphome::mhz19 {
 
 static const char *const TAG = "mhz19";
 static const uint8_t MHZ19_REQUEST_LENGTH = 8;
@@ -16,6 +15,19 @@ static const uint8_t MHZ19_COMMAND_CALIBRATE_ZERO[] = {0xFF, 0x01, 0x87, 0x00, 0
 static const uint8_t MHZ19_COMMAND_DETECTION_RANGE_0_2000PPM[] = {0xFF, 0x01, 0x99, 0x00, 0x00, 0x00, 0x07, 0xD0};
 static const uint8_t MHZ19_COMMAND_DETECTION_RANGE_0_5000PPM[] = {0xFF, 0x01, 0x99, 0x00, 0x00, 0x00, 0x13, 0x88};
 static const uint8_t MHZ19_COMMAND_DETECTION_RANGE_0_10000PPM[] = {0xFF, 0x01, 0x99, 0x00, 0x00, 0x00, 0x27, 0x10};
+
+static const LogString *detection_range_to_log_string(MHZ19DetectionRange range) {
+  switch (range) {
+    case MHZ19_DETECTION_RANGE_0_2000PPM:
+      return LOG_STR("0-2000 ppm");
+    case MHZ19_DETECTION_RANGE_0_5000PPM:
+      return LOG_STR("0-5000 ppm");
+    case MHZ19_DETECTION_RANGE_0_10000PPM:
+      return LOG_STR("0-10000 ppm");
+    default:
+      return LOG_STR("default");
+  }
+}
 
 uint8_t mhz19_checksum(const uint8_t *command) {
   uint8_t sum = 0;
@@ -91,24 +103,24 @@ void MHZ19Component::abc_disable() {
   this->mhz19_write_command_(MHZ19_COMMAND_ABC_DISABLE, nullptr);
 }
 
-void MHZ19Component::range_set(MHZ19DetectionRange detection_ppm) {
-  switch (detection_ppm) {
-    case MHZ19_DETECTION_RANGE_DEFAULT:
-      ESP_LOGV(TAG, "Using previously set detection range (no change)");
-      break;
+void MHZ19Component::range_set(MHZ19DetectionRange detection_range) {
+  const uint8_t *command;
+  switch (detection_range) {
     case MHZ19_DETECTION_RANGE_0_2000PPM:
-      ESP_LOGD(TAG, "Setting detection range to 0 to 2000ppm");
-      this->mhz19_write_command_(MHZ19_COMMAND_DETECTION_RANGE_0_2000PPM, nullptr);
+      command = MHZ19_COMMAND_DETECTION_RANGE_0_2000PPM;
       break;
     case MHZ19_DETECTION_RANGE_0_5000PPM:
-      ESP_LOGD(TAG, "Setting detection range to 0 to 5000ppm");
-      this->mhz19_write_command_(MHZ19_COMMAND_DETECTION_RANGE_0_5000PPM, nullptr);
+      command = MHZ19_COMMAND_DETECTION_RANGE_0_5000PPM;
       break;
     case MHZ19_DETECTION_RANGE_0_10000PPM:
-      ESP_LOGD(TAG, "Setting detection range to 0 to 10000ppm");
-      this->mhz19_write_command_(MHZ19_COMMAND_DETECTION_RANGE_0_10000PPM, nullptr);
+      command = MHZ19_COMMAND_DETECTION_RANGE_0_10000PPM;
       break;
+    default:
+      ESP_LOGV(TAG, "Using previously set detection range (no change)");
+      return;
   }
+  ESP_LOGD(TAG, "Setting detection range to %s", LOG_STR_ARG(detection_range_to_log_string(detection_range)));
+  this->mhz19_write_command_(command, nullptr);
 }
 
 bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *response) {
@@ -140,27 +152,7 @@ void MHZ19Component::dump_config() {
   }
 
   ESP_LOGCONFIG(TAG, "  Warmup time: %" PRIu32 " s", this->warmup_seconds_);
-
-  const char *range_str;
-  switch (this->detection_range_) {
-    case MHZ19_DETECTION_RANGE_DEFAULT:
-      range_str = "default";
-      break;
-    case MHZ19_DETECTION_RANGE_0_2000PPM:
-      range_str = "0 to 2000ppm";
-      break;
-    case MHZ19_DETECTION_RANGE_0_5000PPM:
-      range_str = "0 to 5000ppm";
-      break;
-    case MHZ19_DETECTION_RANGE_0_10000PPM:
-      range_str = "0 to 10000ppm";
-      break;
-    default:
-      range_str = "default";
-      break;
-  }
-  ESP_LOGCONFIG(TAG, "  Detection range: %s", range_str);
+  ESP_LOGCONFIG(TAG, "  Detection range: %s", LOG_STR_ARG(detection_range_to_log_string(this->detection_range_)));
 }
 
-}  // namespace mhz19
-}  // namespace esphome
+}  // namespace esphome::mhz19
