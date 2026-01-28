@@ -7,6 +7,7 @@ esp32:
       enable_lwip_mdns_queries: true
       enable_lwip_bridge_interface: true
       disable_libc_locks_in_iram: false  # Test explicit opt-out of RAM optimization
+      use_full_certificate_bundle: false  # Test CMN bundle (default)
 
 wifi:
   ssid: MySSID
