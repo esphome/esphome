@@ -34,6 +34,7 @@ from esphome.__main__ import (
     has_non_ip_address,
     has_resolvable_address,
     mqtt_get_ip,
+    run_esphome,
     run_miniterm,
     show_logs,
     upload_program,
@@ -1988,7 +1989,7 @@ esp32:
     clean_output = strip_ansi_codes(captured.out)
 
     assert "test-device_123.yaml" in clean_output
-    assert "Updating" in clean_output
+    assert "Processing" in clean_output
     assert "SUCCESS" in clean_output
     assert "SUMMARY" in clean_output
 
@@ -3172,3 +3173,66 @@ def test_run_miniterm_buffer_limit_prevents_unbounded_growth() -> None:
     x_count = printed_line.count("X")
     assert x_count < 150, f"Expected truncation but got {x_count} X's"
     assert x_count == 95, f"Expected 95 X's after truncation but got {x_count}"
+
+
+def test_run_esphome_multiple_configs_with_secrets(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+    capfd: CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test run_esphome with multiple configs and secrets file.
+
+    Verifies:
+    - Multiple configs use subprocess isolation
+    - Secrets files are skipped with warning
+    - Secrets files don't appear in summary
+    """
+    # Create two config files and a secrets file
+    yaml_file1 = tmp_path / "device1.yaml"
+    yaml_file1.write_text("""
+esphome:
+  name: device1
+
+esp32:
+  board: nodemcu-32s
+""")
+    yaml_file2 = tmp_path / "device2.yaml"
+    yaml_file2.write_text("""
+esphome:
+  name: device2
+
+esp32:
+  board: nodemcu-32s
+""")
+    secrets_file = tmp_path / "secrets.yaml"
+    secrets_file.write_text("wifi_password: secret123\n")
+
+    setup_core(tmp_path=tmp_path)
+    mock_run_external_process.return_value = 0
+
+    # run_esphome expects argv[0] to be the program name (gets sliced off by parse_args)
+    with caplog.at_level(logging.WARNING):
+        result = run_esphome(
+            ["esphome", "compile", str(yaml_file1), str(secrets_file), str(yaml_file2)]
+        )
+
+    assert result == 0
+
+    # Check secrets file was skipped with warning
+    assert "Skipping secrets file" in caplog.text
+    assert "secrets.yaml" in caplog.text
+
+    captured = capfd.readouterr()
+    clean_output = strip_ansi_codes(captured.out)
+
+    # Both config files should be processed
+    assert "device1.yaml" in clean_output
+    assert "device2.yaml" in clean_output
+    assert "SUMMARY" in clean_output
+
+    # Secrets should not appear in summary
+    summary_section = (
+        clean_output.split("SUMMARY")[1] if "SUMMARY" in clean_output else ""
+    )
+    assert "secrets.yaml" not in summary_section

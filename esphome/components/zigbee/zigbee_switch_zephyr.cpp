@@ -31,7 +31,7 @@ void ZigbeeSwitch::setup() {
     ZB_ZCL_SET_ATTRIBUTE(this->endpoint_, ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT, ZB_ZCL_CLUSTER_SERVER_ROLE,
                          ZB_ZCL_ATTR_BINARY_OUTPUT_PRESENT_VALUE_ID, &this->cluster_attributes_->present_value,
                          ZB_FALSE);
-    this->parent_->flush();
+    this->parent_->force_report();
   });
 }
 
@@ -40,8 +40,6 @@ void ZigbeeSwitch::zcl_device_cb_(zb_bufid_t bufid) {
   zb_zcl_device_callback_id_t device_cb_id = p_device_cb_param->device_cb_id;
   zb_uint16_t cluster_id = p_device_cb_param->cb_param.set_attr_value_param.cluster_id;
   zb_uint16_t attr_id = p_device_cb_param->cb_param.set_attr_value_param.attr_id;
-
-  p_device_cb_param->status = RET_OK;
 
   switch (device_cb_id) {
     /* ZCL set attribute value */
@@ -58,10 +56,11 @@ void ZigbeeSwitch::zcl_device_cb_(zb_bufid_t bufid) {
       } else {
         /* other clusters attribute handled here */
         ESP_LOGI(TAG, "Unhandled cluster attribute id: %d", cluster_id);
+        p_device_cb_param->status = RET_NOT_IMPLEMENTED;
       }
       break;
     default:
-      p_device_cb_param->status = RET_ERROR;
+      p_device_cb_param->status = RET_NOT_IMPLEMENTED;
       break;
   }
 
