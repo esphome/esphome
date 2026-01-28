@@ -120,7 +120,7 @@ async def setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
 def consume_endpoint(config: ConfigType) -> ConfigType:
     if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
         return config
-    if " " in config[CONF_NAME]:
+    if CONF_NAME in config and " " in config[CONF_NAME]:
         _LOGGER.warning(
             "Spaces in '%s' work with ZHA but not Zigbee2MQTT. For Zigbee2MQTT use '%s'",
             config[CONF_NAME],

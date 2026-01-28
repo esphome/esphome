@@ -336,14 +336,14 @@ async def zephyr_setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
     CORE.add_job(_add_switch, entity, config)
 
 
-def _slot_index() -> int:
-    """Find the next available endpoint slot"""
+def get_slot_index() -> int:
+    """Find the next available endpoint slot."""
     slot = next(
         (i for i, v in enumerate(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER]) if v == ""), None
     )
     if slot is None:
         raise cv.Invalid(
-            f"Not found empty slot, size ({len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])})"
+            f"No available Zigbee endpoint slots ({len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])} in use)"
         )
     return slot
 
@@ -358,7 +358,7 @@ async def _add_zigbee_ep(
     app_device_id: str,
     extra_field_values: dict[str, int] | None = None,
 ) -> None:
-    slot_index = _slot_index()
+    slot_index = get_slot_index()
 
     prefix = f"zigbee_ep{slot_index + 1}"
     attrs_name = f"{prefix}_attrs"
