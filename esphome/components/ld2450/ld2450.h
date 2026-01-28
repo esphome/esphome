@@ -141,7 +141,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
                       int32_t zone2_x1, int32_t zone2_y1, int32_t zone2_x2, int32_t zone2_y2, int32_t zone3_x1,
                       int32_t zone3_y1, int32_t zone3_x2, int32_t zone3_y2);
 
-  /// Add a callback that will be called every time the sensor sends a raw value.
+  /// Add a callback that will be called after each successfully processed periodic data frame.
   void add_on_data_callback(std::function<void()> &&callback);
 
  protected:
