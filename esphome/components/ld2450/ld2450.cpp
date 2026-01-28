@@ -503,7 +503,7 @@ void LD2450Component::handle_periodic_data_() {
       SAFE_PUBLISH_SENSOR(this->move_distance_sensors_[index], td);
       // ANGLE
       angle = ld2450::calculate_angle(static_cast<float>(ty), static_cast<float>(td));
-      if (tx < 0) {
+      if (tx > 0) {
         angle = angle * -1;
       }
       SAFE_PUBLISH_SENSOR(this->move_angle_sensors_[index], angle);
