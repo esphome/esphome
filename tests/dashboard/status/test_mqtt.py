@@ -61,4 +61,3 @@ def test_mqtt_status_thread_retries_connect_and_recovers() -> None:
         assert mock_prepare.call_count >= 3
         client.disconnect.assert_called_once()
         client.loop_stop.assert_called_once()
-
