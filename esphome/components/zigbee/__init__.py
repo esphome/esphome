@@ -12,6 +12,7 @@ from esphome.core import CORE
 from esphome.types import ConfigType
 
 from .const_zephyr import (
+    CONF_IEEE802154_VENDOR_OUI,
     CONF_MAX_EP_NUMBER,
     CONF_ON_JOIN,
     CONF_POWER_SOURCE,
@@ -63,6 +64,13 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_POWER_SOURCE, default="DC_SOURCE"): cv.enum(
                 POWER_SOURCE, upper=True
+            ),
+            cv.Optional(CONF_IEEE802154_VENDOR_OUI): cv.All(
+                cv.Any(
+                    cv.int_range(min=0x000000, max=0xFFFFFF),
+                    cv.one_of(*["random"], lower=True),
+                ),
+                cv.requires_component("nrf52"),
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -141,7 +149,7 @@ async def setup_number(
 def consume_endpoint(config: ConfigType) -> ConfigType:
     if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
         return config
-    if " " in config[CONF_NAME]:
+    if CONF_NAME in config and " " in config[CONF_NAME]:
         _LOGGER.warning(
             "Spaces in '%s' work with ZHA but not Zigbee2MQTT. For Zigbee2MQTT use '%s'",
             config[CONF_NAME],

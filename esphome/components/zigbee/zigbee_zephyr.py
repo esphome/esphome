@@ -49,6 +49,7 @@ from esphome.cpp_generator import (
 from esphome.types import ConfigType
 
 from .const_zephyr import (
+    CONF_IEEE802154_VENDOR_OUI,
     CONF_ON_JOIN,
     CONF_POWER_SOURCE,
     CONF_WIPE_ON_BOOT,
@@ -163,6 +164,13 @@ async def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("NET_IPV6", False)
     zephyr_add_prj_conf("NET_IP_ADDR_CHECK", False)
     zephyr_add_prj_conf("NET_UDP", False)
+
+    if CONF_IEEE802154_VENDOR_OUI in config:
+        zephyr_add_prj_conf("IEEE802154_VENDOR_OUI_ENABLE", True)
+        random_number = config[CONF_IEEE802154_VENDOR_OUI]
+        if random_number == "random":
+            random_number = random.randint(0x000000, 0xFFFFFF)
+        zephyr_add_prj_conf("IEEE802154_VENDOR_OUI", random_number)
 
     if config[CONF_WIPE_ON_BOOT]:
         if config[CONF_WIPE_ON_BOOT] == "once":
@@ -358,14 +366,14 @@ async def zephyr_setup_number(
     CORE.add_job(_add_number, entity, config, min_value, max_value, step)
 
 
-def _slot_index() -> int:
-    """Find the next available endpoint slot"""
+def get_slot_index() -> int:
+    """Find the next available endpoint slot."""
     slot = next(
         (i for i, v in enumerate(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER]) if v == ""), None
     )
     if slot is None:
         raise cv.Invalid(
-            f"Not found empty slot, size ({len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])})"
+            f"No available Zigbee endpoint slots ({len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])} in use)"
         )
     return slot
 
@@ -380,7 +388,7 @@ async def _add_zigbee_ep(
     app_device_id: str,
     extra_field_values: dict[str, int] | None = None,
 ) -> None:
-    slot_index = _slot_index()
+    slot_index = get_slot_index()
 
     prefix = f"zigbee_ep{slot_index + 1}"
     attrs_name = f"{prefix}_attrs"
