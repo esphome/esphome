@@ -21,7 +21,7 @@ void ZigbeeNumber::setup() {
     ZB_ZCL_SET_ATTRIBUTE(this->endpoint_, ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT, ZB_ZCL_CLUSTER_SERVER_ROLE,
                          ZB_ZCL_ATTR_ANALOG_OUTPUT_PRESENT_VALUE_ID, (zb_uint8_t *) &cluster_attributes_->present_value,
                          ZB_FALSE);
-    //   this->parent_->flush();
+    this->parent_->force_report();
   });
 }
 
@@ -38,24 +38,27 @@ void ZigbeeNumber::zcl_device_cb_(zb_bufid_t bufid) {
   zb_uint16_t cluster_id = p_device_cb_param->cb_param.set_attr_value_param.cluster_id;
   zb_uint16_t attr_id = p_device_cb_param->cb_param.set_attr_value_param.attr_id;
 
-  p_device_cb_param->status = RET_OK;
-
   switch (device_cb_id) {
     /* ZCL set attribute value */
     case ZB_ZCL_SET_ATTR_VALUE_CB_ID:
       if (cluster_id == ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT) {
         ESP_LOGI(TAG, "Analog output attribute setting");
         if (attr_id == ZB_ZCL_ATTR_ANALOG_OUTPUT_PRESENT_VALUE_ID) {
-          uint32_t value = p_device_cb_param->cb_param.set_attr_value_param.values.data32;
-          // this->parent_->schedule([this, value]() { control(*reinterpret_cast<const float *>(&value)); });
+          float value =
+              *reinterpret_cast<const float *>(&p_device_cb_param->cb_param.set_attr_value_param.values.data32);
+          this->defer([this, value]() {
+            this->cluster_attributes_->present_value = value;
+            this->number_->publish_state(value);
+          });
         }
       } else {
         /* other clusters attribute handled here */
         ESP_LOGI(TAG, "Unhandled cluster attribute id: %d", cluster_id);
+        p_device_cb_param->status = RET_NOT_IMPLEMENTED;
       }
       break;
     default:
-      p_device_cb_param->status = RET_ERROR;
+      p_device_cb_param->status = RET_NOT_IMPLEMENTED;
       break;
   }
 

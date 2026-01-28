@@ -7,8 +7,6 @@ binary_sensor:
   - platform: template
     name: "Garage Door Open 3"
   - platform: template
-    name: "Garage Door Open 4"
-  - platform: template
     name: "Garage Door Internal"
     internal: True
 
