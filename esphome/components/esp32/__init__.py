@@ -115,18 +115,13 @@ COMPILER_OPTIMIZATIONS = {
     "SIZE": "CONFIG_COMPILER_OPTIMIZATION_SIZE",
 }
 
-# ESP-IDF components that ESPHome never uses.
-# Excluding these reduces compile time - the linker would discard them anyway.
-#
-# NOTE: It is fine to remove components from this list when adding new features,
-# but when you do, make sure the component is still excluded via exclude_idf_component()
-# when the new feature is not enabled, to keep compile times short for users who
-# don't use that feature.
+# ESP-IDF components excluded by default to reduce compile time.
+# Components can be re-enabled by calling include_idf_component() in to_code().
 #
 # Cannot be excluded (dependencies of required components):
 # - "console": espressif/mdns unconditionally depends on it
 # - "sdmmc": driver -> esp_driver_sdmmc -> sdmmc dependency chain
-NEVER_USED_IDF_COMPONENTS = (
+DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
     "esp_adc",  # ADC driver - only needed by adc component
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
@@ -241,7 +236,7 @@ def set_core_data(config):
     CORE.data[KEY_ESP32][KEY_COMPONENTS] = {}
     # Initialize with default exclusions - components can call include_idf_component()
     # to re-enable any they need
-    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = set(NEVER_USED_IDF_COMPONENTS)
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = set(DEFAULT_EXCLUDED_IDF_COMPONENTS)
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
@@ -383,7 +378,7 @@ def include_idf_component(name: str) -> None:
     """Remove an ESP-IDF component from the exclusion list.
 
     Call this from components that need an ESP-IDF component that is
-    excluded by default in NEVER_USED_IDF_COMPONENTS. This ensures the
+    excluded by default in DEFAULT_EXCLUDED_IDF_COMPONENTS. This ensures the
     component will be built when needed.
     """
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(name)
