@@ -14,9 +14,9 @@ void log_number(const char *tag, const char *prefix, const char *type, Number *o
   }
 
   ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-  LOG_ENTITY_ICON(tag, prefix, *obj);
-  LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, obj->traits);
-  LOG_ENTITY_DEVICE_CLASS(tag, prefix, obj->traits);
+  LOG_ENTITY_ICON(prefix, *obj);
+  LOG_ENTITY_UNIT_OF_MEASUREMENT(prefix, obj->traits);
+  LOG_ENTITY_DEVICE_CLASS(prefix, obj->traits);
 }
 
 void Number::publish_state(float state) {

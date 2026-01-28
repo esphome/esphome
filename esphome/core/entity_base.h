@@ -231,20 +231,14 @@ class EntityBase_UnitOfMeasurement {  // NOLINT(readability-identifier-naming)
 };
 
 /// Log entity icon if set (for use in dump_config)
-#define LOG_ENTITY_ICON(tag, prefix, obj) \
-  if (!(obj).get_icon_ref().empty()) { \
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, (obj).get_icon_ref().c_str()); \
-  }
+#define LOG_ENTITY_ICON(prefix, obj) log_entity_icon(TAG, prefix, obj)
+void log_entity_icon(const char *tag, const char *prefix, const EntityBase &obj);
 /// Log entity device class if set (for use in dump_config)
-#define LOG_ENTITY_DEVICE_CLASS(tag, prefix, obj) \
-  if (!(obj).get_device_class_ref().empty()) { \
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, (obj).get_device_class_ref().c_str()); \
-  }
+#define LOG_ENTITY_DEVICE_CLASS(prefix, obj) log_entity_device_class(TAG, prefix, obj)
+void log_entity_device_class(const char *tag, const char *prefix, const EntityBase_DeviceClass &obj);
 /// Log entity unit of measurement if set (for use in dump_config)
-#define LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, obj) \
-  if (!(obj).get_unit_of_measurement_ref().empty()) { \
-    ESP_LOGCONFIG(tag, "%s  Unit of Measurement: '%s'", prefix, (obj).get_unit_of_measurement_ref().c_str()); \
-  }
+#define LOG_ENTITY_UNIT_OF_MEASUREMENT(prefix, obj) log_entity_unit_of_measurement(TAG, prefix, obj)
+void log_entity_unit_of_measurement(const char *tag, const char *prefix, const EntityBase_UnitOfMeasurement &obj);
 
 /**
  * An entity that has a state.

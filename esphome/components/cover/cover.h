@@ -20,7 +20,7 @@ const extern float COVER_CLOSED;
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
-    LOG_ENTITY_DEVICE_CLASS(TAG, prefix, *(obj)); \
+    LOG_ENTITY_DEVICE_CLASS(prefix, *(obj)); \
   }
 
 class Cover;
