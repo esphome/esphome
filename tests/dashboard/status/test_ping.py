@@ -23,13 +23,17 @@ async def test_ping_status_host_entry_without_address_falls_back_to_name() -> No
     entry_host.address = None
     entry_host.name = "host-light"
     entry_host.target_platform = "HOST"
-    entry_host.state = Mock(reachable=ReachableState.UNKNOWN, source=EntryStateSource.UNKNOWN)
+    entry_host.state = Mock(
+        reachable=ReachableState.UNKNOWN, source=EntryStateSource.UNKNOWN
+    )
 
     entry_non_host = Mock()
     entry_non_host.address = None
     entry_non_host.name = "esp32-node"
     entry_non_host.target_platform = "ESP32"
-    entry_non_host.state = Mock(reachable=ReachableState.UNKNOWN, source=EntryStateSource.UNKNOWN)
+    entry_non_host.state = Mock(
+        reachable=ReachableState.UNKNOWN, source=EntryStateSource.UNKNOWN
+    )
 
     entries = Mock()
     entries.async_all.return_value = [entry_host, entry_non_host]
@@ -55,9 +59,15 @@ async def test_ping_status_host_entry_without_address_falls_back_to_name() -> No
         return host
 
     with (
-        patch("esphome.dashboard.status.ping._can_use_icmp_lib_with_privilege", return_value=False),
+        patch(
+            "esphome.dashboard.status.ping._can_use_icmp_lib_with_privilege",
+            return_value=False,
+        ),
         patch("esphome.dashboard.status.ping.MIN_PING_INTERVAL", 0),
-        patch("esphome.dashboard.status.ping.async_ping", side_effect=async_ping_side_effect) as mock_ping,
+        patch(
+            "esphome.dashboard.status.ping.async_ping",
+            side_effect=async_ping_side_effect,
+        ) as mock_ping,
     ):
         await ping_status.async_run()
 
@@ -72,4 +82,3 @@ async def test_ping_status_host_entry_without_address_falls_back_to_name() -> No
     assert set_entry is entry_host
     assert set_state.source is EntryStateSource.PING
     assert set_state.reachable is ReachableState.ONLINE
-
