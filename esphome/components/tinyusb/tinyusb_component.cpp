@@ -60,7 +60,7 @@ void TinyUSB::setup() {
       0x21, /* bCountryCode: 0x21 = United States */
       0x01,
       0x22,
-      0x3F,
+      0x56,
       0x00,
       // Endpoint Descriptor (7)
       0x07,

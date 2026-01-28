@@ -102,3 +102,48 @@ async def tinyusb_keyboard_type_to_code(config, action_id, template_arg, args):
     cg.add(var.set_text(template_))
 
     return var
+
+
+# Media (consumer) actions
+MediaPressAction = tinyusb_keyboard_ns.class_("MediaPressAction", automation.Action)
+MediaReleaseAction = tinyusb_keyboard_ns.class_("MediaReleaseAction", automation.Action)
+
+MEDIA_PRESS_SCHEMA = maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(TinyUSBKeyboard),
+        cv.Required("usage"): cv.positive_int,
+    }
+)
+
+MEDIA_RELEASE_SCHEMA = maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(TinyUSBKeyboard),
+        cv.Required("usage"): cv.positive_int,
+    }
+)
+
+
+@automation.register_action(
+    "tinyusb_keyboard.media_press", MediaPressAction, MEDIA_PRESS_SCHEMA
+)
+async def tinyusb_keyboard_media_press_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+
+    usage = config["usage"]
+    template_ = await cg.templatable(usage, args, int)
+    cg.add(var.set_usage(template_))
+    return var
+
+
+@automation.register_action(
+    "tinyusb_keyboard.media_release", MediaReleaseAction, MEDIA_RELEASE_SCHEMA
+)
+async def tinyusb_keyboard_media_release_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+
+    usage = config["usage"]
+    template_ = await cg.templatable(usage, args, int)
+    cg.add(var.set_usage(template_))
+    return var

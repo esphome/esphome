@@ -17,6 +17,9 @@ class TinyUSBKeyboard : public Component {
   // keycode is HID usage ID (USB HID), modifiers is bitmask (e.g., 0x02 for Shift)
   void press_key(uint8_t keycode, uint8_t modifiers = 0);
   void release_key(uint8_t keycode);
+  // Consumer (media) key support (HID Consumer usages, e.g., volume up/down)
+  void press_media(uint16_t usage);
+  void release_media();
   void type_string(const char *text);
   // Action setters called from generated action objects
   void set_key(const std::string &key);

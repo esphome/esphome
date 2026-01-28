@@ -80,6 +80,41 @@ template<typename... Ts> class TypeAction : public Action<Ts...> {
   TinyUSBKeyboard *parent_;
 };
 
+template<typename... Ts> class MediaPressAction : public Action<Ts...> {
+ public:
+  explicit MediaPressAction(TinyUSBKeyboard *parent) : parent_(parent) {}
+
+  TEMPLATABLE_VALUE(uint32_t, usage)
+
+  void play(const Ts &...x) override {
+    ESP_LOGD("tinyusb_keyboard", "MediaPressAction fired");
+    if (this->usage_.has_value()) {
+      uint32_t u = this->usage_.value(x...);
+      this->parent_->press_media((uint16_t) u);
+    }
+  }
+
+ protected:
+  TinyUSBKeyboard *parent_;
+};
+
+template<typename... Ts> class MediaReleaseAction : public Action<Ts...> {
+ public:
+  explicit MediaReleaseAction(TinyUSBKeyboard *parent) : parent_(parent) {}
+
+  TEMPLATABLE_VALUE(uint32_t, usage)
+
+  void play(const Ts &...x) override {
+    ESP_LOGD("tinyusb_keyboard", "MediaReleaseAction fired");
+    if (this->usage_.has_value()) {
+      this->parent_->release_media();
+    }
+  }
+
+ protected:
+  TinyUSBKeyboard *parent_;
+};
+
 #endif  // defined(USE_ESP32_VARIANT_...)
 
 }  // namespace tinyusb_keyboard
