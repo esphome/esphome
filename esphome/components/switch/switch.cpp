@@ -96,14 +96,14 @@ void log_switch(const char *tag, const char *prefix, const char *type, Switch *o
                   LOG_STR_ARG(onoff));
 
     // Add optional fields separately
-    log_entity_icon(tag, prefix, *obj);
+    LOG_ENTITY_ICON(tag, prefix, *obj);
     if (obj->assumed_state()) {
       ESP_LOGCONFIG(tag, "%s  Assumed State: YES", prefix);
     }
     if (obj->is_inverted()) {
       ESP_LOGCONFIG(tag, "%s  Inverted: YES", prefix);
     }
-    log_entity_device_class(tag, prefix, *obj);
+    LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
   }
 }
 
