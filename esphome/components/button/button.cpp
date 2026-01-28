@@ -12,10 +12,7 @@ void log_button(const char *tag, const char *prefix, const char *type, Button *o
   }
 
   ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-
-  if (!obj->get_icon_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon_ref().c_str());
-  }
+  LOG_ENTITY_ICON(tag, prefix, *obj);
 }
 
 void Button::press() {

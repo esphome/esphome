@@ -11,6 +11,7 @@
 #include <esp_ota_ops.h>
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
+#include "esphome/components/http_request/http_request.h"
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
 #endif
@@ -69,7 +70,10 @@ void Esp32HostedUpdate::setup() {
   // Get coprocessor version
   esp_hosted_coprocessor_fwver_t ver_info;
   if (esp_hosted_get_coprocessor_fwversion(&ver_info) == ESP_OK) {
-    this->update_info_.current_version = str_sprintf("%d.%d.%d", ver_info.major1, ver_info.minor1, ver_info.patch1);
+    // 16 bytes: "255.255.255" (11 chars) + null + safety margin
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d.%d.%d", ver_info.major1, ver_info.minor1, ver_info.patch1);
+    this->update_info_.current_version = buf;
   } else {
     this->update_info_.current_version = "unknown";
   }
@@ -181,15 +185,23 @@ bool Esp32HostedUpdate::fetch_manifest_() {
   }
 
   // Read manifest JSON into string (manifest is small, ~1KB max)
+  // NOTE: HttpContainer::read() has non-BSD socket semantics - see http_request.h
+  // Use http_read_loop_result() helper instead of checking return values directly
   std::string json_str;
   json_str.reserve(container->content_length);
   uint8_t buf[256];
+  uint32_t last_data_time = millis();
+  const uint32_t read_timeout = this->http_request_parent_->get_timeout();
   while (container->get_bytes_read() < container->content_length) {
-    int read = container->read(buf, sizeof(buf));
-    if (read > 0) {
-      json_str.append(reinterpret_cast<char *>(buf), read);
-    }
+    int read_or_error = container->read(buf, sizeof(buf));
+    App.feed_wdt();
     yield();
+    auto result = http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout);
+    if (result == http_request::HttpReadLoopResult::RETRY)
+      continue;
+    if (result != http_request::HttpReadLoopResult::DATA)
+      break;  // ERROR or TIMEOUT
+    json_str.append(reinterpret_cast<char *>(buf), read_or_error);
   }
   container->end();
 
@@ -294,32 +306,38 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
   }
 
   // Stream firmware to coprocessor while computing SHA256
+  // NOTE: HttpContainer::read() has non-BSD socket semantics - see http_request.h
+  // Use http_read_loop_result() helper instead of checking return values directly
   sha256::SHA256 hasher;
   hasher.init();
 
   uint8_t buffer[CHUNK_SIZE];
+  uint32_t last_data_time = millis();
+  const uint32_t read_timeout = this->http_request_parent_->get_timeout();
   while (container->get_bytes_read() < total_size) {
-    int read = container->read(buffer, sizeof(buffer));
+    int read_or_error = container->read(buffer, sizeof(buffer));
 
     // Feed watchdog and give other tasks a chance to run
     App.feed_wdt();
     yield();
 
-    // Exit loop if no data available (stream closed or end of data)
-    if (read <= 0) {
-      if (read < 0) {
-        ESP_LOGE(TAG, "Stream closed with error");
-        esp_hosted_slave_ota_end();  // NOLINT
-        container->end();
-        this->status_set_error(LOG_STR("Download failed"));
-        return false;
+    auto result = http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout);
+    if (result == http_request::HttpReadLoopResult::RETRY)
+      continue;
+    if (result != http_request::HttpReadLoopResult::DATA) {
+      if (result == http_request::HttpReadLoopResult::TIMEOUT) {
+        ESP_LOGE(TAG, "Timeout reading firmware data");
+      } else {
+        ESP_LOGE(TAG, "Error reading firmware data: %d", read_or_error);
       }
-      // read == 0: no more data available, exit loop
-      break;
+      esp_hosted_slave_ota_end();  // NOLINT
+      container->end();
+      this->status_set_error(LOG_STR("Download failed"));
+      return false;
     }
 
-    hasher.add(buffer, read);
-    err = esp_hosted_slave_ota_write(buffer, read);  // NOLINT
+    hasher.add(buffer, read_or_error);
+    err = esp_hosted_slave_ota_write(buffer, read_or_error);  // NOLINT
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
       esp_hosted_slave_ota_end();  // NOLINT
