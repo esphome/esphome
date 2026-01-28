@@ -55,8 +55,6 @@ void ZigbeeTime::zcl_device_cb_(zb_bufid_t bufid) {
   zb_uint16_t cluster_id = p_device_cb_param->cb_param.set_attr_value_param.cluster_id;
   zb_uint16_t attr_id = p_device_cb_param->cb_param.set_attr_value_param.attr_id;
 
-  p_device_cb_param->status = RET_OK;
-
   switch (device_cb_id) {
     /* ZCL set attribute value */
     case ZB_ZCL_SET_ATTR_VALUE_CB_ID:
@@ -76,7 +74,7 @@ void ZigbeeTime::zcl_device_cb_(zb_bufid_t bufid) {
       }
       break;
     default:
-      p_device_cb_param->status = RET_ERROR;
+      p_device_cb_param->status = RET_NOT_IMPLEMENTED;
       break;
   }
 

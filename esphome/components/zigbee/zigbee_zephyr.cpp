@@ -112,10 +112,10 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
     const auto &cb = global_zigbee->callbacks_[endpoint - 1];
     if (cb) {
       cb(bufid);
+      return;
     }
-    return;
   }
-  p_device_cb_param->status = RET_ERROR;
+  p_device_cb_param->status = RET_NOT_IMPLEMENTED;
 }
 
 void ZigbeeComponent::on_join_() {
