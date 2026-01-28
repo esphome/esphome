@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_OPEN_DRAIN,
     CONF_OUTPUT,
 )
+from esphome.core import CORE
 
 CODEOWNERS = ["@dwmw2"]
 DEPENDENCIES = ["i2c"]
@@ -43,10 +44,6 @@ async def to_code(config):
     cg.add(var.set_i2c_bus(parent))
 
 
-# Track pin modes per CH423 instance: {ch423_id: {"gpio_output": bool|None, "gpo_open_drain": bool|None}}
-_ch423_modes = {}
-
-
 # This is used as a final validation step so that modes have been fully transformed.
 def pin_mode_check(pin_config, _):
     if pin_config[CONF_MODE][CONF_INPUT] and pin_config[CONF_NUMBER] >= 8:
@@ -59,21 +56,23 @@ def pin_mode_check(pin_config, _):
     is_output = pin_config[CONF_MODE][CONF_OUTPUT]
     is_open_drain = pin_config[CONF_MODE][CONF_OPEN_DRAIN]
 
-    if ch423_id not in _ch423_modes:
-        _ch423_modes[ch423_id] = {"gpio_output": None, "gpo_open_drain": None}
+    # Track pin modes per CH423 instance in CORE.data
+    ch423_modes = CORE.data.setdefault(CONF_CH423, {})
+    if ch423_id not in ch423_modes:
+        ch423_modes[ch423_id] = {"gpio_output": None, "gpo_open_drain": None}
 
     if pin_num < 8:
         # GPIO pins (0-7): all must have same direction
-        if _ch423_modes[ch423_id]["gpio_output"] is None:
-            _ch423_modes[ch423_id]["gpio_output"] = is_output
-        elif _ch423_modes[ch423_id]["gpio_output"] != is_output:
+        if ch423_modes[ch423_id]["gpio_output"] is None:
+            ch423_modes[ch423_id]["gpio_output"] = is_output
+        elif ch423_modes[ch423_id]["gpio_output"] != is_output:
             raise cv.Invalid(
                 "CH423 GPIO pins (0-7) must all be configured as input or all as output"
             )
     # GPO pins (8-23): all must have same open-drain setting
-    elif _ch423_modes[ch423_id]["gpo_open_drain"] is None:
-        _ch423_modes[ch423_id]["gpo_open_drain"] = is_open_drain
-    elif _ch423_modes[ch423_id]["gpo_open_drain"] != is_open_drain:
+    elif ch423_modes[ch423_id]["gpo_open_drain"] is None:
+        ch423_modes[ch423_id]["gpo_open_drain"] = is_open_drain
+    elif ch423_modes[ch423_id]["gpo_open_drain"] != is_open_drain:
         raise cv.Invalid(
             "CH423 GPO pins (8-23) must all be configured as push-pull or all as open-drain"
         )
