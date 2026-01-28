@@ -60,7 +60,16 @@ CONF_NMEA = "nmea"
 CONF_GNSS_COMMAND = "gnss_command"
 CONF_GNSS_PARSER = "gnss_parser"
 
-MODEM_MODELS = ["BG96", "SIM800", "SIM7000", "SIM7070", "SIM7080", "SIM7600", "SIM7670", "GENERIC"]
+MODEM_MODELS = [
+    "BG96",
+    "SIM800",
+    "SIM7000",
+    "SIM7070",
+    "SIM7080",
+    "SIM7600",
+    "SIM7670",
+    "GENERIC",
+]
 MODEM_MODELS_POWER = {
     "BG96": {
         CONF_TON_PULSE_DELAY: 600,
@@ -425,7 +434,7 @@ async def to_code(config):
     if rts_pin := config.get(CONF_RTS_PIN, None):
         rts_pin_expr = await cg.gpio_pin_expression(rts_pin)
         cg.add(var.set_rts_pin(rts_pin_expr))
-    
+
     if cts_pin := config.get(CONF_CTS_PIN, None):
         cts_pin_expr = await cg.gpio_pin_expression(cts_pin)
         cg.add(var.set_cts_pin(cts_pin_expr))
