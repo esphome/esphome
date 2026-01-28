@@ -63,6 +63,7 @@ from .const_zephyr import (
     POWER_SOURCE,
     ZB_ZCL_BASIC_ATTRS_EXT_T,
     ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
+    ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT,
     ZB_ZCL_CLUSTER_ID_BASIC,
     ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
     ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT,
@@ -492,7 +493,7 @@ async def _add_number(
         CONF_ZIGBEE_NUMBER,
         AnalogAttrsOutput,
         "ESPHOME_ZB_ZCL_DECLARE_ANALOG_OUTPUT_ATTRIB_LIST",
-        ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT,
+        ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT,
         "ZB_HA_CUSTOM_ATTR_DEVICE_ID",
         extra_field_values={
             "max_present_value": max_value,
