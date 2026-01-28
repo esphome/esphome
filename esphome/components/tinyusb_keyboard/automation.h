@@ -28,8 +28,10 @@ template<typename... Ts> class PressAction : public Action<Ts...> {
     }
     if (this->key_.has_value()) {
       auto s = this->key_.value(x...);
-      if (!s.empty())
-        this->parent_->set_key(s);
+      uint32_t mods = this->modifiers_.value_or(x..., 0);
+      if (!s.empty()) {
+        this->parent_->press_key(0x04 + (s[0] - 'a'), mods);
+      }
     }
   }
 
@@ -53,8 +55,9 @@ template<typename... Ts> class ReleaseAction : public Action<Ts...> {
     }
     if (this->key_.has_value()) {
       auto s = this->key_.value(x...);
-      if (!s.empty())
-        this->parent_->set_key(s);  // set_key does press+release for single char
+      if (!s.empty()) {
+        this->parent_->release_key(0x04 + (s[0] - 'a'));
+      }
     }
   }
 

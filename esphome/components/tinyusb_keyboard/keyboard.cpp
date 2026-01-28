@@ -188,20 +188,6 @@ void TinyUSBKeyboard::type_string(const char *text) {
   }
 }
 
-// Implementation of setters used by codegen action objects
-void TinyUSBKeyboard::set_key(const std::string &key) {
-  if (key.length() == 1) {
-    char c = key[0];
-    if (c >= 'a' && c <= 'z') {
-      this->press_key(0x04 + (c - 'a'));
-      this->release_key(0x04 + (c - 'a'));
-    } else if (c >= 'A' && c <= 'Z') {
-      this->press_key(0x04 + (c - 'A'), 0x02);
-      this->release_key(0x04 + (c - 'A'));
-    }
-  }
-}
-
 void TinyUSBKeyboard::set_key_code(uint32_t code) { this->press_key((uint8_t) code); }
 
 void TinyUSBKeyboard::set_modifiers(uint32_t mods) { (void) mods; }
