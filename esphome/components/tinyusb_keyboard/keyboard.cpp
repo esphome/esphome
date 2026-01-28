@@ -27,16 +27,25 @@ void TinyUSBKeyboard::setup() {
     this->ready_ = false;
   } else {
     this->ready_ = true;
+    ESP_LOGI(TAG, "TinyUSB keyboard ready");
   }
 }
 
-void TinyUSBKeyboard::dump_config() { ESP_LOGCONFIG(TAG, "TinyUSB Keyboard component"); }
+void TinyUSBKeyboard::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "TinyUSB Keyboard component:\n"
+                "  Ready at setup(): %s\n"
+                "  tud_ready(): %s\n",
+                this->ready_ ? "YES" : "NO", tud_ready() ? "YES" : "NO");
+}
 
 void TinyUSBKeyboard::press_key(uint8_t keycode, uint8_t modifiers) {
   if (!tud_ready()) {
     ESP_LOGW(TAG, "TinyUSB not ready; dropping press_key");
     return;
   }
+
+  ESP_LOGD(TAG, "press_key keycode=0x%02X modifiers=0x%02X", keycode, modifiers);
 
   // Prepare 6-key rollover array
   uint8_t keys[6] = {0};
@@ -51,6 +60,7 @@ void TinyUSBKeyboard::release_key(uint8_t keycode) {
     return;
   }
   // Release all keys by sending empty report
+  ESP_LOGD(TAG, "release_key keycode=0x%02X", keycode);
   uint8_t empty[6] = {0};
   tud_hid_keyboard_report(0, 0, empty);
 }
