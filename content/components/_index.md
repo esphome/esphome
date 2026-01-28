@@ -1029,6 +1029,7 @@ at the {{< docref "light/fastled" "FastLED Light" >}}.
 "PCF85063 RTC","components/time/pcf85063","clock-outline.svg","dark-invert"
 "PCF8563 RTC","components/time/pcf8563","clock-outline.svg","dark-invert"
 "SNTP","components/time/sntp","clock-outline.svg","dark-invert"
+"Zigbee Time","components/time/zigbee","zigbee.svg",""
 {{< /imgtable >}}
 
 ## Touchscreen Components
