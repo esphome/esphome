@@ -19,8 +19,12 @@
 #include "mqtt_backend_esp8266.h"
 #elif defined(USE_LIBRETINY)
 #include "mqtt_backend_libretiny.h"
+#elif defined(USE_HOST)
+#include "mqtt_backend_host.h"
 #endif
+#ifndef USE_HOST
 #include "lwip/ip_addr.h"
+#endif
 
 #include <vector>
 
@@ -288,17 +292,25 @@ class MQTTClientComponent : public Component
   void set_wait_for_connection(bool wait_for_connection) { this->wait_for_connection_ = wait_for_connection; }
 
  protected:
+  /// Test hook: override the MQTT backend used by this client.
+  /// Intended for host/unit tests (no broker required).
+  void set_mqtt_backend_for_testing_(MQTTBackend *backend) { this->mqtt_backend_interface_ = backend; }
+  MQTTBackend *get_mqtt_backend_() { return this->mqtt_backend_interface_; }
+  MQTTBackend &mqtt_backend_ref_() { return *this->mqtt_backend_interface_; }
+
   void send_device_info_();
 
   /// Reconnect to the MQTT broker if not already connected.
   void start_connect_();
   void start_dnslookup_();
   void check_dnslookup_();
+#ifndef USE_HOST
 #if defined(USE_ESP8266) && LWIP_VERSION_MAJOR == 1
   static void dns_found_callback(const char *name, ip_addr_t *ipaddr, void *callback_arg);
 #else
   static void dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
 #endif
+#endif  // !USE_HOST
 
   /// Re-calculate the availability property.
   void recalculate_availability_();
@@ -340,7 +352,10 @@ class MQTTClientComponent : public Component
   MQTTBackendESP8266 mqtt_backend_;
 #elif defined(USE_LIBRETINY)
   MQTTBackendLibreTiny mqtt_backend_;
+#elif defined(USE_HOST)
+  MQTTBackendHost mqtt_backend_;
 #endif
+  MQTTBackend *mqtt_backend_interface_{nullptr};
 
   MQTTClientState state_{MQTT_CLIENT_DISABLED};
   network::IPAddress ip_;

@@ -72,6 +72,7 @@ struct IPAddress {
     inet_ntop(AF_INET, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE);
     return buf;  // IPv4 only, no hex letters to lowercase
   }
+  bool is_set() const { return this->ip_addr_.s_addr != 0; }
 #else
   IPAddress() { ip_addr_set_zero(&ip_addr_); }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
