@@ -137,7 +137,7 @@ NEVER_USED_IDF_COMPONENTS = (
     "esp_http_client",  # HTTP client - only needed by http_request component
     "esp_https_ota",  # ESP-IDF HTTPS OTA - ESPHome has its own OTA implementation
     "esp_https_server",  # HTTPS server - ESPHome has its own web server
-    "esp_lcd",  # LCD controller drivers - ESPHome has its own display components
+    "esp_lcd",  # LCD controller drivers - only needed by display component
     "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
     "espcoredump",  # Core dump support - ESPHome has its own debug component
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
