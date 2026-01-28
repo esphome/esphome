@@ -2187,7 +2187,12 @@ std::string WebServer::update_json_(update::UpdateEntity *obj, JsonDetail start_
 #endif
 
 bool WebServer::canHandle(AsyncWebServerRequest *request) const {
+#ifdef USE_ESP32
+  char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+  StringRef url = request->url_to(url_buf);
+#else
   const auto &url = request->url();
+#endif
   const auto method = request->method();
 
   // Static URL checks - use ESPHOME_F to keep strings in flash on ESP8266
@@ -2323,30 +2328,35 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   return false;
 }
 void WebServer::handleRequest(AsyncWebServerRequest *request) {
+#ifdef USE_ESP32
+  char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+  StringRef url = request->url_to(url_buf);
+#else
   const auto &url = request->url();
+#endif
 
   // Handle static routes first
-  if (url == "/") {
+  if (url == ESPHOME_F("/")) {
     this->handle_index_request(request);
     return;
   }
 
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
-  if (url == "/events") {
+  if (url == ESPHOME_F("/events")) {
     this->events_.add_new_client(this, request);
     return;
   }
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
-  if (url == "/0.css") {
+  if (url == ESPHOME_F("/0.css")) {
     this->handle_css_request(request);
     return;
   }
 #endif
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
-  if (url == "/0.js") {
+  if (url == ESPHOME_F("/0.js")) {
     this->handle_js_request(request);
     return;
   }
