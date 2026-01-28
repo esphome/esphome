@@ -368,6 +368,6 @@ module.exports = {
   detectCodeOwner,
   detectTests,
   detectPRTemplateCheckboxes,
-  detectRequirements
   detectDeprecatedComponents,
+  detectRequirements
 };
