@@ -686,8 +686,10 @@ CONF_DISABLE_FATFS = "disable_fatfs"
 KEY_VFS_SELECT_REQUIRED = "vfs_select_required"
 KEY_VFS_DIR_REQUIRED = "vfs_dir_required"
 # Feature requirement tracking - components can call require_* functions to re-enable
+# These are stored in CORE.data[KEY_ESP32] dict
 KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED = "usb_serial_jtag_secondary_required"
 KEY_MBEDTLS_PEER_CERT_REQUIRED = "mbedtls_peer_cert_required"
+KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
 
 
@@ -727,7 +729,7 @@ def require_usb_serial_jtag_secondary() -> None:
     Call this from components (e.g., logger) that need USB Serial/JTAG console output.
     This prevents CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG from being disabled.
     """
-    CORE.data[KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED] = True
+    CORE.data[KEY_ESP32][KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED] = True
 
 
 def require_mbedtls_peer_cert() -> None:
@@ -737,7 +739,16 @@ def require_mbedtls_peer_cert() -> None:
     the TLS handshake is complete. This prevents CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE
     from being disabled.
     """
-    CORE.data[KEY_MBEDTLS_PEER_CERT_REQUIRED] = True
+    CORE.data[KEY_ESP32][KEY_MBEDTLS_PEER_CERT_REQUIRED] = True
+
+
+def require_mbedtls_pkcs7() -> None:
+    """Mark that mbedTLS PKCS#7 support is required by a component.
+
+    Call this from components that need PKCS#7 certificate validation.
+    This prevents CONFIG_MBEDTLS_PKCS7_C from being disabled.
+    """
+    CORE.data[KEY_ESP32][KEY_MBEDTLS_PKCS7_REQUIRED] = True
 
 
 def require_fatfs() -> None:
@@ -746,7 +757,7 @@ def require_fatfs() -> None:
     Call this from components that use FATFS (e.g., SD card, storage components).
     This prevents FATFS from being disabled when disable_fatfs is set.
     """
-    CORE.data[KEY_FATFS_REQUIRED] = True
+    CORE.data[KEY_ESP32][KEY_FATFS_REQUIRED] = True
 
 
 def _parse_idf_component(value: str) -> ConfigType:
@@ -1379,7 +1390,7 @@ async def to_code(config):
 
     # Disable USB Serial/JTAG secondary console
     # Components like logger can call require_usb_serial_jtag_secondary() to re-enable
-    if CORE.data.get(KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED, False):
+    if CORE.data[KEY_ESP32].get(KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED, False):
         add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG", True)
     elif advanced[CONF_DISABLE_USB_SERIAL_JTAG_SECONDARY]:
         add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_SECONDARY_NONE", True)
@@ -1392,14 +1403,18 @@ async def to_code(config):
     # Disable keeping peer certificate after TLS handshake
     # Saves ~4KB heap per connection, but prevents certificate inspection after handshake
     # Components that need it can call require_mbedtls_peer_cert()
-    if CORE.data.get(KEY_MBEDTLS_PEER_CERT_REQUIRED, False):
+    if CORE.data[KEY_ESP32].get(KEY_MBEDTLS_PEER_CERT_REQUIRED, False):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", True)
     elif advanced[CONF_DISABLE_MBEDTLS_PEER_CERT]:
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", False)
 
     # Disable PKCS#7 support in mbedTLS
     # Only needed for specific certificate validation scenarios
-    if advanced[CONF_DISABLE_MBEDTLS_PKCS7]:
+    # Components that need it can call require_mbedtls_pkcs7()
+    if CORE.data[KEY_ESP32].get(KEY_MBEDTLS_PKCS7_REQUIRED, False):
+        # Component requires PKCS#7 - don't disable
+        pass
+    elif advanced[CONF_DISABLE_MBEDTLS_PKCS7]:
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PKCS7_C", False)
 
     # Disable regi2c control functions in IRAM
@@ -1409,7 +1424,7 @@ async def to_code(config):
 
     # Disable FATFS support
     # Components that need FATFS (SD card, etc.) can call require_fatfs()
-    if CORE.data.get(KEY_FATFS_REQUIRED, False):
+    if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
         # Component requires FATFS - don't disable
         pass
     elif advanced[CONF_DISABLE_FATFS]:
