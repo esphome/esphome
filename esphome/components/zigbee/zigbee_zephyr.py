@@ -8,7 +8,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_NAME,
-    CONF_RANDOM,
     CONF_UNIT_OF_MEASUREMENT,
     UNIT_AMPERE,
     UNIT_CELSIUS,
@@ -157,7 +156,7 @@ async def zephyr_to_code(config: ConfigType) -> None:
     if CONF_IEEE802154_VENDOR_OUI in config:
         zephyr_add_prj_conf("IEEE802154_VENDOR_OUI_ENABLE", True)
         random_number = config[CONF_IEEE802154_VENDOR_OUI]
-        if random_number == CONF_RANDOM:
+        if random_number == "random":
             random_number = random.randint(0x000000, 0xFFFFFF)
         zephyr_add_prj_conf("IEEE802154_VENDOR_OUI", random_number)
 

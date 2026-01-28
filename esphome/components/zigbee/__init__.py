@@ -7,7 +7,7 @@ from esphome.components.nrf52.boards import BOOTLOADER_CONFIG, Section
 from esphome.components.zephyr import zephyr_add_pm_static, zephyr_data
 from esphome.components.zephyr.const import KEY_BOOTLOADER
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INTERNAL, CONF_NAME, CONF_RANDOM
+from esphome.const import CONF_ID, CONF_INTERNAL, CONF_NAME
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -62,7 +62,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_IEEE802154_VENDOR_OUI): cv.All(
                 cv.Any(
                     cv.int_range(min=0x000000, max=0xFFFFFF),
-                    cv.one_of(*[CONF_RANDOM], lower=True),
+                    cv.one_of(*["random"], lower=True),
                 ),
                 cv.requires_component("nrf52"),
             ),
