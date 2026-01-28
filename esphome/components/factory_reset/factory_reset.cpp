@@ -3,13 +3,13 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 
 #if !defined(USE_RP2040) && !defined(USE_HOST)
 
-namespace esphome {
-namespace factory_reset {
+namespace esphome::factory_reset {
 
 static const char *const TAG = "factory_reset";
 static const uint32_t POWER_CYCLES_KEY = 0xFA5C0DE;
@@ -20,7 +20,8 @@ static bool was_power_cycled() {
 #endif
 #ifdef USE_ESP8266
   auto reset_reason = EspClass::getResetReason();
-  return strcasecmp(reset_reason.c_str(), "power On") == 0 || strcasecmp(reset_reason.c_str(), "external system") == 0;
+  return ESPHOME_strcasecmp_P(reset_reason.c_str(), ESPHOME_PSTR("power On")) == 0 ||
+         ESPHOME_strcasecmp_P(reset_reason.c_str(), ESPHOME_PSTR("external system")) == 0;
 #endif
 #ifdef USE_LIBRETINY
   auto reason = lt_get_reboot_reason();
@@ -31,12 +32,12 @@ static bool was_power_cycled() {
 void FactoryResetComponent::dump_config() {
   uint8_t count = 0;
   this->flash_.load(&count);
-  ESP_LOGCONFIG(TAG, "Factory Reset by Reset:");
   ESP_LOGCONFIG(TAG,
-                "  Max interval between resets %" PRIu32 " seconds\n"
+                "Factory Reset by Reset:\n"
+                "  Max interval between resets: %u seconds\n"
                 "  Current count: %u\n"
                 "  Factory reset after %u resets",
-                this->max_interval_ / 1000, count, this->required_count_);
+                this->max_interval_, count, this->required_count_);
 }
 
 void FactoryResetComponent::save_(uint8_t count) {
@@ -61,8 +62,8 @@ void FactoryResetComponent::setup() {
     }
     this->save_(count);
     ESP_LOGD(TAG, "Power on reset detected, incremented count to %u", count);
-    this->set_timeout(this->max_interval_, [this]() {
-      ESP_LOGD(TAG, "No reset in the last %" PRIu32 " seconds, resetting count", this->max_interval_ / 1000);
+    this->set_timeout(static_cast<uint32_t>(this->max_interval_) * 1000, [this]() {
+      ESP_LOGD(TAG, "No reset in the last %u seconds, resetting count", this->max_interval_);
       this->save_(0);  // reset count
     });
   } else {
@@ -70,7 +71,6 @@ void FactoryResetComponent::setup() {
   }
 }
 
-}  // namespace factory_reset
-}  // namespace esphome
+}  // namespace esphome::factory_reset
 
 #endif  // !defined(USE_RP2040) && !defined(USE_HOST)
