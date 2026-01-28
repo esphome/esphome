@@ -26,6 +26,54 @@ void TinyUSB::setup() {
       .string_count = SIZE,
   };
 
+  // NOTE: Temporary/full-stop measure:
+  // esp_tinyusb requires a valid full-speed configuration descriptor when HID is enabled.
+  // For now we provide a minimal keyboard HID configuration descriptor here so the
+  // driver can be installed. This is a stop-gap; a proper descriptor-builder that
+  // aggregates interface fragments from components should replace this later.
+  static const uint8_t fs_configuration_descriptor[] = {
+      // Configuration Descriptor (9)
+      0x09,
+      0x02,
+      0x22,
+      0x00, /* wTotalLength = 34 (0x22) */
+      0x01,
+      /* bNumInterfaces */ 0x01,
+      0x00,
+      0x80,
+      0x32,
+      // Interface Descriptor (9)
+      0x09,
+      0x04,
+      0x00,
+      0x00,
+      0x01,
+      0x03,
+      0x01,
+      0x01,
+      0x00,
+      // HID Descriptor (9)
+      0x09,
+      0x21,
+      0x11,
+      0x01,
+      0x00,
+      0x01,
+      0x22,
+      0x3F,
+      0x00,
+      // Endpoint Descriptor (7)
+      0x07,
+      0x05,
+      0x81,
+      0x03,
+      0x08,
+      0x00,
+      0x0A,
+  };
+
+  this->tusb_cfg_.configuration_descriptor = fs_configuration_descriptor;
+
   // Defense-in-depth: esp_tinyusb's tinyusb_descriptors_set() fails with
   // ESP_ERR_INVALID_ARG when no configuration descriptor is provided and
   // no class that has a built-in default (CDC/MSC/NCM) is compiled in. In

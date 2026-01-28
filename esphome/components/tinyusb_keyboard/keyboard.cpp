@@ -1,0 +1,141 @@
+#include "keyboard.h"
+#include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
+
+// Guard the entire implementation for supported ESP32 variants in one place
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+
+extern "C" {
+// TinyUSB HID API
+#include "tusb.h"
+#include "class/hid/hid_device.h"
+// FreeRTOS for vTaskDelay
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+}
+
+namespace esphome {
+namespace tinyusb_keyboard {
+
+static const char *TAG = "tinyusb_keyboard";
+
+void TinyUSBKeyboard::setup() {
+  // If TinyUSB is not initialized, we can't operate. We rely on tinyusb component
+  // to install the driver. Check tud_ready().
+  if (!tud_ready()) {
+    ESP_LOGW(TAG, "TinyUSB not ready at setup(); keyboard will wait until ready.");
+    this->ready_ = false;
+  } else {
+    this->ready_ = true;
+  }
+}
+
+void TinyUSBKeyboard::dump_config() { ESP_LOGCONFIG(TAG, "TinyUSB Keyboard component"); }
+
+void TinyUSBKeyboard::press_key(uint8_t keycode, uint8_t modifiers) {
+  if (!tud_ready()) {
+    ESP_LOGW(TAG, "TinyUSB not ready; dropping press_key");
+    return;
+  }
+
+  // Prepare 6-key rollover array
+  uint8_t keys[6] = {0};
+  keys[0] = keycode;
+  // Use report id 0 and pass key array pointer. Managed TinyUSB headers expect (report_id, modifier, keycode[]).
+  tud_hid_keyboard_report(0, modifiers, keys);
+}
+
+void TinyUSBKeyboard::release_key(uint8_t keycode) {
+  if (!tud_ready()) {
+    ESP_LOGW(TAG, "TinyUSB not ready; dropping release_key");
+    return;
+  }
+  // Release all keys by sending empty report
+  uint8_t empty[6] = {0};
+  tud_hid_keyboard_report(0, 0, empty);
+}
+
+void TinyUSBKeyboard::type_string(const char *text) {
+  if (text == nullptr)
+    return;
+  // Simple blocking helper: send each ASCII character as a basic HID key (US layout)
+  for (const char *p = text; *p != '\0'; ++p) {
+    char c = *p;
+    uint8_t modifiers = 0;
+    uint8_t keycode = 0;
+    // Very small ASCII -> HID mapping for letters and space
+    if (c >= 'a' && c <= 'z') {
+      keycode = 0x04 + (c - 'a');
+    } else if (c >= 'A' && c <= 'Z') {
+      keycode = 0x04 + (c - 'A');
+      modifiers = 0x02;  // Left Shift
+    } else if (c == ' ') {
+      keycode = 0x2C;  // space
+    } else if (c >= '1' && c <= '9') {
+      keycode = 0x1E + (c - '1');
+    } else if (c == '0') {
+      keycode = 0x27;
+    } else {
+      // Unsupported character: skip
+      continue;
+    }
+
+    this->press_key(keycode, modifiers);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    this->release_key(keycode);
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+}
+
+// Implementation of setters used by codegen action objects
+void TinyUSBKeyboard::set_key(const std::string &key) {
+  if (key.length() == 1) {
+    char c = key[0];
+    if (c >= 'a' && c <= 'z') {
+      this->press_key(0x04 + (c - 'a'));
+      this->release_key(0x04 + (c - 'a'));
+    } else if (c >= 'A' && c <= 'Z') {
+      this->press_key(0x04 + (c - 'A'), 0x02);
+      this->release_key(0x04 + (c - 'A'));
+    }
+  }
+}
+
+void TinyUSBKeyboard::set_key_code(uint32_t code) { this->press_key((uint8_t) code); }
+
+void TinyUSBKeyboard::set_modifiers(uint32_t mods) { (void) mods; }
+
+void TinyUSBKeyboard::set_text(const std::string &text) { this->type_string(text.c_str()); }
+
+}  // namespace tinyusb_keyboard
+}  // namespace esphome
+
+extern "C" {
+// TinyUSB expects the application to provide these callbacks when HID is enabled.
+// Provide minimal stubs so linking succeeds. Implementations can be expanded later.
+uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance) {
+  (void) instance;
+  return nullptr;
+}
+
+uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer,
+                               uint16_t reqlen) {
+  (void) instance;
+  (void) report_id;
+  (void) report_type;
+  (void) buffer;
+  (void) reqlen;
+  return 0;
+}
+
+void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t const *buffer,
+                           uint16_t bufsize) {
+  (void) instance;
+  (void) report_id;
+  (void) report_type;
+  (void) buffer;
+  (void) bufsize;
+}
+}  // extern "C"
+
+#endif  // defined(USE_ESP32_VARIANT...)
