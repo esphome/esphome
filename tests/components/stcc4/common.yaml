@@ -1,0 +1,26 @@
+sensor:
+  # SHT4x for external RHT compensation (boards without onboard SHT4x)
+  - platform: sht4x
+    i2c_id: i2c_bus
+    temperature:
+      name: SHT4x Temperature
+      id: sht4x_temperature
+    humidity:
+      name: SHT4x Humidity
+      id: sht4x_humidity
+
+  # STCC4 CO2 sensor with onboard temperature/humidity and external compensation
+  - platform: stcc4
+    i2c_id: i2c_bus
+    id: stcc4_sensor
+    co2:
+      name: STCC4 CO2
+    temperature:
+      name: STCC4 Temperature
+    humidity:
+      name: STCC4 Humidity
+    temperature_source: sht4x_temperature
+    humidity_source: sht4x_humidity
+    measurement_mode: continuous
+    ambient_pressure_compensation: 1013
+    update_interval: 60s
