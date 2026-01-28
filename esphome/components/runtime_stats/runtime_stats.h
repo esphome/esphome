@@ -5,7 +5,6 @@
 #ifdef USE_RUNTIME_STATS
 
 #include <map>
-#include <vector>
 #include <cstdint>
 #include <cstring>
 #include "esphome/core/helpers.h"

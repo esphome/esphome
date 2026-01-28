@@ -44,7 +44,7 @@ void RuntimeStatsCollector::log_stats_() {
     return;
   }
 
-  // Stack buffer sized to actual active count (up to 256 = 1KB), heap fallback for larger
+  // Stack buffer sized to actual active count (up to 256 components), heap fallback for larger
   SmallBufferWithHeapFallback<256, Component *> buffer(count);
   Component **sorted = buffer.get();
 
