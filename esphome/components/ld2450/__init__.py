@@ -2,7 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_THROTTLE, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_ON_DATA, CONF_THROTTLE, CONF_TRIGGER_ID
 
 AUTO_LOAD = ["ld24xx"]
 DEPENDENCIES = ["uart"]
@@ -15,7 +15,6 @@ LD2450Component = ld2450_ns.class_("LD2450Component", cg.Component, uart.UARTDev
 LD2450DataTrigger = ld2450_ns.class_("LD2450DataTrigger", automation.Trigger.template())
 
 CONF_LD2450_ID = "ld2450_id"
-CONF_ON_DATA = "on_data"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
