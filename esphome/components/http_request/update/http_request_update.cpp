@@ -90,16 +90,14 @@ void HttpRequestUpdate::update_task(void *params) {
     UPDATE_RETURN;
   }
   size_t read_index = container->get_bytes_read();
+  size_t content_length = container->content_length;
+
+  container->end();
+  container.reset();  // Release ownership of the container's shared_ptr
 
   bool valid = false;
-  {  // Ensures the response string falls out of scope and deallocates before the task ends
-    std::string response((char *) data, read_index);
-    allocator.deallocate(data, container->content_length);
-
-    container->end();
-    container.reset();  // Release ownership of the container's shared_ptr
-
-    valid = json::parse_json(response, [this_update](JsonObject root) -> bool {
+  {  // Scope to ensure JsonDocument is destroyed before deallocating buffer
+    valid = json::parse_json(data, read_index, [this_update](JsonObject root) -> bool {
       if (!root[ESPHOME_F("name")].is<const char *>() || !root[ESPHOME_F("version")].is<const char *>() ||
           !root[ESPHOME_F("builds")].is<JsonArray>()) {
         ESP_LOGE(TAG, "Manifest does not contain required fields");
@@ -137,6 +135,7 @@ void HttpRequestUpdate::update_task(void *params) {
       return false;
     });
   }
+  allocator.deallocate(data, content_length);
 
   if (!valid) {
     ESP_LOGE(TAG, "Failed to parse JSON from %s", this_update->source_url_.c_str());
@@ -157,16 +156,11 @@ void HttpRequestUpdate::update_task(void *params) {
     }
   }
 
-  {  // Ensures the current version string falls out of scope and deallocates before the task ends
-    std::string current_version;
 #ifdef ESPHOME_PROJECT_VERSION
-    current_version = ESPHOME_PROJECT_VERSION;
+  this_update->update_info_.current_version = ESPHOME_PROJECT_VERSION;
 #else
-    current_version = ESPHOME_VERSION;
+  this_update->update_info_.current_version = ESPHOME_VERSION;
 #endif
-
-    this_update->update_info_.current_version = current_version;
-  }
 
   bool trigger_update_available = false;
 

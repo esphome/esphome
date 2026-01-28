@@ -50,6 +50,8 @@ std::string build_json(const json_build_t &f);
 
 /// Parse a JSON string and run the provided json parse function if it's valid.
 bool parse_json(const std::string &data, const json_parse_t &f);
+/// Parse JSON from raw bytes and run the provided json parse function if it's valid.
+bool parse_json(const uint8_t *data, size_t len, const json_parse_t &f);
 
 /// Parse a JSON string and return the root JsonDocument (or an unbound object on error)
 JsonDocument parse_json(const uint8_t *data, size_t len);
