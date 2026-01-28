@@ -230,6 +230,13 @@ class EntityBase_UnitOfMeasurement {  // NOLINT(readability-identifier-naming)
   const char *unit_of_measurement_{nullptr};  ///< Unit of measurement override
 };
 
+/// Log entity icon if set (for use in dump_config)
+void log_entity_icon(const char *tag, const char *prefix, const EntityBase &obj);
+/// Log entity device class if set (for use in dump_config)
+void log_entity_device_class(const char *tag, const char *prefix, const EntityBase_DeviceClass &obj);
+/// Log entity unit of measurement if set (for use in dump_config)
+void log_entity_unit_of_measurement(const char *tag, const char *prefix, const EntityBase_UnitOfMeasurement &obj);
+
 /**
  * An entity that has a state.
  * @tparam T The type of the state
