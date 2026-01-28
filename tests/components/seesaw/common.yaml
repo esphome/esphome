@@ -14,7 +14,7 @@ sensor:
   - platform: seesaw
     id: touch
     type: touch
-    pin: 5
+    channel: 0
   - platform: seesaw
     seesaw_id: ss_id
     id: slider
