@@ -51,13 +51,13 @@ void TinyUSB::setup() {
       0x03,
       0x01,
       0x01,
-      0x00,
+      0x04, /* iInterface -> string descriptor index 4 */
       // HID Descriptor (9)
       0x09,
       0x21,
       0x11,
       0x01,
-      0x00,
+      0x21, /* bCountryCode: 0x21 = United States */
       0x01,
       0x22,
       0x3F,
