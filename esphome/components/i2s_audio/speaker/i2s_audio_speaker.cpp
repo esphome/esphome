@@ -133,6 +133,11 @@ void I2SAudioSpeaker::setup() {
 #endif  // USE_I2S_LEGACY
   }
 #endif  // USE_I2S_AUDIO_SPDIF_MODE
+
+  // Initialize volume control. When audio_dac is configured, this sets the DAC volume.
+  // When no audio_dac is configured, this initializes software volume control, which is
+  // especially important for SPDIF mode.
+  this->set_volume(this->volume_);
 }
 
 void I2SAudioSpeaker::dump_config() {
@@ -255,9 +260,15 @@ void I2SAudioSpeaker::set_volume(float volume) {
   } else
 #endif  // USE_AUDIO_DAC
   {
-    // Fallback to software volume control by using a Q15 fixed point scaling factor
-    ssize_t decibel_index = remap<ssize_t, float>(volume, 0.0f, 1.0f, 0, Q15_VOLUME_SCALING_FACTORS.size() - 1);
-    this->q15_volume_factor_ = Q15_VOLUME_SCALING_FACTORS[decibel_index];
+    // Fallback to software volume control by using a Q15 fixed point scaling factor.
+    // At maximum volume (1.0), set to INT16_MAX to completely bypass volume processing
+    // and avoid any floating-point precision issues that could cause slight volume reduction.
+    if (volume >= 1.0f) {
+      this->q15_volume_factor_ = INT16_MAX;
+    } else {
+      ssize_t decibel_index = remap<ssize_t, float>(volume, 0.0f, 1.0f, 0, Q15_VOLUME_SCALING_FACTORS.size() - 1);
+      this->q15_volume_factor_ = Q15_VOLUME_SCALING_FACTORS[decibel_index];
+    }
   }
 }
 
