@@ -112,7 +112,6 @@ module.exports = async ({ github, context }) => {
     codeOwnerLabels,
     testLabels,
     checkboxLabels,
-    deprecatedResult
   ] = await Promise.all([
     detectMergeBranch(context),
     detectComponentPlatforms(changedFiles, apiData),
@@ -125,12 +124,7 @@ module.exports = async ({ github, context }) => {
     detectCodeOwner(github, context, changedFiles),
     detectTests(changedFiles),
     detectPRTemplateCheckboxes(context),
-    detectDeprecatedComponents(github, context, changedFiles)
   ]);
-
-  // Extract deprecated component info
-  const deprecatedLabels = deprecatedResult.labels;
-  const deprecatedInfo = deprecatedResult.deprecatedInfo;
 
   // Combine all labels
   const allLabels = new Set([
@@ -145,7 +139,6 @@ module.exports = async ({ github, context }) => {
     ...codeOwnerLabels,
     ...testLabels,
     ...checkboxLabels,
-    ...deprecatedLabels
   ]);
 
   // Detect requirements based on all other labels
@@ -176,7 +169,7 @@ module.exports = async ({ github, context }) => {
   console.log('Computed labels:', finalLabels.join(', '));
 
   // Handle reviews
-  await handleReviews(github, context, finalLabels, originalLabelCount, deprecatedInfo, prFiles, totalAdditions, totalDeletions, MAX_LABELS, TOO_BIG_THRESHOLD);
+  await handleReviews(github, context, finalLabels, originalLabelCount, prFiles, totalAdditions, totalDeletions, MAX_LABELS, TOO_BIG_THRESHOLD);
 
   // Apply labels
   await applyLabels(github, context, finalLabels);
