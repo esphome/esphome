@@ -32,44 +32,43 @@ void TinyUSB::setup() {
   // driver can be installed. This is a stop-gap; a proper descriptor-builder that
   // aggregates interface fragments from components should replace this later.
   static const uint8_t fs_configuration_descriptor[] = {
-      // Configuration Descriptor (9)
-      0x09,
-      0x02,
-      0x22,
-      0x00, /* wTotalLength = 34 (0x22) */
-      0x01,
-      /* bNumInterfaces */ 0x01,
-      0x00,
-      0x80,
-      0x32,
-      // Interface Descriptor (9)
-      0x09,
-      0x04,
-      0x00,
-      0x00,
-      0x01,
-      0x03,
-      0x01,
-      0x01,
-      0x04, /* iInterface -> string descriptor index 4 */
-      // HID Descriptor (9)
-      0x09,
-      0x21,
-      0x11,
-      0x01,
-      0x21, /* bCountryCode: 0x21 = United States */
-      0x01,
-      0x22,
-      0x56,
-      0x00,
-      // Endpoint Descriptor (7)
-      0x07,
-      0x05,
-      0x81,
-      0x03,
-      0x08,
-      0x00,
-      0x0A,
+      /* Configuration Descriptor (9) */
+      0x09,       /* bLength */
+      0x02,       /* bDescriptorType = Configuration */
+      0x22, 0x00, /* wTotalLength = 34 (configuration + interface + HID + endpoint) */
+      0x01,       /* bNumInterfaces */
+      0x01,       /* bConfigurationValue */
+      0x00,       /* iConfiguration */
+      0x80,       /* bmAttributes (bus-powered) */
+      0x32,       /* bMaxPower (100 mA) */
+
+      /* Interface Descriptor (9) */
+      0x09, /* bLength */
+      0x04, /* bDescriptorType = Interface */
+      0x00, /* bInterfaceNumber */
+      0x00, /* bAlternateSetting */
+      0x01, /* bNumEndpoints */
+      0x03, /* bInterfaceClass = HID */
+      0x01, /* bInterfaceSubClass = Boot */
+      0x01, /* bInterfaceProtocol = Keyboard */
+      0x04, /* iInterface (string index) */
+
+      /* HID Descriptor (9) */
+      0x09,       /* bLength */
+      0x21,       /* bDescriptorType = HID */
+      0x11, 0x01, /* bcdHID = 1.11 */
+      0x21,       /* bCountryCode (0x21 used previously) */
+      0x01,       /* bNumDescriptors */
+      0x22,       /* bDescriptorType (Report) */
+      0x5C, 0x00, /* wDescriptorLength = 92 bytes (combined report descriptor) */
+
+      /* Endpoint Descriptor (7) */
+      0x07,       /* bLength */
+      0x05,       /* bDescriptorType = Endpoint */
+      0x81,       /* bEndpointAddress (IN endpoint 1) */
+      0x03,       /* bmAttributes = Interrupt */
+      0x08, 0x00, /* wMaxPacketSize = 8 */
+      0x0A        /* bInterval = 10 ms */
   };
 
   this->tusb_cfg_.configuration_descriptor = fs_configuration_descriptor;
