@@ -95,6 +95,7 @@ Board presets automatically configure all pin mappings for popular HUB75 control
 - **`adafruit-matrix-portal-s3`** - Adafruit Matrix Portal S3
 - **`apollo-automation-m1-rev4`** - Apollo Automation M1 (Rev 4)
 - **`apollo-automation-m1-rev6`** - Apollo Automation M1 (Rev 6)
+- **`huidu-hd-wf1`** - Huidu HD-WF1
 - **`huidu-hd-wf2`** - Huidu HD-WF2
 - **`esp32-trinity`** - ESP32-Trinity
 
