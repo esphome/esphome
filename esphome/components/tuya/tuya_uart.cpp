@@ -50,6 +50,26 @@ void TuyaUART::dump_config() {
     return;
   }
 
+  for (auto &info : this->datapoints_) {
+    if (info.type == TuyaDatapointType::RAW) {
+      char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: raw (value: %s)", info.id,
+                    format_hex_pretty_to(hex_buf, info.value_raw.data(), info.value_raw.size()));
+    } else if (info.type == TuyaDatapointType::BOOLEAN) {
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: switch (value: %s)", info.id, ONOFF(info.value_bool));
+    } else if (info.type == TuyaDatapointType::INTEGER) {
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: int value (value: %d)", info.id, info.value_int);
+    } else if (info.type == TuyaDatapointType::STRING) {
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: string value (value: %s)", info.id, info.value_string.c_str());
+    } else if (info.type == TuyaDatapointType::ENUM) {
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: enum (value: %d)", info.id, info.value_enum);
+    } else if (info.type == TuyaDatapointType::BITMASK) {
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: bitmask (value: %" PRIx32 ")", info.id, info.value_bitmask);
+    } else {
+      ESP_LOGCONFIG(TAG, "  Datapoint %u: unknown", info.id);
+    }
+  }
+
   ESP_LOGCONFIG(TAG, "  Status Pin: %s", YESNO(this->status_pin_ != nullptr));
   ESP_LOGCONFIG(TAG, "  Product: '%s'", this->product_.c_str());
   this->initialized_callback_.call();
