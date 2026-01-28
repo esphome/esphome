@@ -77,17 +77,6 @@ class ComponentRuntimeStats {
   uint32_t total_max_time_ms_;
 };
 
-// For sorting components by run time
-struct ComponentStatPair {
-  Component *component;
-  const ComponentRuntimeStats *stats;
-
-  bool operator>(const ComponentStatPair &other) const {
-    // Sort by period time as that's what we're displaying in the logs
-    return stats->get_period_time_ms() > other.stats->get_period_time_ms();
-  }
-};
-
 class RuntimeStatsCollector {
  public:
   RuntimeStatsCollector();
