@@ -170,15 +170,15 @@ int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   }
 
   int available_data = stream_ptr->available();
-  // For chunked transfer encoding, content_length is 0 (unknown), so don't limit by it.
-  // HTTPClient::getSize() returns -1 for chunked, which becomes 0 when cast to size_t.
+  // For chunked transfer encoding, content_length is effectively unknown, so don't limit by it.
+  // HTTPClient::getSize() returns -1 for chunked, which becomes SIZE_MAX when cast to size_t.
   size_t remaining = (this->content_length > 0) ? (this->content_length - this->bytes_read_) : max_len;
   int bufsize = std::min(max_len, std::min(remaining, (size_t) available_data));
 
   if (bufsize == 0) {
     this->duration_ms += (millis() - start);
-    // Check if we've read all expected content (only valid when content_length is known)
-    // For chunked encoding (content_length == 0), we can't use this check
+    // Check if we've read all expected content (only valid when content_length is known and not SIZE_MAX)
+    // For chunked encoding (content_length == SIZE_MAX), we can't use this check
     if (this->content_length > 0 && this->bytes_read_ >= this->content_length) {
       return 0;  // All content read successfully
     }
