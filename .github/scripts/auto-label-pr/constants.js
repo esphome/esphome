@@ -3,6 +3,7 @@ module.exports = {
   BOT_COMMENT_MARKER: '<!-- auto-label-pr-bot -->',
   CODEOWNERS_MARKER: '<!-- codeowners-request -->',
   TOO_BIG_MARKER: '<!-- too-big-request -->',
+  DEPRECATED_COMPONENT_MARKER: '<!-- deprecated-component-request -->',
 
   MANAGED_LABELS: [
     'new-component',
@@ -27,6 +28,7 @@ module.exports = {
     'breaking-change',
     'developer-breaking-change',
     'code-quality',
+    'deprecated-component'
   ],
 
   DOCS_PR_PATTERNS: [
