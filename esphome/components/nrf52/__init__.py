@@ -71,7 +71,7 @@ def set_core_data(config: ConfigType) -> ConfigType:
     return config
 
 
-def set_framework(config: ConfigType) -> ConfigType:
+def _set_default_framework(config: ConfigType) -> ConfigType:
     config = config.copy()
     if CONF_FRAMEWORK not in config:
         config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA({})
@@ -79,6 +79,60 @@ def set_framework(config: ConfigType) -> ConfigType:
         cv.version_number(config[CONF_FRAMEWORK][CONF_VERSION])
     )
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
+
+    return config
+
+
+def _validate_default_framework_version(config: ConfigType) -> ConfigType:
+    framework_ver = cv.Version.parse(cv.version_number(config[CONF_VERSION]))
+    if framework_ver < cv.Version(2, 9, 2):
+        return cv.require_framework_version(
+            nrf52_zephyr=cv.Version(2, 6, 1, "a"),
+        )(config)
+    if framework_ver < cv.Version(3, 2, 0):
+        return cv.require_framework_version(
+            nrf52_zephyr=cv.Version(2, 9, 2, "2"),
+        )(config)
+    return cv.require_framework_version(
+        nrf52_zephyr=cv.Version(3, 2, 0, "1"),
+    )(config)
+
+
+def _get_default_framework_source(version):
+    ver = cv.Version.parse(cv.version_number(version))
+    release = f"{ver.major}.{ver.minor}.{ver.patch}"
+    if ver.extra:
+        release += f"-{ver.extra}"
+    return FRAMEWORK_SOURCE_TEMPLATE.format(release=release)
+
+
+def _check_versions(config):
+    config = config.copy()
+    value = config[CONF_FRAMEWORK]
+
+    if CONF_SOURCE in value:
+        if value[CONF_VERSION] == "recommended":
+            raise cv.Invalid(
+                "Version must be explicitely set when a custom source is used."
+            )
+    else:
+        if value[CONF_VERSION] == "recommended":
+            value[CONF_VERSION] = FRAMEWORK_RECOMMENDED_VERSION
+        # We only validate this is there's no custom source
+        value = _validate_default_framework_version(value)
+        value[CONF_SOURCE] = _get_default_framework_source(value[CONF_VERSION])
+
+    packages = {
+        "platformio/framework-zephyr": value[CONF_SOURCE],
+    }
+
+    for c in value.get(CONF_ADDITIONAL_PACKAGES, []):
+        name = c[CONF_NAME]
+        if name in packages:
+            raise cv.Invalid(f"Component {name} specified multiple times")
+        packages[name] = c[CONF_VERSION]
+
+    value[CONF_PACKAGES] = [f"{k}@{v}" for k, v in packages.items() if v]
     return config
 
 
@@ -136,89 +190,29 @@ FRAMEWORK_SOURCE_TEMPLATE = (
 )
 
 
-def _parse_platform_version(value):
+def _parse_platform_source(value):
     if value == "recommended":
         return PLATFORM_SOURCE_TEMPLATE.format(release=PLATFORM_RECOMMENDED_VERSION)
     return value
 
 
-def _parse_framework_version(value):
-    try:
-        ver = cv.Version.parse(cv.version_number(value))
-        release = f"{ver.major}.{ver.minor}.{ver.patch}"
-        if ver.extra:
-            release += f"-{ver.extra}"
-        return FRAMEWORK_SOURCE_TEMPLATE.format(release=release)
-    except cv.Invalid:
-        # Allow for custom URLs / local FS paths
-        return value
-
-
-def _validate_framework_version(config):
-    framework_ver = cv.Version.parse(cv.version_number(config[CONF_VERSION]))
-    if framework_ver < cv.Version(2, 9, 2):
-        return cv.require_framework_version(
-            nrf52_zephyr=cv.Version(2, 6, 1, "a"),
-        )(config)
-    if framework_ver < cv.Version(3, 2, 0):
-        return cv.require_framework_version(
-            nrf52_zephyr=cv.Version(2, 9, 2, "2"),
-        )(config)
-    return cv.require_framework_version(
-        nrf52_zephyr=cv.Version(3, 2, 0, "1"),
-    )(config)
-
-
-def _validate_framework_config(config):
-    config = config.copy()
-
-    if CONF_SOURCE in config:
-        if config[CONF_VERSION] == "recommended":
-            raise cv.Invalid(
-                "Version must be explicitely set when a custom source is used."
+FRAMEWORK_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
+        cv.Optional(CONF_SOURCE): cv.Any(cv.boolean_false, cv.string_strict),
+        cv.Optional(
+            CONF_PLATFORM_SOURCE, default="recommended"
+        ): _parse_platform_source,
+        cv.Optional(CONF_ADDITIONAL_PACKAGES, default=[]): cv.ensure_list(
+            cv.Schema(
+                {
+                    cv.Required(CONF_NAME): cv.string_strict,
+                    cv.Required(CONF_VERSION): cv.string_strict,
+                }
             )
-    else:
-        if config[CONF_VERSION] == "recommended":
-            config[CONF_VERSION] = FRAMEWORK_RECOMMENDED_VERSION
-        config[CONF_SOURCE] = _parse_framework_version(config[CONF_VERSION])
-        # Only perform this validation when using the default source
-        _validate_framework_version(config)
-
-    packages = {
-        "platformio/framework-zephyr": config[CONF_SOURCE],
+        ),
     }
-
-    for c in config.get(CONF_ADDITIONAL_PACKAGES, []):
-        name = c[CONF_NAME]
-        if name in packages:
-            raise cv.Invalid(f"Component {name} specified multiple times")
-        packages[name] = c[CONF_VERSION]
-
-    config[CONF_PACKAGES] = [f"{k}@{v}" for k, v in packages.items() if v]
-    return config
-
-
-FRAMEWORK_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-            cv.Optional(CONF_SOURCE): cv.Any(cv.boolean_false, cv.string_strict),
-            cv.Optional(
-                CONF_PLATFORM_SOURCE, default="recommended"
-            ): _parse_platform_version,
-            cv.Optional(CONF_ADDITIONAL_PACKAGES, default=[]): cv.ensure_list(
-                cv.Schema(
-                    {
-                        cv.Required(CONF_NAME): cv.string_strict,
-                        cv.Required(CONF_VERSION): cv.string_strict,
-                    }
-                )
-            ),
-        }
-    ),
-    _validate_framework_config,
 )
-
 
 CONFIG_SCHEMA = cv.All(
     _detect_bootloader,
@@ -246,7 +240,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
         }
     ),
-    set_framework,
+    _set_default_framework,
+    _check_versions,
 )
 
 
