@@ -12,8 +12,10 @@
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
+#ifndef USE_HOST
 #include "lwip/dns.h"
 #include "lwip/err.h"
+#endif
 #include "mqtt_component.h"
 
 #ifdef USE_API
@@ -29,6 +31,7 @@ static const char *const TAG = "mqtt";
 
 MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
+  this->mqtt_backend_interface_ = &this->mqtt_backend_;
   char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
   get_mac_address_into_buffer(mac_addr);
   this->credentials_.client_id = make_name_with_suffix(App.get_name(), '-', mac_addr, MAC_ADDRESS_BUFFER_SIZE - 1);
@@ -36,7 +39,7 @@ MQTTClientComponent::MQTTClientComponent() {
 
 // Connection
 void MQTTClientComponent::setup() {
-  this->mqtt_backend_.set_on_message(
+  this->mqtt_backend_ref_().set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
         if (index == 0)
           this->payload_buffer_.reserve(total);
@@ -50,7 +53,7 @@ void MQTTClientComponent::setup() {
           this->payload_buffer_.clear();
         }
       });
-  this->mqtt_backend_.set_on_disconnect([this](MQTTClientDisconnectReason reason) {
+  this->mqtt_backend_ref_().set_on_disconnect([this](MQTTClientDisconnectReason reason) {
     if (this->state_ == MQTT_CLIENT_DISABLED)
       return;
     this->state_ = MQTT_CLIENT_DISCONNECTED;
@@ -216,6 +219,12 @@ void MQTTClientComponent::start_dnslookup_() {
   this->status_set_warning();
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
+#ifdef USE_HOST
+  // On host, let the MQTT backend/OS resolver handle hostname resolution.
+  // We still reset subscriptions above to match embedded behavior.
+  this->start_connect_();
+  return;
+#else
   ip_addr_t addr;
   err_t err;
   {
@@ -226,7 +235,7 @@ void MQTTClientComponent::start_dnslookup_() {
 #else
     err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr, MQTTClientComponent::dns_found_callback,
                                      this, LWIP_DNS_ADDRTYPE_IPV4);
-#endif /* USE_NETWORK_IPV6 */
+#endif  /* USE_NETWORK_IPV6 */
   }
   switch (err) {
     case ERR_OK: {
@@ -251,8 +260,13 @@ void MQTTClientComponent::start_dnslookup_() {
 
   this->state_ = MQTT_CLIENT_RESOLVING_ADDRESS;
   this->connect_begin_ = millis();
+#endif  // USE_HOST
 }
 void MQTTClientComponent::check_dnslookup_() {
+#ifdef USE_HOST
+  // Host does not use LwIP DNS resolution.
+  return;
+#else
   if (!this->dns_resolved_ && millis() - this->connect_begin_ > 20000) {
     this->dns_resolve_error_ = true;
   }
@@ -272,7 +286,9 @@ void MQTTClientComponent::check_dnslookup_() {
   char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
   ESP_LOGD(TAG, "Resolved broker IP address to %s", this->ip_.str_to(ip_buf));
   this->start_connect_();
+#endif  // USE_HOST
 }
+#ifndef USE_HOST
 #if defined(USE_ESP8266) && LWIP_VERSION_MAJOR == 1
 void MQTTClientComponent::dns_found_callback(const char *name, ip_addr_t *ipaddr, void *callback_arg) {
 #else
@@ -286,6 +302,7 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
     a_this->dns_resolved_ = true;
   }
 }
+#endif  // !USE_HOST
 
 void MQTTClientComponent::start_connect_() {
   if (!network::is_connected())
@@ -293,10 +310,10 @@ void MQTTClientComponent::start_connect_() {
 
   ESP_LOGI(TAG, "Connecting");
   // Force disconnect first
-  this->mqtt_backend_.disconnect();
+  this->mqtt_backend_ref_().disconnect();
 
-  this->mqtt_backend_.set_client_id(this->credentials_.client_id.c_str());
-  this->mqtt_backend_.set_clean_session(this->credentials_.clean_session);
+  this->mqtt_backend_ref_().set_client_id(this->credentials_.client_id.c_str());
+  this->mqtt_backend_ref_().set_clean_session(this->credentials_.clean_session);
   const char *username = nullptr;
   if (!this->credentials_.username.empty())
     username = this->credentials_.username.c_str();
@@ -304,24 +321,24 @@ void MQTTClientComponent::start_connect_() {
   if (!this->credentials_.password.empty())
     password = this->credentials_.password.c_str();
 
-  this->mqtt_backend_.set_credentials(username, password);
+  this->mqtt_backend_ref_().set_credentials(username, password);
 
-  this->mqtt_backend_.set_server(this->credentials_.address.c_str(), this->credentials_.port);
+  this->mqtt_backend_ref_().set_server(this->credentials_.address.c_str(), this->credentials_.port);
   if (!this->last_will_.topic.empty()) {
-    this->mqtt_backend_.set_will(this->last_will_.topic.c_str(), this->last_will_.qos, this->last_will_.retain,
-                                 this->last_will_.payload.c_str());
+    this->mqtt_backend_ref_().set_will(this->last_will_.topic.c_str(), this->last_will_.qos, this->last_will_.retain,
+                                       this->last_will_.payload.c_str());
   }
 
-  this->mqtt_backend_.connect();
+  this->mqtt_backend_ref_().connect();
   this->state_ = MQTT_CLIENT_CONNECTING;
   this->connect_begin_ = millis();
 }
 bool MQTTClientComponent::is_connected() {
-  return this->state_ == MQTT_CLIENT_CONNECTED && this->mqtt_backend_.connected();
+  return this->state_ == MQTT_CLIENT_CONNECTED && this->mqtt_backend_ref_().connected();
 }
 
 void MQTTClientComponent::check_connected() {
-  if (!this->mqtt_backend_.connected()) {
+  if (!this->mqtt_backend_ref_().connected()) {
     if (millis() - this->connect_begin_ > 60000) {
       this->state_ = MQTT_CLIENT_DISCONNECTED;
       this->start_dnslookup_();
@@ -345,7 +362,7 @@ void MQTTClientComponent::check_connected() {
 
 void MQTTClientComponent::loop() {
   // Call the backend loop first
-  mqtt_backend_.loop();
+  this->mqtt_backend_ref_().loop();
 
   if (this->disconnect_reason_.has_value()) {
     const LogString *reason_s;
@@ -402,7 +419,7 @@ void MQTTClientComponent::loop() {
       this->check_connected();
       break;
     case MQTT_CLIENT_CONNECTED:
-      if (!this->mqtt_backend_.connected()) {
+      if (!this->mqtt_backend_ref_().connected()) {
         this->state_ = MQTT_CLIENT_DISCONNECTED;
         ESP_LOGW(TAG, "Lost client connection");
         this->start_dnslookup_();
@@ -435,7 +452,7 @@ bool MQTTClientComponent::subscribe_(const char *topic, uint8_t qos) {
   if (!this->is_connected())
     return false;
 
-  bool ret = this->mqtt_backend_.subscribe(topic, qos);
+  bool ret = this->mqtt_backend_ref_().subscribe(topic, qos);
   yield();
 
   if (ret) {
@@ -496,7 +513,7 @@ void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_js
 }
 
 void MQTTClientComponent::unsubscribe(const std::string &topic) {
-  bool ret = this->mqtt_backend_.unsubscribe(topic.c_str());
+  bool ret = this->mqtt_backend_ref_().unsubscribe(topic.c_str());
   yield();
   if (ret) {
     ESP_LOGV(TAG, "unsubscribe(topic='%s')", topic.c_str());
@@ -543,11 +560,11 @@ bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t
   size_t topic_len = strlen(topic);
   bool logging_topic = (topic_len == this->log_message_.topic.size()) &&
                        (memcmp(this->log_message_.topic.c_str(), topic, topic_len) == 0);
-  bool ret = this->mqtt_backend_.publish(topic, payload, payload_length, qos, retain);
+  bool ret = this->mqtt_backend_ref_().publish(topic, payload, payload_length, qos, retain);
   delay(0);
   if (!ret && !logging_topic && this->is_connected()) {
     delay(0);
-    ret = this->mqtt_backend_.publish(topic, payload, payload_length, qos, retain);
+    ret = this->mqtt_backend_ref_().publish(topic, payload, payload_length, qos, retain);
     delay(0);
   }
 
@@ -679,7 +696,9 @@ bool MQTTClientComponent::is_log_message_enabled() const { return !this->log_mes
 void MQTTClientComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 void MQTTClientComponent::register_mqtt_component(MQTTComponent *component) { this->children_.push_back(component); }
 void MQTTClientComponent::set_log_level(int level) { this->log_level_ = level; }
-void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_backend_.set_keep_alive(keep_alive_s); }
+void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) {
+  this->mqtt_backend_ref_().set_keep_alive(keep_alive_s);
+}
 void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
 void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix) {
@@ -757,23 +776,23 @@ void MQTTClientComponent::on_shutdown() {
     this->publish(this->shutdown_message_);
     yield();
   }
-  this->mqtt_backend_.disconnect();
+  this->mqtt_backend_ref_().disconnect();
 }
 
 void MQTTClientComponent::set_on_connect(mqtt_on_connect_callback_t &&callback) {
-  this->mqtt_backend_.set_on_connect(std::forward<mqtt_on_connect_callback_t>(callback));
+  this->mqtt_backend_ref_().set_on_connect(std::forward<mqtt_on_connect_callback_t>(callback));
 }
 
 void MQTTClientComponent::set_on_disconnect(mqtt_on_disconnect_callback_t &&callback) {
   auto callback_copy = callback;
-  this->mqtt_backend_.set_on_disconnect(std::forward<mqtt_on_disconnect_callback_t>(callback));
+  this->mqtt_backend_ref_().set_on_disconnect(std::forward<mqtt_on_disconnect_callback_t>(callback));
   this->on_disconnect_.add(std::move(callback_copy));
 }
 
 #if ASYNC_TCP_SSL_ENABLED
 void MQTTClientComponent::add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint) {
-  this->mqtt_backend_.setSecure(true);
-  this->mqtt_backend_.addServerFingerprint(fingerprint.data());
+  this->mqtt_backend_ref_().setSecure(true);
+  this->mqtt_backend_ref_().addServerFingerprint(fingerprint.data());
 }
 #endif
 

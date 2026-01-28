@@ -113,12 +113,24 @@ def run_tests(selected_components: list[str]) -> int:
     CORE.config_path = COMPONENTS_TESTS_DIR / "dummy.yaml"
     CORE.dashboard = None
 
+    # Some components have required config keys. Provide minimal stubs here so
+    # validation/codegen can run while still compiling the C++ sources for unit tests.
+    if "mqtt" in components_with_dependencies:
+        config["mqtt"] = {
+            "broker": "127.0.0.1",
+            # Avoid any runtime connection attempts during unit test binaries
+            "enable_on_boot": False,
+            # Keep discovery enabled for compile coverage; this doesn't require a broker at test time
+            "discover_ip": True,
+        }
+
     # Validate config will expand the above with defaults:
     config = validate_config(config, {})
 
     # Add all components and dependencies to the base configuration after validation, so their files
     # are added to the build.
-    config.update({key: {} for key in components_with_dependencies})
+    for key in components_with_dependencies:
+        config.setdefault(key, {})
 
     print(f"Testing components: {', '.join(components)}")
     CORE.config = config

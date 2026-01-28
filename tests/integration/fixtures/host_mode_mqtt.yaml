@@ -1,0 +1,15 @@
+esphome:
+  name: host-mqtt-test
+
+host:
+
+api:
+
+logger:
+
+mqtt:
+  broker: 127.0.0.1
+  port: __MQTT_PORT__
+  discovery: false
+  discover_ip: false
+  topic_prefix: hostmqtt
