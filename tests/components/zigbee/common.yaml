@@ -30,9 +30,6 @@ output:
     write_action:
       - zigbee.factory_reset
 
-time:
-  - platform: zigbee
-
 switch:
   - platform: template
     name: "Template Switch"

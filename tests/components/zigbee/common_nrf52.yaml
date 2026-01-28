@@ -7,3 +7,6 @@ zigbee:
   on_join:
     then:
       - logger.log: "Joined network"
+
+time:
+  - platform: zigbee
