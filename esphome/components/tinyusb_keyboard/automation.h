@@ -3,6 +3,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "keyboard.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace tinyusb_keyboard {
@@ -18,6 +19,7 @@ template<typename... Ts> class PressAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint32_t, modifiers)
 
   void play(const Ts &...x) override {
+    ESP_LOGD("tinyusb_keyboard", "PressAction fired");
     if (this->key_code_.has_value()) {
       uint32_t code = this->key_code_.value(x...);
       uint32_t mods = this->modifiers_.value_or(x..., 0);
@@ -43,6 +45,7 @@ template<typename... Ts> class ReleaseAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint32_t, key_code)
 
   void play(const Ts &...x) override {
+    ESP_LOGD("tinyusb_keyboard", "ReleaseAction fired");
     if (this->key_code_.has_value()) {
       uint32_t code = this->key_code_.value(x...);
       this->parent_->release_key((uint8_t) code);
@@ -66,6 +69,7 @@ template<typename... Ts> class TypeAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, text)
 
   void play(const Ts &...x) override {
+    ESP_LOGD("tinyusb_keyboard", "TypeAction fired");
     if (this->text_.has_value()) {
       auto s = this->text_.value(x...);
       this->parent_->set_text(s);
