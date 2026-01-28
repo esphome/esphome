@@ -11,7 +11,6 @@ const {
   detectCodeOwner,
   detectTests,
   detectPRTemplateCheckboxes,
-  detectDeprecatedComponents,
   detectRequirements
 } = require('./detectors');
 const { handleReviews } = require('./reviews');
