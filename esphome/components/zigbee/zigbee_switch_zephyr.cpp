@@ -56,6 +56,7 @@ void ZigbeeSwitch::zcl_device_cb_(zb_bufid_t bufid) {
       } else {
         /* other clusters attribute handled here */
         ESP_LOGI(TAG, "Unhandled cluster attribute id: %d", cluster_id);
+        p_device_cb_param->status = RET_NOT_IMPLEMENTED;
       }
       break;
     default:
