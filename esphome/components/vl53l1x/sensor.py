@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_ENABLE_PIN,
+    CONF_OFFSET,
     CONF_TIMEOUT,
     ICON_ARROW_EXPAND_VERTICAL,
     STATE_CLASS_MEASUREMENT,
@@ -34,7 +35,6 @@ CONF_SIGNAL_RATE_LIMIT = "signal_rate_limit"
 CONF_ROI_WIDTH = "roi_width"
 CONF_ROI_HEIGHT = "roi_height"
 CONF_ROI_CENTER = "roi_center"
-CONF_OFFSET = "offset"
 
 
 def validate_config(config):

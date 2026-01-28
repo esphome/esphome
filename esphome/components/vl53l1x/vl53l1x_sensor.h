@@ -30,7 +30,7 @@ enum VL53L1XRegister : uint16_t {
 
   // System control
   SOFT_RESET = 0x0000,
-  I2C_SLAVE_DEVICE_ADDRESS = 0x0001,
+  I2C_DEVICE_ADDRESS = 0x0001,
 
   // I/O configuration
   PAD_I2C_HV_EXTSUP_CONFIG = 0x002E,
