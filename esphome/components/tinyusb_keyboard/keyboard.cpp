@@ -83,7 +83,7 @@ static const uint8_t HID_REPORT_DESCRIPTOR[] = {
     0x09, 0xE9,       /*   Usage (Volume Up) */
     0x09, 0xEA,       /*   Usage (Volume Down) */
     0x09, 0xCD,       /*   Usage (Play/Pause) */
-    0x81, 0x00,       /*   Input (Data, Array) */
+    0x81, 0x02,       /*   Input (Data, Variable, Absolute) */
     0xC0              /* End Collection (Consumer) */
 };
 
