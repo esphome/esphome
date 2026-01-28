@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from esphome import automation, core
@@ -6,11 +7,12 @@ from esphome.components.nrf52.boards import BOOTLOADER_CONFIG, Section
 from esphome.components.zephyr import zephyr_add_pm_static, zephyr_data
 from esphome.components.zephyr.const import KEY_BOOTLOADER
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INTERNAL
+from esphome.const import CONF_ID, CONF_INTERNAL, CONF_NAME
 from esphome.core import CORE
 from esphome.types import ConfigType
 
 from .const_zephyr import (
+    CONF_IEEE802154_VENDOR_OUI,
     CONF_MAX_EP_NUMBER,
     CONF_ON_JOIN,
     CONF_POWER_SOURCE,
@@ -22,7 +24,9 @@ from .const_zephyr import (
     ZigbeeComponent,
     zigbee_ns,
 )
-from .zigbee_zephyr import zephyr_binary_sensor, zephyr_sensor
+from .zigbee_zephyr import zephyr_binary_sensor, zephyr_sensor, zephyr_switch
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@tomaszduda23"]
 
@@ -38,6 +42,7 @@ def zigbee_set_core_data(config: ConfigType) -> ConfigType:
 
 BINARY_SENSOR_SCHEMA = cv.Schema({}).extend(zephyr_binary_sensor)
 SENSOR_SCHEMA = cv.Schema({}).extend(zephyr_sensor)
+SWITCH_SCHEMA = cv.Schema({}).extend(zephyr_switch)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -53,6 +58,13 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_POWER_SOURCE, default="DC_SOURCE"): cv.enum(
                 POWER_SOURCE, upper=True
+            ),
+            cv.Optional(CONF_IEEE802154_VENDOR_OUI): cv.All(
+                cv.Any(
+                    cv.int_range(min=0x000000, max=0xFFFFFF),
+                    cv.one_of(*["random"], lower=True),
+                ),
+                cv.requires_component("nrf52"),
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -104,9 +116,24 @@ async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
         await zephyr_setup_sensor(entity, config)
 
 
+async def setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
+    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
+        return
+    if CORE.using_zephyr:
+        from .zigbee_zephyr import zephyr_setup_switch
+
+        await zephyr_setup_switch(entity, config)
+
+
 def consume_endpoint(config: ConfigType) -> ConfigType:
     if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
         return config
+    if CONF_NAME in config and " " in config[CONF_NAME]:
+        _LOGGER.warning(
+            "Spaces in '%s' work with ZHA but not Zigbee2MQTT. For Zigbee2MQTT use '%s'",
+            config[CONF_NAME],
+            config[CONF_NAME].replace(" ", "_"),
+        )
     data: dict[str, Any] = CORE.data.setdefault(KEY_ZIGBEE, {})
     slots: list[str] = data.setdefault(KEY_EP_NUMBER, [])
     slots.extend([""])
@@ -118,6 +145,10 @@ def validate_binary_sensor(config: ConfigType) -> ConfigType:
 
 
 def validate_sensor(config: ConfigType) -> ConfigType:
+    return consume_endpoint(config)
+
+
+def validate_switch(config: ConfigType) -> ConfigType:
     return consume_endpoint(config)
 
 

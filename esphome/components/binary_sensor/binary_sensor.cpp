@@ -14,10 +14,7 @@ void log_binary_sensor(const char *tag, const char *prefix, const char *type, Bi
   }
 
   ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-
-  if (!obj->get_device_class_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class_ref().c_str());
-  }
+  LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
 }
 
 void BinarySensor::publish_state(bool new_state) {
@@ -44,7 +41,7 @@ bool BinarySensor::set_new_state(const optional<bool> &new_state) {
 #if defined(USE_BINARY_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
     ControllerRegistry::notify_binary_sensor_update(this);
 #endif
-    ESP_LOGD(TAG, "'%s': %s", this->get_name().c_str(), ONOFFMAYBE(new_state));
+    ESP_LOGD(TAG, "'%s' >> %s", this->get_name().c_str(), ONOFFMAYBE(new_state));
     return true;
   }
   return false;
