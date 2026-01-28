@@ -192,6 +192,20 @@ def test_check_error_unexpected_response() -> None:
         espota2.check_error([0x7F], [espota2.RESPONSE_OK, espota2.RESPONSE_AUTH_OK])
 
 
+def test_check_error_empty_data() -> None:
+    """Test check_error raises error when device closes connection without responding."""
+    with pytest.raises(
+        espota2.OTAError, match="Device closed connection without responding"
+    ):
+        espota2.check_error([], [espota2.RESPONSE_OK])
+
+    # Also test with empty bytes
+    with pytest.raises(
+        espota2.OTAError, match="Device closed connection without responding"
+    ):
+        espota2.check_error(b"", [espota2.RESPONSE_OK])
+
+
 def test_send_check_with_various_data_types(mock_socket: Mock) -> None:
     """Test send_check handles different data types."""
 
