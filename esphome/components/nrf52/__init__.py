@@ -74,7 +74,11 @@ def set_core_data(config: ConfigType) -> ConfigType:
 def _set_default_framework(config: ConfigType) -> ConfigType:
     config = config.copy()
     if CONF_FRAMEWORK not in config:
-        config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA({})
+        config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA(
+            {
+                CONF_VERSION: FRAMEWORK_RECOMMENDED_VERSION,
+            }
+        )
     framework_ver = cv.Version.parse(
         cv.version_number(config[CONF_FRAMEWORK][CONF_VERSION])
     )
