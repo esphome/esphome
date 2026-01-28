@@ -45,16 +45,24 @@ class FakeMQTTBackend : public MQTTBackend {
     (void) port;
   }
 
-  void set_on_connect(std::function<on_connect_callback_t> &&callback) override { this->on_connect_ = std::move(callback); }
+  void set_on_connect(std::function<on_connect_callback_t> &&callback) override {
+    this->on_connect_ = std::move(callback);
+  }
   void set_on_disconnect(std::function<on_disconnect_callback_t> &&callback) override {
     this->on_disconnect_ = std::move(callback);
   }
-  void set_on_subscribe(std::function<on_subscribe_callback_t> &&callback) override { this->on_subscribe_ = std::move(callback); }
+  void set_on_subscribe(std::function<on_subscribe_callback_t> &&callback) override {
+    this->on_subscribe_ = std::move(callback);
+  }
   void set_on_unsubscribe(std::function<on_unsubscribe_callback_t> &&callback) override {
     this->on_unsubscribe_ = std::move(callback);
   }
-  void set_on_message(std::function<on_message_callback_t> &&callback) override { this->on_message_ = std::move(callback); }
-  void set_on_publish(std::function<on_publish_user_callback_t> &&callback) override { this->on_publish_ = std::move(callback); }
+  void set_on_message(std::function<on_message_callback_t> &&callback) override {
+    this->on_message_ = std::move(callback);
+  }
+  void set_on_publish(std::function<on_publish_user_callback_t> &&callback) override {
+    this->on_publish_ = std::move(callback);
+  }
 
   bool connected() const override { return this->connected_; }
 
@@ -90,8 +98,10 @@ class FakeMQTTBackend : public MQTTBackend {
   }
 
   bool publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) override {
-    this->publishes_.push_back(
-        {.topic = topic ? topic : "", .payload = std::string(payload ? payload : "", payload ? length : 0), .qos = qos, .retain = retain});
+    this->publishes_.push_back({.topic = topic ? topic : "",
+                                .payload = std::string(payload ? payload : "", payload ? length : 0),
+                                .qos = qos,
+                                .retain = retain});
     if (this->on_publish_) {
       this->on_publish_(0);
     }
@@ -175,4 +185,3 @@ TEST(MQTTClientHostEmulationTest, DiscoveryIpSubscribesToDiscoverAndPingTopics) 
 }
 
 }  // namespace esphome::mqtt::testing
-

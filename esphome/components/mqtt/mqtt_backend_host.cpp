@@ -122,8 +122,8 @@ void MQTTBackendHost::connect() {
 
   // Initialize mqtt-c client.
   this->connack_seen_ = false;
-  mqtt_init(&this->client_, this->socket_fd_, this->tx_buf_, sizeof(this->tx_buf_), this->rx_buf_, sizeof(this->rx_buf_),
-            &MQTTBackendHost::publish_callback_);
+  mqtt_init(&this->client_, this->socket_fd_, this->tx_buf_, sizeof(this->tx_buf_), this->rx_buf_,
+            sizeof(this->rx_buf_), &MQTTBackendHost::publish_callback_);
   // publish_callback_ will receive `this` as state
   this->client_.publish_response_callback_state = this;
 
@@ -148,8 +148,8 @@ void MQTTBackendHost::connect() {
   const char *username = this->username_.empty() ? nullptr : this->username_.c_str();
   const char *password = this->password_.empty() ? nullptr : this->password_.c_str();
 
-  mqtt_connect(&this->client_, this->client_id_.empty() ? nullptr : this->client_id_.c_str(), will_topic, will_msg, will_len,
-               username, password, connect_flags, this->keep_alive_);
+  mqtt_connect(&this->client_, this->client_id_.empty() ? nullptr : this->client_id_.c_str(), will_topic, will_msg,
+               will_len, username, password, connect_flags, this->keep_alive_);
 
   // Complete handshake synchronously; connack sets typical_response_time from -1.
   for (int i = 0; i < 100; i++) {  // ~100 iterations best-effort; loop() will continue later.
@@ -271,11 +271,11 @@ void MQTTBackendHost::on_publish_received_(mqtt_response_publish *publish) {
 
   std::string topic(topic_ptr, topic_ptr + publish->topic_name_size);
   // mqtt-c gives us a full payload buffer; report as single chunk.
-  this->on_message_(topic.c_str(), payload_ptr, publish->application_message_size, 0, publish->application_message_size);
+  this->on_message_(topic.c_str(), payload_ptr, publish->application_message_size, 0,
+                    publish->application_message_size);
 }
 
 }  // namespace esphome::mqtt
 
 #endif  // USE_HOST
 #endif  // USE_MQTT
-
