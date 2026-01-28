@@ -10,7 +10,6 @@
 #endif
 
 #include <array>
-#include <string>
 #include <vector>
 
 #include <esp_bt_defs.h>
@@ -45,7 +44,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void unconditional_disconnect();
   void release_services();
 
-  bool connected() { return this->state_ == espbt::ClientState::ESTABLISHED; }
+  bool connected() { return this->state() == espbt::ClientState::ESTABLISHED; }
 
   void set_auto_connect(bool auto_connect) { this->auto_connect_ = auto_connect; }
 
@@ -58,14 +57,12 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
     this->remote_bda_[4] = (address >> 8) & 0xFF;
     this->remote_bda_[5] = (address >> 0) & 0xFF;
     if (address == 0) {
-      this->address_str_ = "";
+      this->address_str_[0] = '\0';
     } else {
-      char buf[18];
-      format_mac_addr_upper(this->remote_bda_, buf);
-      this->address_str_ = buf;
+      format_mac_addr_upper(this->remote_bda_, this->address_str_);
     }
   }
-  const std::string &address_str() const { return this->address_str_; }
+  const char *address_str() const { return this->address_str_; }
 
 #ifdef USE_ESP32_BLE_DEVICE
   BLEService *get_service(espbt::ESPBTUUID uuid);
@@ -104,7 +101,6 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   uint64_t address_{0};
 
   // Group 2: Container types (grouped for memory optimization)
-  std::string address_str_{};
 #ifdef USE_ESP32_BLE_DEVICE
   std::vector<BLEService *> services_;
 #endif
@@ -113,8 +109,9 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   int gattc_if_;
   esp_gatt_status_t status_{ESP_GATT_OK};
 
-  // Group 4: Arrays (6 bytes)
-  esp_bd_addr_t remote_bda_;
+  // Group 4: Arrays
+  char address_str_[MAC_ADDRESS_PRETTY_BUFFER_SIZE]{};
+  esp_bd_addr_t remote_bda_;  // 6 bytes
 
   // Group 5: 2-byte types
   uint16_t conn_id_{UNSET_CONN_ID};
@@ -130,7 +127,8 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   // 6 bytes used, 2 bytes padding
 
   void log_event_(const char *name);
-  void log_gattc_event_(const char *name);
+  void log_gattc_lifecycle_event_(const char *name);
+  void log_gattc_data_event_(const char *name);
   void update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
                            const char *param_type);
   void set_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,

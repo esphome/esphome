@@ -29,7 +29,6 @@ class UptimeTextSensor : public text_sensor::TextSensor, public PollingComponent
   void set_seconds(const char *seconds_text) { this->seconds_text_ = seconds_text; }
 
  protected:
-  void insert_buffer_(std::string &buffer, const char *key, unsigned value) const;
   const char *days_text_;
   const char *hours_text_;
   const char *minutes_text_;

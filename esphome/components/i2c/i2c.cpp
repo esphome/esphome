@@ -1,6 +1,7 @@
 #include "i2c.h"
 
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <memory>
 
@@ -23,6 +24,8 @@ void I2CBus::i2c_scan_() {
     } else if (err == ERROR_UNKNOWN) {
       scan_results_.emplace_back(address, false);
     }
+    // it takes 16sec to scan on nrf52. It prevents board reset.
+    arch_feed_wdt();
   }
 #if defined(USE_ESP32) && defined(USE_LOGGER)
   esp_log_level_set("*", previous);
@@ -39,8 +42,8 @@ ErrorCode I2CDevice::read_register16(uint16_t a_register, uint8_t *data, size_t 
 }
 
 ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, size_t len) const {
-  SmallBufferWithHeapFallback<17> buffer_alloc;  // Most I2C writes are <= 16 bytes
-  uint8_t *buffer = buffer_alloc.get(len + 1);
+  SmallBufferWithHeapFallback<17> buffer_alloc(len + 1);  // Most I2C writes are <= 16 bytes
+  uint8_t *buffer = buffer_alloc.get();
 
   buffer[0] = a_register;
   std::copy(data, data + len, buffer + 1);
@@ -48,8 +51,8 @@ ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, siz
 }
 
 ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, size_t len) const {
-  SmallBufferWithHeapFallback<18> buffer_alloc;  // Most I2C writes are <= 16 bytes + 2 for register
-  uint8_t *buffer = buffer_alloc.get(len + 2);
+  SmallBufferWithHeapFallback<18> buffer_alloc(len + 2);  // Most I2C writes are <= 16 bytes + 2 for register
+  uint8_t *buffer = buffer_alloc.get();
 
   buffer[0] = a_register >> 8;
   buffer[1] = a_register;

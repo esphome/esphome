@@ -1,4 +1,6 @@
 #include "switch.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -32,7 +34,7 @@ optional<bool> Switch::get_initial_state() {
   if (!(restore_mode & RESTORE_MODE_PERSISTENT_MASK))
     return {};
 
-  this->rtc_ = global_preferences->make_preference<bool>(this->get_preference_hash());
+  this->rtc_ = this->make_entity_preference<bool>();
   bool initial_state;
   if (!this->rtc_.load(&initial_state))
     return {};
@@ -60,8 +62,11 @@ void Switch::publish_state(bool state) {
   if (restore_mode & RESTORE_MODE_PERSISTENT_MASK)
     this->rtc_.save(&this->state);
 
-  ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), ONOFF(this->state));
+  ESP_LOGD(TAG, "'%s' >> %s", this->name_.c_str(), ONOFF(this->state));
   this->state_callback_.call(this->state);
+#if defined(USE_SWITCH) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_switch_update(this);
+#endif
 }
 bool Switch::assumed_state() { return false; }
 

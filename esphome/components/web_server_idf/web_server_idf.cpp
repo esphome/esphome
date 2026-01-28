@@ -4,6 +4,7 @@
 #include <memory>
 #include <cstring>
 #include <cctype>
+#include <cinttypes>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -86,6 +87,29 @@ int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_
 }
 }  // namespace
 
+void AsyncWebServer::safe_close_with_shutdown(httpd_handle_t hd, int sockfd) {
+  // CRITICAL: Shut down receive BEFORE closing to prevent lwIP race conditions
+  //
+  // The race condition occurs because close() initiates lwIP teardown while
+  // the TCP/IP thread can still receive packets, causing assertions when
+  // recv_tcp() sees partially-torn-down state.
+  //
+  // By shutting down receive first, we tell lwIP to stop accepting new data BEFORE
+  // the teardown begins, eliminating the race window. We only shutdown RD (not RDWR)
+  // to allow the FIN packet to be sent cleanly during close().
+  //
+  // Note: This function may be called with an already-closed socket if the network
+  // stack closed it. In that case, shutdown() will fail but close() is safe to call.
+  //
+  // See: https://github.com/esphome/esphome-webserver/issues/163
+
+  // Attempt shutdown - ignore errors as socket may already be closed
+  shutdown(sockfd, SHUT_RD);
+
+  // Always close - safe even if socket is already closed by network stack
+  close(sockfd);
+}
+
 void AsyncWebServer::end() {
   if (this->server_) {
     httpd_stop(this->server_);
@@ -100,6 +124,13 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
+  // Always enable LRU purging to handle socket exhaustion gracefully.
+  // When max sockets is reached, the oldest connection is closed to make room for new ones.
+  // This prevents "httpd_accept_conn: error in accept (23)" errors.
+  // See: https://github.com/esphome/esphome/issues/12464
+  config.lru_purge_enable = true;
+  // Use custom close function that shuts down before closing to prevent lwIP race conditions
+  config.close_fn = AsyncWebServer::safe_close_with_shutdown;
   if (httpd_start(&this->server_, &config) == ESP_OK) {
     const httpd_uri_t handler_get = {
         .uri = "",
@@ -215,12 +246,16 @@ optional<std::string> AsyncWebServerRequest::get_header(const char *name) const 
   return request_get_header(*this, name);
 }
 
-std::string AsyncWebServerRequest::url() const {
-  auto *str = strchr(this->req_->uri, '?');
-  if (str == nullptr) {
-    return this->req_->uri;
-  }
-  return std::string(this->req_->uri, str - this->req_->uri);
+StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) const {
+  const char *uri = this->req_->uri;
+  const char *query_start = strchr(uri, '?');
+  size_t uri_len = query_start ? static_cast<size_t>(query_start - uri) : strlen(uri);
+  size_t copy_len = std::min(uri_len, URL_BUF_SIZE - 1);
+  memcpy(buffer.data(), uri, copy_len);
+  buffer[copy_len] = '\0';
+  // Decode URL-encoded characters in-place (e.g., %20 -> space)
+  size_t decoded_len = url_decode(buffer.data());
+  return StringRef(buffer.data(), decoded_len);
 }
 
 std::string AsyncWebServerRequest::host() const { return this->get_header("Host").value(); }
@@ -241,12 +276,13 @@ void AsyncWebServerRequest::send(int code, const char *content_type, const char 
 void AsyncWebServerRequest::redirect(const std::string &url) {
   httpd_resp_set_status(*this, "302 Found");
   httpd_resp_set_hdr(*this, "Location", url.c_str());
+  httpd_resp_set_hdr(*this, "Connection", "close");
   httpd_resp_send(*this, nullptr, 0);
 }
 
 void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code, const char *content_type) {
-  // Set status code - use constants for common codes to avoid string allocation
-  const char *status = nullptr;
+  // Set status code - use constants for common codes, default to 500 for unknown codes
+  const char *status;
   switch (code) {
     case 200:
       status = HTTPD_200;
@@ -258,17 +294,18 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
       status = HTTPD_409;
       break;
     default:
+      status = HTTPD_500;
       break;
   }
-  httpd_resp_set_status(*this, status == nullptr ? to_string(code).c_str() : status);
+  httpd_resp_set_status(*this, status);
 
   if (content_type && *content_type) {
     httpd_resp_set_type(*this, content_type);
   }
   httpd_resp_set_hdr(*this, "Accept-Ranges", "none");
 
-  for (const auto &pair : DefaultHeaders::Instance().headers_) {
-    httpd_resp_set_hdr(*this, pair.first.c_str(), pair.second.c_str());
+  for (const auto &header : DefaultHeaders::Instance().headers_) {
+    httpd_resp_set_hdr(*this, header.name, header.value);
   }
 
   delete this->rsp_;
@@ -293,25 +330,38 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
     return false;
   }
 
-  std::string user_info;
-  user_info += username;
-  user_info += ':';
-  user_info += password;
+  // Build user:pass in stack buffer to avoid heap allocation
+  constexpr size_t max_user_info_len = 256;
+  char user_info[max_user_info_len];
+  size_t user_len = strlen(username);
+  size_t pass_len = strlen(password);
+  size_t user_info_len = user_len + 1 + pass_len;
+
+  if (user_info_len >= max_user_info_len) {
+    ESP_LOGW(TAG, "Credentials too long for authentication");
+    return false;
+  }
+
+  memcpy(user_info, username, user_len);
+  user_info[user_len] = ':';
+  memcpy(user_info + user_len + 1, password, pass_len);
+  user_info[user_info_len] = '\0';
 
   size_t n = 0, out;
-  esp_crypto_base64_encode(nullptr, 0, &n, reinterpret_cast<const uint8_t *>(user_info.c_str()), user_info.size());
+  esp_crypto_base64_encode(nullptr, 0, &n, reinterpret_cast<const uint8_t *>(user_info), user_info_len);
 
   auto digest = std::unique_ptr<char[]>(new char[n + 1]);
   esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest.get()), n, &out,
-                           reinterpret_cast<const uint8_t *>(user_info.c_str()), user_info.size());
+                           reinterpret_cast<const uint8_t *>(user_info), user_info_len);
 
   return strcmp(digest.get(), auth_str + auth_prefix_len) == 0;
 }
 
 void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
   httpd_resp_set_hdr(*this, "Connection", "keep-alive");
-  auto auth_val = str_sprintf("Basic realm=\"%s\"", realm ? realm : "Login Required");
-  httpd_resp_set_hdr(*this, "WWW-Authenticate", auth_val.c_str());
+  // Note: realm is never configured in ESPHome, always nullptr -> "Login Required"
+  (void) realm;  // Unused - always use default
+  httpd_resp_set_hdr(*this, "WWW-Authenticate", "Basic realm=\"Login Required\"");
   httpd_resp_send_err(*this, HTTPD_401_UNAUTHORIZED, nullptr);
 }
 #endif
@@ -348,7 +398,13 @@ void AsyncWebServerResponse::addHeader(const char *name, const char *value) {
   httpd_resp_set_hdr(*this->req_, name, value);
 }
 
-void AsyncResponseStream::print(float value) { this->print(to_string(value)); }
+void AsyncResponseStream::print(float value) {
+  // Use stack buffer to avoid temporary string allocation
+  // Size: sign (1) + digits (10) + decimal (1) + precision (6) + exponent (5) + null (1) = 24, use 32 for safety
+  char buf[32];
+  int len = snprintf(buf, sizeof(buf), "%f", value);
+  this->content_.append(buf, len);
+}
 
 void AsyncResponseStream::printf(const char *fmt, ...) {
   va_list args;
@@ -426,7 +482,7 @@ void AsyncEventSource::deferrable_send_state(void *source, const char *event_typ
 AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *request,
                                                    esphome::web_server_idf::AsyncEventSource *server,
                                                    esphome::web_server::WebServer *ws)
-    : server_(server), web_server_(ws), entities_iterator_(new esphome::web_server::ListEntitiesIterator(ws, server)) {
+    : server_(server), web_server_(ws), entities_iterator_(ws, server) {
   httpd_req_t *req = *request;
 
   httpd_resp_set_status(req, HTTPD_200);
@@ -434,8 +490,8 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
   httpd_resp_set_hdr(req, "Connection", "keep-alive");
 
-  for (const auto &pair : DefaultHeaders::Instance().headers_) {
-    httpd_resp_set_hdr(req, pair.first.c_str(), pair.second.c_str());
+  for (const auto &header : DefaultHeaders::Instance().headers_) {
+    httpd_resp_set_hdr(req, header.name, header.value);
   }
 
   httpd_resp_send_chunk(req, CRLF_STR, CRLF_LEN);
@@ -470,21 +526,23 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   }
 #endif
 
-  this->entities_iterator_->begin(ws->include_internal_);
+  this->entities_iterator_.begin(ws->include_internal_);
 
   // just dump them all up-front and take advantage of the deferred queue
   //     on second thought that takes too long, but leaving the commented code here for debug purposes
-  // while(!this->entities_iterator_->completed()) {
-  //  this->entities_iterator_->advance();
+  // while(!this->entities_iterator_.completed()) {
+  //  this->entities_iterator_.advance();
   //}
 }
 
 void AsyncEventSourceResponse::destroy(void *ptr) {
   auto *rsp = static_cast<AsyncEventSourceResponse *>(ptr);
-  ESP_LOGD(TAG, "Event source connection closed (fd: %d)", rsp->fd_.load());
-  // Mark as dead by setting fd to 0 - will be cleaned up in the main loop
-  rsp->fd_.store(0);
+  int fd = rsp->fd_.exchange(0);  // Atomically get and clear fd
+  ESP_LOGD(TAG, "Event source connection closed (fd: %d)", fd);
+  // Mark as dead - will be cleaned up in the main loop
   // Note: We don't delete or remove from set here to avoid race conditions
+  // httpd will call our custom close_fn (safe_close_with_shutdown) which handles
+  // shutdown() before close() to prevent lwIP race conditions
 }
 
 // helper for allowing only unique entries in the queue
@@ -494,8 +552,7 @@ void AsyncEventSourceResponse::deq_push_back_with_dedup_(void *source, message_g
   // Use range-based for loop instead of std::find_if to reduce template instantiation overhead and binary size
   for (auto &event : this->deferred_queue_) {
     if (event == item) {
-      event = item;
-      return;
+      return;  // Already in queue, no need to update since items are equal
     }
   }
   this->deferred_queue_.push_back(item);
@@ -572,8 +629,8 @@ void AsyncEventSourceResponse::process_buffer_() {
 void AsyncEventSourceResponse::loop() {
   process_buffer_();
   process_deferred_queue_();
-  if (!this->entities_iterator_->completed())
-    this->entities_iterator_->advance();
+  if (!this->entities_iterator_.completed())
+    this->entities_iterator_.advance();
 }
 
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char *event, uint32_t id,
@@ -594,16 +651,19 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
 
   event_buffer_.append(chunk_len_header);
 
+  // Use stack buffer for formatting numeric fields to avoid temporary string allocations
+  // Size: "retry: " (7) + max uint32 (10 digits) + CRLF (2) + null (1) = 20 bytes, use 32 for safety
+  constexpr size_t num_buf_size = 32;
+  char num_buf[num_buf_size];
+
   if (reconnect) {
-    event_buffer_.append("retry: ", sizeof("retry: ") - 1);
-    event_buffer_.append(to_string(reconnect));
-    event_buffer_.append(CRLF_STR, CRLF_LEN);
+    int len = snprintf(num_buf, num_buf_size, "retry: %" PRIu32 CRLF_STR, reconnect);
+    event_buffer_.append(num_buf, len);
   }
 
   if (id) {
-    event_buffer_.append("id: ", sizeof("id: ") - 1);
-    event_buffer_.append(to_string(id));
-    event_buffer_.append(CRLF_STR, CRLF_LEN);
+    int len = snprintf(num_buf, num_buf_size, "id: %" PRIu32 CRLF_STR, id);
+    event_buffer_.append(num_buf, len);
   }
 
   if (event && *event) {
@@ -612,17 +672,92 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, const char 
     event_buffer_.append(CRLF_STR, CRLF_LEN);
   }
 
-  if (message && *message) {
-    event_buffer_.append("data: ", sizeof("data: ") - 1);
-    event_buffer_.append(message);
-    event_buffer_.append(CRLF_STR, CRLF_LEN);
+  // Match ESPAsyncWebServer: null message means no data lines and no terminating blank line
+  if (message) {
+    // SSE spec requires each line of a multi-line message to have its own "data:" prefix
+    // Handle \n, \r, and \r\n line endings (matching ESPAsyncWebServer behavior)
+
+    // Fast path: check if message contains any newlines at all
+    // Most SSE messages (JSON state updates) have no newlines
+    const char *first_n = strchr(message, '\n');
+    const char *first_r = strchr(message, '\r');
+
+    if (first_n == nullptr && first_r == nullptr) {
+      // No newlines - fast path (most common case)
+      event_buffer_.append("data: ", sizeof("data: ") - 1);
+      event_buffer_.append(message);
+      event_buffer_.append(CRLF_STR CRLF_STR, CRLF_LEN * 2);  // data line + blank line terminator
+    } else {
+      // Has newlines - handle multi-line message
+      const char *line_start = message;
+      size_t msg_len = strlen(message);
+      const char *msg_end = message + msg_len;
+
+      // Reuse the first search results
+      const char *next_n = first_n;
+      const char *next_r = first_r;
+
+      while (line_start <= msg_end) {
+        const char *line_end;
+        const char *next_line;
+
+        if (next_n == nullptr && next_r == nullptr) {
+          // No more line breaks - output remaining text as final line
+          event_buffer_.append("data: ", sizeof("data: ") - 1);
+          event_buffer_.append(line_start);
+          event_buffer_.append(CRLF_STR, CRLF_LEN);
+          break;
+        }
+
+        // Determine line ending type and next line start
+        if (next_n != nullptr && next_r != nullptr) {
+          if (next_r + 1 == next_n) {
+            // \r\n sequence
+            line_end = next_r;
+            next_line = next_n + 1;
+          } else {
+            // Mixed \n and \r - use whichever comes first
+            line_end = (next_r < next_n) ? next_r : next_n;
+            next_line = line_end + 1;
+          }
+        } else if (next_n != nullptr) {
+          // Unix LF
+          line_end = next_n;
+          next_line = next_n + 1;
+        } else {
+          // Old Mac CR
+          line_end = next_r;
+          next_line = next_r + 1;
+        }
+
+        // Output this line
+        event_buffer_.append("data: ", sizeof("data: ") - 1);
+        event_buffer_.append(line_start, line_end - line_start);
+        event_buffer_.append(CRLF_STR, CRLF_LEN);
+
+        line_start = next_line;
+
+        // Check if we've consumed all content
+        if (line_start >= msg_end) {
+          break;
+        }
+
+        // Search for next newlines only in remaining string
+        next_n = strchr(line_start, '\n');
+        next_r = strchr(line_start, '\r');
+      }
+
+      // Terminate message with blank line
+      event_buffer_.append(CRLF_STR, CRLF_LEN);
+    }
   }
 
-  if (event_buffer_.empty()) {
+  if (event_buffer_.size() == static_cast<size_t>(chunk_len_header_len)) {
+    // Nothing was added, reset buffer
+    event_buffer_.resize(0);
     return true;
   }
 
-  event_buffer_.append(CRLF_STR, CRLF_LEN);
   event_buffer_.append(CRLF_STR, CRLF_LEN);
 
   // chunk length header itself and the final chunk terminating CRLF are not counted as part of the chunk
@@ -641,7 +776,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
                                                      message_generator_t *message_generator) {
   // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
   // up in the web GUI and reduces event load during initial connect
-  if (!entities_iterator_->completed() && 0 != strcmp(event_type, "state_detail_all"))
+  if (!this->entities_iterator_.completed() && 0 != strcmp(event_type, "state_detail_all"))
     return;
 
   if (source == nullptr)

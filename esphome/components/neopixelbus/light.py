@@ -1,8 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import light
-from esphome.components.esp32 import get_esp32_variant
-from esphome.components.esp32.const import VARIANT_ESP32C3, VARIANT_ESP32S3
+from esphome.components.esp32 import VARIANT_ESP32C3, VARIANT_ESP32S3, get_esp32_variant
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
@@ -195,6 +194,14 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    if CORE.is_esp8266:
+        # NeoPixelBus library unconditionally includes NeoEsp8266UartMethod.h
+        # which references Serial and Serial1, so we must enable both
+        from esphome.components.esp8266.const import enable_serial, enable_serial1
+
+        enable_serial()
+        enable_serial1()
+
     has_white = "W" in config[CONF_TYPE]
     method = config[CONF_METHOD]
 

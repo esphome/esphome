@@ -1,3 +1,4 @@
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP8266
@@ -44,13 +45,16 @@ void LightWaveRF::send_rx(const std::vector<uint8_t> &msg, uint8_t repeats, bool
 }
 
 void LightWaveRF::print_msg_(uint8_t *msg, uint8_t len) {
-  char buffer[65];
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+  char buffer[65];  // max 10 entries * 6 chars + null
   ESP_LOGD(TAG, " Received code (len:%i): ", len);
 
+  size_t pos = 0;
   for (int i = 0; i < len; i++) {
-    sprintf(&buffer[i * 6], "0x%02x, ", msg[i]);
+    pos = buf_append_printf(buffer, sizeof(buffer), pos, "0x%02x, ", msg[i]);
   }
   ESP_LOGD(TAG, "[%s]", buffer);
+#endif
 }
 
 void LightWaveRF::dump_config() {

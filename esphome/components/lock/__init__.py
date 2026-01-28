@@ -91,11 +91,6 @@ def lock_schema(
     return _LOCK_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-LOCK_SCHEMA = lock_schema()
-LOCK_SCHEMA.add_extra(cv.deprecated_schema_constant("lock"))
-
-
 async def _setup_lock_core(var, config):
     await setup_entity(var, config, "lock")
 

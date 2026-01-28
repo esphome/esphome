@@ -1,5 +1,6 @@
 #include "update_entity.h"
-
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -8,8 +9,10 @@ namespace update {
 static const char *const TAG = "update";
 
 void UpdateEntity::publish_state() {
-  ESP_LOGD(TAG, "'%s' - Publishing:", this->name_.c_str());
-  ESP_LOGD(TAG, "  Current Version: %s", this->update_info_.current_version.c_str());
+  ESP_LOGD(TAG,
+           "'%s' >>\n"
+           "  Current Version: %s",
+           this->name_.c_str(), this->update_info_.current_version.c_str());
 
   if (!this->update_info_.md5.empty()) {
     ESP_LOGD(TAG, "  Latest Version: %s", this->update_info_.latest_version.c_str());
@@ -32,6 +35,9 @@ void UpdateEntity::publish_state() {
 
   this->set_has_state(true);
   this->state_callback_.call();
+#if defined(USE_UPDATE) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_update(this);
+#endif
 }
 
 }  // namespace update

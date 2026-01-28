@@ -10,8 +10,7 @@
 
 #include "datetime_base.h"
 
-namespace esphome {
-namespace datetime {
+namespace esphome::datetime {
 
 #define LOG_DATETIME_TIME(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -70,7 +69,9 @@ class TimeCall {
   void perform();
   TimeCall &set_time(uint8_t hour, uint8_t minute, uint8_t second);
   TimeCall &set_time(ESPTime time);
-  TimeCall &set_time(const std::string &time);
+  TimeCall &set_time(const char *time, size_t len);
+  TimeCall &set_time(const char *time) { return this->set_time(time, strlen(time)); }
+  TimeCall &set_time(const std::string &time) { return this->set_time(time.c_str(), time.size()); }
 
   TimeCall &set_hour(uint8_t hour) {
     this->hour_ = hour;
@@ -103,7 +104,7 @@ template<typename... Ts> class TimeSetAction : public Action<Ts...>, public Pare
  public:
   TEMPLATABLE_VALUE(ESPTime, time)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->parent_->make_call();
 
     if (this->time_.has_value()) {
@@ -125,7 +126,6 @@ class OnTimeTrigger : public Trigger<>, public Component, public Parented<TimeEn
 };
 #endif
 
-}  // namespace datetime
-}  // namespace esphome
+}  // namespace esphome::datetime
 
 #endif  // USE_DATETIME_TIME

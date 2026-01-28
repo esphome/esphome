@@ -5,8 +5,7 @@
 #include "esphome/core/log.h"
 #include "sensor.h"
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 static const char *const TAG = "sensor.filter";
 
@@ -292,22 +291,27 @@ optional<float> ThrottleWithPriorityFilter::new_value(float value) {
 }
 
 // DeltaFilter
-DeltaFilter::DeltaFilter(float delta, bool percentage_mode)
-    : delta_(delta), current_delta_(delta), last_value_(NAN), percentage_mode_(percentage_mode) {}
+DeltaFilter::DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1)
+    : min_a0_(min_a0), min_a1_(min_a1), max_a0_(max_a0), max_a1_(max_a1) {}
+
+void DeltaFilter::set_baseline(float (*fn)(float)) { this->baseline_ = fn; }
+
 optional<float> DeltaFilter::new_value(float value) {
-  if (std::isnan(value)) {
-    if (std::isnan(this->last_value_)) {
-      return {};
-    } else {
-      return this->last_value_ = value;
-    }
+  // Always yield the first value.
+  if (std::isnan(this->last_value_)) {
+    this->last_value_ = value;
+    return value;
   }
-  float diff = fabsf(value - this->last_value_);
-  if (std::isnan(this->last_value_) || (diff > 0.0f && diff >= this->current_delta_)) {
-    if (this->percentage_mode_) {
-      this->current_delta_ = fabsf(value * this->delta_);
-    }
-    return this->last_value_ = value;
+  // calculate min and max using the linear equation
+  float ref = this->baseline_(this->last_value_);
+  float min = fabsf(this->min_a0_ + ref * this->min_a1_);
+  float max = fabsf(this->max_a0_ + ref * this->max_a1_);
+  float delta = fabsf(value - ref);
+  // if there is no reference, e.g. for the first value, just accept this one,
+  // otherwise accept only if within range.
+  if (delta > min && delta <= max) {
+    this->last_value_ = value;
+    return value;
   }
   return {};
 }
@@ -339,20 +343,43 @@ void OrFilter::initialize(Sensor *parent, Filter *next) {
   this->phi_.initialize(parent, nullptr);
 }
 
-// TimeoutFilter
-optional<float> TimeoutFilter::new_value(float value) {
-  if (this->value_.has_value()) {
-    this->set_timeout("timeout", this->time_period_, [this]() { this->output(this->value_.value().value()); });
-  } else {
-    this->set_timeout("timeout", this->time_period_, [this, value]() { this->output(value); });
+// TimeoutFilterBase - shared loop logic
+void TimeoutFilterBase::loop() {
+  // Check if timeout period has elapsed
+  // Use cached loop start time to avoid repeated millis() calls
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->timeout_start_time_ >= this->time_period_) {
+    // Timeout fired - get output value from derived class and output it
+    this->output(this->get_output_value());
+
+    // Disable loop until next value arrives
+    this->disable_loop();
   }
+}
+
+float TimeoutFilterBase::get_setup_priority() const { return setup_priority::HARDWARE; }
+
+// TimeoutFilterLast - "last" mode implementation
+optional<float> TimeoutFilterLast::new_value(float value) {
+  // Store the value to output when timeout fires
+  this->pending_value_ = value;
+
+  // Record when timeout started and enable loop
+  this->timeout_start_time_ = millis();
+  this->enable_loop();
+
   return value;
 }
 
-TimeoutFilter::TimeoutFilter(uint32_t time_period) : time_period_(time_period) {}
-TimeoutFilter::TimeoutFilter(uint32_t time_period, const TemplatableValue<float> &new_value)
-    : time_period_(time_period), value_(new_value) {}
-float TimeoutFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
+// TimeoutFilterConfigured - configured value mode implementation
+optional<float> TimeoutFilterConfigured::new_value(float value) {
+  // Record when timeout started and enable loop
+  // Note: we don't store the incoming value since we have a configured value
+  this->timeout_start_time_ = millis();
+  this->enable_loop();
+
+  return value;
+}
 
 // DebounceFilter
 optional<float> DebounceFilter::new_value(float value) {
@@ -418,22 +445,18 @@ optional<float> CalibratePolynomialFilter::new_value(float value) {
 ClampFilter::ClampFilter(float min, float max, bool ignore_out_of_range)
     : min_(min), max_(max), ignore_out_of_range_(ignore_out_of_range) {}
 optional<float> ClampFilter::new_value(float value) {
-  if (std::isfinite(value)) {
-    if (std::isfinite(this->min_) && value < this->min_) {
-      if (this->ignore_out_of_range_) {
-        return {};
-      } else {
-        return this->min_;
-      }
+  if (std::isfinite(this->min_) && !(value >= this->min_)) {
+    if (this->ignore_out_of_range_) {
+      return {};
     }
+    return this->min_;
+  }
 
-    if (std::isfinite(this->max_) && value > this->max_) {
-      if (this->ignore_out_of_range_) {
-        return {};
-      } else {
-        return this->max_;
-      }
+  if (std::isfinite(this->max_) && !(value <= this->max_)) {
+    if (this->ignore_out_of_range_) {
+      return {};
     }
+    return this->max_;
   }
   return value;
 }
@@ -551,5 +574,4 @@ void StreamingMovingAverageFilter::reset_batch() {
   this->valid_count_ = 0;
 }
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor
