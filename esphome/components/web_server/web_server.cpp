@@ -531,7 +531,19 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
   memcpy(p, name.c_str(), name_len);
   p[name_len] = '\0';
 
-  root[ESPHOME_F("id")] = id_buf;
+  // name_id: new format {prefix}/{device?}/{name} - frontend should prefer this
+  // Remove in 2026.8.0 when id switches to new format permanently
+  root[ESPHOME_F("name_id")] = id_buf;
+
+  // id: old format {prefix}-{object_id} for backward compatibility
+  // Will switch to new format in 2026.8.0
+  char legacy_buf[ESPHOME_DOMAIN_MAX_LEN + 1 + OBJECT_ID_MAX_LEN];
+  char *lp = legacy_buf;
+  memcpy(lp, prefix, prefix_len);
+  lp += prefix_len;
+  *lp++ = '-';
+  obj->write_object_id_to(lp, sizeof(legacy_buf) - (lp - legacy_buf));
+  root[ESPHOME_F("id")] = legacy_buf;
 
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("domain")] = prefix;
@@ -1188,11 +1200,7 @@ std::string WebServer::date_json_(datetime::DateEntity *obj, JsonDetail start_co
 
   // Format: YYYY-MM-DD (max 10 chars + null)
   char value[12];
-#ifdef USE_ESP8266
-  snprintf_P(value, sizeof(value), PSTR("%d-%02d-%02d"), obj->year, obj->month, obj->day);
-#else
-  snprintf(value, sizeof(value), "%d-%02d-%02d", obj->year, obj->month, obj->day);
-#endif
+  buf_append_printf(value, sizeof(value), 0, "%d-%02d-%02d", obj->year, obj->month, obj->day);
   set_json_icon_state_value(root, obj, "date", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1251,11 +1259,7 @@ std::string WebServer::time_json_(datetime::TimeEntity *obj, JsonDetail start_co
 
   // Format: HH:MM:SS (8 chars + null)
   char value[12];
-#ifdef USE_ESP8266
-  snprintf_P(value, sizeof(value), PSTR("%02d:%02d:%02d"), obj->hour, obj->minute, obj->second);
-#else
-  snprintf(value, sizeof(value), "%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
-#endif
+  buf_append_printf(value, sizeof(value), 0, "%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
   set_json_icon_state_value(root, obj, "time", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1314,13 +1318,8 @@ std::string WebServer::datetime_json_(datetime::DateTimeEntity *obj, JsonDetail 
 
   // Format: YYYY-MM-DD HH:MM:SS (max 19 chars + null)
   char value[24];
-#ifdef USE_ESP8266
-  snprintf_P(value, sizeof(value), PSTR("%d-%02d-%02d %02d:%02d:%02d"), obj->year, obj->month, obj->day, obj->hour,
-             obj->minute, obj->second);
-#else
-  snprintf(value, sizeof(value), "%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour, obj->minute,
-           obj->second);
-#endif
+  buf_append_printf(value, sizeof(value), 0, "%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour,
+                    obj->minute, obj->second);
   set_json_icon_state_value(root, obj, "datetime", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -2188,7 +2187,12 @@ std::string WebServer::update_json_(update::UpdateEntity *obj, JsonDetail start_
 #endif
 
 bool WebServer::canHandle(AsyncWebServerRequest *request) const {
+#ifdef USE_ESP32
+  char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+  StringRef url = request->url_to(url_buf);
+#else
   const auto &url = request->url();
+#endif
   const auto method = request->method();
 
   // Static URL checks - use ESPHOME_F to keep strings in flash on ESP8266
@@ -2324,30 +2328,35 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
   return false;
 }
 void WebServer::handleRequest(AsyncWebServerRequest *request) {
+#ifdef USE_ESP32
+  char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+  StringRef url = request->url_to(url_buf);
+#else
   const auto &url = request->url();
+#endif
 
   // Handle static routes first
-  if (url == "/") {
+  if (url == ESPHOME_F("/")) {
     this->handle_index_request(request);
     return;
   }
 
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
-  if (url == "/events") {
+  if (url == ESPHOME_F("/events")) {
     this->events_.add_new_client(this, request);
     return;
   }
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
-  if (url == "/0.css") {
+  if (url == ESPHOME_F("/0.css")) {
     this->handle_css_request(request);
     return;
   }
 #endif
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
-  if (url == "/0.js") {
+  if (url == ESPHOME_F("/0.js")) {
     this->handle_js_request(request);
     return;
   }

@@ -16,6 +16,7 @@
 #include <type_traits>
 #include <vector>
 #include <concepts>
+#include <strings.h>
 
 #include "esphome/core/optional.h"
 
@@ -146,10 +147,40 @@ template<typename T, size_t N> class StaticVector {
   size_t count_{0};
 
  public:
+  // Default constructor
+  StaticVector() = default;
+
+  // Iterator range constructor
+  template<typename InputIt> StaticVector(InputIt first, InputIt last) {
+    while (first != last && count_ < N) {
+      data_[count_++] = *first++;
+    }
+  }
+
+  // Initializer list constructor
+  StaticVector(std::initializer_list<T> init) {
+    for (const auto &val : init) {
+      if (count_ >= N)
+        break;
+      data_[count_++] = val;
+    }
+  }
+
   // Minimal vector-compatible interface - only what we actually use
   void push_back(const T &value) {
     if (count_ < N) {
       data_[count_++] = value;
+    }
+  }
+
+  // Clear all elements
+  void clear() { count_ = 0; }
+
+  // Assign from iterator range
+  template<typename InputIt> void assign(InputIt first, InputIt last) {
+    count_ = 0;
+    while (first != last && count_ < N) {
+      data_[count_++] = *first++;
     }
   }
 
@@ -184,6 +215,10 @@ template<typename T, size_t N> class StaticVector {
   reverse_iterator rend() { return reverse_iterator(begin()); }
   const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
   const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
+
+  // Conversion to std::span for compatibility with span-based APIs
+  operator std::span<T>() { return std::span<T>(data_.data(), count_); }
+  operator std::span<const T>() const { return std::span<const T>(data_.data(), count_); }
 };
 
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
@@ -348,6 +383,8 @@ template<typename T> class FixedVector {
 
   size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
+  size_t capacity() const { return capacity_; }
+  bool full() const { return size_ == capacity_; }
 
   /// Access element without bounds checking (matches std::vector behavior)
   /// Caller must ensure index is valid (i < size())
@@ -364,6 +401,37 @@ template<typename T> class FixedVector {
   T *end() { return data_ + size_; }
   const T *begin() const { return data_; }
   const T *end() const { return data_ + size_; }
+};
+
+/// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
+/// This is useful when most operations need a small buffer but occasionally need larger ones.
+/// The stack buffer avoids heap allocation in the common case, while heap fallback handles edge cases.
+/// @tparam STACK_SIZE Number of elements in the stack buffer
+/// @tparam T Element type (default: uint8_t)
+template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallback {
+ public:
+  explicit SmallBufferWithHeapFallback(size_t size) {
+    if (size <= STACK_SIZE) {
+      this->buffer_ = this->stack_buffer_;
+    } else {
+      this->heap_buffer_ = new T[size];
+      this->buffer_ = this->heap_buffer_;
+    }
+  }
+  ~SmallBufferWithHeapFallback() { delete[] this->heap_buffer_; }
+
+  // Delete copy and move operations to prevent double-delete
+  SmallBufferWithHeapFallback(const SmallBufferWithHeapFallback &) = delete;
+  SmallBufferWithHeapFallback &operator=(const SmallBufferWithHeapFallback &) = delete;
+  SmallBufferWithHeapFallback(SmallBufferWithHeapFallback &&) = delete;
+  SmallBufferWithHeapFallback &operator=(SmallBufferWithHeapFallback &&) = delete;
+
+  T *get() { return this->buffer_; }
+
+ private:
+  T stack_buffer_[STACK_SIZE];
+  T *heap_buffer_{nullptr};
+  T *buffer_;
 };
 
 ///@}
@@ -539,6 +607,10 @@ template<typename T> constexpr T convert_little_endian(T val) {
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 /// Compare StringRefs for equality in case-insensitive manner.
 bool str_equals_case_insensitive(StringRef a, StringRef b);
+/// Compare C strings for equality in case-insensitive manner (no heap allocation).
+inline bool str_equals_case_insensitive(const char *a, const char *b) { return strcasecmp(a, b) == 0; }
+inline bool str_equals_case_insensitive(const std::string &a, const char *b) { return strcasecmp(a.c_str(), b) == 0; }
+inline bool str_equals_case_insensitive(const char *a, const std::string &b) { return strcasecmp(a, b.c_str()) == 0; }
 
 /// Check whether a string starts with a value.
 bool str_startswith(const std::string &str, const std::string &start);
@@ -580,7 +652,25 @@ std::string str_snake_case(const std::string &str);
 constexpr char to_sanitized_char(char c) {
   return (c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) ? c : '_';
 }
+
+/** Sanitize a string to buffer, keeping only alphanumerics, dashes, and underscores.
+ *
+ * @param buffer Output buffer to write to.
+ * @param buffer_size Size of the output buffer.
+ * @param str Input string to sanitize.
+ * @return Pointer to buffer.
+ *
+ * Buffer size needed: strlen(str) + 1.
+ */
+char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str);
+
+/// Sanitize a string to buffer. Automatically deduces buffer size.
+template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *str) {
+  return str_sanitize_to(buffer, N, str);
+}
+
 /// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
+/// @warning Allocates heap memory. Use str_sanitize_to() with a stack buffer instead.
 std::string str_sanitize(const std::string &str);
 
 /// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
@@ -598,9 +688,11 @@ inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
 }
 
 /// snprintf-like function returning std::string of maximum length \p len (excluding null terminator).
+/// @warning Allocates heap memory. Use snprintf() with a stack buffer instead.
 std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t len, ...);
 
 /// sprintf-like function returning std::string.
+/// @warning Allocates heap memory. Use snprintf() with a stack buffer instead.
 std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
 
 #ifdef USE_ESP8266
@@ -1296,16 +1388,30 @@ template<typename... X> class LazyCallbackManager;
  *
  * Memory overhead comparison (32-bit systems):
  * - CallbackManager: 12 bytes (empty std::vector)
- * - LazyCallbackManager: 4 bytes (nullptr unique_ptr)
+ * - LazyCallbackManager: 4 bytes (nullptr pointer)
+ *
+ * Uses plain pointer instead of unique_ptr to avoid template instantiation overhead.
+ * The class is explicitly non-copyable/non-movable for Rule of Five compliance.
  *
  * @tparam Ts The arguments for the callbacks, wrapped in void().
  */
 template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
  public:
+  LazyCallbackManager() = default;
+  /// Destructor - clean up allocated CallbackManager if any.
+  /// In practice this never runs (entities live for device lifetime) but included for correctness.
+  ~LazyCallbackManager() { delete this->callbacks_; }
+
+  // Non-copyable and non-movable (entities are never copied or moved)
+  LazyCallbackManager(const LazyCallbackManager &) = delete;
+  LazyCallbackManager &operator=(const LazyCallbackManager &) = delete;
+  LazyCallbackManager(LazyCallbackManager &&) = delete;
+  LazyCallbackManager &operator=(LazyCallbackManager &&) = delete;
+
   /// Add a callback to the list. Allocates the underlying CallbackManager on first use.
   void add(std::function<void(Ts...)> &&callback) {
     if (!this->callbacks_) {
-      this->callbacks_ = make_unique<CallbackManager<void(Ts...)>>();
+      this->callbacks_ = new CallbackManager<void(Ts...)>();
     }
     this->callbacks_->add(std::move(callback));
   }
@@ -1327,7 +1433,7 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   void operator()(Ts... args) { this->call(args...); }
 
  protected:
-  std::unique_ptr<CallbackManager<void(Ts...)>> callbacks_;
+  CallbackManager<void(Ts...)> *callbacks_{nullptr};
 };
 
 /// Helper class to deduplicate items in a series of values.

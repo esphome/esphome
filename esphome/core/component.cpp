@@ -47,18 +47,21 @@ struct ComponentPriorityOverride {
 };
 
 // Error messages for failed components
+// Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
+// This is never freed as error messages persist for the lifetime of the device
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-std::unique_ptr<std::vector<ComponentErrorMessage>> component_error_messages;
+std::vector<ComponentErrorMessage> *component_error_messages = nullptr;
 // Setup priority overrides - freed after setup completes
+// Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-std::unique_ptr<std::vector<ComponentPriorityOverride>> setup_priority_overrides;
+std::vector<ComponentPriorityOverride> *setup_priority_overrides = nullptr;
 
 // Helper to store error messages - reduces duplication between deprecated and new API
 // Remove before 2026.6.0 when deprecated const char* API is removed
 void store_component_error_message(const Component *component, const char *message, bool is_flash_ptr) {
   // Lazy allocate the error messages vector if needed
   if (!component_error_messages) {
-    component_error_messages = std::make_unique<std::vector<ComponentErrorMessage>>();
+    component_error_messages = new std::vector<ComponentErrorMessage>();
   }
   // Check if this component already has an error message
   for (auto &entry : *component_error_messages) {
@@ -467,7 +470,7 @@ float Component::get_actual_setup_priority() const {
 void Component::set_setup_priority(float priority) {
   // Lazy allocate the vector if needed
   if (!setup_priority_overrides) {
-    setup_priority_overrides = std::make_unique<std::vector<ComponentPriorityOverride>>();
+    setup_priority_overrides = new std::vector<ComponentPriorityOverride>();
     // Reserve some space to avoid reallocations (most configs have < 10 overrides)
     setup_priority_overrides->reserve(10);
   }
@@ -553,7 +556,8 @@ WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {}
 
 void clear_setup_priority_overrides() {
   // Free the setup priority map completely
-  setup_priority_overrides.reset();
+  delete setup_priority_overrides;
+  setup_priority_overrides = nullptr;
 }
 
 }  // namespace esphome

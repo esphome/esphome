@@ -39,6 +39,10 @@
 #include "esphome/components/esp32_improv/esp32_improv_component.h"
 #endif
 
+#ifdef USE_IMPROV_SERIAL
+#include "esphome/components/improv_serial/improv_serial_component.h"
+#endif
+
 namespace esphome::wifi {
 
 static const char *const TAG = "wifi";
@@ -365,6 +369,75 @@ bool WiFiComponent::ssid_was_seen_in_scan_(const std::string &ssid) const {
   return false;
 }
 
+bool WiFiComponent::needs_full_scan_results_() const {
+  // Components that require full scan results (for example, scan result listeners)
+  // are expected to call request_wifi_scan_results(), which sets keep_scan_results_.
+  if (this->keep_scan_results_) {
+    return true;
+  }
+
+#ifdef USE_CAPTIVE_PORTAL
+  // Captive portal needs full results when active (showing network list to user)
+  if (captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active()) {
+    return true;
+  }
+#endif
+
+#ifdef USE_IMPROV_SERIAL
+  // Improv serial needs results during provisioning (before connected)
+  if (improv_serial::global_improv_serial_component != nullptr && !this->is_connected()) {
+    return true;
+  }
+#endif
+
+#ifdef USE_IMPROV
+  // BLE improv also needs results during provisioning
+  if (esp32_improv::global_improv_component != nullptr && esp32_improv::global_improv_component->is_active()) {
+    return true;
+  }
+#endif
+
+  return false;
+}
+
+bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t *bssid) const {
+  // Hidden networks in scan results have empty SSIDs - skip them
+  if (ssid[0] == '\0') {
+    return false;
+  }
+  for (const auto &sta : this->sta_) {
+    // Skip hidden network configs (they don't appear in normal scans)
+    if (sta.get_hidden()) {
+      continue;
+    }
+    // For BSSID-only configs (empty SSID), match by BSSID
+    if (sta.get_ssid().empty()) {
+      if (sta.has_bssid() && std::memcmp(sta.get_bssid().data(), bssid, 6) == 0) {
+        return true;
+      }
+      continue;
+    }
+    // Match by SSID
+    if (sta.get_ssid() == ssid) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void WiFiComponent::log_discarded_scan_result_(const char *ssid, const uint8_t *bssid, int8_t rssi, uint8_t channel) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  // Skip logging during roaming scans to avoid log buffer overflow
+  // (roaming scans typically find many networks but only care about same-SSID APs)
+  if (this->roaming_state_ == RoamingState::SCANNING) {
+    return;
+  }
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  format_mac_addr_upper(bssid, bssid_s);
+  ESP_LOGV(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " %ddB Ch:%u", ssid, bssid_s, rssi, channel);
+#endif
+}
+
 int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
   // Find next SSID to try in RETRY_HIDDEN phase.
   //
@@ -565,6 +638,11 @@ void WiFiComponent::start() {
 void WiFiComponent::restart_adapter() {
   ESP_LOGW(TAG, "Restarting adapter");
   this->wifi_mode_(false, {});
+  // Clear error flag here because restart_adapter() enters COOLDOWN state,
+  // and check_connecting_finished() is called after cooldown without going
+  // through start_connecting() first. Without this clear, stale errors would
+  // trigger spurious "failed (callback)" logs. The canonical clear location
+  // is in start_connecting(); this is the only exception to that pattern.
   this->error_from_callback_ = false;
 }
 
@@ -618,8 +696,6 @@ void WiFiComponent::loop() {
         if (!this->is_connected()) {
           ESP_LOGW(TAG, "Connection lost; reconnecting");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
-          // Clear error flag before reconnecting so first attempt is not seen as immediate failure
-          this->error_from_callback_ = false;
           this->retry_connect();
         } else {
           this->status_clear_warning();
@@ -653,8 +729,12 @@ void WiFiComponent::loop() {
         ESP_LOGI(TAG, "Starting fallback AP");
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
-        if (captive_portal::global_captive_portal != nullptr)
+        if (captive_portal::global_captive_portal != nullptr) {
+          // Reset so we force one full scan after captive portal starts
+          // (previous scans were filtered because captive portal wasn't active yet)
+          this->has_completed_scan_after_captive_portal_start_ = false;
           captive_portal::global_captive_portal->start();
+        }
 #endif
       }
     }
@@ -743,16 +823,32 @@ void WiFiComponent::setup_ap_config_() {
     return;
 
   if (this->ap_.get_ssid().empty()) {
-    std::string name = App.get_name();
-    if (name.length() > 32) {
+    // Build AP SSID from app name without heap allocation
+    // WiFi SSID max is 32 bytes, with MAC suffix we keep first 25 + last 7
+    static constexpr size_t AP_SSID_MAX_LEN = 32;
+    static constexpr size_t AP_SSID_PREFIX_LEN = 25;
+    static constexpr size_t AP_SSID_SUFFIX_LEN = 7;
+
+    const std::string &app_name = App.get_name();
+    const char *name_ptr = app_name.c_str();
+    size_t name_len = app_name.length();
+
+    if (name_len <= AP_SSID_MAX_LEN) {
+      // Name fits, use directly
+      this->ap_.set_ssid(name_ptr);
+    } else {
+      // Name too long, need to truncate into stack buffer
+      char ssid_buf[AP_SSID_MAX_LEN + 1];
       if (App.is_name_add_mac_suffix_enabled()) {
         // Keep first 25 chars and last 7 chars (MAC suffix), remove middle
-        name.erase(25, name.length() - 32);
+        memcpy(ssid_buf, name_ptr, AP_SSID_PREFIX_LEN);
+        memcpy(ssid_buf + AP_SSID_PREFIX_LEN, name_ptr + name_len - AP_SSID_SUFFIX_LEN, AP_SSID_SUFFIX_LEN);
       } else {
-        name.resize(32);
+        memcpy(ssid_buf, name_ptr, AP_SSID_MAX_LEN);
       }
+      ssid_buf[AP_SSID_MAX_LEN] = '\0';
+      this->ap_.set_ssid(ssid_buf);
     }
-    this->ap_.set_ssid(name);
   }
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
 
@@ -963,6 +1059,12 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   ESP_LOGV(TAG, "  Hidden: %s", YESNO(ap.get_hidden()));
 #endif
 
+  // Clear any stale error from previous connection attempt.
+  // This is the canonical location for clearing the flag since all connection
+  // attempts go through start_connecting(). The only other clear is in
+  // restart_adapter() which enters COOLDOWN without calling start_connecting().
+  this->error_from_callback_ = false;
+
   if (!this->wifi_sta_connect_(ap)) {
     ESP_LOGE(TAG, "wifi_sta_connect_ failed");
     // Enter cooldown to allow WiFi hardware to stabilize
@@ -1068,7 +1170,6 @@ void WiFiComponent::enable() {
     return;
 
   ESP_LOGD(TAG, "Enabling");
-  this->error_from_callback_ = false;
   this->state_ = WIFI_COMPONENT_STATE_OFF;
   this->start();
 }
@@ -1171,7 +1272,7 @@ template<typename VectorType> static void insertion_sort_scan_results(VectorType
 // has overhead from UART transmission, so combining INFO+DEBUG into one line halves
 // the blocking time. Do NOT split this into separate ESP_LOGI/ESP_LOGD calls.
 __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res) {
-  char bssid_s[18];
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   auto bssid = res.get_bssid();
   format_mac_addr_upper(bssid.data(), bssid_s);
 
@@ -1187,18 +1288,6 @@ __attribute__((noinline)) static void log_scan_result(const WiFiScanResult &res)
 #endif
 }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-// Helper function to log non-matching scan results at verbose level
-__attribute__((noinline)) static void log_scan_result_non_matching(const WiFiScanResult &res) {
-  char bssid_s[18];
-  auto bssid = res.get_bssid();
-  format_mac_addr_upper(bssid.data(), bssid_s);
-
-  ESP_LOGV(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
-           LOG_STR_ARG(get_signal_bars(res.get_rssi())));
-}
-#endif
-
 void WiFiComponent::check_scanning_finished() {
   if (!this->scan_done_) {
     if (millis() - this->action_started_ > WIFI_SCAN_TIMEOUT_MS) {
@@ -1208,6 +1297,8 @@ void WiFiComponent::check_scanning_finished() {
     return;
   }
   this->scan_done_ = false;
+  this->has_completed_scan_after_captive_portal_start_ =
+      true;  // Track that we've done a scan since captive portal started
   this->retry_hidden_mode_ = RetryHiddenMode::SCAN_BASED;
 
   if (this->scan_result_.empty()) {
@@ -1235,20 +1326,11 @@ void WiFiComponent::check_scanning_finished() {
   // Sort scan results using insertion sort for better memory efficiency
   insertion_sort_scan_results(this->scan_result_);
 
-  size_t non_matching_count = 0;
+  // Log matching networks (non-matching already logged at VERBOSE in scan callback)
   for (auto &res : this->scan_result_) {
     if (res.get_matches()) {
       log_scan_result(res);
-    } else {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      log_scan_result_non_matching(res);
-#else
-      non_matching_count++;
-#endif
     }
-  }
-  if (non_matching_count > 0) {
-    ESP_LOGD(TAG, "- %zu non-matching (VERBOSE to show)", non_matching_count);
   }
 
   // SYNCHRONIZATION POINT: Establish link between scan_result_[0] and selected_sta_index_
@@ -1329,11 +1411,6 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     // Reset to initial phase on successful connection (don't log transition, just reset state)
     this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
     this->num_retried_ = 0;
-    // Ensure next connection attempt does not inherit error state
-    // so when WiFi disconnects later we start fresh and don't see
-    // the first connection as a failure.
-    this->error_from_callback_ = false;
-
     if (this->has_ap()) {
 #ifdef USE_CAPTIVE_PORTAL
       if (this->is_captive_portal_active_()) {
@@ -1513,7 +1590,10 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       if (this->went_through_explicit_hidden_phase_()) {
         return WiFiRetryPhase::EXPLICIT_HIDDEN;
       }
-      // Skip scanning when captive portal/improv is active to avoid disrupting AP.
+      // Skip scanning when captive portal/improv is active to avoid disrupting AP,
+      // BUT only if we've already completed at least one scan AFTER the portal started.
+      // When captive portal first starts, scan results may be filtered/stale, so we need
+      // to do one full scan to populate available networks for the captive portal UI.
       //
       // WHY SCANNING DISRUPTS AP MODE:
       // WiFi scanning requires the radio to leave the AP's channel and hop through
@@ -1530,7 +1610,16 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       //
       // This allows users to configure WiFi via captive portal while the device keeps
       // attempting to connect to all configured networks in sequence.
-      if (this->is_captive_portal_active_() || this->is_esp32_improv_active_()) {
+      // Captive portal needs scan results to show available networks.
+      // If captive portal is active, only skip scanning if we've done a scan after it started.
+      // If only improv is active (no captive portal), skip scanning since improv doesn't need results.
+      if (this->is_captive_portal_active_()) {
+        if (this->has_completed_scan_after_captive_portal_start_) {
+          return WiFiRetryPhase::RETRY_HIDDEN;
+        }
+        // Need to scan for captive portal
+      } else if (this->is_esp32_improv_active_()) {
+        // Improv doesn't need scan results
         return WiFiRetryPhase::RETRY_HIDDEN;
       }
       return WiFiRetryPhase::SCAN_CONNECTING;
@@ -1844,8 +1933,6 @@ void WiFiComponent::retry_connect() {
     this->advance_to_next_target_or_increment_retry_();
   }
 
-  this->error_from_callback_ = false;
-
   yield();
   // Check if we have a valid target before building params
   // After exhausting all networks in a phase, selected_sta_index_ may be -1
@@ -2079,7 +2166,7 @@ void WiFiComponent::clear_roaming_state_() {
 
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {
-#ifdef USE_RP2040
+#if defined(USE_RP2040) || defined(USE_ESP32)
     // std::vector - use swap trick since shrink_to_fit is non-binding
     decltype(this->scan_result_)().swap(this->scan_result_);
 #else
@@ -2171,7 +2258,6 @@ void WiFiComponent::process_roaming_scan_() {
   this->roaming_state_ = RoamingState::CONNECTING;
 
   // Connect directly - wifi_sta_connect_ handles disconnect internally
-  this->error_from_callback_ = false;
   this->start_connecting(roam_params);
 }
 
