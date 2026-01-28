@@ -12,20 +12,20 @@ namespace esphome::mdns {
 static const char *const TAG = "mdns";
 
 static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
-#ifndef USE_OPENTHREAD
+#ifdef USE_OPENTHREAD
+  // OpenThread handles service registration via SRP client
+  // Services are compiled by MDNSComponent::compile_records_() and consumed by OpenThreadSrpComponent
+#else
   esp_err_t err = mdns_init();
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Init failed: %s", esp_err_to_name(err));
     comp->mark_failed();
     return;
   }
-#endif
 
   const char *hostname = App.get_name().c_str();
-#ifndef USE_OPENTHREAD
   mdns_hostname_set(hostname);
   mdns_instance_name_set(hostname);
-#endif
 
   for (const auto &service : services) {
     // Stack buffer for up to 16 txt records, heap fallback for more
@@ -38,15 +38,14 @@ static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_S
       txt_records.get()[i].value = MDNS_STR_ARG(record.value);
     }
     uint16_t port = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
-#ifndef USE_OPENTHREAD
     err = mdns_service_add(nullptr, MDNS_STR_ARG(service.service_type), MDNS_STR_ARG(service.proto), port,
                            txt_records.get(), service.txt_records.size());
 
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Failed to register service %s: %s", MDNS_STR_ARG(service.service_type), esp_err_to_name(err));
     }
-#endif
   }
+#endif
 }
 
 void MDNSComponent::setup() { this->setup_buffers_and_register_(register_esp32); }
