@@ -47,7 +47,9 @@ class MqttStatusThread(threading.Thread):
 
         def on_message(client, userdata, msg):
             payload = msg.payload.decode(errors="backslashreplace")
-            if (status_name := self._extract_name_from_status_topic(msg.topic)) is not None:
+            if (
+                status_name := self._extract_name_from_status_topic(msg.topic)
+            ) is not None:
                 if payload == "online":
                     online_from_status.add(status_name)
                     if matching_entries := entries.get_by_name(status_name):
