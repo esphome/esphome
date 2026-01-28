@@ -101,8 +101,8 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   zb_uint16_t attr_id = p_device_cb_param->cb_param.set_attr_value_param.attr_id;
   auto endpoint = p_device_cb_param->endpoint;
 
-  ESP_LOGI(TAG, "Zcl_device_cb %s id %hd, cluster_id %d, attr_id %d, endpoint: %d", __func__, device_cb_id, cluster_id,
-           attr_id, endpoint);
+  ESP_LOGI(TAG, "%s id %hd, cluster_id %d, attr_id %d, endpoint: %d", __func__, device_cb_id, cluster_id, attr_id,
+           endpoint);
 
   /* Set default response value. */
   p_device_cb_param->status = RET_OK;
