@@ -149,6 +149,10 @@ async def nextion_set_brightness_to_code(config, action_id, template_arg, args):
 
 
 async def to_code(config):
+    if CORE.is_esp32:
+        # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
+        esp32.include_idf_component("esp_http_client")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await uart.register_uart_device(var, config)
 
