@@ -5,7 +5,6 @@ esp32:
     advanced:
       execute_from_psram: true
       disable_libc_locks_in_iram: true  # Test default RAM optimization enabled
-      # Test new SDK optimization options (all defaults = true)
       disable_debug_stubs: true
       disable_ocd_aware: true
       disable_usb_serial_jtag_secondary: true

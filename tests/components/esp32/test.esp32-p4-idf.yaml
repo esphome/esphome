@@ -10,7 +10,6 @@ esp32:
         ref: 2.7.0
     advanced:
       enable_idf_experimental_features: yes
-      # Test new SDK optimization options (all defaults = true)
       disable_debug_stubs: true
       disable_ocd_aware: true
       disable_usb_serial_jtag_secondary: true
