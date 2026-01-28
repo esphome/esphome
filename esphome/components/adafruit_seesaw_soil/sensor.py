@@ -29,8 +29,6 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
-                # unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=2,
                 device_class=DEVICE_CLASS_MOISTURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
