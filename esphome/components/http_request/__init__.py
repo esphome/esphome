@@ -165,6 +165,16 @@ async def to_code(config):
                     ca_cert_content = f.read()
                 cg.add(var.set_ca_certificate(ca_cert_content))
             else:
+                # Uses the certificate bundle configured in esp32 component.
+                # By default, ESPHome uses the CMN (common CAs) bundle which covers
+                # ~99% of websites including GitHub, Let's Encrypt, DigiCert, etc.
+                # If connecting to services with uncommon CAs, components can call:
+                #   esp32.require_full_certificate_bundle()
+                # Or users can set in their config:
+                #   esp32:
+                #     framework:
+                #       advanced:
+                #         use_full_certificate_bundle: true
                 esp32.add_idf_sdkconfig_option(
                     "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True
                 )
