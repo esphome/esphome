@@ -1,10 +1,8 @@
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+
 #include "keyboard.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
-#include <cstring>
-
-// Guard the entire implementation for supported ESP32 variants in one place
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 
 extern "C" {
 // TinyUSB HID API
@@ -78,13 +76,14 @@ static const uint8_t HID_REPORT_DESCRIPTOR[] = {
     0x85, 0x02,       /*   Report ID (2) */
     0x15, 0x00,       /*   Logical Minimum (0) */
     0x26, 0xFF, 0x03, /* Logical Maximum (0x03FF) */
-    0x75, 0x10,       /*   Report Size (16) */
-    0x95, 0x01,       /*   Report Count (1) */
-    0x09, 0xE9,       /*   Usage (Volume Up) */
-    0x09, 0xEA,       /*   Usage (Volume Down) */
-    0x09, 0xCD,       /*   Usage (Play/Pause) */
-    0x81, 0x02,       /*   Input (Data, Variable, Absolute) */
-    0xC0              /* End Collection (Consumer) */
+    0x19, 0x00,       /* Usage Minimum (0) */
+    0x2A, 0xFF,
+    0x03 /* Usage Maximum 0x03FF */
+    0x75,
+    0x10,       /*   Report Size (16) */
+    0x95, 0x01, /*   Report Count (1) */
+    0x81, 0x00, /*   Input (Data, Variable, Absolute) */
+    0xC0        /* End Collection (Consumer) */
 };
 
 void TinyUSBKeyboard::setup() {
