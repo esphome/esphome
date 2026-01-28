@@ -666,9 +666,8 @@ void WiFiComponent::wifi_scan_done_callback_() {
   this->scan_result_.clear();
   this->scan_done_ = true;
 
-  // Access scan data directly to avoid String allocation from WiFi.SSID(i)
-  // WiFi.scan is public in LibreTiny (WiFi.h)
-  if (WiFi.scan == nullptr || WiFi.scan->running)
+  int16_t num = WiFi.scanComplete();
+  if (num < 0)
     return;
 
   bool needs_full = this->needs_full_scan_results_();
@@ -679,7 +678,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
 
   // First pass: count matching networks
   size_t count = 0;
-  for (int i = 0; i < num; i++) {
+  for (int16_t i = 0; i < num; i++) {
     const char *ssid_cstr = scan->ap[i].ssid;
     if (needs_full || this->matches_configured_network_(ssid_cstr, scan->ap[i].bssid.addr)) {
       count++;
@@ -689,7 +688,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
   this->scan_result_.init(count);  // Exact allocation
 
   // Second pass: store matching networks
-  for (int i = 0; i < num; i++) {
+  for (int16_t i = 0; i < num; i++) {
     const char *ssid_cstr = scan->ap[i].ssid;
     if (needs_full || this->matches_configured_network_(ssid_cstr, scan->ap[i].bssid.addr)) {
       auto &ap = scan->ap[i];
