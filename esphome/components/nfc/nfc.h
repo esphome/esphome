@@ -6,6 +6,7 @@
 #include "ndef_record.h"
 #include "nfc_tag.h"
 
+#include <span>
 #include <vector>
 
 namespace esphome {
@@ -56,19 +57,19 @@ static const uint8_t MAD_KEY[6] = {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5};
 /// Max UID size is 10 bytes, formatted as "XX-XX-XX-XX-XX-XX-XX-XX-XX-XX\0" = 30 chars
 static constexpr size_t FORMAT_UID_BUFFER_SIZE = 30;
 /// Format UID to buffer with '-' separator (e.g., "04-11-22-33"). Returns buffer for inline use.
-char *format_uid_to(char *buffer, const std::vector<uint8_t> &uid);
+char *format_uid_to(char *buffer, std::span<const uint8_t> uid);
 
 /// Buffer size for format_bytes_to (64 bytes max = 192 chars with space separator)
 static constexpr size_t FORMAT_BYTES_BUFFER_SIZE = 192;
 /// Format bytes to buffer with ' ' separator (e.g., "04 11 22 33"). Returns buffer for inline use.
-char *format_bytes_to(char *buffer, const std::vector<uint8_t> &bytes);
+char *format_bytes_to(char *buffer, std::span<const uint8_t> bytes);
 
 // Remove before 2026.6.0
 ESPDEPRECATED("Use format_uid_to() with stack buffer instead. Removed in 2026.6.0", "2025.12.0")
-std::string format_uid(const std::vector<uint8_t> &uid);
+std::string format_uid(std::span<const uint8_t> uid);
 // Remove before 2026.6.0
 ESPDEPRECATED("Use format_bytes_to() with stack buffer instead. Removed in 2026.6.0", "2025.12.0")
-std::string format_bytes(const std::vector<uint8_t> &bytes);
+std::string format_bytes(std::span<const uint8_t> bytes);
 
 uint8_t guess_tag_type(uint8_t uid_length);
 uint8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data);
