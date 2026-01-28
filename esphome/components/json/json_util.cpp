@@ -25,6 +25,7 @@ std::string build_json(const json_build_t &f) {
 }
 
 bool parse_json(const std::string &data, const json_parse_t &f) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return parse_json(reinterpret_cast<const uint8_t *>(data.c_str()), data.size(), f);
 }
 
