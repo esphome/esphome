@@ -343,7 +343,7 @@ def get_slot_index() -> int:
     )
     if slot is None:
         raise cv.Invalid(
-            f"Not found empty slot, size ({len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])})"
+            f"No available Zigbee endpoint slots ({len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])} in use)"
         )
     return slot
 
