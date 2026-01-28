@@ -30,6 +30,19 @@ static const int8_t SEN5X_INDEX_SCALE_FACTOR = 10;                            //
 static const int8_t SEN5X_MIN_INDEX_VALUE = 1 * SEN5X_INDEX_SCALE_FACTOR;     // must be adjusted by the scale factor
 static const int16_t SEN5X_MAX_INDEX_VALUE = 500 * SEN5X_INDEX_SCALE_FACTOR;  // must be adjusted by the scale factor
 
+static const LogString *type_to_string(Sen5xType type) {
+  switch (type) {
+    case Sen5xType::SEN50:
+      return LOG_STR("SEN50");
+    case Sen5xType::SEN54:
+      return LOG_STR("SEN54");
+    case Sen5xType::SEN55:
+      return LOG_STR("SEN55");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
+
 static const LogString *rht_accel_mode_to_string(RhtAccelerationMode mode) {
   switch (mode) {
     case LOW_ACCELERATION:
@@ -41,6 +54,15 @@ static const LogString *rht_accel_mode_to_string(RhtAccelerationMode mode) {
     default:
       return LOG_STR("UNKNOWN");
   }
+}
+
+// This function performs an in-place conversion of the provided buffer
+// from uint16_t values to big endianness
+static inline const char *sensirion_convert_to_string_in_place(uint16_t *array, size_t length) {
+  for (size_t i = 0; i < length; i++) {
+    array[i] = convert_big_endian(array[i]);
+  }
+  return reinterpret_cast<const char *>(array);
 }
 
 void SEN5XComponent::setup() {
@@ -75,18 +97,18 @@ void SEN5XComponent::setup() {
       stop_measurement_delay = 200;
     }
     this->set_timeout(stop_measurement_delay, [this]() {
-      uint16_t raw_serial_number[3];
-      if (!this->get_register(SEN5X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 20)) {
+      // note: serial number register is actually 32-bytes long but we grab only the first 16-bytes,
+      // this appears to be all that Sensirion uses for serial numbers, this could change
+      uint16_t raw_serial_number[8];
+      if (!this->get_register(SEN5X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 8, 20)) {
         ESP_LOGE(TAG, "Failed to read serial number");
         this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
         this->mark_failed();
         return;
       }
-      this->serial_number_[0] = static_cast<bool>(uint16_t(raw_serial_number[0]) & 0xFF);
-      this->serial_number_[1] = static_cast<uint16_t>(raw_serial_number[0] & 0xFF);
-      this->serial_number_[2] = static_cast<uint16_t>(raw_serial_number[1] >> 8);
-      ESP_LOGV(TAG, "Serial number %02d.%02d.%02d", this->serial_number_[0], this->serial_number_[1],
-               this->serial_number_[2]);
+      const char *serial_number = sensirion_convert_to_string_in_place(raw_serial_number, 8);
+      snprintf(this->serial_number_, sizeof(this->serial_number_), "%s", serial_number);
+      ESP_LOGV(TAG, "Serial number %s", this->serial_number_);
 
       uint16_t raw_product_name[16];
       if (!this->get_register(SEN5X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
@@ -95,50 +117,35 @@ void SEN5XComponent::setup() {
         this->mark_failed();
         return;
       }
-      // 2 ASCII bytes are encoded in an int
-      const uint16_t *current_int = raw_product_name;
-      char current_char;
-      uint8_t max = 16;
-      do {
-        // first char
-        current_char = *current_int >> 8;
-        if (current_char) {
-          this->product_name_.push_back(current_char);
-          // second char
-          current_char = *current_int & 0xFF;
-          if (current_char) {
-            this->product_name_.push_back(current_char);
-          }
-        }
-        current_int++;
-      } while (current_char && --max);
-
-      Sen5xType sen5x_type = UNKNOWN;
-      if (this->product_name_ == "SEN50") {
-        sen5x_type = SEN50;
+      const char *product_name = sensirion_convert_to_string_in_place(raw_product_name, 16);
+      if (strncmp(product_name, "SEN50", 5) == 0) {
+        this->type_ = Sen5xType::SEN50;
+      } else if (strncmp(product_name, "SEN54", 5) == 0) {
+        this->type_ = Sen5xType::SEN54;
+      } else if (strncmp(product_name, "SEN55", 5) == 0) {
+        this->type_ = Sen5xType::SEN55;
       } else {
-        if (this->product_name_ == "SEN54") {
-          sen5x_type = SEN54;
-        } else {
-          if (this->product_name_ == "SEN55") {
-            sen5x_type = SEN55;
-          }
-        }
+        this->type_ = Sen5xType::UNKNOWN;
+        ESP_LOGE(TAG, "Unknown product name: %.32s", product_name);
+        this->error_code_ = PRODUCT_NAME_FAILED;
+        this->mark_failed();
+        return;
       }
-      ESP_LOGD(TAG, "Product name: %s", this->product_name_.c_str());
-      if (this->humidity_sensor_ && sen5x_type == SEN50) {
+
+      ESP_LOGD(TAG, "Type: %s", LOG_STR_ARG(type_to_string(this->type_)));
+      if (this->humidity_sensor_ && this->type_ == Sen5xType::SEN50) {
         ESP_LOGE(TAG, "Relative humidity requires a SEN54 or SEN55");
         this->humidity_sensor_ = nullptr;  // mark as not used
       }
-      if (this->temperature_sensor_ && sen5x_type == SEN50) {
+      if (this->temperature_sensor_ && this->type_ == Sen5xType::SEN50) {
         ESP_LOGE(TAG, "Temperature requires a SEN54 or SEN55");
         this->temperature_sensor_ = nullptr;  // mark as not used
       }
-      if (this->voc_sensor_ && sen5x_type == SEN50) {
+      if (this->voc_sensor_ && this->type_ == Sen5xType::SEN50) {
         ESP_LOGE(TAG, "VOC requires a SEN54 or SEN55");
         this->voc_sensor_ = nullptr;  // mark as not used
       }
-      if (this->nox_sensor_ && sen5x_type != SEN55) {
+      if (this->nox_sensor_ && this->type_ != Sen5xType::SEN55) {
         ESP_LOGE(TAG, "NOx requires a SEN55");
         this->nox_sensor_ = nullptr;  // mark as not used
       }
@@ -153,12 +160,8 @@ void SEN5XComponent::setup() {
       ESP_LOGV(TAG, "Firmware version %d", this->firmware_version_);
 
       if (this->voc_sensor_ && this->store_baseline_) {
-        uint32_t combined_serial =
-            encode_uint24(this->serial_number_[0], this->serial_number_[1], this->serial_number_[2]);
-        // Hash with config hash, version, and serial number
-        // This ensures the baseline storage is cleared after OTA
-        // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
-        uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), combined_serial);
+        // Hash with serial number, serial numbers are unique, so multiple sensors can be used without conflict
+        uint32_t hash = fnv1a_hash(this->serial_number_);
         this->pref_ = global_preferences->make_preference<uint16_t[4]>(hash, true);
         this->voc_baseline_time_ = App.get_loop_component_start_time();
         if (this->pref_.load(&this->voc_baseline_state_)) {
@@ -262,11 +265,10 @@ void SEN5XComponent::dump_config() {
     }
   }
   ESP_LOGCONFIG(TAG,
-                "  Product name: %s\n"
+                "  Type: %s\n"
                 "  Firmware version: %d\n"
-                "  Serial number %02d.%02d.%02d",
-                this->product_name_.c_str(), this->firmware_version_, this->serial_number_[0], this->serial_number_[1],
-                this->serial_number_[2]);
+                "  Serial number: %s",
+                LOG_STR_ARG(type_to_string(this->type_)), this->firmware_version_, this->serial_number_);
   if (this->auto_cleaning_interval_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Auto cleaning interval: %" PRId32 "s", this->auto_cleaning_interval_.value());
   }

@@ -20,7 +20,7 @@ from .. import template_ns
 CONF_CURRENT_TEMPERATURE = "current_temperature"
 
 TemplateWaterHeater = template_ns.class_(
-    "TemplateWaterHeater", water_heater.WaterHeater
+    "TemplateWaterHeater", cg.Component, water_heater.WaterHeater
 )
 
 TemplateWaterHeaterPublishAction = template_ns.class_(
@@ -36,24 +36,29 @@ RESTORE_MODES = {
     "RESTORE_AND_CALL": TemplateWaterHeaterRestoreMode.WATER_HEATER_RESTORE_AND_CALL,
 }
 
-CONFIG_SCHEMA = water_heater.water_heater_schema(TemplateWaterHeater).extend(
-    {
-        cv.Optional(CONF_OPTIMISTIC, default=True): cv.boolean,
-        cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
-        cv.Optional(CONF_RESTORE_MODE, default="NO_RESTORE"): cv.enum(
-            RESTORE_MODES, upper=True
-        ),
-        cv.Optional(CONF_CURRENT_TEMPERATURE): cv.returning_lambda,
-        cv.Optional(CONF_MODE): cv.returning_lambda,
-        cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(
-            water_heater.validate_water_heater_mode
-        ),
-    }
+CONFIG_SCHEMA = (
+    water_heater.water_heater_schema(TemplateWaterHeater)
+    .extend(
+        {
+            cv.Optional(CONF_OPTIMISTIC, default=True): cv.boolean,
+            cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
+            cv.Optional(CONF_RESTORE_MODE, default="NO_RESTORE"): cv.enum(
+                RESTORE_MODES, upper=True
+            ),
+            cv.Optional(CONF_CURRENT_TEMPERATURE): cv.returning_lambda,
+            cv.Optional(CONF_MODE): cv.returning_lambda,
+            cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(
+                water_heater.validate_water_heater_mode
+            ),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
 )
 
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
     await water_heater.register_water_heater(var, config)
 
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
