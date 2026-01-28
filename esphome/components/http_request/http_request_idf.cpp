@@ -157,6 +157,9 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   }
 
   container->feed_wdt();
+  // esp_http_client_fetch_headers() returns -1 for chunked transfer encoding (no Content-Length).
+  // When stored in size_t content_length, -1 becomes 0 due to the int64_t to size_t conversion.
+  // The read() method handles content_length == 0 specially to support chunked responses.
   container->content_length = esp_http_client_fetch_headers(client);
   container->feed_wdt();
   container->status_code = esp_http_client_get_status_code(client);
@@ -225,14 +228,22 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
 //
 // We normalize to HttpContainer::read() contract:
 //   > 0: bytes read
-//   0: no data yet / all content read (caller should check bytes_read vs content_length)
+//   0: all content read (only returned when content_length is known and fully read)
 //   < 0: error/connection closed
+//
+// Note on chunked transfer encoding:
+//   esp_http_client_fetch_headers() returns -1 for chunked responses, which becomes 0
+//   when stored in size_t content_length. We handle this by skipping the content_length
+//   check when content_length is 0, allowing esp_http_client_read() to handle chunked
+//   decoding internally and signal EOF by returning 0.
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
 
   // Check if we've already read all expected content
-  if (this->bytes_read_ >= this->content_length) {
+  // Skip this check when content_length is 0 (chunked transfer encoding or unknown length)
+  // For chunked responses, esp_http_client_read() will return 0 when all data is received
+  if (this->content_length > 0 && this->bytes_read_ >= this->content_length) {
     return 0;  // All content read successfully
   }
 
@@ -247,7 +258,12 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
     return read_len_or_error;
   }
 
-  // Connection closed by server before all content received
+  // esp_http_client_read() returns 0 in two cases:
+  // 1. Known content_length: connection closed before all data received (error)
+  // 2. Chunked encoding (content_length == 0): all data received (EOF)
+  // For case 1, returning HTTP_ERROR_CONNECTION_CLOSED is correct.
+  // For case 2, it's semantically an EOF not an error, but functionally correct
+  // because all data is already in the caller's buffer at this point.
   if (read_len_or_error == 0) {
     return HTTP_ERROR_CONNECTION_CLOSED;
   }
