@@ -370,6 +370,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
     // SPDIF generates events every 192 frames (~4ms at 48kHz), while standard I2S
     // generates events every ~15ms. Batching prevents overwhelming upstream components.
     //
+    // SPDIF callback batching: reduces callback rate while maintaining timing accuracy.
     // Time-based flush: if we haven't fired a callback in >20ms and have pending frames,
     // flush them. This ensures timing feedback continues even when audio flow slows.
     const uint32_t spdif_callback_threshold =
@@ -378,7 +379,10 @@ void I2SAudioSpeaker::speaker_task(void *params) {
     int64_t spdif_pending_timestamp = 0;
     uint32_t spdif_last_callback_time = millis();
     const uint32_t SPDIF_FLUSH_TIMEOUT_MS = 20;  // Flush pending frames if no callback in this time
-#endif                                           // !USE_I2S_LEGACY && USE_I2S_AUDIO_SPDIF_MODE
+    // Startup burst: fire callbacks immediately (no batching) for first ~60ms
+    // This gives sendspin fast initial timing feedback for sync algorithm
+    uint32_t spdif_startup_frames_remaining = spdif_callback_threshold * 4;  // ~60ms of immediate callbacks
+#endif  // !USE_I2S_LEGACY && USE_I2S_AUDIO_SPDIF_MODE
 
     xEventGroupSetBits(this_speaker->event_group_, SpeakerEventGroupBits::TASK_RUNNING);
 
@@ -440,15 +444,24 @@ void I2SAudioSpeaker::speaker_task(void *params) {
             spdif_pending_frames += frames_sent;
           }
 
-          // Fire callback when threshold reached OR time-based flush needed
+          // During startup burst, fire callbacks immediately (no batching)
+          // This gives sendspin fast initial timing feedback for sync algorithm
+          bool startup_burst = (spdif_startup_frames_remaining > 0);
           bool threshold_reached = spdif_pending_frames >= spdif_callback_threshold;
           bool timeout_flush =
               (spdif_pending_frames > 0) && ((millis() - spdif_last_callback_time) >= SPDIF_FLUSH_TIMEOUT_MS);
 
-          if (threshold_reached || timeout_flush) {
-            this_speaker->audio_output_callback_(spdif_pending_frames, spdif_pending_timestamp);
-            spdif_pending_frames = 0;
-            spdif_last_callback_time = millis();
+          if (startup_burst || threshold_reached || timeout_flush) {
+            if (spdif_pending_frames > 0) {
+              this_speaker->audio_output_callback_(spdif_pending_frames, spdif_pending_timestamp);
+              if (spdif_startup_frames_remaining > spdif_pending_frames) {
+                spdif_startup_frames_remaining -= spdif_pending_frames;
+              } else {
+                spdif_startup_frames_remaining = 0;
+              }
+              spdif_pending_frames = 0;
+              spdif_last_callback_time = millis();
+            }
           }
         } else
 #endif  // USE_I2S_AUDIO_SPDIF_MODE
@@ -613,9 +626,12 @@ void I2SAudioSpeaker::speaker_task(void *params) {
             // All input data was consumed by the encoder (it buffers partial blocks internally)
             bytes_written = transfer_buffer->available();
 
-            // Immediately flush any partial block with silence for fast startup
-            // This minimizes latency by not waiting to accumulate a full 768-byte block
-            if (this_speaker->spdif_encoder_->has_pending_data()) {
+            // Only flush partial block if we have enough real audio data to avoid a click
+            // Minimum: 75% of block = 144 stereo frames = 576 PCM bytes
+            // Higher threshold = less silence padding = smoother transition
+            static constexpr size_t MIN_FLUSH_PCM_BYTES = SPDIF_BLOCK_SAMPLES * 3 / 4 * 4;  // 576 bytes = 144 frames
+            size_t pending_bytes = this_speaker->spdif_encoder_->get_pending_pcm_bytes();
+            if (pending_bytes >= MIN_FLUSH_PCM_BYTES) {
               err = this_speaker->spdif_encoder_->flush_with_silence(0);
               if (err == ESP_OK) {
                 blocks_sent++;
@@ -634,8 +650,9 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 
               // Don't fire immediate callback here - let DMA events handle timing feedback
               // This matches standard I2S behavior and avoids double-counting frames
-              // Reset the callback batching timer for consistent timeout behavior
+              // Reset callback batching state and enable startup burst for fast initial timing
               spdif_last_callback_time = millis();
+              spdif_startup_frames_remaining = spdif_callback_threshold * 4;  // Re-enable startup burst (~60ms)
             }
             // If no data was written at all, we stay in underflow state
           } else {
