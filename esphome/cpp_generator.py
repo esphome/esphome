@@ -462,6 +462,16 @@ def statement(expression: Expression | Statement) -> Statement:
     return ExpressionStatement(expression)
 
 
+def literal(name: str) -> "MockObj":
+    """Create a literal name that will appear in the generated code
+    not surrounded by quotes.
+
+    :param name: The name of the literal.
+    :return: The literal as a MockObj.
+    """
+    return MockObj(name, "")
+
+
 def variable(
     id_: ID, rhs: SafeExpType, type_: "MockObj" = None, register=True
 ) -> "MockObj":
