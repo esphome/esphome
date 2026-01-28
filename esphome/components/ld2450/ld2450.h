@@ -194,7 +194,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   std::array<text_sensor::TextSensor *, 3> direction_text_sensors_{};
 #endif
 
-  LazyCallbackManager<void()> callback_;
+  LazyCallbackManager<void()> data_callback_;
 };
 
 class LD2450DataTrigger : public Trigger<> {

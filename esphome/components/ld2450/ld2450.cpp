@@ -403,7 +403,7 @@ void LD2450Component::restart_and_read_all_info() {
 }
 
 void LD2450Component::add_on_data_callback(std::function<void()> &&callback) {
-  this->callback_.add(std::move(callback));
+  this->data_callback_.add(std::move(callback));
 }
 
 // Send command with values to LD2450
@@ -607,7 +607,7 @@ void LD2450Component::handle_periodic_data_() {
   }
 #endif
 
-  this->callback_.call();
+  this->data_callback_.call();
 }
 
 bool LD2450Component::handle_ack_data_() {
