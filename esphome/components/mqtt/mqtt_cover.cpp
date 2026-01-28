@@ -115,7 +115,8 @@ bool MQTTCoverComponent::publish_state() {
                         : this->cover_->position == COVER_OPEN                       ? "open"
                         : traits.get_supports_position()                             ? "open"
                                                                                      : "unknown";
-  if (!this->publish(this->get_state_topic_(), state_s))
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  if (!this->publish(this->get_state_topic_to_(topic_buf), state_s))
     success = false;
   return success;
 }

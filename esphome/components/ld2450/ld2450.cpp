@@ -184,7 +184,7 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
 void LD2450Component::setup() {
 #ifdef USE_NUMBER
   if (this->presence_timeout_number_ != nullptr) {
-    this->pref_ = global_preferences->make_preference<float>(this->presence_timeout_number_->get_preference_hash());
+    this->pref_ = this->presence_timeout_number_->make_entity_preference<float>();
     this->set_presence_timeout();
   }
 #endif
