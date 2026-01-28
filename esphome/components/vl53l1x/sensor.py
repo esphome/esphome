@@ -5,7 +5,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_ENABLE_PIN,
-    CONF_ID,
     CONF_TIMEOUT,
     ICON_ARROW_EXPAND_VERTICAL,
     STATE_CLASS_MEASUREMENT,
@@ -69,7 +68,9 @@ CONFIG_SCHEMA = cv.All(
                     max=cv.TimePeriod(milliseconds=500),
                 ),
             ),
-            cv.Optional(CONF_TIMEOUT, default="100ms"): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_TIMEOUT, default="100ms"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_SIGNAL_RATE_LIMIT, default=0.25): cv.float_range(
                 min=0.0, max=512.0, min_included=False

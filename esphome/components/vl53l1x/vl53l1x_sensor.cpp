@@ -335,8 +335,8 @@ bool VL53L1XSensor::set_distance_mode_internal_(DistanceMode mode) {
 
   switch (mode) {
     case DISTANCE_MODE_SHORT:
-      vcsel_a = 0x07;      // 14 PCLKs
-      vcsel_b = 0x05;      // 10 PCLKs
+      vcsel_a = 0x07;  // 14 PCLKs
+      vcsel_b = 0x05;  // 10 PCLKs
       woi_sd0 = 0x07;
       woi_sd1 = 0x05;
       phase_sd0 = 0x06;
@@ -344,8 +344,8 @@ bool VL53L1XSensor::set_distance_mode_internal_(DistanceMode mode) {
       valid_phase = 0x38;
       break;
     case DISTANCE_MODE_MEDIUM:
-      vcsel_a = 0x0B;      // 22 PCLKs
-      vcsel_b = 0x09;      // 18 PCLKs
+      vcsel_a = 0x0B;  // 22 PCLKs
+      vcsel_b = 0x09;  // 18 PCLKs
       woi_sd0 = 0x0B;
       woi_sd1 = 0x09;
       phase_sd0 = 0x0A;
@@ -354,8 +354,8 @@ bool VL53L1XSensor::set_distance_mode_internal_(DistanceMode mode) {
       break;
     case DISTANCE_MODE_LONG:
     default:
-      vcsel_a = 0x0F;      // 30 PCLKs
-      vcsel_b = 0x0D;      // 26 PCLKs
+      vcsel_a = 0x0F;  // 30 PCLKs
+      vcsel_b = 0x0D;  // 26 PCLKs
       woi_sd0 = 0x0F;
       woi_sd1 = 0x0D;
       phase_sd0 = 0x0E;
@@ -364,13 +364,20 @@ bool VL53L1XSensor::set_distance_mode_internal_(DistanceMode mode) {
       break;
   }
 
-  if (!this->write_reg_(RANGE_CONFIG_VCSEL_PERIOD_A, vcsel_a)) return false;
-  if (!this->write_reg_(RANGE_CONFIG_VCSEL_PERIOD_B, vcsel_b)) return false;
-  if (!this->write_reg_(SD_CONFIG_WOI_SD0, woi_sd0)) return false;
-  if (!this->write_reg_(SD_CONFIG_WOI_SD1, woi_sd1)) return false;
-  if (!this->write_reg_(SD_CONFIG_INITIAL_PHASE_SD0, phase_sd0)) return false;
-  if (!this->write_reg_(SD_CONFIG_INITIAL_PHASE_SD1, phase_sd1)) return false;
-  if (!this->write_reg_(RANGE_CONFIG_VALID_PHASE_HIGH, valid_phase)) return false;
+  if (!this->write_reg_(RANGE_CONFIG_VCSEL_PERIOD_A, vcsel_a))
+    return false;
+  if (!this->write_reg_(RANGE_CONFIG_VCSEL_PERIOD_B, vcsel_b))
+    return false;
+  if (!this->write_reg_(SD_CONFIG_WOI_SD0, woi_sd0))
+    return false;
+  if (!this->write_reg_(SD_CONFIG_WOI_SD1, woi_sd1))
+    return false;
+  if (!this->write_reg_(SD_CONFIG_INITIAL_PHASE_SD0, phase_sd0))
+    return false;
+  if (!this->write_reg_(SD_CONFIG_INITIAL_PHASE_SD1, phase_sd1))
+    return false;
+  if (!this->write_reg_(RANGE_CONFIG_VALID_PHASE_HIGH, valid_phase))
+    return false;
 
   this->distance_mode_ = mode;
   return true;
@@ -403,8 +410,10 @@ bool VL53L1XSensor::set_timing_budget_internal_(uint32_t budget_us) {
 
   // Read current VCSEL periods
   uint8_t vcsel_a, vcsel_b;
-  if (!this->read_reg_(RANGE_CONFIG_VCSEL_PERIOD_A, &vcsel_a)) return false;
-  if (!this->read_reg_(RANGE_CONFIG_VCSEL_PERIOD_B, &vcsel_b)) return false;
+  if (!this->read_reg_(RANGE_CONFIG_VCSEL_PERIOD_A, &vcsel_a))
+    return false;
+  if (!this->read_reg_(RANGE_CONFIG_VCSEL_PERIOD_B, &vcsel_b))
+    return false;
 
   // Calculate macro periods
   uint32_t macro_period_a = this->calc_macro_period_(vcsel_a);
@@ -421,8 +430,10 @@ bool VL53L1XSensor::set_timing_budget_internal_(uint32_t budget_us) {
   uint16_t encoded_a = this->encode_timeout_(mclks_a);
   uint16_t encoded_b = this->encode_timeout_(mclks_b);
 
-  if (!this->write_reg16_(RANGE_CONFIG_TIMEOUT_MACROP_A_HI, encoded_a)) return false;
-  if (!this->write_reg16_(RANGE_CONFIG_TIMEOUT_MACROP_B_HI, encoded_b)) return false;
+  if (!this->write_reg16_(RANGE_CONFIG_TIMEOUT_MACROP_A_HI, encoded_a))
+    return false;
+  if (!this->write_reg16_(RANGE_CONFIG_TIMEOUT_MACROP_B_HI, encoded_b))
+    return false;
 
   this->timing_budget_us_ = budget_us;
   return true;
@@ -434,8 +445,10 @@ bool VL53L1XSensor::set_roi_internal_() {
   // Encode as: ((height - 1) << 4) | (width - 1)
   uint8_t xy_size = ((this->roi_height_ - 1) << 4) | (this->roi_width_ - 1);
 
-  if (!this->write_reg_(ROI_CONFIG_USER_ROI_CENTRE_SPAD, this->roi_center_)) return false;
-  if (!this->write_reg_(ROI_CONFIG_USER_ROI_REQUESTED_GLOBAL_XY_SIZE, xy_size)) return false;
+  if (!this->write_reg_(ROI_CONFIG_USER_ROI_CENTRE_SPAD, this->roi_center_))
+    return false;
+  if (!this->write_reg_(ROI_CONFIG_USER_ROI_REQUESTED_GLOBAL_XY_SIZE, xy_size))
+    return false;
 
   return true;
 }
@@ -444,9 +457,12 @@ bool VL53L1XSensor::set_offset_internal_() {
   // Offset is stored as mm * 4 (Q2.14 fixed point for inner/outer)
   int16_t offset_q = this->offset_mm_ * 4;
 
-  if (!this->write_reg16_(ALGO_PART_TO_PART_RANGE_OFFSET_MM, offset_q)) return false;
-  if (!this->write_reg16_(MM_CONFIG_INNER_OFFSET_MM, 0)) return false;
-  if (!this->write_reg16_(MM_CONFIG_OUTER_OFFSET_MM, 0)) return false;
+  if (!this->write_reg16_(ALGO_PART_TO_PART_RANGE_OFFSET_MM, offset_q))
+    return false;
+  if (!this->write_reg16_(MM_CONFIG_INNER_OFFSET_MM, 0))
+    return false;
+  if (!this->write_reg16_(MM_CONFIG_OUTER_OFFSET_MM, 0))
+    return false;
 
   return true;
 }
@@ -478,9 +494,8 @@ bool VL53L1XSensor::data_ready_() {
 bool VL53L1XSensor::read_results_() {
   // Read result registers (17 bytes starting at RESULT_RANGE_STATUS)
   uint8_t buffer[17];
-  uint8_t reg_addr[2] = {
-      static_cast<uint8_t>(RESULT_RANGE_STATUS >> 8),
-      static_cast<uint8_t>(RESULT_RANGE_STATUS & 0xFF)};
+  uint8_t reg_addr[2] = {static_cast<uint8_t>(RESULT_RANGE_STATUS >> 8),
+                         static_cast<uint8_t>(RESULT_RANGE_STATUS & 0xFF)};
 
   if (this->write(reg_addr, 2) != i2c::ERROR_OK) {
     return false;
@@ -509,8 +524,7 @@ bool VL53L1XSensor::read_results_() {
   // Check range status
   RangeStatus status = static_cast<RangeStatus>(range_status >> 5);
 
-  if (status != RangeStatus::RANGE_VALID &&
-      status != RangeStatus::RANGE_VALID_MIN_RANGE_CLIPPED &&
+  if (status != RangeStatus::RANGE_VALID && status != RangeStatus::RANGE_VALID_MIN_RANGE_CLIPPED &&
       status != RangeStatus::RANGE_VALID_MERGED_PULSE) {
     ESP_LOGD(TAG, "Range status: %d", static_cast<int>(status));
     this->status_set_warning();
@@ -527,9 +541,7 @@ bool VL53L1XSensor::read_results_() {
   return true;
 }
 
-void VL53L1XSensor::clear_interrupt_() {
-  this->write_reg_(SYSTEM_INTERRUPT_CLEAR, 0x01);
-}
+void VL53L1XSensor::clear_interrupt_() { this->write_reg_(SYSTEM_INTERRUPT_CLEAR, 0x01); }
 
 // --- I2C Helpers ---
 
@@ -539,18 +551,15 @@ bool VL53L1XSensor::write_reg_(uint16_t reg, uint8_t value) {
 }
 
 bool VL53L1XSensor::write_reg16_(uint16_t reg, uint16_t value) {
-  uint8_t data[4] = {static_cast<uint8_t>(reg >> 8), static_cast<uint8_t>(reg & 0xFF),
-                     static_cast<uint8_t>(value >> 8), static_cast<uint8_t>(value & 0xFF)};
+  uint8_t data[4] = {static_cast<uint8_t>(reg >> 8), static_cast<uint8_t>(reg & 0xFF), static_cast<uint8_t>(value >> 8),
+                     static_cast<uint8_t>(value & 0xFF)};
   return this->write(data, 4) == i2c::ERROR_OK;
 }
 
 bool VL53L1XSensor::write_reg32_(uint16_t reg, uint32_t value) {
-  uint8_t data[6] = {static_cast<uint8_t>(reg >> 8),
-                     static_cast<uint8_t>(reg & 0xFF),
-                     static_cast<uint8_t>(value >> 24),
-                     static_cast<uint8_t>(value >> 16),
-                     static_cast<uint8_t>(value >> 8),
-                     static_cast<uint8_t>(value & 0xFF)};
+  uint8_t data[6] = {static_cast<uint8_t>(reg >> 8),    static_cast<uint8_t>(reg & 0xFF),
+                     static_cast<uint8_t>(value >> 24), static_cast<uint8_t>(value >> 16),
+                     static_cast<uint8_t>(value >> 8),  static_cast<uint8_t>(value & 0xFF)};
   return this->write(data, 6) == i2c::ERROR_OK;
 }
 
