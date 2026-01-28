@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CHANNEL,
     CONF_ID,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
@@ -83,7 +84,7 @@ CONFIG_SCHEMA = cv.typed_schema(
         .extend(
             {
                 cv.GenerateID(CONF_SEESAW_ID): cv.use_id(Seesaw),
-                cv.Required(CONF_PIN): cv.int_,
+                cv.Required(CONF_CHANNEL): cv.int_,
             }
         )
         .extend(cv.polling_component_schema("60s")),
@@ -107,4 +108,4 @@ async def to_code(config):
         if CONF_MAX_VALUE in config:
             cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
     elif config[CONF_TYPE] == CONF_TOUCH:
-        cg.add(var.set_channel(config[CONF_PIN]))
+        cg.add(var.set_channel(config[CONF_CHANNEL]))
