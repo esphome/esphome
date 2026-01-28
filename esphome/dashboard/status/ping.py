@@ -53,12 +53,16 @@ class PingStatus:
             dashboard.ping_request.clear()
             iteration_start = time.monotonic()
             current_entries = dashboard.entries.async_all()
-            to_ping: list[DashboardEntry] = []
+            to_ping: list[tuple[DashboardEntry, str]] = []
 
             for entry in current_entries:
-                if entry.address is None:
-                    # No address or we already have a state from another source
-                    # so no need to ping
+                address = entry.address
+                if address is None and entry.target_platform == "HOST":
+                    # Host platform nodes may not have an address in storage.json.
+                    # In that case, fall back to pinging the node name.
+                    address = entry.name
+                if address is None:
+                    # No address to ping
                     continue
                 if (
                     entry.state.reachable is ReachableState.ONLINE
@@ -68,22 +72,23 @@ class PingStatus:
                     # If we already have a state from another source and
                     # it's online, we don't need to ping
                     continue
-                to_ping.append(entry)
+                to_ping.append((entry, address))
 
             # Resolve DNS for all entries
             entries_with_addresses: dict[DashboardEntry, list[str]] = {}
             for ping_group in chunked(to_ping, GROUP_SIZE):
-                ping_group = cast(list[DashboardEntry], ping_group)
+                ping_group = cast(list[tuple[DashboardEntry, str]], ping_group)
                 now_monotonic = time.monotonic()
                 dns_results = await asyncio.gather(
                     *(
-                        dashboard.dns_cache.async_resolve(entry.address, now_monotonic)
-                        for entry in ping_group
+                        dashboard.dns_cache.async_resolve(address, now_monotonic)
+                        for _, address in ping_group
                     ),
                     return_exceptions=True,
                 )
 
-                for entry, result in zip(ping_group, dns_results):
+                for entry_address, result in zip(ping_group, dns_results):
+                    entry = entry_address[0]
                     if isinstance(result, Exception):
                         # Only update state if its unknown or from ping
                         # so we don't mark it as offline if we have a state
