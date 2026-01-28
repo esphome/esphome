@@ -474,11 +474,7 @@ bool VL53L1XSensor::start_measurement_() {
   this->clear_interrupt_();
 
   // Start single-shot measurement
-  if (!this->write_reg_(SYSTEM_MODE_START, 0x10)) {
-    return false;
-  }
-
-  return true;
+  return this->write_reg_(SYSTEM_MODE_START, 0x10);
 }
 
 bool VL53L1XSensor::data_ready_() {
