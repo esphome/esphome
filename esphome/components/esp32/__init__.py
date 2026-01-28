@@ -1110,7 +1110,7 @@ async def to_code(config):
 
     cg.add_build_flag("-Wno-nonnull-compare")
 
-    # Use CMN (common CAs) bundle by default to save ~35KB flash
+    # Use CMN (common CAs) bundle by default to save ~51KB flash
     # CMN covers CAs with >1% market share (~99% of websites)
     # Components needing uncommon CAs can call require_full_certificate_bundle()
     use_full_bundle = conf[CONF_ADVANCED].get(
