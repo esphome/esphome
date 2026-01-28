@@ -9,8 +9,6 @@ binary_sensor:
   - platform: template
     name: "Garage Door Open 4"
   - platform: template
-    name: "Garage Door Open 5"
-  - platform: template
     name: "Garage Door Internal"
     internal: True
 
@@ -39,3 +37,11 @@ switch:
   - platform: template
     name: "Template Switch"
     optimistic: true
+
+number:
+  - platform: template
+    name: "Template number"
+    optimistic: true
+    min_value: 2
+    max_value: 100
+    step: 1
