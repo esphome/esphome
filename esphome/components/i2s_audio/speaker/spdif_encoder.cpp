@@ -86,34 +86,14 @@ void SPDIFEncoder::build_channel_status_() {
   // Clock accuracy = 00 (Level II, ±1000 ppm) - appropriate for ESP32
   uint8_t freq_code;
   switch (this->sample_rate_) {
-    case 22050:
-      freq_code = 0x4;  // 0100
-      break;
-    case 24000:
-      freq_code = 0x6;  // 0110
-      break;
-    case 32000:
-      freq_code = 0x3;  // 0011
-      break;
     case 44100:
       freq_code = 0x0;  // 0000
       break;
     case 48000:
       freq_code = 0x2;  // 0010
       break;
-    case 88200:
-      freq_code = 0x8;  // 1000
-      break;
-    case 96000:
-      freq_code = 0xA;  // 1010
-      break;
-    case 176400:
-      freq_code = 0xC;  // 1100
-      break;
-    case 192000:
-      freq_code = 0xE;  // 1110
-      break;
     default:
+      // Other values are possible but they're not supported by ESPHome
       freq_code = 0x1;  // 0001 = not indicated
       ESP_LOGW(TAG, "Unsupported sample rate %lu Hz, channel status will indicate 'not specified'",
                (unsigned long) this->sample_rate_);

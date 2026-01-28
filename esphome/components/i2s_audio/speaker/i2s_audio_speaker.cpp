@@ -227,7 +227,7 @@ void I2SAudioSpeaker::loop() {
 
       if (this->start_i2s_driver_(this->audio_stream_info_) != ESP_OK) {
         ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
-        this->status_momentary_error("driver-faiure", 1000);
+        this->status_momentary_error("driver-failure", 1000);
         break;
       }
 
