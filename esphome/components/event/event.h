@@ -16,8 +16,8 @@ namespace event {
 #define LOG_EVENT(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    log_entity_icon(TAG, prefix, *(obj)); \
-    log_entity_device_class(TAG, prefix, *(obj)); \
+    LOG_ENTITY_ICON(prefix, *(obj)); \
+    LOG_ENTITY_DEVICE_CLASS(prefix, *(obj)); \
   }
 
 class Event : public EntityBase, public EntityBase_DeviceClass {

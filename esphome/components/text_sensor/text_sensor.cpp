@@ -15,8 +15,8 @@ void log_text_sensor(const char *tag, const char *prefix, const char *type, Text
   }
 
   ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-  log_entity_device_class(tag, prefix, *obj);
-  log_entity_icon(tag, prefix, *obj);
+  LOG_ENTITY_DEVICE_CLASS(prefix, *obj);
+  LOG_ENTITY_ICON(prefix, *obj);
 }
 
 void TextSensor::publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
