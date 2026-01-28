@@ -3,6 +3,7 @@ CONF_ZIGBEE_ID = "zigbee_id"
 CONF_ZIGBEE_BINARY_SENSOR = "zigbee_binary_sensor"
 CONF_ZIGBEE_SENSOR = "zigbee_sensor"
 CONF_ZIGBEE_SWITCH = "zigbee_switch"
+CONF_IEEE802154_VENDOR_OUI = "ieee802154_vendor_oui"
 
 # Keys for CORE.data storage
 KEY_EP_NUMBER = "ep_number"

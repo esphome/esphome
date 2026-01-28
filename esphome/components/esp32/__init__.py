@@ -57,6 +57,7 @@ from .const import (  # noqa
     KEY_ESP32,
     KEY_EXTRA_BUILD_FILES,
     KEY_FLASH_SIZE,
+    KEY_FULL_CERT_BUNDLE,
     KEY_PATH,
     KEY_REF,
     KEY_REPO,
@@ -689,6 +690,7 @@ CONF_FREERTOS_IN_IRAM = "freertos_in_iram"
 CONF_RINGBUF_IN_IRAM = "ringbuf_in_iram"
 CONF_HEAP_IN_IRAM = "heap_in_iram"
 CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
+CONF_USE_FULL_CERTIFICATE_BUNDLE = "use_full_certificate_bundle"
 
 # VFS requirement tracking
 # Components that need VFS features can call require_vfs_select() or require_vfs_dir()
@@ -712,6 +714,18 @@ def require_vfs_dir() -> None:
     This prevents CONFIG_VFS_SUPPORT_DIR from being disabled.
     """
     CORE.data[KEY_VFS_DIR_REQUIRED] = True
+
+
+def require_full_certificate_bundle() -> None:
+    """Request the full certificate bundle instead of the common-CAs-only bundle.
+
+    By default, ESPHome uses CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN which
+    includes only CAs with >1% market share (~51 KB smaller than full bundle).
+    This covers ~99% of websites including Let's Encrypt, DigiCert, Google, Amazon.
+
+    Call this from components that need to connect to services using uncommon CAs.
+    """
+    CORE.data[KEY_ESP32][KEY_FULL_CERT_BUNDLE] = True
 
 
 def _parse_idf_component(value: str) -> ConfigType:
@@ -795,6 +809,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     min=8192, max=32768
                 ),
                 cv.Optional(CONF_ENABLE_OTA_ROLLBACK, default=True): cv.boolean,
+                cv.Optional(
+                    CONF_USE_FULL_CERTIFICATE_BUNDLE, default=False
+                ): cv.boolean,
             }
         ),
         cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
@@ -1093,6 +1110,19 @@ async def to_code(config):
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
         if use_platformio:
             cg.add_platformio_option("framework", "espidf")
+
+        # Wrap std::__throw_* functions to abort immediately, eliminating ~3KB of
+        # exception class overhead. See throw_stubs.cpp for implementation.
+        # ESP-IDF already compiles with -fno-exceptions, so this code was dead anyway.
+        for mangled in [
+            "_ZSt20__throw_length_errorPKc",
+            "_ZSt19__throw_logic_errorPKc",
+            "_ZSt20__throw_out_of_rangePKc",
+            "_ZSt24__throw_out_of_range_fmtPKcz",
+            "_ZSt17__throw_bad_allocv",
+            "_ZSt25__throw_bad_function_callv",
+        ]:
+            cg.add_build_flag(f"-Wl,--wrap={mangled}")
     else:
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
@@ -1124,6 +1154,18 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
 
     cg.add_build_flag("-Wno-nonnull-compare")
+
+    # Use CMN (common CAs) bundle by default to save ~51KB flash
+    # CMN covers CAs with >1% market share (~99% of websites)
+    # Components needing uncommon CAs can call require_full_certificate_bundle()
+    use_full_bundle = conf[CONF_ADVANCED].get(
+        CONF_USE_FULL_CERTIFICATE_BUNDLE, False
+    ) or CORE.data[KEY_ESP32].get(KEY_FULL_CERT_BUNDLE, False)
+    add_idf_sdkconfig_option(
+        "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL", use_full_bundle
+    )
+    if not use_full_bundle:
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True)
 
     add_idf_sdkconfig_option(f"CONFIG_IDF_TARGET_{variant}", True)
     add_idf_sdkconfig_option(
