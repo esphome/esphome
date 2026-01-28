@@ -6,6 +6,7 @@ mqtt:
   broker: test.mosquitto.org
   port: 1883
   discovery: true
+  clean_session: False
   discovery_prefix: homeassistant
   log_topic:
   on_message:

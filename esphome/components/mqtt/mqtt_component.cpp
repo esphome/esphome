@@ -337,7 +337,7 @@ void MQTTComponent::subscribe_json(const std::string &topic, const mqtt_json_cal
 
 MQTTComponent::MQTTComponent() = default;
 
-float MQTTComponent::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
+float MQTTComponent::get_setup_priority() const { return setup_priority::BEFORE_CONNECTION; }
 void MQTTComponent::disable_discovery() { this->discovery_enabled_ = false; }
 void MQTTComponent::set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }
 
