@@ -133,7 +133,8 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
 
   // HTTPClient::getSize() returns -1 for chunked transfer encoding (no Content-Length).
   // When cast to size_t, -1 becomes SIZE_MAX (4294967295 on 32-bit).
-  // The read() method handles this by checking content_length > 0 before using it.
+  // The read() method handles this: bytes_read_ can never reach SIZE_MAX, so the
+  // early return check (bytes_read_ >= content_length) will never trigger.
   int content_length = container->client_.getSize();
   ESP_LOGD(TAG, "Content-Length: %d", content_length);
   container->content_length = (size_t) content_length;

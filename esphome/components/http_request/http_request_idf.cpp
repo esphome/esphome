@@ -157,8 +157,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   }
 
   container->feed_wdt();
-  // esp_http_client_fetch_headers() returns -1 for chunked transfer encoding (no Content-Length).
-  // When stored in size_t content_length, -1 becomes 0 due to the int64_t to size_t conversion.
+  // esp_http_client_fetch_headers() returns 0 for chunked transfer encoding (no Content-Length header).
   // The read() method handles content_length == 0 specially to support chunked responses.
   container->content_length = esp_http_client_fetch_headers(client);
   container->feed_wdt();
@@ -232,10 +231,10 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
 //   < 0: error/connection closed
 //
 // Note on chunked transfer encoding:
-//   esp_http_client_fetch_headers() returns -1 for chunked responses, which becomes 0
-//   when stored in size_t content_length. We handle this by skipping the content_length
-//   check when content_length is 0, allowing esp_http_client_read() to handle chunked
-//   decoding internally and signal EOF by returning 0.
+//   esp_http_client_fetch_headers() returns 0 for chunked responses (no Content-Length header).
+//   We handle this by skipping the content_length check when content_length is 0,
+//   allowing esp_http_client_read() to handle chunked decoding internally and signal EOF
+//   by returning 0.
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
@@ -260,10 +259,11 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
 
   // esp_http_client_read() returns 0 in two cases:
   // 1. Known content_length: connection closed before all data received (error)
-  // 2. Chunked encoding (content_length == 0): all data received (EOF)
+  // 2. Chunked encoding (content_length == 0): end of stream reached (EOF)
   // For case 1, returning HTTP_ERROR_CONNECTION_CLOSED is correct.
-  // For case 2, it's semantically an EOF not an error, but functionally correct
-  // because all data is already in the caller's buffer at this point.
+  // For case 2, 0 indicates that all chunked data has already been delivered
+  // in previous successful read() calls, so treating this as a closed
+  // connection does not cause any loss of response data.
   if (read_len_or_error == 0) {
     return HTTP_ERROR_CONNECTION_CLOSED;
   }
