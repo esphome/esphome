@@ -10,7 +10,7 @@ extern "C" {
 #include <zboss_api_addons.h>
 }
 
-enum zb_zcl_analog_output_attr_e {
+enum {
   ZB_ZCL_ATTR_ANALOG_OUTPUT_DESCRIPTION_ID = 0x001C,
   ZB_ZCL_ATTR_ANALOG_OUTPUT_MAX_PRESENT_VALUE_ID = 0x0041,
   ZB_ZCL_ATTR_ANALOG_OUTPUT_MIN_PRESENT_VALUE_ID = 0x0045,
@@ -40,28 +40,28 @@ enum zb_zcl_analog_output_attr_e {
   { \
     ZB_ZCL_ATTR_ANALOG_OUTPUT_PRESENT_VALUE_ID, ZB_ZCL_ATTR_TYPE_SINGLE, \
         ZB_ZCL_ATTR_ACCESS_READ_WRITE | ZB_ZCL_ATTR_ACCESS_REPORTING, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
-        (void *) data_ptr \
+        (void *) (data_ptr) \
   }
 // MaxPresentValue
 #define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_ANALOG_OUTPUT_MAX_PRESENT_VALUE_ID(data_ptr) \
   { \
     ZB_ZCL_ATTR_ANALOG_OUTPUT_MAX_PRESENT_VALUE_ID, ZB_ZCL_ATTR_TYPE_SINGLE, \
         ZB_ZCL_ATTR_ACCESS_READ_ONLY | ZB_ZCL_ATTR_ACCESS_WRITE_OPTIONAL, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
-        (void *) data_ptr \
+        (void *) (data_ptr) \
   }
 // MinPresentValue
 #define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_ANALOG_OUTPUT_MIN_PRESENT_VALUE_ID(data_ptr) \
   { \
     ZB_ZCL_ATTR_ANALOG_OUTPUT_MIN_PRESENT_VALUE_ID, ZB_ZCL_ATTR_TYPE_SINGLE, \
         ZB_ZCL_ATTR_ACCESS_READ_ONLY | ZB_ZCL_ATTR_ACCESS_WRITE_OPTIONAL, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
-        (void *) data_ptr \
+        (void *) (data_ptr) \
   }
 // Resolution
 #define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_ANALOG_OUTPUT_RESOLUTION_ID(data_ptr) \
   { \
     ZB_ZCL_ATTR_ANALOG_OUTPUT_RESOLUTION_ID, ZB_ZCL_ATTR_TYPE_SINGLE, \
         ZB_ZCL_ATTR_ACCESS_READ_ONLY | ZB_ZCL_ATTR_ACCESS_WRITE_OPTIONAL, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
-        (void *) data_ptr \
+        (void *) (data_ptr) \
   }
 
 #define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_ANALOG_OUTPUT_STATUS_FLAG_ID(data_ptr) \
