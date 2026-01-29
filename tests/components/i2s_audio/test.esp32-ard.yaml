@@ -5,6 +5,10 @@ substitutions:
 
 <<: !include common.yaml
 
+wifi:
+  ssid: test
+  password: test1234
+
 media_player:
   - platform: i2s_audio
     name: Test Media Player
