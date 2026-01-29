@@ -672,11 +672,25 @@ CONF_RINGBUF_IN_IRAM = "ringbuf_in_iram"
 CONF_HEAP_IN_IRAM = "heap_in_iram"
 CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
 CONF_USE_FULL_CERTIFICATE_BUNDLE = "use_full_certificate_bundle"
+CONF_DISABLE_DEBUG_STUBS = "disable_debug_stubs"
+CONF_DISABLE_OCD_AWARE = "disable_ocd_aware"
+CONF_DISABLE_USB_SERIAL_JTAG_SECONDARY = "disable_usb_serial_jtag_secondary"
+CONF_DISABLE_DEV_NULL_VFS = "disable_dev_null_vfs"
+CONF_DISABLE_MBEDTLS_PEER_CERT = "disable_mbedtls_peer_cert"
+CONF_DISABLE_MBEDTLS_PKCS7 = "disable_mbedtls_pkcs7"
+CONF_DISABLE_REGI2C_IN_IRAM = "disable_regi2c_in_iram"
+CONF_DISABLE_FATFS = "disable_fatfs"
 
 # VFS requirement tracking
 # Components that need VFS features can call require_vfs_select() or require_vfs_dir()
 KEY_VFS_SELECT_REQUIRED = "vfs_select_required"
 KEY_VFS_DIR_REQUIRED = "vfs_dir_required"
+# Feature requirement tracking - components can call require_* functions to re-enable
+# These are stored in CORE.data[KEY_ESP32] dict
+KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED = "usb_serial_jtag_secondary_required"
+KEY_MBEDTLS_PEER_CERT_REQUIRED = "mbedtls_peer_cert_required"
+KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
+KEY_FATFS_REQUIRED = "fatfs_required"
 
 
 def require_vfs_select() -> None:
@@ -707,6 +721,43 @@ def require_full_certificate_bundle() -> None:
     Call this from components that need to connect to services using uncommon CAs.
     """
     CORE.data[KEY_ESP32][KEY_FULL_CERT_BUNDLE] = True
+
+
+def require_usb_serial_jtag_secondary() -> None:
+    """Mark that USB Serial/JTAG secondary console is required by a component.
+
+    Call this from components (e.g., logger) that need USB Serial/JTAG console output.
+    This prevents CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG from being disabled.
+    """
+    CORE.data[KEY_ESP32][KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED] = True
+
+
+def require_mbedtls_peer_cert() -> None:
+    """Mark that mbedTLS peer certificate retention is required by a component.
+
+    Call this from components that need access to the peer certificate after
+    the TLS handshake is complete. This prevents CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE
+    from being disabled.
+    """
+    CORE.data[KEY_ESP32][KEY_MBEDTLS_PEER_CERT_REQUIRED] = True
+
+
+def require_mbedtls_pkcs7() -> None:
+    """Mark that mbedTLS PKCS#7 support is required by a component.
+
+    Call this from components that need PKCS#7 certificate validation.
+    This prevents CONFIG_MBEDTLS_PKCS7_C from being disabled.
+    """
+    CORE.data[KEY_ESP32][KEY_MBEDTLS_PKCS7_REQUIRED] = True
+
+
+def require_fatfs() -> None:
+    """Mark that FATFS support is required by a component.
+
+    Call this from components that use FATFS (e.g., SD card, storage components).
+    This prevents FATFS from being disabled when disable_fatfs is set.
+    """
+    CORE.data[KEY_ESP32][KEY_FATFS_REQUIRED] = True
 
 
 def _parse_idf_component(value: str) -> ConfigType:
@@ -793,6 +844,16 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(
                     CONF_USE_FULL_CERTIFICATE_BUNDLE, default=False
                 ): cv.boolean,
+                cv.Optional(CONF_DISABLE_DEBUG_STUBS, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_OCD_AWARE, default=True): cv.boolean,
+                cv.Optional(
+                    CONF_DISABLE_USB_SERIAL_JTAG_SECONDARY, default=True
+                ): cv.boolean,
+                cv.Optional(CONF_DISABLE_DEV_NULL_VFS, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_MBEDTLS_PEER_CERT, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_MBEDTLS_PKCS7, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_REGI2C_IN_IRAM, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_FATFS, default=True): cv.boolean,
             }
         ),
         cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
@@ -1315,6 +1376,61 @@ async def to_code(config):
     )
 
     add_idf_sdkconfig_option(f"CONFIG_LOG_DEFAULT_LEVEL_{conf[CONF_LOG_LEVEL]}", True)
+
+    # Disable OpenOCD debug stubs to save code size
+    # These are used for on-chip debugging with OpenOCD/JTAG, rarely needed for ESPHome
+    if advanced[CONF_DISABLE_DEBUG_STUBS]:
+        add_idf_sdkconfig_option("CONFIG_ESP_DEBUG_STUBS_ENABLE", False)
+
+    # Disable OCD-aware exception handlers
+    # When enabled, the panic handler detects JTAG debugger and halts instead of resetting
+    # Most ESPHome users don't use JTAG debugging
+    if advanced[CONF_DISABLE_OCD_AWARE]:
+        add_idf_sdkconfig_option("CONFIG_ESP_DEBUG_OCDAWARE", False)
+
+    # Disable USB Serial/JTAG secondary console
+    # Components like logger can call require_usb_serial_jtag_secondary() to re-enable
+    if CORE.data[KEY_ESP32].get(KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED, False):
+        add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG", True)
+    elif advanced[CONF_DISABLE_USB_SERIAL_JTAG_SECONDARY]:
+        add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_SECONDARY_NONE", True)
+
+    # Disable /dev/null VFS initialization
+    # ESPHome doesn't typically need /dev/null
+    if advanced[CONF_DISABLE_DEV_NULL_VFS]:
+        add_idf_sdkconfig_option("CONFIG_VFS_INITIALIZE_DEV_NULL", False)
+
+    # Disable keeping peer certificate after TLS handshake
+    # Saves ~4KB heap per connection, but prevents certificate inspection after handshake
+    # Components that need it can call require_mbedtls_peer_cert()
+    if CORE.data[KEY_ESP32].get(KEY_MBEDTLS_PEER_CERT_REQUIRED, False):
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", True)
+    elif advanced[CONF_DISABLE_MBEDTLS_PEER_CERT]:
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", False)
+
+    # Disable PKCS#7 support in mbedTLS
+    # Only needed for specific certificate validation scenarios
+    # Components that need it can call require_mbedtls_pkcs7()
+    if CORE.data[KEY_ESP32].get(KEY_MBEDTLS_PKCS7_REQUIRED, False):
+        # Component called require_mbedtls_pkcs7() - enable regardless of user setting
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_PKCS7_C", True)
+    elif advanced[CONF_DISABLE_MBEDTLS_PKCS7]:
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_PKCS7_C", False)
+
+    # Disable regi2c control functions in IRAM
+    # Only needed if using analog peripherals (ADC, DAC, etc.) from ISRs while cache is disabled
+    if advanced[CONF_DISABLE_REGI2C_IN_IRAM]:
+        add_idf_sdkconfig_option("CONFIG_ESP_REGI2C_CTRL_FUNC_IN_IRAM", False)
+
+    # Disable FATFS support
+    # Components that need FATFS (SD card, etc.) can call require_fatfs()
+    if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
+        # Component called require_fatfs() - enable regardless of user setting
+        add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", False)
+        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 2)
+    elif advanced[CONF_DISABLE_FATFS]:
+        add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", True)
+        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 0)
 
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
