@@ -3,6 +3,7 @@ import binascii
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import modbus
+from esphome.components.const import CONF_ENABLED
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -20,7 +21,6 @@ from .const import (
     CONF_BYTE_OFFSET,
     CONF_COMMAND_THROTTLE,
     CONF_CUSTOM_COMMAND,
-    CONF_ENABLED,
     CONF_FORCE_NEW_RANGE,
     CONF_MAX_CMD_RETRIES,
     CONF_MODBUS_CONTROLLER_ID,
@@ -279,7 +279,7 @@ def modbus_calc_properties(config):
             if isinstance(value, str):
                 value = value.encode()
             config[CONF_ADDRESS] = binascii.crc_hqx(value, 0)
-        config[CONF_REGISTER_TYPE] = ModbusRegisterType.CUSTOM
+        config[CONF_REGISTER_TYPE] = cv.enum(MODBUS_REGISTER_TYPE)("custom")
         config[CONF_FORCE_NEW_RANGE] = True
     return byte_offset, reg_count
 

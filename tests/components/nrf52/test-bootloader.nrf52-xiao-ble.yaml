@@ -1,0 +1,3 @@
+nrf52:
+  # it is not correct bootloader for the board
+  bootloader: adafruit_nrf52_sd140_v6

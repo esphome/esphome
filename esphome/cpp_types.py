@@ -23,6 +23,7 @@ size_t = global_ns.namespace("size_t")
 const_char_ptr = global_ns.namespace("const char *")
 NAN = global_ns.namespace("NAN")
 esphome_ns = global_ns  # using namespace esphome;
+FixedVector = esphome_ns.class_("FixedVector")
 App = esphome_ns.App
 EntityBase = esphome_ns.class_("EntityBase")
 Component = esphome_ns.class_("Component")
@@ -43,3 +44,4 @@ gpio_Flags = gpio_ns.enum("Flags", is_class=True)
 EntityCategory = esphome_ns.enum("EntityCategory")
 Parented = esphome_ns.class_("Parented")
 ESPTime = esphome_ns.struct("ESPTime")
+StringRef = esphome_ns.class_("StringRef")

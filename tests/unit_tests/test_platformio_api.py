@@ -1,6 +1,7 @@
 """Tests for platformio_api.py path functions."""
 
 import json
+import logging
 import os
 from pathlib import Path
 import shutil
@@ -387,6 +388,42 @@ def test_idedata_addr2line_path_unix(setup_core: Path) -> None:
     assert result == "/usr/bin/addr2line"
 
 
+def test_idedata_objdump_path_windows(setup_core: Path) -> None:
+    """Test IDEData.objdump_path on Windows."""
+    raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "C:\\tools\\gcc.exe"}
+    idedata = platformio_api.IDEData(raw_data)
+
+    result = idedata.objdump_path
+    assert result == "C:\\tools\\objdump.exe"
+
+
+def test_idedata_objdump_path_unix(setup_core: Path) -> None:
+    """Test IDEData.objdump_path on Unix."""
+    raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "/usr/bin/gcc"}
+    idedata = platformio_api.IDEData(raw_data)
+
+    result = idedata.objdump_path
+    assert result == "/usr/bin/objdump"
+
+
+def test_idedata_readelf_path_windows(setup_core: Path) -> None:
+    """Test IDEData.readelf_path on Windows."""
+    raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "C:\\tools\\gcc.exe"}
+    idedata = platformio_api.IDEData(raw_data)
+
+    result = idedata.readelf_path
+    assert result == "C:\\tools\\readelf.exe"
+
+
+def test_idedata_readelf_path_unix(setup_core: Path) -> None:
+    """Test IDEData.readelf_path on Unix."""
+    raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "/usr/bin/gcc"}
+    idedata = platformio_api.IDEData(raw_data)
+
+    result = idedata.readelf_path
+    assert result == "/usr/bin/readelf"
+
+
 def test_patch_structhash(setup_core: Path) -> None:
     """Test patch_structhash monkey patches platformio functions."""
     # Create simple namespace objects to act as modules
@@ -634,3 +671,100 @@ def test_process_stacktrace_bad_alloc(
     assert "Memory allocation of 512 bytes failed at 40201234" in caplog.text
     mock_decode_pc.assert_called_once_with(config, "40201234")
     assert state is False
+
+
+def test_platformio_log_filter_allows_non_platformio_messages() -> None:
+    """Test that non-platformio logger messages are allowed through."""
+    log_filter = platformio_api.PlatformioLogFilter()
+    record = logging.LogRecord(
+        name="esphome.core",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="Some esphome message",
+        args=(),
+        exc_info=None,
+    )
+    assert log_filter.filter(record) is True
+
+
+@pytest.mark.parametrize(
+    "msg",
+    [
+        "Verbose mode can be enabled via `-v, --verbose` option",
+        "Found 5 compatible libraries",
+        "Found 123 compatible libraries",
+        "Building in release mode",
+        "Building in debug mode",
+        "Merged 2 ELF section",
+        "esptool.py v4.7.0",
+        "esptool v4.8.1",
+        "PLATFORM: espressif32 @ 6.4.0",
+        "Using cache: /path/to/cache",
+        "Package configuration completed successfully",
+        "Scanning dependencies...",
+        "Installing dependencies",
+        "Library Manager: Already installed, built-in library",
+        "Memory Usage -> https://bit.ly/pio-memory-usage",
+    ],
+)
+def test_platformio_log_filter_blocks_noisy_messages(msg: str) -> None:
+    """Test that noisy platformio messages are filtered out."""
+    log_filter = platformio_api.PlatformioLogFilter()
+    record = logging.LogRecord(
+        name="platformio.builder",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg=msg,
+        args=(),
+        exc_info=None,
+    )
+    assert log_filter.filter(record) is False
+
+
+@pytest.mark.parametrize(
+    "msg",
+    [
+        "Compiling .pio/build/test/src/main.cpp.o",
+        "Linking .pio/build/test/firmware.elf",
+        "Error: something went wrong",
+        "warning: unused variable",
+    ],
+)
+def test_platformio_log_filter_allows_other_platformio_messages(msg: str) -> None:
+    """Test that non-noisy platformio messages are allowed through."""
+    log_filter = platformio_api.PlatformioLogFilter()
+    record = logging.LogRecord(
+        name="platformio.builder",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg=msg,
+        args=(),
+        exc_info=None,
+    )
+    assert log_filter.filter(record) is True
+
+
+@pytest.mark.parametrize(
+    "logger_name",
+    [
+        "PLATFORMIO.builder",
+        "PlatformIO.core",
+        "platformio.run",
+    ],
+)
+def test_platformio_log_filter_case_insensitive_logger_name(logger_name: str) -> None:
+    """Test that platformio logger name matching is case insensitive."""
+    log_filter = platformio_api.PlatformioLogFilter()
+    record = logging.LogRecord(
+        name=logger_name,
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="Found 5 compatible libraries",
+        args=(),
+        exc_info=None,
+    )
+    assert log_filter.filter(record) is False
