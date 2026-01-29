@@ -88,7 +88,6 @@ IS_TARGET_PLATFORM = True
 CONF_ASSERTION_LEVEL = "assertion_level"
 CONF_COMPILER_OPTIMIZATION = "compiler_optimization"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
-CONF_INCLUDE_ARDUINO_LIBRARIES = "include_arduino_libraries"
 CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
@@ -1062,9 +1061,6 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(
                     CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, default=[]
                 ): cv.ensure_list(cv.string_strict),
-                cv.Optional(CONF_INCLUDE_ARDUINO_LIBRARIES, default=[]): cv.ensure_list(
-                    cv.one_of(*ARDUINO_DISABLED_LIBRARIES)
-                ),
                 cv.Optional(CONF_DISABLE_DEBUG_STUBS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_OCD_AWARE, default=True): cv.boolean,
                 cv.Optional(
@@ -1406,8 +1402,8 @@ async def to_code(config):
         # Enable Arduino selective compilation to disable unused Arduino libraries
         # ESPHome uses ESP-IDF APIs directly; we only need the Arduino core
         # (HardwareSerial, Print, Stream, GPIO functions which are always compiled)
-        # cg.add_library() auto-enables needed libraries; users can also specify
-        # include_arduino_libraries in the advanced config
+        # cg.add_library() auto-enables needed libraries; users can also add
+        # libraries via esphome: libraries: config which calls cg.add_library()
         add_idf_sdkconfig_option("CONFIG_ARDUINO_SELECTIVE_COMPILATION", True)
         enabled_libs = CORE.data[KEY_ESP32].get(KEY_ARDUINO_LIBRARIES, set())
         for lib in ARDUINO_DISABLED_LIBRARIES:
@@ -1507,10 +1503,6 @@ async def to_code(config):
     # Re-include any IDF components the user explicitly requested
     for component_name in advanced.get(CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, []):
         include_builtin_idf_component(component_name)
-
-    # Re-enable any Arduino libraries the user explicitly requested
-    for lib_name in advanced.get(CONF_INCLUDE_ARDUINO_LIBRARIES, []):
-        _enable_arduino_library(lib_name)
 
     # DHCP server: only disable if explicitly set to false
     # WiFi component handles its own optimization when AP mode is not used
