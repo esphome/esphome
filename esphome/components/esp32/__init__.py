@@ -183,7 +183,7 @@ ARDUINO_EXCLUDED_IDF_COMPONENTS = (
 )
 
 # Mapping of Arduino libraries to IDF managed components they require
-# When an Arduino library is enabled via enable_arduino_library(), these components
+# When an Arduino library is enabled via cg.add_library(), these components
 # are automatically un-stubbed from ARDUINO_EXCLUDED_IDF_COMPONENTS.
 #
 # Note: Some libraries (Matter, LittleFS, ESP_SR, WiFiProv, ArduinoOTA) already have
@@ -235,49 +235,51 @@ ARDUINO_LIBRARY_IDF_COMPONENTS: dict[str, tuple[str, ...]] = {
 # Arduino libraries to disable by default when using Arduino framework
 # ESPHome uses ESP-IDF APIs directly; we only need the Arduino core
 # (HardwareSerial, Print, Stream, GPIO functions which are always compiled)
-# Components can call enable_arduino_library() to re-enable any they need
+# Components use cg.add_library() which auto-enables any they need
 # This list must match ARDUINO_ALL_LIBRARIES from arduino-esp32/CMakeLists.txt
-ARDUINO_DISABLED_LIBRARIES = (
-    "ArduinoOTA",
-    "AsyncUDP",
-    "BLE",
-    "BluetoothSerial",
-    "DNSServer",
-    "EEPROM",
-    "ESP_HostedOTA",
-    "ESP_I2S",
-    "ESP_NOW",
-    "ESP_SR",
-    "ESPmDNS",
-    "Ethernet",
-    "FFat",
-    "FS",
-    "Hash",
-    "HTTPClient",
-    "HTTPUpdate",
-    "Insights",
-    "LittleFS",
-    "Matter",
-    "NetBIOS",
-    "Network",
-    "NetworkClientSecure",
-    "OpenThread",
-    "PPP",
-    "Preferences",
-    "RainMaker",
-    "SD",
-    "SD_MMC",
-    "SimpleBLE",
-    "SPI",
-    "SPIFFS",
-    "Ticker",
-    "Update",
-    "USB",
-    "WebServer",
-    "WiFi",
-    "WiFiProv",
-    "Wire",
-    "Zigbee",
+ARDUINO_DISABLED_LIBRARIES: frozenset[str] = frozenset(
+    {
+        "ArduinoOTA",
+        "AsyncUDP",
+        "BLE",
+        "BluetoothSerial",
+        "DNSServer",
+        "EEPROM",
+        "ESP_HostedOTA",
+        "ESP_I2S",
+        "ESP_NOW",
+        "ESP_SR",
+        "ESPmDNS",
+        "Ethernet",
+        "FFat",
+        "FS",
+        "Hash",
+        "HTTPClient",
+        "HTTPUpdate",
+        "Insights",
+        "LittleFS",
+        "Matter",
+        "NetBIOS",
+        "Network",
+        "NetworkClientSecure",
+        "OpenThread",
+        "PPP",
+        "Preferences",
+        "RainMaker",
+        "SD",
+        "SD_MMC",
+        "SimpleBLE",
+        "SPI",
+        "SPIFFS",
+        "Ticker",
+        "Update",
+        "USB",
+        "WebServer",
+        "WiFi",
+        "WiFiProv",
+        "Wire",
+        "Zigbee",
+    }
 )
 
 # ESP32 (original) chip revision options
@@ -376,8 +378,7 @@ def set_core_data(config):
     if conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         excluded.update(ARDUINO_EXCLUDED_IDF_COMPONENTS)
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = excluded
-    # Initialize Arduino library tracking - components can call enable_arduino_library()
-    # to re-enable libraries that are disabled by default
+    # Initialize Arduino library tracking - cg.add_library() auto-enables libraries
     CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES] = set()
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]
@@ -526,15 +527,12 @@ def include_builtin_idf_component(name: str) -> None:
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(name)
 
 
-def enable_arduino_library(name: str) -> None:
+def _enable_arduino_library(name: str) -> None:
     """Enable an Arduino library that is disabled by default.
 
-    Call this from components that need an Arduino library that is
-    disabled by default in ARDUINO_DISABLED_LIBRARIES. This ensures the
-    library will be compiled when needed.
-
-    This also automatically enables any IDF components required by the library
-    (defined in ARDUINO_LIBRARY_IDF_COMPONENTS).
+    This is called automatically by CORE.add_library() when a component adds
+    an Arduino library via cg.add_library(). Components should not call this
+    directly - just use cg.add_library("LibName", None).
 
     Args:
         name: The library name (e.g., "Wire", "SPI", "WiFi")
@@ -1408,8 +1406,8 @@ async def to_code(config):
         # Enable Arduino selective compilation to disable unused Arduino libraries
         # ESPHome uses ESP-IDF APIs directly; we only need the Arduino core
         # (HardwareSerial, Print, Stream, GPIO functions which are always compiled)
-        # Components can call enable_arduino_library() or users can specify
-        # include_arduino_libraries in the advanced config to re-enable any needed
+        # cg.add_library() auto-enables needed libraries; users can also specify
+        # include_arduino_libraries in the advanced config
         add_idf_sdkconfig_option("CONFIG_ARDUINO_SELECTIVE_COMPILATION", True)
         enabled_libs = CORE.data[KEY_ESP32].get(KEY_ARDUINO_LIBRARIES, set())
         for lib in ARDUINO_DISABLED_LIBRARIES:
@@ -1512,7 +1510,7 @@ async def to_code(config):
 
     # Re-enable any Arduino libraries the user explicitly requested
     for lib_name in advanced.get(CONF_INCLUDE_ARDUINO_LIBRARIES, []):
-        enable_arduino_library(lib_name)
+        _enable_arduino_library(lib_name)
 
     # DHCP server: only disable if explicitly set to false
     # WiFi component handles its own optimization when AP mode is not used
