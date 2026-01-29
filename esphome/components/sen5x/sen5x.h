@@ -123,7 +123,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void perform_forced_co2_recalibration(uint16_t co2);
 
  protected:
-  bool is_sen6x_();
+  bool is_sen6x_() const;
   void internal_setup_(Sen5xSetupStates state);
   bool start_measurements_();
   bool stop_measurements_();

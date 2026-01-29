@@ -592,7 +592,7 @@ bool SEN5XComponent::write_ambient_pressure_compensation_(uint16_t pressure_in_h
   return true;
 }
 
-bool SEN5XComponent::is_sen6x_() {
+bool SEN5XComponent::is_sen6x_() const {
   return this->type_.value() != Sen5xType::SEN50 && this->type_.value() != Sen5xType::SEN54 &&
          this->type_.value() != Sen5xType::SEN55;
 }
