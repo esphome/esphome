@@ -21,6 +21,8 @@ namespace json {
 /// Supports move semantics for efficient return-by-value.
 template<size_t STACK_SIZE = 768> class SerializationBuffer {
  public:
+  static constexpr size_t BUFFER_SIZE = STACK_SIZE;  ///< Stack buffer size for this instantiation
+
   /// Construct with known size (typically from measureJson)
   explicit SerializationBuffer(size_t size) : size_(size) {
     if (size + 1 <= STACK_SIZE) {
@@ -84,6 +86,8 @@ template<size_t STACK_SIZE = 768> class SerializationBuffer {
   size_t size() const { return size_; }
   /// Get writable buffer (for serialization)
   char *data_writable() { return buffer_; }
+  /// Set actual size after serialization (must not exceed allocated size)
+  void set_size(size_t size) { size_ = size; }
 
   /// Implicit conversion to std::string for backward compatibility
   operator std::string() const { return std::string(buffer_, size_); }  // NOLINT(google-explicit-constructor)
