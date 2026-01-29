@@ -1,15 +1,14 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
+from esphome.components.text_sensor import TextSensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.core import Lambda
+from esphome.cpp_generator import MockObj
 
-from .. import CONF_SOURCE_ID, KeyCollector, key_collector_ns
+from .. import CONF_ON_RESULT, CONF_SOURCE_ID, TRIGGER_TYPES, KeyCollector
 
-KeyCollectorTextSensor = key_collector_ns.class_(
-    "KeyCollectorTextSensor", text_sensor.TextSensor, cg.Component
-)
-
-CONFIG_SCHEMA = text_sensor.text_sensor_schema(KeyCollectorTextSensor).extend(
+CONFIG_SCHEMA = text_sensor.text_sensor_schema(TextSensor).extend(
     {
         cv.GenerateID(CONF_SOURCE_ID): cv.use_id(KeyCollector),
     }
@@ -18,6 +17,8 @@ CONFIG_SCHEMA = text_sensor.text_sensor_schema(KeyCollectorTextSensor).extend(
 
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_SOURCE_ID])
-    var = cg.new_Pvariable(config[CONF_ID], parent)
+    var = cg.new_Pvariable(config[CONF_ID])
     await text_sensor.register_text_sensor(var, config)
-    await cg.register_component(var, config)
+    args = TRIGGER_TYPES[CONF_ON_RESULT]
+    lamb = Lambda(str(cg.statement(var.publish_state(MockObj(args[0][1])))))
+    cg.add(parent.add_on_result_callback(await cg.process_lambda(lamb, args)))

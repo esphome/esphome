@@ -37,10 +37,8 @@ class KeyCollector : public Component {
   void send_key(uint8_t key);
 
  protected:
-  void key_pressed_(uint8_t key);
-
-  uint32_t min_length_{0};
-  uint32_t max_length_{0};
+  uint16_t min_length_{0};
+  uint16_t max_length_{0};
   std::string start_keys_;
   std::string end_keys_;
   bool end_key_required_{false};
@@ -52,9 +50,9 @@ class KeyCollector : public Component {
   LazyCallbackManager<void(std::string, uint8_t)> progress_callbacks_;
   LazyCallbackManager<void(std::string, uint8_t, uint8_t)> result_callbacks_;
   LazyCallbackManager<void(std::string, uint8_t)> timeout_callbacks_;
-  uint32_t last_key_time_;
+  uint32_t last_key_time_{};
   uint32_t timeout_{0};
-  bool enabled_;
+  bool enabled_{};
 };
 
 template<typename... Ts> class EnableAction : public Action<Ts...>, public Parented<KeyCollector> {

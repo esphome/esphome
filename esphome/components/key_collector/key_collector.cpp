@@ -40,7 +40,7 @@ void KeyCollector::dump_config() {
 }
 
 void KeyCollector::add_provider(key_provider::KeyProvider *provider) {
-  provider->add_on_key_callback([this](uint8_t key) { this->key_pressed_(key); });
+  provider->add_on_key_callback([this](uint8_t key) { this->send_key(key); });
 }
 
 void KeyCollector::set_enabled(bool enabled) {
