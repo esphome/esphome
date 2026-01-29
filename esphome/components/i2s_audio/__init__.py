@@ -4,6 +4,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     enable_ringbuf_in_iram,
     get_esp32_variant,
+    include_idf_component,
 )
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
@@ -275,6 +276,10 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # Re-enable ESP-IDF's I2S driver (excluded by default to save compile time)
+    include_idf_component("esp_driver_i2s")
+
     if use_legacy():
         cg.add_define("USE_I2S_LEGACY")
 
