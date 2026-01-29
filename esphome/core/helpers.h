@@ -16,7 +16,6 @@
 #include <type_traits>
 #include <vector>
 #include <concepts>
-
 #include <strings.h>
 
 #include "esphome/core/optional.h"
@@ -148,10 +147,40 @@ template<typename T, size_t N> class StaticVector {
   size_t count_{0};
 
  public:
+  // Default constructor
+  StaticVector() = default;
+
+  // Iterator range constructor
+  template<typename InputIt> StaticVector(InputIt first, InputIt last) {
+    while (first != last && count_ < N) {
+      data_[count_++] = *first++;
+    }
+  }
+
+  // Initializer list constructor
+  StaticVector(std::initializer_list<T> init) {
+    for (const auto &val : init) {
+      if (count_ >= N)
+        break;
+      data_[count_++] = val;
+    }
+  }
+
   // Minimal vector-compatible interface - only what we actually use
   void push_back(const T &value) {
     if (count_ < N) {
       data_[count_++] = value;
+    }
+  }
+
+  // Clear all elements
+  void clear() { count_ = 0; }
+
+  // Assign from iterator range
+  template<typename InputIt> void assign(InputIt first, InputIt last) {
+    count_ = 0;
+    while (first != last && count_ < N) {
+      data_[count_++] = *first++;
     }
   }
 
@@ -186,6 +215,10 @@ template<typename T, size_t N> class StaticVector {
   reverse_iterator rend() { return reverse_iterator(begin()); }
   const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
   const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
+
+  // Conversion to std::span for compatibility with span-based APIs
+  operator std::span<T>() { return std::span<T>(data_.data(), count_); }
+  operator std::span<const T>() const { return std::span<const T>(data_.data(), count_); }
 };
 
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
@@ -655,9 +688,11 @@ inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
 }
 
 /// snprintf-like function returning std::string of maximum length \p len (excluding null terminator).
+/// @warning Allocates heap memory. Use snprintf() with a stack buffer instead.
 std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t len, ...);
 
 /// sprintf-like function returning std::string.
+/// @warning Allocates heap memory. Use snprintf() with a stack buffer instead.
 std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
 
 #ifdef USE_ESP8266

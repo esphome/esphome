@@ -14,6 +14,7 @@ from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     get_esp32_variant,
+    include_builtin_idf_component,
 )
 from esphome.components.network import ip_address_literal
 from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
@@ -418,6 +419,9 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
     # Also disable WiFi/BT coexistence since WiFi is disabled
     add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
+
+    # Re-enable ESP-IDF's Ethernet driver (excluded by default to save compile time)
+    include_builtin_idf_component("esp_eth")
 
     if config[CONF_TYPE] == "LAN8670":
         # Add LAN867x 10BASE-T1S PHY support component

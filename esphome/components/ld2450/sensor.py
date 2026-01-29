@@ -143,6 +143,7 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
                     ],
                     icon=ICON_FORMAT_TEXT_ROTATION_ANGLE_UP,
                     unit_of_measurement=UNIT_DEGREES,
+                    accuracy_decimals=1,
                 ),
                 cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
                     device_class=DEVICE_CLASS_DISTANCE,
