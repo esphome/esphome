@@ -81,6 +81,7 @@ async def to_code(config):
         cg.add(var.set_clear_keys(config[CONF_CLEAR_KEYS]))
     if CONF_ALLOWED_KEYS in config:
         cg.add(var.set_allowed_keys(config[CONF_ALLOWED_KEYS]))
+    print(config)
     if CONF_ON_PROGRESS in config:
         for conf in config[CONF_ON_PROGRESS]:
             trigger = cg.new_Pvariable(conf[CONF_ID])
