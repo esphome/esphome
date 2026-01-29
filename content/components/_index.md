@@ -179,6 +179,7 @@ Create update entities simplifying management of OTA updates.
 
 {{< imgtable >}}
 "CH422G","components/ch422g","ch422g.svg"
+"CH423","components/ch423","ch423.png"
 "MAX6956 - I²C Bus","components/max6956","max6956.jpg"
 "MCP230XX - I²C Bus","components/mcp230xx","mcp230xx.svg"
 "MCP23SXX - SPI Bus","components/mcp23Sxx","mcp23sxx.svg"
