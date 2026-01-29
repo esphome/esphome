@@ -19,10 +19,10 @@ namespace json {
 /// Buffer for JSON serialization that uses stack allocation for small payloads.
 /// Template parameter STACK_SIZE specifies the stack buffer size (default 768 bytes).
 /// Supports move semantics for efficient return-by-value.
-template<size_t STACK_SIZE = 768> class JsonBuffer {
+template<size_t STACK_SIZE = 768> class SerializationBuffer {
  public:
   /// Construct with known size (typically from measureJson)
-  explicit JsonBuffer(size_t size) : size_(size) {
+  explicit SerializationBuffer(size_t size) : size_(size) {
     if (size + 1 <= STACK_SIZE) {
       buffer_ = stack_buffer_;
     } else {
@@ -32,10 +32,10 @@ template<size_t STACK_SIZE = 768> class JsonBuffer {
     buffer_[0] = '\0';
   }
 
-  ~JsonBuffer() { delete[] heap_buffer_; }
+  ~SerializationBuffer() { delete[] heap_buffer_; }
 
   // Move constructor - works with same template instantiation
-  JsonBuffer(JsonBuffer &&other) noexcept : heap_buffer_(other.heap_buffer_), size_(other.size_) {
+  SerializationBuffer(SerializationBuffer &&other) noexcept : heap_buffer_(other.heap_buffer_), size_(other.size_) {
     if (other.buffer_ == other.stack_buffer_) {
       // Stack buffer - must copy content
       std::memcpy(stack_buffer_, other.stack_buffer_, size_ + 1);
@@ -52,7 +52,7 @@ template<size_t STACK_SIZE = 768> class JsonBuffer {
   }
 
   // Move assignment
-  JsonBuffer &operator=(JsonBuffer &&other) noexcept {
+  SerializationBuffer &operator=(SerializationBuffer &&other) noexcept {
     if (this != &other) {
       delete[] heap_buffer_;
       heap_buffer_ = other.heap_buffer_;
@@ -73,8 +73,8 @@ template<size_t STACK_SIZE = 768> class JsonBuffer {
   }
 
   // Delete copy operations
-  JsonBuffer(const JsonBuffer &) = delete;
-  JsonBuffer &operator=(const JsonBuffer &) = delete;
+  SerializationBuffer(const SerializationBuffer &) = delete;
+  SerializationBuffer &operator=(const SerializationBuffer &) = delete;
 
   /// Get null-terminated C string
   const char *c_str() const { return buffer_; }
@@ -150,9 +150,9 @@ class JsonBuilder {
     return root_;
   }
 
-  /// Serialize the JSON document to a JsonBuffer (stack-first allocation)
-  /// Uses 512-byte stack buffer by default, falls back to heap for larger JSON
-  JsonBuffer<> serialize();
+  /// Serialize the JSON document to a SerializationBuffer (stack-first allocation)
+  /// Uses 768-byte stack buffer by default, falls back to heap for larger JSON
+  SerializationBuffer<> serialize();
 
  private:
 #ifdef USE_PSRAM

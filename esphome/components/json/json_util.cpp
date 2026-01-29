@@ -61,10 +61,10 @@ JsonDocument parse_json(const uint8_t *data, size_t len) {
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
-JsonBuffer<> JsonBuilder::serialize() {
+SerializationBuffer<> JsonBuilder::serialize() {
   if (doc_.overflowed()) {
     ESP_LOGE(TAG, "JSON document overflow");
-    JsonBuffer<> result(2);
+    SerializationBuffer<> result(2);
     auto *buf = result.data_writable();
     buf[0] = '{';
     buf[1] = '}';
@@ -72,7 +72,7 @@ JsonBuffer<> JsonBuilder::serialize() {
     return result;
   }
   size_t size = measureJson(doc_);
-  JsonBuffer<> result(size);
+  SerializationBuffer<> result(size);
   serializeJson(doc_, result.data_writable(), size + 1);
   return result;
 }

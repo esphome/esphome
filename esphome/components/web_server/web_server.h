@@ -264,7 +264,7 @@ class WebServer : public Controller,
   void handle_index_request(AsyncWebServerRequest *request);
 
   /// Return the webserver configuration as JSON.
-  json::JsonBuffer<> get_config_json();
+  json::SerializationBuffer<> get_config_json();
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   /// Handle included css request under '/0.css'.
@@ -286,8 +286,8 @@ class WebServer : public Controller,
   /// Handle a sensor request under '/sensor/<id>'.
   void handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> sensor_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> sensor_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> sensor_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> sensor_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_SWITCH
@@ -296,8 +296,8 @@ class WebServer : public Controller,
   /// Handle a switch request under '/switch/<id>/</turn_on/turn_off/toggle>'.
   void handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> switch_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> switch_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> switch_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> switch_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_BUTTON
@@ -305,7 +305,7 @@ class WebServer : public Controller,
   void handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   // Buttons are stateless, so there is no button_state_json_generator
-  static json::JsonBuffer<> button_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> button_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_BINARY_SENSOR
@@ -314,8 +314,8 @@ class WebServer : public Controller,
   /// Handle a binary sensor request under '/binary_sensor/<id>'.
   void handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> binary_sensor_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> binary_sensor_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> binary_sensor_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> binary_sensor_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_FAN
@@ -324,8 +324,8 @@ class WebServer : public Controller,
   /// Handle a fan request under '/fan/<id>/</turn_on/turn_off/toggle>'.
   void handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> fan_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> fan_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> fan_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> fan_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_LIGHT
@@ -334,8 +334,8 @@ class WebServer : public Controller,
   /// Handle a light request under '/light/<id>/</turn_on/turn_off/toggle>'.
   void handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> light_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> light_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> light_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> light_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_TEXT_SENSOR
@@ -344,8 +344,8 @@ class WebServer : public Controller,
   /// Handle a text sensor request under '/text_sensor/<id>'.
   void handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> text_sensor_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> text_sensor_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> text_sensor_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> text_sensor_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_COVER
@@ -354,8 +354,8 @@ class WebServer : public Controller,
   /// Handle a cover request under '/cover/<id>/<open/close/stop/set>'.
   void handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> cover_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> cover_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> cover_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> cover_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_NUMBER
@@ -363,8 +363,8 @@ class WebServer : public Controller,
   /// Handle a number request under '/number/<id>'.
   void handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> number_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> number_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> number_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> number_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_DATETIME_DATE
@@ -372,8 +372,8 @@ class WebServer : public Controller,
   /// Handle a date request under '/date/<id>'.
   void handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> date_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> date_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> date_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> date_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_DATETIME_TIME
@@ -381,8 +381,8 @@ class WebServer : public Controller,
   /// Handle a time request under '/time/<id>'.
   void handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> time_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> time_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> time_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> time_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_DATETIME_DATETIME
@@ -390,8 +390,8 @@ class WebServer : public Controller,
   /// Handle a datetime request under '/datetime/<id>'.
   void handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> datetime_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> datetime_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> datetime_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> datetime_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_TEXT
@@ -399,8 +399,8 @@ class WebServer : public Controller,
   /// Handle a text input request under '/text/<id>'.
   void handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> text_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> text_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> text_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> text_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_SELECT
@@ -408,8 +408,8 @@ class WebServer : public Controller,
   /// Handle a select request under '/select/<id>'.
   void handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> select_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> select_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> select_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> select_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_CLIMATE
@@ -417,8 +417,8 @@ class WebServer : public Controller,
   /// Handle a climate request under '/climate/<id>'.
   void handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> climate_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> climate_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> climate_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> climate_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_LOCK
@@ -427,8 +427,8 @@ class WebServer : public Controller,
   /// Handle a lock request under '/lock/<id>/</lock/unlock/open>'.
   void handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> lock_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> lock_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> lock_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> lock_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_VALVE
@@ -437,8 +437,8 @@ class WebServer : public Controller,
   /// Handle a valve request under '/valve/<id>/<open/close/stop/set>'.
   void handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> valve_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> valve_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> valve_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> valve_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
@@ -447,8 +447,8 @@ class WebServer : public Controller,
   /// Handle a alarm_control_panel request under '/alarm_control_panel/<id>'.
   void handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> alarm_control_panel_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> alarm_control_panel_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> alarm_control_panel_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> alarm_control_panel_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_WATER_HEATER
@@ -457,22 +457,22 @@ class WebServer : public Controller,
   /// Handle a water_heater request under '/water_heater/<id>/<mode/set>'.
   void handle_water_heater_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> water_heater_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> water_heater_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> water_heater_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> water_heater_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_INFRARED
   /// Handle an infrared request under '/infrared/<id>/transmit'.
   void handle_infrared_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> infrared_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> infrared_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_EVENT
   void on_event(event::Event *obj) override;
 
-  static json::JsonBuffer<> event_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> event_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> event_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> event_all_json_generator(WebServer *web_server, void *source);
 
   /// Handle a event request under '/event<id>'.
   void handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match);
@@ -484,8 +484,8 @@ class WebServer : public Controller,
   /// Handle a update request under '/update/<id>'.
   void handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static json::JsonBuffer<> update_state_json_generator(WebServer *web_server, void *source);
-  static json::JsonBuffer<> update_all_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> update_state_json_generator(WebServer *web_server, void *source);
+  static json::SerializationBuffer<> update_all_json_generator(WebServer *web_server, void *source);
 #endif
 
   /// Override the web handler's canHandle method.
@@ -610,72 +610,74 @@ class WebServer : public Controller,
 
  private:
 #ifdef USE_SENSOR
-  json::JsonBuffer<> sensor_json_(sensor::Sensor *obj, float value, JsonDetail start_config);
+  json::SerializationBuffer<> sensor_json_(sensor::Sensor *obj, float value, JsonDetail start_config);
 #endif
 #ifdef USE_SWITCH
-  json::JsonBuffer<> switch_json_(switch_::Switch *obj, bool value, JsonDetail start_config);
+  json::SerializationBuffer<> switch_json_(switch_::Switch *obj, bool value, JsonDetail start_config);
 #endif
 #ifdef USE_BUTTON
-  json::JsonBuffer<> button_json_(button::Button *obj, JsonDetail start_config);
+  json::SerializationBuffer<> button_json_(button::Button *obj, JsonDetail start_config);
 #endif
 #ifdef USE_BINARY_SENSOR
-  json::JsonBuffer<> binary_sensor_json_(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config);
+  json::SerializationBuffer<> binary_sensor_json_(binary_sensor::BinarySensor *obj, bool value,
+                                                  JsonDetail start_config);
 #endif
 #ifdef USE_FAN
-  json::JsonBuffer<> fan_json_(fan::Fan *obj, JsonDetail start_config);
+  json::SerializationBuffer<> fan_json_(fan::Fan *obj, JsonDetail start_config);
 #endif
 #ifdef USE_LIGHT
-  json::JsonBuffer<> light_json_(light::LightState *obj, JsonDetail start_config);
+  json::SerializationBuffer<> light_json_(light::LightState *obj, JsonDetail start_config);
 #endif
 #ifdef USE_TEXT_SENSOR
-  json::JsonBuffer<> text_sensor_json_(text_sensor::TextSensor *obj, const std::string &value, JsonDetail start_config);
+  json::SerializationBuffer<> text_sensor_json_(text_sensor::TextSensor *obj, const std::string &value,
+                                                JsonDetail start_config);
 #endif
 #ifdef USE_COVER
-  json::JsonBuffer<> cover_json_(cover::Cover *obj, JsonDetail start_config);
+  json::SerializationBuffer<> cover_json_(cover::Cover *obj, JsonDetail start_config);
 #endif
 #ifdef USE_NUMBER
-  json::JsonBuffer<> number_json_(number::Number *obj, float value, JsonDetail start_config);
+  json::SerializationBuffer<> number_json_(number::Number *obj, float value, JsonDetail start_config);
 #endif
 #ifdef USE_DATETIME_DATE
-  json::JsonBuffer<> date_json_(datetime::DateEntity *obj, JsonDetail start_config);
+  json::SerializationBuffer<> date_json_(datetime::DateEntity *obj, JsonDetail start_config);
 #endif
 #ifdef USE_DATETIME_TIME
-  json::JsonBuffer<> time_json_(datetime::TimeEntity *obj, JsonDetail start_config);
+  json::SerializationBuffer<> time_json_(datetime::TimeEntity *obj, JsonDetail start_config);
 #endif
 #ifdef USE_DATETIME_DATETIME
-  json::JsonBuffer<> datetime_json_(datetime::DateTimeEntity *obj, JsonDetail start_config);
+  json::SerializationBuffer<> datetime_json_(datetime::DateTimeEntity *obj, JsonDetail start_config);
 #endif
 #ifdef USE_TEXT
-  json::JsonBuffer<> text_json_(text::Text *obj, const std::string &value, JsonDetail start_config);
+  json::SerializationBuffer<> text_json_(text::Text *obj, const std::string &value, JsonDetail start_config);
 #endif
 #ifdef USE_SELECT
-  json::JsonBuffer<> select_json_(select::Select *obj, StringRef value, JsonDetail start_config);
+  json::SerializationBuffer<> select_json_(select::Select *obj, StringRef value, JsonDetail start_config);
 #endif
 #ifdef USE_CLIMATE
-  json::JsonBuffer<> climate_json_(climate::Climate *obj, JsonDetail start_config);
+  json::SerializationBuffer<> climate_json_(climate::Climate *obj, JsonDetail start_config);
 #endif
 #ifdef USE_LOCK
-  json::JsonBuffer<> lock_json_(lock::Lock *obj, lock::LockState value, JsonDetail start_config);
+  json::SerializationBuffer<> lock_json_(lock::Lock *obj, lock::LockState value, JsonDetail start_config);
 #endif
 #ifdef USE_VALVE
-  json::JsonBuffer<> valve_json_(valve::Valve *obj, JsonDetail start_config);
+  json::SerializationBuffer<> valve_json_(valve::Valve *obj, JsonDetail start_config);
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-  json::JsonBuffer<> alarm_control_panel_json_(alarm_control_panel::AlarmControlPanel *obj,
-                                               alarm_control_panel::AlarmControlPanelState value,
-                                               JsonDetail start_config);
+  json::SerializationBuffer<> alarm_control_panel_json_(alarm_control_panel::AlarmControlPanel *obj,
+                                                        alarm_control_panel::AlarmControlPanelState value,
+                                                        JsonDetail start_config);
 #endif
 #ifdef USE_EVENT
-  json::JsonBuffer<> event_json_(event::Event *obj, StringRef event_type, JsonDetail start_config);
+  json::SerializationBuffer<> event_json_(event::Event *obj, StringRef event_type, JsonDetail start_config);
 #endif
 #ifdef USE_WATER_HEATER
-  json::JsonBuffer<> water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config);
+  json::SerializationBuffer<> water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config);
 #endif
 #ifdef USE_INFRARED
-  json::JsonBuffer<> infrared_json_(infrared::Infrared *obj, JsonDetail start_config);
+  json::SerializationBuffer<> infrared_json_(infrared::Infrared *obj, JsonDetail start_config);
 #endif
 #ifdef USE_UPDATE
-  json::JsonBuffer<> update_json_(update::UpdateEntity *obj, JsonDetail start_config);
+  json::SerializationBuffer<> update_json_(update::UpdateEntity *obj, JsonDetail start_config);
 #endif
 };
 
