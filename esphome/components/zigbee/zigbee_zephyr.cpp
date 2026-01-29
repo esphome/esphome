@@ -112,10 +112,10 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
     const auto &cb = global_zigbee->callbacks_[endpoint - 1];
     if (cb) {
       cb(bufid);
+      return;
     }
-    return;
   }
-  p_device_cb_param->status = RET_ERROR;
+  p_device_cb_param->status = RET_NOT_IMPLEMENTED;
 }
 
 void ZigbeeComponent::on_join_() {
@@ -230,11 +230,11 @@ static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
   zb_buf_free(bufid);
 }
 
-void ZigbeeComponent::flush() { this->need_flush_ = true; }
+void ZigbeeComponent::force_report() { this->force_report_ = true; }
 
 void ZigbeeComponent::loop() {
-  if (this->need_flush_) {
-    this->need_flush_ = false;
+  if (this->force_report_) {
+    this->force_report_ = false;
     zb_buf_get_out_delayed_ext(send_attribute_report, 0, 0);
   }
 }

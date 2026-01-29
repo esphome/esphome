@@ -828,11 +828,21 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
 
     uint16_t number = it.number;
-    scan_result_.init(number);
+    bool needs_full = this->needs_full_scan_results_();
+
+    // Smart reserve: full capacity if needed, small reserve otherwise
+    if (needs_full) {
+      this->scan_result_.reserve(number);
+    } else {
+      this->scan_result_.reserve(WIFI_SCAN_RESULT_FILTERED_RESERVE);
+    }
+
 #ifdef USE_ESP32_HOSTED
     // getting records one at a time fails on P4 with hosted esp32 WiFi coprocessor
     // Presumably an upstream bug, work-around by getting all records at once
-    auto records = std::make_unique<wifi_ap_record_t[]>(number);
+    // Use stack buffer (3904 bytes / ~80 bytes per record = ~48 records) with heap fallback
+    static constexpr size_t SCAN_RECORD_STACK_COUNT = 3904 / sizeof(wifi_ap_record_t);
+    SmallBufferWithHeapFallback<SCAN_RECORD_STACK_COUNT, wifi_ap_record_t> records(number);
     err = esp_wifi_scan_get_ap_records(&number, records.get());
     if (err != ESP_OK) {
       esp_wifi_clear_ap_list();
@@ -840,7 +850,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       return;
     }
     for (uint16_t i = 0; i < number; i++) {
-      wifi_ap_record_t &record = records[i];
+      wifi_ap_record_t &record = records.get()[i];
 #else
     // Process one record at a time to avoid large buffer allocation
     for (uint16_t i = 0; i < number; i++) {
@@ -852,12 +862,23 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
         break;
       }
 #endif  // USE_ESP32_HOSTED
-      bssid_t bssid;
-      std::copy(record.bssid, record.bssid + 6, bssid.begin());
-      std::string ssid(reinterpret_cast<const char *>(record.ssid));
-      scan_result_.emplace_back(bssid, ssid, record.primary, record.rssi, record.authmode != WIFI_AUTH_OPEN,
-                                ssid.empty());
+
+      // Check C string first - avoid std::string construction for non-matching networks
+      const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
+
+      // Only construct std::string and store if needed
+      if (needs_full || this->matches_configured_network_(ssid_cstr, record.bssid)) {
+        bssid_t bssid;
+        std::copy(record.bssid, record.bssid + 6, bssid.begin());
+        std::string ssid(ssid_cstr);
+        this->scan_result_.emplace_back(bssid, std::move(ssid), record.primary, record.rssi,
+                                        record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
+      } else {
+        this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
+      }
     }
+    ESP_LOGV(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),
+             needs_full ? "" : " (filtered)");
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
     for (auto *listener : this->scan_results_listeners_) {
       listener->on_wifi_scan_results(this->scan_result_);
