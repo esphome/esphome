@@ -4,7 +4,6 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
-#include <limits>
 
 namespace esphome::ld6002b {
 
@@ -118,10 +117,16 @@ void LD6002BComponent::write_f32_le(uint8_t *data, float value) {
   write_u32_le(data, raw);
 }
 
+void LD6002BComponent::set_max_data_len(size_t max_data_len) {
+  this->max_data_len_overridden_ = true;
+  this->max_data_len_ = max_data_len;
+  this->data_buf_.resize(std::max<size_t>(max_data_len, 6));
+}
+
 void LD6002BComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD6002B...");
   size_t desired_data_len = this->max_data_len_;
-  if (desired_data_len == 0) {
+  if (!this->max_data_len_overridden_) {
     bool point_cloud_configured = false;
 #ifdef USE_SWITCH
     point_cloud_configured = this->point_cloud_switch_ != nullptr;
@@ -133,10 +138,6 @@ void LD6002BComponent::setup() {
   if (this->wakeup_pin_ != nullptr) {
     this->wakeup_pin_->setup();
     this->wakeup_pin_->digital_write(true);
-  }
-
-  for (auto &cluster_id : this->target_cluster_ids_) {
-    cluster_id = std::numeric_limits<int32_t>::min();
   }
 
   this->set_timeout(SETUP_DELAY_MS, [this]() {
@@ -173,7 +174,6 @@ void LD6002BComponent::setup() {
 #endif
     }
 
-    this->point_cloud_enabled_ = false;
     this->send_control_command_(CMD_POINT_CLOUD_OFF);
 #ifdef USE_SWITCH
     if (this->point_cloud_switch_ != nullptr) {
@@ -326,10 +326,21 @@ void LD6002BComponent::reset_parser_() {
   this->data_len_ = 0;
   this->data_pos_ = 0;
   this->data_xor_ = 0;
+  this->discard_remaining_ = 0;
 }
 
 void LD6002BComponent::parse_byte_(uint8_t byte) {
   switch (this->parse_state_) {
+    case ParseState::DISCARD:
+      if (this->discard_remaining_ > 0) {
+        this->discard_remaining_--;
+        if (this->discard_remaining_ == 0) {
+          this->reset_parser_();
+        }
+      } else {
+        this->reset_parser_();
+      }
+      return;
     case ParseState::SOF:
       if (byte != TF_SOF)
         return;
@@ -349,7 +360,9 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
           this->frame_type_ = read_u16_be(this->data_buf_.data() + 4);
           if (this->data_len_ > this->max_data_len_) {
             ESP_LOGW(TAG, "Frame too large: %u", this->data_len_);
-            this->reset_parser_();
+            // Discard the remaining bytes in this frame: header checksum + payload + data checksum (if any)
+            this->discard_remaining_ = 1 + this->data_len_ + (this->data_len_ > 0 ? 1 : 0);
+            this->parse_state_ = ParseState::DISCARD;
             return;
           }
           this->parse_state_ = ParseState::HCK;
@@ -397,6 +410,8 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
   if (len == 0 && this->command_active_ && type == this->active_command_.type) {
     const bool refresh_areas = (type == TYPE_SET_AREA) && this->area_write_pending_;
     this->command_active_ = false;
+    this->command_sent_ = false;
+    this->last_send_ms_ = 0;
     this->process_command_queue_();
     if (refresh_areas) {
       this->area_write_pending_ = false;
@@ -497,7 +512,6 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
       float z = read_f32_le(data + offset + 8);
       int32_t dop_idx = read_int32_le(data + offset + 12);
       int32_t cluster_id = static_cast<int32_t>(read_u32_le(data + offset + 16));
-      this->target_cluster_ids_[i] = cluster_id;
 #ifdef USE_SENSOR
       TargetSensors &target = this->targets_[i];
       if (target.x != nullptr && should_publish_float(this->last_target_x_[i], x)) {
@@ -524,7 +538,6 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
       }
 #endif
     } else {
-      this->target_cluster_ids_[i] = std::numeric_limits<int32_t>::min();
 #ifdef USE_SENSOR
       TargetSensors &target = this->targets_[i];
       if (this->last_target_presence_[i]) {
@@ -567,7 +580,6 @@ void LD6002BComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
     return;
 
   uint32_t point_num = read_u32_le(data);
-  this->point_cloud_enabled_ = true;
 
 #ifdef USE_SENSOR
   if (this->point_count_sensor_ != nullptr) {
@@ -744,7 +756,6 @@ void LD6002BComponent::handle_low_power_sleep_report_(const uint8_t *data, uint1
   if (len < 4)
     return;
   uint32_t sleep_ms = read_u32_le(data);
-  this->low_power_sleep_ms_ = sleep_ms;
 #ifdef USE_NUMBER
   if (this->low_power_sleep_number_ != nullptr) {
     this->low_power_sleep_number_->publish_state(sleep_ms);
@@ -814,8 +825,10 @@ void LD6002BComponent::handle_version_report_(const uint8_t *data, uint16_t len)
 }
 
 void LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_t len) {
-  if (len > CMD_MAX_DATA_LEN)
+  if (len > CMD_MAX_DATA_LEN) {
+    ESP_LOGW(TAG, "Command data too large: %u", len);
     return;
+  }
   if (this->cmd_count_ >= CMD_QUEUE_SIZE) {
     ESP_LOGW(TAG, "Command queue full, dropping command 0x%04X", type);
     return;
@@ -836,8 +849,10 @@ void LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_
 void LD6002BComponent::process_command_queue_() {
   uint32_t now = millis();
   if (this->command_active_) {
-    if (now - this->last_send_ms_ >= CMD_ACK_TIMEOUT_MS) {
+    if (this->command_sent_ && now - this->last_send_ms_ >= CMD_ACK_TIMEOUT_MS) {
       if (this->retries_left_ > 0) {
+        this->command_sent_ = false;
+        this->last_send_ms_ = 0;
         this->send_command_(this->active_command_.type, this->active_command_.data.data(), this->active_command_.len);
         this->retries_left_--;
       } else {
@@ -846,6 +861,8 @@ void LD6002BComponent::process_command_queue_() {
           this->area_write_pending_ = false;
         }
         this->command_active_ = false;
+        this->command_sent_ = false;
+        this->last_send_ms_ = 0;
       }
     }
     return;
@@ -860,6 +877,8 @@ void LD6002BComponent::process_command_queue_() {
 
   this->retries_left_ = CMD_MAX_RETRIES;
   this->command_active_ = true;
+  this->command_sent_ = false;
+  this->last_send_ms_ = 0;
   this->send_command_(this->active_command_.type, this->active_command_.data.data(), this->active_command_.len);
 }
 
@@ -880,9 +899,6 @@ void LD6002BComponent::send_command_internal_(uint16_t type, const uint8_t *data
     std::array<uint8_t, CMD_MAX_DATA_LEN> data_copy{};
     if (len > 0 && data != nullptr) {
       std::memcpy(data_copy.data(), data, len);
-    }
-    if (track) {
-      this->last_send_ms_ = millis();
     }
     this->wakeup_pin_->digital_write(false);
     this->set_timeout(this->wakeup_pulse_ms_, [this, type, len, data_copy, track]() {
@@ -926,6 +942,7 @@ void LD6002BComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t 
   }
   if (track) {
     this->last_send_ms_ = millis();
+    this->command_sent_ = true;
   }
 }
 
@@ -1016,7 +1033,6 @@ void LD6002BComponent::set_number_value(NumberType type, float value) {
       break;
     case NumberType::LOW_POWER_SLEEP: {
       uint32_t sleep_ms = static_cast<uint32_t>(value);
-      this->low_power_sleep_ms_ = sleep_ms;
       uint8_t data[4];
       write_u32_le(data, sleep_ms);
       this->queue_command_(TYPE_SET_LOW_POWER_SLEEP, data, sizeof(data));
@@ -1235,7 +1251,6 @@ void LD6002BComponent::set_switch_state(SwitchType type, bool state) {
       this->update_work_mode_fallback_();
       break;
     case SwitchType::POINT_CLOUD:
-      this->point_cloud_enabled_ = state;
       this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
       break;
     case SwitchType::TARGET_DISPLAY:

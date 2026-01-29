@@ -220,10 +220,10 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void set_select_value(SelectType type, size_t index);
   void set_switch_state(SwitchType type, bool state);
   void press_button(ButtonType type);
-  void set_max_data_len(size_t max_data_len) { this->max_data_len_ = max_data_len; }
+  void set_max_data_len(size_t max_data_len);
 
  protected:
-  enum class ParseState : uint8_t { SOF, HEADER, HCK, DATA, DCK };
+  enum class ParseState : uint8_t { SOF, HEADER, HCK, DATA, DCK, DISCARD };
 
   struct PendingCommand {
     uint16_t type{0};
@@ -282,7 +282,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
 
 #ifdef USE_SENSOR
   std::array<TargetSensors, MAX_TARGETS> targets_{};
-  std::array<int32_t, MAX_TARGETS> target_cluster_ids_{};
   sensor::Sensor *target_count_sensor_{nullptr};
   sensor::Sensor *point_count_sensor_{nullptr};
   std::array<AreaSensors, AREA_COUNT> interference_areas_{};
@@ -327,7 +326,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   switch_::Switch *point_cloud_switch_{nullptr};
   switch_::Switch *target_display_switch_{nullptr};
 #endif
-  bool point_cloud_enabled_{false};
 
   GPIOPin *wakeup_pin_{nullptr};
   uint32_t wakeup_pulse_ms_{50};
@@ -345,7 +343,9 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   uint16_t frame_id_{0};
   uint16_t data_pos_{0};
   uint8_t data_xor_{0};
+  uint32_t discard_remaining_{0};
   size_t max_data_len_{0};
+  bool max_data_len_overridden_{false};
   std::vector<uint8_t> data_buf_{};
   uint16_t next_frame_id_{0};
 
@@ -358,6 +358,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   uint8_t cmd_tail_{0};
   uint8_t cmd_count_{0};
   bool command_active_{false};
+  bool command_sent_{false};
   PendingCommand active_command_{};
   uint8_t retries_left_{0};
   uint32_t last_send_ms_{0};
@@ -373,7 +374,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   std::array<AreaConfig, AREA_COUNT> interference_area_values_{};
   std::array<AreaConfig, AREA_COUNT> detection_area_values_{};
   uint32_t hold_delay_seconds_{0};
-  uint32_t low_power_sleep_ms_{0};
   uint8_t area_id_{0xFF};
   bool area_id_set_{false};
 
