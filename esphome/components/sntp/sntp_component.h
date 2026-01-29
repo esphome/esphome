@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/automation.h"
 #include "esphome/components/time/real_time_clock.h"
 #include <array>
 
@@ -18,7 +19,8 @@ namespace sntp {
 /// \see https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
 class SNTPComponent : public time::RealTimeClock {
  public:
-  SNTPComponent(const std::array<const char *, SNTP_SERVER_COUNT> &servers) : servers_(servers) {}
+  SNTPComponent(const std::array<const char *, SNTP_SERVER_COUNT> &servers, bool smooth_sync)
+      : servers_(servers), smooth_sync_(smooth_sync) {}
 
   void setup() override;
   void dump_config() override;
@@ -34,7 +36,9 @@ class SNTPComponent : public time::RealTimeClock {
   // ESP8266: strings in rodata (RAM), but avoids std::string overhead (~24 bytes each)
   // Other platforms: strings in flash
   std::array<const char *, SNTP_SERVER_COUNT> servers_;
+  bool smooth_sync_;
   bool has_time_{false};
+  bool is_syncing_{false};
 
 #if defined(USE_ESP32)
  private:

@@ -25,6 +25,8 @@ void SNTPComponent::setup() {
     esp_sntp_stop();
   }
   esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
+  esp_sntp_set_sync_mode(this->smooth_sync_ ? SNTP_SYNC_MODE_SMOOTH : SNTP_SYNC_MODE_IMMED);
+
   size_t i = 0;
   for (auto &server : this->servers_) {
     esp_sntp_setservername(i++, server);
@@ -39,6 +41,7 @@ void SNTPComponent::setup() {
 #else
   sntp_stop();
   sntp_setoperatingmode(SNTP_OPMODE_POLL);
+  sntp_set_sync_mode(this->smooth_sync_ ? SNTP_SYNC_MODE_SMOOTH : SNTP_SYNC_MODE_IMMED);
 
   size_t i = 0;
   for (auto &server : this->servers_) {
@@ -61,6 +64,7 @@ void SNTPComponent::dump_config() {
   for (auto &server : this->servers_) {
     ESP_LOGCONFIG(TAG, "  Server %zu: '%s'", i++, server);
   }
+  ESP_LOGCONFIG(TAG, "  Smooth Sync: %s", YESNO(this->smooth_sync_));
   RealTimeClock::dump_config();
 }
 void SNTPComponent::update() {
@@ -76,30 +80,59 @@ void SNTPComponent::update() {
 }
 void SNTPComponent::loop() {
 // The loop is used to infer whether we have valid time on platforms where we
-// cannot tell whether SNTP has succeeded.
+// cannot tell whether SNTP has succeeded, and to poll for status when smooth
+// time sync is enabled.
 // One limitation of this approach is that we cannot tell if it was the SNTP
 // component that set the time.
 // ESP-IDF and ESP8266 use callbacks from the SNTP task to trigger the
 // `on_time_sync` trigger on successful sync events.
 #if defined(USE_ESP32) || defined(USE_ESP8266)
-  this->disable_loop();
+  // Keep loop enabled when smooth sync is active on ESP32/8266 platforms,
+  // otherwise disable the loop
+  if (!this->smooth_sync_ || !this->is_syncing_) {
+    this->disable_loop();
+  }
 #endif
 
-  if (this->has_time_)
+  if (this->has_time_ && !this->is_syncing_)
     return;
 
   this->time_synced();
 }
 
 void SNTPComponent::time_synced() {
+  // In immediate sync mode, sync status will transition to completed immediatley, 
+  // and the callback will fire as soon as valid time is found.
+  // In smooth sync mode, sync status will be in progress, and this function is called
+  // repeatedly by the loop to poll for state changes. 
   auto time = this->now();
   this->has_time_ = time.is_valid();
   if (!this->has_time_)
     return;
 
-  ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month, time.hour,
-           time.minute, time.second);
-  this->time_sync_callback_.call();
+  // Check sync status to determine state
+#if defined(USE_ESP32)
+  switch (esp_sntp_get_sync_status()) {
+#else
+  switch (sntp_get_sync_status()) {
+#endif
+    case SNTP_SYNC_STATUS_COMPLETED:
+      ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month,
+               time.hour, time.minute, time.second);
+      this->time_sync_callback_.call();
+      this->is_syncing_ = false;
+      break;
+    case SNTP_SYNC_STATUS_IN_PROGRESS:
+      if (!this->is_syncing_) {
+        ESP_LOGD(TAG, "Smooth time synchronization started");
+        this->is_syncing_ = true;
+        this->enable_loop();
+      }
+      break;
+    case SNTP_SYNC_STATUS_RESET:
+      this->is_syncing_ = false;
+      break;
+  }
 }
 
 }  // namespace sntp

@@ -25,6 +25,7 @@ _LOGGER = logging.getLogger(__name__)
 DEPENDENCIES = ["network"]
 
 CONF_SNTP = "sntp"
+CONF_SMOOTH_SYNC = "smooth_sync"
 
 sntp_ns = cg.esphome_ns.namespace("sntp")
 SNTPComponent = sntp_ns.class_("SNTPComponent", time_.RealTimeClock)
@@ -92,6 +93,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SERVERS, default=DEFAULT_SERVERS): cv.All(
                 cv.ensure_list(cv.Any(cv.domain, cv.hostname)), cv.Length(min=1, max=3)
             ),
+            cv.Optional(CONF_SMOOTH_SYNC, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on(
@@ -111,12 +113,13 @@ FINAL_VALIDATE_SCHEMA = _sntp_final_validate
 
 async def to_code(config):
     servers = config[CONF_SERVERS]
+    smooth_sync = config[CONF_SMOOTH_SYNC]
 
     # Define server count at compile time
     cg.add_define("SNTP_SERVER_COUNT", len(servers))
 
     # Pass string literals to constructor - stored in flash/rodata by compiler
-    var = cg.new_Pvariable(config[CONF_ID], servers)
+    var = cg.new_Pvariable(config[CONF_ID], servers, smooth_sync)
 
     await cg.register_component(var, config)
     await time_.register_time(var, config)
