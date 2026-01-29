@@ -16,12 +16,31 @@
 
 namespace esphome::uart {
 
+#if LT_HW_UART0
+static const FixedVector<pin_size_t> pins_serial0_tx(PINS_SERIAL0_TX);
+static const FixedVector<pin_size_t> pins_serial0_rx(PINS_SERIAL0_RX);
+#endif
+
+#if LT_HW_UART1
+static const FixedVector<pin_size_t> pins_serial1_tx(PINS_SERIAL1_TX);
+static const FixedVector<pin_size_t> pins_serial1_rx(PINS_SERIAL1_RX);
+#endif
+
+#if LT_HW_UART2
+static const FixedVector<pin_size_t> pins_serial2_tx(PINS_SERIAL2_TX);
+static const FixedVector<pin_size_t> pins_serial2_rx(PINS_SERIAL2_RX);
+#endif
+
 static const char *const TAG = "uart.lt";
 
 static const char *UART_TYPE[] = {
     "hardware",
     "software",
 };
+
+bool LibreTinyUARTComponent::pins_contain_(const FixedVector<pin_size_t> &pins, pin_size_t pin_num) const {
+  return pins.end() != std::find(pins.begin(), pins.end(), pin_num);
+}
 
 uint16_t LibreTinyUARTComponent::get_config() {
   uint16_t config = 0;
@@ -69,23 +88,41 @@ void LibreTinyUARTComponent::setup() {
   if (false)
     return;
 #if LT_HW_UART0
-  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL0_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL0_RX) &&
-           !shouldFallbackToSoftwareSerial()) {
-    this->serial_ = &Serial0;
+  else if ((tx_pin == -1 || pins_contain_(pins_serial0_tx, tx_pin)) &&
+           (rx_pin == -1 || pins_contain_(pins_serial0_rx, rx_pin)) && !shouldFallbackToSoftwareSerial()) {
+    if (tx_pin == -1) {
+      tx_pin = pins_serial0_tx[0];
+    }
+    if (rx_pin == -1) {
+      rx_pin = pins_serial0_rx[0];
+    }
+    this->serial_ = new SerialClass(0, rx_pin, tx_pin);
     this->hardware_idx_ = 0;
   }
 #endif
 #if LT_HW_UART1
-  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL1_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL1_RX) &&
-           !shouldFallbackToSoftwareSerial()) {
-    this->serial_ = &Serial1;
+  else if ((tx_pin == -1 || pins_contain_(pins_serial1_tx, tx_pin)) &&
+           (rx_pin == -1 || pins_contain_(pins_serial1_rx, rx_pin)) && !shouldFallbackToSoftwareSerial()) {
+    if (tx_pin == -1) {
+      tx_pin = pins_serial1_tx[0];
+    }
+    if (rx_pin == -1) {
+      rx_pin = pins_serial1_rx[0];
+    }
+    this->serial_ = new SerialClass(1, rx_pin, tx_pin);
     this->hardware_idx_ = 1;
   }
 #endif
 #if LT_HW_UART2
-  else if ((tx_pin == -1 || tx_pin == PIN_SERIAL2_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL2_RX) &&
-           !shouldFallbackToSoftwareSerial()) {
-    this->serial_ = &Serial2;
+  else if ((tx_pin == -1 || pins_contain_(pins_serial2_tx, tx_pin)) &&
+           (rx_pin == -1 || pins_contain_(pins_serial2_rx, rx_pin)) && !shouldFallbackToSoftwareSerial()) {
+    if (tx_pin == -1) {
+      tx_pin = pins_serial2_tx[0];
+    }
+    if (rx_pin == -1) {
+      rx_pin = pins_serial2_rx[0];
+    }
+    this->serial_ = new SerialClass(2, rx_pin, tx_pin);
     this->hardware_idx_ = 2;
   }
 #endif
