@@ -6,6 +6,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S3,
     get_esp32_variant,
     gpio,
+    include_builtin_idf_component,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -266,6 +267,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    # Re-enable ESP-IDF's touch sensor driver (excluded by default to save compile time)
+    include_builtin_idf_component("esp_driver_touch_sens")
+
     touch = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(touch, config)
 

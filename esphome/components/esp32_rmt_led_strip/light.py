@@ -5,6 +5,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, light
 from esphome.components.const import CONF_USE_PSRAM
+from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHIPSET,
@@ -129,6 +130,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
+    include_builtin_idf_component("esp_driver_rmt")
+
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
     await cg.register_component(var, config)
