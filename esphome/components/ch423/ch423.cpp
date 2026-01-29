@@ -18,7 +18,12 @@ void CH423Component::setup() {
   // set outputs before mode
   this->write_outputs_();
   // Set system parameters and check for errors
-  if (!this->write_reg_(CH423_REG_SYS, this->sys_params_) || !this->read_inputs_()) {
+  bool success = this->write_reg_(CH423_REG_SYS, this->sys_params_);
+  // Only read inputs if pins are configured for input (IO_OE not set)
+  if (success && !(this->sys_params_ & CH423_SYS_IO_OE)) {
+    success = this->read_inputs_();
+  }
+  if (!success) {
     ESP_LOGE(TAG, "CH423 not detected");
     this->mark_failed();
     return;
@@ -75,15 +80,11 @@ bool CH423Component::read_inputs_() {
   if (this->is_failed()) {
     return false;
   }
-  uint8_t result;
   // reading inputs requires IO_OE to be 0
   if (this->sys_params_ & CH423_SYS_IO_OE) {
-    this->write_reg_(CH423_REG_SYS, this->sys_params_ & ~CH423_SYS_IO_OE);
-    result = this->read_reg_(CH423_REG_IO_RD);
-    this->write_reg_(CH423_REG_SYS, this->sys_params_);
-  } else {
-    result = this->read_reg_(CH423_REG_IO_RD);
+    return false;
   }
+  uint8_t result = this->read_reg_(CH423_REG_IO_RD);
   this->input_bits_ = result;
   this->status_clear_warning();
   return true;
