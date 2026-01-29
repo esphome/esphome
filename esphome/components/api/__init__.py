@@ -1,7 +1,7 @@
 import base64
 import logging
 
-from esphome import automation, core
+from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.logger import request_log_listener
@@ -314,13 +314,21 @@ CONFIG_SCHEMA = cv.All(
                 host=16,  # Abundant resources
                 ln882x=8,  # Moderate RAM
             ): cv.int_range(min=1, max=64),
+            # Wait interval to fire a ping from device(server) when no message from client, 1min - 3min guardrails
             cv.Optional(CONF_CLIENT_KEEPALIVE_INTERVAL, default="60sec"): cv.All(
                 cv.positive_time_period_milliseconds,
-                cv.Range(min=core.TimePeriod(milliseconds=60000)),
+                cv.Range(
+                    min=cv.TimePeriod(seconds=60),
+                    max=cv.TimePeriod(seconds=180),
+                ),
             ),
+            # Wait interval to fire a ping from client when no message from device(server), 20sec - 3min guardrails
             cv.Optional(CONF_SERVER_KEEPALIVE_INTERVAL, default="20sec"): cv.All(
                 cv.positive_time_period_milliseconds,
-                cv.Range(min=core.TimePeriod(milliseconds=20000)),
+                cv.Range(
+                    min=cv.TimePeriod(seconds=20),
+                    max=cv.TimePeriod(seconds=180),
+                ),
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -458,13 +466,13 @@ async def to_code(config: ConfigType) -> None:
     else:
         cg.add_define("USE_API_PLAINTEXT")
     if (
-        keepalive_interval := config.get(CONF_CLIENT_KEEPALIVE_INTERVAL, None)
+        client_keepalive_interval := config.get(CONF_CLIENT_KEEPALIVE_INTERVAL, None)
     ) is not None:
-        cg.add_define("USE_API_KEEPALIVE_INTERVAL", keepalive_interval)
+        cg.add_define("USE_API_CLIENT_KEEPALIVE_INTERVAL", client_keepalive_interval)
     if (
-        keepalive_interval := config.get(CONF_SERVER_KEEPALIVE_INTERVAL, None)
+        server_keepalive_interval := config.get(CONF_SERVER_KEEPALIVE_INTERVAL, None)
     ) is not None:
-        cg.add(var.set_server_keepalive_interval(keepalive_interval))
+        cg.add(var.set_server_keepalive_interval(server_keepalive_interval))
 
     cg.add_define("USE_API")
     cg.add_global(api_ns.using)
