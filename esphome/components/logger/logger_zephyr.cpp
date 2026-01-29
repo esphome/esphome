@@ -131,6 +131,8 @@ const LogString *Logger::get_uart_selection_() {
   }
 }
 
+static const uint8_t REASON_BUF_SIZE = 32;
+
 static const char *reason_to_str(unsigned int reason, char *buf) {
   switch (reason) {
     case K_ERR_CPU_EXCEPTION:
@@ -144,15 +146,15 @@ static const char *reason_to_str(unsigned int reason, char *buf) {
     case K_ERR_KERNEL_PANIC:
       return "Kernel panic";
     default:
-      sprintf(buf, "Unknown error (%u)", reason);
+      snprintf(buf, REASON_BUF_SIZE, "Unknown error (%u)", reason);
       return buf;
   }
 }
 
 void Logger::dump_crash_() {
-  ESP_LOGD(TAG, "crash_buf address %p", &crash_buf);
+  ESP_LOGD(TAG, "Crash buffer address %p", &crash_buf);
   if (crash_buf.magic == CRASH_MAGIC) {
-    char reason_buf[32];
+    char reason_buf[REASON_BUF_SIZE];
     ESP_LOGE(TAG, "💥 Last crash:");
     ESP_LOGE(TAG, "Reason=%s PC=0x%08x LR=0x%08x", reason_to_str(crash_buf.reason, reason_buf), crash_buf.pc,
              crash_buf.lr);
