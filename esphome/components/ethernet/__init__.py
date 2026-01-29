@@ -219,9 +219,11 @@ def _validate(config):
             variant = get_esp32_variant()
             if variant in (
                 VARIANT_ESP32C3,
+                VARIANT_ESP32C5,
+                VARIANT_ESP32C6,
+                VARIANT_ESP32C61,
                 VARIANT_ESP32S2,
                 VARIANT_ESP32S3,
-                VARIANT_ESP32C6,
             ):
                 config[CONF_INTERFACE] = "spi2"
             else:
