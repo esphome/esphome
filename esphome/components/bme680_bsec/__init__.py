@@ -89,8 +89,9 @@ async def to_code(config):
         var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)
     )
 
-    # Although this component does not use SPI, the BSEC library requires the SPI library
+    # Although this component does not use SPI/Wire directly, the BSEC library requires them
     cg.add_library("SPI", None)
+    cg.add_library("Wire", None)
 
     cg.add_define("USE_BSEC")
     cg.add_library("boschsensortec/BSEC Software Library", "1.6.1480")
