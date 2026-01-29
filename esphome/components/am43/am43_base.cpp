@@ -1,20 +1,11 @@
 #include "am43_base.h"
+#include "esphome/core/helpers.h"
 #include <cstring>
-#include <cstdio>
 
 namespace esphome {
 namespace am43 {
 
 const uint8_t START_PACKET[5] = {0x00, 0xff, 0x00, 0x00, 0x9a};
-
-std::string pkt_to_hex(const uint8_t *data, uint16_t len) {
-  char buf[64];
-  memset(buf, 0, 64);
-  for (int i = 0; i < len; i++)
-    sprintf(&buf[i * 2], "%02x", data[i]);
-  std::string ret = buf;
-  return ret;
-}
 
 Am43Packet *Am43Encoder::get_battery_level_request() {
   uint8_t data = 0x1;
@@ -73,7 +64,9 @@ Am43Packet *Am43Encoder::encode_(uint8_t command, uint8_t *data, uint8_t length)
   memcpy(&this->packet_.data[7], data, length);
   this->packet_.length = length + 7;
   this->checksum_();
-  ESP_LOGV("am43", "ENC(%d): 0x%s", packet_.length, pkt_to_hex(packet_.data, packet_.length).c_str());
+  char hex_buf[format_hex_size(sizeof(this->packet_.data))];
+  ESP_LOGV("am43", "ENC(%d): 0x%s", this->packet_.length,
+           format_hex_to(hex_buf, this->packet_.data, this->packet_.length));
   return &this->packet_;
 }
 
@@ -88,7 +81,8 @@ void Am43Decoder::decode(const uint8_t *data, uint16_t length) {
   this->has_set_state_response_ = false;
   this->has_position_ = false;
   this->has_pin_response_ = false;
-  ESP_LOGV("am43", "DEC(%d): 0x%s", length, pkt_to_hex(data, length).c_str());
+  char hex_buf[format_hex_size(24)];  // Max expected packet size
+  ESP_LOGV("am43", "DEC(%d): 0x%s", length, format_hex_to(hex_buf, data, length));
 
   if (length < 2 || data[0] != 0x9a)
     return;

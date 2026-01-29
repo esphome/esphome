@@ -101,15 +101,21 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   zb_uint16_t attr_id = p_device_cb_param->cb_param.set_attr_value_param.attr_id;
   auto endpoint = p_device_cb_param->endpoint;
 
-  ESP_LOGI(TAG, "Zcl_device_cb %s id %hd, cluster_id %d, attr_id %d, endpoint: %d", __func__, device_cb_id, cluster_id,
-           attr_id, endpoint);
+  ESP_LOGI(TAG, "%s id %hd, cluster_id %d, attr_id %d, endpoint: %d", __func__, device_cb_id, cluster_id, attr_id,
+           endpoint);
+
+  /* Set default response value. */
+  p_device_cb_param->status = RET_OK;
 
   // endpoints are enumerated from 1
   if (global_zigbee->callbacks_.size() >= endpoint) {
-    global_zigbee->callbacks_[endpoint - 1](bufid);
-    return;
+    const auto &cb = global_zigbee->callbacks_[endpoint - 1];
+    if (cb) {
+      cb(bufid);
+      return;
+    }
   }
-  p_device_cb_param->status = RET_ERROR;
+  p_device_cb_param->status = RET_NOT_IMPLEMENTED;
 }
 
 void ZigbeeComponent::on_join_() {
@@ -138,9 +144,26 @@ void ZigbeeComponent::setup() {
   }
 
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
-  erase_flash_(FIXED_PARTITION_ID(ZBOSS_NVRAM));
-  erase_flash_(FIXED_PARTITION_ID(ZBOSS_PRODUCT_CONFIG));
-  erase_flash_(FIXED_PARTITION_ID(SETTINGS_STORAGE));
+  bool wipe = true;
+#ifdef USE_ZIGBEE_WIPE_ON_BOOT_MAGIC
+  // unique hash to store preferences for this component
+  uint32_t hash = 88498616UL;
+  uint32_t wipe_value = 0;
+  auto wipe_pref = global_preferences->make_preference<uint32_t>(hash, true);
+  if (wipe_pref.load(&wipe_value)) {
+    wipe = wipe_value != USE_ZIGBEE_WIPE_ON_BOOT_MAGIC;
+    ESP_LOGD(TAG, "Wipe value in preferences %u, in firmware %u", wipe_value, USE_ZIGBEE_WIPE_ON_BOOT_MAGIC);
+  }
+#endif
+  if (wipe) {
+    erase_flash_(FIXED_PARTITION_ID(ZBOSS_NVRAM));
+    erase_flash_(FIXED_PARTITION_ID(ZBOSS_PRODUCT_CONFIG));
+    erase_flash_(FIXED_PARTITION_ID(SETTINGS_STORAGE));
+#ifdef USE_ZIGBEE_WIPE_ON_BOOT_MAGIC
+    wipe_value = USE_ZIGBEE_WIPE_ON_BOOT_MAGIC;
+    wipe_pref.save(&wipe_value);
+#endif
+  }
 #endif
 
   ZB_ZCL_REGISTER_DEVICE_CB(zcl_device_cb);
@@ -152,15 +175,54 @@ void ZigbeeComponent::setup() {
   zigbee_enable();
 }
 
-void ZigbeeComponent::dump_config() {
-  bool wipe = false;
+static const char *role() {
+  switch (zb_get_network_role()) {
+    case ZB_NWK_DEVICE_TYPE_COORDINATOR:
+      return "coordinator";
+    case ZB_NWK_DEVICE_TYPE_ROUTER:
+      return "router";
+    case ZB_NWK_DEVICE_TYPE_ED:
+      return "end device";
+  }
+  return "unknown";
+}
+
+static const char *get_wipe_on_boot() {
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
-  wipe = true;
+#ifdef USE_ZIGBEE_WIPE_ON_BOOT_MAGIC
+  return "ONCE";
+#else
+  return "YES";
 #endif
+#else
+  return "NO";
+#endif
+}
+
+void ZigbeeComponent::dump_config() {
+  char ieee_addr_buf[IEEE_ADDR_BUF_SIZE] = {0};
+  zb_ieee_addr_t addr;
+  zb_get_long_address(addr);
+  ieee_addr_to_str(ieee_addr_buf, sizeof(ieee_addr_buf), addr);
+  zb_ext_pan_id_t extended_pan_id;
+  char extended_pan_id_buf[IEEE_ADDR_BUF_SIZE] = {0};
+  zb_get_extended_pan_id(extended_pan_id);
+  ieee_addr_to_str(extended_pan_id_buf, sizeof(extended_pan_id_buf), extended_pan_id);
   ESP_LOGCONFIG(TAG,
                 "Zigbee\n"
-                "  Wipe on boot: %s",
-                YESNO(wipe));
+                "  Wipe on boot: %s\n"
+                "  Device is joined to the network: %s\n"
+                "  Current channel: %d\n"
+                "  Current page: %d\n"
+                "  Sleep threshold: %ums\n"
+                "  Role: %s\n"
+                "  Long addr: 0x%s\n"
+                "  Short addr: 0x%04X\n"
+                "  Long pan id: 0x%s\n"
+                "  Short pan id: 0x%04X",
+                get_wipe_on_boot(), YESNO(zb_zdo_joined()), zb_get_current_channel(), zb_get_current_page(),
+                zb_get_sleep_threshold(), role(), ieee_addr_buf, zb_get_short_address(), extended_pan_id_buf,
+                zb_get_pan_id());
 }
 
 static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
@@ -168,11 +230,11 @@ static void send_attribute_report(zb_bufid_t bufid, zb_uint16_t cmd_id) {
   zb_buf_free(bufid);
 }
 
-void ZigbeeComponent::flush() { this->need_flush_ = true; }
+void ZigbeeComponent::force_report() { this->force_report_ = true; }
 
 void ZigbeeComponent::loop() {
-  if (this->need_flush_) {
-    this->need_flush_ = false;
+  if (this->force_report_) {
+    this->force_report_ = false;
     zb_buf_get_out_delayed_ext(send_attribute_report, 0, 0);
   }
 }

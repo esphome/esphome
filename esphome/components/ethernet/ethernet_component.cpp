@@ -472,6 +472,12 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
       break;
     case ETHERNET_EVENT_CONNECTED:
       event_name = "ETH connected";
+      // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
+#if defined(USE_ETHERNET_IP_STATE_LISTENERS) && defined(USE_ETHERNET_MANUAL_IP)
+      if (global_eth_component->manual_ip_.has_value()) {
+        global_eth_component->notify_ip_state_listeners_();
+      }
+#endif
       break;
     case ETHERNET_EVENT_DISCONNECTED:
       event_name = "ETH disconnected";
@@ -498,6 +504,9 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   global_eth_component->connected_ = true;
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #endif /* USE_NETWORK_IPV6 */
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+  global_eth_component->notify_ip_state_listeners_();
+#endif
 }
 
 #if USE_NETWORK_IPV6
@@ -514,8 +523,22 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
   global_eth_component->connected_ = global_eth_component->got_ipv4_address_;
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #endif
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+  global_eth_component->notify_ip_state_listeners_();
+#endif
 }
 #endif /* USE_NETWORK_IPV6 */
+
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+void EthernetComponent::notify_ip_state_listeners_() {
+  auto ips = this->get_ip_addresses();
+  auto dns1 = this->get_dns_address(0);
+  auto dns2 = this->get_dns_address(1);
+  for (auto *listener : this->ip_state_listeners_) {
+    listener->on_ip_state(ips, dns1, dns2);
+  }
+}
+#endif  // USE_ETHERNET_IP_STATE_LISTENERS
 
 void EthernetComponent::finish_connect_() {
 #if USE_NETWORK_IPV6

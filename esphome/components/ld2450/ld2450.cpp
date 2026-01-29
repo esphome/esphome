@@ -88,6 +88,9 @@ constexpr StringToUint8 ZONE_TYPE_BY_STR[] = {
     {"Filter", ZONE_FILTER},
 };
 
+// Baud rates in the same order as BAUD_RATES_BY_STR for index-based lookup
+constexpr uint32_t BAUD_RATES[] = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
+
 // Helper functions for lookups
 template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const std::string &str) {
   for (const auto &entry : arr) {
@@ -181,7 +184,7 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
 void LD2450Component::setup() {
 #ifdef USE_NUMBER
   if (this->presence_timeout_number_ != nullptr) {
-    this->pref_ = global_preferences->make_preference<float>(this->presence_timeout_number_->get_preference_hash());
+    this->pref_ = this->presence_timeout_number_->make_entity_preference<float>();
     this->set_presence_timeout();
   }
 #endif
@@ -376,9 +379,10 @@ void LD2450Component::read_all_info() {
   this->query_zone_();
   this->set_config_mode_(false);
 #ifdef USE_SELECT
-  const auto baud_rate = std::to_string(this->parent_->get_baud_rate());
-  if (this->baud_rate_select_ != nullptr && strcmp(this->baud_rate_select_->current_option(), baud_rate.c_str()) != 0) {
-    this->baud_rate_select_->publish_state(baud_rate);
+  if (this->baud_rate_select_ != nullptr) {
+    if (auto index = ld24xx::find_index(BAUD_RATES, this->parent_->get_baud_rate())) {
+      this->baud_rate_select_->publish_state(*index);
+    }
   }
   this->publish_zone_type();
 #endif
@@ -447,7 +451,7 @@ void LD2450Component::handle_periodic_data_() {
   int16_t ty = 0;
   int16_t td = 0;
   int16_t ts = 0;
-  int16_t angle = 0;
+  float angle = 0;
   uint8_t index = 0;
   Direction direction{DIRECTION_UNDEFINED};
   bool is_moving = false;
@@ -633,7 +637,8 @@ bool LD2450Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Baud rate change");
 #ifdef USE_SELECT
       if (this->baud_rate_select_ != nullptr) {
-        ESP_LOGE(TAG, "Change baud rate to %s and reinstall", this->baud_rate_select_->current_option());
+        auto baud = this->baud_rate_select_->current_option();
+        ESP_LOGE(TAG, "Change baud rate to %.*s and reinstall", (int) baud.size(), baud.c_str());
       }
 #endif
       break;
@@ -710,11 +715,12 @@ bool LD2450Component::handle_ack_data_() {
 
     case CMD_QUERY_ZONE:
       ESP_LOGV(TAG, "Query zone conf");
-      this->zone_type_ = std::stoi(std::to_string(this->buffer_data_[10]), nullptr, 16);
+      this->zone_type_ = this->buffer_data_[10];
       this->publish_zone_type();
 #ifdef USE_SELECT
       if (this->zone_type_select_ != nullptr) {
-        ESP_LOGV(TAG, "Change zone type to: %s", this->zone_type_select_->current_option());
+        auto zone = this->zone_type_select_->current_option();
+        ESP_LOGV(TAG, "Change zone type to: %.*s", (int) zone.size(), zone.c_str());
       }
 #endif
       if (this->buffer_data_[10] == 0x00) {
@@ -812,9 +818,8 @@ void LD2450Component::set_zone_type(const char *state) {
 // Publish Zone Type to Select component
 void LD2450Component::publish_zone_type() {
 #ifdef USE_SELECT
-  std::string zone_type = find_str(ZONE_TYPE_BY_UINT, this->zone_type_);
   if (this->zone_type_select_ != nullptr) {
-    this->zone_type_select_->publish_state(zone_type);
+    this->zone_type_select_->publish_state(find_str(ZONE_TYPE_BY_UINT, this->zone_type_));
   }
 #endif
 }
