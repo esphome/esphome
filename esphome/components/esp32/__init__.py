@@ -231,6 +231,14 @@ ARDUINO_LIBRARY_IDF_COMPONENTS: dict[str, tuple[str, ...]] = {
     "Zigbee": ("espressif__esp-zigbee-lib", "espressif__esp-zboss-lib"),
 }
 
+# Arduino library to Arduino library dependencies
+# When enabling one library, also enable its dependencies
+# Kconfig "select" statements don't work with CONFIG_ARDUINO_SELECTIVE_COMPILATION
+ARDUINO_LIBRARY_DEPENDENCIES: dict[str, tuple[str, ...]] = {
+    "Ethernet": ("Network",),
+    "WiFi": ("Network",),
+}
+
 # Arduino libraries to disable by default when using Arduino framework
 # ESPHome uses ESP-IDF APIs directly; we only need the Arduino core
 # (HardwareSerial, Print, Stream, GPIO functions which are always compiled)
@@ -537,6 +545,9 @@ def _enable_arduino_library(name: str) -> None:
         name: The library name (e.g., "Wire", "SPI", "WiFi")
     """
     CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES].add(name)
+    # Also enable any required Arduino library dependencies
+    for dep_lib in ARDUINO_LIBRARY_DEPENDENCIES.get(name, ()):
+        CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES].add(dep_lib)
     # Also enable any required IDF components
     for idf_component in ARDUINO_LIBRARY_IDF_COMPONENTS.get(name, ()):
         include_builtin_idf_component(idf_component)
@@ -1274,6 +1285,27 @@ async def _write_exclude_components() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
+async def _write_arduino_libraries_sdkconfig() -> None:
+    """Write Arduino selective compilation sdkconfig after all components have added libraries.
+
+    This must run at FINAL priority so that all components have had a chance to call
+    cg.add_library() which auto-enables Arduino libraries via _enable_arduino_library().
+    """
+    if KEY_ESP32 not in CORE.data:
+        return
+    # Enable Arduino selective compilation to disable unused Arduino libraries
+    # ESPHome uses ESP-IDF APIs directly; we only need the Arduino core
+    # (HardwareSerial, Print, Stream, GPIO functions which are always compiled)
+    # cg.add_library() auto-enables needed libraries; users can also add
+    # libraries via esphome: libraries: config which calls cg.add_library()
+    add_idf_sdkconfig_option("CONFIG_ARDUINO_SELECTIVE_COMPILATION", True)
+    enabled_libs = CORE.data[KEY_ESP32].get(KEY_ARDUINO_LIBRARIES, set())
+    for lib in ARDUINO_DISABLED_LIBRARIES:
+        # Enable if explicitly requested, disable otherwise
+        add_idf_sdkconfig_option(f"CONFIG_ARDUINO_SELECTIVE_{lib}", lib in enabled_libs)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _add_yaml_idf_components(components: list[ConfigType]):
     """Add IDF components from YAML config with final priority to override code-added components."""
     for component in components:
@@ -1398,19 +1430,6 @@ async def to_code(config):
 
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
-
-        # Enable Arduino selective compilation to disable unused Arduino libraries
-        # ESPHome uses ESP-IDF APIs directly; we only need the Arduino core
-        # (HardwareSerial, Print, Stream, GPIO functions which are always compiled)
-        # cg.add_library() auto-enables needed libraries; users can also add
-        # libraries via esphome: libraries: config which calls cg.add_library()
-        add_idf_sdkconfig_option("CONFIG_ARDUINO_SELECTIVE_COMPILATION", True)
-        enabled_libs = CORE.data[KEY_ESP32].get(KEY_ARDUINO_LIBRARIES, set())
-        for lib in ARDUINO_DISABLED_LIBRARIES:
-            # Enable if explicitly requested, disable otherwise
-            add_idf_sdkconfig_option(
-                f"CONFIG_ARDUINO_SELECTIVE_{lib}", lib in enabled_libs
-            )
 
     cg.add_build_flag("-Wno-nonnull-compare")
 
@@ -1692,6 +1711,11 @@ async def to_code(config):
     # a chance to call include_builtin_idf_component() to re-enable components they need.
     # Default exclusions are added in set_core_data() during config validation.
     CORE.add_job(_write_exclude_components)
+
+    # Write Arduino selective compilation sdkconfig at FINAL priority after all
+    # components have had a chance to call cg.add_library() to enable libraries they need.
+    if conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
+        CORE.add_job(_write_arduino_libraries_sdkconfig)
 
 
 APP_PARTITION_SIZES = {
