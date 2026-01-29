@@ -51,11 +51,6 @@ class DeviceDecoders {
 
   static std::string decode_heater_el(const std::string &data) {
     std::string ret_val = data;
-
-    /*     if( data == "Off" ) ret_val = "0";
-        if( data == "1 kW") ret_val = "1";
-        if( data == "2 kW") ret_val = "2";
-        if( data == "3 kW") ret_val = "3"; */
     return ret_val;
   }
   static std::string decode_int_str(const std::string &data, const std::vector<std::string> &list) {

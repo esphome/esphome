@@ -7,8 +7,6 @@ static const char *const TAG = "FC.CU";
 #define GET_VARIABLE(T, name) (static_cast<Variable<T> *>(this->get_variable_(name)))
 
 void ControlUnitDeviceSensor::setup() {
-  ESP_LOGI(TAG, "Setup called");
-
   if (this->power_status_text_sensor_) {
     auto *network = this->power_status_text_sensor_->create_variable("LINE_EN", [](const std::string &value) {
       const char *tmp[] = {"Connected", "Disconnected"};
@@ -116,7 +114,7 @@ void ControlUnitDeviceSensor::setup() {
 }
 
 void ControlUnitDeviceSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, " -Fendt Control Unit-");
+  ESP_LOGCONFIG(TAG, " Fendt Control Unit");
   LOG_SWITCH(TAG, "  Main Switch", this->main_switch_switch_);
   LOG_SWITCH(TAG, "  Lights Status", this->light_status_switch_);
   LOG_SENSOR(TAG, "  Temp In", this->temperature_in_sensor_);
@@ -167,7 +165,7 @@ void ControlUnitDeviceSensor::on_switch_state_change_(FendtSwitch *sw, bool stat
     auto *hs_key = GET_VARIABLE(bool, "HS_KEY");
     auto *hs_key_state = GET_VARIABLE(int, "HS_KEY_STATE");
     bool current_state = hs_key_state->get_value() == 2;
-    ESP_LOGD(TAG, "Light switch state changed. cs: %d, state:%d", current_state, state);
+    ESP_LOGV(TAG, "Light switch state changed. cs: %d, state:%d", current_state, state);
     if (hs_key && hs_key_state) {
       if (current_state == state)
         return;
@@ -180,7 +178,7 @@ void ControlUnitDeviceSensor::on_switch_state_change_(FendtSwitch *sw, bool stat
     command = this->floor_heater_switch_->get_variable()->get_command();
   }
   if (!command.empty()) {
-    ESP_LOGD(TAG, "Switch state changed command:%s", command.c_str());
+    ESP_LOGV(TAG, "Switch state changed command:%s", command.c_str());
     this->command_callback_.call(command);
   }
 }

@@ -16,7 +16,7 @@ using namespace std;
 
 class FendtCaravan : public PollingComponent, public ble_client::BLEClientNode {
  public:
-  void setup() override;
+  void setup() override{};
   void loop() override;
   void update() override{};
 
@@ -29,19 +29,6 @@ class FendtCaravan : public PollingComponent, public ble_client::BLEClientNode {
     this->control_unit_device_->set_command_send_callback(
         [this](const std::string &cmd) { this->on_command_send(cmd); });
   }
-  //  void set_alde_device(CaravanDevice *device) {
-  //    this->alde_device_ = device;
-  //    this->alde_device_->set_command_send_callback([this](const std::string &cmd) { this->on_command_send(cmd); });
-  //  }
-  //  void set_fridge_device(CaravanDevice *device) {
-  //    this->fridge_device_ = device;
-  //    this->fridge_device_->set_command_send_callback([this](const std::string &cmd) { this->on_command_send(cmd); });
-  //  }
-  //  void set_lighting_device(CaravanDevice *device) {
-  //    this->lighting_device_ = device;
-  //    this->lighting_device_->set_command_send_callback([this](const std::string &cmd) { this->on_command_send(cmd);
-  //    });
-  //  }
   void dump_config() override;
   void on_command_send(const std::string &command);
 
@@ -59,9 +46,6 @@ class FendtCaravan : public PollingComponent, public ble_client::BLEClientNode {
   uint32_t last_command_time_ = 0;
   std::string last_response_ = {};
   CaravanDevice *control_unit_device_{nullptr};
-  // CaravanDevice *alde_device_{nullptr};
-  // CaravanDevice *fridge_device_{nullptr};
-  // CaravanDevice *lighting_device_{nullptr};
 };
 }  // namespace esphome::fendt_caravan
 #endif

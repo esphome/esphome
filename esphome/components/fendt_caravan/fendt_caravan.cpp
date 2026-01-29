@@ -1,4 +1,5 @@
 #include "fendt_caravan.h"
+#include "esphome/core/application.h"
 
 #ifdef USE_ESP32
 
@@ -10,18 +11,21 @@ using namespace std;
 const uint8_t WIAT_COMMAND = 200;
 static const char *const TAG = "FC";
 
-void FendtCaravan::dump_config() { ESP_LOGCONFIG(TAG, "Fend Caravan Log"); }
-
-void FendtCaravan::setup() { ESP_LOGD(TAG, "Setup called"); }
+void FendtCaravan::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "Fend Caravan Log\n"
+                "  Fendt Address: %s",
+                this->parent()->address_str());
+}
 
 void FendtCaravan::loop() {
-  if (!command_enabled_)
+  if (!this->command_enabled_)
     return;
 
   if (this->parent()->state() != espbt::ClientState::ESTABLISHED)
     return;
 
-  uint32_t time_stamp = millis();
+  uint32_t time_stamp = App.get_loop_component_start_time();
   if (!this->commands_.empty() && (time_stamp - this->last_command_time_) >= WIAT_COMMAND && !this->wait_buffer_) {
     std::string cmd = this->commands_.at(0);
 
@@ -138,7 +142,7 @@ void FendtCaravan::on_data_received_(const std::string &data) {
 }
 
 void FendtCaravan::on_command_send(const std::string &command) {
-  ESP_LOGD(TAG, "on_command_send called. Command: %s", command.c_str());
+  ESP_LOGV(TAG, "on_command_send called. Command: %s", command.c_str());
   this->add_command_(command);
 }
 
