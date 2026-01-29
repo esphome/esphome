@@ -1412,8 +1412,8 @@ async def to_code(config):
     # Only needed for specific certificate validation scenarios
     # Components that need it can call require_mbedtls_pkcs7()
     if CORE.data[KEY_ESP32].get(KEY_MBEDTLS_PKCS7_REQUIRED, False):
-        # Component requires PKCS#7 - don't disable
-        pass
+        # Component called require_mbedtls_pkcs7() - enable regardless of user setting
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_PKCS7_C", True)
     elif advanced[CONF_DISABLE_MBEDTLS_PKCS7]:
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PKCS7_C", False)
 
@@ -1425,8 +1425,9 @@ async def to_code(config):
     # Disable FATFS support
     # Components that need FATFS (SD card, etc.) can call require_fatfs()
     if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
-        # Component requires FATFS - don't disable
-        pass
+        # Component called require_fatfs() - enable regardless of user setting
+        add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", False)
+        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 2)
     elif advanced[CONF_DISABLE_FATFS]:
         add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", True)
         add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 0)
