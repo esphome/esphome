@@ -78,10 +78,9 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    if CONF_SOURCE_ID in config:
-        for source_conf in config[CONF_SOURCE_ID]:
-            source = await cg.get_variable(source_conf)
-            cg.add(var.add_provider(source))
+    for source_conf in config.get(CONF_SOURCE_ID, ()):
+        source = await cg.get_variable(source_conf)
+        cg.add(var.add_provider(source))
     if CONF_MIN_LENGTH in config:
         cg.add(var.set_min_length(config[CONF_MIN_LENGTH]))
     if CONF_MAX_LENGTH in config:
