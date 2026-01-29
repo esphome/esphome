@@ -507,7 +507,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 
   // Configure reconnect timeout and send config
   // this should always go through since the tcp send buffer is empty on connect
-  std::string message = ws->get_config_json();
+  auto message = ws->get_config_json();
   this->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
 
 #ifdef USE_WEBSERVER_SORTING
