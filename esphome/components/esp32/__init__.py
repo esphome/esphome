@@ -50,6 +50,7 @@ from esphome.writer import clean_cmake_cache
 
 from .boards import BOARDS, STANDARD_BOARDS
 from .const import (  # noqa
+    KEY_ARDUINO_LIBRARIES,
     KEY_BOARD,
     KEY_COMPONENTS,
     KEY_ESP32,
@@ -87,6 +88,7 @@ IS_TARGET_PLATFORM = True
 CONF_ASSERTION_LEVEL = "assertion_level"
 CONF_COMPILER_OPTIMIZATION = "compiler_optimization"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
+CONF_INCLUDE_ARDUINO_LIBRARIES = "include_arduino_libraries"
 CONF_INCLUDE_IDF_COMPONENTS = "include_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
@@ -178,6 +180,74 @@ ARDUINO_EXCLUDED_IDF_COMPONENTS = (
     "espressif__qrcode",  # QR code - not used
     "espressif__rmaker_common",  # RainMaker common - not used
     "joltwallet__littlefs",  # LittleFS - ESPHome doesn't use filesystem
+)
+
+# Mapping of Arduino libraries to IDF components they require
+# When an Arduino library is enabled, these IDF components are automatically included
+ARDUINO_LIBRARY_IDF_COMPONENTS: dict[str, tuple[str, ...]] = {
+    "BLE": ("esp_driver_gptimer",),
+    "BluetoothSerial": ("esp_driver_gptimer",),
+    "Ethernet": ("espressif__lan867x", "espressif__lan86xx_common"),
+    "FFat": ("fatfs",),
+    "LittleFS": ("joltwallet__littlefs",),
+    "Matter": ("espressif__esp_matter",),
+    "RainMaker": (
+        "espressif__cbor",
+        "espressif__esp_rainmaker",
+        "espressif__esp_insights",
+        "espressif__esp_diagnostics",
+        "espressif__esp_diag_data_store",
+        "espressif__rmaker_common",
+        "espressif__json_generator",
+        "espressif__json_parser",
+        "espressif__qrcode",
+    ),
+    "SD": ("fatfs",),
+    "SD_MMC": ("fatfs",),
+    "SPIFFS": ("spiffs",),
+    "Zigbee": ("espressif__esp-zigbee-lib", "espressif__esp-zboss-lib"),
+}
+
+# Arduino libraries to disable by default when using Arduino framework
+# ESPHome uses ESP-IDF APIs directly; we only need the Arduino core
+# (HardwareSerial, Print, Stream, GPIO functions which are always compiled)
+# Components can call enable_arduino_library() to re-enable any they need
+ARDUINO_DISABLED_LIBRARIES = (
+    "ArduinoOTA",
+    "AsyncUDP",
+    "BLE",
+    "BluetoothSerial",
+    "DNSServer",
+    "EEPROM",
+    "ESPmDNS",
+    "ESP_SR",
+    "Ethernet",
+    "FFat",
+    "FS",
+    "Hash",
+    "HTTPClient",
+    "Insights",
+    "LittleFS",
+    "Matter",
+    "NetBIOS",
+    "Network",
+    "NetworkClientSecure",
+    "OpenThread",
+    "PPP",
+    "Preferences",
+    "RainMaker",
+    "SD",
+    "SD_MMC",
+    "SimpleBLE",
+    "SPI",
+    "SPIFFS",
+    "Ticker",
+    "Update",
+    "WebServer",
+    "WiFi",
+    "WiFiProv",
+    "Wire",
+    "Zigbee",
 )
 
 # ESP32 (original) chip revision options
@@ -276,6 +346,9 @@ def set_core_data(config):
     if conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         excluded.update(ARDUINO_EXCLUDED_IDF_COMPONENTS)
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = excluded
+    # Initialize Arduino library tracking - components can call enable_arduino_library()
+    # to re-enable libraries that are disabled by default
+    CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES] = set()
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
@@ -421,6 +494,25 @@ def include_idf_component(name: str) -> None:
     component will be built when needed.
     """
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(name)
+
+
+def enable_arduino_library(name: str) -> None:
+    """Enable an Arduino library that is disabled by default.
+
+    Call this from components that need an Arduino library that is
+    disabled by default in ARDUINO_DISABLED_LIBRARIES. This ensures the
+    library will be compiled when needed.
+
+    This also automatically enables any IDF components required by the library
+    (defined in ARDUINO_LIBRARY_IDF_COMPONENTS).
+
+    Args:
+        name: The library name (e.g., "Wire", "SPI", "WiFi")
+    """
+    CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES].add(name)
+    # Also enable any required IDF components
+    for idf_component in ARDUINO_LIBRARY_IDF_COMPONENTS.get(name, ()):
+        include_idf_component(idf_component)
 
 
 def add_extra_script(stage: str, filename: str, path: Path):
@@ -942,6 +1034,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_INCLUDE_IDF_COMPONENTS, default=[]): cv.ensure_list(
                     cv.string_strict
                 ),
+                cv.Optional(CONF_INCLUDE_ARDUINO_LIBRARIES, default=[]): cv.ensure_list(
+                    cv.one_of(*ARDUINO_DISABLED_LIBRARIES)
+                ),
                 cv.Optional(CONF_DISABLE_DEBUG_STUBS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_OCD_AWARE, default=True): cv.boolean,
                 cv.Optional(
@@ -1415,6 +1510,10 @@ async def to_code(config):
     # Re-include any IDF components the user explicitly requested
     for component_name in advanced.get(CONF_INCLUDE_IDF_COMPONENTS, []):
         include_idf_component(component_name)
+
+    # Re-enable any Arduino libraries the user explicitly requested
+    for lib_name in advanced.get(CONF_INCLUDE_ARDUINO_LIBRARIES, []):
+        enable_arduino_library(lib_name)
 
     # DHCP server: only disable if explicitly set to false
     # WiFi component handles its own optimization when AP mode is not used
