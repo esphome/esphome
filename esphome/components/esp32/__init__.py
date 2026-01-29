@@ -152,29 +152,29 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
 # These are pulled in by the Arduino framework's idf_component.yml but not used by ESPHome
 # Note: Component names include the namespace prefix (e.g., "espressif__cbor") because
 # that's how managed components are registered in the IDF build system
+# List includes direct dependencies from arduino-esp32/idf_component.yml
+# plus transitive dependencies from RainMaker/Insights (except espressif/mdns which we need)
 ARDUINO_EXCLUDED_IDF_COMPONENTS = (
     "chmorgan__esp-libhelix-mp3",  # MP3 decoder - not used
     "espressif__cbor",  # CBOR library - only used by RainMaker/Insights
     "espressif__esp-dsp",  # DSP library - not used
     "espressif__esp-modbus",  # Modbus - ESPHome has its own
-    "espressif__esp-serial-flasher",  # Serial flasher - not used
+    "espressif__esp-sr",  # Speech recognition - not used
     "espressif__esp-zboss-lib",  # Zigbee ZBOSS library - not used
     "espressif__esp-zigbee-lib",  # Zigbee library - not used
     "espressif__esp_diag_data_store",  # Diagnostics - not used
     "espressif__esp_diagnostics",  # Diagnostics - not used
-    "espressif__esp_hosted",  # ESP hosted - not used
+    "espressif__esp_hosted",  # ESP hosted - only for ESP32-P4
     "espressif__esp_insights",  # ESP Insights - not used
     "espressif__esp_modem",  # Modem library - not used
     "espressif__esp_rainmaker",  # RainMaker - not used
-    "espressif__esp_rcp_update",  # RCP update - not used
-    "espressif__esp_schedule",  # Schedule - not used
-    "espressif__esp_secure_cert_mgr",  # Secure cert manager - not used
-    "espressif__esp_wifi_remote",  # WiFi remote - not used
-    "espressif__esp-sr",  # Speech recognition - not used
-    "espressif__json_generator",  # JSON generator - not used
-    "espressif__json_parser",  # JSON parser - not used
+    "espressif__esp_rcp_update",  # RCP update - RainMaker transitive dep
+    "espressif__esp_schedule",  # Schedule - RainMaker transitive dep
+    "espressif__esp_secure_cert_mgr",  # Secure cert - RainMaker transitive dep
+    "espressif__esp_wifi_remote",  # WiFi remote - only for ESP32-P4
+    "espressif__json_generator",  # JSON generator - RainMaker transitive dep
+    "espressif__json_parser",  # JSON parser - RainMaker transitive dep
     "espressif__lan867x",  # Ethernet PHY - ESPHome uses ESP-IDF ethernet directly
-    "espressif__lan86xx_common",  # Ethernet common - ESPHome uses ESP-IDF ethernet directly
     "espressif__libsodium",  # Crypto - ESPHome uses its own noise-c library
     "espressif__network_provisioning",  # Network provisioning - not used
     "espressif__qrcode",  # QR code - not used
@@ -187,29 +187,35 @@ ARDUINO_EXCLUDED_IDF_COMPONENTS = (
 ARDUINO_LIBRARY_IDF_COMPONENTS: dict[str, tuple[str, ...]] = {
     "BLE": ("esp_driver_gptimer",),
     "BluetoothSerial": ("esp_driver_gptimer",),
+    "ESP_HostedOTA": ("espressif__esp_hosted", "espressif__esp_wifi_remote"),
     "ESP_SR": ("espressif__esp-sr",),
-    "Ethernet": ("espressif__lan867x", "espressif__lan86xx_common"),
+    "Ethernet": ("espressif__lan867x",),
     "FFat": ("fatfs",),
     "Insights": (
         "espressif__cbor",
         "espressif__esp_insights",
         "espressif__esp_diagnostics",
         "espressif__esp_diag_data_store",
+        "espressif__rmaker_common",  # Transitive dep from esp_insights
     ),
     "LittleFS": ("joltwallet__littlefs",),
     "Matter": ("espressif__esp_matter",),
     "PPP": ("espressif__esp_modem",),
     "RainMaker": (
+        # Direct deps from idf_component.yml
         "espressif__cbor",
         "espressif__esp_rainmaker",
         "espressif__esp_insights",
         "espressif__esp_diagnostics",
         "espressif__esp_diag_data_store",
         "espressif__rmaker_common",
+        "espressif__qrcode",
+        # Transitive deps from esp_rainmaker
+        "espressif__esp_rcp_update",
+        "espressif__esp_schedule",
+        "espressif__esp_secure_cert_mgr",
         "espressif__json_generator",
         "espressif__json_parser",
-        "espressif__qrcode",
-        "espressif__esp_schedule",
         "espressif__network_provisioning",
     ),
     "SD": ("fatfs",),
