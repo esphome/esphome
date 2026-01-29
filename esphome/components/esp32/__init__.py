@@ -1375,49 +1375,18 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
 
-        # Enable Arduino selective compilation to disable all Arduino libraries
+        # Enable Arduino selective compilation to disable unused Arduino libraries
         # ESPHome uses ESP-IDF APIs directly; we only need the Arduino core
         # (HardwareSerial, Print, Stream, GPIO functions which are always compiled)
+        # Components can call enable_arduino_library() or users can specify
+        # include_arduino_libraries in the advanced config to re-enable any needed
         add_idf_sdkconfig_option("CONFIG_ARDUINO_SELECTIVE_COMPILATION", True)
-        # Disable ALL optional Arduino libraries - ESPHome doesn't use them
-        for lib in (
-            "ArduinoOTA",
-            "AsyncUDP",
-            "BLE",
-            "BluetoothSerial",
-            "DNSServer",
-            "EEPROM",
-            "ESPmDNS",
-            "ESP_SR",
-            "Ethernet",
-            "FFat",
-            "FS",
-            "Hash",
-            "HTTPClient",
-            "Insights",
-            "LittleFS",
-            "Matter",
-            "NetBIOS",
-            "Network",
-            "NetworkClientSecure",
-            "OpenThread",
-            "PPP",
-            "Preferences",
-            "RainMaker",
-            "SD",
-            "SD_MMC",
-            "SimpleBLE",
-            "SPI",
-            "SPIFFS",
-            "Ticker",
-            "Update",
-            "WebServer",
-            "WiFi",
-            "WiFiProv",
-            "Wire",
-            "Zigbee",
-        ):
-            add_idf_sdkconfig_option(f"CONFIG_ARDUINO_SELECTIVE_{lib}", False)
+        enabled_libs = CORE.data[KEY_ESP32].get(KEY_ARDUINO_LIBRARIES, set())
+        for lib in ARDUINO_DISABLED_LIBRARIES:
+            # Enable if explicitly requested, disable otherwise
+            add_idf_sdkconfig_option(
+                f"CONFIG_ARDUINO_SELECTIVE_{lib}", lib in enabled_libs
+            )
 
     cg.add_build_flag("-Wno-nonnull-compare")
 
