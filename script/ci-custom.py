@@ -692,6 +692,8 @@ HEAP_ALLOCATING_HELPERS = {
     "str_truncate": "removal (function is unused)",
     "str_upper_case": "removal (function is unused)",
     "str_snake_case": "removal (function is unused)",
+    "str_sprintf": "snprintf() with a stack buffer",
+    "str_snprintf": "snprintf() with a stack buffer",
 }
 
 
@@ -710,7 +712,9 @@ HEAP_ALLOCATING_HELPERS = {
     r"str_sanitize(?!_)|"
     r"str_truncate|"
     r"str_upper_case|"
-    r"str_snake_case"
+    r"str_snake_case|"
+    r"str_sprintf|"
+    r"str_snprintf"
     r")\s*\(" + CPP_RE_EOL,
     include=cpp_include,
     exclude=[

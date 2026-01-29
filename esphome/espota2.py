@@ -154,6 +154,12 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
     """
     if not expect:
         return
+    if not data:
+        raise OTAError(
+            "Error: Device closed connection without responding. "
+            "This may indicate the device ran out of memory, "
+            "a network issue, or the connection was interrupted."
+        )
     dat = data[0]
     if dat == RESPONSE_ERROR_MAGIC:
         raise OTAError("Error: Invalid magic byte")

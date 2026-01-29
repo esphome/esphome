@@ -29,6 +29,14 @@ void socket_delay(uint32_t ms) {
   // Use esp_delay with a callback that checks if socket data arrived.
   // This allows the delay to exit early when socket_wake() is called by
   // lwip recv_fn/accept_fn callbacks, reducing socket latency.
+  //
+  // When ms is 0, we must use delay(0) because esp_delay(0, callback)
+  // exits immediately without yielding, which can cause watchdog timeouts
+  // when the main loop runs in high-frequency mode (e.g., during light effects).
+  if (ms == 0) {
+    delay(0);
+    return;
+  }
   s_socket_woke = false;
   esp_delay(ms, []() { return !s_socket_woke; });
 }
