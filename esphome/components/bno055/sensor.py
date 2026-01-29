@@ -14,7 +14,6 @@ from esphome.const import (
     UNIT_MICROTESLA,
 )
 
-CODEOWNERS = ["@iret33"]
 DEPENDENCIES = ["i2c"]
 
 # Sensor configuration keys
