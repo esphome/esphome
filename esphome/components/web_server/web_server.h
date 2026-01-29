@@ -105,7 +105,7 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
   can be forgotten.
 */
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
-using message_generator_t = std::string(WebServer *, void *);
+using message_generator_t = json::SerializationBuffer<>(WebServer *, void *);
 
 class DeferredUpdateEventSourceList;
 class DeferredUpdateEventSource : public AsyncEventSource {
