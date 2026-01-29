@@ -1,0 +1,58 @@
+sensor:
+  - platform: bno055
+    i2c_id: i2c_bus
+    address: 0x29
+    # Euler angles
+    euler_heading:
+      name: BNO055 Heading
+    euler_roll:
+      name: BNO055 Roll
+    euler_pitch:
+      name: BNO055 Pitch
+    # Quaternion
+    quaternion_w:
+      name: BNO055 Quaternion W
+    quaternion_x:
+      name: BNO055 Quaternion X
+    quaternion_y:
+      name: BNO055 Quaternion Y
+    quaternion_z:
+      name: BNO055 Quaternion Z
+    # Linear acceleration
+    linear_accel_x:
+      name: BNO055 Linear Accel X
+    linear_accel_y:
+      name: BNO055 Linear Accel Y
+    linear_accel_z:
+      name: BNO055 Linear Accel Z
+    # Gravity
+    gravity_x:
+      name: BNO055 Gravity X
+    gravity_y:
+      name: BNO055 Gravity Y
+    gravity_z:
+      name: BNO055 Gravity Z
+    # Raw accelerometer
+    accel_x:
+      name: BNO055 Accel X
+    accel_y:
+      name: BNO055 Accel Y
+    accel_z:
+      name: BNO055 Accel Z
+    # Gyroscope
+    gyro_x:
+      name: BNO055 Gyro X
+    gyro_y:
+      name: BNO055 Gyro Y
+    gyro_z:
+      name: BNO055 Gyro Z
+    # Magnetometer
+    mag_x:
+      name: BNO055 Mag X
+    mag_y:
+      name: BNO055 Mag Y
+    mag_z:
+      name: BNO055 Mag Z
+    # Temperature
+    temperature:
+      name: BNO055 Temperature
