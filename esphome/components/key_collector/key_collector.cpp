@@ -46,7 +46,6 @@ void KeyCollector::set_enabled(bool enabled) {
   this->enabled_ = enabled;
   if (!enabled) {
     this->clear(false);
-    this->disable_loop();
   }
 }
 
