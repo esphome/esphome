@@ -124,7 +124,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if CORE.using_arduino:
+    # ESP32 with Arduino framework uses ESP-IDF APIs directly for ESP-NOW,
+    # so we don't need the Arduino WiFi library
+    if CORE.using_arduino and not CORE.is_esp32:
         cg.add_library("WiFi", None)
 
     # ESP-NOW uses wake_loop_threadsafe() to wake the main loop from ESP-NOW callbacks

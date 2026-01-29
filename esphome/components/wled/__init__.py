@@ -27,4 +27,5 @@ async def wled_light_effect_to_code(config, effect_id):
     cg.add(effect.set_port(config[CONF_PORT]))
     cg.add(effect.set_sync_group_mask(config[CONF_SYNC_GROUP_MASK]))
     cg.add(effect.set_blank_on_start(config[CONF_BLANK_ON_START]))
+    cg.add_library("WiFi", None)
     return effect
