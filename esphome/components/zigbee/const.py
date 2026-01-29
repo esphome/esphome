@@ -7,6 +7,7 @@ ZigbeeComponent = zigbee_ns.class_("ZigbeeComponent", cg.Component)
 ZigbeeAttribute = zigbee_ns.class_("ZigbeeAttribute", cg.Component)
 BinaryAttrs = zigbee_ns.struct("BinaryAttrs")
 AnalogAttrs = zigbee_ns.struct("AnalogAttrs")
+AnalogAttrsOutput = zigbee_ns.struct("AnalogAttrsOutput")
 
 report = zigbee_ns.enum("ZigbeeReportT")
 REPORT = {

@@ -40,7 +40,12 @@ from .zigbee_esp32 import (
     validate_binary_sensor_esp32,
     zigbee_require_vfs_select,
 )
-from .zigbee_zephyr import zephyr_binary_sensor, zephyr_sensor, zephyr_switch
+from .zigbee_zephyr import (
+    zephyr_binary_sensor,
+    zephyr_number,
+    zephyr_sensor,
+    zephyr_switch,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,6 +72,7 @@ BINARY_SENSOR_SCHEMA = cv.Schema(
 ).extend(zephyr_binary_sensor)
 SENSOR_SCHEMA = cv.Schema({}).extend(zephyr_sensor)
 SWITCH_SCHEMA = cv.Schema({}).extend(zephyr_switch)
+NUMBER_SCHEMA = cv.Schema({}).extend(zephyr_number)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -88,8 +94,9 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 cv.requires_component("nrf52"),
             ),
-            cv.Optional(CONF_POWER_SOURCE, default="DC_SOURCE"): cv.enum(
-                POWER_SOURCE, upper=True
+            cv.Optional(CONF_POWER_SOURCE, default="DC_SOURCE"): cv.All(
+                cv.enum(POWER_SOURCE, upper=True),
+                cv.requires_component("nrf52"),
             ),
             cv.Optional(CONF_IEEE802154_VENDOR_OUI): cv.All(
                 cv.Any(
@@ -179,6 +186,21 @@ async def setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
         await zephyr_setup_switch(entity, config)
 
 
+async def setup_number(
+    entity: cg.MockObj,
+    config: ConfigType,
+    min_value: float,
+    max_value: float,
+    step: float,
+) -> None:
+    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
+        return
+    if CORE.using_zephyr:
+        from .zigbee_zephyr import zephyr_setup_number
+
+        await zephyr_setup_number(entity, config, min_value, max_value, step)
+
+
 def consume_endpoint(config: ConfigType) -> ConfigType:
     if CONF_NAME in config and " " in config[CONF_NAME]:
         _LOGGER.warning(
@@ -207,6 +229,12 @@ def validate_sensor(config: ConfigType) -> ConfigType:
 
 
 def validate_switch(config: ConfigType) -> ConfigType:
+    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+        return config
+    return consume_endpoint(config)
+
+
+def validate_number(config: ConfigType) -> ConfigType:
     if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return config
     return consume_endpoint(config)
