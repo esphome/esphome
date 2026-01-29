@@ -40,7 +40,7 @@ void BNO055Component::setup() {
   }
 
   // Wait for reset to complete (BNO055 needs ~650ms after reset)
-  delay(700);
+  delay(700);  // NOLINT
 
   // Wait for chip ID to be readable again after reset
   uint8_t attempts = 0;
@@ -48,7 +48,7 @@ void BNO055Component::setup() {
     if (this->read_byte(BNO055_REGISTER_CHIP_ID, &chip_id) && chip_id == BNO055_CHIP_ID) {
       break;
     }
-    delay(50);
+    delay(50);  // NOLINT
     attempts++;
   }
 
