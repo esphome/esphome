@@ -1711,7 +1711,7 @@ def _write_idf_component_yml():
     if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
         for name, component in components.items():
-            dependency = {}
+            dependency: dict[str, str] = {}
             if component[KEY_REF]:
                 dependency["version"] = component[KEY_REF]
             if component[KEY_REPO]:
