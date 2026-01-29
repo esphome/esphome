@@ -28,7 +28,8 @@ void MQTTUpdateComponent::setup() {
 }
 
 bool MQTTUpdateComponent::publish_state() {
-  return this->publish_json(this->get_state_topic_(), [this](JsonObject root) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish_json(this->get_state_topic_to_(topic_buf), [this](JsonObject root) {
     root[ESPHOME_F("installed_version")] = this->update_->update_info.current_version;
     root[ESPHOME_F("latest_version")] = this->update_->update_info.latest_version;
     root[ESPHOME_F("title")] = this->update_->update_info.title;
