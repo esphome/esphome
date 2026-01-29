@@ -20,12 +20,6 @@ class TinyUSBKeyboard : public Component {
   // Consumer (media) key support (HID Consumer usages, e.g., volume up/down)
   void press_media(uint16_t usage);
   void release_media();
-  void type_string(const char *text);
-  // Action setters called from generated action objects
-  void set_key(const std::string &key);
-  void set_key_code(uint32_t code);
-  void set_modifiers(uint32_t mods);
-  void set_text(const std::string &text);
 
  protected:
   bool ready_{false};

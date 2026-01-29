@@ -3,15 +3,7 @@
 #include "keyboard.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
-
-extern "C" {
-// TinyUSB HID API
 #include "tusb.h"
-#include "class/hid/hid_device.h"
-// FreeRTOS for vTaskDelay
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-}
 
 namespace esphome {
 namespace tinyusb_keyboard {
@@ -92,7 +84,6 @@ void TinyUSBKeyboard::setup() {
     this->ready_ = false;
   } else {
     this->ready_ = true;
-    ESP_LOGI(TAG, "TinyUSB keyboard ready");
   }
 }
 
@@ -110,9 +101,6 @@ void TinyUSBKeyboard::press_key(uint8_t keycode, uint8_t modifiers) {
     return;
   }
 
-  ESP_LOGD(TAG, "press_key keycode=0x%02X modifiers=0x%02X", keycode, modifiers);
-
-  // Prepare keyboard report: [modifier][reserved][k1..k6]
   uint8_t report[8] = {0};
   report[0] = modifiers;
   report[1] = 0x00;  // reserved
@@ -126,7 +114,6 @@ void TinyUSBKeyboard::press_media(uint16_t usage) {
     ESP_LOGW(TAG, "TinyUSB not ready; dropping press_media");
     return;
   }
-  ESP_LOGI(TAG, "press_media usage=0x%04X tud_ready=%d", usage, tud_ready());
   // Consumer reports are 2 bytes (usage code); send with Report ID 2
   uint8_t report[2] = {(uint8_t) (usage & 0xFF), (uint8_t) ((usage >> 8) & 0xFF)};
   tud_hid_report(2, report, sizeof(report));
@@ -137,7 +124,6 @@ void TinyUSBKeyboard::release_media() {
     ESP_LOGW(TAG, "TinyUSB not ready; dropping release_media");
     return;
   }
-  ESP_LOGI(TAG, "release_media tud_ready=%d", tud_ready());
   uint8_t report[2] = {0, 0};
   tud_hid_report(2, report, sizeof(report));
 }
@@ -148,48 +134,9 @@ void TinyUSBKeyboard::release_key(uint8_t keycode) {
     return;
   }
   // Release all keys by sending empty keyboard report (Report ID 1)
-  ESP_LOGD(TAG, "release_key keycode=0x%02X", keycode);
   uint8_t report[8] = {0};
   tud_hid_report(1, report, sizeof(report));
 }
-
-void TinyUSBKeyboard::type_string(const char *text) {
-  if (text == nullptr)
-    return;
-  // Simple blocking helper: send each ASCII character as a basic HID key (US layout)
-  for (const char *p = text; *p != '\0'; ++p) {
-    char c = *p;
-    uint8_t modifiers = 0;
-    uint8_t keycode = 0;
-    // Very small ASCII -> HID mapping for letters and space
-    if (c >= 'a' && c <= 'z') {
-      keycode = 0x04 + (c - 'a');
-    } else if (c >= 'A' && c <= 'Z') {
-      keycode = 0x04 + (c - 'A');
-      modifiers = 0x02;  // Left Shift
-    } else if (c == ' ') {
-      keycode = 0x2C;  // space
-    } else if (c >= '1' && c <= '9') {
-      keycode = 0x1E + (c - '1');
-    } else if (c == '0') {
-      keycode = 0x27;
-    } else {
-      // Unsupported character: skip
-      continue;
-    }
-
-    this->press_key(keycode, modifiers);
-    vTaskDelay(pdMS_TO_TICKS(10));
-    this->release_key(keycode);
-    vTaskDelay(pdMS_TO_TICKS(10));
-  }
-}
-
-void TinyUSBKeyboard::set_key_code(uint32_t code) { this->press_key((uint8_t) code); }
-
-void TinyUSBKeyboard::set_modifiers(uint32_t mods) { (void) mods; }
-
-void TinyUSBKeyboard::set_text(const std::string &text) { this->type_string(text.c_str()); }
 
 }  // namespace tinyusb_keyboard
 }  // namespace esphome

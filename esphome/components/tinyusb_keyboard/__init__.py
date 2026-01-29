@@ -3,7 +3,7 @@ from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TEXT
+from esphome.const import CONF_ID
 
 tinyusb_keyboard_ns = cg.esphome_ns.namespace("tinyusb_keyboard")
 TinyUSBKeyboard = tinyusb_keyboard_ns.class_("TinyUSBKeyboard", cg.Component)
@@ -11,7 +11,6 @@ TinyUSBKeyboard = tinyusb_keyboard_ns.class_("TinyUSBKeyboard", cg.Component)
 # Action classes
 PressAction = tinyusb_keyboard_ns.class_("PressAction", automation.Action)
 ReleaseAction = tinyusb_keyboard_ns.class_("ReleaseAction", automation.Action)
-TypeAction = tinyusb_keyboard_ns.class_("TypeAction", automation.Action)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -40,13 +39,6 @@ RELEASE_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(TinyUSBKeyboard),
         cv.Required("key"): cv.Any(cv.string, cv.positive_int),
-    }
-)
-
-TYPE_ACTION_SCHEMA = maybe_simple_id(
-    {
-        cv.GenerateID(): cv.use_id(TinyUSBKeyboard),
-        cv.Required(CONF_TEXT): cv.string,
     }
 )
 
@@ -88,18 +80,6 @@ async def tinyusb_keyboard_release_to_code(config, action_id, template_arg, args
     else:
         key_template = await cg.templatable(key, args, int)
         cg.add(var.set_key_code(key_template))
-
-    return var
-
-
-@automation.register_action("tinyusb_keyboard.type", TypeAction, TYPE_ACTION_SCHEMA)
-async def tinyusb_keyboard_type_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-
-    text = config[CONF_TEXT]
-    template_ = await cg.templatable(text, args, str)
-    cg.add(var.set_text(template_))
 
     return var
 
