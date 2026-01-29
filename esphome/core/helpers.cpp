@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 #include <strings.h>
@@ -174,6 +175,13 @@ bool str_endswith(const std::string &str, const std::string &end) {
   return str.rfind(end) == (str.size() - end.size());
 }
 #endif
+
+bool str_endswith_ignore_case(const char *str, size_t str_len, const char *suffix, size_t suffix_len) {
+  if (suffix_len > str_len)
+    return false;
+  return strncasecmp(str + str_len - suffix_len, suffix, suffix_len) == 0;
+}
+
 std::string str_truncate(const std::string &str, size_t length) {
   return str.length() > length ? str.substr(0, length) : str;
 }
@@ -199,11 +207,22 @@ std::string str_snake_case(const std::string &str) {
   }
   return result;
 }
-std::string str_sanitize(const std::string &str) {
-  std::string result = str;
-  for (char &c : result) {
-    c = to_sanitized_char(c);
+char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
+  if (buffer_size == 0) {
+    return buffer;
   }
+  size_t i = 0;
+  while (*str && i < buffer_size - 1) {
+    buffer[i++] = to_sanitized_char(*str++);
+  }
+  buffer[i] = '\0';
+  return buffer;
+}
+
+std::string str_sanitize(const std::string &str) {
+  std::string result;
+  result.resize(str.size());
+  str_sanitize_to(&result[0], str.size() + 1, str.c_str());
   return result;
 }
 std::string str_snprintf(const char *fmt, size_t len, ...) {
@@ -433,15 +452,15 @@ std::string format_bin(const uint8_t *data, size_t length) {
 }
 
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
-  if (on == nullptr && strcasecmp(str, "on") == 0)
+  if (on == nullptr && ESPHOME_strcasecmp_P(str, ESPHOME_PSTR("on")) == 0)
     return PARSE_ON;
   if (on != nullptr && strcasecmp(str, on) == 0)
     return PARSE_ON;
-  if (off == nullptr && strcasecmp(str, "off") == 0)
+  if (off == nullptr && ESPHOME_strcasecmp_P(str, ESPHOME_PSTR("off")) == 0)
     return PARSE_OFF;
   if (off != nullptr && strcasecmp(str, off) == 0)
     return PARSE_OFF;
-  if (strcasecmp(str, "toggle") == 0)
+  if (ESPHOME_strcasecmp_P(str, ESPHOME_PSTR("toggle")) == 0)
     return PARSE_TOGGLE;
 
   return PARSE_NONE;

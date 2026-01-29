@@ -67,52 +67,29 @@ void AlarmControlPanel::add_on_ready_callback(std::function<void()> &&callback) 
   this->ready_callback_.add(std::move(callback));
 }
 
-void AlarmControlPanel::arm_away(optional<std::string> code) {
+void AlarmControlPanel::arm_with_code_(AlarmControlPanelCall &(AlarmControlPanelCall::*arm_method)(),
+                                       const char *code) {
   auto call = this->make_call();
-  call.arm_away();
-  if (code.has_value())
-    call.set_code(code.value());
+  (call.*arm_method)();
+  if (code != nullptr)
+    call.set_code(code);
   call.perform();
 }
 
-void AlarmControlPanel::arm_home(optional<std::string> code) {
-  auto call = this->make_call();
-  call.arm_home();
-  if (code.has_value())
-    call.set_code(code.value());
-  call.perform();
+void AlarmControlPanel::arm_away(const char *code) { this->arm_with_code_(&AlarmControlPanelCall::arm_away, code); }
+
+void AlarmControlPanel::arm_home(const char *code) { this->arm_with_code_(&AlarmControlPanelCall::arm_home, code); }
+
+void AlarmControlPanel::arm_night(const char *code) { this->arm_with_code_(&AlarmControlPanelCall::arm_night, code); }
+
+void AlarmControlPanel::arm_vacation(const char *code) {
+  this->arm_with_code_(&AlarmControlPanelCall::arm_vacation, code);
 }
 
-void AlarmControlPanel::arm_night(optional<std::string> code) {
-  auto call = this->make_call();
-  call.arm_night();
-  if (code.has_value())
-    call.set_code(code.value());
-  call.perform();
+void AlarmControlPanel::arm_custom_bypass(const char *code) {
+  this->arm_with_code_(&AlarmControlPanelCall::arm_custom_bypass, code);
 }
 
-void AlarmControlPanel::arm_vacation(optional<std::string> code) {
-  auto call = this->make_call();
-  call.arm_vacation();
-  if (code.has_value())
-    call.set_code(code.value());
-  call.perform();
-}
-
-void AlarmControlPanel::arm_custom_bypass(optional<std::string> code) {
-  auto call = this->make_call();
-  call.arm_custom_bypass();
-  if (code.has_value())
-    call.set_code(code.value());
-  call.perform();
-}
-
-void AlarmControlPanel::disarm(optional<std::string> code) {
-  auto call = this->make_call();
-  call.disarm();
-  if (code.has_value())
-    call.set_code(code.value());
-  call.perform();
-}
+void AlarmControlPanel::disarm(const char *code) { this->arm_with_code_(&AlarmControlPanelCall::disarm, code); }
 
 }  // namespace esphome::alarm_control_panel

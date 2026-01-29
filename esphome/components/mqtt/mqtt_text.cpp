@@ -26,7 +26,7 @@ void MQTTTextComponent::setup() {
 
 void MQTTTextComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT text '%s':", this->text_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true)
+  LOG_MQTT_COMPONENT(true, true);
 }
 
 MQTT_COMPONENT_TYPE(MQTTTextComponent, "text")
@@ -53,7 +53,8 @@ bool MQTTTextComponent::send_initial_state() {
   }
 }
 bool MQTTTextComponent::publish_state(const std::string &value) {
-  return this->publish(this->get_state_topic_(), value);
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish(this->get_state_topic_to_(topic_buf), value.data(), value.size());
 }
 
 }  // namespace esphome::mqtt

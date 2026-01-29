@@ -19,7 +19,7 @@ void MQTTBinarySensorComponent::setup() {
 
 void MQTTBinarySensorComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Binary Sensor '%s':", this->binary_sensor_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, false)
+  LOG_MQTT_COMPONENT(true, false);
 }
 MQTTBinarySensorComponent::MQTTBinarySensorComponent(binary_sensor::BinarySensor *binary_sensor)
     : binary_sensor_(binary_sensor) {
@@ -52,8 +52,9 @@ bool MQTTBinarySensorComponent::publish_state(bool state) {
   if (this->binary_sensor_->is_status_binary_sensor())
     return true;
 
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   const char *state_s = state ? "ON" : "OFF";
-  return this->publish(this->get_state_topic_(), state_s);
+  return this->publish(this->get_state_topic_to_(topic_buf), state_s);
 }
 
 }  // namespace esphome::mqtt
