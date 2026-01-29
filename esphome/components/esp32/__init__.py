@@ -187,10 +187,18 @@ ARDUINO_EXCLUDED_IDF_COMPONENTS = (
 ARDUINO_LIBRARY_IDF_COMPONENTS: dict[str, tuple[str, ...]] = {
     "BLE": ("esp_driver_gptimer",),
     "BluetoothSerial": ("esp_driver_gptimer",),
+    "ESP_SR": ("espressif__esp-sr",),
     "Ethernet": ("espressif__lan867x", "espressif__lan86xx_common"),
     "FFat": ("fatfs",),
+    "Insights": (
+        "espressif__cbor",
+        "espressif__esp_insights",
+        "espressif__esp_diagnostics",
+        "espressif__esp_diag_data_store",
+    ),
     "LittleFS": ("joltwallet__littlefs",),
     "Matter": ("espressif__esp_matter",),
+    "PPP": ("espressif__esp_modem",),
     "RainMaker": (
         "espressif__cbor",
         "espressif__esp_rainmaker",
@@ -201,10 +209,13 @@ ARDUINO_LIBRARY_IDF_COMPONENTS: dict[str, tuple[str, ...]] = {
         "espressif__json_generator",
         "espressif__json_parser",
         "espressif__qrcode",
+        "espressif__esp_schedule",
+        "espressif__network_provisioning",
     ),
     "SD": ("fatfs",),
     "SD_MMC": ("fatfs",),
     "SPIFFS": ("spiffs",),
+    "WiFiProv": ("espressif__network_provisioning", "espressif__qrcode"),
     "Zigbee": ("espressif__esp-zigbee-lib", "espressif__esp-zboss-lib"),
 }
 
