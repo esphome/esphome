@@ -12,7 +12,6 @@ void KeyCollector::loop() {
     return;
   this->timeout_callbacks_.call(this->result_, this->start_key_);
   this->clear();
-  this->disable_loop();
 }
 
 void KeyCollector::dump_config() {
@@ -52,12 +51,13 @@ void KeyCollector::set_enabled(bool enabled) {
 }
 
 void KeyCollector::clear(bool progress_update) {
-  if (this->result_.empty())
-    return;
-  this->result_.clear();
-  this->start_key_ = 0;
-  if (progress_update)
-    this->progress_callbacks_.call(this->result_, 0);
+  if (!this->result_.empty()) {
+    this->result_.clear();
+    this->start_key_ = 0;
+    if (progress_update)
+      this->progress_callbacks_.call(this->result_, 0);
+  }
+  this->disable_loop();
 }
 
 void KeyCollector::send_key(uint8_t key) {
@@ -91,8 +91,11 @@ void KeyCollector::send_key(uint8_t key) {
   }
   if (this->allowed_keys_.find(key) == std::string::npos)
     return;
-  if ((this->max_length_ == 0) || (this->result_.size() < this->max_length_))
+  if ((this->max_length_ == 0) || (this->result_.size() < this->max_length_)) {
+    if (this->result_.empty())
+      this->enable_loop();
     this->result_.push_back(key);
+  }
   if ((this->max_length_ > 0) && (this->result_.size() == this->max_length_) && (!this->end_key_required_)) {
     this->result_callbacks_.call(this->result_, this->start_key_, 0);
     this->clear(false);
