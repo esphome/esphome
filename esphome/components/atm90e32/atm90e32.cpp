@@ -108,10 +108,14 @@ void ATM90E32Component::update() {
 #endif
 }
 
+void ATM90E32Component::get_cs_summary_(std::span<char, GPIO_SUMMARY_MAX_LEN> buffer) {
+  this->cs_->dump_summary(buffer.data(), buffer.size());
+}
+
 void ATM90E32Component::setup() {
   this->spi_setup();
-  this->cs_summary_ = this->cs_->dump_summary();
-  const char *cs = this->cs_summary_.c_str();
+  char cs[GPIO_SUMMARY_MAX_LEN];
+  this->get_cs_summary_(cs);
 
   uint16_t mmode0 = 0x87;  // 3P4W 50Hz
   uint16_t high_thresh = 0;
@@ -158,12 +162,14 @@ void ATM90E32Component::setup() {
 
   if (this->enable_offset_calibration_) {
     // Initialize flash storage for offset calibrations
-    uint32_t o_hash = fnv1_hash(std::string("_offset_calibration_") + this->cs_summary_);
+    uint32_t o_hash = fnv1_hash("_offset_calibration_");
+    o_hash = fnv1_hash_extend(o_hash, cs);
     this->offset_pref_ = global_preferences->make_preference<OffsetCalibration[3]>(o_hash, true);
     this->restore_offset_calibrations_();
 
     // Initialize flash storage for power offset calibrations
-    uint32_t po_hash = fnv1_hash(std::string("_power_offset_calibration_") + this->cs_summary_);
+    uint32_t po_hash = fnv1_hash("_power_offset_calibration_");
+    po_hash = fnv1_hash_extend(po_hash, cs);
     this->power_offset_pref_ = global_preferences->make_preference<PowerOffsetCalibration[3]>(po_hash, true);
     this->restore_power_offset_calibrations_();
   } else {
@@ -183,7 +189,8 @@ void ATM90E32Component::setup() {
 
   if (this->enable_gain_calibration_) {
     // Initialize flash storage for gain calibration
-    uint32_t g_hash = fnv1_hash(std::string("_gain_calibration_") + this->cs_summary_);
+    uint32_t g_hash = fnv1_hash("_gain_calibration_");
+    g_hash = fnv1_hash_extend(g_hash, cs);
     this->gain_calibration_pref_ = global_preferences->make_preference<GainCalibration[3]>(g_hash, true);
     this->restore_gain_calibrations_();
 
@@ -214,7 +221,8 @@ void ATM90E32Component::setup() {
 }
 
 void ATM90E32Component::log_calibration_status_() {
-  const char *cs = this->cs_summary_.c_str();
+  char cs[GPIO_SUMMARY_MAX_LEN];
+  this->get_cs_summary_(cs);
 
   bool offset_mismatch = false;
   bool power_mismatch = false;
@@ -565,7 +573,8 @@ float ATM90E32Component::get_chip_temperature_() {
 }
 
 void ATM90E32Component::run_gain_calibrations() {
-  const char *cs = this->cs_summary_.c_str();
+  char cs[GPIO_SUMMARY_MAX_LEN];
+  this->get_cs_summary_(cs);
   if (!this->enable_gain_calibration_) {
     ESP_LOGW(TAG, "[CALIBRATION][%s] Gain calibration is disabled! Enable it first with enable_gain_calibration: true",
              cs);
@@ -665,7 +674,8 @@ void ATM90E32Component::run_gain_calibrations() {
 }
 
 void ATM90E32Component::save_gain_calibration_to_memory_() {
-  const char *cs = this->cs_summary_.c_str();
+  char cs[GPIO_SUMMARY_MAX_LEN];
+  this->get_cs_summary_(cs);
   bool success = this->gain_calibration_pref_.save(&this->gain_phase_);
   global_preferences->sync();
   if (success) {
@@ -678,7 +688,8 @@ void ATM90E32Component::save_gain_calibration_to_memory_() {
 }
 
 void ATM90E32Component::save_offset_calibration_to_memory_() {
-  const char *cs = this->cs_summary_.c_str();
+  char cs[GPIO_SUMMARY_MAX_LEN];
+  this->get_cs_summary_(cs);
   bool success = this->offset_pref_.save(&this->offset_phase_);
   global_preferences->sync();
   if (success) {
@@ -694,7 +705,8 @@ void ATM90E32Component::save_offset_calibration_to_memory_() {
 }
 
 void ATM90E32Component::save_power_offset_calibration_to_memory_() {
-  const char *cs = this->cs_summary_.c_str();
+  char cs[GPIO_SUMMARY_MAX_LEN];
+  this->get_cs_summary_(cs);
   bool success = this->power_offset_pref_.save(&this->power_offset_phase_);
   global_preferences->sync();
   if (success) {
@@ -710,7 +722,8 @@ void ATM90E32Component::save_power_offset_calibration_to_memory_() {
 }
 
 void ATM90E32Component::run_offset_calibrations() {
-  const char *cs = this->cs_summary_.c_str();
+  char cs[GPIO_SUMMARY_MAX_LEN];
+  this->get_cs_summary_(cs);
   if (!this->enable_offset_calibration_) {
     ESP_LOGW(TAG,
              "[CALIBRATION][%s] Offset calibration is disabled! Enable it first with enable_offset_calibration: true",
@@ -740,7 +753,8 @@ void ATM90E32Component::run_offset_calibrations() {
 }
 
 void ATM90E32Component::run_power_offset_calibrations() {
-  const char *cs = this->cs_summary_.c_str();
+  char cs[GPIO_SUMMARY_MAX_LEN];
+  this->get_cs_summary_(cs);
   if (!this->enable_offset_calibration_) {
     ESP_LOGW(
         TAG,
@@ -813,7 +827,8 @@ void ATM90E32Component::write_power_offsets_to_registers_(uint8_t phase, int16_t
 }
 
 void ATM90E32Component::restore_gain_calibrations_() {
-  const char *cs = this->cs_summary_.c_str();
+  char cs[GPIO_SUMMARY_MAX_LEN];
+  this->get_cs_summary_(cs);
   for (uint8_t i = 0; i < 3; ++i) {
     this->config_gain_phase_[i].voltage_gain = this->phase_[i].voltage_gain_;
     this->config_gain_phase_[i].current_gain = this->phase_[i].ct_gain_;
@@ -867,7 +882,8 @@ void ATM90E32Component::restore_gain_calibrations_() {
 }
 
 void ATM90E32Component::restore_offset_calibrations_() {
-  const char *cs = this->cs_summary_.c_str();
+  char cs[GPIO_SUMMARY_MAX_LEN];
+  this->get_cs_summary_(cs);
   for (uint8_t i = 0; i < 3; ++i)
     this->config_offset_phase_[i] = this->offset_phase_[i];
 
@@ -909,7 +925,8 @@ void ATM90E32Component::restore_offset_calibrations_() {
 }
 
 void ATM90E32Component::restore_power_offset_calibrations_() {
-  const char *cs = this->cs_summary_.c_str();
+  char cs[GPIO_SUMMARY_MAX_LEN];
+  this->get_cs_summary_(cs);
   for (uint8_t i = 0; i < 3; ++i)
     this->config_power_offset_phase_[i] = this->power_offset_phase_[i];
 
@@ -951,7 +968,8 @@ void ATM90E32Component::restore_power_offset_calibrations_() {
 }
 
 void ATM90E32Component::clear_gain_calibrations() {
-  const char *cs = this->cs_summary_.c_str();
+  char cs[GPIO_SUMMARY_MAX_LEN];
+  this->get_cs_summary_(cs);
   if (!this->using_saved_calibrations_) {
     ESP_LOGI(TAG, "[CALIBRATION][%s] No stored gain calibrations to clear. Current values:", cs);
     ESP_LOGI(TAG, "[CALIBRATION][%s] ----------------------------------------------------------", cs);
@@ -1000,7 +1018,8 @@ void ATM90E32Component::clear_gain_calibrations() {
 }
 
 void ATM90E32Component::clear_offset_calibrations() {
-  const char *cs = this->cs_summary_.c_str();
+  char cs[GPIO_SUMMARY_MAX_LEN];
+  this->get_cs_summary_(cs);
   if (!this->restored_offset_calibration_) {
     ESP_LOGI(TAG, "[CALIBRATION][%s] No stored offset calibrations to clear. Current values:", cs);
     ESP_LOGI(TAG, "[CALIBRATION][%s] --------------------------------------------------------------", cs);
@@ -1042,7 +1061,8 @@ void ATM90E32Component::clear_offset_calibrations() {
 }
 
 void ATM90E32Component::clear_power_offset_calibrations() {
-  const char *cs = this->cs_summary_.c_str();
+  char cs[GPIO_SUMMARY_MAX_LEN];
+  this->get_cs_summary_(cs);
   if (!this->restored_power_offset_calibration_) {
     ESP_LOGI(TAG, "[CALIBRATION][%s] No stored power offsets to clear. Current values:", cs);
     ESP_LOGI(TAG, "[CALIBRATION][%s] ---------------------------------------------------------------------", cs);
@@ -1117,7 +1137,8 @@ int16_t ATM90E32Component::calibrate_power_offset(uint8_t phase, bool reactive) 
 }
 
 bool ATM90E32Component::verify_gain_writes_() {
-  const char *cs = this->cs_summary_.c_str();
+  char cs[GPIO_SUMMARY_MAX_LEN];
+  this->get_cs_summary_(cs);
   bool success = true;
   for (uint8_t phase = 0; phase < 3; phase++) {
     uint16_t read_voltage = this->read16_(voltage_gain_registers[phase]);

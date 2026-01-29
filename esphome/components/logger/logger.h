@@ -2,7 +2,7 @@
 
 #include <cstdarg>
 #include <map>
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_HOST)
 #include <pthread.h>
 #endif
 #include "esphome/core/automation.h"
@@ -12,7 +12,13 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-#include "task_log_buffer.h"
+#ifdef USE_HOST
+#include "task_log_buffer_host.h"
+#elif defined(USE_ESP32)
+#include "task_log_buffer_esp32.h"
+#elif defined(USE_LIBRETINY)
+#include "task_log_buffer_libretiny.h"
+#endif
 #endif
 
 #ifdef USE_ARDUINO
@@ -35,6 +41,52 @@ struct device;
 #endif
 
 namespace esphome::logger {
+
+/** Interface for receiving log messages without std::function overhead.
+ *
+ * Components can implement this interface instead of using lambdas with std::function
+ * to reduce flash usage from std::function type erasure machinery.
+ *
+ * Usage:
+ *   class MyComponent : public Component, public LogListener {
+ *    public:
+ *     void setup() override {
+ *       if (logger::global_logger != nullptr)
+ *         logger::global_logger->add_log_listener(this);
+ *     }
+ *     void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override {
+ *       // Handle log message
+ *     }
+ *   };
+ */
+class LogListener {
+ public:
+  virtual void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) = 0;
+};
+
+#ifdef USE_LOGGER_LEVEL_LISTENERS
+/** Interface for receiving log level changes without std::function overhead.
+ *
+ * Components can implement this interface instead of using lambdas with std::function
+ * to reduce flash usage from std::function type erasure machinery.
+ *
+ * Usage:
+ *   class MyComponent : public Component, public LoggerLevelListener {
+ *    public:
+ *     void setup() override {
+ *       if (logger::global_logger != nullptr)
+ *         logger::global_logger->add_logger_level_listener(this);
+ *     }
+ *     void on_log_level_change(uint8_t level) override {
+ *       // Handle log level change
+ *     }
+ *   };
+ */
+class LoggerLevelListener {
+ public:
+  virtual void on_log_level_change(uint8_t level) = 0;
+};
+#endif
 
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
 // Comparison function for const char* keys in log_levels_ map
@@ -135,6 +187,9 @@ class Logger : public Component {
   uart_port_t get_uart_num() const { return uart_num_; }
   void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
 #endif
+#ifdef USE_HOST
+  void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
+#endif
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   void set_uart_selection(UARTSelection uart_selection) { uart_ = uart_selection; }
   /// Get the UART used by the logger.
@@ -157,11 +212,18 @@ class Logger : public Component {
 
   inline uint8_t level_for(const char *tag);
 
-  /// Register a callback that will be called for every log message sent
-  void add_on_log_callback(std::function<void(uint8_t, const char *, const char *, size_t)> &&callback);
+#ifdef USE_LOG_LISTENERS
+  /// Register a log listener to receive log messages
+  void add_log_listener(LogListener *listener) { this->log_listeners_.push_back(listener); }
+#else
+  /// No-op when log listeners are disabled
+  void add_log_listener(LogListener *listener) {}
+#endif
 
-  // add a listener for log level changes
-  void add_listener(std::function<void(uint8_t)> &&callback) { this->level_callback_.add(std::move(callback)); }
+#ifdef USE_LOGGER_LEVEL_LISTENERS
+  /// Register a listener for log level changes
+  void add_level_listener(LoggerLevelListener *listener) { this->level_listeners_.push_back(listener); }
+#endif
 
   float get_setup_priority() const override;
 
@@ -172,15 +234,40 @@ class Logger : public Component {
 #endif
 
  protected:
+  // RAII guard for recursion flags - sets flag on construction, clears on destruction
+  class RecursionGuard {
+   public:
+    explicit RecursionGuard(bool &flag) : flag_(flag) { flag_ = true; }
+    ~RecursionGuard() { flag_ = false; }
+    RecursionGuard(const RecursionGuard &) = delete;
+    RecursionGuard &operator=(const RecursionGuard &) = delete;
+    RecursionGuard(RecursionGuard &&) = delete;
+    RecursionGuard &operator=(RecursionGuard &&) = delete;
+
+   private:
+    bool &flag_;
+  };
+
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
+  // Handles non-main thread logging only (~0.1% of calls)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // ESP32/LibreTiny: Pass task handle to avoid calling xTaskGetCurrentTaskHandle() twice
+  void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
+                                    TaskHandle_t current_task);
+#else  // USE_HOST
+  // Host: No task handle parameter needed (not used in send_message_thread_safe)
+  void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args);
+#endif
+#endif
   void process_messages_();
-  void write_msg_(const char *msg);
+  void write_msg_(const char *msg, size_t len);
 
   // Format a log message with printf-style arguments and write it to a buffer with header, footer, and null terminator
   // It's the caller's responsibility to initialize buffer_at (typically to 0)
   inline void HOT format_log_to_buffer_with_terminator_(uint8_t level, const char *tag, int line, const char *format,
                                                         va_list args, char *buffer, uint16_t *buffer_at,
                                                         uint16_t buffer_size) {
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_HOST)
     this->write_header_to_buffer_(level, tag, line, this->get_thread_name_(), buffer, buffer_at, buffer_size);
 #elif defined(USE_ZEPHYR)
     char buff[MAX_POINTER_REPRESENTATION];
@@ -200,7 +287,34 @@ class Logger : public Component {
     }
   }
 
-  // Helper to format and send a log message to both console and callbacks
+  // Helper to add newline to buffer before writing to console
+  // Modifies buffer_at to include the newline
+  inline void HOT add_newline_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
+    // Add newline - don't need to maintain null termination
+    // write_msg_ receives explicit length, so we can safely overwrite the null terminator
+    // This is safe because:
+    // 1. Callbacks already received the message (before we add newline)
+    // 2. write_msg_ receives the length explicitly (doesn't need null terminator)
+    if (*buffer_at < buffer_size) {
+      buffer[(*buffer_at)++] = '\n';
+    } else if (buffer_size > 0) {
+      // Buffer was full - replace last char with newline to ensure it's visible
+      buffer[buffer_size - 1] = '\n';
+      *buffer_at = buffer_size;
+    }
+  }
+
+  // Helper to write tx_buffer_ to console if logging is enabled
+  // INTERNAL USE ONLY - offset > 0 requires length parameter to be non-null
+  inline void HOT write_tx_buffer_to_console_(uint16_t offset = 0, uint16_t *length = nullptr) {
+    if (this->baud_rate_ > 0) {
+      uint16_t *len_ptr = length ? length : &this->tx_buffer_at_;
+      this->add_newline_to_buffer_(this->tx_buffer_ + offset, len_ptr, this->tx_buffer_size_ - offset);
+      this->write_msg_(this->tx_buffer_ + offset, *len_ptr);
+    }
+  }
+
+  // Helper to format and send a log message to both console and listeners
   inline void HOT log_message_to_buffer_and_send_(uint8_t level, const char *tag, int line, const char *format,
                                                   va_list args) {
     // Format to tx_buffer and prepare for output
@@ -208,11 +322,33 @@ class Logger : public Component {
     this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, this->tx_buffer_, &this->tx_buffer_at_,
                                                 this->tx_buffer_size_);
 
-    if (this->baud_rate_ > 0) {
-      this->write_msg_(this->tx_buffer_);  // If logging is enabled, write to console
-    }
-    this->log_callback_.call(level, tag, this->tx_buffer_, this->tx_buffer_at_);
+    // Listeners get message WITHOUT newline (for API/MQTT/syslog)
+#ifdef USE_LOG_LISTENERS
+    for (auto *listener : this->log_listeners_)
+      listener->on_log(level, tag, this->tx_buffer_, this->tx_buffer_at_);
+#endif
+
+    // Console gets message WITH newline (if platform needs it)
+    this->write_tx_buffer_to_console_();
   }
+
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+  // Helper to format a pre-formatted message from the task log buffer and notify listeners
+  // Used by process_messages_ to avoid code duplication between ESP32 and host platforms
+  inline void HOT format_buffered_message_and_notify_(uint8_t level, const char *tag, uint16_t line,
+                                                      const char *thread_name, const char *text, size_t text_length) {
+    this->tx_buffer_at_ = 0;
+    this->write_header_to_buffer_(level, tag, line, thread_name, this->tx_buffer_, &this->tx_buffer_at_,
+                                  this->tx_buffer_size_);
+    this->write_body_to_buffer_(text, text_length, this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
+    this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
+    this->tx_buffer_[this->tx_buffer_at_] = '\0';
+#ifdef USE_LOG_LISTENERS
+    for (auto *listener : this->log_listeners_)
+      listener->on_log(level, tag, this->tx_buffer_, this->tx_buffer_at_);
+#endif
+  }
+#endif
 
   // Write the body of the log message to the buffer
   inline void write_body_to_buffer_(const char *value, size_t length, char *buffer, uint16_t *buffer_at,
@@ -246,7 +382,10 @@ class Logger : public Component {
   const device *uart_dev_{nullptr};
 #endif
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-  void *main_task_ = nullptr;  // Only used for thread name identification
+  void *main_task_{nullptr};  // Main thread/task for fast path comparison
+#endif
+#ifdef USE_HOST
+  pthread_t main_thread_{};  // Main thread for pthread_equal() comparison
 #endif
 #ifdef USE_ESP32
   // Task-specific recursion guards:
@@ -255,15 +394,30 @@ class Logger : public Component {
   pthread_key_t log_recursion_key_;  // 4 bytes
   uart_port_t uart_num_;             // 4 bytes (enum defaults to int size)
 #endif
+#ifdef USE_HOST
+  // Thread-specific recursion guards using pthread TLS
+  pthread_key_t log_recursion_key_;
+#endif
 
   // Large objects (internally aligned)
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   std::map<const char *, uint8_t, CStrCompare> log_levels_{};
 #endif
-  CallbackManager<void(uint8_t, const char *, const char *, size_t)> log_callback_{};
-  CallbackManager<void(uint8_t)> level_callback_{};
+#ifdef USE_LOG_LISTENERS
+  StaticVector<LogListener *, ESPHOME_LOG_MAX_LISTENERS>
+      log_listeners_;  // Log message listeners (API, MQTT, syslog, etc.)
+#endif
+#ifdef USE_LOGGER_LEVEL_LISTENERS
+  std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
+#endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  std::unique_ptr<logger::TaskLogBuffer> log_buffer_;  // Will be initialized with init_log_buffer
+#ifdef USE_HOST
+  logger::TaskLogBufferHost *log_buffer_{nullptr};  // Allocated once, never freed
+#elif defined(USE_ESP32)
+  logger::TaskLogBuffer *log_buffer_{nullptr};  // Allocated once, never freed
+#elif defined(USE_LIBRETINY)
+  logger::TaskLogBufferLibreTiny *log_buffer_{nullptr};  // Allocated once, never freed
+#endif
 #endif
 
   // Group smaller types together at the end
@@ -276,8 +430,11 @@ class Logger : public Component {
 #ifdef USE_LIBRETINY
   UARTSelection uart_{UART_SELECTION_DEFAULT};
 #endif
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY)
   bool main_task_recursion_guard_{false};
+#ifdef USE_LIBRETINY
+  bool non_main_task_recursion_guard_{false};  // Shared guard for all non-main tasks on LibreTiny
+#endif
 #else
   bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
 #endif
@@ -313,29 +470,58 @@ class Logger : public Component {
   }
 #endif
 
-#ifdef USE_ESP32
-  inline bool HOT check_and_set_task_log_recursion_(bool is_main_task) {
-    if (is_main_task) {
-      const bool was_recursive = main_task_recursion_guard_;
-      main_task_recursion_guard_ = true;
-      return was_recursive;
+#if defined(USE_ESP32) || defined(USE_HOST)
+  // RAII guard for non-main task recursion using pthread TLS
+  class NonMainTaskRecursionGuard {
+   public:
+    explicit NonMainTaskRecursionGuard(pthread_key_t key) : key_(key) {
+      pthread_setspecific(key_, reinterpret_cast<void *>(1));
     }
+    ~NonMainTaskRecursionGuard() { pthread_setspecific(key_, nullptr); }
+    NonMainTaskRecursionGuard(const NonMainTaskRecursionGuard &) = delete;
+    NonMainTaskRecursionGuard &operator=(const NonMainTaskRecursionGuard &) = delete;
+    NonMainTaskRecursionGuard(NonMainTaskRecursionGuard &&) = delete;
+    NonMainTaskRecursionGuard &operator=(NonMainTaskRecursionGuard &&) = delete;
 
-    intptr_t current = (intptr_t) pthread_getspecific(log_recursion_key_);
-    if (current != 0)
-      return true;
+   private:
+    pthread_key_t key_;
+  };
 
-    pthread_setspecific(log_recursion_key_, (void *) 1);
-    return false;
-  }
+  // Check if non-main task is already in recursion (via TLS)
+  inline bool HOT is_non_main_task_recursive_() const { return pthread_getspecific(log_recursion_key_) != nullptr; }
 
-  inline void HOT reset_task_log_recursion_(bool is_main_task) {
-    if (is_main_task) {
-      main_task_recursion_guard_ = false;
-      return;
+  // Create RAII guard for non-main task recursion
+  inline NonMainTaskRecursionGuard make_non_main_task_guard_() { return NonMainTaskRecursionGuard(log_recursion_key_); }
+
+#elif defined(USE_LIBRETINY)
+  // LibreTiny doesn't have FreeRTOS TLS, so use a simple approach:
+  // - Main task uses dedicated boolean (same as ESP32)
+  // - Non-main tasks share a single recursion guard
+  // This is safe because:
+  // - Recursion from logging within logging is the main concern
+  // - Cross-task "recursion" is prevented by the buffer mutex anyway
+  // - Missing a recursive call from another task is acceptable (falls back to direct output)
+
+  // Check if non-main task is already in recursion
+  inline bool HOT is_non_main_task_recursive_() const { return non_main_task_recursion_guard_; }
+
+  // Create RAII guard for non-main task recursion (uses shared boolean for all non-main tasks)
+  inline RecursionGuard make_non_main_task_guard_() { return RecursionGuard(non_main_task_recursion_guard_); }
+#endif
+
+#ifdef USE_HOST
+  const char *HOT get_thread_name_() {
+    pthread_t current_thread = pthread_self();
+    if (pthread_equal(current_thread, main_thread_)) {
+      return nullptr;  // Main thread
     }
-
-    pthread_setspecific(log_recursion_key_, (void *) 0);
+    // For non-main threads, return the thread name
+    // We store it in thread-local storage to avoid allocation
+    static thread_local char thread_name_buf[32];
+    if (pthread_getname_np(current_thread, thread_name_buf, sizeof(thread_name_buf)) == 0) {
+      return thread_name_buf;
+    }
+    return nullptr;
   }
 #endif
 
@@ -396,7 +582,7 @@ class Logger : public Component {
     buffer[pos++] = '0' + (remainder - tens * 10);
     buffer[pos++] = ']';
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR) || defined(USE_HOST)
     if (thread_name != nullptr) {
       write_ansi_color_for_level(buffer, pos, 1);  // Always use bold red for thread name
       buffer[pos++] = '[';
@@ -425,7 +611,9 @@ class Logger : public Component {
     }
 
     // Update buffer_at with the formatted length (handle truncation)
-    uint16_t formatted_len = (ret >= remaining) ? remaining : ret;
+    // When vsnprintf truncates (ret >= remaining), it writes (remaining - 1) chars + null terminator
+    // When it doesn't truncate (ret < remaining), it writes ret chars + null terminator
+    uint16_t formatted_len = (ret >= remaining) ? (remaining - 1) : ret;
     *buffer_at += formatted_len;
 
     // Remove all trailing newlines right after formatting
@@ -439,8 +627,8 @@ class Logger : public Component {
     this->write_body_to_buffer_(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN, buffer, buffer_at, buffer_size);
   }
 
-#ifdef USE_ESP32
-  // Disable loop when task buffer is empty (with USB CDC check)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // Disable loop when task buffer is empty (with USB CDC check on ESP32)
   inline void disable_loop_when_buffer_empty_() {
     // Thread safety note: This is safe even if another task calls enable_loop_soon_any_context()
     // concurrently. If that happens between our check and disable_loop(), the enable request
@@ -453,15 +641,15 @@ class Logger : public Component {
 };
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *> {
+class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *>, public LogListener {
  public:
-  explicit LoggerMessageTrigger(Logger *parent, uint8_t level) {
-    this->level_ = level;
-    parent->add_on_log_callback([this](uint8_t level, const char *tag, const char *message, size_t message_len) {
-      if (level <= this->level_) {
-        this->trigger(level, tag, message);
-      }
-    });
+  explicit LoggerMessageTrigger(Logger *parent, uint8_t level) : level_(level) { parent->add_log_listener(this); }
+
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override {
+    (void) message_len;
+    if (level <= this->level_) {
+      this->trigger(level, tag, message);
+    }
   }
 
  protected:

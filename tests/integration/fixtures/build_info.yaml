@@ -1,0 +1,31 @@
+esphome:
+  name: build-info-test
+host:
+api:
+logger:
+
+text_sensor:
+  - platform: template
+    name: "Config Hash"
+    id: config_hash_sensor
+    update_interval: 100ms
+    lambda: |-
+      char buf[16];
+      snprintf(buf, sizeof(buf), "0x%08x", App.get_config_hash());
+      return std::string(buf);
+  - platform: template
+    name: "Build Time"
+    id: build_time_sensor
+    update_interval: 100ms
+    lambda: |-
+      char buf[32];
+      snprintf(buf, sizeof(buf), "%ld", (long)App.get_build_time());
+      return std::string(buf);
+  - platform: template
+    name: "Build Time String"
+    id: build_time_str_sensor
+    update_interval: 100ms
+    lambda: |-
+      char buf[Application::BUILD_TIME_STR_SIZE];
+      App.get_build_time_string(buf);
+      return std::string(buf);

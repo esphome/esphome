@@ -3,14 +3,11 @@
 #include "esphome/core/component.h"
 #include "addressable_light.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 class AddressableLightWrapper : public light::AddressableLight {
  public:
-  explicit AddressableLightWrapper(light::LightState *light_state) : light_state_(light_state) {
-    this->wrapper_state_ = new uint8_t[5];  // NOLINT(cppcoreguidelines-owning-memory)
-  }
+  explicit AddressableLightWrapper(light::LightState *light_state) : light_state_(light_state) {}
 
   int32_t size() const override { return 1; }
 
@@ -119,9 +116,8 @@ class AddressableLightWrapper : public light::AddressableLight {
   }
 
   light::LightState *light_state_;
-  uint8_t *wrapper_state_;
+  mutable uint8_t wrapper_state_[5]{};
   ColorMode color_mode_{ColorMode::UNKNOWN};
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

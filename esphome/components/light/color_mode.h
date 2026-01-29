@@ -3,8 +3,7 @@
 #include <cstdint>
 #include "esphome/core/finite_set_mask.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 /// Color capabilities are the various outputs that a light has and that can be independently controlled by the user.
 enum class ColorCapability : uint8_t {
@@ -210,5 +209,4 @@ inline bool has_capability(const ColorModeMask &mask, ColorCapability capability
   return (mask.get_mask() & CAPABILITY_BITMASKS[capability_to_index(capability)]) != 0;
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light
