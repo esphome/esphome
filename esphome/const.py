@@ -105,13 +105,13 @@ SECRETS_FILES = ("secrets.yaml", "secrets.yml")
 
 
 CONF_ABOVE = "above"
+CONF_ACCEL_X = "accel_x"
+CONF_ACCEL_Y = "accel_y"
+CONF_ACCEL_Z = "accel_z"
 CONF_ACCELERATION = "acceleration"
 CONF_ACCELERATION_X = "acceleration_x"
 CONF_ACCELERATION_Y = "acceleration_y"
 CONF_ACCELERATION_Z = "acceleration_z"
-CONF_ACCEL_X = "accel_x"
-CONF_ACCEL_Y = "accel_y"
-CONF_ACCEL_Z = "accel_z"
 CONF_ACCURACY = "accuracy"
 CONF_ACCURACY_DECIMALS = "accuracy_decimals"
 CONF_ACTION = "action"
