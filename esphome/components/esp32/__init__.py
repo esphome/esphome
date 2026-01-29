@@ -223,6 +223,7 @@ ARDUINO_LIBRARY_IDF_COMPONENTS: dict[str, tuple[str, ...]] = {
 # ESPHome uses ESP-IDF APIs directly; we only need the Arduino core
 # (HardwareSerial, Print, Stream, GPIO functions which are always compiled)
 # Components can call enable_arduino_library() to re-enable any they need
+# This list must match ARDUINO_ALL_LIBRARIES from arduino-esp32/CMakeLists.txt
 ARDUINO_DISABLED_LIBRARIES = (
     "ArduinoOTA",
     "AsyncUDP",
@@ -230,13 +231,17 @@ ARDUINO_DISABLED_LIBRARIES = (
     "BluetoothSerial",
     "DNSServer",
     "EEPROM",
-    "ESPmDNS",
+    "ESP_HostedOTA",
+    "ESP_I2S",
+    "ESP_NOW",
     "ESP_SR",
+    "ESPmDNS",
     "Ethernet",
     "FFat",
     "FS",
     "Hash",
     "HTTPClient",
+    "HTTPUpdate",
     "Insights",
     "LittleFS",
     "Matter",
@@ -254,6 +259,7 @@ ARDUINO_DISABLED_LIBRARIES = (
     "SPIFFS",
     "Ticker",
     "Update",
+    "USB",
     "WebServer",
     "WiFi",
     "WiFiProv",

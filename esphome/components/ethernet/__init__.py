@@ -427,7 +427,9 @@ async def to_code(config):
         # Add LAN867x 10BASE-T1S PHY support component
         add_idf_component(name="espressif/lan867x", ref="2.0.0")
 
-    if CORE.using_arduino:
+    # ESP32 with Arduino framework uses ESP-IDF APIs directly for ethernet,
+    # so we don't need the Arduino WiFi library
+    if CORE.using_arduino and not CORE.is_esp32:
         cg.add_library("WiFi", None)
 
     CORE.add_job(final_step)
