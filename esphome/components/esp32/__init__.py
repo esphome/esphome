@@ -53,6 +53,7 @@ from .const import (  # noqa
     KEY_BOARD,
     KEY_COMPONENTS,
     KEY_ESP32,
+    KEY_EXCLUDE_COMPONENTS,
     KEY_EXTRA_BUILD_FILES,
     KEY_FLASH_SIZE,
     KEY_FULL_CERT_BUNDLE,
@@ -86,6 +87,7 @@ IS_TARGET_PLATFORM = True
 CONF_ASSERTION_LEVEL = "assertion_level"
 CONF_COMPILER_OPTIMIZATION = "compiler_optimization"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
+CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
@@ -113,6 +115,36 @@ COMPILER_OPTIMIZATIONS = {
     "PERF": "CONFIG_COMPILER_OPTIMIZATION_PERF",
     "SIZE": "CONFIG_COMPILER_OPTIMIZATION_SIZE",
 }
+
+# ESP-IDF components excluded by default to reduce compile time.
+# Components can be re-enabled by calling include_builtin_idf_component() in to_code().
+#
+# Cannot be excluded (dependencies of required components):
+# - "console": espressif/mdns unconditionally depends on it
+# - "sdmmc": driver -> esp_driver_sdmmc -> sdmmc dependency chain
+DEFAULT_EXCLUDED_IDF_COMPONENTS = (
+    "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
+    "esp_adc",  # ADC driver - only needed by adc component
+    "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
+    "esp_driver_rmt",  # RMT driver - only needed by remote_transmitter/receiver, neopixelbus
+    "esp_driver_touch_sens",  # Touch sensor driver - only needed by esp32_touch
+    "esp_eth",  # Ethernet driver - only needed by ethernet component
+    "esp_hid",  # HID host/device support - ESPHome doesn't implement HID functionality
+    "esp_http_client",  # HTTP client - only needed by http_request component
+    "esp_https_ota",  # ESP-IDF HTTPS OTA - ESPHome has its own OTA implementation
+    "esp_https_server",  # HTTPS server - ESPHome has its own web server
+    "esp_lcd",  # LCD controller drivers - only needed by display component
+    "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
+    "espcoredump",  # Core dump support - ESPHome has its own debug component
+    "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
+    "mqtt",  # ESP-IDF MQTT library - ESPHome has its own MQTT implementation
+    "perfmon",  # Xtensa performance monitor - ESPHome has its own debug component
+    "protocomm",  # Protocol communication for provisioning - unused by ESPHome
+    "spiffs",  # SPIFFS filesystem - ESPHome doesn't use filesystem storage (IDF only)
+    "unity",  # Unit testing framework - ESPHome doesn't use IDF's testing
+    "wear_levelling",  # Flash wear levelling for fatfs - unused since fatfs unused
+    "wifi_provisioning",  # WiFi provisioning - ESPHome uses its own improv implementation
+)
 
 # ESP32 (original) chip revision options
 # Setting minimum revision to 3.0 or higher:
@@ -203,6 +235,9 @@ def set_core_data(config):
             )
     CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] = {}
     CORE.data[KEY_ESP32][KEY_COMPONENTS] = {}
+    # Initialize with default exclusions - components can call include_builtin_idf_component()
+    # to re-enable any they need
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = set(DEFAULT_EXCLUDED_IDF_COMPONENTS)
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
@@ -326,6 +361,28 @@ def add_idf_component(
             KEY_REF: ref,
             KEY_PATH: path,
         }
+
+
+def exclude_builtin_idf_component(name: str) -> None:
+    """Exclude an ESP-IDF component from the build.
+
+    This reduces compile time by skipping components that are not needed.
+    The component will be passed to ESP-IDF's EXCLUDE_COMPONENTS cmake variable.
+
+    Note: Components that are dependencies of other required components
+    cannot be excluded - ESP-IDF will still build them.
+    """
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].add(name)
+
+
+def include_builtin_idf_component(name: str) -> None:
+    """Remove an ESP-IDF component from the exclusion list.
+
+    Call this from components that need an ESP-IDF component that is
+    excluded by default in DEFAULT_EXCLUDED_IDF_COMPONENTS. This ensures the
+    component will be built when needed.
+    """
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(name)
 
 
 def add_extra_script(stage: str, filename: str, path: Path):
@@ -844,6 +901,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(
                     CONF_USE_FULL_CERTIFICATE_BUNDLE, default=False
                 ): cv.boolean,
+                cv.Optional(
+                    CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, default=[]
+                ): cv.ensure_list(cv.string_strict),
                 cv.Optional(CONF_DISABLE_DEBUG_STUBS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_OCD_AWARE, default=True): cv.boolean,
                 cv.Optional(
@@ -1041,6 +1101,19 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     )
 
     add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _write_exclude_components() -> None:
+    """Write EXCLUDE_COMPONENTS cmake arg after all components have registered exclusions."""
+    if KEY_ESP32 not in CORE.data:
+        return
+    excluded = CORE.data[KEY_ESP32].get(KEY_EXCLUDE_COMPONENTS)
+    if excluded:
+        exclude_list = ";".join(sorted(excluded))
+        cg.add_platformio_option(
+            "board_build.cmake_extra_args", f"-DEXCLUDE_COMPONENTS={exclude_list}"
+        )
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -1256,6 +1329,11 @@ async def to_code(config):
 
     # Apply LWIP optimization settings
     advanced = conf[CONF_ADVANCED]
+
+    # Re-include any IDF components the user explicitly requested
+    for component_name in advanced.get(CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, []):
+        include_builtin_idf_component(component_name)
+
     # DHCP server: only disable if explicitly set to false
     # WiFi component handles its own optimization when AP mode is not used
     # When using Arduino with Ethernet, DHCP server functions must be available
@@ -1439,6 +1517,11 @@ async def to_code(config):
     # Schedule it to run after all other components
     if conf[CONF_COMPONENTS]:
         CORE.add_job(_add_yaml_idf_components, conf[CONF_COMPONENTS])
+
+    # Write EXCLUDE_COMPONENTS at FINAL priority after all components have had
+    # a chance to call include_builtin_idf_component() to re-enable components they need.
+    # Default exclusions are added in set_core_data() during config validation.
+    CORE.add_job(_write_exclude_components)
 
 
 APP_PARTITION_SIZES = {
