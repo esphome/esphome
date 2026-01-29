@@ -320,7 +320,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
   ws->defer([ws, source]() {
     // Configure reconnect timeout and send config
     // this should always go through since the AsyncEventSourceClient event queue is empty on connect
-    std::string message = ws->get_config_json();
+    auto message = ws->get_config_json();
     source->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
 
 #ifdef USE_WEBSERVER_SORTING
@@ -329,10 +329,10 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
       JsonObject root = builder.root();
       root[ESPHOME_F("name")] = group.second.name;
       root[ESPHOME_F("sorting_weight")] = group.second.weight;
-      message = builder.serialize();
+      auto group_msg = builder.serialize();
 
       // up to 31 groups should be able to be queued initially without defer
-      source->try_send_nodefer(message.c_str(), "sorting_group");
+      source->try_send_nodefer(group_msg.c_str(), "sorting_group");
     }
 #endif
 
@@ -365,7 +365,7 @@ void WebServer::set_css_include(const char *css_include) { this->css_include_ = 
 void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_include; }
 #endif
 
-std::string WebServer::get_config_json() {
+json::JsonBuffer<> WebServer::get_config_json() {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
