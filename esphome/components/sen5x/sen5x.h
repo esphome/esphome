@@ -15,7 +15,7 @@ enum RhtAccelerationMode : uint16_t {
   HIGH_ACCELERATION = 2,
 };
 
-enum Sen5xType : uint8_t { SEN50, SEN54, SEN55, SEN62, SEN63C, SEN65, SEN66, SEN68, SEN69C, UNKNOWN };
+enum class Sen5xType : uint8_t { SEN50, SEN54, SEN55, SEN62, SEN63C, SEN65, SEN66, SEN68, SEN69C, UNKNOWN };
 
 enum Sen5xSetupStates {
   SEN5X_SM_START,

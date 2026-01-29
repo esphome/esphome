@@ -59,7 +59,7 @@ sen5x_ns = cg.esphome_ns.namespace("sen5x")
 SEN5XComponent = sen5x_ns.class_(
     "SEN5XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
-Sen5xType = sen5x_ns.enum("Sen5xType")
+Sen5xType = sen5x_ns.enum("Sen5xType", is_class=True)
 RhtAccelerationMode = sen5x_ns.enum("RhtAccelerationMode")
 
 
