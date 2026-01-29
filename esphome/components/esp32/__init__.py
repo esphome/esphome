@@ -1685,7 +1685,7 @@ def _write_sdkconfig():
 
 def _write_idf_component_yml():
     yml_path = CORE.relative_build_path("src/idf_component.yml")
-    dependencies = {}
+    dependencies: dict[str, dict] = {}
 
     # For Arduino builds, override unused managed components from the Arduino framework
     # by pointing them to empty stub directories using override_path
