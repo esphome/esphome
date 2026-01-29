@@ -146,6 +146,40 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "wifi_provisioning",  # WiFi provisioning - ESPHome uses its own improv implementation
 )
 
+# Additional IDF managed components to exclude for Arduino framework builds
+# These are pulled in by the Arduino framework's idf_component.yml but not used by ESPHome
+# Note: Component names include the namespace prefix (e.g., "espressif__cbor") because
+# that's how managed components are registered in the IDF build system
+ARDUINO_EXCLUDED_IDF_COMPONENTS = (
+    "chmorgan__esp-libhelix-mp3",  # MP3 decoder - not used
+    "espressif__cbor",  # CBOR library - only used by RainMaker/Insights
+    "espressif__esp-dsp",  # DSP library - not used
+    "espressif__esp-modbus",  # Modbus - ESPHome has its own
+    "espressif__esp-serial-flasher",  # Serial flasher - not used
+    "espressif__esp-zboss-lib",  # Zigbee ZBOSS library - not used
+    "espressif__esp-zigbee-lib",  # Zigbee library - not used
+    "espressif__esp_diag_data_store",  # Diagnostics - not used
+    "espressif__esp_diagnostics",  # Diagnostics - not used
+    "espressif__esp_hosted",  # ESP hosted - not used
+    "espressif__esp_insights",  # ESP Insights - not used
+    "espressif__esp_modem",  # Modem library - not used
+    "espressif__esp_rainmaker",  # RainMaker - not used
+    "espressif__esp_rcp_update",  # RCP update - not used
+    "espressif__esp_schedule",  # Schedule - not used
+    "espressif__esp_secure_cert_mgr",  # Secure cert manager - not used
+    "espressif__esp_wifi_remote",  # WiFi remote - not used
+    "espressif__esp-sr",  # Speech recognition - not used
+    "espressif__json_generator",  # JSON generator - not used
+    "espressif__json_parser",  # JSON parser - not used
+    "espressif__lan867x",  # Ethernet PHY - ESPHome uses ESP-IDF ethernet directly
+    "espressif__lan86xx_common",  # Ethernet common - ESPHome uses ESP-IDF ethernet directly
+    "espressif__libsodium",  # Crypto - ESPHome uses its own noise-c library
+    "espressif__network_provisioning",  # Network provisioning - not used
+    "espressif__qrcode",  # QR code - not used
+    "espressif__rmaker_common",  # RainMaker common - not used
+    "joltwallet__littlefs",  # LittleFS - ESPHome doesn't use filesystem
+)
+
 # ESP32 (original) chip revision options
 # Setting minimum revision to 3.0 or higher:
 # - Reduces flash size by excluding workaround code for older chip bugs
@@ -237,7 +271,11 @@ def set_core_data(config):
     CORE.data[KEY_ESP32][KEY_COMPONENTS] = {}
     # Initialize with default exclusions - components can call include_idf_component()
     # to re-enable any they need
-    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = set(DEFAULT_EXCLUDED_IDF_COMPONENTS)
+    excluded = set(DEFAULT_EXCLUDED_IDF_COMPONENTS)
+    # Add Arduino-specific managed component exclusions when using Arduino framework
+    if conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
+        excluded.update(ARDUINO_EXCLUDED_IDF_COMPONENTS)
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = excluded
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
@@ -1242,6 +1280,50 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
 
+        # Enable Arduino selective compilation to disable all Arduino libraries
+        # ESPHome uses ESP-IDF APIs directly; we only need the Arduino core
+        # (HardwareSerial, Print, Stream, GPIO functions which are always compiled)
+        add_idf_sdkconfig_option("CONFIG_ARDUINO_SELECTIVE_COMPILATION", True)
+        # Disable ALL optional Arduino libraries - ESPHome doesn't use them
+        for lib in (
+            "ArduinoOTA",
+            "AsyncUDP",
+            "BLE",
+            "BluetoothSerial",
+            "DNSServer",
+            "EEPROM",
+            "ESPmDNS",
+            "ESP_SR",
+            "Ethernet",
+            "FFat",
+            "FS",
+            "Hash",
+            "HTTPClient",
+            "Insights",
+            "LittleFS",
+            "Matter",
+            "NetBIOS",
+            "Network",
+            "NetworkClientSecure",
+            "OpenThread",
+            "PPP",
+            "Preferences",
+            "RainMaker",
+            "SD",
+            "SD_MMC",
+            "SimpleBLE",
+            "SPI",
+            "SPIFFS",
+            "Ticker",
+            "Update",
+            "WebServer",
+            "WiFi",
+            "WiFiProv",
+            "Wire",
+            "Zigbee",
+        ):
+            add_idf_sdkconfig_option(f"CONFIG_ARDUINO_SELECTIVE_{lib}", False)
+
     cg.add_build_flag("-Wno-nonnull-compare")
 
     # Use CMN (common CAs) bundle by default to save ~51KB flash
@@ -1603,9 +1685,31 @@ def _write_sdkconfig():
 
 def _write_idf_component_yml():
     yml_path = CORE.relative_build_path("src/idf_component.yml")
+    dependencies = {}
+
+    # For Arduino builds, override unused managed components from the Arduino framework
+    # by pointing them to empty stub directories using override_path
+    # This prevents the IDF component manager from downloading the real components
+    if CORE.using_arduino:
+        stubs_dir = CORE.relative_build_path("component_stubs")
+        stubs_dir.mkdir(exist_ok=True)
+        for component_name in ARDUINO_EXCLUDED_IDF_COMPONENTS:
+            # Create stub directory with minimal CMakeLists.txt
+            stub_name = component_name.replace("espressif__", "")
+            stub_path = stubs_dir / stub_name
+            stub_path.mkdir(exist_ok=True)
+            stub_cmake = stub_path / "CMakeLists.txt"
+            if not stub_cmake.exists():
+                stub_cmake.write_text("idf_component_register()\n")
+            # Convert from directory name format (espressif__cbor) to dependency format (espressif/cbor)
+            dep_name = component_name.replace("__", "/")
+            dependencies[dep_name] = {
+                "version": "*",
+                "override_path": str(stub_path),
+            }
+
     if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
-        dependencies = {}
         for name, component in components.items():
             dependency = {}
             if component[KEY_REF]:
@@ -1615,9 +1719,8 @@ def _write_idf_component_yml():
             if component[KEY_PATH]:
                 dependency["path"] = component[KEY_PATH]
             dependencies[name] = dependency
-        contents = yaml_util.dump({"dependencies": dependencies})
-    else:
-        contents = ""
+
+    contents = yaml_util.dump({"dependencies": dependencies}) if dependencies else ""
     if write_file_if_changed(yml_path, contents):
         dependencies_lock = CORE.relative_build_path("dependencies.lock")
         if dependencies_lock.is_file():
