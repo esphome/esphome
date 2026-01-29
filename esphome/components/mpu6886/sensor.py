@@ -2,6 +2,12 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ACCEL_X,
+    CONF_ACCEL_Y,
+    CONF_ACCEL_Z,
+    CONF_GYRO_X,
+    CONF_GYRO_Y,
+    CONF_GYRO_Z,
     CONF_ID,
     CONF_TEMPERATURE,
     DEVICE_CLASS_TEMPERATURE,
@@ -15,13 +21,6 @@ from esphome.const import (
 
 CODEOWNERS = ["@fabaff"]
 DEPENDENCIES = ["i2c"]
-
-CONF_ACCEL_X = "accel_x"
-CONF_ACCEL_Y = "accel_y"
-CONF_ACCEL_Z = "accel_z"
-CONF_GYRO_X = "gyro_x"
-CONF_GYRO_Y = "gyro_y"
-CONF_GYRO_Z = "gyro_z"
 
 mpu6886_ns = cg.esphome_ns.namespace("mpu6886")
 MPU6886Component = mpu6886_ns.class_(
