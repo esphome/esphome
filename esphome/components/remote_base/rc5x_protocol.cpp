@@ -69,44 +69,105 @@ optional<RC5XData> RC5XProtocol::decode(RemoteReceiveData src) {
   };
   uint8_t field_bit;
 
+  // Step 1: Read field bit (start bit pattern)
   if (src.expect_space(BIT_TIME_US) && src.expect_mark(BIT_TIME_US)) {
     field_bit = 1;
+    ESP_LOGVV(TAG, "Field bit: 1");
   } else if (src.expect_space(2 * BIT_TIME_US)) {
     field_bit = 0;
+    ESP_LOGVV(TAG, "Field bit: 0");
   } else {
+    ESP_LOGVV(TAG, "Field bit read failed");
     return {};
   }
 
+  // Step 2: Read toggle bit
   if (!(((src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US)) ||
          (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) &&
         (((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
           (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) ||
          ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
           (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US)))))) {
+    ESP_LOGVV(TAG, "Toggle bit read failed");
     return {};
   }
+  ESP_LOGVV(TAG, "Toggle bit read successfully");
 
+  // Step 3a: Read address bits (16-13) using normal Manchester pattern
   uint32_t out_data = 0;
-  for (int bit = NBITS - 4; bit >= 1; bit--) {
+  for (int bit = NBITS - 4; bit >= 13; bit--) {
     if ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
         (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) {
       out_data |= 0 << bit;
+      ESP_LOGVV(TAG, "Bit %d: 0", bit);
     } else if ((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
                (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) {
       out_data |= 1 << bit;
+      ESP_LOGVV(TAG, "Bit %d: 1", bit);
     } else {
+      ESP_LOGVV(TAG, "Bit %d read failed", bit);
       return {};
     }
   }
-  if (src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) {
-    out_data |= 0;
-  } else if (src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) {
-    out_data |= 1;
+
+  // Step 3b: Read bit 12 (last address bit) - followed by 4× BIT_TIME_US pause
+  // The pause extends the mark duration to ~5× BIT_TIME_US
+  if ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
+      (src.expect_mark(4 * BIT_TIME_US) || src.expect_mark(5 * BIT_TIME_US) || src.expect_mark(6 * BIT_TIME_US))) {
+    out_data |= 0 << 12;
+    ESP_LOGVV(TAG, "Bit 12: 0");
+  } else if ((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
+             (src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
+             (src.expect_mark(4 * BIT_TIME_US) || src.expect_mark(5 * BIT_TIME_US))) {
+    out_data |= 1 << 12;
+    ESP_LOGVV(TAG, "Bit 12: 1");
+  } else {
+    ESP_LOGVV(TAG, "Bit 12 read failed");
+    return {};
   }
 
-  out.command = (uint8_t) (out_data & 0x3F) + (1 - field_bit) * 64u;
-  out.address = (out_data >> 6) & 0x1F;
-  out.extension = 0;  // FIXME placeholder
+  // Step 3c: Read remaining bits (11-1) using normal Manchester pattern
+  for (int bit = 11; bit >= 1; bit--) {
+    if ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
+        (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) {
+      out_data |= 0 << bit;
+      ESP_LOGVV(TAG, "Bit %d: 0", bit);
+    } else if ((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
+               (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) {
+      out_data |= 1 << bit;
+      ESP_LOGVV(TAG, "Bit %d: 1", bit);
+    } else {
+      ESP_LOGVV(TAG, "Bit %d read failed", bit);
+      return {};
+    }
+  }
+
+  // Step 4: Read last bit (bit 0) with simplified pattern, like RC5 does
+  if (src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) {
+    out_data |= 0;
+    ESP_LOGVV(TAG, "Bit 0: 0 (space)");
+  } else if (src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) {
+    out_data |= 1;
+    ESP_LOGVV(TAG, "Bit 0: 1 (mark)");
+  } else {
+    ESP_LOGVV(TAG, "Bit 0 read failed");
+    return {};
+  }
+
+  ESP_LOGVV(TAG, "All bits read, out_data: 0x%05X", out_data);
+
+  // Step 5: Extract fields from bit stream
+  // Bit layout: [17 address bits] [11-6 command] [5-0 extension]
+  out.extension = out_data & 0x3F;
+  out.command = (out_data >> 6) & 0x3F;
+  out.address = (out_data >> 12) & 0x1F;
+
+  // Apply field bit to command
+  out.command = out.command + (1 - field_bit) * 64u;
+
+  ESP_LOGVV(TAG, "Decoded complete - Address: 0x%02X, Command: 0x%02X, Extension: 0x%02X", out.address, out.command,
+            out.extension);
+
   return out;
 }
 void RC5XProtocol::dump(const RC5XData &data) {
