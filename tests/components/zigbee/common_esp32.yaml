@@ -1,6 +1,3 @@
-packages:
-  - !include common.yaml
-
 binary_sensor:
   - platform: template
     name: "Garage Door Open 10"
