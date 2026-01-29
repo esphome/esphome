@@ -13,8 +13,8 @@ class KeyCollector : public Component {
   void loop() override;
   void dump_config() override;
   void add_provider(key_provider::KeyProvider *provider);
-  void set_min_length(uint32_t min_length) { this->min_length_ = min_length; };
-  void set_max_length(uint32_t max_length) { this->max_length_ = max_length; };
+  void set_min_length(uint16_t min_length) { this->min_length_ = min_length; };
+  void set_max_length(uint16_t max_length) { this->max_length_ = max_length; };
   void set_start_keys(std::string start_keys) { this->start_keys_ = std::move(start_keys); };
   void set_end_keys(std::string end_keys) { this->end_keys_ = std::move(end_keys); };
   void set_end_key_required(bool end_key_required) { this->end_key_required_ = end_key_required; };

@@ -47,3 +47,4 @@ button:
 text_sensor:
   - platform: key_collector
     id: collected_keys
+    source_id: reader

@@ -49,8 +49,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SOURCE_ID): cv.ensure_list(
                 cv.use_id(key_provider.KeyProvider)
             ),
-            cv.Optional(CONF_MIN_LENGTH): cv.int_,
-            cv.Optional(CONF_MAX_LENGTH): cv.int_,
+            cv.Optional(CONF_MIN_LENGTH): cv.uint16_t,
+            cv.Optional(CONF_MAX_LENGTH): cv.uint16_t,
             cv.Optional(CONF_START_KEYS): cv.string,
             cv.Optional(CONF_END_KEYS): cv.string,
             cv.Optional(CONF_END_KEY_REQUIRED): cv.boolean,
@@ -102,7 +102,8 @@ async def to_code(config):
         for conf in config.get(trigger_name, ()):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
             add_trig = getattr(
-                var, f"add_on_{trigger_name.split('_')[-1].lower()}_callback"
+                var,
+                f"add_on_{trigger_name.rsplit('_', maxsplit=1)[-1].lower()}_callback",
             )
             await automation.build_automation(
                 trigger,

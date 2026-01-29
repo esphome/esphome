@@ -51,11 +51,11 @@ void KeyCollector::set_enabled(bool enabled) {
 }
 
 void KeyCollector::clear(bool progress_update) {
-  if (!this->result_.empty()) {
-    this->result_.clear();
-    this->start_key_ = 0;
-    if (progress_update)
-      this->progress_callbacks_.call(this->result_, 0);
+  auto had_state = !this->result_.empty() || this->start_key_ != 0;
+  this->result_.clear();
+  this->start_key_ = 0;
+  if (progress_update && had_state) {
+    this->progress_callbacks_.call(this->result_, 0);
   }
   this->disable_loop();
 }
@@ -89,7 +89,7 @@ void KeyCollector::send_key(uint8_t key) {
     }
     return;
   }
-  if (this->allowed_keys_.find(key) == std::string::npos)
+  if (!this->allowed_keys_.empty() && this->allowed_keys_.find(key) == std::string::npos)
     return;
   if ((this->max_length_ == 0) || (this->result_.size() < this->max_length_)) {
     if (this->result_.empty())
