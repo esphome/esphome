@@ -87,6 +87,7 @@ IS_TARGET_PLATFORM = True
 CONF_ASSERTION_LEVEL = "assertion_level"
 CONF_COMPILER_OPTIMIZATION = "compiler_optimization"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
+CONF_INCLUDE_IDF_COMPONENTS = "include_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
@@ -849,6 +850,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(
                     CONF_USE_FULL_CERTIFICATE_BUNDLE, default=False
                 ): cv.boolean,
+                cv.Optional(CONF_INCLUDE_IDF_COMPONENTS, default=[]): cv.ensure_list(
+                    cv.string_strict
+                ),
             }
         ),
         cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
@@ -1264,6 +1268,11 @@ async def to_code(config):
 
     # Apply LWIP optimization settings
     advanced = conf[CONF_ADVANCED]
+
+    # Re-include any IDF components the user explicitly requested
+    for component_name in advanced.get(CONF_INCLUDE_IDF_COMPONENTS, []):
+        include_idf_component(component_name)
+
     # DHCP server: only disable if explicitly set to false
     # WiFi component handles its own optimization when AP mode is not used
     # When using Arduino with Ethernet, DHCP server functions must be available
