@@ -3,7 +3,7 @@ import esphome.codegen as cg
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     get_esp32_variant,
-    include_idf_component,
+    include_builtin_idf_component,
 )
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
@@ -277,7 +277,7 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     # Re-enable ESP-IDF's I2S driver (excluded by default to save compile time)
-    include_idf_component("esp_driver_i2s")
+    include_builtin_idf_component("esp_driver_i2s")
 
     if use_legacy():
         cg.add_define("USE_I2S_LEGACY")
