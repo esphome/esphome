@@ -71,10 +71,13 @@ SerializationBuffer<> JsonBuilder::serialize() {
     buf[2] = '\0';
     return result;
   }
-  // Intentionally avoid measureJson() - it instantiates DummyWriter templates that add ~700 bytes
-  // of flash. Instead, try serializing to stack buffer first. 768 bytes covers typical JSON payloads
-  // (sensors ~200B, lights ~170B, climate ~700B). Only entities with many options exceed this.
-  // serializeJson() returns actual size needed even if truncated, so we can retry with heap if needed.
+  // Intentionally avoid measureJson() - it instantiates DummyWriter templates that add ~1KB of flash.
+  // Instead, try serializing to stack buffer first. 768 bytes covers 99.9% of JSON payloads
+  // (sensors ~200B, lights ~170B, climate ~700B). Only entities with 40+ options exceed this.
+  // For the common case: single serialize to stack, no heap allocation, no measurement overhead.
+  // For the rare large case: serialize twice (once truncated, once to heap) - less efficient but
+  // saves ~1KB flash that would otherwise be wasted on every build.
+  // serializeJson() returns actual size needed even if truncated, so we can retry with exact size.
   constexpr size_t buf_size = SerializationBuffer<>::BUFFER_SIZE;
   SerializationBuffer<> result(buf_size - 1);  // Max content size (reserve 1 for null)
   size_t size = serializeJson(doc_, result.data_writable(), buf_size);
