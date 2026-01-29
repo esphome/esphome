@@ -151,6 +151,37 @@ switch:
   not be exposed over Zigbee. Only specifying an `id` without a `name` will implicitly set this to true.
   Use this if you run out of Zigbee endpoints.
 
+### Number Configuration
+
+All numbers with a `name` are automatically exposed over Zigbee.
+
+```yaml
+number:
+  - platform: template
+    name: "Template Number"
+    optimistic: true
+    min_value: 2
+    max_value: 100
+    step: 1
+```
+
+#### Configuration variables
+
+- **name** (**Required**, string): The name for the number. This is exposed as the
+  Zigbee endpoint description.
+- **internal** (*Optional*, boolean): Mark this component as internal. Internal components will
+  not be exposed over Zigbee. Only specifying an `id` without a `name` will implicitly set this to true.
+  Use this if you run out of Zigbee endpoints.
+- **unit_of_measurement** (*Optional*, string): Manually set the unit. By default, values are unitless.
+  Only a limited set of units is supported. Unsupported units will revert to unitless.
+  This is exposed as the Zigbee endpoint engineering units.
+- **min_value** (*Optional*, float): The minimum value this number can be. This is exposed as the
+  Zigbee endpoint min present value.
+- **max_value** (*Optional*, float): The maximum value this number can be. This is exposed as the
+  Zigbee endpoint max present value.
+- **step** (*Optional*, float): The granularity with which the number can be set. This is exposed
+  as the Zigbee endpoint resolution.
+
 ## See Also
 
 - [Zigbee2MQTT](https://www.zigbee2mqtt.io/)
