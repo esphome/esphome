@@ -61,14 +61,20 @@ JsonDocument parse_json(const uint8_t *data, size_t len) {
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
-std::string JsonBuilder::serialize() {
+JsonBuffer<> JsonBuilder::serialize() {
   if (doc_.overflowed()) {
     ESP_LOGE(TAG, "JSON document overflow");
-    return "{}";
+    JsonBuffer<> result(2);
+    auto *buf = result.data_writable();
+    buf[0] = '{';
+    buf[1] = '}';
+    buf[2] = '\0';
+    return result;
   }
-  std::string output;
-  serializeJson(doc_, output);
-  return output;
+  size_t size = measureJson(doc_);
+  JsonBuffer<> result(size);
+  serializeJson(doc_, result.data_writable(), size + 1);
+  return result;
 }
 
 }  // namespace json
