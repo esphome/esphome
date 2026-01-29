@@ -87,7 +87,7 @@ IS_TARGET_PLATFORM = True
 CONF_ASSERTION_LEVEL = "assertion_level"
 CONF_COMPILER_OPTIMIZATION = "compiler_optimization"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
-CONF_INCLUDE_IDF_COMPONENTS = "include_idf_components"
+CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
@@ -117,7 +117,7 @@ COMPILER_OPTIMIZATIONS = {
 }
 
 # ESP-IDF components excluded by default to reduce compile time.
-# Components can be re-enabled by calling include_idf_component() in to_code().
+# Components can be re-enabled by calling include_builtin_idf_component() in to_code().
 #
 # Cannot be excluded (dependencies of required components):
 # - "console": espressif/mdns unconditionally depends on it
@@ -235,7 +235,7 @@ def set_core_data(config):
             )
     CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] = {}
     CORE.data[KEY_ESP32][KEY_COMPONENTS] = {}
-    # Initialize with default exclusions - components can call include_idf_component()
+    # Initialize with default exclusions - components can call include_builtin_idf_component()
     # to re-enable any they need
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = set(DEFAULT_EXCLUDED_IDF_COMPONENTS)
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
@@ -363,7 +363,7 @@ def add_idf_component(
         }
 
 
-def exclude_idf_component(name: str) -> None:
+def exclude_builtin_idf_component(name: str) -> None:
     """Exclude an ESP-IDF component from the build.
 
     This reduces compile time by skipping components that are not needed.
@@ -375,7 +375,7 @@ def exclude_idf_component(name: str) -> None:
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].add(name)
 
 
-def include_idf_component(name: str) -> None:
+def include_builtin_idf_component(name: str) -> None:
     """Remove an ESP-IDF component from the exclusion list.
 
     Call this from components that need an ESP-IDF component that is
@@ -901,9 +901,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(
                     CONF_USE_FULL_CERTIFICATE_BUNDLE, default=False
                 ): cv.boolean,
-                cv.Optional(CONF_INCLUDE_IDF_COMPONENTS, default=[]): cv.ensure_list(
-                    cv.string_strict
-                ),
+                cv.Optional(
+                    CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, default=[]
+                ): cv.ensure_list(cv.string_strict),
                 cv.Optional(CONF_DISABLE_DEBUG_STUBS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_OCD_AWARE, default=True): cv.boolean,
                 cv.Optional(
@@ -1331,8 +1331,8 @@ async def to_code(config):
     advanced = conf[CONF_ADVANCED]
 
     # Re-include any IDF components the user explicitly requested
-    for component_name in advanced.get(CONF_INCLUDE_IDF_COMPONENTS, []):
-        include_idf_component(component_name)
+    for component_name in advanced.get(CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, []):
+        include_builtin_idf_component(component_name)
 
     # DHCP server: only disable if explicitly set to false
     # WiFi component handles its own optimization when AP mode is not used
@@ -1519,7 +1519,7 @@ async def to_code(config):
         CORE.add_job(_add_yaml_idf_components, conf[CONF_COMPONENTS])
 
     # Write EXCLUDE_COMPONENTS at FINAL priority after all components have had
-    # a chance to call include_idf_component() to re-enable components they need.
+    # a chance to call include_builtin_idf_component() to re-enable components they need.
     # Default exclusions are added in set_core_data() during config validation.
     CORE.add_job(_write_exclude_components)
 

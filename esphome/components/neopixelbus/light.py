@@ -5,7 +5,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C3,
     VARIANT_ESP32S3,
     get_esp32_variant,
-    include_idf_component,
+    include_builtin_idf_component,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -212,7 +212,7 @@ async def to_code(config):
 
     # Re-enable ESP-IDF's RMT driver if using RMT method (excluded by default)
     if CORE.is_esp32 and method[CONF_TYPE] == METHOD_ESP32_RMT:
-        include_idf_component("esp_driver_rmt")
+        include_builtin_idf_component("esp_driver_rmt")
 
     method_template = METHODS[method[CONF_TYPE]].to_code(
         method, config[CONF_VARIANT], config[CONF_INVERT]

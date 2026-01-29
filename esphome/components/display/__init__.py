@@ -224,6 +224,6 @@ async def to_code(config):
     cg.add_define("USE_DISPLAY")
     if CORE.is_esp32:
         # Re-enable ESP-IDF's LCD driver (excluded by default to save compile time)
-        from esphome.components.esp32 import include_idf_component
+        from esphome.components.esp32 import include_builtin_idf_component
 
-        include_idf_component("esp_lcd")
+        include_builtin_idf_component("esp_lcd")

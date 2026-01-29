@@ -113,7 +113,7 @@ async def to_code(config):
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     if CORE.is_esp32:
         # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
-        esp32.include_idf_component("esp_driver_rmt")
+        esp32.include_builtin_idf_component("esp_driver_rmt")
 
         var = cg.new_Pvariable(config[CONF_ID], pin)
         cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
