@@ -182,8 +182,15 @@ ARDUINO_EXCLUDED_IDF_COMPONENTS = (
     "joltwallet__littlefs",  # LittleFS - ESPHome doesn't use filesystem
 )
 
-# Mapping of Arduino libraries to IDF components they require
-# When an Arduino library is enabled, these IDF components are automatically included
+# Mapping of Arduino libraries to IDF managed components they require
+# When an Arduino library is enabled via enable_arduino_library(), these components
+# are automatically un-stubbed from ARDUINO_EXCLUDED_IDF_COMPONENTS.
+#
+# Note: Some libraries (Matter, LittleFS, ESP_SR, WiFiProv, ArduinoOTA) already have
+# conditional maybe_add_component() calls in arduino-esp32/CMakeLists.txt that handle
+# their managed component dependencies. Our mapping is primarily needed for libraries
+# that don't have such conditionals (Ethernet, PPP, Zigbee, RainMaker, Insights, etc.)
+# and to ensure the stubs are removed from our idf_component.yml overrides.
 ARDUINO_LIBRARY_IDF_COMPONENTS: dict[str, tuple[str, ...]] = {
     "BLE": ("esp_driver_gptimer",),
     "BluetoothSerial": ("esp_driver_gptimer",),
