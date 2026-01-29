@@ -21,13 +21,13 @@ class KeyCollector : public Component {
   void set_back_keys(std::string back_keys) { this->back_keys_ = std::move(back_keys); };
   void set_clear_keys(std::string clear_keys) { this->clear_keys_ = std::move(clear_keys); };
   void set_allowed_keys(std::string allowed_keys) { this->allowed_keys_ = std::move(allowed_keys); };
-  void add_on_progress_callback(std::function<void(std::string, uint8_t)> &&callback) {
+  void add_on_progress_callback(std::function<void(const std::string &, uint8_t)> &&callback) {
     this->progress_callbacks_.add(std::move(callback));
   }
-  void add_on_result_callback(std::function<void(std::string, uint8_t, uint8_t)> &&callback) {
+  void add_on_result_callback(std::function<void(const std::string &, uint8_t, uint8_t)> &&callback) {
     this->result_callbacks_.add(std::move(callback));
   }
-  void add_on_timeout_callback(std::function<void(std::string, uint8_t)> &&callback) {
+  void add_on_timeout_callback(std::function<void(const std::string &, uint8_t)> &&callback) {
     this->timeout_callbacks_.add(std::move(callback));
   }
   void set_timeout(int timeout) { this->timeout_ = timeout; };
@@ -47,9 +47,9 @@ class KeyCollector : public Component {
   std::string allowed_keys_;
   std::string result_;
   uint8_t start_key_{0};
-  LazyCallbackManager<void(std::string, uint8_t)> progress_callbacks_;
-  LazyCallbackManager<void(std::string, uint8_t, uint8_t)> result_callbacks_;
-  LazyCallbackManager<void(std::string, uint8_t)> timeout_callbacks_;
+  LazyCallbackManager<void(const std::string &, uint8_t)> progress_callbacks_;
+  LazyCallbackManager<void(const std::string &, uint8_t, uint8_t)> result_callbacks_;
+  LazyCallbackManager<void(const std::string &, uint8_t)> timeout_callbacks_;
   uint32_t last_key_time_{};
   uint32_t timeout_{0};
   bool enabled_{};

@@ -36,10 +36,12 @@ KeyCollector = key_collector_ns.class_("KeyCollector", cg.Component)
 EnableAction = key_collector_ns.class_("EnableAction", automation.Action)
 DisableAction = key_collector_ns.class_("DisableAction", automation.Action)
 
+X_TYPE = cg.std_string_ref.operator("const")
+
 TRIGGER_TYPES = {
-    CONF_ON_PROGRESS: [(cg.std_string, "x"), (cg.uint8, "start")],
-    CONF_ON_RESULT: [(cg.std_string, "x"), (cg.uint8, "start"), (cg.uint8, "end")],
-    CONF_ON_TIMEOUT: [(cg.std_string, "x"), (cg.uint8, "start")],
+    CONF_ON_PROGRESS: [(X_TYPE, "x"), (cg.uint8, "start")],
+    CONF_ON_RESULT: [(X_TYPE, "x"), (cg.uint8, "start"), (cg.uint8, "end")],
+    CONF_ON_TIMEOUT: [(X_TYPE, "x"), (cg.uint8, "start")],
 }
 
 CONFIG_SCHEMA = cv.All(
