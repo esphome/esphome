@@ -544,10 +544,11 @@ def _enable_arduino_library(name: str) -> None:
     Args:
         name: The library name (e.g., "Wire", "SPI", "WiFi")
     """
-    CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES].add(name)
+    enabled_libs: set[str] = CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES]
+    enabled_libs.add(name)
     # Also enable any required Arduino library dependencies
     for dep_lib in ARDUINO_LIBRARY_DEPENDENCIES.get(name, ()):
-        CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES].add(dep_lib)
+        enabled_libs.add(dep_lib)
     # Also enable any required IDF components
     for idf_component in ARDUINO_LIBRARY_IDF_COMPONENTS.get(name, ()):
         include_builtin_idf_component(idf_component)
