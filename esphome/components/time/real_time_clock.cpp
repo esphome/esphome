@@ -26,21 +26,11 @@ RealTimeClock::RealTimeClock() = default;
 void RealTimeClock::dump_config() {
 #ifdef USE_TIME_TIMEZONE
   const auto &tz = get_global_tz();
-  int std_hours = -tz.std_offset_seconds / 3600;
-  int std_mins = std::abs(tz.std_offset_seconds % 3600) / 60;
-  ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d", std_hours, std_mins);
+  // POSIX offset is positive west, negate for conventional UTC+X display
   if (tz.has_dst) {
-    int dst_hours = -tz.dst_offset_seconds / 3600;
-    int dst_mins = std::abs(tz.dst_offset_seconds % 3600) / 60;
-    // Transition times (when DST starts/ends) - tzdata always uses positive times (default 2:00 AM)
-    int start_time_hours = tz.dst_start.time_seconds / 3600;
-    int start_time_mins = (tz.dst_start.time_seconds % 3600) / 60;
-    int end_time_hours = tz.dst_end.time_seconds / 3600;
-    int end_time_mins = (tz.dst_end.time_seconds % 3600) / 60;
-    // Always use M format - tzdata and aioesphomeapi only generate M format rules
-    ESP_LOGCONFIG(TAG, "  DST: UTC%+d:%02d, M%d.%d.%d/%d:%02d - M%d.%d.%d/%d:%02d", dst_hours, dst_mins,
-                  tz.dst_start.month, tz.dst_start.week, tz.dst_start.day_of_week, start_time_hours, start_time_mins,
-                  tz.dst_end.month, tz.dst_end.week, tz.dst_end.day_of_week, end_time_hours, end_time_mins);
+    ESP_LOGCONFIG(TAG, "Timezone: UTC%+d (DST UTC%+d)", -tz.std_offset_seconds / 3600, -tz.dst_offset_seconds / 3600);
+  } else {
+    ESP_LOGCONFIG(TAG, "Timezone: UTC%+d", -tz.std_offset_seconds / 3600);
   }
 #endif
   auto time = this->now();
