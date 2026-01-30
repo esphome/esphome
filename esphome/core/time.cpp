@@ -2,7 +2,6 @@
 #include "helpers.h"
 
 #include <algorithm>
-#include <cinttypes>
 
 namespace esphome {
 
@@ -67,56 +66,118 @@ std::string ESPTime::strftime(const char *format) {
 
 std::string ESPTime::strftime(const std::string &format) { return this->strftime(format.c_str()); }
 
-bool ESPTime::strptime(const char *time_to_parse, size_t len, ESPTime &esp_time) {
-  uint16_t year;
-  uint8_t month;
-  uint8_t day;
-  uint8_t hour;
-  uint8_t minute;
-  uint8_t second;
-  int num;
-  const int ilen = static_cast<int>(len);
-
-  if (sscanf(time_to_parse, "%04hu-%02hhu-%02hhu %02hhu:%02hhu:%02hhu %n", &year, &month, &day,  // NOLINT
-             &hour,                                                                              // NOLINT
-             &minute,                                                                            // NOLINT
-             &second, &num) == 6 &&                                                              // NOLINT
-      num == ilen) {
-    esp_time.year = year;
-    esp_time.month = month;
-    esp_time.day_of_month = day;
-    esp_time.hour = hour;
-    esp_time.minute = minute;
-    esp_time.second = second;
-  } else if (sscanf(time_to_parse, "%04hu-%02hhu-%02hhu %02hhu:%02hhu %n", &year, &month, &day,  // NOLINT
-                    &hour,                                                                       // NOLINT
-                    &minute, &num) == 5 &&                                                       // NOLINT
-             num == ilen) {
-    esp_time.year = year;
-    esp_time.month = month;
-    esp_time.day_of_month = day;
-    esp_time.hour = hour;
-    esp_time.minute = minute;
-    esp_time.second = 0;
-  } else if (sscanf(time_to_parse, "%02hhu:%02hhu:%02hhu %n", &hour, &minute, &second, &num) == 3 &&  // NOLINT
-             num == ilen) {
-    esp_time.hour = hour;
-    esp_time.minute = minute;
-    esp_time.second = second;
-  } else if (sscanf(time_to_parse, "%02hhu:%02hhu %n", &hour, &minute, &num) == 2 &&  // NOLINT
-             num == ilen) {
-    esp_time.hour = hour;
-    esp_time.minute = minute;
-    esp_time.second = 0;
-  } else if (sscanf(time_to_parse, "%04hu-%02hhu-%02hhu %n", &year, &month, &day, &num) == 3 &&  // NOLINT
-             num == ilen) {
-    esp_time.year = year;
-    esp_time.month = month;
-    esp_time.day_of_month = day;
-  } else {
-    return false;
+// Helper to parse exactly N digits, returns false if not enough digits
+static bool parse_digits(const char *&p, const char *end, int count, uint16_t &value) {
+  value = 0;
+  for (int i = 0; i < count; i++) {
+    if (p >= end || *p < '0' || *p > '9')
+      return false;
+    value = value * 10 + (*p - '0');
+    p++;
   }
   return true;
+}
+
+// Helper to check for expected character
+static bool expect_char(const char *&p, const char *end, char expected) {
+  if (p >= end || *p != expected)
+    return false;
+  p++;
+  return true;
+}
+
+bool ESPTime::strptime(const char *time_to_parse, size_t len, ESPTime &esp_time) {
+  // Supported formats:
+  //   YYYY-MM-DD HH:MM:SS (19 chars)
+  //   YYYY-MM-DD HH:MM    (16 chars)
+  //   YYYY-MM-DD          (10 chars)
+  //   HH:MM:SS            (8 chars)
+  //   HH:MM               (5 chars)
+
+  const char *p = time_to_parse;
+  const char *end = time_to_parse + len;
+  uint16_t v1, v2, v3, v4, v5, v6;
+
+  // Try date formats first (start with 4-digit year)
+  if (len >= 10 && time_to_parse[4] == '-') {
+    // YYYY-MM-DD...
+    if (!parse_digits(p, end, 4, v1))
+      return false;
+    if (!expect_char(p, end, '-'))
+      return false;
+    if (!parse_digits(p, end, 2, v2))
+      return false;
+    if (!expect_char(p, end, '-'))
+      return false;
+    if (!parse_digits(p, end, 2, v3))
+      return false;
+
+    esp_time.year = v1;
+    esp_time.month = v2;
+    esp_time.day_of_month = v3;
+
+    if (p == end) {
+      // YYYY-MM-DD (date only)
+      return true;
+    }
+
+    if (!expect_char(p, end, ' '))
+      return false;
+
+    // Continue with time part: HH:MM[:SS]
+    if (!parse_digits(p, end, 2, v4))
+      return false;
+    if (!expect_char(p, end, ':'))
+      return false;
+    if (!parse_digits(p, end, 2, v5))
+      return false;
+
+    esp_time.hour = v4;
+    esp_time.minute = v5;
+
+    if (p == end) {
+      // YYYY-MM-DD HH:MM
+      esp_time.second = 0;
+      return true;
+    }
+
+    if (!expect_char(p, end, ':'))
+      return false;
+    if (!parse_digits(p, end, 2, v6))
+      return false;
+
+    esp_time.second = v6;
+    return p == end;  // YYYY-MM-DD HH:MM:SS
+  }
+
+  // Try time-only formats (HH:MM[:SS])
+  if (len >= 5 && time_to_parse[2] == ':') {
+    if (!parse_digits(p, end, 2, v1))
+      return false;
+    if (!expect_char(p, end, ':'))
+      return false;
+    if (!parse_digits(p, end, 2, v2))
+      return false;
+
+    esp_time.hour = v1;
+    esp_time.minute = v2;
+
+    if (p == end) {
+      // HH:MM
+      esp_time.second = 0;
+      return true;
+    }
+
+    if (!expect_char(p, end, ':'))
+      return false;
+    if (!parse_digits(p, end, 2, v3))
+      return false;
+
+    esp_time.second = v3;
+    return p == end;  // HH:MM:SS
+  }
+
+  return false;
 }
 
 void ESPTime::increment_second() {

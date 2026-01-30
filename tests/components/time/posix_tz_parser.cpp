@@ -1,11 +1,11 @@
-// Tests for the POSIX TZ parser implementation
-// This verifies our custom parser produces identical results to libc's
-// tzset()/localtime() implementation. The custom parser avoids pulling in scanf (~7.6KB).
+// Tests for the POSIX TZ parser and ESPTime::strptime implementations
+// These custom parsers avoid pulling in scanf (~9.8KB on ESP32-IDF).
 
 #include <gtest/gtest.h>
 #include <cstdlib>
 #include <ctime>
 #include "esphome/components/time/posix_tz.h"
+#include "esphome/core/time.h"
 
 namespace esphome::time::testing {
 
@@ -721,3 +721,131 @@ TEST(PosixTzParser, DstBoundaryJustBeforeFallBack) {
 }
 
 }  // namespace esphome::time::testing
+
+// ============================================================================
+// ESPTime::strptime tests (replaces sscanf-based parsing)
+// ============================================================================
+
+namespace esphome::testing {
+
+TEST(ESPTimeStrptime, FullDateTime) {
+  ESPTime t{};
+  ASSERT_TRUE(ESPTime::strptime("2026-03-15 14:30:45", 19, t));
+  EXPECT_EQ(t.year, 2026);
+  EXPECT_EQ(t.month, 3);
+  EXPECT_EQ(t.day_of_month, 15);
+  EXPECT_EQ(t.hour, 14);
+  EXPECT_EQ(t.minute, 30);
+  EXPECT_EQ(t.second, 45);
+}
+
+TEST(ESPTimeStrptime, DateTimeNoSeconds) {
+  ESPTime t{};
+  ASSERT_TRUE(ESPTime::strptime("2026-03-15 14:30", 16, t));
+  EXPECT_EQ(t.year, 2026);
+  EXPECT_EQ(t.month, 3);
+  EXPECT_EQ(t.day_of_month, 15);
+  EXPECT_EQ(t.hour, 14);
+  EXPECT_EQ(t.minute, 30);
+  EXPECT_EQ(t.second, 0);
+}
+
+TEST(ESPTimeStrptime, DateOnly) {
+  ESPTime t{};
+  ASSERT_TRUE(ESPTime::strptime("2026-03-15", 10, t));
+  EXPECT_EQ(t.year, 2026);
+  EXPECT_EQ(t.month, 3);
+  EXPECT_EQ(t.day_of_month, 15);
+}
+
+TEST(ESPTimeStrptime, TimeWithSeconds) {
+  ESPTime t{};
+  ASSERT_TRUE(ESPTime::strptime("14:30:45", 8, t));
+  EXPECT_EQ(t.hour, 14);
+  EXPECT_EQ(t.minute, 30);
+  EXPECT_EQ(t.second, 45);
+}
+
+TEST(ESPTimeStrptime, TimeNoSeconds) {
+  ESPTime t{};
+  ASSERT_TRUE(ESPTime::strptime("14:30", 5, t));
+  EXPECT_EQ(t.hour, 14);
+  EXPECT_EQ(t.minute, 30);
+  EXPECT_EQ(t.second, 0);
+}
+
+TEST(ESPTimeStrptime, Midnight) {
+  ESPTime t{};
+  ASSERT_TRUE(ESPTime::strptime("00:00:00", 8, t));
+  EXPECT_EQ(t.hour, 0);
+  EXPECT_EQ(t.minute, 0);
+  EXPECT_EQ(t.second, 0);
+}
+
+TEST(ESPTimeStrptime, EndOfDay) {
+  ESPTime t{};
+  ASSERT_TRUE(ESPTime::strptime("23:59:59", 8, t));
+  EXPECT_EQ(t.hour, 23);
+  EXPECT_EQ(t.minute, 59);
+  EXPECT_EQ(t.second, 59);
+}
+
+TEST(ESPTimeStrptime, LeapYearDate) {
+  ESPTime t{};
+  ASSERT_TRUE(ESPTime::strptime("2024-02-29", 10, t));
+  EXPECT_EQ(t.year, 2024);
+  EXPECT_EQ(t.month, 2);
+  EXPECT_EQ(t.day_of_month, 29);
+}
+
+TEST(ESPTimeStrptime, NewYearsEve) {
+  ESPTime t{};
+  ASSERT_TRUE(ESPTime::strptime("2026-12-31 23:59:59", 19, t));
+  EXPECT_EQ(t.year, 2026);
+  EXPECT_EQ(t.month, 12);
+  EXPECT_EQ(t.day_of_month, 31);
+  EXPECT_EQ(t.hour, 23);
+  EXPECT_EQ(t.minute, 59);
+  EXPECT_EQ(t.second, 59);
+}
+
+TEST(ESPTimeStrptime, EmptyStringFails) {
+  ESPTime t{};
+  EXPECT_FALSE(ESPTime::strptime("", 0, t));
+}
+
+TEST(ESPTimeStrptime, InvalidFormatFails) {
+  ESPTime t{};
+  EXPECT_FALSE(ESPTime::strptime("not-a-date", 10, t));
+}
+
+TEST(ESPTimeStrptime, PartialDateFails) {
+  ESPTime t{};
+  EXPECT_FALSE(ESPTime::strptime("2026-03", 7, t));
+}
+
+TEST(ESPTimeStrptime, PartialTimeFails) {
+  ESPTime t{};
+  EXPECT_FALSE(ESPTime::strptime("14:", 3, t));
+}
+
+TEST(ESPTimeStrptime, ExtraCharactersFails) {
+  ESPTime t{};
+  // Full datetime with extra characters should fail
+  EXPECT_FALSE(ESPTime::strptime("2026-03-15 14:30:45x", 20, t));
+}
+
+TEST(ESPTimeStrptime, WrongSeparatorFails) {
+  ESPTime t{};
+  EXPECT_FALSE(ESPTime::strptime("2026/03/15", 10, t));
+}
+
+TEST(ESPTimeStrptime, LeadingZeroTime) {
+  ESPTime t{};
+  ASSERT_TRUE(ESPTime::strptime("01:05:09", 8, t));
+  EXPECT_EQ(t.hour, 1);
+  EXPECT_EQ(t.minute, 5);
+  EXPECT_EQ(t.second, 9);
+}
+
+}  // namespace esphome::testing
