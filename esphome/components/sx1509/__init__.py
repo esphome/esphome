@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, key_provider
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DEBOUNCE,
     CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
@@ -23,7 +24,6 @@ CONF_KEY_COLUMNS = "key_columns"
 CONF_SLEEP_TIME = "sleep_time"
 CONF_SCAN_TIME = "scan_time"
 CONF_DEBOUNCE_TIME = "debounce_time"
-CONF_DEBOUNCE = "debounce"
 CONF_SX1509_ID = "sx1509_id"
 
 AUTO_LOAD = ["key_provider", "gpio_expander"]
