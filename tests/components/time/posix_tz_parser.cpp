@@ -832,6 +832,90 @@ INSTANTIATE_TEST_SUITE_P(AustraliaSydney, LibcVerificationTest,
                                            std::make_tuple("AEST-10AEDT,M10.1.0,M4.1.0/3", 1735689600)));
 
 // ============================================================================
+// format_dst_rule tests
+// ============================================================================
+
+TEST(PosixTzParser, FormatDstRuleMonthWeekDay) {
+  DSTRule rule{};
+  rule.type = DSTRuleType::MONTH_WEEK_DAY;
+  rule.month = 3;
+  rule.week = 2;
+  rule.day_of_week = 0;
+  rule.time_seconds = 2 * 3600;  // 2:00
+
+  char buf[24];
+  size_t len = internal::format_dst_rule(rule, buf);
+  EXPECT_STREQ(buf, "M3.2.0/2");
+  EXPECT_EQ(len, 8u);
+}
+
+TEST(PosixTzParser, FormatDstRuleJulian) {
+  DSTRule rule{};
+  rule.type = DSTRuleType::JULIAN_NO_LEAP;
+  rule.day = 60;
+  rule.time_seconds = 2 * 3600;
+
+  char buf[24];
+  size_t len = internal::format_dst_rule(rule, buf);
+  EXPECT_STREQ(buf, "J60/2");
+  EXPECT_EQ(len, 5u);
+}
+
+TEST(PosixTzParser, FormatDstRuleDayOfYear) {
+  DSTRule rule{};
+  rule.type = DSTRuleType::DAY_OF_YEAR;
+  rule.day = 300;
+  rule.time_seconds = 2 * 3600;
+
+  char buf[24];
+  size_t len = internal::format_dst_rule(rule, buf);
+  EXPECT_STREQ(buf, "300/2");
+  EXPECT_EQ(len, 5u);
+}
+
+TEST(PosixTzParser, FormatDstRuleWithMinutes) {
+  DSTRule rule{};
+  rule.type = DSTRuleType::MONTH_WEEK_DAY;
+  rule.month = 11;
+  rule.week = 1;
+  rule.day_of_week = 0;
+  rule.time_seconds = 2 * 3600 + 30 * 60;  // 2:30
+
+  char buf[24];
+  size_t len = internal::format_dst_rule(rule, buf);
+  EXPECT_STREQ(buf, "M11.1.0/2:30");
+  EXPECT_EQ(len, 12u);
+}
+
+TEST(PosixTzParser, FormatDstRuleWithSeconds) {
+  DSTRule rule{};
+  rule.type = DSTRuleType::MONTH_WEEK_DAY;
+  rule.month = 3;
+  rule.week = 5;
+  rule.day_of_week = 0;
+  rule.time_seconds = 2 * 3600 + 30 * 60 + 45;  // 2:30:45
+
+  char buf[24];
+  size_t len = internal::format_dst_rule(rule, buf);
+  EXPECT_STREQ(buf, "M3.5.0/2:30:45");
+  EXPECT_EQ(len, 14u);
+}
+
+TEST(PosixTzParser, FormatDstRuleNegativeTime) {
+  DSTRule rule{};
+  rule.type = DSTRuleType::MONTH_WEEK_DAY;
+  rule.month = 3;
+  rule.week = 2;
+  rule.day_of_week = 0;
+  rule.time_seconds = -1 * 3600;  // -1:00 (11 PM previous day)
+
+  char buf[24];
+  size_t len = internal::format_dst_rule(rule, buf);
+  EXPECT_STREQ(buf, "M3.2.0-1");
+  EXPECT_EQ(len, 8u);
+}
+
+// ============================================================================
 // DST boundary edge cases
 // ============================================================================
 

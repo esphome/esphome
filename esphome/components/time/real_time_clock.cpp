@@ -23,42 +23,6 @@ static const char *const TAG = "time";
 
 RealTimeClock::RealTimeClock() = default;
 
-// Helper to format a DST rule for logging
-#ifdef USE_TIME_TIMEZONE
-static void format_dst_rule(const DSTRule &rule, char *buf, size_t buf_size) {
-  // Format rule part
-  int pos = 0;
-  switch (rule.type) {
-    case DSTRuleType::MONTH_WEEK_DAY:
-      pos = snprintf(buf, buf_size, "M%d.%d.%d", rule.month, rule.week, rule.day_of_week);
-      break;
-    case DSTRuleType::JULIAN_NO_LEAP:
-      pos = snprintf(buf, buf_size, "J%d", rule.day);
-      break;
-    case DSTRuleType::DAY_OF_YEAR:
-      pos = snprintf(buf, buf_size, "%d", rule.day);
-      break;
-  }
-
-  // Format time part
-  int32_t time_secs = rule.time_seconds;
-  char sign = time_secs < 0 ? '-' : '/';
-  if (time_secs < 0)
-    time_secs = -time_secs;
-  int hours = time_secs / 3600;
-  int mins = (time_secs % 3600) / 60;
-  int secs = time_secs % 60;
-
-  if (secs != 0) {
-    snprintf(buf + pos, buf_size - pos, "%c%d:%02d:%02d", sign, hours, mins, secs);
-  } else if (mins != 0) {
-    snprintf(buf + pos, buf_size - pos, "%c%d:%02d", sign, hours, mins);
-  } else {
-    snprintf(buf + pos, buf_size - pos, "%c%d", sign, hours);
-  }
-}
-#endif
-
 void RealTimeClock::dump_config() {
 #ifdef USE_TIME_TIMEZONE
   int std_hours = -this->parsed_tz_.std_offset_seconds / 3600;
@@ -67,8 +31,8 @@ void RealTimeClock::dump_config() {
   if (this->parsed_tz_.has_dst) {
     int dst_hours = -this->parsed_tz_.dst_offset_seconds / 3600;
     char start_buf[24], end_buf[24];
-    format_dst_rule(this->parsed_tz_.dst_start, start_buf, sizeof(start_buf));
-    format_dst_rule(this->parsed_tz_.dst_end, end_buf, sizeof(end_buf));
+    internal::format_dst_rule(this->parsed_tz_.dst_start, start_buf);
+    internal::format_dst_rule(this->parsed_tz_.dst_end, end_buf);
     ESP_LOGCONFIG(TAG, "  DST: UTC%+d, %s - %s", dst_hours, start_buf, end_buf);
   }
 #endif
