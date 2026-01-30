@@ -1,7 +1,7 @@
 #include "posix_tz.h"
 #include <cctype>
 
-namespace esphome {
+namespace esphome::time {
 
 namespace internal {
 
@@ -406,4 +406,4 @@ bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *ou
   return true;
 }
 
-}  // namespace esphome
+}  // namespace esphome::time

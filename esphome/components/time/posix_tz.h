@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <ctime>
 
-namespace esphome {
+namespace esphome::time {
 
 /// Type of DST transition rule
 enum class DSTRuleType : uint8_t {
@@ -114,4 +114,4 @@ void epoch_to_tm_utc(time_t epoch, struct tm *out_tm);
 
 }  // namespace internal
 
-}  // namespace esphome
+}  // namespace esphome::time
