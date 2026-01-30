@@ -364,10 +364,9 @@ bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
 
   const char *p = tz_string;
 
-  // Initialize result
+  // Initialize result (dst_start/dst_end default to type=NONE, so has_dst() returns false)
   result.std_offset_seconds = 0;
   result.dst_offset_seconds = 0;
-  result.has_dst = false;
   result.dst_start = {};
   result.dst_end = {};
 
@@ -429,9 +428,7 @@ bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
     return false;
   }
 
-  // Only set has_dst after successfully parsing both rules
-  result.has_dst = true;
-
+  // has_dst() now returns true since dst_start.type was set by parse_dst_rule
   return true;
 }
 

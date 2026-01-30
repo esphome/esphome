@@ -29,7 +29,7 @@ void RealTimeClock::dump_config() {
   // POSIX offset is positive west, negate for conventional UTC+X display
   int std_h = -tz.std_offset_seconds / 3600;
   int std_m = (std::abs(tz.std_offset_seconds) % 3600) / 60;
-  if (tz.has_dst) {
+  if (tz.has_dst()) {
     int dst_h = -tz.dst_offset_seconds / 3600;
     int dst_m = (std::abs(tz.dst_offset_seconds) % 3600) / 60;
     ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d (DST UTC%+d:%02d)", std_h, std_m, dst_h, dst_m);
