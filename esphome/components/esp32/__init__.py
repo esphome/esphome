@@ -1383,7 +1383,8 @@ async def to_code(config):
 
     # Disable VFS support for termios (terminal I/O functions)
     # USB Serial JTAG VFS functions require termios support.
-    # Components that need it (e.g., logger with USB_SERIAL_JTAG) call require_vfs_termios().
+    # Components that need it (e.g., logger when USB_SERIAL_JTAG is supported but not selected
+    # as the logger output) call require_vfs_termios().
     # Saves approximately 1.8KB of flash when disabled (default).
     if CORE.data.get(KEY_VFS_TERMIOS_REQUIRED, False):
         # Component requires VFS termios - force enable regardless of user setting
