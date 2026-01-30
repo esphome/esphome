@@ -30,7 +30,7 @@ void RealTimeClock::dump_config() {
   ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d", std_hours, std_mins);
   if (this->parsed_tz_.has_dst) {
     int dst_hours = -this->parsed_tz_.dst_offset_seconds / 3600;
-    char start_buf[24], end_buf[24];
+    char start_buf[internal::DST_RULE_BUF_SIZE], end_buf[internal::DST_RULE_BUF_SIZE];
     internal::format_dst_rule(this->parsed_tz_.dst_start, start_buf);
     internal::format_dst_rule(this->parsed_tz_.dst_end, end_buf);
     ESP_LOGCONFIG(TAG, "  DST: UTC%+d, %s - %s", dst_hours, start_buf, end_buf);

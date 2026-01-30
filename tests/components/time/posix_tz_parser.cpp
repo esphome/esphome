@@ -843,7 +843,7 @@ TEST(PosixTzParser, FormatDstRuleMonthWeekDay) {
   rule.day_of_week = 0;
   rule.time_seconds = 2 * 3600;  // 2:00
 
-  char buf[24];
+  char buf[internal::DST_RULE_BUF_SIZE];
   size_t len = internal::format_dst_rule(rule, buf);
   EXPECT_STREQ(buf, "M3.2.0/2");
   EXPECT_EQ(len, 8u);
@@ -855,7 +855,7 @@ TEST(PosixTzParser, FormatDstRuleJulian) {
   rule.day = 60;
   rule.time_seconds = 2 * 3600;
 
-  char buf[24];
+  char buf[internal::DST_RULE_BUF_SIZE];
   size_t len = internal::format_dst_rule(rule, buf);
   EXPECT_STREQ(buf, "J60/2");
   EXPECT_EQ(len, 5u);
@@ -867,7 +867,7 @@ TEST(PosixTzParser, FormatDstRuleDayOfYear) {
   rule.day = 300;
   rule.time_seconds = 2 * 3600;
 
-  char buf[24];
+  char buf[internal::DST_RULE_BUF_SIZE];
   size_t len = internal::format_dst_rule(rule, buf);
   EXPECT_STREQ(buf, "300/2");
   EXPECT_EQ(len, 5u);
@@ -881,7 +881,7 @@ TEST(PosixTzParser, FormatDstRuleWithMinutes) {
   rule.day_of_week = 0;
   rule.time_seconds = 2 * 3600 + 30 * 60;  // 2:30
 
-  char buf[24];
+  char buf[internal::DST_RULE_BUF_SIZE];
   size_t len = internal::format_dst_rule(rule, buf);
   EXPECT_STREQ(buf, "M11.1.0/2:30");
   EXPECT_EQ(len, 12u);
@@ -895,7 +895,7 @@ TEST(PosixTzParser, FormatDstRuleWithSeconds) {
   rule.day_of_week = 0;
   rule.time_seconds = 2 * 3600 + 30 * 60 + 45;  // 2:30:45
 
-  char buf[24];
+  char buf[internal::DST_RULE_BUF_SIZE];
   size_t len = internal::format_dst_rule(rule, buf);
   EXPECT_STREQ(buf, "M3.5.0/2:30:45");
   EXPECT_EQ(len, 14u);
@@ -909,7 +909,7 @@ TEST(PosixTzParser, FormatDstRuleNegativeTime) {
   rule.day_of_week = 0;
   rule.time_seconds = -1 * 3600;  // -1:00 (11 PM previous day)
 
-  char buf[24];
+  char buf[internal::DST_RULE_BUF_SIZE];
   size_t len = internal::format_dst_rule(rule, buf);
   EXPECT_STREQ(buf, "M3.2.0-1");
   EXPECT_EQ(len, 8u);

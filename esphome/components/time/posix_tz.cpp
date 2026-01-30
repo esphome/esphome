@@ -342,7 +342,7 @@ bool __attribute__((noinline)) is_in_dst(time_t utc_epoch, const ParsedTimezone 
   }
 }
 
-size_t format_dst_rule(const DSTRule &rule, std::span<char, 24> buf) {
+size_t format_dst_rule(const DSTRule &rule, std::span<char, DST_RULE_BUF_SIZE> buf) {
   // Format rule part
   int pos = 0;
   switch (rule.type) {
