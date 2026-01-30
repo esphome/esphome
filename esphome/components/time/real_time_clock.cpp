@@ -30,6 +30,7 @@ void RealTimeClock::dump_config() {
   ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d", std_hours, std_mins);
   if (this->parsed_tz_.has_dst) {
     int dst_hours = -this->parsed_tz_.dst_offset_seconds / 3600;
+    // Always use M format - tzdata and aioesphomeapi only generate M format rules
     ESP_LOGCONFIG(TAG, "  DST: UTC%+d, M%d.%d.%d/%" PRId32 " - M%d.%d.%d/%" PRId32, dst_hours,
                   this->parsed_tz_.dst_start.month, this->parsed_tz_.dst_start.week,
                   this->parsed_tz_.dst_start.day_of_week, this->parsed_tz_.dst_start.time_seconds / 3600,
