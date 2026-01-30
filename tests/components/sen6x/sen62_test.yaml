@@ -1,0 +1,35 @@
+# SEN62 Test Configuration
+# SEN62: PM, RH & T only
+sensor:
+  - platform: sen6x
+    i2c_id: i2c_bus
+    id: sen62_test
+    temperature:
+      name: SEN62 Temperature
+      accuracy_decimals: 1
+    humidity:
+      name: SEN62 Humidity
+      accuracy_decimals: 0
+    pm_1_0:
+      name: SEN62 PM <1µm Weight concentration
+      id: sen62_pm_1_0
+      accuracy_decimals: 1
+    pm_2_5:
+      name: SEN62 PM <2.5µm Weight concentration
+      id: sen62_pm_2_5
+      accuracy_decimals: 1
+    pm_4_0:
+      name: SEN62 PM <4µm Weight concentration
+      id: sen62_pm_4_0
+      accuracy_decimals: 1
+    pm_10_0:
+      name: SEN62 PM <10µm Weight concentration
+      id: sen62_pm_10_0
+      accuracy_decimals: 1
+    temperature_compensation:
+      offset: 0
+      normalized_offset_slope: 0
+      time_constant: 0
+    auto_cleaning_interval: 604800s
+    acceleration_mode: low
+    address: 0x69

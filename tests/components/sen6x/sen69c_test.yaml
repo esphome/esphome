@@ -1,33 +1,42 @@
+# SEN69C Test Configuration
+# SEN69C: PM, RH & T, VOC, NOx, HCHO, CO2 (full featured)
 sensor:
   - platform: sen6x
     i2c_id: i2c_bus
-    id: sen6x_test
+    id: sen69c_test
     temperature:
-      name: Temperature
+      name: SEN69C Temperature
       accuracy_decimals: 1
     humidity:
-      name: Humidity
+      name: SEN69C Humidity
       accuracy_decimals: 0
     pm_1_0:
-      name: PM <1µm Weight concentration
-      id: pm_1_0
+      name: SEN69C PM <1µm Weight concentration
+      id: sen69c_pm_1_0
       accuracy_decimals: 1
     pm_2_5:
-      name: PM <2.5µm Weight concentration
-      id: pm_2_5
+      name: SEN69C PM <2.5µm Weight concentration
+      id: sen69c_pm_2_5
       accuracy_decimals: 1
     pm_4_0:
-      name: PM <4µm Weight concentration
-      id: pm_4_0
+      name: SEN69C PM <4µm Weight concentration
+      id: sen69c_pm_4_0
       accuracy_decimals: 1
     pm_10_0:
-      name: PM <10µm Weight concentration
-      id: pm_10_0
+      name: SEN69C PM <10µm Weight concentration
+      id: sen69c_pm_10_0
       accuracy_decimals: 1
     nox:
-      name: NOx
+      name: SEN69C NOx
+      algorithm_tuning:
+        index_offset: 1
+        learning_time_offset_hours: 12
+        learning_time_gain_hours: 12
+        gating_max_duration_minutes: 720
+        std_initial: 50
+        gain_factor: 230
     voc:
-      name: VOC
+      name: SEN69C VOC
       algorithm_tuning:
         index_offset: 100
         learning_time_offset_hours: 12
@@ -36,10 +45,10 @@ sensor:
         std_initial: 50
         gain_factor: 230
     co2:
-      name: CO2
+      name: SEN69C CO2
       accuracy_decimals: 0
     hcho:
-      name: HCHO
+      name: SEN69C HCHO
       accuracy_decimals: 1
     temperature_compensation:
       offset: 0

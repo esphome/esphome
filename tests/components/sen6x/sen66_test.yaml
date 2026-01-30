@@ -1,33 +1,42 @@
+# SEN66 Test Configuration
+# SEN66: PM, RH & T, VOC, NOx, CO2
 sensor:
   - platform: sen6x
     i2c_id: i2c_bus
-    id: sen6x_test
+    id: sen66_test
     temperature:
-      name: Temperature
+      name: SEN66 Temperature
       accuracy_decimals: 1
     humidity:
-      name: Humidity
+      name: SEN66 Humidity
       accuracy_decimals: 0
     pm_1_0:
-      name: PM <1µm Weight concentration
-      id: pm_1_0
+      name: SEN66 PM <1µm Weight concentration
+      id: sen66_pm_1_0
       accuracy_decimals: 1
     pm_2_5:
-      name: PM <2.5µm Weight concentration
-      id: pm_2_5
+      name: SEN66 PM <2.5µm Weight concentration
+      id: sen66_pm_2_5
       accuracy_decimals: 1
     pm_4_0:
-      name: PM <4µm Weight concentration
-      id: pm_4_0
+      name: SEN66 PM <4µm Weight concentration
+      id: sen66_pm_4_0
       accuracy_decimals: 1
     pm_10_0:
-      name: PM <10µm Weight concentration
-      id: pm_10_0
+      name: SEN66 PM <10µm Weight concentration
+      id: sen66_pm_10_0
       accuracy_decimals: 1
     nox:
-      name: NOx
+      name: SEN66 NOx
+      algorithm_tuning:
+        index_offset: 1
+        learning_time_offset_hours: 12
+        learning_time_gain_hours: 12
+        gating_max_duration_minutes: 720
+        std_initial: 50
+        gain_factor: 230
     voc:
-      name: VOC
+      name: SEN66 VOC
       algorithm_tuning:
         index_offset: 100
         learning_time_offset_hours: 12
@@ -36,16 +45,13 @@ sensor:
         std_initial: 50
         gain_factor: 230
     co2:
-      name: CO2
+      name: SEN66 CO2
       accuracy_decimals: 0
-    hcho:
-      name: HCHO
-      accuracy_decimals: 1
     temperature_compensation:
       offset: 0
       normalized_offset_slope: 0
       time_constant: 0
     auto_cleaning_interval: 604800s
-    acceleration_mode: low
+    acceleration_mode: medium
     store_baseline: true
     address: 0x69

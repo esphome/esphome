@@ -1,0 +1,38 @@
+# SEN63C Test Configuration
+# SEN63C: PM, RH & T, CO2
+sensor:
+  - platform: sen6x
+    i2c_id: i2c_bus
+    id: sen63c_test
+    temperature:
+      name: SEN63C Temperature
+      accuracy_decimals: 1
+    humidity:
+      name: SEN63C Humidity
+      accuracy_decimals: 0
+    pm_1_0:
+      name: SEN63C PM <1µm Weight concentration
+      id: sen63c_pm_1_0
+      accuracy_decimals: 1
+    pm_2_5:
+      name: SEN63C PM <2.5µm Weight concentration
+      id: sen63c_pm_2_5
+      accuracy_decimals: 1
+    pm_4_0:
+      name: SEN63C PM <4µm Weight concentration
+      id: sen63c_pm_4_0
+      accuracy_decimals: 1
+    pm_10_0:
+      name: SEN63C PM <10µm Weight concentration
+      id: sen63c_pm_10_0
+      accuracy_decimals: 1
+    co2:
+      name: SEN63C CO2
+      accuracy_decimals: 0
+    temperature_compensation:
+      offset: 0
+      normalized_offset_slope: 0
+      time_constant: 0
+    auto_cleaning_interval: 604800s
+    acceleration_mode: medium
+    address: 0x69

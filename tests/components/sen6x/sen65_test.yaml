@@ -1,0 +1,54 @@
+# SEN65 Test Configuration
+# SEN65: PM, RH & T, VOC, NOx
+sensor:
+  - platform: sen6x
+    i2c_id: i2c_bus
+    id: sen65_test
+    temperature:
+      name: SEN65 Temperature
+      accuracy_decimals: 1
+    humidity:
+      name: SEN65 Humidity
+      accuracy_decimals: 0
+    pm_1_0:
+      name: SEN65 PM <1µm Weight concentration
+      id: sen65_pm_1_0
+      accuracy_decimals: 1
+    pm_2_5:
+      name: SEN65 PM <2.5µm Weight concentration
+      id: sen65_pm_2_5
+      accuracy_decimals: 1
+    pm_4_0:
+      name: SEN65 PM <4µm Weight concentration
+      id: sen65_pm_4_0
+      accuracy_decimals: 1
+    pm_10_0:
+      name: SEN65 PM <10µm Weight concentration
+      id: sen65_pm_10_0
+      accuracy_decimals: 1
+    nox:
+      name: SEN65 NOx
+      algorithm_tuning:
+        index_offset: 1
+        learning_time_offset_hours: 12
+        learning_time_gain_hours: 12
+        gating_max_duration_minutes: 720
+        std_initial: 50
+        gain_factor: 230
+    voc:
+      name: SEN65 VOC
+      algorithm_tuning:
+        index_offset: 100
+        learning_time_offset_hours: 12
+        learning_time_gain_hours: 12
+        gating_max_duration_minutes: 180
+        std_initial: 50
+        gain_factor: 230
+    temperature_compensation:
+      offset: 0
+      normalized_offset_slope: 0
+      time_constant: 0
+    auto_cleaning_interval: 604800s
+    acceleration_mode: high
+    store_baseline: true
+    address: 0x69
