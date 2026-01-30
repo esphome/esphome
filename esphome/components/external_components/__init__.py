@@ -92,7 +92,7 @@ def _check_merge_status(pr_number: str) -> bool:
     return data["status"] in ["behind", "identical"]
 
 
-def _check_for_merged_pr(srcs: list[tuple]):
+def _check_for_merged_prs(srcs: list[tuple]):
     cache_file = CORE.relative_internal_path(".merged_prs_cache")
     merged_prs = []
     if cache_file.is_file():
@@ -177,4 +177,4 @@ def do_external_components_pass(config: dict, skip_update: bool = False) -> None
                 ):
                     pr_number = source[CONF_REF].split("/")[1]
                     pr_srcs.append((pr_number, c[CONF_COMPONENTS]))
-        _check_for_merged_pr(pr_srcs)
+        _check_for_merged_prs(pr_srcs)
