@@ -101,16 +101,16 @@ void SNTPComponent::loop() {
 }
 
 void SNTPComponent::time_synced() {
-  // In immediate sync mode, sync status will transition to completed immediatley, 
+  // In immediate sync mode, sync status will transition to completed immediatley,
   // and the callback will fire as soon as valid time is found.
   // In smooth sync mode, sync status will be in progress, and this function is called
-  // repeatedly by the loop to poll for state changes. 
+  // repeatedly by the loop to poll for state changes.
   auto time = this->now();
   this->has_time_ = time.is_valid();
   if (!this->has_time_)
     return;
 
-  // Check sync status to determine state
+    // Check sync status to determine state
 #if defined(USE_ESP32)
   switch (esp_sntp_get_sync_status()) {
 #else
