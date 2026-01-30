@@ -7,6 +7,10 @@
 #include <span>
 #include <string>
 
+#ifdef USE_TIME_TIMEZONE
+#include "esphome/components/time/posix_tz.h"
+#endif
+
 namespace esphome {
 
 template<typename T> bool increment_time_value(T &current, uint16_t begin, uint16_t end);
@@ -105,11 +109,17 @@ struct ESPTime {
    * @return The generated ESPTime
    */
   static ESPTime from_epoch_local(time_t epoch) {
-    struct tm *c_tm = ::localtime(&epoch);
-    if (c_tm == nullptr) {
-      return ESPTime{};  // Return an invalid ESPTime
+#ifdef USE_TIME_TIMEZONE
+    struct tm local_tm;
+    if (time::epoch_to_local_tm(epoch, time::get_global_tz(), &local_tm)) {
+      return ESPTime::from_c_tm(&local_tm, epoch);
     }
-    return ESPTime::from_c_tm(c_tm, epoch);
+    // Fallback to UTC if conversion failed
+    return ESPTime::from_epoch_utc(epoch);
+#else
+    // No timezone support - return UTC (no TZ configured, localtime would return UTC anyway)
+    return ESPTime::from_epoch_utc(epoch);
+#endif
   }
   /** Convert an UTC epoch timestamp to a UTC time ESPTime instance.
    *
