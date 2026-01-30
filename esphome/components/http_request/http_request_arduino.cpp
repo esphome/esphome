@@ -131,6 +131,10 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
     }
   }
 
+  // HTTPClient::getSize() returns -1 for chunked transfer encoding (no Content-Length).
+  // When cast to size_t, -1 becomes SIZE_MAX (4294967295 on 32-bit).
+  // The read() method handles this: bytes_read_ can never reach SIZE_MAX, so the
+  // early return check (bytes_read_ >= content_length) will never trigger.
   int content_length = container->client_.getSize();
   ESP_LOGD(TAG, "Content-Length: %d", content_length);
   container->content_length = (size_t) content_length;
@@ -139,6 +143,23 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   return container;
 }
 
+// Arduino HTTP read implementation
+//
+// WARNING: Return values differ from BSD sockets! See http_request.h for full documentation.
+//
+// Arduino's WiFiClient is inherently non-blocking - available() returns 0 when
+// no data is ready. We use connected() to distinguish "no data yet" from
+// "connection closed".
+//
+// WiFiClient behavior:
+//   available() > 0: data ready to read
+//   available() == 0 && connected(): no data yet, still connected
+//   available() == 0 && !connected(): connection closed
+//
+// We normalize to HttpContainer::read() contract (NOT BSD socket semantics!):
+//   > 0: bytes read
+//   0: no data yet, retry            <-- NOTE: 0 means retry, NOT EOF!
+//   < 0: error/connection closed     <-- connection closed returns -1, not 0
 int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
@@ -146,15 +167,29 @@ int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   WiFiClient *stream_ptr = this->client_.getStreamPtr();
   if (stream_ptr == nullptr) {
     ESP_LOGE(TAG, "Stream pointer vanished!");
-    return -1;
+    return HTTP_ERROR_CONNECTION_CLOSED;
   }
 
   int available_data = stream_ptr->available();
-  int bufsize = std::min(max_len, std::min(this->content_length - this->bytes_read_, (size_t) available_data));
+  // For chunked transfer encoding, HTTPClient::getSize() returns -1, which becomes SIZE_MAX when
+  // cast to size_t. SIZE_MAX - bytes_read_ is still huge, so it won't limit the read.
+  size_t remaining = (this->content_length > 0) ? (this->content_length - this->bytes_read_) : max_len;
+  int bufsize = std::min(max_len, std::min(remaining, (size_t) available_data));
 
   if (bufsize == 0) {
     this->duration_ms += (millis() - start);
-    return 0;
+    // Check if we've read all expected content (only valid when content_length is known and not SIZE_MAX)
+    // For chunked encoding (content_length == SIZE_MAX), we can't use this check
+    if (this->content_length > 0 && this->bytes_read_ >= this->content_length) {
+      return 0;  // All content read successfully
+    }
+    // No data available - check if connection is still open
+    // For chunked encoding, !connected() after reading means EOF (all chunks received)
+    // For known content_length with bytes_read_ < content_length, it means connection dropped
+    if (!stream_ptr->connected()) {
+      return HTTP_ERROR_CONNECTION_CLOSED;  // Connection closed or EOF for chunked
+    }
+    return 0;  // No data yet, caller should retry
   }
 
   App.feed_wdt();

@@ -1,10 +1,12 @@
 #pragma once
 
-#include <string>
 #include <cstdint>
+#include <span>
+#include <string>
 #include "string_ref.h"
 #include "helpers.h"
 #include "log.h"
+#include "preferences.h"
 
 #ifdef USE_DEVICES
 #include "device.h"
@@ -12,14 +14,21 @@
 
 namespace esphome {
 
-// Forward declaration for friend access
-namespace api {
-class APIConnection;
-}  // namespace api
+// Maximum device name length - keep in sync with validate_hostname() in esphome/core/config.py
+static constexpr size_t ESPHOME_DEVICE_NAME_MAX_LEN = 31;
 
-namespace web_server {
-struct UrlMatch;
-}  // namespace web_server
+// Maximum friendly name length for entities and sub-devices - keep in sync with FRIENDLY_NAME_MAX_LEN in
+// esphome/core/config.py
+static constexpr size_t ESPHOME_FRIENDLY_NAME_MAX_LEN = 120;
+
+// Maximum domain length (longest: "alarm_control_panel" = 19)
+static constexpr size_t ESPHOME_DOMAIN_MAX_LEN = 20;
+
+// Maximum size for object_id buffer (friendly_name + null + margin)
+static constexpr size_t OBJECT_ID_MAX_LEN = 128;
+
+// Maximum state length that Home Assistant will accept without raising ValueError
+static constexpr size_t MAX_STATE_LEN = 255;
 
 enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_NONE = 0,
@@ -33,19 +42,36 @@ class EntityBase {
   // Get/set the name of this Entity
   const StringRef &get_name() const;
   void set_name(const char *name);
+  /// Set name with pre-computed object_id hash (avoids runtime hash calculation)
+  /// Use hash=0 for dynamic names that need runtime calculation
+  void set_name(const char *name, uint32_t object_id_hash);
 
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
 
   // Get the sanitized name of this Entity as an ID.
+  // Deprecated: object_id mangles names and all object_id methods are planned for removal.
+  // See https://github.com/esphome/backlog/issues/76
+  // Now is the time to stop using object_id entirely. If you still need it temporarily,
+  // use get_object_id_to() which will remain available longer but will also eventually be removed.
+  ESPDEPRECATED("object_id mangles names and all object_id methods are planned for removal "
+                "(see https://github.com/esphome/backlog/issues/76). "
+                "Now is the time to stop using object_id. If still needed, use get_object_id_to() "
+                "which will remain available longer. get_object_id() will be removed in 2026.7.0",
+                "2025.12.0")
   std::string get_object_id() const;
-  void set_object_id(const char *object_id);
-
-  // Set both name and object_id in one call (reduces generated code size)
-  void set_name_and_object_id(const char *name, const char *object_id);
 
   // Get the unique Object ID of this Entity
   uint32_t get_object_id_hash();
+
+  /// Get object_id with zero heap allocation
+  /// For static case: returns StringRef to internal storage (buffer unused)
+  /// For dynamic case: formats into buffer and returns StringRef to buffer
+  StringRef get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) const;
+
+  /// Write object_id directly to buffer, returns length written (excluding null)
+  /// Useful for building compound strings without intermediate buffer
+  size_t write_object_id_to(char *buf, size_t buf_size) const;
 
   // Get/set whether this Entity should be hidden outside ESPHome
   bool is_internal() const { return this->flags_.internal; }
@@ -87,6 +113,8 @@ class EntityBase {
     return this->device_->get_device_id();
   }
   void set_device(Device *device) { this->device_ = device; }
+  // Get the device this entity belongs to (nullptr if main device)
+  Device *get_device() const { return this->device_; }
 #endif
 
   // Check if this entity has state
@@ -111,7 +139,12 @@ class EntityBase {
    * from previous versions, so existing single-device configurations will continue to work.
    *
    * @return uint32_t The unique hash for preferences, including device_id if available.
+   * @deprecated Use make_entity_preference<T>() instead, or preferences won't be migrated.
+   * See https://github.com/esphome/backlog/issues/85
    */
+  ESPDEPRECATED("Use make_entity_preference<T>() instead, or preferences won't be migrated. "
+                "See https://github.com/esphome/backlog/issues/85. Will be removed in 2027.1.0.",
+                "2026.7.0")
   uint32_t get_preference_hash() {
 #ifdef USE_DEVICES
     // Combine object_id_hash with device_id to ensure uniqueness across devices
@@ -124,21 +157,22 @@ class EntityBase {
 #endif
   }
 
- protected:
-  friend class api::APIConnection;
-  friend struct web_server::UrlMatch;
+  /// Create a preference object for storing this entity's state/settings.
+  /// @tparam T The type of data to store (must be trivially copyable)
+  /// @param version Optional version hash XORed with preference key (change when struct layout changes)
+  template<typename T> ESPPreferenceObject make_entity_preference(uint32_t version = 0) {
+    static_assert(std::is_trivially_copyable<T>::value, "T must be trivially copyable");
+    return this->make_entity_preference_(sizeof(T), version);
+  }
 
-  // Get object_id as StringRef when it's static (for API usage)
-  // Returns empty StringRef if object_id is dynamic (needs allocation)
-  StringRef get_object_id_ref_for_api_() const;
+ protected:
+  /// Non-template helper for make_entity_preference() to avoid code bloat.
+  /// When preference hash algorithm changes, migration logic goes here.
+  ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);
 
   void calc_object_id_();
 
-  /// Check if the object_id is dynamic (changes with MAC suffix)
-  bool is_object_id_dynamic_() const;
-
   StringRef name_;
-  const char *object_id_c_str_{nullptr};
 #ifdef USE_ENTITY_ICON
   const char *icon_c_str_{nullptr};
 #endif
@@ -195,6 +229,16 @@ class EntityBase_UnitOfMeasurement {  // NOLINT(readability-identifier-naming)
  protected:
   const char *unit_of_measurement_{nullptr};  ///< Unit of measurement override
 };
+
+/// Log entity icon if set (for use in dump_config)
+#define LOG_ENTITY_ICON(tag, prefix, obj) log_entity_icon(tag, prefix, obj)
+void log_entity_icon(const char *tag, const char *prefix, const EntityBase &obj);
+/// Log entity device class if set (for use in dump_config)
+#define LOG_ENTITY_DEVICE_CLASS(tag, prefix, obj) log_entity_device_class(tag, prefix, obj)
+void log_entity_device_class(const char *tag, const char *prefix, const EntityBase_DeviceClass &obj);
+/// Log entity unit of measurement if set (for use in dump_config)
+#define LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, obj) log_entity_unit_of_measurement(tag, prefix, obj)
+void log_entity_unit_of_measurement(const char *tag, const char *prefix, const EntityBase_UnitOfMeasurement &obj);
 
 /**
  * An entity that has a state.

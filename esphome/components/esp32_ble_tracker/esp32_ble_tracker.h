@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 
 #include <array>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -21,6 +22,10 @@
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
 #include "esphome/components/esp32_ble/ble_scan_result.h"
+
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
 
 namespace esphome::esp32_ble_tracker {
 
@@ -68,6 +73,12 @@ class ESPBTDevice {
   void parse_scan_rst(const BLEScanResult &scan_result);
 
   std::string address_str() const;
+
+  /// Format MAC address into provided buffer, returns pointer to buffer for convenience
+  const char *address_str_to(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) const {
+    format_mac_addr_upper(this->address_, buf.data());
+    return buf.data();
+  }
 
   uint64_t address_uint64() const;
 
@@ -205,6 +216,19 @@ enum class ConnectionType : uint8_t {
   V3_WITHOUT_CACHE
 };
 
+/// Base class for BLE GATT clients that connect to remote devices.
+///
+/// State Change Tracking Design:
+/// -----------------------------
+/// ESP32BLETracker::loop() needs to know when client states change to avoid
+/// expensive polling. Rather than checking all clients every iteration (~7000/min),
+/// we use a version counter owned by ESP32BLETracker that clients increment on
+/// state changes. The tracker compares versions to skip work when nothing changed.
+///
+/// Ownership: ESP32BLETracker owns state_version_. Clients hold a non-owning
+/// pointer (tracker_state_version_) set during register_client(). Clients
+/// increment the counter through this pointer when their state changes.
+/// The pointer may be null if the client is not registered with a tracker.
 class ESPBTClient : public ESPBTDeviceListener {
  public:
   virtual bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
@@ -214,26 +238,49 @@ class ESPBTClient : public ESPBTDeviceListener {
   virtual void disconnect() = 0;
   bool disconnect_pending() const { return this->want_disconnect_; }
   void cancel_pending_disconnect() { this->want_disconnect_ = false; }
+
+  /// Set the client state with IDLE handling (clears want_disconnect_).
+  /// Notifies the tracker of state change for loop optimization.
   virtual void set_state(ClientState st) {
-    this->state_ = st;
+    this->set_state_internal_(st);
     if (st == ClientState::IDLE) {
       this->want_disconnect_ = false;
     }
   }
-  ClientState state() const { return state_; }
+  ClientState state() const { return this->state_; }
+
+  /// Called by ESP32BLETracker::register_client() to enable state change notifications.
+  /// The pointer must remain valid for the lifetime of the client (guaranteed since
+  /// ESP32BLETracker is a singleton that outlives all clients).
+  void set_tracker_state_version(uint8_t *version) { this->tracker_state_version_ = version; }
 
   // Memory optimized layout
   uint8_t app_id;  // App IDs are small integers assigned sequentially
 
  protected:
-  // Group 1: 1-byte types
-  ClientState state_{ClientState::INIT};
+  /// Set state without IDLE handling - use for direct state transitions.
+  /// Increments the tracker's state version counter to signal that loop()
+  /// should do full processing on the next iteration.
+  void set_state_internal_(ClientState st) {
+    this->state_ = st;
+    // Notify tracker that state changed (tracker_state_version_ is owned by ESP32BLETracker)
+    if (this->tracker_state_version_ != nullptr) {
+      (*this->tracker_state_version_)++;
+    }
+  }
+
   // want_disconnect_ is set to true when a disconnect is requested
   // while the client is connecting. This is used to disconnect the
   // client as soon as we get the connection id (conn_id_) from the
   // ESP_GATTC_OPEN_EVT event.
   bool want_disconnect_{false};
-  // 2 bytes used, 2 bytes padding
+
+ private:
+  ClientState state_{ClientState::INIT};
+  /// Non-owning pointer to ESP32BLETracker::state_version_. When this client's
+  /// state changes, we increment the tracker's counter to signal that loop()
+  /// should perform full processing. Null if client not registered with tracker.
+  uint8_t *tracker_state_version_{nullptr};
 };
 
 class ESP32BLETracker : public Component,
@@ -241,6 +288,9 @@ class ESP32BLETracker : public Component,
                         public GAPScanEventHandler,
                         public GATTcEventHandler,
                         public BLEStatusEventHandler,
+#ifdef USE_OTA_STATE_LISTENER
+                        public ota::OTAGlobalStateListener,
+#endif
                         public Parented<ESP32BLE> {
  public:
   void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }
@@ -273,6 +323,10 @@ class ESP32BLETracker : public Component,
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
   void gap_scan_event_handler(const BLEScanResult &scan_result) override;
   void ble_before_disabled_event_handler() override;
+
+#ifdef USE_OTA_STATE_LISTENER
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
+#endif
 
   /// Add a listener for scanner state changes
   void add_scanner_state_listener(BLEScannerStateListener *listener) {
@@ -362,6 +416,16 @@ class ESP32BLETracker : public Component,
   // Group 4: 1-byte types (enums, uint8_t, bool)
   uint8_t app_id_{0};
   uint8_t scan_start_fail_count_{0};
+  /// Version counter for loop() fast-path optimization. Incremented when:
+  /// - Scanner state changes (via set_scanner_state_())
+  /// - Any registered client's state changes (clients hold pointer to this counter)
+  /// Owned by this class; clients receive non-owning pointer via register_client().
+  /// When loop() sees state_version_ == last_processed_version_, it skips expensive
+  /// client state counting and takes the fast path (just timeout check + return).
+  uint8_t state_version_{0};
+  /// Last state_version_ value when loop() did full processing. Compared against
+  /// state_version_ to detect if any state changed since last iteration.
+  uint8_t last_processed_version_{0};
   ScannerState scanner_state_{ScannerState::IDLE};
   bool scan_continuous_;
   bool scan_active_;
@@ -378,6 +442,8 @@ class ESP32BLETracker : public Component,
     EXCEEDED_WAIT,  // Timeout exceeded, waiting one loop before reboot
   };
   uint32_t scan_start_time_{0};
+  /// Precomputed timeout value: scan_duration_ * 2000
+  uint32_t scan_timeout_ms_{0};
   ScanTimeoutState scan_timeout_state_{ScanTimeoutState::INACTIVE};
 };
 

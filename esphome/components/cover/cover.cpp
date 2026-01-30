@@ -1,10 +1,10 @@
 #include "cover.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
+#include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <strings.h>
-
-#include "esphome/core/log.h"
 
 namespace esphome::cover {
 
@@ -39,13 +39,13 @@ Cover::Cover() : position{COVER_OPEN} {}
 
 CoverCall::CoverCall(Cover *parent) : parent_(parent) {}
 CoverCall &CoverCall::set_command(const char *command) {
-  if (strcasecmp(command, "OPEN") == 0) {
+  if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("OPEN")) == 0) {
     this->set_command_open();
-  } else if (strcasecmp(command, "CLOSE") == 0) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("CLOSE")) == 0) {
     this->set_command_close();
-  } else if (strcasecmp(command, "STOP") == 0) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("STOP")) == 0) {
     this->set_command_stop();
-  } else if (strcasecmp(command, "TOGGLE") == 0) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("TOGGLE")) == 0) {
     this->set_command_toggle();
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
@@ -153,7 +153,7 @@ void Cover::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
   this->tilt = clamp(this->tilt, 0.0f, 1.0f);
 
-  ESP_LOGD(TAG, "'%s' - Publishing:", this->name_.c_str());
+  ESP_LOGD(TAG, "'%s' >>", this->name_.c_str());
   auto traits = this->get_traits();
   if (traits.get_supports_position()) {
     ESP_LOGD(TAG, "  Position: %.0f%%", this->position * 100.0f);
@@ -187,7 +187,7 @@ void Cover::publish_state(bool save) {
   }
 }
 optional<CoverRestoreState> Cover::restore_state_() {
-  this->rtc_ = global_preferences->make_preference<CoverRestoreState>(this->get_preference_hash());
+  this->rtc_ = this->make_entity_preference<CoverRestoreState>();
   CoverRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
     return {};

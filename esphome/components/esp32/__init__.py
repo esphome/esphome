@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_IGNORE_EFUSE_MAC_CRC,
     CONF_LOG_LEVEL,
     CONF_NAME,
+    CONF_OTA,
     CONF_PATH,
     CONF_PLATFORM_VERSION,
     CONF_PLATFORMIO_OPTIONS,
@@ -33,6 +34,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_NAME,
+    KEY_NATIVE_IDF,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
@@ -51,7 +53,10 @@ from .const import (  # noqa
     KEY_BOARD,
     KEY_COMPONENTS,
     KEY_ESP32,
+    KEY_EXCLUDE_COMPONENTS,
     KEY_EXTRA_BUILD_FILES,
+    KEY_FLASH_SIZE,
+    KEY_FULL_CERT_BUNDLE,
     KEY_PATH,
     KEY_REF,
     KEY_REPO,
@@ -82,9 +87,11 @@ IS_TARGET_PLATFORM = True
 CONF_ASSERTION_LEVEL = "assertion_level"
 CONF_COMPILER_OPTIMIZATION = "compiler_optimization"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
+CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
+CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
 CONF_RELEASE = "release"
 
 LOG_LEVELS_IDF = [
@@ -107,6 +114,51 @@ COMPILER_OPTIMIZATIONS = {
     "NONE": "CONFIG_COMPILER_OPTIMIZATION_NONE",
     "PERF": "CONFIG_COMPILER_OPTIMIZATION_PERF",
     "SIZE": "CONFIG_COMPILER_OPTIMIZATION_SIZE",
+}
+
+# ESP-IDF components excluded by default to reduce compile time.
+# Components can be re-enabled by calling include_builtin_idf_component() in to_code().
+#
+# Cannot be excluded (dependencies of required components):
+# - "console": espressif/mdns unconditionally depends on it
+# - "sdmmc": driver -> esp_driver_sdmmc -> sdmmc dependency chain
+DEFAULT_EXCLUDED_IDF_COMPONENTS = (
+    "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
+    "esp_adc",  # ADC driver - only needed by adc component
+    "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
+    "esp_driver_rmt",  # RMT driver - only needed by remote_transmitter/receiver, neopixelbus
+    "esp_driver_touch_sens",  # Touch sensor driver - only needed by esp32_touch
+    "esp_eth",  # Ethernet driver - only needed by ethernet component
+    "esp_hid",  # HID host/device support - ESPHome doesn't implement HID functionality
+    "esp_http_client",  # HTTP client - only needed by http_request component
+    "esp_https_ota",  # ESP-IDF HTTPS OTA - ESPHome has its own OTA implementation
+    "esp_https_server",  # HTTPS server - ESPHome has its own web server
+    "esp_lcd",  # LCD controller drivers - only needed by display component
+    "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
+    "espcoredump",  # Core dump support - ESPHome has its own debug component
+    "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
+    "mqtt",  # ESP-IDF MQTT library - ESPHome has its own MQTT implementation
+    "perfmon",  # Xtensa performance monitor - ESPHome has its own debug component
+    "protocomm",  # Protocol communication for provisioning - unused by ESPHome
+    "spiffs",  # SPIFFS filesystem - ESPHome doesn't use filesystem storage (IDF only)
+    "unity",  # Unit testing framework - ESPHome doesn't use IDF's testing
+    "wear_levelling",  # Flash wear levelling for fatfs - unused since fatfs unused
+    "wifi_provisioning",  # WiFi provisioning - ESPHome uses its own improv implementation
+)
+
+# ESP32 (original) chip revision options
+# Setting minimum revision to 3.0 or higher:
+# - Reduces flash size by excluding workaround code for older chip bugs
+# - For PSRAM users: disables CONFIG_SPIRAM_CACHE_WORKAROUND, which saves significant
+#   IRAM by keeping C library functions in ROM instead of recompiling them
+# See: https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/chip_revision.html
+ESP32_CHIP_REVISIONS = {
+    "0.0": "CONFIG_ESP32_REV_MIN_0",
+    "1.0": "CONFIG_ESP32_REV_MIN_1",
+    "1.1": "CONFIG_ESP32_REV_MIN_1_1",
+    "2.0": "CONFIG_ESP32_REV_MIN_2",
+    "3.0": "CONFIG_ESP32_REV_MIN_3",
+    "3.1": "CONFIG_ESP32_REV_MIN_3_1",
 }
 
 # Socket limit configuration for ESP-IDF
@@ -163,6 +215,12 @@ def set_core_data(config):
             path=[CONF_CPU_FREQUENCY],
         )
 
+    if variant == VARIANT_ESP32P4 and cpu_frequency == "400MHZ":
+        _LOGGER.warning(
+            "400MHz on ESP32-P4 is experimental and may not boot. "
+            "Consider using 360MHz instead. See https://github.com/esphome/esphome/issues/13425"
+        )
+
     CORE.data[KEY_ESP32] = {}
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_ESP32
     conf = config[CONF_FRAMEWORK]
@@ -177,11 +235,15 @@ def set_core_data(config):
             )
     CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] = {}
     CORE.data[KEY_ESP32][KEY_COMPONENTS] = {}
+    # Initialize with default exclusions - components can call include_builtin_idf_component()
+    # to re-enable any they need
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = set(DEFAULT_EXCLUDED_IDF_COMPONENTS)
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
 
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
+    CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = config[CONF_FLASH_SIZE]
     CORE.data[KEY_ESP32][KEY_VARIANT] = variant
     CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES] = {}
 
@@ -301,6 +363,28 @@ def add_idf_component(
         }
 
 
+def exclude_builtin_idf_component(name: str) -> None:
+    """Exclude an ESP-IDF component from the build.
+
+    This reduces compile time by skipping components that are not needed.
+    The component will be passed to ESP-IDF's EXCLUDE_COMPONENTS cmake variable.
+
+    Note: Components that are dependencies of other required components
+    cannot be excluded - ESP-IDF will still build them.
+    """
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].add(name)
+
+
+def include_builtin_idf_component(name: str) -> None:
+    """Remove an ESP-IDF component from the exclusion list.
+
+    Call this from components that need an ESP-IDF component that is
+    excluded by default in DEFAULT_EXCLUDED_IDF_COMPONENTS. This ensures the
+    component will be built when needed.
+    """
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(name)
+
+
 def add_extra_script(stage: str, filename: str, path: Path):
     """Add an extra script to the project."""
     key = f"{stage}:{filename}"
@@ -322,7 +406,12 @@ def add_extra_build_file(filename: str, path: Path) -> bool:
 def _format_framework_arduino_version(ver: cv.Version) -> str:
     # format the given arduino (https://github.com/espressif/arduino-esp32/releases) version to
     # a PIO pioarduino/framework-arduinoespressif32 value
-    return f"pioarduino/framework-arduinoespressif32@https://github.com/espressif/arduino-esp32/releases/download/{str(ver)}/esp32-{str(ver)}.zip"
+    # 3.3.6+ changed filename from esp32-{ver}.zip to esp32-core-{ver}.tar.xz
+    if ver >= cv.Version(3, 3, 6):
+        filename = f"esp32-core-{ver}.tar.xz"
+    else:
+        filename = f"esp32-{ver}.zip"
+    return f"pioarduino/framework-arduinoespressif32@https://github.com/espressif/arduino-esp32/releases/download/{ver}/{filename}"
 
 
 def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
@@ -357,11 +446,13 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 2),
-    "latest": cv.Version(3, 3, 4),
-    "dev": cv.Version(3, 3, 4),
+    "recommended": cv.Version(3, 3, 6),
+    "latest": cv.Version(3, 3, 6),
+    "dev": cv.Version(3, 3, 6),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(3, 3, 6): cv.Version(55, 3, 36),
+    cv.Version(3, 3, 5): cv.Version(55, 3, 35),
     cv.Version(3, 3, 4): cv.Version(55, 3, 31, "2"),
     cv.Version(3, 3, 3): cv.Version(55, 3, 31, "2"),
     cv.Version(3, 3, 2): cv.Version(55, 3, 31, "2"),
@@ -374,15 +465,34 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(3, 1, 1): cv.Version(53, 3, 11),
     cv.Version(3, 1, 0): cv.Version(53, 3, 10),
 }
+# Maps Arduino framework versions to a compatible ESP-IDF version
+# These versions correspond to pioarduino/esp-idf releases
+# See: https://github.com/pioarduino/esp-idf/releases
+ARDUINO_IDF_VERSION_LOOKUP = {
+    cv.Version(3, 3, 6): cv.Version(5, 5, 2),
+    cv.Version(3, 3, 5): cv.Version(5, 5, 2),
+    cv.Version(3, 3, 4): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 3): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 2): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 1): cv.Version(5, 5, 1),
+    cv.Version(3, 3, 0): cv.Version(5, 5, 0),
+    cv.Version(3, 2, 1): cv.Version(5, 4, 2),
+    cv.Version(3, 2, 0): cv.Version(5, 4, 2),
+    cv.Version(3, 1, 3): cv.Version(5, 3, 2),
+    cv.Version(3, 1, 2): cv.Version(5, 3, 2),
+    cv.Version(3, 1, 1): cv.Version(5, 3, 1),
+    cv.Version(3, 1, 0): cv.Version(5, 3, 0),
+}
 
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 1),
-    "latest": cv.Version(5, 5, 1),
-    "dev": cv.Version(5, 5, 1),
+    "recommended": cv.Version(5, 5, 2),
+    "latest": cv.Version(5, 5, 2),
+    "dev": cv.Version(5, 5, 2),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(5, 5, 2): cv.Version(55, 3, 36),
     cv.Version(5, 5, 1): cv.Version(55, 3, 31, "2"),
     cv.Version(5, 5, 0): cv.Version(55, 3, 31, "2"),
     cv.Version(5, 4, 3): cv.Version(55, 3, 32),
@@ -399,9 +509,9 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 31, "2"),
-    "latest": cv.Version(55, 3, 31, "2"),
-    "dev": cv.Version(55, 3, 31, "2"),
+    "recommended": cv.Version(55, 3, 36),
+    "latest": cv.Version(55, 3, 36),
+    "dev": cv.Version(55, 3, 36),
 }
 
 
@@ -547,6 +657,16 @@ def final_validate(config):
                 path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_IGNORE_EFUSE_MAC_CRC],
             )
         )
+    if (
+        config[CONF_VARIANT] != VARIANT_ESP32
+        and advanced.get(CONF_MINIMUM_CHIP_REVISION) is not None
+    ):
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_MINIMUM_CHIP_REVISION}' is only supported on {VARIANT_ESP32}",
+                path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_MINIMUM_CHIP_REVISION],
+            )
+        )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         if config[CONF_VARIANT] != VARIANT_ESP32S3:
             errs.append(
@@ -575,11 +695,18 @@ def final_validate(config):
             )
         )
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
-        safe_mode_config = full_config.get(CONF_SAFE_MODE)
-        if safe_mode_config is None or safe_mode_config.get(CONF_DISABLED, False):
-            _LOGGER.warning(
-                "OTA rollback requires safe_mode, disabling rollback support"
-            )
+        # "disabled: false" means safe mode *is* enabled.
+        safe_mode_config = full_config.get(CONF_SAFE_MODE, {CONF_DISABLED: True})
+        safe_mode_enabled = not safe_mode_config[CONF_DISABLED]
+        ota_enabled = CONF_OTA in full_config
+        # Both need to be enabled for rollback to work
+        if not (ota_enabled and safe_mode_enabled):
+            # But only warn if ota is even possible
+            if ota_enabled:
+                _LOGGER.warning(
+                    "OTA rollback requires safe_mode, disabling rollback support"
+                )
+            # disable the rollback feature anyway since it can't be used.
             advanced[CONF_ENABLE_OTA_ROLLBACK] = False
     if errs:
         raise cv.MultipleInvalid(errs)
@@ -599,12 +726,29 @@ CONF_DISABLE_VFS_SUPPORT_SELECT = "disable_vfs_support_select"
 CONF_DISABLE_VFS_SUPPORT_DIR = "disable_vfs_support_dir"
 CONF_FREERTOS_IN_IRAM = "freertos_in_iram"
 CONF_RINGBUF_IN_IRAM = "ringbuf_in_iram"
+CONF_HEAP_IN_IRAM = "heap_in_iram"
 CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
+CONF_USE_FULL_CERTIFICATE_BUNDLE = "use_full_certificate_bundle"
+CONF_DISABLE_DEBUG_STUBS = "disable_debug_stubs"
+CONF_DISABLE_OCD_AWARE = "disable_ocd_aware"
+CONF_DISABLE_USB_SERIAL_JTAG_SECONDARY = "disable_usb_serial_jtag_secondary"
+CONF_DISABLE_DEV_NULL_VFS = "disable_dev_null_vfs"
+CONF_DISABLE_MBEDTLS_PEER_CERT = "disable_mbedtls_peer_cert"
+CONF_DISABLE_MBEDTLS_PKCS7 = "disable_mbedtls_pkcs7"
+CONF_DISABLE_REGI2C_IN_IRAM = "disable_regi2c_in_iram"
+CONF_DISABLE_FATFS = "disable_fatfs"
 
 # VFS requirement tracking
-# Components that need VFS features can call require_vfs_select() or require_vfs_dir()
+# Components that need VFS features can call require_vfs_*() functions
 KEY_VFS_SELECT_REQUIRED = "vfs_select_required"
 KEY_VFS_DIR_REQUIRED = "vfs_dir_required"
+KEY_VFS_TERMIOS_REQUIRED = "vfs_termios_required"
+# Feature requirement tracking - components can call require_* functions to re-enable
+# These are stored in CORE.data[KEY_ESP32] dict
+KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED = "usb_serial_jtag_secondary_required"
+KEY_MBEDTLS_PEER_CERT_REQUIRED = "mbedtls_peer_cert_required"
+KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
+KEY_FATFS_REQUIRED = "fatfs_required"
 
 
 def require_vfs_select() -> None:
@@ -623,6 +767,64 @@ def require_vfs_dir() -> None:
     This prevents CONFIG_VFS_SUPPORT_DIR from being disabled.
     """
     CORE.data[KEY_VFS_DIR_REQUIRED] = True
+
+
+def require_vfs_termios() -> None:
+    """Mark that VFS termios support is required by a component.
+
+    Call this from components that use terminal I/O functions (usb_serial_jtag_vfs_*, etc.).
+    This prevents CONFIG_VFS_SUPPORT_TERMIOS from being disabled.
+    """
+    CORE.data[KEY_VFS_TERMIOS_REQUIRED] = True
+
+
+def require_full_certificate_bundle() -> None:
+    """Request the full certificate bundle instead of the common-CAs-only bundle.
+
+    By default, ESPHome uses CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN which
+    includes only CAs with >1% market share (~51 KB smaller than full bundle).
+    This covers ~99% of websites including Let's Encrypt, DigiCert, Google, Amazon.
+
+    Call this from components that need to connect to services using uncommon CAs.
+    """
+    CORE.data[KEY_ESP32][KEY_FULL_CERT_BUNDLE] = True
+
+
+def require_usb_serial_jtag_secondary() -> None:
+    """Mark that USB Serial/JTAG secondary console is required by a component.
+
+    Call this from components (e.g., logger) that need USB Serial/JTAG console output.
+    This prevents CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG from being disabled.
+    """
+    CORE.data[KEY_ESP32][KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED] = True
+
+
+def require_mbedtls_peer_cert() -> None:
+    """Mark that mbedTLS peer certificate retention is required by a component.
+
+    Call this from components that need access to the peer certificate after
+    the TLS handshake is complete. This prevents CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE
+    from being disabled.
+    """
+    CORE.data[KEY_ESP32][KEY_MBEDTLS_PEER_CERT_REQUIRED] = True
+
+
+def require_mbedtls_pkcs7() -> None:
+    """Mark that mbedTLS PKCS#7 support is required by a component.
+
+    Call this from components that need PKCS#7 certificate validation.
+    This prevents CONFIG_MBEDTLS_PKCS7_C from being disabled.
+    """
+    CORE.data[KEY_ESP32][KEY_MBEDTLS_PKCS7_REQUIRED] = True
+
+
+def require_fatfs() -> None:
+    """Mark that FATFS support is required by a component.
+
+    Call this from components that use FATFS (e.g., SD card, storage components).
+    This prevents FATFS from being disabled when disable_fatfs is set.
+    """
+    CORE.data[KEY_ESP32][KEY_FATFS_REQUIRED] = True
 
 
 def _parse_idf_component(value: str) -> ConfigType:
@@ -675,6 +877,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_ENABLE_LWIP_ASSERT, default=True): cv.boolean,
                 cv.Optional(CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False): cv.boolean,
                 cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC, default=False): cv.boolean,
+                cv.Optional(CONF_MINIMUM_CHIP_REVISION): cv.one_of(
+                    *ESP32_CHIP_REVISIONS
+                ),
                 # DHCP server is needed for WiFi AP mode. When WiFi component is used,
                 # it will handle disabling DHCP server when AP is not configured.
                 # Default to false (disabled) when WiFi is not used.
@@ -697,11 +902,28 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
                 cv.Optional(CONF_FREERTOS_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_RINGBUF_IN_IRAM, default=False): cv.boolean,
+                cv.Optional(CONF_HEAP_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_EXECUTE_FROM_PSRAM, default=False): cv.boolean,
                 cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
                     min=8192, max=32768
                 ),
                 cv.Optional(CONF_ENABLE_OTA_ROLLBACK, default=True): cv.boolean,
+                cv.Optional(
+                    CONF_USE_FULL_CERTIFICATE_BUNDLE, default=False
+                ): cv.boolean,
+                cv.Optional(
+                    CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, default=[]
+                ): cv.ensure_list(cv.string_strict),
+                cv.Optional(CONF_DISABLE_DEBUG_STUBS, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_OCD_AWARE, default=True): cv.boolean,
+                cv.Optional(
+                    CONF_DISABLE_USB_SERIAL_JTAG_SECONDARY, default=True
+                ): cv.boolean,
+                cv.Optional(CONF_DISABLE_DEV_NULL_VFS, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_MBEDTLS_PEER_CERT, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_MBEDTLS_PKCS7, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_REGI2C_IN_IRAM, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_FATFS, default=True): cv.boolean,
             }
         ),
         cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
@@ -727,12 +949,14 @@ FRAMEWORK_SCHEMA = cv.Schema(
 )
 
 
+# Remove this class in 2026.7.0
 class _FrameworkMigrationWarning:
     shown = False
 
 
 def _show_framework_migration_message(name: str, variant: str) -> None:
-    """Show a friendly message about framework migration when defaulting to Arduino."""
+    """Show a message about the framework default change and how to switch back to Arduino."""
+    # Remove this function in 2026.7.0
     if _FrameworkMigrationWarning.shown:
         return
     _FrameworkMigrationWarning.shown = True
@@ -742,41 +966,27 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
     message = (
         color(
             AnsiFore.BOLD_CYAN,
-            f"💡 IMPORTANT: {name} doesn't have a framework specified!",
+            f"💡 NOTICE: {name} does not have a framework specified.",
         )
         + "\n\n"
-        + f"Currently, {variant} defaults to the Arduino framework.\n"
-        + color(AnsiFore.YELLOW, "This will change to ESP-IDF in ESPHome 2026.1.0.\n")
+        + f"Starting with ESPHome 2026.1.0, the default framework for {variant} is ESP-IDF.\n"
+        + "(We've been warning about this change since ESPHome 2025.8.0)\n"
         + "\n"
-        + "Note: Newer ESP32 variants (C6, H2, P4, etc.) already use ESP-IDF by default.\n"
-        + "\n"
-        + "Why change? ESP-IDF offers:\n"
-        + color(AnsiFore.GREEN, "  ✨ Up to 40% smaller binaries\n")
-        + color(AnsiFore.GREEN, "  🚀 Better performance and optimization\n")
+        + "Why we made this change:\n"
+        + color(AnsiFore.GREEN, "  ✨ Up to 40% smaller firmware binaries\n")
         + color(AnsiFore.GREEN, "  ⚡ 2-3x faster compile times\n")
-        + color(AnsiFore.GREEN, "  📦 Custom-built firmware for your exact needs\n")
-        + color(
-            AnsiFore.GREEN,
-            "  🔧 Active development and testing by ESPHome developers\n",
-        )
+        + color(AnsiFore.GREEN, "  🚀 Better performance and newer features\n")
+        + color(AnsiFore.GREEN, "  🔧 More actively maintained by ESPHome\n")
         + "\n"
-        + "Trade-offs:\n"
-        + color(AnsiFore.YELLOW, "  🔄 Some components need migration\n")
+        + "To continue using Arduino, add this to your YAML under 'esp32:':\n"
+        + color(AnsiFore.WHITE, "    framework:\n")
+        + color(AnsiFore.WHITE, "      type: arduino\n")
         + "\n"
-        + "What should I do?\n"
-        + color(AnsiFore.CYAN, "  Option 1")
-        + ": Migrate to ESP-IDF (recommended)\n"
-        + "    Add this to your YAML under 'esp32:':\n"
-        + color(AnsiFore.WHITE, "      framework:\n")
-        + color(AnsiFore.WHITE, "        type: esp-idf\n")
+        + "To silence this message with ESP-IDF, explicitly set:\n"
+        + color(AnsiFore.WHITE, "    framework:\n")
+        + color(AnsiFore.WHITE, "      type: esp-idf\n")
         + "\n"
-        + color(AnsiFore.CYAN, "  Option 2")
-        + ": Keep using Arduino (still supported)\n"
-        + "    Add this to your YAML under 'esp32:':\n"
-        + color(AnsiFore.WHITE, "      framework:\n")
-        + color(AnsiFore.WHITE, "        type: arduino\n")
-        + "\n"
-        + "Need help? Check out the migration guide:\n"
+        + "Migration guide: "
         + color(
             AnsiFore.BLUE,
             "https://esphome.io/guides/esp32_arduino_to_idf/",
@@ -791,13 +1001,13 @@ def _set_default_framework(config):
         config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA({})
     if CONF_TYPE not in config[CONF_FRAMEWORK]:
         variant = config[CONF_VARIANT]
+        config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ESP_IDF
+        # Show migration message for variants that previously defaulted to Arduino
+        # Remove this message in 2026.7.0
         if variant in ARDUINO_ALLOWED_VARIANTS:
-            config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ARDUINO
             _show_framework_migration_message(
                 config.get(CONF_NAME, "This device"), variant
             )
-        else:
-            config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ESP_IDF
 
     return config
 
@@ -904,6 +1114,19 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
+async def _write_exclude_components() -> None:
+    """Write EXCLUDE_COMPONENTS cmake arg after all components have registered exclusions."""
+    if KEY_ESP32 not in CORE.data:
+        return
+    excluded = CORE.data[KEY_ESP32].get(KEY_EXCLUDE_COMPONENTS)
+    if excluded:
+        exclude_list = ";".join(sorted(excluded))
+        cg.add_platformio_option(
+            "board_build.cmake_extra_args", f"-DEXCLUDE_COMPONENTS={exclude_list}"
+        )
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _add_yaml_idf_components(components: list[ConfigType]):
     """Add IDF components from YAML config with final priority to override code-added components."""
     for component in components:
@@ -916,12 +1139,54 @@ async def _add_yaml_idf_components(components: list[ConfigType]):
 
 
 async def to_code(config):
-    cg.add_platformio_option("board", config[CONF_BOARD])
-    cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
-    cg.add_platformio_option(
-        "board_upload.maximum_size",
-        int(config[CONF_FLASH_SIZE].removesuffix("MB")) * 1024 * 1024,
-    )
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    conf = config[CONF_FRAMEWORK]
+
+    # Check if using native ESP-IDF build (--native-idf)
+    use_platformio = not CORE.data.get(KEY_NATIVE_IDF, False)
+    if use_platformio:
+        # Clear IDF environment variables to avoid conflicts with PlatformIO's ESP-IDF
+        # but keep them when using --native-idf for native ESP-IDF builds
+        for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
+            os.environ.pop(clean_var, None)
+
+        cg.add_platformio_option("lib_ldf_mode", "off")
+        cg.add_platformio_option("lib_compat_mode", "strict")
+        cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
+        cg.add_platformio_option("board", config[CONF_BOARD])
+        cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
+        cg.add_platformio_option(
+            "board_upload.maximum_size",
+            int(config[CONF_FLASH_SIZE].removesuffix("MB")) * 1024 * 1024,
+        )
+
+        if CONF_SOURCE in conf:
+            cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
+
+        add_extra_script(
+            "pre",
+            "pre_build.py",
+            Path(__file__).parent / "pre_build.py.script",
+        )
+
+        add_extra_script(
+            "post",
+            "post_build.py",
+            Path(__file__).parent / "post_build.py.script",
+        )
+
+        # In testing mode, add IRAM fix script to allow linking grouped component tests
+        # Similar to ESP8266's approach but for ESP-IDF
+        if CORE.testing_mode:
+            cg.add_build_flag("-DESPHOME_TESTING_MODE")
+            add_extra_script(
+                "pre",
+                "iram_fix.py",
+                Path(__file__).parent / "iram_fix.py.script",
+            )
+    else:
+        cg.add_build_flag("-Wno-error=format")
+
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_build_flag("-Wl,-z,noexecstack")
@@ -931,78 +1196,90 @@ async def to_code(config):
     cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[variant])
     cg.add_define(ThreadModel.MULTI_ATOMICS)
 
-    cg.add_platformio_option("lib_ldf_mode", "off")
-    cg.add_platformio_option("lib_compat_mode", "strict")
-
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-
-    conf = config[CONF_FRAMEWORK]
-    cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
-    if CONF_SOURCE in conf:
-        cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
-
     if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
         cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
-
-    for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
-        os.environ.pop(clean_var, None)
 
     # Set the location of the IDF component manager cache
     os.environ["IDF_COMPONENT_CACHE_PATH"] = str(
         CORE.relative_internal_path(".espressif")
     )
 
-    add_extra_script(
-        "pre",
-        "pre_build.py",
-        Path(__file__).parent / "pre_build.py.script",
-    )
-
-    add_extra_script(
-        "post",
-        "post_build.py",
-        Path(__file__).parent / "post_build.py.script",
-    )
-
-    # In testing mode, add IRAM fix script to allow linking grouped component tests
-    # Similar to ESP8266's approach but for ESP-IDF
-    if CORE.testing_mode:
-        cg.add_build_flag("-DESPHOME_TESTING_MODE")
-        add_extra_script(
-            "pre",
-            "iram_fix.py",
-            Path(__file__).parent / "iram_fix.py.script",
-        )
-
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
-        cg.add_platformio_option("framework", "espidf")
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
+        if use_platformio:
+            cg.add_platformio_option("framework", "espidf")
+
+        # Wrap std::__throw_* functions to abort immediately, eliminating ~3KB of
+        # exception class overhead. See throw_stubs.cpp for implementation.
+        # ESP-IDF already compiles with -fno-exceptions, so this code was dead anyway.
+        for mangled in [
+            "_ZSt20__throw_length_errorPKc",
+            "_ZSt19__throw_logic_errorPKc",
+            "_ZSt20__throw_out_of_rangePKc",
+            "_ZSt24__throw_out_of_range_fmtPKcz",
+            "_ZSt17__throw_bad_allocv",
+            "_ZSt25__throw_bad_function_callv",
+        ]:
+            cg.add_build_flag(f"-Wl,--wrap={mangled}")
     else:
-        cg.add_platformio_option("framework", "arduino, espidf")
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
+        if use_platformio:
+            cg.add_platformio_option("framework", "arduino, espidf")
+
+            # Add IDF framework source for Arduino builds to ensure it uses the same version as
+            # the ESP-IDF framework
+            if (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
+                cg.add_platformio_option(
+                    "platform_packages",
+                    [_format_framework_espidf_version(idf_ver, None)],
+                )
+
+            # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
+            if get_esp32_variant() == VARIANT_ESP32S2:
+                cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=1")
+                cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=0")
+                cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=0")
+
         cg.add_define(
             "USE_ARDUINO_VERSION_CODE",
             cg.RawExpression(
                 f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
             ),
         )
+
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
 
-        # ESP32-S2 Arduino: Disable USB Serial on boot to avoid TinyUSB dependency
-        if get_esp32_variant() == VARIANT_ESP32S2:
-            cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=1")
-            cg.add_build_unflag("-DARDUINO_USB_CDC_ON_BOOT=0")
-            cg.add_build_flag("-DARDUINO_USB_CDC_ON_BOOT=0")
-
     cg.add_build_flag("-Wno-nonnull-compare")
+
+    # Use CMN (common CAs) bundle by default to save ~51KB flash
+    # CMN covers CAs with >1% market share (~99% of websites)
+    # Components needing uncommon CAs can call require_full_certificate_bundle()
+    use_full_bundle = conf[CONF_ADVANCED].get(
+        CONF_USE_FULL_CERTIFICATE_BUNDLE, False
+    ) or CORE.data[KEY_ESP32].get(KEY_FULL_CERT_BUNDLE, False)
+    add_idf_sdkconfig_option(
+        "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL", use_full_bundle
+    )
+    if not use_full_bundle:
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True)
 
     add_idf_sdkconfig_option(f"CONFIG_IDF_TARGET_{variant}", True)
     add_idf_sdkconfig_option(
         f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
     )
+
+    # Set minimum chip revision for ESP32 variant
+    # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
+    # and for PSRAM users saves significant IRAM by keeping C library functions in ROM.
+    if variant == VARIANT_ESP32:
+        min_rev = conf[CONF_ADVANCED].get(CONF_MINIMUM_CHIP_REVISION)
+        if min_rev is not None:
+            for rev, flag in ESP32_CHIP_REVISIONS.items():
+                add_idf_sdkconfig_option(flag, rev == min_rev)
+            cg.add_define("USE_ESP32_MIN_CHIP_REVISION_SET")
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_SINGLE_APP", False)
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM", True)
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM_FILENAME", "partitions.csv")
@@ -1037,6 +1314,12 @@ async def to_code(config):
         # Place in flash to save IRAM (default)
         add_idf_sdkconfig_option("CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH", True)
 
+    # Place heap functions into flash to save IRAM (~4-6KB savings)
+    # Safe as long as heap functions are not called from ISRs (which they shouldn't be)
+    # Users can set heap_in_iram: true as an escape hatch if needed
+    if not conf[CONF_ADVANCED][CONF_HEAP_IN_IRAM]:
+        add_idf_sdkconfig_option("CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH", True)
+
     # Setup watchdog
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT", True)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
@@ -1056,6 +1339,11 @@ async def to_code(config):
 
     # Apply LWIP optimization settings
     advanced = conf[CONF_ADVANCED]
+
+    # Re-include any IDF components the user explicitly requested
+    for component_name in advanced.get(CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, []):
+        include_builtin_idf_component(component_name)
+
     # DHCP server: only disable if explicitly set to false
     # WiFi component handles its own optimization when AP mode is not used
     # When using Arduino with Ethernet, DHCP server functions must be available
@@ -1094,11 +1382,18 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", False)
 
     # Disable VFS support for termios (terminal I/O functions)
-    # ESPHome doesn't use termios functions on ESP32 (only used in host UART driver).
+    # USB Serial JTAG VFS functions require termios support.
+    # Components that need it (e.g., logger when USB_SERIAL_JTAG is supported but not selected
+    # as the logger output) call require_vfs_termios().
     # Saves approximately 1.8KB of flash when disabled (default).
-    add_idf_sdkconfig_option(
-        "CONFIG_VFS_SUPPORT_TERMIOS", not advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS]
-    )
+    if CORE.data.get(KEY_VFS_TERMIOS_REQUIRED, False):
+        # Component requires VFS termios - force enable regardless of user setting
+        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_TERMIOS", True)
+    else:
+        # No component needs it - allow user to control (default: disabled)
+        add_idf_sdkconfig_option(
+            "CONFIG_VFS_SUPPORT_TERMIOS", not advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS]
+        )
 
     # Disable VFS support for select() with file descriptors
     # ESPHome only uses select() with sockets via lwip_select(), which still works.
@@ -1127,7 +1422,8 @@ async def to_code(config):
             "CONFIG_VFS_SUPPORT_DIR", not advanced[CONF_DISABLE_VFS_SUPPORT_DIR]
         )
 
-    cg.add_platformio_option("board_build.partitions", "partitions.csv")
+    if use_platformio:
+        cg.add_platformio_option("board_build.partitions", "partitions.csv")
     if CONF_PARTITIONS in config:
         add_extra_build_file(
             "partitions.csv", CORE.relative_config_path(config[CONF_PARTITIONS])
@@ -1176,6 +1472,61 @@ async def to_code(config):
 
     add_idf_sdkconfig_option(f"CONFIG_LOG_DEFAULT_LEVEL_{conf[CONF_LOG_LEVEL]}", True)
 
+    # Disable OpenOCD debug stubs to save code size
+    # These are used for on-chip debugging with OpenOCD/JTAG, rarely needed for ESPHome
+    if advanced[CONF_DISABLE_DEBUG_STUBS]:
+        add_idf_sdkconfig_option("CONFIG_ESP_DEBUG_STUBS_ENABLE", False)
+
+    # Disable OCD-aware exception handlers
+    # When enabled, the panic handler detects JTAG debugger and halts instead of resetting
+    # Most ESPHome users don't use JTAG debugging
+    if advanced[CONF_DISABLE_OCD_AWARE]:
+        add_idf_sdkconfig_option("CONFIG_ESP_DEBUG_OCDAWARE", False)
+
+    # Disable USB Serial/JTAG secondary console
+    # Components like logger can call require_usb_serial_jtag_secondary() to re-enable
+    if CORE.data[KEY_ESP32].get(KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED, False):
+        add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG", True)
+    elif advanced[CONF_DISABLE_USB_SERIAL_JTAG_SECONDARY]:
+        add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_SECONDARY_NONE", True)
+
+    # Disable /dev/null VFS initialization
+    # ESPHome doesn't typically need /dev/null
+    if advanced[CONF_DISABLE_DEV_NULL_VFS]:
+        add_idf_sdkconfig_option("CONFIG_VFS_INITIALIZE_DEV_NULL", False)
+
+    # Disable keeping peer certificate after TLS handshake
+    # Saves ~4KB heap per connection, but prevents certificate inspection after handshake
+    # Components that need it can call require_mbedtls_peer_cert()
+    if CORE.data[KEY_ESP32].get(KEY_MBEDTLS_PEER_CERT_REQUIRED, False):
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", True)
+    elif advanced[CONF_DISABLE_MBEDTLS_PEER_CERT]:
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", False)
+
+    # Disable PKCS#7 support in mbedTLS
+    # Only needed for specific certificate validation scenarios
+    # Components that need it can call require_mbedtls_pkcs7()
+    if CORE.data[KEY_ESP32].get(KEY_MBEDTLS_PKCS7_REQUIRED, False):
+        # Component called require_mbedtls_pkcs7() - enable regardless of user setting
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_PKCS7_C", True)
+    elif advanced[CONF_DISABLE_MBEDTLS_PKCS7]:
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_PKCS7_C", False)
+
+    # Disable regi2c control functions in IRAM
+    # Only needed if using analog peripherals (ADC, DAC, etc.) from ISRs while cache is disabled
+    if advanced[CONF_DISABLE_REGI2C_IN_IRAM]:
+        add_idf_sdkconfig_option("CONFIG_ESP_REGI2C_CTRL_FUNC_IN_IRAM", False)
+
+    # Disable FATFS support
+    # Components that need FATFS (SD card, etc.) can call require_fatfs()
+    if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
+        # Component called require_fatfs() - enable regardless of user setting
+        add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", False)
+        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 2)
+    elif advanced[CONF_DISABLE_FATFS]:
+        add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", True)
+        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 0)
+
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
 
@@ -1183,6 +1534,11 @@ async def to_code(config):
     # Schedule it to run after all other components
     if conf[CONF_COMPONENTS]:
         CORE.add_job(_add_yaml_idf_components, conf[CONF_COMPONENTS])
+
+    # Write EXCLUDE_COMPONENTS at FINAL priority after all components have had
+    # a chance to call include_builtin_idf_component() to re-enable components they need.
+    # Default exclusions are added in set_core_data() during config validation.
+    CORE.add_job(_write_exclude_components)
 
 
 APP_PARTITION_SIZES = {
@@ -1292,19 +1648,16 @@ def copy_files():
     _write_idf_component_yml()
 
     if "partitions.csv" not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
+        flash_size = CORE.data[KEY_ESP32][KEY_FLASH_SIZE]
         if CORE.using_arduino:
             write_file_if_changed(
                 CORE.relative_build_path("partitions.csv"),
-                get_arduino_partition_csv(
-                    CORE.platformio_options.get("board_upload.flash_size")
-                ),
+                get_arduino_partition_csv(flash_size),
             )
         else:
             write_file_if_changed(
                 CORE.relative_build_path("partitions.csv"),
-                get_idf_partition_csv(
-                    CORE.platformio_options.get("board_upload.flash_size")
-                ),
+                get_idf_partition_csv(flash_size),
             )
     # IDF build scripts look for version string to put in the build.
     # However, if the build path does not have an initialized git repo,

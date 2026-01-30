@@ -146,7 +146,7 @@ def _final_validate(config):
     full_config = fv.full_config.get()[CONF_I2C]
     if CORE.using_zephyr and len(full_config) > 1:
         raise cv.Invalid("Second i2c is not implemented on Zephyr yet")
-    if CORE.using_esp_idf and get_esp32_variant() in ESP32_I2C_CAPABILITIES:
+    if CORE.is_esp32 and get_esp32_variant() in ESP32_I2C_CAPABILITIES:
         variant = get_esp32_variant()
         max_num = ESP32_I2C_CAPABILITIES[variant]["NUM"]
         if len(full_config) > max_num:
@@ -237,10 +237,6 @@ def i2c_device_schema(default_address):
     """
     schema = {
         cv.GenerateID(CONF_I2C_ID): cv.use_id(I2CBus),
-        cv.Optional("multiplexer"): cv.invalid(
-            "This option has been removed, please see "
-            "the tca9584a docs for the updated way to use multiplexers"
-        ),
     }
     if default_address is None:
         schema[cv.Required(CONF_ADDRESS)] = cv.i2c_address
@@ -254,7 +250,7 @@ async def register_i2c_device(var, config):
 
     Sets the i2c bus to use and the i2c address.
 
-    This is a coroutine, you need to await it with a 'yield' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
     """
     parent = await cg.get_variable(config[CONF_I2C_ID])
     cg.add(var.set_i2c_bus(parent))

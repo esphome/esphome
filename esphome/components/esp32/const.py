@@ -2,15 +2,18 @@ import esphome.codegen as cg
 
 KEY_ESP32 = "esp32"
 KEY_BOARD = "board"
+KEY_FLASH_SIZE = "flash_size"
 KEY_VARIANT = "variant"
 KEY_SDKCONFIG_OPTIONS = "sdkconfig_options"
 KEY_COMPONENTS = "components"
+KEY_EXCLUDE_COMPONENTS = "exclude_components"
 KEY_REPO = "repo"
 KEY_REF = "ref"
 KEY_REFRESH = "refresh"
 KEY_PATH = "path"
 KEY_SUBMODULES = "submodules"
 KEY_EXTRA_BUILD_FILES = "extra_build_files"
+KEY_FULL_CERT_BUNDLE = "full_cert_bundle"
 
 VARIANT_ESP32 = "ESP32"
 VARIANT_ESP32C2 = "ESP32C2"
