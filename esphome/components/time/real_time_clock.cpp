@@ -103,7 +103,12 @@ void RealTimeClock::apply_timezone_(const char *tz) {
     return;
   }
 
-  // Parse the POSIX TZ string using our custom parser
+  // Set TZ env var for components using libc's localtime() directly
+  // (e.g., sun, datetime, wireguard, deep_sleep)
+  setenv("TZ", tz, 1);
+  tzset();
+
+  // Parse the POSIX TZ string using our custom parser for RealTimeClock::now()
   if (!parse_posix_tz(tz, this->parsed_tz_)) {
     ESP_LOGW(TAG, "Failed to parse timezone: %s", tz);
     // Reset to UTC on parse failure
