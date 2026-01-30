@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WIFI,
 )
-from esphome.core import CORE, HexInt
+from esphome.core import HexInt
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
@@ -123,11 +123,6 @@ async def _trigger_to_code(config):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-
-    # ESP32 with Arduino framework uses ESP-IDF APIs directly for ESP-NOW,
-    # so we don't need the Arduino WiFi library
-    if CORE.using_arduino and not CORE.is_esp32:
-        cg.add_library("WiFi", None)
 
     # ESP-NOW uses wake_loop_threadsafe() to wake the main loop from ESP-NOW callbacks
     # This enables low-latency event processing instead of waiting for select() timeout

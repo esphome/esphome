@@ -5,6 +5,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import shutil
 
 from esphome import yaml_util
 import esphome.codegen as cg
@@ -238,6 +239,26 @@ ARDUINO_LIBRARY_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "Ethernet": ("Network",),
     "WiFi": ("Network",),
 }
+
+
+def _idf_component_stub_name(component: str) -> str:
+    """Get stub directory name from IDF component name.
+
+    Component names are typically namespace__name (e.g., espressif__cbor).
+    Returns just the name part (e.g., cbor). If no namespace is present,
+    returns the original component name.
+    """
+    _prefix, sep, suffix = component.partition("__")
+    return suffix if sep else component
+
+
+def _idf_component_dep_name(component: str) -> str:
+    """Convert IDF component name to dependency format.
+
+    Converts espressif__cbor to espressif/cbor.
+    """
+    return component.replace("__", "/")
+
 
 # Arduino libraries to disable by default when using Arduino framework
 # ESPHome uses ESP-IDF APIs directly; we only need the Arduino core
@@ -919,9 +940,6 @@ KEY_MBEDTLS_PEER_CERT_REQUIRED = "mbedtls_peer_cert_required"
 KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
 
-# Ring buffer IRAM requirement tracking
-KEY_RINGBUF_IN_IRAM = "ringbuf_in_iram"
-
 
 def require_vfs_select() -> None:
     """Mark that VFS select support is required by a component.
@@ -939,17 +957,6 @@ def require_vfs_dir() -> None:
     This prevents CONFIG_VFS_SUPPORT_DIR from being disabled.
     """
     CORE.data[KEY_VFS_DIR_REQUIRED] = True
-
-
-def enable_ringbuf_in_iram() -> None:
-    """Keep ring buffer functions in IRAM instead of moving them to flash.
-
-    Call this from components that use esphome/core/ring_buffer.cpp and need
-    the ring buffer functions to remain in IRAM for performance reasons
-    (e.g., voice assistants, audio components).
-    This prevents CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH from being enabled.
-    """
-    CORE.data[KEY_RINGBUF_IN_IRAM] = True
 
 
 def require_vfs_termios() -> None:
@@ -1508,18 +1515,14 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH", True)
 
     # Place ring buffer functions into flash instead of IRAM by default
-    # This saves IRAM but may impact performance for audio/voice components.
-    # Components that need ring buffer in IRAM call enable_ringbuf_in_iram().
-    # Users can also set ringbuf_in_iram: true to force IRAM placement.
-    # In ESP-IDF 6.0 flash placement becomes the default.
-    if conf[CONF_ADVANCED][CONF_RINGBUF_IN_IRAM] or CORE.data.get(
-        KEY_RINGBUF_IN_IRAM, False
-    ):
-        # User config or component requires ring buffer in IRAM for performance
+    # This saves IRAM. In ESP-IDF 6.0 flash placement becomes the default.
+    # Users can set ringbuf_in_iram: true as an escape hatch if they encounter issues.
+    if conf[CONF_ADVANCED][CONF_RINGBUF_IN_IRAM]:
+        # User requests ring buffer in IRAM
         # IDF 6.0+: will need CONFIG_RINGBUF_PLACE_ISR_FUNCTIONS_INTO_FLASH=n
         add_idf_sdkconfig_option("CONFIG_RINGBUF_PLACE_ISR_FUNCTIONS_INTO_FLASH", False)
     else:
-        # No component needs it - place in flash to save IRAM
+        # Place in flash to save IRAM (default)
         add_idf_sdkconfig_option("CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH", True)
 
     # Place heap functions into flash to save IRAM (~4-6KB savings)
@@ -1839,22 +1842,38 @@ def _write_idf_component_yml():
     # by pointing them to empty stub directories using override_path
     # This prevents the IDF component manager from downloading the real components
     if CORE.using_arduino:
+        # Determine which IDF components are needed by enabled Arduino libraries
+        enabled_libs = CORE.data[KEY_ESP32].get(KEY_ARDUINO_LIBRARIES, set())
+        required_idf_components = {
+            comp
+            for lib in enabled_libs
+            for comp in ARDUINO_LIBRARY_IDF_COMPONENTS.get(lib, ())
+        }
+
+        # Only stub components that are not required by any enabled Arduino library
+        components_to_stub = (
+            set(ARDUINO_EXCLUDED_IDF_COMPONENTS) - required_idf_components
+        )
+
         stubs_dir = CORE.relative_build_path("component_stubs")
         stubs_dir.mkdir(exist_ok=True)
-        for component_name in ARDUINO_EXCLUDED_IDF_COMPONENTS:
+        for component_name in components_to_stub:
             # Create stub directory with minimal CMakeLists.txt
-            stub_name = component_name.replace("espressif__", "")
-            stub_path = stubs_dir / stub_name
+            stub_path = stubs_dir / _idf_component_stub_name(component_name)
             stub_path.mkdir(exist_ok=True)
             stub_cmake = stub_path / "CMakeLists.txt"
             if not stub_cmake.exists():
                 stub_cmake.write_text("idf_component_register()\n")
-            # Convert from directory name format (espressif__cbor) to dependency format (espressif/cbor)
-            dep_name = component_name.replace("__", "/")
-            dependencies[dep_name] = {
+            dependencies[_idf_component_dep_name(component_name)] = {
                 "version": "*",
                 "override_path": str(stub_path),
             }
+
+        # Remove stubs for components that are now required by enabled libraries
+        for component_name in required_idf_components:
+            stub_path = stubs_dir / _idf_component_stub_name(component_name)
+            if stub_path.exists():
+                shutil.rmtree(stub_path)
 
     if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
