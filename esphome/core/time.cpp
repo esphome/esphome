@@ -275,7 +275,7 @@ void ESPTime::recalc_timestamp_local() {
   }
 
   // Try both interpretations to match libc mktime() with tm_isdst=-1
-  // For ambiguous times (fall-back repeated hour), libc prefers DST
+  // For ambiguous times (fall-back repeated hour), prefer standard time
   // For invalid times (spring-forward skipped hour), libc normalizes forward
   time_t utc_if_dst = this->timestamp + tz.dst_offset_seconds;
   time_t utc_if_std = this->timestamp + tz.std_offset_seconds;
@@ -284,8 +284,8 @@ void ESPTime::recalc_timestamp_local() {
   bool std_valid = !time::is_in_dst(utc_if_std, tz);
 
   if (dst_valid && std_valid) {
-    // Ambiguous time (repeated hour during fall-back) - prefer DST to match libc
-    this->timestamp = utc_if_dst;
+    // Ambiguous time (repeated hour during fall-back) - prefer standard time
+    this->timestamp = utc_if_std;
   } else if (dst_valid) {
     // Only DST interpretation is valid
     this->timestamp = utc_if_dst;
