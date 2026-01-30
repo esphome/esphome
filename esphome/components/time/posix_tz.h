@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <ctime>
-#include <span>
 
 namespace esphome::time {
 
@@ -112,15 +111,6 @@ time_t calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offs
 /// @param tz The parsed timezone
 /// @return true if DST is in effect at the given time
 bool is_in_dst(time_t utc_epoch, const ParsedTimezone &tz);
-
-/// Buffer size for format_dst_rule output
-static constexpr size_t DST_RULE_BUF_SIZE = 24;
-
-/// Format a DST rule for logging/display
-/// @param rule The DST rule to format
-/// @param buf Output buffer
-/// @return Number of characters written (excluding null terminator)
-size_t format_dst_rule(const DSTRule &rule, std::span<char, DST_RULE_BUF_SIZE> buf);
 
 }  // namespace internal
 

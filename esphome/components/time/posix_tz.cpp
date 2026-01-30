@@ -342,41 +342,6 @@ bool __attribute__((noinline)) is_in_dst(time_t utc_epoch, const ParsedTimezone 
   }
 }
 
-size_t format_dst_rule(const DSTRule &rule, std::span<char, DST_RULE_BUF_SIZE> buf) {
-  // Format rule part
-  int pos = 0;
-  switch (rule.type) {
-    case DSTRuleType::MONTH_WEEK_DAY:
-      pos = snprintf(buf.data(), buf.size(), "M%d.%d.%d", rule.month, rule.week, rule.day_of_week);
-      break;
-    case DSTRuleType::JULIAN_NO_LEAP:
-      pos = snprintf(buf.data(), buf.size(), "J%d", rule.day);
-      break;
-    case DSTRuleType::DAY_OF_YEAR:
-      pos = snprintf(buf.data(), buf.size(), "%d", rule.day);
-      break;
-  }
-
-  // Format time part
-  int32_t time_secs = rule.time_seconds;
-  char sign = time_secs < 0 ? '-' : '/';
-  if (time_secs < 0)
-    time_secs = -time_secs;
-  int hours = time_secs / 3600;
-  int mins = (time_secs % 3600) / 60;
-  int secs = time_secs % 60;
-
-  if (secs != 0) {
-    pos += snprintf(buf.data() + pos, buf.size() - pos, "%c%d:%02d:%02d", sign, hours, mins, secs);
-  } else if (mins != 0) {
-    pos += snprintf(buf.data() + pos, buf.size() - pos, "%c%d:%02d", sign, hours, mins);
-  } else {
-    pos += snprintf(buf.data() + pos, buf.size() - pos, "%c%d", sign, hours);
-  }
-
-  return static_cast<size_t>(pos);
-}
-
 }  // namespace internal
 
 bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
