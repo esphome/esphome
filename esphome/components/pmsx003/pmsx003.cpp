@@ -2,21 +2,20 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace pmsx003 {
+namespace esphome::pmsx003 {
 
 static const char *const TAG = "pmsx003";
 
 static const uint8_t START_CHARACTER_1 = 0x42;
 static const uint8_t START_CHARACTER_2 = 0x4D;
 
-static const uint16_t PMS_STABILISING_MS = 30000;  // time taken for the sensor to become stable after power on in ms
+static const uint16_t STABILISING_MS = 30000;  // time taken for the sensor to become stable after power on in ms
 
-static const uint16_t PMS_CMD_MEASUREMENT_MODE_PASSIVE =
-    0x0000;  // use `PMS_CMD_MANUAL_MEASUREMENT` to trigger a measurement
-static const uint16_t PMS_CMD_MEASUREMENT_MODE_ACTIVE = 0x0001;  // automatically perform measurements
-static const uint16_t PMS_CMD_SLEEP_MODE_SLEEP = 0x0000;         // go to sleep mode
-static const uint16_t PMS_CMD_SLEEP_MODE_WAKEUP = 0x0001;        // wake up from sleep mode
+static const uint16_t CMD_MEASUREMENT_MODE_PASSIVE =
+    0x0000;  // use `Command::MANUAL_MEASUREMENT` to trigger a measurement
+static const uint16_t CMD_MEASUREMENT_MODE_ACTIVE = 0x0001;  // automatically perform measurements
+static const uint16_t CMD_SLEEP_MODE_SLEEP = 0x0000;         // go to sleep mode
+static const uint16_t CMD_SLEEP_MODE_WAKEUP = 0x0001;        // wake up from sleep mode
 
 void PMSX003Component::setup() {}
 
@@ -42,7 +41,7 @@ void PMSX003Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 
-  if (this->update_interval_ <= PMS_STABILISING_MS) {
+  if (this->update_interval_ <= STABILISING_MS) {
     ESP_LOGCONFIG(TAG, "  Mode: active continuous (sensor default)");
   } else {
     ESP_LOGCONFIG(TAG, "  Mode: passive with sleep/wake cycles");
@@ -55,44 +54,44 @@ void PMSX003Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
 
   // Initialize sensor mode on first loop
-  if (this->initialised_ == 0) {
-    if (this->update_interval_ > PMS_STABILISING_MS) {
+  if (!this->initialised_) {
+    if (this->update_interval_ > STABILISING_MS) {
       // Long update interval: use passive mode with sleep/wake cycles
-      this->send_command_(PMS_CMD_MEASUREMENT_MODE, PMS_CMD_MEASUREMENT_MODE_PASSIVE);
-      this->send_command_(PMS_CMD_SLEEP_MODE, PMS_CMD_SLEEP_MODE_WAKEUP);
+      this->send_command_(Command::MEASUREMENT_MODE, CMD_MEASUREMENT_MODE_PASSIVE);
+      this->send_command_(Command::SLEEP_MODE, CMD_SLEEP_MODE_WAKEUP);
     } else {
       // Short/zero update interval: use active continuous mode
-      this->send_command_(PMS_CMD_MEASUREMENT_MODE, PMS_CMD_MEASUREMENT_MODE_ACTIVE);
+      this->send_command_(Command::MEASUREMENT_MODE, CMD_MEASUREMENT_MODE_ACTIVE);
     }
-    this->initialised_ = 1;
+    this->initialised_ = true;
   }
 
   // If we update less often than it takes the device to stabilise, spin the fan down
   // rather than running it constantly. It does take some time to stabilise, so we
   // need to keep track of what state we're in.
-  if (this->update_interval_ > PMS_STABILISING_MS) {
+  if (this->update_interval_ > STABILISING_MS) {
     switch (this->state_) {
-      case PMSX003_STATE_IDLE:
+      case State::IDLE:
         // Power on the sensor now so it'll be ready when we hit the update time
-        if (now - this->last_update_ < (this->update_interval_ - PMS_STABILISING_MS))
+        if (now - this->last_update_ < (this->update_interval_ - STABILISING_MS))
           return;
 
-        this->state_ = PMSX003_STATE_STABILISING;
-        this->send_command_(PMS_CMD_SLEEP_MODE, PMS_CMD_SLEEP_MODE_WAKEUP);
+        this->state_ = State::STABILISING;
+        this->send_command_(Command::SLEEP_MODE, CMD_SLEEP_MODE_WAKEUP);
         this->fan_on_time_ = now;
         return;
-      case PMSX003_STATE_STABILISING:
+      case State::STABILISING:
         // wait for the sensor to be stable
-        if (now - this->fan_on_time_ < PMS_STABILISING_MS)
+        if (now - this->fan_on_time_ < STABILISING_MS)
           return;
         // consume any command responses that are in the serial buffer
         while (this->available())
           this->read_byte(&this->data_[0]);
         // Trigger a new read
-        this->send_command_(PMS_CMD_MANUAL_MEASUREMENT, 0);
-        this->state_ = PMSX003_STATE_WAITING;
+        this->send_command_(Command::MANUAL_MEASUREMENT, 0);
+        this->state_ = State::WAITING;
         break;
-      case PMSX003_STATE_WAITING:
+      case State::WAITING:
         // Just go ahead and read stuff
         break;
     }
@@ -180,27 +179,28 @@ optional<bool> PMSX003Component::check_byte_() {
 }
 
 bool PMSX003Component::check_payload_length_(uint16_t payload_length) {
+  // https://avaldebe.github.io/PyPMS/sensors/Plantower/
   switch (this->type_) {
-    case PMSX003_TYPE_X003:
+    case Type::PMSX003:
       // The expected payload length is typically 28 bytes.
       // However, a 20-byte payload check was already present in the code.
       // No official documentation was found confirming this.
       // Retaining this check to avoid breaking existing behavior.
       return payload_length == 28 || payload_length == 20;  // 2*13+2
-    case PMSX003_TYPE_5003T:
-    case PMSX003_TYPE_5003S:
+    case Type::PMS5003S:
+    case Type::PMS5003T:
       return payload_length == 28;  // 2*13+2 (Data 13 not set/reserved)
-    case PMSX003_TYPE_5003ST:
+    case Type::PMS5003ST:
       return payload_length == 36;  // 2*17+2 (Data 16 not set/reserved)
   }
   return false;
 }
 
-void PMSX003Component::send_command_(PMSX0003Command cmd, uint16_t data) {
+void PMSX003Component::send_command_(Command cmd, uint16_t data) {
   uint8_t send_data[7] = {
       START_CHARACTER_1,            // Start Byte 1
       START_CHARACTER_2,            // Start Byte 2
-      cmd,                          // Command
+      static_cast<uint8_t>(cmd),    // Command
       uint8_t((data >> 8) & 0xFF),  // Data 1
       uint8_t((data >> 0) & 0xFF),  // Data 2
       0,                            // Verify Byte 1
@@ -265,7 +265,7 @@ void PMSX003Component::parse_data_() {
   if (this->pm_particles_25um_sensor_ != nullptr)
     this->pm_particles_25um_sensor_->publish_state(pm_particles_25um);
 
-  if (this->type_ == PMSX003_TYPE_5003T) {
+  if (this->type_ == Type::PMS5003T) {
     ESP_LOGD(TAG,
              "Got PM0.3 Particles: %u Count/0.1L, PM0.5 Particles: %u Count/0.1L, PM1.0 Particles: %u Count/0.1L, "
              "PM2.5 Particles %u Count/0.1L",
@@ -289,7 +289,7 @@ void PMSX003Component::parse_data_() {
   }
 
   // Formaldehyde
-  if (this->type_ == PMSX003_TYPE_5003ST || this->type_ == PMSX003_TYPE_5003S) {
+  if (this->type_ == Type::PMS5003S || this->type_ == Type::PMS5003ST) {
     const uint16_t formaldehyde = this->get_16_bit_uint_(28);
 
     ESP_LOGD(TAG, "Got Formaldehyde: %u µg/m^3", formaldehyde);
@@ -299,8 +299,8 @@ void PMSX003Component::parse_data_() {
   }
 
   // Temperature and Humidity
-  if (this->type_ == PMSX003_TYPE_5003ST || this->type_ == PMSX003_TYPE_5003T) {
-    const uint8_t temperature_offset = (this->type_ == PMSX003_TYPE_5003T) ? 24 : 30;
+  if (this->type_ == Type::PMS5003T || this->type_ == Type::PMS5003ST) {
+    const uint8_t temperature_offset = (this->type_ == Type::PMS5003T) ? 24 : 30;
 
     const float temperature = static_cast<int16_t>(this->get_16_bit_uint_(temperature_offset)) / 10.0f;
     const float humidity = this->get_16_bit_uint_(temperature_offset + 2) / 10.0f;
@@ -314,7 +314,7 @@ void PMSX003Component::parse_data_() {
   }
 
   // Firmware Version and Error Code
-  if (this->type_ == PMSX003_TYPE_5003ST) {
+  if (this->type_ == Type::PMS5003ST) {
     const uint8_t firmware_version = this->data_[36];
     const uint8_t error_code = this->data_[37];
 
@@ -323,13 +323,12 @@ void PMSX003Component::parse_data_() {
 
   // Spin down the sensor again if we aren't going to need it until more time has
   // passed than it takes to stabilise
-  if (this->update_interval_ > PMS_STABILISING_MS) {
-    this->send_command_(PMS_CMD_SLEEP_MODE, PMS_CMD_SLEEP_MODE_SLEEP);
-    this->state_ = PMSX003_STATE_IDLE;
+  if (this->update_interval_ > STABILISING_MS) {
+    this->send_command_(Command::SLEEP_MODE, CMD_SLEEP_MODE_SLEEP);
+    this->state_ = State::IDLE;
   }
 
   this->status_clear_warning();
 }
 
-}  // namespace pmsx003
-}  // namespace esphome
+}  // namespace esphome::pmsx003
