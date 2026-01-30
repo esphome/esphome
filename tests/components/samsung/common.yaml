@@ -1,0 +1,4 @@
+climate:
+  - platform: samsung
+    name: SAMSUNG Climate
+    transmitter_id: xmitr
