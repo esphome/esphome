@@ -80,6 +80,7 @@ network::IPAddresses ModemComponent::get_ip_addresses() {
 }
 
 void ModemComponent::setup() {
+  char buffer[GPIO_SUMMARY_MAX_LEN];
   ESP_LOGI(TAG, "Modem setup...State: %s", state_to_string(this->component_state_).c_str());
   this->pref_ = global_preferences->make_preference<ModemRestoreState>(76007670UL);
   this->pref_.load(&this->modem_restore_state_);
@@ -112,9 +113,12 @@ void ModemComponent::setup() {
   ESP_LOGCONFIG(TAG, "  PIN code  : %s", (this->modem_handler->pin_code.empty()) ? "No" : "Yes (not shown)");
   ESP_LOGCONFIG(TAG, "  Tx Pin    : GPIO%u", this->modem_handler->tx_pin->get_pin());
   ESP_LOGCONFIG(TAG, "  Rx Pin    : GPIO%u", this->modem_handler->rx_pin->get_pin());
-  ESP_LOGCONFIG(
-      TAG, "  Power pin : %s",
-      (this->modem_handler->power_pin) ? this->modem_handler->power_pin->dump_summary().c_str() : "Not defined");
+  if (this->modem_handler->power_pin) {
+    this->modem_handler->power_pin->dump_summary(buffer, sizeof(buffer));
+  } else {
+    strncpy(buffer, "Not defined", sizeof(buffer));
+  }
+  ESP_LOGCONFIG(TAG, "  Power pin : %s", buffer);
   if (this->modem_handler->power_pin) {
     ESP_LOGCONFIG(TAG, "    ON pulse delay  : %dms", this->modem_handler->power_ton_pulse_delay);
     ESP_LOGCONFIG(TAG, "    ON delay        : %dms", this->modem_handler->power_ton_delay);
@@ -123,8 +127,8 @@ void ModemComponent::setup() {
   }
   if (this->modem_handler->status_pin) {
     std::string current_status = this->modem_handler->get_power_status() ? "ON" : "OFF";
-    ESP_LOGCONFIG(TAG, "  Status pin: %s (state: %s)", this->modem_handler->status_pin->dump_summary().c_str(),
-                  current_status.c_str());
+    this->modem_handler->status_pin->dump_summary(buffer, sizeof(buffer));
+    ESP_LOGCONFIG(TAG, "  Status pin: %s (state: %s)", buffer, current_status.c_str());
   } else {
     ESP_LOGCONFIG(TAG, "  Status pin: None");
   }
@@ -499,6 +503,7 @@ void ModemComponent::abort_(const std::string &message) {
 void ModemComponent::loop_delay_(uint32_t delay_ms) { this->next_loop_millis_ = millis() + delay_ms; }
 
 void ModemComponent::dump_connect_params_() {
+  char buffer[network::IP_ADDRESS_BUFFER_SIZE];
   if (this->component_state_ != ModemComponentState::CONNECTED) {
     ESP_LOGCONFIG(TAG, "Modem connection: Not connected.");
     return;
@@ -508,12 +513,12 @@ void ModemComponent::dump_connect_params_() {
   esp_netif_dns_info_t dns_backup = this->modem_handler->network_infos.dns_backup;
 
   ESP_LOGCONFIG(TAG, "Modem connection:");
-  ESP_LOGCONFIG(TAG, "  IP Address  : %s", network::IPAddress(&ip.ip).str().c_str());
+  ESP_LOGCONFIG(TAG, "  IP Address  : %s", network::IPAddress(&ip.ip).str_to(buffer));
   ESP_LOGCONFIG(TAG, "  Hostname    : '%s'", App.get_name().c_str());
-  ESP_LOGCONFIG(TAG, "  Subnet      : %s", network::IPAddress(&ip.netmask).str().c_str());
-  ESP_LOGCONFIG(TAG, "  Gateway     : %s", network::IPAddress(&ip.gw).str().c_str());
-  ESP_LOGCONFIG(TAG, "  DNS main    : %s", network::IPAddress(&dns_main.ip.u_addr.ip4).str().c_str());
-  ESP_LOGCONFIG(TAG, "  DNS backup  : %s", network::IPAddress(&dns_backup.ip.u_addr.ip4).str().c_str());
+  ESP_LOGCONFIG(TAG, "  Subnet      : %s", network::IPAddress(&ip.netmask).str_to(buffer));
+  ESP_LOGCONFIG(TAG, "  Gateway     : %s", network::IPAddress(&ip.gw).str_to(buffer));
+  ESP_LOGCONFIG(TAG, "  DNS main    : %s", network::IPAddress(&dns_main.ip.u_addr.ip4).str_to(buffer));
+  ESP_LOGCONFIG(TAG, "  DNS backup  : %s", network::IPAddress(&dns_backup.ip.u_addr.ip4).str_to(buffer));
 }
 
 }  // namespace modem
