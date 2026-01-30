@@ -1,8 +1,5 @@
 #if defined(USE_HOST)
 #include "logger.h"
-#ifdef USE_TIME_TIMEZONE
-#include "esphome/components/time/posix_tz.h"
-#endif
 
 namespace esphome::logger {
 
@@ -14,11 +11,7 @@ void HOT Logger::write_msg_(const char *msg, size_t len) {
   time_t rawtime;
   ::time(&rawtime);
   struct tm timeinfo;
-#ifdef USE_TIME_TIMEZONE
-  time::epoch_to_local_tm(rawtime, time::get_global_tz(), &timeinfo);
-#else
-  localtime_r(&rawtime, &timeinfo);  // Thread-safe version
-#endif
+  localtime_r(&rawtime, &timeinfo);  // TZ env var set by time component
   size_t pos = strftime(buffer, TIMESTAMP_LEN + 1, "[%H:%M:%S]", &timeinfo);
 
   // Copy message (with newline already included by caller)

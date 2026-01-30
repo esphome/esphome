@@ -104,6 +104,12 @@ void RealTimeClock::apply_timezone_(const char *tz) {
     return;
   }
 
+#ifdef USE_HOST
+  // On host platform, also set TZ environment variable for libc compatibility
+  setenv("TZ", tz, 1);
+  tzset();
+#endif
+
   // Parse the POSIX TZ string using our custom parser
   if (!parse_posix_tz(tz, parsed)) {
     ESP_LOGW(TAG, "Failed to parse timezone: %s", tz);
