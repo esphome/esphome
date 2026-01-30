@@ -967,6 +967,49 @@ def test_start_web_server_with_unix_socket(tmp_path: Path) -> None:
         server.add_socket.assert_called_once()
 
 
+@pytest.mark.asyncio
+async def test_esphome_logs_handler_build_command_host_uses_run() -> None:
+    """Test host devices use `run` to stream logs."""
+    handler = web_server.EsphomeLogsHandler.__new__(web_server.EsphomeLogsHandler)
+    handler.build_device_command = AsyncMock(return_value=["ok"])
+    json_message = {"configuration": "host.yaml", "port": "OTA"}
+
+    entry = Mock()
+    entry.target_platform = web_server.const.PLATFORM_HOST
+
+    with (
+        patch("esphome.dashboard.web_server.settings") as mock_settings,
+        patch("esphome.dashboard.web_server.DASHBOARD") as mock_dashboard,
+    ):
+        mock_settings.rel_path.return_value = "host.yaml"
+        mock_dashboard.entries.get.return_value = entry
+
+        result = await handler.build_command(json_message)
+
+    assert result == ["ok"]
+    handler.build_device_command.assert_awaited_once_with(["run"], json_message)
+
+
+@pytest.mark.asyncio
+async def test_esphome_logs_handler_build_command_non_host_uses_logs() -> None:
+    """Test non-host devices keep using `logs`."""
+    handler = web_server.EsphomeLogsHandler.__new__(web_server.EsphomeLogsHandler)
+    handler.build_device_command = AsyncMock(return_value=["ok"])
+    json_message = {"configuration": "device.yaml", "port": "OTA"}
+
+    with (
+        patch("esphome.dashboard.web_server.settings") as mock_settings,
+        patch("esphome.dashboard.web_server.DASHBOARD") as mock_dashboard,
+    ):
+        mock_settings.rel_path.return_value = "device.yaml"
+        mock_dashboard.entries.get.return_value = None
+
+        result = await handler.build_command(json_message)
+
+    assert result == ["ok"]
+    handler.build_device_command.assert_awaited_once_with(["logs"], json_message)
+
+
 def test_build_cache_arguments_no_entry(mock_dashboard: Mock) -> None:
     """Test with no entry returns empty list."""
     result = web_server.build_cache_arguments(None, mock_dashboard, 0.0)
