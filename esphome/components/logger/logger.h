@@ -187,6 +187,9 @@ class Logger : public Component {
   uart_port_t get_uart_num() const { return uart_num_; }
   void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
 #endif
+#if defined(USE_LIBRETINY)
+  int8_t get_hw_serial_number() { return hardware_idx_; }
+#endif
 #ifdef USE_HOST
   void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
 #endif
@@ -393,6 +396,9 @@ class Logger : public Component {
   // - Other tasks use pthread TLS with a dynamically created key via pthread_key_create
   pthread_key_t log_recursion_key_;  // 4 bytes
   uart_port_t uart_num_;             // 4 bytes (enum defaults to int size)
+#endif
+#if defined(USE_LIBRETINY)
+  int8_t hardware_idx_{-1};
 #endif
 #ifdef USE_HOST
   // Thread-specific recursion guards using pthread TLS

@@ -218,7 +218,7 @@ void LibreTinyUARTComponent::check_logger_conflict() {
     return;
   }
 
-  if (this->serial_ == logger::global_logger->get_hw_serial()) {
+  if (this->hardware_idx_ == logger::global_logger->get_hw_serial_number()) {
     ESP_LOGW(TAG, "  You're using the same serial port for logging and the UART component. Please "
                   "disable logging over the serial port by setting logger->baud_rate to 0.");
   }

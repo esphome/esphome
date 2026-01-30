@@ -11,23 +11,27 @@ void Logger::pre_setup() {
 #if LT_HW_UART0
       case UART_SELECTION_UART0:
         this->hw_serial_ = &Serial0;
+        this->hardware_idx_ = 0;
         Serial0.begin(this->baud_rate_);
         break;
 #endif
 #if LT_HW_UART1
       case UART_SELECTION_UART1:
         this->hw_serial_ = &Serial1;
+        this->hardware_idx_ = 1;
         Serial1.begin(this->baud_rate_);
         break;
 #endif
 #if LT_HW_UART2
       case UART_SELECTION_UART2:
         this->hw_serial_ = &Serial2;
+        this->hardware_idx_ = 2;
         Serial2.begin(this->baud_rate_);
         break;
 #endif
       default:
         this->hw_serial_ = &Serial;
+        this->hardware_idx_ = LT_UART_DEFAULT_SERIAL;
         Serial.begin(this->baud_rate_);
         if (this->uart_ != UART_SELECTION_DEFAULT) {
           ESP_LOGW(TAG, "  The chosen logger UART port is not available on this board."
