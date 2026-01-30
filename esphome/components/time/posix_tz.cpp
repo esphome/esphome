@@ -403,13 +403,6 @@ bool is_in_dst(time_t utc_epoch, const ParsedTimezone &tz) {
   }
 }
 
-int32_t get_utc_offset(time_t utc_epoch, const ParsedTimezone &tz) {
-  if (is_in_dst(utc_epoch, tz)) {
-    return tz.dst_offset_seconds;
-  }
-  return tz.std_offset_seconds;
-}
-
 bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *out_tm) {
   if (!out_tm) {
     return false;

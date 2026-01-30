@@ -66,12 +66,6 @@ bool is_in_dst(time_t utc_epoch, const ParsedTimezone &tz);
 /// @return true on success
 bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *out_tm);
 
-/// Get the current offset from UTC in seconds for a given epoch.
-/// @param utc_epoch Unix timestamp in UTC
-/// @param tz The parsed timezone
-/// @return Offset in seconds (positive = behind UTC, negative = ahead)
-int32_t get_utc_offset(time_t utc_epoch, const ParsedTimezone &tz);
-
 // Internal helper functions exposed for testing
 
 namespace internal {
