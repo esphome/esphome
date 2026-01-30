@@ -1,1 +1,9 @@
 <<: !include common.yaml
+
+time:
+  - platform: sntp
+    id: sntp_time_2
+    smooth_sync: true
+    on_time_sync:
+      then:
+        - logger.log: "Smooth sync completed"

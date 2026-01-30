@@ -9,7 +9,6 @@ time:
       - 0.pool.ntp.org
       - 1.pool.ntp.org
       - 192.168.178.1
-    smooth_sync: true
     on_time:
       cron: "/30 0-30,30/5 * ? JAN-DEC MON,SAT-SUN,TUE-FRI"
       then:
