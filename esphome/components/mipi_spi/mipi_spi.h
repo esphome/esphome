@@ -6,7 +6,6 @@
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/helpers.h"
-#include <Arduino.h>
 
 namespace esphome {
 namespace mipi_spi {
@@ -225,9 +224,9 @@ class MipiSpi : public display::Display,
                     this->madctl_ & MADCTL_BGR ? "BGR" : "RGB", DISPLAYPIXEL * 8, IS_BIG_ENDIAN ? "Big" : "Little");
     if (this->brightness_.has_value())
       esph_log_config(TAG, "  Brightness: %u", this->brightness_.value());
-    log_pin(TAG, F(" CS Pin: "), this->cs_);
-    log_pin(TAG, F(" Reset Pin: "), this->reset_pin_);
-    log_pin(TAG, F(" DC Pin: "), this->dc_pin_);
+    log_pin(TAG, reinterpret_cast<const __FlashStringHelper *>("  CS Pin: "), this->cs_);
+    log_pin(TAG, reinterpret_cast<const __FlashStringHelper *>("  Reset Pin: "), this->reset_pin_);
+    log_pin(TAG, reinterpret_cast<const __FlashStringHelper *>("  DC Pin: "), this->dc_pin_);
     esph_log_config(TAG,
                     "  SPI Mode: %d\n"
                     "  SPI Data rate: %dMHz\n"
