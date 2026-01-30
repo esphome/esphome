@@ -27,6 +27,9 @@ void RealTimeClock::dump_config() {
 #ifdef USE_TIME_TIMEZONE
   ESP_LOGCONFIG(TAG, "Timezone: '%s'", this->timezone_.c_str());
 #endif
+  auto time = this->now();
+  ESP_LOGCONFIG(TAG, "Current time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month, time.hour,
+                time.minute, time.second);
 }
 
 void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
