@@ -41,7 +41,7 @@ struct ModemRestoreState {
 class ModemComponent : public Component {
  public:
   void set_reboot_timeout(uint32_t timeout) { this->timeout_ = timeout; }
-  void set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+  void set_use_address(const char *use_address) { this->use_address_ = use_address; }
   // Setters now modify the handler's attributes
   void set_rx_pin(InternalGPIOPin *rx_pin) { this->modem_handler->rx_pin = rx_pin; }
   void set_tx_pin(InternalGPIOPin *tx_pin) { this->modem_handler->tx_pin = tx_pin; }
@@ -79,7 +79,7 @@ class ModemComponent : public Component {
   void reset();
 
   network::IPAddresses get_ip_addresses();
-  const char *get_use_address() const;
+  const char *get_use_address() const { return this->use_address_; };
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases, you won't need these)
@@ -116,7 +116,6 @@ class ModemComponent : public Component {
 
   // Attributes from YAML config
   uint32_t timeout_;
-  std::string use_address_;
   CallbackManager<void(ModemComponentState, ModemComponentState)> on_state_callback_;
 #ifdef USE_MODEM_NMEA
   ModemNMEAUARTComponent *nmea_uart_{nullptr};
@@ -132,6 +131,11 @@ class ModemComponent : public Component {
 
   ModemRestoreState modem_restore_state_{};
   ESPPreferenceObject pref_;
+
+ private:
+  // Stores a pointer to a string literal (static storage duration).
+  // ONLY set from Python-generated code with string literals - never dynamic strings.
+  const char *use_address_{""};
 };
 
 extern ModemComponent *global_modem_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
