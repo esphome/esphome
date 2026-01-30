@@ -398,19 +398,19 @@ TEST(PosixTzParser, LowercaseJFormat) {
 
 TEST(PosixTzParser, DstNameWithoutRules) {
   ParsedTimezone tz;
-  // DST name present but no rules - should have has_dst=true with default offset
+  // DST name present but no rules - treat as no DST since we can't determine transitions
   ASSERT_TRUE(parse_posix_tz("EST5EDT", tz));
-  EXPECT_TRUE(tz.has_dst);
+  EXPECT_FALSE(tz.has_dst);
   EXPECT_EQ(tz.std_offset_seconds, 5 * 3600);
-  EXPECT_EQ(tz.dst_offset_seconds, 4 * 3600);  // Default: std - 1 hour
 }
 
 TEST(PosixTzParser, TrailingCharactersIgnored) {
   ParsedTimezone tz;
   // Trailing characters after valid TZ should be ignored (parser stops at end of valid input)
   // This matches libc behavior
-  ASSERT_TRUE(parse_posix_tz("EST5", tz));
+  ASSERT_TRUE(parse_posix_tz("EST5 extra garbage here", tz));
   EXPECT_EQ(tz.std_offset_seconds, 5 * 3600);
+  EXPECT_FALSE(tz.has_dst);
 }
 
 TEST(PosixTzParser, PlainDay365LeapYear) {
@@ -751,7 +751,29 @@ TEST(PosixTzParser, EpochToLocalDstTransition) {
 // Verification against libc
 // ============================================================================
 
-class LibcVerificationTest : public ::testing::TestWithParam<std::tuple<const char *, time_t>> {};
+class LibcVerificationTest : public ::testing::TestWithParam<std::tuple<const char *, time_t>> {
+ protected:
+  void SetUp() override {
+    // Save current TZ
+    const char *current_tz = getenv("TZ");
+    saved_tz_ = current_tz ? current_tz : "";
+    had_tz_ = current_tz != nullptr;
+  }
+
+  void TearDown() override {
+    // Restore TZ
+    if (had_tz_) {
+      setenv("TZ", saved_tz_.c_str(), 1);
+    } else {
+      unsetenv("TZ");
+    }
+    tzset();
+  }
+
+ private:
+  std::string saved_tz_;
+  bool had_tz_{false};
+};
 
 TEST_P(LibcVerificationTest, MatchesLibc) {
   auto [tz_str, epoch] = GetParam();

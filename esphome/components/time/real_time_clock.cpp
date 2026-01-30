@@ -23,6 +23,42 @@ static const char *const TAG = "time";
 
 RealTimeClock::RealTimeClock() = default;
 
+// Helper to format a DST rule for logging
+#ifdef USE_TIME_TIMEZONE
+static void format_dst_rule(const DSTRule &rule, char *buf, size_t buf_size) {
+  // Format rule part
+  int pos = 0;
+  switch (rule.type) {
+    case DSTRuleType::MONTH_WEEK_DAY:
+      pos = snprintf(buf, buf_size, "M%d.%d.%d", rule.month, rule.week, rule.day_of_week);
+      break;
+    case DSTRuleType::JULIAN_NO_LEAP:
+      pos = snprintf(buf, buf_size, "J%d", rule.day);
+      break;
+    case DSTRuleType::DAY_OF_YEAR:
+      pos = snprintf(buf, buf_size, "%d", rule.day);
+      break;
+  }
+
+  // Format time part
+  int32_t time_secs = rule.time_seconds;
+  char sign = time_secs < 0 ? '-' : '/';
+  if (time_secs < 0)
+    time_secs = -time_secs;
+  int hours = time_secs / 3600;
+  int mins = (time_secs % 3600) / 60;
+  int secs = time_secs % 60;
+
+  if (secs != 0) {
+    snprintf(buf + pos, buf_size - pos, "%c%d:%02d:%02d", sign, hours, mins, secs);
+  } else if (mins != 0) {
+    snprintf(buf + pos, buf_size - pos, "%c%d:%02d", sign, hours, mins);
+  } else {
+    snprintf(buf + pos, buf_size - pos, "%c%d", sign, hours);
+  }
+}
+#endif
+
 void RealTimeClock::dump_config() {
 #ifdef USE_TIME_TIMEZONE
   int std_hours = -this->parsed_tz_.std_offset_seconds / 3600;
@@ -30,11 +66,10 @@ void RealTimeClock::dump_config() {
   ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d", std_hours, std_mins);
   if (this->parsed_tz_.has_dst) {
     int dst_hours = -this->parsed_tz_.dst_offset_seconds / 3600;
-    ESP_LOGCONFIG(TAG, "  DST: UTC%+d, M%d.%d.%d/%" PRId32 " - M%d.%d.%d/%" PRId32, dst_hours,
-                  this->parsed_tz_.dst_start.month, this->parsed_tz_.dst_start.week,
-                  this->parsed_tz_.dst_start.day_of_week, this->parsed_tz_.dst_start.time_seconds / 3600,
-                  this->parsed_tz_.dst_end.month, this->parsed_tz_.dst_end.week, this->parsed_tz_.dst_end.day_of_week,
-                  this->parsed_tz_.dst_end.time_seconds / 3600);
+    char start_buf[24], end_buf[24];
+    format_dst_rule(this->parsed_tz_.dst_start, start_buf, sizeof(start_buf));
+    format_dst_rule(this->parsed_tz_.dst_end, end_buf, sizeof(end_buf));
+    ESP_LOGCONFIG(TAG, "  DST: UTC%+d, %s - %s", dst_hours, start_buf, end_buf);
   }
 #endif
   auto time = this->now();
@@ -95,7 +130,14 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
 
 #ifdef USE_TIME_TIMEZONE
 void RealTimeClock::apply_timezone_(const char *tz) {
-  // Parse the POSIX TZ string using our custom parser to avoid pulling in scanf (~7.6KB)
+  // Handle null input
+  if (tz == nullptr) {
+    ESP_LOGW(TAG, "Failed to parse timezone: (null)");
+    this->parsed_tz_ = ParsedTimezone{};
+    return;
+  }
+
+  // Parse the POSIX TZ string using our custom parser
   if (!parse_posix_tz(tz, this->parsed_tz_)) {
     ESP_LOGW(TAG, "Failed to parse timezone: %s", tz);
     // Reset to UTC on parse failure

@@ -379,12 +379,15 @@ bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
     return false;
   }
 
-  if (!internal::skip_tz_name(p)) {
-    return true;  // No valid DST name, no DST
+  // Check if there's something that looks like a DST name start
+  // (letter or angle bracket). If not, treat as trailing garbage and return success.
+  if (!std::isalpha(static_cast<unsigned char>(*p)) && *p != '<') {
+    return true;  // No DST, trailing characters ignored
   }
 
-  // We have a DST name
-  result.has_dst = true;
+  if (!internal::skip_tz_name(p)) {
+    return false;  // Invalid DST name (started but malformed)
+  }
 
   // Optional DST offset (default is std - 1 hour)
   if (*p && *p != ',' && (std::isdigit(static_cast<unsigned char>(*p)) || *p == '+' || *p == '-')) {
@@ -393,22 +396,28 @@ bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
     result.dst_offset_seconds = result.std_offset_seconds - 3600;
   }
 
-  // Parse DST rules if present (POSIX requires both start and end if any rules specified)
-  if (*p == ',') {
-    p++;
-    if (!internal::parse_dst_rule(p, result.dst_start)) {
-      return false;
-    }
-
-    // Second rule is required per POSIX
-    if (*p != ',') {
-      return false;
-    }
-    p++;
-    if (!internal::parse_dst_rule(p, result.dst_end)) {
-      return false;
-    }
+  // Parse DST rules (required when DST name is present)
+  if (*p != ',') {
+    // DST name without rules - treat as no DST since we can't determine transitions
+    return true;
   }
+
+  p++;
+  if (!internal::parse_dst_rule(p, result.dst_start)) {
+    return false;
+  }
+
+  // Second rule is required per POSIX
+  if (*p != ',') {
+    return false;
+  }
+  p++;
+  if (!internal::parse_dst_rule(p, result.dst_end)) {
+    return false;
+  }
+
+  // Only set has_dst after successfully parsing both rules
+  result.has_dst = true;
 
   return true;
 }

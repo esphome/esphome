@@ -26,9 +26,12 @@ class RealTimeClock : public PollingComponent {
   /// Set the time zone from a POSIX TZ string.
   void set_timezone(const char *tz) { this->apply_timezone_(tz); }
 
-  /// Set the time zone from a null-terminated string with known length.
-  /// The length parameter is ignored since our parser uses null-terminated strings.
-  void set_timezone(const char *tz, size_t /*len*/) { this->apply_timezone_(tz); }
+  /// Set the time zone from a character buffer with known length.
+  /// The buffer does not need to be null-terminated; it will be copied.
+  void set_timezone(const char *tz, size_t len) {
+    std::string tz_str(tz, len);
+    this->apply_timezone_(tz_str.c_str());
+  }
 
   /// Set the time zone from a std::string.
   void set_timezone(const std::string &tz) { this->apply_timezone_(tz.c_str()); }
