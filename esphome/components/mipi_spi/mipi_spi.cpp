@@ -3,8 +3,6 @@
 
 namespace esphome::mipi_spi {
 
-static const char *const TAG = "display.mipi_spi";
-
 void internal_dump_config(const char *model, int width, int height, int offset_width, int offset_height, uint8_t madctl,
                           bool invert_colors, int display_bits, bool is_big_endian, const optional<uint8_t> &brightness,
                           GPIOPin *cs, GPIOPin *reset, GPIOPin *dc, int spi_mode, uint32_t data_rate, int bus_width) {
