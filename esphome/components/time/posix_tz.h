@@ -9,6 +9,7 @@ namespace esphome::time {
 
 /// Type of DST transition rule
 enum class DSTRuleType : uint8_t {
+  NONE = 0,        ///< No DST rule (used to indicate no DST)
   MONTH_WEEK_DAY,  ///< M format: Mm.w.d (e.g., M3.2.0 = 2nd Sunday of March)
   JULIAN_NO_LEAP,  ///< J format: Jn (day 1-365, Feb 29 not counted)
   DAY_OF_YEAR,     ///< Plain number: n (day 0-365, Feb 29 counted in leap years)
@@ -24,13 +25,15 @@ struct DSTRule {
   uint8_t day_of_week;   ///< Day 0-6, 0 = Sunday (for MONTH_WEEK_DAY)
 };
 
-/// Parsed POSIX timezone information
+/// Parsed POSIX timezone information (packed for 32-bit: 32 bytes)
 struct ParsedTimezone {
   int32_t std_offset_seconds;  ///< Standard time offset from UTC in seconds (positive = west)
   int32_t dst_offset_seconds;  ///< DST offset from UTC in seconds
   DSTRule dst_start;           ///< When DST starts
   DSTRule dst_end;             ///< When DST ends
-  bool has_dst;                ///< Whether this timezone has DST
+
+  /// Check if this timezone has DST rules
+  bool has_dst() const { return this->dst_start.type != DSTRuleType::NONE; }
 };
 
 /// Parse a POSIX TZ string into a ParsedTimezone struct.

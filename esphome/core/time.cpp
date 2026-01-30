@@ -268,7 +268,7 @@ void ESPTime::recalc_timestamp_local() {
   // POSIX: local = utc - offset, so utc = local + offset
   const auto &tz = time::get_global_tz();
 
-  if (!tz.has_dst) {
+  if (!tz.has_dst()) {
     // No DST - just apply standard offset
     this->timestamp += tz.std_offset_seconds;
     return;

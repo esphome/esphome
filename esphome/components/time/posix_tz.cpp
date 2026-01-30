@@ -336,7 +336,7 @@ time_t __attribute__((noinline)) calculate_dst_transition(int year, const DSTRul
 }  // namespace internal
 
 bool __attribute__((noinline)) is_in_dst(time_t utc_epoch, const ParsedTimezone &tz) {
-  if (!tz.has_dst) {
+  if (!tz.has_dst()) {
     return false;
   }
 
