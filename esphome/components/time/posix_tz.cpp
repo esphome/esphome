@@ -3,7 +3,7 @@
 
 namespace esphome::time {
 
-// Global timezone for ESPTime::from_epoch_local() to use
+// Global timezone - set once at startup, rarely changes
 static ParsedTimezone global_tz_{};
 
 void set_global_tz(const ParsedTimezone &tz) { global_tz_ = tz; }
