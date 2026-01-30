@@ -35,6 +35,10 @@
 #include "lwip/apps/sntp.h"
 #include "lwip/dns.h"
 #include "lwip/err.h"
+#ifdef USE_WIFI_NAT
+#include "lwip/lwip_napt.h"
+#include "lwip/tcpip.h"
+#endif
 #ifdef USE_WIFI_LEASE_CACHE
 #include <esp_netif_net_stack.h>  // esp_netif_get_netif_impl()
 #include <esp_rtc_time.h>         // esp_rtc_get_time_us() -- RTC-domain clock for lease age
@@ -1046,6 +1050,15 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     error_from_callback_ = true;
     // Refresh is_connected() cache; error_from_callback_ makes it false.
     this->update_connected_state_();
+
+#ifdef USE_WIFI_NAT
+    // Disable NAT when STA disconnects in WISP mode
+    if (this->ap_mode_ == WIFI_AP_MODE_WISP && this->ap_setup_) {
+      ESP_LOGD(TAG, "Disabling NAT due to STA disconnect");
+      this->disable_nat_esp_idf_();
+    }
+#endif  // USE_WIFI_NAT
+
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     this->notify_disconnect_state_listeners_();
 #endif
@@ -1176,6 +1189,12 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_STOP) {
     ESP_LOGV(TAG, "AP stop");
     this->ap_started_ = false;
+#ifdef USE_WIFI_NAT
+    if (this->ap_mode_ == WIFI_AP_MODE_WISP && this->ap_setup_) {
+      ESP_LOGD(TAG, "Disabling NAT due to AP stop");
+      this->disable_nat_esp_idf_();
+    }
+#endif  // USE_WIFI_NAT
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_PROBEREQRECVED) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
@@ -1349,6 +1368,34 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   }
 #endif
 
+#ifdef USE_WIFI_NAT
+  // Configure DNS servers for DHCP to advertise in WISP mode
+  if (this->ap_mode_ == WIFI_AP_MODE_WISP && this->dns_server_count_ > 0) {
+    // Enable DHCP DNS option
+    uint8_t dns_offer = 1;
+    err = esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dns_offer,
+                                 sizeof(dns_offer));
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Failed to enable DHCP DNS option: %s", esp_err_to_name(err));
+    }
+
+    // Set DNS servers to advertise via DHCP
+    esp_netif_dns_info_t dns_info;
+    for (size_t i = 0; i < this->dns_server_count_ && i < this->dns_servers_.size(); i++) {
+      dns_info.ip = this->dns_servers_[i];
+
+      esp_netif_dns_type_t dns_type = (i == 0) ? ESP_NETIF_DNS_MAIN : ESP_NETIF_DNS_BACKUP;
+      err = esp_netif_set_dns_info(s_ap_netif, dns_type, &dns_info);
+
+      if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to configure DNS server %zu: %s", i, esp_err_to_name(err));
+      } else {
+        ESP_LOGI(TAG, "Configured DHCP to advertise DNS server %zu: " IPSTR, i, IP2STR(&dns_info.ip.u_addr.ip4));
+      }
+    }
+  }
+#endif
+
   err = esp_netif_dhcps_start(s_ap_netif);
 
   if (err != ESP_OK) {
@@ -1488,6 +1535,74 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   const ip_addr_t *dns_ip = dns_getserver(num);
   return network::IPAddress(dns_ip);
 }
+
+#ifdef USE_WIFI_NAT
+// Internal implementation: Enable NAT routing from upstream to downstream interface
+static void enable_nat_internal_(esp_netif_t *upstream_netif, esp_netif_t *downstream_netif) {
+  if (!upstream_netif || !downstream_netif) {
+    ESP_LOGW(TAG, "Cannot enable NAT: invalid network interfaces");
+    return;
+  }
+
+  // Get the downstream (AP) IP address for NAT
+  esp_netif_ip_info_t downstream_ip;
+  esp_err_t err = esp_netif_get_ip_info(downstream_netif, &downstream_ip);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Failed to get downstream IP info for NAT: %s", esp_err_to_name(err));
+    return;
+  }
+
+  // Log upstream interface info
+  esp_netif_ip_info_t upstream_ip;
+  if (esp_netif_get_ip_info(upstream_netif, &upstream_ip) == ESP_OK) {
+    ESP_LOGD(TAG, "Enabling NAT: upstream=" IPSTR " -> downstream=" IPSTR, IP2STR(&upstream_ip.ip),
+             IP2STR(&downstream_ip.ip));
+  }
+
+  uint32_t ap_ip = downstream_ip.ip.addr;
+
+  // Enable NAT (ip_napt_enable returns void)
+  // Must lock TCPIP core when calling lwIP functions from non-lwIP tasks
+  LOCK_TCPIP_CORE();
+  ip_napt_enable(ap_ip, 1);
+  UNLOCK_TCPIP_CORE();
+
+  ESP_LOGD(TAG, "NAT enabled successfully");
+}
+
+// Internal implementation: Disable NAT routing on downstream interface
+static void disable_nat_internal_(esp_netif_t *downstream_netif) {
+  if (!downstream_netif) {
+    ESP_LOGW(TAG, "Cannot disable NAT: invalid network interface");
+    return;
+  }
+
+  // Get the downstream (AP) IP address
+  esp_netif_ip_info_t ip;
+  esp_err_t err = esp_netif_get_ip_info(downstream_netif, &ip);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Failed to get downstream IP info for NAT disable: %s", esp_err_to_name(err));
+    return;
+  }
+
+  uint32_t ap_ip = ip.ip.addr;
+  ESP_LOGD(TAG, "Disabling NAT for downstream IP: " IPSTR, IP2STR(&ip.ip));
+
+  // Disable NAT (ip_napt_enable returns void)
+  // Must lock TCPIP core when calling lwIP functions from non-lwIP tasks
+  LOCK_TCPIP_CORE();
+  ip_napt_enable(ap_ip, 0);
+  UNLOCK_TCPIP_CORE();
+
+  ESP_LOGD(TAG, "NAT disabled successfully");
+}
+
+// Public helper: Enable NAT using ESP-IDF global netif instances
+void WiFiComponent::enable_nat_esp_idf_() { enable_nat_internal_(s_sta_netif, s_ap_netif); }
+
+// Public helper: Disable NAT using ESP-IDF global AP netif instance
+void WiFiComponent::disable_nat_esp_idf_() { disable_nat_internal_(s_ap_netif); }
+#endif  // USE_WIFI_NAT
 
 }  // namespace esphome::wifi
 #endif  // USE_ESP32

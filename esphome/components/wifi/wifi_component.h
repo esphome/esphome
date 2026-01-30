@@ -16,6 +16,7 @@
 #endif
 #include "esphome/core/string_ref.h"
 
+#include <array>
 #include <atomic>
 #include <limits>
 #include <span>
@@ -158,6 +159,14 @@ enum class RoamingState : uint8_t {
   CONNECTING,
   /// Roam connection failed, reconnecting to any available AP
   RECONNECTING,
+};
+
+/// Controls when the access point is active
+enum WiFiAPMode : uint8_t {
+  /// AP only active when STA fails to connect (default behavior)
+  WIFI_AP_MODE_FALLBACK = 0,
+  /// AP always active alongside STA (WISP/wireless bridge mode)
+  WIFI_AP_MODE_WISP = 1,
 };
 
 /// Controls how RETRY_HIDDEN phase selects networks to try
@@ -477,6 +486,14 @@ class WiFiComponent final : public Component {
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
   void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
+  void set_ap_mode(WiFiAPMode mode) { ap_mode_ = mode; }
+#ifdef USE_WIFI_NAT
+  void add_dns_server(network::IPAddress dns) {
+    if (this->dns_server_count_ < this->dns_servers_.size()) {
+      this->dns_servers_[this->dns_server_count_++] = dns;
+    }
+  }
+#endif  // USE_WIFI_NAT
 #endif  // USE_WIFI_AP
 
   void enable();
@@ -720,6 +737,15 @@ class WiFiComponent final : public Component {
   void pause_exclusive_ap_();
 #endif
 #endif  // USE_WIFI_AP
+
+#ifdef USE_WIFI_NAT
+#ifdef USE_ESP32
+  /// Helper for ESP-IDF: enable NAT using global STA and AP netif instances
+  void enable_nat_esp_idf_();
+  /// Helper for ESP-IDF: disable NAT using global AP netif instance
+  void disable_nat_esp_idf_();
+#endif  // USE_ESP32
+#endif  // USE_WIFI_NAT
 
   void print_connect_params_();
   WiFiAP build_params_for_current_phase_();
@@ -982,7 +1008,11 @@ class WiFiComponent final : public Component {
   // WiFiAP is byte aligned unless manual IP or EAP is enabled; placed before the
   // 1-byte members so they pack into its trailing bytes instead of padding after it
   WiFiAP ap_;
-#endif
+  WiFiAPMode ap_mode_{WIFI_AP_MODE_FALLBACK};
+#ifdef USE_WIFI_NAT
+  std::array<network::IPAddress, 2> dns_servers_{};
+#endif  // USE_WIFI_NAT
+#endif  // USE_WIFI_AP
 
   // 1-byte enums and integers
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
@@ -1008,6 +1038,9 @@ class WiFiComponent final : public Component {
   // so no happens-before relationship with other memory needs to be established.
   std::atomic<uint8_t> roaming_suppression_count_{0};
 #endif
+#ifdef USE_WIFI_NAT
+  uint8_t dns_server_count_{0};
+#endif  // USE_WIFI_NAT
 #if USE_NETWORK_IPV6
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */

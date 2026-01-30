@@ -160,6 +160,8 @@ CONF_BAND_MODE = "band_mode"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
 CONF_PHY_MODE = "phy_mode"
 CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
+CONF_AP_MODE = "ap_mode"
+CONF_DNS_SERVERS = "dns_servers"
 
 # Maximum number of WiFi networks that can be configured
 # Limited to 127 because selected_sta_index_ is int8_t in C++
@@ -209,6 +211,13 @@ WIFI_8266_PHY_MODES = {
     "11G": WiFi8266PhyMode.WIFI_8266_PHY_MODE_11G,
     "11N": WiFi8266PhyMode.WIFI_8266_PHY_MODE_11N,
 }
+
+WiFiAPMode = wifi_ns.enum("WiFiAPMode")
+WIFI_AP_MODES = {
+    "FALLBACK": WiFiAPMode.WIFI_AP_MODE_FALLBACK,
+    "WISP": WiFiAPMode.WIFI_AP_MODE_WISP,
+}
+
 WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
 WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
 WiFiAPActiveCondition = wifi_ns.class_("WiFiAPActiveCondition", Condition)
@@ -304,6 +313,12 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
         cv.Optional(
             CONF_AP_TIMEOUT, default=DEFAULT_AP_TIMEOUT
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_AP_MODE, default="FALLBACK"): cv.enum(
+            WIFI_AP_MODES, upper=True
+        ),
+        cv.Optional(CONF_DNS_SERVERS): cv.All(
+            cv.ensure_list(cv.ipv4address), cv.Length(min=1, max=2)
+        ),
     }
 )
 
@@ -370,7 +385,32 @@ def final_validate(config):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create."
         )
-    if has_ap and not has_captive_portal and not has_web_server:
+
+    # Check if AP is configured in WISP mode (acts as a wireless bridge/repeater)
+    ap_is_wisp_mode = False
+    if has_ap:
+        ap_config = config.get(CONF_AP)
+        if ap_config:
+            # AP in WISP mode is not for configuration, it's a wireless bridge
+            ap_is_wisp_mode = ap_config.get(CONF_AP_MODE) == "WISP"
+            if ap_is_wisp_mode and not has_sta:
+                raise cv.Invalid(
+                    "WISP mode requires at least one STA network (wifi.ssid or wifi.networks)"
+                )
+            # WISP mode requires ESP-IDF framework for NAT support
+            if ap_is_wisp_mode and not (CORE.is_esp32 and not CORE.using_arduino):
+                raise cv.Invalid(
+                    "WISP mode (wireless bridge with NAT) is only supported with ESP-IDF framework"
+                )
+            if CONF_DNS_SERVERS in ap_config and not ap_is_wisp_mode:
+                raise cv.Invalid("wifi.ap.dns_servers requires ap_mode: WISP")
+            if ap_is_wisp_mode and CONF_DNS_SERVERS not in ap_config:
+                _LOGGER.warning(
+                    "WISP mode is enabled but no dns_servers are configured. "
+                    "Clients may not receive DNS via DHCP."
+                )
+
+    if has_ap and not has_captive_portal and not has_web_server and not ap_is_wisp_mode:
         _LOGGER.warning(
             "WiFi AP is configured but neither captive_portal nor web_server is enabled. "
             "The AP will not be usable for configuration or monitoring. "
@@ -710,6 +750,19 @@ async def to_code(config):
         # Skip the setter when the config matches the C++ initializer.
         if (ap_timeout := conf[CONF_AP_TIMEOUT]) != cv.time_period(DEFAULT_AP_TIMEOUT):
             cg.add(var.set_ap_timeout(ap_timeout))
+        # Configure NAT routing if WISP mode is enabled
+        if conf[CONF_AP_MODE] == "WISP":
+            cg.add(var.set_ap_mode(WiFiAPMode.WIFI_AP_MODE_WISP))
+            cg.add_define("USE_WIFI_NAT")
+            # Enable NAT in ESP-IDF sdkconfig
+            add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
+
+            # Configure upstream DNS servers for DHCP to advertise to clients
+            if CONF_DNS_SERVERS in conf:
+                for dns_server in conf[CONF_DNS_SERVERS]:
+                    cg.add(var.add_dns_server(ip_address_literal(str(dns_server))))
+
         cg.add_define("USE_WIFI_AP")
         # The LN882H radio cannot run the AP and STA together; the fallback AP
         # takes turns with the networks instead.
