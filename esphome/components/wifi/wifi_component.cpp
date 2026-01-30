@@ -498,6 +498,13 @@ void WiFiComponent::start() {
       ESP_LOGV(TAG, "Setting Output Power Option failed");
     }
 
+#ifdef USE_WIFI_AP
+    // Start AP immediately if WISP mode is enabled (before STA connection starts)
+    if (this->has_ap() && this->ap_mode_ == WIFI_AP_MODE_WISP) {
+      this->setup_ap_config_();
+    }
+#endif
+
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
     // Synchronize power_save_ with semaphore state before applying
     if (this->high_performance_semaphore_ != nullptr) {
@@ -538,8 +545,8 @@ void WiFiComponent::start() {
     // Without fast_connect: go straight to scanning (or hidden mode if all networks are hidden)
     this->start_initial_connection_();
 #endif
-#ifdef USE_WIFI_AP
   } else if (this->has_ap()) {
+#ifdef USE_WIFI_AP
     this->setup_ap_config_();
     if (!std::isnan(this->output_power_) && !this->wifi_apply_output_power_(this->output_power_)) {
       ESP_LOGV(TAG, "Setting Output Power Option failed");
@@ -1338,13 +1345,26 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
     this->num_retried_ = 0;
     if (this->has_ap()) {
+      // Stop captive portal regardless of AP mode (don't expose setup portal to internet)
 #ifdef USE_CAPTIVE_PORTAL
       if (this->is_captive_portal_active_()) {
         captive_portal::global_captive_portal->end();
       }
 #endif
-      ESP_LOGD(TAG, "Disabling AP");
-      this->wifi_mode_({}, false);
+      // Handle AP deactivation based on configured mode
+      if (this->ap_mode_ == WIFI_AP_MODE_FALLBACK) {
+        ESP_LOGD(TAG, "Disabling fallback AP");
+        this->wifi_mode_({}, false);
+      } else if (this->ap_mode_ == WIFI_AP_MODE_WISP) {
+        ESP_LOGD(TAG, "Keeping AP active in WISP mode");
+        // AP stays active alongside STA connection
+#ifdef USE_WIFI_NAT
+        // Enable NAT routing between STA and AP in WISP mode
+        if (this->ap_setup_) {
+          this->enable_nat_esp_idf_();
+        }
+#endif
+      }
     }
 #ifdef USE_IMPROV
     if (this->is_esp32_improv_active_()) {
