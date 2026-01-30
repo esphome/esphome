@@ -354,7 +354,7 @@ time_t calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offs
 
     case DSTRuleType::JULIAN_NO_LEAP:
       // J format: day 1-365, Feb 29 not counted
-      internal::julian_to_month_day(rule.day, year, month, day);
+      internal::julian_to_month_day(rule.day, month, day);
       break;
 
     case DSTRuleType::DAY_OF_YEAR:

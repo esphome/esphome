@@ -278,12 +278,9 @@ TEST(PosixTzParser, PlainDayInvalidDay366) {
 // ============================================================================
 
 TEST(PosixTzParser, JulianDay60IsMarch1) {
-  // J60 is always March 1, regardless of leap year
+  // J60 is always March 1 (J format ignores leap years by design)
   int month, day;
-  internal::julian_to_month_day(60, 2024, month, day);  // Leap year
-  EXPECT_EQ(month, 3);
-  EXPECT_EQ(day, 1);
-  internal::julian_to_month_day(60, 2025, month, day);  // Non-leap year
+  internal::julian_to_month_day(60, month, day);
   EXPECT_EQ(month, 3);
   EXPECT_EQ(day, 1);
 }
@@ -318,14 +315,14 @@ TEST(PosixTzParser, LeapYearDetection) {
 
 TEST(PosixTzParser, JulianDay1IsJan1) {
   int month, day;
-  internal::julian_to_month_day(1, 2025, month, day);
+  internal::julian_to_month_day(1, month, day);
   EXPECT_EQ(month, 1);
   EXPECT_EQ(day, 1);
 }
 
 TEST(PosixTzParser, JulianDay365IsDec31) {
   int month, day;
-  internal::julian_to_month_day(365, 2025, month, day);
+  internal::julian_to_month_day(365, month, day);
   EXPECT_EQ(month, 12);
   EXPECT_EQ(day, 31);
 }
