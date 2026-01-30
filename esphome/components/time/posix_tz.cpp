@@ -277,9 +277,9 @@ static int __attribute__((noinline)) days_from_year_start(int year, int month, i
   return days;
 }
 
-// Calculate days from epoch to Jan 1 of given year
-// Note: Only valid for years >= 1970. Pre-1970 timestamps are not supported
-// as they are extremely rare for IoT devices.
+// Calculate days from epoch to Jan 1 of given year (for DST transition calculations)
+// Only supports years >= 1970. Timezone is either compiled in from YAML or set by
+// Home Assistant, so pre-1970 dates are not a concern.
 static int64_t __attribute__((noinline)) days_to_year_start(int year) {
   int64_t days = 0;
   for (int y = 1970; y < year; y++) {
