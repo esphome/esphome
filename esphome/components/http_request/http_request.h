@@ -126,19 +126,21 @@ struct HttpReadResult {
 
 /// Result of processing a non-blocking read with timeout (for manual loops)
 enum class HttpReadLoopResult : uint8_t {
-  DATA,     ///< Data was read, process it
-  RETRY,    ///< No data yet, already delayed, caller should continue loop
-  ERROR,    ///< Read error, caller should exit loop
-  TIMEOUT,  ///< Timeout waiting for data, caller should exit loop
+  DATA,      ///< Data was read, process it
+  COMPLETE,  ///< All content has been read, caller should exit loop
+  RETRY,     ///< No data yet, already delayed, caller should continue loop
+  ERROR,     ///< Read error, caller should exit loop
+  TIMEOUT,   ///< Timeout waiting for data, caller should exit loop
 };
 
 /// Process a read result with timeout tracking and delay handling
 /// @param bytes_read_or_error Return value from read() - positive for bytes read, negative for error
 /// @param last_data_time Time of last successful read, updated when data received
 /// @param timeout_ms Maximum time to wait for data
-/// @return DATA if data received, RETRY if should continue loop, ERROR/TIMEOUT if should exit
-inline HttpReadLoopResult http_read_loop_result(int bytes_read_or_error, uint32_t &last_data_time,
-                                                uint32_t timeout_ms) {
+/// @param is_read_complete Whether all expected content has been read (from HttpContainer::is_read_complete())
+/// @return How the caller should proceed - see HttpReadLoopResult enum
+inline HttpReadLoopResult http_read_loop_result(int bytes_read_or_error, uint32_t &last_data_time, uint32_t timeout_ms,
+                                                bool is_read_complete) {
   if (bytes_read_or_error > 0) {
     last_data_time = millis();
     return HttpReadLoopResult::DATA;
@@ -146,7 +148,10 @@ inline HttpReadLoopResult http_read_loop_result(int bytes_read_or_error, uint32_
   if (bytes_read_or_error < 0) {
     return HttpReadLoopResult::ERROR;
   }
-  // bytes_read_or_error == 0: no data available yet
+  // bytes_read_or_error == 0: either "no data yet" or "all content read"
+  if (is_read_complete) {
+    return HttpReadLoopResult::COMPLETE;
+  }
   if (millis() - last_data_time >= timeout_ms) {
     return HttpReadLoopResult::TIMEOUT;
   }
@@ -197,6 +202,12 @@ class HttpContainer : public Parented<HttpRequestComponent> {
 
   size_t get_bytes_read() const { return this->bytes_read_; }
 
+  /// Check if all expected content has been read (only valid for non-chunked responses)
+  /// For chunked responses (content_length == 0 on ESP-IDF, SIZE_MAX on Arduino), returns false
+  bool is_read_complete() const {
+    return this->content_length > 0 && this->content_length < SIZE_MAX && this->bytes_read_ >= this->content_length;
+  }
+
   /**
    * @brief Get response headers.
    *
@@ -231,9 +242,11 @@ inline HttpReadResult http_read_fully(HttpContainer *container, uint8_t *buffer,
     App.feed_wdt();
     yield();
 
-    auto result = http_read_loop_result(read_bytes_or_error, last_data_time, timeout_ms);
+    auto result = http_read_loop_result(read_bytes_or_error, last_data_time, timeout_ms, container->is_read_complete());
     if (result == HttpReadLoopResult::RETRY)
       continue;
+    if (result == HttpReadLoopResult::COMPLETE)
+      break;  // Server sent less data than requested, but transfer is complete
     if (result == HttpReadLoopResult::ERROR)
       return {HttpReadStatus::ERROR, read_bytes_or_error};
     if (result == HttpReadLoopResult::TIMEOUT)
@@ -393,11 +406,12 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
           int read_or_error = container->read(buf + read_index, std::min<size_t>(max_length - read_index, 512));
           App.feed_wdt();
           yield();
-          auto result = http_read_loop_result(read_or_error, last_data_time, read_timeout);
+          auto result =
+              http_read_loop_result(read_or_error, last_data_time, read_timeout, container->is_read_complete());
           if (result == HttpReadLoopResult::RETRY)
             continue;
           if (result != HttpReadLoopResult::DATA)
-            break;  // ERROR or TIMEOUT
+            break;  // COMPLETE, ERROR, or TIMEOUT
           read_index += read_or_error;
         }
         response_body.reserve(read_index);

@@ -130,9 +130,11 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
     App.feed_wdt();
     yield();
 
-    auto result = http_read_loop_result(bufsize_or_error, last_data_time, read_timeout);
+    auto result = http_read_loop_result(bufsize_or_error, last_data_time, read_timeout, container->is_read_complete());
     if (result == HttpReadLoopResult::RETRY)
       continue;
+    if (result == HttpReadLoopResult::COMPLETE)
+      break;  // All data received
     if (result != HttpReadLoopResult::DATA) {
       if (result == HttpReadLoopResult::TIMEOUT) {
         ESP_LOGE(TAG, "Timeout reading data");

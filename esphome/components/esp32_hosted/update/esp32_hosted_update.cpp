@@ -196,11 +196,12 @@ bool Esp32HostedUpdate::fetch_manifest_() {
     int read_or_error = container->read(buf, sizeof(buf));
     App.feed_wdt();
     yield();
-    auto result = http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout);
+    auto result =
+        http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout, container->is_read_complete());
     if (result == http_request::HttpReadLoopResult::RETRY)
       continue;
     if (result != http_request::HttpReadLoopResult::DATA)
-      break;  // ERROR or TIMEOUT
+      break;  // COMPLETE, ERROR, or TIMEOUT
     json_str.append(reinterpret_cast<char *>(buf), read_or_error);
   }
   container->end();
@@ -321,9 +322,12 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
     App.feed_wdt();
     yield();
 
-    auto result = http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout);
+    auto result =
+        http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout, container->is_read_complete());
     if (result == http_request::HttpReadLoopResult::RETRY)
       continue;
+    if (result == http_request::HttpReadLoopResult::COMPLETE)
+      break;  // All data received
     if (result != http_request::HttpReadLoopResult::DATA) {
       if (result == http_request::HttpReadLoopResult::TIMEOUT) {
         ESP_LOGE(TAG, "Timeout reading firmware data");
