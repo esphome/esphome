@@ -17,6 +17,23 @@ static uint32_t parse_uint(const char *&p) {
 
 bool is_leap_year(int year) { return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0); }
 
+// Extract just the year from a UTC epoch (faster than full epoch_to_tm_utc)
+static int epoch_to_year(time_t epoch) {
+  int64_t days = epoch / 86400;
+  if (epoch < 0 && epoch % 86400 != 0)
+    days--;
+  int year = 1970;
+  while (days >= (is_leap_year(year) ? 366 : 365)) {
+    days -= is_leap_year(year) ? 366 : 365;
+    year++;
+  }
+  while (days < 0) {
+    year--;
+    days += is_leap_year(year) ? 366 : 365;
+  }
+  return year;
+}
+
 int days_in_month(int year, int month) {
   static const int DAYS_PER_MONTH[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
   if (month == 2 && is_leap_year(year))
@@ -198,9 +215,7 @@ void day_of_year_to_month_day(int day_of_year, int year, int &out_month, int &ou
 }
 
 bool parse_dst_rule(const char *&p, DSTRule &rule) {
-  // Initialize defaults
-  rule = {};
-  rule.time_seconds = 2 * 3600;  // Default 02:00
+  rule = {};  // Zero initialize
 
   if (*p == 'M' || *p == 'm') {
     // M format: Mm.w.d (month.week.day)
@@ -281,9 +296,7 @@ bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
 
   // Check for DST name
   if (!*p) {
-    // No DST
-    result.has_dst = false;
-    return true;
+    return true;  // No DST
   }
 
   // If next char is comma, there's no DST name but there are rules (invalid)
@@ -292,9 +305,7 @@ bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
   }
 
   if (!internal::skip_tz_name(p)) {
-    // No valid DST name, no DST
-    result.has_dst = false;
-    return true;
+    return true;  // No valid DST name, no DST
   }
 
   // We have a DST name
@@ -363,19 +374,18 @@ time_t calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offs
       break;
   }
 
-  // Build the tm struct for this date at the transition time
-  struct tm transition_tm = {};
-  transition_tm.tm_year = year - 1900;
-  transition_tm.tm_mon = month - 1;
-  transition_tm.tm_mday = day;
-  transition_tm.tm_hour = rule.time_seconds / 3600;
-  transition_tm.tm_min = (rule.time_seconds % 3600) / 60;
-  transition_tm.tm_sec = rule.time_seconds % 60;
+  // Calculate days from epoch to this date
+  int64_t days = 0;
+  for (int y = 1970; y < year; y++) {
+    days += internal::is_leap_year(y) ? 366 : 365;
+  }
+  for (int m = 1; m < month; m++) {
+    days += internal::days_in_month(year, m);
+  }
+  days += day - 1;
 
-  // Convert to UTC epoch, then add the base offset
-  // (transition times are specified in local time before the transition)
-  time_t local_epoch = internal::tm_to_epoch_utc(&transition_tm);
-  return local_epoch + base_offset_seconds;
+  // Convert to epoch and add transition time and base offset
+  return days * 86400 + rule.time_seconds + base_offset_seconds;
 }
 
 bool is_in_dst(time_t utc_epoch, const ParsedTimezone &tz) {
@@ -383,10 +393,7 @@ bool is_in_dst(time_t utc_epoch, const ParsedTimezone &tz) {
     return false;
   }
 
-  // Get the year from the UTC epoch
-  struct tm utc_tm;
-  internal::epoch_to_tm_utc(utc_epoch, &utc_tm);
-  int year = utc_tm.tm_year + 1900;
+  int year = internal::epoch_to_year(utc_epoch);
 
   // Calculate DST start and end for this year
   // DST start transition happens in standard time
