@@ -495,6 +495,27 @@ TEST(PosixTzParser, JulianDay1IsJan1) {
   EXPECT_EQ(day, 1);
 }
 
+TEST(PosixTzParser, JulianDay31IsJan31) {
+  int month, day;
+  internal::julian_to_month_day(31, month, day);
+  EXPECT_EQ(month, 1);
+  EXPECT_EQ(day, 31);
+}
+
+TEST(PosixTzParser, JulianDay32IsFeb1) {
+  int month, day;
+  internal::julian_to_month_day(32, month, day);
+  EXPECT_EQ(month, 2);
+  EXPECT_EQ(day, 1);
+}
+
+TEST(PosixTzParser, JulianDay59IsFeb28) {
+  int month, day;
+  internal::julian_to_month_day(59, month, day);
+  EXPECT_EQ(month, 2);
+  EXPECT_EQ(day, 28);
+}
+
 TEST(PosixTzParser, JulianDay365IsDec31) {
   int month, day;
   internal::julian_to_month_day(365, month, day);
@@ -510,10 +531,19 @@ TEST(PosixTzParser, DayOfYear0IsJan1) {
 }
 
 TEST(PosixTzParser, DaysInMonthRegular) {
-  EXPECT_EQ(internal::days_in_month(2025, 1), 31);
-  EXPECT_EQ(internal::days_in_month(2025, 2), 28);
-  EXPECT_EQ(internal::days_in_month(2025, 4), 30);
-  EXPECT_EQ(internal::days_in_month(2025, 12), 31);
+  // Test all 12 months to ensure switch coverage
+  EXPECT_EQ(internal::days_in_month(2025, 1), 31);   // Jan - default case
+  EXPECT_EQ(internal::days_in_month(2025, 2), 28);   // Feb - case 2
+  EXPECT_EQ(internal::days_in_month(2025, 3), 31);   // Mar - default case
+  EXPECT_EQ(internal::days_in_month(2025, 4), 30);   // Apr - case 4
+  EXPECT_EQ(internal::days_in_month(2025, 5), 31);   // May - default case
+  EXPECT_EQ(internal::days_in_month(2025, 6), 30);   // Jun - case 6
+  EXPECT_EQ(internal::days_in_month(2025, 7), 31);   // Jul - default case
+  EXPECT_EQ(internal::days_in_month(2025, 8), 31);   // Aug - default case
+  EXPECT_EQ(internal::days_in_month(2025, 9), 30);   // Sep - case 9
+  EXPECT_EQ(internal::days_in_month(2025, 10), 31);  // Oct - default case
+  EXPECT_EQ(internal::days_in_month(2025, 11), 30);  // Nov - case 11
+  EXPECT_EQ(internal::days_in_month(2025, 12), 31);  // Dec - default case
 }
 
 TEST(PosixTzParser, DaysInMonthLeapYear) {
