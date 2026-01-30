@@ -53,4 +53,4 @@ async def to_code(config):
                 "lib_ignore", ["ESPAsyncTCP", "AsyncTCP", "AsyncTCP_RP2040W"]
             )
         # https://github.com/ESP32Async/ESPAsyncWebServer/blob/main/library.json
-        cg.add_library("ESP32Async/ESPAsyncWebServer", "3.9.5")
+        cg.add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
