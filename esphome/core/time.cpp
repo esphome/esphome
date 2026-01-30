@@ -272,7 +272,7 @@ void ESPTime::recalc_timestamp_local() {
   time_t approx_utc = this->timestamp + tz.std_offset_seconds;
 
   // Check if DST is in effect and apply the appropriate offset
-  if (time::internal::is_in_dst(approx_utc, tz)) {
+  if (time::is_in_dst(approx_utc, tz)) {
     this->timestamp += tz.dst_offset_seconds;
   } else {
     this->timestamp += tz.std_offset_seconds;
@@ -289,7 +289,7 @@ int32_t ESPTime::timezone_offset() {
   const auto &tz = time::get_global_tz();
   // POSIX offset is positive west, but we return offset to add to UTC to get local
   // So we negate the POSIX offset
-  if (time::internal::is_in_dst(now, tz)) {
+  if (time::is_in_dst(now, tz)) {
     return -tz.dst_offset_seconds;
   }
   return -tz.std_offset_seconds;

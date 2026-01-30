@@ -61,6 +61,12 @@ void set_global_tz(const ParsedTimezone &tz);
 /// Get the global timezone.
 const ParsedTimezone &get_global_tz();
 
+/// Check if a given UTC epoch falls within DST for the parsed timezone.
+/// @param utc_epoch Unix timestamp in UTC
+/// @param tz The parsed timezone
+/// @return true if DST is in effect at the given time
+bool is_in_dst(time_t utc_epoch, const ParsedTimezone &tz);
+
 // Internal helper functions exposed for testing
 
 namespace internal {
@@ -113,12 +119,6 @@ void epoch_to_tm_utc(time_t epoch, struct tm *out_tm);
 /// @param base_offset_seconds The timezone offset to apply (std or dst depending on context)
 /// @return Unix epoch timestamp of the transition
 time_t calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offset_seconds);
-
-/// Check if a given UTC epoch falls within DST for the parsed timezone.
-/// @param utc_epoch Unix timestamp in UTC
-/// @param tz The parsed timezone
-/// @return true if DST is in effect at the given time
-bool is_in_dst(time_t utc_epoch, const ParsedTimezone &tz);
 
 }  // namespace internal
 

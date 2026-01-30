@@ -327,18 +327,20 @@ time_t __attribute__((noinline)) calculate_dst_transition(int year, const DSTRul
   return days * 86400 + rule.time_seconds + base_offset_seconds;
 }
 
+}  // namespace internal
+
 bool __attribute__((noinline)) is_in_dst(time_t utc_epoch, const ParsedTimezone &tz) {
   if (!tz.has_dst) {
     return false;
   }
 
-  int year = epoch_to_year(utc_epoch);
+  int year = internal::epoch_to_year(utc_epoch);
 
   // Calculate DST start and end for this year
   // DST start transition happens in standard time
-  time_t dst_start = calculate_dst_transition(year, tz.dst_start, tz.std_offset_seconds);
+  time_t dst_start = internal::calculate_dst_transition(year, tz.dst_start, tz.std_offset_seconds);
   // DST end transition happens in daylight time
-  time_t dst_end = calculate_dst_transition(year, tz.dst_end, tz.dst_offset_seconds);
+  time_t dst_end = internal::calculate_dst_transition(year, tz.dst_end, tz.dst_offset_seconds);
 
   if (dst_start < dst_end) {
     // Northern hemisphere: DST is between start and end
@@ -348,8 +350,6 @@ bool __attribute__((noinline)) is_in_dst(time_t utc_epoch, const ParsedTimezone 
     return (utc_epoch >= dst_start || utc_epoch < dst_end);
   }
 }
-
-}  // namespace internal
 
 bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
   if (!tz_string || !*tz_string) {
@@ -435,7 +435,7 @@ bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *ou
   }
 
   // Determine DST status once (avoids duplicate is_in_dst calculation)
-  bool in_dst = internal::is_in_dst(utc_epoch, tz);
+  bool in_dst = is_in_dst(utc_epoch, tz);
   int32_t offset = in_dst ? tz.dst_offset_seconds : tz.std_offset_seconds;
 
   // Apply offset (POSIX offset is positive west, so subtract to get local)
