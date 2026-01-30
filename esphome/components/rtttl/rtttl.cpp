@@ -194,7 +194,7 @@ void Rtttl::loop() {
   }
 
   // now, get scale
-  uint8_t scale = get_integer_();
+  uint8_t scale = this->get_integer_();
   if (scale == 0) {
     scale = this->default_octave_;
   }
@@ -319,7 +319,7 @@ void Rtttl::play(std::string rtttl) {
     return;
   }
   this->position_ += 2;
-  num = get_integer_();
+  num = this->get_integer_();
   if (num >= 3 && num <= 7) {
     this->default_octave_ = num;
   }
@@ -331,7 +331,7 @@ void Rtttl::play(std::string rtttl) {
     return;
   }
   this->position_ += 2;
-  num = get_integer_();
+  num = this->get_integer_();
   if (num != 0) {
     bpm = num;
   }
