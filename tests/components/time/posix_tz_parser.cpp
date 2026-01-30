@@ -361,6 +361,24 @@ TEST(PosixTzParser, MFormatInvalidDayOfWeek7) {
   EXPECT_FALSE(parse_posix_tz("EST5EDT,M3.2.7,M11.1.0", tz));
 }
 
+TEST(PosixTzParser, MissingEndRule) {
+  ParsedTimezone tz;
+  // POSIX requires both start and end rules if any rules are specified
+  EXPECT_FALSE(parse_posix_tz("EST5EDT,M3.2.0", tz));
+}
+
+TEST(PosixTzParser, MissingEndRuleJFormat) {
+  ParsedTimezone tz;
+  // POSIX requires both start and end rules if any rules are specified
+  EXPECT_FALSE(parse_posix_tz("EST5EDT,J60", tz));
+}
+
+TEST(PosixTzParser, MissingEndRulePlainDay) {
+  ParsedTimezone tz;
+  // POSIX requires both start and end rules if any rules are specified
+  EXPECT_FALSE(parse_posix_tz("EST5EDT,60", tz));
+}
+
 // ============================================================================
 // Large offset tests
 // ============================================================================

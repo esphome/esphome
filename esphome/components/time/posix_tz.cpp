@@ -370,18 +370,20 @@ bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
     result.dst_offset_seconds = result.std_offset_seconds - 3600;
   }
 
-  // Parse DST rules if present
+  // Parse DST rules if present (POSIX requires both start and end if any rules specified)
   if (*p == ',') {
     p++;
     if (!internal::parse_dst_rule(p, result.dst_start)) {
       return false;
     }
 
-    if (*p == ',') {
-      p++;
-      if (!internal::parse_dst_rule(p, result.dst_end)) {
-        return false;
-      }
+    // Second rule is required per POSIX
+    if (*p != ',') {
+      return false;
+    }
+    p++;
+    if (!internal::parse_dst_rule(p, result.dst_end)) {
+      return false;
     }
   }
 
