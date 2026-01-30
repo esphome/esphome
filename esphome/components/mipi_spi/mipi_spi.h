@@ -207,10 +207,13 @@ class MipiSpi : public display::Display,
                     "  Width: %u\n"
                     "  Height: %u",
                     this->model_, WIDTH, HEIGHT);
+  
     if constexpr (OFFSET_WIDTH != 0)
       esph_log_config(TAG, "  Offset width: %u", OFFSET_WIDTH);
+  
     if constexpr (OFFSET_HEIGHT != 0)
       esph_log_config(TAG, "  Offset height: %u", OFFSET_HEIGHT);
+  
     esph_log_config(TAG,
                     "  Swap X/Y: %s\n"
                     "  Mirror X: %s\n"
@@ -218,23 +221,34 @@ class MipiSpi : public display::Display,
                     "  Invert colors: %s\n"
                     "  Color order: %s\n"
                     "  Display pixels: %d bits\n"
-                    "  Endianness: %s\n",
-                    YESNO(this->madctl_ & MADCTL_MV), YESNO(this->madctl_ & (MADCTL_MX | MADCTL_XFLIP)),
-                    YESNO(this->madctl_ & (MADCTL_MY | MADCTL_YFLIP)), YESNO(this->invert_colors_),
-                    this->madctl_ & MADCTL_BGR ? "BGR" : "RGB", DISPLAYPIXEL * 8, IS_BIG_ENDIAN ? "Big" : "Little");
+                    "  Endianness: %s",
+                    YESNO(this->madctl_ & MADCTL_MV),
+                    YESNO(this->madctl_ & (MADCTL_MX | MADCTL_XFLIP)),
+                    YESNO(this->madctl_ & (MADCTL_MY | MADCTL_YFLIP)),
+                    YESNO(this->invert_colors_),
+                    this->madctl_ & MADCTL_BGR ? "BGR" : "RGB",
+                    DISPLAYPIXEL * 8,
+                    IS_BIG_ENDIAN ? "Big" : "Little");
+  
     if (this->brightness_.has_value())
       esph_log_config(TAG, "  Brightness: %u", this->brightness_.value());
+  
     if (this->cs_ != nullptr)
-      ESP_LOGCONFIG(TAG, "  CS Pin: %s", this->cs_->dump_summary().c_str());
+      esph_log_config(TAG, "  CS Pin: %s", this->cs_->dump_summary().c_str());
+  
     if (this->reset_pin_ != nullptr)
-      ESP_LOGCONFIG(TAG, "  Reset Pin: %s", this->reset_pin_->dump_summary().c_str());
+      esph_log_config(TAG, "  Reset Pin: %s", this->reset_pin_->dump_summary().c_str());
+  
     if (this->dc_pin_ != nullptr)
-      ESP_LOGCONFIG(TAG, "  DC Pin: %s", this->dc_pin_->dump_summary().c_str());
+      esph_log_config(TAG, "  DC Pin: %s", this->dc_pin_->dump_summary().c_str());
+  
     esph_log_config(TAG,
                     "  SPI Mode: %d\n"
                     "  SPI Data rate: %dMHz\n"
                     "  SPI Bus width: %d",
-                    this->mode_, static_cast<unsigned>(this->data_rate_ / 1000000), BUS_TYPE);
+                    this->mode_,
+                    static_cast<unsigned>(this->data_rate_ / 1000000),
+                    BUS_TYPE);
   }
 
  protected:
