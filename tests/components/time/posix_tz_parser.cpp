@@ -1126,4 +1126,78 @@ TEST(RecalcTimestampLocal, SouthernHemisphereDST) {
   EXPECT_EQ(esp_result, libc_result);
 }
 
+TEST(RecalcTimestampLocal, ExactTransitionBoundary) {
+  // Test exact boundary of spring forward transition
+  // Mar 8, 2026 at 2:00 AM CST -> 3:00 AM CDT (clocks skip forward)
+  const char *tz_str = "CST6CDT,M3.2.0,M11.1.0";
+  setenv("TZ", tz_str, 1);
+  tzset();
+  time::ParsedTimezone tz{};
+  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  set_global_tz(tz);
+
+  // 1:59:59 AM CST - last second before transition (still standard time)
+  time_t libc_result = libc_mktime(2026, 3, 8, 1, 59, 59);
+  time_t esp_result = esptime_recalc_local(2026, 3, 8, 1, 59, 59);
+  EXPECT_EQ(esp_result, libc_result);
+
+  // 3:00:00 AM CDT - first second after transition (now DST)
+  libc_result = libc_mktime(2026, 3, 8, 3, 0, 0);
+  esp_result = esptime_recalc_local(2026, 3, 8, 3, 0, 0);
+  EXPECT_EQ(esp_result, libc_result);
+
+  // Verify the gap: 3:00 AM CDT should be exactly 1 second after 1:59:59 AM CST
+  time_t before_transition = esptime_recalc_local(2026, 3, 8, 1, 59, 59);
+  time_t after_transition = esptime_recalc_local(2026, 3, 8, 3, 0, 0);
+  EXPECT_EQ(after_transition - before_transition, 1);
+}
+
+TEST(RecalcTimestampLocal, NonDefaultTransitionTime) {
+  // Test DST transition at 3:00 AM instead of default 2:00 AM
+  // Using custom transition time: CST6CDT,M3.2.0/3,M11.1.0/3
+  const char *tz_str = "CST6CDT,M3.2.0/3,M11.1.0/3";
+  setenv("TZ", tz_str, 1);
+  tzset();
+  time::ParsedTimezone tz{};
+  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  set_global_tz(tz);
+
+  // 2:30 AM should still be standard time (transition at 3:00 AM)
+  time_t libc_result = libc_mktime(2026, 3, 8, 2, 30, 0);
+  time_t esp_result = esptime_recalc_local(2026, 3, 8, 2, 30, 0);
+  EXPECT_EQ(esp_result, libc_result);
+
+  // 4:00 AM should be DST (after 3:00 AM transition)
+  libc_result = libc_mktime(2026, 3, 8, 4, 0, 0);
+  esp_result = esptime_recalc_local(2026, 3, 8, 4, 0, 0);
+  EXPECT_EQ(esp_result, libc_result);
+}
+
+TEST(RecalcTimestampLocal, YearBoundaryDST) {
+  // Test southern hemisphere DST across year boundary
+  // Australia/Sydney: DST active from October to April (spans Jan 1)
+  const char *tz_str = "AEST-10AEDT,M10.1.0,M4.1.0";
+  setenv("TZ", tz_str, 1);
+  tzset();
+  time::ParsedTimezone tz{};
+  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  set_global_tz(tz);
+
+  // Dec 31, 2025 at 23:30 - DST should be active
+  time_t libc_result = libc_mktime(2025, 12, 31, 23, 30, 0);
+  time_t esp_result = esptime_recalc_local(2025, 12, 31, 23, 30, 0);
+  EXPECT_EQ(esp_result, libc_result);
+
+  // Jan 1, 2026 at 00:30 - DST should still be active
+  libc_result = libc_mktime(2026, 1, 1, 0, 30, 0);
+  esp_result = esptime_recalc_local(2026, 1, 1, 0, 30, 0);
+  EXPECT_EQ(esp_result, libc_result);
+
+  // Verify both are in DST (11 hour offset from UTC, not 10)
+  // The timestamps should be 1 hour apart
+  time_t dec31 = esptime_recalc_local(2025, 12, 31, 23, 30, 0);
+  time_t jan1 = esptime_recalc_local(2026, 1, 1, 0, 30, 0);
+  EXPECT_EQ(jan1 - dec31, 3600);  // 1 hour difference
+}
+
 }  // namespace esphome::testing
