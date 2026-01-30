@@ -1,0 +1,10 @@
+substitutions:
+  dc_pin: GPIO15
+  cs_pin: GPIO5
+  enable_pin: GPIO4
+  reset_pin: GPIO16
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+
+<<: !include common.yaml
