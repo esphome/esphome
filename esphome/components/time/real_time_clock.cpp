@@ -27,11 +27,11 @@ void RealTimeClock::dump_config() {
 #ifdef USE_TIME_TIMEZONE
   const auto &tz = get_global_tz();
   int std_hours = -tz.std_offset_seconds / 3600;
-  int std_mins = abs(tz.std_offset_seconds % 3600) / 60;
+  int std_mins = std::abs(tz.std_offset_seconds % 3600) / 60;
   ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d", std_hours, std_mins);
   if (tz.has_dst) {
     int dst_hours = -tz.dst_offset_seconds / 3600;
-    int dst_mins = abs(tz.dst_offset_seconds % 3600) / 60;
+    int dst_mins = std::abs(tz.dst_offset_seconds % 3600) / 60;
     // Always use M format - tzdata and aioesphomeapi only generate M format rules
     ESP_LOGCONFIG(TAG, "  DST: UTC%+d:%02d, M%d.%d.%d/%" PRId32 " - M%d.%d.%d/%" PRId32, dst_hours, dst_mins,
                   tz.dst_start.month, tz.dst_start.week, tz.dst_start.day_of_week, tz.dst_start.time_seconds / 3600,
