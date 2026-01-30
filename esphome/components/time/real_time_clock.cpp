@@ -32,10 +32,15 @@ void RealTimeClock::dump_config() {
   if (tz.has_dst) {
     int dst_hours = -tz.dst_offset_seconds / 3600;
     int dst_mins = std::abs(tz.dst_offset_seconds % 3600) / 60;
+    // Transition times (when DST starts/ends)
+    int start_time_hours = tz.dst_start.time_seconds / 3600;
+    int start_time_mins = std::abs(tz.dst_start.time_seconds % 3600) / 60;
+    int end_time_hours = tz.dst_end.time_seconds / 3600;
+    int end_time_mins = std::abs(tz.dst_end.time_seconds % 3600) / 60;
     // Always use M format - tzdata and aioesphomeapi only generate M format rules
-    ESP_LOGCONFIG(TAG, "  DST: UTC%+d:%02d, M%d.%d.%d/%" PRId32 " - M%d.%d.%d/%" PRId32, dst_hours, dst_mins,
-                  tz.dst_start.month, tz.dst_start.week, tz.dst_start.day_of_week, tz.dst_start.time_seconds / 3600,
-                  tz.dst_end.month, tz.dst_end.week, tz.dst_end.day_of_week, tz.dst_end.time_seconds / 3600);
+    ESP_LOGCONFIG(TAG, "  DST: UTC%+d:%02d, M%d.%d.%d/%d:%02d - M%d.%d.%d/%d:%02d", dst_hours, dst_mins,
+                  tz.dst_start.month, tz.dst_start.week, tz.dst_start.day_of_week, start_time_hours, start_time_mins,
+                  tz.dst_end.month, tz.dst_end.week, tz.dst_end.day_of_week, end_time_hours, end_time_mins);
   }
 #endif
   auto time = this->now();
