@@ -55,7 +55,9 @@ def test_external_components_skip_update_true(
     }
 
     # Mock CORE.relative_internal_path to use tmp_path
-    with patch.object(CORE, "relative_internal_path", return_value=internal_dir):
+    with patch.object(
+        CORE, "relative_internal_path", return_value=internal_dir / ".merged_prs_cache"
+    ):
         # Call with skip_update=True
         do_external_components_pass(config, skip_update=True)
 
@@ -101,7 +103,9 @@ def test_external_components_skip_update_false(
     }
 
     # Mock CORE.relative_internal_path to use tmp_path
-    with patch.object(CORE, "relative_internal_path", return_value=internal_dir):
+    with patch.object(
+        CORE, "relative_internal_path", return_value=internal_dir / ".merged_prs_cache"
+    ):
         # Call with skip_update=False
         do_external_components_pass(config, skip_update=False)
 
@@ -395,7 +399,9 @@ def test_external_components_default_no_skip(
     }
 
     # Mock CORE.relative_internal_path to use tmp_path
-    with patch.object(CORE, "relative_internal_path", return_value=internal_dir):
+    with patch.object(
+        CORE, "relative_internal_path", return_value=internal_dir / ".merged_prs_cache"
+    ):
         # Call without skip_update parameter
         do_external_components_pass(config)
 

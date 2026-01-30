@@ -77,7 +77,7 @@ def _process_git_config(config: dict, refresh, skip_update: bool = False) -> str
 
 def _check_merge_status(pr_number: str) -> bool:
     url = f"https://api.github.com/repos/esphome/esphome/pulls/{pr_number}"
-    response = requests.get(url)
+    response = requests.get(url, timeout=10)
     if response.status_code != 200:
         return False
     data = response.json()
@@ -85,7 +85,7 @@ def _check_merge_status(pr_number: str) -> bool:
         return False
     merge_sha = data["merge_commit_sha"]
     url = f"https://api.github.com/repos/esphome/esphome/compare/release...{merge_sha}"
-    response = requests.get(url)
+    response = requests.get(url, timeout=10)
     if response.status_code != 200:
         return False
     data = response.json()
@@ -94,6 +94,7 @@ def _check_merge_status(pr_number: str) -> bool:
 
 def _check_for_merged_prs(srcs: list[tuple]):
     cache_file = CORE.relative_internal_path(".merged_prs_cache")
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
     merged_prs = []
     if cache_file.is_file():
         with open(cache_file) as f:
@@ -173,7 +174,7 @@ def do_external_components_pass(config: dict, skip_update: bool = False) -> None
                 if (
                     source[CONF_TYPE] == TYPE_GIT
                     and "github.com/esphome/esphome" in source[CONF_URL]
-                    and "pull" in source[CONF_REF]
+                    and "pull" in source.get(CONF_REF, "")
                 ):
                     pr_number = source[CONF_REF].split("/")[1]
                     pr_srcs.append((pr_number, c[CONF_COMPONENTS]))
