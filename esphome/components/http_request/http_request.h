@@ -205,6 +205,12 @@ class HttpContainer : public Parented<HttpRequestComponent> {
   /// Check if all expected content has been read (only valid for non-chunked responses)
   /// For chunked responses (content_length == 0 on ESP-IDF, SIZE_MAX on Arduino), returns false
   bool is_read_complete() const {
+    // Per RFC 9112, these responses have no body:
+    // - 1xx (Informational), 204 No Content, 304 Not Modified
+    if ((this->status_code >= 100 && this->status_code < 200) || this->status_code == HTTP_STATUS_NO_CONTENT ||
+        this->status_code == HTTP_STATUS_NOT_MODIFIED) {
+      return true;
+    }
     return this->content_length > 0 && this->content_length < SIZE_MAX && this->bytes_read_ >= this->content_length;
   }
 
