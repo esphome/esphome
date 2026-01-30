@@ -641,7 +641,7 @@ TEST(PosixTzParser, IsInDstUSEasternSummer) {
 
   // July 4, 2026 12:00 UTC - definitely in DST
   time_t summer = make_utc(2026, 7, 4, 12);
-  EXPECT_TRUE(internal::is_in_dst(summer, tz));
+  EXPECT_TRUE(is_in_dst(summer, tz));
 }
 
 TEST(PosixTzParser, IsInDstUSEasternWinter) {
@@ -650,7 +650,7 @@ TEST(PosixTzParser, IsInDstUSEasternWinter) {
 
   // January 15, 2026 12:00 UTC - definitely not in DST
   time_t winter = make_utc(2026, 1, 15, 12);
-  EXPECT_FALSE(internal::is_in_dst(winter, tz));
+  EXPECT_FALSE(is_in_dst(winter, tz));
 }
 
 TEST(PosixTzParser, IsInDstNoDstTimezone) {
@@ -659,7 +659,7 @@ TEST(PosixTzParser, IsInDstNoDstTimezone) {
 
   // July 15, 2026 12:00 UTC
   time_t epoch = make_utc(2026, 7, 15, 12);
-  EXPECT_FALSE(internal::is_in_dst(epoch, tz));
+  EXPECT_FALSE(is_in_dst(epoch, tz));
 }
 
 TEST(PosixTzParser, SouthernHemisphereDstSummer) {
@@ -668,7 +668,7 @@ TEST(PosixTzParser, SouthernHemisphereDstSummer) {
 
   // December 15, 2025 12:00 UTC - summer in NZ, should be in DST
   time_t nz_summer = make_utc(2025, 12, 15, 12);
-  EXPECT_TRUE(internal::is_in_dst(nz_summer, tz));
+  EXPECT_TRUE(is_in_dst(nz_summer, tz));
 }
 
 TEST(PosixTzParser, SouthernHemisphereDstWinter) {
@@ -677,7 +677,7 @@ TEST(PosixTzParser, SouthernHemisphereDstWinter) {
 
   // July 15, 2026 12:00 UTC - winter in NZ, should NOT be in DST
   time_t nz_winter = make_utc(2026, 7, 15, 12);
-  EXPECT_FALSE(internal::is_in_dst(nz_winter, tz));
+  EXPECT_FALSE(is_in_dst(nz_winter, tz));
 }
 
 // ============================================================================
@@ -842,11 +842,11 @@ TEST(PosixTzParser, DstBoundaryJustBeforeSpringForward) {
 
   // March 8, 2026 06:59:59 UTC = 01:59:59 EST (1 second before spring forward)
   time_t before_epoch = make_utc(2026, 3, 8, 6, 59, 59);
-  EXPECT_FALSE(internal::is_in_dst(before_epoch, tz));
+  EXPECT_FALSE(is_in_dst(before_epoch, tz));
 
   // March 8, 2026 07:00:00 UTC = 02:00:00 EST -> 03:00:00 EDT (DST started)
   time_t after_epoch = make_utc(2026, 3, 8, 7);
-  EXPECT_TRUE(internal::is_in_dst(after_epoch, tz));
+  EXPECT_TRUE(is_in_dst(after_epoch, tz));
 }
 
 TEST(PosixTzParser, DstBoundaryJustBeforeFallBack) {
@@ -856,11 +856,11 @@ TEST(PosixTzParser, DstBoundaryJustBeforeFallBack) {
 
   // November 1, 2026 05:59:59 UTC = 01:59:59 EDT (1 second before fall back)
   time_t before_epoch = make_utc(2026, 11, 1, 5, 59, 59);
-  EXPECT_TRUE(internal::is_in_dst(before_epoch, tz));
+  EXPECT_TRUE(is_in_dst(before_epoch, tz));
 
   // November 1, 2026 06:00:00 UTC = 02:00:00 EDT -> 01:00:00 EST (DST ended)
   time_t after_epoch = make_utc(2026, 11, 1, 6);
-  EXPECT_FALSE(internal::is_in_dst(after_epoch, tz));
+  EXPECT_FALSE(is_in_dst(after_epoch, tz));
 }
 
 }  // namespace esphome::time::testing
