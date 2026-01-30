@@ -268,14 +268,33 @@ void ESPTime::recalc_timestamp_local() {
   // POSIX: local = utc - offset, so utc = local + offset
   const auto &tz = time::get_global_tz();
 
-  // Use standard offset as initial guess to determine DST status
-  time_t approx_utc = this->timestamp + tz.std_offset_seconds;
-
-  // Check if DST is in effect and apply the appropriate offset
-  if (time::is_in_dst(approx_utc, tz)) {
-    this->timestamp += tz.dst_offset_seconds;
-  } else {
+  if (!tz.has_dst) {
+    // No DST - just apply standard offset
     this->timestamp += tz.std_offset_seconds;
+    return;
+  }
+
+  // Try both interpretations to match libc mktime() with tm_isdst=-1
+  // For ambiguous times (fall-back repeated hour), libc prefers DST
+  // For invalid times (spring-forward skipped hour), libc normalizes to DST
+  time_t utc_if_dst = this->timestamp + tz.dst_offset_seconds;
+  time_t utc_if_std = this->timestamp + tz.std_offset_seconds;
+
+  bool dst_valid = time::is_in_dst(utc_if_dst, tz);
+  bool std_valid = !time::is_in_dst(utc_if_std, tz);
+
+  if (dst_valid && std_valid) {
+    // Ambiguous time (repeated hour during fall-back) - prefer DST to match libc
+    this->timestamp = utc_if_dst;
+  } else if (dst_valid) {
+    // Only DST interpretation is valid
+    this->timestamp = utc_if_dst;
+  } else if (std_valid) {
+    // Only standard interpretation is valid
+    this->timestamp = utc_if_std;
+  } else {
+    // Invalid time (skipped hour during spring-forward) - use DST to match libc
+    this->timestamp = utc_if_dst;
   }
 #else
   // No timezone support - treat as UTC
