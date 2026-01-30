@@ -45,19 +45,6 @@ struct ParsedTimezone {
 /// @return true if parsing succeeded, false on error
 bool parse_posix_tz(const char *tz_string, ParsedTimezone &result);
 
-/// Calculate the epoch timestamp for a DST transition in a given year.
-/// @param year The year (e.g., 2026)
-/// @param rule The DST rule (month, week, day_of_week, time)
-/// @param base_offset_seconds The timezone offset to apply (std or dst depending on context)
-/// @return Unix epoch timestamp of the transition
-time_t calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offset_seconds);
-
-/// Check if a given UTC epoch falls within DST for the parsed timezone.
-/// @param utc_epoch Unix timestamp in UTC
-/// @param tz The parsed timezone
-/// @return true if DST is in effect at the given time
-bool is_in_dst(time_t utc_epoch, const ParsedTimezone &tz);
-
 /// Convert a UTC epoch to local time using the parsed timezone.
 /// This replaces libc's localtime() to avoid scanf dependency.
 /// @param utc_epoch Unix timestamp in UTC
@@ -111,6 +98,19 @@ bool is_leap_year(int year);
 
 /// Convert epoch to year/month/day/hour/min/sec (UTC)
 void epoch_to_tm_utc(time_t epoch, struct tm *out_tm);
+
+/// Calculate the epoch timestamp for a DST transition in a given year.
+/// @param year The year (e.g., 2026)
+/// @param rule The DST rule (month, week, day_of_week, time)
+/// @param base_offset_seconds The timezone offset to apply (std or dst depending on context)
+/// @return Unix epoch timestamp of the transition
+time_t calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offset_seconds);
+
+/// Check if a given UTC epoch falls within DST for the parsed timezone.
+/// @param utc_epoch Unix timestamp in UTC
+/// @param tz The parsed timezone
+/// @return true if DST is in effect at the given time
+bool is_in_dst(time_t utc_epoch, const ParsedTimezone &tz);
 
 }  // namespace internal
 

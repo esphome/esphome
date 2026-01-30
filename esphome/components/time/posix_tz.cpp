@@ -245,6 +245,80 @@ bool parse_dst_rule(const char *&p, DSTRule &rule) {
   return true;
 }
 
+time_t calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offset_seconds) {
+  int month, day;
+
+  switch (rule.type) {
+    case DSTRuleType::MONTH_WEEK_DAY: {
+      // Find the nth occurrence of day_of_week in the given month
+      int first_day_of_month = day_of_week(year, rule.month, 1);
+
+      // Days until first occurrence of target day
+      int days_until_first = (rule.day_of_week - first_day_of_month + 7) % 7;
+      int first_occurrence = 1 + days_until_first;
+
+      if (rule.week == 5) {
+        // "Last" occurrence - find the last one in the month
+        int days_in_m = days_in_month(year, rule.month);
+        day = first_occurrence;
+        while (day + 7 <= days_in_m) {
+          day += 7;
+        }
+      } else {
+        // nth occurrence
+        day = first_occurrence + (rule.week - 1) * 7;
+      }
+      month = rule.month;
+      break;
+    }
+
+    case DSTRuleType::JULIAN_NO_LEAP:
+      // J format: day 1-365, Feb 29 not counted
+      julian_to_month_day(rule.day, month, day);
+      break;
+
+    case DSTRuleType::DAY_OF_YEAR:
+      // Plain format: day 0-365, Feb 29 counted
+      day_of_year_to_month_day(rule.day, year, month, day);
+      break;
+  }
+
+  // Calculate days from epoch to this date
+  int64_t days = 0;
+  for (int y = 1970; y < year; y++) {
+    days += is_leap_year(y) ? 366 : 365;
+  }
+  for (int m = 1; m < month; m++) {
+    days += days_in_month(year, m);
+  }
+  days += day - 1;
+
+  // Convert to epoch and add transition time and base offset
+  return days * 86400 + rule.time_seconds + base_offset_seconds;
+}
+
+bool is_in_dst(time_t utc_epoch, const ParsedTimezone &tz) {
+  if (!tz.has_dst) {
+    return false;
+  }
+
+  int year = epoch_to_year(utc_epoch);
+
+  // Calculate DST start and end for this year
+  // DST start transition happens in standard time
+  time_t dst_start = calculate_dst_transition(year, tz.dst_start, tz.std_offset_seconds);
+  // DST end transition happens in daylight time
+  time_t dst_end = calculate_dst_transition(year, tz.dst_end, tz.dst_offset_seconds);
+
+  if (dst_start < dst_end) {
+    // Northern hemisphere: DST is between start and end
+    return (utc_epoch >= dst_start && utc_epoch < dst_end);
+  } else {
+    // Southern hemisphere: DST is outside the range (wraps around year)
+    return (utc_epoch >= dst_start || utc_epoch < dst_end);
+  }
+}
+
 }  // namespace internal
 
 bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
@@ -314,87 +388,13 @@ bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
   return true;
 }
 
-time_t calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offset_seconds) {
-  int month, day;
-
-  switch (rule.type) {
-    case DSTRuleType::MONTH_WEEK_DAY: {
-      // Find the nth occurrence of day_of_week in the given month
-      int first_day_of_month = internal::day_of_week(year, rule.month, 1);
-
-      // Days until first occurrence of target day
-      int days_until_first = (rule.day_of_week - first_day_of_month + 7) % 7;
-      int first_occurrence = 1 + days_until_first;
-
-      if (rule.week == 5) {
-        // "Last" occurrence - find the last one in the month
-        int days_in_m = internal::days_in_month(year, rule.month);
-        day = first_occurrence;
-        while (day + 7 <= days_in_m) {
-          day += 7;
-        }
-      } else {
-        // nth occurrence
-        day = first_occurrence + (rule.week - 1) * 7;
-      }
-      month = rule.month;
-      break;
-    }
-
-    case DSTRuleType::JULIAN_NO_LEAP:
-      // J format: day 1-365, Feb 29 not counted
-      internal::julian_to_month_day(rule.day, month, day);
-      break;
-
-    case DSTRuleType::DAY_OF_YEAR:
-      // Plain format: day 0-365, Feb 29 counted
-      internal::day_of_year_to_month_day(rule.day, year, month, day);
-      break;
-  }
-
-  // Calculate days from epoch to this date
-  int64_t days = 0;
-  for (int y = 1970; y < year; y++) {
-    days += internal::is_leap_year(y) ? 366 : 365;
-  }
-  for (int m = 1; m < month; m++) {
-    days += internal::days_in_month(year, m);
-  }
-  days += day - 1;
-
-  // Convert to epoch and add transition time and base offset
-  return days * 86400 + rule.time_seconds + base_offset_seconds;
-}
-
-bool is_in_dst(time_t utc_epoch, const ParsedTimezone &tz) {
-  if (!tz.has_dst) {
-    return false;
-  }
-
-  int year = internal::epoch_to_year(utc_epoch);
-
-  // Calculate DST start and end for this year
-  // DST start transition happens in standard time
-  time_t dst_start = calculate_dst_transition(year, tz.dst_start, tz.std_offset_seconds);
-  // DST end transition happens in daylight time
-  time_t dst_end = calculate_dst_transition(year, tz.dst_end, tz.dst_offset_seconds);
-
-  if (dst_start < dst_end) {
-    // Northern hemisphere: DST is between start and end
-    return (utc_epoch >= dst_start && utc_epoch < dst_end);
-  } else {
-    // Southern hemisphere: DST is outside the range (wraps around year)
-    return (utc_epoch >= dst_start || utc_epoch < dst_end);
-  }
-}
-
 bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *out_tm) {
   if (!out_tm) {
     return false;
   }
 
   // Determine DST status once (avoids duplicate is_in_dst calculation)
-  bool in_dst = is_in_dst(utc_epoch, tz);
+  bool in_dst = internal::is_in_dst(utc_epoch, tz);
   int32_t offset = in_dst ? tz.dst_offset_seconds : tz.std_offset_seconds;
 
   // Apply offset (POSIX offset is positive west, so subtract to get local)
