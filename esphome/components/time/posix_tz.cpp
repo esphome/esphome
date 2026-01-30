@@ -44,14 +44,21 @@ static int epoch_to_year(time_t epoch) {
 }
 
 int days_in_month(int year, int month) {
-  static const int DAYS_PER_MONTH[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-  if (month == 2 && is_leap_year(year))
-    return 29;
-  return DAYS_PER_MONTH[month - 1];
+  switch (month) {
+    case 2:
+      return is_leap_year(year) ? 29 : 28;
+    case 4:
+    case 6:
+    case 9:
+    case 11:
+      return 30;
+    default:
+      return 31;
+  }
 }
 
 // Zeller-like algorithm for day of week (0 = Sunday)
-int day_of_week(int year, int month, int day) {
+int __attribute__((noinline)) day_of_week(int year, int month, int day) {
   // Adjust for January/February
   if (month < 3) {
     month += 12;
@@ -123,7 +130,7 @@ bool skip_tz_name(const char *&p) {
   return (p - start) >= 3;
 }
 
-int32_t parse_offset(const char *&p) {
+int32_t __attribute__((noinline)) parse_offset(const char *&p) {
   int sign = 1;
   if (*p == '-') {
     sign = -1;
@@ -157,23 +164,26 @@ static void parse_transition_time(const char *&p, DSTRule &rule) {
   }
 }
 
-void julian_to_month_day(int julian_day, int &out_month, int &out_day) {
+void __attribute__((noinline)) julian_to_month_day(int julian_day, int &out_month, int &out_day) {
   // J format: day 1-365, Feb 29 is NOT counted even in leap years
   // So day 60 is always March 1
-  static const int DAYS_BEFORE_MONTH[] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
-
+  // Iterate forward through months (no array needed)
+  int remaining = julian_day;
   out_month = 1;
-  for (int m = 11; m >= 0; m--) {
-    if (julian_day > DAYS_BEFORE_MONTH[m]) {
-      out_month = m + 1;
-      out_day = julian_day - DAYS_BEFORE_MONTH[m];
+  while (out_month <= 12) {
+    // Days in month for non-leap year (J format ignores leap years)
+    int dim = days_in_month(2001, out_month);  // 2001 is non-leap year
+    if (remaining <= dim) {
+      out_day = remaining;
       return;
     }
+    remaining -= dim;
+    out_month++;
   }
-  out_day = julian_day;
+  out_day = remaining;
 }
 
-void day_of_year_to_month_day(int day_of_year, int year, int &out_month, int &out_day) {
+void __attribute__((noinline)) day_of_year_to_month_day(int day_of_year, int year, int &out_month, int &out_day) {
   // Plain format: day 0-365, Feb 29 IS counted in leap years
   // Day 0 = Jan 1
   int remaining = day_of_year;
