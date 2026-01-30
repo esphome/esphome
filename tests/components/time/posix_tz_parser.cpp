@@ -421,13 +421,12 @@ TEST(PosixTzParser, PlainDay365LeapYear) {
   EXPECT_EQ(day, 31);
 }
 
-TEST(PosixTzParser, PlainDay365NonLeapYear) {
-  // Day 365 in non-leap year would be Jan 1 of next year (out of range)
-  // But our function should handle it gracefully
+TEST(PosixTzParser, PlainDay364NonLeapYear) {
+  // Day 364 (0-indexed) is Dec 31 in non-leap year (last valid day)
   int month, day;
   internal::day_of_year_to_month_day(364, 2025, month, day);
   EXPECT_EQ(month, 12);
-  EXPECT_EQ(day, 31);  // Day 364 is Dec 31 in non-leap year
+  EXPECT_EQ(day, 31);
 }
 
 // ============================================================================

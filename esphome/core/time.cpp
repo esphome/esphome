@@ -86,6 +86,12 @@ static bool expect_char(const char *&p, const char *end, char expected) {
   return true;
 }
 
+// Helper to skip trailing whitespace (for backward compatibility with sscanf)
+static void skip_trailing_whitespace(const char *&p, const char *end) {
+  while (p < end && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r'))
+    p++;
+}
+
 bool ESPTime::strptime(const char *time_to_parse, size_t len, ESPTime &esp_time) {
   // Supported formats:
   //   YYYY-MM-DD HH:MM:SS (19 chars)
@@ -150,6 +156,7 @@ bool ESPTime::strptime(const char *time_to_parse, size_t len, ESPTime &esp_time)
       return false;
 
     esp_time.second = v6;
+    skip_trailing_whitespace(p, end);
     return p == end;  // YYYY-MM-DD HH:MM:SS
   }
 
@@ -177,6 +184,7 @@ bool ESPTime::strptime(const char *time_to_parse, size_t len, ESPTime &esp_time)
       return false;
 
     esp_time.second = v3;
+    skip_trailing_whitespace(p, end);
     return p == end;  // HH:MM:SS
   }
 
