@@ -6,6 +6,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
+#ifdef USE_TIME_TIMEZONE
+#include "esphome/core/posix_tz.h"
+#endif
 
 namespace esphome::time {
 
@@ -39,7 +42,19 @@ class RealTimeClock : public PollingComponent {
 #endif
 
   /// Get the time in the currently defined timezone.
-  ESPTime now() { return ESPTime::from_epoch_local(this->timestamp_now()); }
+  ESPTime now() {
+#ifdef USE_TIME_TIMEZONE
+    time_t epoch = this->timestamp_now();
+    struct tm local_tm;
+    if (epoch_to_local_tm(epoch, this->parsed_tz_, &local_tm)) {
+      return ESPTime::from_c_tm(&local_tm, epoch);
+    }
+    // Fallback to UTC if parsing failed
+    return ESPTime::from_epoch_utc(epoch);
+#else
+    return ESPTime::from_epoch_local(this->timestamp_now());
+#endif
+  }
 
   /// Get the time without any time zone or DST corrections.
   ESPTime utcnow() { return ESPTime::from_epoch_utc(this->timestamp_now()); }
@@ -59,6 +74,7 @@ class RealTimeClock : public PollingComponent {
 
 #ifdef USE_TIME_TIMEZONE
   std::string timezone_{};
+  ParsedTimezone parsed_tz_{};
   void apply_timezone_();
 #endif
 

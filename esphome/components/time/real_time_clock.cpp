@@ -90,8 +90,12 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
 
 #ifdef USE_TIME_TIMEZONE
 void RealTimeClock::apply_timezone_() {
-  setenv("TZ", this->timezone_.c_str(), 1);
-  tzset();
+  // Parse the POSIX TZ string using our custom parser to avoid pulling in scanf (~7.6KB)
+  if (!parse_posix_tz(this->timezone_.c_str(), this->parsed_tz_)) {
+    ESP_LOGW(TAG, "Failed to parse timezone: %s", this->timezone_.c_str());
+    // Reset to UTC on parse failure
+    this->parsed_tz_ = ParsedTimezone{};
+  }
 }
 #endif
 
