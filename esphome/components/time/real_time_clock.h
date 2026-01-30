@@ -29,8 +29,8 @@ class RealTimeClock : public PollingComponent {
   /// Set the time zone from a character buffer with known length.
   /// The buffer does not need to be null-terminated.
   void set_timezone(const char *tz, size_t len) {
-    // Stack buffer - TZ strings are typically <64 chars
-    char buf[64];
+    // Stack buffer - TZ strings are typically short but allow up to 128
+    char buf[128];
     if (len >= sizeof(buf))
       len = sizeof(buf) - 1;
     memcpy(buf, tz, len);
