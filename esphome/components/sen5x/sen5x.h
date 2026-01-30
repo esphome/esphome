@@ -21,9 +21,7 @@ enum ERRORCODE : uint8_t {
 enum class Sen5xSetupStates : uint8_t {
   SEN5X_SM_START,
   SEN5X_SM_START_1,
-  SEN5X_SM_START_2,
   SEN5X_SM_GET_SN,
-  SEN5X_SM_GET_SN_1,
 };
 
 enum RhtAccelerationMode : uint16_t {
