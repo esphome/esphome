@@ -1200,4 +1200,62 @@ TEST(RecalcTimestampLocal, YearBoundaryDST) {
   EXPECT_EQ(jan1 - dec31, 3600);  // 1 hour difference
 }
 
+// ============================================================================
+// ESPTime::timezone_offset() tests
+// ============================================================================
+
+TEST(TimezoneOffset, NoTimezone) {
+  // When no timezone is set, offset should be 0
+  time::ParsedTimezone tz{};
+  set_global_tz(tz);
+
+  int32_t offset = ESPTime::timezone_offset();
+  EXPECT_EQ(offset, 0);
+}
+
+TEST(TimezoneOffset, FixedOffsetPositive) {
+  // India: UTC+5:30 (no DST)
+  const char *tz_str = "IST-5:30";
+  time::ParsedTimezone tz{};
+  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  set_global_tz(tz);
+
+  int32_t offset = ESPTime::timezone_offset();
+  // Offset should be +5:30 = 19800 seconds (to add to UTC to get local)
+  EXPECT_EQ(offset, 5 * 3600 + 30 * 60);
+}
+
+TEST(TimezoneOffset, FixedOffsetNegative) {
+  // US Eastern Standard Time: UTC-5 (testing without DST rules)
+  const char *tz_str = "EST5";
+  time::ParsedTimezone tz{};
+  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  set_global_tz(tz);
+
+  int32_t offset = ESPTime::timezone_offset();
+  // Offset should be -5 hours = -18000 seconds
+  EXPECT_EQ(offset, -5 * 3600);
+}
+
+TEST(TimezoneOffset, WithDstReturnsCorrectOffsetBasedOnCurrentTime) {
+  // US Eastern with DST
+  const char *tz_str = "EST5EDT,M3.2.0,M11.1.0";
+  time::ParsedTimezone tz{};
+  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  set_global_tz(tz);
+
+  // Get current time and check offset matches expected based on DST status
+  time_t now = ::time(nullptr);
+  int32_t offset = ESPTime::timezone_offset();
+
+  // Verify offset matches what is_in_dst says
+  if (time::is_in_dst(now, tz)) {
+    // During DST, offset should be -4 hours (EDT)
+    EXPECT_EQ(offset, -4 * 3600);
+  } else {
+    // During standard time, offset should be -5 hours (EST)
+    EXPECT_EQ(offset, -5 * 3600);
+  }
+}
+
 }  // namespace esphome::testing
