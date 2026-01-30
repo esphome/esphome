@@ -17,21 +17,30 @@ static uint32_t parse_uint(const char *&p) {
 
 bool is_leap_year(int year) { return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0); }
 
-// Extract just the year from a UTC epoch (faster than full epoch_to_tm_utc)
-static int epoch_to_year(time_t epoch) {
-  int64_t days = epoch / 86400;
-  if (epoch < 0 && epoch % 86400 != 0)
-    days--;
+// Get days in year (avoids duplicate is_leap_year calls)
+static inline int days_in_year(int year) { return is_leap_year(year) ? 366 : 365; }
+
+// Convert days since epoch to year, updating days to remainder
+static int __attribute__((noinline)) days_to_year(int64_t &days) {
   int year = 1970;
-  while (days >= (is_leap_year(year) ? 366 : 365)) {
-    days -= is_leap_year(year) ? 366 : 365;
+  int diy;
+  while (days >= (diy = days_in_year(year))) {
+    days -= diy;
     year++;
   }
   while (days < 0) {
     year--;
-    days += is_leap_year(year) ? 366 : 365;
+    days += days_in_year(year);
   }
   return year;
+}
+
+// Extract just the year from a UTC epoch
+static int epoch_to_year(time_t epoch) {
+  int64_t days = epoch / 86400;
+  if (epoch < 0 && epoch % 86400 != 0)
+    days--;
+  return days_to_year(days);
 }
 
 int days_in_month(int year, int month) {
@@ -55,7 +64,7 @@ int day_of_week(int year, int month, int day) {
   return ((h + 6) % 7);
 }
 
-void epoch_to_tm_utc(time_t epoch, struct tm *out_tm) {
+void __attribute__((noinline)) epoch_to_tm_utc(time_t epoch, struct tm *out_tm) {
   // Days since epoch
   int64_t days = epoch / 86400;
   int32_t remaining_secs = epoch % 86400;
@@ -74,23 +83,16 @@ void epoch_to_tm_utc(time_t epoch, struct tm *out_tm) {
   if (out_tm->tm_wday < 0)
     out_tm->tm_wday += 7;
 
-  // Calculate year, month, day
-  int year = 1970;
-  while (days >= (is_leap_year(year) ? 366 : 365)) {
-    days -= is_leap_year(year) ? 366 : 365;
-    year++;
-  }
-  while (days < 0) {
-    year--;
-    days += is_leap_year(year) ? 366 : 365;
-  }
-
+  // Calculate year (updates days to day-of-year)
+  int year = days_to_year(days);
   out_tm->tm_year = year - 1900;
   out_tm->tm_yday = static_cast<int>(days);
 
+  // Calculate month and day
   int month = 1;
-  while (days >= days_in_month(year, month)) {
-    days -= days_in_month(year, month);
+  int dim;
+  while (days >= (dim = days_in_month(year, month))) {
+    days -= dim;
     month++;
   }
 
@@ -245,23 +247,41 @@ bool parse_dst_rule(const char *&p, DSTRule &rule) {
   return true;
 }
 
-time_t calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offset_seconds) {
+// Calculate days from Jan 1 of given year to given month/day
+static int __attribute__((noinline)) days_from_year_start(int year, int month, int day) {
+  int days = day - 1;
+  for (int m = 1; m < month; m++) {
+    days += days_in_month(year, m);
+  }
+  return days;
+}
+
+// Calculate days from epoch to Jan 1 of given year
+static int64_t __attribute__((noinline)) days_to_year_start(int year) {
+  int64_t days = 0;
+  for (int y = 1970; y < year; y++) {
+    days += days_in_year(y);
+  }
+  return days;
+}
+
+time_t __attribute__((noinline)) calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offset_seconds) {
   int month, day;
 
   switch (rule.type) {
     case DSTRuleType::MONTH_WEEK_DAY: {
       // Find the nth occurrence of day_of_week in the given month
-      int first_day_of_month = day_of_week(year, rule.month, 1);
+      int first_dow = day_of_week(year, rule.month, 1);
 
       // Days until first occurrence of target day
-      int days_until_first = (rule.day_of_week - first_day_of_month + 7) % 7;
+      int days_until_first = (rule.day_of_week - first_dow + 7) % 7;
       int first_occurrence = 1 + days_until_first;
 
       if (rule.week == 5) {
         // "Last" occurrence - find the last one in the month
-        int days_in_m = days_in_month(year, rule.month);
+        int dim = days_in_month(year, rule.month);
         day = first_occurrence;
-        while (day + 7 <= days_in_m) {
+        while (day + 7 <= dim) {
           day += 7;
         }
       } else {
@@ -284,20 +304,13 @@ time_t calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offs
   }
 
   // Calculate days from epoch to this date
-  int64_t days = 0;
-  for (int y = 1970; y < year; y++) {
-    days += is_leap_year(y) ? 366 : 365;
-  }
-  for (int m = 1; m < month; m++) {
-    days += days_in_month(year, m);
-  }
-  days += day - 1;
+  int64_t days = days_to_year_start(year) + days_from_year_start(year, month, day);
 
   // Convert to epoch and add transition time and base offset
   return days * 86400 + rule.time_seconds + base_offset_seconds;
 }
 
-bool is_in_dst(time_t utc_epoch, const ParsedTimezone &tz) {
+bool __attribute__((noinline)) is_in_dst(time_t utc_epoch, const ParsedTimezone &tz) {
   if (!tz.has_dst) {
     return false;
   }
