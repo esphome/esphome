@@ -25,7 +25,6 @@ def default_config() -> dict[str, Any]:
         "board": "esp01_1m",
         "ssid": "test_ssid",
         "psk": "test_psk",
-        "password": "",
     }
 
 
@@ -37,7 +36,7 @@ def wizard_answers() -> list[str]:
         "nodemcuv2",  # board
         "SSID",  # ssid
         "psk",  # wifi password
-        "ota_pass",  # ota password
+        "",  # ota password (empty for no password)
     ]
 
 
@@ -105,16 +104,35 @@ def test_config_file_should_include_ota_when_password_set(
     default_config: dict[str, Any],
 ):
     """
-    The Over-The-Air update should be enabled when a password is set
+    The Over-The-Air update should be enabled when an OTA password is set
     """
     # Given
-    default_config["password"] = "foo"
+    default_config["ota_password"] = "foo"
 
     # When
     config = wz.wizard_file(**default_config)
 
     # Then
     assert "ota:" in config
+    assert 'password: "foo"' in config
+
+
+def test_config_file_should_include_api_encryption_key(
+    default_config: dict[str, Any],
+):
+    """
+    The API encryption key should be included when set
+    """
+    # Given
+    default_config["api_encryption_key"] = "test_encryption_key_base64=="
+
+    # When
+    config = wz.wizard_file(**default_config)
+
+    # Then
+    assert "api:" in config
+    assert "encryption:" in config
+    assert 'key: "test_encryption_key_base64=="' in config
 
 
 def test_wizard_write_sets_platform(

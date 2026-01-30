@@ -1,5 +1,7 @@
+import base64
 from pathlib import Path
 import random
+import secrets
 import string
 from typing import Literal, NotRequired, TypedDict, Unpack
 import unicodedata
@@ -116,7 +118,6 @@ class WizardFileKwargs(TypedDict):
     board: str
     ssid: NotRequired[str]
     psk: NotRequired[str]
-    password: NotRequired[str]
     ota_password: NotRequired[str]
     api_encryption_key: NotRequired[str]
     friendly_name: NotRequired[str]
@@ -144,9 +145,7 @@ def wizard_file(**kwargs: Unpack[WizardFileKwargs]) -> str:
 
     config += API_CONFIG
 
-    # Configure API
-    if "password" in kwargs:
-        config += f'  password: "{kwargs["password"]}"\n'
+    # Configure API encryption
     if "api_encryption_key" in kwargs:
         config += f'  encryption:\n    key: "{kwargs["api_encryption_key"]}"\n'
 
@@ -155,8 +154,6 @@ def wizard_file(**kwargs: Unpack[WizardFileKwargs]) -> str:
     config += "  - platform: esphome\n"
     if "ota_password" in kwargs:
         config += f'    password: "{kwargs["ota_password"]}"'
-    elif "password" in kwargs:
-        config += f'    password: "{kwargs["password"]}"'
 
     # Configuring wifi
     config += "\n\nwifi:\n"
@@ -205,7 +202,6 @@ class WizardWriteKwargs(TypedDict):
     platform: NotRequired[str]
     ssid: NotRequired[str]
     psk: NotRequired[str]
-    password: NotRequired[str]
     ota_password: NotRequired[str]
     api_encryption_key: NotRequired[str]
     friendly_name: NotRequired[str]
@@ -232,7 +228,7 @@ def wizard_write(path: Path, **kwargs: Unpack[WizardWriteKwargs]) -> bool:
     else:  # "basic"
         board = kwargs["board"]
 
-        for key in ("ssid", "psk", "password", "ota_password"):
+        for key in ("ssid", "psk", "ota_password"):
             if key in kwargs:
                 kwargs[key] = sanitize_double_quotes(kwargs[key])
         if "platform" not in kwargs:
@@ -522,26 +518,54 @@ def wizard(path: Path) -> int:
             "Almost there! ESPHome can automatically upload custom firmwares over WiFi "
             "(over the air) and integrates into Home Assistant with a native API."
         )
+        safe_print()
+        sleep(0.5)
+
+        # Generate encryption key (32 bytes, base64 encoded) for secure API communication
+        noise_psk = secrets.token_bytes(32)
+        api_encryption_key = base64.b64encode(noise_psk).decode()
+
         safe_print(
-            f"This can be insecure if you do not trust the WiFi network. Do you want to set a {color(AnsiFore.GREEN, 'password')} for connecting to this ESP?"
+            "For secure API communication, I've generated a random encryption key."
+        )
+        safe_print()
+        safe_print(
+            f"Your {color(AnsiFore.GREEN, 'API encryption key')} is: "
+            f"{color(AnsiFore.BOLD_WHITE, api_encryption_key)}"
+        )
+        safe_print()
+        safe_print("You'll need this key when adding the device to Home Assistant.")
+        sleep(1)
+
+        safe_print()
+        safe_print(
+            f"Do you want to set a {color(AnsiFore.GREEN, 'password')} for OTA updates? "
+            "This can be insecure if you do not trust the WiFi network."
         )
         safe_print()
         sleep(0.25)
         safe_print("Press ENTER for no password")
-        password = safe_input(color(AnsiFore.BOLD_WHITE, "(password): "))
+        ota_password = safe_input(color(AnsiFore.BOLD_WHITE, "(password): "))
     else:
-        ssid, password, psk = "", "", ""
+        ssid, psk = "", ""
+        api_encryption_key = None
+        ota_password = ""
 
-    if not wizard_write(
-        path=path,
-        name=name,
-        platform=platform,
-        board=board,
-        ssid=ssid,
-        psk=psk,
-        password=password,
-        type="basic",
-    ):
+    kwargs = {
+        "path": path,
+        "name": name,
+        "platform": platform,
+        "board": board,
+        "ssid": ssid,
+        "psk": psk,
+        "type": "basic",
+    }
+    if api_encryption_key:
+        kwargs["api_encryption_key"] = api_encryption_key
+    if ota_password:
+        kwargs["ota_password"] = ota_password
+
+    if not wizard_write(**kwargs):
         return 1
 
     safe_print()
