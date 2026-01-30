@@ -6,6 +6,7 @@
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/helpers.h"
+#include <Arduino.h>
 
 namespace esphome {
 namespace mipi_spi {
