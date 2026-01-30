@@ -160,6 +160,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   // esp_http_client_fetch_headers() returns 0 for chunked transfer encoding (no Content-Length header).
   // The read() method handles content_length == 0 specially to support chunked responses.
   container->content_length = esp_http_client_fetch_headers(client);
+  container->set_chunked(esp_http_client_is_chunked_response(client));
   container->feed_wdt();
   container->status_code = esp_http_client_get_status_code(client);
   container->feed_wdt();
@@ -195,6 +196,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
 
       container->feed_wdt();
       container->content_length = esp_http_client_fetch_headers(client);
+      container->set_chunked(esp_http_client_is_chunked_response(client));
       container->feed_wdt();
       container->status_code = esp_http_client_get_status_code(client);
       container->feed_wdt();
@@ -239,10 +241,9 @@ int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
 
-  // Check if we've already read all expected content
-  // Skip this check when content_length is 0 (chunked transfer encoding or unknown length)
-  // For chunked responses, esp_http_client_read() will return 0 when all data is received
-  if (this->content_length > 0 && this->bytes_read_ >= this->content_length) {
+  // Check if we've already read all expected content (non-chunked only)
+  // For chunked responses (content_length == 0), esp_http_client_read() handles EOF
+  if (this->is_read_complete()) {
     return 0;  // All content read successfully
   }
 
