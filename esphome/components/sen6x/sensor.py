@@ -5,8 +5,10 @@ from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALGORITHM_TUNING,
+    CONF_CO2,
     CONF_GAIN_FACTOR,
     CONF_GATING_MAX_DURATION_MINUTES,
+    CONF_HCHO,
     CONF_HUMIDITY,
     CONF_ID,
     CONF_INDEX_OFFSET,
@@ -27,18 +29,22 @@ from esphome.const import (
     CONF_VOC,
     CONF_VOC_BASELINE,
     DEVICE_CLASS_AQI,
+    DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     ICON_CHEMICAL_WEAPON,
+    ICON_MOLECULE_CO2,
     ICON_RADIATOR,
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
 
@@ -164,6 +170,20 @@ CONFIG_SCHEMA = (
                 std_initial=50,
                 gain_factor=230,
             ),
+            cv.Optional(CONF_CO2): sensor.sensor_schema(
+                unit_of_measurement=UNIT_PARTS_PER_MILLION,
+                icon=ICON_MOLECULE_CO2,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_HCHO): sensor.sensor_schema(
+                unit_of_measurement=UNIT_PARTS_PER_MILLION,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
             cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
             cv.Optional(CONF_VOC_BASELINE): cv.hex_uint16_t,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
@@ -203,6 +223,8 @@ SENSOR_MAP = {
     CONF_PM_10_0: "set_pm_10_0_sensor",
     CONF_VOC: "set_voc_sensor",
     CONF_NOX: "set_nox_sensor",
+    CONF_CO2: "set_co2_sensor",
+    CONF_HCHO: "set_hcho_sensor",
     CONF_TEMPERATURE: "set_temperature_sensor",
     CONF_HUMIDITY: "set_humidity_sensor",
 }

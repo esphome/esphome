@@ -32,12 +32,18 @@ static const int16_t SEN6X_MAX_INDEX_VALUE = 500 * SEN6X_INDEX_SCALE_FACTOR;  //
 
 static const LogString *type_to_string(Sen6xType type) {
   switch (type) {
-    case Sen6xType::SEN60:
-      return LOG_STR("SEN60");
-    case Sen6xType::SEN64:
-      return LOG_STR("SEN64");
+    case Sen6xType::SEN62:
+      return LOG_STR("SEN62");
+    case Sen6xType::SEN63C:
+      return LOG_STR("SEN63C");
     case Sen6xType::SEN65:
       return LOG_STR("SEN65");
+    case Sen6xType::SEN66:
+      return LOG_STR("SEN66");
+    case Sen6xType::SEN68:
+      return LOG_STR("SEN68");
+    case Sen6xType::SEN69C:
+      return LOG_STR("SEN69C");
     default:
       return LOG_STR("UNKNOWN");
   }
@@ -118,12 +124,18 @@ void SEN6XComponent::setup() {
         return;
       }
       const char *product_name = sensirion_convert_to_string_in_place(raw_product_name, 16);
-      if (strncmp(product_name, "SEN60", 5) == 0) {
-        this->type_ = Sen6xType::SEN60;
-      } else if (strncmp(product_name, "SEN64", 5) == 0) {
-        this->type_ = Sen6xType::SEN64;
+      if (strncmp(product_name, "SEN62", 5) == 0) {
+        this->type_ = Sen6xType::SEN62;
+      } else if (strncmp(product_name, "SEN63C", 6) == 0) {
+        this->type_ = Sen6xType::SEN63C;
       } else if (strncmp(product_name, "SEN65", 5) == 0) {
         this->type_ = Sen6xType::SEN65;
+      } else if (strncmp(product_name, "SEN66", 5) == 0) {
+        this->type_ = Sen6xType::SEN66;
+      } else if (strncmp(product_name, "SEN68", 5) == 0) {
+        this->type_ = Sen6xType::SEN68;
+      } else if (strncmp(product_name, "SEN69C", 6) == 0) {
+        this->type_ = Sen6xType::SEN69C;
       } else {
         this->type_ = Sen6xType::UNKNOWN;
         ESP_LOGE(TAG, "Unknown product name: %.32s", product_name);
@@ -133,21 +145,30 @@ void SEN6XComponent::setup() {
       }
 
       ESP_LOGD(TAG, "Type: %s", LOG_STR_ARG(type_to_string(this->type_)));
-      if (this->humidity_sensor_ && this->type_ == Sen6xType::SEN60) {
-        ESP_LOGE(TAG, "Relative humidity requires a SEN64 or SEN65");
+      // Validate sensor support for different SEN6x variants
+      if (this->humidity_sensor_ && this->type_ == Sen6xType::SEN62) {
+        ESP_LOGE(TAG, "Relative humidity requires a SEN63C, SEN65, SEN66, SEN68, or SEN69C");
         this->humidity_sensor_ = nullptr;  // mark as not used
       }
-      if (this->temperature_sensor_ && this->type_ == Sen6xType::SEN60) {
-        ESP_LOGE(TAG, "Temperature requires a SEN64 or SEN65");
+      if (this->temperature_sensor_ && this->type_ == Sen6xType::SEN62) {
+        ESP_LOGE(TAG, "Temperature requires a SEN63C, SEN65, SEN66, SEN68, or SEN69C");
         this->temperature_sensor_ = nullptr;  // mark as not used
       }
-      if (this->voc_sensor_ && this->type_ == Sen6xType::SEN60) {
-        ESP_LOGE(TAG, "VOC requires a SEN64 or SEN65");
+      if (this->voc_sensor_ && (this->type_ == Sen6xType::SEN62 || this->type_ == Sen6xType::SEN63C)) {
+        ESP_LOGE(TAG, "VOC requires a SEN65, SEN66, SEN68, or SEN69C");
         this->voc_sensor_ = nullptr;  // mark as not used
       }
-      if (this->nox_sensor_ && this->type_ != Sen6xType::SEN65) {
-        ESP_LOGE(TAG, "NOx requires a SEN65");
+      if (this->nox_sensor_ && (this->type_ == Sen6xType::SEN62 || this->type_ == Sen6xType::SEN63C)) {
+        ESP_LOGE(TAG, "NOx requires a SEN65, SEN66, SEN68, or SEN69C");
         this->nox_sensor_ = nullptr;  // mark as not used
+      }
+      if (this->co2_sensor_ && (this->type_ != Sen6xType::SEN63C && this->type_ != Sen6xType::SEN66 && this->type_ != Sen6xType::SEN69C)) {
+        ESP_LOGE(TAG, "CO2 requires a SEN63C, SEN66, or SEN69C");
+        this->co2_sensor_ = nullptr;  // mark as not used
+      }
+      if (this->hcho_sensor_ && (this->type_ != Sen6xType::SEN68 && this->type_ != Sen6xType::SEN69C)) {
+        ESP_LOGE(TAG, "HCHO requires a SEN68 or SEN69C");
+        this->hcho_sensor_ = nullptr;  // mark as not used
       }
 
       if (!this->get_register(SEN6X_CMD_GET_FIRMWARE_VERSION, this->firmware_version_, 20)) {
@@ -291,8 +312,10 @@ void SEN6XComponent::dump_config() {
   LOG_SENSOR("  ", "PM 10.0", this->pm_10_0_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  LOG_SENSOR("  ", "VOC", this->voc_sensor_);  // SEN64 and SEN65 only
-  LOG_SENSOR("  ", "NOx", this->nox_sensor_);  // SEN65 only
+  LOG_SENSOR("  ", "VOC", this->voc_sensor_);  // SEN65, SEN66, SEN68, SEN69C only
+  LOG_SENSOR("  ", "NOx", this->nox_sensor_);  // SEN65, SEN66, SEN68, SEN69C only
+  LOG_SENSOR("  ", "CO2", this->co2_sensor_);  // SEN63C, SEN66, SEN69C only
+  LOG_SENSOR("  ", "HCHO", this->hcho_sensor_);  // SEN68, SEN69C only
 }
 
 void SEN6XComponent::update() {
@@ -306,9 +329,9 @@ void SEN6XComponent::update() {
     return;
   }
   this->set_timeout(20, [this]() {
-    uint16_t measurements[8];
+    uint16_t measurements[10];  // Extended for CO2 and HCHO
 
-    if (!this->read_data(measurements, 8)) {
+    if (!this->read_data(measurements, 10)) {
       this->status_set_warning();
       ESP_LOGD(TAG, "Read data error (%d)", this->last_error_);
       return;
@@ -344,6 +367,12 @@ void SEN6XComponent::update() {
                     ? NAN
                     : static_cast<float>(nox_idx) / 10.0f;
 
+    ESP_LOGVV(TAG, "co2 = 0x%.4x", measurements[8]);
+    float co2 = measurements[8] == UINT16_MAX ? NAN : measurements[8] / 1.0f;  // CO2 in ppm
+
+    ESP_LOGVV(TAG, "hcho = 0x%.4x", measurements[9]);
+    float hcho = measurements[9] == UINT16_MAX ? NAN : measurements[9] / 10.0f;  // HCHO in ppb
+
     if (this->pm_1_0_sensor_ != nullptr) {
       this->pm_1_0_sensor_->publish_state(pm_1_0);
     }
@@ -367,6 +396,12 @@ void SEN6XComponent::update() {
     }
     if (this->nox_sensor_ != nullptr) {
       this->nox_sensor_->publish_state(nox);
+    }
+    if (this->co2_sensor_ != nullptr) {
+      this->co2_sensor_->publish_state(co2);
+    }
+    if (this->hcho_sensor_ != nullptr) {
+      this->hcho_sensor_->publish_state(hcho);
     }
 
     if (!this->voc_sensor_ || !this->store_baseline_ ||
