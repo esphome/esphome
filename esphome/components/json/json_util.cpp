@@ -62,15 +62,37 @@ JsonDocument parse_json(const uint8_t *data, size_t len) {
 }
 
 SerializationBuffer<> JsonBuilder::serialize() {
-  // Intentionally avoid measureJson() - it instantiates DummyWriter templates that add ~1KB of flash.
-  // Instead, try serializing to stack buffer first. 768 bytes covers 99.9% of JSON payloads
-  // (sensors ~200B, lights ~170B, climate ~700B). Only entities with 40+ options exceed this.
-  // For the common case: single serialize to stack, no heap allocation, no measurement overhead.
-  // For the rare large case: serialize twice (once truncated, once to heap) - less efficient but
-  // saves ~1KB flash that would otherwise be wasted on every build.
-  // serializeJson() returns actual size needed even if truncated, so we can retry with exact size.
+  // ===========================================================================================
+  // CRITICAL: NRVO (Named Return Value Optimization) - DO NOT REFACTOR WITHOUT UNDERSTANDING
+  // ===========================================================================================
   //
-  // Single return variable enables NRVO (Named Return Value Optimization), avoiding memcpy on return.
+  // This function is carefully structured to enable NRVO. The compiler constructs `result`
+  // directly in the caller's stack frame, eliminating the move constructor call entirely.
+  //
+  // WITHOUT NRVO: Each return would trigger SerializationBuffer's move constructor, which
+  // must memcpy up to 768 bytes of stack buffer content. This happens on EVERY JSON
+  // serialization (sensor updates, web server responses, MQTT publishes, etc.).
+  //
+  // WITH NRVO: Zero memcpy, zero move constructor overhead. The buffer lives directly
+  // where the caller needs it.
+  //
+  // Requirements for NRVO to work:
+  //   1. Single named variable (`result`) returned from ALL paths
+  //   2. All paths must return the SAME variable (not different variables)
+  //   3. No std::move() on the return statement
+  //
+  // If you must modify this function:
+  //   - Keep a single `result` variable declared at the top
+  //   - All code paths must return `result` (not a different variable)
+  //   - Verify NRVO still works by checking the disassembly for move constructor calls
+  //   - Test: objdump -d -C firmware.elf | grep "SerializationBuffer.*SerializationBuffer"
+  //     Should show only destructor, NOT move constructor
+  //
+  // Why we avoid measureJson(): It instantiates DummyWriter templates adding ~1KB flash.
+  // Instead, try stack buffer first. 768 bytes covers 99.9% of JSON payloads (sensors ~200B,
+  // lights ~170B, climate ~700B). Only entities with 40+ options exceed this.
+  //
+  // ===========================================================================================
   constexpr size_t buf_size = SerializationBuffer<>::BUFFER_SIZE;
   SerializationBuffer<> result(buf_size - 1);  // Max content size (reserve 1 for null)
 
