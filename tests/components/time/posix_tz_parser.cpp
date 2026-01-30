@@ -31,28 +31,28 @@ TEST(PosixTzParser, ParseSimpleOffsetEST5) {
   ParsedTimezone tz;
   ASSERT_TRUE(parse_posix_tz("EST5", tz));
   EXPECT_EQ(tz.std_offset_seconds, 5 * 3600);  // +5 hours (west of UTC)
-  EXPECT_FALSE(tz.has_dst);
+  EXPECT_FALSE(tz.has_dst());
 }
 
 TEST(PosixTzParser, ParseNegativeOffsetCET) {
   ParsedTimezone tz;
   ASSERT_TRUE(parse_posix_tz("CET-1", tz));
   EXPECT_EQ(tz.std_offset_seconds, -1 * 3600);  // -1 hour (east of UTC)
-  EXPECT_FALSE(tz.has_dst);
+  EXPECT_FALSE(tz.has_dst());
 }
 
 TEST(PosixTzParser, ParseExplicitPositiveOffset) {
   ParsedTimezone tz;
   ASSERT_TRUE(parse_posix_tz("TEST+5", tz));
   EXPECT_EQ(tz.std_offset_seconds, 5 * 3600);
-  EXPECT_FALSE(tz.has_dst);
+  EXPECT_FALSE(tz.has_dst());
 }
 
 TEST(PosixTzParser, ParseZeroOffset) {
   ParsedTimezone tz;
   ASSERT_TRUE(parse_posix_tz("UTC0", tz));
   EXPECT_EQ(tz.std_offset_seconds, 0);
-  EXPECT_FALSE(tz.has_dst);
+  EXPECT_FALSE(tz.has_dst());
 }
 
 TEST(PosixTzParser, ParseUSEasternWithDST) {
@@ -60,7 +60,7 @@ TEST(PosixTzParser, ParseUSEasternWithDST) {
   ASSERT_TRUE(parse_posix_tz("EST5EDT,M3.2.0,M11.1.0", tz));
   EXPECT_EQ(tz.std_offset_seconds, 5 * 3600);
   EXPECT_EQ(tz.dst_offset_seconds, 4 * 3600);  // Default: STD - 1hr
-  EXPECT_TRUE(tz.has_dst);
+  EXPECT_TRUE(tz.has_dst());
   EXPECT_EQ(tz.dst_start.month, 3);
   EXPECT_EQ(tz.dst_start.week, 2);
   EXPECT_EQ(tz.dst_start.day_of_week, 0);          // Sunday
@@ -84,7 +84,7 @@ TEST(PosixTzParser, ParseEuropeBerlin) {
   ASSERT_TRUE(parse_posix_tz("CET-1CEST,M3.5.0,M10.5.0/3", tz));
   EXPECT_EQ(tz.std_offset_seconds, -1 * 3600);
   EXPECT_EQ(tz.dst_offset_seconds, -2 * 3600);  // Default: STD - 1hr
-  EXPECT_TRUE(tz.has_dst);
+  EXPECT_TRUE(tz.has_dst());
   EXPECT_EQ(tz.dst_start.month, 3);
   EXPECT_EQ(tz.dst_start.week, 5);  // Last week
   EXPECT_EQ(tz.dst_end.month, 10);
@@ -98,7 +98,7 @@ TEST(PosixTzParser, ParseNewZealand) {
   ASSERT_TRUE(parse_posix_tz("NZST-12NZDT,M9.5.0,M4.1.0/3", tz));
   EXPECT_EQ(tz.std_offset_seconds, -12 * 3600);
   EXPECT_EQ(tz.dst_offset_seconds, -13 * 3600);  // Default: STD - 1hr
-  EXPECT_TRUE(tz.has_dst);
+  EXPECT_TRUE(tz.has_dst());
   EXPECT_EQ(tz.dst_start.month, 9);  // September
   EXPECT_EQ(tz.dst_end.month, 4);    // April
 }
@@ -109,7 +109,7 @@ TEST(PosixTzParser, ParseExplicitDstOffset) {
   ASSERT_TRUE(parse_posix_tz("TEST5DST4,M3.2.0,M11.1.0", tz));
   EXPECT_EQ(tz.std_offset_seconds, 5 * 3600);
   EXPECT_EQ(tz.dst_offset_seconds, 4 * 3600);
-  EXPECT_TRUE(tz.has_dst);
+  EXPECT_TRUE(tz.has_dst());
 }
 
 // ============================================================================
@@ -121,7 +121,7 @@ TEST(PosixTzParser, ParseAngleBracketPositive) {
   ParsedTimezone tz;
   ASSERT_TRUE(parse_posix_tz("<+07>-7", tz));
   EXPECT_EQ(tz.std_offset_seconds, -7 * 3600);  // -7 = 7 hours east of UTC
-  EXPECT_FALSE(tz.has_dst);
+  EXPECT_FALSE(tz.has_dst());
 }
 
 TEST(PosixTzParser, ParseAngleBracketNegative) {
@@ -129,7 +129,7 @@ TEST(PosixTzParser, ParseAngleBracketNegative) {
   ParsedTimezone tz;
   ASSERT_TRUE(parse_posix_tz("<-03>3", tz));
   EXPECT_EQ(tz.std_offset_seconds, 3 * 3600);
-  EXPECT_FALSE(tz.has_dst);
+  EXPECT_FALSE(tz.has_dst());
 }
 
 TEST(PosixTzParser, ParseAngleBracketWithDST) {
@@ -138,7 +138,7 @@ TEST(PosixTzParser, ParseAngleBracketWithDST) {
   ASSERT_TRUE(parse_posix_tz("<+10>-10<+11>,M10.1.0,M4.1.0/3", tz));
   EXPECT_EQ(tz.std_offset_seconds, -10 * 3600);
   EXPECT_EQ(tz.dst_offset_seconds, -11 * 3600);
-  EXPECT_TRUE(tz.has_dst);
+  EXPECT_TRUE(tz.has_dst());
   EXPECT_EQ(tz.dst_start.month, 10);
   EXPECT_EQ(tz.dst_end.month, 4);
 }
@@ -148,7 +148,7 @@ TEST(PosixTzParser, ParseAngleBracketNamed) {
   ParsedTimezone tz;
   ASSERT_TRUE(parse_posix_tz("<AEST>-10", tz));
   EXPECT_EQ(tz.std_offset_seconds, -10 * 3600);
-  EXPECT_FALSE(tz.has_dst);
+  EXPECT_FALSE(tz.has_dst());
 }
 
 TEST(PosixTzParser, ParseAngleBracketWithMinutes) {
@@ -156,7 +156,7 @@ TEST(PosixTzParser, ParseAngleBracketWithMinutes) {
   ParsedTimezone tz;
   ASSERT_TRUE(parse_posix_tz("<+0545>-5:45", tz));
   EXPECT_EQ(tz.std_offset_seconds, -(5 * 3600 + 45 * 60));
-  EXPECT_FALSE(tz.has_dst);
+  EXPECT_FALSE(tz.has_dst());
 }
 
 // ============================================================================
@@ -168,7 +168,7 @@ TEST(PosixTzParser, ParseOffsetWithMinutesIndia) {
   // India: UTC+5:30
   ASSERT_TRUE(parse_posix_tz("IST-5:30", tz));
   EXPECT_EQ(tz.std_offset_seconds, -(5 * 3600 + 30 * 60));
-  EXPECT_FALSE(tz.has_dst);
+  EXPECT_FALSE(tz.has_dst());
 }
 
 TEST(PosixTzParser, ParseOffsetWithMinutesNepal) {
@@ -176,7 +176,7 @@ TEST(PosixTzParser, ParseOffsetWithMinutesNepal) {
   // Nepal: UTC+5:45
   ASSERT_TRUE(parse_posix_tz("NPT-5:45", tz));
   EXPECT_EQ(tz.std_offset_seconds, -(5 * 3600 + 45 * 60));
-  EXPECT_FALSE(tz.has_dst);
+  EXPECT_FALSE(tz.has_dst());
 }
 
 TEST(PosixTzParser, ParseOffsetWithSeconds) {
@@ -192,7 +192,7 @@ TEST(PosixTzParser, ParseChathamIslands) {
   ASSERT_TRUE(parse_posix_tz("<+1245>-12:45<+1345>,M9.5.0/2:45,M4.1.0/3:45", tz));
   EXPECT_EQ(tz.std_offset_seconds, -(12 * 3600 + 45 * 60));
   EXPECT_EQ(tz.dst_offset_seconds, -(13 * 3600 + 45 * 60));
-  EXPECT_TRUE(tz.has_dst);
+  EXPECT_TRUE(tz.has_dst());
 }
 
 // ============================================================================
@@ -233,7 +233,7 @@ TEST(PosixTzParser, ParseJFormatBasic) {
   ParsedTimezone tz;
   // J format: Julian day 1-365, not counting Feb 29
   ASSERT_TRUE(parse_posix_tz("EST5EDT,J60,J305", tz));
-  EXPECT_TRUE(tz.has_dst);
+  EXPECT_TRUE(tz.has_dst());
   EXPECT_EQ(tz.dst_start.type, DSTRuleType::JULIAN_NO_LEAP);
   EXPECT_EQ(tz.dst_start.day, 60);  // March 1
   EXPECT_EQ(tz.dst_end.type, DSTRuleType::JULIAN_NO_LEAP);
@@ -253,7 +253,7 @@ TEST(PosixTzParser, ParsePlainDayNumber) {
   ParsedTimezone tz;
   // Plain format: day 0-365, counting Feb 29 in leap years
   ASSERT_TRUE(parse_posix_tz("EST5EDT,59,304", tz));
-  EXPECT_TRUE(tz.has_dst);
+  EXPECT_TRUE(tz.has_dst());
   EXPECT_EQ(tz.dst_start.type, DSTRuleType::DAY_OF_YEAR);
   EXPECT_EQ(tz.dst_start.day, 59);
   EXPECT_EQ(tz.dst_end.type, DSTRuleType::DAY_OF_YEAR);
@@ -383,7 +383,7 @@ TEST(PosixTzParser, LowercaseMFormat) {
   ParsedTimezone tz;
   // Lowercase 'm' should be accepted
   ASSERT_TRUE(parse_posix_tz("EST5EDT,m3.2.0,m11.1.0", tz));
-  EXPECT_TRUE(tz.has_dst);
+  EXPECT_TRUE(tz.has_dst());
   EXPECT_EQ(tz.dst_start.month, 3);
   EXPECT_EQ(tz.dst_end.month, 11);
 }
@@ -400,7 +400,7 @@ TEST(PosixTzParser, DstNameWithoutRules) {
   ParsedTimezone tz;
   // DST name present but no rules - treat as no DST since we can't determine transitions
   ASSERT_TRUE(parse_posix_tz("EST5EDT", tz));
-  EXPECT_FALSE(tz.has_dst);
+  EXPECT_FALSE(tz.has_dst());
   EXPECT_EQ(tz.std_offset_seconds, 5 * 3600);
 }
 
@@ -410,7 +410,7 @@ TEST(PosixTzParser, TrailingCharactersIgnored) {
   // This matches libc behavior
   ASSERT_TRUE(parse_posix_tz("EST5 extra garbage here", tz));
   EXPECT_EQ(tz.std_offset_seconds, 5 * 3600);
-  EXPECT_FALSE(tz.has_dst);
+  EXPECT_FALSE(tz.has_dst());
 }
 
 TEST(PosixTzParser, PlainDay365LeapYear) {

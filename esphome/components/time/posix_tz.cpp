@@ -324,6 +324,12 @@ time_t __attribute__((noinline)) calculate_dst_transition(int year, const DSTRul
       // Plain format: day 0-365, Feb 29 counted
       day_of_year_to_month_day(rule.day, year, month, day);
       break;
+
+    case DSTRuleType::NONE:
+      // Should never be called with NONE, but handle it gracefully
+      month = 1;
+      day = 1;
+      break;
   }
 
   // Calculate days from epoch to this date
