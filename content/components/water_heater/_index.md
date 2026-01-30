@@ -6,7 +6,7 @@ title: "Water Heater Component"
 The `water_heater` component is a generic representation of water heaters (boilers) in ESPHome. A water heater handles a target temperature setpoint and an operation mode (like *Eco*, *Electric*, or *Performance*).
 
 > [!NOTE]
-> Home Assistant integration for water heater entities is not yet available. See [home-assistant/core#159201](https://github.com/home-assistant/core/pull/159201) for progress.
+> The water heater integration is available for Home Assistant 2026.2 and later.
 
 {{< anchor "config-water-heater" >}}
 
