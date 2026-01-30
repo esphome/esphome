@@ -996,4 +996,133 @@ TEST(ESPTimeStrptime, LeadingZeroTime) {
   EXPECT_EQ(t.second, 9);
 }
 
+// ============================================================================
+// recalc_timestamp_local() tests - verify behavior matches libc mktime()
+// ============================================================================
+
+// Helper to call libc mktime with same fields
+static time_t libc_mktime(int year, int month, int day, int hour, int min, int sec) {
+  struct tm tm {};
+  tm.tm_year = year - 1900;
+  tm.tm_mon = month - 1;
+  tm.tm_mday = day;
+  tm.tm_hour = hour;
+  tm.tm_min = min;
+  tm.tm_sec = sec;
+  tm.tm_isdst = -1;  // Let libc determine DST
+  return mktime(&tm);
+}
+
+// Helper to create ESPTime and call recalc_timestamp_local
+static time_t esptime_recalc_local(int year, int month, int day, int hour, int min, int sec) {
+  ESPTime t{};
+  t.year = year;
+  t.month = month;
+  t.day_of_month = day;
+  t.hour = hour;
+  t.minute = min;
+  t.second = sec;
+  t.day_of_week = 1;  // Placeholder for fields_in_range()
+  t.day_of_year = 1;
+  t.recalc_timestamp_local();
+  return t.timestamp;
+}
+
+TEST(RecalcTimestampLocal, NormalTimeMatchesLibc) {
+  // Set timezone to US Central (CST6CDT)
+  const char *tz_str = "CST6CDT,M3.2.0,M11.1.0";
+  setenv("TZ", tz_str, 1);
+  tzset();
+  time::ParsedTimezone tz{};
+  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  set_global_tz(tz);
+
+  // Test a normal time in winter (no DST)
+  // January 15, 2026 at 10:30:00 CST
+  time_t libc_result = libc_mktime(2026, 1, 15, 10, 30, 0);
+  time_t esp_result = esptime_recalc_local(2026, 1, 15, 10, 30, 0);
+  EXPECT_EQ(esp_result, libc_result);
+
+  // Test a normal time in summer (DST active)
+  // July 15, 2026 at 10:30:00 CDT
+  libc_result = libc_mktime(2026, 7, 15, 10, 30, 0);
+  esp_result = esptime_recalc_local(2026, 7, 15, 10, 30, 0);
+  EXPECT_EQ(esp_result, libc_result);
+}
+
+TEST(RecalcTimestampLocal, SpringForwardSkippedHour) {
+  // Set timezone to US Central (CST6CDT)
+  // DST starts March 8, 2026 at 2:00 AM -> clocks jump to 3:00 AM
+  const char *tz_str = "CST6CDT,M3.2.0,M11.1.0";
+  setenv("TZ", tz_str, 1);
+  tzset();
+  time::ParsedTimezone tz{};
+  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  set_global_tz(tz);
+
+  // Test time before the transition (1:30 AM CST exists)
+  time_t libc_result = libc_mktime(2026, 3, 8, 1, 30, 0);
+  time_t esp_result = esptime_recalc_local(2026, 3, 8, 1, 30, 0);
+  EXPECT_EQ(esp_result, libc_result);
+
+  // Test time after the transition (3:30 AM CDT exists)
+  libc_result = libc_mktime(2026, 3, 8, 3, 30, 0);
+  esp_result = esptime_recalc_local(2026, 3, 8, 3, 30, 0);
+  EXPECT_EQ(esp_result, libc_result);
+
+  // Test the skipped hour (2:30 AM doesn't exist - gets normalized)
+  // Both implementations should produce the same result
+  libc_result = libc_mktime(2026, 3, 8, 2, 30, 0);
+  esp_result = esptime_recalc_local(2026, 3, 8, 2, 30, 0);
+  EXPECT_EQ(esp_result, libc_result);
+}
+
+TEST(RecalcTimestampLocal, FallBackRepeatedHour) {
+  // Set timezone to US Central (CST6CDT)
+  // DST ends November 1, 2026 at 2:00 AM -> clocks fall back to 1:00 AM
+  const char *tz_str = "CST6CDT,M3.2.0,M11.1.0";
+  setenv("TZ", tz_str, 1);
+  tzset();
+  time::ParsedTimezone tz{};
+  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  set_global_tz(tz);
+
+  // Test time before the transition (midnight CDT)
+  time_t libc_result = libc_mktime(2026, 11, 1, 0, 30, 0);
+  time_t esp_result = esptime_recalc_local(2026, 11, 1, 0, 30, 0);
+  EXPECT_EQ(esp_result, libc_result);
+
+  // Test time well after the transition (3:00 AM CST)
+  libc_result = libc_mktime(2026, 11, 1, 3, 0, 0);
+  esp_result = esptime_recalc_local(2026, 11, 1, 3, 0, 0);
+  EXPECT_EQ(esp_result, libc_result);
+
+  // Test the repeated hour (1:30 AM occurs twice)
+  // Both implementations should resolve this the same way (typically standard time)
+  libc_result = libc_mktime(2026, 11, 1, 1, 30, 0);
+  esp_result = esptime_recalc_local(2026, 11, 1, 1, 30, 0);
+  EXPECT_EQ(esp_result, libc_result);
+}
+
+TEST(RecalcTimestampLocal, SouthernHemisphereDST) {
+  // Set timezone to Australia/Sydney (AEST-10AEDT,M10.1.0,M4.1.0)
+  // DST starts first Sunday of October, ends first Sunday of April
+  const char *tz_str = "AEST-10AEDT,M10.1.0,M4.1.0";
+  setenv("TZ", tz_str, 1);
+  tzset();
+  time::ParsedTimezone tz{};
+  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  set_global_tz(tz);
+
+  // Test winter time (July - no DST in southern hemisphere)
+  time_t libc_result = libc_mktime(2026, 7, 15, 10, 30, 0);
+  time_t esp_result = esptime_recalc_local(2026, 7, 15, 10, 30, 0);
+  EXPECT_EQ(esp_result, libc_result);
+
+  // Test summer time (January - DST active in southern hemisphere)
+  libc_result = libc_mktime(2026, 1, 15, 10, 30, 0);
+  esp_result = esptime_recalc_local(2026, 1, 15, 10, 30, 0);
+  EXPECT_EQ(esp_result, libc_result);
+}
+
 }  // namespace esphome::testing

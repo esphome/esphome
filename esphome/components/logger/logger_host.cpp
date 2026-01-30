@@ -12,7 +12,7 @@ void HOT Logger::write_msg_(const char *msg, size_t len) {
   char buffer[TIMESTAMP_LEN + 768];
 
   time_t rawtime;
-  time(&rawtime);
+  ::time(&rawtime);
   struct tm timeinfo;
 #ifdef USE_TIME_TIMEZONE
   time::epoch_to_local_tm(rawtime, time::get_global_tz(), &timeinfo);
