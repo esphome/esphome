@@ -257,6 +257,17 @@ The following options disable unused VFS features to save flash memory:
   endpoints. Set to `true` only if connecting to services that use uncommon Certificate Authorities. Defaults to `false`
   (CMN bundle saves ~51 KB flash).
 
+**Built-in IDF Component Inclusion:**
+
+- **include_builtin_idf_components** (*Optional*, list of strings): A list of built-in ESP-IDF component names to
+  re-enable in the build. ESPHome excludes certain built-in IDF components by default to reduce compile time. If you
+  need to use a built-in IDF component that is excluded (for example, when using custom code in a lambda that requires
+  a specific IDF library), you can explicitly include it here. Example: `["esp_http_client", "mqtt"]`.
+
+  Note: This is different from the `components` option which adds external components from the
+  [ESP Component Registry](https://components.espressif.com/). This option re-enables built-in ESP-IDF components
+  that are excluded by default.
+
 Some options can be disabled to save flash memory without affecting typical ESPHome functionality. The performance
 options (defaulting to `true`  ) improve socket operation performance but can be disabled if you need better
 multi-threaded scalability (which is uncommon since ESPHome uses an event loop).
