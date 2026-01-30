@@ -257,17 +257,30 @@ void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
 }
 
 void ESPTime::recalc_timestamp_local() {
-  struct tm tm;
+#ifdef USE_TIME_TIMEZONE
+  // Calculate timestamp as if fields were UTC
+  this->recalc_timestamp_utc(false);
+  if (this->timestamp == -1) {
+    return;  // Invalid time
+  }
 
-  tm.tm_year = this->year - 1900;
-  tm.tm_mon = this->month - 1;
-  tm.tm_mday = this->day_of_month;
-  tm.tm_hour = this->hour;
-  tm.tm_min = this->minute;
-  tm.tm_sec = this->second;
-  tm.tm_isdst = -1;
+  // Now convert from local to UTC by adding the offset
+  // POSIX: local = utc - offset, so utc = local + offset
+  const auto &tz = time::get_global_tz();
 
-  this->timestamp = mktime(&tm);
+  // Use standard offset as initial guess to determine DST status
+  time_t approx_utc = this->timestamp + tz.std_offset_seconds;
+
+  // Check if DST is in effect and apply the appropriate offset
+  if (time::internal::is_in_dst(approx_utc, tz)) {
+    this->timestamp += tz.dst_offset_seconds;
+  } else {
+    this->timestamp += tz.std_offset_seconds;
+  }
+#else
+  // No timezone support - treat as UTC
+  this->recalc_timestamp_utc(false);
+#endif
 }
 
 int32_t ESPTime::timezone_offset() {
