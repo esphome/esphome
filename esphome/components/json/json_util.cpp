@@ -114,7 +114,7 @@ SerializationBuffer<> JsonBuilder::serialize() {
   }
 
   // Needs heap allocation - reallocate and serialize again with exact size
-  result.reallocate_heap(size);
+  result.reallocate_heap_(size);
   serializeJson(doc_, result.data_writable(), size + 1);
   return result;
 }

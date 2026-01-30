@@ -89,9 +89,15 @@ template<size_t STACK_SIZE = 768> class SerializationBuffer {
   /// Set actual size after serialization (must not exceed allocated size)
   void set_size(size_t size) { size_ = size; }
 
+  /// Implicit conversion to std::string for backward compatibility
+  operator std::string() const { return std::string(buffer_, size_); }  // NOLINT(google-explicit-constructor)
+
+ private:
+  friend class JsonBuilder;  ///< Allows JsonBuilder::serialize() to call reallocate_heap_()
+
   /// Reallocate to heap buffer with new size (for when stack buffer is too small)
-  /// This invalidates any previous buffer content
-  void reallocate_heap(size_t size) {
+  /// This invalidates any previous buffer content. Used by JsonBuilder::serialize().
+  void reallocate_heap_(size_t size) {
     delete[] heap_buffer_;
     heap_buffer_ = new char[size + 1];
     buffer_ = heap_buffer_;
@@ -99,10 +105,6 @@ template<size_t STACK_SIZE = 768> class SerializationBuffer {
     buffer_[0] = '\0';
   }
 
-  /// Implicit conversion to std::string for backward compatibility
-  operator std::string() const { return std::string(buffer_, size_); }  // NOLINT(google-explicit-constructor)
-
- private:
   char stack_buffer_[STACK_SIZE];
   char *heap_buffer_{nullptr};
   char *buffer_;
