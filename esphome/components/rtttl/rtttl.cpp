@@ -50,6 +50,35 @@ static const LogString *state_to_string(State state) {
 };
 #endif  // ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 
+static uint8_t note_index_from_char(char note) {
+  switch (note) {
+    case 'c':
+      return 1;
+    // 'c#': 2
+    case 'd':
+      return 3;
+    // 'd#': 4
+    case 'e':
+      return 5;
+    case 'f':
+      return 6;
+    // 'f#': 7
+    case 'g':
+      return 8;
+    // 'g#': 9
+    case 'a':
+      return 10;
+    // 'a#': 11
+    // Support both 'b' (English notation for B natural) and 'h' (German notation for B natural)
+    case 'b':
+    case 'h':
+      return 12;
+    case 'p':
+    default:
+      return 0;
+  }
+};
+
 void Rtttl::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Rtttl:\n"
@@ -148,35 +177,8 @@ void Rtttl::loop() {
         this->wholenote_ / this->default_duration_;  // we will need to check if we are a dotted note after
   }
 
-  uint8_t note;
+  uint8_t note = note_index_from_char(this->rtttl_[this->position_]);
 
-  switch (this->rtttl_[this->position_]) {
-    case 'c':
-      note = 1;
-      break;
-    case 'd':
-      note = 3;
-      break;
-    case 'e':
-      note = 5;
-      break;
-    case 'f':
-      note = 6;
-      break;
-    case 'g':
-      note = 8;
-      break;
-    case 'a':
-      note = 10;
-      break;
-    case 'h':
-    case 'b':
-      note = 12;
-      break;
-    case 'p':
-    default:
-      note = 0;
-  }
   this->position_++;
 
   // now, get optional '#' sharp
