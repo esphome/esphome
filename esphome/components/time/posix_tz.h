@@ -94,10 +94,9 @@ bool parse_dst_rule(const char *&p, DSTRule &rule);
 
 /// Convert Julian day (J format, 1-365 not counting Feb 29) to month/day
 /// @param julian_day Day number 1-365
-/// @param year The year (for leap year calculation)
 /// @param[out] month Output: month 1-12
 /// @param[out] day Output: day of month
-void julian_to_month_day(int julian_day, int year, int &month, int &day);
+void julian_to_month_day(int julian_day, int &month, int &day);
 
 /// Convert day of year (plain format, 0-365 counting Feb 29) to month/day
 /// @param day_of_year Day number 0-365

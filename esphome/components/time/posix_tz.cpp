@@ -160,8 +160,7 @@ static void parse_transition_time(const char *&p, DSTRule &rule) {
   }
 }
 
-void julian_to_month_day(int julian_day, int year, int &out_month, int &out_day) {
-  (void) year;  // Unused - J format ignores leap years by design
+void julian_to_month_day(int julian_day, int &out_month, int &out_day) {
   // J format: day 1-365, Feb 29 is NOT counted even in leap years
   // So day 60 is always March 1
   static const int DAYS_BEFORE_MONTH[] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
