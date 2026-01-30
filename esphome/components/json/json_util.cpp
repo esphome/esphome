@@ -98,24 +98,24 @@ SerializationBuffer<> JsonBuilder::serialize() {
 
   if (doc_.overflowed()) {
     ESP_LOGE(TAG, "JSON document overflow");
-    auto *buf = result.data_writable();
+    auto *buf = result.data_writable_();
     buf[0] = '{';
     buf[1] = '}';
     buf[2] = '\0';
-    result.set_size(2);
+    result.set_size_(2);
     return result;
   }
 
-  size_t size = serializeJson(doc_, result.data_writable(), buf_size);
+  size_t size = serializeJson(doc_, result.data_writable_(), buf_size);
   if (size < buf_size) {
     // Fits in stack buffer - update size to actual length
-    result.set_size(size);
+    result.set_size_(size);
     return result;
   }
 
   // Needs heap allocation - reallocate and serialize again with exact size
   result.reallocate_heap_(size);
-  serializeJson(doc_, result.data_writable(), size + 1);
+  serializeJson(doc_, result.data_writable_(), size + 1);
   return result;
 }
 

@@ -84,16 +84,23 @@ template<size_t STACK_SIZE = 768> class SerializationBuffer {
   const char *data() const { return buffer_; }
   /// Get string length (excluding null terminator)
   size_t size() const { return size_; }
-  /// Get writable buffer (for serialization)
-  char *data_writable() { return buffer_; }
-  /// Set actual size after serialization (must not exceed allocated size)
-  void set_size(size_t size) { size_ = size; }
 
   /// Implicit conversion to std::string for backward compatibility
+  /// WARNING: This allocates a new std::string on the heap. Prefer using
+  /// c_str() or data()/size() directly when possible to avoid allocation.
   operator std::string() const { return std::string(buffer_, size_); }  // NOLINT(google-explicit-constructor)
 
  private:
-  friend class JsonBuilder;  ///< Allows JsonBuilder::serialize() to call reallocate_heap_()
+  friend class JsonBuilder;  ///< Allows JsonBuilder::serialize() to call private methods
+
+  /// Get writable buffer (for serialization)
+  char *data_writable_() { return buffer_; }
+  /// Set actual size after serialization (must not exceed allocated size)
+  /// Also ensures null termination for c_str() safety
+  void set_size_(size_t size) {
+    size_ = size;
+    buffer_[size] = '\0';
+  }
 
   /// Reallocate to heap buffer with new size (for when stack buffer is too small)
   /// This invalidates any previous buffer content. Used by JsonBuilder::serialize().
