@@ -224,12 +224,21 @@ class MipiSpi : public display::Display,
                     this->madctl_ & MADCTL_BGR ? "BGR" : "RGB", DISPLAYPIXEL * 8, IS_BIG_ENDIAN ? "Big" : "Little");
     if (this->brightness_.has_value())
       esph_log_config(TAG, "  Brightness: %u", this->brightness_.value());
-    if (this->cs_ != nullptr)
-      esph_log_config(TAG, "  CS Pin: %s", this->cs_->dump_summary().c_str());
-    if (this->reset_pin_ != nullptr)
-      esph_log_config(TAG, "  Reset Pin: %s", this->reset_pin_->dump_summary().c_str());
-    if (this->dc_pin_ != nullptr)
-      esph_log_config(TAG, "  DC Pin: %s", this->dc_pin_->dump_summary().c_str());
+    if (this->cs_ != nullptr) {
+      char cs_buf[64];
+      this->cs_->dump_summary(cs_buf, sizeof(cs_buf));
+      esph_log_config(TAG, "  CS Pin: %s", cs_buf);
+    }
+    if (this->reset_pin_ != nullptr) {
+      char reset_buf[64];
+      this->reset_pin_->dump_summary(reset_buf, sizeof(reset_buf));
+      esph_log_config(TAG, "  Reset Pin: %s", reset_buf);
+    }
+    if (this->dc_pin_ != nullptr) {
+      char dc_buf[64];
+      this->dc_pin_->dump_summary(dc_buf, sizeof(dc_buf));
+      esph_log_config(TAG, "  DC Pin: %s", dc_buf);
+    }
     esph_log_config(TAG,
                     "  SPI Mode: %d\n"
                     "  SPI Data rate: %dMHz\n"
