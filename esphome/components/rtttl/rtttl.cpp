@@ -31,153 +31,30 @@ inline double deg2rad(double degrees) {
 }
 #endif  // USE_SPEAKER
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+static const LogString *state_to_string(State state) {
+  switch (state) {
+    case State::STOPPED:
+      return LOG_STR("State::STOPPED");
+    case State::STARTING:
+      return LOG_STR("State::STARTING");
+    case State::RUNNING:
+      return LOG_STR("State::RUNNING");
+    case State::STOPPING:
+      return LOG_STR("State::STOPPING");
+    case State::INIT:
+      return LOG_STR("State::INIT");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+};
+#endif  // ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+
 void Rtttl::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Rtttl:\n"
                 "  Gain: %f",
                 this->gain_);
-}
-
-void Rtttl::play(std::string rtttl) {
-  if (this->state_ != State::STOPPED && this->state_ != State::STOPPING) {
-    size_t pos = this->rtttl_.find(':');
-    size_t len = (pos != std::string::npos) ? pos : this->rtttl_.length();
-    ESP_LOGW(TAG, "Already playing: %.*s", (int) len, this->rtttl_.c_str());
-    return;
-  }
-
-  this->rtttl_ = std::move(rtttl);
-
-  this->default_duration_ = 4;
-  this->default_octave_ = 6;
-  this->note_duration_ = 0;
-
-  int bpm = 63;
-  uint8_t num;
-
-  // Get name
-  this->position_ = this->rtttl_.find(':');
-
-  // it's somewhat documented to be up to 10 characters but let's be a bit flexible here
-  if (this->position_ == std::string::npos || this->position_ > 15) {
-    ESP_LOGE(TAG, "Unable to determine name; missing ':'");
-    return;
-  }
-
-  ESP_LOGD(TAG, "Playing song %.*s", (int) this->position_, this->rtttl_.c_str());
-
-  // get default duration
-  this->position_ = this->rtttl_.find("d=", this->position_);
-  if (this->position_ == std::string::npos) {
-    ESP_LOGE(TAG, "Missing 'd='");
-    return;
-  }
-  this->position_ += 2;
-  num = this->get_integer_();
-  if (num > 0) {
-    this->default_duration_ = num;
-  }
-
-  // get default octave
-  this->position_ = this->rtttl_.find("o=", this->position_);
-  if (this->position_ == std::string::npos) {
-    ESP_LOGE(TAG, "Missing 'o=");
-    return;
-  }
-  this->position_ += 2;
-  num = get_integer_();
-  if (num >= 3 && num <= 7) {
-    this->default_octave_ = num;
-  }
-
-  // get BPM
-  this->position_ = this->rtttl_.find("b=", this->position_);
-  if (this->position_ == std::string::npos) {
-    ESP_LOGE(TAG, "Missing b=");
-    return;
-  }
-  this->position_ += 2;
-  num = get_integer_();
-  if (num != 0) {
-    bpm = num;
-  }
-
-  this->position_ = this->rtttl_.find(':', this->position_);
-  if (this->position_ == std::string::npos) {
-    ESP_LOGE(TAG, "Missing second ':'");
-    return;
-  }
-  this->position_++;
-
-  // BPM usually expresses the number of quarter notes per minute
-  this->wholenote_ = 60 * 1000L * 4 / bpm;  // this is the time for whole note (in milliseconds)
-
-  this->output_freq_ = 0;
-  this->last_note_ = millis();
-  this->note_duration_ = 1;
-
-#ifdef USE_OUTPUT
-  if (this->output_ != nullptr) {
-    this->set_state_(State::RUNNING);
-  }
-#endif  // USE_OUTPUT
-
-#ifdef USE_SPEAKER
-  if (this->speaker_ != nullptr) {
-    this->set_state_(State::INIT);
-    this->samples_sent_ = 0;
-    this->samples_count_ = 0;
-  }
-#endif  // USE_SPEAKER
-}
-
-void Rtttl::stop() {
-#ifdef USE_OUTPUT
-  if (this->output_ != nullptr) {
-    this->output_->set_level(0.0);
-    this->set_state_(State::STOPPED);
-  }
-#endif  // USE_OUTPUT
-
-#ifdef USE_SPEAKER
-  if (this->speaker_ != nullptr) {
-    if (this->speaker_->is_running()) {
-      this->speaker_->stop();
-    }
-    this->set_state_(State::STOPPING);
-  }
-#endif  // USE_SPEAKER
-
-  this->position_ = this->rtttl_.length();
-  this->note_duration_ = 0;
-}
-
-void Rtttl::finish_() {
-  ESP_LOGV(TAG, "Rtttl::finish_()");
-
-#ifdef USE_OUTPUT
-  if (this->output_ != nullptr) {
-    this->output_->set_level(0.0);
-    this->set_state_(State::STOPPED);
-  }
-#endif  // USE_OUTPUT
-
-#ifdef USE_SPEAKER
-  if (this->speaker_ != nullptr) {
-    SpeakerSample sample[2];
-    sample[0].left = 0;
-    sample[0].right = 0;
-    sample[1].left = 0;
-    sample[1].right = 0;
-    this->speaker_->play((uint8_t *) (&sample), 8);
-    this->speaker_->finish();
-    this->set_state_(State::STOPPING);
-  }
-#endif  // USE_SPEAKER
-
-  // Ensure no more notes are played in case finish_() is called for an error.
-  this->position_ = this->rtttl_.length();
-  this->note_duration_ = 0;
 }
 
 void Rtttl::loop() {
@@ -393,24 +270,147 @@ void Rtttl::loop() {
   this->last_note_ = millis();
 }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-static const LogString *state_to_string(State state) {
-  switch (state) {
-    case State::STOPPED:
-      return LOG_STR("State::STOPPED");
-    case State::STARTING:
-      return LOG_STR("State::STARTING");
-    case State::RUNNING:
-      return LOG_STR("State::RUNNING");
-    case State::STOPPING:
-      return LOG_STR("State::STOPPING");
-    case State::INIT:
-      return LOG_STR("State::INIT");
-    default:
-      return LOG_STR("UNKNOWN");
+void Rtttl::play(std::string rtttl) {
+  if (this->state_ != State::STOPPED && this->state_ != State::STOPPING) {
+    size_t pos = this->rtttl_.find(':');
+    size_t len = (pos != std::string::npos) ? pos : this->rtttl_.length();
+    ESP_LOGW(TAG, "Already playing: %.*s", (int) len, this->rtttl_.c_str());
+    return;
   }
-};
-#endif  // ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+
+  this->rtttl_ = std::move(rtttl);
+
+  this->default_duration_ = 4;
+  this->default_octave_ = 6;
+  this->note_duration_ = 0;
+
+  int bpm = 63;
+  uint8_t num;
+
+  // Get name
+  this->position_ = this->rtttl_.find(':');
+
+  // it's somewhat documented to be up to 10 characters but let's be a bit flexible here
+  if (this->position_ == std::string::npos || this->position_ > 15) {
+    ESP_LOGE(TAG, "Unable to determine name; missing ':'");
+    return;
+  }
+
+  ESP_LOGD(TAG, "Playing song %.*s", (int) this->position_, this->rtttl_.c_str());
+
+  // get default duration
+  this->position_ = this->rtttl_.find("d=", this->position_);
+  if (this->position_ == std::string::npos) {
+    ESP_LOGE(TAG, "Missing 'd='");
+    return;
+  }
+  this->position_ += 2;
+  num = this->get_integer_();
+  if (num > 0) {
+    this->default_duration_ = num;
+  }
+
+  // get default octave
+  this->position_ = this->rtttl_.find("o=", this->position_);
+  if (this->position_ == std::string::npos) {
+    ESP_LOGE(TAG, "Missing 'o=");
+    return;
+  }
+  this->position_ += 2;
+  num = get_integer_();
+  if (num >= 3 && num <= 7) {
+    this->default_octave_ = num;
+  }
+
+  // get BPM
+  this->position_ = this->rtttl_.find("b=", this->position_);
+  if (this->position_ == std::string::npos) {
+    ESP_LOGE(TAG, "Missing b=");
+    return;
+  }
+  this->position_ += 2;
+  num = get_integer_();
+  if (num != 0) {
+    bpm = num;
+  }
+
+  this->position_ = this->rtttl_.find(':', this->position_);
+  if (this->position_ == std::string::npos) {
+    ESP_LOGE(TAG, "Missing second ':'");
+    return;
+  }
+  this->position_++;
+
+  // BPM usually expresses the number of quarter notes per minute
+  this->wholenote_ = 60 * 1000L * 4 / bpm;  // this is the time for whole note (in milliseconds)
+
+  this->output_freq_ = 0;
+  this->last_note_ = millis();
+  this->note_duration_ = 1;
+
+#ifdef USE_OUTPUT
+  if (this->output_ != nullptr) {
+    this->set_state_(State::RUNNING);
+  }
+#endif  // USE_OUTPUT
+
+#ifdef USE_SPEAKER
+  if (this->speaker_ != nullptr) {
+    this->set_state_(State::INIT);
+    this->samples_sent_ = 0;
+    this->samples_count_ = 0;
+  }
+#endif  // USE_SPEAKER
+}
+
+void Rtttl::stop() {
+#ifdef USE_OUTPUT
+  if (this->output_ != nullptr) {
+    this->output_->set_level(0.0);
+    this->set_state_(State::STOPPED);
+  }
+#endif  // USE_OUTPUT
+
+#ifdef USE_SPEAKER
+  if (this->speaker_ != nullptr) {
+    if (this->speaker_->is_running()) {
+      this->speaker_->stop();
+    }
+    this->set_state_(State::STOPPING);
+  }
+#endif  // USE_SPEAKER
+
+  this->position_ = this->rtttl_.length();
+  this->note_duration_ = 0;
+}
+
+void Rtttl::finish_() {
+  ESP_LOGV(TAG, "Rtttl::finish_()");
+
+#ifdef USE_OUTPUT
+  if (this->output_ != nullptr) {
+    this->output_->set_level(0.0);
+    this->set_state_(State::STOPPED);
+  }
+#endif  // USE_OUTPUT
+
+#ifdef USE_SPEAKER
+  if (this->speaker_ != nullptr) {
+    SpeakerSample sample[2];
+    sample[0].left = 0;
+    sample[0].right = 0;
+    sample[1].left = 0;
+    sample[1].right = 0;
+    this->speaker_->play((uint8_t *) (&sample), 8);
+    this->speaker_->finish();
+    this->set_state_(State::STOPPING);
+  }
+#endif  // USE_SPEAKER
+
+  // Ensure no more notes are played in case finish_() is called for an error.
+  this->position_ = this->rtttl_.length();
+  this->note_duration_ = 0;
+}
 
 void Rtttl::set_state_(State state) {
   State old_state = this->state_;

@@ -31,14 +31,15 @@ class Rtttl : public Component {
   void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
 #endif  // USE_SPEAKER
 
-  float get_gain() { return gain_; }
-  void set_gain(float gain) { this->gain_ = clamp(gain, 0.0f, 1.0f); }
+  void dump_config() override;
+  void loop() override;
   void play(std::string rtttl);
   void stop();
-  void dump_config() override;
+
+  float get_gain() { return this->gain_; }
+  void set_gain(float gain) { this->gain_ = clamp(gain, 0.0f, 1.0f); }
 
   bool is_playing() { return this->state_ != State::STOPPED; }
-  void loop() override;
 
   void add_on_finished_playback_callback(std::function<void()> callback) {
     this->on_finished_playback_callback_.add(std::move(callback));
