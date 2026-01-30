@@ -224,9 +224,12 @@ class MipiSpi : public display::Display,
                     this->madctl_ & MADCTL_BGR ? "BGR" : "RGB", DISPLAYPIXEL * 8, IS_BIG_ENDIAN ? "Big" : "Little");
     if (this->brightness_.has_value())
       esph_log_config(TAG, "  Brightness: %u", this->brightness_.value());
-    log_pin(TAG, reinterpret_cast<const __FlashStringHelper *>("  CS Pin: "), this->cs_);
-    log_pin(TAG, reinterpret_cast<const __FlashStringHelper *>("  Reset Pin: "), this->reset_pin_);
-    log_pin(TAG, reinterpret_cast<const __FlashStringHelper *>("  DC Pin: "), this->dc_pin_);
+    if (this->cs_ != nullptr)
+      ESP_LOGCONFIG(TAG, "  CS Pin: %s", this->cs_->dump_summary().c_str());
+    if (this->reset_pin_ != nullptr)
+      ESP_LOGCONFIG(TAG, "  Reset Pin: %s", this->reset_pin_->dump_summary().c_str());
+    if (this->dc_pin_ != nullptr)
+      ESP_LOGCONFIG(TAG, "  DC Pin: %s", this->dc_pin_->dump_summary().c_str());
     esph_log_config(TAG,
                     "  SPI Mode: %d\n"
                     "  SPI Data rate: %dMHz\n"
