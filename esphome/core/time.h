@@ -117,11 +117,8 @@ struct ESPTime {
     // Fallback to UTC if conversion failed
     return ESPTime::from_epoch_utc(epoch);
 #else
-    struct tm *c_tm = ::localtime(&epoch);
-    if (c_tm == nullptr) {
-      return ESPTime{};  // Return an invalid ESPTime
-    }
-    return ESPTime::from_c_tm(c_tm, epoch);
+    // No timezone support - return UTC (no TZ configured, localtime would return UTC anyway)
+    return ESPTime::from_epoch_utc(epoch);
 #endif
   }
   /** Convert an UTC epoch timestamp to a UTC time ESPTime instance.

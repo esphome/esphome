@@ -281,13 +281,8 @@ int32_t ESPTime::timezone_offset() {
   }
   return -tz.std_offset_seconds;
 #else
-  time_t now = ::time(nullptr);
-  struct tm local_tm = *::localtime(&now);
-  local_tm.tm_isdst = 0;  // Cause mktime to ignore daylight saving time because we want to include it in the offset.
-  time_t local_time = mktime(&local_tm);
-  struct tm utc_tm = *::gmtime(&now);
-  time_t utc_time = mktime(&utc_tm);
-  return static_cast<int32_t>(local_time - utc_time);
+  // No timezone support - no offset
+  return 0;
 #endif
 }
 
