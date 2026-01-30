@@ -27,11 +27,7 @@ void RealTimeClock::dump_config() {
 #ifdef USE_TIME_TIMEZONE
   int std_hours = -this->parsed_tz_.std_offset_seconds / 3600;
   int std_mins = abs(this->parsed_tz_.std_offset_seconds % 3600) / 60;
-  if (std_mins == 0) {
-    ESP_LOGCONFIG(TAG, "Timezone: UTC%+d", std_hours);
-  } else {
-    ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d", std_hours, std_mins);
-  }
+  ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d", std_hours, std_mins);
   if (this->parsed_tz_.has_dst) {
     int dst_hours = -this->parsed_tz_.dst_offset_seconds / 3600;
     ESP_LOGCONFIG(TAG, "  DST: UTC%+d, M%d.%d.%d/%" PRId32 " - M%d.%d.%d/%" PRId32, dst_hours,
