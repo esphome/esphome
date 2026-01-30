@@ -7,7 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
 #ifdef USE_TIME_TIMEZONE
-#include "esphome/core/posix_tz.h"
+#include "posix_tz.h"
 #endif
 
 namespace esphome::time {

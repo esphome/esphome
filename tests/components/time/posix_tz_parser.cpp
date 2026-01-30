@@ -5,7 +5,7 @@
 #include <gtest/gtest.h>
 #include <cstdlib>
 #include <ctime>
-#include "esphome/core/posix_tz.h"
+#include "esphome/components/time/posix_tz.h"
 
 namespace esphome::time::testing {
 
