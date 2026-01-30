@@ -3,6 +3,7 @@ from esphome.components.light.effects import register_addressable_effect
 from esphome.components.light.types import AddressableLightEffect
 import esphome.config_validation as cv
 from esphome.const import CONF_NAME, CONF_PORT
+from esphome.core import CORE
 
 wled_ns = cg.esphome_ns.namespace("wled")
 WLEDLightEffect = wled_ns.class_("WLEDLightEffect", AddressableLightEffect)
@@ -27,4 +28,6 @@ async def wled_light_effect_to_code(config, effect_id):
     cg.add(effect.set_port(config[CONF_PORT]))
     cg.add(effect.set_sync_group_mask(config[CONF_SYNC_GROUP_MASK]))
     cg.add(effect.set_blank_on_start(config[CONF_BLANK_ON_START]))
+    if CORE.is_esp32:
+        cg.add_library("WiFi", None)
     return effect

@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WIFI,
 )
-from esphome.core import CORE, HexInt
+from esphome.core import HexInt
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
@@ -123,9 +123,6 @@ async def _trigger_to_code(config):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-
-    if CORE.using_arduino:
-        cg.add_library("WiFi", None)
 
     # ESP-NOW uses wake_loop_threadsafe() to wake the main loop from ESP-NOW callbacks
     # This enables low-latency event processing instead of waiting for select() timeout

@@ -1,0 +1,16 @@
+substitutions:
+  i2s_bclk_pin: GPIO15
+  i2s_lrclk_pin: GPIO4
+  i2s_mclk_pin: GPIO5
+
+<<: !include common.yaml
+
+wifi:
+  ssid: test
+  password: test1234
+
+media_player:
+  - platform: i2s_audio
+    name: Test Media Player
+    dac_type: internal
+    mode: stereo
