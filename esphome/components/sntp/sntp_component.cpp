@@ -41,7 +41,6 @@ void SNTPComponent::setup() {
 #else
   sntp_stop();
   sntp_setoperatingmode(SNTP_OPMODE_POLL);
-  sntp_set_sync_mode(this->smooth_sync_ ? SNTP_SYNC_MODE_SMOOTH : SNTP_SYNC_MODE_IMMED);
 
   size_t i = 0;
   for (auto &server : this->servers_) {
@@ -87,7 +86,7 @@ void SNTPComponent::loop() {
 // ESP-IDF and ESP8266 use callbacks from the SNTP task to trigger the
 // `on_time_sync` trigger on successful sync events.
 #if defined(USE_ESP32) || defined(USE_ESP8266)
-  // Keep loop enabled when smooth sync is active on ESP32/8266 platforms,
+  // Keep loop enabled when smooth sync is active on ESP32 platform
   // otherwise disable the loop
   if (!this->smooth_sync_ || !this->is_syncing_) {
     this->disable_loop();
@@ -113,9 +112,6 @@ void SNTPComponent::time_synced() {
     // Check sync status to determine state
 #if defined(USE_ESP32)
   switch (esp_sntp_get_sync_status()) {
-#else
-  switch (sntp_get_sync_status()) {
-#endif
     case SNTP_SYNC_STATUS_COMPLETED:
       ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month,
                time.hour, time.minute, time.second);
@@ -133,6 +129,12 @@ void SNTPComponent::time_synced() {
       this->is_syncing_ = false;
       break;
   }
+#else
+  ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month,
+            time.hour, time.minute, time.second);
+  this->time_sync_callback_.call();
+  this->is_syncing_ = false;
+#endif
 }
 
 }  // namespace sntp

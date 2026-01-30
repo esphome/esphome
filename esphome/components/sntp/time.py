@@ -93,7 +93,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SERVERS, default=DEFAULT_SERVERS): cv.All(
                 cv.ensure_list(cv.Any(cv.domain, cv.hostname)), cv.Length(min=1, max=3)
             ),
-            cv.Optional(CONF_SMOOTH_SYNC, default=False): cv.boolean,
+            cv.SplitDefault(CONF_SMOOTH_SYNC, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
+            )
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on(
@@ -113,7 +115,7 @@ FINAL_VALIDATE_SCHEMA = _sntp_final_validate
 
 async def to_code(config):
     servers = config[CONF_SERVERS]
-    smooth_sync = config[CONF_SMOOTH_SYNC]
+    smooth_sync = config.get(CONF_SMOOTH_SYNC, False)
 
     # Define server count at compile time
     cg.add_define("SNTP_SERVER_COUNT", len(servers))
