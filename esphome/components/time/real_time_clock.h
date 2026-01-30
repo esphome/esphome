@@ -23,22 +23,15 @@ class RealTimeClock : public PollingComponent {
   explicit RealTimeClock();
 
 #ifdef USE_TIME_TIMEZONE
-  /// Set the time zone.
-  void set_timezone(const std::string &tz) {
-    this->timezone_ = tz;
-    this->apply_timezone_();
-  }
+  /// Set the time zone from a POSIX TZ string.
+  void set_timezone(const char *tz) { this->apply_timezone_(tz); }
 
-  /// Set the time zone from raw buffer, only if it differs from the current one.
-  void set_timezone(const char *tz, size_t len) {
-    if (this->timezone_.length() != len || memcmp(this->timezone_.c_str(), tz, len) != 0) {
-      this->timezone_.assign(tz, len);
-      this->apply_timezone_();
-    }
-  }
+  /// Set the time zone from a null-terminated string with known length.
+  /// The length parameter is ignored since our parser uses null-terminated strings.
+  void set_timezone(const char *tz, size_t /*len*/) { this->apply_timezone_(tz); }
 
-  /// Get the time zone currently in use.
-  std::string get_timezone() { return this->timezone_; }
+  /// Set the time zone from a std::string.
+  void set_timezone(const std::string &tz) { this->apply_timezone_(tz.c_str()); }
 #endif
 
   /// Get the time in the currently defined timezone.
@@ -73,9 +66,8 @@ class RealTimeClock : public PollingComponent {
   void synchronize_epoch_(uint32_t epoch);
 
 #ifdef USE_TIME_TIMEZONE
-  std::string timezone_{};
   ParsedTimezone parsed_tz_{};
-  void apply_timezone_();
+  void apply_timezone_(const char *tz);
 #endif
 
   CallbackManager<void()> time_sync_callback_;

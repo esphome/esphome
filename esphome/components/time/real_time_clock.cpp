@@ -25,7 +25,21 @@ RealTimeClock::RealTimeClock() = default;
 
 void RealTimeClock::dump_config() {
 #ifdef USE_TIME_TIMEZONE
-  ESP_LOGCONFIG(TAG, "Timezone: '%s'", this->timezone_.c_str());
+  int std_hours = -this->parsed_tz_.std_offset_seconds / 3600;
+  int std_mins = abs(this->parsed_tz_.std_offset_seconds % 3600) / 60;
+  if (std_mins == 0) {
+    ESP_LOGCONFIG(TAG, "Timezone: UTC%+d", std_hours);
+  } else {
+    ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d", std_hours, std_mins);
+  }
+  if (this->parsed_tz_.has_dst) {
+    int dst_hours = -this->parsed_tz_.dst_offset_seconds / 3600;
+    ESP_LOGCONFIG(TAG, "  DST: UTC%+d, M%d.%d.%d/%" PRId32 " - M%d.%d.%d/%" PRId32, dst_hours,
+                  this->parsed_tz_.dst_start.month, this->parsed_tz_.dst_start.week,
+                  this->parsed_tz_.dst_start.day_of_week, this->parsed_tz_.dst_start.time_seconds / 3600,
+                  this->parsed_tz_.dst_end.month, this->parsed_tz_.dst_end.week, this->parsed_tz_.dst_end.day_of_week,
+                  this->parsed_tz_.dst_end.time_seconds / 3600);
+  }
 #endif
   auto time = this->now();
   ESP_LOGCONFIG(TAG, "Current time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month, time.hour,
@@ -72,11 +86,6 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
     ret = settimeofday(&timev, nullptr);
   }
 
-#ifdef USE_TIME_TIMEZONE
-  // Move timezone back to local timezone.
-  this->apply_timezone_();
-#endif
-
   if (ret != 0) {
     ESP_LOGW(TAG, "setimeofday() failed with code %d", ret);
   }
@@ -89,10 +98,10 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
 }
 
 #ifdef USE_TIME_TIMEZONE
-void RealTimeClock::apply_timezone_() {
+void RealTimeClock::apply_timezone_(const char *tz) {
   // Parse the POSIX TZ string using our custom parser to avoid pulling in scanf (~7.6KB)
-  if (!parse_posix_tz(this->timezone_.c_str(), this->parsed_tz_)) {
-    ESP_LOGW(TAG, "Failed to parse timezone: %s", this->timezone_.c_str());
+  if (!parse_posix_tz(tz, this->parsed_tz_)) {
+    ESP_LOGW(TAG, "Failed to parse timezone: %s", tz);
     // Reset to UTC on parse failure
     this->parsed_tz_ = ParsedTimezone{};
   }
