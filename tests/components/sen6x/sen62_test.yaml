@@ -32,4 +32,4 @@ sensor:
       time_constant: 0
     auto_cleaning_interval: 604800s
     acceleration_mode: low
-    address: 0x69
+    address: 0x6B

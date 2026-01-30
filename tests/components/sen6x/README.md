@@ -50,7 +50,7 @@ This directory contains comprehensive test configurations for the SEN6x sensor p
 - **Auto Cleaning Interval**: Fan cleaning cycle configuration
 - **Acceleration Mode**: RHT response speed (low, medium, high)
 - **Baseline Storage**: VOC baseline persistence
-- **I2C Address**: Default 0x69
+- **I2C Address**: Default 0x6B
 
 ### Platform Coverage
 

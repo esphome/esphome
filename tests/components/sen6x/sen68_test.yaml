@@ -54,4 +54,4 @@ sensor:
     auto_cleaning_interval: 604800s
     acceleration_mode: high
     store_baseline: true
-    address: 0x69
+    address: 0x6B
