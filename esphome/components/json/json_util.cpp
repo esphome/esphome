@@ -62,15 +62,6 @@ JsonDocument parse_json(const uint8_t *data, size_t len) {
 }
 
 SerializationBuffer<> JsonBuilder::serialize() {
-  if (doc_.overflowed()) {
-    ESP_LOGE(TAG, "JSON document overflow");
-    SerializationBuffer<> result(2);
-    auto *buf = result.data_writable();
-    buf[0] = '{';
-    buf[1] = '}';
-    buf[2] = '\0';
-    return result;
-  }
   // Intentionally avoid measureJson() - it instantiates DummyWriter templates that add ~1KB of flash.
   // Instead, try serializing to stack buffer first. 768 bytes covers 99.9% of JSON payloads
   // (sensors ~200B, lights ~170B, climate ~700B). Only entities with 40+ options exceed this.
@@ -78,18 +69,32 @@ SerializationBuffer<> JsonBuilder::serialize() {
   // For the rare large case: serialize twice (once truncated, once to heap) - less efficient but
   // saves ~1KB flash that would otherwise be wasted on every build.
   // serializeJson() returns actual size needed even if truncated, so we can retry with exact size.
+  //
+  // Single return variable enables NRVO (Named Return Value Optimization), avoiding memcpy on return.
   constexpr size_t buf_size = SerializationBuffer<>::BUFFER_SIZE;
   SerializationBuffer<> result(buf_size - 1);  // Max content size (reserve 1 for null)
+
+  if (doc_.overflowed()) {
+    ESP_LOGE(TAG, "JSON document overflow");
+    auto *buf = result.data_writable();
+    buf[0] = '{';
+    buf[1] = '}';
+    buf[2] = '\0';
+    result.set_size(2);
+    return result;
+  }
+
   size_t size = serializeJson(doc_, result.data_writable(), buf_size);
   if (size < buf_size) {
     // Fits in stack buffer - update size to actual length
     result.set_size(size);
     return result;
   }
-  // Needs heap allocation - serialize again with exact size
-  SerializationBuffer<> heap_result(size);
-  serializeJson(doc_, heap_result.data_writable(), size + 1);
-  return heap_result;
+
+  // Needs heap allocation - reallocate and serialize again with exact size
+  result.reallocate_heap(size);
+  serializeJson(doc_, result.data_writable(), size + 1);
+  return result;
 }
 
 }  // namespace json
