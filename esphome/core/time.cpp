@@ -271,6 +271,16 @@ void ESPTime::recalc_timestamp_local() {
 }
 
 int32_t ESPTime::timezone_offset() {
+#ifdef USE_TIME_TIMEZONE
+  time_t now = ::time(nullptr);
+  const auto &tz = time::get_global_tz();
+  // POSIX offset is positive west, but we return offset to add to UTC to get local
+  // So we negate the POSIX offset
+  if (time::internal::is_in_dst(now, tz)) {
+    return -tz.dst_offset_seconds;
+  }
+  return -tz.std_offset_seconds;
+#else
   time_t now = ::time(nullptr);
   struct tm local_tm = *::localtime(&now);
   local_tm.tm_isdst = 0;  // Cause mktime to ignore daylight saving time because we want to include it in the offset.
@@ -278,6 +288,7 @@ int32_t ESPTime::timezone_offset() {
   struct tm utc_tm = *::gmtime(&now);
   time_t utc_time = mktime(&utc_tm);
   return static_cast<int32_t>(local_time - utc_time);
+#endif
 }
 
 bool ESPTime::operator<(const ESPTime &other) const { return this->timestamp < other.timestamp; }
