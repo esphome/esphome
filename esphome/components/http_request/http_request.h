@@ -26,6 +26,7 @@ struct Header {
 enum HttpStatus {
   HTTP_STATUS_OK = 200,
   HTTP_STATUS_NO_CONTENT = 204,
+  HTTP_STATUS_RESET_CONTENT = 205,
   HTTP_STATUS_PARTIAL_CONTENT = 206,
 
   /* 3xx - Redirection */
@@ -199,19 +200,22 @@ class HttpContainer : public Parented<HttpRequestComponent> {
   virtual void end() = 0;
 
   void set_secure(bool secure) { this->secure_ = secure; }
+  void set_chunked(bool chunked) { this->is_chunked_ = chunked; }
 
   size_t get_bytes_read() const { return this->bytes_read_; }
 
-  /// Check if all expected content has been read (only valid for non-chunked responses)
-  /// For chunked responses (content_length == 0 on ESP-IDF, SIZE_MAX on Arduino), returns false
+  /// Check if all expected content has been read
+  /// For chunked responses, returns false (completion detected via read() returning error/EOF)
   bool is_read_complete() const {
     // Per RFC 9112, these responses have no body:
-    // - 1xx (Informational), 204 No Content, 304 Not Modified
+    // - 1xx (Informational), 204 No Content, 205 Reset Content, 304 Not Modified
     if ((this->status_code >= 100 && this->status_code < 200) || this->status_code == HTTP_STATUS_NO_CONTENT ||
-        this->status_code == HTTP_STATUS_NOT_MODIFIED) {
+        this->status_code == HTTP_STATUS_RESET_CONTENT || this->status_code == HTTP_STATUS_NOT_MODIFIED) {
       return true;
     }
-    return this->content_length > 0 && this->content_length < SIZE_MAX && this->bytes_read_ >= this->content_length;
+    // For non-chunked responses, complete when bytes_read >= content_length
+    // This handles both Content-Length: 0 and Content-Length: N cases
+    return !this->is_chunked_ && this->bytes_read_ >= this->content_length;
   }
 
   /**
@@ -226,6 +230,7 @@ class HttpContainer : public Parented<HttpRequestComponent> {
  protected:
   size_t bytes_read_{0};
   bool secure_{false};
+  bool is_chunked_{false};  ///< True if response uses chunked transfer encoding
   std::map<std::string, std::list<std::string>> response_headers_{};
 };
 

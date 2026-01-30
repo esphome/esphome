@@ -150,6 +150,8 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   int content_length = container->client_.getSize();
   ESP_LOGD(TAG, "Content-Length: %d", content_length);
   container->content_length = (size_t) content_length;
+  // -1 (SIZE_MAX when cast to size_t) means chunked transfer encoding
+  container->set_chunked(content_length == -1);
   container->duration_ms = millis() - start;
 
   return container;

@@ -160,6 +160,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   // esp_http_client_fetch_headers() returns 0 for chunked transfer encoding (no Content-Length header).
   // The read() method handles content_length == 0 specially to support chunked responses.
   container->content_length = esp_http_client_fetch_headers(client);
+  container->set_chunked(esp_http_client_is_chunked_response(client));
   container->feed_wdt();
   container->status_code = esp_http_client_get_status_code(client);
   container->feed_wdt();
@@ -195,6 +196,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
 
       container->feed_wdt();
       container->content_length = esp_http_client_fetch_headers(client);
+      container->set_chunked(esp_http_client_is_chunked_response(client));
       container->feed_wdt();
       container->status_code = esp_http_client_get_status_code(client);
       container->feed_wdt();
