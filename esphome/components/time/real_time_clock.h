@@ -47,19 +47,7 @@ class RealTimeClock : public PollingComponent {
 #endif
 
   /// Get the time in the currently defined timezone.
-  ESPTime now() {
-#ifdef USE_TIME_TIMEZONE
-    time_t epoch = this->timestamp_now();
-    struct tm local_tm;
-    if (epoch_to_local_tm(epoch, get_global_tz(), &local_tm)) {
-      return ESPTime::from_c_tm(&local_tm, epoch);
-    }
-    // Fallback to UTC if parsing failed
-    return ESPTime::from_epoch_utc(epoch);
-#else
-    return ESPTime::from_epoch_local(this->timestamp_now());
-#endif
-  }
+  ESPTime now();
 
   /// Get the time without any time zone or DST corrections.
   ESPTime utcnow() { return ESPTime::from_epoch_utc(this->timestamp_now()); }
