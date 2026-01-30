@@ -218,7 +218,7 @@ class MipiSpi : public display::Display,
                     "  Invert colors: %s\n"
                     "  Color order: %s\n"
                     "  Display pixels: %d bits\n"
-                    "  Endianness: %s",
+                    "  Endianness: %s\n",
                     YESNO(this->madctl_ & MADCTL_MV), YESNO(this->madctl_ & (MADCTL_MX | MADCTL_XFLIP)),
                     YESNO(this->madctl_ & (MADCTL_MY | MADCTL_YFLIP)), YESNO(this->invert_colors_),
                     this->madctl_ & MADCTL_BGR ? "BGR" : "RGB", DISPLAYPIXEL * 8, IS_BIG_ENDIAN ? "Big" : "Little");
