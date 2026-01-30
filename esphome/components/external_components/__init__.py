@@ -81,7 +81,7 @@ def _check_for_merged_prs(srcs: list[tuple]):
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     merged_prs = []
     if cache_file.is_file():
-        with open(cache_file) as f:
+        with open(cache_file, encoding="utf-8") as f:
             merged_prs = f.read().splitlines()
         stale = (time.time() - cache_file.stat().st_mtime) > 3600
     else:
@@ -112,17 +112,20 @@ def _check_for_merged_prs(srcs: list[tuple]):
         ]
         if new_merged_prs:
             merged_prs.extend(new_merged_prs)
-            with open(cache_file, "w") as f:
+            with open(cache_file, "w", encoding="utf-8") as f:
                 f.write("\n".join(set(merged_prs)))
         else:
             cache_file.touch()
     for pr_number, components in srcs:
         if pr_number in merged_prs:
+            # Use lazy % formatting to prevent unnecessary string concat if not logging
             _LOGGER.warning(
-                f"The git reference 'github://PR#{pr_number}' "
-                f"for components {', '.join(components)}\n"
+                "The git reference 'github://PR#%s' "
+                "for components %s\n"
                 "is a pull request that has been merged and released.\n"
-                "You should remove the external_components configuration for this source."
+                "You should remove the external_components configuration for this source.",
+                pr_number,
+                ", ".join(components),
             )
 
 
