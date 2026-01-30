@@ -95,7 +95,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.SplitDefault(CONF_SMOOTH_SYNC, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
-            )
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on(
