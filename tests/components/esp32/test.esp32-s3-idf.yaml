@@ -5,6 +5,14 @@ esp32:
     advanced:
       execute_from_psram: true
       disable_libc_locks_in_iram: true  # Test default RAM optimization enabled
+      disable_debug_stubs: true
+      disable_ocd_aware: true
+      disable_usb_serial_jtag_secondary: true
+      disable_dev_null_vfs: true
+      disable_mbedtls_peer_cert: true
+      disable_mbedtls_pkcs7: true
+      disable_regi2c_in_iram: true
+      disable_fatfs: true
 
 psram:
   mode: octal
