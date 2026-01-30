@@ -433,7 +433,18 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
 class EsphomeLogsHandler(EsphomePortCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         """Build the command to run."""
-        return await self.build_device_command(["logs"], json_message)
+        config_file = settings.rel_path(json_message["configuration"])
+        entry = DASHBOARD.entries.get(config_file)
+
+        # For host devices we run internally and can always stream logs directly.
+        # The normal `logs --device OTA` flow can error out (no OTA/api/mqtt/serial),
+        # which the frontend turns into a "How to get the logs..." prompt.
+        is_host = entry is not None and entry.target_platform == const.PLATFORM_HOST
+
+        # `run` on host compiles (if needed) and streams logs without requiring a device selector.
+        command = "run" if is_host else "logs"
+
+        return await self.build_device_command([command], json_message)
 
 
 class EsphomeRenameHandler(EsphomeCommandWebSocket):
