@@ -8,6 +8,7 @@
 namespace esphome::time {
 
 // Global timezone - set once at startup, rarely changes
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - intentional mutable state
 static ParsedTimezone global_tz_{};
 
 void set_global_tz(const ParsedTimezone &tz) { global_tz_ = tz; }
@@ -430,12 +431,8 @@ bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
     return false;
   }
   p++;
-  if (!internal::parse_dst_rule(p, result.dst_end)) {
-    return false;
-  }
-
   // has_dst() now returns true since dst_start.type was set by parse_dst_rule
-  return true;
+  return internal::parse_dst_rule(p, result.dst_end);
 }
 
 bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *out_tm) {

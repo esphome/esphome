@@ -1,6 +1,9 @@
 // Tests for the POSIX TZ parser and ESPTime::strptime implementations
 // These custom parsers avoid pulling in scanf (~9.8KB on ESP32-IDF).
 
+// Enable USE_TIME_TIMEZONE for tests
+#define USE_TIME_TIMEZONE
+
 #include <gtest/gtest.h>
 #include <cstdlib>
 #include <ctime>
@@ -752,6 +755,7 @@ TEST(PosixTzParser, EpochToLocalDstTransition) {
 
 class LibcVerificationTest : public ::testing::TestWithParam<std::tuple<const char *, time_t>> {
  protected:
+  // NOLINTNEXTLINE(readability-identifier-naming) - Google Test requires this name
   void SetUp() override {
     // Save current TZ
     const char *current_tz = getenv("TZ");
@@ -759,6 +763,7 @@ class LibcVerificationTest : public ::testing::TestWithParam<std::tuple<const ch
     had_tz_ = current_tz != nullptr;
   }
 
+  // NOLINTNEXTLINE(readability-identifier-naming) - Google Test requires this name
   void TearDown() override {
     // Restore TZ
     if (had_tz_) {
