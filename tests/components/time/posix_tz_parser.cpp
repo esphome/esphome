@@ -288,6 +288,98 @@ TEST(PosixTzParser, PlainDayInvalidDay366) {
 }
 
 // ============================================================================
+// Transition time edge cases (POSIX V3 allows -167 to +167 hours)
+// ============================================================================
+
+TEST(PosixTzParser, NegativeTransitionTime) {
+  ParsedTimezone tz;
+  // Negative transition time: /-1 means 11 PM (23:00) the previous day
+  ASSERT_TRUE(parse_posix_tz("EST5EDT,M3.2.0/-1,M11.1.0/2", tz));
+  EXPECT_EQ(tz.dst_start.time_seconds, -1 * 3600);  // -1 hour = 11 PM previous day
+  EXPECT_EQ(tz.dst_end.time_seconds, 2 * 3600);
+}
+
+TEST(PosixTzParser, NegativeTransitionTimeWithMinutes) {
+  ParsedTimezone tz;
+  // /-1:30 means 10:30 PM the previous day
+  ASSERT_TRUE(parse_posix_tz("EST5EDT,M3.2.0/-1:30,M11.1.0", tz));
+  EXPECT_EQ(tz.dst_start.time_seconds, -(1 * 3600 + 30 * 60));
+}
+
+TEST(PosixTzParser, LargeTransitionTime) {
+  ParsedTimezone tz;
+  // POSIX V3 allows transition times from -167 to +167 hours
+  // /25 means 1:00 AM the next day
+  ASSERT_TRUE(parse_posix_tz("EST5EDT,M3.2.0/25,M11.1.0", tz));
+  EXPECT_EQ(tz.dst_start.time_seconds, 25 * 3600);
+}
+
+TEST(PosixTzParser, MaxTransitionTime167Hours) {
+  ParsedTimezone tz;
+  // Maximum allowed transition time per POSIX V3
+  ASSERT_TRUE(parse_posix_tz("EST5EDT,M3.2.0/167,M11.1.0", tz));
+  EXPECT_EQ(tz.dst_start.time_seconds, 167 * 3600);
+}
+
+TEST(PosixTzParser, TransitionTimeWithHoursMinutesSeconds) {
+  ParsedTimezone tz;
+  ASSERT_TRUE(parse_posix_tz("EST5EDT,M3.2.0/2:30:45,M11.1.0", tz));
+  EXPECT_EQ(tz.dst_start.time_seconds, 2 * 3600 + 30 * 60 + 45);
+}
+
+// ============================================================================
+// Invalid M format tests
+// ============================================================================
+
+TEST(PosixTzParser, MFormatInvalidMonth13) {
+  ParsedTimezone tz;
+  // Month must be 1-12
+  EXPECT_FALSE(parse_posix_tz("EST5EDT,M13.1.0,M11.1.0", tz));
+}
+
+TEST(PosixTzParser, MFormatInvalidMonth0) {
+  ParsedTimezone tz;
+  // Month must be 1-12
+  EXPECT_FALSE(parse_posix_tz("EST5EDT,M0.1.0,M11.1.0", tz));
+}
+
+TEST(PosixTzParser, MFormatInvalidWeek6) {
+  ParsedTimezone tz;
+  // Week must be 1-5
+  EXPECT_FALSE(parse_posix_tz("EST5EDT,M3.6.0,M11.1.0", tz));
+}
+
+TEST(PosixTzParser, MFormatInvalidWeek0) {
+  ParsedTimezone tz;
+  // Week must be 1-5
+  EXPECT_FALSE(parse_posix_tz("EST5EDT,M3.0.0,M11.1.0", tz));
+}
+
+TEST(PosixTzParser, MFormatInvalidDayOfWeek7) {
+  ParsedTimezone tz;
+  // Day of week must be 0-6
+  EXPECT_FALSE(parse_posix_tz("EST5EDT,M3.2.7,M11.1.0", tz));
+}
+
+// ============================================================================
+// Large offset tests
+// ============================================================================
+
+TEST(PosixTzParser, MaxOffset14Hours) {
+  ParsedTimezone tz;
+  // Line Islands (Kiribati) is UTC+14, the maximum offset
+  ASSERT_TRUE(parse_posix_tz("<+14>-14", tz));
+  EXPECT_EQ(tz.std_offset_seconds, -14 * 3600);
+}
+
+TEST(PosixTzParser, MaxNegativeOffset12Hours) {
+  ParsedTimezone tz;
+  // Baker Island is UTC-12
+  ASSERT_TRUE(parse_posix_tz("<-12>12", tz));
+  EXPECT_EQ(tz.std_offset_seconds, 12 * 3600);
+}
+
+// ============================================================================
 // Helper function tests
 // ============================================================================
 
