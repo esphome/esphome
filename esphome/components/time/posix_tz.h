@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_TIME_TIMEZONE
+
 #include <cstdint>
 #include <ctime>
 
@@ -12,14 +14,14 @@ enum class DSTRuleType : uint8_t {
   DAY_OF_YEAR,     ///< Plain number: n (day 0-365, Feb 29 counted in leap years)
 };
 
-/// Rule for DST transition
+/// Rule for DST transition (packed for 32-bit: 12 bytes)
 struct DSTRule {
+  int32_t time_seconds;  ///< Seconds after midnight (default 7200 = 2:00 AM)
+  uint16_t day;          ///< Day of year (for JULIAN_NO_LEAP and DAY_OF_YEAR)
   DSTRuleType type;      ///< Type of rule
   uint8_t month;         ///< Month 1-12 (for MONTH_WEEK_DAY)
   uint8_t week;          ///< Week 1-5, 5 = last (for MONTH_WEEK_DAY)
   uint8_t day_of_week;   ///< Day 0-6, 0 = Sunday (for MONTH_WEEK_DAY)
-  uint16_t day;          ///< Day of year (for JULIAN_NO_LEAP and DAY_OF_YEAR)
-  int32_t time_seconds;  ///< Seconds after midnight (default 7200 = 2:00 AM)
 };
 
 /// Parsed POSIX timezone information
@@ -123,3 +125,5 @@ time_t calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offs
 }  // namespace internal
 
 }  // namespace esphome::time
+
+#endif  // USE_TIME_TIMEZONE

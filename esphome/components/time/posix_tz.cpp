@@ -1,3 +1,7 @@
+#include "esphome/core/defines.h"
+
+#ifdef USE_TIME_TIMEZONE
+
 #include "posix_tz.h"
 #include <cctype>
 
@@ -450,3 +454,5 @@ bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *ou
 }
 
 }  // namespace esphome::time
+
+#endif  // USE_TIME_TIMEZONE
