@@ -670,18 +670,39 @@ void WiFiComponent::wifi_scan_done_callback_() {
   if (num < 0)
     return;
 
-  this->scan_result_.init(static_cast<unsigned int>(num));
-  for (int i = 0; i < num; i++) {
-    String ssid = WiFi.SSID(i);
-    wifi_auth_mode_t authmode = WiFi.encryptionType(i);
-    int32_t rssi = WiFi.RSSI(i);
-    uint8_t *bssid = WiFi.BSSID(i);
-    int32_t channel = WiFi.channel(i);
+  bool needs_full = this->needs_full_scan_results_();
 
-    this->scan_result_.emplace_back(bssid_t{bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]},
-                                    std::string(ssid.c_str()), channel, rssi, authmode != WIFI_AUTH_OPEN,
-                                    ssid.length() == 0);
+  // Access scan results directly via WiFi.scan struct to avoid Arduino String allocations
+  // WiFi.scan is public in LibreTiny for WiFiEvents & WiFiScan static handlers
+  auto *scan = WiFi.scan;
+
+  // First pass: count matching networks
+  size_t count = 0;
+  for (int i = 0; i < num; i++) {
+    const char *ssid_cstr = scan->ap[i].ssid;
+    if (needs_full || this->matches_configured_network_(ssid_cstr, scan->ap[i].bssid.addr)) {
+      count++;
+    }
   }
+
+  this->scan_result_.init(count);  // Exact allocation
+
+  // Second pass: store matching networks
+  for (int i = 0; i < num; i++) {
+    const char *ssid_cstr = scan->ap[i].ssid;
+    if (needs_full || this->matches_configured_network_(ssid_cstr, scan->ap[i].bssid.addr)) {
+      auto &ap = scan->ap[i];
+      this->scan_result_.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
+                                              ap.bssid.addr[4], ap.bssid.addr[5]},
+                                      std::string(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
+                                      ssid_cstr[0] == '\0');
+    } else {
+      auto &ap = scan->ap[i];
+      this->log_discarded_scan_result_(ssid_cstr, ap.bssid.addr, ap.rssi, ap.channel);
+    }
+  }
+  ESP_LOGV(TAG, "Scan complete: %d found, %zu stored%s", num, this->scan_result_.size(),
+           needs_full ? "" : " (filtered)");
   WiFi.scanDelete();
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
   for (auto *listener : this->scan_results_listeners_) {

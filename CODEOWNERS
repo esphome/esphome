@@ -104,6 +104,7 @@ esphome/components/cc1101/* @gabest11 @lygris
 esphome/components/ccs811/* @habbie
 esphome/components/cd74hc4067/* @asoehlke
 esphome/components/ch422g/* @clydebarrow @jesterret
+esphome/components/ch423/* @dwmw2
 esphome/components/chsc6x/* @kkosik20
 esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
