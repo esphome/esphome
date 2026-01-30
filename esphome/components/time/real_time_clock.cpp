@@ -111,9 +111,8 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
 void RealTimeClock::apply_timezone_(const char *tz) {
   ParsedTimezone parsed{};
 
-  // Handle null input
-  if (tz == nullptr) {
-    ESP_LOGW(TAG, "Failed to parse timezone: (null)");
+  // Handle null or empty input - use UTC
+  if (tz == nullptr || *tz == '\0') {
     set_global_tz(parsed);
     return;
   }
