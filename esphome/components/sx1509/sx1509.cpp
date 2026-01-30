@@ -321,7 +321,6 @@ void SX1509Component::set_debounce_enable_pin(uint8_t pin, bool enable) {
   }
 }
 
-
 void SX1509Component::set_debounce_keypad_(uint8_t time, uint8_t num_rows, uint8_t num_cols) {
   if (this->debounce_time_ > 0) {
     for (uint16_t i = 0; i < num_rows; i++) {
