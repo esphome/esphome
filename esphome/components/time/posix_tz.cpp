@@ -5,6 +5,16 @@ namespace esphome {
 
 namespace internal {
 
+// Helper to parse an unsigned integer from string, updating pointer
+static uint32_t parse_uint(const char *&p) {
+  uint32_t value = 0;
+  while (std::isdigit(static_cast<unsigned char>(*p))) {
+    value = value * 10 + (*p - '0');
+    p++;
+  }
+  return value;
+}
+
 bool is_leap_year(int year) { return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0); }
 
 int days_in_month(int year, int month) {
@@ -125,81 +135,33 @@ int32_t parse_offset(const char *&p) {
     p++;
   }
 
-  // Parse hours
-  int hours = 0;
-  while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
-    hours = hours * 10 + (*p - '0');
-    p++;
-  }
-
+  int hours = parse_uint(p);
   int minutes = 0;
   int seconds = 0;
 
-  // Optional :mm
   if (*p == ':') {
     p++;
-    while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
-      minutes = minutes * 10 + (*p - '0');
-      p++;
-    }
-
-    // Optional :ss
+    minutes = parse_uint(p);
     if (*p == ':') {
       p++;
-      while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
-        seconds = seconds * 10 + (*p - '0');
-        p++;
-      }
+      seconds = parse_uint(p);
     }
   }
 
   return sign * (hours * 3600 + minutes * 60 + seconds);
 }
 
-// Helper to parse the optional /time suffix
+// Helper to parse the optional /time suffix (reuses parse_offset logic)
 static void parse_transition_time(const char *&p, DSTRule &rule) {
   rule.time_seconds = 2 * 3600;  // Default 02:00
-
   if (*p == '/') {
     p++;
-    // Parse time as [+-]hh[:mm[:ss]]
-    int sign = 1;
-    if (*p == '-') {
-      sign = -1;
-      p++;
-    } else if (*p == '+') {
-      p++;
-    }
-
-    int hours = 0;
-    while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
-      hours = hours * 10 + (*p - '0');
-      p++;
-    }
-
-    int minutes = 0;
-    if (*p == ':') {
-      p++;
-      while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
-        minutes = minutes * 10 + (*p - '0');
-        p++;
-      }
-    }
-
-    int seconds = 0;
-    if (*p == ':') {
-      p++;
-      while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
-        seconds = seconds * 10 + (*p - '0');
-        p++;
-      }
-    }
-
-    rule.time_seconds = sign * (hours * 3600 + minutes * 60 + seconds);
+    rule.time_seconds = parse_offset(p);
   }
 }
 
 void julian_to_month_day(int julian_day, int year, int &out_month, int &out_day) {
+  (void) year;  // Unused - J format ignores leap years by design
   // J format: day 1-365, Feb 29 is NOT counted even in leap years
   // So day 60 is always March 1
   static const int DAYS_BEFORE_MONTH[] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
@@ -246,38 +208,21 @@ bool parse_dst_rule(const char *&p, DSTRule &rule) {
     rule.type = DSTRuleType::MONTH_WEEK_DAY;
     p++;
 
-    // Parse month
-    rule.month = 0;
-    while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
-      rule.month = rule.month * 10 + (*p - '0');
-      p++;
-    }
+    rule.month = parse_uint(p);
     if (rule.month < 1 || rule.month > 12)
       return false;
 
-    if (*p != '.')
+    if (*p++ != '.')
       return false;
-    p++;
 
-    // Parse week (1-5, where 5 means "last")
-    rule.week = 0;
-    while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
-      rule.week = rule.week * 10 + (*p - '0');
-      p++;
-    }
+    rule.week = parse_uint(p);
     if (rule.week < 1 || rule.week > 5)
       return false;
 
-    if (*p != '.')
+    if (*p++ != '.')
       return false;
-    p++;
 
-    // Parse day of week (0 = Sunday)
-    rule.day_of_week = 0;
-    while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
-      rule.day_of_week = rule.day_of_week * 10 + (*p - '0');
-      p++;
-    }
+    rule.day_of_week = parse_uint(p);
     if (rule.day_of_week > 6)
       return false;
 
@@ -286,11 +231,7 @@ bool parse_dst_rule(const char *&p, DSTRule &rule) {
     rule.type = DSTRuleType::JULIAN_NO_LEAP;
     p++;
 
-    rule.day = 0;
-    while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
-      rule.day = rule.day * 10 + (*p - '0');
-      p++;
-    }
+    rule.day = parse_uint(p);
     if (rule.day < 1 || rule.day > 365)
       return false;
 
@@ -298,11 +239,7 @@ bool parse_dst_rule(const char *&p, DSTRule &rule) {
     // Plain number format: n (day 0-365, counting Feb 29)
     rule.type = DSTRuleType::DAY_OF_YEAR;
 
-    rule.day = 0;
-    while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
-      rule.day = rule.day * 10 + (*p - '0');
-      p++;
-    }
+    rule.day = parse_uint(p);
     if (rule.day > 365)
       return false;
 
@@ -479,13 +416,15 @@ bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *ou
     return false;
   }
 
-  int32_t offset = get_utc_offset(utc_epoch, tz);
+  // Determine DST status once (avoids duplicate is_in_dst calculation)
+  bool in_dst = is_in_dst(utc_epoch, tz);
+  int32_t offset = in_dst ? tz.dst_offset_seconds : tz.std_offset_seconds;
 
   // Apply offset (POSIX offset is positive west, so subtract to get local)
   time_t local_epoch = utc_epoch - offset;
 
   internal::epoch_to_tm_utc(local_epoch, out_tm);
-  out_tm->tm_isdst = is_in_dst(utc_epoch, tz) ? 1 : 0;
+  out_tm->tm_isdst = in_dst ? 1 : 0;
 
   return true;
 }

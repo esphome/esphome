@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <ctime>
-#include <cstring>
 
 namespace esphome {
 
