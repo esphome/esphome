@@ -236,7 +236,7 @@ class HttpContainer : public Parented<HttpRequestComponent> {
 /// @param total_size Total bytes to read
 /// @param chunk_size Maximum bytes per read call
 /// @param timeout_ms Read timeout in milliseconds
-/// @return HttpReadResult with status and error_code on failure
+/// @return HttpReadResult with status and error_code on failure; use container->get_bytes_read() for bytes read
 inline HttpReadResult http_read_fully(HttpContainer *container, uint8_t *buffer, size_t total_size, size_t chunk_size,
                                       uint32_t timeout_ms) {
   size_t read_index = 0;
