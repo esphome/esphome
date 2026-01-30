@@ -455,9 +455,11 @@ bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *ou
 
 }  // namespace esphome::time
 
-// Override libc's localtime functions to use our timezone
+#ifndef USE_HOST
+// Override libc's localtime functions to use our timezone on embedded platforms.
 // This allows user lambdas calling ::localtime() to get correct local time
-// without needing the TZ environment variable (which pulls in scanf bloat)
+// without needing the TZ environment variable (which pulls in scanf bloat).
+// On host, we use the normal TZ mechanism since there's no memory constraint.
 
 // Thread-safe version
 extern "C" struct tm *localtime_r(const time_t *timer, struct tm *result) {
@@ -474,5 +476,6 @@ extern "C" struct tm *localtime(const time_t *timer) {
   static struct tm localtime_buf;
   return localtime_r(timer, &localtime_buf);
 }
+#endif  // !USE_HOST
 
 #endif  // USE_TIME_TIMEZONE
