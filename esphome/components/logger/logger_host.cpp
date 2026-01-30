@@ -9,9 +9,9 @@ void HOT Logger::write_msg_(const char *msg, size_t len) {
   char buffer[TIMESTAMP_LEN + 768];
 
   time_t rawtime;
-  ::time(&rawtime);
+  time(&rawtime);
   struct tm timeinfo;
-  localtime_r(&rawtime, &timeinfo);  // TZ env var set by time component
+  localtime_r(&rawtime, &timeinfo);  // Thread-safe version
   size_t pos = strftime(buffer, TIMESTAMP_LEN + 1, "[%H:%M:%S]", &timeinfo);
 
   // Copy message (with newline already included by caller)
