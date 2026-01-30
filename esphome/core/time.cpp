@@ -276,7 +276,7 @@ void ESPTime::recalc_timestamp_local() {
 
   // Try both interpretations to match libc mktime() with tm_isdst=-1
   // For ambiguous times (fall-back repeated hour), libc prefers DST
-  // For invalid times (spring-forward skipped hour), libc normalizes to DST
+  // For invalid times (spring-forward skipped hour), libc normalizes forward
   time_t utc_if_dst = this->timestamp + tz.dst_offset_seconds;
   time_t utc_if_std = this->timestamp + tz.std_offset_seconds;
 
@@ -293,8 +293,10 @@ void ESPTime::recalc_timestamp_local() {
     // Only standard interpretation is valid
     this->timestamp = utc_if_std;
   } else {
-    // Invalid time (skipped hour during spring-forward) - use DST to match libc
-    this->timestamp = utc_if_dst;
+    // Invalid time (skipped hour during spring-forward)
+    // libc normalizes forward: 02:30 CST -> 08:30 UTC -> 03:30 CDT
+    // Using std offset achieves this since the UTC result falls during DST
+    this->timestamp = utc_if_std;
   }
 #else
   // No timezone support - treat as UTC
