@@ -739,9 +739,10 @@ CONF_DISABLE_REGI2C_IN_IRAM = "disable_regi2c_in_iram"
 CONF_DISABLE_FATFS = "disable_fatfs"
 
 # VFS requirement tracking
-# Components that need VFS features can call require_vfs_select() or require_vfs_dir()
+# Components that need VFS features can call require_vfs_*() functions
 KEY_VFS_SELECT_REQUIRED = "vfs_select_required"
 KEY_VFS_DIR_REQUIRED = "vfs_dir_required"
+KEY_VFS_TERMIOS_REQUIRED = "vfs_termios_required"
 # Feature requirement tracking - components can call require_* functions to re-enable
 # These are stored in CORE.data[KEY_ESP32] dict
 KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED = "usb_serial_jtag_secondary_required"
@@ -766,6 +767,15 @@ def require_vfs_dir() -> None:
     This prevents CONFIG_VFS_SUPPORT_DIR from being disabled.
     """
     CORE.data[KEY_VFS_DIR_REQUIRED] = True
+
+
+def require_vfs_termios() -> None:
+    """Mark that VFS termios support is required by a component.
+
+    Call this from components that use terminal I/O functions (usb_serial_jtag_vfs_*, etc.).
+    This prevents CONFIG_VFS_SUPPORT_TERMIOS from being disabled.
+    """
+    CORE.data[KEY_VFS_TERMIOS_REQUIRED] = True
 
 
 def require_full_certificate_bundle() -> None:
@@ -1372,11 +1382,18 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", False)
 
     # Disable VFS support for termios (terminal I/O functions)
-    # ESPHome doesn't use termios functions on ESP32 (only used in host UART driver).
+    # USB Serial JTAG VFS functions require termios support.
+    # Components that need it (e.g., logger when USB_SERIAL_JTAG is supported but not selected
+    # as the logger output) call require_vfs_termios().
     # Saves approximately 1.8KB of flash when disabled (default).
-    add_idf_sdkconfig_option(
-        "CONFIG_VFS_SUPPORT_TERMIOS", not advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS]
-    )
+    if CORE.data.get(KEY_VFS_TERMIOS_REQUIRED, False):
+        # Component requires VFS termios - force enable regardless of user setting
+        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_TERMIOS", True)
+    else:
+        # No component needs it - allow user to control (default: disabled)
+        add_idf_sdkconfig_option(
+            "CONFIG_VFS_SUPPORT_TERMIOS", not advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS]
+        )
 
     # Disable VFS support for select() with file descriptors
     # ESPHome only uses select() with sockets via lwip_select(), which still works.
