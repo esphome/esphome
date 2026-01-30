@@ -99,28 +99,6 @@ void epoch_to_tm_utc(time_t epoch, struct tm *out_tm) {
   out_tm->tm_isdst = 0;
 }
 
-time_t tm_to_epoch_utc(const struct tm *tm) {
-  int year = tm->tm_year + 1900;
-  int month = tm->tm_mon + 1;
-  int day = tm->tm_mday;
-
-  // Days from epoch to start of year
-  int64_t days = 0;
-  for (int y = 1970; y < year; y++) {
-    days += is_leap_year(y) ? 366 : 365;
-  }
-
-  // Days from start of year to start of month
-  for (int m = 1; m < month; m++) {
-    days += days_in_month(year, m);
-  }
-
-  // Days in current month
-  days += day - 1;
-
-  return days * 86400 + tm->tm_hour * 3600 + tm->tm_min * 60 + tm->tm_sec;
-}
-
 bool skip_tz_name(const char *&p) {
   if (*p == '<') {
     // Angle-bracket quoted name: <+07>, <-03>, <AEST>

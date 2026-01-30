@@ -112,9 +112,6 @@ bool is_leap_year(int year);
 /// Convert epoch to year/month/day/hour/min/sec (UTC)
 void epoch_to_tm_utc(time_t epoch, struct tm *out_tm);
 
-/// Convert tm struct to epoch (UTC)
-time_t tm_to_epoch_utc(const struct tm *tm);
-
 }  // namespace internal
 
 }  // namespace esphome

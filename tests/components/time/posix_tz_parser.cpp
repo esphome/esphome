@@ -9,6 +9,20 @@
 
 namespace esphome::time::testing {
 
+// Helper to create UTC epoch from date/time components (for test readability)
+static time_t make_utc(int year, int month, int day, int hour = 0, int min = 0, int sec = 0) {
+  int64_t days = 0;
+  for (int y = 1970; y < year; y++) {
+    days += (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) ? 366 : 365;
+  }
+  static const int DAYS_BEFORE[] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+  days += DAYS_BEFORE[month - 1];
+  if (month > 2 && (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)))
+    days++;  // Leap year adjustment
+  days += day - 1;
+  return days * 86400 + hour * 3600 + min * 60 + sec;
+}
+
 // ============================================================================
 // Basic TZ string parsing tests
 // ============================================================================
@@ -436,12 +450,7 @@ TEST(PosixTzParser, IsInDstUSEasternSummer) {
   parse_posix_tz("EST5EDT,M3.2.0/2,M11.1.0/2", tz);
 
   // July 4, 2026 12:00 UTC - definitely in DST
-  struct tm july4 {};
-  july4.tm_hour = 12;
-  july4.tm_mday = 4;
-  july4.tm_mon = 6;
-  july4.tm_year = 126;
-  time_t summer = internal::tm_to_epoch_utc(&july4);
+  time_t summer = make_utc(2026, 7, 4, 12);
   EXPECT_TRUE(is_in_dst(summer, tz));
 }
 
@@ -450,12 +459,7 @@ TEST(PosixTzParser, IsInDstUSEasternWinter) {
   parse_posix_tz("EST5EDT,M3.2.0/2,M11.1.0/2", tz);
 
   // January 15, 2026 12:00 UTC - definitely not in DST
-  struct tm jan15 {};
-  jan15.tm_hour = 12;
-  jan15.tm_mday = 15;
-  jan15.tm_mon = 0;
-  jan15.tm_year = 126;
-  time_t winter = internal::tm_to_epoch_utc(&jan15);
+  time_t winter = make_utc(2026, 1, 15, 12);
   EXPECT_FALSE(is_in_dst(winter, tz));
 }
 
@@ -463,12 +467,8 @@ TEST(PosixTzParser, IsInDstNoDstTimezone) {
   ParsedTimezone tz;
   parse_posix_tz("IST-5:30", tz);
 
-  struct tm anytime {};
-  anytime.tm_hour = 12;
-  anytime.tm_mday = 15;
-  anytime.tm_mon = 6;
-  anytime.tm_year = 126;
-  time_t epoch = internal::tm_to_epoch_utc(&anytime);
+  // July 15, 2026 12:00 UTC
+  time_t epoch = make_utc(2026, 7, 15, 12);
   EXPECT_FALSE(is_in_dst(epoch, tz));
 }
 
@@ -477,12 +477,7 @@ TEST(PosixTzParser, SouthernHemisphereDstSummer) {
   parse_posix_tz("NZST-12NZDT,M9.5.0,M4.1.0/3", tz);
 
   // December 15, 2025 12:00 UTC - summer in NZ, should be in DST
-  struct tm dec15 {};
-  dec15.tm_hour = 12;
-  dec15.tm_mday = 15;
-  dec15.tm_mon = 11;
-  dec15.tm_year = 125;
-  time_t nz_summer = internal::tm_to_epoch_utc(&dec15);
+  time_t nz_summer = make_utc(2025, 12, 15, 12);
   EXPECT_TRUE(is_in_dst(nz_summer, tz));
 }
 
@@ -491,12 +486,7 @@ TEST(PosixTzParser, SouthernHemisphereDstWinter) {
   parse_posix_tz("NZST-12NZDT,M9.5.0,M4.1.0/3", tz);
 
   // July 15, 2026 12:00 UTC - winter in NZ, should NOT be in DST
-  struct tm july15 {};
-  july15.tm_hour = 12;
-  july15.tm_mday = 15;
-  july15.tm_mon = 6;
-  july15.tm_year = 126;
-  time_t nz_winter = internal::tm_to_epoch_utc(&july15);
+  time_t nz_winter = make_utc(2026, 7, 15, 12);
   EXPECT_FALSE(is_in_dst(nz_winter, tz));
 }
 
@@ -522,12 +512,7 @@ TEST(PosixTzParser, EpochToLocalWithOffset) {
   parse_posix_tz("EST5", tz);  // UTC-5
 
   // Jan 1, 2026 05:00:00 UTC should be Jan 1, 2026 00:00:00 EST
-  struct tm utc_tm {};
-  utc_tm.tm_hour = 5;
-  utc_tm.tm_mday = 1;
-  utc_tm.tm_mon = 0;
-  utc_tm.tm_year = 126;
-  time_t utc_epoch = internal::tm_to_epoch_utc(&utc_tm);
+  time_t utc_epoch = make_utc(2026, 1, 1, 5);
 
   struct tm local;
   ASSERT_TRUE(epoch_to_local_tm(utc_epoch, tz, &local));
@@ -541,12 +526,7 @@ TEST(PosixTzParser, EpochToLocalDstTransition) {
   parse_posix_tz("EST5EDT,M3.2.0/2,M11.1.0/2", tz);
 
   // July 4, 2026 16:00 UTC = 12:00 EDT (noon)
-  struct tm july4_utc {};
-  july4_utc.tm_hour = 16;
-  july4_utc.tm_mday = 4;
-  july4_utc.tm_mon = 6;
-  july4_utc.tm_year = 126;
-  time_t utc_epoch = internal::tm_to_epoch_utc(&july4_utc);
+  time_t utc_epoch = make_utc(2026, 7, 4, 16);
 
   struct tm local;
   ASSERT_TRUE(epoch_to_local_tm(utc_epoch, tz, &local));
@@ -626,23 +606,11 @@ TEST(PosixTzParser, DstBoundaryJustBeforeSpringForward) {
   parse_posix_tz("EST5EDT,M3.2.0/2,M11.1.0/2", tz);
 
   // March 8, 2026 06:59:59 UTC = 01:59:59 EST (1 second before spring forward)
-  struct tm before {};
-  before.tm_sec = 59;
-  before.tm_min = 59;
-  before.tm_hour = 6;
-  before.tm_mday = 8;
-  before.tm_mon = 2;
-  before.tm_year = 126;
-  time_t before_epoch = internal::tm_to_epoch_utc(&before);
+  time_t before_epoch = make_utc(2026, 3, 8, 6, 59, 59);
   EXPECT_FALSE(is_in_dst(before_epoch, tz));
 
   // March 8, 2026 07:00:00 UTC = 02:00:00 EST -> 03:00:00 EDT (DST started)
-  struct tm after {};
-  after.tm_hour = 7;
-  after.tm_mday = 8;
-  after.tm_mon = 2;
-  after.tm_year = 126;
-  time_t after_epoch = internal::tm_to_epoch_utc(&after);
+  time_t after_epoch = make_utc(2026, 3, 8, 7);
   EXPECT_TRUE(is_in_dst(after_epoch, tz));
 }
 
@@ -652,23 +620,11 @@ TEST(PosixTzParser, DstBoundaryJustBeforeFallBack) {
   parse_posix_tz("EST5EDT,M3.2.0/2,M11.1.0/2", tz);
 
   // November 1, 2026 05:59:59 UTC = 01:59:59 EDT (1 second before fall back)
-  struct tm before {};
-  before.tm_sec = 59;
-  before.tm_min = 59;
-  before.tm_hour = 5;
-  before.tm_mday = 1;
-  before.tm_mon = 10;
-  before.tm_year = 126;
-  time_t before_epoch = internal::tm_to_epoch_utc(&before);
+  time_t before_epoch = make_utc(2026, 11, 1, 5, 59, 59);
   EXPECT_TRUE(is_in_dst(before_epoch, tz));
 
   // November 1, 2026 06:00:00 UTC = 02:00:00 EDT -> 01:00:00 EST (DST ended)
-  struct tm after {};
-  after.tm_hour = 6;
-  after.tm_mday = 1;
-  after.tm_mon = 10;
-  after.tm_year = 126;
-  time_t after_epoch = internal::tm_to_epoch_utc(&after);
+  time_t after_epoch = make_utc(2026, 11, 1, 6);
   EXPECT_FALSE(is_in_dst(after_epoch, tz));
 }
 
