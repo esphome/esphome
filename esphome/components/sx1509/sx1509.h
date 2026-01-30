@@ -26,7 +26,7 @@ const uint8_t REG_I_ON[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3,
 // for all components that implement the process(uint16_t data )
 class SX1509Processor {
  public:
-  virtual void process(uint16_t data){};
+  virtual void process(uint16_t data){}
 };
 
 class SX1509KeyTrigger : public Trigger<uint8_t> {};
@@ -44,22 +44,24 @@ class SX1509Component : public Component,
   void loop() override;
 
   uint16_t read_key_data();
-  void set_pin_value(uint8_t pin, uint8_t i_on) { this->write_byte(REG_I_ON[pin], i_on); };
-  void pin_mode(uint8_t pin, gpio::Flags flags);
-  uint32_t get_clock() { return this->clk_x_; };
+  void set_pin_value(uint8_t pin, uint8_t i_on) { this->write_byte(REG_I_ON[pin], i_on); }
+  void pin_mode(uint8_t pin, gpio::Flags flags) override;
+  uint32_t get_clock() { return this->clk_x_; }
   void set_rows_cols(uint8_t rows, uint8_t cols) {
     this->rows_ = rows;
     this->cols_ = cols;
     this->has_keypad_ = true;
-  };
-  void set_keys(std::string keys) { this->keys_ = std::move(keys); };
-  void set_sleep_time(uint16_t sleep_time) { this->sleep_time_ = sleep_time; };
-  void set_scan_time(uint8_t scan_time) { this->scan_time_ = scan_time; };
-  void set_debounce_time(uint8_t debounce_time = 1) { this->debounce_time_ = debounce_time; };
+  }
+  void set_keys(std::string keys) { this->keys_ = std::move(keys); }
+  void set_sleep_time(uint16_t sleep_time) { this->sleep_time_ = sleep_time; }
+  void set_scan_time(uint8_t scan_time) { this->scan_time_ = scan_time; }
+  void set_debounce_time(uint8_t debounce_time) { this->debounce_time_ = debounce_time; }
+  void set_debounce_time_from_keypad(uint8_t time);
+  void set_debounce_enable_pin(uint8_t pin, bool enable);
   void register_keypad_binary_sensor(SX1509Processor *binary_sensor) {
     this->keypad_binary_sensors_.push_back(binary_sensor);
   }
-  void register_key_trigger(SX1509KeyTrigger *trig) { this->key_triggers_.push_back(trig); };
+  void register_key_trigger(SX1509KeyTrigger *trig) { this->key_triggers_.push_back(trig); }
   void setup_led_driver(uint8_t pin);
 
  protected:
@@ -90,9 +92,7 @@ class SX1509Component : public Component,
 
   void setup_keypad_();
   void set_debounce_config_(uint8_t config_value);
-  void set_debounce_time_(uint8_t time);
-  void set_debounce_pin_(uint8_t pin);
-  void set_debounce_enable_(uint8_t pin);
+  void configure_debounce_time_(uint8_t time_config_value);
   void set_debounce_keypad_(uint8_t time, uint8_t num_rows, uint8_t num_cols);
   void clock_(uint8_t osc_source = 2, uint8_t osc_pin_function = 1, uint8_t osc_freq_out = 0, uint8_t osc_divider = 0);
 };

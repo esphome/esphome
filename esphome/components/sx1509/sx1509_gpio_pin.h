@@ -19,6 +19,7 @@ class SX1509GPIOPin : public GPIOPin {
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { this->flags_ = flags; }
+  void set_debounce(bool debounce) { this->debounce_ = debounce; }
 
   gpio::Flags get_flags() const override { return this->flags_; }
 
@@ -27,6 +28,7 @@ class SX1509GPIOPin : public GPIOPin {
   uint8_t pin_;
   bool inverted_;
   gpio::Flags flags_;
+  bool debounce_{false};
 };
 
 }  // namespace sx1509

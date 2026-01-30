@@ -8,7 +8,12 @@ namespace sx1509 {
 
 static const char *const TAG = "sx1509_gpio_pin";
 
-void SX1509GPIOPin::setup() { pin_mode(flags_); }
+void SX1509GPIOPin::setup() {
+  this->pin_mode(this->flags_);
+  if (this->debounce_) {
+    this->parent_->set_debounce_enable_pin(this->pin_, true);
+  }
+}
 void SX1509GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool SX1509GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void SX1509GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }

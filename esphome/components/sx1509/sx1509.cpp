@@ -26,8 +26,13 @@ void SX1509Component::setup() {
   }
   clock_(INTERNAL_CLOCK_2MHZ);
   delayMicroseconds(500);
-  if (this->has_keypad_)
+  if (this->has_keypad_) {
     this->setup_keypad_();
+  }
+
+  if (this->debounce_time_ > 0) {
+    this->set_debounce_config_(this->debounce_time_);
+  }
 }
 
 void SX1509Component::dump_config() {
@@ -282,35 +287,50 @@ void SX1509Component::set_debounce_config_(uint8_t config_value) {
   this->write_byte(REG_DEBOUNCE_CONFIG, config_value);
 }
 
-void SX1509Component::set_debounce_time_(uint8_t time) {
-  uint8_t config_value = 0;
+void SX1509Component::configure_debounce_time_(uint8_t time_config_value) {
+  uint8_t config_value = clamp<uint8_t>(time_config_value, 0, 7);
+  set_debounce_config_(config_value);
+}
 
+void SX1509Component::set_debounce_time_from_keypad(uint8_t time) {
+  uint8_t config_value = 0;
   for (int i = 7; i >= 0; i--) {
     if (time & (1 << i)) {
       config_value = i + 1;
       break;
     }
   }
-  config_value = clamp<uint8_t>(config_value, 0, 7);
-
-  set_debounce_config_(config_value);
+  this->debounce_time_ = clamp<uint8_t>(config_value, 0, 7);
 }
 
-void SX1509Component::set_debounce_enable_(uint8_t pin) {
-  uint16_t debounce_enable = 0;
-  this->read_byte_16(REG_DEBOUNCE_ENABLE_B, &debounce_enable);
-  debounce_enable |= (1 << pin);
-  this->write_byte_16(REG_DEBOUNCE_ENABLE_B, debounce_enable);
+void SX1509Component::set_debounce_enable_pin(uint8_t pin, bool enable) {
+  uint16_t debounce_enable_reg;
+  if (!this->read_byte_16(REG_DEBOUNCE_ENABLE_B, &debounce_enable_reg)) {
+    ESP_LOGW(TAG, "Failed to read debounce enable register for pin %u", pin);
+    return;
+  }
+
+  if (enable) {
+    debounce_enable_reg |= (1 << pin);
+  } else {
+    debounce_enable_reg &= ~(1 << pin);
+  }
+
+  if (!this->write_byte_16(REG_DEBOUNCE_ENABLE_B, debounce_enable_reg)) {
+    ESP_LOGW(TAG, "Failed to write debounce enable register for pin %u", pin);
+  }
 }
 
-void SX1509Component::set_debounce_pin_(uint8_t pin) { set_debounce_enable_(pin); }
 
 void SX1509Component::set_debounce_keypad_(uint8_t time, uint8_t num_rows, uint8_t num_cols) {
-  set_debounce_time_(time);
-  for (uint16_t i = 0; i < num_rows; i++)
-    set_debounce_pin_(i);
-  for (uint16_t i = 0; i < (8 + num_cols); i++)
-    set_debounce_pin_(i);
+  if (this->debounce_time_ > 0) {
+    for (uint16_t i = 0; i < num_rows; i++) {
+      this->set_debounce_enable_pin(i, true);
+    }
+    for (uint16_t i = 0; i < (8 + num_cols); i++) {
+      this->set_debounce_enable_pin(i, true);
+    }
+  }
 }
 
 }  // namespace sx1509

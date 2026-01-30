@@ -23,6 +23,7 @@ CONF_KEY_COLUMNS = "key_columns"
 CONF_SLEEP_TIME = "sleep_time"
 CONF_SCAN_TIME = "scan_time"
 CONF_DEBOUNCE_TIME = "debounce_time"
+CONF_DEBOUNCE = "debounce"
 CONF_SX1509_ID = "sx1509_id"
 
 AUTO_LOAD = ["key_provider", "gpio_expander"]
@@ -74,6 +75,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SX1509Component),
+            cv.Optional(CONF_DEBOUNCE_TIME): cv.int_range(min=0, max=7),
             cv.Optional(CONF_KEYPAD): cv.Schema(KEYPAD_SCHEMA),
         }
     )
@@ -86,6 +88,10 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+
+    if CONF_DEBOUNCE_TIME in config:
+        cg.add(var.set_debounce_time(config[CONF_DEBOUNCE_TIME]))
+
     if conf := config.get(CONF_KEYPAD):
         cg.add(var.set_rows_cols(conf[CONF_KEY_ROWS], conf[CONF_KEY_COLUMNS]))
         if (
@@ -95,7 +101,7 @@ async def to_code(config):
         ):
             cg.add(var.set_sleep_time(conf[CONF_SLEEP_TIME]))
             cg.add(var.set_scan_time(conf[CONF_SCAN_TIME]))
-            cg.add(var.set_debounce_time(conf[CONF_DEBOUNCE_TIME]))
+            cg.add(var.set_debounce_time_from_keypad(conf[CONF_DEBOUNCE_TIME]))
         if keys := conf.get(CONF_KEYS):
             cg.add(var.set_keys(keys))
         for tconf in conf.get(CONF_ON_KEY, []):
@@ -137,6 +143,7 @@ SX1509_PIN_SCHEMA = cv.All(
             validate_mode,
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+        cv.Optional(CONF_DEBOUNCE, default=False): cv.boolean,
     }
 )
 
@@ -151,4 +158,5 @@ async def sx1509_pin_to_code(config):
     cg.add(var.set_pin(num))
     cg.add(var.set_inverted(config[CONF_INVERTED]))
     cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
+    cg.add(var.set_debounce(config[CONF_DEBOUNCE]))
     return var
