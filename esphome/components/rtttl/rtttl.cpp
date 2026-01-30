@@ -7,13 +7,15 @@ namespace esphome::rtttl {
 
 static const char *const TAG = "rtttl";
 
-static const uint32_t DOUBLE_NOTE_GAP_MS = 10;
-
 // These values can also be found as constants in the Tone library (Tone.h)
 static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370,  392,  415,  440,  466,  494,
                                  523,  554,  587,  622,  659,  698,  740,  784,  831,  880,  932,  988,  1047,
                                  1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 2217,
                                  2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
+
+#if defined(USE_OUTPUT) || defined(USE_SPEAKER)
+static const uint32_t DOUBLE_NOTE_GAP_MS = 10;
+#endif  // USE_OUTPUT || USE_SPEAKER
 
 #ifdef USE_SPEAKER
 static const size_t SAMPLE_BUFFER_SIZE = 2048;
@@ -27,7 +29,7 @@ inline double deg2rad(double degrees) {
   static const double PI_ON_180 = 4.0 * atan(1.0) / 180.0;
   return degrees * PI_ON_180;
 }
-#endif
+#endif  // USE_SPEAKER
 
 void Rtttl::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -114,18 +116,19 @@ void Rtttl::play(std::string rtttl) {
   this->last_note_ = millis();
   this->note_duration_ = 1;
 
+#ifdef USE_OUTPUT
+  if (this->output_ != nullptr) {
+    this->set_state_(State::RUNNING);
+  }
+#endif  // USE_OUTPUT
+
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
     this->set_state_(State::INIT);
     this->samples_sent_ = 0;
     this->samples_count_ = 0;
   }
-#endif
-#ifdef USE_OUTPUT
-  if (this->output_ != nullptr) {
-    this->set_state_(State::RUNNING);
-  }
-#endif
+#endif  // USE_SPEAKER
 }
 
 void Rtttl::stop() {
@@ -134,7 +137,8 @@ void Rtttl::stop() {
     this->output_->set_level(0.0);
     this->set_state_(State::STOPPED);
   }
-#endif
+#endif  // USE_OUTPUT
+
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
     if (this->speaker_->is_running()) {
@@ -142,19 +146,22 @@ void Rtttl::stop() {
     }
     this->set_state_(State::STOPPING);
   }
-#endif
+#endif  // USE_SPEAKER
+
   this->position_ = this->rtttl_.length();
   this->note_duration_ = 0;
 }
 
 void Rtttl::finish_() {
   ESP_LOGV(TAG, "Rtttl::finish_()");
+
 #ifdef USE_OUTPUT
   if (this->output_ != nullptr) {
     this->output_->set_level(0.0);
     this->set_state_(State::STOPPED);
   }
-#endif
+#endif  // USE_OUTPUT
+
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
     SpeakerSample sample[2];
@@ -166,7 +173,8 @@ void Rtttl::finish_() {
     this->speaker_->finish();
     this->set_state_(State::STOPPING);
   }
-#endif
+#endif  // USE_SPEAKER
+
   // Ensure no more notes are played in case finish_() is called for an error.
   this->position_ = this->rtttl_.length();
   this->note_duration_ = 0;
@@ -177,6 +185,12 @@ void Rtttl::loop() {
     this->disable_loop();
     return;
   }
+
+#ifdef USE_OUTPUT
+  if (this->output_ != nullptr && millis() - this->last_note_ < this->note_duration_) {
+    return;
+  }
+#endif  // USE_OUTPUT
 
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
@@ -235,12 +249,8 @@ void Rtttl::loop() {
       }
     }
   }
-#endif
-#ifdef USE_OUTPUT
-  if (this->output_ != nullptr && millis() - this->last_note_ < this->note_duration_) {
-    return;
-  }
-#endif
+#endif  // USE_SPEAKER
+
   if (this->position_ >= this->rtttl_.length()) {
     this->finish_();
     return;
@@ -352,7 +362,8 @@ void Rtttl::loop() {
       this->output_->set_level(0.0);
     }
   }
-#endif
+#endif  // USE_OUTPUT
+
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
     this->samples_sent_ = 0;
@@ -377,7 +388,7 @@ void Rtttl::loop() {
     }
     // Convert from frequency in Hz to high and low samples in fixed point
   }
-#endif
+#endif  // USE_SPEAKER
 
   this->last_note_ = millis();
 }
@@ -399,7 +410,7 @@ static const LogString *state_to_string(State state) {
       return LOG_STR("UNKNOWN");
   }
 };
-#endif
+#endif  // ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 
 void Rtttl::set_state_(State state) {
   State old_state = this->state_;
