@@ -455,4 +455,24 @@ bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *ou
 
 }  // namespace esphome::time
 
+// Override libc's localtime functions to use our timezone
+// This allows user lambdas calling ::localtime() to get correct local time
+// without needing the TZ environment variable (which pulls in scanf bloat)
+
+// Thread-safe version
+extern "C" struct tm *localtime_r(const time_t *timer, struct tm *result) {
+  if (timer == nullptr || result == nullptr) {
+    return nullptr;
+  }
+  esphome::time::epoch_to_local_tm(*timer, esphome::time::get_global_tz(), result);
+  return result;
+}
+
+// Non-thread-safe version (uses static buffer, standard libc behavior)
+extern "C" struct tm *localtime(const time_t *timer) {
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+  static struct tm localtime_buf;
+  return localtime_r(timer, &localtime_buf);
+}
+
 #endif  // USE_TIME_TIMEZONE
