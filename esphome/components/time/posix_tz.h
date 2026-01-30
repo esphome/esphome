@@ -53,6 +53,14 @@ bool parse_posix_tz(const char *tz_string, ParsedTimezone &result);
 /// @return true on success
 bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *out_tm);
 
+/// Set the global timezone used by epoch_to_local_tm() when called without a timezone.
+/// This is called by RealTimeClock::apply_timezone_() to enable ESPTime::from_epoch_local()
+/// to work without libc's localtime().
+void set_global_tz(const ParsedTimezone &tz);
+
+/// Get the global timezone.
+const ParsedTimezone &get_global_tz();
+
 // Internal helper functions exposed for testing
 
 namespace internal {

@@ -3,6 +3,13 @@
 
 namespace esphome::time {
 
+// Global timezone for ESPTime::from_epoch_local() to use
+static ParsedTimezone global_tz_{};
+
+void set_global_tz(const ParsedTimezone &tz) { global_tz_ = tz; }
+
+const ParsedTimezone &get_global_tz() { return global_tz_; }
+
 namespace internal {
 
 // Helper to parse an unsigned integer from string, updating pointer

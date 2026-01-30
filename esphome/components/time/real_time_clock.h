@@ -47,7 +47,7 @@ class RealTimeClock : public PollingComponent {
 #ifdef USE_TIME_TIMEZONE
     time_t epoch = this->timestamp_now();
     struct tm local_tm;
-    if (epoch_to_local_tm(epoch, this->parsed_tz_, &local_tm)) {
+    if (epoch_to_local_tm(epoch, get_global_tz(), &local_tm)) {
       return ESPTime::from_c_tm(&local_tm, epoch);
     }
     // Fallback to UTC if parsing failed
@@ -74,7 +74,6 @@ class RealTimeClock : public PollingComponent {
   void synchronize_epoch_(uint32_t epoch);
 
 #ifdef USE_TIME_TIMEZONE
-  ParsedTimezone parsed_tz_{};
   void apply_timezone_(const char *tz);
 #endif
 

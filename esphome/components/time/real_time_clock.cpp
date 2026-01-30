@@ -25,17 +25,16 @@ RealTimeClock::RealTimeClock() = default;
 
 void RealTimeClock::dump_config() {
 #ifdef USE_TIME_TIMEZONE
-  int std_hours = -this->parsed_tz_.std_offset_seconds / 3600;
-  int std_mins = abs(this->parsed_tz_.std_offset_seconds % 3600) / 60;
+  const auto &tz = get_global_tz();
+  int std_hours = -tz.std_offset_seconds / 3600;
+  int std_mins = abs(tz.std_offset_seconds % 3600) / 60;
   ESP_LOGCONFIG(TAG, "Timezone: UTC%+d:%02d", std_hours, std_mins);
-  if (this->parsed_tz_.has_dst) {
-    int dst_hours = -this->parsed_tz_.dst_offset_seconds / 3600;
+  if (tz.has_dst) {
+    int dst_hours = -tz.dst_offset_seconds / 3600;
     // Always use M format - tzdata and aioesphomeapi only generate M format rules
-    ESP_LOGCONFIG(TAG, "  DST: UTC%+d, M%d.%d.%d/%" PRId32 " - M%d.%d.%d/%" PRId32, dst_hours,
-                  this->parsed_tz_.dst_start.month, this->parsed_tz_.dst_start.week,
-                  this->parsed_tz_.dst_start.day_of_week, this->parsed_tz_.dst_start.time_seconds / 3600,
-                  this->parsed_tz_.dst_end.month, this->parsed_tz_.dst_end.week, this->parsed_tz_.dst_end.day_of_week,
-                  this->parsed_tz_.dst_end.time_seconds / 3600);
+    ESP_LOGCONFIG(TAG, "  DST: UTC%+d, M%d.%d.%d/%" PRId32 " - M%d.%d.%d/%" PRId32, dst_hours, tz.dst_start.month,
+                  tz.dst_start.week, tz.dst_start.day_of_week, tz.dst_start.time_seconds / 3600, tz.dst_end.month,
+                  tz.dst_end.week, tz.dst_end.day_of_week, tz.dst_end.time_seconds / 3600);
   }
 #endif
   auto time = this->now();
@@ -96,24 +95,23 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
 
 #ifdef USE_TIME_TIMEZONE
 void RealTimeClock::apply_timezone_(const char *tz) {
+  ParsedTimezone parsed{};
+
   // Handle null input
   if (tz == nullptr) {
     ESP_LOGW(TAG, "Failed to parse timezone: (null)");
-    this->parsed_tz_ = ParsedTimezone{};
+    set_global_tz(parsed);
     return;
   }
 
-  // Set TZ env var for components using libc's localtime() directly
-  // (e.g., sun, datetime, wireguard, deep_sleep)
-  setenv("TZ", tz, 1);
-  tzset();
-
-  // Parse the POSIX TZ string using our custom parser for RealTimeClock::now()
-  if (!parse_posix_tz(tz, this->parsed_tz_)) {
+  // Parse the POSIX TZ string using our custom parser
+  if (!parse_posix_tz(tz, parsed)) {
     ESP_LOGW(TAG, "Failed to parse timezone: %s", tz);
-    // Reset to UTC on parse failure
-    this->parsed_tz_ = ParsedTimezone{};
+    // parsed stays as default (UTC) on failure
   }
+
+  // Set global timezone for all time conversions
+  set_global_tz(parsed);
 }
 #endif
 
