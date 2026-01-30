@@ -17,18 +17,18 @@
 namespace esphome::uart {
 
 #if LT_HW_UART0
-static const StaticVector<pin_size_t> pins_serial0_tx(PINS_SERIAL0_TX);
-static const StaticVector<pin_size_t> pins_serial0_rx(PINS_SERIAL0_RX);
+static const FixedVector<pin_size_t> pins_serial0_tx(PINS_SERIAL0_TX);
+static const FixedVector<pin_size_t> pins_serial0_rx(PINS_SERIAL0_RX);
 #endif
 
 #if LT_HW_UART1
-static const StaticVector<pin_size_t> pins_serial1_tx(PINS_SERIAL1_TX);
-static const StaticVector<pin_size_t> pins_serial1_rx(PINS_SERIAL1_RX);
+static const FixedVector<pin_size_t> pins_serial1_tx(PINS_SERIAL1_TX);
+static const FixedVector<pin_size_t> pins_serial1_rx(PINS_SERIAL1_RX);
 #endif
 
 #if LT_HW_UART2
-static const StaticVector<pin_size_t> pins_serial2_tx(PINS_SERIAL2_TX);
-static const StaticVector<pin_size_t> pins_serial2_rx(PINS_SERIAL2_RX);
+static const FixedVector<pin_size_t> pins_serial2_tx(PINS_SERIAL2_TX);
+static const FixedVector<pin_size_t> pins_serial2_rx(PINS_SERIAL2_RX);
 #endif
 
 static const char *const TAG = "uart.lt";
@@ -38,7 +38,7 @@ static const char *UART_TYPE[] = {
     "software",
 };
 
-bool LibreTinyUARTComponent::pins_contain_(const StaticVector<pin_size_t> &pins, pin_size_t pin_num) const {
+bool LibreTinyUARTComponent::pins_contain_(const FixedVector<pin_size_t> &pins, pin_size_t pin_num) const {
   return pins.end() != std::find(pins.begin(), pins.end(), pin_num);
 }
 
