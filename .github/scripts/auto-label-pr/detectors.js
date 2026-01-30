@@ -251,6 +251,76 @@ async function detectPRTemplateCheckboxes(context) {
   return labels;
 }
 
+// Strategy: Deprecated component detection
+async function detectDeprecatedComponents(github, context, changedFiles) {
+  const labels = new Set();
+  const deprecatedInfo = [];
+  const { owner, repo } = context.repo;
+
+  // Compile regex once for better performance
+  const componentFileRegex = /^esphome\/components\/([^\/]+)\//;
+
+  // Get files that are modified or added in components directory
+  const componentFiles = changedFiles.filter(file => componentFileRegex.test(file));
+
+  if (componentFiles.length === 0) {
+    return { labels, deprecatedInfo };
+  }
+
+  // Extract unique component names using the same regex
+  const components = new Set();
+  for (const file of componentFiles) {
+    const match = file.match(componentFileRegex);
+    if (match) {
+      components.add(match[1]);
+    }
+  }
+
+  // Get PR head to fetch files from the PR branch
+  const prNumber = context.payload.pull_request.number;
+
+  // Check each component's __init__.py for DEPRECATED_COMPONENT constant
+  for (const component of components) {
+    const initFile = `esphome/components/${component}/__init__.py`;
+    try {
+      // Fetch file content from PR head using GitHub API
+      const { data: fileData } = await github.rest.repos.getContent({
+        owner,
+        repo,
+        path: initFile,
+        ref: `refs/pull/${prNumber}/head`
+      });
+
+      // Decode base64 content
+      const content = Buffer.from(fileData.content, 'base64').toString('utf8');
+
+      // Look for DEPRECATED_COMPONENT = "message" or DEPRECATED_COMPONENT = 'message'
+      // Support single quotes, double quotes, and triple quotes (for multiline)
+      const doubleQuoteMatch = content.match(/DEPRECATED_COMPONENT\s*=\s*"""([\s\S]*?)"""/s) ||
+                              content.match(/DEPRECATED_COMPONENT\s*=\s*"((?:[^"\\]|\\.)*)"/);
+      const singleQuoteMatch = content.match(/DEPRECATED_COMPONENT\s*=\s*'''([\s\S]*?)'''/s) ||
+                              content.match(/DEPRECATED_COMPONENT\s*=\s*'((?:[^'\\]|\\.)*)'/);
+      const deprecatedMatch = doubleQuoteMatch || singleQuoteMatch;
+
+      if (deprecatedMatch) {
+        labels.add('deprecated-component');
+        deprecatedInfo.push({
+          component: component,
+          message: deprecatedMatch[1].trim()
+        });
+        console.log(`Found deprecated component: ${component}`);
+      }
+    } catch (error) {
+      // Only log if it's not a simple "file not found" error (404)
+      if (error.status !== 404) {
+        console.log(`Error reading ${initFile}:`, error.message);
+      }
+    }
+  }
+
+  return { labels, deprecatedInfo };
+}
+
 // Strategy: Requirements detection
 async function detectRequirements(allLabels, prFiles, context) {
   const labels = new Set();
@@ -298,5 +368,6 @@ module.exports = {
   detectCodeOwner,
   detectTests,
   detectPRTemplateCheckboxes,
+  detectDeprecatedComponents,
   detectRequirements
 };

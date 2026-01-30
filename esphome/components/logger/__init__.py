@@ -16,6 +16,8 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S3,
     add_idf_sdkconfig_option,
     get_esp32_variant,
+    require_usb_serial_jtag_secondary,
+    require_vfs_termios,
 )
 from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
 from esphome.components.libretiny.const import (
@@ -397,9 +399,15 @@ async def to_code(config):
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
             cg.add_define("USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG")
+    # Define platform support flags for components that need auto-detection
     try:
         uart_selection(USB_SERIAL_JTAG)
         cg.add_define("USE_LOGGER_USB_SERIAL_JTAG")
+        # USB Serial JTAG code is compiled when platform supports it.
+        # Enable secondary USB serial JTAG console so the VFS functions are available.
+        if CORE.is_esp32 and config[CONF_HARDWARE_UART] != USB_SERIAL_JTAG:
+            require_usb_serial_jtag_secondary()
+            require_vfs_termios()
     except cv.Invalid:
         pass
     try:
