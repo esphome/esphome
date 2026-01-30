@@ -782,13 +782,14 @@ TEST_P(LibcVerificationTest, MatchesLibc) {
   ASSERT_TRUE(parse_posix_tz(tz_str, tz));
 
   // Our implementation
-  struct tm our_tm;
-  epoch_to_local_tm(epoch, tz, &our_tm);
+  struct tm our_tm {};
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &our_tm));
 
   // libc implementation
   setenv("TZ", tz_str, 1);
   tzset();
   struct tm *libc_tm = localtime(&epoch);
+  ASSERT_NE(libc_tm, nullptr);
 
   EXPECT_EQ(our_tm.tm_year, libc_tm->tm_year);
   EXPECT_EQ(our_tm.tm_mon, libc_tm->tm_mon);
