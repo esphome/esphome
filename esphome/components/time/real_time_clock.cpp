@@ -32,11 +32,11 @@ void RealTimeClock::dump_config() {
   if (tz.has_dst) {
     int dst_hours = -tz.dst_offset_seconds / 3600;
     int dst_mins = std::abs(tz.dst_offset_seconds % 3600) / 60;
-    // Transition times (when DST starts/ends)
+    // Transition times (when DST starts/ends) - tzdata always uses positive times (default 2:00 AM)
     int start_time_hours = tz.dst_start.time_seconds / 3600;
-    int start_time_mins = std::abs(tz.dst_start.time_seconds % 3600) / 60;
+    int start_time_mins = (tz.dst_start.time_seconds % 3600) / 60;
     int end_time_hours = tz.dst_end.time_seconds / 3600;
-    int end_time_mins = std::abs(tz.dst_end.time_seconds % 3600) / 60;
+    int end_time_mins = (tz.dst_end.time_seconds % 3600) / 60;
     // Always use M format - tzdata and aioesphomeapi only generate M format rules
     ESP_LOGCONFIG(TAG, "  DST: UTC%+d:%02d, M%d.%d.%d/%d:%02d - M%d.%d.%d/%d:%02d", dst_hours, dst_mins,
                   tz.dst_start.month, tz.dst_start.week, tz.dst_start.day_of_week, start_time_hours, start_time_mins,

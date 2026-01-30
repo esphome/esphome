@@ -33,7 +33,7 @@ class RealTimeClock : public PollingComponent {
       this->apply_timezone_(nullptr);
       return;
     }
-    // Stack buffer - TZ strings are typically short but allow up to 128
+    // Stack buffer - TZ strings from tzdata are typically short (< 50 chars)
     char buf[128];
     if (len >= sizeof(buf))
       len = sizeof(buf) - 1;
