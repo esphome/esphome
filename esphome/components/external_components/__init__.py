@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_USERNAME,
     TYPE_GIT,
     TYPE_LOCAL,
+    __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE
 
@@ -75,23 +76,6 @@ def _process_git_config(config: dict, refresh, skip_update: bool = False) -> str
     return components_dir
 
 
-def _check_merge_status(pr_number: str) -> bool:
-    url = f"https://api.github.com/repos/esphome/esphome/pulls/{pr_number}"
-    response = requests.get(url, timeout=10)
-    if response.status_code != 200:
-        return False
-    data = response.json()
-    if not data["merged"]:
-        return False
-    merge_sha = data["merge_commit_sha"]
-    url = f"https://api.github.com/repos/esphome/esphome/compare/release...{merge_sha}"
-    response = requests.get(url, timeout=10)
-    if response.status_code != 200:
-        return False
-    data = response.json()
-    return data["status"] in ["behind", "identical"]
-
-
 def _check_for_merged_prs(srcs: list[tuple]):
     cache_file = CORE.relative_internal_path(".merged_prs_cache")
     cache_file.parent.mkdir(parents=True, exist_ok=True)
@@ -103,15 +87,33 @@ def _check_for_merged_prs(srcs: list[tuple]):
     else:
         cache_file.touch()
         stale = True
-    if stale:
-        new_merged_prs = []
-        for pr_number, components in srcs:
-            if pr_number not in merged_prs and _check_merge_status(pr_number):
-                new_merged_prs.append(pr_number)
+    check_numbers = [n for n, _ in srcs if n not in merged_prs]
+    if stale and check_numbers:
+        url = "https://pr-check.control-j.com"
+
+        payload = {
+            "release_tag": ESPHOME_VERSION,
+            "pr_numbers": check_numbers,
+            "repo_owner": "esphome",
+            "repo_name": "esphome",
+        }
+        headers = {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        if response.status_code != 200:
+            return
+        result_data = response.json()
+        new_merged_prs = [
+            pr for pr, data in result_data.items() if data["status"] == "merged"
+        ]
         if new_merged_prs:
             merged_prs.extend(new_merged_prs)
             with open(cache_file, "w") as f:
-                f.write("\n".join(merged_prs))
+                f.write("\n".join(set(merged_prs)))
         else:
             cache_file.touch()
     for pr_number, components in srcs:
