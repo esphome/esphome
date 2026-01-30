@@ -3,7 +3,7 @@
 from pathlib import Path
 import time
 from typing import Any
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -181,13 +181,11 @@ def test_check_for_merged_prs_fresh_cache_no_check(
 
     pr_srcs = [("12345", ["component1"]), ("67890", ["component2"])]
 
-    with patch(
-        "esphome.components.external_components._check_merge_status"
-    ) as mock_check:
+    with patch("esphome.components.external_components.requests.post") as mock_post:
         _check_for_merged_prs(pr_srcs)
 
         # Fresh cache should not trigger API calls
-        mock_check.assert_not_called()
+        mock_post.assert_not_called()
 
     # Should warn about the cached PR
     assert "github://PR#12345" in caplog.text
@@ -204,16 +202,19 @@ def test_check_for_merged_prs_stale_cache_checks_new_prs(
 
     pr_srcs = [("12345", ["component1"]), ("67890", ["component2"])]
 
-    with patch(
-        "esphome.components.external_components._check_merge_status"
-    ) as mock_check:
-        # PR 67890 is merged
-        mock_check.return_value = True
+    # Mock the batch API response
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"67890": {"status": "merged"}}
 
+    with patch("esphome.components.external_components.requests.post") as mock_post:
+        mock_post.return_value = mock_response
         _check_for_merged_prs(pr_srcs)
 
-        # Should only check PR 67890 (not already in cache)
-        mock_check.assert_called_once_with("67890")
+        # Should call API with only PR 67890 (not already in cache)
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args
+        assert call_args.kwargs["json"]["pr_numbers"] == ["67890"]
 
     # Cache should now contain both PRs
     cache_contents = mock_cache_file.read_text()
@@ -234,15 +235,16 @@ def test_check_for_merged_prs_stale_cache_pr_not_merged(
 
     pr_srcs = [("67890", ["component2"])]
 
-    with patch(
-        "esphome.components.external_components._check_merge_status"
-    ) as mock_check:
-        # PR 67890 is not merged
-        mock_check.return_value = False
+    # Mock the batch API response - PR is not merged
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"67890": {"status": "open"}}
 
+    with patch("esphome.components.external_components.requests.post") as mock_post:
+        mock_post.return_value = mock_response
         _check_for_merged_prs(pr_srcs)
 
-        mock_check.assert_called_once_with("67890")
+        mock_post.assert_called_once()
 
     # Cache should only contain original PR (67890 not added)
     cache_contents = mock_cache_file.read_text()
@@ -261,17 +263,22 @@ def test_check_for_merged_prs_no_cache_file(
     """Test behavior when cache file doesn't exist."""
     pr_srcs = [("12345", ["component1"]), ("67890", ["component2", "component3"])]
 
-    with patch(
-        "esphome.components.external_components._check_merge_status"
-    ) as mock_check:
-        # First PR is merged, second is not
-        mock_check.side_effect = [True, False]
+    # Mock the batch API response - only PR 12345 is merged
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "12345": {"status": "merged"},
+        "67890": {"status": "open"},
+    }
 
+    with patch("esphome.components.external_components.requests.post") as mock_post:
+        mock_post.return_value = mock_response
         _check_for_merged_prs(pr_srcs)
 
-        # Should check both PRs
-        assert mock_check.call_count == 2
-        mock_check.assert_has_calls([call("12345"), call("67890")])
+        # Should check both PRs in one API call
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args
+        assert set(call_args.kwargs["json"]["pr_numbers"]) == {"12345", "67890"}
 
     # Cache file should be created with merged PR
     assert mock_cache_file.exists()
@@ -295,15 +302,21 @@ def test_check_for_merged_prs_multiple_merged(
         ("33333", ["comp3"]),
     ]
 
-    with patch(
-        "esphome.components.external_components._check_merge_status"
-    ) as mock_check:
-        # All PRs are merged
-        mock_check.return_value = True
+    # Mock the batch API response - all PRs are merged
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "11111": {"status": "merged"},
+        "22222": {"status": "merged"},
+        "33333": {"status": "merged"},
+    }
 
+    with patch("esphome.components.external_components.requests.post") as mock_post:
+        mock_post.return_value = mock_response
         _check_for_merged_prs(pr_srcs)
 
-        assert mock_check.call_count == 3
+        # Should check all PRs in one API call
+        mock_post.assert_called_once()
 
     # All merged PRs should be in cache
     cache_contents = mock_cache_file.read_text()
@@ -326,14 +339,16 @@ def test_check_for_merged_prs_cache_preserves_existing_entries(
 
     pr_srcs = [("33333", ["new_comp"])]
 
-    with patch(
-        "esphome.components.external_components._check_merge_status"
-    ) as mock_check:
-        mock_check.return_value = True
+    # Mock the batch API response
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"33333": {"status": "merged"}}
 
+    with patch("esphome.components.external_components.requests.post") as mock_post:
+        mock_post.return_value = mock_response
         _check_for_merged_prs(pr_srcs)
 
-    # Cache should contain all PRs
+    # Cache should contain all PRs (using set, so order doesn't matter)
     cache_contents = mock_cache_file.read_text()
     lines = cache_contents.strip().split("\n")
     assert "11111" in lines
@@ -351,11 +366,13 @@ def test_check_for_merged_prs_touch_cache_when_no_new_merged(
 
     pr_srcs = [("22222", ["comp"])]
 
-    with patch(
-        "esphome.components.external_components._check_merge_status"
-    ) as mock_check:
-        mock_check.return_value = False
+    # Mock the batch API response - PR is not merged
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"22222": {"status": "open"}}
 
+    with patch("esphome.components.external_components.requests.post") as mock_post:
+        mock_post.return_value = mock_response
         _check_for_merged_prs(pr_srcs)
 
     # File should exist and been touched
@@ -363,6 +380,77 @@ def test_check_for_merged_prs_touch_cache_when_no_new_merged(
     # Content should be unchanged
     assert mock_cache_file.read_text() == "11111\n"
     # mtime should be updated (in real scenario, not in this mock)
+
+
+def test_check_for_merged_prs_api_error(
+    mock_cache_file: Path, mock_stale_stat, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test that API errors are handled gracefully."""
+    mock_cache_file.write_text("12345\n")
+
+    pr_srcs = [("67890", ["component2"])]
+
+    # Mock API error response
+    mock_response = Mock()
+    mock_response.status_code = 500
+
+    with patch("esphome.components.external_components.requests.post") as mock_post:
+        mock_post.return_value = mock_response
+        # Should not raise exception
+        _check_for_merged_prs(pr_srcs)
+
+    # Cache should remain unchanged
+    cache_contents = mock_cache_file.read_text()
+    assert "12345" in cache_contents
+    assert "67890" not in cache_contents
+
+
+def test_check_for_merged_prs_empty_check_numbers(
+    mock_cache_file: Path, mock_stale_stat, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test that API is not called when all PRs are already in cache."""
+    # Cache already contains all PRs
+    mock_cache_file.write_text("12345\n67890\n")
+
+    pr_srcs = [("12345", ["component1"]), ("67890", ["component2"])]
+
+    with patch("esphome.components.external_components.requests.post") as mock_post:
+        _check_for_merged_prs(pr_srcs)
+
+        # Should not call API when all PRs are in cache
+        mock_post.assert_not_called()
+
+    # Should warn about both cached PRs
+    assert "github://PR#12345" in caplog.text
+    assert "github://PR#67890" in caplog.text
+
+
+def test_check_for_merged_prs_deduplicates_cache(
+    mock_cache_file: Path, mock_stale_stat
+) -> None:
+    """Test that cache entries are deduplicated when writing."""
+    # Create cache with duplicate entries
+    mock_cache_file.write_text("11111\n11111\n22222\n")
+
+    pr_srcs = [("33333", ["comp"])]
+
+    # Mock the batch API response
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"33333": {"status": "merged"}}
+
+    with patch("esphome.components.external_components.requests.post") as mock_post:
+        mock_post.return_value = mock_response
+        _check_for_merged_prs(pr_srcs)
+
+    # Cache should have deduplicated entries (using set())
+    cache_contents = mock_cache_file.read_text()
+    lines = cache_contents.strip().split("\n")
+    # Should have 3 unique entries
+    assert len(set(lines)) == 3
+    assert "11111" in lines
+    assert "22222" in lines
+    assert "33333" in lines
 
 
 def test_external_components_default_no_skip(
