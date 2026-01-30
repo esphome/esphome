@@ -379,6 +379,57 @@ TEST(PosixTzParser, MissingEndRulePlainDay) {
   EXPECT_FALSE(parse_posix_tz("EST5EDT,60", tz));
 }
 
+TEST(PosixTzParser, LowercaseMFormat) {
+  ParsedTimezone tz;
+  // Lowercase 'm' should be accepted
+  ASSERT_TRUE(parse_posix_tz("EST5EDT,m3.2.0,m11.1.0", tz));
+  EXPECT_TRUE(tz.has_dst);
+  EXPECT_EQ(tz.dst_start.month, 3);
+  EXPECT_EQ(tz.dst_end.month, 11);
+}
+
+TEST(PosixTzParser, LowercaseJFormat) {
+  ParsedTimezone tz;
+  // Lowercase 'j' should be accepted
+  ASSERT_TRUE(parse_posix_tz("EST5EDT,j60,j305", tz));
+  EXPECT_EQ(tz.dst_start.type, DSTRuleType::JULIAN_NO_LEAP);
+  EXPECT_EQ(tz.dst_start.day, 60);
+}
+
+TEST(PosixTzParser, DstNameWithoutRules) {
+  ParsedTimezone tz;
+  // DST name present but no rules - should have has_dst=true with default offset
+  ASSERT_TRUE(parse_posix_tz("EST5EDT", tz));
+  EXPECT_TRUE(tz.has_dst);
+  EXPECT_EQ(tz.std_offset_seconds, 5 * 3600);
+  EXPECT_EQ(tz.dst_offset_seconds, 4 * 3600);  // Default: std - 1 hour
+}
+
+TEST(PosixTzParser, TrailingCharactersIgnored) {
+  ParsedTimezone tz;
+  // Trailing characters after valid TZ should be ignored (parser stops at end of valid input)
+  // This matches libc behavior
+  ASSERT_TRUE(parse_posix_tz("EST5", tz));
+  EXPECT_EQ(tz.std_offset_seconds, 5 * 3600);
+}
+
+TEST(PosixTzParser, PlainDay365LeapYear) {
+  // Day 365 in leap year is Dec 31
+  int month, day;
+  internal::day_of_year_to_month_day(365, 2024, month, day);
+  EXPECT_EQ(month, 12);
+  EXPECT_EQ(day, 31);
+}
+
+TEST(PosixTzParser, PlainDay365NonLeapYear) {
+  // Day 365 in non-leap year would be Jan 1 of next year (out of range)
+  // But our function should handle it gracefully
+  int month, day;
+  internal::day_of_year_to_month_day(364, 2025, month, day);
+  EXPECT_EQ(month, 12);
+  EXPECT_EQ(day, 31);  // Day 364 is Dec 31 in non-leap year
+}
+
 // ============================================================================
 // Large offset tests
 // ============================================================================
@@ -617,6 +668,28 @@ TEST(PosixTzParser, EpochToLocalBasic) {
   EXPECT_EQ(local.tm_hour, 0);
 }
 
+TEST(PosixTzParser, EpochToLocalNegativeEpoch) {
+  ParsedTimezone tz;
+  parse_posix_tz("UTC0", tz);
+
+  // Dec 31, 1969 23:59:59 UTC (1 second before epoch)
+  time_t epoch = -1;
+  struct tm local;
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 69);  // 1969
+  EXPECT_EQ(local.tm_mon, 11);   // December
+  EXPECT_EQ(local.tm_mday, 31);
+  EXPECT_EQ(local.tm_hour, 23);
+  EXPECT_EQ(local.tm_min, 59);
+  EXPECT_EQ(local.tm_sec, 59);
+}
+
+TEST(PosixTzParser, EpochToLocalNullTmFails) {
+  ParsedTimezone tz;
+  parse_posix_tz("UTC0", tz);
+  EXPECT_FALSE(epoch_to_local_tm(0, tz, nullptr));
+}
+
 TEST(PosixTzParser, EpochToLocalWithOffset) {
   ParsedTimezone tz;
   parse_posix_tz("EST5", tz);  // UTC-5
@@ -830,6 +903,11 @@ TEST(ESPTimeStrptime, NewYearsEve) {
 TEST(ESPTimeStrptime, EmptyStringFails) {
   ESPTime t{};
   EXPECT_FALSE(ESPTime::strptime("", 0, t));
+}
+
+TEST(ESPTimeStrptime, NullInputFails) {
+  ESPTime t{};
+  EXPECT_FALSE(ESPTime::strptime(nullptr, 0, t));
 }
 
 TEST(ESPTimeStrptime, InvalidFormatFails) {

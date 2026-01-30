@@ -94,6 +94,9 @@ bool ESPTime::strptime(const char *time_to_parse, size_t len, ESPTime &esp_time)
   //   HH:MM:SS            (8 chars)
   //   HH:MM               (5 chars)
 
+  if (time_to_parse == nullptr || len == 0)
+    return false;
+
   const char *p = time_to_parse;
   const char *end = time_to_parse + len;
   uint16_t v1, v2, v3, v4, v5, v6;
