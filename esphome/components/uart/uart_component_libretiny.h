@@ -31,7 +31,7 @@ class LibreTinyUARTComponent : public UARTComponent, public Component {
 
  protected:
   void check_logger_conflict() override;
-  bool pins_contain_(const FixedVector<pin_size_t>& pins, pin_size_t pin_num) const;
+  bool pins_contain_(const FixedVector<pin_size_t> &pins, pin_size_t pin_num) const;
 
   HardwareSerial *serial_{nullptr};
   int8_t hardware_idx_{-1};
