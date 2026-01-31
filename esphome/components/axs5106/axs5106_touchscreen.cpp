@@ -96,18 +96,12 @@ union GesturePacket {
 };
 
 void AXS5106Touchscreen::setup() {
-  if (this->reset_pin_ == nullptr) {
-    this->mark_failed();
-    return;
-  }
   this->reset_pin_->setup();
   this->reset_pin_->digital_write(false);
 
-  if (this->interrupt_pin_ != nullptr) {
-    this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-    this->interrupt_pin_->setup();
-    this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
-  }
+  this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+  this->interrupt_pin_->setup();
+  this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
 
   if (this->x_raw_max_ == this->x_raw_min_) {
     this->x_raw_max_ = this->display_->get_native_width();
