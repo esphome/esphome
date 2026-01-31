@@ -61,7 +61,7 @@ template<size_t N> struct FixedString {
 ///
 template<FixedString... Strs> struct ProgmemStringTable {
   static constexpr size_t COUNT = sizeof...(Strs);
-  static constexpr size_t BLOB_SIZE = (... + (Strs.size() + 1));
+  static constexpr size_t BLOB_SIZE = (0 + ... + (Strs.size() + 1));
 
   /// Generate packed string blob at compile time
   static constexpr auto make_blob() {
