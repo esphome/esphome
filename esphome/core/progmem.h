@@ -55,7 +55,7 @@ template<size_t N> struct FixedString {
 /// Example:
 ///   PROGMEM_STRING_TABLE(MyStrings, "foo", "bar", "baz");
 ///   ProgmemStr str = MyStrings::get_progmem_str(index);  // For ArduinoJson
-///   const LogString *log_str = MyStrings::get_log_str(index);  // For ESP_LOG*
+///   const LogString *log_str = MyStrings::get_log_str(index);  // For logging
 ///
 template<FixedString... Strs> struct ProgmemStringTable {
   static constexpr size_t COUNT = sizeof...(Strs);
