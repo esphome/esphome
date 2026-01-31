@@ -101,21 +101,19 @@ struct LogString;
     static constexpr size_t BLOB_SIZE = Table::BLOB_SIZE; \
     static constexpr auto BLOB PROGMEM = Table::make_blob(); \
     static constexpr auto OFFSETS PROGMEM = Table::make_offsets(); \
-    static ::ProgmemStr get_progmem_str(uint8_t index, uint8_t fallback_index = COUNT) { \
+    static const char *get_(uint8_t index, uint8_t fallback_index) { \
       if (index >= COUNT) { \
         if (fallback_index >= COUNT) \
           return nullptr; \
         index = fallback_index; \
       } \
-      return reinterpret_cast<::ProgmemStr>(&BLOB[::esphome::progmem_read_byte(&OFFSETS[index])]); \
+      return &BLOB[::esphome::progmem_read_byte(&OFFSETS[index])]; \
+    } \
+    static ::ProgmemStr get_progmem_str(uint8_t index, uint8_t fallback_index = COUNT) { \
+      return reinterpret_cast<::ProgmemStr>(get_(index, fallback_index)); \
     } \
     static const ::esphome::LogString *get_log_str(uint8_t index, uint8_t fallback_index = COUNT) { \
-      if (index >= COUNT) { \
-        if (fallback_index >= COUNT) \
-          return nullptr; \
-        index = fallback_index; \
-      } \
-      return reinterpret_cast<const ::esphome::LogString *>(&BLOB[::esphome::progmem_read_byte(&OFFSETS[index])]); \
+      return reinterpret_cast<const ::esphome::LogString *>(get_(index, fallback_index)); \
     } \
   }
 
