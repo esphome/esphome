@@ -77,6 +77,8 @@ template<FixedString... Strs> struct ProgmemStringTable {
 
   /// Generate offset table at compile time (uint8_t limits blob to 255 bytes)
   static constexpr auto make_offsets() {
+    static_assert(COUNT > 0, "PROGMEM_STRING_TABLE must contain at least one string");
+    static_assert(COUNT <= 255, "PROGMEM_STRING_TABLE supports at most 255 strings with uint8_t indices");
     static_assert(BLOB_SIZE <= 255, "PROGMEM_STRING_TABLE blob exceeds 255 bytes; use fewer/shorter strings");
     std::array<uint8_t, COUNT> result{};
     size_t pos = 0, idx = 0;
@@ -92,20 +94,20 @@ struct LogString;
 /// Creates: Name::get_progmem_str(index), Name::get_log_str(index)
 #define PROGMEM_STRING_TABLE(Name, ...) \
   struct Name { \
-    using Table = ProgmemStringTable<__VA_ARGS__>; \
+    using Table = ::esphome::ProgmemStringTable<__VA_ARGS__>; \
     static constexpr size_t COUNT = Table::COUNT; \
     static constexpr size_t BLOB_SIZE = Table::BLOB_SIZE; \
     static constexpr auto BLOB PROGMEM = Table::make_blob(); \
     static constexpr auto OFFSETS PROGMEM = Table::make_offsets(); \
-    static ProgmemStr get_progmem_str(uint8_t index) { \
+    static ::esphome::ProgmemStr get_progmem_str(uint8_t index) { \
       if (index >= COUNT) \
         return nullptr; \
-      return reinterpret_cast<ProgmemStr>(&BLOB[progmem_read_byte(&OFFSETS[index])]); \
+      return reinterpret_cast<::esphome::ProgmemStr>(&BLOB[::esphome::progmem_read_byte(&OFFSETS[index])]); \
     } \
-    static const LogString *get_log_str(uint8_t index) { \
+    static const ::esphome::LogString *get_log_str(uint8_t index) { \
       if (index >= COUNT) \
         return nullptr; \
-      return reinterpret_cast<const LogString *>(&BLOB[progmem_read_byte(&OFFSETS[index])]); \
+      return reinterpret_cast<const ::esphome::LogString *>(&BLOB[::esphome::progmem_read_byte(&OFFSETS[index])]); \
     } \
   }
 
