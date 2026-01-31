@@ -35,9 +35,9 @@ CODEOWNERS = ["@jesserockz", "@kahrendt"]
 DEPENDENCIES = ["i2s_audio"]
 
 CONF_DAC_TYPE = "dac_type"
-CONF_FILL_SILENCE = "fill_silence"
 CONF_I2S_COMM_FMT = "i2s_comm_fmt"
 CONF_SPDIF_MODE = "spdif_mode"
+CONF_SPDIF_TIMEOUT = "spdif_timeout"
 
 I2SAudioSpeaker = i2s_audio_ns.class_(
     "I2SAudioSpeaker", cg.Component, speaker.Speaker, I2SAudioOut
@@ -161,7 +161,10 @@ CONFIG_SCHEMA = cv.All(
                         *I2C_COMM_FMT_OPTIONS, lower=True
                     ),
                     cv.Optional(CONF_SPDIF_MODE, default=False): cv.boolean,
-                    cv.Optional(CONF_FILL_SILENCE, default=False): cv.boolean,
+                    cv.Optional(CONF_SPDIF_TIMEOUT): cv.Any(
+                        cv.positive_time_period_milliseconds,
+                        cv.one_of(CONF_NEVER, lower=True),
+                    ),
                 }
             ),
         },
@@ -195,9 +198,9 @@ def _final_validate(config):
         if config[CONF_BITS_PER_SAMPLE] != 16:
             raise cv.Invalid("SPDIF mode only supports 16 bits per sample")
 
-    # Warn if fill_silence is enabled but SPDIF mode is not
-    if config.get(CONF_FILL_SILENCE, False) and not config.get(CONF_SPDIF_MODE, False):
-        raise cv.Invalid("fill_silence is only supported in SPDIF mode")
+    # Validate spdif_timeout is only used with SPDIF mode
+    if CONF_SPDIF_TIMEOUT in config and not config.get(CONF_SPDIF_MODE, False):
+        raise cv.Invalid("spdif_timeout is only supported in SPDIF mode")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -231,7 +234,14 @@ async def to_code(config):
         if config.get(CONF_SPDIF_MODE, False):
             cg.add_define("USE_I2S_AUDIO_SPDIF_MODE")
             cg.add(var.set_spdif_mode(True))
-            cg.add(var.set_fill_silence(config[CONF_FILL_SILENCE]))
+            # Set SPDIF timeout (UINT32_MAX = never stop filling silence)
+            if (spdif_timeout := config.get(CONF_SPDIF_TIMEOUT)) is not None:
+                if spdif_timeout == CONF_NEVER:
+                    cg.add(
+                        var.set_spdif_timeout(0xFFFFFFFF)
+                    )  # UINT32_MAX means never stop
+                else:
+                    cg.add(var.set_spdif_timeout(spdif_timeout))
 
     if config[CONF_TIMEOUT] != CONF_NEVER:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))

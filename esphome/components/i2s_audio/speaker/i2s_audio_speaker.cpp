@@ -22,16 +22,34 @@ namespace esphome::i2s_audio {
 static const uint32_t DMA_BUFFER_DURATION_MS = 15;
 static const size_t DMA_BUFFERS_COUNT = 4;
 
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+// SPDIF mode adds overhead as each sample is encapsulated in a subframe;
+// each DMA buffer can hold only 192 samples (~4ms each vs. ~15ms for standard I2S).
+// To match the standard I2S buffering duration, we use more buffers to minimize
+// the impact of the overhead, such as stuttering or audio/silence oscillation.
+// 15 buffers × 4ms = 60ms of DMA buffering (same as 4 × 15ms for standard)
+static const size_t SPDIF_DMA_BUFFERS_COUNT = 15;
+
+// Sync offset to compensate for SPDIF preload latency.
+// The preload mechanism adds delay compared to standard I2S.
+// This value is added to timestamps reported to upstream sync algorithms.
+// Adjust this value to fine-tune synchronization with other players.
+static const int64_t SPDIF_SYNC_OFFSET_US = 75 * 1000;  // 75ms in microseconds
+#endif
+
 static const size_t TASK_STACK_SIZE = 4096;
 
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
-// Static silence buffer for SPDIF fill_silence feature
+// Static silence buffer for SPDIF continuous mode
 // 192 samples * 2 channels * 2 bytes per sample = 768 bytes
 // Stored in flash (.rodata section) to avoid stack/heap usage
 static const int16_t SPDIF_SILENCE_BUFFER[SPDIF_BLOCK_SAMPLES * 2] = {0};
 #endif  // USE_I2S_AUDIO_SPDIF_MODE
 static const ssize_t TASK_PRIORITY = 19;
 
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+static const size_t SPDIF_I2S_EVENT_QUEUE_COUNT = SPDIF_DMA_BUFFERS_COUNT + 1;
+#endif
 static const size_t I2S_EVENT_QUEUE_COUNT = DMA_BUFFERS_COUNT + 1;
 
 static const char *const TAG = "i2s_audio.speaker";
@@ -73,7 +91,8 @@ static esp_err_t spdif_write_cb(void *user_ctx, uint32_t *data, size_t size, Tic
   auto *speaker = static_cast<I2SAudioSpeaker *>(user_ctx);
   size_t bytes_written = 0;
   esp_err_t err = i2s_write(speaker->get_parent()->get_port(), data, size, &bytes_written, ticks_to_wait);
-  if (err != ESP_OK) {
+  // Only log errors that aren't expected. ESP_ERR_TIMEOUT with 0 timeout is normal (DMA full).
+  if (err != ESP_OK && !(err == ESP_ERR_TIMEOUT && ticks_to_wait == 0)) {
     ESP_LOGW(TAG, "SPDIF I2S write failed: %s (wrote %zu/%zu bytes)", esp_err_to_name(err), bytes_written, size);
   }
   return err;
@@ -94,7 +113,8 @@ static esp_err_t spdif_write_cb(void *user_ctx, uint32_t *data, size_t size, Tic
   auto *speaker = static_cast<I2SAudioSpeaker *>(user_ctx);
   size_t bytes_written = 0;
   esp_err_t err = i2s_channel_write(speaker->get_tx_handle(), data, size, &bytes_written, ticks_to_wait);
-  if (err != ESP_OK) {
+  // Only log errors that aren't expected. ESP_ERR_TIMEOUT with 0 timeout is normal (DMA full).
+  if (err != ESP_OK && !(err == ESP_ERR_TIMEOUT && ticks_to_wait == 0)) {
     ESP_LOGW(TAG, "SPDIF I2S write failed: %s (wrote %zu/%zu bytes)", esp_err_to_name(err), bytes_written, size);
   }
   return err;
@@ -151,11 +171,21 @@ void I2SAudioSpeaker::dump_config() {
   }
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
   if (this->spdif_mode_) {
+    const char *timeout_str;
+    char timeout_buf[16];
+    if (this->spdif_timeout_ms_ == 0) {
+      timeout_str = "disabled";
+    } else if (this->spdif_timeout_ms_ == UINT32_MAX) {
+      timeout_str = "never";
+    } else {
+      snprintf(timeout_buf, sizeof(timeout_buf), "%" PRIu32 " ms", this->spdif_timeout_ms_);
+      timeout_str = timeout_buf;
+    }
     ESP_LOGCONFIG(TAG,
                   "  SPDIF Mode: %s\n"
-                  "  Fill Silence: %s\n"
+                  "  SPDIF Timeout: %s\n"
                   "  Sample Rate: %" PRIu32 " Hz",
-                  YESNO(this->spdif_mode_), YESNO(this->fill_silence_), this->sample_rate_);
+                  YESNO(this->spdif_mode_), timeout_str, this->sample_rate_);
   } else
 #endif  // USE_I2S_AUDIO_SPDIF_MODE
   {
@@ -174,8 +204,21 @@ void I2SAudioSpeaker::loop() {
   uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
 
   if ((event_group_bits & SpeakerEventGroupBits::COMMAND_START) && (this->state_ == speaker::STATE_STOPPED)) {
-    this->state_ = speaker::STATE_STARTING;
-    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+    // In SPDIF fake-stopped mode, the task is still running - just restore state
+    if (this->spdif_fake_stopped_) {
+      ESP_LOGV(TAG, "SPDIF: Restoring from fake stop (speaker was running in background)");
+      this->state_ = speaker::STATE_RUNNING;
+      // DON'T clear spdif_fake_stopped_ here - let speaker_task handle it with preload
+      // Set silence_start to NOW to trigger preload countdown in speaker_task
+      this->spdif_silence_start_ = millis();
+      xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
+    } else
+#endif
+    {
+      this->state_ = speaker::STATE_STARTING;
+      xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
+    }
   }
 
   // Handle the task's state
@@ -202,6 +245,15 @@ void I2SAudioSpeaker::loop() {
     this->stop_i2s_driver_();
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ALL_BITS);
     this->status_clear_error();
+
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+    // Clear fake-stopped flag since task has actually stopped
+    // This prevents "restore from fake stop" when task is truly stopped
+    this->spdif_fake_stopped_ = false;
+    this->spdif_needs_preload_ = true;
+    this->spdif_silence_start_ = 0;
+    this->spdif_preload_ended_ = 0;
+#endif
 
     this->state_ = speaker::STATE_STOPPED;
   }
@@ -334,6 +386,14 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 
   xEventGroupSetBits(this_speaker->event_group_, SpeakerEventGroupBits::TASK_STARTING);
 
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+  // Reset SPDIF encoder at task start to ensure clean state
+  // (previous task may have left stale data in encoder buffer)
+  if (this_speaker->spdif_mode_ && this_speaker->spdif_encoder_ != nullptr) {
+    this_speaker->spdif_encoder_->reset();
+  }
+#endif  // USE_I2S_AUDIO_SPDIF_MODE
+
   const uint32_t dma_buffers_duration_ms = DMA_BUFFER_DURATION_MS * DMA_BUFFERS_COUNT;
   // Ensure ring buffer duration is at least the duration of all DMA buffers
   const uint32_t ring_buffer_duration = std::max(dma_buffers_duration_ms, this_speaker->buffer_duration_ms_);
@@ -377,33 +437,68 @@ void I2SAudioSpeaker::speaker_task(void *params) {
     uint32_t last_data_received_time = millis();
 
 #if !defined(USE_I2S_LEGACY) && defined(USE_I2S_AUDIO_SPDIF_MODE)
-    // For SPDIF mode, batch timing callbacks to match standard I2S callback rate.
-    // SPDIF generates events every 192 frames (~4ms at 48kHz), while standard I2S
-    // generates events every ~15ms. Batching prevents overwhelming upstream components.
+    // SPDIF Continuous Silence Mode + Callback Decimation
     //
-    // SPDIF callback batching: reduces callback rate while maintaining timing accuracy.
-    // Time-based flush: if we haven't fired a callback in >20ms and have pending frames,
-    // flush them. This ensures timing feedback continues even when audio flow slows.
+    // Key principles:
+    // 1. NEVER stop the I2S channel - always output a valid SPDIF stream
+    // 2. When no audio data, output silence-encoded SPDIF blocks (not zeros!)
+    // 3. Fire callbacks every 4 DMA events (~16ms), matching non-SPDIF timing
+    //
+    // This eliminates gaps that cause SPDIF receivers to re-sync, and reduces
+    // callback rate to prevent overwhelming upstream sync algorithms.
     const uint32_t spdif_callback_threshold =
         this_speaker->spdif_mode_ ? this_speaker->current_stream_info_.ms_to_frames(DMA_BUFFER_DURATION_MS) : 0;
     uint32_t spdif_pending_frames = 0;
     int64_t spdif_pending_timestamp = 0;
     uint32_t spdif_last_callback_time = millis();
     const uint32_t SPDIF_FLUSH_TIMEOUT_MS = 20;  // Flush pending frames if no callback in this time
-    // Startup burst: fire callbacks immediately (no batching) for first ~60ms
-    // This gives sendspin fast initial timing feedback for sync algorithm
-    uint32_t spdif_startup_frames_remaining = spdif_callback_threshold * 4;  // ~60ms of immediate callbacks
-#endif  // !USE_I2S_LEGACY && USE_I2S_AUDIO_SPDIF_MODE
+    // Count DMA events for decimation (fire callback every 4 events = ~16ms)
+    uint32_t spdif_dma_event_count = 0;
+    constexpr uint32_t SPDIF_DMA_EVENTS_PER_CALLBACK = 4;  // 4 events * 4ms = 16ms
+#endif                                                     // !USE_I2S_LEGACY && USE_I2S_AUDIO_SPDIF_MODE
 
     xEventGroupSetBits(this_speaker->event_group_, SpeakerEventGroupBits::TASK_RUNNING);
 
-    while (this_speaker->pause_state_ || !this_speaker->timeout_.has_value() ||
+    // Main speaker task loop. Continues while:
+    // - Paused, OR
+    // - No timeout configured, OR
+    // - SPDIF continuous mode (never timeout, always output valid stream), OR
+    // - Timeout hasn't elapsed since last data
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+    // SPDIF continuous mode is enabled when spdif_mode is true AND spdif_timeout is configured
+    // (spdif_timeout_ms_ != 0 means it was set via config)
+    const bool spdif_continuous_mode = this_speaker->spdif_mode_ && (this_speaker->spdif_timeout_ms_ != 0);
+#else
+    const bool spdif_continuous_mode = false;
+#endif
+
+    while (this_speaker->pause_state_ || !this_speaker->timeout_.has_value() || spdif_continuous_mode ||
            (millis() - last_data_received_time) <= this_speaker->timeout_.value()) {
       uint32_t event_group_bits = xEventGroupGetBits(this_speaker->event_group_);
 
       if (event_group_bits & SpeakerEventGroupBits::COMMAND_STOP) {
         xEventGroupClearBits(this_speaker->event_group_, SpeakerEventGroupBits::COMMAND_STOP);
-        break;
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+        // In SPDIF continuous mode, NEVER break on COMMAND_STOP.
+        // We fake the stop to unblock the external pipeline, but keep outputting.
+        // The buffer will drain naturally, then we enter silence mode.
+        if (spdif_continuous_mode) {
+          if (!this_speaker->spdif_fake_stopped_) {
+            ESP_LOGV(TAG, "SPDIF: Faking stop to unblock pipeline (speaker continues in background)");
+            // Set state to STOPPED to unblock external pipeline waiting for us to stop
+            this_speaker->state_ = speaker::STATE_STOPPED;
+            this_speaker->spdif_fake_stopped_ = true;
+            this_speaker->spdif_needs_preload_ = true;  // Next audio will need preload
+            this_speaker->spdif_preload_ended_ = 0;     // Reset grace period
+          }
+          // Don't break - keep the speaker running
+          // Buffer will drain, then we output silence until new audio arrives
+        } else
+#endif
+        {
+          ESP_LOGD(TAG, "Exiting: COMMAND_STOP received");
+          break;
+        }
       }
       if (event_group_bits & SpeakerEventGroupBits::COMMAND_STOP_GRACEFULLY) {
         xEventGroupClearBits(this_speaker->event_group_, SpeakerEventGroupBits::COMMAND_STOP_GRACEFULLY);
@@ -412,6 +507,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 
       if (this_speaker->audio_stream_info_ != this_speaker->current_stream_info_) {
         // Audio stream info changed, stop the speaker task so it will restart with the proper settings.
+        ESP_LOGD(TAG, "Exiting: stream info changed");
         break;
       }
 #ifdef USE_I2S_LEGACY
@@ -421,7 +517,8 @@ void I2SAudioSpeaker::speaker_task(void *params) {
           tx_dma_underflow = true;
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
           // Fill with silence when buffer underflows to prevent receiver from detecting source change
-          if (this_speaker->fill_silence_ && this_speaker->spdif_mode_) {
+          // Only if SPDIF continuous mode is enabled (spdif_timeout is configured)
+          if (spdif_continuous_mode) {
             this_speaker->spdif_encoder_->reset();
             this_speaker->spdif_encoder_->write(reinterpret_cast<const uint8_t *>(SPDIF_SILENCE_BUFFER),
                                                 sizeof(SPDIF_SILENCE_BUFFER), 0);
@@ -447,7 +544,20 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
         if (this_speaker->spdif_mode_ && spdif_callback_threshold > 0) {
-          // SPDIF mode: batch callbacks to reduce rate, with time-based flush.
+          // SPDIF Callback Decimation: fire every 4th DMA event (~16ms)
+          // This matches non-SPDIF timing and prevents overwhelming upstream.
+          spdif_dma_event_count++;
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+          // Verbose: log first DMA event
+          static bool first_dma_event_logged = false;
+          if (!first_dma_event_logged) {
+            ESP_LOGV(TAG, "SPDIF: First DMA event, frames_sent=%" PRIu32, frames_sent);
+            first_dma_event_logged = true;
+          }
+#endif
+
+          // Accumulate frames and timestamp
           if (frames_sent > 0) {
             if (spdif_pending_frames == 0) {
               spdif_pending_timestamp = write_timestamp;
@@ -455,24 +565,20 @@ void I2SAudioSpeaker::speaker_task(void *params) {
             spdif_pending_frames += frames_sent;
           }
 
-          // During startup burst, fire callbacks immediately (no batching)
-          // This gives sendspin fast initial timing feedback for sync algorithm
-          bool startup_burst = (spdif_startup_frames_remaining > 0);
-          bool threshold_reached = spdif_pending_frames >= spdif_callback_threshold;
+          // Fire callback every 4 DMA events, or on timeout if we have pending frames
+          bool decimation_reached = (spdif_dma_event_count >= SPDIF_DMA_EVENTS_PER_CALLBACK);
           bool timeout_flush =
               (spdif_pending_frames > 0) && ((millis() - spdif_last_callback_time) >= SPDIF_FLUSH_TIMEOUT_MS);
 
-          if (startup_burst || threshold_reached || timeout_flush) {
+          if (decimation_reached || timeout_flush) {
             if (spdif_pending_frames > 0) {
-              this_speaker->audio_output_callback_(spdif_pending_frames, spdif_pending_timestamp);
-              if (spdif_startup_frames_remaining > spdif_pending_frames) {
-                spdif_startup_frames_remaining -= spdif_pending_frames;
-              } else {
-                spdif_startup_frames_remaining = 0;
-              }
+              // Apply SPDIF sync offset (defined at top of file)
+              int64_t adjusted_timestamp = spdif_pending_timestamp + SPDIF_SYNC_OFFSET_US;
+              this_speaker->audio_output_callback_(spdif_pending_frames, adjusted_timestamp);
               spdif_pending_frames = 0;
               spdif_last_callback_time = millis();
             }
+            spdif_dma_event_count = 0;  // Reset decimation counter
           }
         } else
 #endif  // USE_I2S_AUDIO_SPDIF_MODE
@@ -494,8 +600,16 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 
       // Wait half the duration of the data already written to the DMA buffers for new audio data
       // The millisecond helper modifies the frames_written variable, so use the microsecond helper and divide by 1000
-      const uint32_t read_delay =
-          (this_speaker->current_stream_info_.frames_to_microseconds(frames_written) / 1000) / 2;
+      uint32_t read_delay = (this_speaker->current_stream_info_.frames_to_microseconds(frames_written) / 1000) / 2;
+
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+      // In SPDIF mode, if transfer buffer is empty (we're pumping silence), use a very short timeout.
+      // This ensures we can pump silence fast enough to keep the DMA fed (~250 blocks/sec needed).
+      // Otherwise the long timeout based on frames_written causes DMA to run dry.
+      if (this_speaker->spdif_mode_ && transfer_buffer->available() == 0) {
+        read_delay = 1;  // 1ms - just check for new data, don't wait long
+      }
+#endif
 
       size_t bytes_read = transfer_buffer->transfer_data_from_source(pdMS_TO_TICKS(read_delay));
       uint8_t *new_data = transfer_buffer->get_buffer_end() - bytes_read;
@@ -545,19 +659,151 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 
       if (transfer_buffer->available() == 0) {
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
-        // Flush any partial SPDIF block when no more data is available
-        if (this_speaker->spdif_mode_ && this_speaker->spdif_encoder_ != nullptr &&
-            this_speaker->spdif_encoder_->has_pending_data()) {
-          // Flush the partial block with silence padding
-          this_speaker->spdif_encoder_->flush_with_silence(pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS));
-          // Count the flushed block as written frames
-          frames_written += SPDIF_BLOCK_SAMPLES;
+        // SPDIF Continuous Silence Mode: always output valid SPDIF stream
+        // When no audio data, write silence-encoded blocks to keep receiver happy
+        // Only enter this path if continuous mode is enabled (spdif_timeout configured)
+        if (spdif_continuous_mode && this_speaker->spdif_encoder_ != nullptr) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+          // Verbose: Track silence path entry (rate limited)
+          static uint32_t silence_path_log_time = 0;
+          static uint32_t silence_path_iterations = 0;
+          static uint32_t silence_blocks_written = 0;
+          static uint32_t silence_write_attempts = 0;
+          static bool first_silence_entry = true;
+          silence_path_iterations++;
+
+          if (first_silence_entry) {
+            ESP_LOGV(TAG, "SPDIF: Entered silence path (no audio data), stop_gracefully=%d", stop_gracefully);
+            first_silence_entry = false;
+          }
+#endif
+
+          // CRITICAL: Update last_data_received_time unconditionally in SPDIF silence mode
+          // This prevents the speaker task timeout from firing. Outputting silence is active
+          // operation, not idleness - we're keeping the SPDIF receiver synced.
+          last_data_received_time = millis();
+
+          // Grace period: After preload completes, don't enter "silence mode" for a while.
+          // This allows bursty data delivery to settle without causing audio/silence oscillation.
+          // We still write silence to DMA, but we don't track it as a prolonged silence event.
+          constexpr uint32_t GRACE_PERIOD_MS = 500;
+          bool in_grace_period = (this_speaker->spdif_preload_ended_ != 0) &&
+                                 (millis() - this_speaker->spdif_preload_ended_ < GRACE_PERIOD_MS);
+
+          if (!in_grace_period) {
+            // Track when we entered silence mode (only after cooldowns)
+            if (this_speaker->spdif_silence_start_ == 0) {
+              this_speaker->spdif_silence_start_ = millis();
+              // Note: We do NOT set spdif_needs_preload_ here because brief gaps during
+              // normal playback don't need preload - the DMA is already primed.
+              // Preload is only needed for: initial startup, or after fake-stop (500ms+ silence)
+            }
+
+            // Only fake the stop after being in silence mode for a minimum duration.
+            // This prevents oscillation during normal playback when buffer is briefly empty.
+            // 500ms is long enough to avoid false triggers but short enough to be responsive.
+            constexpr uint32_t FAKE_STOP_DELAY_MS = 500;
+            if (!this_speaker->spdif_fake_stopped_ &&
+                (millis() - this_speaker->spdif_silence_start_ >= FAKE_STOP_DELAY_MS)) {
+              ESP_LOGV(TAG, "SPDIF: Silence mode for %" PRIu32 "ms - faking stop to unblock pipeline",
+                       millis() - this_speaker->spdif_silence_start_);
+              this_speaker->state_ = speaker::STATE_STOPPED;
+              this_speaker->spdif_fake_stopped_ = true;
+              this_speaker->spdif_needs_preload_ = true;  // Next audio will need preload
+              this_speaker->spdif_preload_ended_ = 0;     // Reset grace period
+            }
+
+            // Check if SPDIF timeout has been exceeded (if not set to "never")
+            // spdif_timeout_ms_ == UINT32_MAX means "never" timeout (keep filling silence forever)
+            // spdif_timeout_ms_ != UINT32_MAX means stop after that duration
+            if (this_speaker->spdif_timeout_ms_ != UINT32_MAX) {
+              uint32_t silence_duration = millis() - this_speaker->spdif_silence_start_;
+              if (silence_duration >= this_speaker->spdif_timeout_ms_) {
+                ESP_LOGV(TAG, "SPDIF: Silence timeout reached (%" PRIu32 "ms) - stopping speaker", silence_duration);
+                // Clear fake-stopped since we're actually stopping
+                this_speaker->spdif_fake_stopped_ = false;
+                break;  // Exit the loop and actually stop the speaker
+              }
+            }
+          }
+
+          // First flush any partial block with silence padding (non-blocking to avoid getting stuck)
+          if (this_speaker->spdif_encoder_->has_pending_data()) {
+            this_speaker->spdif_encoder_->flush_with_silence(0);  // Non-blocking
+          }
+
+          // CRITICAL: In SPDIF continuous mode, ALWAYS write silence when no audio data.
+          // We don't check tx_dma_underflow because:
+          // 1. When DMA runs empty, callbacks stop, so tx_dma_underflow doesn't update
+          // 2. The non-blocking write handles "DMA full" gracefully (just doesn't write)
+          // 3. We need continuous output to prevent receiver from losing sync
+          if (!stop_gracefully) {
+            uint32_t silence_blocks = 0;
+            esp_err_t err = this_speaker->spdif_encoder_->write(reinterpret_cast<const uint8_t *>(SPDIF_SILENCE_BUFFER),
+                                                                sizeof(SPDIF_SILENCE_BUFFER), 0,
+                                                                &silence_blocks);  // Non-blocking!
+            // Don't count silence as frames_written - it's not real audio
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+            silence_write_attempts++;
+            silence_blocks_written += silence_blocks;
+
+            // Verbose: log silence write result on first attempt
+            static bool first_write_logged = false;
+            if (!first_write_logged) {
+              ESP_LOGV(TAG, "SPDIF: First silence write - err=%s, blocks=%lu", esp_err_to_name(err),
+                       (unsigned long) silence_blocks);
+              first_write_logged = true;
+            }
+#else
+            (void) err;  // Suppress unused variable warning
+#endif
+          }
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+          // Verbose: Log silence path stats every second
+          if (millis() - silence_path_log_time >= 1000) {
+            ESP_LOGV(TAG,
+                     "SPDIF: Silence stats - iterations=%" PRIu32 "/sec, write_attempts=%" PRIu32
+                     ", blocks_written=%" PRIu32 ", grace=%d, stop_gracefully=%d",
+                     silence_path_iterations, silence_write_attempts, silence_blocks_written, in_grace_period,
+                     stop_gracefully);
+            silence_path_iterations = 0;
+            silence_write_attempts = 0;
+            silence_blocks_written = 0;
+            silence_path_log_time = millis();
+          }
+#endif
+        } else {
+          // Debug: Log if we're NOT in SPDIF silence mode when we should be
+          static bool non_spdif_logged = false;
+          if (!non_spdif_logged) {
+            ESP_LOGW(TAG, "SPDIF: Silence path but spdif_mode_=%d, encoder=%p", this_speaker->spdif_mode_,
+                     (void *) this_speaker->spdif_encoder_);
+            non_spdif_logged = true;
+          }
         }
 #endif  // USE_I2S_AUDIO_SPDIF_MODE
         if (stop_gracefully && tx_dma_underflow) {
-          break;
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+          // In SPDIF continuous mode, don't break on graceful stop during silence
+          // Keep outputting silence until new audio arrives or explicit COMMAND_STOP
+          if (!spdif_continuous_mode)
+#endif
+          {
+            break;
+          }
         }
-        vTaskDelay(pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS / 2));
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+        // In SPDIF mode, use a shorter delay to pump silence faster
+        // We need ~250 blocks/sec to keep DMA fed, so max 4ms per iteration
+        if (spdif_continuous_mode) {
+          vTaskDelay(pdMS_TO_TICKS(1));  // Minimal yield, then pump more silence
+        } else
+#endif
+        {
+          vTaskDelay(pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS / 2));
+        }
       } else {
         size_t bytes_written = 0;
 
@@ -583,8 +829,9 @@ void I2SAudioSpeaker::speaker_task(void *params) {
             transfer_buffer->decrease_buffer_length(bytes_written);
             // The legacy driver doesn't easily support the callback approach for timestamps
             if (blocks_sent > 0) {
-              this_speaker->audio_output_callback_(blocks_sent * SPDIF_BLOCK_SAMPLES,
-                                                   esp_timer_get_time() + dma_buffers_duration_ms * 1000);
+              // Apply SPDIF sync offset (defined at top of file)
+              int64_t adjusted_timestamp = esp_timer_get_time() + dma_buffers_duration_ms * 1000 + SPDIF_SYNC_OFFSET_US;
+              this_speaker->audio_output_callback_(blocks_sent * SPDIF_BLOCK_SAMPLES, adjusted_timestamp);
             }
           }
         } else
@@ -612,77 +859,96 @@ void I2SAudioSpeaker::speaker_task(void *params) {
           }
         }
 #else
-        // New I2S driver path - uses preload pattern for gap-free playback (both SPDIF and standard I2S)
+        // New I2S driver path
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
         if (this_speaker->spdif_mode_) {
-          // SPDIF mode: encoder buffers data until a complete block (768 PCM bytes) is ready
-          uint32_t blocks_sent = 0;
+          // SPDIF Continuous Mode: channel is ALWAYS running, never disabled
+          // We just write audio or silence - the stream never stops
 
-          if (tx_dma_underflow) {
-            // In underflow state: use preload mode
-            // Only disable channel once when entering underflow state (encoder in preload mode indicates already done)
-            if (!this_speaker->spdif_encoder_->is_preload_mode()) {
-              i2s_channel_disable(this_speaker->tx_handle_);
-              const i2s_event_callbacks_t null_callbacks = {.on_sent = nullptr};
-              i2s_channel_register_event_callback(this_speaker->tx_handle_, &null_callbacks, this_speaker);
-              this_speaker->spdif_encoder_->set_preload_mode(true);
-            }
+          // Check if we need preload (only on startup or after fake-stop, NOT brief gaps)
+          const bool was_fake_stopped = this_speaker->spdif_fake_stopped_;
+          const bool needs_preload = this_speaker->spdif_needs_preload_;
 
-            esp_err_t err = this_speaker->spdif_encoder_->write(transfer_buffer->get_buffer_start(),
-                                                                transfer_buffer->available(), 0, &blocks_sent);
-            if (err != ESP_OK) {
-              ESP_LOGW(TAG, "SPDIF preload failed: %s", esp_err_to_name(err));
-            }
-
-            // All input data was consumed by the encoder (it buffers partial blocks internally)
-            bytes_written = transfer_buffer->available();
-
-            // Only flush partial block if we have enough real audio data to avoid a click
-            // Minimum: 75% of block = 144 stereo frames = 576 PCM bytes
-            // Higher threshold = less silence padding = smoother transition
-            static constexpr size_t MIN_FLUSH_PCM_BYTES = SPDIF_BLOCK_SAMPLES * 3 / 4 * 4;  // 576 bytes = 144 frames
-            size_t pending_bytes = this_speaker->spdif_encoder_->get_pending_pcm_bytes();
-            if (pending_bytes >= MIN_FLUSH_PCM_BYTES) {
-              err = this_speaker->spdif_encoder_->flush_with_silence(0);
-              if (err == ESP_OK) {
-                blocks_sent++;
+          // SPDIF Preload: Wait for buffers to stabilize ONLY when needed.
+          // This happens on initial startup or after fake-stop (seek/track change).
+          // Brief gaps during normal playback should NOT trigger preload.
+          if (needs_preload && this_speaker->spdif_silence_start_ != 0) {
+            constexpr uint32_t SPDIF_PRELOAD_MS = 100;  // Wait 100ms for buffers to fill
+            uint32_t silence_duration = millis() - this_speaker->spdif_silence_start_;
+            if (silence_duration < SPDIF_PRELOAD_MS) {
+              // Still preloading - write silence to keep DMA fed while we wait
+              // We're in the audio block (have data), but we're not ready to play yet
+              if (tx_dma_underflow && !stop_gracefully) {
+                uint32_t silence_blocks = 0;
+                this_speaker->spdif_encoder_->write(reinterpret_cast<const uint8_t *>(SPDIF_SILENCE_BUFFER),
+                                                    sizeof(SPDIF_SILENCE_BUFFER), 0, &silence_blocks);
               }
+              vTaskDelay(pdMS_TO_TICKS(5));  // Small delay to avoid busy loop
+              continue;
             }
+            // Preload complete - now transition to playing
+            ESP_LOGV(TAG, "SPDIF: Preload complete after %" PRIu32 "ms, starting playback", silence_duration);
+            this_speaker->spdif_needs_preload_ = false;     // Clear preload flag
+            this_speaker->spdif_preload_ended_ = millis();  // Start grace period
+          }
 
-            if (blocks_sent > 0) {
-              // At least one block was preloaded (complete or flushed), switch to normal mode and enable channel
-              this_speaker->spdif_encoder_->set_preload_mode(false);
-              tx_dma_underflow = false;
+          // Restore from fake-stopped if applicable
+          if (was_fake_stopped) {
+            this_speaker->state_ = speaker::STATE_RUNNING;
+            this_speaker->spdif_fake_stopped_ = false;
+          }
 
-              xQueueReset(this_speaker->i2s_event_queue_);
-              const i2s_event_callbacks_t callbacks = {.on_sent = i2s_on_sent_cb};
-              i2s_channel_register_event_callback(this_speaker->tx_handle_, &callbacks, this_speaker);
-              i2s_channel_enable(this_speaker->tx_handle_);
-
-              // Don't fire immediate callback here - let DMA events handle timing feedback
-              // This matches standard I2S behavior and avoids double-counting frames
-              // Reset callback batching state and enable startup burst for fast initial timing
-              spdif_last_callback_time = millis();
-              spdif_startup_frames_remaining = spdif_callback_threshold * 4;  // Re-enable startup burst (~60ms)
+          // Clear silence timer since we have audio data now
+          if (this_speaker->spdif_silence_start_ != 0) {
+            uint32_t silence_duration = millis() - this_speaker->spdif_silence_start_;
+            // Only log if we were in silence for >100ms to reduce log spam during oscillation
+            if (silence_duration > 100) {
+              ESP_LOGV(TAG, "SPDIF: Exiting silence mode after %" PRIu32 "ms, have audio data", silence_duration);
             }
-            // If no data was written at all, we stay in underflow state
-          } else {
-            // Channel is running: use normal write mode with timeout to allow checking for stop commands
+            this_speaker->spdif_silence_start_ = 0;
+          }
+
+          {
+            uint32_t blocks_sent = 0;
+
+            // Debug: log first write attempt
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+            static bool first_write_logged = false;
+            if (!first_write_logged) {
+              ESP_LOGV(TAG, "SPDIF: First write, available=%zu bytes", transfer_buffer->available());
+              first_write_logged = true;
+            }
+#endif
+
+            // Write audio data to encoder (which writes to DMA)
             esp_err_t err =
                 this_speaker->spdif_encoder_->write(transfer_buffer->get_buffer_start(), transfer_buffer->available(),
                                                     pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS), &blocks_sent);
             if (err != ESP_OK && err != ESP_ERR_TIMEOUT) {
               ESP_LOGW(TAG, "SPDIF write failed: %s", esp_err_to_name(err));
             }
-            // All input data was consumed by the encoder
-            bytes_written = transfer_buffer->available();
-          }
 
-          // Update frame accounting based on complete blocks sent (192 frames per block)
-          if (bytes_written > 0) {
-            last_data_received_time = millis();
-            frames_written += blocks_sent * SPDIF_BLOCK_SAMPLES;
-            transfer_buffer->decrease_buffer_length(bytes_written);
+            // All input data was consumed by the encoder (it buffers partial blocks internally)
+            bytes_written = transfer_buffer->available();
+
+            // Update frame accounting based on complete blocks sent (192 frames per block)
+            if (bytes_written > 0) {
+              last_data_received_time = millis();
+              frames_written += blocks_sent * SPDIF_BLOCK_SAMPLES;
+              transfer_buffer->decrease_buffer_length(bytes_written);
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+              // Verbose: log periodic progress (rate limited)
+              static uint32_t total_blocks_sent = 0;
+              static uint32_t last_progress_log = 0;
+              total_blocks_sent += blocks_sent;
+              if (millis() - last_progress_log >= 1000) {
+                ESP_LOGV(TAG, "SPDIF: blocks_sent=%" PRIu32 " total, frames_written=%" PRIu32, total_blocks_sent,
+                         frames_written);
+                last_progress_log = millis();
+              }
+#endif
+            }
           }
         } else
 #endif  // USE_I2S_AUDIO_SPDIF_MODE
@@ -719,6 +985,17 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 #endif  // USE_I2S_LEGACY
       }
     }
+    // If we reach here, the while loop exited - either via break or condition became false
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+    // In SPDIF mode, loop exit is expected when:
+    // 1. SPDIF timeout reached (user configured spdif_timeout)
+    // 2. COMMAND_STOP received (non-continuous mode)
+    // 3. Stream info changed
+    // Only warn if spdif_timeout is "never" (UINT32_MAX) since that should never exit
+    if (this_speaker->spdif_mode_ && this_speaker->spdif_timeout_ms_ == UINT32_MAX) {
+      ESP_LOGW(TAG, "SPDIF: Unexpected loop exit! spdif_timeout=never should prevent this");
+    }
+#endif
   }
 
   xEventGroupSetBits(this_speaker->event_group_, SpeakerEventGroupBits::TASK_STOPPING);
@@ -761,6 +1038,22 @@ void I2SAudioSpeaker::stop_(bool wait_on_empty) {
     return;
   if (this->state_ == speaker::STATE_STOPPED)
     return;
+
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+  // In SPDIF continuous mode, immediately fake the stop to prevent blocking.
+  // The speaker_task will continue running in the background, outputting silence.
+  // This prevents the calling code from blocking while waiting for STATE_STOPPED.
+  if (this->spdif_mode_ && this->state_ == speaker::STATE_RUNNING) {
+    ESP_LOGV(TAG, "SPDIF: stop() called - immediately faking stop");
+    this->state_ = speaker::STATE_STOPPED;
+    this->spdif_fake_stopped_ = true;
+    this->spdif_needs_preload_ = true;  // Next audio will need preload
+    this->spdif_preload_ended_ = 0;     // Reset grace period
+    this->spdif_silence_start_ = 0;     // Reset silence timer
+    // Don't set COMMAND_STOP - let the task keep running in silence mode
+    return;
+  }
+#endif
 
   if (wait_on_empty) {
     xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_STOP_GRACEFULLY);
@@ -826,6 +1119,10 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
     // SPDIF mode: use fixed configuration
     dma_buffer_length = SPDIF_BLOCK_SIZE_U32;  // One SPDIF block per DMA buffer
 
+    // Log DMA configuration for debugging (legacy driver)
+    ESP_LOGV(TAG, "SPDIF Legacy DMA config: %zu buffers × %lu words", SPDIF_DMA_BUFFERS_COUNT,
+             (unsigned long) dma_buffer_length);
+
     i2s_driver_config_t config = {
       .mode = static_cast<i2s_mode_t>(I2S_MODE_MASTER | I2S_MODE_TX),
       .sample_rate = this->sample_rate_ * 2,  // Double rate for BMC encoding
@@ -833,7 +1130,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
       .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
       .communication_format = I2S_COMM_FORMAT_STAND_I2S,
       .intr_alloc_flags = 0,
-      .dma_buf_count = DMA_BUFFERS_COUNT,
+      .dma_buf_count = SPDIF_DMA_BUFFERS_COUNT,  // Use increased buffer count for SPDIF
       .dma_buf_len = (int) dma_buffer_length,
       .use_apll = true,
       .tx_desc_auto_clear = true,
@@ -851,7 +1148,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
     };
 
     esp_err_t err =
-        i2s_driver_install(this->parent_->get_port(), &config, I2S_EVENT_QUEUE_COUNT, &this->i2s_event_queue_);
+        i2s_driver_install(this->parent_->get_port(), &config, SPDIF_I2S_EVENT_QUEUE_COUNT, &this->i2s_event_queue_);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to install driver for SPDIF");
       this->parent_->unlock();
@@ -972,10 +1269,22 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
   }
 
   // Allocate I2S channel (shared between SPDIF and standard modes)
+  // SPDIF uses more DMA buffers to compensate for smaller buffer size (~4ms vs ~15ms)
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+  const size_t dma_buffer_count = this->spdif_mode_ ? SPDIF_DMA_BUFFERS_COUNT : DMA_BUFFERS_COUNT;
+#else
+  const size_t dma_buffer_count = DMA_BUFFERS_COUNT;
+#endif
+
+  // Log DMA configuration for debugging
+  ESP_LOGV(TAG, "I2S DMA config: %zu buffers × %lu frames = %lu bytes total", dma_buffer_count,
+           (unsigned long) dma_buffer_length,
+           (unsigned long) (dma_buffer_count * dma_buffer_length * 8));  // 8 bytes per frame for 32-bit stereo
+
   i2s_chan_config_t chan_cfg = {
       .id = this->parent_->get_port(),
       .role = i2s_role,
-      .dma_desc_num = DMA_BUFFERS_COUNT,
+      .dma_desc_num = dma_buffer_count,
       .dma_frame_num = dma_buffer_length,
       .auto_clear = true,
       .intr_priority = 3,
@@ -983,7 +1292,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
 
   esp_err_t err = i2s_new_channel(&chan_cfg, &this->tx_handle_, NULL);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to allocate new I2S channel");
+    ESP_LOGE(TAG, "Failed to allocate new I2S channel: %s", esp_err_to_name(err));
     this->parent_->unlock();
     return err;
   }
@@ -1083,8 +1392,24 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_strea
   }
 
   if (this->i2s_event_queue_ == nullptr) {
-    this->i2s_event_queue_ = xQueueCreate(I2S_EVENT_QUEUE_COUNT, sizeof(int64_t));
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+    const size_t event_queue_size = this->spdif_mode_ ? SPDIF_I2S_EVENT_QUEUE_COUNT : I2S_EVENT_QUEUE_COUNT;
+#else
+    const size_t event_queue_size = I2S_EVENT_QUEUE_COUNT;
+#endif
+    this->i2s_event_queue_ = xQueueCreate(event_queue_size, sizeof(int64_t));
+  } else {
+    // Reset queue to clear any stale events from previous task
+    xQueueReset(this->i2s_event_queue_);
   }
+
+#ifdef USE_I2S_AUDIO_SPDIF_MODE
+  // For SPDIF continuous mode, register callback at startup since we never disable the channel
+  if (this->spdif_mode_) {
+    const i2s_event_callbacks_t callbacks = {.on_sent = i2s_on_sent_cb};
+    i2s_channel_register_event_callback(this->tx_handle_, &callbacks, this);
+  }
+#endif  // USE_I2S_AUDIO_SPDIF_MODE
 
   i2s_channel_enable(this->tx_handle_);
 #endif  // USE_I2S_LEGACY

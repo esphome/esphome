@@ -45,7 +45,9 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
 
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
   void set_spdif_mode(bool enable) { this->spdif_mode_ = enable; }
-  void set_fill_silence(bool enable) { this->fill_silence_ = enable; }
+  /// Set SPDIF timeout in milliseconds. UINT32_MAX = never stop filling silence.
+  /// If not set (0), SPDIF continuous mode is disabled.
+  void set_spdif_timeout(uint32_t timeout_ms) { this->spdif_timeout_ms_ = timeout_ms; }
 #endif
 
 #ifndef USE_I2S_LEGACY
@@ -151,8 +153,12 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
 
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
   SPDIFEncoder *spdif_encoder_{nullptr};
+  uint32_t spdif_timeout_ms_{0};     // SPDIF timeout in ms (UINT32_MAX=never, 0=disabled)
+  uint32_t spdif_silence_start_{0};  // Timestamp when silence mode started (0 = not in silence)
+  uint32_t spdif_preload_ended_{0};  // Timestamp when preload ended (for grace period)
   bool spdif_mode_{false};
-  bool fill_silence_{false};
+  bool spdif_fake_stopped_{false};  // True when we faked STOPPED state but task is still running
+  bool spdif_needs_preload_{true};  // True when preload is needed (startup or after fake-stop)
 #endif
 };
 
