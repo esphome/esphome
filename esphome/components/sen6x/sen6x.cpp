@@ -633,6 +633,8 @@ void SEN6XComponent::update() {
       const uint32_t check_time = App.get_loop_component_start_time();
       if (check_time < this->startup_stable_after_) {
         ESP_LOGV(TAG, "Startup stabilization in progress, skipping publish");
+        ESP_LOGD(TAG, "Startup delay active (%u ms left), ignored values from sensor",
+                 static_cast<unsigned>(this->startup_stable_after_ - check_time));
         this->status_clear_warning();
         return;
       }
