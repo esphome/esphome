@@ -162,7 +162,8 @@ void SEN6XComponent::setup() {
         ESP_LOGE(TAG, "NOx requires a SEN65, SEN66, SEN68, or SEN69C");
         this->nox_sensor_ = nullptr;  // mark as not used
       }
-      if (this->co2_sensor_ && (this->type_ != Sen6xType::SEN63C && this->type_ != Sen6xType::SEN66 && this->type_ != Sen6xType::SEN69C)) {
+      if (this->co2_sensor_ &&
+          (this->type_ != Sen6xType::SEN63C && this->type_ != Sen6xType::SEN66 && this->type_ != Sen6xType::SEN69C)) {
         ESP_LOGE(TAG, "CO2 requires a SEN63C, SEN66, or SEN69C");
         this->co2_sensor_ = nullptr;  // mark as not used
       }
@@ -312,9 +313,9 @@ void SEN6XComponent::dump_config() {
   LOG_SENSOR("  ", "PM 10.0", this->pm_10_0_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  LOG_SENSOR("  ", "VOC", this->voc_sensor_);  // SEN65, SEN66, SEN68, SEN69C only
-  LOG_SENSOR("  ", "NOx", this->nox_sensor_);  // SEN65, SEN66, SEN68, SEN69C only
-  LOG_SENSOR("  ", "CO2", this->co2_sensor_);  // SEN63C, SEN66, SEN69C only
+  LOG_SENSOR("  ", "VOC", this->voc_sensor_);    // SEN65, SEN66, SEN68, SEN69C only
+  LOG_SENSOR("  ", "NOx", this->nox_sensor_);    // SEN65, SEN66, SEN68, SEN69C only
+  LOG_SENSOR("  ", "CO2", this->co2_sensor_);    // SEN63C, SEN66, SEN69C only
   LOG_SENSOR("  ", "HCHO", this->hcho_sensor_);  // SEN68, SEN69C only
 }
 
