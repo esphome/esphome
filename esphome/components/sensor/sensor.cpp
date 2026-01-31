@@ -35,10 +35,8 @@ void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *o
 PROGMEM_STRING_TABLE(StateClassStrings, "", "measurement", "total_increasing", "total", "measurement_angle");
 
 const LogString *state_class_to_string(StateClass state_class) {
-  uint8_t index = static_cast<uint8_t>(state_class);
-  if (index > STATE_CLASS_LAST)
-    index = 0;  // Default to empty string (STATE_CLASS_NONE)
-  return StateClassStrings::get_log_str(index);
+  // Fallback to index 0 (empty string for STATE_CLASS_NONE) if out of range
+  return StateClassStrings::get_log_str(static_cast<uint8_t>(state_class), 0);
 }
 
 Sensor::Sensor() : state(NAN), raw_state(NAN) {}

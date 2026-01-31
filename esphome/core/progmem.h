@@ -56,12 +56,12 @@ template<size_t N> struct FixedString {
 ///
 /// Example:
 ///   PROGMEM_STRING_TABLE(MyStrings, "foo", "bar", "baz");
-///   ProgmemStr str = MyStrings::get_progmem_str(index);  // For ArduinoJson
-///   const LogString *log_str = MyStrings::get_log_str(index);  // For logging
+///   ProgmemStr str = MyStrings::get_progmem_str(index, MyStrings::LAST_INDEX);  // For ArduinoJson
+///   const LogString *log_str = MyStrings::get_log_str(index, MyStrings::LAST_INDEX);  // For logging
 ///
 template<FixedString... Strs> struct ProgmemStringTable {
   static constexpr size_t COUNT = sizeof...(Strs);
-  static constexpr size_t BLOB_SIZE = (... + (Strs.size() + 1));
+  static constexpr size_t BLOB_SIZE = (0 + ... + (Strs.size() + 1));
 
   /// Generate packed string blob at compile time
   static constexpr auto make_blob() {
@@ -91,23 +91,26 @@ template<FixedString... Strs> struct ProgmemStringTable {
 struct LogString;
 
 /// Instantiate a ProgmemStringTable with PROGMEM storage.
-/// Creates: Name::get_progmem_str(index), Name::get_log_str(index)
+/// Creates: Name::get_progmem_str(index, fallback), Name::get_log_str(index, fallback)
+/// If index >= COUNT, returns string at fallback_index. Use LAST_INDEX for common patterns.
 #define PROGMEM_STRING_TABLE(Name, ...) \
   struct Name { \
     using Table = ::esphome::ProgmemStringTable<__VA_ARGS__>; \
     static constexpr size_t COUNT = Table::COUNT; \
+    static constexpr uint8_t LAST_INDEX = COUNT - 1; \
     static constexpr size_t BLOB_SIZE = Table::BLOB_SIZE; \
     static constexpr auto BLOB PROGMEM = Table::make_blob(); \
     static constexpr auto OFFSETS PROGMEM = Table::make_offsets(); \
-    static ::ProgmemStr get_progmem_str(uint8_t index) { \
+    static const char *get_(uint8_t index, uint8_t fallback_index) { \
       if (index >= COUNT) \
-        return nullptr; \
-      return reinterpret_cast<::ProgmemStr>(&BLOB[::esphome::progmem_read_byte(&OFFSETS[index])]); \
+        index = fallback_index; \
+      return &BLOB[::esphome::progmem_read_byte(&OFFSETS[index])]; \
     } \
-    static const ::esphome::LogString *get_log_str(uint8_t index) { \
-      if (index >= COUNT) \
-        return nullptr; \
-      return reinterpret_cast<const ::esphome::LogString *>(&BLOB[::esphome::progmem_read_byte(&OFFSETS[index])]); \
+    static ::ProgmemStr get_progmem_str(uint8_t index, uint8_t fallback_index) { \
+      return reinterpret_cast<::ProgmemStr>(get_(index, fallback_index)); \
+    } \
+    static const ::esphome::LogString *get_log_str(uint8_t index, uint8_t fallback_index) { \
+      return reinterpret_cast<const ::esphome::LogString *>(get_(index, fallback_index)); \
     } \
   }
 
