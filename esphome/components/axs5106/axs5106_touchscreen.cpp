@@ -111,9 +111,11 @@ void AXS5106Touchscreen::setup() {
   }
 
   // Take device out of reset off the main loop
-  this->set_timeout(10, [this] { this->reset_pin_->digital_write(true); });
-  // Then try reading the ID
-  this->set_timeout(30, [this] { this->continue_setup_(); });
+  this->set_timeout(10, [this] {
+    this->reset_pin_->digital_write(true);
+    // Then try reading the ID
+    this->set_timeout(30, [this] { this->continue_setup_(); });
+  });
 }
 
 /* Confirm the ID reg is what we expect, before marking
