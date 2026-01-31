@@ -27,10 +27,7 @@ const LogString *valve_command_to_str(float pos) {
 PROGMEM_STRING_TABLE(ValveOperationStrings, "IDLE", "OPENING", "CLOSING", "UNKNOWN");
 
 const LogString *valve_operation_to_str(ValveOperation op) {
-  uint8_t index = static_cast<uint8_t>(op);
-  if (index > VALVE_OPERATION_LAST)
-    index = VALVE_OPERATION_UNKNOWN_INDEX;
-  return ValveOperationStrings::get_log_str(index);
+  return ValveOperationStrings::get_log_str(static_cast<uint8_t>(op), ValveOperationStrings::LAST_INDEX);
 }
 
 Valve::Valve() : position{VALVE_OPEN} {}

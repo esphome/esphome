@@ -294,12 +294,9 @@ float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; 
 
 // Log level strings - packed into flash on ESP8266, indexed by log level (0-7)
 PROGMEM_STRING_TABLE(LogLevelStrings, "NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE");
-constexpr uint8_t LOG_LEVEL_LAST = ESPHOME_LOG_LEVEL_VERY_VERBOSE;
 
 static const LogString *get_log_level_str(uint8_t level) {
-  if (level > LOG_LEVEL_LAST)
-    level = LOG_LEVEL_LAST;
-  return LogLevelStrings::get_log_str(level);
+  return LogLevelStrings::get_log_str(level, LogLevelStrings::LAST_INDEX);
 }
 
 void Logger::dump_config() {

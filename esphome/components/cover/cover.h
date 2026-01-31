@@ -84,8 +84,6 @@ enum CoverOperation : uint8_t {
   /// The cover is currently closing.
   COVER_OPERATION_CLOSING,
 };
-constexpr uint8_t COVER_OPERATION_LAST = static_cast<uint8_t>(COVER_OPERATION_CLOSING);
-constexpr uint8_t COVER_OPERATION_UNKNOWN_INDEX = COVER_OPERATION_LAST + 1;
 
 const LogString *cover_operation_to_str(CoverOperation op);
 

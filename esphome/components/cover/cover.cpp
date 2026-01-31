@@ -26,10 +26,7 @@ const LogString *cover_command_to_str(float pos) {
 PROGMEM_STRING_TABLE(CoverOperationStrings, "IDLE", "OPENING", "CLOSING", "UNKNOWN");
 
 const LogString *cover_operation_to_str(CoverOperation op) {
-  uint8_t index = static_cast<uint8_t>(op);
-  if (index > COVER_OPERATION_LAST)
-    index = COVER_OPERATION_UNKNOWN_INDEX;
-  return CoverOperationStrings::get_log_str(index);
+  return CoverOperationStrings::get_log_str(static_cast<uint8_t>(op), CoverOperationStrings::LAST_INDEX);
 }
 
 Cover::Cover() : position{COVER_OPEN} {}
