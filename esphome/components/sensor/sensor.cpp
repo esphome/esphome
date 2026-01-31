@@ -2,6 +2,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::sensor {
 
@@ -30,20 +31,14 @@ void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *o
   }
 }
 
+// State class strings indexed by StateClass enum (0-4): NONE, MEASUREMENT, TOTAL_INCREASING, TOTAL, MEASUREMENT_ANGLE
+PROGMEM_STRING_TABLE(StateClassStrings, "", "measurement", "total_increasing", "total", "measurement_angle");
+
 const LogString *state_class_to_string(StateClass state_class) {
-  switch (state_class) {
-    case STATE_CLASS_MEASUREMENT:
-      return LOG_STR("measurement");
-    case STATE_CLASS_TOTAL_INCREASING:
-      return LOG_STR("total_increasing");
-    case STATE_CLASS_TOTAL:
-      return LOG_STR("total");
-    case STATE_CLASS_MEASUREMENT_ANGLE:
-      return LOG_STR("measurement_angle");
-    case STATE_CLASS_NONE:
-    default:
-      return LOG_STR("");
-  }
+  uint8_t index = static_cast<uint8_t>(state_class);
+  if (index > STATE_CLASS_LAST)
+    index = 0;  // Default to empty string (STATE_CLASS_NONE)
+  return StateClassStrings::get_log_str(index);
 }
 
 Sensor::Sensor() : state(NAN), raw_state(NAN) {}
