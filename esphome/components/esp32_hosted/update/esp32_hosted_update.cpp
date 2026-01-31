@@ -38,7 +38,7 @@ static const char *const ESP_HOSTED_VERSION_STR = STRINGIFY(ESP_HOSTED_VERSION_M
 // Returns true if parsing succeeded
 static bool parse_version(const std::string &version_str, int &major, int &minor, int &patch) {
   major = minor = patch = 0;
-  if (sscanf(version_str.c_str(), "%d.%d.%d", &major, &minor, &patch) >= 2) {
+  if (sscanf(version_str.c_str(), "%d.%d.%d", &major, &minor, &patch) >= 2) {  // NOLINT
     return true;
   }
   return false;
