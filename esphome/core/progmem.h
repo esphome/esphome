@@ -73,8 +73,9 @@ template<FixedString... Strs> struct ProgmemStringTable {
     return result;
   }
 
-  /// Generate offset table at compile time
+  /// Generate offset table at compile time (uint8_t limits blob to 255 bytes)
   static constexpr auto make_offsets() {
+    static_assert(BLOB_SIZE <= 255, "PROGMEM_STRING_TABLE blob exceeds 255 bytes; use fewer/shorter strings");
     std::array<uint8_t, COUNT> result{};
     size_t pos = 0, idx = 0;
     ((result[idx++] = pos, pos += Strs.size() + 1), ...);
