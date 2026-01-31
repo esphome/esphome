@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include <freertos/FreeRTOS.h>
 
 namespace esphome {
@@ -55,3 +57,5 @@ static constexpr UBaseType_t TASK_PRIORITY_INFERENCE = configMAX_PRIORITIES - 13
 static constexpr UBaseType_t TASK_PRIORITY_APPLICATION = tskIDLE_PRIORITY + 1;
 
 }  // namespace esphome
+
+#endif  // USE_ESP32
