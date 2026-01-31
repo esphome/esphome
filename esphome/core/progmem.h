@@ -56,8 +56,8 @@ template<size_t N> struct FixedString {
 ///
 /// Example:
 ///   PROGMEM_STRING_TABLE(MyStrings, "foo", "bar", "baz");
-///   ProgmemStr str = MyStrings::get_progmem_str(index, MyStrings::LAST_INDEX);  // For ArduinoJson
-///   const LogString *log_str = MyStrings::get_log_str(index, MyStrings::LAST_INDEX);  // For logging
+///   ProgmemStr str = MyStrings::get_progmem_str(idx, MyStrings::LAST_INDEX);  // For ArduinoJson
+///   const LogString *log_str = MyStrings::get_log_str(idx, MyStrings::LAST_INDEX);  // For logging
 ///
 template<FixedString... Strs> struct ProgmemStringTable {
   static constexpr size_t COUNT = sizeof...(Strs);
@@ -91,8 +91,8 @@ template<FixedString... Strs> struct ProgmemStringTable {
 struct LogString;
 
 /// Instantiate a ProgmemStringTable with PROGMEM storage.
-/// Creates: Name::get_progmem_str(index, fallback), Name::get_log_str(index, fallback)
-/// If index >= COUNT, returns string at fallback_index. Use LAST_INDEX for common patterns.
+/// Creates: Name::get_progmem_str(idx, fallback), Name::get_log_str(idx, fallback)
+/// If idx >= COUNT, returns string at fallback. Use LAST_INDEX for common patterns.
 #define PROGMEM_STRING_TABLE(Name, ...) \
   struct Name { \
     using Table = ::esphome::ProgmemStringTable<__VA_ARGS__>; \
@@ -101,16 +101,16 @@ struct LogString;
     static constexpr size_t BLOB_SIZE = Table::BLOB_SIZE; \
     static constexpr auto BLOB PROGMEM = Table::make_blob(); \
     static constexpr auto OFFSETS PROGMEM = Table::make_offsets(); \
-    static const char *get_(uint8_t index, uint8_t fallback_index) { \
-      if (index >= COUNT) \
-        index = fallback_index; \
-      return &BLOB[::esphome::progmem_read_byte(&OFFSETS[index])]; \
+    static const char *get_(uint8_t idx, uint8_t fallback) { \
+      if (idx >= COUNT) \
+        idx = fallback; \
+      return &BLOB[::esphome::progmem_read_byte(&OFFSETS[idx])]; \
     } \
-    static ::ProgmemStr get_progmem_str(uint8_t index, uint8_t fallback_index) { \
-      return reinterpret_cast<::ProgmemStr>(get_(index, fallback_index)); \
+    static ::ProgmemStr get_progmem_str(uint8_t idx, uint8_t fallback) { \
+      return reinterpret_cast<::ProgmemStr>(get_(idx, fallback)); \
     } \
-    static const ::esphome::LogString *get_log_str(uint8_t index, uint8_t fallback_index) { \
-      return reinterpret_cast<const ::esphome::LogString *>(get_(index, fallback_index)); \
+    static const ::esphome::LogString *get_log_str(uint8_t idx, uint8_t fallback) { \
+      return reinterpret_cast<const ::esphome::LogString *>(get_(idx, fallback)); \
     } \
   }
 
