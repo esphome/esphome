@@ -185,7 +185,7 @@ void WaterHeater::publish_state() {
 }
 
 optional<WaterHeaterCall> WaterHeater::restore_state_() {
-  this->pref_ = global_preferences->make_preference<SavedWaterHeaterState>(this->get_preference_hash());
+  this->pref_ = this->make_entity_preference<SavedWaterHeaterState>();
   SavedWaterHeaterState recovered{};
   if (!this->pref_.load(&recovered))
     return {};
