@@ -130,6 +130,7 @@ enum class HttpReadLoopResult : uint8_t {
   RETRY,    ///< No data yet, already delayed, caller should continue loop
   ERROR,    ///< Read error, caller should exit loop
   TIMEOUT,  ///< Timeout waiting for data, caller should exit loop
+  EMPTY,    ///< No data have been read
 };
 
 /// Process a read result with timeout tracking and delay handling
@@ -137,8 +138,8 @@ enum class HttpReadLoopResult : uint8_t {
 /// @param last_data_time Time of last successful read, updated when data received
 /// @param timeout_ms Maximum time to wait for data
 /// @return DATA if data received, RETRY if should continue loop, ERROR/TIMEOUT if should exit
-inline HttpReadLoopResult http_read_loop_result(int bytes_read_or_error, uint32_t &last_data_time,
-                                                uint32_t timeout_ms) {
+inline HttpReadLoopResult http_read_loop_result(int bytes_read_or_error, int already_read_data,
+                                                uint32_t &last_data_time, uint32_t timeout_ms) {
   if (bytes_read_or_error > 0) {
     last_data_time = millis();
     return HttpReadLoopResult::DATA;
@@ -146,6 +147,15 @@ inline HttpReadLoopResult http_read_loop_result(int bytes_read_or_error, uint32_
   if (bytes_read_or_error < 0) {
     return HttpReadLoopResult::ERROR;
   }
+
+  // No data have been read in this loop
+  // But we already recieved data from server.
+  // It could mean that we have a hole in transmission or
+  // all data have been transfered
+  if (already_read_data != 0) {
+    return HttpReadLoopResult::EMPTY;
+  }
+
   // bytes_read_or_error == 0: no data available yet
   if (millis() - last_data_time >= timeout_ms) {
     return HttpReadLoopResult::TIMEOUT;
@@ -231,8 +241,8 @@ inline HttpReadResult http_read_fully(HttpContainer *container, uint8_t *buffer,
     App.feed_wdt();
     yield();
 
-    auto result = http_read_loop_result(read_bytes_or_error, last_data_time, timeout_ms);
-    if (result == HttpReadLoopResult::RETRY)
+    auto result = http_read_loop_result(read_bytes_or_error, read_index, last_data_time, timeout_ms);
+    if ((result == HttpReadLoopResult::RETRY) || (result == HttpReadLoopResult::EMPTY))
       continue;
     if (result == HttpReadLoopResult::ERROR)
       return {HttpReadStatus::ERROR, read_bytes_or_error};
@@ -393,11 +403,11 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
           int read_or_error = container->read(buf + read_index, std::min<size_t>(max_length - read_index, 512));
           App.feed_wdt();
           yield();
-          auto result = http_read_loop_result(read_or_error, last_data_time, read_timeout);
+          auto result = http_read_loop_result(read_or_error, read_index, last_data_time, read_timeout);
           if (result == HttpReadLoopResult::RETRY)
             continue;
           if (result != HttpReadLoopResult::DATA)
-            break;  // ERROR or TIMEOUT
+            break;  // EMPTY (no more data to retrieve), ERROR or TIMEOUT
           read_index += read_or_error;
         }
         response_body.reserve(read_index);
