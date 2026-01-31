@@ -19,8 +19,8 @@
 
 namespace esphome::i2s_audio {
 
-static const uint32_t DMA_BUFFER_DURATION_MS = 15;
-static const size_t DMA_BUFFERS_COUNT = 4;
+static constexpr uint32_t DMA_BUFFER_DURATION_MS = 15;
+static constexpr size_t DMA_BUFFERS_COUNT = 4;
 
 #ifdef USE_I2S_AUDIO_SPDIF_MODE
 // SPDIF mode adds overhead as each sample is encapsulated in a subframe;
@@ -28,13 +28,32 @@ static const size_t DMA_BUFFERS_COUNT = 4;
 // To match the standard I2S buffering duration, we use more buffers to minimize
 // the impact of the overhead, such as stuttering or audio/silence oscillation.
 // 15 buffers × 4ms = 60ms of DMA buffering (same as 4 × 15ms for standard)
-static const size_t SPDIF_DMA_BUFFERS_COUNT = 15;
+static constexpr size_t SPDIF_DMA_BUFFERS_COUNT = 15;
 
 // Sync offset to compensate for SPDIF preload latency.
 // The preload mechanism adds delay compared to standard I2S.
 // This value is added to timestamps reported to upstream sync algorithms.
 // Adjust this value to fine-tune synchronization with other players.
-static const int64_t SPDIF_SYNC_OFFSET_US = 75 * 1000;  // 75ms in microseconds
+static constexpr int64_t SPDIF_SYNC_OFFSET_US = 75 * 1000;  // 75ms in microseconds
+
+// Duration to wait after preload before entering "silence mode".
+// Allows bursty data delivery to settle without causing audio/silence oscillation.
+static constexpr uint32_t SPDIF_GRACE_PERIOD_MS = 500;
+
+// Duration of continuous silence before faking a stop to unblock the upstream pipeline.
+// Long enough to avoid false triggers but short enough to be responsive.
+static constexpr uint32_t SPDIF_FAKE_STOP_DELAY_MS = 500;
+
+// Duration to wait during preload while buffers fill up.
+// Audio data accumulates during this time before playback starts.
+static constexpr uint32_t SPDIF_PRELOAD_MS = 100;
+
+// Timeout for flushing pending frames if no callback received.
+static constexpr uint32_t SPDIF_FLUSH_TIMEOUT_MS = 20;
+
+// Number of DMA events between upstream callbacks (~16ms = 4 events × 4ms each).
+// Matches non-SPDIF timing to prevent overwhelming upstream sync algorithms.
+static constexpr uint32_t SPDIF_DMA_EVENTS_PER_CALLBACK = 4;
 #endif
 
 static const size_t TASK_STACK_SIZE = 4096;
@@ -92,7 +111,7 @@ static esp_err_t spdif_write_cb(void *user_ctx, uint32_t *data, size_t size, Tic
   size_t bytes_written = 0;
   esp_err_t err = i2s_write(speaker->get_parent()->get_port(), data, size, &bytes_written, ticks_to_wait);
   // Only log errors that aren't expected. ESP_ERR_TIMEOUT with 0 timeout is normal (DMA full).
-  if (err != ESP_OK && !(err == ESP_ERR_TIMEOUT && ticks_to_wait == 0)) {
+  if (err != ESP_OK && (err != ESP_ERR_TIMEOUT || ticks_to_wait != 0)) {
     ESP_LOGW(TAG, "SPDIF I2S write failed: %s (wrote %zu/%zu bytes)", esp_err_to_name(err), bytes_written, size);
   }
   return err;
@@ -451,11 +470,9 @@ void I2SAudioSpeaker::speaker_task(void *params) {
     uint32_t spdif_pending_frames = 0;
     int64_t spdif_pending_timestamp = 0;
     uint32_t spdif_last_callback_time = millis();
-    const uint32_t SPDIF_FLUSH_TIMEOUT_MS = 20;  // Flush pending frames if no callback in this time
-    // Count DMA events for decimation (fire callback every 4 events = ~16ms)
+    // Count DMA events for decimation
     uint32_t spdif_dma_event_count = 0;
-    constexpr uint32_t SPDIF_DMA_EVENTS_PER_CALLBACK = 4;  // 4 events * 4ms = 16ms
-#endif                                                     // !USE_I2S_LEGACY && USE_I2S_AUDIO_SPDIF_MODE
+#endif  // !USE_I2S_LEGACY && USE_I2S_AUDIO_SPDIF_MODE
 
     xEventGroupSetBits(this_speaker->event_group_, SpeakerEventGroupBits::TASK_RUNNING);
 
@@ -496,7 +513,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
         } else
 #endif
         {
-          ESP_LOGD(TAG, "Exiting: COMMAND_STOP received");
+          ESP_LOGV(TAG, "Exiting: COMMAND_STOP received");
           break;
         }
       }
@@ -507,7 +524,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 
       if (this_speaker->audio_stream_info_ != this_speaker->current_stream_info_) {
         // Audio stream info changed, stop the speaker task so it will restart with the proper settings.
-        ESP_LOGD(TAG, "Exiting: stream info changed");
+        ESP_LOGV(TAG, "Exiting: stream info changed");
         break;
       }
 #ifdef USE_I2S_LEGACY
@@ -686,9 +703,8 @@ void I2SAudioSpeaker::speaker_task(void *params) {
           // Grace period: After preload completes, don't enter "silence mode" for a while.
           // This allows bursty data delivery to settle without causing audio/silence oscillation.
           // We still write silence to DMA, but we don't track it as a prolonged silence event.
-          constexpr uint32_t GRACE_PERIOD_MS = 500;
           bool in_grace_period = (this_speaker->spdif_preload_ended_ != 0) &&
-                                 (millis() - this_speaker->spdif_preload_ended_ < GRACE_PERIOD_MS);
+                                 (millis() - this_speaker->spdif_preload_ended_ < SPDIF_GRACE_PERIOD_MS);
 
           if (!in_grace_period) {
             // Track when we entered silence mode (only after cooldowns)
@@ -701,10 +717,8 @@ void I2SAudioSpeaker::speaker_task(void *params) {
 
             // Only fake the stop after being in silence mode for a minimum duration.
             // This prevents oscillation during normal playback when buffer is briefly empty.
-            // 500ms is long enough to avoid false triggers but short enough to be responsive.
-            constexpr uint32_t FAKE_STOP_DELAY_MS = 500;
             if (!this_speaker->spdif_fake_stopped_ &&
-                (millis() - this_speaker->spdif_silence_start_ >= FAKE_STOP_DELAY_MS)) {
+                (millis() - this_speaker->spdif_silence_start_ >= SPDIF_FAKE_STOP_DELAY_MS)) {
               ESP_LOGV(TAG, "SPDIF: Silence mode for %" PRIu32 "ms - faking stop to unblock pipeline",
                        millis() - this_speaker->spdif_silence_start_);
               this_speaker->state_ = speaker::STATE_STOPPED;
@@ -873,7 +887,6 @@ void I2SAudioSpeaker::speaker_task(void *params) {
           // This happens on initial startup or after fake-stop (seek/track change).
           // Brief gaps during normal playback should NOT trigger preload.
           if (needs_preload && this_speaker->spdif_silence_start_ != 0) {
-            constexpr uint32_t SPDIF_PRELOAD_MS = 100;  // Wait 100ms for buffers to fill
             uint32_t silence_duration = millis() - this_speaker->spdif_silence_start_;
             if (silence_duration < SPDIF_PRELOAD_MS) {
               // Still preloading - write silence to keep DMA fed while we wait
