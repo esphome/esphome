@@ -190,18 +190,20 @@ bool Esp32HostedUpdate::fetch_manifest_() {
   std::string json_str;
   json_str.reserve(container->content_length);
   uint8_t buf[256];
+  size_t read_index = 0;
   uint32_t last_data_time = millis();
   const uint32_t read_timeout = this->http_request_parent_->get_timeout();
   while (container->get_bytes_read() < container->content_length) {
     int read_or_error = container->read(buf, sizeof(buf));
     App.feed_wdt();
     yield();
-    auto result = http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout);
+    auto result = http_request::http_read_loop_result(read_or_error, read_index, last_data_time, read_timeout);
     if (result == http_request::HttpReadLoopResult::RETRY)
       continue;
     if (result != http_request::HttpReadLoopResult::DATA)
       break;  // ERROR or TIMEOUT
     json_str.append(reinterpret_cast<char *>(buf), read_or_error);
+    read_index += read_or_error;
   }
   container->end();
 
@@ -312,6 +314,7 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
   hasher.init();
 
   uint8_t buffer[CHUNK_SIZE];
+  size_t read_index = 0;
   uint32_t last_data_time = millis();
   const uint32_t read_timeout = this->http_request_parent_->get_timeout();
   while (container->get_bytes_read() < total_size) {
@@ -321,7 +324,7 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
     App.feed_wdt();
     yield();
 
-    auto result = http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout);
+    auto result = http_request::http_read_loop_result(read_or_error, read_index, last_data_time, read_timeout);
     if (result == http_request::HttpReadLoopResult::RETRY)
       continue;
     if (result != http_request::HttpReadLoopResult::DATA) {
@@ -345,6 +348,7 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
       this->status_set_error(LOG_STR("Failed to write OTA data"));
       return false;
     }
+    read_index += read_or_error;
   }
   container->end();
 

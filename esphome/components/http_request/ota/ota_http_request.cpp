@@ -117,6 +117,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   // NOTE: HttpContainer::read() has non-BSD socket semantics - see http_request.h
   // Use http_read_loop_result() helper instead of checking return values directly
+  size_t read_index = 0;
   uint32_t last_data_time = millis();
   const uint32_t read_timeout = this->parent_->get_timeout();
 
@@ -130,7 +131,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
     App.feed_wdt();
     yield();
 
-    auto result = http_read_loop_result(bufsize_or_error, last_data_time, read_timeout);
+    auto result = http_read_loop_result(bufsize_or_error, read_index, last_data_time, read_timeout);
     if (result == HttpReadLoopResult::RETRY)
       continue;
     if (result != HttpReadLoopResult::DATA) {
@@ -170,6 +171,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
       this->notify_state_(ota::OTA_IN_PROGRESS, percentage, 0);
 #endif
     }
+    read_index += bufsize_or_error;
   }  // while
 
   ESP_LOGI(TAG, "Done in %.0f seconds", float(millis() - update_start_time) / 1000);
