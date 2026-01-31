@@ -511,21 +511,8 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
                it.channel);
 #endif
       s_sta_connected = true;
-#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-      for (auto *listener : global_wifi_component->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
-      }
-#endif
-      // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
-#if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
-      if (const WiFiAP *config = global_wifi_component->get_selected_sta_();
-          config && config->get_manual_ip().has_value()) {
-        for (auto *listener : global_wifi_component->ip_state_listeners_) {
-          listener->on_ip_state(global_wifi_component->wifi_sta_ip_addresses(),
-                                global_wifi_component->get_dns_address(0), global_wifi_component->get_dns_address(1));
-        }
-      }
-#endif
+      // Defer listener callbacks to main loop - system context has limited stack
+      global_wifi_component->pending_.connect = true;
       break;
     }
     case EVENT_STAMODE_DISCONNECTED: {
@@ -543,17 +530,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       }
       s_sta_connected = false;
       s_sta_connecting = false;
-      // IMPORTANT: Set error flag BEFORE notifying listeners.
-      // This ensures is_connected() returns false during listener callbacks,
-      // which is critical for proper reconnection logic (e.g., roaming).
-      global_wifi_component->error_from_callback_ = true;
-#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-      // Notify listeners AFTER setting error flag so they see correct state
-      static constexpr uint8_t EMPTY_BSSID[6] = {};
-      for (auto *listener : global_wifi_component->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
-      }
-#endif
+      // Store reason as error flag; defer listener callbacks to main loop
+      global_wifi_component->error_from_callback_ = it.reason;
+      global_wifi_component->pending_.disconnect = true;
       break;
     }
     case EVENT_STAMODE_AUTHMODE_CHANGE: {
@@ -564,10 +543,8 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
       if (it.old_mode != AUTH_OPEN && it.new_mode == AUTH_OPEN) {
         ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting");
-        // we can't call retry_connect() from this context, so disconnect immediately
-        // and notify main thread with error_from_callback_
         wifi_station_disconnect();
-        global_wifi_component->error_from_callback_ = true;
+        global_wifi_component->error_from_callback_ = WIFI_DISCONNECT_REASON_AUTHMODE_DOWNGRADE;
       }
       break;
     }
@@ -578,12 +555,8 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       ESP_LOGV(TAG, "static_ip=%s gateway=%s netmask=%s", network::IPAddress(&it.ip).str_to(ip_buf),
                network::IPAddress(&it.gw).str_to(gw_buf), network::IPAddress(&it.mask).str_to(mask_buf));
       s_sta_got_ip = true;
-#ifdef USE_WIFI_IP_STATE_LISTENERS
-      for (auto *listener : global_wifi_component->ip_state_listeners_) {
-        listener->on_ip_state(global_wifi_component->wifi_sta_ip_addresses(), global_wifi_component->get_dns_address(0),
-                              global_wifi_component->get_dns_address(1));
-      }
-#endif
+      // Defer listener callbacks to main loop - system context has limited stack
+      global_wifi_component->pending_.got_ip = true;
       break;
     }
     case EVENT_STAMODE_DHCP_TIMEOUT: {
@@ -793,11 +766,7 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
   ESP_LOGV(TAG, "Scan complete: %zu found, %zu stored%s", total, this->scan_result_.size(),
            needs_full ? "" : " (filtered)");
   this->scan_done_ = true;
-#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
-  for (auto *listener : global_wifi_component->scan_results_listeners_) {
-    listener->on_wifi_scan_results(global_wifi_component->scan_result_);
-  }
-#endif
+  this->pending_.scan_complete = true;  // Defer listener callbacks to main loop
 }
 
 #ifdef USE_WIFI_AP
@@ -983,7 +952,59 @@ network::IPAddress WiFiComponent::wifi_gateway_ip_() {
   return network::IPAddress(&ip.gw);
 }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return network::IPAddress(dns_getserver(num)); }
-void WiFiComponent::wifi_loop_() {}
+void WiFiComponent::wifi_loop_() { this->process_pending_callbacks_(); }
+
+void WiFiComponent::process_pending_callbacks_() {
+  // Notify listeners for connect event (logging already done in callback)
+  if (this->pending_.connect) {
+    this->pending_.connect = false;
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+    bssid_t bssid = this->wifi_bssid();
+    char ssid_buf[SSID_BUFFER_SIZE];
+    for (auto *listener : this->connect_state_listeners_) {
+      listener->on_wifi_connect_state(StringRef(this->wifi_ssid_to(ssid_buf)), bssid);
+    }
+#endif
+#if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+      for (auto *listener : this->ip_state_listeners_) {
+        listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+      }
+    }
+#endif
+  }
+
+  // Notify listeners for disconnect event (logging already done in callback)
+  if (this->pending_.disconnect) {
+    this->pending_.disconnect = false;
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+    static constexpr uint8_t EMPTY_BSSID[6] = {};
+    for (auto *listener : this->connect_state_listeners_) {
+      listener->on_wifi_connect_state(StringRef(), EMPTY_BSSID);
+    }
+#endif
+  }
+
+  // Notify listeners for got IP event (logging already done in callback)
+  if (this->pending_.got_ip) {
+    this->pending_.got_ip = false;
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+    for (auto *listener : this->ip_state_listeners_) {
+      listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+    }
+#endif
+  }
+
+  // Notify listeners for scan complete (logging already done in callback)
+  if (this->pending_.scan_complete) {
+    this->pending_.scan_complete = false;
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
+    for (auto *listener : this->scan_results_listeners_) {
+      listener->on_wifi_scan_results(this->scan_result_);
+    }
+#endif
+  }
+}
 
 }  // namespace esphome::wifi
 #endif

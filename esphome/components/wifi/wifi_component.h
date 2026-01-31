@@ -58,6 +58,12 @@ static constexpr int8_t WIFI_RSSI_DISCONNECTED = -127;
 /// Buffer size for SSID (IEEE 802.11 max 32 bytes + null terminator)
 static constexpr size_t SSID_BUFFER_SIZE = 33;
 
+#ifdef USE_ESP8266
+/// Special disconnect reason for authmode downgrade (CVE-2020-12638 mitigation)
+/// Not a real WiFi reason code - used internally for deferred logging
+static constexpr uint8_t WIFI_DISCONNECT_REASON_AUTHMODE_DOWNGRADE = 254;
+#endif
+
 struct SavedWifiSettings {
   char ssid[33];
   char password[65];
@@ -590,6 +596,9 @@ class WiFiComponent : public Component {
   void connect_soon_();
 
   void wifi_loop_();
+#ifdef USE_ESP8266
+  void process_pending_callbacks_();
+#endif
   bool wifi_mode_(optional<bool> sta, optional<bool> ap);
   bool wifi_sta_pre_setup_();
   bool wifi_apply_output_power_(float output_power);
@@ -704,10 +713,26 @@ class WiFiComponent : public Component {
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
 
+  // 0 = no error, non-zero = disconnect reason code from callback
+  // This serves as both the error flag and stores the reason for deferred logging
+  uint8_t error_from_callback_{0};
+
+#ifdef USE_ESP8266
+  // Pending listener callbacks from system context (ESP8266 only)
+  // ESP8266 callbacks run in SDK system context with ~2KB stack where
+  // calling arbitrary listener callbacks is unsafe. These flags defer
+  // listener notifications to wifi_loop_() which runs with full stack.
+  struct {
+    bool connect : 1;        // STA connected, notify listeners
+    bool disconnect : 1;     // STA disconnected, notify listeners
+    bool got_ip : 1;         // Got IP, notify listeners
+    bool scan_complete : 1;  // Scan complete, notify listeners
+  } pending_{};
+#endif
+
   // Group all boolean values together
   bool has_ap_{false};
   bool handled_connected_state_{false};
-  bool error_from_callback_{false};
   bool scan_done_{false};
   bool ap_setup_{false};
   bool ap_started_{false};

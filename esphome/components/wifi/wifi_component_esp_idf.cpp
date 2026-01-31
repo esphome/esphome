@@ -774,7 +774,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     }
     s_sta_connected = false;
     s_sta_connecting = false;
-    error_from_callback_ = true;
+    error_from_callback_ = 1;
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     static constexpr uint8_t EMPTY_BSSID[6] = {};
     for (auto *listener : this->connect_state_listeners_) {
