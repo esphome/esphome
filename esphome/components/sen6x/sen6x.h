@@ -59,7 +59,9 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_voc_sensor(sensor::Sensor *voc_sensor) { this->voc_sensor_ = voc_sensor; }
   void set_nox_sensor(sensor::Sensor *nox_sensor) { this->nox_sensor_ = nox_sensor; }
   void set_co2_sensor(sensor::Sensor *co2_sensor) { this->co2_sensor_ = co2_sensor; }
-  void set_hcho_sensor(sensor::Sensor *hcho_sensor) { this->hcho_sensor_ = hcho_sensor; }
+  void set_formaldehyde_sensor(sensor::Sensor *formaldehyde_sensor) {
+    this->formaldehyde_sensor_ = formaldehyde_sensor;
+  }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
   void set_store_baseline(bool store_baseline) { this->store_baseline_ = store_baseline; }
@@ -126,7 +128,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   // SEN63C, SEN66, SEN69C only
   sensor::Sensor *co2_sensor_{nullptr};
   // SEN68, SEN69C only
-  sensor::Sensor *hcho_sensor_{nullptr};
+  sensor::Sensor *formaldehyde_sensor_{nullptr};
 
   optional<RhtAccelerationMode> acceleration_mode_;
   optional<uint32_t> auto_cleaning_interval_;

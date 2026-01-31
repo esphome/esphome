@@ -6,9 +6,9 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALGORITHM_TUNING,
     CONF_CO2,
+    CONF_FORMALDEHYDE,
     CONF_GAIN_FACTOR,
     CONF_GATING_MAX_DURATION_MINUTES,
-    CONF_HCHO,
     CONF_HUMIDITY,
     CONF_ID,
     CONF_INDEX_OFFSET,
@@ -177,7 +177,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_HCHO): sensor.sensor_schema(
+            cv.Optional(CONF_FORMALDEHYDE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=1,
@@ -224,7 +224,7 @@ SENSOR_MAP = {
     CONF_VOC: "set_voc_sensor",
     CONF_NOX: "set_nox_sensor",
     CONF_CO2: "set_co2_sensor",
-    CONF_HCHO: "set_hcho_sensor",
+    CONF_FORMALDEHYDE: "set_formaldehyde_sensor",
     CONF_TEMPERATURE: "set_temperature_sensor",
     CONF_HUMIDITY: "set_humidity_sensor",
 }

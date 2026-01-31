@@ -167,9 +167,9 @@ void SEN6XComponent::setup() {
         ESP_LOGE(TAG, "CO2 requires a SEN63C, SEN66, or SEN69C");
         this->co2_sensor_ = nullptr;  // mark as not used
       }
-      if (this->hcho_sensor_ && (this->type_ != Sen6xType::SEN68 && this->type_ != Sen6xType::SEN69C)) {
-        ESP_LOGE(TAG, "HCHO requires a SEN68 or SEN69C");
-        this->hcho_sensor_ = nullptr;  // mark as not used
+      if (this->formaldehyde_sensor_ && (this->type_ != Sen6xType::SEN68 && this->type_ != Sen6xType::SEN69C)) {
+        ESP_LOGE(TAG, "Formaldehyde requires a SEN68 or SEN69C");
+        this->formaldehyde_sensor_ = nullptr;  // mark as not used
       }
 
       if (!this->get_register(SEN6X_CMD_GET_FIRMWARE_VERSION, this->firmware_version_, 20)) {
@@ -313,10 +313,10 @@ void SEN6XComponent::dump_config() {
   LOG_SENSOR("  ", "PM 10.0", this->pm_10_0_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  LOG_SENSOR("  ", "VOC", this->voc_sensor_);    // SEN65, SEN66, SEN68, SEN69C only
-  LOG_SENSOR("  ", "NOx", this->nox_sensor_);    // SEN65, SEN66, SEN68, SEN69C only
-  LOG_SENSOR("  ", "CO2", this->co2_sensor_);    // SEN63C, SEN66, SEN69C only
-  LOG_SENSOR("  ", "HCHO", this->hcho_sensor_);  // SEN68, SEN69C only
+  LOG_SENSOR("  ", "VOC", this->voc_sensor_);                    // SEN65, SEN66, SEN68, SEN69C only
+  LOG_SENSOR("  ", "NOx", this->nox_sensor_);                    // SEN65, SEN66, SEN68, SEN69C only
+  LOG_SENSOR("  ", "CO2", this->co2_sensor_);                    // SEN63C, SEN66, SEN69C only
+  LOG_SENSOR("  ", "Formaldehyde", this->formaldehyde_sensor_);  // SEN68, SEN69C only
 }
 
 void SEN6XComponent::update() {
@@ -371,8 +371,8 @@ void SEN6XComponent::update() {
     ESP_LOGVV(TAG, "co2 = 0x%.4x", measurements[8]);
     float co2 = measurements[8] == UINT16_MAX ? NAN : measurements[8] / 1.0f;  // CO2 in ppm
 
-    ESP_LOGVV(TAG, "hcho = 0x%.4x", measurements[9]);
-    float hcho = measurements[9] == UINT16_MAX ? NAN : measurements[9] / 10.0f;  // HCHO in ppb
+    ESP_LOGVV(TAG, "formaldehyde = 0x%.4x", measurements[9]);
+    float formaldehyde = measurements[9] == UINT16_MAX ? NAN : measurements[9] / 10.0f;  // Formaldehyde in ppb
 
     if (this->pm_1_0_sensor_ != nullptr) {
       this->pm_1_0_sensor_->publish_state(pm_1_0);
@@ -401,8 +401,8 @@ void SEN6XComponent::update() {
     if (this->co2_sensor_ != nullptr) {
       this->co2_sensor_->publish_state(co2);
     }
-    if (this->hcho_sensor_ != nullptr) {
-      this->hcho_sensor_->publish_state(hcho);
+    if (this->formaldehyde_sensor_ != nullptr) {
+      this->formaldehyde_sensor_->publish_state(formaldehyde);
     }
 
     if (!this->voc_sensor_ || !this->store_baseline_ ||
