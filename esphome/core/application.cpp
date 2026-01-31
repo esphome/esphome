@@ -210,7 +210,7 @@ void Application::loop() {
 #ifdef USE_ESP32
       esp_chip_info_t chip_info;
       esp_chip_info(&chip_info);
-      ESP_LOGI(TAG, "ESP32 Chip: %s r%d.%d, %d core(s)", ESPHOME_VARIANT, chip_info.revision / 100,
+      ESP_LOGI(TAG, "ESP32 Chip: %s rev%d.%d, %d core(s)", ESPHOME_VARIANT, chip_info.revision / 100,
                chip_info.revision % 100, chip_info.cores);
 #if defined(USE_ESP32_VARIANT_ESP32) && !defined(USE_ESP32_MIN_CHIP_REVISION_SET)
       // Suggest optimization for chips that don't need the PSRAM cache workaround

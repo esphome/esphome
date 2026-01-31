@@ -1329,6 +1329,10 @@ async def to_code(config):
     # Disable dynamic log level control to save memory
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", False)
 
+    # Disable per-tag log level filtering since dynamic level control is disabled above
+    # This saves ~250 bytes of RAM (tag cache) and associated code
+    add_idf_sdkconfig_option("CONFIG_LOG_TAG_LEVEL_IMPL_NONE", True)
+
     # Reduce PHY TX power in the event of a brownout
     add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
