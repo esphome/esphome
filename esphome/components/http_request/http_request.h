@@ -148,6 +148,13 @@ inline HttpReadLoopResult http_read_loop_result(int bytes_read_or_error, int alr
     return HttpReadLoopResult::ERROR;
   }
 
+  // bytes_read_or_error == 0: no data available yet
+  if (millis() - last_data_time >= timeout_ms) {
+    return HttpReadLoopResult::TIMEOUT;
+  }
+
+  delay(1);  // Small delay to prevent tight spinning
+
   // No data have been read in this loop
   // But we already recieved data from server.
   // It could mean that we have a hole in transmission or
@@ -156,11 +163,6 @@ inline HttpReadLoopResult http_read_loop_result(int bytes_read_or_error, int alr
     return HttpReadLoopResult::EMPTY;
   }
 
-  // bytes_read_or_error == 0: no data available yet
-  if (millis() - last_data_time >= timeout_ms) {
-    return HttpReadLoopResult::TIMEOUT;
-  }
-  delay(1);  // Small delay to prevent tight spinning
   return HttpReadLoopResult::RETRY;
 }
 
