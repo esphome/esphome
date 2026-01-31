@@ -20,7 +20,6 @@
 #define ESPHOME_strcasecmp_P strcasecmp_P
 #define ESPHOME_strncmp_P strncmp_P
 #define ESPHOME_strncasecmp_P strncasecmp_P
-#define progmem_read_byte(addr) pgm_read_byte(addr)
 // Type for pointers to PROGMEM strings (for use with ESPHOME_F return values)
 using ProgmemStr = const __FlashStringHelper *;
 #else
@@ -34,7 +33,6 @@ using ProgmemStr = const __FlashStringHelper *;
 #define ESPHOME_strcasecmp_P strcasecmp
 #define ESPHOME_strncmp_P strncmp
 #define ESPHOME_strncasecmp_P strncasecmp
-#define progmem_read_byte(addr) (*(addr))
 // Type for pointers to strings (no PROGMEM on non-ESP8266 platforms)
 using ProgmemStr = const char *;
 #endif
@@ -56,7 +54,8 @@ template<size_t N> struct FixedString {
 ///
 /// Example:
 ///   PROGMEM_STRING_TABLE(MyStrings, "foo", "bar", "baz");
-///   const char *str = MyStrings::get(index);  // 0-based index
+///   ProgmemStr str = MyStrings::get_progmem_str(index);  // For ArduinoJson
+///   const LogString *log_str = MyStrings::get_log_str(index);  // For ESP_LOG*
 ///
 template<FixedString... Strs> struct ProgmemStringTable {
   static constexpr size_t COUNT = sizeof...(Strs);
@@ -83,8 +82,11 @@ template<FixedString... Strs> struct ProgmemStringTable {
   }
 };
 
+// Forward declaration for LogString (defined in log.h)
+struct LogString;
+
 /// Instantiate a ProgmemStringTable with PROGMEM storage.
-/// Creates: Name::get(index), Name::COUNT, Name::BLOB_SIZE
+/// Creates: Name::get_progmem_str(index), Name::get_log_str(index)
 #define PROGMEM_STRING_TABLE(Name, ...) \
   struct Name { \
     using Table = ProgmemStringTable<__VA_ARGS__>; \
@@ -92,10 +94,15 @@ template<FixedString... Strs> struct ProgmemStringTable {
     static constexpr size_t BLOB_SIZE = Table::BLOB_SIZE; \
     static constexpr auto BLOB PROGMEM = Table::make_blob(); \
     static constexpr auto OFFSETS PROGMEM = Table::make_offsets(); \
-    static const char *get(uint8_t index) { \
+    static ProgmemStr get_progmem_str(uint8_t index) { \
       if (index >= COUNT) \
         return nullptr; \
-      return &BLOB[progmem_read_byte(&OFFSETS[index])]; \
+      return reinterpret_cast<ProgmemStr>(&BLOB[progmem_read_byte(&OFFSETS[index])]); \
+    } \
+    static const LogString *get_log_str(uint8_t index) { \
+      if (index >= COUNT) \
+        return nullptr; \
+      return reinterpret_cast<const LogString *>(&BLOB[progmem_read_byte(&OFFSETS[index])]); \
     } \
   }
 

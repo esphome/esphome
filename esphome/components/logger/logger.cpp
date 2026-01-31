@@ -300,7 +300,8 @@ void Logger::dump_config() {
                 "Logger:\n"
                 "  Max Level: %s\n"
                 "  Initial Level: %s",
-                LogLevelStrings::get(ESPHOME_LOG_LEVEL), LogLevelStrings::get(this->current_level_));
+                LOG_STR_ARG(LogLevelStrings::get_log_str(ESPHOME_LOG_LEVEL)),
+                LOG_STR_ARG(LogLevelStrings::get_log_str(this->current_level_)));
 #ifndef USE_HOST
   ESP_LOGCONFIG(TAG,
                 "  Log Baud Rate: %" PRIu32 "\n"
@@ -319,7 +320,7 @@ void Logger::dump_config() {
 
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   for (auto &it : this->log_levels_) {
-    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LogLevelStrings::get(it.second));
+    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(LogLevelStrings::get_log_str(it.second)));
   }
 #endif
 }
@@ -327,7 +328,8 @@ void Logger::dump_config() {
 void Logger::set_log_level(uint8_t level) {
   if (level > ESPHOME_LOG_LEVEL) {
     level = ESPHOME_LOG_LEVEL;
-    ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s", LogLevelStrings::get(ESPHOME_LOG_LEVEL));
+    ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s",
+             LOG_STR_ARG(LogLevelStrings::get_log_str(ESPHOME_LOG_LEVEL)));
   }
   this->current_level_ = level;
 #ifdef USE_LOGGER_LEVEL_LISTENERS

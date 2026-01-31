@@ -15,11 +15,12 @@ PROGMEM_STRING_TABLE(ColorModeStrings, "onoff", "brightness", "white", "color_te
                      "rgbww");
 
 // Get JSON string for color mode. Returns nullptr for UNKNOWN (bit 0).
-static const char *get_color_mode_json_str(ColorMode mode) {
+// Returns ProgmemStr so ArduinoJson knows to handle PROGMEM strings on ESP8266.
+static ProgmemStr get_color_mode_json_str(ColorMode mode) {
   unsigned bit = ColorModeBitPolicy::to_bit(mode);
   if (bit == 0)
     return nullptr;
-  return ColorModeStrings::get(bit - 1);
+  return ColorModeStrings::get_progmem_str(bit - 1);
 }
 
 void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
