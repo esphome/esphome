@@ -138,7 +138,7 @@ void AXS5106Touchscreen::continue_setup_() {
   this->read_bytes_raw(res, sizeof res);  // ID is three bytes
 
   for (unsigned int i = 0; i < sizeof res; i++) {
-    ESP_LOGCONFIG(TAG, "  ID[%d]=%02x", i, res[i]);
+    ESP_LOGCONFIG(TAG, "  ID[%u]=%02x", i, res[i]);
   }
 
   if (0 != memcmp(res, AXS5106_ID, sizeof AXS5106_ID)) {
