@@ -129,37 +129,13 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool start_fan_cleaning();
   bool perform_forced_co2_recalibration(uint16_t reference_ppm);
   bool co2_sensor_factory_reset();
+  bool reset_device();
   bool activate_sht_heater();
   bool get_sht_heater_measurements();
   bool start_measurement();
   bool stop_measurement();
 
  protected:
-  bool wait_after_stop_();
-  template<class T> bool write_command(T i2c_register) {
-    this->wait_after_stop_();
-    return sensirion_common::SensirionI2CDevice::write_command(i2c_register);
-  }
-  template<class T> bool write_command(T i2c_register, uint16_t data) {
-    this->wait_after_stop_();
-    return sensirion_common::SensirionI2CDevice::write_command(i2c_register, data);
-  }
-  template<class T> bool write_command(T i2c_register, const std::vector<uint16_t> &data) {
-    this->wait_after_stop_();
-    return sensirion_common::SensirionI2CDevice::write_command(i2c_register, data);
-  }
-  template<class T> bool write_command(T i2c_register, const uint16_t *data, uint8_t len) {
-    this->wait_after_stop_();
-    return sensirion_common::SensirionI2CDevice::write_command(i2c_register, data, len);
-  }
-  bool get_register(uint16_t command, uint16_t *data, uint8_t len, uint8_t delay = 0) {
-    this->wait_after_stop_();
-    return sensirion_common::SensirionI2CDevice::get_register(command, data, len, delay);
-  }
-  bool get_register(uint16_t command, uint16_t &data, uint8_t delay = 0) {
-    this->wait_after_stop_();
-    return sensirion_common::SensirionI2CDevice::get_register(command, data, delay);
-  }
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
   bool write_temperature_acceleration_(const TemperatureAcceleration &acceleration);
