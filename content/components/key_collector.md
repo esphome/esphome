@@ -24,6 +24,7 @@ key_collector:
     source_id: mykeypad
     min_length: 4
     max_length: 4
+    start_keys: "A"
     end_keys: "#"
     end_key_required: true
     back_keys: "*"
@@ -53,6 +54,10 @@ key_collector:
 
 - **max_length** (*Optional*, integer): The maximum length of the desired key sequence, after
   which the sequence will trigger the `on_result` automation witout having to press any of the `end_keys`
+
+- **start_keys** (*Optional*, string): Keys used to start the sequence. If specified, no keys
+  will be collected until one of the start keys is pressed. The start key that was pressed is
+  available in the `start` variable in automations.
 
 - **end_keys** (*Optional*, string): Keys used to *enter* the sequence.
 - **end_key_required** (*Optional*, boolean): Only trigger `on_result` automation when one of
