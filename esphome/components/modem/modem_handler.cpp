@@ -125,6 +125,7 @@ void ModemHandler::modem_log_status() {
   int cfun = -1;
   int attached = 0;
   int network_mode = 0;
+  int registration_state = 0;
   float rssi = NAN, ber = NAN;
   std::string sim_status = "UNKNOWN";
 
@@ -138,6 +139,7 @@ void ModemHandler::modem_log_status() {
     }
     this->dce->get_radio_state(cfun);
     this->dce->get_network_attachment_state(attached);
+    this->dce->get_network_registration_state(registration_state);
     this->get_signal_quality(rssi, ber);
     this->dce->get_network_system_mode(network_mode);
   }
@@ -145,10 +147,12 @@ void ModemHandler::modem_log_status() {
       synced && network_mode != 0 && attached && !std::isnan(rssi) && sim_status.find("READY") != std::string::npos;
   std::string cfun_str = (cfun == 1) ? "OK" : "NOK(" + std::to_string(cfun) + ")";
 
-  ESP_LOGI(TAG, "Modem status: %s, attached: %s, radio function: %s, SIM: %s, type: %s, ber: %.0f%%, rssi: %.0fdB %s",
-           connected ? "Good" : (synced ? "BAD" : "No SYNC"), attached ? "Yes" : "NO", cfun_str.c_str(),
-           sim_status.c_str(), network_system_mode_to_string(network_mode).c_str(), ber * 100.0f, rssi,
-           get_signal_bars(rssi).c_str());
+  ESP_LOGI(TAG,
+           "Modem status: %s, attached: %s, registration state: %d,radio function: %s, SIM: %s, type: %s, ber: %.0f%%, "
+           "rssi: %.0fdB %s",
+           connected ? "Good" : (synced ? "BAD" : "No SYNC"), attached ? "Yes" : "NO", registration_state,
+           cfun_str.c_str(), sim_status.c_str(), network_system_mode_to_string(network_mode).c_str(), ber * 100.0f,
+           rssi, get_signal_bars(rssi).c_str());
 }
 
 void ModemHandler::send_init_at() {
