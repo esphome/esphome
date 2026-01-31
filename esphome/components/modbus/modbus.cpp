@@ -191,10 +191,18 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     if (computed_crc != remote_crc) {
       if (this->disable_crc_) {
         ESP_LOGD(TAG, "CRC check failed %dms after last send; ignoring", millis() - this->last_send_);
-        ESP_LOGVV(TAG, "  (%02X != %02X)  %s", computed_crc, remote_crc, format_hex_pretty(this->rx_buffer_).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+        char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+#endif
+        ESP_LOGVV(TAG, "  (%02X != %02X)  %s", computed_crc, remote_crc,
+                  format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), this->rx_buffer_.size()));
       } else {
         ESP_LOGW(TAG, "CRC check failed %dms after last send", millis() - this->last_send_);
-        ESP_LOGVV(TAG, "  (%02X != %02X) %s", computed_crc, remote_crc, format_hex_pretty(this->rx_buffer_).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+        char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+#endif
+        ESP_LOGVV(TAG, "  (%02X != %02X) %s", computed_crc, remote_crc,
+                  format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), this->rx_buffer_.size()));
         return false;
       }
     }
