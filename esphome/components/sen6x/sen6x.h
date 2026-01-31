@@ -80,6 +80,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
     auto_cleaning_enabled_ = enabled;
     auto_cleaning_interval_s_ = interval_s;
   }
+  bool isMeasurmentRunning() const;
   bool get_state() const { return this->measurement_started_; }
   void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
