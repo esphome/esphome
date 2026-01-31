@@ -262,6 +262,19 @@ void SEN6XComponent::schedule_post_setup_commands_() {
 
 bool SEN6XComponent::isMeasurmentRunning() const { return this->measurement_started_; }
 
+bool SEN6XComponent::wait_after_stop_() {
+  if (this->last_stop_ms_ == 0) {
+    return true;
+  }
+  const uint32_t now = App.get_loop_component_start_time();
+  const uint32_t elapsed = now - this->last_stop_ms_;
+  if (elapsed >= 50) {
+    return true;
+  }
+  delay(50 - elapsed);
+  return true;
+}
+
 void SEN6XComponent::finish_setup_() {
   const bool supports_co2 = this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 ||
 
