@@ -14,6 +14,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/task_priorities.h"
 
 #include "esp_timer.h"
 
@@ -24,7 +25,6 @@ static const uint32_t DMA_BUFFER_DURATION_MS = 15;
 static const size_t DMA_BUFFERS_COUNT = 4;
 
 static const size_t TASK_STACK_SIZE = 4096;
-static const ssize_t TASK_PRIORITY = 19;
 
 static const size_t I2S_EVENT_QUEUE_COUNT = DMA_BUFFERS_COUNT + 1;
 
@@ -151,8 +151,10 @@ void I2SAudioSpeaker::loop() {
       }
 
       if (this->speaker_task_handle_ == nullptr) {
-        xTaskCreate(I2SAudioSpeaker::speaker_task, "speaker_task", TASK_STACK_SIZE, (void *) this, TASK_PRIORITY,
-                    &this->speaker_task_handle_);
+        // TASK_PRIORITY_AUDIO_OUTPUT: high priority for real-time audio output,
+        // below capture (TASK_PRIORITY_AUDIO_CAPTURE) but above network tasks
+        xTaskCreate(I2SAudioSpeaker::speaker_task, "speaker_task", TASK_STACK_SIZE, (void *) this,
+                    TASK_PRIORITY_AUDIO_OUTPUT, &this->speaker_task_handle_);
 
         if (this->speaker_task_handle_ == nullptr) {
           ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");

@@ -215,11 +215,12 @@ void USBClient::setup() {
   }
 
   // Create and start USB task
+  // TASK_PRIORITY_PROTOCOL: above main loop (TASK_PRIORITY_APPLICATION) but below
+  // audio tasks - USB host needs responsive scheduling for device communication
   xTaskCreate(usb_task_fn, "usb_task",
               USB_TASK_STACK_SIZE,  // Stack size
               this,                 // Task parameter
-              USB_TASK_PRIORITY,    // Priority (higher than main loop)
-              &this->usb_task_handle_);
+              TASK_PRIORITY_PROTOCOL, &this->usb_task_handle_);
 
   if (this->usb_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create USB task");

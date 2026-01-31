@@ -2,6 +2,7 @@
 #include "usb_cdc_acm.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/task_priorities.h"
 
 #include <cstring>
 #include <sys/param.h>
@@ -162,7 +163,9 @@ void USBCDCACMInstance::setup() {
   // Create a simple, unique task name per interface
   char task_name[] = "usb_tx_0";
   task_name[sizeof(task_name) - 1] = format_hex_char(static_cast<char>(this->itf_));
-  xTaskCreate(usb_tx_task_fn, task_name, stack_size, this, 4, &this->usb_tx_task_handle_);
+  // TASK_PRIORITY_USB_SERIAL: above main loop (TASK_PRIORITY_APPLICATION) and
+  // wake word (TASK_PRIORITY_INFERENCE), below protocol tasks (TASK_PRIORITY_PROTOCOL)
+  xTaskCreate(usb_tx_task_fn, task_name, stack_size, this, TASK_PRIORITY_USB_SERIAL, &this->usb_tx_task_handle_);
 
   if (this->usb_tx_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create USB TX task for itf %d", this->itf_);

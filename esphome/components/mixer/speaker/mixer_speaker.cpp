@@ -5,14 +5,13 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/task_priorities.h"
 
 #include <algorithm>
 #include <cstring>
 
 namespace esphome {
 namespace mixer_speaker {
-
-static const UBaseType_t MIXER_TASK_PRIORITY = 10;
 
 static const uint32_t TRANSFER_BUFFER_DURATION_MS = 50;
 static const uint32_t TASK_DELAY_MS = 25;
@@ -385,8 +384,10 @@ esp_err_t MixerSpeaker::start_task_() {
   }
 
   if (this->task_handle_ == nullptr) {
+    // TASK_PRIORITY_AUDIO_MIXER: below I2S tasks (TASK_PRIORITY_AUDIO_OUTPUT) but
+    // above protocol tasks - mixing is buffered but feeds real-time output
     this->task_handle_ = xTaskCreateStatic(audio_mixer_task, "mixer", TASK_STACK_SIZE, (void *) this,
-                                           MIXER_TASK_PRIORITY, this->task_stack_buffer_, &this->task_stack_);
+                                           TASK_PRIORITY_AUDIO_MIXER, this->task_stack_buffer_, &this->task_stack_);
   }
 
   if (this->task_handle_ == nullptr) {

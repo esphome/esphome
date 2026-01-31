@@ -7,6 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/gpio.h"
+#include "esphome/core/task_priorities.h"
 #include "driver/gpio.h"
 #include "soc/gpio_num.h"
 #include "soc/uart_pins.h"
@@ -367,12 +368,13 @@ void IDFUARTComponent::check_logger_conflict() {}
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
 void IDFUARTComponent::start_rx_event_task_() {
-  // Create FreeRTOS task to monitor UART events
-  BaseType_t result = xTaskCreate(rx_event_task_func,    // Task function
-                                  "uart_rx_evt",         // Task name (max 16 chars)
-                                  2240,                  // Stack size in bytes (~2.2KB); increase if needed for logging
-                                  this,                  // Task parameter (this pointer)
-                                  tskIDLE_PRIORITY + 1,  // Priority (low, just above idle)
+  // TASK_PRIORITY_APPLICATION: same as main loop - UART RX monitoring is lightweight,
+  // just wakes main loop when data arrives
+  BaseType_t result = xTaskCreate(rx_event_task_func,  // Task function
+                                  "uart_rx_evt",       // Task name (max 16 chars)
+                                  2240,                // Stack size in bytes (~2.2KB)
+                                  this,                // Task parameter (this pointer)
+                                  TASK_PRIORITY_APPLICATION,
                                   &this->rx_event_task_handle_  // Task handle
   );
 

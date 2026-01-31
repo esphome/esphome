@@ -6,6 +6,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/task_priorities.h"
 
 #include "esphome/components/audio/audio_transfer_buffer.h"
 
@@ -25,7 +26,6 @@ static const size_t DATA_TIMEOUT_MS = 50;
 static const uint32_t RING_BUFFER_DURATION_MS = 120;
 
 static const uint32_t INFERENCE_TASK_STACK_SIZE = 3072;
-static const UBaseType_t INFERENCE_TASK_PRIORITY = 3;
 
 enum EventGroupBits : uint32_t {
   COMMAND_STOP = (1 << 0),  // Signals the inference task should stop
@@ -305,8 +305,10 @@ void MicroWakeWord::loop() {
           return;
         }
 
+        // TASK_PRIORITY_INFERENCE: above main loop (TASK_PRIORITY_APPLICATION) but below
+        // protocol tasks (TASK_PRIORITY_PROTOCOL) - ML inference is background work
         xTaskCreate(MicroWakeWord::inference_task, "mww", INFERENCE_TASK_STACK_SIZE, (void *) this,
-                    INFERENCE_TASK_PRIORITY, &this->inference_task_handle_);
+                    TASK_PRIORITY_INFERENCE, &this->inference_task_handle_);
 
         if (this->inference_task_handle_ == nullptr) {
           FrontendFreeStateContents(&this->frontend_state_);  // Deallocate frontend state

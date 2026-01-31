@@ -4,6 +4,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/task_priorities.h"
 
 #include <freertos/task.h>
 
@@ -42,11 +43,13 @@ void ESP32Camera::setup() {
   /* initialize RTOS */
   this->framebuffer_get_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
   this->framebuffer_return_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
+  // TASK_PRIORITY_APPLICATION: same as main loop - camera capture is buffered,
+  // not real-time critical like audio
   xTaskCreatePinnedToCore(&ESP32Camera::framebuffer_task,
                           "framebuffer_task",           // name
                           FRAMEBUFFER_TASK_STACK_SIZE,  // stack size
                           this,                         // task pv params
-                          1,                            // priority
+                          TASK_PRIORITY_APPLICATION,    // priority
                           nullptr,                      // handle
                           1                             // core
   );

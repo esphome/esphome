@@ -4,6 +4,7 @@
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
+#include "esphome/core/task_priorities.h"
 #include <vector>
 #include "usb/usb_host.h"
 #include <freertos/FreeRTOS.h>
@@ -69,7 +70,6 @@ static constexpr trq_bitmask_t ALL_REQUESTS_IN_USE = MAX_REQUESTS == 32 ? ~0 : (
 
 static constexpr size_t USB_EVENT_QUEUE_SIZE = 32;   // Size of event queue between USB task and main loop
 static constexpr size_t USB_TASK_STACK_SIZE = 4096;  // Stack size for USB task (same as ESP-IDF USB examples)
-static constexpr UBaseType_t USB_TASK_PRIORITY = 5;  // Higher priority than main loop (tskIDLE_PRIORITY + 5)
 
 // used to report a transfer status
 struct TransferStatus {

@@ -11,6 +11,7 @@
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/task_priorities.h"
 
 #include "esphome/components/audio/audio.h"
 
@@ -22,7 +23,6 @@ static const UBaseType_t MAX_LISTENERS = 16;
 static const uint32_t READ_DURATION_MS = 16;
 
 static const size_t TASK_STACK_SIZE = 4096;
-static const ssize_t TASK_PRIORITY = 23;
 
 static const char *const TAG = "i2s_audio.microphone";
 
@@ -520,8 +520,10 @@ void I2SAudioMicrophone::loop() {
       }
 
       if (this->task_handle_ == nullptr) {
-        xTaskCreate(I2SAudioMicrophone::mic_task, "mic_task", TASK_STACK_SIZE, (void *) this, TASK_PRIORITY,
-                    &this->task_handle_);
+        // TASK_PRIORITY_AUDIO_CAPTURE: highest application priority - real-time audio
+        // input cannot tolerate delays without dropping samples
+        xTaskCreate(I2SAudioMicrophone::mic_task, "mic_task", TASK_STACK_SIZE, (void *) this,
+                    TASK_PRIORITY_AUDIO_CAPTURE, &this->task_handle_);
 
         if (this->task_handle_ == nullptr) {
           ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");

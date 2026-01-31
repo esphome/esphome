@@ -1287,6 +1287,18 @@ async def to_code(config):
     # Increase freertos tick speed from 100Hz to 1kHz so that delay() resolution is 1ms
     add_idf_sdkconfig_option("CONFIG_FREERTOS_HZ", 1000)
 
+    # Reduce FreeRTOS max priorities from 25 to 16 to save RAM
+    # pxReadyTasksLists uses 20 bytes per priority level, so this saves 180 bytes
+    # All ESPHome tasks use relative priorities (configMAX_PRIORITIES - X) to scale automatically
+    # See https://github.com/espressif/esp-idf/issues/13041 for context
+    add_idf_sdkconfig_option("CONFIG_FREERTOS_MAX_PRIORITIES", 16)
+
+    # Set LWIP TCP/IP task priority to fit within reduced priority range (0-15)
+    # Default is 18, which would be invalid with MAX_PRIORITIES=16
+    # Priority 8 maintains the original hierarchy: I2S speaker (10) > LWIP (8) > mixer (6)
+    # This ensures audio I/O tasks aren't blocked by network, while network isn't starved by mixing
+    add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_TASK_PRIO", 8)
+
     # Place non-ISR FreeRTOS functions into flash instead of IRAM
     # This saves up to 8KB of IRAM. ISR-safe functions (FromISR variants) stay in IRAM.
     # In ESP-IDF 6.0 this becomes the default and CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH

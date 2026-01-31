@@ -61,7 +61,10 @@ bool MQTTBackendESP32::initialize_() {
     // Create the task only after MQTT client is initialized successfully
     // Use larger stack size when TLS is enabled
     size_t stack_size = this->ca_certificate_.has_value() ? TASK_STACK_SIZE_TLS : TASK_STACK_SIZE;
-    xTaskCreate(esphome_mqtt_task, "esphome_mqtt", stack_size, (void *) this, TASK_PRIORITY, &this->task_handle_);
+    // TASK_PRIORITY_PROTOCOL: above main loop (TASK_PRIORITY_APPLICATION) but below
+    // audio tasks - MQTT needs responsive scheduling for message handling
+    xTaskCreate(esphome_mqtt_task, "esphome_mqtt", stack_size, (void *) this, TASK_PRIORITY_PROTOCOL,
+                &this->task_handle_);
     if (this->task_handle_ == nullptr) {
       ESP_LOGE(TAG, "Failed to create MQTT task");
       // Clean up MQTT client since we can't start the async task

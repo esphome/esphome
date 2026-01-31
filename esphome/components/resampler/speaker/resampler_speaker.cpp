@@ -6,14 +6,13 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/task_priorities.h"
 
 #include <algorithm>
 #include <cstring>
 
 namespace esphome {
 namespace resampler {
-
-static const UBaseType_t RESAMPLER_TASK_PRIORITY = 1;
 
 static const uint32_t TRANSFER_BUFFER_DURATION_MS = 50;
 
@@ -185,8 +184,10 @@ esp_err_t ResamplerSpeaker::start_task_() {
   }
 
   if (this->task_handle_ == nullptr) {
+    // TASK_PRIORITY_APPLICATION: same as main loop - resampling is buffered audio
+    // processing, not real-time I/O
     this->task_handle_ = xTaskCreateStatic(resample_task, "sample", TASK_STACK_SIZE, (void *) this,
-                                           RESAMPLER_TASK_PRIORITY, this->task_stack_buffer_, &this->task_stack_);
+                                           TASK_PRIORITY_APPLICATION, this->task_stack_buffer_, &this->task_stack_);
   }
 
   if (this->task_handle_ == nullptr) {

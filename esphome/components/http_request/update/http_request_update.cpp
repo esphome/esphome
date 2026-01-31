@@ -2,6 +2,9 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
+#ifdef USE_ESP32
+#include "esphome/core/task_priorities.h"
+#endif
 
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
@@ -46,7 +49,9 @@ void HttpRequestUpdate::update() {
     return;
   }
 #ifdef USE_ESP32
-  xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, (void *) this, 1, &this->update_task_handle_);
+  // TASK_PRIORITY_APPLICATION: same as main loop - update check is background work
+  xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, (void *) this, TASK_PRIORITY_APPLICATION,
+              &this->update_task_handle_);
 #else
   this->update_task(this);
 #endif

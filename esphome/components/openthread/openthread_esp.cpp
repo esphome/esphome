@@ -10,6 +10,7 @@
 #include "esp_task_wdt.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/task_priorities.h"
 
 #include "esp_err.h"
 #include "esp_event.h"
@@ -39,12 +40,14 @@ void OpenThreadComponent::setup() {
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_vfs_eventfd_register(&eventfd_config));
 
+  // TASK_PRIORITY_PROTOCOL: same as USB host/MQTT - network protocol tasks need
+  // responsive scheduling but below audio tasks
   xTaskCreate(
       [](void *arg) {
         static_cast<OpenThreadComponent *>(arg)->ot_main();
         vTaskDelete(nullptr);
       },
-      "ot_main", 10240, this, 5, nullptr);
+      "ot_main", 10240, this, TASK_PRIORITY_PROTOCOL, nullptr);
 }
 
 static esp_netif_t *init_openthread_netif(const esp_openthread_platform_config_t *config) {

@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/log.h"
+#include "esphome/core/task_priorities.h"
 
 #include "esphome/components/audio/audio.h"
 #ifdef USE_OTA
@@ -45,9 +46,6 @@ namespace speaker {
 
 static const uint32_t MEDIA_CONTROLS_QUEUE_LENGTH = 20;
 
-static const UBaseType_t MEDIA_PIPELINE_TASK_PRIORITY = 1;
-static const UBaseType_t ANNOUNCEMENT_PIPELINE_TASK_PRIORITY = 1;
-
 static const char *const TAG = "speaker_media_player";
 
 void SpeakerMediaPlayer::setup() {
@@ -70,9 +68,10 @@ void SpeakerMediaPlayer::setup() {
   ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
 
-  this->announcement_pipeline_ =
-      make_unique<AudioPipeline>(this->announcement_speaker_, this->buffer_size_, this->task_stack_in_psram_, "ann",
-                                 ANNOUNCEMENT_PIPELINE_TASK_PRIORITY);
+  // TASK_PRIORITY_APPLICATION: same as main loop - media pipelines handle buffered
+  // audio streaming, not real-time I/O, so they don't need elevated priority
+  this->announcement_pipeline_ = make_unique<AudioPipeline>(
+      this->announcement_speaker_, this->buffer_size_, this->task_stack_in_psram_, "ann", TASK_PRIORITY_APPLICATION);
 
   if (this->announcement_pipeline_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create announcement pipeline");
@@ -81,7 +80,7 @@ void SpeakerMediaPlayer::setup() {
 
   if (!this->single_pipeline_()) {
     this->media_pipeline_ = make_unique<AudioPipeline>(this->media_speaker_, this->buffer_size_,
-                                                       this->task_stack_in_psram_, "med", MEDIA_PIPELINE_TASK_PRIORITY);
+                                                       this->task_stack_in_psram_, "med", TASK_PRIORITY_APPLICATION);
 
     if (this->media_pipeline_ == nullptr) {
       ESP_LOGE(TAG, "Failed to create media pipeline");

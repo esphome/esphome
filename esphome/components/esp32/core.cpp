@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/task_priorities.h"
 #include "preferences.h"
 #include <esp_clk_tree.h>
 #include <esp_cpu.h>
@@ -66,10 +67,14 @@ void loop_task(void *pv_params) {
 extern "C" void app_main() {
   initArduino();
   esp32::setup_preferences();
+  // TASK_PRIORITY_APPLICATION: baseline priority for main loop - all component loops
+  // run here. Higher priority tasks (audio, network) preempt this when needed.
 #if CONFIG_FREERTOS_UNICORE
-  xTaskCreate(loop_task, "loopTask", ESPHOME_LOOP_TASK_STACK_SIZE, nullptr, 1, &loop_task_handle);
+  xTaskCreate(loop_task, "loopTask", ESPHOME_LOOP_TASK_STACK_SIZE, nullptr, TASK_PRIORITY_APPLICATION,
+              &loop_task_handle);
 #else
-  xTaskCreatePinnedToCore(loop_task, "loopTask", ESPHOME_LOOP_TASK_STACK_SIZE, nullptr, 1, &loop_task_handle, 1);
+  xTaskCreatePinnedToCore(loop_task, "loopTask", ESPHOME_LOOP_TASK_STACK_SIZE, nullptr, TASK_PRIORITY_APPLICATION,
+                          &loop_task_handle, 1);
 #endif
 }
 
