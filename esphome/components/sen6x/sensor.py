@@ -256,6 +256,9 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
+    if CONF_STARTUP_DELAY in config:
+        cg.add(var.set_startup_delay(config[CONF_STARTUP_DELAY]))
+
     if CONF_TYPE in config:
         cg.add(var.set_type(config[CONF_TYPE]))
 
