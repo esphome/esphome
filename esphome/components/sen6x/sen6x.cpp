@@ -1,5 +1,4 @@
 #include "sen6x.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -60,10 +59,9 @@ void SEN6XComponent::setup() {
 
   // the sensor needs 100 ms to enter the idle state
   this->set_timeout(500, [this]() {
-    //
-    Check if measurement is ready before reading the value if (!this->write_command(SEN6X_CMD_GET_DATA_READY_STATUS)) {
-      ESP_LOGE(TAG, "Failed to write
-data ready status command");
+    // Check if measurement is ready before reading the value
+    if (!this->write_command(SEN6X_CMD_GET_DATA_READY_STATUS)) {
+      ESP_LOGE(TAG, "Failed to write data ready status command");
       this->mark_failed();
       return;
     }
@@ -72,23 +70,19 @@ data ready status command");
     if (!this->read_data(raw_read_status)) {
       ESP_LOGE(TAG, "Failed to read data ready status");
       this->mark_failed();
-
       return;
     }
 
     uint32_t stop_measurement_delay = 0;
-    // In order to
-    query the device periodic measurement must be ceased = > use reset !if (raw_read_status) {
-      ESP_LOGD(TAG, "Sensor has data available, stopping periodic
-measurement / reset");
-      //if (!this->write_command(SEN6X_CMD_RESET)) {
-
-if (!this->write_command(SEN6X_CMD_STOP_MEASUREMENTS)) {
-        ESP_LOGE(TAG, "Failed to stop measurements ");
+    // In order to query the device periodic measurement must be ceased => use reset!
+    if (raw_read_status) {
+      ESP_LOGD(TAG, "Sensor has data available, stopping periodic measurement / reset");
+      // if (!this->write_command(SEN6X_CMD_RESET)) {
+      if (!this->write_command(SEN6X_CMD_STOP_MEASUREMENTS)) {
+        ESP_LOGE(TAG, "Failed to stop measurements");
         this->mark_failed();
         return;
-
-  }
+      }
       stop_measurement_delay = 1400;
     }
 
@@ -107,30 +101,25 @@ if (!this->write_command(SEN6X_CMD_STOP_MEASUREMENTS)) {
                this->serial_number_[2]);
 
       uint16_t raw_product_name[16];
-
       if (!this->get_register(SEN6X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
-        ESP_LOGE(TAG, "Failed to
-read product name");
+        ESP_LOGE(TAG, "Failed to read product name");
         this->error_code_ = PRODUCT_NAME_FAILED;
-
-this->mark_failed();
+        this->mark_failed();
         return;
       }
 
-      // 2 ASCII bytes are encoded in
-      an int const uint16_t *current_int = raw_product_name;
+      // 2 ASCII bytes are encoded in an int
+      const uint16_t *current_int = raw_product_name;
       char current_char;
       uint8_t max = 16;
       do {
         // first char
-
         current_char = *current_int >> 8;
         if (current_char) {
           this->product_name_.push_back(current_char);
           // second char
           current_char = *current_int & 0xFF;
           if (current_char)
-
             this->product_name_.push_back(current_char);
         }
         current_int++;
@@ -147,11 +136,9 @@ this->mark_failed();
         this->sen6x_type_ = SEN66;
       } else if (this->product_name_ == "SEN68") {
         this->sen6x_type_ = SEN68;
-
       } else if (this->product_name_ == "SEN69C") {
         this->sen6x_type_ = SEN69C;
       } else if (this->product_name_ == "") {  // empty name
-
         ESP_LOGD(TAG, "Productname empty, falling back to SEN66");
         this->sen6x_type_ = SEN66;
       }
@@ -159,52 +146,37 @@ this->mark_failed();
 
       if (!this->get_register(SEN6X_CMD_GET_FIRMWARE_VERSION, this->firmware_version_, 20)) {
         ESP_LOGE(TAG, "Failed to read firmware version");
-
         this->error_code_ = FIRMWARE_FAILED;
         this->mark_failed();
-
         return;
       }
       this->firmware_version_ >>= 8;
-      ESP_LOGD(TAG, "Firmware
-version %d", this->firmware_version_);
+      ESP_LOGD(TAG, "Firmware version %d", this->firmware_version_);
 
-      if (this->voc_sensor_ &&
-this->store_baseline_) {
+      if (this->voc_sensor_ && this->store_baseline_) {
         uint32_t combined_serial =
-
             encode_uint24(this->serial_number_[0], this->serial_number_[1], this->serial_number_[2]);
 
         // Hash with compilation time and serial number
-        // This ensures the
-        baseline storage is cleared after OTA
-            // Serial numbers are unique to each
-            sensor,
-            so mulitple sensors can be used without conflict char build_time[App.BUILD_TIME_STR_SIZE] = {0};
+        // This ensures the baseline storage is cleared after OTA
+        // Serial numbers are unique to each sensor, so mulitple sensors can be used without conflict
+        char build_time[App.BUILD_TIME_STR_SIZE] = {0};
 
         App.get_build_time_string(build_time);
         uint32_t hash = fnv1_hash(std::string(build_time) + std::to_string(combined_serial));
         this->pref_ = global_preferences->make_preference<Sen6xBaselines>(hash, true);
 
         if (this->pref_.load(&this->voc_baselines_storage_)) {
-          ESP_LOGI(TAG,
-                   "Loaded VOC baseline state0: 0x%04" PRIX32 ",
-                       state1 : 0x %
-                       04 " PRIX32,
-                       this->voc_baselines_storage_.state0,
-                   this->voc_baselines_storage_.state1);
+          ESP_LOGI(TAG, "Loaded VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
+                   this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
         }
 
         // Initialize storage
-        timestamp this->seconds_since_last_store_ = 0;
+        this->seconds_since_last_store_ = 0;
 
         if (this->voc_baselines_storage_.state0 > 0 && this->voc_baselines_storage_.state1 > 0) {
-          ESP_LOGI(TAG,
-                   "Setting VOC baseline from save state0: 0x%04" PRIX32 ", state1:
-                       0x %
-                       04 " PRIX32,
-                       this->voc_baselines_storage_.state0,
-                   this->voc_baselines_storage_.state1);
+          ESP_LOGI(TAG, "Setting VOC baseline from save state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
+                   this->voc_baselines_storage_.state0, this->voc_baselines_storage_.state1);
           uint16_t states[4];
 
           states[0] = this->voc_baselines_storage_.state0 >> 16;
@@ -324,9 +296,6 @@ void SEN6XComponent::finish_setup_() {
   this->startup_stable_after_ = now + this->startup_delay_ms_;
 
   this->last_cleaning_ms_ = now;
-  if (this->measurement_running_binary_sensor_ != nullptr) {
-    this->measurement_running_binary_sensor_->publish_state(true);
-  }
   this->initialized_ = true;
   ESP_LOGD(TAG, "Sensor initialized");
 }
@@ -362,9 +331,7 @@ void SEN6XComponent::dump_config() {
                 this->serial_number_[2]);
 
   LOG_UPDATE_INTERVAL(this);
-  if (this->measurement_running_binary_sensor_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Measurement running (binary sensor): %s", this->measurement_started_ ? "ON" : "OFF");
-  }
+  ESP_LOGCONFIG(TAG, "  Measurement running: %s", this->get_state() ? "ON" : "OFF");
   if (this->ambient_pressure_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Ambient pressure: %u hPa", this->ambient_pressure_.value());
   }
@@ -487,32 +454,32 @@ void SEN6XComponent::update() {
 
   switch (this->sen6x_type_) {
     case SEN62:
-      read_cmd = SEN62_CMD_READ_MEASUREMENT;
+      read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN62;
       read_words = 6;
       break;
 
     case SEN63C:
-      read_cmd = SEN63C_CMD_READ_MEASUREMENT;
+      read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN63C;
       read_words = 7;
       break;
     case SEN65:
-      read_cmd = SEN65_CMD_READ_MEASUREMENT;
+      read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN65;
       read_words = 8;
       break;
     case SEN66:
-      read_cmd = SEN66_CMD_READ_MEASUREMENT;
+      read_cmd = SEN6X_CMD_READ_MEASUREMENT;
       read_words = 9;
       break;
     case SEN68:
-      read_cmd = SEN68_CMD_READ_MEASUREMENT;
+      read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN68;
       read_words = 9;
       break;
     case SEN69C:
-      read_cmd = SEN69C_CMD_READ_MEASUREMENT;
+      read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN69C;
       read_words = 10;
       break;
     default:
-      read_cmd = SEN66_CMD_READ_MEASUREMENT;
+      read_cmd = SEN6X_CMD_READ_MEASUREMENT;
       read_words = 9;
       break;
   }
@@ -816,9 +783,6 @@ bool SEN6XComponent::start_measurement() {
   this->measurement_started_ = true;
   this->startup_stable_after_ = now + this->startup_delay_ms_;
   this->last_cleaning_ms_ = now;
-  if (this->measurement_running_binary_sensor_ != nullptr) {
-    this->measurement_running_binary_sensor_->publish_state(true);
-  }
   ESP_LOGD(TAG, "Measurement started");
   return true;
 }
@@ -832,9 +796,6 @@ bool SEN6XComponent::stop_measurement() {
   this->measurement_started_ = false;
   this->last_stop_ms_ = App.get_loop_component_start_time();
   this->auto_clean_restart_pending_ = false;
-  if (this->measurement_running_binary_sensor_ != nullptr) {
-    this->measurement_running_binary_sensor_->publish_state(false);
-  }
   ESP_LOGD(TAG, "Measurement stopped");
   return true;
 }

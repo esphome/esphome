@@ -7,12 +7,6 @@
 #include "esphome/core/preferences.h"
 
 namespace esphome {
-namespace binary_sensor {
-class BinarySensor;
-}  // namespace binary_sensor
-}  // namespace esphome
-
-namespace esphome {
 namespace sen6x {
 
 enum ERRORCODE {
@@ -86,9 +80,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
     auto_cleaning_enabled_ = enabled;
     auto_cleaning_interval_s_ = interval_s;
   }
-  void set_measurement_running_binary_sensor(binary_sensor::BinarySensor *sensor) {
-    measurement_running_binary_sensor_ = sensor;
-  }
+  bool get_state() const { return this->measurement_started_; }
   void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
@@ -160,8 +152,6 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *nox_sensor_{nullptr};
   sensor::Sensor *hcho_sensor_{nullptr};
   sensor::Sensor *co2_sensor_{nullptr};
-  binary_sensor::BinarySensor *measurement_running_binary_sensor_{nullptr};
-
   std::string product_name_;
   Sen6xType sen6x_type_{UNKNOWN};
   uint8_t serial_number_[4];
