@@ -31,6 +31,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
+    PLATFORM_RP2040,
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -213,6 +214,7 @@ CONFIG_SCHEMA = cv.All(
             PLATFORM_ESP8266,
             PLATFORM_BK72XX,
             PLATFORM_LN882X,
+            PLATFORM_RP2040,
             PLATFORM_RTL87XX,
         ]
     ),
