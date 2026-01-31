@@ -131,6 +131,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_driver_mcpwm",  # MCPWM driver - ESPHome doesn't use motor control PWM
     "esp_driver_rmt",  # RMT driver - only needed by remote_transmitter/receiver, neopixelbus
     "esp_driver_touch_sens",  # Touch sensor driver - only needed by esp32_touch
+    "esp_driver_twai",  # TWAI/CAN driver - only needed by esp32_can component
     "esp_eth",  # Ethernet driver - only needed by ethernet component
     "esp_hid",  # HID host/device support - ESPHome doesn't implement HID functionality
     "esp_http_client",  # HTTP client - only needed by http_request component
