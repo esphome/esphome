@@ -30,6 +30,8 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
     )
     # Lower threshold for RAM symbols (RAM is more constrained)
     RAM_SYMBOL_SIZE_THRESHOLD: int = 24
+    # Number of top symbols to show in the largest symbols report
+    TOP_SYMBOLS_LIMIT: int = 30
 
     # Column width constants
     COL_COMPONENT: int = 29
@@ -148,6 +150,34 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             section_label = f" [{section[1:]}]"  # .data -> [data], .bss -> [bss]
         return f"{demangled} ({size:,} B){section_label}"
 
+    def _add_top_symbols(self, lines: list[str]) -> None:
+        """Add a section showing the top largest symbols in the binary."""
+        # Collect all symbols from all components
+        all_symbols: list[
+            tuple[str, str, int, str, str]
+        ] = []  # (symbol, demangled, size, section, component)
+        for component, symbols in self._component_symbols.items():
+            for symbol, demangled, size, section in symbols:
+                all_symbols.append((symbol, demangled, size, section, component))
+
+        # Sort by size descending
+        all_symbols.sort(key=lambda x: x[2], reverse=True)
+
+        lines.append("")
+        lines.append(f"Top {self.TOP_SYMBOLS_LIMIT} Largest Symbols:")
+        for i, (symbol, demangled, size, section, component) in enumerate(
+            all_symbols[: self.TOP_SYMBOLS_LIMIT]
+        ):
+            # Format section label
+            section_label = f"[{section[1:]}]" if section else ""
+            # Truncate demangled name if too long
+            demangled_display = (
+                f"{demangled[:50]}..." if len(demangled) > 50 else demangled
+            )
+            lines.append(
+                f"{i + 1:>2}. {size:>7,} B {section_label:<8} {demangled_display:<55} {component}"
+            )
+
     def generate_report(self, detailed: bool = False) -> str:
         """Generate a formatted memory report."""
         components = sorted(
@@ -248,6 +278,9 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             total_ram,
             "RAM",
         )
+
+        # Top largest symbols in the binary
+        self._add_top_symbols(lines)
 
         # Add ESPHome core detailed analysis if there are core symbols
         if self._esphome_core_symbols:
