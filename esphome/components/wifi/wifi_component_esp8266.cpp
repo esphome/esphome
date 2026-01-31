@@ -403,22 +403,26 @@ class WiFiMockClass : public ESP8266WiFiGenericClass {
 // Static asserts verify the SDK constants are contiguous as expected
 static_assert(AUTH_OPEN == 0 && AUTH_WEP == 1 && AUTH_WPA_PSK == 2 && AUTH_WPA2_PSK == 3 && AUTH_WPA_WPA2_PSK == 4,
               "AUTH_* constants are not contiguous");
+constexpr uint8_t AUTH_MODE_LAST = AUTH_WPA_WPA2_PSK;
+constexpr uint8_t AUTH_MODE_UNKNOWN_INDEX = AUTH_MODE_LAST + 1;
 PROGMEM_STRING_TABLE(AuthModeStrings, "OPEN", "WEP", "WPA PSK", "WPA2 PSK", "WPA/WPA2 PSK", "UNKNOWN");
 
 const LogString *get_auth_mode_str(uint8_t mode) {
-  if (mode > 4)
-    mode = 5;  // UNKNOWN
+  if (mode > AUTH_MODE_LAST)
+    mode = AUTH_MODE_UNKNOWN_INDEX;
   return AuthModeStrings::get_log_str(mode);
 }
 
 // WiFi op mode strings indexed by WIFI_* constants (0-3), with UNKNOWN at index 4
 static_assert(WIFI_OFF == 0 && WIFI_STA == 1 && WIFI_AP == 2 && WIFI_AP_STA == 3,
               "WIFI_* op mode constants are not contiguous");
+constexpr uint8_t OP_MODE_LAST = WIFI_AP_STA;
+constexpr uint8_t OP_MODE_UNKNOWN_INDEX = OP_MODE_LAST + 1;
 PROGMEM_STRING_TABLE(OpModeStrings, "OFF", "STA", "AP", "AP+STA", "UNKNOWN");
 
 const LogString *get_op_mode_str(uint8_t mode) {
-  if (mode > 3)
-    mode = 4;  // UNKNOWN
+  if (mode > OP_MODE_LAST)
+    mode = OP_MODE_UNKNOWN_INDEX;
   return OpModeStrings::get_log_str(mode);
 }
 
