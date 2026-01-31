@@ -38,8 +38,8 @@ sensor:
     co2:
       name: CO2
       accuracy_decimals: 0
-    hcho:
-      name: HCHO
+    formaldehyde:
+      name: Formaldehyde
       accuracy_decimals: 1
     temperature_compensation:
       offset: 0

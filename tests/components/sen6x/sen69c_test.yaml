@@ -47,7 +47,7 @@ sensor:
     co2:
       name: SEN69C CO2
       accuracy_decimals: 0
-    hcho:
+    formaldehyde:
       name: SEN69C HCHO
       accuracy_decimals: 1
     temperature_compensation:

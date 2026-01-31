@@ -44,7 +44,7 @@ sensor:
         gating_max_duration_minutes: 180
         std_initial: 50
         gain_factor: 230
-    hcho:
+    formaldehyde:
       name: SEN68 HCHO
       accuracy_decimals: 1
     temperature_compensation:

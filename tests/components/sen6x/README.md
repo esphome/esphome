@@ -41,7 +41,7 @@ This directory contains comprehensive test configurations for the SEN6x sensor p
 - **VOC** - Volatile Organic Compounds index (SEN65, SEN66, SEN68, SEN69C)
 - **NOx** - Nitrogen Oxides index (SEN65, SEN66, SEN68, SEN69C)
 - **CO2** - Carbon Dioxide (ppm) (SEN63C, SEN66, SEN69C)
-- **HCHO** - Formaldehyde (ppb) (SEN68, SEN69C)
+- **HCHO** - Formaldehyde (ppb) (SEN68, SEN69C) - Now configured as `formaldehyde:`
 
 ### Configuration Options Tested
 
@@ -71,6 +71,23 @@ esphome run test.sen69c.esp32-idf.yaml
 
 # Test SEN66 on RP2040
 esphome run test.sen66.rp2040-ard.yaml
+```
+
+## Configuration Example
+
+```yaml
+sensor:
+  - platform: sen6x
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity
+    pm_2_5:
+      name: PM2.5
+    formaldehyde:
+      name: Formaldehyde
+      accuracy_decimals: 1
+    address: 0x6B
 ```
 
 ## Test Validation
