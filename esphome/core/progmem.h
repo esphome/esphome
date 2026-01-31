@@ -80,7 +80,7 @@ template<FixedString... Strs> struct ProgmemStringTable {
     static_assert(BLOB_SIZE <= 255, "PROGMEM_STRING_TABLE blob exceeds 255 bytes; use fewer/shorter strings");
     std::array<uint8_t, COUNT> result{};
     size_t pos = 0, idx = 0;
-    ((result[idx++] = pos, pos += Strs.size() + 1), ...);
+    ((result[idx++] = static_cast<uint8_t>(pos), pos += Strs.size() + 1), ...);
     return result;
   }
 };
