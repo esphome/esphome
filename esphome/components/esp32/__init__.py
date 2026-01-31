@@ -124,7 +124,7 @@ COMPILER_OPTIMIZATIONS = {
 # - "sdmmc": driver -> esp_driver_sdmmc -> sdmmc dependency chain
 DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
-    "driver",  # Legacy driver shim - pulls in ALL esp_driver_* components
+    "driver",  # Legacy driver shim - only needed by esp32_touch, esp32_can for legacy headers
     "esp_adc",  # ADC driver - only needed by adc component
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
