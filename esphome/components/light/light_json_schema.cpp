@@ -20,7 +20,8 @@ static ProgmemStr get_color_mode_json_str(ColorMode mode) {
   unsigned bit = ColorModeBitPolicy::to_bit(mode);
   if (bit == 0)
     return nullptr;
-  return ColorModeStrings::get_progmem_str(bit - 1);
+  // bit is 1-9 for valid modes, so bit-1 is always valid (0-8). LAST_INDEX fallback never used.
+  return ColorModeStrings::get_progmem_str(bit - 1, ColorModeStrings::LAST_INDEX);
 }
 
 void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
