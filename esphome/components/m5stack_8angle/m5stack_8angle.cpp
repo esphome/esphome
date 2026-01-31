@@ -26,9 +26,11 @@ void M5Stack8AngleComponent::setup() {
 }
 
 void M5Stack8AngleComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "M5STACK_8ANGLE:");
+  ESP_LOGCONFIG(TAG,
+                "M5STACK_8ANGLE:\n"
+                "  Firmware version: %d",
+                this->fw_version_);
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  Firmware version: %d ", this->fw_version_);
 }
 
 float M5Stack8AngleComponent::read_knob_pos(uint8_t channel, AnalogBits bits) {

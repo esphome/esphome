@@ -89,11 +89,12 @@ void HC8Component::calibrate(uint16_t baseline) {
 float HC8Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void HC8Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "HC8:");
+  ESP_LOGCONFIG(TAG,
+                "HC8:\n"
+                "  Warmup time: %" PRIu32 " s",
+                this->warmup_seconds_);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   this->check_uart_settings(9600);
-
-  ESP_LOGCONFIG(TAG, "  Warmup time: %" PRIu32 " s", this->warmup_seconds_);
 }
 
 }  // namespace esphome::hc8

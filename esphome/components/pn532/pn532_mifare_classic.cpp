@@ -77,7 +77,8 @@ bool PN532::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &
   }
   data.erase(data.begin());
 
-  ESP_LOGVV(TAG, " Block %d: %s", block_num, nfc::format_bytes(data).c_str());
+  char data_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+  ESP_LOGVV(TAG, " Block %d: %s", block_num, nfc::format_bytes_to(data_buf, data));
   return true;
 }
 

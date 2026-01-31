@@ -156,6 +156,9 @@ class Lock : public EntityBase {
  protected:
   friend LockCall;
 
+  /// Helper for lock/unlock convenience methods
+  void set_state_(LockState state);
+
   /** Perform the open latch action with hardware. This method is optional to implement
    * when creating a new lock.
    *
@@ -174,7 +177,7 @@ class Lock : public EntityBase {
    */
   virtual void control(const LockCall &call) = 0;
 
-  CallbackManager<void()> state_callback_{};
+  LazyCallbackManager<void()> state_callback_{};
   Deduplicator<LockState> publish_dedup_;
   ESPPreferenceObject rtc_;
 };

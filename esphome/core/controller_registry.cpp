@@ -98,6 +98,10 @@ CONTROLLER_REGISTRY_NOTIFY(media_player::MediaPlayer, media_player)
 CONTROLLER_REGISTRY_NOTIFY(alarm_control_panel::AlarmControlPanel, alarm_control_panel)
 #endif
 
+#ifdef USE_WATER_HEATER
+CONTROLLER_REGISTRY_NOTIFY(water_heater::WaterHeater, water_heater)
+#endif
+
 #ifdef USE_EVENT
 CONTROLLER_REGISTRY_NOTIFY_NO_UPDATE_SUFFIX(event::Event, event)
 #endif

@@ -1,0 +1,15 @@
+esp32_ble_tracker:
+
+sensor:
+  - platform: bthome_mithermometer
+    mac_address: A4:C1:38:4E:16:78
+    temperature:
+      name: "BTHome Temperature"
+    humidity:
+      name: "BTHome Humidity"
+    battery_level:
+      name: "BTHome Battery"
+    battery_voltage:
+      name: "BTHome Battery Voltage"
+    signal_strength:
+      name: "BTHome Signal"

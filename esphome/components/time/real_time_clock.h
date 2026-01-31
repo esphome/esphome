@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
 
-namespace esphome {
-namespace time {
+namespace esphome::time {
 
 /// The RealTimeClock class exposes common timekeeping functions via the device's local real-time clock.
 ///
@@ -75,5 +74,4 @@ template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
   RealTimeClock *parent_;
 };
 
-}  // namespace time
-}  // namespace esphome
+}  // namespace esphome::time

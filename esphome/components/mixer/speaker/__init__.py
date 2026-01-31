@@ -93,9 +93,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_NUM_CHANNELS): cv.int_range(min=1, max=2),
             cv.Optional(CONF_QUEUE_MODE, default=False): cv.boolean,
-            cv.SplitDefault(CONF_TASK_STACK_IN_PSRAM, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
-            ),
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM, default=False): cv.boolean,
         }
     ),
     cv.only_on([PLATFORM_ESP32]),

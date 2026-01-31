@@ -77,6 +77,13 @@ CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 
+# Max lengths for stack-based topic building.
+# These values are used in cv.Length() validators below to ensure the C++ code
+# in mqtt_component.cpp can safely use fixed-size stack buffers without overflow.
+# If you change these, update the corresponding constants in mqtt_component.cpp.
+TOPIC_PREFIX_MAX_LEN = 64  # Default is device name, typically short
+DISCOVERY_PREFIX_MAX_LEN = 64  # Default is "homeassistant" (13 chars)
+
 
 def validate_message_just_topic(value):
     value = cv.publish_topic(value)
@@ -106,6 +113,7 @@ MQTT_MESSAGE_SCHEMA = cv.Any(
 
 mqtt_ns = cg.esphome_ns.namespace("mqtt")
 MQTTMessage = mqtt_ns.struct("MQTTMessage")
+MQTTClientDisconnectReason = mqtt_ns.enum("MQTTClientDisconnectReason")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
 MQTTPublishAction = mqtt_ns.class_("MQTTPublishAction", automation.Action)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
@@ -117,9 +125,11 @@ MQTTMessageTrigger = mqtt_ns.class_(
 MQTTJsonMessageTrigger = mqtt_ns.class_(
     "MQTTJsonMessageTrigger", automation.Trigger.template(cg.JsonObjectConst)
 )
-MQTTConnectTrigger = mqtt_ns.class_("MQTTConnectTrigger", automation.Trigger.template())
+MQTTConnectTrigger = mqtt_ns.class_(
+    "MQTTConnectTrigger", automation.Trigger.template(cg.bool_)
+)
 MQTTDisconnectTrigger = mqtt_ns.class_(
-    "MQTTDisconnectTrigger", automation.Trigger.template()
+    "MQTTDisconnectTrigger", automation.Trigger.template(MQTTClientDisconnectReason)
 )
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 MQTTConnectedCondition = mqtt_ns.class_("MQTTConnectedCondition", Condition)
@@ -233,11 +243,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
             cv.Optional(CONF_CLIENT_ID): cv.string,
-            cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
+            cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
             ),
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
-                cv.string, cv.only_with_esp_idf
+                cv.string, cv.only_on_esp32
             ),
             cv.Inclusive(CONF_CLIENT_CERTIFICATE, "cert-key-pair"): cv.All(
                 cv.string, cv.only_on_esp32
@@ -245,17 +255,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.All(
                 cv.string, cv.only_on_esp32
             ),
-            cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
+            cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
             ),
             cv.Optional(CONF_DISCOVERY, default=True): cv.Any(
                 cv.boolean, cv.one_of("CLEAN", upper=True)
             ),
             cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
             cv.Optional(CONF_DISCOVER_IP, default=True): cv.boolean,
-            cv.Optional(
-                CONF_DISCOVERY_PREFIX, default="homeassistant"
-            ): cv.publish_topic,
+            cv.Optional(CONF_DISCOVERY_PREFIX, default="homeassistant"): cv.All(
+                cv.publish_topic, cv.Length(max=DISCOVERY_PREFIX_MAX_LEN)
+            ),
             cv.Optional(CONF_DISCOVERY_UNIQUE_ID_GENERATOR, default="legacy"): cv.enum(
                 MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS
             ),
@@ -266,7 +276,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
-            cv.Optional(CONF_TOPIC_PREFIX, default=lambda: CORE.name): cv.publish_topic,
+            cv.Optional(CONF_TOPIC_PREFIX, default=lambda: CORE.name): cv.All(
+                cv.publish_topic, cv.Length(max=TOPIC_PREFIX_MAX_LEN)
+            ),
             cv.Optional(CONF_LOG_TOPIC): cv.Any(
                 None,
                 MQTT_MESSAGE_BASE.extend(
@@ -338,6 +350,7 @@ def exp_mqtt_message(config):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
     # Add required libraries for ESP8266 and LibreTiny
     if CORE.is_esp8266 or CORE.is_libretiny:
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
@@ -420,6 +433,8 @@ async def to_code(config):
         cg.add(var.disable_log_message())
     else:
         cg.add(var.set_log_message_template(exp_mqtt_message(log_topic)))
+        # Request a log listener slot only when log topic is enabled
+        logger.request_log_listener()
 
         if CONF_LEVEL in log_topic:
             cg.add(var.set_log_level(logger.LOG_LEVELS[log_topic[CONF_LEVEL]]))
@@ -466,11 +481,15 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_CONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(
+            trigger, [(cg.bool_, "session_present")], conf
+        )
 
     for conf in config.get(CONF_ON_DISCONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(
+            trigger, [(MQTTClientDisconnectReason, "reason")], conf
+        )
 
     cg.add(var.set_publish_nan_as_none(config[CONF_PUBLISH_NAN_AS_NONE]))
 
@@ -556,9 +575,13 @@ async def register_mqtt_component(var, config):
     if not config.get(CONF_DISCOVERY, True):
         cg.add(var.disable_discovery())
     if CONF_STATE_TOPIC in config:
-        cg.add(var.set_custom_state_topic(config[CONF_STATE_TOPIC]))
+        state_topic = await cg.templatable(config[CONF_STATE_TOPIC], [], cg.std_string)
+        cg.add(var.set_custom_state_topic(state_topic))
     if CONF_COMMAND_TOPIC in config:
-        cg.add(var.set_custom_command_topic(config[CONF_COMMAND_TOPIC]))
+        command_topic = await cg.templatable(
+            config[CONF_COMMAND_TOPIC], [], cg.std_string
+        )
+        cg.add(var.set_custom_command_topic(command_topic))
     if CONF_COMMAND_RETAIN in config:
         cg.add(var.set_command_retain(config[CONF_COMMAND_RETAIN]))
     if CONF_AVAILABILITY in config:

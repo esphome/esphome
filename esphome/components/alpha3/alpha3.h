@@ -15,10 +15,8 @@ namespace alpha3 {
 namespace espbt = esphome::esp32_ble_tracker;
 
 static const espbt::ESPBTUUID ALPHA3_GENI_SERVICE_UUID = espbt::ESPBTUUID::from_uint16(0xfe5d);
-static const espbt::ESPBTUUID ALPHA3_GENI_CHARACTERISTIC_UUID =
-    espbt::ESPBTUUID::from_raw({static_cast<char>(0xa9), 0x7b, static_cast<char>(0xb8), static_cast<char>(0x85), 0x0,
-                                0x1a, 0x28, static_cast<char>(0xaa), 0x2a, 0x43, 0x6e, 0x3, static_cast<char>(0xd1),
-                                static_cast<char>(0xff), static_cast<char>(0x9c), static_cast<char>(0x85)});
+static const espbt::ESPBTUUID ALPHA3_GENI_CHARACTERISTIC_UUID = espbt::ESPBTUUID::from_raw(
+    {0xa9, 0x7b, 0xb8, 0x85, 0x00, 0x1a, 0x28, 0xaa, 0x2a, 0x43, 0x6e, 0x03, 0xd1, 0xff, 0x9c, 0x85});
 static const int16_t GENI_RESPONSE_HEADER_LENGTH = 13;
 static const size_t GENI_RESPONSE_TYPE_LENGTH = 8;
 

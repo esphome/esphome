@@ -11,7 +11,12 @@ namespace http_request {
 
 // The update function runs in a task only on ESP32s.
 #ifdef USE_ESP32
-#define UPDATE_RETURN vTaskDelete(nullptr)  // Delete the current update task
+// vTaskDelete doesn't return, but clang-tidy doesn't know that
+#define UPDATE_RETURN \
+  do { \
+    vTaskDelete(nullptr); \
+    __builtin_unreachable(); \
+  } while (0)
 #else
 #define UPDATE_RETURN return
 #endif
@@ -20,19 +25,19 @@ static const char *const TAG = "http_request.update";
 
 static const size_t MAX_READ_SIZE = 256;
 
-void HttpRequestUpdate::setup() {
-  this->ota_parent_->add_on_state_callback([this](ota::OTAState state, float progress, uint8_t err) {
-    if (state == ota::OTAState::OTA_IN_PROGRESS) {
-      this->state_ = update::UPDATE_STATE_INSTALLING;
-      this->update_info_.has_progress = true;
-      this->update_info_.progress = progress;
-      this->publish_state();
-    } else if (state == ota::OTAState::OTA_ABORT || state == ota::OTAState::OTA_ERROR) {
-      this->state_ = update::UPDATE_STATE_AVAILABLE;
-      this->status_set_error(LOG_STR("Failed to install firmware"));
-      this->publish_state();
-    }
-  });
+void HttpRequestUpdate::setup() { this->ota_parent_->add_state_listener(this); }
+
+void HttpRequestUpdate::on_ota_state(ota::OTAState state, float progress, uint8_t error) {
+  if (state == ota::OTAState::OTA_IN_PROGRESS) {
+    this->state_ = update::UPDATE_STATE_INSTALLING;
+    this->update_info_.has_progress = true;
+    this->update_info_.progress = progress;
+    this->publish_state();
+  } else if (state == ota::OTAState::OTA_ABORT || state == ota::OTAState::OTA_ERROR) {
+    this->state_ = update::UPDATE_STATE_AVAILABLE;
+    this->status_set_error(LOG_STR("Failed to install firmware"));
+    this->publish_state();
+  }
 }
 
 void HttpRequestUpdate::update() {
@@ -70,14 +75,21 @@ void HttpRequestUpdate::update_task(void *params) {
     UPDATE_RETURN;
   }
 
-  size_t read_index = 0;
-  while (container->get_bytes_read() < container->content_length) {
-    int read_bytes = container->read(data + read_index, MAX_READ_SIZE);
-
-    yield();
-
-    read_index += read_bytes;
+  auto read_result = http_read_fully(container.get(), data, container->content_length, MAX_READ_SIZE,
+                                     this_update->request_parent_->get_timeout());
+  if (read_result.status != HttpReadStatus::OK) {
+    if (read_result.status == HttpReadStatus::TIMEOUT) {
+      ESP_LOGE(TAG, "Timeout reading manifest");
+    } else {
+      ESP_LOGE(TAG, "Error reading manifest: %d", read_result.error_code);
+    }
+    // Defer to main loop to avoid race condition on component_state_ read-modify-write
+    this_update->defer([this_update]() { this_update->status_set_error(LOG_STR("Failed to read manifest")); });
+    allocator.deallocate(data, container->content_length);
+    container->end();
+    UPDATE_RETURN;
   }
+  size_t read_index = container->get_bytes_read();
 
   bool valid = false;
   {  // Ensures the response string falls out of scope and deallocates before the task ends
@@ -88,35 +100,36 @@ void HttpRequestUpdate::update_task(void *params) {
     container.reset();  // Release ownership of the container's shared_ptr
 
     valid = json::parse_json(response, [this_update](JsonObject root) -> bool {
-      if (!root["name"].is<const char *>() || !root["version"].is<const char *>() || !root["builds"].is<JsonArray>()) {
+      if (!root[ESPHOME_F("name")].is<const char *>() || !root[ESPHOME_F("version")].is<const char *>() ||
+          !root[ESPHOME_F("builds")].is<JsonArray>()) {
         ESP_LOGE(TAG, "Manifest does not contain required fields");
         return false;
       }
-      this_update->update_info_.title = root["name"].as<std::string>();
-      this_update->update_info_.latest_version = root["version"].as<std::string>();
+      this_update->update_info_.title = root[ESPHOME_F("name")].as<std::string>();
+      this_update->update_info_.latest_version = root[ESPHOME_F("version")].as<std::string>();
 
-      for (auto build : root["builds"].as<JsonArray>()) {
-        if (!build["chipFamily"].is<const char *>()) {
+      for (auto build : root[ESPHOME_F("builds")].as<JsonArray>()) {
+        if (!build[ESPHOME_F("chipFamily")].is<const char *>()) {
           ESP_LOGE(TAG, "Manifest does not contain required fields");
           return false;
         }
-        if (build["chipFamily"] == ESPHOME_VARIANT) {
-          if (!build["ota"].is<JsonObject>()) {
+        if (build[ESPHOME_F("chipFamily")] == ESPHOME_VARIANT) {
+          if (!build[ESPHOME_F("ota")].is<JsonObject>()) {
             ESP_LOGE(TAG, "Manifest does not contain required fields");
             return false;
           }
-          JsonObject ota = build["ota"].as<JsonObject>();
-          if (!ota["path"].is<const char *>() || !ota["md5"].is<const char *>()) {
+          JsonObject ota = build[ESPHOME_F("ota")].as<JsonObject>();
+          if (!ota[ESPHOME_F("path")].is<const char *>() || !ota[ESPHOME_F("md5")].is<const char *>()) {
             ESP_LOGE(TAG, "Manifest does not contain required fields");
             return false;
           }
-          this_update->update_info_.firmware_url = ota["path"].as<std::string>();
-          this_update->update_info_.md5 = ota["md5"].as<std::string>();
+          this_update->update_info_.firmware_url = ota[ESPHOME_F("path")].as<std::string>();
+          this_update->update_info_.md5 = ota[ESPHOME_F("md5")].as<std::string>();
 
-          if (ota["summary"].is<const char *>())
-            this_update->update_info_.summary = ota["summary"].as<std::string>();
-          if (ota["release_url"].is<const char *>())
-            this_update->update_info_.release_url = ota["release_url"].as<std::string>();
+          if (ota[ESPHOME_F("summary")].is<const char *>())
+            this_update->update_info_.summary = ota[ESPHOME_F("summary")].as<std::string>();
+          if (ota[ESPHOME_F("release_url")].is<const char *>())
+            this_update->update_info_.release_url = ota[ESPHOME_F("release_url")].as<std::string>();
 
           return true;
         }

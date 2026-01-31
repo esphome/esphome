@@ -70,7 +70,8 @@ uint8_t PN7150::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_
   nfc::NciMessage rx;
   nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {XCHG_DATA_OID, nfc::MIFARE_CMD_READ, block_num});
 
-  ESP_LOGVV(TAG, "Read XCHG_DATA_REQ: %s", nfc::format_bytes(tx.get_message()).c_str());
+  char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+  ESP_LOGVV(TAG, "Read XCHG_DATA_REQ: %s", nfc::format_bytes_to(buf, tx.get_message()));
   if (this->transceive_(tx, rx) != nfc::STATUS_OK) {
     ESP_LOGE(TAG, "Timeout reading tag data");
     return nfc::STATUS_FAILED;
@@ -79,13 +80,13 @@ uint8_t PN7150::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_
   if ((!rx.message_type_is(nfc::NCI_PKT_MT_DATA)) || (!rx.simple_status_response_is(XCHG_DATA_OID)) ||
       (!rx.message_length_is(18))) {
     ESP_LOGE(TAG, "MFC read block failed - block 0x%02x", block_num);
-    ESP_LOGV(TAG, "Read response: %s", nfc::format_bytes(rx.get_message()).c_str());
+    ESP_LOGV(TAG, "Read response: %s", nfc::format_bytes_to(buf, rx.get_message()));
     return nfc::STATUS_FAILED;
   }
 
   data.insert(data.begin(), rx.get_message().begin() + 4, rx.get_message().end() - 1);
 
-  ESP_LOGVV(TAG, " Block %u: %s", block_num, nfc::format_bytes(data).c_str());
+  ESP_LOGVV(TAG, " Block %u: %s", block_num, nfc::format_bytes_to(buf, data));
   return nfc::STATUS_OK;
 }
 
@@ -111,7 +112,8 @@ uint8_t PN7150::auth_mifare_classic_block_(uint8_t block_num, uint8_t key_num, c
     tx.get_message().insert(tx.get_message().end(), key, key + 6);
   }
 
-  ESP_LOGVV(TAG, "MFC_AUTHENTICATE_REQ: %s", nfc::format_bytes(tx.get_message()).c_str());
+  char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+  ESP_LOGVV(TAG, "MFC_AUTHENTICATE_REQ: %s", nfc::format_bytes_to(buf, tx.get_message()));
   if (this->transceive_(tx, rx) != nfc::STATUS_OK) {
     ESP_LOGE(TAG, "Sending MFC_AUTHENTICATE_REQ failed");
     return nfc::STATUS_FAILED;
@@ -119,7 +121,7 @@ uint8_t PN7150::auth_mifare_classic_block_(uint8_t block_num, uint8_t key_num, c
   if ((!rx.message_type_is(nfc::NCI_PKT_MT_DATA)) || (!rx.simple_status_response_is(MFC_AUTHENTICATE_OID)) ||
       (rx.get_message()[4] != nfc::STATUS_OK)) {
     ESP_LOGE(TAG, "MFC authentication failed - block 0x%02x", block_num);
-    ESP_LOGVV(TAG, "MFC_AUTHENTICATE_RSP: %s", nfc::format_bytes(rx.get_message()).c_str());
+    ESP_LOGVV(TAG, "MFC_AUTHENTICATE_RSP: %s", nfc::format_bytes_to(buf, rx.get_message()));
     return nfc::STATUS_FAILED;
   }
 
@@ -238,7 +240,8 @@ uint8_t PN7150::write_mifare_classic_block_(uint8_t block_num, std::vector<uint8
   nfc::NciMessage rx;
   nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {XCHG_DATA_OID, nfc::MIFARE_CMD_WRITE, block_num});
 
-  ESP_LOGVV(TAG, "Write XCHG_DATA_REQ 1: %s", nfc::format_bytes(tx.get_message()).c_str());
+  char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+  ESP_LOGVV(TAG, "Write XCHG_DATA_REQ 1: %s", nfc::format_bytes_to(buf, tx.get_message()));
   if (this->transceive_(tx, rx) != nfc::STATUS_OK) {
     ESP_LOGE(TAG, "Sending XCHG_DATA_REQ failed");
     return nfc::STATUS_FAILED;
@@ -247,7 +250,7 @@ uint8_t PN7150::write_mifare_classic_block_(uint8_t block_num, std::vector<uint8
   tx.set_payload({XCHG_DATA_OID});
   tx.get_message().insert(tx.get_message().end(), write_data.begin(), write_data.end());
 
-  ESP_LOGVV(TAG, "Write XCHG_DATA_REQ 2: %s", nfc::format_bytes(tx.get_message()).c_str());
+  ESP_LOGVV(TAG, "Write XCHG_DATA_REQ 2: %s", nfc::format_bytes_to(buf, tx.get_message()));
   if (this->transceive_(tx, rx, NFCC_TAG_WRITE_TIMEOUT) != nfc::STATUS_OK) {
     ESP_LOGE(TAG, "MFC XCHG_DATA timed out waiting for XCHG_DATA_RSP during block write");
     return nfc::STATUS_FAILED;
@@ -256,7 +259,7 @@ uint8_t PN7150::write_mifare_classic_block_(uint8_t block_num, std::vector<uint8
   if ((!rx.message_type_is(nfc::NCI_PKT_MT_DATA)) || (!rx.simple_status_response_is(XCHG_DATA_OID)) ||
       (rx.get_message()[4] != nfc::MIFARE_CMD_ACK)) {
     ESP_LOGE(TAG, "MFC write block failed - block 0x%02x", block_num);
-    ESP_LOGV(TAG, "Write response: %s", nfc::format_bytes(rx.get_message()).c_str());
+    ESP_LOGV(TAG, "Write response: %s", nfc::format_bytes_to(buf, rx.get_message()));
     return nfc::STATUS_FAILED;
   }
 
@@ -310,7 +313,8 @@ uint8_t PN7150::halt_mifare_classic_tag_() {
   nfc::NciMessage rx;
   nfc::NciMessage tx(nfc::NCI_PKT_MT_DATA, {XCHG_DATA_OID, nfc::MIFARE_CMD_HALT, 0});
 
-  ESP_LOGVV(TAG, "Halt XCHG_DATA_REQ: %s", nfc::format_bytes(tx.get_message()).c_str());
+  char buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
+  ESP_LOGVV(TAG, "Halt XCHG_DATA_REQ: %s", nfc::format_bytes_to(buf, tx.get_message()));
   if (this->transceive_(tx, rx, NFCC_TAG_WRITE_TIMEOUT) != nfc::STATUS_OK) {
     ESP_LOGE(TAG, "Sending halt XCHG_DATA_REQ failed");
     return nfc::STATUS_FAILED;

@@ -158,12 +158,14 @@ void ATM90E32Component::setup() {
 
   if (this->enable_offset_calibration_) {
     // Initialize flash storage for offset calibrations
-    uint32_t o_hash = fnv1_hash(std::string("_offset_calibration_") + this->cs_summary_);
+    uint32_t o_hash = fnv1_hash("_offset_calibration_");
+    o_hash = fnv1_hash_extend(o_hash, this->cs_summary_);
     this->offset_pref_ = global_preferences->make_preference<OffsetCalibration[3]>(o_hash, true);
     this->restore_offset_calibrations_();
 
     // Initialize flash storage for power offset calibrations
-    uint32_t po_hash = fnv1_hash(std::string("_power_offset_calibration_") + this->cs_summary_);
+    uint32_t po_hash = fnv1_hash("_power_offset_calibration_");
+    po_hash = fnv1_hash_extend(po_hash, this->cs_summary_);
     this->power_offset_pref_ = global_preferences->make_preference<PowerOffsetCalibration[3]>(po_hash, true);
     this->restore_power_offset_calibrations_();
   } else {
@@ -183,7 +185,8 @@ void ATM90E32Component::setup() {
 
   if (this->enable_gain_calibration_) {
     // Initialize flash storage for gain calibration
-    uint32_t g_hash = fnv1_hash(std::string("_gain_calibration_") + this->cs_summary_);
+    uint32_t g_hash = fnv1_hash("_gain_calibration_");
+    g_hash = fnv1_hash_extend(g_hash, this->cs_summary_);
     this->gain_calibration_pref_ = global_preferences->make_preference<GainCalibration[3]>(g_hash, true);
     this->restore_gain_calibrations_();
 

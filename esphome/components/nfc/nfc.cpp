@@ -8,9 +8,20 @@ namespace nfc {
 
 static const char *const TAG = "nfc";
 
-std::string format_uid(const std::vector<uint8_t> &uid) { return format_hex_pretty(uid, '-', false); }
+char *format_uid_to(char *buffer, const std::vector<uint8_t> &uid) {
+  return format_hex_pretty_to(buffer, FORMAT_UID_BUFFER_SIZE, uid.data(), uid.size(), '-');
+}
 
-std::string format_bytes(const std::vector<uint8_t> &bytes) { return format_hex_pretty(bytes, ' ', false); }
+char *format_bytes_to(char *buffer, const std::vector<uint8_t> &bytes) {
+  return format_hex_pretty_to(buffer, FORMAT_BYTES_BUFFER_SIZE, bytes.data(), bytes.size(), ' ');
+}
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+// Deprecated wrappers intentionally use heap-allocating version for backward compatibility
+std::string format_uid(const std::vector<uint8_t> &uid) { return format_hex_pretty(uid, '-', false); }        // NOLINT
+std::string format_bytes(const std::vector<uint8_t> &bytes) { return format_hex_pretty(bytes, ' ', false); }  // NOLINT
+#pragma GCC diagnostic pop
 
 uint8_t guess_tag_type(uint8_t uid_length) {
   if (uid_length == 4) {

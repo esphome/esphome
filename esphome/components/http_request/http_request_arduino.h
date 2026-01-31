@@ -2,9 +2,9 @@
 
 #include "http_request.h"
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
 
-#if defined(USE_ESP32) || defined(USE_RP2040)
+#if defined(USE_RP2040)
 #include <HTTPClient.h>
 #include <WiFiClient.h>
 #endif
@@ -15,8 +15,7 @@
 #endif
 #endif
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 class HttpRequestArduino;
 class HttpContainerArduino : public HttpContainer {
@@ -36,7 +35,6 @@ class HttpRequestArduino : public HttpRequestComponent {
                                          const std::set<std::string> &collect_headers) override;
 };
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO && !USE_ESP32

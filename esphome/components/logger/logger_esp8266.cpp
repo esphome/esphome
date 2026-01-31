@@ -7,26 +7,21 @@ namespace esphome::logger {
 static const char *const TAG = "logger";
 
 void Logger::pre_setup() {
-  if (this->baud_rate_ > 0) {
-    switch (this->uart_) {
-      case UART_SELECTION_UART0:
-      case UART_SELECTION_UART0_SWAP:
-        this->hw_serial_ = &Serial;
-        Serial.begin(this->baud_rate_);
-        if (this->uart_ == UART_SELECTION_UART0_SWAP) {
-          Serial.swap();
-        }
-        Serial.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
-        break;
-      case UART_SELECTION_UART1:
-        this->hw_serial_ = &Serial1;
-        Serial1.begin(this->baud_rate_);
-        Serial1.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
-        break;
-    }
-  } else {
-    uart_set_debug(UART_NO);
+#if defined(USE_ESP8266_LOGGER_SERIAL)
+  this->hw_serial_ = &Serial;
+  Serial.begin(this->baud_rate_);
+  if (this->uart_ == UART_SELECTION_UART0_SWAP) {
+    Serial.swap();
   }
+  Serial.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
+#elif defined(USE_ESP8266_LOGGER_SERIAL1)
+  this->hw_serial_ = &Serial1;
+  Serial1.begin(this->baud_rate_);
+  Serial1.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
+#else
+  // No serial logging - disable debug output
+  uart_set_debug(UART_NO);
+#endif
 
   global_logger = this;
 
@@ -39,15 +34,16 @@ void HOT Logger::write_msg_(const char *msg, size_t len) {
 }
 
 const LogString *Logger::get_uart_selection_() {
-  switch (this->uart_) {
-    case UART_SELECTION_UART0:
-      return LOG_STR("UART0");
-    case UART_SELECTION_UART1:
-      return LOG_STR("UART1");
-    case UART_SELECTION_UART0_SWAP:
-    default:
-      return LOG_STR("UART0_SWAP");
+#if defined(USE_ESP8266_LOGGER_SERIAL)
+  if (this->uart_ == UART_SELECTION_UART0_SWAP) {
+    return LOG_STR("UART0_SWAP");
   }
+  return LOG_STR("UART0");
+#elif defined(USE_ESP8266_LOGGER_SERIAL1)
+  return LOG_STR("UART1");
+#else
+  return LOG_STR("NONE");
+#endif
 }
 
 }  // namespace esphome::logger

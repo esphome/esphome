@@ -126,8 +126,10 @@ void RpiDpiRgb::draw_pixel_at(int x, int y, Color color) {
 
 void RpiDpiRgb::dump_config() {
   ESP_LOGCONFIG("", "RPI_DPI_RGB LCD");
-  ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
-  ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
+  ESP_LOGCONFIG(TAG,
+                "  Height: %u\n"
+                "  Width: %u",
+                this->height_, this->width_);
   LOG_PIN("  DE Pin: ", this->de_pin_);
   LOG_PIN("  Enable Pin: ", this->enable_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);

@@ -6,8 +6,7 @@
 
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace alarm_control_panel {
+namespace esphome::alarm_control_panel {
 
 class AlarmControlPanel;
 
@@ -15,7 +14,8 @@ class AlarmControlPanelCall {
  public:
   AlarmControlPanelCall(AlarmControlPanel *parent);
 
-  AlarmControlPanelCall &set_code(const std::string &code);
+  AlarmControlPanelCall &set_code(const char *code);
+  AlarmControlPanelCall &set_code(const std::string &code) { return this->set_code(code.c_str()); }
   AlarmControlPanelCall &arm_away();
   AlarmControlPanelCall &arm_home();
   AlarmControlPanelCall &arm_night();
@@ -36,5 +36,4 @@ class AlarmControlPanelCall {
   void validate_();
 };
 
-}  // namespace alarm_control_panel
-}  // namespace esphome
+}  // namespace esphome::alarm_control_panel

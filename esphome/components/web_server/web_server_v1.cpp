@@ -3,8 +3,30 @@
 
 #if USE_WEBSERVER_VERSION == 1
 
-namespace esphome {
-namespace web_server {
+namespace esphome::web_server {
+
+// Write HTML-escaped text to stream (escapes ", &, <, >)
+static void write_html_escaped(AsyncResponseStream *stream, const char *text) {
+  for (const char *p = text; *p; ++p) {
+    switch (*p) {
+      case '"':
+        stream->print("&quot;");
+        break;
+      case '&':
+        stream->print("&amp;");
+        break;
+      case '<':
+        stream->print("&lt;");
+        break;
+      case '>':
+        stream->print("&gt;");
+        break;
+      default:
+        stream->write(*p);
+        break;
+    }
+  }
+}
 
 void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
                const std::function<void(AsyncResponseStream &stream, EntityBase *obj)> &action_func = nullptr) {
@@ -15,9 +37,29 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
   stream->print("\" id=\"");
   stream->print(klass.c_str());
   stream->print("-");
-  stream->print(obj->get_object_id().c_str());
+  char object_id_buf[OBJECT_ID_MAX_LEN];
+  stream->print(obj->get_object_id_to(object_id_buf).c_str());
+  // Add data attributes for hierarchical URL support
+  stream->print("\" data-domain=\"");
+  stream->print(klass.c_str());
+  stream->print("\" data-name=\"");
+  write_html_escaped(stream, obj->get_name().c_str());
+#ifdef USE_DEVICES
+  Device *device = obj->get_device();
+  if (device != nullptr) {
+    stream->print("\" data-device=\"");
+    write_html_escaped(stream, device->get_name());
+  }
+#endif
   stream->print("\"><td>");
-  stream->print(obj->get_name().c_str());
+#ifdef USE_DEVICES
+  if (device != nullptr) {
+    stream->print("[");
+    write_html_escaped(stream, device->get_name());
+    stream->print("] ");
+  }
+#endif
+  write_html_escaped(stream, obj->get_name().c_str());
   stream->print("</td><td></td><td>");
   stream->print(action.c_str());
   if (action_func) {
@@ -160,7 +202,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
         stream.print("<option></option>");
         for (auto const &option : select->traits.get_options()) {
           stream.print("<option>");
-          stream.print(option.c_str());
+          stream.print(option);
           stream.print("</option>");
         }
         stream.print("</select>");
@@ -190,6 +232,13 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   }
 #endif
 
+#ifdef USE_WATER_HEATER
+  for (auto *obj : App.get_water_heaters()) {
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "water_heater", "");
+  }
+#endif
+
   stream->print(ESPHOME_F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/\">ESPHome Web API</a> for "
                           "REST API documentation.</p>"));
 #if defined(USE_WEBSERVER_OTA) && !defined(USE_WEBSERVER_OTA_DISABLED)
@@ -214,6 +263,5 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   request->send(stream);
 }
 
-}  // namespace web_server
-}  // namespace esphome
+}  // namespace esphome::web_server
 #endif

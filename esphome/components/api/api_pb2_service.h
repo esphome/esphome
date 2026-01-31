@@ -12,23 +12,21 @@ class APIServerConnectionBase : public ProtoService {
  public:
 #ifdef HAS_PROTO_MESSAGE_DUMP
  protected:
-  void log_send_message_(const char *name, const std::string &dump);
+  void log_send_message_(const char *name, const char *dump);
+  void log_receive_message_(const LogString *name, const ProtoMessage &msg);
 
  public:
 #endif
 
   bool send_message(const ProtoMessage &msg, uint8_t message_type) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-    this->log_send_message_(msg.message_name(), msg.dump());
+    DumpBuffer dump_buf;
+    this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));
 #endif
     return this->send_message_(msg, message_type);
   }
 
   virtual void on_hello_request(const HelloRequest &value){};
-
-#ifdef USE_API_PASSWORD
-  virtual void on_authentication_request(const AuthenticationRequest &value){};
-#endif
 
   virtual void on_disconnect_request(const DisconnectRequest &value){};
   virtual void on_disconnect_response(const DisconnectResponse &value){};
@@ -89,6 +87,10 @@ class APIServerConnectionBase : public ProtoService {
 
 #ifdef USE_CLIMATE
   virtual void on_climate_command_request(const ClimateCommandRequest &value){};
+#endif
+
+#ifdef USE_WATER_HEATER
+  virtual void on_water_heater_command_request(const WaterHeaterCommandRequest &value){};
 #endif
 
 #ifdef USE_NUMBER
@@ -217,6 +219,11 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_ZWAVE_PROXY
   virtual void on_z_wave_proxy_request(const ZWaveProxyRequest &value){};
 #endif
+
+#ifdef USE_IR_RF
+  virtual void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &value){};
+#endif
+
  protected:
   void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;
 };
@@ -224,9 +231,6 @@ class APIServerConnectionBase : public ProtoService {
 class APIServerConnection : public APIServerConnectionBase {
  public:
   virtual bool send_hello_response(const HelloRequest &msg) = 0;
-#ifdef USE_API_PASSWORD
-  virtual bool send_authenticate_response(const AuthenticationRequest &msg) = 0;
-#endif
   virtual bool send_disconnect_response(const DisconnectRequest &msg) = 0;
   virtual bool send_ping_response(const PingRequest &msg) = 0;
   virtual bool send_device_info_response(const DeviceInfoRequest &msg) = 0;
@@ -351,11 +355,11 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_ZWAVE_PROXY
   virtual void zwave_proxy_request(const ZWaveProxyRequest &msg) = 0;
 #endif
+#ifdef USE_IR_RF
+  virtual void infrared_rf_transmit_raw_timings(const InfraredRFTransmitRawTimingsRequest &msg) = 0;
+#endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
-#ifdef USE_API_PASSWORD
-  void on_authentication_request(const AuthenticationRequest &msg) override;
-#endif
   void on_disconnect_request(const DisconnectRequest &msg) override;
   void on_ping_request(const PingRequest &msg) override;
   void on_device_info_request(const DeviceInfoRequest &msg) override;
@@ -479,6 +483,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_ZWAVE_PROXY
   void on_z_wave_proxy_request(const ZWaveProxyRequest &msg) override;
+#endif
+#ifdef USE_IR_RF
+  void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg) override;
 #endif
   void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;
 };

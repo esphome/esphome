@@ -31,6 +31,7 @@ enum PMSX003State {
 class PMSX003Component : public uart::UARTDevice, public Component {
  public:
   PMSX003Component() = default;
+  void setup() override;
   void dump_config() override;
   void loop() override;
 

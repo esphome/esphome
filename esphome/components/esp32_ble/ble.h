@@ -212,17 +212,23 @@ extern ESP32BLE *global_ble;
 
 template<typename... Ts> class BLEEnabledCondition : public Condition<Ts...> {
  public:
-  bool check(const Ts &...x) override { return global_ble->is_active(); }
+  bool check(const Ts &...x) override { return global_ble != nullptr && global_ble->is_active(); }
 };
 
 template<typename... Ts> class BLEEnableAction : public Action<Ts...> {
  public:
-  void play(const Ts &...x) override { global_ble->enable(); }
+  void play(const Ts &...x) override {
+    if (global_ble != nullptr)
+      global_ble->enable();
+  }
 };
 
 template<typename... Ts> class BLEDisableAction : public Action<Ts...> {
  public:
-  void play(const Ts &...x) override { global_ble->disable(); }
+  void play(const Ts &...x) override {
+    if (global_ble != nullptr)
+      global_ble->disable();
+  }
 };
 
 }  // namespace esphome::esp32_ble

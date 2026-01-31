@@ -28,16 +28,14 @@ const LogString *lock_state_to_string(LockState state) {
 Lock::Lock() : state(LOCK_STATE_NONE) {}
 LockCall Lock::make_call() { return LockCall(this); }
 
-void Lock::lock() {
+void Lock::set_state_(LockState state) {
   auto call = this->make_call();
-  call.set_state(LOCK_STATE_LOCKED);
+  call.set_state(state);
   this->control(call);
 }
-void Lock::unlock() {
-  auto call = this->make_call();
-  call.set_state(LOCK_STATE_UNLOCKED);
-  this->control(call);
-}
+
+void Lock::lock() { this->set_state_(LOCK_STATE_LOCKED); }
+void Lock::unlock() { this->set_state_(LOCK_STATE_UNLOCKED); }
 void Lock::open() {
   if (traits.get_supports_open()) {
     ESP_LOGD(TAG, "'%s' Opening.", this->get_name().c_str());
@@ -52,7 +50,7 @@ void Lock::publish_state(LockState state) {
 
   this->state = state;
   this->rtc_.save(&this->state);
-  ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), LOG_STR_ARG(lock_state_to_string(state)));
+  ESP_LOGD(TAG, "'%s' >> %s", this->name_.c_str(), LOG_STR_ARG(lock_state_to_string(state)));
   this->state_callback_.call();
 #if defined(USE_LOCK) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_lock_update(this);

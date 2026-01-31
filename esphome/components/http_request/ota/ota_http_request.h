@@ -24,7 +24,6 @@ enum OtaHttpRequestError : uint8_t {
 
 class OtaHttpRequestComponent : public ota::OTAComponent, public Parented<HttpRequestComponent> {
  public:
-  void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 

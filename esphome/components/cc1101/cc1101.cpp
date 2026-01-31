@@ -98,25 +98,8 @@ CC1101Component::CC1101Component() {
   this->state_.LENGTH_CONFIG = 2;
   this->state_.FS_AUTOCAL = 1;
 
-  // Default Settings
-  this->set_frequency(433920);
-  this->set_if_frequency(153);
-  this->set_filter_bandwidth(203);
-  this->set_channel(0);
-  this->set_channel_spacing(200);
-  this->set_symbol_rate(5000);
-  this->set_sync_mode(SyncMode::SYNC_MODE_NONE);
-  this->set_carrier_sense_above_threshold(true);
-  this->set_modulation_type(Modulation::MODULATION_ASK_OOK);
-  this->set_magn_target(MagnTarget::MAGN_TARGET_42DB);
-  this->set_max_lna_gain(MaxLnaGain::MAX_LNA_GAIN_DEFAULT);
-  this->set_max_dvga_gain(MaxDvgaGain::MAX_DVGA_GAIN_MINUS_3);
-  this->set_lna_priority(false);
-  this->set_wait_time(WaitTime::WAIT_TIME_32_SAMPLES);
-
   // CRITICAL: Initialize PA Table to avoid transmitting 0 power (Silence)
   memset(this->pa_table_, 0, sizeof(this->pa_table_));
-  this->set_output_power(10.0f);
 }
 
 void CC1101Component::setup() {
@@ -157,13 +140,23 @@ void CC1101Component::setup() {
     this->write_(static_cast<Register>(i));
   }
   this->set_output_power(this->output_power_requested_);
-  this->strobe_(Command::RX);
+  if (!this->enter_rx_()) {
+    this->mark_failed();
+    return;
+  }
 
   // Defer pin mode setup until after all components have completed setup()
   // This handles the case where remote_transmitter runs after CC1101 and changes pin mode
   if (this->gdo0_pin_ != nullptr) {
     this->defer([this]() { this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT); });
   }
+}
+
+void CC1101Component::call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi) {
+  for (auto &listener : this->listeners_) {
+    listener->on_packet(packet, freq_offset, rssi, lqi);
+  }
+  this->packet_trigger_->trigger(packet, freq_offset, rssi, lqi);
 }
 
 void CC1101Component::loop() {
@@ -180,45 +173,45 @@ void CC1101Component::loop() {
     ESP_LOGW(TAG, "RX FIFO overflow, flushing");
     this->enter_idle_();
     this->strobe_(Command::FRX);
-    this->strobe_(Command::RX);
-    this->wait_for_state_(State::RX);
+    this->enter_rx_();
     return;
   }
 
   // Read packet
-  uint8_t payload_length;
+  uint8_t payload_length, expected_rx;
   if (this->state_.LENGTH_CONFIG == static_cast<uint8_t>(LengthConfig::LENGTH_CONFIG_VARIABLE)) {
     this->read_(Register::FIFO, &payload_length, 1);
+    expected_rx = payload_length + 1;
   } else {
     payload_length = this->state_.PKTLEN;
+    expected_rx = payload_length;
   }
-  if (payload_length == 0 || payload_length > 64) {
-    ESP_LOGW(TAG, "Invalid payload length: %u", payload_length);
+  if (payload_length == 0 || payload_length > 64 || rx_bytes != expected_rx) {
+    ESP_LOGW(TAG, "Invalid packet: rx_bytes %u, payload_length %u", rx_bytes, payload_length);
     this->enter_idle_();
     this->strobe_(Command::FRX);
-    this->strobe_(Command::RX);
-    this->wait_for_state_(State::RX);
+    this->enter_rx_();
     return;
   }
   this->packet_.resize(payload_length);
   this->read_(Register::FIFO, this->packet_.data(), payload_length);
 
-  // Read status and trigger
-  uint8_t status[2];
-  this->read_(Register::FIFO, status, 2);
-  int8_t rssi_raw = static_cast<int8_t>(status[0]);
-  float rssi = (rssi_raw * RSSI_STEP) - RSSI_OFFSET;
-  bool crc_ok = (status[1] & STATUS_CRC_OK_MASK) != 0;
-  uint8_t lqi = status[1] & STATUS_LQI_MASK;
+  // Read status from registers (more reliable than FIFO status bytes due to timing issues)
+  this->read_(Register::FREQEST);
+  this->read_(Register::RSSI);
+  this->read_(Register::LQI);
+  float freq_offset = static_cast<int8_t>(this->state_.FREQEST) * (XTAL_FREQUENCY / (1 << 14));
+  float rssi = (this->state_.RSSI * RSSI_STEP) - RSSI_OFFSET;
+  bool crc_ok = (this->state_.LQI & STATUS_CRC_OK_MASK) != 0;
+  uint8_t lqi = this->state_.LQI & STATUS_LQI_MASK;
   if (this->state_.CRC_EN == 0 || crc_ok) {
-    this->packet_trigger_->trigger(this->packet_, rssi, lqi);
+    this->call_listeners_(this->packet_, freq_offset, rssi, lqi);
   }
 
   // Return to rx
   this->enter_idle_();
   this->strobe_(Command::FRX);
-  this->strobe_(Command::RX);
-  this->wait_for_state_(State::RX);
+  this->enter_rx_();
 }
 
 void CC1101Component::dump_config() {
@@ -228,9 +221,8 @@ void CC1101Component::dump_config() {
                  XTAL_FREQUENCY / (1 << 16);
   float symbol_rate = (((256.0f + this->state_.DRATE_M) * (1 << this->state_.DRATE_E)) / (1 << 28)) * XTAL_FREQUENCY;
   float bw = XTAL_FREQUENCY / (8.0f * (4 + this->state_.CHANBW_M) * (1 << this->state_.CHANBW_E));
-  ESP_LOGCONFIG(TAG, "CC1101:");
-  LOG_PIN("  CS Pin: ", this->cs_);
   ESP_LOGCONFIG(TAG,
+                "CC1101:\n"
                 "  Chip ID: 0x%04X\n"
                 "  Frequency: %" PRId32 " Hz\n"
                 "  Channel: %u\n"
@@ -240,6 +232,7 @@ void CC1101Component::dump_config() {
                 "  Output Power: %.1f dBm",
                 this->chip_id_, freq, this->state_.CHANNR, MODULATION_NAMES[this->state_.MOD_FORMAT & 0x07],
                 symbol_rate, bw, this->output_power_effective_);
+  LOG_PIN("  CS Pin: ", this->cs_);
 }
 
 void CC1101Component::begin_tx() {
@@ -249,9 +242,8 @@ void CC1101Component::begin_tx() {
   if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->pin_mode(gpio::FLAG_OUTPUT);
   }
-  this->strobe_(Command::TX);
-  if (!this->wait_for_state_(State::TX, 50)) {
-    ESP_LOGW(TAG, "Timed out waiting for TX state!");
+  if (!this->enter_tx_()) {
+    ESP_LOGW(TAG, "Failed to enter TX state!");
   }
 }
 
@@ -260,7 +252,9 @@ void CC1101Component::begin_rx() {
   if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
   }
-  this->strobe_(Command::RX);
+  if (!this->enter_rx_()) {
+    ESP_LOGW(TAG, "Failed to enter RX state!");
+  }
 }
 
 void CC1101Component::reset() {
@@ -286,10 +280,32 @@ bool CC1101Component::wait_for_state_(State target_state, uint32_t timeout_ms) {
   return false;
 }
 
+bool CC1101Component::enter_calibrated_(State target_state, Command cmd) {
+  // The PLL must be recalibrated until PLL lock is achieved
+  for (uint8_t retries = PLL_LOCK_RETRIES; retries > 0; retries--) {
+    this->strobe_(cmd);
+    if (!this->wait_for_state_(target_state)) {
+      return false;
+    }
+    this->read_(Register::FSCAL1);
+    if (this->state_.FSCAL1 != FSCAL1_PLL_NOT_LOCKED) {
+      return true;
+    }
+    ESP_LOGW(TAG, "PLL lock failed, retrying calibration");
+    this->enter_idle_();
+  }
+  ESP_LOGE(TAG, "PLL lock failed after retries");
+  return false;
+}
+
 void CC1101Component::enter_idle_() {
   this->strobe_(Command::IDLE);
   this->wait_for_state_(State::IDLE);
 }
+
+bool CC1101Component::enter_rx_() { return this->enter_calibrated_(State::RX, Command::RX); }
+
+bool CC1101Component::enter_tx_() { return this->enter_calibrated_(State::TX, Command::TX); }
 
 uint8_t CC1101Component::strobe_(Command cmd) {
   uint8_t index = static_cast<uint8_t>(cmd);
@@ -352,18 +368,26 @@ CC1101Error CC1101Component::transmit_packet(const std::vector<uint8_t> &packet)
     this->write_(Register::FIFO, static_cast<uint8_t>(packet.size()));
   }
   this->write_(Register::FIFO, packet.data(), packet.size());
+
+  // Calibrate PLL
+  if (!this->enter_calibrated_(State::FSTXON, Command::FSTXON)) {
+    ESP_LOGW(TAG, "PLL lock failed during TX");
+    this->enter_idle_();
+    this->enter_rx_();
+    return CC1101Error::PLL_LOCK;
+  }
+
+  // Transmit packet
   this->strobe_(Command::TX);
   if (!this->wait_for_state_(State::IDLE, 1000)) {
     ESP_LOGW(TAG, "TX timeout");
     this->enter_idle_();
-    this->strobe_(Command::RX);
-    this->wait_for_state_(State::RX);
+    this->enter_rx_();
     return CC1101Error::TIMEOUT;
   }
 
   // Return to rx
-  this->strobe_(Command::RX);
-  this->wait_for_state_(State::RX);
+  this->enter_rx_();
   return CC1101Error::NONE;
 }
 
@@ -420,7 +444,7 @@ void CC1101Component::set_frequency(float value) {
     this->write_(Register::FREQ2);
     this->write_(Register::FREQ1);
     this->write_(Register::FREQ0);
-    this->strobe_(Command::RX);
+    this->enter_rx_();
   }
 }
 
@@ -447,7 +471,7 @@ void CC1101Component::set_channel(uint8_t value) {
   if (this->initialized_) {
     this->enter_idle_();
     this->write_(Register::CHANNR);
-    this->strobe_(Command::RX);
+    this->enter_rx_();
   }
 }
 
@@ -516,7 +540,7 @@ void CC1101Component::set_modulation_type(Modulation value) {
     this->set_output_power(this->output_power_requested_);
     this->write_(Register::MDMCFG2);
     this->write_(Register::FREND0);
-    this->strobe_(Command::RX);
+    this->enter_rx_();
   }
 }
 
@@ -633,12 +657,15 @@ void CC1101Component::set_packet_mode(bool value) {
     this->state_.GDO0_CFG = 0x01;
     // Set max RX FIFO threshold to ensure we only trigger on end-of-packet
     this->state_.FIFO_THR = 15;
+    // Don't append status bytes to FIFO - we read from registers instead
+    this->state_.APPEND_STATUS = 0;
   } else {
     // Configure GDO0 for serial data (async serial mode)
     this->state_.GDO0_CFG = 0x0D;
   }
   if (this->initialized_) {
     this->write_(Register::PKTCTRL0);
+    this->write_(Register::PKTCTRL1);
     this->write_(Register::IOCFG0);
     this->write_(Register::FIFOTHR);
   }

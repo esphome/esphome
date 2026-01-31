@@ -1,5 +1,5 @@
 import re
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import image
@@ -418,20 +418,16 @@ class TextValidator(LValidator):
         self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
     ) -> Expression:
         # Local import to avoid circular import at module level
+        from .lvcode import get_lambda_context_args
 
-        from .lvcode import CodeContext, LambdaContext
-
-        if TYPE_CHECKING:
-            # CodeContext does not have get_automation_parameters
-            # so we need to assert the type here
-            assert isinstance(CodeContext.code_context, LambdaContext)
-        args = args or CodeContext.code_context.get_automation_parameters()
+        args = args or get_lambda_context_args()
 
         if isinstance(value, dict):
             if format_str := value.get(CONF_FORMAT):
                 str_args = [str(x) for x in value[CONF_ARGS]]
                 arg_expr = cg.RawExpression(",".join(str_args))
                 format_str = cpp_string_escape(format_str)
+                # str_sprintf justified: user-defined format, can't optimize without permanent RAM cost
                 sprintf_str = f"str_sprintf({format_str}, {arg_expr}).c_str()"
                 if nanval := value.get(CONF_IF_NAN):
                     nanval = cpp_string_escape(nanval)

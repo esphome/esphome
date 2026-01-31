@@ -1,11 +1,15 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "packet_transport.h"
 
 #include "esphome/components/xxtea/xxtea.h"
 
 namespace esphome {
 namespace packet_transport {
+
+// Maximum bytes to log in hex output (168 * 3 = 504, under TX buffer size of 512)
+static constexpr size_t PACKET_MAX_LOG_BYTES = 168;
 /**
  * Structure of a data packet; everything is little-endian
  *
@@ -263,13 +267,14 @@ void PacketTransport::flush_() {
     xxtea::encrypt((uint32_t *) (encode_buffer.data() + header_len), len / 4,
                    (uint32_t *) this->encryption_key_.data());
   }
-  ESP_LOGVV(TAG, "Sending packet %s", format_hex_pretty(encode_buffer.data(), encode_buffer.size()).c_str());
+  char hex_buf[format_hex_pretty_size(PACKET_MAX_LOG_BYTES)];
+  ESP_LOGVV(TAG, "Sending packet %s", format_hex_pretty_to(hex_buf, encode_buffer.data(), encode_buffer.size()));
   this->send_packet(encode_buffer);
 }
 
 void PacketTransport::add_binary_data_(uint8_t key, const char *id, bool data) {
   auto len = 1 + 1 + 1 + strlen(id);
-  if (len + this->header_.size() + this->data_.size() > this->get_max_packet_size()) {
+  if (round4(this->header_.size()) + round4(this->data_.size() + len) > this->get_max_packet_size()) {
     this->flush_();
     this->init_data_();
   }
@@ -284,7 +289,7 @@ void PacketTransport::add_data_(uint8_t key, const char *id, float data) {
 
 void PacketTransport::add_data_(uint8_t key, const char *id, uint32_t data) {
   auto len = 4 + 1 + 1 + strlen(id);
-  if (len + this->header_.size() + this->data_.size() > this->get_max_packet_size()) {
+  if (round4(this->header_.size()) + round4(this->data_.size() + len) > this->get_max_packet_size()) {
     this->flush_();
     this->init_data_();
   }
@@ -505,8 +510,9 @@ void PacketTransport::process_(const std::vector<uint8_t> &data) {
     }
     if (decoder.get(byte) == DECODE_OK) {
       ESP_LOGW(TAG, "Unknown key %X", byte);
+      char hex_buf[format_hex_pretty_size(PACKET_MAX_LOG_BYTES)];
       ESP_LOGD(TAG, "Buffer pos: %zu contents: %s", data.size() - decoder.get_remaining_size(),
-               format_hex_pretty(data).c_str());
+               format_hex_pretty_to(hex_buf, data.data(), data.size()));
     }
     break;
   }

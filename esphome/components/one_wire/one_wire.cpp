@@ -6,8 +6,10 @@ namespace one_wire {
 static const char *const TAG = "one_wire";
 
 const std::string &OneWireDevice::get_address_name() {
-  if (this->address_name_.empty())
-    this->address_name_ = std::string("0x") + format_hex(this->address_);
+  if (this->address_name_.empty()) {
+    char hex_buf[19];  // "0x" + 16 hex chars + null
+    this->address_name_ = format_hex_prefixed_to(hex_buf, this->address_);
+  }
   return this->address_name_;
 }
 

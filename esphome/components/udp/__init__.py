@@ -108,8 +108,7 @@ async def to_code(config):
         cg.add(var.set_broadcast_port(conf_port[CONF_BROADCAST_PORT]))
     if (listen_address := str(config[CONF_LISTEN_ADDRESS])) != "255.255.255.255":
         cg.add(var.set_listen_address(listen_address))
-    for address in config[CONF_ADDRESSES]:
-        cg.add(var.add_address(str(address)))
+    cg.add(var.set_addresses([str(addr) for addr in config[CONF_ADDRESSES]]))
     if on_receive := config.get(CONF_ON_RECEIVE):
         on_receive = on_receive[0]
         trigger = cg.new_Pvariable(on_receive[CONF_TRIGGER_ID])

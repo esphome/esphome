@@ -11,9 +11,11 @@ static const char *const TAG = "spi_device";
 void SPIDeviceComponent::setup() { this->spi_setup(); }
 
 void SPIDeviceComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "SPIDevice");
+  ESP_LOGCONFIG(TAG,
+                "SPIDevice\n"
+                "  Mode: %d",
+                this->mode_);
   LOG_PIN("  CS pin: ", this->cs_);
-  ESP_LOGCONFIG(TAG, "  Mode: %d", this->mode_);
   if (this->data_rate_ < 1000000) {
     ESP_LOGCONFIG(TAG, "  Data rate: %" PRId32 "kHz", this->data_rate_ / 1000);
   } else {

@@ -1,6 +1,5 @@
 #include "api_frame_helper.h"
 #ifdef USE_API
-#include "api_connection.h"  // For ClientInfo struct
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -13,12 +12,29 @@ namespace esphome::api {
 
 static const char *const TAG = "api.frame_helper";
 
-#define HELPER_LOG(msg, ...) \
-  ESP_LOGVV(TAG, "%s (%s): " msg, this->client_info_->name.c_str(), this->client_info_->peername.c_str(), ##__VA_ARGS__)
+// Maximum bytes to log in hex format (168 * 3 = 504, under TX buffer size of 512)
+static constexpr size_t API_MAX_LOG_BYTES = 168;
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+#define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, this->client_peername_, ##__VA_ARGS__)
+#else
+#define HELPER_LOG(msg, ...) ((void) 0)
+#endif
 
 #ifdef HELPER_LOG_PACKETS
-#define LOG_PACKET_RECEIVED(buffer) ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(buffer).c_str())
-#define LOG_PACKET_SENDING(data, len) ESP_LOGVV(TAG, "Sending raw: %s", format_hex_pretty(data, len).c_str())
+#define LOG_PACKET_RECEIVED(buffer) \
+  do { \
+    char hex_buf_[format_hex_pretty_size(API_MAX_LOG_BYTES)]; \
+    ESP_LOGVV(TAG, "Received frame: %s", \
+              format_hex_pretty_to(hex_buf_, (buffer).data(), \
+                                   (buffer).size() < API_MAX_LOG_BYTES ? (buffer).size() : API_MAX_LOG_BYTES)); \
+  } while (0)
+#define LOG_PACKET_SENDING(data, len) \
+  do { \
+    char hex_buf_[format_hex_pretty_size(API_MAX_LOG_BYTES)]; \
+    ESP_LOGVV(TAG, "Sending raw: %s", \
+              format_hex_pretty_to(hex_buf_, data, (len) < API_MAX_LOG_BYTES ? (len) : API_MAX_LOG_BYTES)); \
+  } while (0)
 #else
 #define LOG_PACKET_RECEIVED(buffer) ((void) 0)
 #define LOG_PACKET_SENDING(data, len) ((void) 0)
@@ -229,6 +245,8 @@ APIError APIFrameHelper::init_common_() {
     HELPER_LOG("Bad state for init %d", (int) state_);
     return APIError::BAD_STATE;
   }
+  // Cache peername now while socket is valid - needed for error logging after socket failure
+  this->socket_->getpeername_to(this->client_peername_);
   int err = this->socket_->setblocking(false);
   if (err != 0) {
     state_ = State::FAILED;

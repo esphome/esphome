@@ -1,6 +1,6 @@
 #include "ir_sender_esphome.h"
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) || defined(USE_ESP32)
 
 namespace esphome {
 namespace heatpumpir {

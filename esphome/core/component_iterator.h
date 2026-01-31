@@ -16,6 +16,12 @@ class UserServiceDescriptor;
 }  // namespace api
 #endif
 
+#ifdef USE_INFRARED
+namespace infrared {
+class Infrared;
+}  // namespace infrared
+#endif
+
 class ComponentIterator {
  public:
   void begin(bool include_internal = false);
@@ -83,6 +89,12 @@ class ComponentIterator {
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
   virtual bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) = 0;
+#endif
+#ifdef USE_WATER_HEATER
+  virtual bool on_water_heater(water_heater::WaterHeater *water_heater) = 0;
+#endif
+#ifdef USE_INFRARED
+  virtual bool on_infrared(infrared::Infrared *infrared) = 0;
 #endif
 #ifdef USE_EVENT
   virtual bool on_event(event::Event *event) = 0;
@@ -160,6 +172,12 @@ class ComponentIterator {
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
     ALARM_CONTROL_PANEL,
+#endif
+#ifdef USE_WATER_HEATER
+    WATER_HEATER,
+#endif
+#ifdef USE_INFRARED
+    INFRARED,
 #endif
 #ifdef USE_EVENT
     EVENT,

@@ -174,6 +174,12 @@ void HOT SSD1322::draw_absolute_pixel_internal(int x, int y, Color color) {
   this->buffer_[pos] |= color4;
 }
 void SSD1322::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
   const uint32_t color4 = display::ColorUtil::color_to_grayscale4(color);
   uint8_t fill = (color4 & SSD1322_COLORMASK) | ((color4 & SSD1322_COLORMASK) << SSD1322_COLORSHIFT);
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)

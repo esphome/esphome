@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace thermostat {
+namespace esphome::thermostat {
 
 static const char *const TAG = "thermostat.climate";
 
@@ -66,10 +65,12 @@ void ThermostatClimate::setup() {
 }
 
 void ThermostatClimate::loop() {
-  for (auto &timer : this->timer_) {
-    if (timer.active && (timer.started + timer.time < App.get_loop_component_start_time())) {
+  uint32_t now = App.get_loop_component_start_time();
+  for (uint8_t i = 0; i < THERMOSTAT_TIMER_COUNT; i++) {
+    auto &timer = this->timer_[i];
+    if (timer.active && (now - timer.started >= timer.time)) {
       timer.active = false;
-      timer.func();
+      this->call_timer_callback_(static_cast<ThermostatClimateTimerIndex>(i));
     }
   }
 }
@@ -916,8 +917,42 @@ uint32_t ThermostatClimate::timer_duration_(ThermostatClimateTimerIndex timer_in
   return this->timer_[timer_index].time;
 }
 
-std::function<void()> ThermostatClimate::timer_cbf_(ThermostatClimateTimerIndex timer_index) {
-  return this->timer_[timer_index].func;
+void ThermostatClimate::call_timer_callback_(ThermostatClimateTimerIndex timer_index) {
+  switch (timer_index) {
+    case THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME:
+      this->cooling_max_run_time_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_COOLING_OFF:
+      this->cooling_off_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_COOLING_ON:
+      this->cooling_on_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_FAN_MODE:
+      this->fan_mode_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_FANNING_OFF:
+      this->fanning_off_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_FANNING_ON:
+      this->fanning_on_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME:
+      this->heating_max_run_time_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_HEATING_OFF:
+      this->heating_off_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_HEATING_ON:
+      this->heating_on_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_IDLE_ON:
+      this->idle_on_timer_callback_();
+      break;
+    case THERMOSTAT_TIMER_COUNT:
+    default:
+      break;
+  }
 }
 
 void ThermostatClimate::cooling_max_run_time_timer_callback_() {
@@ -1183,11 +1218,12 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   }
 }
 
-void ThermostatClimate::change_custom_preset_(const char *custom_preset) {
+void ThermostatClimate::change_custom_preset_(const char *custom_preset, size_t len) {
   // Linear search through custom preset configurations
   const ThermostatClimateTargetTempConfig *config = nullptr;
   for (const auto &entry : this->custom_preset_config_) {
-    if (strcmp(entry.name, custom_preset) == 0) {
+    // Compare first len chars, then verify entry.name ends there (same length)
+    if (strncmp(entry.name, custom_preset, len) == 0 && entry.name[len] == '\0') {
       config = &entry.config;
       break;
     }
@@ -1196,7 +1232,7 @@ void ThermostatClimate::change_custom_preset_(const char *custom_preset) {
   if (config != nullptr) {
     ESP_LOGV(TAG, "Custom preset %s requested", custom_preset);
     if (this->change_preset_internal_(*config) || !this->has_custom_preset() ||
-        strcmp(this->get_custom_preset(), custom_preset) != 0) {
+        this->get_custom_preset() != custom_preset) {
       // Fire any preset changed trigger if defined
       Trigger<> *trig = this->preset_change_trigger_;
       // Use the base class method which handles pointer lookup and preset reset internally
@@ -1330,45 +1366,64 @@ void ThermostatClimate::set_heat_deadband(float deadband) { this->heating_deadba
 void ThermostatClimate::set_heat_overrun(float overrun) { this->heating_overrun_ = overrun; }
 void ThermostatClimate::set_supplemental_cool_delta(float delta) { this->supplemental_cool_delta_ = delta; }
 void ThermostatClimate::set_supplemental_heat_delta(float delta) { this->supplemental_heat_delta_ = delta; }
+
+void ThermostatClimate::set_timer_duration_in_sec_(ThermostatClimateTimerIndex timer_index, uint32_t time) {
+  uint32_t new_duration_ms = 1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+
+  if (this->timer_[timer_index].active) {
+    // Timer is running, calculate elapsed time and adjust if needed
+    uint32_t current_time = App.get_loop_component_start_time();
+    uint32_t elapsed = current_time - this->timer_[timer_index].started;
+
+    if (elapsed >= new_duration_ms) {
+      // Timer should complete immediately (including when new_duration_ms is 0)
+      ESP_LOGVV(TAG, "timer %d completing immediately (elapsed %d >= new %d)", timer_index, elapsed, new_duration_ms);
+      this->timer_[timer_index].active = false;
+      // Trigger the timer callback immediately
+      this->call_timer_callback_(timer_index);
+      return;
+    } else {
+      // Adjust timer to run for remaining time - keep original start time
+      ESP_LOGVV(TAG, "timer %d adjusted: elapsed %d, new total %d, remaining %d", timer_index, elapsed, new_duration_ms,
+                new_duration_ms - elapsed);
+      this->timer_[timer_index].time = new_duration_ms;
+      return;
+    }
+  }
+
+  // Original logic for non-running timers
+  this->timer_[timer_index].time = new_duration_ms;
+}
+
 void ThermostatClimate::set_cooling_maximum_run_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME, time);
 }
 void ThermostatClimate::set_cooling_minimum_off_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_COOLING_OFF].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_COOLING_OFF, time);
 }
 void ThermostatClimate::set_cooling_minimum_run_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_COOLING_ON].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_COOLING_ON, time);
 }
 void ThermostatClimate::set_fan_mode_minimum_switching_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_FAN_MODE].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_FAN_MODE, time);
 }
 void ThermostatClimate::set_fanning_minimum_off_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_FANNING_OFF].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_FANNING_OFF, time);
 }
 void ThermostatClimate::set_fanning_minimum_run_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_FANNING_ON].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_FANNING_ON, time);
 }
 void ThermostatClimate::set_heating_maximum_run_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME, time);
 }
 void ThermostatClimate::set_heating_minimum_off_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_HEATING_OFF].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_HEATING_OFF, time);
 }
 void ThermostatClimate::set_heating_minimum_run_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_HEATING_ON].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_HEATING_ON, time);
 }
 void ThermostatClimate::set_idle_minimum_time_in_sec(uint32_t time) {
-  this->timer_[thermostat::THERMOSTAT_TIMER_IDLE_ON].time =
-      1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
+  this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_IDLE_ON, time);
 }
 void ThermostatClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
 void ThermostatClimate::set_humidity_sensor(sensor::Sensor *humidity_sensor) {
@@ -1653,5 +1708,4 @@ ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig(float defau
                                                                      float default_temperature_high)
     : default_temperature_low(default_temperature_low), default_temperature_high(default_temperature_high) {}
 
-}  // namespace thermostat
-}  // namespace esphome
+}  // namespace esphome::thermostat
