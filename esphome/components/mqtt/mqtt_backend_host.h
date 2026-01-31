@@ -41,7 +41,7 @@ class MQTTBackendHost final : public MQTTBackend {
   void set_on_publish(std::function<on_publish_user_callback_t> &&callback) final {
     this->on_publish_ = std::move(callback);
   }
- 
+
   bool connected() const final { return this->connected_; }
   void connect() final;
   void disconnect() final;

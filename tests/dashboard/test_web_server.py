@@ -224,9 +224,13 @@ async def test_logs_host_platform_skips_device_selector(
     )
 
     handler = object.__new__(web_server.EsphomeLogsHandler)
-    cmd = await handler.build_command({"type": "spawn", "configuration": "pico.yaml", "port": "OTA"})
+    cmd = await handler.build_command(
+        {"type": "spawn", "configuration": "pico.yaml", "port": "OTA"}
+    )
 
-    assert cmd[0 : len(web_server.DASHBOARD_COMMAND)] == list(web_server.DASHBOARD_COMMAND)
+    assert cmd[0 : len(web_server.DASHBOARD_COMMAND)] == list(
+        web_server.DASHBOARD_COMMAND
+    )
     assert "run" in cmd
     assert config_file in cmd
     assert "--device" not in cmd
