@@ -260,6 +260,8 @@ void SEN6XComponent::schedule_post_setup_commands_() {
   (*run_step)(0);
 }
 
+bool SEN6XComponent::isMeasurmentRunning() const { return this->measurement_started_; }
+
 void SEN6XComponent::finish_setup_() {
   const bool supports_co2 = this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 ||
 
