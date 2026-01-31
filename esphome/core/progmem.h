@@ -99,10 +99,10 @@ struct LogString;
     static constexpr size_t BLOB_SIZE = Table::BLOB_SIZE; \
     static constexpr auto BLOB PROGMEM = Table::make_blob(); \
     static constexpr auto OFFSETS PROGMEM = Table::make_offsets(); \
-    static ::esphome::ProgmemStr get_progmem_str(uint8_t index) { \
+    static ::ProgmemStr get_progmem_str(uint8_t index) { \
       if (index >= COUNT) \
         return nullptr; \
-      return reinterpret_cast<::esphome::ProgmemStr>(&BLOB[::esphome::progmem_read_byte(&OFFSETS[index])]); \
+      return reinterpret_cast<::ProgmemStr>(&BLOB[::esphome::progmem_read_byte(&OFFSETS[index])]); \
     } \
     static const ::esphome::LogString *get_log_str(uint8_t index) { \
       if (index >= COUNT) \
