@@ -33,6 +33,7 @@ void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *o
 
 // State class strings indexed by StateClass enum (0-4): NONE, MEASUREMENT, TOTAL_INCREASING, TOTAL, MEASUREMENT_ANGLE
 PROGMEM_STRING_TABLE(StateClassStrings, "", "measurement", "total_increasing", "total", "measurement_angle");
+static_assert(StateClassStrings::COUNT == STATE_CLASS_LAST + 1, "StateClassStrings must match StateClass enum");
 
 const LogString *state_class_to_string(StateClass state_class) {
   // Fallback to index 0 (empty string for STATE_CLASS_NONE) if out of range
