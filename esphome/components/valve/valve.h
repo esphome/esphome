@@ -79,6 +79,8 @@ enum ValveOperation : uint8_t {
   /// The valve is currently closing.
   VALVE_OPERATION_CLOSING,
 };
+constexpr uint8_t VALVE_OPERATION_LAST = static_cast<uint8_t>(VALVE_OPERATION_CLOSING);
+constexpr uint8_t VALVE_OPERATION_UNKNOWN_INDEX = VALVE_OPERATION_LAST + 1;
 
 const LogString *valve_operation_to_str(ValveOperation op);
 
