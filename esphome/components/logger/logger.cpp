@@ -294,14 +294,21 @@ float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; 
 
 // Log level strings - packed into flash on ESP8266, indexed by log level (0-7)
 PROGMEM_STRING_TABLE(LogLevelStrings, "NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE");
+constexpr uint8_t LOG_LEVEL_LAST = ESPHOME_LOG_LEVEL_VERY_VERBOSE;
+
+static const LogString *get_log_level_str_(uint8_t level) {
+  if (level > LOG_LEVEL_LAST)
+    level = LOG_LEVEL_LAST;
+  return LogLevelStrings::get_log_str(level);
+}
 
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Logger:\n"
                 "  Max Level: %s\n"
                 "  Initial Level: %s",
-                LOG_STR_ARG(LogLevelStrings::get_log_str(ESPHOME_LOG_LEVEL)),
-                LOG_STR_ARG(LogLevelStrings::get_log_str(this->current_level_)));
+                LOG_STR_ARG(get_log_level_str_(ESPHOME_LOG_LEVEL)),
+                LOG_STR_ARG(get_log_level_str_(this->current_level_)));
 #ifndef USE_HOST
   ESP_LOGCONFIG(TAG,
                 "  Log Baud Rate: %" PRIu32 "\n"
@@ -320,7 +327,7 @@ void Logger::dump_config() {
 
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   for (auto &it : this->log_levels_) {
-    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(LogLevelStrings::get_log_str(it.second)));
+    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(get_log_level_str_(it.second)));
   }
 #endif
 }
@@ -329,7 +336,7 @@ void Logger::set_log_level(uint8_t level) {
   if (level > ESPHOME_LOG_LEVEL) {
     level = ESPHOME_LOG_LEVEL;
     ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s",
-             LOG_STR_ARG(LogLevelStrings::get_log_str(ESPHOME_LOG_LEVEL)));
+             LOG_STR_ARG(get_log_level_str_(ESPHOME_LOG_LEVEL)));
   }
   this->current_level_ = level;
 #ifdef USE_LOGGER_LEVEL_LISTENERS
