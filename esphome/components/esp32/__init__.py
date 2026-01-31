@@ -142,7 +142,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "espcoredump",  # Core dump support - ESPHome has its own debug component
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
     "mqtt",  # ESP-IDF MQTT library - ESPHome has its own MQTT implementation
-    "openthread",  # Thread protocol - ESPHome doesn't use Thread networking
+    "openthread",  # Thread protocol - only needed by openthread component
     "perfmon",  # Xtensa performance monitor - ESPHome has its own debug component
     "protocomm",  # Protocol communication for provisioning - unused by ESPHome
     "spiffs",  # SPIFFS filesystem - ESPHome doesn't use filesystem storage (IDF only)
