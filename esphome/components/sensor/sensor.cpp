@@ -36,7 +36,7 @@ PROGMEM_STRING_TABLE(StateClassStrings, "", "measurement", "total_increasing", "
 
 const LogString *state_class_to_string(StateClass state_class) {
   uint8_t index = static_cast<uint8_t>(state_class);
-  if (index > 4)
+  if (index > STATE_CLASS_LAST)
     index = 0;  // Default to empty string (STATE_CLASS_NONE)
   return StateClassStrings::get_log_str(index);
 }
