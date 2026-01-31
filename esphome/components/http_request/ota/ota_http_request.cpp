@@ -82,7 +82,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   uint32_t last_progress = 0;
   uint32_t update_start_time = millis();
   md5::MD5Digest md5_receive;
-  std::unique_ptr<char[]> md5_receive_str(new char[33]);
+  char md5_receive_str[33];
 
   if (this->md5_expected_.empty() && !this->http_get_md5_()) {
     return OTA_MD5_INVALID;
@@ -176,14 +176,14 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   // verify MD5 is as expected and act accordingly
   md5_receive.calculate();
-  md5_receive.get_hex(md5_receive_str.get());
-  this->md5_computed_ = md5_receive_str.get();
+  md5_receive.get_hex(md5_receive_str);
+  this->md5_computed_ = md5_receive_str;
   if (strncmp(this->md5_computed_.c_str(), this->md5_expected_.c_str(), MD5_SIZE) != 0) {
     ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", this->md5_computed_.c_str());
     this->cleanup_(std::move(backend), container);
     return ota::OTA_RESPONSE_ERROR_MD5_MISMATCH;
   } else {
-    backend->set_update_md5(md5_receive_str.get());
+    backend->set_update_md5(md5_receive_str);
   }
 
   container->end();
