@@ -126,7 +126,7 @@ COMPILER_OPTIMIZATIONS = {
 # - "sdmmc": driver -> esp_driver_sdmmc -> sdmmc dependency chain
 DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
-    "driver",  # Legacy driver shim - pulls in ALL esp_driver_* components
+    "driver",  # Legacy driver shim - only needed by esp32_touch, esp32_can for legacy headers
     "esp_adc",  # ADC driver - only needed by adc component
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
@@ -144,11 +144,11 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "espcoredump",  # Core dump support - ESPHome has its own debug component
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
     "mqtt",  # ESP-IDF MQTT library - ESPHome has its own MQTT implementation
-    "openthread",  # Thread protocol - ESPHome doesn't use Thread networking
+    "openthread",  # Thread protocol - only needed by openthread component
     "perfmon",  # Xtensa performance monitor - ESPHome has its own debug component
     "protocomm",  # Protocol communication for provisioning - unused by ESPHome
     "spiffs",  # SPIFFS filesystem - ESPHome doesn't use filesystem storage (IDF only)
-    "ulp",  # ULP coprocessor - only needed by deep_sleep with ULP wakeup
+    "ulp",  # ULP coprocessor - not currently used by any ESPHome component
     "unity",  # Unit testing framework - ESPHome doesn't use IDF's testing
     "wear_levelling",  # Flash wear levelling for fatfs - unused since fatfs unused
     "wifi_provisioning",  # WiFi provisioning - ESPHome uses its own improv implementation
