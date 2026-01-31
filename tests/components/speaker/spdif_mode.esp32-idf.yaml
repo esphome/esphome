@@ -10,7 +10,6 @@ packages:
 
 i2s_audio:
   - id: i2s_output
-    use_legacy: true
 
 speaker:
   - platform: i2s_audio
@@ -18,7 +17,7 @@ speaker:
     dac_type: external
     i2s_dout_pin: ${spdif_data_pin}
     spdif_mode: true
-    fill_silence: true
+    spdif_timeout: 2000ms
     sample_rate: 48000
     bits_per_sample: 16bit
     channel: stereo
