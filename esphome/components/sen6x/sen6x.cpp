@@ -77,14 +77,14 @@ void SEN6XComponent::setup() {
     // In order to query the device periodic measurement must be ceased => use reset!
     if (raw_read_status) {
       ESP_LOGD(TAG, "Sensor has data available, stopping periodic measurement / reset");
-      // if (!this->write_command(SEN6X_CMD_RESET)) {
-      if (!this->write_command(SEN6X_CMD_STOP_MEASUREMENTS)) {
-        ESP_LOGE(TAG, "Failed to stop measurements");
-        this->mark_failed();
-        return;
-      }
-      stop_measurement_delay = 1400;
     }
+    // if (!this->write_command(SEN6X_CMD_RESET)) {
+    if (!this->write_command(SEN6X_CMD_STOP_MEASUREMENTS)) {
+      ESP_LOGE(TAG, "Failed to stop measurements");
+      this->mark_failed();
+      return;
+    }
+    stop_measurement_delay = 1400;
 
     this->set_timeout(stop_measurement_delay, [this]() {
       uint16_t raw_serial_number[3];
@@ -262,19 +262,6 @@ void SEN6XComponent::schedule_post_setup_commands_() {
 
 bool SEN6XComponent::isMeasurmentRunning() const { return this->measurement_started_; }
 
-bool SEN6XComponent::wait_after_stop_() {
-  if (this->last_stop_ms_ == 0) {
-    return true;
-  }
-  const uint32_t now = App.get_loop_component_start_time();
-  const uint32_t elapsed = now - this->last_stop_ms_;
-  if (elapsed >= 50) {
-    return true;
-  }
-  delay(50 - elapsed);
-  return true;
-}
-
 void SEN6XComponent::finish_setup_() {
   const bool supports_co2 = this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 ||
 
@@ -318,6 +305,44 @@ void SEN6XComponent::finish_setup_() {
 void SEN6XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "sen6x:");
   LOG_I2C_DEVICE(this);
+  if (this->product_name_.empty()) {
+    uint16_t raw_product_name[16];
+    if (this->get_register(SEN6X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
+      this->product_name_.clear();
+      const uint16_t *current_int = raw_product_name;
+      char current_char;
+      uint8_t max = 16;
+      do {
+        current_char = *current_int >> 8;
+        if (current_char) {
+          this->product_name_.push_back(current_char);
+          current_char = *current_int & 0xFF;
+          if (current_char)
+            this->product_name_.push_back(current_char);
+        }
+        current_int++;
+      } while (current_char && --max);
+    } else {
+      ESP_LOGW(TAG, "Failed to read product name for config dump");
+    }
+  }
+  if (this->serial_number_[0] == 0 && this->serial_number_[1] == 0 && this->serial_number_[2] == 0) {
+    uint16_t raw_serial_number[3];
+    if (this->get_register(SEN6X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 20)) {
+      this->serial_number_[0] = static_cast<bool>(uint16_t(raw_serial_number[0]) & 0xFF);
+      this->serial_number_[1] = static_cast<uint16_t>(raw_serial_number[0] & 0xFF);
+      this->serial_number_[2] = static_cast<uint16_t>(raw_serial_number[1] >> 8);
+    } else {
+      ESP_LOGW(TAG, "Failed to read serial number for config dump");
+    }
+  }
+  if (this->firmware_version_ == 0) {
+    if (this->get_register(SEN6X_CMD_GET_FIRMWARE_VERSION, this->firmware_version_, 20)) {
+      this->firmware_version_ >>= 8;
+    } else {
+      ESP_LOGW(TAG, "Failed to read firmware version for config dump");
+    }
+  }
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
@@ -400,6 +425,11 @@ void SEN6XComponent::update() {
     return;
   }
   const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_stop_ms_ != 0 && (now - this->last_stop_ms_) < 1400) {
+    const uint32_t wait_ms = 1400 - (now - this->last_stop_ms_);
+    this->set_timeout(wait_ms, [this]() { this->update(); });
+    return;
+  }
   if (this->measurement_started_ && this->auto_cleaning_enabled_.value_or(false) &&
       this->auto_cleaning_interval_s_.has_value()) {
     const uint32_t interval_ms = this->auto_cleaning_interval_s_.value() * 1000UL;
@@ -728,6 +758,12 @@ bool SEN6XComponent::start_fan_cleaning() {
   if (was_running) {
     this->stop_measurement();
   }
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_stop_ms_ != 0 && (now - this->last_stop_ms_) < 50) {
+    const uint32_t wait_ms = 50 - (now - this->last_stop_ms_);
+    this->set_timeout(wait_ms, [this]() { this->start_fan_cleaning(); });
+    return true;
+  }
   if (!this->write_command(SEN6X_CMD_START_CLEANING_FAN)) {
     this->status_set_warning();
     ESP_LOGE(TAG, "write error start fan (%d)", this->last_error_);
@@ -750,6 +786,12 @@ bool SEN6XComponent::perform_forced_co2_recalibration(uint16_t reference_ppm) {
   if (this->measurement_started_) {
     this->stop_measurement();
   }
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_stop_ms_ != 0 && (now - this->last_stop_ms_) < 50) {
+    const uint32_t wait_ms = 50 - (now - this->last_stop_ms_);
+    this->set_timeout(wait_ms, [this, reference_ppm]() { this->perform_forced_co2_recalibration(reference_ppm); });
+    return true;
+  }
   uint16_t params[1];
   params[0] = reference_ppm;
   if (!this->write_command(SEN6X_CMD_CO2_FORCE_RECALIBRATION, params, 1)) {
@@ -757,6 +799,7 @@ bool SEN6XComponent::perform_forced_co2_recalibration(uint16_t reference_ppm) {
     ESP_LOGE(TAG, "write error forced CO2 recalibration (%d)", this->last_error_);
     return false;
   }
+
   this->set_timeout(500, [this]() {
     uint16_t correction = 0;
     if (!this->read_data(correction)) {
@@ -778,12 +821,34 @@ bool SEN6XComponent::co2_sensor_factory_reset() {
   if (this->measurement_started_) {
     this->stop_measurement();
   }
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_stop_ms_ != 0 && (now - this->last_stop_ms_) < 50) {
+    const uint32_t wait_ms = 50 - (now - this->last_stop_ms_);
+    this->set_timeout(wait_ms, [this]() { this->co2_sensor_factory_reset(); });
+    return true;
+  }
   if (!this->write_command(SEN6X_CMD_CO2_SENSOR_FACTORY_RESET)) {
     this->status_set_warning();
     ESP_LOGE(TAG, "write error CO2 sensor factory reset (%d)", this->last_error_);
     return false;
   }
   this->set_timeout(1400, [this]() { ESP_LOGD(TAG, "CO2 sensor factory reset complete"); });
+  return true;
+}
+
+bool SEN6XComponent::reset_device() {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_stop_ms_ != 0 && (now - this->last_stop_ms_) < 50) {
+    const uint32_t wait_ms = 50 - (now - this->last_stop_ms_);
+    this->set_timeout(wait_ms, [this]() { this->reset_device(); });
+    return true;
+  }
+  if (!this->write_command(SEN6X_CMD_RESET)) {
+    this->status_set_warning();
+    ESP_LOGE(TAG, "write error device reset (%d)", this->last_error_);
+    return false;
+  }
+  this->set_timeout(1200, [this]() { ESP_LOGD(TAG, "Reset complete"); });
   return true;
 }
 
@@ -822,6 +887,12 @@ bool SEN6XComponent::stop_measurement() {
 bool SEN6XComponent::activate_sht_heater() {
   if (this->measurement_started_) {
     this->stop_measurement();
+  }
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_stop_ms_ != 0 && (now - this->last_stop_ms_) < 50) {
+    const uint32_t wait_ms = 50 - (now - this->last_stop_ms_);
+    this->set_timeout(wait_ms, [this]() { this->activate_sht_heater(); });
+    return true;
   }
   if (!this->write_command(SEN6X_CMD_SHT_HEATER_ACTIVATE)) {
     this->status_set_warning();
@@ -862,6 +933,13 @@ bool SEN6XComponent::get_sht_heater_measurements() {
   }
   if (this->measurement_started_) {
     this->stop_measurement();
+  }
+
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_stop_ms_ != 0 && (now - this->last_stop_ms_) < 50) {
+    const uint32_t wait_ms = 50 - (now - this->last_stop_ms_);
+    this->set_timeout(wait_ms, [this]() { this->get_sht_heater_measurements(); });
+    return true;
   }
 
   if (!this->write_command(SEN6X_CMD_SHT_HEATER_MEASUREMENTS)) {
