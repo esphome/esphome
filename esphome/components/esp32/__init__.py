@@ -146,7 +146,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "perfmon",  # Xtensa performance monitor - ESPHome has its own debug component
     "protocomm",  # Protocol communication for provisioning - unused by ESPHome
     "spiffs",  # SPIFFS filesystem - ESPHome doesn't use filesystem storage (IDF only)
-    "ulp",  # ULP coprocessor - only needed by deep_sleep with ULP wakeup
+    "ulp",  # ULP coprocessor - not currently used by any ESPHome component
     "unity",  # Unit testing framework - ESPHome doesn't use IDF's testing
     "wear_levelling",  # Flash wear levelling for fatfs - unused since fatfs unused
     "wifi_provisioning",  # WiFi provisioning - ESPHome uses its own improv implementation
