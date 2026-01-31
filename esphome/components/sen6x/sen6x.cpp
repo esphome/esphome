@@ -77,14 +77,15 @@ void SEN6XComponent::setup() {
     // In order to query the device periodic measurement must be ceased => use reset!
     if (raw_read_status) {
       ESP_LOGD(TAG, "Sensor has data available, stopping periodic measurement / reset");
+
+      // if (!this->write_command(SEN6X_CMD_RESET)) {
+      if (!this->write_command(SEN6X_CMD_STOP_MEASUREMENTS)) {
+        ESP_LOGE(TAG, "Failed to stop measurements");
+        this->mark_failed();
+        return;
+      }
+      stop_measurement_delay = 1400;
     }
-    // if (!this->write_command(SEN6X_CMD_RESET)) {
-    if (!this->write_command(SEN6X_CMD_STOP_MEASUREMENTS)) {
-      ESP_LOGE(TAG, "Failed to stop measurements");
-      this->mark_failed();
-      return;
-    }
-    stop_measurement_delay = 1400;
 
     this->set_timeout(stop_measurement_delay, [this]() {
       uint16_t raw_serial_number[3];
@@ -108,6 +109,7 @@ void SEN6XComponent::setup() {
         return;
       }
 
+      this->product_name_.clear();
       // 2 ASCII bytes are encoded in an int
       const uint16_t *current_int = raw_product_name;
       char current_char;
