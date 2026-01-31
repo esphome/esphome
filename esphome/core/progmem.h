@@ -1,5 +1,9 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
+
 // Platform-agnostic macros for PROGMEM string handling
 // On ESP8266/Arduino: Use Arduino's F() macro for PROGMEM strings
 // On other platforms: Use plain strings (no PROGMEM)
@@ -16,6 +20,7 @@
 #define ESPHOME_strcasecmp_P strcasecmp_P
 #define ESPHOME_strncmp_P strncmp_P
 #define ESPHOME_strncasecmp_P strncasecmp_P
+#define progmem_read_byte(addr) pgm_read_byte(addr)
 // Type for pointers to PROGMEM strings (for use with ESPHOME_F return values)
 using ProgmemStr = const __FlashStringHelper *;
 #else
@@ -29,6 +34,69 @@ using ProgmemStr = const __FlashStringHelper *;
 #define ESPHOME_strcasecmp_P strcasecmp
 #define ESPHOME_strncmp_P strncmp
 #define ESPHOME_strncasecmp_P strncasecmp
+#define progmem_read_byte(addr) (*(addr))
 // Type for pointers to strings (no PROGMEM on non-ESP8266 platforms)
 using ProgmemStr = const char *;
 #endif
+
+namespace esphome {
+
+/// Helper for C++20 string literal template arguments
+template<size_t N> struct FixedString {
+  char data[N]{};
+  constexpr FixedString(const char (&str)[N]) {
+    for (size_t i = 0; i < N; ++i)
+      data[i] = str[i];
+  }
+  constexpr size_t size() const { return N - 1; }  // exclude null terminator
+};
+
+/// Compile-time string table that packs strings into a single blob with offset lookup.
+/// Use PROGMEM_STRING_TABLE macro to instantiate with proper flash placement on ESP8266.
+///
+/// Example:
+///   PROGMEM_STRING_TABLE(MyStrings, "foo", "bar", "baz");
+///   const char *str = MyStrings::get(index);  // 0-based index
+///
+template<FixedString... Strs> struct ProgmemStringTable {
+  static constexpr size_t COUNT = sizeof...(Strs);
+  static constexpr size_t BLOB_SIZE = (... + (Strs.size() + 1));
+
+  /// Generate packed string blob at compile time
+  static constexpr auto make_blob() {
+    std::array<char, BLOB_SIZE> result{};
+    size_t pos = 0;
+    auto copy = [&](const auto &str) {
+      for (size_t i = 0; i <= str.size(); ++i)
+        result[pos++] = str.data[i];
+    };
+    (copy(Strs), ...);
+    return result;
+  }
+
+  /// Generate offset table at compile time
+  static constexpr auto make_offsets() {
+    std::array<uint8_t, COUNT> result{};
+    size_t pos = 0, idx = 0;
+    ((result[idx++] = pos, pos += Strs.size() + 1), ...);
+    return result;
+  }
+};
+
+/// Instantiate a ProgmemStringTable with PROGMEM storage.
+/// Creates: Name::get(index), Name::COUNT, Name::BLOB_SIZE
+#define PROGMEM_STRING_TABLE(Name, ...) \
+  struct Name { \
+    using Table = ProgmemStringTable<__VA_ARGS__>; \
+    static constexpr size_t COUNT = Table::COUNT; \
+    static constexpr size_t BLOB_SIZE = Table::BLOB_SIZE; \
+    static constexpr auto BLOB PROGMEM = Table::make_blob(); \
+    static constexpr auto OFFSETS PROGMEM = Table::make_offsets(); \
+    static const char *get(uint8_t index) { \
+      if (index >= COUNT) \
+        return nullptr; \
+      return &BLOB[progmem_read_byte(&OFFSETS[index])]; \
+    } \
+  }
+
+}  // namespace esphome
