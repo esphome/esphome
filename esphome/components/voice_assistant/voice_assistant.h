@@ -83,7 +83,7 @@ struct Timer {
   }
   // Remove before 2026.8.0
   ESPDEPRECATED("Use to_str() instead. Removed in 2026.8.0", "2026.2.0")
-  std::string to_string() const {
+  std::string to_string() const {  // NOLINT
     char buffer[TO_STR_BUFFER_SIZE];
     return this->to_str(buffer);
   }
