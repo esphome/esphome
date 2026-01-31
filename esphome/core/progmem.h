@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "esphome/core/hal.h"  // For PROGMEM definition
+
 // Platform-agnostic macros for PROGMEM string handling
 // On ESP8266/Arduino: Use Arduino's F() macro for PROGMEM strings
 // On other platforms: Use plain strings (no PROGMEM)
