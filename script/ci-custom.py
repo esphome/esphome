@@ -767,7 +767,7 @@ def lint_no_scanf(fname, match):
     func = match.group(1)
     return (
         f"{highlight(func + '()')} is not allowed in new ESPHome code. The scanf family "
-        f"pulls in ~9.8KB of flash on embedded platforms, and ESPHome doesn't otherwise "
+        f"pulls in ~7KB flash on ESP8266 and ~9KB on ESP32, and ESPHome doesn't otherwise "
         f"need this code.\n"
         f"Please use alternatives:\n"
         f"  - {highlight('parse_number<T>(str)')} for parsing integers/floats from strings\n"
