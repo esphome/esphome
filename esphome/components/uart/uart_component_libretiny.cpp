@@ -42,6 +42,16 @@ bool LibreTinyUARTComponent::pins_contain_(const FixedVector<pin_size_t> &pins, 
   return pins.end() != std::find(pins.begin(), pins.end(), pin_num);
 }
 
+void LibreTinyUARTComponent::print_pins(const char* uart_name,
+                                        const FixedVector<pin_size_t> &tx_pins,
+                                        const FixedVector<pin_size_t> &rx_pins) const {
+  for (size_t i = 0; i < tx_pins.size(); ++i) {
+    for (size_t j = 0; j < rx_pins.size(); ++j) {
+        ESP_LOGE(TAG, "    %s TX:%u, RX:%u", tx_pins[i], rx_pins[j]);
+      }
+  }
+}
+
 uint16_t LibreTinyUARTComponent::get_config() {
   uint16_t config = 0;
 
@@ -96,8 +106,9 @@ void LibreTinyUARTComponent::setup() {
     if (rx_pin == -1) {
       rx_pin = pins_serial0_rx[0];
     }
-    this->serial_ = new SerialClass(0, rx_pin, tx_pin);
+    this->serial_ = &Serial0;
     this->hardware_idx_ = 0;
+    Serial0.begin(this->baud_rate_, get_config(), rx_pin, tx_pin);
   }
 #endif
 #if LT_HW_UART1
@@ -109,8 +120,9 @@ void LibreTinyUARTComponent::setup() {
     if (rx_pin == -1) {
       rx_pin = pins_serial1_rx[0];
     }
-    this->serial_ = new SerialClass(1, rx_pin, tx_pin);
+    this->serial_ = &Serial1;
     this->hardware_idx_ = 1;
+    Serial1.begin(this->baud_rate_, get_config(), rx_pin, tx_pin);
   }
 #endif
 #if LT_HW_UART2
@@ -122,8 +134,9 @@ void LibreTinyUARTComponent::setup() {
     if (rx_pin == -1) {
       rx_pin = pins_serial2_rx[0];
     }
-    this->serial_ = new SerialClass(2, rx_pin, tx_pin);
+    this->serial_ = &Serial2;
     this->hardware_idx_ = 2;
+    Serial2.begin(this->baud_rate_, get_config(), rx_pin, tx_pin);
   }
 #endif
   else {
@@ -135,24 +148,23 @@ void LibreTinyUARTComponent::setup() {
       this->tx_pin_->setup();
     }
     this->serial_ = new SoftwareSerial(rx_pin, tx_pin, rx_inverted || tx_inverted);
+    this->serial_->begin(this->baud_rate_, get_config());
 #else
     this->serial_ = &Serial;
     ESP_LOGE(TAG, "  SoftwareSerial is not implemented for this chip. Only hardware pins are supported:");
 #if LT_HW_UART0
-    ESP_LOGE(TAG, "    TX=%u, RX=%u", PIN_SERIAL0_TX, PIN_SERIAL0_RX);
+    print_pins("UART0", pins_serial0_tx, pins_serial0_rx);
 #endif
 #if LT_HW_UART1
-    ESP_LOGE(TAG, "    TX=%u, RX=%u", PIN_SERIAL1_TX, PIN_SERIAL1_RX);
+    print_pins("UART1", pins_serial1_tx, pins_serial1_rx);
 #endif
 #if LT_HW_UART2
-    ESP_LOGE(TAG, "    TX=%u, RX=%u", PIN_SERIAL2_TX, PIN_SERIAL2_RX);
+    print_pins("UART2", pins_serial2_tx, pins_serial2_rx);
 #endif
     this->mark_failed();
     return;
 #endif
   }
-
-  this->serial_->begin(this->baud_rate_, get_config());
 }
 
 void LibreTinyUARTComponent::dump_config() {
