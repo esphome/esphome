@@ -25,7 +25,7 @@ enum MCP23016GPIORegisters {
   MCP23016_IOCON1 = 0x0B,
 };
 
-class MCP23016 : public Component, public i2c::I2CDevice, public gpio_expander::CachedGpioExpander<uint8_t, 16> {
+class MCP23016 : public Component, public i2c::I2CDevice, public gpio_expander::CachedGpioExpander<uint16_t, 16> {
  public:
   MCP23016() = default;
 
@@ -42,16 +42,15 @@ class MCP23016 : public Component, public i2c::I2CDevice, public gpio_expander::
   void digital_write_hw(uint8_t pin, bool value) override;
 
   // read a given register
-  bool read_reg_(uint8_t reg, uint8_t *value);
+  bool read_reg_(uint8_t reg, uint16_t *value);
   // write a value to a given register
-  bool write_reg_(uint8_t reg, uint8_t value);
+  bool write_reg_(uint8_t reg, uint16_t value);
   // update registers with given pin value.
-  void update_reg_(uint8_t pin, bool pin_value, uint8_t reg_a);
+  void update_reg_(uint8_t pin, bool pin_value, uint16_t reg_a);
 
-  uint8_t olat_0_{0x00};
-  uint8_t olat_1_{0x00};
+  uint16_t olat_{0x0000};
   // Cache for input values (16-bit combined for both banks)
-  uint16_t input_mask_{0x00};
+  uint16_t input_mask_{0x0000};
 };
 
 class MCP23016GPIOPin : public GPIOPin {
