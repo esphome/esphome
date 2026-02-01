@@ -1,0 +1,39 @@
+# pylint: disable=E0602
+Import("env")  # noqa
+
+# Remove float scanf support from linker flags
+# The Arduino ESP8266 framework unconditionally adds:
+#   -u _printf_float -u _scanf_float
+# ESPHome doesn't use scanf with %f, so _scanf_float is not needed.
+#
+# Savings:
+#   - _scanf_float: ~1.3KB
+#   - _strtod_l: ~3.7KB (string-to-double, only needed by scanf float)
+#   - Related float parsing helpers
+
+
+def remove_scanf_float_flag(source, target, env):
+    """Remove -u _scanf_float from linker flags.
+
+    This is called as a pre-action before the link step.
+    """
+    linkflags = env.get("LINKFLAGS", [])
+    new_linkflags = []
+    i = 0
+
+    while i < len(linkflags):
+        flag = linkflags[i]
+        if flag == "-u" and i + 1 < len(linkflags):
+            next_flag = linkflags[i + 1]
+            if next_flag == "_scanf_float":
+                print("ESPHome: Removing float scanf support (_scanf_float)")
+                i += 2  # Skip both -u and the symbol
+                continue
+        new_linkflags.append(flag)
+        i += 1
+
+    env.Replace(LINKFLAGS=new_linkflags)
+
+
+# Register the callback to run before the link step
+env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", remove_scanf_float_flag)
