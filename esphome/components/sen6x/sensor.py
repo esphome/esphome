@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ALTITUDE,
     CONF_ALTITUDE_COMPENSATION,
     CONF_AMBIENT_PRESSURE_COMPENSATION,
+    CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
     CONF_CO2,
     CONF_FORMALDEHYDE,
     CONF_GAIN_FACTOR,
@@ -184,6 +185,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_AMBIENT_PRESSURE): cv.int_range(700, 1200),
             cv.Optional(CONF_SENSOR_ALTITUDE): cv.int_range(0, 3000),
             cv.Optional(CONF_CO2_ASC): cv.boolean,
+            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
+                sensor.Sensor
+            ),
             cv.Optional(
                 CONF_STARTUP_DELAY, default="60s"
             ): cv.positive_time_period_milliseconds,
@@ -309,6 +313,10 @@ async def to_code(config):
                 cfg[CONF_ALTITUDE],
             )
         )
+
+    if CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE in config:
+        sens = await cg.get_variable(config[CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE])
+        cg.add(var.set_ambient_pressure_source(sens))
 
 
 SEN6X_ACTION_SCHEMA = maybe_simple_id(

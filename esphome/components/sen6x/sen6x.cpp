@@ -2,6 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cmath>
 #include <cinttypes>
 #include <functional>
 #include <memory>
@@ -329,7 +330,10 @@ void SEN6XComponent::dump_config() {
     }
   }
   LOG_UPDATE_INTERVAL(this);
-  if (this->ambient_pressure_.has_value()) {
+  if (this->ambient_pressure_source_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Dynamic ambient pressure compensation using '%s'",
+                  this->ambient_pressure_source_->get_name().c_str());
+  } else if (this->ambient_pressure_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Ambient pressure: %u hPa", this->ambient_pressure_.value());
   }
   if (this->ambient_pressure_read_.has_value()) {
@@ -386,6 +390,15 @@ void SEN6XComponent::update() {
     const uint32_t wait_ms = 1400 - (now - this->last_stop_ms_);
     this->set_timeout(wait_ms, [this]() { this->update(); });
     return;
+  }
+  if (this->ambient_pressure_source_ != nullptr) {
+    float pressure = this->ambient_pressure_source_->state;
+    if (!std::isnan(pressure)) {
+      uint16_t pressure_hpa = static_cast<uint16_t>(lroundf(pressure));
+      if (!this->ambient_pressure_.has_value() || this->ambient_pressure_.value() != pressure_hpa) {
+        this->update_ambient_pressure_compensation_(pressure_hpa);
+      }
+    }
   }
   if (this->measurement_started_ && this->auto_cleaning_enabled_.value_or(false) &&
       this->auto_cleaning_interval_s_.has_value()) {
@@ -667,6 +680,24 @@ void SEN6XComponent::update() {
   };
 
   (*poll_ready)(poll_retries);
+}
+
+bool SEN6XComponent::update_ambient_pressure_compensation_(uint16_t pressure_hpa) {
+  if (pressure_hpa < 700 || pressure_hpa > 1200) {
+    ESP_LOGW(TAG, "Ambient pressure out of range: %u hPa", pressure_hpa);
+    return false;
+  }
+  if (this->ambient_pressure_.has_value() && this->ambient_pressure_.value() == pressure_hpa) {
+    return true;
+  }
+  uint16_t params[1];
+  params[0] = pressure_hpa;
+  if (!this->write_command(SEN6X_CMD_AMBIENT_PRESSURE, params, 1)) {
+    ESP_LOGE(TAG, "set ambient pressure failed. Err=%d", this->last_error_);
+    return false;
+  }
+  this->ambient_pressure_ = pressure_hpa;
+  return true;
 }
 
 bool SEN6XComponent::write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning) {
