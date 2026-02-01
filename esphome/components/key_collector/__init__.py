@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
 )
-from esphome.core import Lambda
 from esphome.cpp_generator import MockObj, literal
 from esphome.types import TemplateArgsType
 
@@ -127,9 +126,7 @@ async def to_code(config):
                 arglist,
                 conf,
             )
-            lamb = Lambda(
-                str(cg.statement(trigger.trigger(*[literal(arg.name) for arg in args])))
-            )
+            lamb = trigger.trigger(*[literal(arg.name) for arg in args])
             cg.add(add_trig(await cg.process_lambda(lamb, arglist)))
 
     if timeout := config.get(CONF_TIMEOUT):

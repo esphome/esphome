@@ -3,7 +3,6 @@ from esphome.components import text_sensor
 from esphome.components.text_sensor import TextSensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from esphome.core import Lambda
 from esphome.cpp_generator import literal
 from esphome.types import TemplateArgsType
 
@@ -22,5 +21,8 @@ async def to_code(config):
     await text_sensor.register_text_sensor(var, config)
     args = TRIGGER_TYPES[CONF_ON_RESULT]
     arglist: TemplateArgsType = [(arg.type, arg.name) for arg in args]
-    lamb = Lambda(str(cg.statement(var.publish_state(literal(args[0].name)))))
-    cg.add(parent.add_on_result_callback(await cg.process_lambda(lamb, arglist)))
+    cg.add(
+        parent.add_on_result_callback(
+            await cg.process_lambda(var.publish_state(literal(args[0].name)), arglist)
+        )
+    )
