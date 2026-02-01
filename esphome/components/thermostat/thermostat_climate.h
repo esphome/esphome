@@ -3,15 +3,14 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
 
 #include <array>
 #include <cinttypes>
-#include <map>
 
-namespace esphome {
-namespace thermostat {
+namespace esphome::thermostat {
 
 enum HumidificationAction : uint8_t {
   THERMOSTAT_HUMIDITY_CONTROL_ACTION_OFF = 0,
@@ -41,13 +40,11 @@ enum OnBootRestoreFrom : uint8_t {
 
 struct ThermostatClimateTimer {
   ThermostatClimateTimer() = default;
-  ThermostatClimateTimer(bool active, uint32_t time, uint32_t started, std::function<void()> func)
-      : active(active), time(time), started(started), func(std::move(func)) {}
+  ThermostatClimateTimer(bool active, uint32_t time, uint32_t started) : active(active), time(time), started(started) {}
 
   bool active;
   uint32_t time;
   uint32_t started;
-  std::function<void()> func;
 };
 
 struct ThermostatClimateTargetTempConfig {
@@ -72,14 +69,29 @@ struct ThermostatClimateTargetTempConfig {
   optional<climate::ClimateMode> mode_{};
 };
 
+/// Entry for standard preset lookup
+struct ThermostatPresetEntry {
+  climate::ClimatePreset preset;
+  ThermostatClimateTargetTempConfig config;
+};
+
+/// Entry for custom preset lookup
+struct ThermostatCustomPresetEntry {
+  const char *name;
+  ThermostatClimateTargetTempConfig config;
+};
+
 class ThermostatClimate : public climate::Climate, public Component {
  public:
+  using PresetEntry = ThermostatPresetEntry;
+  using CustomPresetEntry = ThermostatCustomPresetEntry;
+
   ThermostatClimate();
   void setup() override;
   void dump_config() override;
   void loop() override;
 
-  void set_default_preset(const std::string &custom_preset);
+  void set_default_preset(const char *custom_preset);
   void set_default_preset(climate::ClimatePreset preset);
   void set_on_boot_restore_from(OnBootRestoreFrom on_boot_restore_from);
   void set_set_point_minimum_differential(float differential);
@@ -131,8 +143,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   void set_supports_humidification(bool supports_humidification);
   void set_supports_two_points(bool supports_two_points);
 
-  void set_preset_config(climate::ClimatePreset preset, const ThermostatClimateTargetTempConfig &config);
-  void set_custom_preset_config(const std::string &name, const ThermostatClimateTargetTempConfig &config);
+  void set_preset_config(std::initializer_list<PresetEntry> presets);
+  void set_custom_preset_config(std::initializer_list<CustomPresetEntry> presets);
 
   Trigger<> *get_cool_action_trigger() const;
   Trigger<> *get_supplemental_cool_action_trigger() const;
@@ -192,6 +204,9 @@ class ThermostatClimate : public climate::Climate, public Component {
   void validate_target_temperature_high();
   void validate_target_humidity();
 
+  /// The current humidification action
+  HumidificationAction humidification_action{THERMOSTAT_HUMIDITY_CONTROL_ACTION_NONE};
+
  protected:
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
@@ -199,7 +214,13 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Change to a provided preset setting; will reset temperature, mode, fan, and swing modes accordingly
   void change_preset_(climate::ClimatePreset preset);
   /// Change to a provided custom preset setting; will reset temperature, mode, fan, and swing modes accordingly
-  void change_custom_preset_(const std::string &custom_preset);
+  void change_custom_preset_(const char *custom_preset) {
+    this->change_custom_preset_(custom_preset, strlen(custom_preset));
+  }
+  void change_custom_preset_(const char *custom_preset, size_t len);
+  void change_custom_preset_(StringRef custom_preset) {
+    this->change_custom_preset_(custom_preset.c_str(), custom_preset.size());
+  }
 
   /// Applies the temperature, mode, fan, and swing modes of the provided config.
   /// This is agnostic of custom vs built in preset
@@ -248,7 +269,10 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool cancel_timer_(ThermostatClimateTimerIndex timer_index);
   bool timer_active_(ThermostatClimateTimerIndex timer_index);
   uint32_t timer_duration_(ThermostatClimateTimerIndex timer_index);
-  std::function<void()> timer_cbf_(ThermostatClimateTimerIndex timer_index);
+  /// Call the appropriate timer callback based on timer index
+  void call_timer_callback_(ThermostatClimateTimerIndex timer_index);
+  /// Enhanced timer duration setter with running timer adjustment
+  void set_timer_duration_in_sec_(ThermostatClimateTimerIndex timer_index, uint32_t time);
 
   /// set_timeout() callbacks for various actions (see above)
   void cooling_max_run_time_timer_callback_();
@@ -285,9 +309,6 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   /// The current supplemental action
   climate::ClimateAction supplemental_action_{climate::CLIMATE_ACTION_OFF};
-
-  /// The current humidification action
-  HumidificationAction humidification_action_{THERMOSTAT_HUMIDITY_CONTROL_ACTION_NONE};
 
   /// Default standard preset to use on start up
   climate::ClimatePreset default_preset_{};
@@ -516,28 +537,17 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *prev_swing_mode_trigger_{nullptr};
   Trigger<> *prev_humidity_control_trigger_{nullptr};
 
-  /// Default custom preset to use on start up
-  std::string default_custom_preset_{};
-
   /// Climate action timers
-  std::array<ThermostatClimateTimer, THERMOSTAT_TIMER_COUNT> timer_{
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_max_run_time_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_off_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_on_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::fan_mode_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::fanning_off_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::fanning_on_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::heating_max_run_time_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::heating_off_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::heating_on_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::idle_on_timer_callback_, this)),
-  };
+  std::array<ThermostatClimateTimer, THERMOSTAT_TIMER_COUNT> timer_{};
 
   /// The set of standard preset configurations this thermostat supports (Eg. AWAY, ECO, etc)
-  std::map<climate::ClimatePreset, ThermostatClimateTargetTempConfig> preset_config_{};
+  FixedVector<PresetEntry> preset_config_{};
   /// The set of custom preset configurations this thermostat supports (eg. "My Custom Preset")
-  std::map<std::string, ThermostatClimateTargetTempConfig> custom_preset_config_{};
+  FixedVector<CustomPresetEntry> custom_preset_config_{};
+
+ private:
+  /// Default custom preset to use on start up (pointer to entry in custom_preset_config_)
+  const char *default_custom_preset_{nullptr};
 };
 
-}  // namespace thermostat
-}  // namespace esphome
+}  // namespace esphome::thermostat

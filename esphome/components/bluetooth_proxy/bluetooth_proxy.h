@@ -52,7 +52,9 @@ enum BluetoothProxySubscriptionFlag : uint32_t {
   SUBSCRIPTION_RAW_ADVERTISEMENTS = 1 << 0,
 };
 
-class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
+class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
+                             public esp32_ble_tracker::BLEScannerStateListener,
+                             public Component {
   friend class BluetoothConnection;  // Allow connection to update connections_free_response_
  public:
   BluetoothProxy();
@@ -108,6 +110,9 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, publ
   void set_active(bool active) { this->active_ = active; }
   bool has_active() { return this->active_; }
 
+  /// BLEScannerStateListener interface
+  void on_scanner_state(esp32_ble_tracker::ScannerState state) override;
+
   uint32_t get_legacy_version() const {
     if (this->active_) {
       return LEGACY_ACTIVE_CONNECTIONS_VERSION;
@@ -130,11 +135,13 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, publ
     return flags;
   }
 
-  std::string get_bluetooth_mac_address_pretty() {
+  void get_bluetooth_mac_address_pretty(std::span<char, 18> output) {
     const uint8_t *mac = esp_bt_dev_get_address();
-    char buf[18];
-    format_mac_addr_upper(mac, buf);
-    return std::string(buf);
+    if (mac != nullptr) {
+      format_mac_addr_upper(mac, output.data());
+    } else {
+      output[0] = '\0';
+    }
   }
 
  protected:

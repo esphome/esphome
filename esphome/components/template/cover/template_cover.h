@@ -5,8 +5,7 @@
 #include "esphome/core/template_lambda.h"
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 enum TemplateCoverRestoreMode {
   COVER_NO_RESTORE,
@@ -14,7 +13,7 @@ enum TemplateCoverRestoreMode {
   COVER_RESTORE_AND_CALL,
 };
 
-class TemplateCover : public cover::Cover, public Component {
+class TemplateCover final : public cover::Cover, public Component {
  public:
   TemplateCover();
 
@@ -63,5 +62,4 @@ class TemplateCover : public cover::Cover, public Component {
   bool has_tilt_{false};
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

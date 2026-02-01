@@ -18,7 +18,8 @@ class LightTraits {
  public:
   LightTraits() = default;
 
-  const ColorModeMask &get_supported_color_modes() const { return this->supported_color_modes_; }
+  // Return by value to avoid dangling reference when get_traits() returns a temporary
+  ColorModeMask get_supported_color_modes() const { return this->supported_color_modes_; }
   void set_supported_color_modes(ColorModeMask supported_color_modes) {
     this->supported_color_modes_ = supported_color_modes;
   }

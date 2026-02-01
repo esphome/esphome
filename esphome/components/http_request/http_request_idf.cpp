@@ -1,6 +1,6 @@
 #include "http_request_idf.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/components/network/util.h"
 #include "esphome/components/watchdog/watchdog.h"
@@ -14,8 +14,7 @@
 
 #include "esp_task_wdt.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 static const char *const TAG = "http_request.idf";
 
@@ -28,8 +27,9 @@ void HttpRequestIDF::dump_config() {
   HttpRequestComponent::dump_config();
   ESP_LOGCONFIG(TAG,
                 "  Buffer Size RX: %u\n"
-                "  Buffer Size TX: %u",
-                this->buffer_size_rx_, this->buffer_size_tx_);
+                "  Buffer Size TX: %u\n"
+                "  Custom CA Certificate: %s",
+                this->buffer_size_rx_, this->buffer_size_tx_, YESNO(this->ca_certificate_ != nullptr));
 }
 
 esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
@@ -89,11 +89,15 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   config.disable_auto_redirect = !this->follow_redirects_;
   config.max_redirection_count = this->redirect_limit_;
   config.auth_type = HTTP_AUTH_TYPE_BASIC;
+  if (secure && this->verify_ssl_) {
+    if (this->ca_certificate_ != nullptr) {
+      config.cert_pem = this->ca_certificate_;
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
-  if (secure) {
-    config.crt_bundle_attach = esp_crt_bundle_attach;
-  }
+    } else {
+      config.crt_bundle_attach = esp_crt_bundle_attach;
 #endif
+    }
+  }
 
   if (this->useragent_ != nullptr) {
     config.user_agent = this->useragent_;
@@ -153,6 +157,8 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   }
 
   container->feed_wdt();
+  // esp_http_client_fetch_headers() returns 0 for chunked transfer encoding (no Content-Length header).
+  // The read() method handles content_length == 0 specially to support chunked responses.
   container->content_length = esp_http_client_fetch_headers(client);
   container->feed_wdt();
   container->status_code = esp_http_client_get_status_code(client);
@@ -210,32 +216,71 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
   return container;
 }
 
+// ESP-IDF HTTP read implementation (blocking mode)
+//
+// WARNING: Return values differ from BSD sockets! See http_request.h for full documentation.
+//
+// esp_http_client_read() in blocking mode returns:
+//   > 0: bytes read
+//   0: connection closed (end of stream)
+//   < 0: error
+//
+// We normalize to HttpContainer::read() contract:
+//   > 0: bytes read
+//   0: all content read (only returned when content_length is known and fully read)
+//   < 0: error/connection closed
+//
+// Note on chunked transfer encoding:
+//   esp_http_client_fetch_headers() returns 0 for chunked responses (no Content-Length header).
+//   We handle this by skipping the content_length check when content_length is 0,
+//   allowing esp_http_client_read() to handle chunked decoding internally and signal EOF
+//   by returning 0.
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
 
-  int bufsize = std::min(max_len, this->content_length - this->bytes_read_);
-
-  if (bufsize == 0) {
-    this->duration_ms += (millis() - start);
-    return 0;
+  // Check if we've already read all expected content
+  // Skip this check when content_length is 0 (chunked transfer encoding or unknown length)
+  // For chunked responses, esp_http_client_read() will return 0 when all data is received
+  if (this->content_length > 0 && this->bytes_read_ >= this->content_length) {
+    return 0;  // All content read successfully
   }
 
   this->feed_wdt();
-  int read_len = esp_http_client_read(this->client_, (char *) buf, bufsize);
+  int read_len_or_error = esp_http_client_read(this->client_, (char *) buf, max_len);
   this->feed_wdt();
-  this->bytes_read_ += read_len;
 
   this->duration_ms += (millis() - start);
 
-  return read_len;
+  if (read_len_or_error > 0) {
+    this->bytes_read_ += read_len_or_error;
+    return read_len_or_error;
+  }
+
+  // esp_http_client_read() returns 0 in two cases:
+  // 1. Known content_length: connection closed before all data received (error)
+  // 2. Chunked encoding (content_length == 0): end of stream reached (EOF)
+  // For case 1, returning HTTP_ERROR_CONNECTION_CLOSED is correct.
+  // For case 2, 0 indicates that all chunked data has already been delivered
+  // in previous successful read() calls, so treating this as a closed
+  // connection does not cause any loss of response data.
+  if (read_len_or_error == 0) {
+    return HTTP_ERROR_CONNECTION_CLOSED;
+  }
+
+  // Negative value - error, return the actual error code for debugging
+  return read_len_or_error;
 }
 
 void HttpContainerIDF::end() {
+  if (this->client_ == nullptr) {
+    return;  // Already cleaned up
+  }
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
 
   esp_http_client_close(this->client_);
   esp_http_client_cleanup(this->client_);
+  this->client_ = nullptr;
 }
 
 void HttpContainerIDF::feed_wdt() {
@@ -245,7 +290,6 @@ void HttpContainerIDF::feed_wdt() {
   }
 }
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

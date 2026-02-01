@@ -8,8 +8,7 @@
 #include "esphome/core/log.h"
 #include "uart_component.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 class LibreTinyUARTComponent : public UARTComponent, public Component {
  public:
@@ -37,7 +36,5 @@ class LibreTinyUARTComponent : public UARTComponent, public Component {
   int8_t hardware_idx_{-1};
 };
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_LIBRETINY

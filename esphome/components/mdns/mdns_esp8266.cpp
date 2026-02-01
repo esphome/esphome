@@ -4,23 +4,15 @@
 #include <ESP8266mDNS.h>
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
-void MDNSComponent::setup() {
-#ifdef USE_MDNS_STORE_SERVICES
-  this->compile_records_(this->services_);
-  const auto &services = this->services_;
-#else
-  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
-  this->compile_records_(services);
-#endif
-
-  MDNS.begin(this->hostname_.c_str());
+static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
+  MDNS.begin(App.get_name().c_str());
 
   for (const auto &service : services) {
     // Strip the leading underscore from the proto and service_type. While it is
@@ -44,6 +36,8 @@ void MDNSComponent::setup() {
   }
 }
 
+void MDNSComponent::setup() { this->setup_buffers_and_register_(register_esp8266); }
+
 void MDNSComponent::loop() { MDNS.update(); }
 
 void MDNSComponent::on_shutdown() {
@@ -51,7 +45,6 @@ void MDNSComponent::on_shutdown() {
   delay(10);
 }
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 
 #endif

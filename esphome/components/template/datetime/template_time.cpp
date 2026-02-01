@@ -4,8 +4,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 static const char *const TAG = "template.time";
 
@@ -19,8 +18,7 @@ void TemplateTime::setup() {
     state = this->initial_value_;
   } else {
     datetime::TimeEntityRestoreState temp;
-    this->pref_ =
-        global_preferences->make_preference<datetime::TimeEntityRestoreState>(194434060U ^ this->get_preference_hash());
+    this->pref_ = this->make_entity_preference<datetime::TimeEntityRestoreState>(194434060U);
     if (this->pref_.load(&temp)) {
       temp.apply(this);
       return;
@@ -104,7 +102,6 @@ void TemplateTime::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_
 
 #endif  // USE_DATETIME_TIME

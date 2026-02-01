@@ -1,7 +1,0 @@
-substitutions:
-  verify_ssl: "false"
-
-packages:
-  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp32-c3-idf.yaml
-
-<<: !include common.yaml

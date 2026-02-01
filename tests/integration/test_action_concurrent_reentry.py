@@ -11,7 +11,6 @@ import pytest
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
-@pytest.mark.xfail(reason="https://github.com/esphome/issues/issues/6534")
 @pytest.mark.asyncio
 async def test_action_concurrent_reentry(
     yaml_config: str,

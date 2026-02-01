@@ -100,18 +100,18 @@ void BME280Component::setup() {
 
   if (!this->read_byte(BME280_REGISTER_CHIPID, &chip_id)) {
     this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (chip_id != 0x60) {
     this->error_code_ = WRONG_CHIP_ID;
-    this->mark_failed(BME280_ERROR_WRONG_CHIP_ID);
+    this->mark_failed(LOG_STR(BME280_ERROR_WRONG_CHIP_ID));
     return;
   }
 
   // Send a soft reset.
   if (!this->write_byte(BME280_REGISTER_RESET, BME280_SOFT_RESET)) {
-    this->mark_failed("Reset failed");
+    this->mark_failed(LOG_STR("Reset failed"));
     return;
   }
   // Wait until the NVM data has finished loading.
@@ -120,12 +120,12 @@ void BME280Component::setup() {
   do {  // NOLINT
     delay(2);
     if (!this->read_byte(BME280_REGISTER_STATUS, &status)) {
-      this->mark_failed("Error reading status register");
+      this->mark_failed(LOG_STR("Error reading status register"));
       return;
     }
   } while ((status & BME280_STATUS_IM_UPDATE) && (--retry));
   if (status & BME280_STATUS_IM_UPDATE) {
-    this->mark_failed("Timeout loading NVM");
+    this->mark_failed(LOG_STR("Timeout loading NVM"));
     return;
   }
 
@@ -153,26 +153,26 @@ void BME280Component::setup() {
 
   uint8_t humid_control_val = 0;
   if (!this->read_byte(BME280_REGISTER_CONTROLHUMID, &humid_control_val)) {
-    this->mark_failed("Read humidity control");
+    this->mark_failed(LOG_STR("Read humidity control"));
     return;
   }
   humid_control_val &= ~0b00000111;
   humid_control_val |= this->humidity_oversampling_ & 0b111;
   if (!this->write_byte(BME280_REGISTER_CONTROLHUMID, humid_control_val)) {
-    this->mark_failed("Write humidity control");
+    this->mark_failed(LOG_STR("Write humidity control"));
     return;
   }
 
   uint8_t config_register = 0;
   if (!this->read_byte(BME280_REGISTER_CONFIG, &config_register)) {
-    this->mark_failed("Read config");
+    this->mark_failed(LOG_STR("Read config"));
     return;
   }
   config_register &= ~0b11111100;
   config_register |= 0b101 << 5;  // 1000 ms standby time
   config_register |= (this->iir_filter_ & 0b111) << 2;
   if (!this->write_byte(BME280_REGISTER_CONFIG, config_register)) {
-    this->mark_failed("Write config");
+    this->mark_failed(LOG_STR("Write config"));
     return;
   }
 }

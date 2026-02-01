@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     KEY_VARIANT,
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -23,17 +23,24 @@ from tests.component_tests.types import SetCoreConfigCallable
 UNSUPPORTED_PSRAM_VARIANTS = [
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
-    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
 ]
 
 SUPPORTED_PSRAM_VARIANTS = [
     VARIANT_ESP32,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
-    VARIANT_ESP32P4,
 ]
+SUPPORTED_PSRAM_MODES = {
+    VARIANT_ESP32: ["quad"],
+    VARIANT_ESP32C5: ["quad"],
+    VARIANT_ESP32P4: ["hex"],
+    VARIANT_ESP32S2: ["quad"],
+    VARIANT_ESP32S3: ["quad", "octal"],
+}
 
 
 @pytest.mark.parametrize(
@@ -86,7 +93,7 @@ def test_psram_configuration_valid_supported_variants(
     from esphome.components.psram import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
 
     # This should not raise an exception
-    config = CONFIG_SCHEMA({})
+    config = CONFIG_SCHEMA({"mode": SUPPORTED_PSRAM_MODES[variant][0]})
     FINAL_VALIDATE_SCHEMA(config)
 
 
@@ -122,7 +129,7 @@ def _setup_psram_final_validation_test(
     ("config", "esp32_config", "expect_error", "error_match"),
     [
         pytest.param(
-            {"speed": "120MHz"},
+            {"mode": "quad", "speed": "120MHz"},
             {"cpu_frequency": "160MHz"},
             True,
             r"PSRAM 120MHz requires 240MHz CPU frequency",
@@ -143,7 +150,7 @@ def _setup_psram_final_validation_test(
             id="ecc_only_in_octal_mode",
         ),
         pytest.param(
-            {"speed": "120MHZ"},
+            {"mode": "quad", "speed": "120MHZ"},
             {"cpu_frequency": "240MHZ"},
             False,
             None,

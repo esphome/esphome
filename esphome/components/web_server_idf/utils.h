@@ -8,6 +8,10 @@
 namespace esphome {
 namespace web_server_idf {
 
+/// Decode URL-encoded string in-place (e.g., %20 -> space, + -> space)
+/// Returns the new length of the decoded string
+size_t url_decode(char *str);
+
 bool request_has_header(httpd_req_t *req, const char *name);
 optional<std::string> request_get_header(httpd_req_t *req, const char *name);
 optional<std::string> request_get_url_query(httpd_req_t *req);

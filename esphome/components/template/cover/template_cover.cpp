@@ -1,8 +1,7 @@
 #include "template_cover.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 using namespace esphome::cover;
 
@@ -133,5 +132,4 @@ void TemplateCover::stop_prev_trigger_() {
   }
 }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

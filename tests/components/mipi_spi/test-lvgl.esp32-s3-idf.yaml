@@ -9,3 +9,4 @@ display:
 lvgl:
 
 psram:
+  mode: quad

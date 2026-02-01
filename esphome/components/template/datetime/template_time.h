@@ -11,10 +11,9 @@
 #include "esphome/core/time.h"
 #include "esphome/core/template_lambda.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
-class TemplateTime : public datetime::TimeEntity, public PollingComponent {
+class TemplateTime final : public datetime::TimeEntity, public PollingComponent {
  public:
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
@@ -41,7 +40,6 @@ class TemplateTime : public datetime::TimeEntity, public PollingComponent {
   ESPPreferenceObject pref_;
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_
 
 #endif  // USE_DATETIME_TIME

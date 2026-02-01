@@ -1,11 +1,16 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
+from esphome.components.esp32 import (
+    add_idf_sdkconfig_option,
+    get_esp32_variant,
+    include_builtin_idf_component,
+)
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
@@ -68,13 +73,14 @@ I2S_ROLE_OPTIONS = {
 # https://github.com/espressif/esp-idf/blob/master/components/soc/{variant}/include/soc/soc_caps.h (SOC_I2S_NUM)
 I2S_PORTS = {
     VARIANT_ESP32: 2,
-    VARIANT_ESP32S2: 1,
-    VARIANT_ESP32S3: 2,
     VARIANT_ESP32C3: 1,
     VARIANT_ESP32C5: 1,
     VARIANT_ESP32C6: 1,
+    VARIANT_ESP32C61: 1,
     VARIANT_ESP32H2: 1,
     VARIANT_ESP32P4: 3,
+    VARIANT_ESP32S2: 1,
+    VARIANT_ESP32S3: 2,
 }
 
 i2s_channel_fmt_t = cg.global_ns.enum("i2s_channel_fmt_t")
@@ -229,6 +235,8 @@ def validate_use_legacy(value):
         if (not value[CONF_USE_LEGACY]) and (CORE.using_arduino):
             raise cv.Invalid("Arduino supports only the legacy i2s driver")
         _set_use_legacy_driver(value[CONF_USE_LEGACY])
+    elif CORE.using_arduino:
+        _set_use_legacy_driver(True)
     return value
 
 
@@ -258,8 +266,7 @@ def _final_validate(_):
 
 
 def use_legacy():
-    legacy_driver = _get_use_legacy_driver()
-    return not (CORE.using_esp_idf and not legacy_driver)
+    return _get_use_legacy_driver()
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -268,6 +275,10 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # Re-enable ESP-IDF's I2S driver (excluded by default to save compile time)
+    include_builtin_idf_component("esp_driver_i2s")
+
     if use_legacy():
         cg.add_define("USE_I2S_LEGACY")
 

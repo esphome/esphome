@@ -1,9 +1,10 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
+from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
 import esphome.config_validation as cv
 from esphome.const import CONF_BUSY_PIN, CONF_DATA, CONF_FREQUENCY, CONF_ID
-from esphome.core import TimePeriod
+from esphome.core import ID, TimePeriod
 
 MULTI_CONF = True
 CODEOWNERS = ["@swoboda1337"]
@@ -14,7 +15,6 @@ CONF_SX126X_ID = "sx126x_id"
 CONF_BANDWIDTH = "bandwidth"
 CONF_BITRATE = "bitrate"
 CONF_CODING_RATE = "coding_rate"
-CONF_CRC_ENABLE = "crc_enable"
 CONF_CRC_INVERTED = "crc_inverted"
 CONF_CRC_SIZE = "crc_size"
 CONF_CRC_POLYNOMIAL = "crc_polynomial"
@@ -23,7 +23,6 @@ CONF_DEVIATION = "deviation"
 CONF_DIO1_PIN = "dio1_pin"
 CONF_HW_VERSION = "hw_version"
 CONF_MODULATION = "modulation"
-CONF_ON_PACKET = "on_packet"
 CONF_PA_POWER = "pa_power"
 CONF_PA_RAMP = "pa_ramp"
 CONF_PAYLOAD_LENGTH = "payload_length"
@@ -189,7 +188,7 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(SX126x),
             cv.Optional(CONF_BANDWIDTH, default="125_0kHz"): cv.enum(BW),
             cv.Optional(CONF_BITRATE, default=4800): cv.int_range(min=600, max=300000),
-            cv.Required(CONF_BUSY_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Required(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_CODING_RATE, default="CR_4_5"): cv.enum(CODING_RATE),
             cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
             cv.Optional(CONF_CRC_INVERTED, default=True): cv.boolean,
@@ -200,9 +199,13 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CRC_INITIAL, default=0x1D0F): cv.All(
                 cv.hex_int, cv.Range(min=0, max=0xFFFF)
             ),
-            cv.Optional(CONF_DEVIATION, default=5000): cv.int_range(min=0, max=100000),
-            cv.Required(CONF_DIO1_PIN): pins.internal_gpio_input_pin_schema,
-            cv.Required(CONF_FREQUENCY): cv.int_range(min=137000000, max=1020000000),
+            cv.Optional(CONF_DEVIATION, default="5kHz"): cv.All(
+                cv.frequency, cv.float_range(min=0, max=100000)
+            ),
+            cv.Required(CONF_DIO1_PIN): pins.gpio_input_pin_schema,
+            cv.Required(CONF_FREQUENCY): cv.All(
+                cv.frequency, cv.float_range(min=137.0e6, max=1020.0e6)
+            ),
             cv.Required(CONF_HW_VERSION): cv.one_of(
                 "sx1261", "sx1262", "sx1268", "llcc68", lower=True
             ),
@@ -213,7 +216,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(min=0, max=256),
             cv.Optional(CONF_PREAMBLE_DETECT, default=2): cv.int_range(min=0, max=4),
             cv.Optional(CONF_PREAMBLE_SIZE, default=8): cv.int_range(min=1, max=65535),
-            cv.Required(CONF_RST_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Required(CONF_RST_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RX_START, default=True): cv.boolean,
             cv.Required(CONF_RF_SWITCH): cv.boolean,
             cv.Optional(CONF_SHAPING, default="NONE"): cv.enum(SHAPING),
@@ -329,5 +332,8 @@ async def send_packet_action_to_code(config, action_id, template_arg, args):
         templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_data_template(templ))
     else:
-        cg.add(var.set_data_static(data))
+        # Generate static array in flash to avoid RAM copy
+        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
+        cg.add(var.set_data_static(arr, len(data)))
     return var

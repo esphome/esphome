@@ -24,12 +24,34 @@ extern "C" {
 #include <nvs_flash.h>
 
 #ifdef USE_ARDUINO
-#include <esp32-hal-bt.h>
+// Prevent Arduino from releasing BT memory at startup (esp32-hal-misc.c).
+// Without this, esp_bt_controller_init() fails with ESP_ERR_INVALID_STATE.
+extern "C" bool btInUse() { return true; }  // NOLINT(readability-identifier-naming)
 #endif
 
 namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble";
+
+// GAP event groups for deduplication across gap_event_handler and dispatch_gap_event_
+#define GAP_SCAN_COMPLETE_EVENTS \
+  case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT: \
+  case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT: \
+  case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT
+
+#define GAP_ADV_COMPLETE_EVENTS \
+  case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT: \
+  case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT: \
+  case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT: \
+  case ESP_GAP_BLE_ADV_START_COMPLETE_EVT: \
+  case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT
+
+#define GAP_SECURITY_EVENTS \
+  case ESP_GAP_BLE_AUTH_CMPL_EVT: \
+  case ESP_GAP_BLE_SEC_REQ_EVT: \
+  case ESP_GAP_BLE_PASSKEY_NOTIF_EVT: \
+  case ESP_GAP_BLE_PASSKEY_REQ_EVT: \
+  case ESP_GAP_BLE_NC_REQ_EVT
 
 void ESP32BLE::setup() {
   global_ble = this;
@@ -145,12 +167,6 @@ void ESP32BLE::advertising_init_() {
 bool ESP32BLE::ble_setup_() {
   esp_err_t err;
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#ifdef USE_ARDUINO
-  if (!btStart()) {
-    ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
-    return false;
-  }
-#else
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
@@ -175,7 +191,6 @@ bool ESP32BLE::ble_setup_() {
       return false;
     }
   }
-#endif
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 #else
@@ -236,29 +251,46 @@ bool ESP32BLE::ble_setup_() {
   }
 #endif
 
-  std::string name;
-  if (this->name_.has_value()) {
-    name = this->name_.value();
+  // BLE device names are limited to 20 characters
+  // Buffer: 20 chars + null terminator
+  constexpr size_t ble_name_max_len = 21;
+  char name_buffer[ble_name_max_len];
+  const char *device_name;
+
+  if (this->name_ != nullptr) {
     if (App.is_name_add_mac_suffix_enabled()) {
+      // MAC address length: 12 hex chars + null terminator
+      constexpr size_t mac_address_len = 13;
       // MAC address suffix length (last 6 characters of 12-char MAC address string)
       constexpr size_t mac_address_suffix_len = 6;
-      const std::string mac_addr = get_mac_address();
-      const char *mac_suffix_ptr = mac_addr.c_str() + mac_address_suffix_len;
-      name = make_name_with_suffix(name, '-', mac_suffix_ptr, mac_address_suffix_len);
+      char mac_addr[mac_address_len];
+      get_mac_address_into_buffer(mac_addr);
+      const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
+      make_name_with_suffix_to(name_buffer, sizeof(name_buffer), this->name_, strlen(this->name_), '-', mac_suffix_ptr,
+                               mac_address_suffix_len);
+      device_name = name_buffer;
+    } else {
+      device_name = this->name_;
     }
   } else {
-    name = App.get_name();
-    if (name.length() > 20) {
+    const std::string &app_name = App.get_name();
+    size_t name_len = app_name.length();
+    if (name_len > 20) {
       if (App.is_name_add_mac_suffix_enabled()) {
         // Keep first 13 chars and last 7 chars (MAC suffix), remove middle
-        name.erase(13, name.length() - 20);
+        memcpy(name_buffer, app_name.c_str(), 13);
+        memcpy(name_buffer + 13, app_name.c_str() + name_len - 7, 7);
       } else {
-        name.resize(20);
+        memcpy(name_buffer, app_name.c_str(), 20);
       }
+      name_buffer[20] = '\0';
+    } else {
+      memcpy(name_buffer, app_name.c_str(), name_len + 1);  // Include null terminator
     }
+    device_name = name_buffer;
   }
 
-  err = esp_ble_gap_set_device_name(name.c_str());
+  err = esp_ble_gap_set_device_name(device_name);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_device_name failed: %d", err);
     return false;
@@ -279,22 +311,24 @@ bool ESP32BLE::ble_setup_() {
 bool ESP32BLE::ble_dismantle_() {
   esp_err_t err = esp_bluedroid_disable();
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_bluedroid_disable failed: %d", err);
-    return false;
+    // ESP_ERR_INVALID_STATE means Bluedroid is already disabled, which is fine
+    if (err != ESP_ERR_INVALID_STATE) {
+      ESP_LOGE(TAG, "esp_bluedroid_disable failed: %d", err);
+      return false;
+    }
+    ESP_LOGD(TAG, "Already disabled");
   }
   err = esp_bluedroid_deinit();
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_bluedroid_deinit failed: %d", err);
-    return false;
+    // ESP_ERR_INVALID_STATE means Bluedroid is already deinitialized, which is fine
+    if (err != ESP_ERR_INVALID_STATE) {
+      ESP_LOGE(TAG, "esp_bluedroid_deinit failed: %d", err);
+      return false;
+    }
+    ESP_LOGD(TAG, "Already deinitialized");
   }
 
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
-#ifdef USE_ARDUINO
-  if (!btStop()) {
-    ESP_LOGE(TAG, "btStop failed: %d", esp_bt_controller_get_status());
-    return false;
-  }
-#else
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
     // stop bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED) {
@@ -318,7 +352,6 @@ bool ESP32BLE::ble_dismantle_() {
       return false;
     }
   }
-#endif
 #else
   if (esp_hosted_bt_controller_disable() != ESP_OK) {
     ESP_LOGW(TAG, "esp_hosted_bt_controller_disable failed");
@@ -414,60 +447,48 @@ void ESP32BLE::loop() {
             break;
 
           // Scan complete events
-          case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
-          case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
-          case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
-            // All three scan complete events have the same structure with just status
-            // The scan_complete struct matches ESP-IDF's layout exactly, so this reinterpret_cast is safe
-            // This is verified at compile-time by static_assert checks in ble_event.h
-            // The struct already contains our copy of the status (copied in BLEEvent constructor)
-            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
-#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.scan_complete));
-            }
-#endif
-            break;
-
+          GAP_SCAN_COMPLETE_EVENTS:
           // Advertising complete events
-          case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
-          case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
-          case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
-          case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
-          case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
-            // All advertising complete events have the same structure with just status
-            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
-#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.adv_complete));
-            }
-#endif
-            break;
-
+          GAP_ADV_COMPLETE_EVENTS:
           // RSSI complete event
           case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
-            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
-#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.read_rssi_complete));
-            }
-#endif
-            break;
-
           // Security events
-          case ESP_GAP_BLE_AUTH_CMPL_EVT:
-          case ESP_GAP_BLE_SEC_REQ_EVT:
-          case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
-          case ESP_GAP_BLE_PASSKEY_REQ_EVT:
-          case ESP_GAP_BLE_NC_REQ_EVT:
+          GAP_SECURITY_EVENTS:
             ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
 #ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.security));
+            {
+              esp_ble_gap_cb_param_t *param;
+              // clang-format off
+              switch (gap_event) {
+                // All three scan complete events have the same structure with just status
+                // The scan_complete struct matches ESP-IDF's layout exactly, so this reinterpret_cast is safe
+                // This is verified at compile-time by static_assert checks in ble_event.h
+                // The struct already contains our copy of the status (copied in BLEEvent constructor)
+                GAP_SCAN_COMPLETE_EVENTS:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.scan_complete);
+                  break;
+
+                // All advertising complete events have the same structure with just status
+                GAP_ADV_COMPLETE_EVENTS:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.adv_complete);
+                  break;
+
+                case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.read_rssi_complete);
+                  break;
+
+                GAP_SECURITY_EVENTS:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.security);
+                  break;
+
+                default:
+                  break;
+              }
+              // clang-format on
+              // Dispatch to all registered handlers
+              for (auto *gap_handler : this->gap_event_handlers_) {
+                gap_handler->gap_event_handler(gap_event, param);
+              }
             }
 #endif
             break;
@@ -547,24 +568,22 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     // Queue GAP events that components need to handle
     // Scanning events - used by esp32_ble_tracker
     case ESP_GAP_BLE_SCAN_RESULT_EVT:
-    case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
-    case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
-    case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
+    GAP_SCAN_COMPLETE_EVENTS:
     // Advertising events - used by esp32_ble_beacon and esp32_ble server
-    case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
-    case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
-    case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
-    case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
-    case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
+    GAP_ADV_COMPLETE_EVENTS:
     // Connection events - used by ble_client
     case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
-    // Security events - used by ble_client and bluetooth_proxy
-    case ESP_GAP_BLE_AUTH_CMPL_EVT:
-    case ESP_GAP_BLE_SEC_REQ_EVT:
-    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
-    case ESP_GAP_BLE_PASSKEY_REQ_EVT:
-    case ESP_GAP_BLE_NC_REQ_EVT:
       enqueue_ble_event(event, param);
+      return;
+
+    // Security events - used by ble_client and bluetooth_proxy
+    // These are rare but interactive (pairing/bonding), so notify immediately
+    GAP_SECURITY_EVENTS:
+      enqueue_ble_event(event, param);
+      // Wake up main loop to process security event immediately
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+      App.wake_loop_threadsafe();
+#endif
       return;
 
     // Ignore these GAP events as they are not relevant for our use case
@@ -584,6 +603,10 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
 void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) {
   enqueue_ble_event(event, gatts_if, param);
+  // Wake up main loop to process GATT event immediately
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  App.wake_loop_threadsafe();
+#endif
 }
 #endif
 
@@ -591,6 +614,10 @@ void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gat
 void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) {
   enqueue_ble_event(event, gattc_if, param);
+  // Wake up main loop to process GATT event immediately
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  App.wake_loop_threadsafe();
+#endif
 }
 #endif
 
@@ -620,11 +647,13 @@ void ESP32BLE::dump_config() {
         io_capability_s = "invalid";
         break;
     }
+    char mac_s[18];
+    format_mac_addr_upper(mac_address, mac_s);
     ESP_LOGCONFIG(TAG,
                   "BLE:\n"
                   "  MAC address: %s\n"
                   "  IO Capability: %s",
-                  format_mac_address_pretty(mac_address).c_str(), io_capability_s);
+                  mac_s, io_capability_s);
   } else {
     ESP_LOGCONFIG(TAG, "Bluetooth stack is not enabled");
   }

@@ -29,8 +29,7 @@
 
 #include <array>
 
-namespace esphome {
-namespace ld2412 {
+namespace esphome::ld2412 {
 
 using namespace ld24xx;
 
@@ -99,8 +98,8 @@ class LD2412Component : public Component, public uart::UARTDevice {
   void read_all_info();
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
-  void set_distance_resolution(const std::string &state);
-  void set_baud_rate(const std::string &state);
+  void set_distance_resolution(const char *state);
+  void set_baud_rate(const char *state);
   void factory_reset();
   void start_dynamic_background_correction();
 
@@ -137,5 +136,4 @@ class LD2412Component : public Component, public uart::UARTDevice {
 #endif
 };
 
-}  // namespace ld2412
-}  // namespace esphome
+}  // namespace esphome::ld2412

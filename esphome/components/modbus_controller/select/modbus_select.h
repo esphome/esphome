@@ -38,7 +38,7 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
 
   void dump_config() override;
   void parse_and_publish(const std::vector<uint8_t> &data) override;
-  void control(const std::string &value) override;
+  void control(size_t index) override;
 
  protected:
   std::vector<int64_t> mapping_{};

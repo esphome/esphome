@@ -1,11 +1,11 @@
 #include <cinttypes>
+
 #include "light_call.h"
 #include "light_state.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 static const char *const TAG = "light";
 
@@ -52,8 +52,10 @@ static void log_invalid_parameter(const char *name, const LogString *message) {
   }
 
 static const LogString *color_mode_to_human(ColorMode color_mode) {
-  if (color_mode == ColorMode::UNKNOWN)
-    return LOG_STR("Unknown");
+  if (color_mode == ColorMode::ON_OFF)
+    return LOG_STR("On/Off");
+  if (color_mode == ColorMode::BRIGHTNESS)
+    return LOG_STR("Brightness");
   if (color_mode == ColorMode::WHITE)
     return LOG_STR("White");
   if (color_mode == ColorMode::COLOR_TEMPERATURE)
@@ -68,16 +70,16 @@ static const LogString *color_mode_to_human(ColorMode color_mode) {
     return LOG_STR("RGB + cold/warm white");
   if (color_mode == ColorMode::RGB_COLOR_TEMPERATURE)
     return LOG_STR("RGB + color temperature");
-  return LOG_STR("");
+  return LOG_STR("Unknown");
 }
 
 // Helper to log percentage values
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-static void log_percent(const char *name, const char *param, float value) {
-  ESP_LOGD(TAG, "  %s: %.0f%%", param, value * 100.0f);
+static void log_percent(const LogString *param, float value) {
+  ESP_LOGD(TAG, "  %s: %.0f%%", LOG_STR_ARG(param), value * 100.0f);
 }
 #else
-#define log_percent(name, param, value)
+#define log_percent(param, value)
 #endif
 
 void LightCall::perform() {
@@ -103,11 +105,11 @@ void LightCall::perform() {
     }
 
     if (this->has_brightness()) {
-      log_percent(name, "Brightness", v.get_brightness());
+      log_percent(LOG_STR("Brightness"), v.get_brightness());
     }
 
     if (this->has_color_brightness()) {
-      log_percent(name, "Color brightness", v.get_color_brightness());
+      log_percent(LOG_STR("Color brightness"), v.get_color_brightness());
     }
     if (this->has_red() || this->has_green() || this->has_blue()) {
       ESP_LOGD(TAG, "  Red: %.0f%%, Green: %.0f%%, Blue: %.0f%%", v.get_red() * 100.0f, v.get_green() * 100.0f,
@@ -115,7 +117,7 @@ void LightCall::perform() {
     }
 
     if (this->has_white()) {
-      log_percent(name, "White", v.get_white());
+      log_percent(LOG_STR("White"), v.get_white());
     }
     if (this->has_color_temperature()) {
       ESP_LOGD(TAG, "  Color temperature: %.1f mireds", v.get_color_temperature());
@@ -152,15 +154,15 @@ void LightCall::perform() {
 
   } else if (this->has_effect_()) {
     // EFFECT
-    const char *effect_s;
+    StringRef effect_s;
     if (this->effect_ == 0u) {
-      effect_s = "None";
+      effect_s = StringRef::from_lit("None");
     } else {
       effect_s = this->parent_->effects_[this->effect_ - 1]->get_name();
     }
 
     if (publish) {
-      ESP_LOGD(TAG, "  Effect: '%s'", effect_s);
+      ESP_LOGD(TAG, "  Effect: '%.*s'", (int) effect_s.size(), effect_s.c_str());
     }
 
     this->parent_->start_effect_(this->effect_);
@@ -173,8 +175,10 @@ void LightCall::perform() {
     this->parent_->set_immediately_(v, publish);
   }
 
-  if (!this->has_transition_()) {
-    this->parent_->target_state_reached_callback_.call();
+  if (!this->has_transition_() && this->parent_->target_state_reached_listeners_) {
+    for (auto *listener : *this->parent_->target_state_reached_listeners_) {
+      listener->on_light_target_state_reached();
+    }
   }
   if (publish) {
     this->parent_->publish_state();
@@ -387,7 +391,10 @@ void LightCall::transform_parameters_() {
       min_mireds > 0.0f && max_mireds > 0.0f) {
     ESP_LOGD(TAG, "'%s': setting cold/warm white channels using white/color temperature values",
              this->parent_->get_name().c_str());
-    if (this->has_color_temperature()) {
+    // Only compute cold_white/warm_white from color_temperature if they're not already explicitly set.
+    // This is important for state restoration, where both color_temperature and cold_white/warm_white
+    // are restored from flash - we want to preserve the saved cold_white/warm_white values.
+    if (this->has_color_temperature() && !this->has_cold_white() && !this->has_warm_white()) {
       const float color_temp = clamp(this->color_temperature_, min_mireds, max_mireds);
       const float range = max_mireds - min_mireds;
       const float ww_fraction = (color_temp - min_mireds) / range;
@@ -406,7 +413,7 @@ void LightCall::transform_parameters_() {
   }
 }
 ColorMode LightCall::compute_color_mode_() {
-  const auto &supported_modes = this->parent_->get_traits().get_supported_color_modes();
+  auto supported_modes = this->parent_->get_traits().get_supported_color_modes();
   int supported_count = supported_modes.size();
 
   // Some lights don't support any color modes (e.g. monochromatic light), leave it at unknown.
@@ -501,24 +508,23 @@ color_mode_bitmask_t LightCall::get_suitable_color_modes_mask_() {
 #undef KEY
 }
 
-LightCall &LightCall::set_effect(const std::string &effect) {
-  if (strcasecmp(effect.c_str(), "none") == 0) {
+LightCall &LightCall::set_effect(const char *effect, size_t len) {
+  if (len == 4 && strncasecmp(effect, "none", 4) == 0) {
     this->set_effect(0);
     return *this;
   }
 
   bool found = false;
+  StringRef effect_ref(effect, len);
   for (uint32_t i = 0; i < this->parent_->effects_.size(); i++) {
-    LightEffect *e = this->parent_->effects_[i];
-
-    if (strcasecmp(effect.c_str(), e->get_name()) == 0) {
+    if (str_equals_case_insensitive(effect_ref, this->parent_->effects_[i]->get_name())) {
       this->set_effect(i + 1);
       found = true;
       break;
     }
   }
   if (!found) {
-    ESP_LOGW(TAG, "'%s': no such effect '%s'", this->parent_->get_name().c_str(), effect.c_str());
+    ESP_LOGW(TAG, "'%s': no such effect '%.*s'", this->parent_->get_name().c_str(), (int) len, effect);
   }
   return *this;
 }
@@ -645,5 +651,4 @@ LightCall &LightCall::set_rgbw(float red, float green, float blue, float white) 
   return *this;
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

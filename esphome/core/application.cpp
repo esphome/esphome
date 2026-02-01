@@ -1,5 +1,15 @@
 #include "esphome/core/application.h"
+#include "esphome/core/build_info_data.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
+#include <cstring>
+
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif
+#ifdef USE_ESP32
+#include <esp_chip_info.h>
+#endif
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
@@ -10,6 +20,10 @@
 
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
+#endif
+
+#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+#include "esphome/components/socket/socket.h"
 #endif
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
@@ -122,6 +136,11 @@ void Application::setup() {
   // Clear setup priority overrides to free memory
   clear_setup_priority_overrides();
 
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  // Set up wake socket for waking main loop from tasks
+  this->setup_wake_loop_threadsafe_();
+#endif
+
   this->schedule_dump_config();
 }
 void Application::loop() {
@@ -182,9 +201,29 @@ void Application::loop() {
 
   if (this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
-      ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_);
+      char build_time_str[Application::BUILD_TIME_STR_SIZE];
+      this->get_build_time_string(build_time_str);
+      ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", build_time_str);
 #ifdef ESPHOME_PROJECT_NAME
       ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
+#endif
+#ifdef USE_ESP32
+      esp_chip_info_t chip_info;
+      esp_chip_info(&chip_info);
+      ESP_LOGI(TAG, "ESP32 Chip: %s rev%d.%d, %d core(s)", ESPHOME_VARIANT, chip_info.revision / 100,
+               chip_info.revision % 100, chip_info.cores);
+#if defined(USE_ESP32_VARIANT_ESP32) && !defined(USE_ESP32_MIN_CHIP_REVISION_SET)
+      // Suggest optimization for chips that don't need the PSRAM cache workaround
+      if (chip_info.revision >= 300) {
+#ifdef USE_PSRAM
+        ESP_LOGW(TAG, "Set minimum_chip_revision: \"%d.%d\" to save ~10KB IRAM", chip_info.revision / 100,
+                 chip_info.revision % 100);
+#else
+        ESP_LOGW(TAG, "Set minimum_chip_revision: \"%d.%d\" to reduce binary size", chip_info.revision / 100,
+                 chip_info.revision % 100);
+#endif
+      }
+#endif
 #endif
     }
 
@@ -472,6 +511,11 @@ void Application::enable_pending_loops_() {
 }
 
 void Application::before_loop_tasks_(uint32_t loop_start_time) {
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  // Drain wake notifications first to clear socket for next wake
+  this->drain_wake_notifications_();
+#endif
+
   // Process scheduled tasks
   this->scheduler.call(loop_start_time);
 
@@ -617,6 +661,9 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     // No sockets registered, use regular delay
     delay(delay_ms);
   }
+#elif defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  // No select support but can wake on socket activity via esp_schedule()
+  socket::socket_delay(delay_ms);
 #else
   // No select support, use regular delay
   delay(delay_ms);
@@ -624,5 +671,79 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 }
 
 Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+void Application::setup_wake_loop_threadsafe_() {
+  // Create UDP socket for wake notifications
+  this->wake_socket_fd_ = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  if (this->wake_socket_fd_ < 0) {
+    ESP_LOGW(TAG, "Wake socket create failed: %d", errno);
+    return;
+  }
+
+  // Bind to loopback with auto-assigned port
+  struct sockaddr_in addr = {};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = lwip_htonl(INADDR_LOOPBACK);
+  addr.sin_port = 0;  // Auto-assign port
+
+  if (lwip_bind(this->wake_socket_fd_, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
+    ESP_LOGW(TAG, "Wake socket bind failed: %d", errno);
+    lwip_close(this->wake_socket_fd_);
+    this->wake_socket_fd_ = -1;
+    return;
+  }
+
+  // Get the assigned address and connect to it
+  // Connecting a UDP socket allows using send() instead of sendto() for better performance
+  struct sockaddr_in wake_addr;
+  socklen_t len = sizeof(wake_addr);
+  if (lwip_getsockname(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, &len) < 0) {
+    ESP_LOGW(TAG, "Wake socket address failed: %d", errno);
+    lwip_close(this->wake_socket_fd_);
+    this->wake_socket_fd_ = -1;
+    return;
+  }
+
+  // Connect to self (loopback) - allows using send() instead of sendto()
+  // After connect(), no need to store wake_addr - the socket remembers it
+  if (lwip_connect(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, sizeof(wake_addr)) < 0) {
+    ESP_LOGW(TAG, "Wake socket connect failed: %d", errno);
+    lwip_close(this->wake_socket_fd_);
+    this->wake_socket_fd_ = -1;
+    return;
+  }
+
+  // Set non-blocking mode
+  int flags = lwip_fcntl(this->wake_socket_fd_, F_GETFL, 0);
+  lwip_fcntl(this->wake_socket_fd_, F_SETFL, flags | O_NONBLOCK);
+
+  // Register with application's select() loop
+  if (!this->register_socket_fd(this->wake_socket_fd_)) {
+    ESP_LOGW(TAG, "Wake socket register failed");
+    lwip_close(this->wake_socket_fd_);
+    this->wake_socket_fd_ = -1;
+    return;
+  }
+}
+
+void Application::wake_loop_threadsafe() {
+  // Called from FreeRTOS task context when events need immediate processing
+  // Wakes up lwip_select() in main loop by writing to connected loopback socket
+  if (this->wake_socket_fd_ >= 0) {
+    const char dummy = 1;
+    // Non-blocking send - if it fails (unlikely), select() will wake on timeout anyway
+    // No error checking needed: we control both ends of this loopback socket.
+    // This is safe to call from FreeRTOS tasks - send() is thread-safe in lwip
+    // Socket is already connected to loopback address, so send() is faster than sendto()
+    lwip_send(this->wake_socket_fd_, &dummy, 1, 0);
+  }
+}
+#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+
+void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer) {
+  ESPHOME_strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());
+  buffer[buffer.size() - 1] = '\0';
+}
 
 }  // namespace esphome

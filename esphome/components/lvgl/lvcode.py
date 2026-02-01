@@ -1,4 +1,5 @@
 import abc
+from typing import TYPE_CHECKING
 
 from esphome import codegen as cg
 from esphome.config import Config
@@ -200,6 +201,21 @@ class LvContext(LambdaContext):
         return self.add(*args)
 
 
+def get_lambda_context_args() -> list[tuple[SafeExpType, str]]:
+    """Get automation parameters from the current lambda context if available.
+
+    When called from outside LVGL's context (e.g., from interval),
+    CodeContext.code_context will be None, so return empty args.
+    """
+    if CodeContext.code_context is None:
+        return []
+    if TYPE_CHECKING:
+        # CodeContext base class doesn't define get_automation_parameters(),
+        # but LambdaContext and LvContext (the concrete implementations) do.
+        assert isinstance(CodeContext.code_context, LambdaContext)
+    return CodeContext.code_context.get_automation_parameters()
+
+
 class LocalVariable(MockObj):
     """
     Create a local variable and enclose the code using it within a block.
@@ -299,6 +315,7 @@ class LvExpr(MockLv):
 
 # Top level mock for generic lv_ calls to be recorded
 lv = MockLv("lv_")
+LV = MockLv("LV_")
 # Just generate an expression
 lv_expr = LvExpr("lv_")
 # Mock for lv_obj_ calls
@@ -327,7 +344,7 @@ def lv_assign(target, expression):
     lv_add(AssignmentExpression("", "", target, expression))
 
 
-def lv_Pvariable(type, name):
+def lv_Pvariable(type, name) -> MockObj:
     """
     Create but do not initialise a pointer variable
     :param type: Type of the variable target
@@ -336,14 +353,14 @@ def lv_Pvariable(type, name):
     """
     if isinstance(name, str):
         name = ID(name, True, type)
-    decl = VariableDeclarationExpression(type, "*", name)
+    decl = VariableDeclarationExpression(type, "*", name, static=True)
     CORE.add_global(decl)
     var = MockObj(name, "->")
     CORE.register_variable(name, var)
     return var
 
 
-def lv_variable(type, name):
+def lv_variable(type, name) -> MockObj:
     """
     Create but do not initialise a variable
     :param type: Type of the variable target
@@ -352,7 +369,7 @@ def lv_variable(type, name):
     """
     if isinstance(name, str):
         name = ID(name, True, type)
-    decl = VariableDeclarationExpression(type, "", name)
+    decl = VariableDeclarationExpression(type, "", name, static=True)
     CORE.add_global(decl)
     var = MockObj(name, ".")
     CORE.register_variable(name, var)

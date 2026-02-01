@@ -5,10 +5,9 @@
 #include "esphome/core/template_lambda.h"
 #include "esphome/components/lock/lock.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
-class TemplateLock : public lock::Lock, public Component {
+class TemplateLock final : public lock::Lock, public Component {
  public:
   TemplateLock();
 
@@ -36,5 +35,4 @@ class TemplateLock : public lock::Lock, public Component {
   Trigger<> *prev_trigger_{nullptr};
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

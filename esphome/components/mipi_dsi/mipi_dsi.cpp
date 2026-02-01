@@ -1,9 +1,13 @@
 #ifdef USE_ESP32_VARIANT_ESP32P4
 #include <utility>
 #include "mipi_dsi.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace mipi_dsi {
+
+// Maximum bytes to log for init commands (truncated if larger)
+static constexpr size_t MIPI_DSI_MAX_CMD_LOG_BYTES = 64;
 
 static bool notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
   auto *sem = static_cast<SemaphoreHandle_t *>(user_ctx);
@@ -11,6 +15,12 @@ static bool notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel
   xSemaphoreGiveFromISR(sem, &need_yield);
   return (need_yield == pdTRUE);
 }
+
+void MIPI_DSI::smark_failed(const LogString *message, esp_err_t err) {
+  ESP_LOGE(TAG, "%s: %s", LOG_STR_ARG(message), esp_err_to_name(err));
+  this->mark_failed(message);
+}
+
 void MIPI_DSI::setup() {
   ESP_LOGCONFIG(TAG, "Running Setup");
 
@@ -31,7 +41,7 @@ void MIPI_DSI::setup() {
   };
   auto err = esp_lcd_new_dsi_bus(&bus_config, &this->bus_handle_);
   if (err != ESP_OK) {
-    this->smark_failed("lcd_new_dsi_bus failed", err);
+    this->smark_failed(LOG_STR("lcd_new_dsi_bus failed"), err);
     return;
   }
   esp_lcd_dbi_io_config_t dbi_config = {
@@ -41,7 +51,7 @@ void MIPI_DSI::setup() {
   };
   err = esp_lcd_new_panel_io_dbi(this->bus_handle_, &dbi_config, &this->io_handle_);
   if (err != ESP_OK) {
-    this->smark_failed("new_panel_io_dbi failed", err);
+    this->smark_failed(LOG_STR("new_panel_io_dbi failed"), err);
     return;
   }
   auto pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565;
@@ -69,7 +79,7 @@ void MIPI_DSI::setup() {
                                            }};
   err = esp_lcd_new_panel_dpi(this->bus_handle_, &dpi_config, &this->handle_);
   if (err != ESP_OK) {
-    this->smark_failed("esp_lcd_new_panel_dpi failed", err);
+    this->smark_failed(LOG_STR("esp_lcd_new_panel_dpi failed"), err);
     return;
   }
   if (this->reset_pin_ != nullptr) {
@@ -86,14 +96,14 @@ void MIPI_DSI::setup() {
   auto when = millis() + 120;
   err = esp_lcd_panel_init(this->handle_);
   if (err != ESP_OK) {
-    this->smark_failed("esp_lcd_init failed", err);
+    this->smark_failed(LOG_STR("esp_lcd_init failed"), err);
     return;
   }
   size_t index = 0;
   auto &vec = this->init_sequence_;
   while (index != vec.size()) {
     if (vec.size() - index < 2) {
-      this->mark_failed("Malformed init sequence");
+      this->mark_failed(LOG_STR("Malformed init sequence"));
       return;
     }
     uint8_t cmd = vec[index++];
@@ -104,7 +114,7 @@ void MIPI_DSI::setup() {
     } else {
       uint8_t num_args = x & 0x7F;
       if (vec.size() - index < num_args) {
-        this->mark_failed("Malformed init sequence");
+        this->mark_failed(LOG_STR("Malformed init sequence"));
         return;
       }
       if (cmd == SLEEP_OUT) {
@@ -115,11 +125,14 @@ void MIPI_DSI::setup() {
         }
       }
       const auto *ptr = vec.data() + index;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+      char hex_buf[format_hex_pretty_size(MIPI_DSI_MAX_CMD_LOG_BYTES)];
+#endif
       ESP_LOGVV(TAG, "Command %02X, length %d, byte(s) %s", cmd, num_args,
-                format_hex_pretty(ptr, num_args, '.', false).c_str());
+                format_hex_pretty_to(hex_buf, ptr, num_args, '.'));
       err = esp_lcd_panel_io_tx_param(this->io_handle_, cmd, ptr, num_args);
       if (err != ESP_OK) {
-        this->smark_failed("lcd_panel_io_tx_param failed", err);
+        this->smark_failed(LOG_STR("lcd_panel_io_tx_param failed"), err);
         return;
       }
       index += num_args;
@@ -134,7 +147,7 @@ void MIPI_DSI::setup() {
 
   err = (esp_lcd_dpi_panel_register_event_callbacks(this->handle_, &cbs, this->io_lock_));
   if (err != ESP_OK) {
-    this->smark_failed("Failed to register callbacks", err);
+    this->smark_failed(LOG_STR("Failed to register callbacks"), err);
     return;
   }
 
@@ -216,7 +229,7 @@ bool MIPI_DSI::check_buffer_() {
   RAMAllocator<uint8_t> allocator;
   this->buffer_ = allocator.allocate(this->height_ * this->width_ * bytes_per_pixel);
   if (this->buffer_ == nullptr) {
-    this->mark_failed("Could not allocate buffer for display!");
+    this->mark_failed(LOG_STR("Could not allocate buffer for display!"));
     return false;
   }
   return true;
@@ -287,6 +300,13 @@ void MIPI_DSI::draw_pixel_at(int x, int y, Color color) {
 void MIPI_DSI::fill(Color color) {
   if (!this->check_buffer_())
     return;
+
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
   switch (this->color_depth_) {
     case display::COLOR_BITNESS_565: {
       auto *ptr_16 = reinterpret_cast<uint16_t *>(this->buffer_);

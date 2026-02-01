@@ -77,7 +77,7 @@ FanSpeedSetTrigger = fan_ns.class_(
     "FanSpeedSetTrigger", automation.Trigger.template(cg.int_)
 )
 FanPresetSetTrigger = fan_ns.class_(
-    "FanPresetSetTrigger", automation.Trigger.template(cg.std_string)
+    "FanPresetSetTrigger", automation.Trigger.template(cg.StringRef)
 )
 
 FanIsOnCondition = fan_ns.class_("FanIsOnCondition", automation.Condition.template())
@@ -287,7 +287,7 @@ async def setup_fan_core_(var, config):
         await automation.build_automation(trigger, [(cg.int_, "x")], conf)
     for conf in config.get(CONF_ON_PRESET_SET, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_automation(trigger, [(cg.StringRef, "x")], conf)
 
 
 async def register_fan(var, config):

@@ -5,8 +5,7 @@
 #include "esphome/core/template_lambda.h"
 #include "esphome/components/valve/valve.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 enum TemplateValveRestoreMode {
   VALVE_NO_RESTORE,
@@ -14,7 +13,7 @@ enum TemplateValveRestoreMode {
   VALVE_RESTORE_AND_CALL,
 };
 
-class TemplateValve : public valve::Valve, public Component {
+class TemplateValve final : public valve::Valve, public Component {
  public:
   TemplateValve();
 
@@ -57,5 +56,4 @@ class TemplateValve : public valve::Valve, public Component {
   bool has_position_{false};
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

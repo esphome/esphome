@@ -253,18 +253,30 @@ def main():
         print(f"Split {args.split_at}/{args.split_num}: checking {len(files)} files")
 
     # Print file count before adding header file
-    print(f"\nTotal files to check: {len(files)}")
+    print(f"\nTotal cpp files to check: {len(files)}")
+
+    # Add header file for checking (before early exit check)
+    if args.all_headers and args.split_at in (None, 1):
+        # When --changed is used, only include changed headers instead of all headers
+        if args.changed:
+            all_headers = [
+                os.path.relpath(p, cwd) for p in git_ls_files(["esphome/**/*.h"])
+            ]
+            changed_headers = filter_changed(all_headers)
+            if changed_headers:
+                build_all_include(changed_headers)
+                files.insert(0, temp_header_file)
+            else:
+                print("No changed headers to check")
+        else:
+            build_all_include()
+            files.insert(0, temp_header_file)
+            print(f"Added all-include header file, new total: {len(files)}")
 
     # Early exit if no files to check
     if not files:
         print("No files to check - exiting early")
         return 0
-
-    # Only build header file if we have actual files to check
-    if args.all_headers and args.split_at in (None, 1):
-        build_all_include()
-        files.insert(0, temp_header_file)
-        print(f"Added all-include header file, new total: {len(files)}")
 
     # Print final file list before loading idedata
     print_file_list(files, "Final files to process:")

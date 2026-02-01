@@ -6,8 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "light_effect.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 inline static float random_cubic_float() {
   const float r = random_float() * 2.0f - 1.0f;
@@ -235,5 +234,4 @@ class FlickerLightEffect : public LightEffect {
   float alpha_{};
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

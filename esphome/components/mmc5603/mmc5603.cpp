@@ -83,6 +83,7 @@ void MMC5603Component::dump_config() {
     ESP_LOGE(TAG, "The ID registers don't match - Is this really an MMC5603?");
   }
   LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "  Auto set/reset: %s", ONOFF(this->auto_set_reset_));
 
   LOG_SENSOR("  ", "X Axis", this->x_sensor_);
   LOG_SENSOR("  ", "Y Axis", this->y_sensor_);
@@ -93,7 +94,8 @@ void MMC5603Component::dump_config() {
 float MMC5603Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void MMC5603Component::update() {
-  if (!this->write_byte(MMC56X3_CTRL0_REG, 0x01)) {
+  uint8_t ctrl0 = (this->auto_set_reset_) ? 0x21 : 0x01;
+  if (!this->write_byte(MMC56X3_CTRL0_REG, ctrl0)) {
     this->status_set_warning();
     return;
   }

@@ -1,5 +1,5 @@
 #include "dns_server_esp32_idf.h"
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -47,7 +47,10 @@ struct DNSAnswer {
 
 void DNSServer::start(const network::IPAddress &ip) {
   this->server_ip_ = ip;
-  ESP_LOGV(TAG, "Starting DNS server on %s", ip.str().c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  ESP_LOGV(TAG, "Starting DNS server on %s", ip.str_to(ip_buf));
+#endif
 
   // Create loop-monitored UDP socket
   this->socket_ = socket::socket_ip_loop_monitored(SOCK_DGRAM, IPPROTO_UDP);
@@ -202,4 +205,4 @@ void DNSServer::process_next_request() {
 
 }  // namespace esphome::captive_portal
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

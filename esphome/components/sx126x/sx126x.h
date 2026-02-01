@@ -64,7 +64,7 @@ class SX126x : public Component,
   void dump_config() override;
   void set_bandwidth(SX126xBw bandwidth) { this->bandwidth_ = bandwidth; }
   void set_bitrate(uint32_t bitrate) { this->bitrate_ = bitrate; }
-  void set_busy_pin(InternalGPIOPin *busy_pin) { this->busy_pin_ = busy_pin; }
+  void set_busy_pin(GPIOPin *busy_pin) { this->busy_pin_ = busy_pin; }
   void set_coding_rate(uint8_t coding_rate) { this->coding_rate_ = coding_rate; }
   void set_crc_enable(bool crc_enable) { this->crc_enable_ = crc_enable; }
   void set_crc_inverted(bool crc_inverted) { this->crc_inverted_ = crc_inverted; }
@@ -72,7 +72,7 @@ class SX126x : public Component,
   void set_crc_polynomial(uint16_t crc_polynomial) { this->crc_polynomial_ = crc_polynomial; }
   void set_crc_initial(uint16_t crc_initial) { this->crc_initial_ = crc_initial; }
   void set_deviation(uint32_t deviation) { this->deviation_ = deviation; }
-  void set_dio1_pin(InternalGPIOPin *dio1_pin) { this->dio1_pin_ = dio1_pin; }
+  void set_dio1_pin(GPIOPin *dio1_pin) { this->dio1_pin_ = dio1_pin; }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
   void set_hw_version(const std::string &hw_version) { this->hw_version_ = hw_version; }
   void set_mode_rx();
@@ -85,7 +85,7 @@ class SX126x : public Component,
   void set_payload_length(uint8_t payload_length) { this->payload_length_ = payload_length; }
   void set_preamble_detect(uint16_t preamble_detect) { this->preamble_detect_ = preamble_detect; }
   void set_preamble_size(uint16_t preamble_size) { this->preamble_size_ = preamble_size; }
-  void set_rst_pin(InternalGPIOPin *rst_pin) { this->rst_pin_ = rst_pin; }
+  void set_rst_pin(GPIOPin *rst_pin) { this->rst_pin_ = rst_pin; }
   void set_rx_start(bool rx_start) { this->rx_start_ = rx_start; }
   void set_rf_switch(bool rf_switch) { this->rf_switch_ = rf_switch; }
   void set_shaping(uint8_t shaping) { this->shaping_ = shaping; }
@@ -115,9 +115,9 @@ class SX126x : public Component,
   std::vector<SX126xListener *> listeners_;
   std::vector<uint8_t> packet_;
   std::vector<uint8_t> sync_value_;
-  InternalGPIOPin *busy_pin_{nullptr};
-  InternalGPIOPin *dio1_pin_{nullptr};
-  InternalGPIOPin *rst_pin_{nullptr};
+  GPIOPin *busy_pin_{nullptr};
+  GPIOPin *dio1_pin_{nullptr};
+  GPIOPin *rst_pin_{nullptr};
   std::string hw_version_;
   char version_[16];
   SX126xBw bandwidth_{SX126X_BW_125000};

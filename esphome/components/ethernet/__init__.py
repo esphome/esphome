@@ -3,16 +3,18 @@ import logging
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.esp32 import (
-    add_idf_component,
-    add_idf_sdkconfig_option,
-    get_esp32_variant,
-)
-from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    add_idf_component,
+    add_idf_sdkconfig_option,
+    get_esp32_variant,
+    include_builtin_idf_component,
 )
 from esphome.components.network import ip_address_literal
 from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
@@ -59,6 +61,21 @@ CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["network"]
 LOGGER = logging.getLogger(__name__)
+
+# Key for tracking IP state listener count in CORE.data
+ETHERNET_IP_STATE_LISTENERS_KEY = "ethernet_ip_state_listeners"
+
+
+def request_ethernet_ip_state_listener() -> None:
+    """Request an IP state listener slot.
+
+    Components that implement EthernetIPStateListener should call this
+    in their to_code() to register for IP state notifications.
+    """
+    CORE.data[ETHERNET_IP_STATE_LISTENERS_KEY] = (
+        CORE.data.get(ETHERNET_IP_STATE_LISTENERS_KEY, 0) + 1
+    )
+
 
 # RMII pins that are hardcoded on ESP32 classic and cannot be changed
 # These pins are used by the internal Ethernet MAC when using RMII PHYs
@@ -219,10 +236,6 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-        cv.Optional("enable_mdns"): cv.invalid(
-            "This option has been removed. Please use the [disabled] option under the "
-            "new mdns component instead."
-        ),
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -303,7 +316,14 @@ def _final_validate_spi(config):
         return
     if spi_configs := fv.full_config.get().get(CONF_SPI):
         variant = get_esp32_variant()
-        if variant in (VARIANT_ESP32C3, VARIANT_ESP32S2, VARIANT_ESP32S3):
+        if variant in (
+            VARIANT_ESP32C3,
+            VARIANT_ESP32C5,
+            VARIANT_ESP32C6,
+            VARIANT_ESP32C61,
+            VARIANT_ESP32S2,
+            VARIANT_ESP32S3,
+        ):
             spi_host = "SPI2_HOST"
         else:
             spi_host = "SPI3_HOST"
@@ -383,6 +403,7 @@ async def to_code(config):
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     if CONF_MANUAL_IP in config:
+        cg.add_define("USE_ETHERNET_MANUAL_IP")
         cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
 
     # Add compile-time define for PHY types with specific code
@@ -399,12 +420,17 @@ async def to_code(config):
     # Also disable WiFi/BT coexistence since WiFi is disabled
     add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
 
+    # Re-enable ESP-IDF's Ethernet driver (excluded by default to save compile time)
+    include_builtin_idf_component("esp_eth")
+
     if config[CONF_TYPE] == "LAN8670":
         # Add LAN867x 10BASE-T1S PHY support component
         add_idf_component(name="espressif/lan867x", ref="2.0.0")
 
     if CORE.using_arduino:
         cg.add_library("WiFi", None)
+
+    CORE.add_job(final_step)
 
 
 def _final_validate_rmii_pins(config: ConfigType) -> None:
@@ -425,9 +451,12 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
 
     # Check all used pins against RMII reserved pins
     for pin_list in pins.PIN_SCHEMA_REGISTRY.pins_used.values():
-        for pin_path, _, pin_config in pin_list:
+        for pin_path, pin_device, pin_config in pin_list:
             pin_num = pin_config.get(CONF_NUMBER)
             if pin_num not in rmii_pins:
+                continue
+            # Skip if pin is not directly on ESP, but at some expander (device set to something else than 'None')
+            if pin_device is not None:
                 continue
             # Found a conflict - show helpful error message
             pin_function = rmii_pins[pin_num]
@@ -459,3 +488,11 @@ def _final_validate(config: ConfigType) -> ConfigType:
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure optional Ethernet features."""
+    if ip_state_count := CORE.data.get(ETHERNET_IP_STATE_LISTENERS_KEY, 0):
+        cg.add_define("USE_ETHERNET_IP_STATE_LISTENERS")
+        cg.add_define("ESPHOME_ETHERNET_IP_STATE_LISTENERS", ip_state_count)

@@ -130,8 +130,10 @@ void LEDCOutput::setup() {
   }
   int hpoint = ledc_angle_to_htop(this->phase_angle_, this->bit_depth_);
 
-  ESP_LOGV(TAG, "Configured frequency %f with a bit depth of %u bits", this->frequency_, this->bit_depth_);
-  ESP_LOGV(TAG, "Angle of %.1f° results in hpoint %u", this->phase_angle_, hpoint);
+  ESP_LOGV(TAG,
+           "Configured frequency %f with a bit depth of %u bits\n"
+           "Angle of %.1f° results in hpoint %u",
+           this->frequency_, this->bit_depth_, this->phase_angle_, hpoint);
 
   ledc_channel_config_t chan_conf{};
   chan_conf.gpio_num = this->pin_->get_pin();
@@ -147,25 +149,30 @@ void LEDCOutput::setup() {
 }
 
 void LEDCOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "Output:");
-  LOG_PIN("  Pin ", this->pin_);
   ESP_LOGCONFIG(TAG,
+                "Output:\n"
                 "  Channel: %u\n"
                 "  PWM Frequency: %.1f Hz\n"
                 "  Phase angle: %.1f°\n"
                 "  Bit depth: %u",
                 this->channel_, this->frequency_, this->phase_angle_, this->bit_depth_);
-  ESP_LOGV(TAG, "  Max frequency for bit depth: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_));
-  ESP_LOGV(TAG, "  Min frequency for bit depth: %f",
-           ledc_min_frequency_for_bit_depth(this->bit_depth_, (this->frequency_ < 100)));
-  ESP_LOGV(TAG, "  Max frequency for bit depth-1: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_ - 1));
-  ESP_LOGV(TAG, "  Min frequency for bit depth-1: %f",
-           ledc_min_frequency_for_bit_depth(this->bit_depth_ - 1, (this->frequency_ < 100)));
-  ESP_LOGV(TAG, "  Max frequency for bit depth+1: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_ + 1));
-  ESP_LOGV(TAG, "  Min frequency for bit depth+1: %f",
-           ledc_min_frequency_for_bit_depth(this->bit_depth_ + 1, (this->frequency_ < 100)));
-  ESP_LOGV(TAG, "  Max res bits: %d", MAX_RES_BITS);
-  ESP_LOGV(TAG, "  Clock frequency: %f", CLOCK_FREQUENCY);
+  LOG_PIN("  Pin ", this->pin_);
+  ESP_LOGV(TAG,
+           "  Max frequency for bit depth: %f\n"
+           "  Min frequency for bit depth: %f\n"
+           "  Max frequency for bit depth-1: %f\n"
+           "  Min frequency for bit depth-1: %f\n"
+           "  Max frequency for bit depth+1: %f\n"
+           "  Min frequency for bit depth+1: %f\n"
+           "  Max res bits: %d\n"
+           "  Clock frequency: %f",
+           ledc_max_frequency_for_bit_depth(this->bit_depth_),
+           ledc_min_frequency_for_bit_depth(this->bit_depth_, (this->frequency_ < 100)),
+           ledc_max_frequency_for_bit_depth(this->bit_depth_ - 1),
+           ledc_min_frequency_for_bit_depth(this->bit_depth_ - 1, (this->frequency_ < 100)),
+           ledc_max_frequency_for_bit_depth(this->bit_depth_ + 1),
+           ledc_min_frequency_for_bit_depth(this->bit_depth_ + 1, (this->frequency_ < 100)), MAX_RES_BITS,
+           CLOCK_FREQUENCY);
 }
 
 void LEDCOutput::update_frequency(float frequency) {

@@ -4,12 +4,11 @@
 #include "esphome/core/log.h"
 #include "number_traits.h"
 
-namespace esphome {
-namespace number {
+namespace esphome::number {
 
 class Number;
 
-enum NumberOperation {
+enum NumberOperation : uint8_t {
   NUMBER_OP_NONE,
   NUMBER_OP_SET,
   NUMBER_OP_INCREMENT,
@@ -39,10 +38,9 @@ class NumberCall {
                                         float limit);
 
   Number *const parent_;
-  NumberOperation operation_{NUMBER_OP_NONE};
   optional<float> value_;
-  bool cycle_;
+  NumberOperation operation_{NUMBER_OP_NONE};
+  bool cycle_{false};
 };
 
-}  // namespace number
-}  // namespace esphome
+}  // namespace esphome::number

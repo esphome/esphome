@@ -105,7 +105,9 @@ void QMC5883LComponent::update() {
   if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG) {
     err = this->read_register(QMC5883L_REGISTER_STATUS, &status, 1);
     if (err != i2c::ERROR_OK) {
-      this->status_set_warning(str_sprintf("status read failed (%d)", err).c_str());
+      char buf[32];
+      snprintf(buf, sizeof(buf), "status read failed (%d)", err);
+      this->status_set_warning(buf);
       return;
     }
   }
@@ -127,7 +129,9 @@ void QMC5883LComponent::update() {
   }
   err = this->read_bytes_16_le_(start, &raw[dest], 3 - dest);
   if (err != i2c::ERROR_OK) {
-    this->status_set_warning(str_sprintf("mag read failed (%d)", err).c_str());
+    char buf[32];
+    snprintf(buf, sizeof(buf), "mag read failed (%d)", err);
+    this->status_set_warning(buf);
     return;
   }
 
@@ -155,7 +159,9 @@ void QMC5883LComponent::update() {
     uint16_t raw_temp;
     err = this->read_bytes_16_le_(QMC5883L_REGISTER_TEMPERATURE_LSB, &raw_temp);
     if (err != i2c::ERROR_OK) {
-      this->status_set_warning(str_sprintf("temp read failed (%d)", err).c_str());
+      char buf[32];
+      snprintf(buf, sizeof(buf), "temp read failed (%d)", err);
+      this->status_set_warning(buf);
       return;
     }
     temp = int16_t(raw_temp) * 0.01f;

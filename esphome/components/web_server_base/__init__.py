@@ -34,6 +34,8 @@ async def to_code(config):
     cg.add(cg.RawExpression(f"{web_server_base_ns}::global_web_server_base = {var}"))
 
     if CORE.is_esp32:
+        # Count for StaticVector in web_server_idf - matches headers added in init()
+        cg.add_define("WEB_SERVER_DEFAULT_HEADERS_COUNT", 1)
         return
 
     if CORE.using_arduino:
@@ -45,5 +47,10 @@ async def to_code(config):
             cg.add_library("ESP8266WiFi", None)
         if CORE.is_libretiny:
             CORE.add_platformio_option("lib_ignore", ["ESPAsyncTCP", "RPAsyncTCP"])
+        if CORE.is_rp2040:
+            # Ignore bundled AsyncTCP libraries - we use RPAsyncTCP from async_tcp component
+            CORE.add_platformio_option(
+                "lib_ignore", ["ESPAsyncTCP", "AsyncTCP", "AsyncTCP_RP2040W"]
+            )
         # https://github.com/ESP32Async/ESPAsyncWebServer/blob/main/library.json
-        cg.add_library("ESP32Async/ESPAsyncWebServer", "3.7.10")
+        cg.add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")

@@ -6,9 +6,7 @@
 
 #include <initializer_list>
 
-namespace esphome {
-
-namespace binary_sensor {
+namespace esphome::binary_sensor {
 
 class BinarySensor;
 void log_binary_sensor(const char *tag, const char *prefix, const char *type, BinarySensor *obj);
@@ -63,6 +61,8 @@ class BinarySensor : public StatefulEntityBase<bool>, public EntityBase_DeviceCl
 
  protected:
   Filter *filter_list_{nullptr};
+
+  bool set_new_state(const optional<bool> &new_state) override;
 };
 
 class BinarySensorInitiallyOff : public BinarySensor {
@@ -70,5 +70,4 @@ class BinarySensorInitiallyOff : public BinarySensor {
   bool has_state() const override { return true; }
 };
 
-}  // namespace binary_sensor
-}  // namespace esphome
+}  // namespace esphome::binary_sensor

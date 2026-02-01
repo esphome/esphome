@@ -14,13 +14,12 @@ CONF_QRCODE = "qrcode"
 CONF_DARK_COLOR = "dark_color"
 CONF_LIGHT_COLOR = "light_color"
 
-QRCODE_SCHEMA = TEXT_SCHEMA.extend(
-    {
-        cv.Optional(CONF_DARK_COLOR, default="black"): lv_color,
-        cv.Optional(CONF_LIGHT_COLOR, default="white"): lv_color,
-        cv.Required(CONF_SIZE): cv.int_,
-    }
-)
+QRCODE_SCHEMA = {
+    **TEXT_SCHEMA,
+    cv.Optional(CONF_DARK_COLOR, default="black"): lv_color,
+    cv.Optional(CONF_LIGHT_COLOR, default="white"): lv_color,
+    cv.Required(CONF_SIZE): cv.int_,
+}
 
 
 class QrCodeType(WidgetType):

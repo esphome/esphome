@@ -57,14 +57,14 @@ void MAX17043Component::setup() {
 
   if (config_reg != MAX17043_CONFIG_POWER_UP_DEFAULT) {
     ESP_LOGE(TAG, "Device does not appear to be a MAX17043");
-    this->status_set_error("unrecognised");
+    this->status_set_error(LOG_STR("unrecognised"));
     this->mark_failed();
     return;
   }
 
   // need to write back to config register to reset the sleep bit
   if (!this->write_byte_16(MAX17043_CONFIG, MAX17043_CONFIG_POWER_UP_DEFAULT)) {
-    this->status_set_error("sleep reset failed");
+    this->status_set_error(LOG_STR("sleep reset failed"));
     this->mark_failed();
     return;
   }

@@ -1,8 +1,7 @@
 #include "template_select.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 static const char *const TAG = "template.select";
 
@@ -12,7 +11,7 @@ void TemplateSelect::setup() {
 
   size_t index = this->initial_option_index_;
   if (this->restore_value_) {
-    this->pref_ = global_preferences->make_preference<size_t>(this->get_preference_hash());
+    this->pref_ = this->make_entity_preference<size_t>();
     size_t restored_index;
     if (this->pref_.load(&restored_index) && this->has_index(restored_index)) {
       index = restored_index;
@@ -24,7 +23,7 @@ void TemplateSelect::setup() {
     ESP_LOGD(TAG, "State from initial: %s", this->option_at(index));
   }
 
-  this->publish_state(this->at(index).value());
+  this->publish_state(index);
 }
 
 void TemplateSelect::update() {
@@ -41,16 +40,14 @@ void TemplateSelect::update() {
   }
 }
 
-void TemplateSelect::control(const std::string &value) {
-  this->set_trigger_->trigger(value);
+void TemplateSelect::control(size_t index) {
+  this->set_trigger_->trigger(StringRef(this->option_at(index)));
 
   if (this->optimistic_)
-    this->publish_state(value);
+    this->publish_state(index);
 
-  if (this->restore_value_) {
-    auto index = this->index_of(value);
-    this->pref_.save(&index.value());
-  }
+  if (this->restore_value_)
+    this->pref_.save(&index);
 }
 
 void TemplateSelect::dump_config() {
@@ -65,5 +62,4 @@ void TemplateSelect::dump_config() {
                 YESNO(this->optimistic_), this->option_at(this->initial_option_index_), YESNO(this->restore_value_));
 }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

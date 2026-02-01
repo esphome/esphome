@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_FAN
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.fan";
 
@@ -16,7 +15,7 @@ using namespace esphome::fan;
 MQTTFanComponent::MQTTFanComponent(Fan *state) : state_(state) {}
 
 Fan *MQTTFanComponent::get_state() const { return this->state_; }
-std::string MQTTFanComponent::component_type() const { return "fan"; }
+MQTT_COMPONENT_TYPE(MQTTFanComponent, "fan")
 const EntityBase *MQTTFanComponent::get_entity() const { return this->state_; }
 
 void MQTTFanComponent::setup() {
@@ -24,15 +23,15 @@ void MQTTFanComponent::setup() {
     auto val = parse_on_off(payload.c_str());
     switch (val) {
       case PARSE_ON:
-        ESP_LOGD(TAG, "'%s' Turning Fan ON.", this->friendly_name().c_str());
+        ESP_LOGD(TAG, "'%s' Turning Fan ON.", this->friendly_name_().c_str());
         this->state_->turn_on().perform();
         break;
       case PARSE_OFF:
-        ESP_LOGD(TAG, "'%s' Turning Fan OFF.", this->friendly_name().c_str());
+        ESP_LOGD(TAG, "'%s' Turning Fan OFF.", this->friendly_name_().c_str());
         this->state_->turn_off().perform();
         break;
       case PARSE_TOGGLE:
-        ESP_LOGD(TAG, "'%s' Toggling Fan.", this->friendly_name().c_str());
+        ESP_LOGD(TAG, "'%s' Toggling Fan.", this->friendly_name_().c_str());
         this->state_->toggle().perform();
         break;
       case PARSE_NONE:
@@ -48,11 +47,11 @@ void MQTTFanComponent::setup() {
       auto val = parse_on_off(payload.c_str(), "forward", "reverse");
       switch (val) {
         case PARSE_ON:
-          ESP_LOGD(TAG, "'%s': Setting direction FORWARD", this->friendly_name().c_str());
+          ESP_LOGD(TAG, "'%s': Setting direction FORWARD", this->friendly_name_().c_str());
           this->state_->make_call().set_direction(fan::FanDirection::FORWARD).perform();
           break;
         case PARSE_OFF:
-          ESP_LOGD(TAG, "'%s': Setting direction REVERSE", this->friendly_name().c_str());
+          ESP_LOGD(TAG, "'%s': Setting direction REVERSE", this->friendly_name_().c_str());
           this->state_->make_call().set_direction(fan::FanDirection::REVERSE).perform();
           break;
         case PARSE_TOGGLE:
@@ -75,11 +74,11 @@ void MQTTFanComponent::setup() {
                       auto val = parse_on_off(payload.c_str(), "oscillate_on", "oscillate_off");
                       switch (val) {
                         case PARSE_ON:
-                          ESP_LOGD(TAG, "'%s': Setting oscillating ON", this->friendly_name().c_str());
+                          ESP_LOGD(TAG, "'%s': Setting oscillating ON", this->friendly_name_().c_str());
                           this->state_->make_call().set_oscillating(true).perform();
                           break;
                         case PARSE_OFF:
-                          ESP_LOGD(TAG, "'%s': Setting oscillating OFF", this->friendly_name().c_str());
+                          ESP_LOGD(TAG, "'%s': Setting oscillating OFF", this->friendly_name_().c_str());
                           this->state_->make_call().set_oscillating(false).perform();
                           break;
                         case PARSE_TOGGLE:
@@ -159,9 +158,10 @@ void MQTTFanComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig
   }
 }
 bool MQTTFanComponent::publish_state() {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   const char *state_s = this->state_->state ? "ON" : "OFF";
   ESP_LOGD(TAG, "'%s' Sending state %s.", this->state_->get_name().c_str(), state_s);
-  this->publish(this->get_state_topic_(), state_s);
+  this->publish(this->get_state_topic_to_(topic_buf), state_s);
   bool failed = false;
   if (this->state_->get_traits().supports_direction()) {
     bool success = this->publish(this->get_direction_state_topic(),
@@ -175,15 +175,15 @@ bool MQTTFanComponent::publish_state() {
   }
   auto traits = this->state_->get_traits();
   if (traits.supports_speed()) {
-    std::string payload = to_string(this->state_->speed);
-    bool success = this->publish(this->get_speed_level_state_topic(), payload);
+    char buf[12];
+    size_t len = buf_append_printf(buf, sizeof(buf), 0, "%d", this->state_->speed);
+    bool success = this->publish(this->get_speed_level_state_topic(), buf, len);
     failed = failed || !success;
   }
   return !failed;
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

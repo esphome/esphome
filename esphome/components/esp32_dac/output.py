@@ -1,8 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import output
-from esphome.components.esp32 import get_esp32_variant
-from esphome.components.esp32.const import VARIANT_ESP32, VARIANT_ESP32S2
+from esphome.components.esp32 import VARIANT_ESP32, VARIANT_ESP32S2, get_esp32_variant
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NUMBER, CONF_PIN
 
