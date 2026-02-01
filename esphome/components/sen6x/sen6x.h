@@ -75,6 +75,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_co2_sensor(sensor::Sensor *co2) { co2_sensor_ = co2; }
   void set_ambient_pressure(uint16_t ambient_pressure) { ambient_pressure_ = ambient_pressure; }
+  void set_ambient_pressure_source(sensor::Sensor *pressure) { ambient_pressure_source_ = pressure; }
   void set_sensor_altitude(uint16_t sensor_altitude) { sensor_altitude_ = sensor_altitude; }
   void set_co2_automatic_self_calibration(bool enabled) { co2_asc_ = enabled; }
   void set_startup_delay(uint32_t delay_ms) { startup_delay_ms_ = delay_ms; }
@@ -136,6 +137,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool stop_measurement();
 
  protected:
+  bool update_ambient_pressure_compensation_(uint16_t pressure_hpa);
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
   bool write_temperature_acceleration_(const TemperatureAcceleration &acceleration);
@@ -156,6 +158,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *nox_sensor_{nullptr};
   sensor::Sensor *hcho_sensor_{nullptr};
   sensor::Sensor *co2_sensor_{nullptr};
+  sensor::Sensor *ambient_pressure_source_{nullptr};
   std::string product_name_;
   Sen6xType sen6x_type_{UNKNOWN};
   uint8_t serial_number_[4];
