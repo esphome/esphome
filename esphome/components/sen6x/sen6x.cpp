@@ -78,7 +78,6 @@ void SEN6XComponent::setup() {
     if (raw_read_status) {
       ESP_LOGD(TAG, "Sensor has data available, stopping periodic measurement / reset");
 
-      // if (!this->write_command(SEN6X_CMD_RESET)) {
       if (!this->write_command(SEN6X_CMD_STOP_MEASUREMENTS)) {
         ESP_LOGE(TAG, "Failed to stop measurements");
         this->mark_failed();
@@ -261,7 +260,7 @@ void SEN6XComponent::schedule_post_setup_commands_() {
   (*run_step)(0);
 }
 
-bool SEN6XComponent::isMeasurmentRunning() const { return this->measurement_started_; }
+bool SEN6XComponent::is_measurement_running() const { return this->measurement_started_; }
 
 void SEN6XComponent::finish_setup_() {
   const bool supports_co2 = this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 ||
