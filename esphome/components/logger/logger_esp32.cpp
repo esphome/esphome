@@ -114,9 +114,6 @@ void Logger::pre_setup() {
 
   global_logger = this;
   esp_log_set_vprintf(esp_idf_log_vprintf_);
-  if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE) {
-    esp_log_level_set("*", ESP_LOG_VERBOSE);
-  }
 
   ESP_LOGI(TAG, "Log initialized");
 }
