@@ -194,8 +194,7 @@ ST7789P.extend(
     # Panel size smaller than ST7789 max allowed
     width=240,
     height=284,
-
-    # Vendor specific init derived from vendor sample code 
+    # Vendor specific init derived from vendor sample code
     # "LCD_1.83_Code_Rev2/ESP32/LCD_1in83/LCD_Driver.cpp"
     # Compatible MIT license, see esphome/LICENSE file.
     initsequence=(
@@ -244,4 +243,3 @@ ST7789P.extend(
         ),
     ),
 )
-
