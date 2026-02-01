@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/automation.h"
 #include "esphome/components/network/ip_address.h"
 
 #ifdef USE_ESP32
@@ -119,6 +120,9 @@ class EthernetComponent : public Component {
   void add_ip_state_listener(EthernetIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
 #endif
 
+  Trigger<> *get_connect_trigger() const { return this->connect_trigger_; }
+  Trigger<> *get_disconnect_trigger() const { return this->disconnect_trigger_; }
+
  protected:
   static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
@@ -189,6 +193,9 @@ class EthernetComponent : public Component {
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   StaticVector<EthernetIPStateListener *, ESPHOME_ETHERNET_IP_STATE_LISTENERS> ip_state_listeners_;
 #endif
+
+  Trigger<> *connect_trigger_{new Trigger<>()};
+  Trigger<> *disconnect_trigger_{new Trigger<>()};
 
  private:
   // Stores a pointer to a string literal (static storage duration).

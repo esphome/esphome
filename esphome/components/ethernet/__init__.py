@@ -1,6 +1,6 @@
 import logging
 
-from esphome import pins
+from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components.esp32 import (
     VARIANT_ESP32,
@@ -34,6 +34,8 @@ from esphome.const import (
     CONF_MODE,
     CONF_MOSI_PIN,
     CONF_NUMBER,
+    CONF_ON_CONNECT,
+    CONF_ON_DISCONNECT,
     CONF_PAGE_ID,
     CONF_PIN,
     CONF_POLLING_INTERVAL,
@@ -236,6 +238,10 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
+        cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
+            single=True
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -425,6 +431,16 @@ async def to_code(config):
 
     if CORE.using_arduino:
         cg.add_library("WiFi", None)
+
+    if on_connect_config := config.get(CONF_ON_CONNECT):
+        await automation.build_automation(
+            var.get_connect_trigger(), [], on_connect_config
+        )
+
+    if on_disconnect_config := config.get(CONF_ON_DISCONNECT):
+        await automation.build_automation(
+            var.get_disconnect_trigger(), [], on_disconnect_config
+        )
 
     CORE.add_job(final_step)
 

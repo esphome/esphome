@@ -309,6 +309,7 @@ void EthernetComponent::loop() {
 
         this->dump_connect_params_();
         this->status_clear_warning();
+        this->connect_trigger_->trigger();
       } else if (now - this->connect_begin_ > 15000) {
         ESP_LOGW(TAG, "Connecting failed; reconnecting");
         this->start_connect_();
@@ -318,10 +319,12 @@ void EthernetComponent::loop() {
       if (!this->started_) {
         ESP_LOGI(TAG, "Stopped connection");
         this->state_ = EthernetComponentState::STOPPED;
+        this->disconnect_trigger_->trigger();
       } else if (!this->connected_) {
         ESP_LOGW(TAG, "Connection lost; reconnecting");
         this->state_ = EthernetComponentState::CONNECTING;
         this->start_connect_();
+        this->disconnect_trigger_->trigger();
       } else {
         this->finish_connect_();
         // When connected and stable, disable the loop to save CPU cycles
