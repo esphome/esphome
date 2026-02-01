@@ -349,7 +349,7 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
 }
 uint8_t TM1637Display::print(const char *str) { return this->print(0, str); }
 
-void TM1637Display::set_buffer(u_int8_t b0, u_int8_t b1, u_int8_t b2, u_int8_t b3, u_int8_t b4, u_int8_t b5) {
+void TM1637Display::set_buffer(uint8_t b0, uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4, uint8_t b5) {
   this->buffer_[0] = b0;
   this->buffer_[1] = b1;
   this->buffer_[2] = b2;
