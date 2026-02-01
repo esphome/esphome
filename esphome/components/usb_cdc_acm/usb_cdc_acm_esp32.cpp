@@ -155,8 +155,9 @@ void USBCDCACMInstance::setup() {
     return;
   }
 
-  // Use a larger stack size for (very) verbose logging
-  const size_t stack_size = esp_log_level_get(TAG) > ESP_LOG_DEBUG ? USB_TX_TASK_STACK_SIZE_VV : USB_TX_TASK_STACK_SIZE;
+  // Use a larger stack size for very verbose logging
+  constexpr size_t stack_size =
+      ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE ? USB_TX_TASK_STACK_SIZE_VV : USB_TX_TASK_STACK_SIZE;
 
   // Create a simple, unique task name per interface
   char task_name[] = "usb_tx_0";
