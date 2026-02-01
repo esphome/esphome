@@ -122,9 +122,9 @@ void SEN6XComponent::setup() {
         this->mark_failed();
         return;
       }
-      // According to the SEN6x datasheet the sensor will only respond to other commands after waiting 200 ms after
+      // According to the SEN6x datasheet the sensor will only respond to other commands after waiting 1400 ms after
       // issuing the stop_periodic_measurement command
-      stop_measurement_delay = 200;
+      stop_measurement_delay = 1400;
     }
     this->set_timeout(stop_measurement_delay, [this]() {
       // note: serial number register is actually 32-bytes long but we grab only the first 16-bytes,
@@ -280,6 +280,7 @@ void SEN6XComponent::setup() {
         this->mark_failed();
         return;
       }
+      delay(50);  // Wait 50ms after start measurement command
       this->initialized_ = true;
     });
   });
