@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable
 import heapq
+from operator import itemgetter
 import sys
 from typing import TYPE_CHECKING
 
@@ -163,7 +164,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
 
         # Get top N symbols by size using heapq for efficiency
         top_symbols = heapq.nlargest(
-            self.TOP_SYMBOLS_LIMIT, all_symbols, key=lambda x: x[2]
+            self.TOP_SYMBOLS_LIMIT, all_symbols, key=itemgetter(2)
         )
 
         lines.append("")
