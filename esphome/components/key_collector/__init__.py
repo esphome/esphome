@@ -1,4 +1,4 @@
-from attr import dataclass
+from dataclasses import dataclass
 
 from esphome import automation
 from esphome.automation import Trigger
