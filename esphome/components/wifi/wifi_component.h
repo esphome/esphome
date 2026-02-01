@@ -454,8 +454,12 @@ class WiFiComponent : public Component {
   void set_keep_scan_results(bool keep_scan_results) { this->keep_scan_results_ = keep_scan_results; }
   void set_post_connect_roaming(bool enabled) { this->post_connect_roaming_ = enabled; }
 
-  Trigger<> *get_connect_trigger() const { return this->connect_trigger_; };
-  Trigger<> *get_disconnect_trigger() const { return this->disconnect_trigger_; };
+#ifdef USE_WIFI_CONNECT_TRIGGER
+  Trigger<> *get_connect_trigger() const { return this->connect_trigger_; }
+#endif
+#ifdef USE_WIFI_DISCONNECT_TRIGGER
+  Trigger<> *get_disconnect_trigger() const { return this->disconnect_trigger_; }
+#endif
 
   int32_t get_wifi_channel();
 
@@ -706,7 +710,9 @@ class WiFiComponent : public Component {
 
   // Group all boolean values together
   bool has_ap_{false};
+#if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
   bool handled_connected_state_{false};
+#endif
   bool error_from_callback_{false};
   bool scan_done_{false};
   bool ap_setup_{false};
@@ -734,8 +740,12 @@ class WiFiComponent : public Component {
 #endif
 
   // Pointers at the end (naturally aligned)
+#ifdef USE_WIFI_CONNECT_TRIGGER
   Trigger<> *connect_trigger_{new Trigger<>()};
+#endif
+#ifdef USE_WIFI_DISCONNECT_TRIGGER
   Trigger<> *disconnect_trigger_{new Trigger<>()};
+#endif
 
  private:
   // Stores a pointer to a string literal (static storage duration).
