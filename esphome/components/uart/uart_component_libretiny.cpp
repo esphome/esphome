@@ -42,13 +42,12 @@ bool LibreTinyUARTComponent::pins_contain_(const FixedVector<pin_size_t> &pins, 
   return pins.end() != std::find(pins.begin(), pins.end(), pin_num);
 }
 
-void LibreTinyUARTComponent::print_pins(const char* uart_name,
-                                        const FixedVector<pin_size_t> &tx_pins,
+void LibreTinyUARTComponent::print_pins(const char *uart_name, const FixedVector<pin_size_t> &tx_pins,
                                         const FixedVector<pin_size_t> &rx_pins) const {
   for (size_t i = 0; i < tx_pins.size(); ++i) {
     for (size_t j = 0; j < rx_pins.size(); ++j) {
-        ESP_LOGE(TAG, "    %s TX:%u, RX:%u", tx_pins[i], rx_pins[j]);
-      }
+      ESP_LOGE(TAG, "    %s TX:%u, RX:%u", tx_pins[i], rx_pins[j]);
+    }
   }
 }
 
