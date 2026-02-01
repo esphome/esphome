@@ -16,7 +16,12 @@ static const uint16_t SEN6X_CMD_GET_FIRMWARE_VERSION = 0xD100;
 static const uint16_t SEN6X_CMD_GET_PRODUCT_NAME = 0xD014;
 static const uint16_t SEN6X_CMD_GET_SERIAL_NUMBER = 0xD033;
 static const uint16_t SEN6X_CMD_NOX_ALGORITHM_TUNING = 0x60E1;
-static const uint16_t SEN6X_CMD_READ_MEASUREMENT = 0x03C4;
+static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN62 = 0x04A3;
+static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN63C = 0x0471;
+static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN65 = 0x0446;
+static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN66 = 0x0300;
+static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN68 = 0x0467;
+static const uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN69C = 0x04B5;
 static const uint16_t SEN6X_CMD_RHT_ACCELERATION_MODE = 0x60F7;
 static const uint16_t SEN6X_CMD_START_CLEANING_FAN = 0x5607;
 static const uint16_t SEN6X_CMD_START_MEASUREMENTS = 0x0021;
@@ -46,6 +51,25 @@ static const LogString *type_to_string(Sen6xType type) {
       return LOG_STR("SEN69C");
     default:
       return LOG_STR("UNKNOWN");
+  }
+}
+
+static uint16_t get_measurement_command(Sen6xType type) {
+  switch (type) {
+    case Sen6xType::SEN62:
+      return SEN6X_CMD_READ_MEASUREMENT_SEN62;
+    case Sen6xType::SEN63C:
+      return SEN6X_CMD_READ_MEASUREMENT_SEN63C;
+    case Sen6xType::SEN65:
+      return SEN6X_CMD_READ_MEASUREMENT_SEN65;
+    case Sen6xType::SEN66:
+      return SEN6X_CMD_READ_MEASUREMENT_SEN66;
+    case Sen6xType::SEN68:
+      return SEN6X_CMD_READ_MEASUREMENT_SEN68;
+    case Sen6xType::SEN69C:
+      return SEN6X_CMD_READ_MEASUREMENT_SEN69C;
+    default:
+      return SEN6X_CMD_READ_MEASUREMENT_SEN65;  // fallback
   }
 }
 
@@ -324,15 +348,41 @@ void SEN6XComponent::update() {
     return;
   }
 
-  if (!this->write_command(SEN6X_CMD_READ_MEASUREMENT)) {
+  if (!this->write_command(get_measurement_command(this->type_))) {
     this->status_set_warning();
     ESP_LOGD(TAG, "Write error: read measurement (%d)", this->last_error_);
     return;
   }
   this->set_timeout(20, [this]() {
-    uint16_t measurements[10];  // Extended for CO2 and HCHO
+    // Determine measurement count based on device type and its sensor signals
+    uint8_t measurement_count = 0;
+    switch (this->type_) {
+      case Sen6xType::SEN62:
+        measurement_count = 6;  // PM1.0, PM2.5, PM4.0, PM10.0, RH, T
+        break;
+      case Sen6xType::SEN63C:
+        measurement_count = 7;  // PM1.0, PM2.5, PM4.0, PM10.0, RH, T, CO2
+        break;
+      case Sen6xType::SEN65:
+        measurement_count = 8;  // PM1.0, PM2.5, PM4.0, PM10.0, RH, T, VOC, NOx
+        break;
+      case Sen6xType::SEN66:
+        measurement_count = 9;  // PM1.0, PM2.5, PM4.0, PM10.0, RH, T, VOC, NOx, CO2
+        break;
+      case Sen6xType::SEN68:
+        measurement_count = 9;  // PM1.0, PM2.5, PM4.0, PM10.0, RH, T, VOC, NOx, HCHO
+        break;
+      case Sen6xType::SEN69C:
+        measurement_count = 10;  // PM1.0, PM2.5, PM4.0, PM10.0, RH, T, VOC, NOx, HCHO, CO2
+        break;
+      default:
+        measurement_count = 8;  // fallback
+        break;
+    }
 
-    if (!this->read_data(measurements, 10)) {
+    uint16_t measurements[10];  // Maximum size for all variants
+
+    if (!this->read_data(measurements, measurement_count)) {
       this->status_set_warning();
       ESP_LOGD(TAG, "Read data error (%d)", this->last_error_);
       return;
@@ -356,23 +406,44 @@ void SEN6XComponent::update() {
     ESP_LOGVV(TAG, "temperature = 0x%.4x", measurements[5]);
     float temperature = measurements[5] == INT16_MAX ? NAN : static_cast<int16_t>(measurements[5]) / 200.0f;
 
-    ESP_LOGVV(TAG, "voc = 0x%.4x", measurements[6]);
-    int16_t voc_idx = static_cast<int16_t>(measurements[6]);
-    float voc = (voc_idx < SEN6X_MIN_INDEX_VALUE || voc_idx > SEN6X_MAX_INDEX_VALUE)
-                    ? NAN
-                    : static_cast<float>(voc_idx) / 10.0f;
+    float voc = NAN;
+    float nox = NAN;
 
-    ESP_LOGVV(TAG, "nox = 0x%.4x", measurements[7]);
-    int16_t nox_idx = static_cast<int16_t>(measurements[7]);
-    float nox = (nox_idx < SEN6X_MIN_INDEX_VALUE || nox_idx > SEN6X_MAX_INDEX_VALUE)
-                    ? NAN
-                    : static_cast<float>(nox_idx) / 10.0f;
+    // Read VOC and NOx only for variants that support them
+    if (measurement_count >= 8) {  // SEN65, SEN66, SEN68, SEN69C have VOC and NOx
+      ESP_LOGVV(TAG, "voc = 0x%.4x", measurements[6]);
+      int16_t voc_idx = static_cast<int16_t>(measurements[6]);
+      voc = (voc_idx < SEN6X_MIN_INDEX_VALUE || voc_idx > SEN6X_MAX_INDEX_VALUE) ? NAN
+                                                                                 : static_cast<float>(voc_idx) / 10.0f;
 
-    ESP_LOGVV(TAG, "co2 = 0x%.4x", measurements[8]);
-    float co2 = measurements[8] == UINT16_MAX ? NAN : measurements[8] / 1.0f;  // CO2 in ppm
+      ESP_LOGVV(TAG, "nox = 0x%.4x", measurements[7]);
+      int16_t nox_idx = static_cast<int16_t>(measurements[7]);
+      nox = (nox_idx < SEN6X_MIN_INDEX_VALUE || nox_idx > SEN6X_MAX_INDEX_VALUE) ? NAN
+                                                                                 : static_cast<float>(nox_idx) / 10.0f;
+    }
 
-    ESP_LOGVV(TAG, "formaldehyde = 0x%.4x", measurements[9]);
-    float formaldehyde = measurements[9] == UINT16_MAX ? NAN : measurements[9] / 10.0f;  // Formaldehyde in ppb
+    float co2 = NAN;
+    float formaldehyde = NAN;
+
+    // Read CO2 and HCHO only for variants that support them
+    if (measurement_count >= 10) {  // SEN69C (10 measurements: PM4, RH, T, VOC, NOx, HCHO, CO2)
+      ESP_LOGVV(TAG, "formaldehyde = 0x%.4x", measurements[8]);
+      formaldehyde = measurements[8] == UINT16_MAX ? NAN : measurements[8] / 10.0f;  // Formaldehyde in ppb
+      ESP_LOGVV(TAG, "co2 = 0x%.4x", measurements[9]);
+      co2 = measurements[9] == UINT16_MAX ? NAN : measurements[9] / 1.0f;  // CO2 in ppm
+    } else if (measurement_count >= 9) {
+      if (this->type_ == Sen6xType::SEN68) {  // SEN68 (9 measurements: PM4, RH, T, VOC, NOx, HCHO)
+        ESP_LOGVV(TAG, "formaldehyde = 0x%.4x", measurements[8]);
+        formaldehyde = measurements[8] == UINT16_MAX ? NAN : measurements[8] / 10.0f;  // Formaldehyde in ppb
+      } else if (this->type_ == Sen6xType::SEN66) {  // SEN66 (9 measurements: PM4, RH, T, VOC, NOx, CO2)
+        ESP_LOGVV(TAG, "co2 = 0x%.4x", measurements[8]);
+        co2 = measurements[8] == UINT16_MAX ? NAN : measurements[8] / 1.0f;  // CO2 in ppm
+      }
+    } else if (measurement_count >= 7 &&
+               this->type_ == Sen6xType::SEN63C) {  // SEN63C (7 measurements: PM4, RH, T, CO2)
+      ESP_LOGVV(TAG, "co2 = 0x%.4x", measurements[6]);
+      co2 = measurements[6] == UINT16_MAX ? NAN : measurements[6] / 1.0f;  // CO2 in ppm
+    }
 
     if (this->pm_1_0_sensor_ != nullptr) {
       this->pm_1_0_sensor_->publish_state(pm_1_0);
