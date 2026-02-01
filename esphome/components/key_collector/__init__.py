@@ -1,3 +1,5 @@
+from attr import dataclass
+
 from esphome import automation
 from esphome.automation import Trigger
 import esphome.codegen as cg
@@ -14,7 +16,8 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 from esphome.core import Lambda
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, literal
+from esphome.types import TemplateArgsType
 
 CODEOWNERS = ["@ssieb"]
 
@@ -38,10 +41,21 @@ DisableAction = key_collector_ns.class_("DisableAction", automation.Action)
 
 X_TYPE = cg.std_string_ref.operator("const")
 
+
+@dataclass
+class Argument:
+    type: MockObj
+    name: str
+
+
 TRIGGER_TYPES = {
-    CONF_ON_PROGRESS: [(X_TYPE, "x"), (cg.uint8, "start")],
-    CONF_ON_RESULT: [(X_TYPE, "x"), (cg.uint8, "start"), (cg.uint8, "end")],
-    CONF_ON_TIMEOUT: [(X_TYPE, "x"), (cg.uint8, "start")],
+    CONF_ON_PROGRESS: [Argument(X_TYPE, "x"), Argument(cg.uint8, "start")],
+    CONF_ON_RESULT: [
+        Argument(X_TYPE, "x"),
+        Argument(cg.uint8, "start"),
+        Argument(cg.uint8, "end"),
+    ],
+    CONF_ON_TIMEOUT: [Argument(X_TYPE, "x"), Argument(cg.uint8, "start")],
 }
 
 CONFIG_SCHEMA = cv.All(
@@ -63,7 +77,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Optional(trigger_type): automation.validate_automation(
                     {
                         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                            Trigger.template(*[arg[0] for arg in args])
+                            Trigger.template(*[arg.type for arg in args])
                         ),
                     }
                 )
@@ -101,6 +115,7 @@ async def to_code(config):
         cg.add(var.set_allowed_keys(config[CONF_ALLOWED_KEYS]))
 
     for trigger_name, args in TRIGGER_TYPES.items():
+        arglist: TemplateArgsType = [(arg.type, arg.name) for arg in args]
         for conf in config.get(trigger_name, ()):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
             add_trig = getattr(
@@ -109,13 +124,13 @@ async def to_code(config):
             )
             await automation.build_automation(
                 trigger,
-                args,
+                arglist,
                 conf,
             )
             lamb = Lambda(
-                str(cg.statement(trigger.trigger(*[MockObj(arg[1]) for arg in args])))
+                str(cg.statement(trigger.trigger(*[literal(arg.name) for arg in args])))
             )
-            cg.add(add_trig(await cg.process_lambda(lamb, args)))
+            cg.add(add_trig(await cg.process_lambda(lamb, arglist)))
 
     if timeout := config.get(CONF_TIMEOUT):
         cg.add(var.set_timeout(timeout))
