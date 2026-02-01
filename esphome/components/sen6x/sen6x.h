@@ -86,7 +86,8 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool is_measurement_running() const;
   const std::string &get_product_name() const { return this->product_name_; }
   const uint8_t *get_serial_number() const { return this->serial_number_; }
-  uint16_t get_firmware_version() const { return this->firmware_version_; }
+  uint8_t get_firmware_version_major() const { return this->firmware_version_major_; }
+  uint8_t get_firmware_version_minor() const { return this->firmware_version_minor_; }
   bool get_state() const { return this->measurement_started_; }
   void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
@@ -167,7 +168,8 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   std::string product_name_;
   Sen6xType sen6x_type_{UNKNOWN};
   uint8_t serial_number_[4];
-  uint16_t firmware_version_;
+  uint8_t firmware_version_major_{0};
+  uint8_t firmware_version_minor_{0};
   Sen6xBaselines voc_baselines_storage_;
   bool store_baseline_;
   uint32_t seconds_since_last_store_;

@@ -144,14 +144,16 @@ void SEN6XComponent::setup() {
       }
       ESP_LOGD(TAG, "Productname %s", this->product_name_.c_str());
 
-      if (!this->get_register(SEN6X_CMD_GET_FIRMWARE_VERSION, this->firmware_version_, 20)) {
+      uint16_t raw_firmware_version = 0;
+      if (!this->get_register(SEN6X_CMD_GET_FIRMWARE_VERSION, raw_firmware_version, 20)) {
         ESP_LOGE(TAG, "Failed to read firmware version");
         this->error_code_ = FIRMWARE_FAILED;
         this->mark_failed();
         return;
       }
-      this->firmware_version_ >>= 8;
-      ESP_LOGD(TAG, "Firmware version %d", this->firmware_version_);
+      this->firmware_version_major_ = (raw_firmware_version >> 8) & 0xFF;
+      this->firmware_version_minor_ = raw_firmware_version & 0xFF;
+      ESP_LOGD(TAG, "Firmware version %u.%u", this->firmware_version_major_, this->firmware_version_minor_);
 
       if (this->voc_sensor_ && this->store_baseline_) {
         uint32_t combined_serial =
@@ -928,8 +930,9 @@ bool SEN6XComponent::get_sht_heater_measurements() {
     default:
       break;
   }
-  if (min_fw != 0 && this->firmware_version_ < min_fw) {
-    ESP_LOGW(TAG, "SHT heater measurements not supported on firmware %u (min %u)", this->firmware_version_, min_fw);
+  if (min_fw != 0 && this->firmware_version_major_ < min_fw) {
+    ESP_LOGW(TAG, "SHT heater measurements not supported on firmware %u.%u (min %u)", this->firmware_version_major_,
+             this->firmware_version_minor_, min_fw);
     return false;
   }
   if (this->measurement_started_) {
