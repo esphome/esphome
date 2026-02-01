@@ -87,6 +87,7 @@ async def to_code(config):
             cg.add(var.set_restore_value(True))
 
     if CONF_SET_ACTION in config:
+        cg.add_define("USE_TEMPLATE_SELECT_SET_TRIGGER")
         await automation.build_automation(
             var.get_set_trigger(), [(cg.StringRef, "x")], config[CONF_SET_ACTION]
         )
