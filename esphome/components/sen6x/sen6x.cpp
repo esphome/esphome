@@ -55,6 +55,39 @@ static const int8_t SEN6X_INDEX_SCALE_FACTOR = 10;                            //
 static const int8_t SEN6X_MIN_INDEX_VALUE = 1 * SEN6X_INDEX_SCALE_FACTOR;     // must be adjusted by the scale factor
 static const int16_t SEN6X_MAX_INDEX_VALUE = 500 * SEN6X_INDEX_SCALE_FACTOR;  // must be adjusted by the scale factor
 
+static inline void set_read_command_and_words(SEN6XComponent::Sen6xType type, uint16_t &read_cmd, uint8_t &read_words) {
+  read_cmd = SEN6X_CMD_READ_MEASUREMENT;
+  read_words = 9;
+  switch (type) {
+    case SEN6XComponent::SEN62:
+      read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN62;
+      read_words = 6;
+      break;
+    case SEN6XComponent::SEN63C:
+      read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN63C;
+      read_words = 7;
+      break;
+    case SEN6XComponent::SEN65:
+      read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN65;
+      read_words = 8;
+      break;
+    case SEN6XComponent::SEN66:
+      read_cmd = SEN6X_CMD_READ_MEASUREMENT;
+      read_words = 9;
+      break;
+    case SEN6XComponent::SEN68:
+      read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN68;
+      read_words = 9;
+      break;
+    case SEN6XComponent::SEN69C:
+      read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN69C;
+      read_words = 10;
+      break;
+    default:
+      break;
+  }
+}
+
 void SEN6XComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sen6x...");
 
@@ -471,40 +504,9 @@ void SEN6XComponent::update() {
     }
   }
 
-  uint16_t read_cmd = SEN6X_CMD_READ_MEASUREMENT;
-  uint8_t read_words = 9;
-
-  switch (this->sen6x_type_) {
-    case SEN62:
-      read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN62;
-      read_words = 6;
-      break;
-
-    case SEN63C:
-      read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN63C;
-      read_words = 7;
-      break;
-    case SEN65:
-      read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN65;
-      read_words = 8;
-      break;
-    case SEN66:
-      read_cmd = SEN6X_CMD_READ_MEASUREMENT;
-      read_words = 9;
-      break;
-    case SEN68:
-      read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN68;
-      read_words = 9;
-      break;
-    case SEN69C:
-      read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN69C;
-      read_words = 10;
-      break;
-    default:
-      read_cmd = SEN6X_CMD_READ_MEASUREMENT;
-      read_words = 9;
-      break;
-  }
+  uint16_t read_cmd;
+  uint8_t read_words;
+  set_read_command_and_words(this->sen6x_type_, read_cmd, read_words);
 
   const uint8_t poll_retries = 24;
   auto poll_ready = std::make_shared<std::function<void(uint8_t)>>();
@@ -546,14 +548,12 @@ void SEN6XComponent::update() {
       int8_t nox_index = -1;
       int8_t hcho_index = -1;
       int8_t co2_index = -1;
-      bool has_ambient_pressure = false;
       bool co2_uint16 = false;
       switch (this->sen6x_type_) {
         case SEN62:
           break;
         case SEN63C:
           co2_index = 6;
-          has_ambient_pressure = true;
           break;
         case SEN65:
           voc_index = 6;
@@ -563,7 +563,6 @@ void SEN6XComponent::update() {
           voc_index = 6;
           nox_index = 7;
           co2_index = 8;
-          has_ambient_pressure = true;
           co2_uint16 = true;
           break;
         case SEN68:
@@ -576,7 +575,6 @@ void SEN6XComponent::update() {
           nox_index = 7;
           hcho_index = 8;
           co2_index = 9;
-          has_ambient_pressure = true;
           break;
         default:
           break;
