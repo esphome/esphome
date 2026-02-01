@@ -58,7 +58,7 @@ void SEN6XComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sen6x...");
 
   // the sensor needs 100 ms to enter the idle state
-  this->set_timeout(500, [this]() {
+  this->set_timeout(100, [this]() {
     // Check if measurement is ready before reading the value
     if (!this->write_command(SEN6X_CMD_GET_DATA_READY_STATUS)) {
       ESP_LOGE(TAG, "Failed to write data ready status command");
@@ -73,7 +73,6 @@ void SEN6XComponent::setup() {
       return;
     }
 
-    uint32_t stop_measurement_delay = 0;
     // In order to query the device periodic measurement must be ceased => use reset!
     if (raw_read_status) {
       ESP_LOGD(TAG, "Sensor has data available, stopping periodic measurement / reset");
@@ -84,10 +83,9 @@ void SEN6XComponent::setup() {
         this->mark_failed();
         return;
       }
-      stop_measurement_delay = 1400;
     }
 
-    this->set_timeout(stop_measurement_delay, [this]() {
+    this->set_timeout(20, [this]() {
       uint16_t raw_serial_number[3];
       if (!this->get_register(SEN6X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 20)) {
         ESP_LOGE(TAG, "Failed to read serial number");
@@ -307,44 +305,7 @@ void SEN6XComponent::finish_setup_() {
 void SEN6XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "sen6x:");
   LOG_I2C_DEVICE(this);
-  if (this->product_name_.empty()) {
-    uint16_t raw_product_name[16];
-    if (this->get_register(SEN6X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
-      this->product_name_.clear();
-      const uint16_t *current_int = raw_product_name;
-      char current_char;
-      uint8_t max = 16;
-      do {
-        current_char = *current_int >> 8;
-        if (current_char) {
-          this->product_name_.push_back(current_char);
-          current_char = *current_int & 0xFF;
-          if (current_char)
-            this->product_name_.push_back(current_char);
-        }
-        current_int++;
-      } while (current_char && --max);
-    } else {
-      ESP_LOGW(TAG, "Failed to read product name for config dump");
-    }
-  }
-  if (this->serial_number_[0] == 0 && this->serial_number_[1] == 0 && this->serial_number_[2] == 0) {
-    uint16_t raw_serial_number[3];
-    if (this->get_register(SEN6X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 20)) {
-      this->serial_number_[0] = static_cast<bool>(uint16_t(raw_serial_number[0]) & 0xFF);
-      this->serial_number_[1] = static_cast<uint16_t>(raw_serial_number[0] & 0xFF);
-      this->serial_number_[2] = static_cast<uint16_t>(raw_serial_number[1] >> 8);
-    } else {
-      ESP_LOGW(TAG, "Failed to read serial number for config dump");
-    }
-  }
-  if (this->firmware_version_ == 0) {
-    if (this->get_register(SEN6X_CMD_GET_FIRMWARE_VERSION, this->firmware_version_, 20)) {
-      this->firmware_version_ >>= 8;
-    } else {
-      ESP_LOGW(TAG, "Failed to read firmware version for config dump");
-    }
-  }
+
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
@@ -367,13 +328,7 @@ void SEN6XComponent::dump_config() {
         break;
     }
   }
-  ESP_LOGCONFIG(TAG, "  Productname: %s", this->product_name_.c_str());
-  ESP_LOGCONFIG(TAG, "  Firmware version: %d", this->firmware_version_);
-  ESP_LOGCONFIG(TAG, "  Serial number %02d.%02d.%02d", this->serial_number_[0], this->serial_number_[1],
-                this->serial_number_[2]);
-
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Measurement running: %s", this->get_state() ? "ON" : "OFF");
   if (this->ambient_pressure_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Ambient pressure: %u hPa", this->ambient_pressure_.value());
   }
