@@ -239,9 +239,7 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
         cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
-            single=True
-        ),
+        cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(single=True),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
