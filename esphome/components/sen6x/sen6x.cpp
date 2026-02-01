@@ -96,8 +96,8 @@ static inline const char *sensirion_convert_to_string_in_place(uint16_t *array, 
 }
 
 void SEN6XComponent::setup() {
-  // the sensor needs 1000 ms to enter the idle state
-  this->set_timeout(1000, [this]() {
+  // the sensor needs 100 ms to enter the idle state
+  this->set_timeout(100, [this]() {
     // Check if measurement is ready before reading the value
     if (!this->write_command(SEN6X_CMD_GET_DATA_READY_STATUS)) {
       ESP_LOGE(TAG, "Failed to write data ready status command");
