@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Callable
+import heapq
 import sys
 from typing import TYPE_CHECKING
 
@@ -31,6 +32,8 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
     RAM_SYMBOL_SIZE_THRESHOLD: int = 24
     # Number of top symbols to show in the largest symbols report
     TOP_SYMBOLS_LIMIT: int = 30
+    # Width for symbol name display in top symbols report
+    COL_TOP_SYMBOL_NAME: int = 55
 
     # Column width constants
     COL_COMPONENT: int = 29
@@ -159,22 +162,26 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             for symbol, demangled, size, section in symbols:
                 all_symbols.append((symbol, demangled, size, section, component))
 
-        # Sort by size descending
-        all_symbols.sort(key=lambda x: x[2], reverse=True)
+        # Get top N symbols by size using heapq for efficiency
+        top_symbols = heapq.nlargest(
+            self.TOP_SYMBOLS_LIMIT, all_symbols, key=lambda x: x[2]
+        )
 
         lines.append("")
         lines.append(f"Top {self.TOP_SYMBOLS_LIMIT} Largest Symbols:")
-        for i, (symbol, demangled, size, section, component) in enumerate(
-            all_symbols[: self.TOP_SYMBOLS_LIMIT]
-        ):
+        # Calculate truncation limit from column width (leaving room for "...")
+        truncate_limit = self.COL_TOP_SYMBOL_NAME - 3
+        for i, (_, demangled, size, section, component) in enumerate(top_symbols):
             # Format section label
             section_label = f"[{section[1:]}]" if section else ""
             # Truncate demangled name if too long
             demangled_display = (
-                f"{demangled[:50]}..." if len(demangled) > 50 else demangled
+                f"{demangled[:truncate_limit]}..."
+                if len(demangled) > self.COL_TOP_SYMBOL_NAME
+                else demangled
             )
             lines.append(
-                f"{i + 1:>2}. {size:>7,} B {section_label:<8} {demangled_display:<55} {component}"
+                f"{i + 1:>2}. {size:>7,} B {section_label:<8} {demangled_display:<{self.COL_TOP_SYMBOL_NAME}} {component}"
             )
 
     def generate_report(self, detailed: bool = False) -> str:
