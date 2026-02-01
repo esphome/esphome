@@ -80,5 +80,29 @@ template<typename... Ts> class StopMeasurementAction : public Action<Ts...> {
   SEN6XComponent *sen6x_;
 };
 
+template<typename... Ts> class SetTemperatureCompensationAction : public Action<Ts...> {
+ public:
+  explicit SetTemperatureCompensationAction(SEN6XComponent *sen6x) : sen6x_(sen6x) {}
+
+  void set_offset(TemplatableValue<float, Ts...> offset) { offset_ = offset; }
+  void set_normalized_offset_slope(TemplatableValue<float, Ts...> normalized_offset_slope) {
+    normalized_offset_slope_ = normalized_offset_slope;
+  }
+  void set_time_constant(TemplatableValue<uint16_t, Ts...> time_constant) { time_constant_ = time_constant; }
+  void set_slot(TemplatableValue<uint16_t, Ts...> slot) { slot_ = slot; }
+
+  void play(Ts... x) override {
+    this->sen6x_->apply_temperature_compensation(this->offset_.value(x...), this->normalized_offset_slope_.value(x...),
+                                                 this->time_constant_.value(x...), this->slot_.value(x...));
+  }
+
+ protected:
+  SEN6XComponent *sen6x_;
+  TemplatableValue<float, Ts...> offset_;
+  TemplatableValue<float, Ts...> normalized_offset_slope_;
+  TemplatableValue<uint16_t, Ts...> time_constant_;
+  TemplatableValue<uint16_t, Ts...> slot_;
+};
+
 }  // namespace sen6x
 }  // namespace esphome

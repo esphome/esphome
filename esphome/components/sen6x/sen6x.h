@@ -122,6 +122,8 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
     temp_comp.slot = slot;
     temperature_compensation_ = temp_comp;
   }
+  bool apply_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant,
+                                      uint16_t slot);
   void set_temperature_acceleration(float k, float p, float t1, float t2) {
     TemperatureAcceleration temp_accel;
     temp_accel.k = k * 10;

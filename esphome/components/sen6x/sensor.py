@@ -93,6 +93,9 @@ GetSHTHeaterMeasurementsAction = sen6x_ns.class_(
 )
 StartMeasurementAction = sen6x_ns.class_("StartMeasurementAction", automation.Action)
 StopMeasurementAction = sen6x_ns.class_("StopMeasurementAction", automation.Action)
+SetTemperatureCompensationAction = sen6x_ns.class_(
+    "SetTemperatureCompensationAction", automation.Action
+)
 
 CONF_REFERENCE_CO2 = "reference_co2"
 
@@ -224,7 +227,7 @@ CONFIG_SCHEMA = (
                         float_previously_pct, cv.float_range(-3.2768, 3.2767)
                     ),
                     cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_range(0, 65535),
-                    cv.Optional(CONF_SLOT, default=0): cv.int_range(0, 4),
+                    cv.Optional(CONF_SLOT): cv.int_range(0, 4),
                 }
             ),
             cv.Optional(CONF_TEMPERATURE_ACCELERATION): cv.Schema(
@@ -298,7 +301,7 @@ async def to_code(config):
                 cfg[CONF_OFFSET],
                 cfg[CONF_NORMALIZED_OFFSET_SLOPE],
                 cfg[CONF_TIME_CONSTANT],
-                cfg[CONF_SLOT],
+                cfg.get(CONF_SLOT, 0),
             )
         )
     if cfg := config.get(CONF_CO2, {}).get(CONF_AMBIENT_PRESSURE_COMPENSATION):
@@ -325,6 +328,22 @@ SEN6X_ACTION_SCHEMA = maybe_simple_id(
     }
 )
 
+SEN6X_TEMPERATURE_COMPENSATION_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(SEN6XComponent),
+        cv.Optional(CONF_OFFSET, default=0): cv.templatable(
+            cv.float_range(-163.84, 163.835)
+        ),
+        cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0): cv.templatable(
+            cv.All(float_previously_pct, cv.float_range(-3.2768, 3.2767))
+        ),
+        cv.Optional(CONF_TIME_CONSTANT, default=0): cv.templatable(
+            cv.int_range(0, 65535)
+        ),
+        cv.Optional(CONF_SLOT, default=0): cv.templatable(cv.int_range(0, 4)),
+    }
+)
+
 
 @automation.register_action(
     "sen6x.start_fan_autoclean", StartFanAction, SEN6X_ACTION_SCHEMA
@@ -332,6 +351,27 @@ SEN6X_ACTION_SCHEMA = maybe_simple_id(
 async def sen6x_fan_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action(
+    "sen6x.set_temperature_compensation",
+    SetTemperatureCompensationAction,
+    SEN6X_TEMPERATURE_COMPENSATION_ACTION_SCHEMA,
+)
+async def sen6x_set_temperature_compensation_to_code(
+    config, action_id, template_arg, args
+):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    offset = await cg.templatable(config[CONF_OFFSET], args, cg.float_)
+    slope = await cg.templatable(config[CONF_NORMALIZED_OFFSET_SLOPE], args, cg.float_)
+    time_constant = await cg.templatable(config[CONF_TIME_CONSTANT], args, cg.uint16)
+    slot = await cg.templatable(config[CONF_SLOT], args, cg.uint16)
+    cg.add(var.set_offset(offset))
+    cg.add(var.set_normalized_offset_slope(slope))
+    cg.add(var.set_time_constant(time_constant))
+    cg.add(var.set_slot(slot))
+    return var
 
 
 SEN6X_FRC_ACTION_SCHEMA = cv.Schema(

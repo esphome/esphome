@@ -699,6 +699,20 @@ bool SEN6XComponent::update_ambient_pressure_compensation_(uint16_t pressure_hpa
   return true;
 }
 
+bool SEN6XComponent::apply_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant,
+                                                    uint16_t slot) {
+  TemperatureCompensation temp_comp;
+  temp_comp.offset = offset * 200;
+  temp_comp.normalized_offset_slope = normalized_offset_slope * 10000;
+  temp_comp.time_constant = time_constant;
+  temp_comp.slot = slot;
+  if (!this->write_temperature_compensation_(temp_comp)) {
+    return false;
+  }
+  this->temperature_compensation_ = temp_comp;
+  return true;
+}
+
 bool SEN6XComponent::write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning) {
   uint16_t params[6];
   params[0] = tuning.index_offset;
