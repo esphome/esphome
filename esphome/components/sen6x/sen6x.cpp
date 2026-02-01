@@ -86,18 +86,27 @@ void SEN6XComponent::setup() {
     }
 
     this->set_timeout(20, [this]() {
-      uint16_t raw_serial_number[3];
-      if (!this->get_register(SEN6X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 20)) {
+      uint16_t raw_serial_number[16];
+      if (!this->get_register(SEN6X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 16, 20)) {
         ESP_LOGE(TAG, "Failed to read serial number");
         this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
         this->mark_failed();
         return;
       }
-      this->serial_number_[0] = static_cast<bool>(uint16_t(raw_serial_number[0]) & 0xFF);
-      this->serial_number_[1] = static_cast<uint16_t>(raw_serial_number[0] & 0xFF);
-      this->serial_number_[2] = static_cast<uint16_t>(raw_serial_number[1] >> 8);
-      ESP_LOGD(TAG, "Serial number %02d.%02d.%02d", this->serial_number_[0], this->serial_number_[1],
-               this->serial_number_[2]);
+      this->serial_number_.clear();
+      this->serial_number_.reserve(32);
+      for (uint8_t i = 0; i < 16; i++) {
+        const uint16_t word = raw_serial_number[i];
+        const char c1 = static_cast<char>(word >> 8);
+        const char c2 = static_cast<char>(word & 0xFF);
+        if (c1 == '\0')
+          break;
+        this->serial_number_.push_back(c1);
+        if (c2 == '\0')
+          break;
+        this->serial_number_.push_back(c2);
+      }
+      ESP_LOGD(TAG, "Serial number %s", this->serial_number_.c_str());
 
       uint16_t raw_product_name[16];
       if (!this->get_register(SEN6X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
@@ -156,16 +165,13 @@ void SEN6XComponent::setup() {
       ESP_LOGD(TAG, "Firmware version %u.%u", this->firmware_version_major_, this->firmware_version_minor_);
 
       if (this->voc_sensor_ && this->store_baseline_) {
-        uint32_t combined_serial =
-            encode_uint24(this->serial_number_[0], this->serial_number_[1], this->serial_number_[2]);
-
         // Hash with compilation time and serial number
         // This ensures the baseline storage is cleared after OTA
         // Serial numbers are unique to each sensor, so mulitple sensors can be used without conflict
         char build_time[App.BUILD_TIME_STR_SIZE] = {0};
 
         App.get_build_time_string(build_time);
-        uint32_t hash = fnv1_hash(std::string(build_time) + std::to_string(combined_serial));
+        uint32_t hash = fnv1_hash(std::string(build_time) + this->serial_number_);
         this->pref_ = global_preferences->make_preference<Sen6xBaselines>(hash, true);
 
         if (this->pref_.load(&this->voc_baselines_storage_)) {

@@ -85,7 +85,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   }
   bool is_measurement_running() const;
   const std::string &get_product_name() const { return this->product_name_; }
-  const uint8_t *get_serial_number() const { return this->serial_number_; }
+  const std::string &get_serial_number() const { return this->serial_number_; }
   uint8_t get_firmware_version_major() const { return this->firmware_version_major_; }
   uint8_t get_firmware_version_minor() const { return this->firmware_version_minor_; }
   bool get_state() const { return this->measurement_started_; }
@@ -167,7 +167,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *ambient_pressure_source_{nullptr};
   std::string product_name_;
   Sen6xType sen6x_type_{UNKNOWN};
-  uint8_t serial_number_[4];
+  std::string serial_number_;
   uint8_t firmware_version_major_{0};
   uint8_t firmware_version_minor_{0};
   Sen6xBaselines voc_baselines_storage_;
