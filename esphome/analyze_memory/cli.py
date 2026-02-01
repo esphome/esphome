@@ -154,13 +154,12 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
 
     def _add_top_symbols(self, lines: list[str]) -> None:
         """Add a section showing the top largest symbols in the binary."""
-        # Collect all symbols from all components
-        all_symbols: list[
-            tuple[str, str, int, str, str]
-        ] = []  # (symbol, demangled, size, section, component)
-        for component, symbols in self._component_symbols.items():
-            for symbol, demangled, size, section in symbols:
-                all_symbols.append((symbol, demangled, size, section, component))
+        # Collect all symbols from all components: (symbol, demangled, size, section, component)
+        all_symbols = [
+            (symbol, demangled, size, section, component)
+            for component, symbols in self._component_symbols.items()
+            for symbol, demangled, size, section in symbols
+        ]
 
         # Get top N symbols by size using heapq for efficiency
         top_symbols = heapq.nlargest(
