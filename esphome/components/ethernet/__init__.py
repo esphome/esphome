@@ -435,11 +435,13 @@ async def to_code(config):
         cg.add_library("WiFi", None)
 
     if on_connect_config := config.get(CONF_ON_CONNECT):
+        cg.add_define("USE_ETHERNET_CONNECT_TRIGGER")
         await automation.build_automation(
             var.get_connect_trigger(), [], on_connect_config
         )
 
     if on_disconnect_config := config.get(CONF_ON_DISCONNECT):
+        cg.add_define("USE_ETHERNET_DISCONNECT_TRIGGER")
         await automation.build_automation(
             var.get_disconnect_trigger(), [], on_disconnect_config
         )
