@@ -1,4 +1,5 @@
 display:
+  # Test 128x64 model (standard)
   - platform: ssd1306_spi
     id: ssd1306_spi_display
     model: SSD1306 128x64
@@ -18,3 +19,26 @@ display:
       then:
         lambda: |-
           ESP_LOGD("display", "1 -> 2");
+
+  # Test 64x48 model (GDDRAM offset - exercises page cycling fix)
+  - platform: ssd1306_spi
+    id: ssd1306_spi_display_64x48
+    model: SSD1306 64x48
+    cs_pin: ${cs_pin_2}
+    dc_pin: ${dc_pin_2}
+    reset_pin: ${reset_pin_2}
+    offset_x: 0
+    offset_y: 0
+    pages:
+      - id: ssd1306_64x48_page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+      - id: ssd1306_64x48_page2
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+    on_page_change:
+      from: ssd1306_64x48_page1
+      to: ssd1306_64x48_page2
+      then:
+        lambda: |-
+          ESP_LOGD("display", "64x48: 1 -> 2");

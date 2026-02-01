@@ -201,6 +201,21 @@ void SSD1306::display() {
     return;
   }
 
+  // Deactivate scroll - stops any noise-induced scrolling from nearby RF sources
+  this->command(SSD1306_COMMAND_DEACTIVATE_SCROLL);
+
+  // NOP to sync command decoder state
+  this->command(0xE3);
+
+  // Force horizontal addressing mode before every frame to prevent page cycling corruption
+  this->command(SSD1306_COMMAND_MEMORY_MODE);
+  this->command(0x00);
+
+  // Reset display start line to 0 - fixes viewport drift from RF noise
+  this->command(SSD1306_COMMAND_SET_START_LINE | 0x00);
+
+  this->command(0xE3);  // NOP barrier
+
   this->command(SSD1306_COMMAND_COLUMN_ADDRESS);
   switch (this->model_) {
     case SSD1306_MODEL_64_48:
@@ -213,16 +228,18 @@ void SSD1306::display() {
       this->command(0x1C + this->offset_x_ + this->get_width_internal() - 1);
       break;
     default:
-      this->command(0 + this->offset_x_);  // Page start address, 0
+      this->command(0 + this->offset_x_);
       this->command(this->get_width_internal() + this->offset_x_ - 1);
       break;
   }
 
+  this->command(0xE3);  // NOP barrier
+
   this->command(SSD1306_COMMAND_PAGE_ADDRESS);
-  // Page start address, 0
-  this->command(0);
-  // Page end address:
-  this->command((this->get_height_internal() / 8) - 1);
+  this->command(0 + this->offset_y_);
+  this->command((this->get_height_internal() / 8) - 1 + this->offset_y_);
+
+  this->command(0xE3);  // NOP barrier
 
   this->write_display_data();
 }

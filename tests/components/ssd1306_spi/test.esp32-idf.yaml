@@ -2,6 +2,9 @@ substitutions:
   cs_pin: GPIO12
   dc_pin: GPIO13
   reset_pin: GPIO14
+  cs_pin_2: GPIO27
+  dc_pin_2: GPIO26
+  reset_pin_2: GPIO25
 
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
