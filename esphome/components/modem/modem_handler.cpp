@@ -39,7 +39,6 @@ void ModemHandler::modem_create_dte_dce(int baud_rate) {
     dte_config.uart_config.cts_io_num = this->cts_pin->get_pin();
     dte_config.uart_config.flow_control = ESP_MODEM_FLOW_CONTROL_HW;
   } else {
-    ESP_LOGD(TAG, "Not using RTS/CTS flow control");
     dte_config.uart_config.flow_control = ESP_MODEM_FLOW_CONTROL_NONE;
   }
   dte_config.task_stack_size = this->uart_event_task_stack_size;
