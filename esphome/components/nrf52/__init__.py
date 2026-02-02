@@ -117,7 +117,7 @@ def _check_versions(config):
     if CONF_SOURCE in value:
         if value[CONF_VERSION] == "recommended":
             raise cv.Invalid(
-                "Version must be explicitely set when a custom source is used."
+                "Version must be explicitly set when a custom source is used."
             )
     else:
         if value[CONF_VERSION] == "recommended":
