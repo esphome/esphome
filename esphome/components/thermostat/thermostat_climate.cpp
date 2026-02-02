@@ -586,9 +586,7 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
     }
     this->action = action;
     this->prev_action_trigger_ = trig;
-    if (trig != nullptr) {
-      trig->trigger();
-    }
+    trig->trigger();
     // if enabled, call the fan_only action with cooling/heating actions
     if (trig_fan != nullptr) {
       ESP_LOGVV(TAG, "Calling FAN_ONLY action with HEATING/COOLING action");
@@ -686,9 +684,7 @@ void ThermostatClimate::switch_to_humidity_control_action_(HumidificationAction 
   }
   this->humidification_action = action;
   this->prev_humidity_control_trigger_ = trig;
-  if (trig != nullptr) {
-    trig->trigger();
-  }
+  trig->trigger();
 }
 
 void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode, bool publish_state) {
@@ -756,9 +752,7 @@ void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode, bo
       this->prev_fan_mode_trigger_ = nullptr;
     }
     this->start_timer_(thermostat::THERMOSTAT_TIMER_FAN_MODE);
-    if (trig != nullptr) {
-      trig->trigger();
-    }
+    trig->trigger();
     this->prev_fan_mode_ = fan_mode;
     this->prev_fan_mode_trigger_ = trig;
   }
@@ -802,9 +796,7 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode, bool publish_
       mode = climate::CLIMATE_MODE_OFF;
       // trig = this->off_mode_trigger_;
   }
-  if (trig != nullptr) {
-    trig->trigger();
-  }
+  trig->trigger();
   this->mode = mode;
   this->prev_mode_ = mode;
   this->prev_mode_trigger_ = trig;
@@ -844,9 +836,7 @@ void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mo
       swing_mode = climate::CLIMATE_SWING_OFF;
       // trig = &this->swing_mode_off_trigger_;
   }
-  if (trig != nullptr) {
-    trig->trigger();
-  }
+  trig->trigger();
   this->swing_mode = swing_mode;
   this->prev_swing_mode_ = swing_mode;
   this->prev_swing_mode_trigger_ = trig;
