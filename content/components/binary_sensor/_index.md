@@ -77,7 +77,7 @@ Advanced options:
 
 - **trigger_on_initial_state** (*Optional*, boolean): If true, any applicable triggers will be fired when the binary sensor
   state changes from `unknown` to a valid state. This applies to the first valid state set, and any valid state set after
-  a `binary_sensor.invalidate_state` action has been excuted. The default is `false`.
+  a `binary_sensor.invalidate_state` action has been executed. The default is `false`.
 
 - **entity_category** (*Optional*, string): The category of the entity.
   See <https://developers.home-assistant.io/docs/core/entity/#generic-properties>
