@@ -601,7 +601,8 @@ class Logger : public Component {
   // Updates buffer_at with the formatted length, handling truncation:
   // - When vsnprintf truncates (ret >= remaining), it writes (remaining - 1) chars + null terminator
   // - When it doesn't truncate (ret < remaining), it writes ret chars + null terminator
-  static inline void HOT process_vsnprintf_result_(char *buffer, uint16_t *buffer_at, uint16_t remaining, int ret) {
+  __attribute__((always_inline)) static inline void process_vsnprintf_result_(char *buffer, uint16_t *buffer_at,
+                                                                              uint16_t remaining, int ret) {
     if (ret < 0)
       return;  // Encoding error, do not increment buffer_at
     *buffer_at += (ret >= remaining) ? (remaining - 1) : static_cast<uint16_t>(ret);
