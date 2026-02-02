@@ -290,14 +290,14 @@ void Rtttl::loop() {
     this->position_++;
   }
 
-  // now, get optional '.' dotted note
+  // now, get scale
+  uint8_t scale = get_integer_();
+
+  // now, get optional '.' dotted note (must be after scale per RTTTL spec)
   if (this->rtttl_[this->position_] == '.') {
     this->note_duration_ += this->note_duration_ / 2;
     this->position_++;
   }
-
-  // now, get scale
-  uint8_t scale = get_integer_();
   if (scale == 0)
     scale = this->default_octave_;
 
