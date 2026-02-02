@@ -41,15 +41,16 @@ void TemplateSelect::update() {
 }
 
 void TemplateSelect::control(size_t index) {
-#ifdef USE_TEMPLATE_SELECT_SET_TRIGGER
-  this->set_trigger_->trigger(StringRef(this->option_at(index)));
-#endif
-
   if (this->optimistic_)
     this->publish_state(index);
 
   if (this->restore_value_)
     this->pref_.save(&index);
+}
+
+void TemplateSelectWithSetAction::control(size_t index) {
+  this->set_trigger_.trigger(StringRef(this->option_at(index)));
+  TemplateSelect::control(index);
 }
 
 void TemplateSelect::dump_config() {

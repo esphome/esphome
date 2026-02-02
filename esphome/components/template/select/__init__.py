@@ -17,6 +17,9 @@ from .. import template_ns
 TemplateSelect = template_ns.class_(
     "TemplateSelect", select.Select, cg.PollingComponent
 )
+TemplateSelectWithSetAction = template_ns.class_(
+    "TemplateSelectWithSetAction", TemplateSelect
+)
 
 
 def validate(config):
@@ -62,7 +65,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    # Use subclass with trigger only when set_action is configured
+    cls = TemplateSelectWithSetAction if CONF_SET_ACTION in config else TemplateSelect
+    var = cg.new_Pvariable(config[CONF_ID], cls)
     await cg.register_component(var, config)
     await select.register_select(var, config, options=config[CONF_OPTIONS])
 
@@ -87,7 +92,6 @@ async def to_code(config):
             cg.add(var.set_restore_value(True))
 
     if CONF_SET_ACTION in config:
-        cg.add_define("USE_TEMPLATE_SELECT_SET_TRIGGER")
         await automation.build_automation(
             var.get_set_trigger(), [(cg.StringRef, "x")], config[CONF_SET_ACTION]
         )
