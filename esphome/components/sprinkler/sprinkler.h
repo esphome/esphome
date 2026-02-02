@@ -76,7 +76,7 @@ class SprinklerControllerNumber : public number::Number, public Component {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
-  Trigger<float> *get_set_trigger() const { return set_trigger_; }
+  Trigger<float> *get_set_trigger() { return &this->set_trigger_; }
   void set_initial_value(float initial_value) { initial_value_ = initial_value; }
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
 
@@ -84,7 +84,7 @@ class SprinklerControllerNumber : public number::Number, public Component {
   void control(float value) override;
   float initial_value_{NAN};
   bool restore_value_{true};
-  Trigger<float> *set_trigger_ = new Trigger<float>();
+  Trigger<float> set_trigger_;
 
   ESPPreferenceObject pref_;
 };
@@ -97,8 +97,8 @@ class SprinklerControllerSwitch : public switch_::Switch, public Component {
   void dump_config() override;
 
   void set_state_lambda(std::function<optional<bool>()> &&f);
-  Trigger<> *get_turn_on_trigger() const;
-  Trigger<> *get_turn_off_trigger() const;
+  Trigger<> *get_turn_on_trigger() { return &this->turn_on_trigger_; }
+  Trigger<> *get_turn_off_trigger() { return &this->turn_off_trigger_; }
   void loop() override;
 
   float get_setup_priority() const override;
@@ -107,8 +107,8 @@ class SprinklerControllerSwitch : public switch_::Switch, public Component {
   void write_state(bool state) override;
 
   optional<std::function<optional<bool>()>> f_;
-  Trigger<> *turn_on_trigger_;
-  Trigger<> *turn_off_trigger_;
+  Trigger<> turn_on_trigger_;
+  Trigger<> turn_off_trigger_;
   Trigger<> *prev_trigger_{nullptr};
 };
 

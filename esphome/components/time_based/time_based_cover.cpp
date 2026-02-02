@@ -132,15 +132,15 @@ void TimeBasedCover::start_direction_(CoverOperation dir) {
   Trigger<> *trig;
   switch (dir) {
     case COVER_OPERATION_IDLE:
-      trig = this->stop_trigger_;
+      trig = &this->stop_trigger_;
       break;
     case COVER_OPERATION_OPENING:
       this->last_operation_ = dir;
-      trig = this->open_trigger_;
+      trig = &this->open_trigger_;
       break;
     case COVER_OPERATION_CLOSING:
       this->last_operation_ = dir;
-      trig = this->close_trigger_;
+      trig = &this->close_trigger_;
       break;
     default:
       return;
