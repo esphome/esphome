@@ -107,7 +107,7 @@ void LibreTinyUARTComponent::setup() {
     }
     this->serial_ = &Serial0;
     this->hardware_idx_ = 0;
-    Serial0.begin(this->baud_rate_, get_config(), rx_pin, tx_pin);
+    Serial0.setPins(rx_pin, tx_pin);
   }
 #endif
 #if LT_HW_UART1
@@ -121,7 +121,7 @@ void LibreTinyUARTComponent::setup() {
     }
     this->serial_ = &Serial1;
     this->hardware_idx_ = 1;
-    Serial1.begin(this->baud_rate_, get_config(), rx_pin, tx_pin);
+    Serial1.setPins(rx_pin, tx_pin);
   }
 #endif
 #if LT_HW_UART2
@@ -135,7 +135,7 @@ void LibreTinyUARTComponent::setup() {
     }
     this->serial_ = &Serial2;
     this->hardware_idx_ = 2;
-    Serial2.begin(this->baud_rate_, get_config(), rx_pin, tx_pin);
+    Serial2.setPins(rx_pin, tx_pin);
   }
 #endif
   else {
@@ -147,7 +147,6 @@ void LibreTinyUARTComponent::setup() {
       this->tx_pin_->setup();
     }
     this->serial_ = new SoftwareSerial(rx_pin, tx_pin, rx_inverted || tx_inverted);
-    this->serial_->begin(this->baud_rate_, get_config());
 #else
     this->serial_ = &Serial;
     ESP_LOGE(TAG, "  SoftwareSerial is not implemented for this chip. Only hardware pins are supported:");
@@ -164,6 +163,8 @@ void LibreTinyUARTComponent::setup() {
     return;
 #endif
   }
+
+  this->serial_->begin(this->baud_rate_, get_config());
 }
 
 void LibreTinyUARTComponent::dump_config() {

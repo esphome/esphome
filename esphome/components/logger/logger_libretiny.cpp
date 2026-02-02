@@ -27,21 +27,24 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART0:
         this->hw_serial_ = &Serial0;
         this->hardware_idx_ = 0;
-        Serial0.begin(this->baud_rate_, SERIAL_8N1, pins_serial0_rx[0], pins_serial0_tx[0]);
+        Serial0.setPins(pins_serial0_rx[0], pins_serial0_tx[0]);
+        Serial0.begin(this->baud_rate_);
         break;
 #endif
 #if LT_HW_UART1
       case UART_SELECTION_UART1:
         this->hw_serial_ = &Serial1;
         this->hardware_idx_ = 1;
-        Serial1.begin(this->baud_rate_, SERIAL_8N1, pins_serial1_rx[0], pins_serial1_tx[0]);
+        Serial1.setPins(pins_serial1_rx[0], pins_serial1_tx[0]);
+        Serial1.begin(this->baud_rate_);
         break;
 #endif
 #if LT_HW_UART2
       case UART_SELECTION_UART2:
         this->hw_serial_ = &Serial2;
         this->hardware_idx_ = 2;
-        Serial2.begin(this->baud_rate_, SERIAL_8N1, pins_serial2_rx[0], pins_serial2_tx[0]);
+        Serial2.setPins(pins_serial2_rx[0], pins_serial2_tx[0]);
+        Serial2.begin(this->baud_rate_);
         break;
 #endif
       default:
