@@ -203,7 +203,7 @@ void RemoteTransmitterComponent::wait_for_rmt_() {
     this->status_set_warning();
   }
 
-  this->complete_trigger_->trigger();
+  this->complete_trigger_.trigger();
 }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
@@ -264,7 +264,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     return;
   }
 
-  this->transmit_trigger_->trigger();
+  this->transmit_trigger_.trigger();
 
   rmt_transmit_config_t config;
   memset(&config, 0, sizeof(config));
@@ -333,7 +333,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     ESP_LOGE(TAG, "Empty data");
     return;
   }
-  this->transmit_trigger_->trigger();
+  this->transmit_trigger_.trigger();
   for (uint32_t i = 0; i < send_times; i++) {
     rmt_transmit_config_t config;
     memset(&config, 0, sizeof(config));
@@ -354,7 +354,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     if (i + 1 < send_times)
       delayMicroseconds(send_wait);
   }
-  this->complete_trigger_->trigger();
+  this->complete_trigger_.trigger();
 }
 #endif
 
