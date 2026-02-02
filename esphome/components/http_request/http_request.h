@@ -332,13 +332,13 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   void set_json(std::function<void(Ts..., JsonObject)> json_func) { this->json_func_ = json_func; }
 
 #ifdef USE_HTTP_REQUEST_RESPONSE
-  Trigger<std::shared_ptr<HttpContainer>, std::string &, Ts...> *get_success_trigger_with_response() const {
-    return this->success_trigger_with_response_;
+  Trigger<std::shared_ptr<HttpContainer>, std::string &, Ts...> *get_success_trigger_with_response() {
+    return &this->success_trigger_with_response_;
   }
 #endif
-  Trigger<std::shared_ptr<HttpContainer>, Ts...> *get_success_trigger() const { return this->success_trigger_; }
+  Trigger<std::shared_ptr<HttpContainer>, Ts...> *get_success_trigger() { return &this->success_trigger_; }
 
-  Trigger<Ts...> *get_error_trigger() const { return this->error_trigger_; }
+  Trigger<Ts...> *get_error_trigger() { return &this->error_trigger_; }
 
   void set_max_response_buffer_size(size_t max_response_buffer_size) {
     this->max_response_buffer_size_ = max_response_buffer_size;
@@ -372,7 +372,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     auto captured_args = std::make_tuple(x...);
 
     if (container == nullptr) {
-      std::apply([this](Ts... captured_args_inner) { this->error_trigger_->trigger(captured_args_inner...); },
+      std::apply([this](Ts... captured_args_inner) { this->error_trigger_.trigger(captured_args_inner...); },
                  captured_args);
       return;
     }
@@ -406,14 +406,14 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       }
       std::apply(
           [this, &container, &response_body](Ts... captured_args_inner) {
-            this->success_trigger_with_response_->trigger(container, response_body, captured_args_inner...);
+            this->success_trigger_with_response_.trigger(container, response_body, captured_args_inner...);
           },
           captured_args);
     } else
 #endif
     {
       std::apply([this, &container](
-                     Ts... captured_args_inner) { this->success_trigger_->trigger(container, captured_args_inner...); },
+                     Ts... captured_args_inner) { this->success_trigger_.trigger(container, captured_args_inner...); },
                  captured_args);
     }
     container->end();
@@ -433,12 +433,10 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
   std::function<void(Ts..., JsonObject)> json_func_{nullptr};
 #ifdef USE_HTTP_REQUEST_RESPONSE
-  Trigger<std::shared_ptr<HttpContainer>, std::string &, Ts...> *success_trigger_with_response_ =
-      new Trigger<std::shared_ptr<HttpContainer>, std::string &, Ts...>();
+  Trigger<std::shared_ptr<HttpContainer>, std::string &, Ts...> success_trigger_with_response_;
 #endif
-  Trigger<std::shared_ptr<HttpContainer>, Ts...> *success_trigger_ =
-      new Trigger<std::shared_ptr<HttpContainer>, Ts...>();
-  Trigger<Ts...> *error_trigger_ = new Trigger<Ts...>();
+  Trigger<std::shared_ptr<HttpContainer>, Ts...> success_trigger_;
+  Trigger<Ts...> error_trigger_;
 
   size_t max_response_buffer_size_{SIZE_MAX};
 };

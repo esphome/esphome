@@ -29,7 +29,7 @@ void SprinklerControllerNumber::setup() {
 }
 
 void SprinklerControllerNumber::control(float value) {
-  this->set_trigger_->trigger(value);
+  this->set_trigger_.trigger(value);
 
   this->publish_state(value);
 
@@ -39,8 +39,7 @@ void SprinklerControllerNumber::control(float value) {
 
 void SprinklerControllerNumber::dump_config() { LOG_NUMBER("", "Sprinkler Controller Number", this); }
 
-SprinklerControllerSwitch::SprinklerControllerSwitch()
-    : turn_on_trigger_(new Trigger<>()), turn_off_trigger_(new Trigger<>()) {}
+SprinklerControllerSwitch::SprinklerControllerSwitch() = default;
 
 void SprinklerControllerSwitch::loop() {
   // Loop is only enabled when f_ has a value (see setup())
@@ -56,11 +55,11 @@ void SprinklerControllerSwitch::write_state(bool state) {
   }
 
   if (state) {
-    this->prev_trigger_ = this->turn_on_trigger_;
-    this->turn_on_trigger_->trigger();
+    this->prev_trigger_ = &this->turn_on_trigger_;
+    this->turn_on_trigger_.trigger();
   } else {
-    this->prev_trigger_ = this->turn_off_trigger_;
-    this->turn_off_trigger_->trigger();
+    this->prev_trigger_ = &this->turn_off_trigger_;
+    this->turn_off_trigger_.trigger();
   }
 
   this->publish_state(state);
@@ -68,9 +67,6 @@ void SprinklerControllerSwitch::write_state(bool state) {
 
 void SprinklerControllerSwitch::set_state_lambda(std::function<optional<bool>()> &&f) { this->f_ = f; }
 float SprinklerControllerSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
-
-Trigger<> *SprinklerControllerSwitch::get_turn_on_trigger() const { return this->turn_on_trigger_; }
-Trigger<> *SprinklerControllerSwitch::get_turn_off_trigger() const { return this->turn_off_trigger_; }
 
 void SprinklerControllerSwitch::setup() {
   this->state = this->get_initial_state_with_restore_mode().value_or(false);
