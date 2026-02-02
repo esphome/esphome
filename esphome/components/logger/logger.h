@@ -622,6 +622,29 @@ class Logger : public Component {
     }
   }
 
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+  // ESP8266 variant that reads format string directly from flash using vsnprintf_P
+  inline void HOT format_body_to_buffer_P_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size, PGM_P format,
+                                           va_list args) {
+    if (*buffer_at >= buffer_size)
+      return;
+    const uint16_t remaining = buffer_size - *buffer_at;
+
+    const int ret = vsnprintf_P(buffer + *buffer_at, remaining, format, args);
+
+    if (ret < 0) {
+      return;
+    }
+
+    uint16_t formatted_len = (ret >= remaining) ? (remaining - 1) : ret;
+    *buffer_at += formatted_len;
+
+    while (*buffer_at > 0 && buffer[*buffer_at - 1] == '\n') {
+      (*buffer_at)--;
+    }
+  }
+#endif
+
   inline void HOT write_footer_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
     static constexpr uint16_t RESET_COLOR_LEN = sizeof(ESPHOME_LOG_RESET_COLOR) - 1;
     this->write_body_to_buffer_(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN, buffer, buffer_at, buffer_size);
