@@ -12,8 +12,8 @@ from esphome.components.packet_transport import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_PORT, CONF_TRIGGER_ID
-from esphome.core import ID, Lambda
-from esphome.cpp_generator import ExpressionStatement, MockObj
+from esphome.core import ID
+from esphome.cpp_generator import literal
 
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["network"]
@@ -24,6 +24,8 @@ udp_ns = cg.esphome_ns.namespace("udp")
 UDPComponent = udp_ns.class_("UDPComponent", cg.Component)
 UDPWriteAction = udp_ns.class_("UDPWriteAction", automation.Action)
 trigger_args = cg.std_vector.template(cg.uint8)
+trigger_argname = "data"
+trigger_argtype = [(trigger_args, trigger_argname)]
 
 CONF_ADDRESSES = "addresses"
 CONF_LISTEN_ADDRESS = "listen_address"
@@ -111,13 +113,14 @@ async def to_code(config):
     cg.add(var.set_addresses([str(addr) for addr in config[CONF_ADDRESSES]]))
     if on_receive := config.get(CONF_ON_RECEIVE):
         on_receive = on_receive[0]
-        trigger = cg.new_Pvariable(on_receive[CONF_TRIGGER_ID])
+        trigger_id = cg.new_Pvariable(on_receive[CONF_TRIGGER_ID])
         trigger = await automation.build_automation(
-            trigger, [(trigger_args, "data")], on_receive
+            trigger_id, trigger_argtype, on_receive
         )
-        trigger = Lambda(str(ExpressionStatement(trigger.trigger(MockObj("data")))))
-        trigger = await cg.process_lambda(trigger, [(trigger_args, "data")])
-        cg.add(var.add_listener(trigger))
+        trigger_lambda = await cg.process_lambda(
+            trigger.trigger(literal(trigger_argname)), trigger_argtype
+        )
+        cg.add(var.add_listener(trigger_lambda))
         cg.add(var.set_should_listen())
 
 
