@@ -310,7 +310,7 @@ void EthernetComponent::loop() {
         this->dump_connect_params_();
         this->status_clear_warning();
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
-        this->connect_trigger_->trigger();
+        this->connect_trigger_.trigger();
 #endif
       } else if (now - this->connect_begin_ > 15000) {
         ESP_LOGW(TAG, "Connecting failed; reconnecting");
@@ -322,14 +322,14 @@ void EthernetComponent::loop() {
         ESP_LOGI(TAG, "Stopped connection");
         this->state_ = EthernetComponentState::STOPPED;
 #ifdef USE_ETHERNET_DISCONNECT_TRIGGER
-        this->disconnect_trigger_->trigger();
+        this->disconnect_trigger_.trigger();
 #endif
       } else if (!this->connected_) {
         ESP_LOGW(TAG, "Connection lost; reconnecting");
         this->state_ = EthernetComponentState::CONNECTING;
         this->start_connect_();
 #ifdef USE_ETHERNET_DISCONNECT_TRIGGER
-        this->disconnect_trigger_->trigger();
+        this->disconnect_trigger_.trigger();
 #endif
       } else {
         this->finish_connect_();
