@@ -42,6 +42,11 @@ def validate(config):
         raise cv.Invalid(
             "Either optimistic mode must be enabled, or set_action must be set, to handle the option being set."
         )
+
+    # Use subclass with trigger only when set_action is configured
+    if CONF_SET_ACTION in config:
+        config[CONF_ID].type = TemplateSelectWithSetAction
+
     return config
 
 
@@ -65,10 +70,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    # Use subclass with trigger only when set_action is configured
-    if CONF_SET_ACTION in config:
-        config[CONF_ID] = config[CONF_ID].copy()
-        config[CONF_ID].type = TemplateSelectWithSetAction
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await select.register_select(var, config, options=config[CONF_OPTIONS])
