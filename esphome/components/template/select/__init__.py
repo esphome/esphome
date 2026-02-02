@@ -17,6 +17,9 @@ from .. import template_ns
 TemplateSelect = template_ns.class_(
     "TemplateSelect", select.Select, cg.PollingComponent
 )
+TemplateSelectWithSetAction = template_ns.class_(
+    "TemplateSelectWithSetAction", TemplateSelect
+)
 
 
 def validate(config):
@@ -39,6 +42,11 @@ def validate(config):
         raise cv.Invalid(
             "Either optimistic mode must be enabled, or set_action must be set, to handle the option being set."
         )
+
+    # Use subclass with trigger only when set_action is configured
+    if CONF_SET_ACTION in config:
+        config[CONF_ID].type = TemplateSelectWithSetAction
+
     return config
 
 
@@ -87,7 +95,6 @@ async def to_code(config):
             cg.add(var.set_restore_value(True))
 
     if CONF_SET_ACTION in config:
-        cg.add_define("USE_TEMPLATE_SELECT_SET_TRIGGER")
         await automation.build_automation(
             var.get_set_trigger(), [(cg.StringRef, "x")], config[CONF_SET_ACTION]
         )

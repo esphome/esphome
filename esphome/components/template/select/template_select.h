@@ -9,7 +9,8 @@
 
 namespace esphome::template_ {
 
-class TemplateSelect final : public select::Select, public PollingComponent {
+/// Base template select class - used when no set_action is configured
+class TemplateSelect : public select::Select, public PollingComponent {
  public:
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
@@ -18,9 +19,6 @@ class TemplateSelect final : public select::Select, public PollingComponent {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-#ifdef USE_TEMPLATE_SELECT_SET_TRIGGER
-  Trigger<StringRef> *get_set_trigger() const { return this->set_trigger_; }
-#endif
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   void set_initial_option_index(size_t initial_option_index) { this->initial_option_index_ = initial_option_index; }
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
@@ -30,12 +28,19 @@ class TemplateSelect final : public select::Select, public PollingComponent {
   bool optimistic_ = false;
   size_t initial_option_index_{0};
   bool restore_value_ = false;
-#ifdef USE_TEMPLATE_SELECT_SET_TRIGGER
-  Trigger<StringRef> *set_trigger_ = new Trigger<StringRef>();
-#endif
   TemplateLambda<std::string> f_;
 
   ESPPreferenceObject pref_;
+};
+
+/// Template select with set_action trigger - only instantiated when set_action is configured
+class TemplateSelectWithSetAction final : public TemplateSelect {
+ public:
+  Trigger<StringRef> *get_set_trigger() { return &this->set_trigger_; }
+
+ protected:
+  void control(size_t index) override;
+  Trigger<StringRef> set_trigger_;
 };
 
 }  // namespace esphome::template_
