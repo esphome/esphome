@@ -601,8 +601,8 @@ class Logger : public Component {
   // Updates buffer_at with the formatted length, handling truncation:
   // - When vsnprintf truncates (ret >= remaining), it writes (remaining - 1) chars + null terminator
   // - When it doesn't truncate (ret < remaining), it writes ret chars + null terminator
-  __attribute__((always_inline)) static inline void process_vsnprintf_result_(char *buffer, uint16_t *buffer_at,
-                                                                              uint16_t remaining, int ret) {
+  __attribute__((always_inline)) static inline void process_vsnprintf_result(const char *buffer, uint16_t *buffer_at,
+                                                                             uint16_t remaining, int ret) {
     if (ret < 0)
       return;  // Encoding error, do not increment buffer_at
     *buffer_at += (ret >= remaining) ? (remaining - 1) : static_cast<uint16_t>(ret);
@@ -617,7 +617,7 @@ class Logger : public Component {
     if (*buffer_at >= buffer_size)
       return;
     const uint16_t remaining = buffer_size - *buffer_at;
-    process_vsnprintf_result_(buffer, buffer_at, remaining, vsnprintf(buffer + *buffer_at, remaining, format, args));
+    process_vsnprintf_result(buffer, buffer_at, remaining, vsnprintf(buffer + *buffer_at, remaining, format, args));
   }
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
@@ -627,7 +627,7 @@ class Logger : public Component {
     if (*buffer_at >= buffer_size)
       return;
     const uint16_t remaining = buffer_size - *buffer_at;
-    process_vsnprintf_result_(buffer, buffer_at, remaining, vsnprintf_P(buffer + *buffer_at, remaining, format, args));
+    process_vsnprintf_result(buffer, buffer_at, remaining, vsnprintf_P(buffer + *buffer_at, remaining, format, args));
   }
 #endif
 
