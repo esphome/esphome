@@ -55,6 +55,7 @@ from .const import (  # noqa
     KEY_BOARD,
     KEY_COMPONENTS,
     KEY_ESP32,
+    KEY_EXCLUDE_COMPONENTS,
     KEY_EXTRA_BUILD_FILES,
     KEY_FLASH_SIZE,
     KEY_FULL_CERT_BUNDLE,
@@ -88,6 +89,7 @@ IS_TARGET_PLATFORM = True
 CONF_ASSERTION_LEVEL = "assertion_level"
 CONF_COMPILER_OPTIMIZATION = "compiler_optimization"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
+CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
@@ -117,6 +119,36 @@ COMPILER_OPTIMIZATIONS = {
     "PERF": "CONFIG_COMPILER_OPTIMIZATION_PERF",
     "SIZE": "CONFIG_COMPILER_OPTIMIZATION_SIZE",
 }
+
+# ESP-IDF components excluded by default to reduce compile time.
+# Components can be re-enabled by calling include_builtin_idf_component() in to_code().
+#
+# Cannot be excluded (dependencies of required components):
+# - "console": espressif/mdns unconditionally depends on it
+# - "sdmmc": driver -> esp_driver_sdmmc -> sdmmc dependency chain
+DEFAULT_EXCLUDED_IDF_COMPONENTS = (
+    "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
+    "esp_adc",  # ADC driver - only needed by adc component
+    "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
+    "esp_driver_rmt",  # RMT driver - only needed by remote_transmitter/receiver, neopixelbus
+    "esp_driver_touch_sens",  # Touch sensor driver - only needed by esp32_touch
+    "esp_eth",  # Ethernet driver - only needed by ethernet component
+    "esp_hid",  # HID host/device support - ESPHome doesn't implement HID functionality
+    "esp_http_client",  # HTTP client - only needed by http_request component
+    "esp_https_ota",  # ESP-IDF HTTPS OTA - ESPHome has its own OTA implementation
+    "esp_https_server",  # HTTPS server - ESPHome has its own web server
+    "esp_lcd",  # LCD controller drivers - only needed by display component
+    "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
+    "espcoredump",  # Core dump support - ESPHome has its own debug component
+    "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
+    "mqtt",  # ESP-IDF MQTT library - ESPHome has its own MQTT implementation
+    "perfmon",  # Xtensa performance monitor - ESPHome has its own debug component
+    "protocomm",  # Protocol communication for provisioning - unused by ESPHome
+    "spiffs",  # SPIFFS filesystem - ESPHome doesn't use filesystem storage (IDF only)
+    "unity",  # Unit testing framework - ESPHome doesn't use IDF's testing
+    "wear_levelling",  # Flash wear levelling for fatfs - unused since fatfs unused
+    "wifi_provisioning",  # WiFi provisioning - ESPHome uses its own improv implementation
+)
 
 # ESP32 (original) chip revision options
 # Setting minimum revision to 3.0 or higher:
@@ -207,6 +239,9 @@ def set_core_data(config):
             )
     CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] = {}
     CORE.data[KEY_ESP32][KEY_COMPONENTS] = {}
+    # Initialize with default exclusions - components can call include_builtin_idf_component()
+    # to re-enable any they need
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = set(DEFAULT_EXCLUDED_IDF_COMPONENTS)
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
@@ -330,6 +365,28 @@ def add_idf_component(
             KEY_REF: ref,
             KEY_PATH: path,
         }
+
+
+def exclude_builtin_idf_component(name: str) -> None:
+    """Exclude an ESP-IDF component from the build.
+
+    This reduces compile time by skipping components that are not needed.
+    The component will be passed to ESP-IDF's EXCLUDE_COMPONENTS cmake variable.
+
+    Note: Components that are dependencies of other required components
+    cannot be excluded - ESP-IDF will still build them.
+    """
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].add(name)
+
+
+def include_builtin_idf_component(name: str) -> None:
+    """Remove an ESP-IDF component from the exclusion list.
+
+    Call this from components that need an ESP-IDF component that is
+    excluded by default in DEFAULT_EXCLUDED_IDF_COMPONENTS. This ensures the
+    component will be built when needed.
+    """
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(name)
 
 
 def add_extra_script(stage: str, filename: str, path: Path):
@@ -701,9 +758,10 @@ CONF_DISABLE_REGI2C_IN_IRAM = "disable_regi2c_in_iram"
 CONF_DISABLE_FATFS = "disable_fatfs"
 
 # VFS requirement tracking
-# Components that need VFS features can call require_vfs_select() or require_vfs_dir()
+# Components that need VFS features can call require_vfs_*() functions
 KEY_VFS_SELECT_REQUIRED = "vfs_select_required"
 KEY_VFS_DIR_REQUIRED = "vfs_dir_required"
+KEY_VFS_TERMIOS_REQUIRED = "vfs_termios_required"
 # Feature requirement tracking - components can call require_* functions to re-enable
 # These are stored in CORE.data[KEY_ESP32] dict
 KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED = "usb_serial_jtag_secondary_required"
@@ -728,6 +786,15 @@ def require_vfs_dir() -> None:
     This prevents CONFIG_VFS_SUPPORT_DIR from being disabled.
     """
     CORE.data[KEY_VFS_DIR_REQUIRED] = True
+
+
+def require_vfs_termios() -> None:
+    """Mark that VFS termios support is required by a component.
+
+    Call this from components that use terminal I/O functions (usb_serial_jtag_vfs_*, etc.).
+    This prevents CONFIG_VFS_SUPPORT_TERMIOS from being disabled.
+    """
+    CORE.data[KEY_VFS_TERMIOS_REQUIRED] = True
 
 
 def require_full_certificate_bundle() -> None:
@@ -863,6 +930,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(
                     CONF_USE_FULL_CERTIFICATE_BUNDLE, default=False
                 ): cv.boolean,
+                cv.Optional(
+                    CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, default=[]
+                ): cv.ensure_list(cv.string_strict),
                 cv.Optional(CONF_DISABLE_DEBUG_STUBS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_OCD_AWARE, default=True): cv.boolean,
                 cv.Optional(
@@ -1089,6 +1159,19 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
+async def _write_exclude_components() -> None:
+    """Write EXCLUDE_COMPONENTS cmake arg after all components have registered exclusions."""
+    if KEY_ESP32 not in CORE.data:
+        return
+    excluded = CORE.data[KEY_ESP32].get(KEY_EXCLUDE_COMPONENTS)
+    if excluded:
+        exclude_list = ";".join(sorted(excluded))
+        cg.add_platformio_option(
+            "board_build.cmake_extra_args", f"-DEXCLUDE_COMPONENTS={exclude_list}"
+        )
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _add_yaml_idf_components(components: list[ConfigType]):
     """Add IDF components from YAML config with final priority to override code-added components."""
     for component in components:
@@ -1291,6 +1374,10 @@ async def to_code(config):
     # Disable dynamic log level control to save memory
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", False)
 
+    # Disable per-tag log level filtering since dynamic level control is disabled above
+    # This saves ~250 bytes of RAM (tag cache) and associated code
+    add_idf_sdkconfig_option("CONFIG_LOG_TAG_LEVEL_IMPL_NONE", True)
+
     # Reduce PHY TX power in the event of a brownout
     add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
@@ -1301,6 +1388,11 @@ async def to_code(config):
 
     # Apply LWIP optimization settings
     advanced = conf[CONF_ADVANCED]
+
+    # Re-include any IDF components the user explicitly requested
+    for component_name in advanced.get(CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, []):
+        include_builtin_idf_component(component_name)
+
     # DHCP server: only disable if explicitly set to false
     # WiFi component handles its own optimization when AP mode is not used
     # When using Arduino with Ethernet, DHCP server functions must be available
@@ -1339,11 +1431,18 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", False)
 
     # Disable VFS support for termios (terminal I/O functions)
-    # ESPHome doesn't use termios functions on ESP32 (only used in host UART driver).
+    # USB Serial JTAG VFS functions require termios support.
+    # Components that need it (e.g., logger when USB_SERIAL_JTAG is supported but not selected
+    # as the logger output) call require_vfs_termios().
     # Saves approximately 1.8KB of flash when disabled (default).
-    add_idf_sdkconfig_option(
-        "CONFIG_VFS_SUPPORT_TERMIOS", not advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS]
-    )
+    if CORE.data.get(KEY_VFS_TERMIOS_REQUIRED, False):
+        # Component requires VFS termios - force enable regardless of user setting
+        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_TERMIOS", True)
+    else:
+        # No component needs it - allow user to control (default: disabled)
+        add_idf_sdkconfig_option(
+            "CONFIG_VFS_SUPPORT_TERMIOS", not advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS]
+        )
 
     # Disable VFS support for select() with file descriptors
     # ESPHome only uses select() with sockets via lwip_select(), which still works.
@@ -1484,6 +1583,11 @@ async def to_code(config):
     # Schedule it to run after all other components
     if conf[CONF_COMPONENTS]:
         CORE.add_job(_add_yaml_idf_components, conf[CONF_COMPONENTS])
+
+    # Write EXCLUDE_COMPONENTS at FINAL priority after all components have had
+    # a chance to call include_builtin_idf_component() to re-enable components they need.
+    # Default exclusions are added in set_core_data() during config validation.
+    CORE.add_job(_write_exclude_components)
 
 
 def validate_custom_partition(
