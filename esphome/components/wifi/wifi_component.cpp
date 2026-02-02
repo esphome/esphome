@@ -655,12 +655,12 @@ void WiFiComponent::loop() {
     if (this->is_connected() != this->handled_connected_state_) {
 #ifdef USE_WIFI_DISCONNECT_TRIGGER
       if (this->handled_connected_state_) {
-        this->disconnect_trigger_->trigger();
+        this->disconnect_trigger_.trigger();
       }
 #endif
 #ifdef USE_WIFI_CONNECT_TRIGGER
       if (!this->handled_connected_state_) {
-        this->connect_trigger_->trigger();
+        this->connect_trigger_.trigger();
       }
 #endif
       this->handled_connected_state_ = this->is_connected();
