@@ -455,10 +455,10 @@ class WiFiComponent : public Component {
   void set_post_connect_roaming(bool enabled) { this->post_connect_roaming_ = enabled; }
 
 #ifdef USE_WIFI_CONNECT_TRIGGER
-  Trigger<> *get_connect_trigger() const { return this->connect_trigger_; }
+  Trigger<> *get_connect_trigger() { return &this->connect_trigger_; }
 #endif
 #ifdef USE_WIFI_DISCONNECT_TRIGGER
-  Trigger<> *get_disconnect_trigger() const { return this->disconnect_trigger_; }
+  Trigger<> *get_disconnect_trigger() { return &this->disconnect_trigger_; }
 #endif
 
   int32_t get_wifi_channel();
@@ -739,12 +739,11 @@ class WiFiComponent : public Component {
   SemaphoreHandle_t high_performance_semaphore_{nullptr};
 #endif
 
-  // Pointers at the end (naturally aligned)
 #ifdef USE_WIFI_CONNECT_TRIGGER
-  Trigger<> *connect_trigger_{new Trigger<>()};
+  Trigger<> connect_trigger_;
 #endif
 #ifdef USE_WIFI_DISCONNECT_TRIGGER
-  Trigger<> *disconnect_trigger_{new Trigger<>()};
+  Trigger<> disconnect_trigger_;
 #endif
 
  private:
