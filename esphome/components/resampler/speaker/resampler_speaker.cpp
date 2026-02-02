@@ -42,7 +42,7 @@ void ResamplerSpeaker::setup() {
   this->event_group_ = xEventGroupCreate();
 
   if (this->event_group_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to create event group");
+    ESP_LOGE(TAG, "Event group failed");
     this->mark_failed();
     return;
   }
@@ -108,38 +108,38 @@ void ResamplerSpeaker::loop() {
   event_group_bits = xEventGroupGetBits(this->event_group_);
 
   if (event_group_bits & ResamplingEventGroupBits::STATE_STARTING) {
-    ESP_LOGD(TAG, "Starting resampler task");
+    ESP_LOGD(TAG, "Starting");
     xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::STATE_STARTING);
   }
 
   if (event_group_bits & ResamplingEventGroupBits::ERR_ESP_NO_MEM) {
-    this->status_set_error(LOG_STR("Resampler task failed to allocate the internal buffers"));
+    this->status_set_error(LOG_STR("Not enough memory"));
     xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::ERR_ESP_NO_MEM);
     this->state_ = speaker::STATE_STOPPING;
   }
   if (event_group_bits & ResamplingEventGroupBits::ERR_ESP_NOT_SUPPORTED) {
-    this->status_set_error(LOG_STR("Cannot resample due to an unsupported audio stream"));
+    this->status_set_error(LOG_STR("Unsupported stream"));
     xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::ERR_ESP_NOT_SUPPORTED);
     this->state_ = speaker::STATE_STOPPING;
   }
   if (event_group_bits & ResamplingEventGroupBits::ERR_ESP_FAIL) {
-    this->status_set_error(LOG_STR("Resampler task failed"));
+    this->status_set_error(LOG_STR("Resampler failure"));
     xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::ERR_ESP_FAIL);
     this->state_ = speaker::STATE_STOPPING;
   }
 
   if (event_group_bits & ResamplingEventGroupBits::STATE_RUNNING) {
-    ESP_LOGD(TAG, "Started resampler task");
+    ESP_LOGV(TAG, "Started");
     this->status_clear_error();
     xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::STATE_RUNNING);
   }
   if (event_group_bits & ResamplingEventGroupBits::STATE_STOPPING) {
-    ESP_LOGD(TAG, "Stopping resampler task");
+    ESP_LOGV(TAG, "Stopping");
     xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::STATE_STOPPING);
   }
   if (event_group_bits & ResamplingEventGroupBits::STATE_STOPPED) {
     if (this->delete_task_() == ESP_OK) {
-      ESP_LOGD(TAG, "Stopped resampler task");
+      ESP_LOGD(TAG, "Stopped");
       xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::ALL_BITS);
     }
   }
@@ -156,12 +156,12 @@ void ResamplerSpeaker::loop() {
         } else {
           switch (err) {
             case ESP_ERR_INVALID_STATE:
-              this->status_set_error(LOG_STR("Failed to start resampler: resampler task failed to start"));
+              this->status_set_error(LOG_STR("Task failed to start"));
               break;
             case ESP_ERR_NO_MEM:
-              this->status_set_error(LOG_STR("Failed to start resampler: not enough memory for task stack"));
+              this->status_set_error(LOG_STR("Not enough memory"));
             default:
-              this->status_set_error(LOG_STR("Failed to start resampler"));
+              this->status_set_error(LOG_STR("Failed to start"));
               break;
           }
 
@@ -265,7 +265,7 @@ esp_err_t ResamplerSpeaker::start_task_() {
   }
 
   if (this->task_handle_ == nullptr) {
-    this->task_handle_ = xTaskCreateStatic(resample_task, "sample", TASK_STACK_SIZE, (void *) this,
+    this->task_handle_ = xTaskCreateStatic(resample_task, "resampler", TASK_STACK_SIZE, (void *) this,
                                            RESAMPLER_TASK_PRIORITY, this->task_stack_buffer_, &this->task_stack_);
   }
 
