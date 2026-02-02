@@ -185,7 +185,7 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
   }
   jobs[num_jobs++].command = I2C_MASTER_CMD_STOP;
   ESP_LOGV(TAG, "Sending %zu jobs", num_jobs);
-  esp_err_t err = i2c_master_execute_defined_operations(this->dev_, jobs, num_jobs, 20);
+  esp_err_t err = i2c_master_execute_defined_operations(this->dev_, jobs, num_jobs, 100);
   if (err == ESP_ERR_INVALID_STATE) {
     ESP_LOGV(TAG, "TX to %02X failed: not acked", address);
     return ERROR_NOT_ACKNOWLEDGED;

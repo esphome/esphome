@@ -117,6 +117,7 @@ sensor:
             - 10.0 -> 12.1
             - 13.0 -> 14.0
       - clamp:
+          # Infinity and NaN will be clamped (NaN -> min_value, +Infinity -> max_value, -Infinity -> min_value)
           max_value: 10.0
           min_value: -10.0
       - debounce: 0.1s

@@ -12,7 +12,6 @@ extern "C" {
 #include "preferences.h"
 
 #include <cstring>
-#include <memory>
 
 namespace esphome::esp8266 {
 
@@ -143,16 +142,8 @@ class ESP8266PreferenceBackend : public ESPPreferenceBackend {
       return false;
 
     const size_t buffer_size = static_cast<size_t>(this->length_words) + 1;
-    uint32_t stack_buffer[PREF_BUFFER_WORDS];
-    std::unique_ptr<uint32_t[]> heap_buffer;
-    uint32_t *buffer;
-
-    if (buffer_size <= PREF_BUFFER_WORDS) {
-      buffer = stack_buffer;
-    } else {
-      heap_buffer = make_unique<uint32_t[]>(buffer_size);
-      buffer = heap_buffer.get();
-    }
+    SmallBufferWithHeapFallback<PREF_BUFFER_WORDS, uint32_t> buffer_alloc(buffer_size);
+    uint32_t *buffer = buffer_alloc.get();
     memset(buffer, 0, buffer_size * sizeof(uint32_t));
 
     memcpy(buffer, data, len);
@@ -167,16 +158,8 @@ class ESP8266PreferenceBackend : public ESPPreferenceBackend {
       return false;
 
     const size_t buffer_size = static_cast<size_t>(this->length_words) + 1;
-    uint32_t stack_buffer[PREF_BUFFER_WORDS];
-    std::unique_ptr<uint32_t[]> heap_buffer;
-    uint32_t *buffer;
-
-    if (buffer_size <= PREF_BUFFER_WORDS) {
-      buffer = stack_buffer;
-    } else {
-      heap_buffer = make_unique<uint32_t[]>(buffer_size);
-      buffer = heap_buffer.get();
-    }
+    SmallBufferWithHeapFallback<PREF_BUFFER_WORDS, uint32_t> buffer_alloc(buffer_size);
+    uint32_t *buffer = buffer_alloc.get();
 
     bool ret = this->in_flash ? load_from_flash(this->offset, buffer, buffer_size)
                               : load_from_rtc(this->offset, buffer, buffer_size);
