@@ -121,10 +121,10 @@ class EthernetComponent : public Component {
 #endif
 
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
-  Trigger<> *get_connect_trigger() const { return this->connect_trigger_; }
+  Trigger<> *get_connect_trigger() { return &this->connect_trigger_; }
 #endif
 #ifdef USE_ETHERNET_DISCONNECT_TRIGGER
-  Trigger<> *get_disconnect_trigger() const { return this->disconnect_trigger_; }
+  Trigger<> *get_disconnect_trigger() { return &this->disconnect_trigger_; }
 #endif
  protected:
   static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
@@ -198,10 +198,10 @@ class EthernetComponent : public Component {
 #endif
 
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
-  Trigger<> *connect_trigger_{new Trigger<>()};
+  Trigger<> connect_trigger_;
 #endif
 #ifdef USE_ETHERNET_DISCONNECT_TRIGGER
-  Trigger<> *disconnect_trigger_{new Trigger<>()};
+  Trigger<> disconnect_trigger_;
 #endif
  private:
   // Stores a pointer to a string literal (static storage duration).
