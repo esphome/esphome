@@ -142,6 +142,9 @@ If you are using a framework that does not support SPI-based ethernet modules wi
 
 - **mac_address** (*Optional*, MAC Address): Set the MAC address of the ethernet interface.
 
+- **on_connect** (*Optional*, [Automation](/automations)): An action to be performed when a connection is established.
+- **on_disconnect** (*Optional*, [Automation](/automations)): An action to be performed when the connection is dropped.
+
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 
 > [!NOTE]
@@ -402,6 +405,19 @@ ethernet:
 
 > [!NOTE]
 > Using a higher clock_speed, including default, might cause rx errors and dropped packets.
+
+## `on_connect` / `on_disconnect` Trigger
+
+This trigger is activated when an Ethernet connection is established or dropped.
+
+```yaml
+ethernet:
+  # ...
+  on_connect:
+    - switch.turn_on: switch1
+  on_disconnect:
+    - switch.turn_off: switch1
+```
 
 ## See Also
 
