@@ -4,6 +4,7 @@
 
 #include "esphome/components/audio/audio_resampler.h"
 
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -58,6 +59,9 @@ void ResamplerSpeaker::setup() {
       this->audio_output_callback_(new_frames, write_timestamp);
     }
   });
+
+  // Start with loop disabled since no task is running and no commands are pending
+  this->disable_loop();
 }
 
 void ResamplerSpeaker::loop() {
@@ -186,6 +190,11 @@ void ResamplerSpeaker::loop() {
       }
       break;
     case speaker::STATE_STOPPED:
+      event_group_bits = xEventGroupGetBits(this->event_group_);
+      if (event_group_bits == 0) {
+        // No pending events, disable loop to save CPU cycles
+        this->disable_loop();
+      }
       break;
   }
 }
@@ -212,7 +221,18 @@ size_t ResamplerSpeaker::play(const uint8_t *data, size_t length, TickType_t tic
   return bytes_written;
 }
 
-void ResamplerSpeaker::start() { xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::COMMAND_START); }
+void ResamplerSpeaker::start() {
+  this->enable_loop_soon_any_context();
+
+  uint32_t event_bits = xEventGroupGetBits(this->event_group_);
+  if (!(event_bits & ResamplingEventGroupBits::COMMAND_START)) {
+    // Set COMMAND_START bit if not already set, and then immediately wake for low latency
+    xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::COMMAND_START);
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+    App.wake_loop_threadsafe();
+#endif
+  }
+}
 
 esp_err_t ResamplerSpeaker::start_() {
   this->target_stream_info_ = audio::AudioStreamInfo(
@@ -256,7 +276,10 @@ esp_err_t ResamplerSpeaker::start_task_() {
   return ESP_OK;
 }
 
-void ResamplerSpeaker::stop() { xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::COMMAND_STOP); }
+void ResamplerSpeaker::stop() {
+  this->enable_loop_soon_any_context();  // ensure loop processes command
+  xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::COMMAND_STOP);
+}
 
 void ResamplerSpeaker::stop_() {
   if (this->task_handle_ != nullptr) {
@@ -287,7 +310,10 @@ esp_err_t ResamplerSpeaker::delete_task_() {
   return ESP_ERR_INVALID_STATE;
 }
 
-void ResamplerSpeaker::finish() { xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::COMMAND_FINISH); }
+void ResamplerSpeaker::finish() {
+  this->enable_loop_soon_any_context();  // ensure loop processes command
+  xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::COMMAND_FINISH);
+}
 
 bool ResamplerSpeaker::has_buffered_data() const {
   bool has_ring_buffer_data = false;
