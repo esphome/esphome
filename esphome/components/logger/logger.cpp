@@ -146,11 +146,8 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
   this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
 
   // Ensure null termination
-  if (this->tx_buffer_at_ >= this->tx_buffer_size_) {
-    this->tx_buffer_[this->tx_buffer_size_ - 1] = '\0';
-  } else {
-    this->tx_buffer_[this->tx_buffer_at_] = '\0';
-  }
+  uint16_t null_pos = this->tx_buffer_at_ >= this->tx_buffer_size_ ? this->tx_buffer_size_ - 1 : this->tx_buffer_at_;
+  this->tx_buffer_[null_pos] = '\0';
 
   // Listeners get message first (before console write)
 #ifdef USE_LOG_LISTENERS
