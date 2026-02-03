@@ -85,7 +85,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: dict[str, Any]) -> None:
-    if CORE.using_esp_idf:
+    if CORE.is_esp32:
         # Re-enable ESP-IDF's legacy driver component (excluded by default to save compile time)
         # Provides driver/timer.h header for hardware timer API
         # TODO: Remove this once opentherm migrates to GPTimer API (driver/gptimer.h)
