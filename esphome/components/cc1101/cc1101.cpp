@@ -698,4 +698,42 @@ void CC1101Component::set_whitening(bool value) {
   }
 }
 
+float CC1101Component::get_frequency() {
+  return static_cast<int32_t>(this->state_.FREQ2 << 16 | this->state_.FREQ1 << 8 | this->state_.FREQ0) *
+         XTAL_FREQUENCY / (1 << 16);
+}
+
+float CC1101Component::get_if_frequency() { return this->state_.FREQ_IF * XTAL_FREQUENCY / (1 << 10); }
+
+float CC1101Component::get_filter_bandwidth() {
+  return XTAL_FREQUENCY / (8.0f * (4 + this->state_.CHANBW_M) * (1 << this->state_.CHANBW_E));
+}
+
+float CC1101Component::get_channel_spacing() {
+  uint32_t m = this->state_.CHANSPC_M;
+  uint32_t e = this->state_.CHANSPC_E;
+  return ((256 + m) * (1 << e) * XTAL_FREQUENCY) / (1 << 18);
+}
+
+float CC1101Component::get_fsk_deviation() {
+  uint32_t m = this->state_.DEVIATION_M;
+  uint32_t e = this->state_.DEVIATION_E;
+  return (XTAL_FREQUENCY / (1 << 17)) * (8 + m) * (1 << e);
+}
+
+float CC1101Component::get_symbol_rate() {
+  uint32_t m = this->state_.DRATE_M;
+  uint32_t e = this->state_.DRATE_E;
+  return (((256.0f + m) * (1 << e)) / (1 << 28)) * XTAL_FREQUENCY;
+}
+
+int8_t CC1101Component::get_carrier_sense_abs_thr() {
+  int8_t val = this->state_.CARRIER_SENSE_ABS_THR;
+  // Sign extend from 4 bits
+  if (val & 0x08) {
+    val |= 0xF0;
+  }
+  return val;
+}
+
 }  // namespace esphome::cc1101
