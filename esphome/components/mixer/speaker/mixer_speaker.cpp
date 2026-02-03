@@ -167,7 +167,7 @@ void SourceSpeaker::loop() {
             this->status_set_error(LOG_STR("Unsupported bit depth"));
             break;
           case ESP_ERR_INVALID_ARG:
-            this->status_set_error(LOG_STR("Incompatabile audio streams"));
+            this->status_set_error(LOG_STR("Incompatible audio streams"));
             break;
           case ESP_ERR_INVALID_STATE:
             this->status_set_error(LOG_STR("Task failed"));
