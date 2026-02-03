@@ -11,21 +11,18 @@ namespace esphome {
 namespace uart {
 namespace testing {
 
-using ::testing::_;
-using ::testing::Return;
-
 // Test fixture
 class UartPacketInterfaceTest : public ::testing::Test {
  protected:
   MockUARTComponent uart_{};
-  UartPacketInterface interface {};
+  UartPacketInterface interface_{};
   std::vector<std::vector<uint8_t>> received_packets_;
 
   void SetUp() override {
     received_packets_.clear();
-    interface.set_uart_parent(&uart_);
+    interface_.set_uart_parent(&uart_);
 
-    interface.add_packet_interface_listener(
+    interface_.add_packet_interface_listener(
         [this](const PacketBuffer &data, PacketMetaData meta) { received_packets_.push_back(data.to_vector()); });
   }
 };
@@ -37,7 +34,7 @@ TEST_F(UartPacketInterfaceTest, SendSimpleFrame) {
 
   // Set up the mock to accumulate bytes
   ASSERT_EQ(uart_.written_data.size(), 0);
-  interface.send_to_interface(buffer, {});
+  interface_.send_to_interface(buffer, {});
   // Verify the accumulated bytes
   ASSERT_EQ(uart_.written_data.size(), 5);
 
@@ -50,7 +47,7 @@ TEST_F(UartPacketInterfaceTest, SendWithFlagByteStuffing) {
   PacketBuffer buffer(data);
 
   uart_.clear();
-  interface.send_to_interface(buffer, {});
+  interface_.send_to_interface(buffer, {});
 
   // Should escape 0x7E as 0x7D 0x5E
   std::vector<uint8_t> expected = {0x7E, 0x01, 0x7D, 0x5E, 0x03, 0x7E};
@@ -63,7 +60,7 @@ TEST_F(UartPacketInterfaceTest, SendWithControlByteStuffing) {
   PacketBuffer buffer(data);
 
   uart_.clear();
-  interface.send_to_interface(buffer, {});
+  interface_.send_to_interface(buffer, {});
 
   // Should escape 0x7D as 0x7D 0x5D
   std::vector<uint8_t> expected = {0x7E, 0x01, 0x7D, 0x5D, 0x03, 0x7E};
@@ -75,7 +72,7 @@ TEST_F(UartPacketInterfaceTest, SendEmptyFrame) {
   std::vector<uint8_t> data = {};
   PacketBuffer buffer(data);
 
-  interface.send_to_interface(buffer, {});
+  interface_.send_to_interface(buffer, {});
 
   // Empty data should return without sending
   EXPECT_EQ(uart_.written_data.size(), 0);
@@ -97,7 +94,7 @@ TEST_F(UartPacketInterfaceTest, ReceiveSimpleFrame) {
     return true;
   }));
 
-  interface.loop();
+  interface_.loop();
 
   ASSERT_EQ(received_packets_.size(), 1);
   std::vector<uint8_t> expected = {0x01, 0x02, 0x03};
@@ -120,7 +117,7 @@ TEST_F(UartPacketInterfaceTest, ReceiveFrameWithFlagEscape) {
     return true;
   }));
 
-  interface.loop();
+  interface_.loop();
 
   ASSERT_EQ(received_packets_.size(), 1);
   std::vector<uint8_t> expected = {0x01, 0x7E, 0x03};  // 0x7E unescaped
@@ -143,7 +140,7 @@ TEST_F(UartPacketInterfaceTest, ReceiveFrameWithControlEscape) {
     return true;
   }));
 
-  interface.loop();
+  interface_.loop();
 
   ASSERT_EQ(received_packets_.size(), 1);
   std::vector<uint8_t> expected = {0x01, 0x7D, 0x03};  // 0x7D unescaped
@@ -166,7 +163,7 @@ TEST_F(UartPacketInterfaceTest, ReceiveMultipleFrames) {
     return true;
   }));
 
-  interface.loop();
+  interface_.loop();
 
   ASSERT_EQ(received_packets_.size(), 2) << "Expected 2 packets, got " << received_packets_.size();
   std::vector<uint8_t> expected1 = {0x01, 0x02};
@@ -193,7 +190,7 @@ TEST_F(UartPacketInterfaceTest, ReceiveEmptyFrame) {
     return true;
   }));
 
-  interface.loop();
+  interface_.loop();
 
   // Empty frames should not be delivered
   EXPECT_EQ(received_packets_.size(), 0);
@@ -215,7 +212,7 @@ TEST_F(UartPacketInterfaceTest, IgnoreDataBeforeFirstFlag) {
     return true;
   }));
 
-  interface.loop();
+  interface_.loop();
 
   ASSERT_EQ(received_packets_.size(), 1);
   std::vector<uint8_t> expected = {0x01, 0x02};
@@ -224,7 +221,7 @@ TEST_F(UartPacketInterfaceTest, IgnoreDataBeforeFirstFlag) {
 
 // Test oversized packet is discarded
 TEST_F(UartPacketInterfaceTest, OversizedPacketDiscarded) {
-  interface.set_rx_buffer_size(10);
+  interface_.set_rx_buffer_size(10);
 
   // Create a packet larger than buffer
   std::vector<uint8_t> frame_data = {0x7E};
@@ -245,7 +242,7 @@ TEST_F(UartPacketInterfaceTest, OversizedPacketDiscarded) {
     return true;
   }));
 
-  interface.loop();
+  interface_.loop();
 
   // Oversized packet should be discarded
   EXPECT_EQ(received_packets_.size(), 0);
@@ -257,7 +254,7 @@ TEST_F(UartPacketInterfaceTest, RoundTrip) {
   PacketBuffer send_buffer(original);
 
   // Send
-  interface.send_to_interface(send_buffer, {});
+  interface_.send_to_interface(send_buffer, {});
 
   // Prepare to receive - use the written data as frame data
   std::vector<uint8_t> frame_data = uart_.written_data;
@@ -275,7 +272,7 @@ TEST_F(UartPacketInterfaceTest, RoundTrip) {
   }));
 
   // Receive
-  interface.loop();
+  interface_.loop();
 
   ASSERT_EQ(received_packets_.size(), 1);
   EXPECT_EQ(received_packets_[0], original);
@@ -284,13 +281,14 @@ TEST_F(UartPacketInterfaceTest, RoundTrip) {
 // Test all bytes can be transmitted (0x00 to 0xFF)
 TEST_F(UartPacketInterfaceTest, AllByteValues) {
   std::vector<uint8_t> data;
-  for (int i = 0; i < 256; i++) {
+  data.reserve(256);
+  for (int i = 0; i != 256; i++) {
     data.push_back(static_cast<uint8_t>(i));
   }
   PacketBuffer send_buffer(data);
 
   // Send
-  interface.send_to_interface(send_buffer, {});
+  interface_.send_to_interface(send_buffer, {});
 
   // Prepare to receive - use the written data as frame data
   std::vector<uint8_t> frame_data = uart_.written_data;
@@ -308,7 +306,7 @@ TEST_F(UartPacketInterfaceTest, AllByteValues) {
   }));
 
   // Receive
-  interface.loop();
+  interface_.loop();
 
   ASSERT_EQ(received_packets_.size(), 1);
   EXPECT_EQ(received_packets_[0], data);
