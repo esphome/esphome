@@ -1385,7 +1385,7 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
                                      is_single);
 }
 
-void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequest &msg) {
+void APIConnection::water_heater_command(const WaterHeaterCommandRequest &msg) {
   ENTITY_COMMAND_MAKE_CALL(water_heater::WaterHeater, water_heater, water_heater)
   if (msg.has_fields & enums::WATER_HEATER_COMMAND_HAS_MODE)
     call.set_mode(static_cast<water_heater::WaterHeaterMode>(msg.mode));
