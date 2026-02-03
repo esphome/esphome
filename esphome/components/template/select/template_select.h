@@ -8,12 +8,15 @@
 #include "esphome/core/template_lambda.h"
 
 namespace esphome::template_ {
-static const char *const TAG = "template.select";
+
 struct Empty {};
 class BaseTemplateSelect : public select::Select, public PollingComponent {};
 
 void dump_config_helper(BaseTemplateSelect *sel_comp, bool optimistic, bool has_lambda, size_t initial_option_index,
                         bool restore_value);
+void setup_initial(BaseTemplateSelect *sel_comp, size_t initial_index);
+void setup_with_restore(BaseTemplateSelect *sel_comp, ESPPreferenceObject &pref, size_t initial_index);
+void update_lambda(BaseTemplateSelect *sel_comp, const optional<std::string> &val);
 
 /// Base template select class - used when no set_action is configured
 
@@ -28,32 +31,18 @@ class TemplateSelect : public BaseTemplateSelect {
 
   void setup() override {
     if constexpr (!HAS_LAMBDA) {
-      size_t index = INITIAL_OPTION_INDEX;
       if constexpr (RESTORE_VALUE) {
         this->pref_ = this->template make_entity_preference<size_t>();
-        if (this->pref_.load(&index) && this->has_index(index)) {
-          esph_log_d(TAG, "State from restore: %s", this->option_at(index));
-        } else {
-          index = INITIAL_OPTION_INDEX;
-          esph_log_d(TAG, "State from initial (no valid stored index): %s", this->option_at(INITIAL_OPTION_INDEX));
-        }
+        setup_with_restore(this, this->pref_, INITIAL_OPTION_INDEX);
       } else {
-        esph_log_d(TAG, "State from initial: %s", this->option_at(INITIAL_OPTION_INDEX));
+        setup_initial(this, INITIAL_OPTION_INDEX);
       }
-      this->publish_state(index);
     }
   }
 
   void update() override {
     if constexpr (HAS_LAMBDA) {
-      auto val = this->f_();
-      if (val.has_value()) {
-        if (!this->has_option(*val)) {
-          esph_log_e(TAG, "Lambda returned an invalid option: %s", (*val).c_str());
-          return;
-        }
-        this->publish_state(*val);
-      }
+      update_lambda(this, this->f_());
     }
   }
   void dump_config() override {
