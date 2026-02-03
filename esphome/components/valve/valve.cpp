@@ -163,7 +163,7 @@ void Valve::publish_state(bool save) {
   }
 }
 optional<ValveRestoreState> Valve::restore_state_() {
-  this->rtc_ = global_preferences->make_preference<ValveRestoreState>(this->get_preference_hash());
+  this->rtc_ = this->make_entity_preference<ValveRestoreState>();
   ValveRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
     return {};

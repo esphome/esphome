@@ -1,5 +1,6 @@
 #include "mqtt_lock.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "mqtt_const.h"
 
@@ -16,11 +17,11 @@ MQTTLockComponent::MQTTLockComponent(lock::Lock *a_lock) : lock_(a_lock) {}
 
 void MQTTLockComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
-    if (strcasecmp(payload.c_str(), "LOCK") == 0) {
+    if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("LOCK")) == 0) {
       this->lock_->lock();
-    } else if (strcasecmp(payload.c_str(), "UNLOCK") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("UNLOCK")) == 0) {
       this->lock_->unlock();
-    } else if (strcasecmp(payload.c_str(), "OPEN") == 0) {
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("OPEN")) == 0) {
       this->lock_->open();
     } else {
       ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name_().c_str(), payload.c_str());
