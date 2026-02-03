@@ -4,6 +4,7 @@
 #include "light_state.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::light {
 
@@ -509,7 +510,7 @@ color_mode_bitmask_t LightCall::get_suitable_color_modes_mask_() {
 }
 
 LightCall &LightCall::set_effect(const char *effect, size_t len) {
-  if (len == 4 && strncasecmp(effect, "none", 4) == 0) {
+  if (len == 4 && ESPHOME_strncasecmp_P(effect, ESPHOME_PSTR("none"), 4) == 0) {
     this->set_effect(0);
     return *this;
   }
