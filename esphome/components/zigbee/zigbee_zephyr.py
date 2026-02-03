@@ -49,22 +49,28 @@ from esphome.cpp_generator import (
 from esphome.types import ConfigType
 
 from .const_zephyr import (
+    CONF_IEEE802154_VENDOR_OUI,
     CONF_ON_JOIN,
     CONF_POWER_SOURCE,
     CONF_WIPE_ON_BOOT,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_NUMBER,
     CONF_ZIGBEE_SENSOR,
+    CONF_ZIGBEE_SWITCH,
     KEY_EP_NUMBER,
     KEY_ZIGBEE,
     POWER_SOURCE,
     ZB_ZCL_BASIC_ATTRS_EXT_T,
     ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
+    ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT,
     ZB_ZCL_CLUSTER_ID_BASIC,
     ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
+    ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT,
     ZB_ZCL_CLUSTER_ID_IDENTIFY,
     ZB_ZCL_IDENTIFY_ATTRS_T,
     AnalogAttrs,
+    AnalogAttrsOutput,
     BinaryAttrs,
     ZigbeeComponent,
     zigbee_ns,
@@ -72,6 +78,8 @@ from .const_zephyr import (
 
 ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
 ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
+ZigbeeSwitch = zigbee_ns.class_("ZigbeeSwitch", cg.Component)
+ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
 
 # BACnet engineering units mapping (ZCL uses BACnet unit codes)
 # See: https://github.com/zigpy/zha/blob/dev/zha/application/platforms/number/bacnet.py
@@ -126,6 +134,24 @@ zephyr_sensor = cv.Schema(
     }
 )
 
+zephyr_switch = cv.Schema(
+    {
+        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
+        cv.OnlyWith(CONF_ZIGBEE_SWITCH, ["nrf52", "zigbee"]): cv.declare_id(
+            ZigbeeSwitch
+        ),
+    }
+)
+
+zephyr_number = cv.Schema(
+    {
+        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
+        cv.OnlyWith(CONF_ZIGBEE_NUMBER, ["nrf52", "zigbee"]): cv.declare_id(
+            ZigbeeNumber
+        ),
+    }
+)
+
 
 async def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("ZIGBEE", True)
@@ -139,6 +165,13 @@ async def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("NET_IPV6", False)
     zephyr_add_prj_conf("NET_IP_ADDR_CHECK", False)
     zephyr_add_prj_conf("NET_UDP", False)
+
+    if CONF_IEEE802154_VENDOR_OUI in config:
+        zephyr_add_prj_conf("IEEE802154_VENDOR_OUI_ENABLE", True)
+        random_number = config[CONF_IEEE802154_VENDOR_OUI]
+        if random_number == "random":
+            random_number = random.randint(0x000000, 0xFFFFFF)
+        zephyr_add_prj_conf("IEEE802154_VENDOR_OUI", random_number)
 
     if config[CONF_WIPE_ON_BOOT]:
         if config[CONF_WIPE_ON_BOOT] == "once":
@@ -320,19 +353,33 @@ async def zephyr_setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     CORE.add_job(_add_sensor, entity, config)
 
 
-def _slot_index() -> int:
-    """Find the next available endpoint slot"""
+async def zephyr_setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
+    CORE.add_job(_add_switch, entity, config)
+
+
+async def zephyr_setup_number(
+    entity: cg.MockObj,
+    config: ConfigType,
+    min_value: float,
+    max_value: float,
+    step: float,
+) -> None:
+    CORE.add_job(_add_number, entity, config, min_value, max_value, step)
+
+
+def get_slot_index() -> int:
+    """Find the next available endpoint slot."""
     slot = next(
         (i for i, v in enumerate(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER]) if v == ""), None
     )
     if slot is None:
         raise cv.Invalid(
-            f"Not found empty slot, size ({len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])})"
+            f"No available Zigbee endpoint slots ({len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])} in use)"
         )
     return slot
 
 
-async def _add_zigbee_input(
+async def _add_zigbee_ep(
     entity: cg.MockObj,
     config: ConfigType,
     component_key,
@@ -342,7 +389,7 @@ async def _add_zigbee_input(
     app_device_id: str,
     extra_field_values: dict[str, int] | None = None,
 ) -> None:
-    slot_index = _slot_index()
+    slot_index = get_slot_index()
 
     prefix = f"zigbee_ep{slot_index + 1}"
     attrs_name = f"{prefix}_attrs"
@@ -389,7 +436,7 @@ async def _add_zigbee_input(
 
 
 async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    await _add_zigbee_input(
+    await _add_zigbee_ep(
         entity,
         config,
         CONF_ZIGBEE_BINARY_SENSOR,
@@ -405,7 +452,7 @@ async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     unit = config.get(CONF_UNIT_OF_MEASUREMENT, "")
     bacnet_unit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
 
-    await _add_zigbee_input(
+    await _add_zigbee_ep(
         entity,
         config,
         CONF_ZIGBEE_SENSOR,
@@ -414,4 +461,44 @@ async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
         ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
         "ZB_HA_CUSTOM_ATTR_DEVICE_ID",
         extra_field_values={"engineering_units": bacnet_unit},
+    )
+
+
+async def _add_switch(entity: cg.MockObj, config: ConfigType) -> None:
+    await _add_zigbee_ep(
+        entity,
+        config,
+        CONF_ZIGBEE_SWITCH,
+        BinaryAttrs,
+        "ESPHOME_ZB_ZCL_DECLARE_BINARY_OUTPUT_ATTRIB_LIST",
+        ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT,
+        "ZB_HA_CUSTOM_ATTR_DEVICE_ID",
+    )
+
+
+async def _add_number(
+    entity: cg.MockObj,
+    config: ConfigType,
+    min_value: float,
+    max_value: float,
+    step: float,
+) -> None:
+    # Get BACnet engineering unit from unit_of_measurement
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT, "")
+    bacnet_unit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
+
+    await _add_zigbee_ep(
+        entity,
+        config,
+        CONF_ZIGBEE_NUMBER,
+        AnalogAttrsOutput,
+        "ESPHOME_ZB_ZCL_DECLARE_ANALOG_OUTPUT_ATTRIB_LIST",
+        ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT,
+        "ZB_HA_CUSTOM_ATTR_DEVICE_ID",
+        extra_field_values={
+            "max_present_value": max_value,
+            "min_present_value": min_value,
+            "resolution": step,
+            "engineering_units": bacnet_unit,
+        },
     )

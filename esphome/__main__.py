@@ -1,5 +1,6 @@
 # PYTHON_ARGCOMPLETE_OK
 import argparse
+from collections.abc import Callable
 from datetime import datetime
 import functools
 import getpass
@@ -42,6 +43,7 @@ from esphome.const import (
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
     ENV_NOGITIGNORE,
+    KEY_NATIVE_IDF,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
@@ -115,6 +117,7 @@ class ArgsProtocol(Protocol):
     configuration: str
     name: str
     upload_speed: str | None
+    native_idf: bool
 
 
 def choose_prompt(options, purpose: str = None):
@@ -222,8 +225,13 @@ def choose_upload_log_host(
             else:
                 resolved.append(device)
         if not resolved:
+            if CORE.dashboard:
+                hint = "If you know the IP, set 'use_address' in your network config."
+            else:
+                hint = "If you know the IP, try --device <IP>"
             raise EsphomeError(
-                f"All specified devices {defaults} could not be resolved. Is the device connected to the network?"
+                f"All specified devices {defaults} could not be resolved. "
+                f"Is the device connected to the network? {hint}"
             )
         return resolved
 
@@ -494,12 +502,15 @@ def wrap_to_code(name, comp):
     return wrapped
 
 
-def write_cpp(config: ConfigType) -> int:
+def write_cpp(config: ConfigType, native_idf: bool = False) -> int:
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
 
+    # Store native_idf flag so esp32 component can check it
+    CORE.data[KEY_NATIVE_IDF] = native_idf
+
     generate_cpp_contents(config)
-    return write_cpp_file()
+    return write_cpp_file(native_idf=native_idf)
 
 
 def generate_cpp_contents(config: ConfigType) -> None:
@@ -513,32 +524,54 @@ def generate_cpp_contents(config: ConfigType) -> None:
     CORE.flush_tasks()
 
 
-def write_cpp_file() -> int:
+def write_cpp_file(native_idf: bool = False) -> int:
     code_s = indent(CORE.cpp_main_section)
     writer.write_cpp(code_s)
 
-    from esphome.build_gen import platformio
+    if native_idf and CORE.is_esp32 and CORE.target_framework == "esp-idf":
+        from esphome.build_gen import espidf
 
-    platformio.write_project()
+        espidf.write_project()
+    else:
+        from esphome.build_gen import platformio
+
+        platformio.write_project()
 
     return 0
 
 
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
-    from esphome import platformio_api
+    native_idf = getattr(args, "native_idf", False)
 
     # NOTE: "Build path:" format is parsed by script/ci_memory_impact_extract.py
     # If you change this format, update the regex in that script as well
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
-    rc = platformio_api.run_compile(config, CORE.verbose)
-    if rc != 0:
-        return rc
+
+    if native_idf and CORE.is_esp32 and CORE.target_framework == "esp-idf":
+        from esphome import espidf_api
+
+        rc = espidf_api.run_compile(config, CORE.verbose)
+        if rc != 0:
+            return rc
+
+        # Create factory.bin and ota.bin
+        espidf_api.create_factory_bin()
+        espidf_api.create_ota_bin()
+    else:
+        from esphome import platformio_api
+
+        rc = platformio_api.run_compile(config, CORE.verbose)
+        if rc != 0:
+            return rc
+
+        idedata = platformio_api.get_idedata(config)
+        if idedata is None:
+            return 1
 
     # Check if firmware was rebuilt and emit build_info + create manifest
     _check_and_emit_build_info()
 
-    idedata = platformio_api.get_idedata(config)
-    return 0 if idedata is not None else 1
+    return 0
 
 
 def _check_and_emit_build_info() -> None:
@@ -795,7 +828,8 @@ def command_vscode(args: ArgsProtocol) -> int | None:
 
 
 def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
-    exit_code = write_cpp(config)
+    native_idf = getattr(args, "native_idf", False)
+    exit_code = write_cpp(config, native_idf=native_idf)
     if exit_code != 0:
         return exit_code
     if args.only_generate:
@@ -850,7 +884,8 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
-    exit_code = write_cpp(config)
+    native_idf = getattr(args, "native_idf", False)
+    exit_code = write_cpp(config, native_idf=native_idf)
     if exit_code != 0:
         return exit_code
     exit_code = compile_program(args, config)
@@ -931,11 +966,21 @@ def command_dashboard(args: ArgsProtocol) -> int | None:
     return dashboard.start_dashboard(args)
 
 
-def command_update_all(args: ArgsProtocol) -> int | None:
+def run_multiple_configs(
+    files: list, command_builder: Callable[[str], list[str]]
+) -> int:
+    """Run a command for each configuration file in a subprocess.
+
+    Args:
+        files: List of configuration files to process.
+        command_builder: Callable that takes a file path and returns a command list.
+
+    Returns:
+        Number of failed files.
+    """
     import click
 
     success = {}
-    files = list_yaml_files(args.configuration)
     twidth = 60
 
     def print_bar(middle_text):
@@ -945,17 +990,19 @@ def command_update_all(args: ArgsProtocol) -> int | None:
         safe_print(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
-        safe_print(f"Updating {color(AnsiFore.CYAN, str(f))}")
+        f_path = Path(f) if not isinstance(f, Path) else f
+
+        if any(f_path.name == x for x in SECRETS_FILES):
+            _LOGGER.warning("Skipping secrets file %s", f_path)
+            continue
+
+        safe_print(f"Processing {color(AnsiFore.CYAN, str(f))}")
         safe_print("-" * twidth)
         safe_print()
-        if CORE.dashboard:
-            rc = run_external_process(
-                "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
-            )
-        else:
-            rc = run_external_process(
-                "esphome", "run", f, "--no-logs", "--device", "OTA"
-            )
+
+        cmd = command_builder(f)
+        rc = run_external_process(*cmd)
+
         if rc == 0:
             print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {str(f)}")
             success[f] = True
@@ -970,12 +1017,25 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     print_bar(f"[{color(AnsiFore.BOLD_WHITE, 'SUMMARY')}]")
     failed = 0
     for f in files:
+        if f not in success:
+            continue  # Skipped file
         if success[f]:
             safe_print(f"  - {str(f)}: {color(AnsiFore.GREEN, 'SUCCESS')}")
         else:
             safe_print(f"  - {str(f)}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
             failed += 1
     return failed
+
+
+def command_update_all(args: ArgsProtocol) -> int | None:
+    files = list_yaml_files(args.configuration)
+
+    def build_command(f):
+        if CORE.dashboard:
+            return ["esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"]
+        return ["esphome", "run", f, "--no-logs", "--device", "OTA"]
+
+    return run_multiple_configs(files, build_command)
 
 
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
@@ -1279,6 +1339,11 @@ def parse_args(argv):
         help="Only generate source code, do not compile.",
         action="store_true",
     )
+    parser_compile.add_argument(
+        "--native-idf",
+        help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
+        action="store_true",
+    )
 
     parser_upload = subparsers.add_parser(
         "upload",
@@ -1359,6 +1424,11 @@ def parse_args(argv):
         action="store_true",
         help="Reset the device before starting serial logs.",
         default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
+    )
+    parser_run.add_argument(
+        "--native-idf",
+        help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
+        action="store_true",
     )
 
     parser_clean = subparsers.add_parser(
@@ -1528,38 +1598,48 @@ def run_esphome(argv):
 
     _LOGGER.info("ESPHome %s", const.__version__)
 
-    for conf_path in args.configuration:
-        conf_path = Path(conf_path)
-        if any(conf_path.name == x for x in SECRETS_FILES):
-            _LOGGER.warning("Skipping secrets file %s", conf_path)
-            continue
+    # Multiple configurations: use subprocesses to avoid state leakage
+    # between compilations (e.g., LVGL touchscreen state in module globals)
+    if len(args.configuration) > 1:
+        # Build command by reusing argv, replacing all configs with single file
+        # argv[0] is the program path, skip it since we prefix with "esphome"
+        def build_command(f):
+            return (
+                ["esphome"]
+                + [arg for arg in argv[1:] if arg not in args.configuration]
+                + [str(f)]
+            )
 
-        CORE.config_path = conf_path
-        CORE.dashboard = args.dashboard
+        return run_multiple_configs(args.configuration, build_command)
 
-        # For logs command, skip updating external components
-        skip_external = args.command == "logs"
-        config = read_config(
-            dict(args.substitution) if args.substitution else {},
-            skip_external_update=skip_external,
-        )
-        if config is None:
-            return 2
-        CORE.config = config
+    # Single configuration
+    conf_path = Path(args.configuration[0])
+    if any(conf_path.name == x for x in SECRETS_FILES):
+        _LOGGER.warning("Skipping secrets file %s", conf_path)
+        return 0
 
-        if args.command not in POST_CONFIG_ACTIONS:
-            safe_print(f"Unknown command {args.command}")
+    CORE.config_path = conf_path
+    CORE.dashboard = args.dashboard
 
-        try:
-            rc = POST_CONFIG_ACTIONS[args.command](args, config)
-        except EsphomeError as e:
-            _LOGGER.error(e, exc_info=args.verbose)
-            return 1
-        if rc != 0:
-            return rc
+    # For logs command, skip updating external components
+    skip_external = args.command == "logs"
+    config = read_config(
+        dict(args.substitution) if args.substitution else {},
+        skip_external_update=skip_external,
+    )
+    if config is None:
+        return 2
+    CORE.config = config
 
-        CORE.reset()
-    return 0
+    if args.command not in POST_CONFIG_ACTIONS:
+        safe_print(f"Unknown command {args.command}")
+        return 1
+
+    try:
+        return POST_CONFIG_ACTIONS[args.command](args, config)
+    except EsphomeError as e:
+        _LOGGER.error(e, exc_info=args.verbose)
+        return 1
 
 
 def main():

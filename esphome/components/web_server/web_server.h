@@ -42,6 +42,14 @@ using ParamNameType = const __FlashStringHelper *;
 using ParamNameType = const char *;
 #endif
 
+// ESP8266 is single-threaded, so actions can execute directly in request context.
+// Multi-core platforms need to defer to main loop thread for thread safety.
+#ifdef USE_ESP8266
+#define DEFER_ACTION(capture, action) action
+#else
+#define DEFER_ACTION(capture, action) this->defer([capture]() mutable { action; })
+#endif
+
 /// Result of matching a URL against an entity
 struct EntityMatchResult {
   bool matched;          ///< True if entity matched the URL
@@ -61,6 +69,12 @@ struct UrlMatch {
   // Helper methods for string comparisons
   bool domain_equals(const char *str) const { return this->domain == str; }
   bool method_equals(const char *str) const { return this->method == str; }
+
+#ifdef USE_ESP8266
+  // Overloads for flash strings on ESP8266
+  bool domain_equals(const __FlashStringHelper *str) const { return this->domain == str; }
+  bool method_equals(const __FlashStringHelper *str) const { return this->method == str; }
+#endif
 
   /// Match entity by name first, then fall back to object_id with deprecation warning
   /// Returns EntityMatchResult with match status and whether action segment is empty
@@ -289,7 +303,7 @@ class WebServer : public Controller,
   /// Handle a button request under '/button/<id>/press'.
   void handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  static std::string button_state_json_generator(WebServer *web_server, void *source);
+  // Buttons are stateless, so there is no button_state_json_generator
   static std::string button_all_json_generator(WebServer *web_server, void *source);
 #endif
 
@@ -444,6 +458,13 @@ class WebServer : public Controller,
 
   static std::string water_heater_state_json_generator(WebServer *web_server, void *source);
   static std::string water_heater_all_json_generator(WebServer *web_server, void *source);
+#endif
+
+#ifdef USE_INFRARED
+  /// Handle an infrared request under '/infrared/<id>/transmit'.
+  void handle_infrared_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  static std::string infrared_all_json_generator(WebServer *web_server, void *source);
 #endif
 
 #ifdef USE_EVENT
@@ -647,6 +668,9 @@ class WebServer : public Controller,
 #endif
 #ifdef USE_WATER_HEATER
   std::string water_heater_json_(water_heater::WaterHeater *obj, JsonDetail start_config);
+#endif
+#ifdef USE_INFRARED
+  std::string infrared_json_(infrared::Infrared *obj, JsonDetail start_config);
 #endif
 #ifdef USE_UPDATE
   std::string update_json_(update::UpdateEntity *obj, JsonDetail start_config);

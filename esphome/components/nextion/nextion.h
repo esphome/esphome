@@ -1309,6 +1309,30 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   bool is_connected() { return this->connection_state_.is_connected_; }
 
+  /**
+   * @brief Set the maximum age for queue items
+   * @param age_ms Maximum age in milliseconds before queue items are removed
+   */
+  inline void set_max_queue_age(uint16_t age_ms) { this->max_q_age_ms_ = age_ms; }
+
+  /**
+   * @brief Get the maximum age for queue items
+   * @return Maximum age in milliseconds
+   */
+  inline uint16_t get_max_queue_age() const { return this->max_q_age_ms_; }
+
+  /**
+   * @brief Set the startup override timeout
+   * @param timeout_ms Time in milliseconds to wait before forcing setup complete
+   */
+  inline void set_startup_override_ms(uint16_t timeout_ms) { this->startup_override_ms_ = timeout_ms; }
+
+  /**
+   * @brief Get the startup override timeout
+   * @return Startup override timeout in milliseconds
+   */
+  inline uint16_t get_startup_override_ms() const { return this->startup_override_ms_; }
+
  protected:
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
   uint16_t max_commands_per_loop_{1000};
@@ -1479,9 +1503,10 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void reset_(bool reset_nextion = true);
 
   std::string command_data_;
-  const uint16_t startup_override_ms_ = 8000;
-  const uint16_t max_q_age_ms_ = 8000;
   uint32_t started_ms_ = 0;
+
+  uint16_t startup_override_ms_ = 8000;  ///< Timeout before forcing setup complete
+  uint16_t max_q_age_ms_ = 8000;         ///< Maximum age for queue items in ms
 };
 
 }  // namespace nextion

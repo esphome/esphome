@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.1.0-dev"
+__version__ = "2026.2.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -149,6 +149,7 @@ CONF_ASSUMED_STATE = "assumed_state"
 CONF_AT = "at"
 CONF_ATTENUATION = "attenuation"
 CONF_ATTRIBUTE = "attribute"
+CONF_AUDIO_DAC = "audio_dac"
 CONF_AUTH = "auth"
 CONF_AUTO_CLEAR_ENABLED = "auto_clear_enabled"
 CONF_AUTO_MODE = "auto_mode"
@@ -1086,6 +1087,7 @@ CONF_WAKEUP_PIN = "wakeup_pin"
 CONF_WAND_ID = "wand_id"
 CONF_WARM_WHITE = "warm_white"
 CONF_WARM_WHITE_COLOR_TEMPERATURE = "warm_white_color_temperature"
+CONF_WARMUP_TIME = "warmup_time"
 CONF_WATCHDOG_THRESHOLD = "watchdog_threshold"
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
 CONF_WATER_HEATER = "water_heater"
@@ -1379,6 +1381,7 @@ KEY_FRAMEWORK_VERSION = "framework_version"
 KEY_NAME = "name"
 KEY_VARIANT = "variant"
 KEY_PAST_SAFE_MODE = "past_safe_mode"
+KEY_NATIVE_IDF = "native_idf"
 
 # Entity categories
 ENTITY_CATEGORY_NONE = ""

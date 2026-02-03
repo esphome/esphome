@@ -88,5 +88,5 @@ async def to_code(config):
 
     if CONF_SET_ACTION in config:
         await automation.build_automation(
-            var.get_set_trigger(), [(cg.std_string, "x")], config[CONF_SET_ACTION]
+            var.get_set_trigger(), [(cg.StringRef, "x")], config[CONF_SET_ACTION]
         )

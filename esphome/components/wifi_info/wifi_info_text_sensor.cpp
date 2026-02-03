@@ -10,9 +10,7 @@ namespace esphome::wifi_info {
 
 static const char *const TAG = "wifi_info";
 
-#ifdef USE_WIFI_LISTENERS
-
-static constexpr size_t MAX_STATE_LENGTH = 255;
+#ifdef USE_WIFI_IP_STATE_LISTENERS
 
 /********************
  * IPAddressWiFiInfo
@@ -58,6 +56,10 @@ void DNSAddressWifiInfo::on_ip_state(const network::IPAddresses &ips, const netw
   this->publish_state(buf);
 }
 
+#endif  // USE_WIFI_IP_STATE_LISTENERS
+
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
+
 /**********************
  * ScanResultsWiFiInfo
  *********************/
@@ -80,9 +82,9 @@ static char *format_scan_entry(char *buf, const char *ssid, size_t ssid_len, int
 }
 
 void ScanResultsWiFiInfo::on_wifi_scan_results(const wifi::wifi_scan_vector_t<wifi::WiFiScanResult> &results) {
-  char buf[MAX_STATE_LENGTH + 1];
+  char buf[MAX_STATE_LEN + 1];
   char *ptr = buf;
-  const char *end = buf + MAX_STATE_LENGTH;
+  const char *end = buf + MAX_STATE_LEN;
 
   for (const auto &scan : results) {
     if (scan.get_is_hidden())
@@ -97,6 +99,10 @@ void ScanResultsWiFiInfo::on_wifi_scan_results(const wifi::wifi_scan_vector_t<wi
   *ptr = '\0';
   this->publish_state(buf);
 }
+
+#endif  // USE_WIFI_SCAN_RESULTS_LISTENERS
+
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
 
 /***************
  * SSIDWiFiInfo
@@ -125,6 +131,10 @@ void BSSIDWiFiInfo::on_wifi_connect_state(StringRef ssid, std::span<const uint8_
   }
   this->publish_state(buf);
 }
+
+#endif  // USE_WIFI_CONNECT_STATE_LISTENERS
+
+#ifdef USE_WIFI_POWER_SAVE_LISTENERS
 
 /************************
  * PowerSaveModeWiFiInfo
@@ -182,7 +192,7 @@ void PowerSaveModeWiFiInfo::on_wifi_power_save(wifi::WiFiPowerSaveMode mode) {
   this->publish_state(mode_str);
 }
 
-#endif
+#endif  // USE_WIFI_POWER_SAVE_LISTENERS
 
 /*********************
  * MacAddressWifiInfo

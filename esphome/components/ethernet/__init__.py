@@ -1,6 +1,6 @@
 import logging
 
-from esphome import pins
+from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components.esp32 import (
     VARIANT_ESP32,
@@ -14,6 +14,7 @@ from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     get_esp32_variant,
+    include_builtin_idf_component,
 )
 from esphome.components.network import ip_address_literal
 from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
@@ -34,6 +35,8 @@ from esphome.const import (
     CONF_MODE,
     CONF_MOSI_PIN,
     CONF_NUMBER,
+    CONF_ON_CONNECT,
+    CONF_ON_DISCONNECT,
     CONF_PAGE_ID,
     CONF_PIN,
     CONF_POLLING_INTERVAL,
@@ -60,6 +63,21 @@ CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["network"]
 LOGGER = logging.getLogger(__name__)
+
+# Key for tracking IP state listener count in CORE.data
+ETHERNET_IP_STATE_LISTENERS_KEY = "ethernet_ip_state_listeners"
+
+
+def request_ethernet_ip_state_listener() -> None:
+    """Request an IP state listener slot.
+
+    Components that implement EthernetIPStateListener should call this
+    in their to_code() to register for IP state notifications.
+    """
+    CORE.data[ETHERNET_IP_STATE_LISTENERS_KEY] = (
+        CORE.data.get(ETHERNET_IP_STATE_LISTENERS_KEY, 0) + 1
+    )
+
 
 # RMII pins that are hardcoded on ESP32 classic and cannot be changed
 # These pins are used by the internal Ethernet MAC when using RMII PHYs
@@ -221,6 +239,8 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
+        cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(single=True),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -404,12 +424,29 @@ async def to_code(config):
     # Also disable WiFi/BT coexistence since WiFi is disabled
     add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
 
+    # Re-enable ESP-IDF's Ethernet driver (excluded by default to save compile time)
+    include_builtin_idf_component("esp_eth")
+
     if config[CONF_TYPE] == "LAN8670":
         # Add LAN867x 10BASE-T1S PHY support component
         add_idf_component(name="espressif/lan867x", ref="2.0.0")
 
     if CORE.using_arduino:
         cg.add_library("WiFi", None)
+
+    if on_connect_config := config.get(CONF_ON_CONNECT):
+        cg.add_define("USE_ETHERNET_CONNECT_TRIGGER")
+        await automation.build_automation(
+            var.get_connect_trigger(), [], on_connect_config
+        )
+
+    if on_disconnect_config := config.get(CONF_ON_DISCONNECT):
+        cg.add_define("USE_ETHERNET_DISCONNECT_TRIGGER")
+        await automation.build_automation(
+            var.get_disconnect_trigger(), [], on_disconnect_config
+        )
+
+    CORE.add_job(final_step)
 
 
 def _final_validate_rmii_pins(config: ConfigType) -> None:
@@ -467,3 +504,11 @@ def _final_validate(config: ConfigType) -> ConfigType:
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure optional Ethernet features."""
+    if ip_state_count := CORE.data.get(ETHERNET_IP_STATE_LISTENERS_KEY, 0):
+        cg.add_define("USE_ETHERNET_IP_STATE_LISTENERS")
+        cg.add_define("ESPHOME_ETHERNET_IP_STATE_LISTENERS", ip_state_count)

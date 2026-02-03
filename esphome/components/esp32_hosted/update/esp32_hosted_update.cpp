@@ -8,8 +8,10 @@
 #include <esp_app_desc.h>
 #include <esp_hosted.h>
 #include <esp_hosted_host_fw_ver.h>
+#include <esp_ota_ops.h>
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
+#include "esphome/components/http_request/http_request.h"
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
 #endif
@@ -32,14 +34,29 @@ static const char *const ESP_HOSTED_VERSION_STR = STRINGIFY(ESP_HOSTED_VERSION_M
     ESP_HOSTED_VERSION_MINOR_1) "." STRINGIFY(ESP_HOSTED_VERSION_PATCH_1);
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
+// Parse an integer from str, advancing ptr past the number
+// Returns false if no digits were parsed
+static bool parse_int(const char *&ptr, int &value) {
+  char *end;
+  value = static_cast<int>(strtol(ptr, &end, 10));
+  if (end == ptr)
+    return false;
+  ptr = end;
+  return true;
+}
+
 // Parse version string "major.minor.patch" into components
-// Returns true if parsing succeeded
+// Returns true if at least major.minor was parsed
 static bool parse_version(const std::string &version_str, int &major, int &minor, int &patch) {
   major = minor = patch = 0;
-  if (sscanf(version_str.c_str(), "%d.%d.%d", &major, &minor, &patch) >= 2) {
-    return true;
-  }
-  return false;
+  const char *ptr = version_str.c_str();
+
+  if (!parse_int(ptr, major) || *ptr++ != '.' || !parse_int(ptr, minor))
+    return false;
+  if (*ptr == '.')
+    parse_int(++ptr, patch);
+
+  return true;
 }
 
 // Compare two versions, returns:
@@ -68,7 +85,10 @@ void Esp32HostedUpdate::setup() {
   // Get coprocessor version
   esp_hosted_coprocessor_fwver_t ver_info;
   if (esp_hosted_get_coprocessor_fwversion(&ver_info) == ESP_OK) {
-    this->update_info_.current_version = str_sprintf("%d.%d.%d", ver_info.major1, ver_info.minor1, ver_info.patch1);
+    // 16 bytes: "255.255.255" (11 chars) + null + safety margin
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d.%d.%d", ver_info.major1, ver_info.minor1, ver_info.patch1);
+    this->update_info_.current_version = buf;
   } else {
     this->update_info_.current_version = "unknown";
   }
@@ -180,15 +200,26 @@ bool Esp32HostedUpdate::fetch_manifest_() {
   }
 
   // Read manifest JSON into string (manifest is small, ~1KB max)
+  // NOTE: HttpContainer::read() has non-BSD socket semantics - see http_request.h
+  // Use http_read_loop_result() helper instead of checking return values directly
   std::string json_str;
   json_str.reserve(container->content_length);
   uint8_t buf[256];
+  uint32_t last_data_time = millis();
+  const uint32_t read_timeout = this->http_request_parent_->get_timeout();
   while (container->get_bytes_read() < container->content_length) {
-    int read = container->read(buf, sizeof(buf));
-    if (read > 0) {
-      json_str.append(reinterpret_cast<char *>(buf), read);
-    }
+    int read_or_error = container->read(buf, sizeof(buf));
+    App.feed_wdt();
     yield();
+    auto result =
+        http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout, container->is_read_complete());
+    if (result == http_request::HttpReadLoopResult::RETRY)
+      continue;
+    // Note: COMPLETE is currently unreachable since the loop condition checks bytes_read < content_length,
+    // but this is defensive code in case chunked transfer encoding support is added in the future.
+    if (result != http_request::HttpReadLoopResult::DATA)
+      break;  // COMPLETE, ERROR, or TIMEOUT
+    json_str.append(reinterpret_cast<char *>(buf), read_or_error);
   }
   container->end();
 
@@ -293,33 +324,43 @@ bool Esp32HostedUpdate::stream_firmware_to_coprocessor_() {
   }
 
   // Stream firmware to coprocessor while computing SHA256
-  // Hardware SHA acceleration requires 32-byte alignment on some chips (ESP32-S3 with IDF 5.5.x+)
-  alignas(32) sha256::SHA256 hasher;
+  // NOTE: HttpContainer::read() has non-BSD socket semantics - see http_request.h
+  // Use http_read_loop_result() helper instead of checking return values directly
+  sha256::SHA256 hasher;
   hasher.init();
 
   uint8_t buffer[CHUNK_SIZE];
+  uint32_t last_data_time = millis();
+  const uint32_t read_timeout = this->http_request_parent_->get_timeout();
   while (container->get_bytes_read() < total_size) {
-    int read = container->read(buffer, sizeof(buffer));
+    int read_or_error = container->read(buffer, sizeof(buffer));
 
     // Feed watchdog and give other tasks a chance to run
     App.feed_wdt();
     yield();
 
-    // Exit loop if no data available (stream closed or end of data)
-    if (read <= 0) {
-      if (read < 0) {
-        ESP_LOGE(TAG, "Stream closed with error");
-        esp_hosted_slave_ota_end();  // NOLINT
-        container->end();
-        this->status_set_error(LOG_STR("Download failed"));
-        return false;
-      }
-      // read == 0: no more data available, exit loop
+    auto result =
+        http_request::http_read_loop_result(read_or_error, last_data_time, read_timeout, container->is_read_complete());
+    if (result == http_request::HttpReadLoopResult::RETRY)
+      continue;
+    // Note: COMPLETE is currently unreachable since the loop condition checks bytes_read < content_length,
+    // but this is defensive code in case chunked transfer encoding support is added in the future.
+    if (result == http_request::HttpReadLoopResult::COMPLETE)
       break;
+    if (result != http_request::HttpReadLoopResult::DATA) {
+      if (result == http_request::HttpReadLoopResult::TIMEOUT) {
+        ESP_LOGE(TAG, "Timeout reading firmware data");
+      } else {
+        ESP_LOGE(TAG, "Error reading firmware data: %d", read_or_error);
+      }
+      esp_hosted_slave_ota_end();  // NOLINT
+      container->end();
+      this->status_set_error(LOG_STR("Download failed"));
+      return false;
     }
 
-    hasher.add(buffer, read);
-    err = esp_hosted_slave_ota_write(buffer, read);  // NOLINT
+    hasher.add(buffer, read_or_error);
+    err = esp_hosted_slave_ota_write(buffer, read_or_error);  // NOLINT
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to write OTA data: %s", esp_err_to_name(err));
       esp_hosted_slave_ota_end();  // NOLINT
@@ -351,8 +392,7 @@ bool Esp32HostedUpdate::write_embedded_firmware_to_coprocessor_() {
   }
 
   // Verify SHA256 before writing
-  // Hardware SHA acceleration requires 32-byte alignment on some chips (ESP32-S3 with IDF 5.5.x+)
-  alignas(32) sha256::SHA256 hasher;
+  sha256::SHA256 hasher;
   hasher.init();
   hasher.add(this->firmware_data_, this->firmware_size_);
   hasher.calculate();
@@ -441,6 +481,12 @@ void Esp32HostedUpdate::perform(bool force) {
   this->state_ = update::UPDATE_STATE_NO_UPDATE;
   this->status_clear_error();
   this->publish_state();
+
+#ifdef USE_OTA_ROLLBACK
+  // Mark the host partition as valid before rebooting, in case the safe mode
+  // timer hasn't expired yet.
+  esp_ota_mark_app_valid_cancel_rollback();
+#endif
 
   // Schedule a restart to ensure everything is in sync
   ESP_LOGI(TAG, "Restarting in 1 second");

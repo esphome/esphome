@@ -39,7 +39,7 @@ void MQTTValveComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT valve '%s':", this->valve_->get_name().c_str());
   auto traits = this->valve_->get_traits();
   bool has_command_topic = traits.get_supports_position();
-  LOG_MQTT_COMPONENT(true, has_command_topic)
+  LOG_MQTT_COMPONENT(true, has_command_topic);
   if (traits.get_supports_position()) {
     ESP_LOGCONFIG(TAG,
                   "  Position State Topic: '%s'\n"
@@ -84,7 +84,8 @@ bool MQTTValveComponent::publish_state() {
                         : this->valve_->position == VALVE_OPEN                       ? "open"
                         : traits.get_supports_position()                             ? "open"
                                                                                      : "unknown";
-  if (!this->publish(this->get_state_topic_(), state_s))
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  if (!this->publish(this->get_state_topic_to_(topic_buf), state_s))
     success = false;
   return success;
 }

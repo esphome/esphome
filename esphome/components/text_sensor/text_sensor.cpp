@@ -15,14 +15,8 @@ void log_text_sensor(const char *tag, const char *prefix, const char *type, Text
   }
 
   ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-
-  if (!obj->get_device_class_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class_ref().c_str());
-  }
-
-  if (!obj->get_icon_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon_ref().c_str());
-  }
+  LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
+  LOG_ENTITY_ICON(tag, prefix, *obj);
 }
 
 void TextSensor::publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
@@ -116,7 +110,7 @@ void TextSensor::internal_send_state_to_frontend(const char *state, size_t len) 
 
 void TextSensor::notify_frontend_() {
   this->set_has_state(true);
-  ESP_LOGD(TAG, "'%s': Sending state '%s'", this->name_.c_str(), this->state.c_str());
+  ESP_LOGD(TAG, "'%s' >> '%s'", this->name_.c_str(), this->state.c_str());
   this->callback_.call(this->state);
 #if defined(USE_TEXT_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_text_sensor_update(this);

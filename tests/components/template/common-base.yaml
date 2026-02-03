@@ -54,6 +54,17 @@ binary_sensor:
         return false;
       }
   - platform: template
+    id: select_binary_sensor
+    name: Select is one or two
+    condition:
+      any:
+        - select.is:
+            id: template_select
+            options: [one, two]
+        - select.is:
+            id: template_select
+            lambda: return current == id(template_text).state;
+  - platform: template
     id: other_binary_sensor
     name: "Garage Door Closed"
     condition:
@@ -106,10 +117,13 @@ sensor:
             - 10.0 -> 12.1
             - 13.0 -> 14.0
       - clamp:
+          # Infinity and NaN will be clamped (NaN -> min_value, +Infinity -> max_value, -Infinity -> min_value)
           max_value: 10.0
           min_value: -10.0
       - debounce: 0.1s
       - delta: 5.0
+      - delta:
+          max_value: 2%
       - exponential_moving_average:
           alpha: 0.1
           send_every: 15
@@ -320,6 +334,7 @@ valve:
 
 text:
   - platform: template
+    id: template_text
     name: "Template text"
     optimistic: true
     min_length: 0
