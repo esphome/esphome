@@ -26,6 +26,7 @@ class UartPacketInterface : public PacketInterface, public UARTDevice {
   bool send_to_interface(const PacketBuffer &data, PacketMetaData) override;
   size_t get_max_packet_size() override { return MAX_PACKET_SIZE; }
 
+ protected:
   void write_byte_(uint8_t byte);
   std::vector<uint8_t> receive_buffer_{};
   size_t rx_buffer_size_{1024};

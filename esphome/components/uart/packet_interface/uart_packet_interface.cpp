@@ -14,7 +14,7 @@ void UartPacketInterface::loop() {
       return;
     }
     if (byte == FLAG_BYTE) {
-      if (this->rx_started_ && this->receive_buffer_.size() > 0) {
+      if (this->rx_started_ && !this->receive_buffer_.empty()) {
         PacketBuffer buffer(this->receive_buffer_);
         this->on_receive_from_interface_(buffer, {});
         this->rx_started_ = false;

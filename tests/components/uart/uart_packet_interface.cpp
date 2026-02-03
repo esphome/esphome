@@ -17,16 +17,16 @@ using ::testing::Return;
 // Test fixture
 class UartPacketInterfaceTest : public ::testing::Test {
  protected:
-  MockUARTComponent uart{};
+  MockUARTComponent uart_{};
   UartPacketInterface interface {};
-  std::vector<std::vector<uint8_t>> received_packets;
+  std::vector<std::vector<uint8_t>> received_packets_;
 
   void SetUp() override {
-    received_packets.clear();
-    interface.set_uart_parent(&uart);
+    received_packets_.clear();
+    interface.set_uart_parent(&uart_);
 
     interface.add_packet_interface_listener(
-        [this](const PacketBuffer &data, PacketMetaData meta) { received_packets.push_back(data.to_vector()); });
+        [this](const PacketBuffer &data, PacketMetaData meta) { received_packets_.push_back(data.to_vector()); });
   }
 };
 
@@ -36,25 +36,25 @@ TEST_F(UartPacketInterfaceTest, SendSimpleFrame) {
   PacketBuffer buffer(data);
 
   // Set up the mock to accumulate bytes
-  ASSERT_EQ(uart.written_data.size(), 0);
+  ASSERT_EQ(uart_.written_data.size(), 0);
   interface.send_to_interface(buffer, {});
   // Verify the accumulated bytes
-  ASSERT_EQ(uart.written_data.size(), 5);
+  ASSERT_EQ(uart_.written_data.size(), 5);
 
   std::vector<uint8_t> expected = {0x7E, 0x01, 0x02, 0x03, 0x7E};
-  EXPECT_EQ(uart.written_data, expected);
+  EXPECT_EQ(uart_.written_data, expected);
 }
 // Test byte stuffing for FLAG_BYTE
 TEST_F(UartPacketInterfaceTest, SendWithFlagByteStuffing) {
   std::vector<uint8_t> data = {0x01, 0x7E, 0x03};
   PacketBuffer buffer(data);
 
-  uart.clear();
+  uart_.clear();
   interface.send_to_interface(buffer, {});
 
   // Should escape 0x7E as 0x7D 0x5E
   std::vector<uint8_t> expected = {0x7E, 0x01, 0x7D, 0x5E, 0x03, 0x7E};
-  EXPECT_EQ(uart.written_data, expected);
+  EXPECT_EQ(uart_.written_data, expected);
 }
 
 // Test byte stuffing for CONTROL_BYTE
@@ -62,12 +62,12 @@ TEST_F(UartPacketInterfaceTest, SendWithControlByteStuffing) {
   std::vector<uint8_t> data = {0x01, 0x7D, 0x03};
   PacketBuffer buffer(data);
 
-  uart.clear();
+  uart_.clear();
   interface.send_to_interface(buffer, {});
 
   // Should escape 0x7D as 0x7D 0x5D
   std::vector<uint8_t> expected = {0x7E, 0x01, 0x7D, 0x5D, 0x03, 0x7E};
-  EXPECT_EQ(uart.written_data, expected);
+  EXPECT_EQ(uart_.written_data, expected);
 }
 
 // Test sending empty frame
@@ -78,7 +78,7 @@ TEST_F(UartPacketInterfaceTest, SendEmptyFrame) {
   interface.send_to_interface(buffer, {});
 
   // Empty data should return without sending
-  EXPECT_EQ(uart.written_data.size(), 0);
+  EXPECT_EQ(uart_.written_data.size(), 0);
 }
 
 // Test receiving simple frame
@@ -86,11 +86,11 @@ TEST_F(UartPacketInterfaceTest, ReceiveSimpleFrame) {
   std::vector<uint8_t> frame_data = {0x7E, 0x01, 0x02, 0x03, 0x7E};
   size_t read_pos = 0;
 
-  EXPECT_CALL(uart, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
+  EXPECT_CALL(uart_, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
+  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
     if (read_pos >= frame_data.size())
       return false;
     *data = frame_data[read_pos++];
@@ -99,9 +99,9 @@ TEST_F(UartPacketInterfaceTest, ReceiveSimpleFrame) {
 
   interface.loop();
 
-  ASSERT_EQ(received_packets.size(), 1);
+  ASSERT_EQ(received_packets_.size(), 1);
   std::vector<uint8_t> expected = {0x01, 0x02, 0x03};
-  EXPECT_EQ(received_packets[0], expected);
+  EXPECT_EQ(received_packets_[0], expected);
 }
 
 // Test receiving frame with FLAG_BYTE escape
@@ -109,11 +109,11 @@ TEST_F(UartPacketInterfaceTest, ReceiveFrameWithFlagEscape) {
   std::vector<uint8_t> frame_data = {0x7E, 0x01, 0x7D, 0x5E, 0x03, 0x7E};
   size_t read_pos = 0;
 
-  EXPECT_CALL(uart, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
+  EXPECT_CALL(uart_, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
+  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
     if (read_pos >= frame_data.size())
       return false;
     *data = frame_data[read_pos++];
@@ -122,9 +122,9 @@ TEST_F(UartPacketInterfaceTest, ReceiveFrameWithFlagEscape) {
 
   interface.loop();
 
-  ASSERT_EQ(received_packets.size(), 1);
+  ASSERT_EQ(received_packets_.size(), 1);
   std::vector<uint8_t> expected = {0x01, 0x7E, 0x03};  // 0x7E unescaped
-  EXPECT_EQ(received_packets[0], expected);
+  EXPECT_EQ(received_packets_[0], expected);
 }
 
 // Test receiving frame with CONTROL_BYTE escape
@@ -132,11 +132,11 @@ TEST_F(UartPacketInterfaceTest, ReceiveFrameWithControlEscape) {
   std::vector<uint8_t> frame_data = {0x7E, 0x01, 0x7D, 0x5D, 0x03, 0x7E};
   size_t read_pos = 0;
 
-  EXPECT_CALL(uart, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
+  EXPECT_CALL(uart_, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
+  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
     if (read_pos >= frame_data.size())
       return false;
     *data = frame_data[read_pos++];
@@ -145,9 +145,9 @@ TEST_F(UartPacketInterfaceTest, ReceiveFrameWithControlEscape) {
 
   interface.loop();
 
-  ASSERT_EQ(received_packets.size(), 1);
+  ASSERT_EQ(received_packets_.size(), 1);
   std::vector<uint8_t> expected = {0x01, 0x7D, 0x03};  // 0x7D unescaped
-  EXPECT_EQ(received_packets[0], expected);
+  EXPECT_EQ(received_packets_[0], expected);
 }
 
 // Test receiving multiple frames
@@ -155,11 +155,11 @@ TEST_F(UartPacketInterfaceTest, ReceiveMultipleFrames) {
   std::vector<uint8_t> frame_data = {0x7E, 0x01, 0x02, 0x7E, 0x7E, 0x03, 0x04, 0x7E};
   size_t read_pos = 0;
 
-  EXPECT_CALL(uart, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
+  EXPECT_CALL(uart_, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
+  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
     if (read_pos >= frame_data.size())
       return false;
     *data = frame_data[read_pos++];
@@ -168,11 +168,11 @@ TEST_F(UartPacketInterfaceTest, ReceiveMultipleFrames) {
 
   interface.loop();
 
-  ASSERT_EQ(received_packets.size(), 2) << "Expected 2 packets, got " << received_packets.size();
+  ASSERT_EQ(received_packets_.size(), 2) << "Expected 2 packets, got " << received_packets_.size();
   std::vector<uint8_t> expected1 = {0x01, 0x02};
   std::vector<uint8_t> expected2 = {0x03, 0x04};
-  auto pkt0 = received_packets[0];
-  auto pkt1 = received_packets[1];
+  auto pkt0 = received_packets_[0];
+  auto pkt1 = received_packets_[1];
   EXPECT_EQ(pkt0, expected1) << "Packet 0 size: " << pkt0.size();
   EXPECT_EQ(pkt1, expected2) << "Packet 1 size: " << pkt1.size();
 }
@@ -182,11 +182,11 @@ TEST_F(UartPacketInterfaceTest, ReceiveEmptyFrame) {
   std::vector<uint8_t> frame_data = {0x7E, 0x7E};
   size_t read_pos = 0;
 
-  EXPECT_CALL(uart, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
+  EXPECT_CALL(uart_, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
+  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
     if (read_pos >= frame_data.size())
       return false;
     *data = frame_data[read_pos++];
@@ -196,7 +196,7 @@ TEST_F(UartPacketInterfaceTest, ReceiveEmptyFrame) {
   interface.loop();
 
   // Empty frames should not be delivered
-  EXPECT_EQ(received_packets.size(), 0);
+  EXPECT_EQ(received_packets_.size(), 0);
 }
 
 // Test data before first flag is ignored
@@ -204,11 +204,11 @@ TEST_F(UartPacketInterfaceTest, IgnoreDataBeforeFirstFlag) {
   std::vector<uint8_t> frame_data = {0xFF, 0xFF, 0x7E, 0x01, 0x02, 0x7E};
   size_t read_pos = 0;
 
-  EXPECT_CALL(uart, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
+  EXPECT_CALL(uart_, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
+  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
     if (read_pos >= frame_data.size())
       return false;
     *data = frame_data[read_pos++];
@@ -217,9 +217,9 @@ TEST_F(UartPacketInterfaceTest, IgnoreDataBeforeFirstFlag) {
 
   interface.loop();
 
-  ASSERT_EQ(received_packets.size(), 1);
+  ASSERT_EQ(received_packets_.size(), 1);
   std::vector<uint8_t> expected = {0x01, 0x02};
-  EXPECT_EQ(received_packets[0], expected);
+  EXPECT_EQ(received_packets_[0], expected);
 }
 
 // Test oversized packet is discarded
@@ -234,11 +234,11 @@ TEST_F(UartPacketInterfaceTest, OversizedPacketDiscarded) {
   frame_data.push_back(0x7E);
   size_t read_pos = 0;
 
-  EXPECT_CALL(uart, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
+  EXPECT_CALL(uart_, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
+  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
     if (read_pos >= frame_data.size())
       return false;
     *data = frame_data[read_pos++];
@@ -248,7 +248,7 @@ TEST_F(UartPacketInterfaceTest, OversizedPacketDiscarded) {
   interface.loop();
 
   // Oversized packet should be discarded
-  EXPECT_EQ(received_packets.size(), 0);
+  EXPECT_EQ(received_packets_.size(), 0);
 }
 
 // Test round-trip (send and receive)
@@ -260,14 +260,14 @@ TEST_F(UartPacketInterfaceTest, RoundTrip) {
   interface.send_to_interface(send_buffer, {});
 
   // Prepare to receive - use the written data as frame data
-  std::vector<uint8_t> frame_data = uart.written_data;
+  std::vector<uint8_t> frame_data = uart_.written_data;
   size_t read_pos = 0;
 
-  EXPECT_CALL(uart, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
+  EXPECT_CALL(uart_, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
+  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
     if (read_pos >= frame_data.size())
       return false;
     *data = frame_data[read_pos++];
@@ -277,8 +277,8 @@ TEST_F(UartPacketInterfaceTest, RoundTrip) {
   // Receive
   interface.loop();
 
-  ASSERT_EQ(received_packets.size(), 1);
-  EXPECT_EQ(received_packets[0], original);
+  ASSERT_EQ(received_packets_.size(), 1);
+  EXPECT_EQ(received_packets_[0], original);
 }
 
 // Test all bytes can be transmitted (0x00 to 0xFF)
@@ -293,14 +293,14 @@ TEST_F(UartPacketInterfaceTest, AllByteValues) {
   interface.send_to_interface(send_buffer, {});
 
   // Prepare to receive - use the written data as frame data
-  std::vector<uint8_t> frame_data = uart.written_data;
+  std::vector<uint8_t> frame_data = uart_.written_data;
   size_t read_pos = 0;
 
-  EXPECT_CALL(uart, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
+  EXPECT_CALL(uart_, available()).WillRepeatedly(Invoke([&frame_data, &read_pos]() {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
+  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
     if (read_pos >= frame_data.size())
       return false;
     *data = frame_data[read_pos++];
@@ -310,8 +310,8 @@ TEST_F(UartPacketInterfaceTest, AllByteValues) {
   // Receive
   interface.loop();
 
-  ASSERT_EQ(received_packets.size(), 1);
-  EXPECT_EQ(received_packets[0], data);
+  ASSERT_EQ(received_packets_.size(), 1);
+  EXPECT_EQ(received_packets_[0], data);
 }
 
 }  // namespace testing

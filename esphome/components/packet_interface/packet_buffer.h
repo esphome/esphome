@@ -198,7 +198,7 @@ class PacketBuffer {
 
     reference operator*() const { return (*this->buffer_)[this->index_]; }
 
-    Iterator &operator++() {
+    const Iterator &operator++() {
       ++this->index_;
       return *this;
     }
