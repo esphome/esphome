@@ -140,5 +140,5 @@ unless it's truly exceptional, etc.
 - [FishFeeder](https://github.com/ColoMAX/fishfeeder) by {{< ghuser name="ColoMAX" >}}
 - [ESPHome IKEA VINDRIKTNING](https://github.com/DzurisHome/ESPHome-IKEA-VINDRIKTNING) by {{< ghuser name="DzurisHome" >}}
 - [ESPHome Refoss P11](https://github.com/DzurisHome/ESPHome-Refoss-P11) by {{< ghuser name="DzurisHome" >}}
-
+- [ESPHome Tethercell Battery](https://github.com/w00dst0ck/esphome-tethercell) by {{< ghuser name="w00dst0ck" >}}
 <!-- markdownlint-enable MD013 -->
