@@ -88,6 +88,7 @@ class SourceSpeaker : public speaker::Speaker, public Component {
  protected:
   friend class MixerSpeaker;
   esp_err_t start_();
+  void enter_stopping_state_();
 
   /// @brief Ducks audio samples by a specified amount. When changing the ducking amount, it can transition gradually
   /// over a specified amount of samples.

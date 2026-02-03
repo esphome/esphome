@@ -114,9 +114,7 @@ void SourceSpeaker::loop() {
     if (this->state_ == speaker::STATE_RUNNING) {
       // Clear both STOP and START bits - stop takes precedence
       xEventGroupClearBits(this->event_group_, SOURCE_SPEAKER_COMMAND_STOP | SOURCE_SPEAKER_COMMAND_START);
-      this->state_ = speaker::STATE_STOPPING;
-      this->stopping_start_ms_ = millis();
-      this->transfer_buffer_.reset();  // deallocate the transfer buffer
+      this->enter_stopping_state_();
     } else if (this->state_ == speaker::STATE_STOPPED) {
       // Already stopped, just clear the command bits
       xEventGroupClearBits(this->event_group_, SOURCE_SPEAKER_COMMAND_STOP | SOURCE_SPEAKER_COMMAND_START);
@@ -172,9 +170,7 @@ void SourceSpeaker::loop() {
             break;
         }
 
-        this->state_ = speaker::STATE_STOPPING;
-        this->stopping_start_ms_ = millis();
-        this->transfer_buffer_.reset();  // deallocate the transfer buffer
+        this->enter_stopping_state_();
       }
       break;
     }
@@ -185,9 +181,7 @@ void SourceSpeaker::loop() {
         if ((this->timeout_ms_.has_value() && ((millis() - this->last_seen_data_ms_) > this->timeout_ms_.value())) ||
             this->stop_gracefully_) {
           // Timeout exceeded or graceful stop requested
-          this->state_ = speaker::STATE_STOPPING;
-          this->stopping_start_ms_ = millis();
-          this->transfer_buffer_.reset();  // deallocate the transfer buffer
+          this->enter_stopping_state_();
         }
       }
       break;
@@ -407,6 +401,12 @@ void SourceSpeaker::duck_samples(int16_t *input_buffer, uint32_t input_samples_t
 
     audio::scale_audio_samples(input_buffer, input_buffer, q15_scale_factor, input_samples_to_duck);
   }
+}
+
+void SourceSpeaker::enter_stopping_state_() {
+  this->state_ = speaker::STATE_STOPPING;
+  this->stopping_start_ms_ = millis();
+  this->transfer_buffer_.reset();
 }
 
 void MixerSpeaker::dump_config() {
