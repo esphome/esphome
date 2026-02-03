@@ -1,8 +1,3 @@
-esphome:
-  name: test-mcp3201-esp32
-esp32:
-  board: esp32dev
-
 substitutions:
   clk_pin: GPIO18
   miso_pin: GPIO19

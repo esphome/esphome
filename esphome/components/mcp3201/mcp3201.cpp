@@ -28,7 +28,7 @@ float MCP3201::read_data() {
 
   // MCP3201: First 3 bits of b0 are null, then 12-bit value spans b0[4:0] and b1[7:1]
   // Bit pattern: b0 = xxxBBBBB, b1 = BBBBBBBy (where x=null, B=data bit, y=unused LSB)
-  uint16_t digital_value = ((b0 & 0x1F) << 7) | (b1 >> 1);
+  uint16_t digital_value = encode_uint16(b0, b1) >> 1;
   return float(digital_value) / 4096.000 * this->reference_voltage_;  // in V
 }
 
