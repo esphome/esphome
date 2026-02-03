@@ -12,6 +12,7 @@
 #include "light_transformer.h"
 
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #include <strings.h>
 #include <vector>
 
@@ -188,16 +189,19 @@ class LightState : public EntityBase, public Component {
   uint32_t get_current_effect_index() const { return this->active_effect_index_; }
 
   /// Get effect index by name. Returns 0 if effect not found.
-  uint32_t get_effect_index(const std::string &effect_name) const {
-    if (str_equals_case_insensitive(effect_name, "none")) {
+  uint32_t get_effect_index(const char *effect_name) const {
+    if (ESPHOME_strcasecmp_P(effect_name, ESPHOME_PSTR("none")) == 0) {
       return 0;
     }
     for (size_t i = 0; i < this->effects_.size(); i++) {
-      if (str_equals_case_insensitive(effect_name, this->effects_[i]->get_name())) {
+      if (strcasecmp(effect_name, this->effects_[i]->get_name().c_str()) == 0) {
         return i + 1;  // Effects are 1-indexed in active_effect_index_
       }
     }
     return 0;  // Effect not found
+  }
+  uint32_t get_effect_index(const std::string &effect_name) const {
+    return this->get_effect_index(effect_name.c_str());
   }
 
   /// Get effect by index. Returns nullptr if index is invalid.
