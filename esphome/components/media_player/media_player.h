@@ -114,7 +114,8 @@ class MediaPlayerCall {
 
   MediaPlayerCall &set_command(MediaPlayerCommand command);
   MediaPlayerCall &set_command(optional<MediaPlayerCommand> command);
-  MediaPlayerCall &set_command(const std::string &command);
+  MediaPlayerCall &set_command(const char *command);
+  MediaPlayerCall &set_command(const std::string &command) { return this->set_command(command.c_str()); }
 
   MediaPlayerCall &set_media_url(const std::string &url);
 
