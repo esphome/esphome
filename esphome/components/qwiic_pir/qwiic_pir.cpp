@@ -7,8 +7,6 @@ namespace qwiic_pir {
 static const char *const TAG = "qwiic_pir";
 
 void QwiicPIRComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // Verify I2C communcation by reading and verifying the chip ID
   uint8_t chip_id;
   if (!this->read_byte(QWIIC_PIR_CHIP_ID, &chip_id)) {
@@ -99,8 +97,10 @@ void QwiicPIRComponent::dump_config() {
     debounce_mode_str = HYBRID;
   }
 
-  ESP_LOGCONFIG(TAG, "Qwiic PIR:");
-  ESP_LOGCONFIG(TAG, "  Debounce Mode: %s", debounce_mode_str);
+  ESP_LOGCONFIG(TAG,
+                "Qwiic PIR:\n"
+                "  Debounce Mode: %s",
+                debounce_mode_str);
   if (this->debounce_mode_ == NATIVE_DEBOUNCE_MODE) {
     ESP_LOGCONFIG(TAG, "  Debounce Time: %ums", this->debounce_time_);
   }

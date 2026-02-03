@@ -1,7 +1,6 @@
 #include "alarm_control_panel_state.h"
 
-namespace esphome {
-namespace alarm_control_panel {
+namespace esphome::alarm_control_panel {
 
 const LogString *alarm_control_panel_state_to_string(AlarmControlPanelState state) {
   switch (state) {
@@ -30,5 +29,4 @@ const LogString *alarm_control_panel_state_to_string(AlarmControlPanelState stat
   }
 }
 
-}  // namespace alarm_control_panel
-}  // namespace esphome
+}  // namespace esphome::alarm_control_panel

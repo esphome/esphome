@@ -2,5 +2,8 @@ substitutions:
   binary_sensor_pin: GPIO12
   output_pin: GPIO13
   switch_pin: GPIO14
+  switch_pin_2: GPIO15
+  switch_pin_3: GPIO16
+  switch_pin_4: GPIO17
 
 <<: !include common.yaml

@@ -18,7 +18,7 @@ class MCP3204 : public Component,
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  float read_data(uint8_t pin);
+  float read_data(uint8_t pin, bool differential);
 
  protected:
   float reference_voltage_;

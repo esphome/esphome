@@ -1,5 +1,5 @@
 #pragma once
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include "ota_backend.h"
 
 #include "esphome/components/md5/md5.h"
@@ -24,8 +24,9 @@ class IDFOTABackend : public OTABackend {
   const esp_partition_t *partition_;
   md5::MD5Digest md5_{};
   char expected_bin_md5_[32];
+  bool md5_set_{false};
 };
 
 }  // namespace ota
 }  // namespace esphome
-#endif
+#endif  // USE_ESP32

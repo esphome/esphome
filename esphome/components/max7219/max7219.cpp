@@ -1,10 +1,9 @@
 #include "max7219.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
-namespace esphome {
-namespace max7219 {
+namespace esphome::max7219 {
 
 static const char *const TAG = "max7219";
 
@@ -115,13 +114,14 @@ const uint8_t MAX7219_ASCII_TO_RAW[95] PROGMEM = {
 };
 
 float MAX7219Component::get_setup_priority() const { return setup_priority::PROCESSOR; }
-void MAX7219Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-  this->spi_setup();
-  this->buffer_ = new uint8_t[this->num_chips_ * 8];  // NOLINT
-  for (uint8_t i = 0; i < this->num_chips_ * 8; i++)
-    this->buffer_[i] = 0;
 
+MAX7219Component::MAX7219Component(uint8_t num_chips) : num_chips_(num_chips) {
+  this->buffer_ = new uint8_t[this->num_chips_ * 8];  // NOLINT
+  memset(this->buffer_, 0, this->num_chips_ * 8);
+}
+
+void MAX7219Component::setup() {
+  this->spi_setup();
   // let's assume the user has all 8 digits connected, only important in daisy chained setups anyway
   this->send_to_all_(MAX7219_REGISTER_SCAN_LIMIT, 7);
   // let's use our own ASCII -> led pattern encoding
@@ -133,9 +133,11 @@ void MAX7219Component::setup() {
   this->send_to_all_(MAX7219_REGISTER_SHUTDOWN, 1);
 }
 void MAX7219Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "MAX7219:");
-  ESP_LOGCONFIG(TAG, "  Number of Chips: %u", this->num_chips_);
-  ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
+  ESP_LOGCONFIG(TAG,
+                "MAX7219:\n"
+                "  Number of Chips: %u\n"
+                "  Intensity: %u",
+                this->num_chips_, this->intensity_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
 }
@@ -228,7 +230,6 @@ void MAX7219Component::set_intensity(uint8_t intensity) {
     this->intensity_ = intensity;
   }
 }
-void MAX7219Component::set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
 
 uint8_t MAX7219Component::strftime(uint8_t pos, const char *format, ESPTime time) {
   char buffer[64];
@@ -239,5 +240,4 @@ uint8_t MAX7219Component::strftime(uint8_t pos, const char *format, ESPTime time
 }
 uint8_t MAX7219Component::strftime(const char *format, ESPTime time) { return this->strftime(0, format, time); }
 
-}  // namespace max7219
-}  // namespace esphome
+}  // namespace esphome::max7219

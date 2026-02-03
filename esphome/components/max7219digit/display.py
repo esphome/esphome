@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import display, spi
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_FLIP_X,
     CONF_ID,
     CONF_INTENSITY,
     CONF_LAMBDA,
@@ -14,7 +15,6 @@ CODEOWNERS = ["@rspaargaren"]
 DEPENDENCIES = ["spi"]
 
 CONF_ROTATE_CHIP = "rotate_chip"
-CONF_FLIP_X = "flip_x"
 CONF_SCROLL_SPEED = "scroll_speed"
 CONF_SCROLL_DWELL = "scroll_dwell"
 CONF_SCROLL_DELAY = "scroll_delay"
@@ -86,7 +86,7 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
     await display.register_display(var, config)
 
     cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))

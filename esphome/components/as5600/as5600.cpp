@@ -23,8 +23,6 @@ static const uint8_t REGISTER_AGC = 0x1A;        // 8 bytes  / R
 static const uint8_t REGISTER_MAGNITUDE = 0x1B;  // 16 bytes / R
 
 void AS5600Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   if (!this->read_byte(REGISTER_STATUS).has_value()) {
     this->mark_failed();
     return;
@@ -95,11 +93,13 @@ void AS5600Component::dump_config() {
     return;
   }
 
-  ESP_LOGCONFIG(TAG, "  Watchdog: %d", this->watchdog_);
-  ESP_LOGCONFIG(TAG, "  Fast Filter: %d", this->fast_filter_);
-  ESP_LOGCONFIG(TAG, "  Slow Filter: %d", this->slow_filter_);
-  ESP_LOGCONFIG(TAG, "  Hysteresis: %d", this->hysteresis_);
-  ESP_LOGCONFIG(TAG, "  Start Position: %d", this->start_position_);
+  ESP_LOGCONFIG(TAG,
+                "  Watchdog: %d\n"
+                "  Fast Filter: %d\n"
+                "  Slow Filter: %d\n"
+                "  Hysteresis: %d\n"
+                "  Start Position: %d",
+                this->watchdog_, this->fast_filter_, this->slow_filter_, this->hysteresis_, this->start_position_);
   if (this->end_mode_ == END_MODE_POSITION) {
     ESP_LOGCONFIG(TAG, "  End Position: %d", this->end_position_);
   } else {

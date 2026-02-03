@@ -20,7 +20,6 @@ void BMP085Component::update() {
   this->set_timeout("temperature", 5, [this]() { this->read_temperature_(); });
 }
 void BMP085Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t data[22];
   if (!this->read_bytes(BMP085_REGISTER_AC1_H, data, 22)) {
     this->mark_failed();

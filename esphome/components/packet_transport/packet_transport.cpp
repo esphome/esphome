@@ -1,11 +1,15 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "packet_transport.h"
 
 #include "esphome/components/xxtea/xxtea.h"
 
 namespace esphome {
 namespace packet_transport {
+
+// Maximum bytes to log in hex output (168 * 3 = 504, under TX buffer size of 512)
+static constexpr size_t PACKET_MAX_LOG_BYTES = 168;
 /**
  * Structure of a data packet; everything is little-endian
  *
@@ -195,8 +199,8 @@ static void add(std::vector<uint8_t> &vec, const char *str) {
 void PacketTransport::setup() {
   this->name_ = App.get_name().c_str();
   if (strlen(this->name_) > 255) {
+    this->status_set_error(LOG_STR("Device name exceeds 255 chars"));
     this->mark_failed();
-    this->status_set_error("Device name exceeds 255 chars");
     return;
   }
   this->resend_ping_key_ = this->ping_pong_enable_;
@@ -263,13 +267,16 @@ void PacketTransport::flush_() {
     xxtea::encrypt((uint32_t *) (encode_buffer.data() + header_len), len / 4,
                    (uint32_t *) this->encryption_key_.data());
   }
+  char hex_buf[format_hex_pretty_size(PACKET_MAX_LOG_BYTES)];
+  ESP_LOGVV(TAG, "Sending packet %s", format_hex_pretty_to(hex_buf, encode_buffer.data(), encode_buffer.size()));
   this->send_packet(encode_buffer);
 }
 
 void PacketTransport::add_binary_data_(uint8_t key, const char *id, bool data) {
   auto len = 1 + 1 + 1 + strlen(id);
-  if (len + this->header_.size() + this->data_.size() > this->get_max_packet_size()) {
+  if (round4(this->header_.size()) + round4(this->data_.size() + len) > this->get_max_packet_size()) {
     this->flush_();
+    this->init_data_();
   }
   add(this->data_, key);
   add(this->data_, (uint8_t) data);
@@ -282,8 +289,9 @@ void PacketTransport::add_data_(uint8_t key, const char *id, float data) {
 
 void PacketTransport::add_data_(uint8_t key, const char *id, uint32_t data) {
   auto len = 4 + 1 + 1 + strlen(id);
-  if (len + this->header_.size() + this->data_.size() > this->get_max_packet_size()) {
+  if (round4(this->header_.size()) + round4(this->data_.size() + len) > this->get_max_packet_size()) {
     this->flush_();
+    this->init_data_();
   }
   add(this->data_, key);
   add(this->data_, data);
@@ -314,10 +322,45 @@ void PacketTransport::send_data_(bool all) {
 }
 
 void PacketTransport::update() {
+  // resend all sensors if required
+  if (this->is_provider_)
+    this->send_data_(true);
+  if (!this->ping_pong_enable_) {
+    return;
+  }
   auto now = millis() / 1000;
   if (this->last_key_time_ + this->ping_pong_recyle_time_ < now) {
     this->resend_ping_key_ = this->ping_pong_enable_;
+    ESP_LOGV(TAG, "Ping request, age %u", now - this->last_key_time_);
     this->last_key_time_ = now;
+  }
+  for (const auto &provider : this->providers_) {
+    uint32_t key_response_age = now - provider.second.last_key_response_time;
+    if (key_response_age > (this->ping_pong_recyle_time_ * 2u)) {
+#ifdef USE_STATUS_SENSOR
+      if (provider.second.status_sensor != nullptr && provider.second.status_sensor->state) {
+        ESP_LOGI(TAG, "Ping status for %s timeout at %u with age %u", provider.first.c_str(), now, key_response_age);
+        provider.second.status_sensor->publish_state(false);
+      }
+#endif
+#ifdef USE_SENSOR
+      for (auto &sensor : this->remote_sensors_[provider.first]) {
+        sensor.second->publish_state(NAN);
+      }
+#endif
+#ifdef USE_BINARY_SENSOR
+      for (auto &sensor : this->remote_binary_sensors_[provider.first]) {
+        sensor.second->invalidate_state();
+      }
+#endif
+    } else {
+#ifdef USE_STATUS_SENSOR
+      if (provider.second.status_sensor != nullptr && !provider.second.status_sensor->state) {
+        ESP_LOGI(TAG, "Ping status for %s restored at %u with age %u", provider.first.c_str(), now, key_response_age);
+        provider.second.status_sensor->publish_state(true);
+      }
+#endif
+    }
   }
 }
 
@@ -437,7 +480,8 @@ void PacketTransport::process_(const std::vector<uint8_t> &data) {
     if (decoder.decode(PING_KEY, key) == DECODE_OK) {
       if (key == this->ping_key_) {
         ping_key_seen = true;
-        ESP_LOGV(TAG, "Found good ping key %X", (unsigned) key);
+        provider.last_key_response_time = millis() / 1000;
+        ESP_LOGV(TAG, "Found good ping key %X at timestamp %" PRIu32, (unsigned) key, provider.last_key_response_time);
       } else {
         ESP_LOGV(TAG, "Unknown ping key %X", (unsigned) key);
       }
@@ -466,18 +510,21 @@ void PacketTransport::process_(const std::vector<uint8_t> &data) {
     }
     if (decoder.get(byte) == DECODE_OK) {
       ESP_LOGW(TAG, "Unknown key %X", byte);
+      char hex_buf[format_hex_pretty_size(PACKET_MAX_LOG_BYTES)];
       ESP_LOGD(TAG, "Buffer pos: %zu contents: %s", data.size() - decoder.get_remaining_size(),
-               format_hex_pretty(data).c_str());
+               format_hex_pretty_to(hex_buf, data.data(), data.size()));
     }
     break;
   }
 }
 
 void PacketTransport::dump_config() {
-  ESP_LOGCONFIG(TAG, "Packet Transport:");
-  ESP_LOGCONFIG(TAG, "  Platform: %s", this->platform_name_);
-  ESP_LOGCONFIG(TAG, "  Encrypted: %s", YESNO(this->is_encrypted_()));
-  ESP_LOGCONFIG(TAG, "  Ping-pong: %s", YESNO(this->ping_pong_enable_));
+  ESP_LOGCONFIG(TAG,
+                "Packet Transport:\n"
+                "  Platform: %s\n"
+                "  Encrypted: %s\n"
+                "  Ping-pong: %s",
+                this->platform_name_, YESNO(this->is_encrypted_()), YESNO(this->ping_pong_enable_));
 #ifdef USE_SENSOR
   for (auto sensor : this->sensors_)
     ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor.id);
@@ -514,7 +561,7 @@ void PacketTransport::loop() {
   if (this->resend_ping_key_)
     this->send_ping_pong_request_();
   if (this->updated_) {
-    this->send_data_(this->resend_data_);
+    this->send_data_(false);
   }
 }
 

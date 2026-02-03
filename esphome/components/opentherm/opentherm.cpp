@@ -7,7 +7,10 @@
 
 #include "opentherm.h"
 #include "esphome/core/helpers.h"
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#include <cinttypes>
+// TODO: Migrate from legacy timer API (driver/timer.h) to GPTimer API (driver/gptimer.h)
+// The legacy timer API is deprecated in ESP-IDF 5.x. See opentherm.h for details.
+#ifdef USE_ESP32
 #include "driver/timer.h"
 #include "esp_err.h"
 #endif
@@ -20,7 +23,6 @@ namespace esphome {
 namespace opentherm {
 
 using std::string;
-using std::to_string;
 
 static const char *const TAG = "opentherm";
 
@@ -31,7 +33,7 @@ OpenTherm *OpenTherm::instance = nullptr;
 OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t device_timeout)
     : in_pin_(in_pin),
       out_pin_(out_pin),
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
       timer_group_(TIMER_GROUP_0),
       timer_idx_(TIMER_0),
 #endif
@@ -57,7 +59,7 @@ bool OpenTherm::initialize() {
   this->out_pin_->setup();
   this->out_pin_->digital_write(true);
 
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
   return this->init_esp32_timer_();
 #else
   return true;
@@ -238,7 +240,7 @@ void IRAM_ATTR OpenTherm::write_bit_(uint8_t high, uint8_t clock) {
   }
 }
 
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
 
 bool OpenTherm::init_esp32_timer_() {
   // Search for a free timer. Maybe unstable, we'll see.
@@ -272,18 +274,13 @@ bool OpenTherm::init_esp32_timer_() {
   this->timer_idx_ = timer_idx;
 
   timer_config_t const config = {
-    .alarm_en = TIMER_ALARM_EN,
-    .counter_en = TIMER_PAUSE,
-    .intr_type = TIMER_INTR_LEVEL,
-    .counter_dir = TIMER_COUNT_UP,
-    .auto_reload = TIMER_AUTORELOAD_EN,
-#if ESP_IDF_VERSION_MAJOR >= 5
-    .clk_src = TIMER_SRC_CLK_DEFAULT,
-#endif
-    .divider = 80,
-#if defined(SOC_TIMER_GROUP_SUPPORT_XTAL) && ESP_IDF_VERSION_MAJOR < 5
-    .clk_src = TIMER_SRC_CLK_APB
-#endif
+      .alarm_en = TIMER_ALARM_EN,
+      .counter_en = TIMER_PAUSE,
+      .intr_type = TIMER_INTR_LEVEL,
+      .counter_dir = TIMER_COUNT_UP,
+      .auto_reload = TIMER_AUTORELOAD_EN,
+      .clk_src = TIMER_SRC_CLK_DEFAULT,
+      .divider = 80,
   };
 
   esp_err_t result;
@@ -370,7 +367,7 @@ void IRAM_ATTR OpenTherm::stop_timer_() {
   }
 }
 
-#endif  // END ESP32
+#endif  // USE_ESP32
 
 #ifdef ESP8266
 // 5 kHz timer_
@@ -566,16 +563,16 @@ const char *OpenTherm::message_id_to_str(MessageId id) {
 }
 
 void OpenTherm::debug_data(OpenthermData &data) {
-  ESP_LOGD(TAG, "%s %s %s %s", format_bin(data.type).c_str(), format_bin(data.id).c_str(),
-           format_bin(data.valueHB).c_str(), format_bin(data.valueLB).c_str());
-  ESP_LOGD(TAG, "type: %s; id: %s; HB: %s; LB: %s; uint_16: %s; float: %s",
-           this->message_type_to_str((MessageType) data.type), to_string(data.id).c_str(),
-           to_string(data.valueHB).c_str(), to_string(data.valueLB).c_str(), to_string(data.u16()).c_str(),
-           to_string(data.f88()).c_str());
+  char type_buf[9], id_buf[9], hb_buf[9], lb_buf[9];
+  ESP_LOGD(TAG, "%s %s %s %s", format_bin_to(type_buf, data.type), format_bin_to(id_buf, data.id),
+           format_bin_to(hb_buf, data.valueHB), format_bin_to(lb_buf, data.valueLB));
+  ESP_LOGD(TAG, "type: %s; id: %u; HB: %u; LB: %u; uint_16: %u; float: %f",
+           this->message_type_to_str((MessageType) data.type), data.id, data.valueHB, data.valueLB, data.u16(),
+           data.f88());
 }
 void OpenTherm::debug_error(OpenThermError &error) const {
-  ESP_LOGD(TAG, "data: %s; clock: %s; capture: %s; bit_pos: %s", format_hex(error.data).c_str(),
-           to_string(clock_).c_str(), format_bin(error.capture).c_str(), to_string(error.bit_pos).c_str());
+  ESP_LOGD(TAG, "data: 0x%08" PRIx32 "; clock: %u; capture: 0x%08" PRIx32 "; bit_pos: %u", error.data, this->clock_,
+           error.capture, error.bit_pos);
 }
 
 float OpenthermData::f88() { return ((float) this->s16()) / 256.0; }

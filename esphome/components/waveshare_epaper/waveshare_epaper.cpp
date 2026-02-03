@@ -1,9 +1,9 @@
 #include "waveshare_epaper.h"
-#include "esphome/core/log.h"
+#include <bitset>
+#include <cinttypes>
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
-#include <cinttypes>
-#include <bitset>
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace waveshare_epaper {
@@ -172,6 +172,12 @@ void WaveshareEPaperBase::update() {
   this->display();
 }
 void WaveshareEPaper::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
   // flip logic
   const uint8_t fill = color.is_on() ? 0x00 : 0xFF;
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
@@ -185,7 +191,7 @@ void WaveshareEPaper7C::setup() {
   this->initialize();
 }
 void WaveshareEPaper7C::init_internal_7c_(uint32_t buffer_length) {
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   uint32_t small_buffer_length = buffer_length / NUM_BUFFERS;
 
   for (int i = 0; i < NUM_BUFFERS; i++) {
@@ -234,6 +240,12 @@ uint8_t WaveshareEPaper7C::color_to_hex(Color color) {
   return hex_code;
 }
 void WaveshareEPaper7C::fill(Color color) {
+  // If clipping is active, use base class (3-bit packing is complex for partial fills)
+  if (this->get_clipping().is_set()) {
+    display::Display::fill(color);
+    return;
+  }
+
   uint8_t pixel_color;
   if (color.is_on()) {
     pixel_color = this->color_to_hex(color);
@@ -1813,8 +1825,10 @@ void WaveshareEPaper2P9InV2R2::write_lut_(const uint8_t *lut, const uint8_t size
 
 void WaveshareEPaper2P9InV2R2::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
-  ESP_LOGCONFIG(TAG, "  Model: 2.9inV2R2");
-  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
+  ESP_LOGCONFIG(TAG,
+                "  Model: 2.9inV2R2\n"
+                "  Full Update Every: %" PRIu32,
+                this->full_update_every_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
@@ -2054,7 +2068,7 @@ void GDEW029T5::initialize() {
     this->deep_sleep_between_updates_ = true;
 
   // old buffer for partial update
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   this->old_buffer_ = allocator.allocate(this->get_buffer_length_());
   if (this->old_buffer_ == nullptr) {
     ESP_LOGE(TAG, "Could not allocate old buffer for display!");
@@ -2199,7 +2213,7 @@ void GDEW029T5::dump_config() {
 
 void GDEW0154M09::initialize() {
   this->init_internal_();
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   this->lastbuff_ = allocator.allocate(this->get_buffer_length_());
   if (this->lastbuff_ != nullptr) {
     memset(this->lastbuff_, 0xff, sizeof(uint8_t) * this->get_buffer_length_());
@@ -2274,11 +2288,11 @@ void GDEW0154M09::clear_() {
   uint32_t pixsize = this->get_buffer_length_();
   for (uint8_t j = 0; j < 2; j++) {
     this->command(CMD_DTM1_DATA_START_TRANS);
-    for (int count = 0; count < pixsize; count++) {
+    for (uint32_t count = 0; count < pixsize; count++) {
       this->data(0x00);
     }
     this->command(CMD_DTM2_DATA_START_TRANS2);
-    for (int count = 0; count < pixsize; count++) {
+    for (uint32_t count = 0; count < pixsize; count++) {
       this->data(0xff);
     }
     this->command(CMD_DISPLAY_REFRESH);
@@ -2291,11 +2305,11 @@ void HOT GDEW0154M09::display() {
   this->init_internal_();
   // "Mode 0 display" for now
   this->command(CMD_DTM1_DATA_START_TRANS);
-  for (int i = 0; i < this->get_buffer_length_(); i++) {
+  for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
     this->data(0xff);
   }
   this->command(CMD_DTM2_DATA_START_TRANS2);  // write 'new' data to SRAM
-  for (int i = 0; i < this->get_buffer_length_(); i++) {
+  for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
     this->data(this->buffer_[i]);
   }
   this->command(CMD_DISPLAY_REFRESH);
@@ -2516,8 +2530,10 @@ int GDEY042T81::get_height_internal() { return 300; }
 uint32_t GDEY042T81::idle_timeout_() { return 5000; }
 void GDEY042T81::dump_config() {
   LOG_DISPLAY("", "GoodDisplay E-Paper", this);
-  ESP_LOGCONFIG(TAG, "  Model: 4.2in B/W GDEY042T81");
-  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
+  ESP_LOGCONFIG(TAG,
+                "  Model: 4.2in B/W GDEY042T81\n"
+                "  Full Update Every: %" PRIu32,
+                this->full_update_every_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
@@ -3132,7 +3148,7 @@ void HOT GDEY0583T81::display() {
   } else {
     // Partial out (PTOUT), makes the display exit partial mode
     this->command(0x92);
-    ESP_LOGD(TAG, "Partial update done, next full update after %d cycles",
+    ESP_LOGD(TAG, "Partial update done, next full update after %" PRIu32 " cycles",
              this->full_update_every_ - this->at_update_ - 1);
   }
 
@@ -3147,8 +3163,10 @@ int GDEY0583T81::get_height_internal() { return 480; }
 uint32_t GDEY0583T81::idle_timeout_() { return 5000; }
 void GDEY0583T81::dump_config() {
   LOG_DISPLAY("", "GoodDisplay E-Paper", this);
-  ESP_LOGCONFIG(TAG, "  Model: 5.83in B/W GDEY0583T81");
-  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
+  ESP_LOGCONFIG(TAG,
+                "  Model: 5.83in B/W GDEY0583T81\n"
+                "  Full Update Every: %" PRIu32,
+                this->full_update_every_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
@@ -4328,8 +4346,10 @@ int WaveshareEPaper7P5InV2P::get_height_internal() { return 480; }
 uint32_t WaveshareEPaper7P5InV2P::idle_timeout_() { return 10000; }
 void WaveshareEPaper7P5InV2P::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
-  ESP_LOGCONFIG(TAG, "  Model: 7.50inv2p");
-  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
+  ESP_LOGCONFIG(TAG,
+                "  Model: 7.50inv2p\n"
+                "  Full Update Every: %" PRIu32,
+                this->full_update_every_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);

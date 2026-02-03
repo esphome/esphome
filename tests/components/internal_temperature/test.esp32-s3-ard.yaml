@@ -1,5 +1,0 @@
-<<: !include common.yaml
-
-esp32:
-  framework:
-    version: 2.0.9

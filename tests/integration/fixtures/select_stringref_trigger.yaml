@@ -1,0 +1,85 @@
+esphome:
+  name: select-stringref-test
+  friendly_name: Select StringRef Test
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+
+select:
+  - platform: template
+    name: "Test Select"
+    id: test_select
+    optimistic: true
+    options:
+      - "Option A"
+      - "Option B"
+      - "Option C"
+    initial_option: "Option A"
+    on_value:
+      then:
+        # Test 1: Log the value directly (StringRef -> const char* via c_str())
+        - logger.log:
+            format: "Select value: %s"
+            args: ['x.c_str()']
+        # Test 2: String concatenation (StringRef + const char* -> std::string)
+        - lambda: |-
+            std::string with_suffix = x + " selected";
+            ESP_LOGI("test", "Concatenated: %s", with_suffix.c_str());
+        # Test 3: Comparison (StringRef == const char*)
+        - lambda: |-
+            if (x == "Option B") {
+              ESP_LOGI("test", "Option B was selected");
+            }
+        # Test 4: Use index parameter (variable name is 'i')
+        - lambda: |-
+            ESP_LOGI("test", "Select index: %d", (int)i);
+        # Test 5: StringRef.length() method
+        - lambda: |-
+            ESP_LOGI("test", "Length: %d", (int)x.length());
+        # Test 6: StringRef.find() method with substring
+        - lambda: |-
+            if (x.find("Option") != std::string::npos) {
+              ESP_LOGI("test", "Found 'Option' in value");
+            }
+        # Test 7: StringRef.find() method with character
+        - lambda: |-
+            size_t space_pos = x.find(' ');
+            if (space_pos != std::string::npos) {
+              ESP_LOGI("test", "Space at position: %d", (int)space_pos);
+            }
+        # Test 8: StringRef.substr() method
+        - lambda: |-
+            std::string prefix = x.substr(0, 6);
+            ESP_LOGI("test", "Substr prefix: %s", prefix.c_str());
+
+  # Second select with numeric options to test ADL functions
+  - platform: template
+    name: "Baud Rate"
+    id: baud_select
+    optimistic: true
+    options:
+      - "9600"
+      - "115200"
+    initial_option: "9600"
+    on_value:
+      then:
+        # Test 9: stoi via ADL
+        - lambda: |-
+            int baud = stoi(x);
+            ESP_LOGI("test", "stoi result: %d", baud);
+        # Test 10: stol via ADL
+        - lambda: |-
+            long baud_long = stol(x);
+            ESP_LOGI("test", "stol result: %ld", baud_long);
+        # Test 11: stof via ADL
+        - lambda: |-
+            float baud_float = stof(x);
+            ESP_LOGI("test", "stof result: %.0f", baud_float);
+        # Test 12: stod via ADL
+        - lambda: |-
+            double baud_double = stod(x);
+            ESP_LOGI("test", "stod result: %.0f", baud_double);

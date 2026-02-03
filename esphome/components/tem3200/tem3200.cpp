@@ -1,7 +1,7 @@
 #include "tem3200.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace tem3200 {
@@ -16,8 +16,6 @@ enum ErrorCode {
 };
 
 void TEM3200Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   uint8_t status(NONE);
   uint16_t raw_temperature(0);
   uint16_t raw_pressure(0);

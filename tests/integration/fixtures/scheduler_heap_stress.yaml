@@ -1,0 +1,38 @@
+esphome:
+  name: scheduler-heap-stress-test
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [scheduler_heap_stress_component]
+
+host:
+
+logger:
+  level: VERBOSE
+
+scheduler_heap_stress_component:
+  id: heap_stress
+
+api:
+  services:
+    - service: run_heap_stress_test
+      then:
+        - lambda: |-
+            id(heap_stress)->run_multi_thread_test();
+
+event:
+  - platform: template
+    name: "Test Complete"
+    id: test_complete
+    device_class: button
+    event_types:
+      - "test_finished"
+  - platform: template
+    name: "Test Result"
+    id: test_result
+    device_class: button
+    event_types:
+      - "passed"
+      - "failed"

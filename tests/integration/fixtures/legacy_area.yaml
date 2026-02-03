@@ -1,0 +1,15 @@
+esphome:
+  name: legacy-area-test
+  # Using legacy string-based area configuration
+  area: Master Bedroom
+
+host:
+api:
+logger:
+
+# Simple sensor to ensure the device compiles and runs
+sensor:
+  - platform: template
+    name: Test Sensor
+    lambda: return 42.0;
+    update_interval: 1s

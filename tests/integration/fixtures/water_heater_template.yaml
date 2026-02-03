@@ -1,0 +1,23 @@
+esphome:
+  name: water-heater-template-test
+host:
+api:
+logger:
+
+water_heater:
+  - platform: template
+    id: test_boiler
+    name: Test Boiler
+    optimistic: true
+    current_temperature: !lambda "return 45.0f;"
+    # Note: No mode lambda - we want optimistic mode changes to stick
+    # A mode lambda would override mode changes in loop()
+    supported_modes:
+      - "off"
+      - eco
+      - gas
+      - performance
+    visual:
+      min_temperature: 30.0
+      max_temperature: 85.0
+      target_temperature_step: 0.5

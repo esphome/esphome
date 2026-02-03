@@ -4,13 +4,15 @@
 #include "esphome/core/component.h"
 #include "esphome/components/button/button.h"
 
-namespace esphome {
-namespace micronova {
+namespace esphome::micronova {
 
 class MicroNovaButton : public Component, public button::Button, public MicroNovaButtonListener {
  public:
   MicroNovaButton(MicroNova *m) : MicroNovaButtonListener(m) {}
-  void dump_config() override { LOG_BUTTON("", "Micronova button", this); }
+  void dump_config() override {
+    LOG_BUTTON("", "Micronova button", this);
+    this->dump_base_config();
+  }
 
   void set_memory_data(uint8_t f) { this->memory_data_ = f; }
   uint8_t get_memory_data() { return this->memory_data_; }
@@ -19,5 +21,4 @@ class MicroNovaButton : public Component, public button::Button, public MicroNov
   void press_action() override;
 };
 
-}  // namespace micronova
-}  // namespace esphome
+}  // namespace esphome::micronova

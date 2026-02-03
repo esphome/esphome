@@ -38,7 +38,7 @@ template<typename... Ts> class PMWCS3AirCalibrationAction : public Action<Ts...>
  public:
   PMWCS3AirCalibrationAction(PMWCS3Component *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->air_calibration(); }
+  void play(const Ts &...x) override { this->parent_->air_calibration(); }
 
  protected:
   PMWCS3Component *parent_;
@@ -48,7 +48,7 @@ template<typename... Ts> class PMWCS3WaterCalibrationAction : public Action<Ts..
  public:
   PMWCS3WaterCalibrationAction(PMWCS3Component *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->water_calibration(); }
+  void play(const Ts &...x) override { this->parent_->water_calibration(); }
 
  protected:
   PMWCS3Component *parent_;
@@ -59,7 +59,7 @@ template<typename... Ts> class PMWCS3NewI2cAddressAction : public Action<Ts...> 
   PMWCS3NewI2cAddressAction(PMWCS3Component *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(int, new_address)
 
-  void play(Ts... x) override { this->parent_->new_i2c_address(this->new_address_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->new_i2c_address(this->new_address_.value(x...)); }
 
  protected:
   PMWCS3Component *parent_;

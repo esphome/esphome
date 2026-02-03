@@ -1,7 +1,7 @@
 #include "st7735.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace st7735 {
@@ -233,7 +233,6 @@ ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowst
       height_(height) {}
 
 void ST7735::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->spi_setup();
 
   this->dc_pin_->setup();  // OUTPUT
@@ -374,15 +373,18 @@ void ST7735::display_init_(const uint8_t *addr) {
 
 void ST7735::dump_config() {
   LOG_DISPLAY("", "ST7735", this);
-  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGD(TAG, "  Buffer Size: %zu", this->get_buffer_length());
-  ESP_LOGD(TAG, "  Height: %d", this->height_);
-  ESP_LOGD(TAG, "  Width: %d", this->width_);
-  ESP_LOGD(TAG, "  ColStart: %d", this->colstart_);
-  ESP_LOGD(TAG, "  RowStart: %d", this->rowstart_);
+  ESP_LOGCONFIG(TAG,
+                "  Model: %s\n"
+                "  Buffer Size: %zu\n"
+                "  Height: %d\n"
+                "  Width: %d\n"
+                "  ColStart: %d\n"
+                "  RowStart: %d",
+                this->model_str_(), this->get_buffer_length(), this->height_, this->width_, this->colstart_,
+                this->rowstart_);
   LOG_UPDATE_INTERVAL(this);
 }
 

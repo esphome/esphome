@@ -1,5 +1,6 @@
 #include "nfc.h"
 #include <cstdio>
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -7,29 +8,24 @@ namespace nfc {
 
 static const char *const TAG = "nfc";
 
-std::string format_uid(std::vector<uint8_t> &uid) {
-  char buf[(uid.size() * 2) + uid.size() - 1];
-  int offset = 0;
-  for (size_t i = 0; i < uid.size(); i++) {
-    const char *format = "%02X";
-    if (i + 1 < uid.size())
-      format = "%02X-";
-    offset += sprintf(buf + offset, format, uid[i]);
-  }
-  return std::string(buf);
+char *format_uid_to(char *buffer, std::span<const uint8_t> uid) {
+  return format_hex_pretty_to(buffer, FORMAT_UID_BUFFER_SIZE, uid.data(), uid.size(), '-');
 }
 
-std::string format_bytes(std::vector<uint8_t> &bytes) {
-  char buf[(bytes.size() * 2) + bytes.size() - 1];
-  int offset = 0;
-  for (size_t i = 0; i < bytes.size(); i++) {
-    const char *format = "%02X";
-    if (i + 1 < bytes.size())
-      format = "%02X ";
-    offset += sprintf(buf + offset, format, bytes[i]);
-  }
-  return std::string(buf);
+char *format_bytes_to(char *buffer, std::span<const uint8_t> bytes) {
+  return format_hex_pretty_to(buffer, FORMAT_BYTES_BUFFER_SIZE, bytes.data(), bytes.size(), ' ');
 }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+// Deprecated wrappers intentionally use heap-allocating version for backward compatibility
+std::string format_uid(std::span<const uint8_t> uid) {
+  return format_hex_pretty(uid.data(), uid.size(), '-', false);  // NOLINT
+}
+std::string format_bytes(std::span<const uint8_t> bytes) {
+  return format_hex_pretty(bytes.data(), bytes.size(), ' ', false);  // NOLINT
+}
+#pragma GCC diagnostic pop
 
 uint8_t guess_tag_type(uint8_t uid_length) {
   if (uid_length == 4) {

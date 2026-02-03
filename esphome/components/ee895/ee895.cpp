@@ -1,11 +1,14 @@
 #include "ee895.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace ee895 {
 
 static const char *const TAG = "ee895";
+
+// Serial number is 16 bytes
+static constexpr size_t EE895_SERIAL_NUMBER_SIZE = 16;
 
 static const uint16_t CRC16_ONEWIRE_START = 0xFFFF;
 static const uint8_t FUNCTION_CODE_READ = 0x03;
@@ -16,7 +19,6 @@ static const uint16_t PRESSURE_ADDRESS = 0x04B0;
 
 void EE895Component::setup() {
   uint16_t crc16_check = 0;
-  ESP_LOGCONFIG(TAG, "Running setup");
   write_command_(SERIAL_NUMBER, 8);
   uint8_t serial_number[20];
   this->read(serial_number, 20);
@@ -27,7 +29,10 @@ void EE895Component::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGV(TAG, "    Serial Number: 0x%s", format_hex(serial_number + 2, 16).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char serial_hex[format_hex_size(EE895_SERIAL_NUMBER_SIZE)];
+#endif
+  ESP_LOGV(TAG, "    Serial Number: 0x%s", format_hex_to(serial_hex, serial_number + 2, EE895_SERIAL_NUMBER_SIZE));
 }
 
 void EE895Component::dump_config() {
@@ -84,7 +89,7 @@ void EE895Component::write_command_(uint16_t addr, uint16_t reg_cnt) {
   crc16 = calc_crc16_(address, 6);
   address[5] = crc16 & 0xFF;
   address[6] = (crc16 >> 8) & 0xFF;
-  this->write(address, 7, true);
+  this->write(address, 7);
 }
 
 float EE895Component::read_float_() {

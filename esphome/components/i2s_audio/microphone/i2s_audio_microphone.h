@@ -18,6 +18,7 @@ namespace i2s_audio {
 class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, public Component {
  public:
   void setup() override;
+  void dump_config() override;
   void start() override;
   void stop() override;
 
@@ -35,8 +36,8 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
 
 #ifdef USE_I2S_LEGACY
 #if SOC_I2S_SUPPORTS_ADC
-  void set_adc_channel(adc1_channel_t channel) {
-    this->adc_channel_ = channel;
+  void set_adc_channel(adc_channel_t channel) {
+    this->adc_channel_ = (adc1_channel_t) channel;
     this->adc_ = true;
   }
 #endif
@@ -80,7 +81,9 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
   bool pdm_{false};
 
   bool correct_dc_offset_;
-  int32_t dc_offset_{0};
+  bool locked_driver_{false};
+  int32_t dc_offset_prev_input_{0};
+  int32_t dc_offset_prev_output_{0};
 };
 
 }  // namespace i2s_audio

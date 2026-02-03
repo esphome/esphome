@@ -4,8 +4,7 @@
 #include "color_mode.h"
 #include <cmath>
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 inline static uint8_t to_uint8_scale(float x) { return static_cast<uint8_t>(roundf(x * 255.0f)); }
 
@@ -46,8 +45,7 @@ class LightColorValues {
  public:
   /// Construct the LightColorValues with all attributes enabled, but state set to off.
   LightColorValues()
-      : color_mode_(ColorMode::UNKNOWN),
-        state_(0.0f),
+      : state_(0.0f),
         brightness_(1.0f),
         color_brightness_(1.0f),
         red_(1.0f),
@@ -56,7 +54,8 @@ class LightColorValues {
         white_(1.0f),
         color_temperature_{0.0f},
         cold_white_{1.0f},
-        warm_white_{1.0f} {}
+        warm_white_{1.0f},
+        color_mode_(ColorMode::UNKNOWN) {}
 
   LightColorValues(ColorMode color_mode, float state, float brightness, float color_brightness, float red, float green,
                    float blue, float white, float color_temperature, float cold_white, float warm_white) {
@@ -83,21 +82,7 @@ class LightColorValues {
    * @param completion The completion value. 0 -> start, 1 -> end.
    * @return The linearly interpolated LightColorValues.
    */
-  static LightColorValues lerp(const LightColorValues &start, const LightColorValues &end, float completion) {
-    LightColorValues v;
-    v.set_color_mode(end.color_mode_);
-    v.set_state(esphome::lerp(completion, start.get_state(), end.get_state()));
-    v.set_brightness(esphome::lerp(completion, start.get_brightness(), end.get_brightness()));
-    v.set_color_brightness(esphome::lerp(completion, start.get_color_brightness(), end.get_color_brightness()));
-    v.set_red(esphome::lerp(completion, start.get_red(), end.get_red()));
-    v.set_green(esphome::lerp(completion, start.get_green(), end.get_green()));
-    v.set_blue(esphome::lerp(completion, start.get_blue(), end.get_blue()));
-    v.set_white(esphome::lerp(completion, start.get_white(), end.get_white()));
-    v.set_color_temperature(esphome::lerp(completion, start.get_color_temperature(), end.get_color_temperature()));
-    v.set_cold_white(esphome::lerp(completion, start.get_cold_white(), end.get_cold_white()));
-    v.set_warm_white(esphome::lerp(completion, start.get_warm_white(), end.get_warm_white()));
-    return v;
-  }
+  static LightColorValues lerp(const LightColorValues &start, const LightColorValues &end, float completion);
 
   /** Normalize the color (RGB/W) component.
    *
@@ -292,7 +277,6 @@ class LightColorValues {
   void set_warm_white(float warm_white) { this->warm_white_ = clamp(warm_white, 0.0f, 1.0f); }
 
  protected:
-  ColorMode color_mode_;
   float state_;  ///< ON / OFF, float for transition
   float brightness_;
   float color_brightness_;
@@ -303,7 +287,7 @@ class LightColorValues {
   float color_temperature_;  ///< Color Temperature in Mired
   float cold_white_;
   float warm_white_;
+  ColorMode color_mode_;
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

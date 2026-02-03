@@ -27,15 +27,17 @@ inline double deg2rad(double degrees) {
 }
 
 void Rtttl::dump_config() {
-  ESP_LOGCONFIG(TAG, "Rtttl:");
-  ESP_LOGCONFIG(TAG, "  Gain: %f", this->gain_);
+  ESP_LOGCONFIG(TAG,
+                "Rtttl:\n"
+                "  Gain: %f",
+                this->gain_);
 }
 
 void Rtttl::play(std::string rtttl) {
   if (this->state_ != State::STATE_STOPPED && this->state_ != State::STATE_STOPPING) {
-    int pos = this->rtttl_.find(':');
-    auto name = this->rtttl_.substr(0, pos);
-    ESP_LOGW(TAG, "Already playing: %s", name.c_str());
+    size_t pos = this->rtttl_.find(':');
+    size_t len = (pos != std::string::npos) ? pos : this->rtttl_.length();
+    ESP_LOGW(TAG, "Already playing: %.*s", (int) len, this->rtttl_.c_str());
     return;
   }
 
@@ -57,8 +59,7 @@ void Rtttl::play(std::string rtttl) {
     return;
   }
 
-  auto name = this->rtttl_.substr(0, this->position_);
-  ESP_LOGD(TAG, "Playing song %s", name.c_str());
+  ESP_LOGD(TAG, "Playing song %.*s", (int) this->position_, this->rtttl_.c_str());
 
   // get default duration
   this->position_ = this->rtttl_.find("d=", this->position_);
@@ -136,18 +137,48 @@ void Rtttl::stop() {
     this->set_state_(STATE_STOPPING);
   }
 #endif
+  this->position_ = this->rtttl_.length();
+  this->note_duration_ = 0;
+}
+
+void Rtttl::finish_() {
+  ESP_LOGV(TAG, "Rtttl::finish_()");
+#ifdef USE_OUTPUT
+  if (this->output_ != nullptr) {
+    this->output_->set_level(0.0);
+    this->set_state_(State::STATE_STOPPED);
+  }
+#endif
+#ifdef USE_SPEAKER
+  if (this->speaker_ != nullptr) {
+    SpeakerSample sample[2];
+    sample[0].left = 0;
+    sample[0].right = 0;
+    sample[1].left = 0;
+    sample[1].right = 0;
+    this->speaker_->play((uint8_t *) (&sample), 8);
+    this->speaker_->finish();
+    this->set_state_(State::STATE_STOPPING);
+  }
+#endif
+  // Ensure no more notes are played in case finish_() is called for an error.
+  this->position_ = this->rtttl_.length();
   this->note_duration_ = 0;
 }
 
 void Rtttl::loop() {
-  if (this->note_duration_ == 0 || this->state_ == State::STATE_STOPPED)
+  if (this->state_ == State::STATE_STOPPED) {
+    this->disable_loop();
     return;
+  }
 
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
     if (this->state_ == State::STATE_STOPPING) {
       if (this->speaker_->is_stopped()) {
         this->set_state_(State::STATE_STOPPED);
+      } else {
+        return;
       }
     } else if (this->state_ == State::STATE_INIT) {
       if (this->speaker_->is_stopped()) {
@@ -183,7 +214,7 @@ void Rtttl::loop() {
           sample[x].right = 0;
         }
 
-        if (x >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
+        if (static_cast<size_t>(x) >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
           break;
         }
         this->samples_sent_++;
@@ -203,7 +234,7 @@ void Rtttl::loop() {
   if (this->output_ != nullptr && millis() - this->last_note_ < this->note_duration_)
     return;
 #endif
-  if (!this->rtttl_[this->position_]) {
+  if (this->position_ >= this->rtttl_.length()) {
     this->finish_();
     return;
   }
@@ -342,31 +373,7 @@ void Rtttl::loop() {
   this->last_note_ = millis();
 }
 
-void Rtttl::finish_() {
-#ifdef USE_OUTPUT
-  if (this->output_ != nullptr) {
-    this->output_->set_level(0.0);
-    this->set_state_(State::STATE_STOPPED);
-  }
-#endif
-#ifdef USE_SPEAKER
-  if (this->speaker_ != nullptr) {
-    SpeakerSample sample[2];
-    sample[0].left = 0;
-    sample[0].right = 0;
-    sample[1].left = 0;
-    sample[1].right = 0;
-    this->speaker_->play((uint8_t *) (&sample), 8);
-
-    this->speaker_->finish();
-    this->set_state_(State::STATE_STOPPING);
-  }
-#endif
-  this->note_duration_ = 0;
-  this->on_finished_playback_callback_.call();
-  ESP_LOGD(TAG, "Playback finished");
-}
-
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 static const LogString *state_to_string(State state) {
   switch (state) {
     case STATE_STOPPED:
@@ -383,12 +390,22 @@ static const LogString *state_to_string(State state) {
       return LOG_STR("UNKNOWN");
   }
 };
+#endif
 
 void Rtttl::set_state_(State state) {
   State old_state = this->state_;
   this->state_ = state;
   ESP_LOGV(TAG, "State changed from %s to %s", LOG_STR_ARG(state_to_string(old_state)),
            LOG_STR_ARG(state_to_string(state)));
+
+  // Clear loop_done when transitioning from STOPPED to any other state
+  if (state == State::STATE_STOPPED) {
+    this->disable_loop();
+    this->on_finished_playback_callback_.call();
+    ESP_LOGD(TAG, "Playback finished");
+  } else if (old_state == State::STATE_STOPPED) {
+    this->enable_loop();
+  }
 }
 
 }  // namespace rtttl

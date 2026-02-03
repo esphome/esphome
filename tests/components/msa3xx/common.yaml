@@ -1,5 +1,5 @@
 msa3xx:
-  i2c_id: i2c_msa3xx
+  i2c_id: i2c_bus
   type: msa301
   range: 4G
   resolution: 14

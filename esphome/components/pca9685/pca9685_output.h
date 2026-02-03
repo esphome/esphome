@@ -7,6 +7,11 @@
 namespace esphome {
 namespace pca9685 {
 
+enum class PhaseBalancer {
+  NONE = 0x00,
+  LINEAR = 0x01,
+};
+
 /// Inverts polarity of channel output signal
 extern const uint8_t PCA9685_MODE_INVERTED;
 /// Channel update happens upon ACK (post-set) rather than on STOP (endTransmission)
@@ -47,6 +52,7 @@ class PCA9685Output : public Component, public i2c::I2CDevice {
   void loop() override;
   void set_extclk(bool extclk) { this->extclk_ = extclk; }
   void set_frequency(float frequency) { this->frequency_ = frequency; }
+  void set_phase_balancer(PhaseBalancer balancer) { this->balancer_ = balancer; }
 
  protected:
   friend PCA9685Channel;
@@ -60,6 +66,7 @@ class PCA9685Output : public Component, public i2c::I2CDevice {
   float frequency_;
   uint8_t mode_;
   bool extclk_ = false;
+  PhaseBalancer balancer_ = PhaseBalancer::LINEAR;
 
   uint8_t min_channel_{0xFF};
   uint8_t max_channel_{0x00};

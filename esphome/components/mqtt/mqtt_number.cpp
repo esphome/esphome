@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_NUMBER
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.number";
 
@@ -31,20 +30,24 @@ void MQTTNumberComponent::setup() {
 
 void MQTTNumberComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Number '%s':", this->number_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, false)
+  LOG_MQTT_COMPONENT(true, false);
 }
 
-std::string MQTTNumberComponent::component_type() const { return "number"; }
+MQTT_COMPONENT_TYPE(MQTTNumberComponent, "number")
 const EntityBase *MQTTNumberComponent::get_entity() const { return this->number_; }
 
 void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   const auto &traits = number_->traits;
   // https://www.home-assistant.io/integrations/number.mqtt/
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   root[MQTT_MIN] = traits.get_min_value();
   root[MQTT_MAX] = traits.get_max_value();
   root[MQTT_STEP] = traits.get_step();
-  if (!this->number_->traits.get_unit_of_measurement().empty())
-    root[MQTT_UNIT_OF_MEASUREMENT] = this->number_->traits.get_unit_of_measurement();
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  const auto unit_of_measurement = this->number_->traits.get_unit_of_measurement_ref();
+  if (!unit_of_measurement.empty()) {
+    root[MQTT_UNIT_OF_MEASUREMENT] = unit_of_measurement;
+  }
   switch (this->number_->traits.get_mode()) {
     case NUMBER_MODE_AUTO:
       break;
@@ -55,8 +58,11 @@ void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
       root[MQTT_MODE] = "slider";
       break;
   }
-  if (!this->number_->traits.get_device_class().empty())
-    root[MQTT_DEVICE_CLASS] = this->number_->traits.get_device_class();
+  const auto device_class = this->number_->traits.get_device_class_ref();
+  if (!device_class.empty()) {
+    root[MQTT_DEVICE_CLASS] = device_class;
+  }
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
   config.command_topic = true;
 }
@@ -68,13 +74,13 @@ bool MQTTNumberComponent::send_initial_state() {
   }
 }
 bool MQTTNumberComponent::publish_state(float value) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   char buffer[64];
-  snprintf(buffer, sizeof(buffer), "%f", value);
-  return this->publish(this->get_state_topic_(), buffer);
+  size_t len = buf_append_printf(buffer, sizeof(buffer), 0, "%f", value);
+  return this->publish(this->get_state_topic_to_(topic_buf), buffer, len);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

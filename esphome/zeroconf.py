@@ -68,8 +68,11 @@ class DashboardBrowser(AsyncServiceBrowser):
 
 
 class DashboardImportDiscovery:
-    def __init__(self) -> None:
+    def __init__(
+        self, on_update: Callable[[str, DiscoveredImport | None], None] | None = None
+    ) -> None:
         self.import_state: dict[str, DiscoveredImport] = {}
+        self.on_update = on_update
 
     def browser_callback(
         self,
@@ -85,7 +88,9 @@ class DashboardImportDiscovery:
             state_change,
         )
         if state_change == ServiceStateChange.Removed:
-            self.import_state.pop(name, None)
+            removed = self.import_state.pop(name, None)
+            if removed and self.on_update:
+                self.on_update(name, None)
             return
 
         if state_change == ServiceStateChange.Updated and name not in self.import_state:
@@ -139,7 +144,7 @@ class DashboardImportDiscovery:
         if friendly_name is not None:
             friendly_name = friendly_name.decode()
 
-        self.import_state[name] = DiscoveredImport(
+        discovered = DiscoveredImport(
             friendly_name=friendly_name,
             device_name=node_name,
             package_import_url=import_url,
@@ -147,6 +152,10 @@ class DashboardImportDiscovery:
             project_version=project_version,
             network=network,
         )
+        is_new = name not in self.import_state
+        self.import_state[name] = discovered
+        if is_new and self.on_update:
+            self.on_update(name, discovered)
 
     def update_device_mdns(self, node_name: str, version: str):
         storage_path = ext_storage_path(node_name + ".yaml")

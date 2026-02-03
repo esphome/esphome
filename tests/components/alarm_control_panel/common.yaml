@@ -9,6 +9,8 @@ alarm_control_panel:
     name: Alarm Panel
     codes:
       - "1234"
+      - "5678"
+      - "0000"
     requires_code_to_arm: true
     arming_home_time: 1s
     arming_night_time: 1s
@@ -26,9 +28,10 @@ alarm_control_panel:
             ESP_LOGD("TEST", "State change %s", LOG_STR_ARG(alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state())));
   - platform: template
     id: alarmcontrolpanel2
-    name: Alarm Panel
+    name: Alarm Panel 2
     codes:
       - "1234"
+      - "9999"
     requires_code_to_arm: true
     arming_home_time: 1s
     arming_night_time: 1s

@@ -1,0 +1,22 @@
+sensor:
+  - platform: template
+    id: pm25_sensor
+    name: "PM2.5"
+    lambda: "return 25.0;"
+
+  - platform: template
+    id: pm10_sensor
+    name: "PM10"
+    lambda: "return 50.0;"
+
+  - platform: aqi
+    name: "Air Quality Index (AQI)"
+    pm_2_5: pm25_sensor
+    pm_10_0: pm10_sensor
+    calculation_type: AQI
+
+  - platform: aqi
+    name: "Air Quality Index (CAQI)"
+    pm_2_5: pm25_sensor
+    pm_10_0: pm10_sensor
+    calculation_type: CAQI

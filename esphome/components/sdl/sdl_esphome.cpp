@@ -6,7 +6,6 @@ namespace esphome {
 namespace sdl {
 
 void Sdl::setup() {
-  ESP_LOGD(TAG, "Starting setup");
   SDL_Init(SDL_INIT_VIDEO);
   this->window_ = SDL_CreateWindow(App.get_name().c_str(), this->pos_x_, this->pos_y_, this->width_, this->height_,
                                    this->window_options_);
@@ -15,7 +14,6 @@ void Sdl::setup() {
   this->texture_ =
       SDL_CreateTexture(this->renderer_, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STATIC, this->width_, this->height_);
   SDL_SetTextureBlendMode(this->texture_, SDL_BLENDMODE_BLEND);
-  ESP_LOGD(TAG, "Setup Complete");
 }
 void Sdl::update() {
   this->do_update_();
@@ -48,6 +46,9 @@ void Sdl::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *
 }
 
 void Sdl::draw_pixel_at(int x, int y, Color color) {
+  if (!this->get_clipping().inside(x, y))
+    return;
+
   SDL_Rect rect{x, y, 1, 1};
   auto data = (display::ColorUtil::color_to_565(color, display::COLOR_ORDER_RGB));
   SDL_UpdateTexture(this->texture_, &rect, &data, 2);

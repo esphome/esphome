@@ -1,6 +1,5 @@
 import json
 import logging
-from os.path import dirname, isfile, join
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -20,9 +19,11 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    ThreadModel,
     __version__,
 )
 from esphome.core import CORE
+from esphome.storage_json import StorageJSON
 
 from . import gpio  # noqa
 from .const import (
@@ -31,8 +32,10 @@ from .const import (
     CONF_SDK_SILENT,
     CONF_UART_PORT,
     FAMILIES,
+    FAMILY_BK7231N,
     FAMILY_COMPONENT,
     FAMILY_FRIENDLY,
+    FAMILY_RTL8710B,
     KEY_BOARD,
     KEY_COMPONENT,
     KEY_COMPONENT_DATA,
@@ -48,6 +51,22 @@ _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
+
+# BK7231N SDK options to disable unused features.
+# Disabling BLE saves ~21KB RAM and ~200KB Flash because BLE init code is
+# called unconditionally by the SDK. ESPHome doesn't use BLE on LibreTiny.
+#
+# This only works on BK7231N (BLE 5.x). Other BK72XX chips using BLE 4.2
+# (BK7231T, BK7231Q, BK7251; BK7252 boards use the BK7251 family) have a bug
+# where the BLE library still links and references undefined symbols when
+# CFG_SUPPORT_BLE=0.
+#
+# Other options like CFG_TX_EVM_TEST, CFG_RX_SENSITIVITY_TEST, CFG_SUPPORT_BKREG,
+# CFG_SUPPORT_OTA_HTTP, and CFG_USE_SPI_SLAVE were evaluated but provide no  # NOLINT
+# measurable benefit - the linker already strips unreferenced code via -gc-sections.
+_BK7231N_SYS_CONFIG_OPTIONS = [
+    "CFG_SUPPORT_BLE=0",
+]
 
 
 def _detect_variant(value):
@@ -128,7 +147,7 @@ def only_on_family(*, supported=None, unsupported=None):
     return validator_
 
 
-def get_download_types(storage_json=None):
+def get_download_types(storage_json: StorageJSON = None):
     types = [
         {
             "title": "UF2 package (recommended)",
@@ -138,11 +157,11 @@ def get_download_types(storage_json=None):
         },
     ]
 
-    build_dir = dirname(storage_json.firmware_bin_path)
-    outputs = join(build_dir, "firmware.json")
-    if not isfile(outputs):
+    build_dir = storage_json.firmware_bin_path.parent
+    outputs = build_dir / "firmware.json"
+    if not outputs.is_file():
         return types
-    with open(outputs, encoding="utf-8") as f:
+    with outputs.open(encoding="utf-8") as f:
         outputs = json.load(f)
     for output in outputs:
         if not output["public"]:
@@ -172,10 +191,17 @@ def _notify_old_style(config):
 
 
 # The dev and latest branches will be at *least* this version, which is what matters.
+# Use GitHub releases directly to avoid PlatformIO moderation delays.
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(1, 7, 0), "https://github.com/libretiny-eu/libretiny.git"),
-    "latest": (cv.Version(1, 7, 0), "libretiny"),
-    "recommended": (cv.Version(1, 7, 0), None),
+    "dev": (cv.Version(1, 11, 0), "https://github.com/libretiny-eu/libretiny.git"),
+    "latest": (
+        cv.Version(1, 11, 0),
+        "https://github.com/libretiny-eu/libretiny.git#v1.11.0",
+    ),
+    "recommended": (
+        cv.Version(1, 11, 0),
+        "https://github.com/libretiny-eu/libretiny.git#v1.11.0",
+    ),
 }
 
 
@@ -260,13 +286,32 @@ async def component_to_code(config):
     cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_FAMILY]}")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", FAMILY_FRIENDLY[config[CONF_FAMILY]])
+    # Set threading model based on chip architecture
+    component: LibreTinyComponent = CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA]
+    if component.supports_atomics:
+        # RTL87xx (Cortex-M4) and LN882x (Cortex-M4F) have LDREX/STREX
+        cg.add_define(ThreadModel.MULTI_ATOMICS)
+    else:
+        # BK72xx uses ARM968E-S (ARMv5TE) which lacks LDREX/STREX.
+        # std::atomic RMW operations would require libatomic (not linked to save
+        # 4-8KB flash). Even if linked, it would use locks, so explicit FreeRTOS
+        # mutexes are simpler and equivalent.
+        cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
+
+    # RTL8710B needs FreeRTOS 8.2.3+ for xTaskNotifyGive/ulTaskNotifyTake
+    # required by AsyncTCP 3.4.3+ (https://github.com/esphome/esphome/issues/10220)
+    # RTL8720C (ambz2) requires FreeRTOS 10.x so this only applies to RTL8710B
+    if config[CONF_FAMILY] == FAMILY_RTL8710B:
+        cg.add_platformio_option("custom_versions.freertos", "8.2.3")
 
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
+    cg.set_cpp_standard("gnu++20")
 
     # disable library compatibility checks
     cg.add_platformio_option("lib_ldf_mode", "off")
+    cg.add_platformio_option("lib_compat_mode", "soft")
     # include <Arduino.h> in every file
     cg.add_platformio_option("build_src_flags", "-include Arduino.h")
     # dummy version code
@@ -337,5 +382,18 @@ async def component_to_code(config):
     else:
         cg.add_platformio_option("custom_fw_name", "esphome")
         cg.add_platformio_option("custom_fw_version", __version__)
+
+    # Apply chip-specific SDK options to save RAM/Flash
+    if config[CONF_FAMILY] == FAMILY_BK7231N:
+        cg.add_platformio_option(
+            "custom_options.sys_config#h", _BK7231N_SYS_CONFIG_OPTIONS
+        )
+
+    # Disable LWIP statistics to save RAM - not needed in production
+    # Must explicitly disable all sub-stats to avoid redefinition warnings
+    cg.add_platformio_option(
+        "custom_options.lwip",
+        ["LWIP_STATS=0", "MEM_STATS=0", "MEMP_STATS=0"],
+    )
 
     await cg.register_component(var, config)

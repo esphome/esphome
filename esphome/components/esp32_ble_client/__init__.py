@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome.components import esp32_ble_tracker
 
 AUTO_LOAD = ["esp32_ble_tracker"]
-CODEOWNERS = ["@jesserockz"]
+CODEOWNERS = ["@jesserockz", "@bdraco"]
 DEPENDENCIES = ["esp32"]
 
 esp32_ble_client_ns = cg.esphome_ns.namespace("esp32_ble_client")

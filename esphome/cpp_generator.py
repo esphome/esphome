@@ -1,5 +1,5 @@
 import abc
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 import inspect
 import math
 import re
@@ -13,7 +13,6 @@ from esphome.core import (
     HexInt,
     Lambda,
     Library,
-    TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
     TimePeriodMinutes,
@@ -21,33 +20,9 @@ from esphome.core import (
     TimePeriodSeconds,
 )
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
+from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
 from esphome.yaml_util import ESPHomeDataBase
-
-
-class Expression(abc.ABC):
-    __slots__ = ()
-
-    @abc.abstractmethod
-    def __str__(self):
-        """
-        Convert expression into C++ code
-        """
-
-
-SafeExpType = (
-    Expression
-    | bool
-    | str
-    | str
-    | int
-    | float
-    | TimePeriod
-    | type[bool]
-    | type[int]
-    | type[float]
-    | Sequence[Any]
-)
 
 
 class RawExpression(Expression):
@@ -76,15 +51,19 @@ class AssignmentExpression(Expression):
 
 
 class VariableDeclarationExpression(Expression):
-    __slots__ = ("type", "modifier", "name")
+    __slots__ = ("type", "modifier", "name", "static")
 
-    def __init__(self, type_, modifier, name):
+    def __init__(
+        self, type_: "MockObj", modifier: str, name: ID, *, static: bool = False
+    ) -> None:
         self.type = type_
         self.modifier = modifier
         self.name = name
+        self.static = static
 
-    def __str__(self):
-        return f"{self.type} {self.modifier}{self.name}"
+    def __str__(self) -> str:
+        prefix = "static " if self.static else ""
+        return f"{prefix}{self.type} {self.modifier}{self.name}"
 
 
 class ExpressionList(Expression):
@@ -223,6 +202,8 @@ class LambdaExpression(Expression):
         self.return_type = safe_exp(return_type) if return_type is not None else None
 
     def __str__(self):
+        # Stateless lambdas (empty capture) implicitly convert to function pointers
+        # when assigned to function pointer types - no unary + needed
         cpp = f"[{self.capture}]({self.parameters})"
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
@@ -251,6 +232,19 @@ class StringLiteral(Literal):
 
     def __str__(self):
         return cpp_string_escape(self.string)
+
+
+class LogStringLiteral(Literal):
+    """A string literal that uses LOG_STR() macro for flash storage on ESP8266."""
+
+    __slots__ = ("string",)
+
+    def __init__(self, string: str) -> None:
+        super().__init__()
+        self.string = string
+
+    def __str__(self) -> str:
+        return f"LOG_STR({cpp_string_escape(self.string)})"
 
 
 class IntLiteral(Literal):
@@ -360,7 +354,7 @@ def safe_exp(obj: SafeExpType) -> Expression:
         return IntLiteral(int(obj.total_seconds))
     if isinstance(obj, TimePeriodMinutes):
         return IntLiteral(int(obj.total_minutes))
-    if isinstance(obj, tuple | list):
+    if isinstance(obj, (tuple, list)):
         return ArrayInitializer(*[safe_exp(o) for o in obj])
     if obj is bool:
         return bool_
@@ -468,6 +462,16 @@ def statement(expression: Expression | Statement) -> Statement:
     return ExpressionStatement(expression)
 
 
+def literal(name: str) -> "MockObj":
+    """Create a literal name that will appear in the generated code
+    not surrounded by quotes.
+
+    :param name: The name of the literal.
+    :return: The literal as a MockObj.
+    """
+    return MockObj(name, "")
+
+
 def variable(
     id_: ID, rhs: SafeExpType, type_: "MockObj" = None, register=True
 ) -> "MockObj":
@@ -517,13 +521,17 @@ def with_local_variable(id_: ID, rhs: SafeExpType, callback: Callable, *args) ->
     CORE.add(RawStatement("}"))  # output closing curly brace
 
 
-def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
+def new_variable(
+    id_: ID, rhs: SafeExpType, type_: "MockObj" = None, *, static: bool = True
+) -> "MockObj":
     """Declare and define a new variable, not pointer type, in the code generation.
 
     :param id_: The ID used to declare the variable.
     :param rhs: The expression to place on the right hand side of the assignment.
     :param type_: Manually define a type for the variable, only use this when it's not possible
       to do so during config validation phase (for example because of template arguments).
+    :param static: If True (default), declare with static storage class for optimization.
+      Set to False when the variable must have external linkage (e.g., to match library declarations).
 
     :return: The new variable as a MockObj.
     """
@@ -532,7 +540,7 @@ def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj
     obj = MockObj(id_, ".")
     if type_ is not None:
         id_.type = type_
-    decl = VariableDeclarationExpression(id_.type, "", id_)
+    decl = VariableDeclarationExpression(id_.type, "", id_, static=static)
     CORE.add_global(decl)
     assignment = AssignmentExpression(None, "", id_, rhs)
     CORE.add(assignment)
@@ -554,7 +562,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     obj = MockObj(id_, "->")
     if type_ is not None:
         id_.type = type_
-    decl = VariableDeclarationExpression(id_.type, "*", id_)
+    decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
     CORE.add_global(decl)
     assignment = AssignmentExpression(None, None, id_, rhs)
     CORE.add(assignment)
@@ -562,7 +570,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     return obj
 
 
-def new_Pvariable(id_: ID, *args: SafeExpType) -> Pvariable:
+def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
     """Declare a new pointer variable in the code generation by calling it's constructor
     with the given arguments.
 
@@ -579,13 +587,13 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> Pvariable:
     return Pvariable(id_, rhs)
 
 
-def add(expression: Expression | Statement):
+def add(expression: Expression | Statement, prepend: bool = False):
     """Add an expression to the codegen section.
 
     After this is called, the given given expression will
     show up in the setup() function after this has been called.
     """
-    CORE.add(expression)
+    CORE.add(expression, prepend)
 
 
 def add_global(expression: SafeExpType | Statement, prepend: bool = False):
@@ -608,6 +616,23 @@ def add_build_flag(build_flag: str):
     CORE.add_build_flag(build_flag)
 
 
+def add_build_unflag(build_unflag: str) -> None:
+    """Add a global build unflag to the compiler flags."""
+    CORE.add_build_unflag(build_unflag)
+
+
+def set_cpp_standard(standard: str) -> None:
+    """Set C++ standard with compiler flag `-std={standard}`."""
+    CORE.add_build_unflag("-std=gnu++11")
+    CORE.add_build_unflag("-std=gnu++14")
+    CORE.add_build_unflag("-std=gnu++17")
+    CORE.add_build_unflag("-std=gnu++23")
+    CORE.add_build_unflag("-std=gnu++2a")
+    CORE.add_build_unflag("-std=gnu++2b")
+    CORE.add_build_unflag("-std=gnu++2c")
+    CORE.add_build_flag(f"-std={standard}")
+
+
 def add_define(name: str, value: SafeExpType = None):
     """Add a global define to the auto-generated defines.h file.
 
@@ -628,7 +653,7 @@ async def get_variable(id_: ID) -> "MockObj":
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
 
-    This is a coroutine, you need to await it with a 'await' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
 
     :param id_: The ID to retrieve
     :return: The variable as a MockObj.
@@ -641,7 +666,7 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
 
-    This is a coroutine, you need to await it with a 'await' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
 
     :param id_: The ID to retrieve
     :return: The variable as a MockObj.
@@ -650,9 +675,9 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
 
 
 async def process_lambda(
-    value: Lambda,
-    parameters: list[tuple[SafeExpType, str]],
-    capture: str = "=",
+    value: Lambda | Expression,
+    parameters: TemplateArgsType,
+    capture: str = "",
     return_type: SafeExpType = None,
 ) -> LambdaExpression | None:
     """Process the given lambda value into a LambdaExpression.
@@ -674,6 +699,14 @@ async def process_lambda(
 
     if value is None:
         return None
+    # Inadvertently passing a malformed parameters value will lead to the build process mysteriously hanging at the
+    # "Generating C++ source..." stage, so check here to save the developer's hair.
+    assert isinstance(parameters, list) and all(
+        isinstance(p, tuple) and len(p) == 2 for p in parameters
+    )
+    if isinstance(value, Expression):
+        value = Lambda(value)
+
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
         full_id, var = await get_variable_with_full_id(id)
@@ -754,8 +787,7 @@ class MockObj(Expression):
         if attr.startswith("P") and self.op not in ["::", ""]:
             attr = attr[1:]
             next_op = "->"
-        if attr.startswith("_"):
-            attr = attr[1:]
+        attr = attr.removeprefix("_")
         return MockObj(f"{self.base}{self.op}{attr}", next_op)
 
     def __call__(self, *args: SafeExpType) -> "MockObj":
@@ -1020,10 +1052,7 @@ class MockObjClass(MockObj):
     def inherits_from(self, other: "MockObjClass") -> bool:
         if str(self) == str(other):
             return True
-        for parent in self._parents:
-            if str(parent) == str(other):
-                return True
-        return False
+        return any(str(parent) == str(other) for parent in self._parents)
 
     def template(self, *args: SafeExpType) -> "MockObjClass":
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):

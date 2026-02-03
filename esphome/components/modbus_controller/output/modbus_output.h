@@ -29,8 +29,8 @@ class ModbusFloatOutput : public output::FloatOutput, public Component, public S
   // Do nothing
   void parse_and_publish(const std::vector<uint8_t> &data) override{};
 
-  using write_transform_func_t = std::function<optional<float>(ModbusFloatOutput *, float, std::vector<uint16_t> &)>;
-  void set_write_template(write_transform_func_t &&f) { this->write_transform_func_ = f; }
+  using write_transform_func_t = optional<float> (*)(ModbusFloatOutput *, float, std::vector<uint16_t> &);
+  void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
  protected:
@@ -60,8 +60,8 @@ class ModbusBinaryOutput : public output::BinaryOutput, public Component, public
   // Do nothing
   void parse_and_publish(const std::vector<uint8_t> &data) override{};
 
-  using write_transform_func_t = std::function<optional<bool>(ModbusBinaryOutput *, bool, std::vector<uint8_t> &)>;
-  void set_write_template(write_transform_func_t &&f) { this->write_transform_func_ = f; }
+  using write_transform_func_t = optional<bool> (*)(ModbusBinaryOutput *, bool, std::vector<uint8_t> &);
+  void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
  protected:

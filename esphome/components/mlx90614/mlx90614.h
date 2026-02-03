@@ -22,7 +22,6 @@ class MLX90614Component : public PollingComponent, public i2c::I2CDevice {
  protected:
   bool write_emissivity_();
 
-  uint8_t crc8_pec_(const uint8_t *data, uint8_t len);
   bool write_bytes_(uint8_t reg, uint16_t data);
 
   sensor::Sensor *ambient_sensor_{nullptr};

@@ -117,7 +117,8 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
         this->paint_index_++;
         this->current_index_ += 3;
         index += 3;
-        if (x == this->width_ - 1 && this->padding_bytes_ > 0) {
+        size_t last_col = static_cast<size_t>(this->width_) - 1;
+        if (x == last_col && this->padding_bytes_ > 0) {
           index += this->padding_bytes_;
           this->current_index_ += this->padding_bytes_;
         }

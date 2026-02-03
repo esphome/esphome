@@ -20,7 +20,6 @@ static const uint8_t SM2135_RGB = 0x00;  // RGB channel
 static const uint8_t SM2135_CW = 0x80;   // CW channel (Chip default)
 
 void SM2135::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->data_pin_->setup();
   this->data_pin_->digital_write(false);
   this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);
@@ -35,11 +34,13 @@ void SM2135::setup() {
 }
 
 void SM2135::dump_config() {
-  ESP_LOGCONFIG(TAG, "SM2135:");
+  ESP_LOGCONFIG(TAG,
+                "SM2135:\n"
+                "  CW Current: %dmA\n"
+                "  RGB Current: %dmA",
+                10 + (this->cw_current_ * 5), 10 + (this->rgb_current_ * 5));
   LOG_PIN("  Data Pin: ", this->data_pin_);
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
-  ESP_LOGCONFIG(TAG, "  CW Current: %dmA", 10 + (this->cw_current_ * 5));
-  ESP_LOGCONFIG(TAG, "  RGB Current: %dmA", 10 + (this->rgb_current_ * 5));
 }
 
 void SM2135::write_byte_(uint8_t data) {

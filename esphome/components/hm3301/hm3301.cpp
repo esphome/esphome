@@ -11,7 +11,6 @@ static const uint8_t PM_2_5_VALUE_INDEX = 6;
 static const uint8_t PM_10_0_VALUE_INDEX = 7;
 
 void HM3301Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (i2c::ERROR_OK != this->write(&SELECT_COMM_CMD, 1)) {
     error_code_ = ERROR_COMM;
     this->mark_failed();
@@ -64,7 +63,7 @@ void HM3301Component::update() {
 
   int16_t aqi_value = -1;
   if (this->aqi_sensor_ != nullptr && pm_2_5_value != -1 && pm_10_0_value != -1) {
-    AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
+    aqi::AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
     aqi_value = calculator->get_aqi(pm_2_5_value, pm_10_0_value);
   }
 

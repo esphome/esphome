@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_TEXT
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.text";
 
@@ -27,13 +26,14 @@ void MQTTTextComponent::setup() {
 
 void MQTTTextComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT text '%s':", this->text_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true)
+  LOG_MQTT_COMPONENT(true, true);
 }
 
-std::string MQTTTextComponent::component_type() const { return "text"; }
+MQTT_COMPONENT_TYPE(MQTTTextComponent, "text")
 const EntityBase *MQTTTextComponent::get_entity() const { return this->text_; }
 
 void MQTTTextComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   switch (this->text_->traits.get_mode()) {
     case TEXT_MODE_TEXT:
       root[MQTT_MODE] = "text";
@@ -53,11 +53,11 @@ bool MQTTTextComponent::send_initial_state() {
   }
 }
 bool MQTTTextComponent::publish_state(const std::string &value) {
-  return this->publish(this->get_state_topic_(), value);
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish(this->get_state_topic_to_(topic_buf), value.data(), value.size());
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

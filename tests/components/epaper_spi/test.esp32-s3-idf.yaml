@@ -1,0 +1,50 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
+
+display:
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: spectra-e6
+    dimensions:
+      width: 800
+      height: 480
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rotation: 0
+    update_interval: 60s
+    lambda: |-
+      it.circle(64, 64, 50, Color::BLACK);
+
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-2.13in-v3
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+
+  - platform: epaper_spi
+    model: seeed-reterminal-e1002
+  - platform: epaper_spi
+    model: seeed-ee04-mono-4.26
+    # Override pins to avoid conflict with other display configs
+    busy_pin: 43
+    dc_pin: 42

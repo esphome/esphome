@@ -2,8 +2,9 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/macros.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/macros.h"
+#include <span>
 
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
@@ -14,6 +15,11 @@
 
 namespace esphome {
 namespace debug {
+
+static constexpr size_t DEVICE_INFO_BUFFER_SIZE = 256;
+static constexpr size_t RESET_REASON_BUFFER_SIZE = 128;
+
+// buf_append_printf is now provided by esphome/core/helpers.h
 
 class DebugComponent : public PollingComponent {
  public:
@@ -29,8 +35,11 @@ class DebugComponent : public PollingComponent {
 #ifdef USE_SENSOR
   void set_free_sensor(sensor::Sensor *free_sensor) { free_sensor_ = free_sensor; }
   void set_block_sensor(sensor::Sensor *block_sensor) { block_sensor_ = block_sensor; }
-#if defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
+#if (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)) || defined(USE_ESP32)
   void set_fragmentation_sensor(sensor::Sensor *fragmentation_sensor) { fragmentation_sensor_ = fragmentation_sensor; }
+#endif
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  void set_min_free_sensor(sensor::Sensor *min_free_sensor) { min_free_sensor_ = min_free_sensor; }
 #endif
   void set_loop_time_sensor(sensor::Sensor *loop_time_sensor) { loop_time_sensor_ = loop_time_sensor; }
 #ifdef USE_ESP32
@@ -52,8 +61,11 @@ class DebugComponent : public PollingComponent {
 
   sensor::Sensor *free_sensor_{nullptr};
   sensor::Sensor *block_sensor_{nullptr};
-#if defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
+#if (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)) || defined(USE_ESP32)
   sensor::Sensor *fragmentation_sensor_{nullptr};
+#endif
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  sensor::Sensor *min_free_sensor_{nullptr};
 #endif
   sensor::Sensor *loop_time_sensor_{nullptr};
 #ifdef USE_ESP32
@@ -62,29 +74,29 @@ class DebugComponent : public PollingComponent {
   sensor::Sensor *cpu_frequency_sensor_{nullptr};
 #endif  // USE_SENSOR
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_ZEPHYR)
   /**
    * @brief Logs information about the device's partition table.
    *
-   * This function iterates through the ESP32's partition table and logs details
+   * This function iterates through the partition table and logs details
    * about each partition, including its name, type, subtype, starting address,
    * and size. The information is useful for diagnosing issues related to flash
    * memory or verifying the partition configuration dynamically at runtime.
    *
-   * Only available when compiled for ESP32 platforms.
+   * Only available when compiled for ESP32 and ZEPHYR platforms.
    */
   void log_partition_info_();
-#endif  // USE_ESP32
+#endif
 
 #ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *device_info_{nullptr};
   text_sensor::TextSensor *reset_reason_{nullptr};
 #endif  // USE_TEXT_SENSOR
 
-  std::string get_reset_reason_();
-  std::string get_wakeup_cause_();
+  const char *get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer);
+  const char *get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer);
   uint32_t get_free_heap_();
-  void get_device_info_(std::string &device_info);
+  size_t get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE> buffer, size_t pos);
   void update_platform_();
 };
 

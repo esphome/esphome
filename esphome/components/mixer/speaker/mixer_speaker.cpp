@@ -43,8 +43,10 @@ enum MixerEventGroupBits : uint32_t {
 };
 
 void SourceSpeaker::dump_config() {
-  ESP_LOGCONFIG(TAG, "Mixer Source Speaker");
-  ESP_LOGCONFIG(TAG, "  Buffer Duration: %" PRIu32 " ms", this->buffer_duration_ms_);
+  ESP_LOGCONFIG(TAG,
+                "Mixer Source Speaker\n"
+                "  Buffer Duration: %" PRIu32 " ms",
+                this->buffer_duration_ms_);
   if (this->timeout_ms_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 " ms", this->timeout_ms_.value());
   } else {
@@ -76,19 +78,20 @@ void SourceSpeaker::loop() {
       } else {
         switch (err) {
           case ESP_ERR_NO_MEM:
-            this->status_set_error("Failed to start mixer: not enough memory");
+            this->status_set_error(LOG_STR("Failed to start mixer: not enough memory"));
             break;
           case ESP_ERR_NOT_SUPPORTED:
-            this->status_set_error("Failed to start mixer: unsupported bits per sample");
+            this->status_set_error(LOG_STR("Failed to start mixer: unsupported bits per sample"));
             break;
           case ESP_ERR_INVALID_ARG:
-            this->status_set_error("Failed to start mixer: audio stream isn't compatible with the other audio stream.");
+            this->status_set_error(
+                LOG_STR("Failed to start mixer: audio stream isn't compatible with the other audio stream."));
             break;
           case ESP_ERR_INVALID_STATE:
-            this->status_set_error("Failed to start mixer: mixer task failed to start");
+            this->status_set_error(LOG_STR("Failed to start mixer: mixer task failed to start"));
             break;
           default:
-            this->status_set_error("Failed to start mixer");
+            this->status_set_error(LOG_STR("Failed to start mixer"));
             break;
         }
 
@@ -291,8 +294,10 @@ void SourceSpeaker::duck_samples(int16_t *input_buffer, uint32_t input_samples_t
 }
 
 void MixerSpeaker::dump_config() {
-  ESP_LOGCONFIG(TAG, "Speaker Mixer:");
-  ESP_LOGCONFIG(TAG, "  Number of output channels: %u", this->output_channels_);
+  ESP_LOGCONFIG(TAG,
+                "Speaker Mixer:\n"
+                "  Number of output channels: %u",
+                this->output_channels_);
 }
 
 void MixerSpeaker::setup() {
@@ -313,7 +318,7 @@ void MixerSpeaker::loop() {
     xEventGroupClearBits(this->event_group_, MixerEventGroupBits::STATE_STARTING);
   }
   if (event_group_bits & MixerEventGroupBits::ERR_ESP_NO_MEM) {
-    this->status_set_error("Failed to allocate the mixer's internal buffer");
+    this->status_set_error(LOG_STR("Failed to allocate the mixer's internal buffer"));
     xEventGroupClearBits(this->event_group_, MixerEventGroupBits::ERR_ESP_NO_MEM);
   }
   if (event_group_bits & MixerEventGroupBits::STATE_RUNNING) {
@@ -568,7 +573,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
       }
     } else {
       // Determine how many frames to mix
-      for (int i = 0; i < transfer_buffers_with_data.size(); ++i) {
+      for (size_t i = 0; i < transfer_buffers_with_data.size(); ++i) {
         const uint32_t frames_available_in_buffer =
             speakers_with_data[i]->get_audio_stream_info().bytes_to_frames(transfer_buffers_with_data[i]->available());
         frames_to_mix = std::min(frames_to_mix, frames_available_in_buffer);
@@ -577,7 +582,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
       audio::AudioStreamInfo primary_stream_info = speakers_with_data[0]->get_audio_stream_info();
 
       // Mix two streams together
-      for (int i = 1; i < transfer_buffers_with_data.size(); ++i) {
+      for (size_t i = 1; i < transfer_buffers_with_data.size(); ++i) {
         mix_audio_samples(primary_buffer, primary_stream_info,
                           reinterpret_cast<int16_t *>(transfer_buffers_with_data[i]->get_buffer_start()),
                           speakers_with_data[i]->get_audio_stream_info(),
@@ -592,7 +597,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
       }
 
       // Update source transfer buffer lengths and add new audio durations to the source speaker pending playbacks
-      for (int i = 0; i < transfer_buffers_with_data.size(); ++i) {
+      for (size_t i = 0; i < transfer_buffers_with_data.size(); ++i) {
         transfer_buffers_with_data[i]->decrease_buffer_length(
             speakers_with_data[i]->get_audio_stream_info().frames_to_bytes(frames_to_mix));
         speakers_with_data[i]->pending_playback_frames_ += frames_to_mix;
