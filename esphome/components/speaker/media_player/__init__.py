@@ -162,7 +162,8 @@ def _read_audio_file_and_type(file_config):
         file_type = file_type.removeprefix(".")
     except puremagic.PureError as e:
         raise cv.Invalid(
-            f"Unable to determine audio file type of '{path}'. Try re-encoding the file into a supported format. Details: {e}"
+            f"Unable to determine audio file type of '{path}'. "
+            f"Try re-encoding the file into a supported format. Details: {e}"
         )
 
     media_file_type = audio.AUDIO_FILE_TYPE_ENUM["NONE"]
