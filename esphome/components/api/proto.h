@@ -402,6 +402,20 @@ class DumpBuffer {
   const char *c_str() const { return buf_; }
   size_t size() const { return pos_; }
 
+  /// Get writable buffer pointer for use with buf_append_printf
+  char *data() { return buf_; }
+  /// Get current position for use with buf_append_printf
+  size_t pos() const { return pos_; }
+  /// Update position after buf_append_printf call
+  void set_pos(size_t pos) {
+    if (pos >= CAPACITY) {
+      pos_ = CAPACITY - 1;
+    } else {
+      pos_ = pos;
+    }
+    buf_[pos_] = '\0';
+  }
+
  private:
   void append_impl_(const char *str, size_t len) {
     size_t space = CAPACITY - 1 - pos_;
