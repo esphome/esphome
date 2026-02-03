@@ -157,12 +157,58 @@ class MQTTComponent : public Component {
    */
   bool publish(const std::string &topic, const char *payload, size_t payload_length);
 
+  /** Send a MQTT message (no heap allocation for topic).
+   *
+   * @param topic The topic as C string.
+   * @param payload The payload buffer.
+   * @param payload_length The length of the payload.
+   */
+  bool publish(const char *topic, const char *payload, size_t payload_length);
+
+  /** Send a MQTT message (no heap allocation for topic).
+   *
+   * @param topic The topic as StringRef (for use with get_state_topic_to_()).
+   * @param payload The payload buffer.
+   * @param payload_length The length of the payload.
+   */
+  bool publish(StringRef topic, const char *payload, size_t payload_length) {
+    return this->publish(topic.c_str(), payload, payload_length);
+  }
+
+  /** Send a MQTT message (no heap allocation for topic).
+   *
+   * @param topic The topic as C string.
+   * @param payload The null-terminated payload.
+   */
+  bool publish(const char *topic, const char *payload);
+
+  /** Send a MQTT message (no heap allocation for topic).
+   *
+   * @param topic The topic as StringRef (for use with get_state_topic_to_()).
+   * @param payload The null-terminated payload.
+   */
+  bool publish(StringRef topic, const char *payload) { return this->publish(topic.c_str(), payload); }
+
   /** Construct and send a JSON MQTT message.
    *
    * @param topic The topic.
    * @param f The Json Message builder.
    */
   bool publish_json(const std::string &topic, const json::json_build_t &f);
+
+  /** Construct and send a JSON MQTT message (no heap allocation for topic).
+   *
+   * @param topic The topic as C string.
+   * @param f The Json Message builder.
+   */
+  bool publish_json(const char *topic, const json::json_build_t &f);
+
+  /** Construct and send a JSON MQTT message (no heap allocation for topic).
+   *
+   * @param topic The topic as StringRef (for use with get_state_topic_to_()).
+   * @param f The Json Message builder.
+   */
+  bool publish_json(StringRef topic, const json::json_build_t &f) { return this->publish_json(topic.c_str(), f); }
 
   /** Subscribe to a MQTT topic.
    *

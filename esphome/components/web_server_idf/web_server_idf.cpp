@@ -246,21 +246,16 @@ optional<std::string> AsyncWebServerRequest::get_header(const char *name) const 
   return request_get_header(*this, name);
 }
 
-std::string AsyncWebServerRequest::url() const {
-  auto *query_start = strchr(this->req_->uri, '?');
-  std::string result;
-  if (query_start == nullptr) {
-    result = this->req_->uri;
-  } else {
-    result = std::string(this->req_->uri, query_start - this->req_->uri);
-  }
+StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) const {
+  const char *uri = this->req_->uri;
+  const char *query_start = strchr(uri, '?');
+  size_t uri_len = query_start ? static_cast<size_t>(query_start - uri) : strlen(uri);
+  size_t copy_len = std::min(uri_len, URL_BUF_SIZE - 1);
+  memcpy(buffer.data(), uri, copy_len);
+  buffer[copy_len] = '\0';
   // Decode URL-encoded characters in-place (e.g., %20 -> space)
-  // This matches AsyncWebServer behavior on Arduino
-  if (!result.empty()) {
-    size_t new_len = url_decode(&result[0]);
-    result.resize(new_len);
-  }
-  return result;
+  size_t decoded_len = url_decode(buffer.data());
+  return StringRef(buffer.data(), decoded_len);
 }
 
 std::string AsyncWebServerRequest::host() const { return this->get_header("Host").value(); }

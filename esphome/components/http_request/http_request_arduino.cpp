@@ -131,9 +131,27 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
     }
   }
 
+  // HTTPClient::getSize() returns -1 for chunked transfer encoding (no Content-Length).
+  // When cast to size_t, -1 becomes SIZE_MAX (4294967295 on 32-bit).
+  // The read() method handles this: bytes_read_ can never reach SIZE_MAX, so the
+  // early return check (bytes_read_ >= content_length) will never trigger.
+  //
+  // TODO: Chunked transfer encoding is NOT properly supported on Arduino.
+  // The implementation in #7884 was incomplete - it only works correctly on ESP-IDF where
+  // esp_http_client_read() decodes chunks internally. On Arduino, using getStreamPtr()
+  // returns raw TCP data with chunk framing (e.g., "12a\r\n{json}\r\n0\r\n\r\n") instead
+  // of decoded content. This wasn't noticed because requests would complete and payloads
+  // were only examined on IDF. The long transfer times were also masked by the misleading
+  // "HTTP on Arduino version >= 3.1 is **very** slow" warning above. This causes two issues:
+  // 1. Response body is corrupted - contains chunk size headers mixed with data
+  // 2. Cannot detect end of transfer - connection stays open (keep-alive), causing timeout
+  // The proper fix would be to use getString() for chunked responses, which decodes chunks
+  // internally, but this buffers the entire response in memory.
   int content_length = container->client_.getSize();
   ESP_LOGD(TAG, "Content-Length: %d", content_length);
   container->content_length = (size_t) content_length;
+  // -1 (SIZE_MAX when cast to size_t) means chunked transfer encoding
+  container->set_chunked(content_length == -1);
   container->duration_ms = millis() - start;
 
   return container;
@@ -167,17 +185,23 @@ int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   }
 
   int available_data = stream_ptr->available();
-  int bufsize = std::min(max_len, std::min(this->content_length - this->bytes_read_, (size_t) available_data));
+  // For chunked transfer encoding, HTTPClient::getSize() returns -1, which becomes SIZE_MAX when
+  // cast to size_t. SIZE_MAX - bytes_read_ is still huge, so it won't limit the read.
+  size_t remaining = (this->content_length > 0) ? (this->content_length - this->bytes_read_) : max_len;
+  int bufsize = std::min(max_len, std::min(remaining, (size_t) available_data));
 
   if (bufsize == 0) {
     this->duration_ms += (millis() - start);
-    // Check if we've read all expected content
-    if (this->bytes_read_ >= this->content_length) {
+    // Check if we've read all expected content (non-chunked only)
+    // For chunked encoding (content_length == SIZE_MAX), is_read_complete() returns false
+    if (this->is_read_complete()) {
       return 0;  // All content read successfully
     }
     // No data available - check if connection is still open
+    // For chunked encoding, !connected() after reading means EOF (all chunks received)
+    // For known content_length with bytes_read_ < content_length, it means connection dropped
     if (!stream_ptr->connected()) {
-      return HTTP_ERROR_CONNECTION_CLOSED;  // Connection closed prematurely
+      return HTTP_ERROR_CONNECTION_CLOSED;  // Connection closed or EOF for chunked
     }
     return 0;  // No data yet, caller should retry
   }
