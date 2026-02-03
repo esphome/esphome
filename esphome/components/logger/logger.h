@@ -597,30 +597,39 @@ class Logger : public Component {
     *buffer_at = pos;
   }
 
+  // Helper to process vsnprintf return value and strip trailing newlines.
+  // Updates buffer_at with the formatted length, handling truncation:
+  // - When vsnprintf truncates (ret >= remaining), it writes (remaining - 1) chars + null terminator
+  // - When it doesn't truncate (ret < remaining), it writes ret chars + null terminator
+  __attribute__((always_inline)) static inline void process_vsnprintf_result(const char *buffer, uint16_t *buffer_at,
+                                                                             uint16_t remaining, int ret) {
+    if (ret < 0)
+      return;  // Encoding error, do not increment buffer_at
+    *buffer_at += (ret >= remaining) ? (remaining - 1) : static_cast<uint16_t>(ret);
+    // Remove all trailing newlines right after formatting
+    while (*buffer_at > 0 && buffer[*buffer_at - 1] == '\n')
+      (*buffer_at)--;
+  }
+
   inline void HOT format_body_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size, const char *format,
                                          va_list args) {
-    // Get remaining capacity in the buffer
+    // Check remaining capacity in the buffer
     if (*buffer_at >= buffer_size)
       return;
     const uint16_t remaining = buffer_size - *buffer_at;
-
-    const int ret = vsnprintf(buffer + *buffer_at, remaining, format, args);
-
-    if (ret < 0) {
-      return;  // Encoding error, do not increment buffer_at
-    }
-
-    // Update buffer_at with the formatted length (handle truncation)
-    // When vsnprintf truncates (ret >= remaining), it writes (remaining - 1) chars + null terminator
-    // When it doesn't truncate (ret < remaining), it writes ret chars + null terminator
-    uint16_t formatted_len = (ret >= remaining) ? (remaining - 1) : ret;
-    *buffer_at += formatted_len;
-
-    // Remove all trailing newlines right after formatting
-    while (*buffer_at > 0 && buffer[*buffer_at - 1] == '\n') {
-      (*buffer_at)--;
-    }
+    process_vsnprintf_result(buffer, buffer_at, remaining, vsnprintf(buffer + *buffer_at, remaining, format, args));
   }
+
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+  // ESP8266 variant that reads format string directly from flash using vsnprintf_P
+  inline void HOT format_body_to_buffer_P_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size, PGM_P format,
+                                           va_list args) {
+    if (*buffer_at >= buffer_size)
+      return;
+    const uint16_t remaining = buffer_size - *buffer_at;
+    process_vsnprintf_result(buffer, buffer_at, remaining, vsnprintf_P(buffer + *buffer_at, remaining, format, args));
+  }
+#endif
 
   inline void HOT write_footer_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
     static constexpr uint16_t RESET_COLOR_LEN = sizeof(ESPHOME_LOG_RESET_COLOR) - 1;
