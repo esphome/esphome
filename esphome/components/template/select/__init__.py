@@ -10,7 +10,10 @@ from esphome.const import (
     CONF_OPTIONS,
     CONF_RESTORE_VALUE,
     CONF_SET_ACTION,
+    CONF_UPDATE_INTERVAL,
+    SCHEDULER_DONT_RUN,
 )
+from esphome.core import TimePeriodMilliseconds
 from esphome.cpp_generator import TemplateArguments
 
 from .. import template_ns
@@ -103,7 +106,13 @@ async def to_code(config):
         var_id,
         TemplateArguments(has_lambda, optimistic, restore_value, initial_option_index),
     )
-    await cg.register_component(var, config)
+    component_config = config.copy()
+    if not has_lambda:
+        # No point in polling if not using a lambda
+        component_config[CONF_UPDATE_INTERVAL] = TimePeriodMilliseconds(
+            milliseconds=SCHEDULER_DONT_RUN
+        )
+    await cg.register_component(var, component_config)
     await select.register_select(var, config, options=options)
 
     if CONF_LAMBDA in config:

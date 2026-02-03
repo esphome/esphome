@@ -12,7 +12,7 @@ static const char *const TAG = "template.select";
 struct Empty {};
 class BaseTemplateSelect : public select::Select, public PollingComponent {};
 
-void dump_config_helper(BaseTemplateSelect *this_, bool optimistic, bool has_lambda, size_t initial_option_index,
+void dump_config_helper(BaseTemplateSelect *sel_comp, bool optimistic, bool has_lambda, size_t initial_option_index,
                         bool restore_value);
 
 /// Base template select class - used when no set_action is configured
