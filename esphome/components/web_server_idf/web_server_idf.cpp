@@ -366,7 +366,7 @@ void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
 }
 #endif
 
-AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
+AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
   // Check cache first - only successful lookups are cached
   for (auto *param : this->params_) {
     if (param->name() == name) {
@@ -375,11 +375,11 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
   }
 
   // Look up value from query strings
-  optional<std::string> val = query_key_value(this->post_query_, name);
+  optional<std::string> val = query_key_value(this->post_query_.c_str(), this->post_query_.size(), name);
   if (!val.has_value()) {
     auto url_query = request_get_url_query(*this);
     if (url_query.has_value()) {
-      val = query_key_value(url_query.value(), name);
+      val = query_key_value(url_query.value().c_str(), url_query.value().size(), name);
     }
   }
 
