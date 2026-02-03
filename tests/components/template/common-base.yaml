@@ -296,6 +296,16 @@ select:
           // Migration guide: Store in std::string
           std::string stored_option(id(template_select).current_option());
           ESP_LOGI("test", "Stored: %s", stored_option.c_str());
+  - platform: template
+    id: template_select_with_action
+    name: "Template select with action"
+    options:
+      - option_a
+      - option_b
+    set_action:
+      - logger.log:
+          format: "Selected: %s"
+          args: ["x.c_str()"]
 
 lock:
   - platform: template
