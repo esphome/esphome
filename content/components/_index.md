@@ -1006,6 +1006,7 @@ at the {{< docref "light/fastled" "FastLED Light" >}}.
 "BLE Scanner","components/text_sensor/ble_scanner","bluetooth.svg","dark-invert"
 "Ethernet Info","components/text_sensor/ethernet_info","ethernet.svg","dark-invert"
 "Home Assistant","components/text_sensor/homeassistant","home-assistant.svg","dark-invert"
+"Key Collector","components/text_sensor/key_collector","key_collector.svg","dark-invert"
 "LibreTiny","components/text_sensor/libretiny","libretiny.svg",""
 "LVGL textarea Text Sensor","components/text_sensor/lvgl","lvgl_c_txt.png",""
 "Modbus Text Sensor","components/text_sensor/modbus_controller","modbus.png",""
@@ -1084,6 +1085,7 @@ ESPHome to cellular networks. **Does not encompass Wi-Fi.**
 
 {{< imgtable >}}
 "Camera Encoder","components/camera/camera_encoder","camera.svg","dark-invert"
+"Key Collector","components/key_collector","key_collector.svg","dark-invert"
 "ESP32 Camera","components/esp32_camera","camera.svg","dark-invert"
 "Exposure Notifications","components/exposure_notifications","exposure_notifications.png",""
 "GPS","components/gps","crosshairs-gps.svg","dark-invert"

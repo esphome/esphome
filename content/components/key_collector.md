@@ -13,7 +13,8 @@ like [Matrix keypad](/components/matrix_keypad#matrix_keypad), {{< docref "/comp
 or LVGL [Button Matrix](/components/lvgl/widgets#lvgl-widget-buttonmatrix), [Keyboard](/components/lvgl/widgets#lvgl-widget-keyboard)
 widgets. It allows you to process key sequences and treat them as one, for
 example to allow inputting of a PIN code or a passkey. The component outputs
-the result of the keypress sequence as a variable usable in automations.
+the result of the keypress sequence as a variable usable in automations, and
+can publish the result to a `text_sensor`.
 
 ## Component
 
@@ -24,6 +25,7 @@ key_collector:
     source_id: mykeypad
     min_length: 4
     max_length: 4
+    start_keys: "A"
     end_keys: "#"
     end_key_required: true
     back_keys: "*"
@@ -54,6 +56,10 @@ key_collector:
 - **max_length** (*Optional*, integer): The maximum length of the desired key sequence, after
   which the sequence will trigger the `on_result` automation witout having to press any of the `end_keys`
 
+- **start_keys** (*Optional*, string): Keys used to start the sequence. If specified, no keys
+  will be collected until one of the start keys is pressed. The start key that was pressed is
+  available in the `start` variable in automations.
+
 - **end_keys** (*Optional*, string): Keys used to *enter* the sequence.
 - **end_key_required** (*Optional*, boolean): Only trigger `on_result` automation when one of
   the `end_keys` was pressed. Defaults to `false`.
@@ -66,7 +72,7 @@ key_collector:
 - **timeout** (*Optional*, [Time](/guides/configuration-types#time)): Timeout after which to cancel building the sequence and delete all the keys.
 - **enable_on_boot** (*Optional*, boolean): If enabled, this key collector will be enabled on boot. Defaults to `true`.
 
-At least one of `end_keys` or `max_length` have to be specified. The rest are optional.
+At least one of `end_keys` or `max_length` must be specified. The rest are optional.
 If both `end_keys` and `max_length` are specified, then once `max_length` keys are collected, no more will be
 accepted until an end key is pressed.
 
@@ -116,8 +122,14 @@ on_...:
 
 - `send_key(uint8_t key)`: Send a key to the collector directly.
 
+## Text Sensor
+
+The `key_collector` component supports a [Text Sensor](/components/text_sensor/key_collector)
+that publishes the collected key sequence when a successful result occurs.
+
 ## See Also
 
+- {{< docref "/components/text_sensor/key_collector" >}}
 - {{< docref "/components/matrix_keypad" >}}
 - {{< docref "/components/wiegand" >}}
 - [LVGL Button Matrix widget](/components/lvgl/widgets#lvgl-widget-buttonmatrix)
