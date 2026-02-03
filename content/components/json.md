@@ -60,6 +60,9 @@ Example 2: Simple JSON:
 {"key": 42.0, "greeting": "Hello World"}
 ```
 
+> [!NOTE]
+> To use the json component, you need to include it in your config. Be sure to put `json:` at the root level, along with other components like `esphome:`.
+
 ## Parsing JSON
 
 This example assumes that the server returns a response as a JSON object similar to this:
@@ -120,6 +123,6 @@ Another important resource is [JSONLint](https://jsonlint.com/). It will help yo
 ## See Also
 
 - {{< docref "index/" >}}
-- {{< apiref "http_request/http_request.h" "http_request/http_request.h" >}}
-- {{< apiref "json/json_util.h" "json/json_util.h" >}}
+- {{< apiref "HTTP Request" "http_request/http_request.h" >}}
+- {{< apiref "json_util.h" "json/json_util.h" >}}
 - [ArduinoJson](https://arduinojson.org/)
