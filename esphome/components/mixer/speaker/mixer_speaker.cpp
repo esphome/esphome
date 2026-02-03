@@ -67,6 +67,16 @@ static inline uint32_t atomic_subtract_clamped(std::atomic<uint32_t> &var, uint3
   return subtracted;
 }
 
+static bool create_event_group(EventGroupHandle_t &event_group, Component *component) {
+  event_group = xEventGroupCreate();
+  if (event_group == nullptr) {
+    ESP_LOGE(TAG, "Failed to create event group");
+    component->mark_failed();
+    return false;
+  }
+  return true;
+}
+
 void SourceSpeaker::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Mixer Source Speaker\n"
@@ -80,10 +90,7 @@ void SourceSpeaker::dump_config() {
 }
 
 void SourceSpeaker::setup() {
-  this->event_group_ = xEventGroupCreate();
-  if (this->event_group_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to create event group");
-    this->mark_failed();
+  if (!create_event_group(this->event_group_, this)) {
     return;
   }
 
@@ -417,11 +424,7 @@ void MixerSpeaker::dump_config() {
 }
 
 void MixerSpeaker::setup() {
-  this->event_group_ = xEventGroupCreate();
-
-  if (this->event_group_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to create event group");
-    this->mark_failed();
+  if (!create_event_group(this->event_group_, this)) {
     return;
   }
 
