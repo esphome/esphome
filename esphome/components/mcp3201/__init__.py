@@ -5,7 +5,7 @@ from esphome.const import CONF_ID, CONF_REFERENCE_VOLTAGE
 
 DEPENDENCIES = ["spi"]
 MULTI_CONF = True
-CODEOWNERS = ["@rsumner"]
+CODEOWNERS = ["@jjacobsen-snake"]
 
 mcp3201_ns = cg.esphome_ns.namespace("mcp3201")
 MCP3201 = mcp3201_ns.class_("MCP3201", cg.Component, spi.SPIDevice)
