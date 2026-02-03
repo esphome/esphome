@@ -1,0 +1,10 @@
+mcp3201:
+  - id: 'mcp3201_hub'
+    cs_pin: ${cs_pin}
+    reference_voltage: 5.0V
+
+sensor:
+  - platform: mcp3201
+    mcp3201_id: mcp3201_hub
+    id: test_mcp3201
+    update_interval: 60s

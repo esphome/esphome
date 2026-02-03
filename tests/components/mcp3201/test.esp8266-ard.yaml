@@ -1,0 +1,14 @@
+esphome:
+  name: test-mcp3201-esp8266
+esp8266:
+  board: nodemcuv2
+
+substitutions:
+  clk_pin: GPIO14
+  miso_pin: GPIO12
+  cs_pin: GPIO15
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+
+<<: !include common.yaml
