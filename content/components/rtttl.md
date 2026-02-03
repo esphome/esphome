@@ -133,19 +133,20 @@ name:d=4,o=5,b=120:notes
 
 ### Note Format
 
-Each note in the melody follows this pattern: `[duration][note][#][.][octave]`
+Each note in the melody follows this pattern: `[duration][note][#][octave][.]`
 
 - **duration** (optional): Overrides the default duration (1, 2, 4, 8, 16, 32)
 - **note**: The note name: `c`, `d`, `e`, `f`, `g`, `a`, `b`, or `p` for pause
 - **#** (optional): Sharp modifier, raises the note by a half step
-- **. (dot)** (optional): Dotted note, extends duration by 50%
 - **octave** (optional): Overrides the default octave (4-7)
+- **. (dot)** (optional): Dotted note, extends duration by 50%
 
 ### Examples
 
 - `8e6` - Eighth note E in octave 6
 - `4c#5` - Quarter note C-sharp in octave 5
 - `2g.` - Dotted half note G in the default octave
+- `4c#5.` - Dotted quarter note C-sharp in octave 5
 - `16p` - Sixteenth note pause
 
 Tip: You can experiment with the control values to change how a song sounds. For example, increasing `b` makes the song play faster, while changing `o` shifts the pitch higher or lower.
