@@ -367,9 +367,6 @@ void WebServer::set_css_include(const char *css_include) { this->css_include_ = 
 void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_include; }
 #endif
 
-<<<<<<< Updated upstream
-std::string WebServer::get_config_json() {
-=======
 /// Get uptime in milliseconds using std::chrono::steady_clock (64-bit, no rollover)
 static int64_t get_uptime_ms() {
   return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
@@ -377,7 +374,6 @@ static int64_t get_uptime_ms() {
 }
 
 json::SerializationBuffer<> WebServer::get_config_json() {
->>>>>>> Stashed changes
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
