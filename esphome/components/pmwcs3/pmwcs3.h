@@ -14,7 +14,6 @@ class PMWCS3Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
   void set_e25_sensor(sensor::Sensor *e25_sensor) { e25_sensor_ = e25_sensor; }
   void set_ec_sensor(sensor::Sensor *ec_sensor) { ec_sensor_ = ec_sensor; }

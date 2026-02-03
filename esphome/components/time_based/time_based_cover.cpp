@@ -51,7 +51,7 @@ void TimeBasedCover::loop() {
     this->last_publish_time_ = now;
   }
 }
-float TimeBasedCover::get_setup_priority() const { return setup_priority::DATA; }
+
 CoverTraits TimeBasedCover::get_traits() {
   auto traits = CoverTraits();
   traits.set_supports_stop(true);

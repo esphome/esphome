@@ -43,7 +43,6 @@ void HTE501Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-float HTE501Component::get_setup_priority() const { return setup_priority::DATA; }
 void HTE501Component::update() {
   uint8_t address_1[] = {0x2C, 0x1B};
   this->write(address_1, 2);
