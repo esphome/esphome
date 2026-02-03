@@ -46,7 +46,5 @@ void HYT271Component::update() {
     this->status_clear_warning();
   });
 }
-float HYT271Component::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace hyt271
 }  // namespace esphome
