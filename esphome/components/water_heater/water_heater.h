@@ -75,7 +75,8 @@ class WaterHeaterCall {
   WaterHeaterCall(WaterHeater *parent);
 
   WaterHeaterCall &set_mode(WaterHeaterMode mode);
-  WaterHeaterCall &set_mode(const std::string &mode);
+  WaterHeaterCall &set_mode(const char *mode);
+  WaterHeaterCall &set_mode(const std::string &mode) { return this->set_mode(mode.c_str()); }
   WaterHeaterCall &set_target_temperature(float temperature);
   WaterHeaterCall &set_target_temperature_low(float temperature);
   WaterHeaterCall &set_target_temperature_high(float temperature);
