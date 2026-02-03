@@ -54,6 +54,19 @@ enum MixerTaskEventBits : uint32_t {
   MIXER_TASK_ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
 };
 
+static inline uint32_t atomic_subtract_clamped(std::atomic<uint32_t> &var, uint32_t amount) {
+  uint32_t current = var.load(std::memory_order_acquire);
+  uint32_t subtracted = 0;
+  if (current > 0) {
+    uint32_t new_value;
+    do {
+      subtracted = std::min(amount, current);
+      new_value = current - subtracted;
+    } while (!var.compare_exchange_weak(current, new_value, std::memory_order_release, std::memory_order_acquire));
+  }
+  return subtracted;
+}
+
 void SourceSpeaker::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Mixer Source Speaker\n"
@@ -78,31 +91,13 @@ void SourceSpeaker::setup() {
   this->disable_loop();
 
   this->parent_->get_output_speaker()->add_audio_output_callback([this](uint32_t new_frames, int64_t write_timestamp) {
-    // First, drain the playback delay using CAS loop (frames in pipeline before this source started contributing)
-    uint32_t delay_to_drain = 0;
-    uint32_t current_delay = this->playback_delay_frames_.load(std::memory_order_acquire);
-    if (current_delay > 0) {
-      uint32_t new_delay;
-      do {
-        delay_to_drain = std::min(new_frames, current_delay);
-        new_delay = current_delay - delay_to_drain;
-      } while (!this->playback_delay_frames_.compare_exchange_weak(current_delay, new_delay, std::memory_order_release,
-                                                                   std::memory_order_acquire));
-    }
+    // First, drain the playback delay (frames in pipeline before this source started contributing)
+    uint32_t delay_to_drain = atomic_subtract_clamped(this->playback_delay_frames_, new_frames);
     uint32_t remaining_frames = new_frames - delay_to_drain;
 
-    // Then, count towards this source's pending playback frames using CAS loop
+    // Then, count towards this source's pending playback frames
     if (remaining_frames > 0) {
-      uint32_t speakers_playback_frames = 0;
-      uint32_t current_pending = this->pending_playback_frames_.load(std::memory_order_acquire);
-      if (current_pending > 0) {
-        uint32_t new_pending;
-        do {
-          speakers_playback_frames = std::min(remaining_frames, current_pending);
-          new_pending = current_pending - speakers_playback_frames;
-        } while (!this->pending_playback_frames_.compare_exchange_weak(
-            current_pending, new_pending, std::memory_order_release, std::memory_order_acquire));
-      }
+      uint32_t speakers_playback_frames = atomic_subtract_clamped(this->pending_playback_frames_, remaining_frames);
       if (speakers_playback_frames > 0) {
         this->audio_output_callback_(speakers_playback_frames, write_timestamp);
       }
@@ -432,13 +427,7 @@ void MixerSpeaker::setup() {
 
   // Register callback to track frames in the output pipeline
   this->output_speaker_->add_audio_output_callback([this](uint32_t new_frames, int64_t write_timestamp) {
-    // Decrement frames_in_pipeline_ using CAS loop to prevent race conditions
-    uint32_t current = this->frames_in_pipeline_.load(std::memory_order_acquire);
-    uint32_t new_value;
-    do {
-      new_value = current - std::min(new_frames, current);
-    } while (!this->frames_in_pipeline_.compare_exchange_weak(current, new_value, std::memory_order_release,
-                                                              std::memory_order_acquire));
+    atomic_subtract_clamped(this->frames_in_pipeline_, new_frames);
   });
 
   // Start with loop disabled since no task is running and no commands are pending
