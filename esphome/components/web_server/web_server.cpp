@@ -15,6 +15,8 @@
 #include "StreamString.h"
 #endif
 
+#include <chrono>
+#include <cinttypes>
 #include <cstdlib>
 
 #ifdef USE_LIGHT
@@ -365,7 +367,17 @@ void WebServer::set_css_include(const char *css_include) { this->css_include_ = 
 void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_include; }
 #endif
 
+<<<<<<< Updated upstream
 std::string WebServer::get_config_json() {
+=======
+/// Get uptime in milliseconds using std::chrono::steady_clock (64-bit, no rollover)
+static int64_t get_uptime_ms() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
+
+json::SerializationBuffer<> WebServer::get_config_json() {
+>>>>>>> Stashed changes
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
@@ -380,6 +392,7 @@ std::string WebServer::get_config_json() {
 #endif
   root[ESPHOME_F("log")] = this->expose_log_;
   root[ESPHOME_F("lang")] = "en";
+  root[ESPHOME_F("uptime")] = get_uptime_ms();
 
   return builder.serialize();
 }
@@ -403,7 +416,11 @@ void WebServer::setup() {
 
   // doesn't need defer functionality - if the queue is full, the client JS knows it's alive because it's clearly
   // getting a lot of events
-  this->set_interval(10000, [this]() { this->events_.try_send_nodefer("", "ping", millis(), 30000); });
+  this->set_interval(10000, [this]() {
+    char buf[32];
+    buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%" PRId64 "}", get_uptime_ms());
+    this->events_.try_send_nodefer(buf, "ping", millis(), 30000);
+  });
 }
 void WebServer::loop() { this->events_.loop(); }
 
