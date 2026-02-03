@@ -756,7 +756,10 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
 
   if (status != OK) {
     ESP_LOGV(TAG, "Scan failed: %d", status);
-    this->retry_connect();
+    // Don't call retry_connect() here - this callback runs in SDK system context
+    // where yield() cannot be called. Instead, just set scan_done_ and let
+    // check_scanning_finished() handle the empty scan_result_ from loop context.
+    this->scan_done_ = true;
     return;
   }
 

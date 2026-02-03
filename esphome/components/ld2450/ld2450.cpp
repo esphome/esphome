@@ -451,7 +451,7 @@ void LD2450Component::handle_periodic_data_() {
   int16_t ty = 0;
   int16_t td = 0;
   int16_t ts = 0;
-  int16_t angle = 0;
+  float angle = 0;
   uint8_t index = 0;
   Direction direction{DIRECTION_UNDEFINED};
   bool is_moving = false;
