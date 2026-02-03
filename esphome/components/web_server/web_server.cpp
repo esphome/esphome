@@ -454,7 +454,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
-  AsyncWebServerResponse *response = request->beginResponse(200, "");
+  AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F(""));
   response->addHeader(ESPHOME_F("Access-Control-Allow-Private-Network"), ESPHOME_F("true"));
   response->addHeader(ESPHOME_F("Private-Network-Access-Name"), App.get_name().c_str());
   char mac_s[18];
@@ -1975,7 +1975,7 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
 
     // Only allow transmit if the device supports it
     if (!obj->has_transmitter()) {
-      request->send(400, ESPHOME_F("text/plain"), "Device does not support transmission");
+      request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Device does not support transmission"));
       return;
     }
 
@@ -2001,7 +2001,7 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
     // Parse base64url-encoded raw timings (required)
     // Base64url is URL-safe: uses A-Za-z0-9-_ (no special characters needing escaping)
     if (!request->hasParam(ESPHOME_F("data"))) {
-      request->send(400, ESPHOME_F("text/plain"), "Missing 'data' parameter");
+      request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Missing 'data' parameter"));
       return;
     }
 
@@ -2011,7 +2011,7 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
 
     // Validate base64url is not empty
     if (encoded.empty()) {
-      request->send(400, ESPHOME_F("text/plain"), "Empty 'data' parameter");
+      request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Empty 'data' parameter"));
       return;
     }
 
@@ -2485,7 +2485,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   else {
     // No matching handler found - send 404
     ESP_LOGV(TAG, "Request for unknown URL: %s", url.c_str());
-    request->send(404, "text/plain", "Not Found");
+    request->send(404, ESPHOME_F("text/plain"), ESPHOME_F("Not Found"));
   }
 }
 
