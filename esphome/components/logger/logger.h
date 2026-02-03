@@ -277,14 +277,7 @@ class Logger : public Component {
 #endif
     this->format_body_to_buffer_(buffer, buffer_at, buffer_size, format, args);
     this->write_footer_to_buffer_(buffer, buffer_at, buffer_size);
-
-    // Always ensure the buffer has a null terminator, even if we need to
-    // overwrite the last character of the actual content
-    if (*buffer_at >= buffer_size) {
-      buffer[buffer_size - 1] = '\0';  // Truncate and ensure null termination
-    } else {
-      buffer[*buffer_at] = '\0';  // Normal case, append null terminator
-    }
+    ensure_null_terminated_(buffer, *buffer_at, buffer_size);
   }
 
   // Helper to add newline to buffer before writing to console
@@ -314,14 +307,13 @@ class Logger : public Component {
     }
   }
 
-  // Helper to format and send a log message to both console and listeners
-  inline void HOT log_message_to_buffer_and_send_(uint8_t level, const char *tag, int line, const char *format,
-                                                  va_list args) {
-    // Format to tx_buffer and prepare for output
-    this->tx_buffer_at_ = 0;  // Initialize buffer position
-    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, this->tx_buffer_, &this->tx_buffer_at_,
-                                                this->tx_buffer_size_);
+  // Ensure tx_buffer_ has null termination (truncate if buffer was full)
+  inline void HOT ensure_tx_buffer_null_terminated_() {
+    ensure_null_terminated_(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
+  }
 
+  // Helper to notify listeners and write to console - shared by all log_vprintf_ variants
+  inline void HOT notify_listeners_and_send_(uint8_t level, const char *tag) {
     // Listeners get message WITHOUT newline (for API/MQTT/syslog)
 #ifdef USE_LOG_LISTENERS
     for (auto *listener : this->log_listeners_)
@@ -331,6 +323,30 @@ class Logger : public Component {
     // Console gets message WITH newline (if platform needs it)
     this->write_tx_buffer_to_console_();
   }
+
+  // Helper to format and send a log message to both console and listeners
+  inline void HOT log_message_to_buffer_and_send_(uint8_t level, const char *tag, int line, const char *format,
+                                                  va_list args) {
+    // Format to tx_buffer and prepare for output
+    this->tx_buffer_at_ = 0;  // Initialize buffer position
+    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, this->tx_buffer_, &this->tx_buffer_at_,
+                                                this->tx_buffer_size_);
+    this->notify_listeners_and_send_(level, tag);
+  }
+
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+  // ESP8266 variant: format flash string and send to both console and listeners
+  inline void HOT log_message_to_buffer_and_send_P_(uint8_t level, const char *tag, int line, PGM_P format,
+                                                    va_list args) {
+    this->tx_buffer_at_ = 0;
+    this->write_header_to_buffer_(level, tag, line, nullptr, this->tx_buffer_, &this->tx_buffer_at_,
+                                  this->tx_buffer_size_);
+    this->format_body_to_buffer_P_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_, format, args);
+    this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
+    this->ensure_tx_buffer_null_terminated_();
+    this->notify_listeners_and_send_(level, tag);
+  }
+#endif
 
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // Helper to format a pre-formatted message from the task log buffer and notify listeners
@@ -342,7 +358,7 @@ class Logger : public Component {
                                   this->tx_buffer_size_);
     this->write_body_to_buffer_(text, text_length, this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
     this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
-    this->tx_buffer_[this->tx_buffer_at_] = '\0';
+    this->ensure_tx_buffer_null_terminated_();
 #ifdef USE_LOG_LISTENERS
     for (auto *listener : this->log_listeners_)
       listener->on_log(level, tag, this->tx_buffer_, this->tx_buffer_at_);
@@ -524,6 +540,12 @@ class Logger : public Component {
     return nullptr;
   }
 #endif
+
+  // Ensure buffer has null termination (truncate if buffer was full)
+  static inline void ensure_null_terminated_(char *buffer, uint16_t buffer_at, uint16_t buffer_size) {
+    uint16_t null_pos = buffer_at >= buffer_size ? buffer_size - 1 : buffer_at;
+    buffer[null_pos] = '\0';
+  }
 
   static inline void copy_string(char *buffer, uint16_t &pos, const char *str) {
     const size_t len = strlen(str);

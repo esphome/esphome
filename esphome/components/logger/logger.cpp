@@ -136,27 +136,7 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
     return;
 
   RecursionGuard guard(global_recursion_guard_);
-  this->tx_buffer_at_ = 0;
-
-  // Write header, format body directly from flash, and write footer
-  this->write_header_to_buffer_(level, tag, line, nullptr, this->tx_buffer_, &this->tx_buffer_at_,
-                                this->tx_buffer_size_);
-  this->format_body_to_buffer_P_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_,
-                                 reinterpret_cast<PGM_P>(format), args);
-  this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
-
-  // Ensure null termination
-  uint16_t null_pos = this->tx_buffer_at_ >= this->tx_buffer_size_ ? this->tx_buffer_size_ - 1 : this->tx_buffer_at_;
-  this->tx_buffer_[null_pos] = '\0';
-
-  // Listeners get message first (before console write)
-#ifdef USE_LOG_LISTENERS
-  for (auto *listener : this->log_listeners_)
-    listener->on_log(level, tag, this->tx_buffer_, this->tx_buffer_at_);
-#endif
-
-  // Write to console
-  this->write_tx_buffer_to_console_();
+  this->log_message_to_buffer_and_send_P_(level, tag, line, reinterpret_cast<PGM_P>(format), args);
 }
 #endif  // USE_STORE_LOG_STR_IN_FLASH
 
