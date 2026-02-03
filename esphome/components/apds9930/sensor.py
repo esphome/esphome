@@ -3,6 +3,7 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ILLUMINANCE,
+    CONF_SAMPLE_RATE,
     CONF_TYPE,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_ILLUMINANCE,
