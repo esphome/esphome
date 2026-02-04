@@ -130,9 +130,7 @@ struct LogBuffer {
   uint16_t &pos;
   uint16_t size;
 
-  LogBuffer(char *buf, uint16_t &buf_pos, uint16_t buf_size) : data(buf), pos(buf_pos), size(buf_size) {
-    this->pos = 0;
-  }
+  LogBuffer(char *buf, uint16_t &buf_pos, uint16_t buf_size) : data(buf), pos(buf_pos = 0), size(buf_size) {}
   // Replaces the null terminator with a newline for console output.
   // Must be called after notify_listeners_() since listeners need null-terminated strings.
   // Console output uses length-based writes (buf.pos), so null terminator is not needed.
