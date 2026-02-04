@@ -10,8 +10,8 @@
 
 namespace esphome::cover {
 
-static constexpr const float COVER_OPEN = 1.0f;
-static constexpr const float COVER_CLOSED = 0.0f;
+static constexpr float COVER_OPEN = 1.0f;
+static constexpr float COVER_CLOSED = 0.0f;
 
 #define LOG_COVER(prefix, type, obj) \
   if ((obj) != nullptr) { \
