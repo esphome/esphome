@@ -188,15 +188,13 @@ struct LogBuffer {
     this->put_char_(' ');
   }
   void HOT format_body(const char *format, va_list args) {
-    if (!this->full_())
-      this->process_vsnprintf_result_(vsnprintf(this->current_(), this->remaining_(), format, args));
+    this->format_vsnprintf_(format, args);
     this->write_color_reset_();
     this->null_terminate_();
   }
 #ifdef USE_STORE_LOG_STR_IN_FLASH
   void HOT format_body_P(PGM_P format, va_list args) {
-    if (!this->full_())
-      this->process_vsnprintf_result_(vsnprintf_P(this->current_(), this->remaining_(), format, args));
+    this->format_vsnprintf_P_(format, args);
     this->write_color_reset_();
     this->null_terminate_();
   }
@@ -231,13 +229,25 @@ struct LogBuffer {
     while (this->pos > 0 && this->data[this->pos - 1] == '\n')
       this->pos--;
   }
-  __attribute__((always_inline)) void process_vsnprintf_result_(int ret) {
+  void process_vsnprintf_result_(int ret) {
     if (ret < 0)
       return;
     const uint16_t rem = this->remaining_();
     this->pos += (ret >= rem) ? (rem - 1) : static_cast<uint16_t>(ret);
     this->strip_trailing_newlines_();
   }
+  void format_vsnprintf_(const char *format, va_list args) {
+    if (this->full_())
+      return;
+    this->process_vsnprintf_result_(vsnprintf(this->current_(), this->remaining_(), format, args));
+  }
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+  void format_vsnprintf_P_(PGM_P format, va_list args) {
+    if (this->full_())
+      return;
+    this->process_vsnprintf_result_(vsnprintf_P(this->current_(), this->remaining_(), format, args));
+  }
+#endif
   void copy_string_(const char *str) {
     const size_t len = strlen(str);
     memcpy(this->current_(), str, len);  // NOLINT(bugprone-not-null-terminated-result)
