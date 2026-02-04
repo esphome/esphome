@@ -108,7 +108,9 @@ def test_mqtt_status_thread_stops_during_retry_wait() -> None:
     with (
         patch(
             "esphome.dashboard.status.mqtt.mqtt.prepare",
-            side_effect=EsphomeError("Cannot connect to MQTT broker: temporary failure"),
+            side_effect=EsphomeError(
+                "Cannot connect to MQTT broker: temporary failure"
+            ),
         ) as mock_prepare,
         patch("esphome.dashboard.status.mqtt._CONNECT_RETRY_INITIAL_DELAY", 0.01),
         patch("esphome.dashboard.status.mqtt._CONNECT_RETRY_MAX_DELAY", 0.02),
