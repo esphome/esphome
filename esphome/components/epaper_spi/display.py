@@ -86,13 +86,6 @@ def model_schema(config):
         )
         .extend(
             {
-                model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
-                model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
-                model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-            }
-        )
-        .extend(
-            {
                 cv.Optional(CONF_ROTATION, default=0): validate_rotation,
                 cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
                 cv.Optional(CONF_UPDATE_INTERVAL, default=cv.UNDEFINED): cv.All(
@@ -105,7 +98,10 @@ def model_schema(config):
                     }
                 ),
                 cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
+                model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
+                model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
                 model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
+                model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
                 cv.GenerateID(): cv.declare_id(class_name),
                 cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
                 cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
