@@ -137,16 +137,14 @@ struct LogBuffer {
   LogBuffer(char *buf, uint16_t &buf_pos, uint16_t buf_size) : data(buf), pos(buf_pos), size(buf_size) {
     this->pos = 0;
   }
-  uint16_t remaining() const { return this->size - this->pos; }
-  char *current() { return this->data + this->pos; }
   void null_terminate() { this->data[this->full_() ? this->size - 1 : this->pos] = '\0'; }
   void write(const char *value, size_t length) {
     if (this->full_())
       return;
-    const uint16_t available = this->remaining();
+    const uint16_t available = this->remaining_();
     const size_t copy_len = (length < static_cast<size_t>(available)) ? length : available;
     if (copy_len > 0) {
-      memcpy(this->current(), value, copy_len);
+      memcpy(this->current_(), value, copy_len);
       this->pos += copy_len;
     }
   }
@@ -207,18 +205,20 @@ struct LogBuffer {
   void HOT format_body(const char *format, va_list args) {
     if (this->full_())
       return;
-    this->process_vsnprintf_result_(vsnprintf(this->current(), this->remaining(), format, args));
+    this->process_vsnprintf_result_(vsnprintf(this->current_(), this->remaining_(), format, args));
   }
 #ifdef USE_STORE_LOG_STR_IN_FLASH
   void HOT format_body_P(PGM_P format, va_list args) {
     if (this->full_())
       return;
-    this->process_vsnprintf_result_(vsnprintf_P(this->current(), this->remaining(), format, args));
+    this->process_vsnprintf_result_(vsnprintf_P(this->current_(), this->remaining_(), format, args));
   }
 #endif
 
  private:
   bool full_() const { return this->pos >= this->size; }
+  uint16_t remaining_() const { return this->size - this->pos; }
+  char *current_() { return this->data + this->pos; }
   void put_char_(char c) { this->data[this->pos++] = c; }
   void strip_trailing_newlines_() {
     while (this->pos > 0 && this->data[this->pos - 1] == '\n')
@@ -227,13 +227,13 @@ struct LogBuffer {
   __attribute__((always_inline)) void process_vsnprintf_result_(int ret) {
     if (ret < 0)
       return;
-    const uint16_t rem = this->remaining();
+    const uint16_t rem = this->remaining_();
     this->pos += (ret >= rem) ? (rem - 1) : static_cast<uint16_t>(ret);
     this->strip_trailing_newlines_();
   }
   void copy_string_(const char *str) {
     const size_t len = strlen(str);
-    memcpy(this->current(), str, len);  // NOLINT(bugprone-not-null-terminated-result)
+    memcpy(this->current_(), str, len);  // NOLINT(bugprone-not-null-terminated-result)
     this->pos += len;
   }
   void write_ansi_color_(uint8_t level) {
