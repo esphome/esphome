@@ -213,8 +213,8 @@ struct LogBuffer {
   bool full_() const { return this->pos >= this->size; }
   uint16_t remaining_() const { return this->size - this->pos; }
   char *current_() { return this->data + this->pos; }
-  void put_char_(char c) { this->data[this->pos++] = c; }
-  void null_terminate_() { this->data[this->full_() ? this->size - 1 : this->pos] = '\0'; }
+  inline void put_char_(char c) { this->data[this->pos++] = c; }
+  inline void null_terminate_() { this->data[this->full_() ? this->size - 1 : this->pos] = '\0'; }
   void write_(const char *value, size_t length) {
     if (this->full_())
       return;
