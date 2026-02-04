@@ -632,6 +632,11 @@ class WiFiComponent : public Component {
   /// Free scan results memory unless a component needs them
   void release_scan_results_();
 
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+  /// Notify connect state listeners (called after state machine reaches STA_CONNECTED)
+  void notify_connect_state_listeners_();
+#endif
+
 #ifdef USE_ESP8266
   static void wifi_event_callback(System_Event_t *event);
   void wifi_scan_done_callback_(void *arg, STATUS status);
@@ -737,6 +742,16 @@ class WiFiComponent : public Component {
   bool is_high_performance_mode_{false};
 
   SemaphoreHandle_t high_performance_semaphore_{nullptr};
+#endif
+
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+  // Pending listener notifications deferred until state machine reaches appropriate state.
+  // Listeners are notified after state transitions complete so conditions like
+  // wifi.connected return correct values in automations.
+  // Uses bitfields to minimize memory; more flags may be added as needed.
+  struct {
+    bool connect_state : 1;  // Notify connect state listeners after STA_CONNECTED
+  } pending_{};
 #endif
 
 #ifdef USE_WIFI_CONNECT_TRIGGER
