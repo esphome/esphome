@@ -473,10 +473,13 @@ class Logger : public Component {
                                                   FormatType format, va_list args) {
     RecursionGuard guard(recursion_guard);
     LogBuffer buf(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
-    if constexpr (std::is_same_v<FormatType, const char *>) {
-      this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf);
-    } else {
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+    if constexpr (std::is_same_v<FormatType, const __FlashStringHelper *>) {
       this->format_log_to_buffer_with_terminator_P_(level, tag, line, format, args, buf);
+    } else
+#endif
+    {
+      this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf);
     }
     this->notify_listeners_(level, tag);
     this->write_log_buffer_to_console_(buf);
