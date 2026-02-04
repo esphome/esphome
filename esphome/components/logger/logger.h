@@ -127,10 +127,8 @@ static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
 // Buffer wrapper for log formatting functions
 struct LogBuffer {
   char *data;
-  uint16_t &pos;
   uint16_t size;
-
-  LogBuffer(char *buf, uint16_t &buf_pos, uint16_t buf_size) : data(buf), pos(buf_pos = 0), size(buf_size) {}
+  uint16_t pos{0};
   // Replaces the null terminator with a newline for console output.
   // Must be called after notify_listeners_() since listeners need null-terminated strings.
   // Console output uses length-based writes (buf.pos), so null terminator is not needed.
@@ -447,10 +445,10 @@ class Logger : public Component {
 #endif
 
   // Helper to notify log listeners
-  inline void HOT notify_listeners_(uint8_t level, const char *tag) {
+  inline void HOT notify_listeners_(uint8_t level, const char *tag, const LogBuffer &buf) {
 #ifdef USE_LOG_LISTENERS
     for (auto *listener : this->log_listeners_)
-      listener->on_log(level, tag, this->tx_buffer_, this->tx_buffer_at_);
+      listener->on_log(level, tag, buf.data, buf.pos);
 #endif
   }
 
@@ -472,7 +470,7 @@ class Logger : public Component {
   inline void HOT log_message_to_buffer_and_send_(bool &recursion_guard, uint8_t level, const char *tag, int line,
                                                   FormatType format, va_list args) {
     RecursionGuard guard(recursion_guard);
-    LogBuffer buf(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
+    LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
 #ifdef USE_STORE_LOG_STR_IN_FLASH
     if constexpr (std::is_same_v<FormatType, const __FlashStringHelper *>) {
       this->format_log_to_buffer_with_terminator_P_(level, tag, line, format, args, buf);
@@ -481,7 +479,7 @@ class Logger : public Component {
     {
       this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf);
     }
-    this->notify_listeners_(level, tag);
+    this->notify_listeners_(level, tag, buf);
     this->write_log_buffer_to_console_(buf);
   }
 
@@ -493,7 +491,7 @@ class Logger : public Component {
                                                       LogBuffer &buf) {
     buf.write_header(level, tag, line, thread_name);
     buf.write_body(text, text_length);
-    this->notify_listeners_(level, tag);
+    this->notify_listeners_(level, tag, buf);
   }
 #endif
 
@@ -550,7 +548,6 @@ class Logger : public Component {
 #endif
 
   // Group smaller types together at the end
-  uint16_t tx_buffer_at_{0};
   uint16_t tx_buffer_size_{0};
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)

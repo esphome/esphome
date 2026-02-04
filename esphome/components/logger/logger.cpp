@@ -99,8 +99,7 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
     static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 144;
 #endif
     char console_buffer[MAX_CONSOLE_LOG_MSG_SIZE];  // MUST be stack allocated for thread safety
-    uint16_t console_pos;
-    LogBuffer buf(console_buffer, console_pos, MAX_CONSOLE_LOG_MSG_SIZE);
+    LogBuffer buf{console_buffer, MAX_CONSOLE_LOG_MSG_SIZE};
     this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf);
     this->write_to_console_(buf);
   }
@@ -188,7 +187,7 @@ void Logger::process_messages_() {
     logger::TaskLogBufferHost::LogMessage *message;
     while (this->log_buffer_->get_message_main_loop(&message)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
-      LogBuffer buf(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
+      LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, message->text,
                                                 message->text_length, buf);
       this->log_buffer_->release_message_main_loop();
@@ -200,7 +199,7 @@ void Logger::process_messages_() {
     void *received_token;
     while (this->log_buffer_->borrow_message_main_loop(&message, &text, &received_token)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
-      LogBuffer buf(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
+      LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, text,
                                                 message->text_length, buf);
       // Release the message to allow other tasks to use it as soon as possible
@@ -212,7 +211,7 @@ void Logger::process_messages_() {
     const char *text;
     while (this->log_buffer_->borrow_message_main_loop(&message, &text)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
-      LogBuffer buf(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
+      LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, text,
                                                 message->text_length, buf);
       // Release the message to allow other tasks to use it as soon as possible
