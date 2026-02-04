@@ -155,41 +155,53 @@ struct LogBuffer {
     if (this->pos + MAX_HEADER_SIZE > this->size)
       return;
 
-    // Construct: <color>[LEVEL][tag:line]:
-    this->write_ansi_color_(level);
-    this->put_char_('[');
+    char *p = this->current_();
+
+    // Write ANSI color
+    p = this->write_ansi_color_(p, level);
+
+    // Construct: [LEVEL][tag:line]
+    *p++ = '[';
     if (level != 0) {
       if (level >= 7) {
-        this->put_char_('V');  // VERY_VERBOSE = "VV"
-        this->put_char_('V');
+        *p++ = 'V';  // VERY_VERBOSE = "VV"
+        *p++ = 'V';
       } else {
-        this->put_char_(LOG_LEVEL_LETTER_CHARS[level]);
+        *p++ = LOG_LEVEL_LETTER_CHARS[level];
       }
     }
-    this->put_char_(']');
-    this->put_char_('[');
-    this->copy_string_(tag);
-    this->put_char_(':');
-    // Format line number without modulo operations (passed by value, safe to mutate)
+    *p++ = ']';
+    *p++ = '[';
+
+    // Copy tag
+    const size_t tag_len = strlen(tag);
+    memcpy(p, tag, tag_len);
+    p += tag_len;
+
+    *p++ = ':';
+
+    // Format line number without modulo operations
     if (line > 999) [[unlikely]] {
       int thousands = line / 1000;
-      this->put_char_('0' + thousands);
+      *p++ = '0' + thousands;
       line -= thousands * 1000;
     }
     int hundreds = line / 100;
     int remainder = line - hundreds * 100;
     int tens = remainder / 10;
-    this->put_char_('0' + hundreds);
-    this->put_char_('0' + tens);
-    this->put_char_('0' + (remainder - tens * 10));
-    this->put_char_(']');
+    *p++ = '0' + hundreds;
+    *p++ = '0' + tens;
+    *p++ = '0' + (remainder - tens * 10);
+    *p++ = ']';
 
 #ifdef USE_LOGGER_THREAD_NAME
-    this->write_thread_name_(thread_name, level);
+    p = this->write_thread_name_(p, thread_name, level);
 #endif
 
-    this->put_char_(':');
-    this->put_char_(' ');
+    *p++ = ':';
+    *p++ = ' ';
+
+    this->pos = p - this->data;
   }
   void HOT format_body(const char *format, va_list args) {
     this->format_vsnprintf_(format, args);
@@ -210,8 +222,7 @@ struct LogBuffer {
   bool full_() const { return this->pos >= this->size; }
   uint16_t remaining_() const { return this->size - this->pos; }
   char *current_() { return this->data + this->pos; }
-  inline void put_char_(char c) { this->data[this->pos++] = c; }
-  inline void null_terminate_() { this->data[this->full_() ? this->size - 1 : this->pos] = '\0'; }
+  void null_terminate_() { this->data[this->full_() ? this->size - 1 : this->pos] = '\0'; }
   void finalize_() {
     this->write_color_reset_();
     this->null_terminate_();
@@ -253,33 +264,33 @@ struct LogBuffer {
     this->process_vsnprintf_result_(vsnprintf_P(this->current_(), this->remaining_(), format, args));
   }
 #endif
-  void copy_string_(const char *str) {
-    const size_t len = strlen(str);
-    memcpy(this->current_(), str, len);  // NOLINT(bugprone-not-null-terminated-result)
-    this->pos += len;
-  }
-  void write_ansi_color_(uint8_t level) {
+  // Write ANSI color escape sequence to buffer, returns new pointer position
+  char *write_ansi_color_(char *p, uint8_t level) {
     if (level == 0)
-      return;
-    // Construct ANSI escape sequence: "\033[{bold};3{color}m"
-    // Example: "\033[1;31m" for ERROR (bold red)
-    this->put_char_('\033');
-    this->put_char_('[');
-    this->put_char_((level == 1) ? '1' : '0');  // Only ERROR is bold
-    this->put_char_(';');
-    this->put_char_('3');
-    this->put_char_(LOG_LEVEL_COLOR_DIGIT[level]);
-    this->put_char_('m');
+      return p;
+    // Direct buffer fill: "\033[{bold};3{color}m" (7 bytes)
+    *p++ = '\033';
+    *p++ = '[';
+    *p++ = (level == 1) ? '1' : '0';  // Only ERROR is bold
+    *p++ = ';';
+    *p++ = '3';
+    *p++ = LOG_LEVEL_COLOR_DIGIT[level];
+    *p++ = 'm';
+    return p;
   }
 #ifdef USE_LOGGER_THREAD_NAME
-  void write_thread_name_(const char *thread_name, uint8_t level) {
+  // Write thread name with bold red color, returns new pointer position
+  char *write_thread_name_(char *p, const char *thread_name, uint8_t level) {
     if (thread_name == nullptr)
-      return;
-    this->write_ansi_color_(1);  // Always use bold red for thread name
-    this->put_char_('[');
-    this->copy_string_(thread_name);
-    this->put_char_(']');
-    this->write_ansi_color_(level);  // Restore original color
+      return p;
+    p = this->write_ansi_color_(p, 1);  // Bold red for thread name
+    *p++ = '[';
+    const size_t name_len = strlen(thread_name);
+    memcpy(p, thread_name, name_len);
+    p += name_len;
+    *p++ = ']';
+    p = this->write_ansi_color_(p, level);  // Restore original color
+    return p;
   }
 #endif
 };
