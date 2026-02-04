@@ -15,9 +15,9 @@ from esphome.const import (
 )
 
 from .. import (
+    CONF_DELTASOL_BS2,
     CONF_DELTASOL_BS_2009,
     CONF_DELTASOL_BS_PLUS,
-    CONF_DELTASOL_BS2,
     CONF_DELTASOL_C,
     CONF_DELTASOL_CS2,
     CONF_DELTASOL_CS_PLUS,
@@ -139,7 +139,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 cv.Optional(CONF_SENSOR4_ERROR): binary_sensor.binary_sensor_schema(
                     device_class=DEVICE_CLASS_PROBLEM,
                     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                )
+                ),
             }
         ),
         CONF_DELTASOL_C: cv.COMPONENT_SCHEMA.extend(

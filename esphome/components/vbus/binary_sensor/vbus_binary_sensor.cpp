@@ -148,7 +148,6 @@ void DeltaSolBS2BSensor::handle_message(std::vector<uint8_t> &message) {
     this->s4_error_bsensor_->publish_state(message[10] & 8);
 }
 
-
 void VBusCustomBSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "VBus Custom Binary Sensor:");
   if (this->source_ == 0xffff) {

@@ -31,8 +31,8 @@ from esphome.const import (
 )
 
 from .. import (
-    CONF_DELTASOL_BS_2009,
     CONF_DELTASOL_BS2,
+    CONF_DELTASOL_BS_2009,
     CONF_DELTASOL_BS_PLUS,
     CONF_DELTASOL_C,
     CONF_DELTASOL_CS2,

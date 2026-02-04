@@ -246,8 +246,7 @@ void DeltaSolBS2Sensor::handle_message(std::vector<uint8_t> &message) {
   if (this->operating_hours2_sensor_ != nullptr)
     this->operating_hours2_sensor_->publish_state(get_u16(message, 14));
   if (this->heat_quantity_sensor_ != nullptr) {
-    float heat_wh = get_u16(message, 16) + get_u16(message, 18) * 1000.0f +
-                    get_u16(message, 20) * 1000000.0f;
+    float heat_wh = get_u16(message, 16) + get_u16(message, 18) * 1000.0f + get_u16(message, 20) * 1000000.0f;
     this->heat_quantity_sensor_->publish_state(heat_wh);
   }
   if (this->version_sensor_ != nullptr)
