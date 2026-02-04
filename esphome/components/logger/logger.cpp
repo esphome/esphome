@@ -101,12 +101,12 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
     static const size_t MAX_CONSOLE_LOG_MSG_SIZE = 144;
 #endif
     char console_buffer[MAX_CONSOLE_LOG_MSG_SIZE];  // MUST be stack allocated for thread safety
-    uint16_t buffer_at = 0;                         // Initialize buffer position
-    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, console_buffer, &buffer_at,
-                                                MAX_CONSOLE_LOG_MSG_SIZE);
+    uint16_t console_pos;
+    LogBuffer buf(console_buffer, console_pos, MAX_CONSOLE_LOG_MSG_SIZE);
+    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf);
     // Add newline before writing to console
-    this->add_newline_to_buffer_(console_buffer, &buffer_at, MAX_CONSOLE_LOG_MSG_SIZE);
-    this->write_msg_(console_buffer, buffer_at);
+    buf.add_newline();
+    this->write_msg_(buf);
   }
 
   // RAII guard automatically resets on return
@@ -118,8 +118,10 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
     return;
 
   RecursionGuard guard(global_recursion_guard_);
-  // Format and send to both console and callbacks
-  this->log_message_to_buffer_and_send_(level, tag, line, format, args);
+  LogBuffer buf(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
+  this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf);
+  this->notify_listeners_(level, tag);
+  this->write_log_buffer_to_console_(buf);
 }
 #endif  // USE_ESP32 / USE_HOST / USE_LIBRETINY
 
@@ -136,7 +138,10 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
     return;
 
   RecursionGuard guard(global_recursion_guard_);
-  this->log_message_to_buffer_and_send_P_(level, tag, line, reinterpret_cast<PGM_P>(format), args);
+  LogBuffer buf(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
+  this->format_log_to_buffer_with_terminator_P_(level, tag, line, format, args, buf);
+  this->notify_listeners_(level, tag);
+  this->write_log_buffer_to_console_(buf);
 }
 #endif  // USE_STORE_LOG_STR_IN_FLASH
 
@@ -195,10 +200,11 @@ void Logger::process_messages_() {
     logger::TaskLogBufferHost::LogMessage *message;
     while (this->log_buffer_->get_message_main_loop(&message)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
+      LogBuffer buf(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, message->text,
-                                                message->text_length);
+                                                message->text_length, buf);
       this->log_buffer_->release_message_main_loop();
-      this->write_tx_buffer_to_console_();
+      this->write_log_buffer_to_console_(buf);
     }
 #elif defined(USE_ESP32)
     logger::TaskLogBuffer::LogMessage *message;
@@ -206,22 +212,24 @@ void Logger::process_messages_() {
     void *received_token;
     while (this->log_buffer_->borrow_message_main_loop(&message, &text, &received_token)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
+      LogBuffer buf(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, text,
-                                                message->text_length);
+                                                message->text_length, buf);
       // Release the message to allow other tasks to use it as soon as possible
       this->log_buffer_->release_message_main_loop(received_token);
-      this->write_tx_buffer_to_console_();
+      this->write_log_buffer_to_console_(buf);
     }
 #elif defined(USE_LIBRETINY)
     logger::TaskLogBufferLibreTiny::LogMessage *message;
     const char *text;
     while (this->log_buffer_->borrow_message_main_loop(&message, &text)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
+      LogBuffer buf(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name, text,
-                                                message->text_length);
+                                                message->text_length, buf);
       // Release the message to allow other tasks to use it as soon as possible
       this->log_buffer_->release_message_main_loop();
-      this->write_tx_buffer_to_console_();
+      this->write_log_buffer_to_console_(buf);
     }
 #endif
   }

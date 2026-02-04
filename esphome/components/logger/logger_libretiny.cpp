@@ -49,7 +49,7 @@ void Logger::pre_setup() {
   ESP_LOGI(TAG, "Log initialized");
 }
 
-void HOT Logger::write_msg_(const char *msg, size_t len) { this->hw_serial_->write(msg, len); }
+void HOT Logger::write_msg_(const LogBuffer &buf) { this->hw_serial_->write(buf.data, buf.pos); }
 
 const LogString *Logger::get_uart_selection_() {
   switch (this->uart_) {

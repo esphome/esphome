@@ -40,6 +40,11 @@
 struct device;
 #endif
 
+// Platforms that support thread names in log output
+#ifdef USE_LOGGER_THREAD_NAME
+#define USE_LOGGER_THREAD_NAME
+#endif
+
 namespace esphome::logger {
 
 /** Interface for receiving log messages without std::function overhead.
@@ -122,6 +127,140 @@ static constexpr uint16_t MAX_HEADER_SIZE = 128;
 
 // "0x" + 2 hex digits per byte + '\0'
 static constexpr size_t MAX_POINTER_REPRESENTATION = 2 + sizeof(void *) * 2 + 1;
+
+// Buffer wrapper for log formatting functions
+struct LogBuffer {
+  char *data;
+  uint16_t &pos;
+  uint16_t size;
+
+  LogBuffer(char *buf, uint16_t &buf_pos, uint16_t buf_size) : data(buf), pos(buf_pos), size(buf_size) {
+    this->pos = 0;
+  }
+  uint16_t remaining() const { return this->size - this->pos; }
+  char *current() { return this->data + this->pos; }
+  void null_terminate() { this->data[this->full_() ? this->size - 1 : this->pos] = '\0'; }
+  void write(const char *value, size_t length) {
+    if (this->full_())
+      return;
+    const uint16_t available = this->remaining();
+    const size_t copy_len = (length < static_cast<size_t>(available)) ? length : available;
+    if (copy_len > 0) {
+      memcpy(this->current(), value, copy_len);
+      this->pos += copy_len;
+    }
+  }
+  void add_newline() {
+    if (this->pos < this->size) {
+      this->data[this->pos++] = '\n';
+    } else if (this->size > 0) {
+      // Buffer was full - replace last char with newline to ensure it's visible
+      this->data[this->size - 1] = '\n';
+      this->pos = this->size;
+    }
+  }
+  void write_color_reset() {
+    static constexpr uint16_t RESET_COLOR_LEN = sizeof(ESPHOME_LOG_RESET_COLOR) - 1;
+    this->write(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN);
+  }
+  void HOT write_header(uint8_t level, const char *tag, int line, const char *thread_name) {
+    // Early return if insufficient space - intentionally don't update pos to prevent partial writes
+    if (this->pos + MAX_HEADER_SIZE > this->size)
+      return;
+
+    // Construct: <color>[LEVEL][tag:line]:
+    this->write_ansi_color_(level);
+    this->put_char_('[');
+    if (level != 0) {
+      if (level >= 7) {
+        this->put_char_('V');  // VERY_VERBOSE = "VV"
+        this->put_char_('V');
+      } else {
+        this->put_char_(LOG_LEVEL_LETTER_CHARS[level]);
+      }
+    }
+    this->put_char_(']');
+    this->put_char_('[');
+    this->copy_string_(tag);
+    this->put_char_(':');
+    // Format line number without modulo operations (passed by value, safe to mutate)
+    if (line > 999) [[unlikely]] {
+      int thousands = line / 1000;
+      this->put_char_('0' + thousands);
+      line -= thousands * 1000;
+    }
+    int hundreds = line / 100;
+    int remainder = line - hundreds * 100;
+    int tens = remainder / 10;
+    this->put_char_('0' + hundreds);
+    this->put_char_('0' + tens);
+    this->put_char_('0' + (remainder - tens * 10));
+    this->put_char_(']');
+
+#ifdef USE_LOGGER_THREAD_NAME
+    this->write_thread_name_(thread_name, level);
+#endif
+
+    this->put_char_(':');
+    this->put_char_(' ');
+  }
+  void HOT format_body(const char *format, va_list args) {
+    if (this->full_())
+      return;
+    this->process_vsnprintf_result_(vsnprintf(this->current(), this->remaining(), format, args));
+  }
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+  void HOT format_body_P(PGM_P format, va_list args) {
+    if (this->full_())
+      return;
+    this->process_vsnprintf_result_(vsnprintf_P(this->current(), this->remaining(), format, args));
+  }
+#endif
+
+ private:
+  bool full_() const { return this->pos >= this->size; }
+  void put_char_(char c) { this->data[this->pos++] = c; }
+  void strip_trailing_newlines_() {
+    while (this->pos > 0 && this->data[this->pos - 1] == '\n')
+      this->pos--;
+  }
+  __attribute__((always_inline)) void process_vsnprintf_result_(int ret) {
+    if (ret < 0)
+      return;
+    const uint16_t rem = this->remaining();
+    this->pos += (ret >= rem) ? (rem - 1) : static_cast<uint16_t>(ret);
+    this->strip_trailing_newlines_();
+  }
+  void copy_string_(const char *str) {
+    const size_t len = strlen(str);
+    memcpy(this->current(), str, len);  // NOLINT(bugprone-not-null-terminated-result)
+    this->pos += len;
+  }
+  void write_ansi_color_(uint8_t level) {
+    if (level == 0)
+      return;
+    // Construct ANSI escape sequence: "\033[{bold};3{color}m"
+    // Example: "\033[1;31m" for ERROR (bold red)
+    this->put_char_('\033');
+    this->put_char_('[');
+    this->put_char_((level == 1) ? '1' : '0');  // Only ERROR is bold
+    this->put_char_(';');
+    this->put_char_('3');
+    this->put_char_(LOG_LEVEL_COLOR_DIGIT[level]);
+    this->put_char_('m');
+  }
+#ifdef USE_LOGGER_THREAD_NAME
+  void write_thread_name_(const char *thread_name, uint8_t level) {
+    if (thread_name == nullptr)
+      return;
+    this->write_ansi_color_(1);  // Always use bold red for thread name
+    this->put_char_('[');
+    this->copy_string_(thread_name);
+    this->put_char_(']');
+    this->write_ansi_color_(level);  // Restore original color
+  }
+#endif
+};
 
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 /** Enum for logging UART selection
@@ -260,129 +399,65 @@ class Logger : public Component {
 #endif
 #endif
   void process_messages_();
-  void write_msg_(const char *msg, size_t len);
+  void write_msg_(const LogBuffer &buf);
 
   // Format a log message with printf-style arguments and write it to a buffer with header, footer, and null terminator
-  // It's the caller's responsibility to initialize buffer_at (typically to 0)
   inline void HOT format_log_to_buffer_with_terminator_(uint8_t level, const char *tag, int line, const char *format,
-                                                        va_list args, char *buffer, uint16_t *buffer_at,
-                                                        uint16_t buffer_size) {
+                                                        va_list args, LogBuffer &buf) {
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_HOST)
-    this->write_header_to_buffer_(level, tag, line, this->get_thread_name_(), buffer, buffer_at, buffer_size);
+    buf.write_header(level, tag, line, this->get_thread_name_());
 #elif defined(USE_ZEPHYR)
-    char buff[MAX_POINTER_REPRESENTATION];
-    this->write_header_to_buffer_(level, tag, line, this->get_thread_name_(buff), buffer, buffer_at, buffer_size);
+    char tmp[MAX_POINTER_REPRESENTATION];
+    buf.write_header(level, tag, line, this->get_thread_name_(tmp));
 #else
-    this->write_header_to_buffer_(level, tag, line, nullptr, buffer, buffer_at, buffer_size);
+    buf.write_header(level, tag, line, nullptr);
 #endif
-    this->format_body_to_buffer_(buffer, buffer_at, buffer_size, format, args);
-    this->write_footer_to_buffer_(buffer, buffer_at, buffer_size);
-    ensure_null_terminated_(buffer, *buffer_at, buffer_size);
+    buf.format_body(format, args);
+    buf.write_color_reset();
+    buf.null_terminate();
   }
 
-  // Helper to add newline to buffer before writing to console
-  // Modifies buffer_at to include the newline
-  inline void HOT add_newline_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
-    // Add newline - don't need to maintain null termination
-    // write_msg_ receives explicit length, so we can safely overwrite the null terminator
-    // This is safe because:
-    // 1. Callbacks already received the message (before we add newline)
-    // 2. write_msg_ receives the length explicitly (doesn't need null terminator)
-    if (*buffer_at < buffer_size) {
-      buffer[(*buffer_at)++] = '\n';
-    } else if (buffer_size > 0) {
-      // Buffer was full - replace last char with newline to ensure it's visible
-      buffer[buffer_size - 1] = '\n';
-      *buffer_at = buffer_size;
-    }
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+  // Format a log message with flash string format and write it to a buffer with header, footer, and null terminator
+  inline void HOT format_log_to_buffer_with_terminator_P_(uint8_t level, const char *tag, int line,
+                                                          const __FlashStringHelper *format, va_list args,
+                                                          LogBuffer &buf) {
+    buf.write_header(level, tag, line, nullptr);
+    buf.format_body_P(reinterpret_cast<PGM_P>(format), args);
+    buf.write_color_reset();
+    buf.null_terminate();
   }
+#endif
 
-  // Helper to write tx_buffer_ to console if logging is enabled
-  // INTERNAL USE ONLY - offset > 0 requires length parameter to be non-null
-  inline void HOT write_tx_buffer_to_console_(uint16_t offset = 0, uint16_t *length = nullptr) {
-    if (this->baud_rate_ > 0) {
-      uint16_t *len_ptr = length ? length : &this->tx_buffer_at_;
-      this->add_newline_to_buffer_(this->tx_buffer_ + offset, len_ptr, this->tx_buffer_size_ - offset);
-      this->write_msg_(this->tx_buffer_ + offset, *len_ptr);
-    }
-  }
-
-  // Ensure tx_buffer_ has null termination (truncate if buffer was full)
-  inline void HOT ensure_tx_buffer_null_terminated_() {
-    ensure_null_terminated_(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
-  }
-
-  // Helper to notify listeners and write to console - shared by all log_vprintf_ variants
-  inline void HOT notify_listeners_and_send_(uint8_t level, const char *tag) {
-    // Listeners get message WITHOUT newline (for API/MQTT/syslog)
+  // Helper to notify log listeners
+  inline void HOT notify_listeners_(uint8_t level, const char *tag) {
 #ifdef USE_LOG_LISTENERS
     for (auto *listener : this->log_listeners_)
       listener->on_log(level, tag, this->tx_buffer_, this->tx_buffer_at_);
 #endif
-
-    // Console gets message WITH newline (if platform needs it)
-    this->write_tx_buffer_to_console_();
   }
 
-  // Helper to format and send a log message to both console and listeners
-  inline void HOT log_message_to_buffer_and_send_(uint8_t level, const char *tag, int line, const char *format,
-                                                  va_list args) {
-    // Format to tx_buffer and prepare for output
-    this->tx_buffer_at_ = 0;  // Initialize buffer position
-    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, this->tx_buffer_, &this->tx_buffer_at_,
-                                                this->tx_buffer_size_);
-    this->notify_listeners_and_send_(level, tag);
+  // Helper to write log buffer to console if logging is enabled
+  inline void HOT write_log_buffer_to_console_(LogBuffer &buf) {
+    if (this->baud_rate_ > 0) {
+      buf.add_newline();
+      this->write_msg_(buf);
+    }
   }
-
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  // ESP8266 variant: format flash string and send to both console and listeners
-  inline void HOT log_message_to_buffer_and_send_P_(uint8_t level, const char *tag, int line, PGM_P format,
-                                                    va_list args) {
-    this->tx_buffer_at_ = 0;
-    this->write_header_to_buffer_(level, tag, line, nullptr, this->tx_buffer_, &this->tx_buffer_at_,
-                                  this->tx_buffer_size_);
-    this->format_body_to_buffer_P_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_, format, args);
-    this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
-    this->ensure_tx_buffer_null_terminated_();
-    this->notify_listeners_and_send_(level, tag);
-  }
-#endif
 
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // Helper to format a pre-formatted message from the task log buffer and notify listeners
   // Used by process_messages_ to avoid code duplication between ESP32 and host platforms
   inline void HOT format_buffered_message_and_notify_(uint8_t level, const char *tag, uint16_t line,
-                                                      const char *thread_name, const char *text, size_t text_length) {
-    this->tx_buffer_at_ = 0;
-    this->write_header_to_buffer_(level, tag, line, thread_name, this->tx_buffer_, &this->tx_buffer_at_,
-                                  this->tx_buffer_size_);
-    this->write_body_to_buffer_(text, text_length, this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
-    this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
-    this->ensure_tx_buffer_null_terminated_();
-#ifdef USE_LOG_LISTENERS
-    for (auto *listener : this->log_listeners_)
-      listener->on_log(level, tag, this->tx_buffer_, this->tx_buffer_at_);
-#endif
+                                                      const char *thread_name, const char *text, size_t text_length,
+                                                      LogBuffer &buf) {
+    buf.write_header(level, tag, line, thread_name);
+    buf.write(text, text_length);
+    buf.write_color_reset();
+    buf.null_terminate();
+    this->notify_listeners_(level, tag);
   }
 #endif
-
-  // Write the body of the log message to the buffer
-  inline void write_body_to_buffer_(const char *value, size_t length, char *buffer, uint16_t *buffer_at,
-                                    uint16_t buffer_size) {
-    // Calculate available space
-    if (*buffer_at >= buffer_size)
-      return;
-    const uint16_t available = buffer_size - *buffer_at;
-
-    // Determine copy length (minimum of remaining capacity and string length)
-    const size_t copy_len = (length < static_cast<size_t>(available)) ? length : available;
-
-    // Copy the data
-    if (copy_len > 0) {
-      memcpy(buffer + *buffer_at, value, copy_len);
-      *buffer_at += copy_len;
-    }
-  }
 
 #ifndef USE_HOST
   const LogString *get_uart_selection_();
@@ -540,123 +615,6 @@ class Logger : public Component {
     return nullptr;
   }
 #endif
-
-  // Ensure buffer has null termination (truncate if buffer was full)
-  static inline void ensure_null_terminated_(char *buffer, uint16_t buffer_at, uint16_t buffer_size) {
-    uint16_t null_pos = buffer_at >= buffer_size ? buffer_size - 1 : buffer_at;
-    buffer[null_pos] = '\0';
-  }
-
-  static inline void copy_string(char *buffer, uint16_t &pos, const char *str) {
-    const size_t len = strlen(str);
-    // Intentionally no null terminator, building larger string
-    memcpy(buffer + pos, str, len);  // NOLINT(bugprone-not-null-terminated-result)
-    pos += len;
-  }
-
-  static inline void write_ansi_color_for_level(char *buffer, uint16_t &pos, uint8_t level) {
-    if (level == 0)
-      return;
-    // Construct ANSI escape sequence: "\033[{bold};3{color}m"
-    // Example: "\033[1;31m" for ERROR (bold red)
-    buffer[pos++] = '\033';
-    buffer[pos++] = '[';
-    buffer[pos++] = (level == 1) ? '1' : '0';  // Only ERROR is bold
-    buffer[pos++] = ';';
-    buffer[pos++] = '3';
-    buffer[pos++] = LOG_LEVEL_COLOR_DIGIT[level];
-    buffer[pos++] = 'm';
-  }
-
-  inline void HOT write_header_to_buffer_(uint8_t level, const char *tag, int line, const char *thread_name,
-                                          char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
-    uint16_t pos = *buffer_at;
-    // Early return if insufficient space - intentionally don't update buffer_at to prevent partial writes
-    if (pos + MAX_HEADER_SIZE > buffer_size)
-      return;
-
-    // Construct: <color>[LEVEL][tag:line]:
-    write_ansi_color_for_level(buffer, pos, level);
-    buffer[pos++] = '[';
-    if (level != 0) {
-      if (level >= 7) {
-        buffer[pos++] = 'V';  // VERY_VERBOSE = "VV"
-        buffer[pos++] = 'V';
-      } else {
-        buffer[pos++] = LOG_LEVEL_LETTER_CHARS[level];
-      }
-    }
-    buffer[pos++] = ']';
-    buffer[pos++] = '[';
-    copy_string(buffer, pos, tag);
-    buffer[pos++] = ':';
-    // Format line number without modulo operations (passed by value, safe to mutate)
-    if (line > 999) [[unlikely]] {
-      int thousands = line / 1000;
-      buffer[pos++] = '0' + thousands;
-      line -= thousands * 1000;
-    }
-    int hundreds = line / 100;
-    int remainder = line - hundreds * 100;
-    int tens = remainder / 10;
-    buffer[pos++] = '0' + hundreds;
-    buffer[pos++] = '0' + tens;
-    buffer[pos++] = '0' + (remainder - tens * 10);
-    buffer[pos++] = ']';
-
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR) || defined(USE_HOST)
-    if (thread_name != nullptr) {
-      write_ansi_color_for_level(buffer, pos, 1);  // Always use bold red for thread name
-      buffer[pos++] = '[';
-      copy_string(buffer, pos, thread_name);
-      buffer[pos++] = ']';
-      write_ansi_color_for_level(buffer, pos, level);  // Restore original color
-    }
-#endif
-
-    buffer[pos++] = ':';
-    buffer[pos++] = ' ';
-    *buffer_at = pos;
-  }
-
-  // Helper to process vsnprintf return value and strip trailing newlines.
-  // Updates buffer_at with the formatted length, handling truncation:
-  // - When vsnprintf truncates (ret >= remaining), it writes (remaining - 1) chars + null terminator
-  // - When it doesn't truncate (ret < remaining), it writes ret chars + null terminator
-  __attribute__((always_inline)) static inline void process_vsnprintf_result(const char *buffer, uint16_t *buffer_at,
-                                                                             uint16_t remaining, int ret) {
-    if (ret < 0)
-      return;  // Encoding error, do not increment buffer_at
-    *buffer_at += (ret >= remaining) ? (remaining - 1) : static_cast<uint16_t>(ret);
-    // Remove all trailing newlines right after formatting
-    while (*buffer_at > 0 && buffer[*buffer_at - 1] == '\n')
-      (*buffer_at)--;
-  }
-
-  inline void HOT format_body_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size, const char *format,
-                                         va_list args) {
-    // Check remaining capacity in the buffer
-    if (*buffer_at >= buffer_size)
-      return;
-    const uint16_t remaining = buffer_size - *buffer_at;
-    process_vsnprintf_result(buffer, buffer_at, remaining, vsnprintf(buffer + *buffer_at, remaining, format, args));
-  }
-
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  // ESP8266 variant that reads format string directly from flash using vsnprintf_P
-  inline void HOT format_body_to_buffer_P_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size, PGM_P format,
-                                           va_list args) {
-    if (*buffer_at >= buffer_size)
-      return;
-    const uint16_t remaining = buffer_size - *buffer_at;
-    process_vsnprintf_result(buffer, buffer_at, remaining, vsnprintf_P(buffer + *buffer_at, remaining, format, args));
-  }
-#endif
-
-  inline void HOT write_footer_to_buffer_(char *buffer, uint16_t *buffer_at, uint16_t buffer_size) {
-    static constexpr uint16_t RESET_COLOR_LEN = sizeof(ESPHOME_LOG_RESET_COLOR) - 1;
-    this->write_body_to_buffer_(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN, buffer, buffer_at, buffer_size);
-  }
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   // Disable loop when task buffer is empty (with USB CDC check on ESP32)
