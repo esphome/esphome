@@ -203,7 +203,7 @@ class PacketBuffer {
       return *this;
     }
 
-    Iterator operator++(int) {
+    const Iterator operator++(int) {
       Iterator tmp = *this;
       ++(*this);
       return tmp;
