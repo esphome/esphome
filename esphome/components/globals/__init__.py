@@ -9,29 +9,55 @@ from esphome.const import (
     CONF_VALUE,
 )
 from esphome.core import CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 globals_ns = cg.esphome_ns.namespace("globals")
 GlobalsComponent = globals_ns.class_("GlobalsComponent", cg.Component)
-RestoringGlobalsComponent = globals_ns.class_("RestoringGlobalsComponent", cg.Component)
+RestoringGlobalsComponent = globals_ns.class_(
+    "RestoringGlobalsComponent", cg.PollingComponent
+)
 RestoringGlobalStringComponent = globals_ns.class_(
-    "RestoringGlobalStringComponent", cg.Component
+    "RestoringGlobalStringComponent", cg.PollingComponent
 )
 GlobalVarSetAction = globals_ns.class_("GlobalVarSetAction", automation.Action)
 
 CONF_MAX_RESTORE_DATA_LENGTH = "max_restore_data_length"
 
+# Base schema fields shared by both variants
+_BASE_SCHEMA = {
+    cv.Required(CONF_ID): cv.declare_id(GlobalsComponent),
+    cv.Required(CONF_TYPE): cv.string_strict,
+    cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
+    cv.Optional(CONF_MAX_RESTORE_DATA_LENGTH): cv.int_range(0, 254),
+}
 
-MULTI_CONF = True
-CONFIG_SCHEMA = cv.Schema(
+# Non-restoring globals: regular Component (no polling needed)
+_NON_RESTORING_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ID): cv.declare_id(GlobalsComponent),
-        cv.Required(CONF_TYPE): cv.string_strict,
-        cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
+        **_BASE_SCHEMA,
         cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
-        cv.Optional(CONF_MAX_RESTORE_DATA_LENGTH): cv.int_range(0, 254),
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+# Restoring globals: PollingComponent with configurable update_interval
+_RESTORING_SCHEMA = cv.Schema(
+    {
+        **_BASE_SCHEMA,
+        cv.Optional(CONF_RESTORE_VALUE, default=True): cv.boolean,
+    }
+).extend(cv.polling_component_schema("1s"))
+
+
+def _globals_schema(config: ConfigType) -> ConfigType:
+    """Select schema based on restore_value setting."""
+    if config.get(CONF_RESTORE_VALUE, False):
+        return _RESTORING_SCHEMA(config)
+    return _NON_RESTORING_SCHEMA(config)
+
+
+MULTI_CONF = True
+CONFIG_SCHEMA = _globals_schema
 
 
 # Run with low priority so that namespaces are registered first

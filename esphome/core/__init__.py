@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
+    KEY_NATIVE_IDF,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_BK72XX,
@@ -277,9 +278,13 @@ LAMBDA_PROG = re.compile(r"\bid\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
 
 class Lambda:
     def __init__(self, value):
+        from esphome.cpp_generator import Expression, statement
+
         # pylint: disable=protected-access
         if isinstance(value, Lambda):
             self._value = value._value
+        elif isinstance(value, Expression):
+            self._value = str(statement(value))
         else:
             self._value = value
         self._parts = None
@@ -763,6 +768,9 @@ class EsphomeCore:
 
     @property
     def firmware_bin(self) -> Path:
+        # Check if using native ESP-IDF build (--native-idf)
+        if self.data.get(KEY_NATIVE_IDF, False):
+            return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
         return self.relative_pioenvs_path(self.name, "firmware.bin")

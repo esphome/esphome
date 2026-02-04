@@ -133,7 +133,7 @@ bool CH422GGPIOPin::digital_read() { return this->parent_->digital_read(this->pi
 
 void CH422GGPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value ^ this->inverted_); }
 size_t CH422GGPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "EXIO%u via CH422G", this->pin_);
+  return buf_append_printf(buffer, len, 0, "EXIO%u via CH422G", this->pin_);
 }
 void CH422GGPIOPin::set_flags(gpio::Flags flags) {
   flags_ = flags;

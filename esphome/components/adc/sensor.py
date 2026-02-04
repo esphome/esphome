@@ -2,7 +2,7 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
-from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32 import get_esp32_variant, include_builtin_idf_component
 from esphome.components.nrf52.const import AIN_TO_GPIO, EXTRA_ADC
 from esphome.components.zephyr import (
     zephyr_add_overlay,
@@ -118,6 +118,9 @@ async def to_code(config):
     cg.add(var.set_sampling_mode(config[CONF_SAMPLING_MODE]))
 
     if CORE.is_esp32:
+        # Re-enable ESP-IDF's ADC driver (excluded by default to save compile time)
+        include_builtin_idf_component("esp_adc")
+
         if attenuation := config.get(CONF_ATTENUATION):
             if attenuation == "auto":
                 cg.add(var.set_autorange(cg.global_ns.true))
@@ -160,21 +163,21 @@ async def to_code(config):
         zephyr_add_user("io-channels", f"<&adc {channel_id}>")
         zephyr_add_overlay(
             f"""
-&adc {{
-    #address-cells = <1>;
-    #size-cells = <0>;
+                &adc {{
+                    #address-cells = <1>;
+                    #size-cells = <0>;
 
-    channel@{channel_id} {{
-        reg = <{channel_id}>;
-        zephyr,gain = "{gain}";
-        zephyr,reference = "ADC_REF_INTERNAL";
-        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
-        zephyr,input-positive = <NRF_SAADC_{pin_number}>;
-        zephyr,resolution = <14>;
-        zephyr,oversampling = <8>;
-    }};
-}};
-"""
+                    channel@{channel_id} {{
+                        reg = <{channel_id}>;
+                        zephyr,gain = "{gain}";
+                        zephyr,reference = "ADC_REF_INTERNAL";
+                        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+                        zephyr,input-positive = <NRF_SAADC_{pin_number}>;
+                        zephyr,resolution = <14>;
+                        zephyr,oversampling = <8>;
+                    }};
+                }};
+            """
         )
 
 

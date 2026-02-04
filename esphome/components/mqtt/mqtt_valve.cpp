@@ -1,5 +1,6 @@
 #include "mqtt_valve.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "mqtt_const.h"
 
@@ -11,6 +12,20 @@ namespace esphome::mqtt {
 static const char *const TAG = "mqtt.valve";
 
 using namespace esphome::valve;
+
+static ProgmemStr valve_state_to_mqtt_str(ValveOperation operation, float position, bool supports_position) {
+  if (operation == VALVE_OPERATION_OPENING)
+    return ESPHOME_F("opening");
+  if (operation == VALVE_OPERATION_CLOSING)
+    return ESPHOME_F("closing");
+  if (position == VALVE_CLOSED)
+    return ESPHOME_F("closed");
+  if (position == VALVE_OPEN)
+    return ESPHOME_F("open");
+  if (supports_position)
+    return ESPHOME_F("open");
+  return ESPHOME_F("unknown");
+}
 
 MQTTValveComponent::MQTTValveComponent(Valve *valve) : valve_(valve) {}
 void MQTTValveComponent::setup() {
@@ -39,7 +54,7 @@ void MQTTValveComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT valve '%s':", this->valve_->get_name().c_str());
   auto traits = this->valve_->get_traits();
   bool has_command_topic = traits.get_supports_position();
-  LOG_MQTT_COMPONENT(true, has_command_topic)
+  LOG_MQTT_COMPONENT(true, has_command_topic);
   if (traits.get_supports_position()) {
     ESP_LOGCONFIG(TAG,
                   "  Position State Topic: '%s'\n"
@@ -78,13 +93,10 @@ bool MQTTValveComponent::publish_state() {
     if (!this->publish(this->get_position_state_topic(), pos, len))
       success = false;
   }
-  const char *state_s = this->valve_->current_operation == VALVE_OPERATION_OPENING   ? "opening"
-                        : this->valve_->current_operation == VALVE_OPERATION_CLOSING ? "closing"
-                        : this->valve_->position == VALVE_CLOSED                     ? "closed"
-                        : this->valve_->position == VALVE_OPEN                       ? "open"
-                        : traits.get_supports_position()                             ? "open"
-                                                                                     : "unknown";
-  if (!this->publish(this->get_state_topic_(), state_s))
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  if (!this->publish(this->get_state_topic_to_(topic_buf),
+                     valve_state_to_mqtt_str(this->valve_->current_operation, this->valve_->position,
+                                             traits.get_supports_position())))
     success = false;
   return success;
 }

@@ -8,7 +8,7 @@ namespace pn532 {
 
 static const char *const TAG = "pn532.mifare_classic";
 
-std::unique_ptr<nfc::NfcTag> PN532::read_mifare_classic_tag_(std::vector<uint8_t> &uid) {
+std::unique_ptr<nfc::NfcTag> PN532::read_mifare_classic_tag_(nfc::NfcTagUid &uid) {
   uint8_t current_block = 4;
   uint8_t message_start_index = 0;
   uint32_t message_length = 0;
@@ -82,8 +82,7 @@ bool PN532::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &
   return true;
 }
 
-bool PN532::auth_mifare_classic_block_(std::vector<uint8_t> &uid, uint8_t block_num, uint8_t key_num,
-                                       const uint8_t *key) {
+bool PN532::auth_mifare_classic_block_(nfc::NfcTagUid &uid, uint8_t block_num, uint8_t key_num, const uint8_t *key) {
   std::vector<uint8_t> data({
       PN532_COMMAND_INDATAEXCHANGE,
       0x01,       // One card
@@ -106,7 +105,7 @@ bool PN532::auth_mifare_classic_block_(std::vector<uint8_t> &uid, uint8_t block_
   return true;
 }
 
-bool PN532::format_mifare_classic_mifare_(std::vector<uint8_t> &uid) {
+bool PN532::format_mifare_classic_mifare_(nfc::NfcTagUid &uid) {
   std::vector<uint8_t> blank_buffer(
       {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
   std::vector<uint8_t> trailer_buffer(
@@ -141,7 +140,7 @@ bool PN532::format_mifare_classic_mifare_(std::vector<uint8_t> &uid) {
   return !error;
 }
 
-bool PN532::format_mifare_classic_ndef_(std::vector<uint8_t> &uid) {
+bool PN532::format_mifare_classic_ndef_(nfc::NfcTagUid &uid) {
   std::vector<uint8_t> empty_ndef_message(
       {0x03, 0x03, 0xD0, 0x00, 0x00, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
   std::vector<uint8_t> blank_block(
@@ -216,7 +215,7 @@ bool PN532::write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> 
   return true;
 }
 
-bool PN532::write_mifare_classic_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message) {
+bool PN532::write_mifare_classic_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message) {
   auto encoded = message->encode();
 
   uint32_t message_length = encoded.size();

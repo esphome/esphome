@@ -72,6 +72,7 @@ class StringRef {
 
   constexpr const char *c_str() const { return base_; }
   constexpr size_type size() const { return len_; }
+  constexpr size_type length() const { return len_; }
   constexpr bool empty() const { return len_ == 0; }
   constexpr const_reference operator[](size_type pos) const { return *(base_ + pos); }
 
@@ -79,6 +80,32 @@ class StringRef {
   const uint8_t *byte() const { return reinterpret_cast<const uint8_t *>(base_); }
 
   operator std::string() const { return str(); }
+
+  /// Find first occurrence of substring, returns std::string::npos if not found.
+  /// Note: Requires the underlying string to be null-terminated.
+  size_type find(const char *s, size_type pos = 0) const {
+    if (pos >= len_)
+      return std::string::npos;
+    const char *result = std::strstr(base_ + pos, s);
+    // Verify entire match is within bounds (strstr searches to null terminator)
+    if (result && result + std::strlen(s) <= base_ + len_)
+      return static_cast<size_type>(result - base_);
+    return std::string::npos;
+  }
+  size_type find(char c, size_type pos = 0) const {
+    if (pos >= len_)
+      return std::string::npos;
+    const void *result = std::memchr(base_ + pos, static_cast<unsigned char>(c), len_ - pos);
+    return result ? static_cast<size_type>(static_cast<const char *>(result) - base_) : std::string::npos;
+  }
+
+  /// Return substring as std::string
+  std::string substr(size_type pos = 0, size_type count = std::string::npos) const {
+    if (pos >= len_)
+      return std::string();
+    size_type actual_count = (count == std::string::npos || pos + count > len_) ? len_ - pos : count;
+    return std::string(base_ + pos, actual_count);
+  }
 
  private:
   const char *base_;
@@ -160,6 +187,43 @@ inline std::string operator+(const std::string &lhs, const StringRef &rhs) {
   str.append(rhs.c_str(), rhs.size());
   return str;
 }
+// String conversion functions for ADL compatibility (allows stoi(x) where x is StringRef)
+// Must be in esphome namespace for ADL to find them. Uses strtol/strtod directly to avoid heap allocation.
+namespace internal {
+// NOLINTBEGIN(google-runtime-int)
+template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, F conv) {
+  char *end;
+  R result = conv(str.c_str(), &end);
+  // Set pos to 0 on conversion failure (when no characters consumed), otherwise index after number
+  if (pos)
+    *pos = (end == str.c_str()) ? 0 : static_cast<size_t>(end - str.c_str());
+  return result;
+}
+template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, int base, F conv) {
+  char *end;
+  R result = conv(str.c_str(), &end, base);
+  // Set pos to 0 on conversion failure (when no characters consumed), otherwise index after number
+  if (pos)
+    *pos = (end == str.c_str()) ? 0 : static_cast<size_t>(end - str.c_str());
+  return result;
+}
+// NOLINTEND(google-runtime-int)
+}  // namespace internal
+// NOLINTBEGIN(readability-identifier-naming,google-runtime-int)
+inline int stoi(const StringRef &str, size_t *pos = nullptr, int base = 10) {
+  return static_cast<int>(internal::parse_number<long>(str, pos, base, std::strtol));
+}
+inline long stol(const StringRef &str, size_t *pos = nullptr, int base = 10) {
+  return internal::parse_number<long>(str, pos, base, std::strtol);
+}
+inline float stof(const StringRef &str, size_t *pos = nullptr) {
+  return internal::parse_number<float>(str, pos, std::strtof);
+}
+inline double stod(const StringRef &str, size_t *pos = nullptr) {
+  return internal::parse_number<double>(str, pos, std::strtod);
+}
+// NOLINTEND(readability-identifier-naming,google-runtime-int)
+
 #ifdef USE_JSON
 // NOLINTNEXTLINE(readability-identifier-naming)
 inline void convertToJson(const StringRef &src, JsonVariant dst) { dst.set(src.c_str()); }

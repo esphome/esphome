@@ -69,6 +69,7 @@ from esphome.cpp_types import (  # noqa: F401
     JsonObjectConst,
     Parented,
     PollingComponent,
+    StringRef,
     arduino_json_ns,
     bool_,
     const_char_ptr,

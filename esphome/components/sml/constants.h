@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 namespace esphome {
@@ -21,7 +22,7 @@ enum SmlMessageType : uint16_t { SML_PUBLIC_OPEN_RES = 0x0101, SML_GET_LIST_RES 
 const uint16_t START_MASK = 0x55aa;  // 0x1b 1b 1b 1b 01 01 01 01
 const uint16_t END_MASK = 0x0157;    // 0x1b 1b 1b 1b 1a
 
-const std::vector<uint8_t> START_SEQ = {0x1b, 0x1b, 0x1b, 0x1b, 0x01, 0x01, 0x01, 0x01};
+constexpr std::array<uint8_t, 8> START_SEQ = {0x1b, 0x1b, 0x1b, 0x1b, 0x01, 0x01, 0x01, 0x01};
 
 }  // namespace sml
 }  // namespace esphome

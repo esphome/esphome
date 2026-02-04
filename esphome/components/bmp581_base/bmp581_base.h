@@ -3,11 +3,9 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace bmp581 {
+namespace esphome::bmp581_base {
 
 static const uint8_t BMP581_ASIC_ID = 0x50;  // BMP581's ASIC chip ID (page 51 of datasheet)
 static const uint8_t RESET_COMMAND = 0xB6;   // Soft reset command
@@ -59,7 +57,7 @@ enum IIRFilter {
   IIR_FILTER_128 = 0x7
 };
 
-class BMP581Component : public PollingComponent, public i2c::I2CDevice {
+class BMP581Component : public PollingComponent {
  public:
   void dump_config() override;
 
@@ -84,6 +82,11 @@ class BMP581Component : public PollingComponent, public i2c::I2CDevice {
   void set_conversion_time(uint8_t conversion_time) { this->conversion_time_ = conversion_time; }
 
  protected:
+  virtual bool bmp_read_byte(uint8_t a_register, uint8_t *data) = 0;
+  virtual bool bmp_write_byte(uint8_t a_register, uint8_t data) = 0;
+  virtual bool bmp_read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
+  virtual bool bmp_write_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
+
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
 
@@ -216,5 +219,4 @@ class BMP581Component : public PollingComponent, public i2c::I2CDevice {
   } odr_config_ = {.reg = 0};
 };
 
-}  // namespace bmp581
-}  // namespace esphome
+}  // namespace esphome::bmp581_base
