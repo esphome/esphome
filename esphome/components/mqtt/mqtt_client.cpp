@@ -643,10 +643,34 @@ static bool topic_match(const char *message, const char *subscription) {
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
-  for (auto &subscription : this->subscriptions_) {
-    if (topic_match(topic.c_str(), subscription.topic.c_str()))
-      subscription.callback(topic, payload);
-  }
+#ifdef USE_ESP8266
+  // IMPORTANT: This defer is REQUIRED to prevent stack overflow crashes on ESP8266.
+  //
+  // On ESP8266, this callback is invoked directly from the lwIP/AsyncTCP network stack
+  // which runs in the "sys" context with a very limited stack (~4KB). By the time we
+  // reach this function, the stack is already partially consumed by the network
+  // processing chain: tcp_input -> AsyncClient::_recv -> AsyncMqttClient::_onMessage -> here.
+  //
+  // MQTT subscription callbacks can trigger arbitrary user actions (automations, HTTP
+  // requests, sensor updates, etc.) which may have deep call stacks of their own.
+  // For example, an HTTP request action requires: DNS lookup -> TCP connect -> TLS
+  // handshake (if HTTPS) -> request formatting. This easily overflows the remaining
+  // system stack space, causing a LoadStoreAlignmentCause exception or silent corruption.
+  //
+  // By deferring to the main loop, we ensure callbacks execute with a fresh, full-size
+  // stack in the normal application context rather than the constrained network task.
+  //
+  // DO NOT REMOVE THIS DEFER without understanding the above. It may appear to work
+  // in simple tests but will cause crashes with complex automations.
+  this->defer([this, topic, payload]() {
+#endif
+    for (auto &subscription : this->subscriptions_) {
+      if (topic_match(topic.c_str(), subscription.topic.c_str()))
+        subscription.callback(topic, payload);
+    }
+#ifdef USE_ESP8266
+  });
+#endif
 }
 
 // Setters

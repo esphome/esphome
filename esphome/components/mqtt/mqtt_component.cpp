@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/version.h"
 
 #include "mqtt_const.h"
@@ -148,6 +149,22 @@ bool MQTTComponent::publish(const char *topic, const char *payload, size_t paylo
 bool MQTTComponent::publish(const char *topic, const char *payload) {
   return this->publish(topic, payload, strlen(payload));
 }
+
+#ifdef USE_ESP8266
+bool MQTTComponent::publish(const std::string &topic, ProgmemStr payload) {
+  return this->publish(topic.c_str(), payload);
+}
+
+bool MQTTComponent::publish(const char *topic, ProgmemStr payload) {
+  if (topic[0] == '\0')
+    return false;
+  // On ESP8266, ProgmemStr is __FlashStringHelper* - need to copy from flash
+  char buf[64];
+  strncpy_P(buf, reinterpret_cast<const char *>(payload), sizeof(buf) - 1);
+  buf[sizeof(buf) - 1] = '\0';
+  return global_mqtt_client->publish(topic, buf, strlen(buf), this->qos_, this->retain_);
+}
+#endif
 
 bool MQTTComponent::publish_json(const std::string &topic, const json::json_build_t &f) {
   return this->publish_json(topic.c_str(), f);
