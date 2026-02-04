@@ -232,8 +232,6 @@ struct LogBuffer {
   uint16_t remaining_() const { return this->size - this->pos; }
   char *current_() { return this->data + this->pos; }
   void write_(const char *value, size_t length) {
-    if (this->full_())
-      return;
     const uint16_t available = this->remaining_();
     const size_t copy_len = (length < static_cast<size_t>(available)) ? length : available;
     if (copy_len > 0) {
