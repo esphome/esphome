@@ -189,10 +189,11 @@ class LibreTinyPreferences : public ESPPreferences {
   }
 };
 
+static LibreTinyPreferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 void setup_preferences() {
-  auto *prefs = new LibreTinyPreferences();  // NOLINT(cppcoreguidelines-owning-memory)
-  prefs->open();
-  global_preferences = prefs;
+  s_preferences.open();
+  global_preferences = &s_preferences;
 }
 
 }  // namespace libretiny
