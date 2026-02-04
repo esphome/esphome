@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_SENSOR
+
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 #include "cc1101.h"
@@ -34,3 +38,5 @@ class CC1101Sensor : public sensor::Sensor, public Component, public Parented<CC
 };
 
 }  // namespace esphome::cc1101
+
+#endif

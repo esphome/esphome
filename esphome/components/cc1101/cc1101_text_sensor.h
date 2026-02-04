@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_TEXT_SENSOR
+
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/component.h"
 #include "cc1101.h"
@@ -24,14 +28,13 @@ class CC1101TextSensor : public text_sensor::TextSensor, public PollingComponent
     int value;
   };
 
-  static constexpr Option RX_ATTENUATION_OPTIONS[4] = {
-      {"0dB", 0}, {"6dB", 1}, {"12dB", 2}, {"18dB", 3}};
+  static constexpr Option RX_ATTENUATION_OPTIONS[4] = {{"0dB", 0}, {"6dB", 1}, {"12dB", 2}, {"18dB", 3}};
 
-  static constexpr Option MODULATION_OPTIONS[5] = {
-      {"2-FSK", 0}, {"GFSK", 1}, {"ASK/OOK", 3}, {"4-FSK", 4}, {"MSK", 7}};
+  static constexpr Option MODULATION_OPTIONS[5] = {{"2-FSK", 0}, {"GFSK", 1}, {"ASK/OOK", 3}, {"4-FSK", 4}, {"MSK", 7}};
 
   void update() override {
-    if (this->parent_ == nullptr) return;
+    if (this->parent_ == nullptr)
+      return;
     std::string value;
     switch (this->type_) {
       case RX_ATTENUATION:
@@ -59,10 +62,13 @@ class CC1101TextSensor : public text_sensor::TextSensor, public PollingComponent
 
   std::string get_option_name(int val, const Option *opts, size_t size) {
     for (size_t i = 0; i < size; i++) {
-      if (opts[i].value == val) return opts[i].name;
+      if (opts[i].value == val)
+        return opts[i].name;
     }
     return "";
   }
 };
 
 }  // namespace esphome::cc1101
+
+#endif

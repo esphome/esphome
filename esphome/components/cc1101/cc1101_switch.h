@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_SWITCH
+
 #include "esphome/components/switch/switch.h"
 #include "esphome/core/component.h"
 #include "cc1101.h"
@@ -21,7 +25,8 @@ class CC1101Switch : public switch_::Switch, public PollingComponent, public Par
   void set_type(CC1101SwitchType type) { type_ = type; }
 
   void update() override {
-    if (this->parent_ == nullptr) return;
+    if (this->parent_ == nullptr)
+      return;
     bool value = false;
     switch (this->type_) {
       case DC_BLOCKING_FILTER:
@@ -51,7 +56,8 @@ class CC1101Switch : public switch_::Switch, public PollingComponent, public Par
 
  protected:
   void write_state(bool state) override {
-    if (this->parent_ == nullptr) return;
+    if (this->parent_ == nullptr)
+      return;
     switch (this->type_) {
       case DC_BLOCKING_FILTER:
         this->parent_->set_dc_blocking_filter(state);
@@ -82,3 +88,5 @@ class CC1101Switch : public switch_::Switch, public PollingComponent, public Par
 };
 
 }  // namespace esphome::cc1101
+
+#endif

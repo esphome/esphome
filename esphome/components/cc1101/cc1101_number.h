@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_NUMBER
+
 #include "esphome/components/number/number.h"
 #include "esphome/core/component.h"
 #include "cc1101.h"
@@ -28,7 +32,8 @@ class CC1101Number : public number::Number, public PollingComponent, public Pare
   void set_type(CC1101NumberType type) { type_ = type; }
 
   void update() override {
-    if (this->parent_ == nullptr) return;
+    if (this->parent_ == nullptr)
+      return;
     float value = 0;
     switch (this->type_) {
       case OUTPUT_POWER:
@@ -79,7 +84,8 @@ class CC1101Number : public number::Number, public PollingComponent, public Pare
 
  protected:
   void control(float value) override {
-    if (this->parent_ == nullptr) return;
+    if (this->parent_ == nullptr)
+      return;
     switch (this->type_) {
       case OUTPUT_POWER:
         this->parent_->set_output_power(value);
@@ -131,3 +137,5 @@ class CC1101Number : public number::Number, public PollingComponent, public Pare
 };
 
 }  // namespace esphome::cc1101
+
+#endif
