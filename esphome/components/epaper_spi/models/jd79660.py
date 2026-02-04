@@ -76,7 +76,7 @@ jd79660.extend(
         (0x00, 0x0F, 0x29,),
         (0x06, 0x0d, 0x12, 0x30, 0x20, 0x19, 0x2a, 0x22,),
         (0x50, 0x37,),
-        (0x61, 200 // 256, 200 % 256, 200 // 256, 200 % 256,), # RES: 200x200 fixed
+        (0x61, 200 // 256, 200 % 256, 200 // 256, 200 % 256,),  # RES: 200x200 fixed
         (0xE9, 0x01,),
         (0x30, 0x08,),
         # Power On (0x04): Must be early part of init seq = Disabled later!

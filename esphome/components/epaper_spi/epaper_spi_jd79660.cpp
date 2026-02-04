@@ -16,7 +16,7 @@ enum JD79660Color : uint8_t {
 
 /** Map RGB color to JD79660 BWYR hex color keys */
 static constexpr JD79660Color HOT color_to_hex(Color color) {
-  return color_to_BWYR(color,
+  return color_to_bwyr(color,
     JD79660Color::BLACK, JD79660Color::WHITE, JD79660Color::YELLOW, JD79660Color::RED);
 }
 
@@ -60,7 +60,7 @@ bool EPaperJD79660::reset() {
       ESP_LOGVV(TAG, "reset #0");
       this->reset_pin_->digital_write(true);
 
-      this->reset_duration_ = this->SLEEP_MS_RESET0;
+      this->reset_duration_ = SLEEP_MS_RESET0;
       this->step_ = FSMState::RESET_STEP1_L;
       return false; // another loop: step #1 below
 
@@ -73,10 +73,10 @@ bool EPaperJD79660::reset() {
       // As commented on SLEEP_MS_RESET1: Reset pulse must happen within time window.
       // So do not use FSM loop, and avoid other calls/logs during pulse below.
       this->reset_pin_->digital_write(false);
-      delay(this->SLEEP_MS_RESET1);
+      delay(SLEEP_MS_RESET1);
       this->reset_pin_->digital_write(true);
 
-      this->reset_duration_ = this->SLEEP_MS_RESET2;
+      this->reset_duration_ = SLEEP_MS_RESET2;
       this->step_ = FSMState::RESET_STEP2_IDLECHECK;
       return false; // another loop: step #2 below
 
@@ -132,7 +132,7 @@ bool EPaperJD79660::initialise(bool partial) {
       this->mark_failed();
   }
 
-  this->step_ = FSMState::DEFAULT;
+  this->step_ = FSMState::NONE;
   return true; // Finished: State transition waits for idle
 }
 
@@ -188,7 +188,7 @@ bool EPaperJD79660::transfer_data() {
   // And likely minimal impact, solely on SPI transfer time into RAM.
 
   if (this->current_data_index_ == 0) {
-    this->command(this->CMD_TRANSFER);
+    this->command(CMD_TRANSFER);
   }
 
   return this->transfer_buffer_chunks_();
@@ -196,18 +196,18 @@ bool EPaperJD79660::transfer_data() {
 
 void EPaperJD79660::refresh_screen([[maybe_unused]] bool partial) {
   ESP_LOGV(TAG, "Refresh");
-  this->cmd_data(this->CMD_REFRESH, {(uint8_t)0x00});
+  this->cmd_data(CMD_REFRESH, {(uint8_t)0x00});
 }
 
 void EPaperJD79660::power_off() {
   ESP_LOGV(TAG, "Power off");
-  this->cmd_data(this->CMD_POWEROFF, {(uint8_t)0x00});
+  this->cmd_data(CMD_POWEROFF, {(uint8_t)0x00});
 }
 
 void EPaperJD79660::deep_sleep() {
   ESP_LOGV(TAG, "Deep sleep");
   // "Deepsleep between update": Ensure EPD sleep to avoid early hardware wearout!
-  this->cmd_data(this->CMD_DEEPSLEEP, {(uint8_t)0xA5});
+  this->cmd_data(CMD_DEEPSLEEP, {(uint8_t)0xA5});
 
   // Notes:
   // - VDD: Some boards (Waveshare) with "clever reset logic" would allow switching off

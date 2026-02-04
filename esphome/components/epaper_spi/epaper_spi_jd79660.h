@@ -100,7 +100,7 @@ class EPaperJD79660 final : public EPaperBase {
 
   /** State machine constants for \a step_ */
   enum class FSMState : uint8_t {
-    DEFAULT = 0,   //!< Initial/default value: Unused
+    NONE = 0,   //!< Initial/default value: Unused
 
     /* Reset state steps */
     RESET_STEP0_H,
@@ -140,7 +140,7 @@ class EPaperJD79660 final : public EPaperBase {
   const uint16_t fast_update_length_{};
 
   /** Counter for tracking substeps within FSM state */
-  FSMState step_{FSMState::DEFAULT};
+  FSMState step_{FSMState::NONE};
 };
 
 }  // namespace esphome::epaper_spi
