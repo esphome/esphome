@@ -239,7 +239,7 @@ fan:
 ## `fan.on_direction_set` Trigger
 
 This trigger is activated each time the fan direction is changed. It will fire when the direction is either set via API e.g. in Home Assistant or locally by an automation or a lambda function.
-The new direction is available as a variable called `x`. (`0` is FORWARD, `1` is REVERSE)
+The new direction is available as a variable called `x` (type `FanDirection`).
 
 ```yaml
 fan:
@@ -248,7 +248,7 @@ fan:
     on_direction_set:
     - logger.log:
         format: "Fan Direction was changed to %s!"
-        args: [ x == 0 ? "FORWARD" : "REVERSE" ]
+        args: [ 'x == FanDirection::FORWARD ? "FORWARD" : "REVERSE"' ]
 ```
 
 {{< anchor "fan-on_oscillating_set_trigger" >}}
