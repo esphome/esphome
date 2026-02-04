@@ -72,7 +72,6 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
 template<typename... Ts> class CoverPublishAction : public Action<Ts...> {
  public:
   CoverPublishAction(Cover *cover) : cover_(cover) {}
-
   TEMPLATABLE_VALUE(float, position)
   TEMPLATABLE_VALUE(float, tilt)
   TEMPLATABLE_VALUE(CoverOperation, current_operation)
