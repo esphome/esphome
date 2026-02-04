@@ -96,6 +96,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Alexander Leisentritt (@Alex9779)](https://github.com/Alex9779)
 - [Alex Barcelo (@alexbarcelo)](https://github.com/alexbarcelo)
 - [alexborro (@alexborro)](https://github.com/alexborro)
+- [Alex Coco (@alexcoco)](https://github.com/alexcoco)
 - [AlexCPU (@AlexCPU)](https://github.com/AlexCPU)
 - [Alexandre Danault (@AlexDanault)](https://github.com/AlexDanault)
 - [Alex Iribarren (@alexiri)](https://github.com/alexiri)
@@ -1181,6 +1182,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [klenaers (@klenaers)](https://github.com/klenaers)
 - [Kevin Lewis (@kll)](https://github.com/kll)
 - [kmoulton (@kmoulton)](https://github.com/kmoulton)
+- [Cade Parker (@Knucklesfan)](https://github.com/Knucklesfan)
 - [KNXBroker (@KNXBroker)](https://github.com/KNXBroker)
 - [KoalaBear84 (@KoalaBear84)](https://github.com/KoalaBear84)
 - [KodinLanewave (@KodinLanewave)](https://github.com/KodinLanewave)
@@ -1241,6 +1243,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [lein1013 (@lein1013)](https://github.com/lein1013)
 - [Lennart (@lennart-k)](https://github.com/lennart-k)
 - [Leo Bergolth (@leo-b)](https://github.com/leo-b)
+- [Leonardo Rivera (@leodrivera)](https://github.com/leodrivera)
 - [Leonardo La Rocca (@leoli51)](https://github.com/leoli51)
 - [leoshusar (@leoshusar)](https://github.com/leoshusar)
 - [Leo Winter (@LeoWinterDE)](https://github.com/LeoWinterDE)
@@ -1833,6 +1836,7 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Roeland Lutters (@Roeland54)](https://github.com/Roeland54)
 - [RoganDawes (@RoganDawes)](https://github.com/RoganDawes)
 - [Roger Busser (@rogerbusser)](https://github.com/rogerbusser)
+- [Roger Fachini (@rogerfachini)](https://github.com/rogerfachini)
 - [Roi Tagar (@roitagar)](https://github.com/roitagar)
 - [Roman Ondráček (@Roman3349)](https://github.com/Roman3349)
 - [romerod (@romerod)](https://github.com/romerod)
@@ -2330,4 +2334,4 @@ ESPHome was originally founded by [Otto Winter (@OttoWinter)](https://github.com
 - [Christian Zufferey (@zuzu59)](https://github.com/zuzu59)
 - [Zynth-dev (@Zynth-dev)](https://github.com/Zynth-dev)
 
-*This page was last updated January 29, 2026.*
+*This page was last updated February 4, 2026.*
