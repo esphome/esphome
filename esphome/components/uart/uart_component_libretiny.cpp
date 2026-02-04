@@ -23,15 +23,15 @@ static const char *UART_TYPE[] = {
     "software",
 };
 
-static bool gpioPinHasAnyFlagSet(const InternalGPIOPin *pin, const gpio::Flags mask)
-{
+static bool gpioPinHasAnyFlagSet(const InternalGPIOPin *pin, const gpio::Flags mask) {
   return pin && (pin->get_flags() & mask) != gpio::Flags::FLAG_NONE;
 }
 
-static bool shouldFallbackToSoftwareSerial(const InternalGPIOPin *rx_pin, const InternalGPIOPin *tx_pin)
-{
-  if (gpioPinHasAnyFlagSet(tx_pin, gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN) ||
-      gpioPinHasAnyFlagSet(rx_pin, gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN)) {
+static bool shouldFallbackToSoftwareSerial(const InternalGPIOPin *rx_pin, const InternalGPIOPin *tx_pin) {
+  if (gpioPinHasAnyFlagSet(tx_pin,
+                           gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN) ||
+      gpioPinHasAnyFlagSet(rx_pin,
+                           gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN)) {
     ESP_LOGI(TAG, "Pins has flags set. Using Software Serial");
     return true;
   }
@@ -39,15 +39,13 @@ static bool shouldFallbackToSoftwareSerial(const InternalGPIOPin *rx_pin, const 
   return false;
 }
 
-
 bool LibreTinyUARTComponent::pins_contain_(const FixedVector<pin_size_t> &pins, pin_size_t pin_num) const {
   return pins.end() != std::find(pins.begin(), pins.end(), pin_num);
 }
 
 void LibreTinyUARTComponent::print_pins(const char *uart_name, const FixedVector<pin_size_t> &tx_pins,
                                         const FixedVector<pin_size_t> &rx_pins) const {
-  if (tx_pins.empty() && rx_pins.empty())
-  {
+  if (tx_pins.empty() && rx_pins.empty()) {
     return;
   }
   for (size_t i = 0; i < tx_pins.size(); ++i) {
@@ -83,32 +81,23 @@ void LibreTinyUARTComponent::setup() {
   int8_t rx_pin = rx_pin_ == nullptr ? -1 : rx_pin_->get_pin();
 
   auto fallback_to_sw_serial = shouldFallbackToSoftwareSerial(rx_pin_, tx_pin_);
-  if (!fallback_to_sw_serial)
-  {
-    if (this->uart_manager_.init_uart(0, this->baud_rate_, get_config(), rx_pin, tx_pin))
-    {
+  if (!fallback_to_sw_serial) {
+    if (this->uart_manager_.init_uart(0, this->baud_rate_, get_config(), rx_pin, tx_pin)) {
       this->hardware_idx_ = 0;
       this->serial_ = this->uart_manager_.get_hw_serial_by_number(0);
-    }
-    else if (this->uart_manager_.init_uart(1, this->baud_rate_, get_config(), rx_pin, tx_pin))
-    {
+    } else if (this->uart_manager_.init_uart(1, this->baud_rate_, get_config(), rx_pin, tx_pin)) {
       this->hardware_idx_ = 1;
       this->serial_ = this->uart_manager_.get_hw_serial_by_number(1);
-    }
-    else if (this->uart_manager_.init_uart(2, this->baud_rate_, get_config(), rx_pin, tx_pin))
-    {
+    } else if (this->uart_manager_.init_uart(2, this->baud_rate_, get_config(), rx_pin, tx_pin)) {
       this->hardware_idx_ = 2;
       this->serial_ = this->uart_manager_.get_hw_serial_by_number(2);
-    }
-    else
-    {
+    } else {
       fallback_to_sw_serial = true;
       ESP_LOGI(TAG, "Selected pins don't match any hardware UART. Falling back to Software Serial.");
     }
   }
 
-  if (fallback_to_sw_serial)
-  {
+  if (fallback_to_sw_serial) {
 #if LT_ARD_HAS_SOFTSERIAL
     bool tx_inverted = tx_pin_ != nullptr && tx_pin_->is_inverted();
     bool rx_inverted = rx_pin_ != nullptr && rx_pin_->is_inverted();

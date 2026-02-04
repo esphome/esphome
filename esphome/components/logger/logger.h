@@ -403,7 +403,7 @@ class Logger : public Component {
 #endif
 #if defined(USE_LIBRETINY)
   int8_t hardware_idx_{-1};
-  libretiny::UartManager uart_manager_; // this can be one instance, shared by uart & logger
+  libretiny::UartManager uart_manager_;  // this can be one instance, shared by uart & logger
 #endif
 #ifdef USE_HOST
   // Thread-specific recursion guards using pthread TLS

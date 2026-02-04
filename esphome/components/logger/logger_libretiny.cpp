@@ -43,11 +43,11 @@ void Logger::pre_setup() {
         ESP_LOGW(TAG, "  Failed to initialize logger UART port. Logging disabled.");
         this->baud_rate_ = 0;
         return;
-      }
-      else
-      {
-        ESP_LOGW(TAG, "  The chosen logger UART port is not available on this board."
-                      "The default port (%u) will be used instead.", LT_UART_DEFAULT_SERIAL);
+      } else {
+        ESP_LOGW(TAG,
+                 "  The chosen logger UART port is not available on this board."
+                 "The default port (%u) will be used instead.",
+                 LT_UART_DEFAULT_SERIAL);
       }
     }
     this->uart_ = lt_uart_number_2_esphome(lt_uart);
