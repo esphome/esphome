@@ -42,6 +42,8 @@ CONF_MODEM_ID = "modem_id"
 CONF_PIN_CODE = "pin_code"
 CONF_APN = "apn"
 CONF_DTR_PIN = "dtr_pin"
+CONF_RTS_PIN = "rts_pin"
+CONF_CTS_PIN = "cts_pin"
 CONF_STATUS_PIN = "status_pin"
 CONF_POWER_PIN = "power_pin"
 CONF_TON_PULSE_DELAY = "ton_pulse_delay"
@@ -58,7 +60,16 @@ CONF_NMEA = "nmea"
 CONF_GNSS_COMMAND = "gnss_command"
 CONF_GNSS_PARSER = "gnss_parser"
 
-MODEM_MODELS = ["BG96", "SIM800", "SIM7000", "SIM7070", "SIM7080", "SIM7600", "SIM7670", "GENERIC"]
+MODEM_MODELS = [
+    "BG96",
+    "SIM800",
+    "SIM7000",
+    "SIM7070",
+    "SIM7080",
+    "SIM7600",
+    "SIM7670",
+    "GENERIC",
+]
 MODEM_MODELS_POWER = {
     "BG96": {
         CONF_TON_PULSE_DELAY: 600,
@@ -157,7 +168,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(ModemComponent),
             cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
-            cv.Required(CONF_RX_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Required(CONF_RX_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Optional(CONF_RTS_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_CTS_PIN): pins.internal_gpio_input_pin_schema,
             cv.Optional(CONF_BAUD_RATE): cv.positive_int,
             cv.Required(CONF_MODEL): cv.one_of(*MODEM_MODELS, upper=True),
             cv.Required(CONF_APN): cv.string,
@@ -417,6 +430,14 @@ async def to_code(config):
 
     rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
     cg.add(var.set_rx_pin(rx_pin))
+
+    if rts_pin := config.get(CONF_RTS_PIN, None):
+        rts_pin_expr = await cg.gpio_pin_expression(rts_pin)
+        cg.add(var.set_rts_pin(rts_pin_expr))
+
+    if cts_pin := config.get(CONF_CTS_PIN, None):
+        cts_pin_expr = await cg.gpio_pin_expression(cts_pin)
+        cg.add(var.set_cts_pin(cts_pin_expr))
 
     if baud_rate := config.get(CONF_BAUD_RATE, None):
         cg.add(var.set_baud_rate(baud_rate))

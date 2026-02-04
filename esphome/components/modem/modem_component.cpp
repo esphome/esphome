@@ -95,7 +95,11 @@ void ModemComponent::setup() {
   }
 
   // find an available UART
+#ifdef UART_NUM_2
   for (auto p : {UART_NUM_2, UART_NUM_1}) {
+#else
+  for (auto p : {UART_NUM_1}) {
+#endif
     if (!uart_is_driver_installed(p)) {
       this->modem_handler->uart_port_num = p;
       break;

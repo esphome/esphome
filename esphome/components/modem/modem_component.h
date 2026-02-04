@@ -45,6 +45,8 @@ class ModemComponent : public Component {
   // Setters now modify the handler's attributes
   void set_rx_pin(InternalGPIOPin *rx_pin) { this->modem_handler->rx_pin = rx_pin; }
   void set_tx_pin(InternalGPIOPin *tx_pin) { this->modem_handler->tx_pin = tx_pin; }
+  void set_rts_pin(InternalGPIOPin *rts_pin) { this->modem_handler->rts_pin = rts_pin; }
+  void set_cts_pin(InternalGPIOPin *cts_pin) { this->modem_handler->cts_pin = cts_pin; }
   void set_baud_rate(int baud_rate) { this->modem_handler->baud_rate = baud_rate; }
   void set_model(const std::string &model) { this->modem_handler->model = model; }
   void set_power_pin(GPIOPin *power_pin) { this->modem_handler->power_pin = power_pin; }

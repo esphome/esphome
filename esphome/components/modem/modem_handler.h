@@ -34,6 +34,8 @@ class ModemHandler {
   // Attributes from YAML config
   InternalGPIOPin *tx_pin;
   InternalGPIOPin *rx_pin;
+  InternalGPIOPin *rts_pin{nullptr};
+  InternalGPIOPin *cts_pin{nullptr};
   std::string model;
   GPIOPin *status_pin{nullptr};
   uint32_t power_ton_pulse_delay;
