@@ -475,6 +475,18 @@ class Logger : public Component {
     this->write_log_buffer_to_console_(buf);
   }
 
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+  // Helper to format and send a log message with flash format string (ESP8266)
+  inline void HOT log_message_to_buffer_and_send_P_(bool &recursion_guard, uint8_t level, const char *tag, int line,
+                                                    const __FlashStringHelper *format, va_list args) {
+    RecursionGuard guard(recursion_guard);
+    LogBuffer buf(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
+    this->format_log_to_buffer_with_terminator_P_(level, tag, line, format, args, buf);
+    this->notify_listeners_(level, tag);
+    this->write_log_buffer_to_console_(buf);
+  }
+#endif
+
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // Helper to format a pre-formatted message from the task log buffer and notify listeners
   // Used by process_messages_ to avoid code duplication between ESP32 and host platforms
