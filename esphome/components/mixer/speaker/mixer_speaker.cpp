@@ -655,10 +655,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
   if (output_transfer_buffer == nullptr) {
     xEventGroupSetBits(this_mixer->event_group_, MIXER_TASK_STATE_STOPPED | MIXER_TASK_ERR_ESP_NO_MEM);
 
-    while (true) {
-      // Continuously delay until the loop method deletes the task
-      vTaskDelay(pdMS_TO_TICKS(10));
-    }
+    vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
   }
 
   output_transfer_buffer->set_sink(this_mixer->output_speaker_);
@@ -821,10 +818,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
 
   xEventGroupSetBits(this_mixer->event_group_, MIXER_TASK_STATE_STOPPED);
 
-  while (true) {
-    // Continuously delay until the loop method deletes the task
-    vTaskDelay(pdMS_TO_TICKS(10));
-  }
+  vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
 }
 
 }  // namespace mixer_speaker
