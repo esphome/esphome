@@ -1464,6 +1464,12 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 
     this->release_scan_results_();
 
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+    // Notify listeners now that state machine has reached STA_CONNECTED
+    // This ensures wifi.connected condition returns true in listener automations
+    this->notify_connect_state_listeners_();
+#endif
+
     return;
   }
 
@@ -2182,6 +2188,21 @@ void WiFiComponent::release_scan_results_() {
 #endif
   }
 }
+
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+void WiFiComponent::notify_connect_state_listeners_() {
+  if (!this->pending_.connect_state)
+    return;
+  this->pending_.connect_state = false;
+  // Get current SSID and BSSID from the WiFi driver
+  char ssid_buf[SSID_BUFFER_SIZE];
+  const char *ssid = this->wifi_ssid_to(ssid_buf);
+  bssid_t bssid = this->wifi_bssid();
+  for (auto *listener : this->connect_state_listeners_) {
+    listener->on_wifi_connect_state(StringRef(ssid, strlen(ssid)), bssid);
+  }
+}
+#endif  // USE_WIFI_CONNECT_STATE_LISTENERS
 
 void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: not for hidden networks (may not appear in scan)
