@@ -63,18 +63,18 @@ void Logger::pre_setup() {
   ESP_LOGI(TAG, "Log initialized");
 }
 
-void HOT Logger::write_msg_(const LogBuffer &buf) {
+void HOT Logger::write_msg_(const char *msg, uint16_t len) {
   // Single write with newline already in buffer (added by caller)
 #ifdef CONFIG_PRINTK
   // Requires the debug component and an active SWD connection.
   // It is used for pyocd rtt -t nrf52840
-  k_str_out(const_cast<char *>(buf.data), buf.pos);
+  k_str_out(const_cast<char *>(msg), len);
 #endif
   if (this->uart_dev_ == nullptr) {
     return;
   }
-  for (uint16_t i = 0; i < buf.pos; ++i) {
-    uart_poll_out(this->uart_dev_, buf.data[i]);
+  for (uint16_t i = 0; i < len; ++i) {
+    uart_poll_out(this->uart_dev_, msg[i]);
   }
 }
 

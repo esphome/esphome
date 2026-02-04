@@ -418,7 +418,7 @@ class Logger : public Component {
 #endif
 #endif
   void process_messages_();
-  void write_msg_(const LogBuffer &buf);
+  void write_msg_(const char *msg, uint16_t len);
 
   // Format a log message with printf-style arguments and write it to a buffer with header, footer, and null terminator
   inline void HOT format_log_to_buffer_with_terminator_(uint8_t level, const char *tag, int line, const char *format,
@@ -455,7 +455,7 @@ class Logger : public Component {
   // Helper to write log buffer to console (replaces null terminator with newline and writes)
   inline void HOT write_to_console_(LogBuffer &buf) {
     buf.terminate_with_newline();
-    this->write_msg_(buf);
+    this->write_msg_(buf.data, buf.pos);
   }
 
   // Helper to write log buffer to console if logging is enabled
