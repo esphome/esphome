@@ -174,9 +174,7 @@ struct LogBuffer {
     *p++ = '[';
 
     // Copy tag
-    const size_t tag_len = strlen(tag);
-    memcpy(p, tag, tag_len);
-    p += tag_len;
+    this->copy_string_(p, tag);
 
     *p++ = ':';
 
@@ -199,9 +197,7 @@ struct LogBuffer {
     if (thread_name != nullptr) {
       this->write_ansi_color_(p, 1);  // Bold red for thread name
       *p++ = '[';
-      const size_t name_len = strlen(thread_name);
-      memcpy(p, thread_name, name_len);
-      p += name_len;
+      this->copy_string_(p, thread_name);
       *p++ = ']';
       this->write_ansi_color_(p, level);  // Restore original color
     }
@@ -282,6 +278,15 @@ struct LogBuffer {
     *p++ = '3';
     *p++ = LOG_LEVEL_COLOR_DIGIT[level];
     *p++ = 'm';
+  }
+  // Copy string without null terminator, updates pointer in place
+  // Caller is responsible for ensuring buffer has sufficient space
+  void copy_string_(char *&p, const char *str) {
+    const size_t len = strlen(str);
+    // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - intentionally no null terminator, building string piece by
+    // piece
+    memcpy(p, str, len);
+    p += len;
   }
 };
 
