@@ -500,6 +500,10 @@ const LogString *get_disconnect_reason_str(uint8_t reason) {
   }
 }
 
+// TODO: This callback runs in ESP8266 system context with limited stack (~2KB).
+// All listener notifications should be deferred to wifi_loop_() via pending_ flags
+// to avoid stack overflow. Currently only connect_state is deferred; disconnect,
+// IP, and scan listeners still run in this context and should be migrated.
 void WiFiComponent::wifi_event_callback(System_Event_t *event) {
   switch (event->event) {
     case EVENT_STAMODE_CONNECTED: {
@@ -512,9 +516,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
 #endif
       s_sta_connected = true;
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-      for (auto *listener : global_wifi_component->connect_state_listeners_) {
-        listener->on_wifi_connect_state(StringRef(it.ssid, it.ssid_len), it.bssid);
-      }
+      // Defer listener notification until state machine reaches STA_CONNECTED
+      // This ensures wifi.connected condition returns true in listener automations
+      global_wifi_component->pending_.connect_state = true;
 #endif
       // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #if defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
