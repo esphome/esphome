@@ -26,14 +26,6 @@ static const char *const TAG = "sendspin.hub";
 
 static const size_t SENDSPIN_BINARY_CHUNK_HEADER_SIZE = 9;
 
-#ifdef USE_SENDSPIN_PLAYER
-// Time synchronization accuracy thresholds:
-// When Kalman filter variance exceeds this threshold (squared), time sync is considered unreliable
-static const int64_t TIME_SYNC_ERROR_THRESHOLD_US = 20000;
-// Minimum delay before retrying chunk decode when time sync is unreliable
-static const uint32_t MIN_RETRY_DELAY_UNRELIABLE_SYNC_MS = 15;
-#endif
-
 // Send time messages more frequently when the Kalman error is high
 static const int64_t KALMAN_ERROR_THRESHOLD_LOW_US = 1000;
 static const int64_t KALMAN_ERROR_THRESHOLD_MEDIUM_US = 2000;
@@ -45,15 +37,6 @@ static const int64_t TIME_MESSAGE_DELAY_THRESHOLD_HIGH_MS = 500;
 static const int64_t TIME_MESSAGE_DELAY_DEFAULT_MS = 200;
 
 static const UBaseType_t WEBSOCKET_TASK_PRIORITY = 17;
-
-enum EventGroupBits : uint32_t {
-  COMMAND_STOP = (1 << 0),
-  COMMAND_START = (1 << 1),
-  TASK_STARTING = (1 << 8),
-  TASK_RUNNING = (1 << 9),
-  TASK_STOPPING = (1 << 10),
-  TASK_STOPPED = (1 << 11),
-};
 
 void SendspinHub::setup() {
   this->sendspin_websocket_ = make_unique<SendspinWebsocket>();
