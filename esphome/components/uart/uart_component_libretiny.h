@@ -7,6 +7,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "uart_component.h"
+#include "esphome/components/libretiny/uart_manager.h"
 
 namespace esphome::uart {
 
@@ -35,6 +36,7 @@ class LibreTinyUARTComponent : public UARTComponent, public Component {
   void print_pins(const char *uart_name, const FixedVector<pin_size_t> &tx_pins,
                   const FixedVector<pin_size_t> &rx_pins) const;
 
+  libretiny::UartManager uart_manager_; // this could be shared instance with logger, but requires libretiny to be initialize before uart and passed here
   HardwareSerial *serial_{nullptr};
   int8_t hardware_idx_{-1};
 };
