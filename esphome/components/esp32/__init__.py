@@ -517,7 +517,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 PLATFORM_VERSION_LOOKUP = {
     "recommended": cv.Version(55, 3, 36),
     "latest": cv.Version(55, 3, 36),
-    "dev": cv.Version(55, 3, 36),
+    "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
 
 
