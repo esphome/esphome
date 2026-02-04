@@ -137,7 +137,6 @@ struct LogBuffer {
   LogBuffer(char *buf, uint16_t &buf_pos, uint16_t buf_size) : data(buf), pos(buf_pos), size(buf_size) {
     this->pos = 0;
   }
-  void null_terminate() { this->data[this->full_() ? this->size - 1 : this->pos] = '\0'; }
   void write(const char *value, size_t length) {
     if (this->full_())
       return;
@@ -156,10 +155,6 @@ struct LogBuffer {
       this->data[this->size - 1] = '\n';
       this->pos = this->size;
     }
-  }
-  void write_color_reset() {
-    static constexpr uint16_t RESET_COLOR_LEN = sizeof(ESPHOME_LOG_RESET_COLOR) - 1;
-    this->write(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN);
   }
   void HOT write_header(uint8_t level, const char *tag, int line, const char *thread_name) {
     // Early return if insufficient space - intentionally don't update pos to prevent partial writes
@@ -205,11 +200,20 @@ struct LogBuffer {
   void HOT format_body(const char *format, va_list args) {
     if (!this->full_())
       this->process_vsnprintf_result_(vsnprintf(this->current_(), this->remaining_(), format, args));
+    this->write_color_reset_();
+    this->null_terminate_();
+  }
+  void write_body(const char *text, size_t text_length) {
+    this->write(text, text_length);
+    this->write_color_reset_();
+    this->null_terminate_();
   }
 #ifdef USE_STORE_LOG_STR_IN_FLASH
   void HOT format_body_P(PGM_P format, va_list args) {
     if (!this->full_())
       this->process_vsnprintf_result_(vsnprintf_P(this->current_(), this->remaining_(), format, args));
+    this->write_color_reset_();
+    this->null_terminate_();
   }
 #endif
 
@@ -218,6 +222,11 @@ struct LogBuffer {
   uint16_t remaining_() const { return this->size - this->pos; }
   char *current_() { return this->data + this->pos; }
   void put_char_(char c) { this->data[this->pos++] = c; }
+  void null_terminate_() { this->data[this->full_() ? this->size - 1 : this->pos] = '\0'; }
+  void write_color_reset_() {
+    static constexpr uint16_t RESET_COLOR_LEN = sizeof(ESPHOME_LOG_RESET_COLOR) - 1;
+    this->write(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN);
+  }
   void strip_trailing_newlines_() {
     while (this->pos > 0 && this->data[this->pos - 1] == '\n')
       this->pos--;
@@ -411,8 +420,6 @@ class Logger : public Component {
     buf.write_header(level, tag, line, nullptr);
 #endif
     buf.format_body(format, args);
-    buf.write_color_reset();
-    buf.null_terminate();
   }
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
@@ -422,8 +429,6 @@ class Logger : public Component {
                                                           LogBuffer &buf) {
     buf.write_header(level, tag, line, nullptr);
     buf.format_body_P(reinterpret_cast<PGM_P>(format), args);
-    buf.write_color_reset();
-    buf.null_terminate();
   }
 #endif
 
@@ -460,9 +465,7 @@ class Logger : public Component {
                                                       const char *thread_name, const char *text, size_t text_length,
                                                       LogBuffer &buf) {
     buf.write_header(level, tag, line, thread_name);
-    buf.write(text, text_length);
-    buf.write_color_reset();
-    buf.null_terminate();
+    buf.write_body(text, text_length);
     this->notify_listeners_(level, tag);
   }
 #endif
