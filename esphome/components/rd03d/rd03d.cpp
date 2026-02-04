@@ -133,14 +133,17 @@ void RD03DComponent::process_frame_() {
     uint8_t offset = FRAME_HEADER_SIZE + (i * TARGET_DATA_SIZE);
 
     // Extract raw bytes for this target
+    // Note: Despite datasheet Table 5-2 showing order as X, Y, Speed, Resolution,
+    // actual radar output has Resolution before Speed (verified empirically -
+    // stationary targets were showing non-zero speed with original field order)
     uint8_t x_low = this->buffer_[offset + 0];
     uint8_t x_high = this->buffer_[offset + 1];
     uint8_t y_low = this->buffer_[offset + 2];
     uint8_t y_high = this->buffer_[offset + 3];
-    uint8_t speed_low = this->buffer_[offset + 4];
-    uint8_t speed_high = this->buffer_[offset + 5];
-    uint8_t res_low = this->buffer_[offset + 6];
-    uint8_t res_high = this->buffer_[offset + 7];
+    uint8_t res_low = this->buffer_[offset + 4];
+    uint8_t res_high = this->buffer_[offset + 5];
+    uint8_t speed_low = this->buffer_[offset + 6];
+    uint8_t speed_high = this->buffer_[offset + 7];
 
     // Decode values per RD-03D format
     int16_t x = decode_value(x_low, x_high);

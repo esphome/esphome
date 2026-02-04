@@ -18,8 +18,7 @@ void TemplateDateTime::setup() {
     state = this->initial_value_;
   } else {
     datetime::DateTimeEntityRestoreState temp;
-    this->pref_ = global_preferences->make_preference<datetime::DateTimeEntityRestoreState>(
-        194434090U ^ this->get_preference_hash());
+    this->pref_ = this->make_entity_preference<datetime::DateTimeEntityRestoreState>(194434090U);
     if (this->pref_.load(&temp)) {
       temp.apply(this);
       return;
@@ -81,7 +80,7 @@ void TemplateDateTime::control(const datetime::DateTimeCall &call) {
   if (has_second)
     value.second = *call.get_second();
 
-  this->set_trigger_->trigger(value);
+  this->set_trigger_.trigger(value);
 
   if (this->optimistic_) {
     if (has_year)
