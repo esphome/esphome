@@ -158,7 +158,7 @@ struct LogBuffer {
     char *p = this->current_();
 
     // Write ANSI color
-    p = this->write_ansi_color_(p, level);
+    this->write_ansi_color_(p, level);
 
     // Construct: [LEVEL][tag:line]
     *p++ = '[';
@@ -195,7 +195,7 @@ struct LogBuffer {
     *p++ = ']';
 
 #ifdef USE_LOGGER_THREAD_NAME
-    p = this->write_thread_name_(p, thread_name, level);
+    this->write_thread_name_(p, thread_name, level);
 #endif
 
     *p++ = ':';
@@ -264,10 +264,11 @@ struct LogBuffer {
     this->process_vsnprintf_result_(vsnprintf_P(this->current_(), this->remaining_(), format, args));
   }
 #endif
-  // Write ANSI color escape sequence to buffer, returns new pointer position
-  char *write_ansi_color_(char *p, uint8_t level) {
+  // Write ANSI color escape sequence to buffer, updates pointer in place
+  // Caller is responsible for ensuring buffer has sufficient space
+  void write_ansi_color_(char *&p, uint8_t level) {
     if (level == 0)
-      return p;
+      return;
     // Direct buffer fill: "\033[{bold};3{color}m" (7 bytes)
     *p++ = '\033';
     *p++ = '[';
@@ -276,21 +277,20 @@ struct LogBuffer {
     *p++ = '3';
     *p++ = LOG_LEVEL_COLOR_DIGIT[level];
     *p++ = 'm';
-    return p;
   }
 #ifdef USE_LOGGER_THREAD_NAME
-  // Write thread name with bold red color, returns new pointer position
-  char *write_thread_name_(char *p, const char *thread_name, uint8_t level) {
+  // Write thread name with bold red color, updates pointer in place
+  // Caller is responsible for ensuring buffer has sufficient space
+  void write_thread_name_(char *&p, const char *thread_name, uint8_t level) {
     if (thread_name == nullptr)
-      return p;
-    p = this->write_ansi_color_(p, 1);  // Bold red for thread name
+      return;
+    this->write_ansi_color_(p, 1);  // Bold red for thread name
     *p++ = '[';
     const size_t name_len = strlen(thread_name);
     memcpy(p, thread_name, name_len);
     p += name_len;
     *p++ = ']';
-    p = this->write_ansi_color_(p, level);  // Restore original color
-    return p;
+    this->write_ansi_color_(p, level);  // Restore original color
   }
 #endif
 };
