@@ -14,6 +14,11 @@ namespace packet_interface {
  * - post_buffer: A pointer to uint8_t data with a length
  *
  * This allows efficient zero-copy composition of buffers without allocating new memory.
+ *
+ * WARNING: PacketBuffer holds raw pointers to data. The user must ensure that the data remains valid
+ * for the lifetime of the PacketBuffer instance. Storing PacketBuffer instances beyond the scope of the data they
+ * reference will lead to dangling pointers and undefined behavior, so if you need to store a PacketBuffer, consider
+ * copying the data into a std::vector or similar.
  */
 class PacketBuffer {
  public:

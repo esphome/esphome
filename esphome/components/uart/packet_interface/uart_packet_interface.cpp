@@ -6,6 +6,10 @@ namespace uart {
 
 static const char *const TAG = "uart.packet_interface";
 
+static const uint16_t MAX_PACKET_SIZE = 508;
+static const uint8_t FLAG_BYTE = 0x7E;
+static const uint8_t CONTROL_BYTE = 0x7D;
+
 void UartPacketInterface::loop() {
   while (this->available()) {
     uint8_t byte;
@@ -77,5 +81,6 @@ bool UartPacketInterface::send_to_interface(const PacketBuffer &data, PacketMeta
   return true;
 }
 
+size_t UartPacketInterface::get_max_packet_size() { return MAX_PACKET_SIZE; }
 }  // namespace uart
 }  // namespace esphome

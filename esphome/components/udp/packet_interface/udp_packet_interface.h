@@ -19,10 +19,11 @@ class UdpPacketInterface : public PacketInterface {
   }
 
   void setup() override {
-    this->parent_->add_listener([this](std::vector<uint8_t> &buf) { this->on_receive_from_interface_(buf, {}); });
+    this->parent_->add_listener(
+        [this](std::vector<uint8_t> &buf) { this->on_receive_from_interface_(PacketBuffer(buf), {}); });
   }
 
-  bool send_to_interface(const std::vector<uint8_t> &data, PacketMetaData) override {
+  bool send_to_interface(const PacketBuffer &data, PacketMetaData) override {
     this->parent_->send_packet(data);
     return true;
   };
