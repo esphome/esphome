@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32_VARIANT_ESP32S3
+#if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
 #include "esphome/core/gpio.h"
 #include "esphome/components/display/display.h"
 #include "esp_lcd_panel_ops.h"
@@ -28,7 +28,7 @@ class MipiRgb : public display::Display {
   void setup() override;
   void loop() override;
   void update() override;
-  void fill(Color color);
+  void fill(Color color) override;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
   void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
@@ -115,7 +115,7 @@ class MipiRgbSpi : public MipiRgb,
   void write_command_(uint8_t value);
   void write_data_(uint8_t value);
   void write_init_sequence_();
-  void dump_config();
+  void dump_config() override;
 
   GPIOPin *dc_pin_{nullptr};
   std::vector<uint8_t> init_sequence_;

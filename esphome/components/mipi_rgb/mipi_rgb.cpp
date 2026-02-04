@@ -1,4 +1,4 @@
-#ifdef USE_ESP32_VARIANT_ESP32S3
+#if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
 #include "mipi_rgb.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
