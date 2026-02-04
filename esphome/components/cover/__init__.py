@@ -103,16 +103,13 @@ CONF_ON_OPENED = "on_opened"
 CONF_ON_OPENING = "on_opening"
 CONF_ON_CLOSING = "on_closing"
 
-OPERATIONS = {
-    CONF_ON_CLOSING: CoverOperation.COVER_OPERATION_CLOSING,
-    CONF_ON_OPENING: CoverOperation.COVER_OPERATION_OPENING,
-    CONF_ON_IDLE: CoverOperation.COVER_OPERATION_IDLE,
-}
-
-POSITION_TRIGGERS = {
+TRIGGERS = {
     CONF_ON_OPEN: CoverOpenedTrigger,  # Deprecated, use on_opened
     CONF_ON_OPENED: CoverOpenedTrigger,
     CONF_ON_CLOSED: CoverClosedTrigger,
+    CONF_ON_CLOSING: CoverTrigger.template(CoverOperation.COVER_OPERATION_CLOSING),
+    CONF_ON_OPENING: CoverTrigger.template(CoverOperation.COVER_OPERATION_OPENING),
+    CONF_ON_IDLE: CoverTrigger.template(CoverOperation.COVER_OPERATION_IDLE),
 }
 
 
@@ -141,17 +138,7 @@ _COVER_SCHEMA = (
                         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(trigger_class),
                     }
                 )
-                for conf, trigger_class in POSITION_TRIGGERS.items()
-            },
-            **{
-                cv.Optional(conf): automation.validate_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                            CoverTrigger.template(operation)
-                        ),
-                    }
-                )
-                for conf, operation in OPERATIONS.items()
+                for conf, trigger_class in TRIGGERS.items()
             },
         }
     )
@@ -193,7 +180,7 @@ async def setup_cover_core_(var, config):
         _LOGGER.warning(
             "'on_open' is deprecated, use 'on_opened'. Will be removed in 2026.8.0"
         )
-    for trigger_conf in (*OPERATIONS, *POSITION_TRIGGERS):
+    for trigger_conf in TRIGGERS:
         for conf in config.get(trigger_conf, []):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
             await automation.build_automation(trigger, [], conf)
