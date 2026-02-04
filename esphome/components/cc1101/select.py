@@ -15,11 +15,21 @@ CC1101Select = ns.class_("CC1101Select", select.Select, cg.PollingComponent)
 
 CONF_CC1101_ID = "cc1101_id"
 CONF_FREQUENCY_PRESET = "frequency_preset"
+CONF_TUNER = "tuner"
+CONF_AGC = "agc"
 
-TYPES = {
+FREQUENCY_PRESETS = ["315MHz", "433.92MHz", "868MHz", "915MHz"]
+
+TYPES_ROOT = {
     CONF_RX_ATTENUATION: RX_ATTENUATION,
+}
+
+TYPES_TUNER = {
     CONF_SYNC_MODE: SYNC_MODE,
-    CONF_MODULATION_TYPE: MODULATION,
+    CONF_MODULATION_TYPE: { "key_override": "modulation", "options": MODULATION },
+}
+
+TYPES_AGC = {
     CONF_MAGN_TARGET: MAGN_TARGET,
     CONF_MAX_LNA_GAIN: MAX_LNA_GAIN,
     CONF_MAX_DVGA_GAIN: MAX_DVGA_GAIN,
@@ -31,17 +41,37 @@ TYPES = {
     CONF_HYST_LEVEL: HYST_LEVEL,
 }
 
-FREQUENCY_PRESETS = ["315MHz", "433.92MHz", "868MHz", "915MHz"]
-
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(CONF_CC1101_ID): cv.use_id(CC1101Component),
     cv.Optional(CONF_FREQUENCY_PRESET): select.select_schema(CC1101Select),
 }).extend(cv.polling_component_schema("60s"))
 
-for type, options in TYPES.items():
+# Root
+for type, options in TYPES_ROOT.items():
     CONFIG_SCHEMA = CONFIG_SCHEMA.extend({
         cv.Optional(type): select.select_schema(CC1101Select),
     })
+
+# Tuner
+TUNER_SCHEMA = cv.Schema({})
+for type, data in TYPES_TUNER.items():
+    if isinstance(data, dict) and "key_override" in data:
+        key = data["key_override"]
+    else:
+        key = type
+    TUNER_SCHEMA = TUNER_SCHEMA.extend({
+        cv.Optional(key): select.select_schema(CC1101Select),
+    })
+CONFIG_SCHEMA = CONFIG_SCHEMA.extend({cv.Optional(CONF_TUNER): TUNER_SCHEMA})
+
+# AGC
+AGC_SCHEMA = cv.Schema({})
+for type, options in TYPES_AGC.items():
+    AGC_SCHEMA = AGC_SCHEMA.extend({
+        cv.Optional(type): select.select_schema(CC1101Select),
+    })
+CONFIG_SCHEMA = CONFIG_SCHEMA.extend({cv.Optional(CONF_AGC): AGC_SCHEMA})
+
 
 async def to_code(config):
     cg.add(cg.include("esphome/components/cc1101/cc1101_select.h"))
@@ -54,12 +84,43 @@ async def to_code(config):
         cg.add(var.set_parent(parent))
         cg.add(var.set_type(getattr(CC1101Select, "FREQUENCY_PRESET")))
 
-    for type, options in TYPES.items():
+    # Root
+    for type, options in TYPES_ROOT.items():
         if type in config:
             conf = config[type]
-            # keys are strings
             opts = list(options.keys())
             var = await select.new_select(conf, options=opts)
             await cg.register_component(var, conf)
             cg.add(var.set_parent(parent))
             cg.add(var.set_type(getattr(CC1101Select, type.upper())))
+
+    # Tuner
+    if CONF_TUNER in config:
+        tuner_config = config[CONF_TUNER]
+        for type, data in TYPES_TUNER.items():
+            if isinstance(data, dict) and "key_override" in data:
+                key = data["key_override"]
+                options = data["options"]
+            else:
+                key = type
+                options = data
+
+            if key in tuner_config:
+                conf = tuner_config[key]
+                opts = list(options.keys())
+                var = await select.new_select(conf, options=opts)
+                await cg.register_component(var, conf)
+                cg.add(var.set_parent(parent))
+                cg.add(var.set_type(getattr(CC1101Select, type.upper())))
+
+    # AGC
+    if CONF_AGC in config:
+        agc_config = config[CONF_AGC]
+        for type, options in TYPES_AGC.items():
+            if type in agc_config:
+                conf = agc_config[type]
+                opts = list(options.keys())
+                var = await select.new_select(conf, options=opts)
+                await cg.register_component(var, conf)
+                cg.add(var.set_parent(parent))
+                cg.add(var.set_type(getattr(CC1101Select, type.upper())))

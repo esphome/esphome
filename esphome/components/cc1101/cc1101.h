@@ -77,6 +77,7 @@ class CC1101Component : public Component,
   void set_whitening(bool value);
 
   // Configuration Getters
+  uint16_t get_chip_id() { return this->chip_id_; }
   float get_output_power() { return this->output_power_effective_; }
   RxAttenuation get_rx_attenuation() { return static_cast<RxAttenuation>(this->state_.CLOSE_IN_RX); }
   bool get_dc_blocking_filter() { return this->state_.DEM_DCFILT_OFF == 0; }
