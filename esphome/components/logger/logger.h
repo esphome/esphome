@@ -222,11 +222,6 @@ struct LogBuffer {
   bool full_() const { return this->pos >= this->size; }
   uint16_t remaining_() const { return this->size - this->pos; }
   char *current_() { return this->data + this->pos; }
-  void null_terminate_() { this->data[this->full_() ? this->size - 1 : this->pos] = '\0'; }
-  void finalize_() {
-    this->write_color_reset_();
-    this->null_terminate_();
-  }
   void write_(const char *value, size_t length) {
     if (this->full_())
       return;
@@ -237,9 +232,12 @@ struct LogBuffer {
       this->pos += copy_len;
     }
   }
-  void write_color_reset_() {
+  void finalize_() {
+    // Write color reset sequence
     static constexpr uint16_t RESET_COLOR_LEN = sizeof(ESPHOME_LOG_RESET_COLOR) - 1;
     this->write_(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN);
+    // Null terminate
+    this->data[this->full_() ? this->size - 1 : this->pos] = '\0';
   }
   void strip_trailing_newlines_() {
     while (this->pos > 0 && this->data[this->pos - 1] == '\n')
