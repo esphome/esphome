@@ -6,6 +6,8 @@ namespace esphome::ultrasonic {
 
 static const char *const TAG = "ultrasonic.sensor";
 
+static constexpr uint32_t START_TIMEOUT_US = 40000;  // Maximum time to wait for echo pulse to start
+
 void IRAM_ATTR UltrasonicSensorStore::gpio_intr(UltrasonicSensorStore *arg) {
   uint32_t now = micros();
   if (arg->echo_pin_isr.digital_read()) {
@@ -51,6 +53,34 @@ void UltrasonicSensorComponent::loop() {
     return;
   }
 
+  if (!this->store_.echo_start) {
+    uint32_t elapsed = micros() - this->measurement_start_us_;
+    if (elapsed >= START_TIMEOUT_US) {
+      ESP_LOGW(TAG, "'%s' - Measurement start timed out", this->name_.c_str());
+      this->publish_state(NAN);
+      this->measurement_pending_ = false;
+      return;
+    }
+  } else {
+    uint32_t elapsed;
+    if (this->store_.echo_end) {
+      elapsed = this->store_.echo_end_us - this->store_.echo_start_us;
+    } else {
+      elapsed = micros() - this->store_.echo_start_us;
+    }
+    if (elapsed >= this->timeout_us_) {
+      if (elapsed > 0x8000) {
+        ESP_LOGW(TAG, "'%s' - pulse end before pulse start, does the echo pin need to be inverted?",
+                 this->name_.c_str());
+      } else {
+        ESP_LOGD(TAG, "'%s' - Measurement pulse timed out after %" PRIu32 "us", this->name_.c_str(), elapsed);
+      }
+      this->publish_state(NAN);
+      this->measurement_pending_ = false;
+      return;
+    }
+  }
+
   if (this->store_.echo_end) {
     float result;
     if (this->store_.echo_start) {
@@ -66,22 +96,6 @@ void UltrasonicSensorComponent::loop() {
     this->publish_state(result);
     this->measurement_pending_ = false;
     return;
-  }
-
-  if (!this->store_.echo_start) {
-    uint32_t elapsed = micros() - this->measurement_start_us_;
-    if (elapsed >= 40000) {
-      ESP_LOGW(TAG, "'%s' - Measurement start timed out", this->name_.c_str());
-      this->publish_state(NAN);
-      this->measurement_pending_ = false;
-    }
-  } else {
-    uint32_t elapsed = micros() - this->store_.echo_start_us;
-    if (elapsed >= this->timeout_us_) {
-      ESP_LOGD(TAG, "'%s' - Measurement pulse timed out after %" PRIu32 "us", this->name_.c_str(), elapsed);
-      this->publish_state(NAN);
-      this->measurement_pending_ = false;
-    }
   }
 }
 
