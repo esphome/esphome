@@ -23,7 +23,8 @@ struct AsyncRespArg {
   void *context;
   uint8_t *payload;
   size_t len;
-  TimeTransmittedReplacement *time_transmitted = nullptr;
+  bool has_callback{false};
+  SendCompleteCallback on_complete;
 };
 
 void SendspinWebsocket::start_server(std::function<esp_err_t((httpd_req_t *) )> &&callback,
@@ -69,6 +70,10 @@ void SendspinWebsocket::send_hello_message(const ClientHelloMessage *msg) {
   this->send_text_message_(format_client_hello_message(msg));
 }
 
+esp_err_t SendspinWebsocket::send_hello_message(const ClientHelloMessage *msg, SendCompleteCallback on_complete) {
+  return this->send_text_message_(format_client_hello_message(msg), std::move(on_complete));
+}
+
 void SendspinWebsocket::send_client_state_message(const ClientStateMessage *msg) {
   this->send_text_message_(format_client_state_message(msg));
 }
@@ -84,13 +89,17 @@ void SendspinWebsocket::send_goodbye_reason(SendspinGoodbyeReason reason) {
   this->send_text_message_(format_client_goodbye_message(reason));
 }
 
+esp_err_t SendspinWebsocket::send_goodbye_reason(SendspinGoodbyeReason reason, SendCompleteCallback on_complete) {
+  return this->send_text_message_(format_client_goodbye_message(reason), std::move(on_complete));
+}
+
 void SendspinWebsocket::disconnect() {
   if (this->current_client_.has_value()) {
     httpd_sess_trigger_close(this->server_, this->current_client_.value());
   }
 }
 
-void SendspinWebsocket::send_time_message() {
+bool SendspinWebsocket::send_time_message(SendCompleteCallback on_complete) {
   int64_t now = esp_timer_get_time();
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   std::string serialized_text = json::build_json([now](JsonObject root) {
@@ -98,33 +107,63 @@ void SendspinWebsocket::send_time_message() {
     root["payload"]["client_transmitted"] = now;
   });
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
-  this->last_time_message_.transmitted_time = now;
-  this->last_time_message_.actual_transmit_time = now;  // will be overwritten once known
-  this->send_text_message_(serialized_text, &this->last_time_message_);
+  return this->send_text_message_(serialized_text, std::move(on_complete)) == ESP_OK;
 }
 
-esp_err_t SendspinWebsocket::send_text_message_(const std::string &message,
-                                                TimeTransmittedReplacement *time_transmitted) {
-  if (this->current_client_.has_value()) {
-    auto async_resp_allocator = RAMAllocator<AsyncRespArg>(RAMAllocator<AsyncRespArg>::ALLOC_INTERNAL);
-    struct AsyncRespArg *resp_arg = async_resp_allocator.allocate(1);
-    if (resp_arg == nullptr) {
-      return ESP_ERR_NO_MEM;
+esp_err_t SendspinWebsocket::send_text_message_(const std::string &message, SendCompleteCallback on_complete) {
+  if (!this->current_client_.has_value()) {
+    // No client connected - invoke callback with failure if provided
+    if (on_complete) {
+      on_complete(false, 0);
     }
+    return ESP_ERR_INVALID_STATE;
+  }
 
-    resp_arg->context = (void *) this;
-    auto message_allocator = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
-    resp_arg->payload = message_allocator.allocate(message.size());
-    resp_arg->len = message.size();
-    resp_arg->time_transmitted = time_transmitted;
-    std::memcpy((void *) resp_arg->payload, (void *) message.data(), message.size());
-
-    if (httpd_queue_work(this->server_, async_send_text, resp_arg) != ESP_OK) {
-      ESP_LOGE(TAG, "httpd_queue_work failed!");
-      message_allocator.deallocate(resp_arg->payload, resp_arg->len);
-      async_resp_allocator.deallocate(resp_arg, 1);
-      return ESP_FAIL;
+  auto async_resp_allocator = RAMAllocator<AsyncRespArg>(RAMAllocator<AsyncRespArg>::ALLOC_INTERNAL);
+  struct AsyncRespArg *resp_arg = async_resp_allocator.allocate(1);
+  if (resp_arg == nullptr) {
+    ESP_LOGE(TAG, "Failed to allocate AsyncRespArg for message send");
+    if (on_complete) {
+      on_complete(false, 0);
     }
+    return ESP_ERR_NO_MEM;
+  }
+
+  // Use placement new to properly construct the struct with the callback
+  new (resp_arg) AsyncRespArg();
+
+  resp_arg->context = (void *) this;
+  auto message_allocator = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
+  resp_arg->payload = message_allocator.allocate(message.size());
+  if (resp_arg->payload == nullptr) {
+    ESP_LOGE(TAG, "Failed to allocate %zu bytes for message payload", message.size());
+    resp_arg->~AsyncRespArg();
+    async_resp_allocator.deallocate(resp_arg, 1);
+    if (on_complete) {
+      on_complete(false, 0);
+    }
+    return ESP_ERR_NO_MEM;
+  }
+  resp_arg->len = message.size();
+
+  // Move the callback into the struct if provided
+  if (on_complete) {
+    resp_arg->has_callback = true;
+    resp_arg->on_complete = std::move(on_complete);
+  }
+
+  std::memcpy((void *) resp_arg->payload, (void *) message.data(), message.size());
+
+  if (httpd_queue_work(this->server_, async_send_text, resp_arg) != ESP_OK) {
+    ESP_LOGE(TAG, "httpd_queue_work failed!");
+    message_allocator.deallocate(resp_arg->payload, resp_arg->len);
+    // Need to invoke callback with failure before destroying it
+    if (resp_arg->has_callback) {
+      resp_arg->on_complete(false, 0);
+    }
+    resp_arg->~AsyncRespArg();
+    async_resp_allocator.deallocate(resp_arg, 1);
+    return ESP_FAIL;
   }
   return ESP_OK;
 }
@@ -170,19 +209,24 @@ void SendspinWebsocket::async_send_text(void *arg) {
   ws_pkt.len = resp_arg->len;
   ws_pkt.type = HTTPD_WS_TYPE_TEXT;
 
+  bool send_success = false;
   if (this_client->current_client_.has_value()) {
-    // TODO: Handle errors
-    httpd_ws_send_frame_async(this_client->server_, this_client->current_client_.value(), &ws_pkt);
+    esp_err_t err = httpd_ws_send_frame_async(this_client->server_, this_client->current_client_.value(), &ws_pkt);
+    send_success = (err == ESP_OK);
   }
 
   const int64_t after_send_time = esp_timer_get_time();
 
-  if (resp_arg->time_transmitted != nullptr) {
-    resp_arg->time_transmitted->actual_transmit_time = after_send_time;
+  // Call the completion callback if provided
+  if (resp_arg->has_callback) {
+    resp_arg->on_complete(send_success, after_send_time);
   }
 
   auto message_allocator = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
   message_allocator.deallocate(ws_pkt.payload, ws_pkt.len);
+
+  // Properly destruct the AsyncRespArg (which includes the std::function)
+  resp_arg->~AsyncRespArg();
   auto async_resp_allocator = RAMAllocator<AsyncRespArg>(RAMAllocator<AsyncRespArg>::ALLOC_INTERNAL);
   async_resp_allocator.deallocate(resp_arg, 1);
 }

@@ -184,6 +184,11 @@ class SendspinHub : public Component {
 #endif
 
  protected:
+  /// @brief Attempt to send the hello message with retry support.
+  /// @param remaining_attempts Number of retry attempts remaining.
+  /// @return RetryResult::DONE to stop retrying, RetryResult::RETRY to continue.
+  RetryResult send_hello_message_(uint8_t remaining_attempts);
+
 #ifdef USE_SENDSPIN_PLAYER
   bool send_audio_chunk_(std::shared_ptr<SendspinAudioChunk> audio_chunk, TickType_t ticks_to_wait,
                          const audio::AudioStreamInfo &stream_info);
@@ -226,6 +231,7 @@ class SendspinHub : public Component {
 
   bool pending_time_message_{false};
   bool hello_message_sent_{false};
+  TimeTransmittedReplacement last_time_message_;
 #ifdef USE_WIFI
   bool high_performance_networking_requested_for_time_{false};
   bool high_performance_networking_requested_for_playback_{false};

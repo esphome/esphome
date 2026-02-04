@@ -73,20 +73,34 @@ void SendspinHub::send_time_message_() {
     return;
   }
 
-  this->sendspin_websocket_->send_time_message();
-  this->last_sent_time_message_ = esp_timer_get_time();
-  this->pending_time_message_ = true;
+  // Record the intended transmitted time before sending
+  int64_t transmitted_time = esp_timer_get_time();
+  this->last_time_message_.transmitted_time = transmitted_time;
+  this->last_time_message_.actual_transmit_time = transmitted_time;  // will be overwritten by callback
+
+  bool queued = this->sendspin_websocket_->send_time_message([this](bool success, int64_t actual_send_time) {
+    if (success) {
+      this->last_time_message_.actual_transmit_time = actual_send_time;
+    }
+    // Note: pending_time_message_ is cleared when we receive the response,
+    // not when the send completes, to handle response timeout correctly
+  });
+
+  if (queued) {
+    this->last_sent_time_message_ = esp_timer_get_time();
+    this->pending_time_message_ = true;
 #ifdef USE_WIFI
-  if (!this->high_performance_networking_requested_for_time_ &&
-      wifi::global_wifi_component->request_high_performance()) {
-    this->high_performance_networking_requested_for_time_ = true;
-  }
+    if (!this->high_performance_networking_requested_for_time_ &&
+        wifi::global_wifi_component->request_high_performance()) {
+      this->high_performance_networking_requested_for_time_ = true;
+    }
 #endif
 
 #ifdef USE_SENDSPIN_SENSOR
-  this->update_sendspin_sensor(
-      {.type = SendspinSensorTypes::KALMAN_ERROR, .value = static_cast<float>(this->time_filter_->get_error())});
+    this->update_sendspin_sensor(
+        {.type = SendspinSensorTypes::KALMAN_ERROR, .value = static_cast<float>(this->time_filter_->get_error())});
 #endif
+  }
 }
 
 void SendspinHub::loop() {
@@ -99,6 +113,17 @@ void SendspinHub::loop() {
 }
 
 void SendspinHub::start() {
+  // Use built-in retry with exponential backoff: 100ms initial, 3 attempts, 2x backoff
+  this->set_retry(
+      "hello", 100, 3, [this](uint8_t remaining) { return this->send_hello_message_(remaining); }, 2.0f);
+}
+
+RetryResult SendspinHub::send_hello_message_(uint8_t remaining_attempts) {
+  if (!this->sendspin_websocket_->is_connected()) {
+    ESP_LOGW(TAG, "Cannot send hello - not connected");
+    return RetryResult::DONE;  // Stop retrying, no point if disconnected
+  }
+
   ClientHelloMessage msg;
   msg.client_id = get_mac_address_pretty();
   msg.name = App.get_friendly_name();
@@ -155,9 +180,33 @@ void SendspinHub::start() {
 
   msg.supported_roles = supported_roles;
 
-  this->sendspin_websocket_->send_hello_message(&msg);
-  this->last_sent_time_message_ = esp_timer_get_time();
-  this->hello_message_sent_ = true;
+  // Try to queue the message, with callback for when it's actually sent
+  // Note: Callback is invoked from httpd worker thread, so use defer() to run on main loop
+  esp_err_t err = this->sendspin_websocket_->send_hello_message(&msg, [this](bool success, int64_t) {
+    // Defer to main loop since callback is invoked from httpd worker thread
+    this->defer([this, success]() {
+      if (success) {
+        this->hello_message_sent_ = true;
+        this->last_sent_time_message_ = esp_timer_get_time();
+      } else {
+        ESP_LOGW(TAG, "Hello message send failed (client disconnected during send)");
+        // Don't retry here - if client disconnected, reconnection will trigger new hello
+      }
+    });
+  });
+
+  if (err == ESP_OK) {
+    return RetryResult::DONE;  // Successfully queued
+  }
+
+  if (err == ESP_ERR_INVALID_STATE) {
+    ESP_LOGW(TAG, "No client connected for hello message");
+    return RetryResult::DONE;  // Don't retry - wait for reconnection
+  }
+
+  // ESP_ERR_NO_MEM or ESP_FAIL - transient failure, retry
+  ESP_LOGW(TAG, "Failed to queue hello message (err=%d), %d attempts remaining", err, remaining_attempts);
+  return RetryResult::RETRY;
 }
 
 #ifdef USE_SENDSPIN_CONTROLLER
@@ -171,9 +220,13 @@ void SendspinHub::send_client_command(SendspinCommandType command, std::optional
 
 void SendspinHub::disconnect_from_server(SendspinGoodbyeReason reason) {
   if (this->sendspin_websocket_->is_connected()) {
-    this->sendspin_websocket_->send_goodbye_reason(reason);
-    // TODO: Fix this hack. We should create a method to know if the goodbye reason has successfully sent
-    this->set_timeout(1000, [this]() { this->sendspin_websocket_->disconnect(); });
+    this->sendspin_websocket_->send_goodbye_reason(reason, [this](bool success, int64_t) {
+      // Defer to main loop since callback is invoked from httpd worker thread
+      this->defer([this]() {
+        // Disconnect regardless of send success - we're leaving anyway
+        this->sendspin_websocket_->disconnect();
+      });
+    });
   }
 }
 
@@ -208,7 +261,6 @@ esp_err_t SendspinHub::websocket_server_handler(httpd_req_t *req) {
 
   if (req->method == HTTP_GET) {
     ESP_LOGI(TAG, "Handshake done, a new connection was opened");
-    delay(250);
     this_sendspin->start();
 
     return err;
@@ -554,10 +606,9 @@ bool SendspinHub::process_json_message_(const std::string &message, int64_t time
       break;
     }
     case SendspinServerToClientMessageType::SERVER_TIME: {
-      TimeTransmittedReplacement time_replacement = this->sendspin_websocket_->get_last_time_message();
       int64_t offset;
       int64_t max_error;
-      if (process_server_time_message(message, timestamp, time_replacement, &offset, &max_error)) {
+      if (process_server_time_message(message, timestamp, this->last_time_message_, &offset, &max_error)) {
         this->time_filter_->update(offset, max_error, timestamp);
       }
       this->pending_time_message_ = false;
