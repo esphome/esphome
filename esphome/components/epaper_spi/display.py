@@ -86,8 +86,9 @@ def model_schema(config):
         )
         .extend(
             {
-                model.option(pin): pins.gpio_output_pin_schema
-                for pin in (CONF_RESET_PIN, CONF_CS_PIN, CONF_BUSY_PIN)
+                model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
+                model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
+                model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             }
         )
         .extend(
