@@ -190,14 +190,11 @@ async def setup_cover_core_(var, config):
     if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))
 
-    if on_opens := config.get(CONF_ON_OPEN):
+    if CONF_ON_OPEN in config:
         _LOGGER.warning(
-            "The 'on_open' trigger for covers is deprecated and will be removed in a future release. Please use 'on_opened' instead."
+            "'on_open' is deprecated, use 'on_opened'. Will be removed in 2026.8.0"
         )
-        for conf in on_opens:
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            await automation.build_automation(trigger, [], conf)
-    for trigger_conf in (*OPERATIONS, CONF_ON_OPENED, CONF_ON_CLOSED):
+    for trigger_conf in (*OPERATIONS, CONF_ON_OPEN, CONF_ON_OPENED, CONF_ON_CLOSED):
         for conf in config.get(trigger_conf, []):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
             await automation.build_automation(trigger, [], conf)
