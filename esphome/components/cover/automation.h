@@ -90,25 +90,18 @@ template<typename... Ts> class CoverPublishAction : public Action<Ts...> {
   Cover *cover_;
 };
 
-template<typename... Ts> class CoverIsOpenCondition : public Condition<Ts...> {
+template<float POS, typename... Ts> class CoverPositionCondition : public Condition<Ts...> {
  public:
-  CoverIsOpenCondition(Cover *cover) : cover_(cover) {}
+  CoverPositionCondition(Cover *cover) : cover_(cover) {}
 
-  bool check(const Ts &...x) override { return this->cover_->position == COVER_OPEN; }
+  bool check(const Ts &...x) override { return this->cover_->position == POS; }
 
  protected:
   Cover *cover_;
 };
 
-template<typename... Ts> class CoverIsClosedCondition : public Condition<Ts...> {
- public:
-  CoverIsClosedCondition(Cover *cover) : cover_(cover) {}
-
-  bool check(const Ts &...x) override { return this->cover_->position == COVER_CLOSED; }
-
- protected:
-  Cover *cover_;
-};
+template<typename... Ts> using CoverIsOpenCondition = CoverPositionCondition<COVER_OPEN, Ts...>;
+template<typename... Ts> using CoverIsClosedCondition = CoverPositionCondition<COVER_CLOSED, Ts...>;
 
 template<float POS> class CoverPositionTrigger : public Trigger<> {
  public:
