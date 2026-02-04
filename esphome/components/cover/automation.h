@@ -5,6 +5,7 @@
 #include "cover.h"
 
 namespace esphome::cover {
+
 template<typename... Ts> class OpenAction : public Action<Ts...> {
  public:
   explicit OpenAction(Cover *cover) : cover_(cover) {}
