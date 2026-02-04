@@ -1,5 +1,6 @@
 #include "mqtt_climate.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "mqtt_const.h"
 
@@ -11,6 +12,111 @@ namespace esphome::mqtt {
 static const char *const TAG = "mqtt.climate";
 
 using namespace esphome::climate;
+
+static ProgmemStr climate_mode_to_mqtt_str(ClimateMode mode) {
+  switch (mode) {
+    case CLIMATE_MODE_OFF:
+      return ESPHOME_F("off");
+    case CLIMATE_MODE_HEAT_COOL:
+      return ESPHOME_F("heat_cool");
+    case CLIMATE_MODE_AUTO:
+      return ESPHOME_F("auto");
+    case CLIMATE_MODE_COOL:
+      return ESPHOME_F("cool");
+    case CLIMATE_MODE_HEAT:
+      return ESPHOME_F("heat");
+    case CLIMATE_MODE_FAN_ONLY:
+      return ESPHOME_F("fan_only");
+    case CLIMATE_MODE_DRY:
+      return ESPHOME_F("dry");
+    default:
+      return ESPHOME_F("unknown");
+  }
+}
+
+static ProgmemStr climate_action_to_mqtt_str(ClimateAction action) {
+  switch (action) {
+    case CLIMATE_ACTION_OFF:
+      return ESPHOME_F("off");
+    case CLIMATE_ACTION_COOLING:
+      return ESPHOME_F("cooling");
+    case CLIMATE_ACTION_HEATING:
+      return ESPHOME_F("heating");
+    case CLIMATE_ACTION_IDLE:
+      return ESPHOME_F("idle");
+    case CLIMATE_ACTION_DRYING:
+      return ESPHOME_F("drying");
+    case CLIMATE_ACTION_FAN:
+      return ESPHOME_F("fan");
+    default:
+      return ESPHOME_F("unknown");
+  }
+}
+
+static ProgmemStr climate_fan_mode_to_mqtt_str(ClimateFanMode fan_mode) {
+  switch (fan_mode) {
+    case CLIMATE_FAN_ON:
+      return ESPHOME_F("on");
+    case CLIMATE_FAN_OFF:
+      return ESPHOME_F("off");
+    case CLIMATE_FAN_AUTO:
+      return ESPHOME_F("auto");
+    case CLIMATE_FAN_LOW:
+      return ESPHOME_F("low");
+    case CLIMATE_FAN_MEDIUM:
+      return ESPHOME_F("medium");
+    case CLIMATE_FAN_HIGH:
+      return ESPHOME_F("high");
+    case CLIMATE_FAN_MIDDLE:
+      return ESPHOME_F("middle");
+    case CLIMATE_FAN_FOCUS:
+      return ESPHOME_F("focus");
+    case CLIMATE_FAN_DIFFUSE:
+      return ESPHOME_F("diffuse");
+    case CLIMATE_FAN_QUIET:
+      return ESPHOME_F("quiet");
+    default:
+      return ESPHOME_F("unknown");
+  }
+}
+
+static ProgmemStr climate_swing_mode_to_mqtt_str(ClimateSwingMode swing_mode) {
+  switch (swing_mode) {
+    case CLIMATE_SWING_OFF:
+      return ESPHOME_F("off");
+    case CLIMATE_SWING_BOTH:
+      return ESPHOME_F("both");
+    case CLIMATE_SWING_VERTICAL:
+      return ESPHOME_F("vertical");
+    case CLIMATE_SWING_HORIZONTAL:
+      return ESPHOME_F("horizontal");
+    default:
+      return ESPHOME_F("unknown");
+  }
+}
+
+static ProgmemStr climate_preset_to_mqtt_str(ClimatePreset preset) {
+  switch (preset) {
+    case CLIMATE_PRESET_NONE:
+      return ESPHOME_F("none");
+    case CLIMATE_PRESET_HOME:
+      return ESPHOME_F("home");
+    case CLIMATE_PRESET_ECO:
+      return ESPHOME_F("eco");
+    case CLIMATE_PRESET_AWAY:
+      return ESPHOME_F("away");
+    case CLIMATE_PRESET_BOOST:
+      return ESPHOME_F("boost");
+    case CLIMATE_PRESET_COMFORT:
+      return ESPHOME_F("comfort");
+    case CLIMATE_PRESET_SLEEP:
+      return ESPHOME_F("sleep");
+    case CLIMATE_PRESET_ACTIVITY:
+      return ESPHOME_F("activity");
+    default:
+      return ESPHOME_F("unknown");
+  }
+}
 
 void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
@@ -260,34 +366,8 @@ const EntityBase *MQTTClimateComponent::get_entity() const { return this->device
 bool MQTTClimateComponent::publish_state_() {
   auto traits = this->device_->get_traits();
   // mode
-  const char *mode_s;
-  switch (this->device_->mode) {
-    case CLIMATE_MODE_OFF:
-      mode_s = "off";
-      break;
-    case CLIMATE_MODE_AUTO:
-      mode_s = "auto";
-      break;
-    case CLIMATE_MODE_COOL:
-      mode_s = "cool";
-      break;
-    case CLIMATE_MODE_HEAT:
-      mode_s = "heat";
-      break;
-    case CLIMATE_MODE_FAN_ONLY:
-      mode_s = "fan_only";
-      break;
-    case CLIMATE_MODE_DRY:
-      mode_s = "dry";
-      break;
-    case CLIMATE_MODE_HEAT_COOL:
-      mode_s = "heat_cool";
-      break;
-    default:
-      mode_s = "unknown";
-  }
   bool success = true;
-  if (!this->publish(this->get_mode_state_topic(), mode_s))
+  if (!this->publish(this->get_mode_state_topic(), climate_mode_to_mqtt_str(this->device_->mode)))
     success = false;
   int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
@@ -327,134 +407,37 @@ bool MQTTClimateComponent::publish_state_() {
   }
 
   if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
-    std::string payload;
-    if (this->device_->preset.has_value()) {
-      switch (this->device_->preset.value()) {
-        case CLIMATE_PRESET_NONE:
-          payload = "none";
-          break;
-        case CLIMATE_PRESET_HOME:
-          payload = "home";
-          break;
-        case CLIMATE_PRESET_AWAY:
-          payload = "away";
-          break;
-        case CLIMATE_PRESET_BOOST:
-          payload = "boost";
-          break;
-        case CLIMATE_PRESET_COMFORT:
-          payload = "comfort";
-          break;
-        case CLIMATE_PRESET_ECO:
-          payload = "eco";
-          break;
-        case CLIMATE_PRESET_SLEEP:
-          payload = "sleep";
-          break;
-        case CLIMATE_PRESET_ACTIVITY:
-          payload = "activity";
-          break;
-        default:
-          payload = "unknown";
-      }
-    }
-    if (this->device_->has_custom_preset())
-      payload = this->device_->get_custom_preset().c_str();
-    if (!this->publish(this->get_preset_state_topic(), payload))
+    if (this->device_->has_custom_preset()) {
+      if (!this->publish(this->get_preset_state_topic(), this->device_->get_custom_preset()))
+        success = false;
+    } else if (this->device_->preset.has_value()) {
+      if (!this->publish(this->get_preset_state_topic(), climate_preset_to_mqtt_str(this->device_->preset.value())))
+        success = false;
+    } else if (!this->publish(this->get_preset_state_topic(), "")) {
       success = false;
+    }
   }
 
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION)) {
-    const char *payload;
-    switch (this->device_->action) {
-      case CLIMATE_ACTION_OFF:
-        payload = "off";
-        break;
-      case CLIMATE_ACTION_COOLING:
-        payload = "cooling";
-        break;
-      case CLIMATE_ACTION_HEATING:
-        payload = "heating";
-        break;
-      case CLIMATE_ACTION_IDLE:
-        payload = "idle";
-        break;
-      case CLIMATE_ACTION_DRYING:
-        payload = "drying";
-        break;
-      case CLIMATE_ACTION_FAN:
-        payload = "fan";
-        break;
-      default:
-        payload = "unknown";
-    }
-    if (!this->publish(this->get_action_state_topic(), payload))
+    if (!this->publish(this->get_action_state_topic(), climate_action_to_mqtt_str(this->device_->action)))
       success = false;
   }
 
   if (traits.get_supports_fan_modes()) {
-    std::string payload;
-    if (this->device_->fan_mode.has_value()) {
-      switch (this->device_->fan_mode.value()) {
-        case CLIMATE_FAN_ON:
-          payload = "on";
-          break;
-        case CLIMATE_FAN_OFF:
-          payload = "off";
-          break;
-        case CLIMATE_FAN_AUTO:
-          payload = "auto";
-          break;
-        case CLIMATE_FAN_LOW:
-          payload = "low";
-          break;
-        case CLIMATE_FAN_MEDIUM:
-          payload = "medium";
-          break;
-        case CLIMATE_FAN_HIGH:
-          payload = "high";
-          break;
-        case CLIMATE_FAN_MIDDLE:
-          payload = "middle";
-          break;
-        case CLIMATE_FAN_FOCUS:
-          payload = "focus";
-          break;
-        case CLIMATE_FAN_DIFFUSE:
-          payload = "diffuse";
-          break;
-        case CLIMATE_FAN_QUIET:
-          payload = "quiet";
-          break;
-        default:
-          payload = "unknown";
-      }
-    }
-    if (this->device_->has_custom_fan_mode())
-      payload = this->device_->get_custom_fan_mode().c_str();
-    if (!this->publish(this->get_fan_mode_state_topic(), payload))
+    if (this->device_->has_custom_fan_mode()) {
+      if (!this->publish(this->get_fan_mode_state_topic(), this->device_->get_custom_fan_mode()))
+        success = false;
+    } else if (this->device_->fan_mode.has_value()) {
+      if (!this->publish(this->get_fan_mode_state_topic(),
+                         climate_fan_mode_to_mqtt_str(this->device_->fan_mode.value())))
+        success = false;
+    } else if (!this->publish(this->get_fan_mode_state_topic(), "")) {
       success = false;
+    }
   }
 
   if (traits.get_supports_swing_modes()) {
-    const char *payload;
-    switch (this->device_->swing_mode) {
-      case CLIMATE_SWING_OFF:
-        payload = "off";
-        break;
-      case CLIMATE_SWING_BOTH:
-        payload = "both";
-        break;
-      case CLIMATE_SWING_VERTICAL:
-        payload = "vertical";
-        break;
-      case CLIMATE_SWING_HORIZONTAL:
-        payload = "horizontal";
-        break;
-      default:
-        payload = "unknown";
-    }
-    if (!this->publish(this->get_swing_mode_state_topic(), payload))
+    if (!this->publish(this->get_swing_mode_state_topic(), climate_swing_mode_to_mqtt_str(this->device_->swing_mode)))
       success = false;
   }
 
