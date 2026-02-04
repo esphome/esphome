@@ -1,15 +1,12 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.core import ID
 from esphome.components.mipi import flatten_sequence
+import esphome.config_validation as cv
+from esphome.const import CONF_BUSY_PIN, CONF_RESET_PIN
+from esphome.core import ID
 
 from ..display import CONF_INIT_SEQUENCE_ID
 from . import EpaperModel
 
-from esphome.const import (
-    CONF_BUSY_PIN,
-    CONF_RESET_PIN,
-)
 
 class JD79660(EpaperModel):
     def __init__(self, name, class_name="EPaperJD79660", fast_update=None, **kwargs):
@@ -42,17 +39,16 @@ class JD79660(EpaperModel):
         return (*fast_update,)
 
 
-jd79660 = JD79660("jd79660",
+jd79660 = JD79660(
+    "jd79660",
     # Specified refresh times are ~20s (full) or ~15s (fast) due to BWRY.
     # So disallow low update intervals (with safety margin), to avoid e.g. FSM update loops.
     # Even less frequent intervals (min/h) highly recommended to optimize lifetime!
     minimum_update_interval="30s",
-
     # SPI rate: From spec comparisons, IC should allow SCL write cycles up to 10MHz rate.
     # Existing code samples also prefer 10MHz. So justifies as default.
     # Decrease value further in user config if needed (e.g. poor cabling).
     data_rate="10MHz",
-
     # No need to set optional reset_duration:
     # Code requires multistep reset sequence with precise timings
     # according to data sheet or samples.
@@ -88,4 +84,3 @@ jd79660.extend(
         (0xA5, 0x00,),
     ),
 )
-
