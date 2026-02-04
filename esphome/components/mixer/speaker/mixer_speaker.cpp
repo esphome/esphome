@@ -241,18 +241,20 @@ size_t SourceSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_
   return bytes_written;
 }
 
-void SourceSpeaker::start() {
-  this->enable_loop_soon_any_context();  // ensure loop processes command
-
+void SourceSpeaker::send_command_(uint32_t command_bit, bool wake_loop) {
+  this->enable_loop_soon_any_context();
   uint32_t event_bits = xEventGroupGetBits(this->event_group_);
-  if (!(event_bits & SOURCE_SPEAKER_COMMAND_START)) {
-    // Set SOURCE_SPEAKER_COMMAND_START bit if not already set, and then immediately wake for low latency
-    xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_START);
+  if (!(event_bits & command_bit)) {
+    xEventGroupSetBits(this->event_group_, command_bit);
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-    App.wake_loop_threadsafe();
+    if (wake_loop) {
+      App.wake_loop_threadsafe();
+    }
 #endif
   }
 }
+
+void SourceSpeaker::start() { this->send_command_(SOURCE_SPEAKER_COMMAND_START, true); }
 
 esp_err_t SourceSpeaker::start_() {
   const size_t ring_buffer_size = this->audio_stream_info_.ms_to_bytes(this->buffer_duration_ms_);
@@ -280,15 +282,9 @@ esp_err_t SourceSpeaker::start_() {
   return this->parent_->start(this->audio_stream_info_);
 }
 
-void SourceSpeaker::stop() {
-  this->enable_loop_soon_any_context();  // ensure loop processes command
-  xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_STOP);
-}
+void SourceSpeaker::stop() { this->send_command_(SOURCE_SPEAKER_COMMAND_STOP); }
 
-void SourceSpeaker::finish() {
-  this->enable_loop_soon_any_context();  // ensure loop processes command
-  xEventGroupSetBits(this->event_group_, SOURCE_SPEAKER_COMMAND_FINISH);
-}
+void SourceSpeaker::finish() { this->send_command_(SOURCE_SPEAKER_COMMAND_FINISH); }
 
 bool SourceSpeaker::has_buffered_data() const {
   return ((this->transfer_buffer_.use_count() > 0) && this->transfer_buffer_->has_buffered_data());
