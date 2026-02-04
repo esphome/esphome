@@ -137,16 +137,6 @@ struct LogBuffer {
   LogBuffer(char *buf, uint16_t &buf_pos, uint16_t buf_size) : data(buf), pos(buf_pos), size(buf_size) {
     this->pos = 0;
   }
-  void write(const char *value, size_t length) {
-    if (this->full_())
-      return;
-    const uint16_t available = this->remaining_();
-    const size_t copy_len = (length < static_cast<size_t>(available)) ? length : available;
-    if (copy_len > 0) {
-      memcpy(this->current_(), value, copy_len);
-      this->pos += copy_len;
-    }
-  }
   void add_newline() {
     if (this->pos < this->size) {
       this->data[this->pos++] = '\n';
@@ -204,7 +194,7 @@ struct LogBuffer {
     this->null_terminate_();
   }
   void write_body(const char *text, size_t text_length) {
-    this->write(text, text_length);
+    this->write_(text, text_length);
     this->write_color_reset_();
     this->null_terminate_();
   }
@@ -223,9 +213,19 @@ struct LogBuffer {
   char *current_() { return this->data + this->pos; }
   void put_char_(char c) { this->data[this->pos++] = c; }
   void null_terminate_() { this->data[this->full_() ? this->size - 1 : this->pos] = '\0'; }
+  void write_(const char *value, size_t length) {
+    if (this->full_())
+      return;
+    const uint16_t available = this->remaining_();
+    const size_t copy_len = (length < static_cast<size_t>(available)) ? length : available;
+    if (copy_len > 0) {
+      memcpy(this->current_(), value, copy_len);
+      this->pos += copy_len;
+    }
+  }
   void write_color_reset_() {
     static constexpr uint16_t RESET_COLOR_LEN = sizeof(ESPHOME_LOG_RESET_COLOR) - 1;
-    this->write(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN);
+    this->write_(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN);
   }
   void strip_trailing_newlines_() {
     while (this->pos > 0 && this->data[this->pos - 1] == '\n')
