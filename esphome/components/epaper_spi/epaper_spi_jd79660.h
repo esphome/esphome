@@ -30,14 +30,13 @@ class EPaperJD79660 final : public EPaperBase {
       : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_COLOR),
         fast_update_(fast_update),
         fast_update_length_(fast_update_length) {
-    this->row_width_ = (width+3)/4;  // Fix base class calc (2bpp instead of 1bpp)
+    this->row_width_ = (width + 3) / 4;  // Fix base class calc (2bpp instead of 1bpp)
     this->buffer_length_ = this->row_width_ * height;
   }
 
   void fill(Color color) override;
 
  protected:
-
   /** Draw colored pixel into frame buffer */
   void draw_pixel_at(int x, int y, Color color) override;
 
@@ -100,7 +99,7 @@ class EPaperJD79660 final : public EPaperBase {
 
   /** State machine constants for \a step_ */
   enum class FSMState : uint8_t {
-    NONE = 0,   //!< Initial/default value: Unused
+    NONE = 0,  //!< Initial/default value: Unused
 
     /* Reset state steps */
     RESET_STEP0_H,
@@ -136,7 +135,7 @@ class EPaperJD79660 final : public EPaperBase {
   static constexpr uint16_t SLEEP_MS_RESET2 = 200;
 
   // properties initialised in the constructor
-  const uint8_t * const fast_update_{};
+  const uint8_t *const fast_update_{};
   const uint16_t fast_update_length_{};
 
   /** Counter for tracking substeps within FSM state */

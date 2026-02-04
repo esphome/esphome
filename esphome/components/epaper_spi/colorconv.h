@@ -28,9 +28,8 @@ static constexpr uint8_t COLORCONV_GRAY_THRESHOLD = 50;
  * \internal Constexpr. Does not depend on side effects ("pure").
  */
 template<typename NATIVE_COLOR>
-constexpr NATIVE_COLOR color_to_bwyr(Color color,
-  NATIVE_COLOR hw_black, NATIVE_COLOR hw_white, NATIVE_COLOR hw_yellow, NATIVE_COLOR hw_red) {
-
+constexpr NATIVE_COLOR color_to_bwyr(Color color, NATIVE_COLOR hw_black, NATIVE_COLOR hw_white, NATIVE_COLOR hw_yellow,
+                                     NATIVE_COLOR hw_red) {
   // --- Step 1: Check for Grayscale (Black or White) ---
   // We define "grayscale" as a color where the min and max components
   // are close to each other.

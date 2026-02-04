@@ -8,16 +8,15 @@ static constexpr const char *const TAG = "epaper_spi.jd79660";
 
 /** Pixel color as 2bpp. Must match IC LUT values. */
 enum JD79660Color : uint8_t {
-  BLACK  = 0b00,
-  WHITE  = 0b01,
+  BLACK = 0b00,
+  WHITE = 0b01,
   YELLOW = 0b10,
-  RED    = 0b11,
+  RED = 0b11,
 };
 
 /** Map RGB color to JD79660 BWYR hex color keys */
 static constexpr JD79660Color HOT color_to_hex(Color color) {
-  return color_to_bwyr(color,
-    JD79660Color::BLACK, JD79660Color::WHITE, JD79660Color::YELLOW, JD79660Color::RED);
+  return color_to_bwyr(color, JD79660Color::BLACK, JD79660Color::WHITE, JD79660Color::YELLOW, JD79660Color::RED);
 }
 
 void EPaperJD79660::fill(Color color) {
@@ -43,8 +42,8 @@ void HOT EPaperJD79660::draw_pixel_at(int x, int y, Color color) {
   const uint32_t bit_offset = 6 - ((pixel_position % 4) * 2);
   const auto original = this->buffer_[byte_position];
 
-  this->buffer_[byte_position] = (original & (~ (0b11 << bit_offset))) |  // mask old 2bpp
-    (pixel_bits << bit_offset);    // add new 2bpp
+  this->buffer_[byte_position] = (original & (~(0b11 << bit_offset))) |  // mask old 2bpp
+                                 (pixel_bits << bit_offset);             // add new 2bpp
 }
 
 bool EPaperJD79660::reset() {
@@ -62,7 +61,7 @@ bool EPaperJD79660::reset() {
 
       this->reset_duration_ = SLEEP_MS_RESET0;
       this->step_ = FSMState::RESET_STEP1_L;
-      return false; // another loop: step #1 below
+      return false;  // another loop: step #1 below
 
     case FSMState::RESET_STEP1_L:
       // Step #1: Reset L pulse for slightly >1.5ms.
@@ -78,7 +77,7 @@ bool EPaperJD79660::reset() {
 
       this->reset_duration_ = SLEEP_MS_RESET2;
       this->step_ = FSMState::RESET_STEP2_IDLECHECK;
-      return false; // another loop: step #2 below
+      return false;  // another loop: step #2 below
 
     case FSMState::RESET_STEP2_IDLECHECK:
       // Step #2: Basically finished. Check sanity, and move FSM to INITIALISE state
@@ -92,14 +91,14 @@ bool EPaperJD79660::reset() {
         // -> Mark failed to avoid followup problems.
         this->mark_failed(LOG_STR("Busy after reset"));
       }
-      break; // End state loop below
+      break;  // End state loop below
 
     default:
       // Unexpected step = bug?
       this->mark_failed();
   }
 
-  this->step_ = FSMState::INIT_STEP0_REGULARINIT; // reset for initialize state
+  this->step_ = FSMState::INIT_STEP0_REGULARINIT;  // reset for initialize state
   return true;
 }
 
@@ -108,15 +107,15 @@ bool EPaperJD79660::initialise(bool partial) {
     case FSMState::INIT_STEP0_REGULARINIT:
       // Step #0: Regular init sequence
       ESP_LOGVV(TAG, "init #0");
-      if (!EPaperBase::initialise(partial)) { // Call parent impl
-        return false;  // If parent should request another loop, do so
+      if (!EPaperBase::initialise(partial)) {  // Call parent impl
+        return false;                          // If parent should request another loop, do so
       }
 
       // Fast init requested + supported?
       if (partial && (this->fast_update_length_ > 0)) {
         this->step_ = FSMState::INIT_STEP1_FASTINIT;
-        this->wait_for_idle_(true); // Must wait for idle before fastinit sequence in next loop
-        return false; // another loop: step #1 below
+        this->wait_for_idle_(true);  // Must wait for idle before fastinit sequence in next loop
+        return false;                // another loop: step #1 below
       }
 
       break;  // End state loop below
@@ -125,7 +124,7 @@ bool EPaperJD79660::initialise(bool partial) {
       // Step #1: Fast init sequence
       ESP_LOGVV(TAG, "init #1");
       this->write_fastinit_();
-      break; // End state loop below
+      break;  // End state loop below
 
     default:
       // Unexpected step = bug?
@@ -133,7 +132,7 @@ bool EPaperJD79660::initialise(bool partial) {
   }
 
   this->step_ = FSMState::NONE;
-  return true; // Finished: State transition waits for idle
+  return true;  // Finished: State transition waits for idle
 }
 
 bool EPaperJD79660::transfer_buffer_chunks_() {
@@ -196,18 +195,18 @@ bool EPaperJD79660::transfer_data() {
 
 void EPaperJD79660::refresh_screen([[maybe_unused]] bool partial) {
   ESP_LOGV(TAG, "Refresh");
-  this->cmd_data(CMD_REFRESH, {(uint8_t)0x00});
+  this->cmd_data(CMD_REFRESH, {(uint8_t) 0x00});
 }
 
 void EPaperJD79660::power_off() {
   ESP_LOGV(TAG, "Power off");
-  this->cmd_data(CMD_POWEROFF, {(uint8_t)0x00});
+  this->cmd_data(CMD_POWEROFF, {(uint8_t) 0x00});
 }
 
 void EPaperJD79660::deep_sleep() {
   ESP_LOGV(TAG, "Deep sleep");
   // "Deepsleep between update": Ensure EPD sleep to avoid early hardware wearout!
-  this->cmd_data(CMD_DEEPSLEEP, {(uint8_t)0xA5});
+  this->cmd_data(CMD_DEEPSLEEP, {(uint8_t) 0xA5});
 
   // Notes:
   // - VDD: Some boards (Waveshare) with "clever reset logic" would allow switching off
