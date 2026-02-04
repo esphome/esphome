@@ -109,6 +109,12 @@ OPERATIONS = {
     CONF_ON_IDLE: CoverOperation.COVER_OPERATION_IDLE,
 }
 
+POSITION_TRIGGERS = {
+    CONF_ON_OPEN: CoverOpenedTrigger,  # Deprecated, use on_opened
+    CONF_ON_OPENED: CoverOpenedTrigger,
+    CONF_ON_CLOSED: CoverClosedTrigger,
+}
+
 
 _COVER_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
@@ -129,22 +135,14 @@ _COVER_SCHEMA = (
             cv.Optional(CONF_TILT_STATE_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.subscribe_topic
             ),
-            # Deprecated trigger
-            cv.Optional(CONF_ON_OPEN): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenedTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_OPENED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenedTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_CLOSED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverClosedTrigger),
-                }
-            ),
+            **{
+                cv.Optional(conf): automation.validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(trigger_class),
+                    }
+                )
+                for conf, trigger_class in POSITION_TRIGGERS.items()
+            },
             **{
                 cv.Optional(conf): automation.validate_automation(
                     {
@@ -195,7 +193,7 @@ async def setup_cover_core_(var, config):
         _LOGGER.warning(
             "'on_open' is deprecated, use 'on_opened'. Will be removed in 2026.8.0"
         )
-    for trigger_conf in (*OPERATIONS, CONF_ON_OPEN, CONF_ON_OPENED, CONF_ON_CLOSED):
+    for trigger_conf in (*OPERATIONS, *POSITION_TRIGGERS):
         for conf in config.get(trigger_conf, []):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
             await automation.build_automation(trigger, [], conf)
