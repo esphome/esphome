@@ -1011,8 +1011,8 @@ def test_get_all_dependencies_handles_missing_components() -> None:
         comp.dependencies = ["missing_comp"]
         comp.auto_load = []
 
-        mock_get_component.side_effect = (
-            lambda name: comp if name == "existing" else None
+        mock_get_component.side_effect = lambda name: (
+            comp if name == "existing" else None
         )
 
         result = helpers.get_all_dependencies({"existing", "nonexistent"})

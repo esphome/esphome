@@ -466,8 +466,8 @@ def test_clean_build(
     ) as mock_get_instance:
         mock_config = MagicMock()
         mock_get_instance.return_value = mock_config
-        mock_config.get.side_effect = (
-            lambda section, option: str(platformio_cache_dir)
+        mock_config.get.side_effect = lambda section, option: (
+            str(platformio_cache_dir)
             if (section, option) == ("platformio", "cache_dir")
             else ""
         )
@@ -630,8 +630,8 @@ def test_clean_build_empty_cache_dir(
     ) as mock_get_instance:
         mock_config = MagicMock()
         mock_get_instance.return_value = mock_config
-        mock_config.get.side_effect = (
-            lambda section, option: "   "  # Whitespace only
+        mock_config.get.side_effect = lambda section, option: (
+            "   "  # Whitespace only
             if (section, option) == ("platformio", "cache_dir")
             else ""
         )
