@@ -36,9 +36,7 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
 
   // Fast path: main thread, no recursion (99.9% of all logs)
   if (is_main_task && !this->main_task_recursion_guard_) [[likely]] {
-    RecursionGuard guard(this->main_task_recursion_guard_);
-    // Format and send to both console and callbacks
-    this->log_message_to_buffer_and_send_(level, tag, line, format, args);
+    this->log_message_to_buffer_and_send_(this->main_task_recursion_guard_, level, tag, line, format, args);
     return;
   }
 
@@ -117,11 +115,7 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
 
-  RecursionGuard guard(global_recursion_guard_);
-  LogBuffer buf(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
-  this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf);
-  this->notify_listeners_(level, tag);
-  this->write_log_buffer_to_console_(buf);
+  this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args);
 }
 #endif  // USE_ESP32 / USE_HOST / USE_LIBRETINY
 
