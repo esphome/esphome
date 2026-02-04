@@ -110,13 +110,13 @@ template<typename... Ts> class CoverIsClosedCondition : public Condition<Ts...> 
   Cover *cover_;
 };
 
-class CoverOpenedTrigger : public Trigger<> {
+template<float POS> class CoverPositionTrigger : public Trigger<> {
  public:
-  CoverOpenedTrigger(Cover *a_cover) {
+  CoverPositionTrigger(Cover *a_cover) {
     a_cover->add_on_state_callback([this, a_cover]() {
       if (a_cover->position != this->last_position_) {
         this->last_position_ = a_cover->position;
-        if (a_cover->position == COVER_OPEN)
+        if (a_cover->position == POS)
           this->trigger();
       }
     });
@@ -126,21 +126,8 @@ class CoverOpenedTrigger : public Trigger<> {
   float last_position_{NAN};
 };
 
-class CoverClosedTrigger : public Trigger<> {
- public:
-  CoverClosedTrigger(Cover *a_cover) {
-    a_cover->add_on_state_callback([this, a_cover]() {
-      if (a_cover->position != this->last_position_) {
-        this->last_position_ = a_cover->position;
-        if (a_cover->position == COVER_CLOSED)
-          this->trigger();
-      }
-    });
-  }
-
- protected:
-  float last_position_{NAN};
-};
+using CoverOpenedTrigger = CoverPositionTrigger<COVER_OPEN>;
+using CoverClosedTrigger = CoverPositionTrigger<COVER_CLOSED>;
 
 template<CoverOperation OP> class CoverTrigger : public Trigger<> {
  public:
