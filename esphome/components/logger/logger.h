@@ -193,20 +193,17 @@ struct LogBuffer {
   }
   void HOT format_body(const char *format, va_list args) {
     this->format_vsnprintf_(format, args);
-    this->write_color_reset_();
-    this->null_terminate_();
+    this->finalize_();
   }
 #ifdef USE_STORE_LOG_STR_IN_FLASH
   void HOT format_body_P(PGM_P format, va_list args) {
     this->format_vsnprintf_P_(format, args);
-    this->write_color_reset_();
-    this->null_terminate_();
+    this->finalize_();
   }
 #endif
   void write_body(const char *text, size_t text_length) {
     this->write_(text, text_length);
-    this->write_color_reset_();
-    this->null_terminate_();
+    this->finalize_();
   }
 
  private:
@@ -215,6 +212,10 @@ struct LogBuffer {
   char *current_() { return this->data + this->pos; }
   inline void put_char_(char c) { this->data[this->pos++] = c; }
   inline void null_terminate_() { this->data[this->full_() ? this->size - 1 : this->pos] = '\0'; }
+  void finalize_() {
+    this->write_color_reset_();
+    this->null_terminate_();
+  }
   void write_(const char *value, size_t length) {
     if (this->full_())
       return;
