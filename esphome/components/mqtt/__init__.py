@@ -55,6 +55,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_HOST,
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
@@ -319,7 +320,15 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_BK72XX,
+            PLATFORM_RTL87XX,
+            PLATFORM_HOST,
+        ]
+    ),
     _consume_mqtt_sockets,
 )
 
@@ -338,6 +347,12 @@ def exp_mqtt_message(config):
 
 @coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config):
+    if CORE.is_host:
+        # Host MQTT is intended for development/testing and may not have feature parity
+        # with embedded targets yet.
+        cg.add_define("USE_MQTT_HOST_EXPERIMENTAL")
+        # Native host backend uses a small C MQTT implementation.
+        cg.add_library("MQTT-C", None, "https://github.com/LiamBindle/MQTT-C#v1.1.6")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

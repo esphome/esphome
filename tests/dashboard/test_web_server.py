@@ -32,6 +32,7 @@ from esphome.dashboard.entries import (
 )
 from esphome.dashboard.models import build_importable_device_dict
 from esphome.dashboard.web_server import DashboardSubscriber, EsphomeCommandWebSocket
+from esphome.storage_json import StorageJSON
 from esphome.zeroconf import DiscoveredImport
 
 from .common import get_fixture_path
@@ -206,6 +207,35 @@ async def test_devices_page(dashboard: DashboardTestHelper) -> None:
     first_device = configured_devices[0]
     assert first_device["name"] == "pico"
     assert first_device["configuration"] == "pico.yaml"
+
+
+@pytest.mark.asyncio
+async def test_logs_host_platform_skips_device_selector(
+    dashboard: DashboardTestHelper,
+) -> None:
+    config_file = web_server.settings.rel_path("pico.yaml")
+    entry = DASHBOARD.entries.get(config_file)
+    assert entry is not None
+
+    # Simulate a host platform device (core_platform == "host").
+    entry.storage = StorageJSON.from_wizard(
+        name="hostdev",
+        friendly_name="Host Dev",
+        address="127.0.0.1",
+        platform="HOST",
+    )
+
+    handler = object.__new__(web_server.EsphomeLogsHandler)
+    cmd = await handler.build_command(
+        {"type": "spawn", "configuration": "pico.yaml", "port": "OTA"}
+    )
+
+    assert cmd[0 : len(web_server.DASHBOARD_COMMAND)] == list(
+        web_server.DASHBOARD_COMMAND
+    )
+    assert "run" in cmd
+    assert config_file in cmd
+    assert "--device" not in cmd
 
 
 @pytest.mark.asyncio
@@ -1031,6 +1061,52 @@ def test_start_web_server_with_unix_socket(tmp_path: Path) -> None:
         mock_server_class.assert_called_once_with(app)
         mock_bind.assert_called_once_with(str(socket_path), mode=0o666)
         server.add_socket.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_esphome_logs_handler_build_command_host_uses_run() -> None:
+    """Test host devices use `run` to stream logs."""
+    handler = web_server.EsphomeLogsHandler.__new__(web_server.EsphomeLogsHandler)
+    json_message = {"configuration": "host.yaml", "port": "OTA"}
+
+    entry = Mock()
+    entry.storage = StorageJSON.from_wizard(
+        name="hostdev",
+        friendly_name="Host Dev",
+        address="127.0.0.1",
+        platform="HOST",
+    )
+
+    with (
+        patch("esphome.dashboard.web_server.settings") as mock_settings,
+        patch("esphome.dashboard.web_server.DASHBOARD") as mock_dashboard,
+    ):
+        mock_settings.rel_path.return_value = "host.yaml"
+        mock_dashboard.entries.get.return_value = entry
+
+        result = await handler.build_command(json_message)
+
+    assert result == [*web_server.DASHBOARD_COMMAND, "run", "host.yaml"]
+
+
+@pytest.mark.asyncio
+async def test_esphome_logs_handler_build_command_non_host_uses_logs() -> None:
+    """Test non-host devices keep using `logs`."""
+    handler = web_server.EsphomeLogsHandler.__new__(web_server.EsphomeLogsHandler)
+    handler.build_device_command = AsyncMock(return_value=["ok"])
+    json_message = {"configuration": "device.yaml", "port": "OTA"}
+
+    with (
+        patch("esphome.dashboard.web_server.settings") as mock_settings,
+        patch("esphome.dashboard.web_server.DASHBOARD") as mock_dashboard,
+    ):
+        mock_settings.rel_path.return_value = "device.yaml"
+        mock_dashboard.entries.get.return_value = None
+
+        result = await handler.build_command(json_message)
+
+    assert result == ["ok"]
+    handler.build_device_command.assert_awaited_once_with(["logs"], json_message)
 
 
 def test_build_cache_arguments_no_entry(mock_dashboard: Mock) -> None:

@@ -115,8 +115,12 @@ void APIServer::setup() {
 }
 
 void APIServer::loop() {
-  // Accept new clients only if the socket exists and has incoming connections
-  if (this->socket_ && this->socket_->ready()) {
+  // Accept new clients if the socket exists.
+  //
+  // On some platforms (notably host/native), select()-based readiness tracking can miss
+  // pending accepts, which leads to the connection backlog filling up and clients timing out.
+  // Since the server socket is non-blocking, it's safe to try accept() unconditionally.
+  if (this->socket_) {
     this->accept_new_connections_();
   }
 

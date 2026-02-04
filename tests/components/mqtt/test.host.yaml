@@ -1,0 +1,10 @@
+packages:
+  host_common: !include ../host/common.yaml
+
+mqtt:
+  broker: "127.0.0.1"
+  port: 1883
+  enable_on_boot: false
+  discovery: false
+  discover_ip: false
+  topic_prefix: hostmqtt

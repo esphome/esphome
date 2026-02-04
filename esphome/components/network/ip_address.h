@@ -59,6 +59,7 @@ struct IPAddress {
   }
   IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
+  bool is_set() const { return this->ip_addr_.s_addr != 0; }
   // Remove before 2026.8.0
   ESPDEPRECATED(
       "str() is deprecated: use 'char buf[IP_ADDRESS_BUFFER_SIZE]; ip.str_to(buf);' instead. Removed in 2026.8.0",
