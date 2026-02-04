@@ -296,8 +296,6 @@ void NAU7802Sensor::loop() {
   }
 }
 
-float NAU7802Sensor::get_setup_priority() const { return setup_priority::DATA; }
-
 void NAU7802Sensor::update() {
   if (!this->is_data_ready_()) {
     ESP_LOGW(TAG, "No measurements ready!");
