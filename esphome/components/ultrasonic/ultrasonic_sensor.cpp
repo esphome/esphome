@@ -69,12 +69,7 @@ void UltrasonicSensorComponent::loop() {
       elapsed = micros() - this->store_.echo_start_us;
     }
     if (elapsed >= this->timeout_us_) {
-      if (elapsed > 0x8000) {
-        ESP_LOGW(TAG, "'%s' - pulse end before pulse start, does the echo pin need to be inverted?",
-                 this->name_.c_str());
-      } else {
-        ESP_LOGD(TAG, "'%s' - Measurement pulse timed out after %" PRIu32 "us", this->name_.c_str(), elapsed);
-      }
+      ESP_LOGD(TAG, "'%s' - Measurement pulse timed out after %" PRIu32 "us", this->name_.c_str(), elapsed);
       this->publish_state(NAN);
       this->measurement_pending_ = false;
       return;
