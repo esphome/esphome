@@ -102,15 +102,11 @@ CONF_ON_OPENED = "on_opened"
 CONF_ON_OPENING = "on_opening"
 CONF_ON_CLOSING = "on_closing"
 
-OPERATIONS = (
-    CONF_ON_CLOSING,
-    CONF_ON_OPENING,
-    CONF_ON_IDLE,
-)
-
-
-def get_operation_from_conf_(conf: str) -> CoverOperation:
-    return getattr(CoverOperation, "COVER_OPERATION_" + conf.split("_")[1].upper())
+OPERATIONS = {
+    CONF_ON_CLOSING: CoverOperation.COVER_OPERATION_CLOSING,
+    CONF_ON_OPENING: CoverOperation.COVER_OPERATION_OPENING,
+    CONF_ON_IDLE: CoverOperation.COVER_OPERATION_IDLE,
+}
 
 
 _COVER_SCHEMA = (
@@ -152,11 +148,11 @@ _COVER_SCHEMA = (
                 cv.Optional(conf): automation.validate_automation(
                     {
                         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                            CoverTrigger.template(get_operation_from_conf_(conf))
+                            CoverTrigger.template(operation)
                         ),
                     }
                 )
-                for conf in OPERATIONS
+                for conf, operation in OPERATIONS.items()
             },
         }
     )
