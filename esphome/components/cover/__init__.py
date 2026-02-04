@@ -35,9 +35,10 @@ from esphome.const import (
     DEVICE_CLASS_SHUTTER,
     DEVICE_CLASS_WINDOW,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType, TemplateArgsType
 
 IS_PLATFORM_COMPONENT = True
 
@@ -293,24 +294,24 @@ async def cover_control_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_condition(
-    "cover.is_open",
-    CoverIsOpenCondition,
-    cv.maybe_simple_value({cv.Required(CONF_ID): cv.use_id(Cover)}, key=CONF_ID),
+COVER_CONDITION_SCHEMA = cv.maybe_simple_value(
+    {cv.Required(CONF_ID): cv.use_id(Cover)}, key=CONF_ID
 )
-async def cover_is_open_to_code(config, condition_id, template_arg, args):
+
+
+async def cover_condition_to_code(
+    config: ConfigType, condition_id: ID, template_arg: MockObj, args: TemplateArgsType
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
-@automation.register_condition(
-    "cover.is_closed",
-    CoverIsClosedCondition,
-    cv.maybe_simple_value({cv.Required(CONF_ID): cv.use_id(Cover)}, key=CONF_ID),
-)
-async def cover_is_closed_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
+automation.register_condition(
+    "cover.is_open", CoverIsOpenCondition, COVER_CONDITION_SCHEMA
+)(cover_condition_to_code)
+automation.register_condition(
+    "cover.is_closed", CoverIsClosedCondition, COVER_CONDITION_SCHEMA
+)(cover_condition_to_code)
 
 
 @coroutine_with_priority(CoroPriority.CORE)
