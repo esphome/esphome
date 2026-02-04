@@ -28,7 +28,8 @@ The [I²C Bus](/components/i2c) is required to be set up in your configuration f
 - `SDA` connects I2C SDA (data)
 - `GPIO1` is not used by ESPHome
 - `XSHUT` connects to free GPIO pin. Enable/disable device. This is optional if there is only one
-  VL53L0X sensor on the I²C bus and the default `0x29` address is used. Otherwise this is required.
+  VL53L0X sensor on the I²C bus and the default `0x29` address is used. Depending on your sensor, this
+  might be required even with only one sensor on the I²C bus. This is always required for multiple sensors.
 
 {{< img src="vl53l0x-full.jpg" alt="Image" caption="VL53L0X Time Of Flight Distance Sensor." width="50.0%" class="align-center" >}}
 

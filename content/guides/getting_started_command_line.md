@@ -29,7 +29,6 @@ docker pull ghcr.io/esphome/esphome
 If you want to use `docker-compose` instead, here's a sample file:
 
 ```yaml
-version: '3'
 services:
   esphome:
     container_name: esphome

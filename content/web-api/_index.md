@@ -42,20 +42,35 @@ Currently, there are three types of events sent: `ping`, `state` and `log`. The 
 is repeatedly sent out to keep the connection alive. `log` events are sent every time a log
 message is triggered and is used to show the debug log on the index page. `state` is where
 the real magic happens. All events with this type have a JSON payload that describes the state
-of a component. Each of these JSON payloads have two mandatory fields: `id` and `state`. ID
-is the unique identifier of the component using the format `domain/entity_name` (for example
-`sensor/Temperature`) or `domain/device_name/entity_name` for sub-device entities. `state`
-contains a simple text-based representation of the state of the underlying component, for
-example ON/OFF or 21.4 °C. Several components also have additional fields in this payload,
-for example lights have a `brightness` attribute.
+of a component. Each of these JSON payloads has the following identifier fields:
+
+- `name_id`: **Temporary field (removed in 2026.8.0)** providing the new identifier format
+  `domain/entity_name` (for example `sensor/Temperature`) or `domain/device_name/entity_name`
+  for sub-device entities.
+- `id`: Legacy identifier using the format `domain-object_id` (for example `sensor-temperature`).
+  Provided for backward compatibility. In 2026.8.0, this field switches to the new format
+  (matching `name_id`) and `name_id` is removed.
+
+Third-party integrations **MUST** prefer `name_id` over `id` to get the new ID format,
+falling back to `id` for compatibility with older firmware and for when `name_id` is
+removed. The `id` field will switch to the new format (matching `name_id`) in ESPHome
+2026.8.0, at which point `name_id` will be removed. Third-party integrations that require
+the legacy format after 2026.8.0 must implement their own conversion logic (similar to
+`aioesphomeapi`).
+
+The `state` field contains a simple text-based representation of the state of the underlying
+component, for example ON/OFF or 21.4 °C. Several components also have additional fields in
+this payload, for example lights have a `brightness` attribute.
 
 {{< img src="event-source.png" alt="Image" caption="Example payload of the event source API." class="align-center" >}}
 
 Additionally, each time a client connects to the event source the server sends out all current
 states so that the client can catch up with reality.
 
-The payloads of these state events are also the same as the payloads of the REST API GET calls.
-I would recommend just opening the network debug panel of your web browser to see what's sent.
+The payloads of these state events are similar to the REST API GET calls, except SSE includes
+both `name_id` and `id` fields during the deprecation period (until 2026.8.0), while REST
+responses only include `id` in the new format. I would recommend just opening the network
+debug panel of your web browser to see what's sent.
 
 {{< anchor "api-rest" >}}
 

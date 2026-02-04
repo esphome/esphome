@@ -151,6 +151,15 @@
     </div>
   </label>
   <label>
+    <input type="radio" name="type" value="irrf" />
+    <div class="text">
+      <div class="name">Infrared Proxy</div>
+      <div class="description">
+        Create a device to allow Home Assistant to control infrared devices.
+      </div>
+    </div>
+  </label>
+  <label>
     <input type="radio" name="type" value="empty" />
     <div class="name">Empty ESPHome device</div>
     <div class="description">
@@ -647,6 +656,60 @@
     <li>
       The YAML configuration is on
       <a href="https://github.com/esphome/media-players">GitHub</a>
+    </li>
+  </ul>
+</div>
+
+<div
+  class="type type-irrf hidden"
+  data-manifest-root="https://firmware.esphome.io/infrared-proxy"
+>
+  <div class="question-prompt">
+    Pick the device you want to turn into an infrared proxy:
+  </div>
+  <div class="radios">
+    <label>
+      <input
+        type="radio"
+        name="irrf-device"
+        class="device-option"
+        value="xiao-ir-mate"
+        data-manifest-root="https://firmware.esphome.io/xiao-ir-mate"
+        checked
+      />
+      <img
+        src="/projects/irrf-proxy/xiao-ir-mate.png"
+        alt="XIAO IR Mate"
+      />
+    </label>
+  </div>
+
+  <div class="question-prompt">Start the installation:</div>
+  <esp-web-install-button></esp-web-install-button>
+
+  <div class="hidden info xiao-ir-mate">
+    <h3>Xiao IR Mate</h3>
+    <p>Small but powerful infrared emitter.</p>
+    <p>Learn more & buy</p>
+    <ul>
+      <li>
+        <a href="https://www.seeedstudio.com/XIAO-Smart-IR-Mate-p-6492.html">Seeed Studio</a>
+      </li>
+    </ul>
+  </div>
+
+  <h3>For advanced users</h3>
+  <ul>
+    <li>
+      The device is adoptable in
+      <a
+        href="https://my.home-assistant.io/redirect/supervisor_addon/?addon=5c53de3b_esphome&amp;repository_url=https%3A%2F%2Fgithub.com%2Fesphome%2Fhome-assistant-addon"
+        >the ESPHome dashboard</a
+      >
+    </li>
+    <li>
+      The YAML configuration is on
+      <a href="https://github.com/esphome/infrared-proxies">GitHub</a>
     </li>
   </ul>
 </div>

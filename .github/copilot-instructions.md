@@ -8,7 +8,7 @@ Adhering to these guidelines will promote consistency and content quality.
 *   **Primary Goal:** ESPHome is a system to configure microcontrollers (like ESP32, ESP8266, RP2040, and LibreTiny-based chips)
     using simple yet powerful YAML configuration files. It generates C++ firmware that can be compiled and flashed to
     these devices, allowing users to control them remotely through home automation systems.
- 
+
     This repo is the source for the primary documentation for users of ESPHome, published on [esphome.io](https://esphome.io).
 *   **Business Domain:** Internet of Things (IoT), Home Automation.
 
@@ -52,4 +52,8 @@ accurate - you are not writing a press release.
 For example instead of "Created comprehensive documentation with configuration examples and setup instructions"
 it is sufficient to say "Created documentation with examples and instructions".
 
+## Legacy Hugo Shortcodes
 
+The following Hugo shortcodes are legacy and should be replaced when encountered:
+* `{{< docref >}}`: use standard Markdown links instead
+* `{{< img >}}`: use standard Markdown image syntax instead
