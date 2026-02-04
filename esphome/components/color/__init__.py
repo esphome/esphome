@@ -3,6 +3,8 @@ from esphome.const import CONF_BLUE, CONF_GREEN, CONF_ID, CONF_RED, CONF_WHITE
 
 ColorStruct = cg.esphome_ns.struct("Color")
 
+INSTANCE_TYPE = ColorStruct
+
 MULTI_CONF = True
 
 CONF_RED_INT = "red_int"

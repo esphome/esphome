@@ -1,12 +1,7 @@
-i2c:
-  - id: i2c_veml7700
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: veml7700
+    i2c_id: i2c_bus
     address: 0x10
-    i2c_id: i2c_veml7700
     ambient_light: Ambient light
     ambient_light_counts: Ambient light counts
     full_spectrum: Full spectrum

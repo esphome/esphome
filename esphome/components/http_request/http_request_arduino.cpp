@@ -1,6 +1,6 @@
 #include "http_request_arduino.h"
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
 
 #include "esphome/components/network/util.h"
 #include "esphome/components/watchdog/watchdog.h"
@@ -9,13 +9,14 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 static const char *const TAG = "http_request.arduino";
 
-std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::string method, std::string body,
-                                                         std::list<Header> headers) {
+std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &url, const std::string &method,
+                                                           const std::string &body,
+                                                           const std::list<Header> &request_headers,
+                                                           const std::set<std::string> &collect_headers) {
   if (!network::is_connected()) {
     this->status_momentary_error("failed", 1000);
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
@@ -73,8 +74,6 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::s
     container->client_.setInsecure();
   }
   bool status = container->client_.begin(url.c_str());
-#elif defined(USE_ESP32)
-  bool status = container->client_.begin(url.c_str());
 #endif
 
   App.feed_wdt();
@@ -88,21 +87,21 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::s
 
   container->client_.setReuse(true);
   container->client_.setTimeout(this->timeout_);
-#if defined(USE_ESP32)
-  container->client_.setConnectTimeout(this->timeout_);
-#endif
 
   if (this->useragent_ != nullptr) {
     container->client_.setUserAgent(this->useragent_);
   }
-  for (const auto &header : headers) {
+  for (const auto &header : request_headers) {
     container->client_.addHeader(header.name.c_str(), header.value.c_str(), false, true);
   }
 
   // returned needed headers must be collected before the requests
-  static const char *header_keys[] = {"Content-Length", "Content-Type"};
-  static const size_t HEADER_COUNT = sizeof(header_keys) / sizeof(header_keys[0]);
-  container->client_.collectHeaders(header_keys, HEADER_COUNT);
+  const char *header_keys[collect_headers.size()];
+  int index = 0;
+  for (auto const &header_name : collect_headers) {
+    header_keys[index++] = header_name.c_str();
+  }
+  container->client_.collectHeaders(header_keys, index);
 
   App.feed_wdt();
   container->status_code = container->client_.sendRequest(method.c_str(), body.c_str());
@@ -121,14 +120,60 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::start(std::string url, std::s
     // Still return the container, so it can be used to get the status code and error message
   }
 
+  container->response_headers_ = {};
+  auto header_count = container->client_.headers();
+  for (int i = 0; i < header_count; i++) {
+    const std::string header_name = str_lower_case(container->client_.headerName(i).c_str());
+    if (collect_headers.count(header_name) > 0) {
+      std::string header_value = container->client_.header(i).c_str();
+      ESP_LOGD(TAG, "Received response header, name: %s, value: %s", header_name.c_str(), header_value.c_str());
+      container->response_headers_[header_name].push_back(header_value);
+    }
+  }
+
+  // HTTPClient::getSize() returns -1 for chunked transfer encoding (no Content-Length).
+  // When cast to size_t, -1 becomes SIZE_MAX (4294967295 on 32-bit).
+  // The read() method handles this: bytes_read_ can never reach SIZE_MAX, so the
+  // early return check (bytes_read_ >= content_length) will never trigger.
+  //
+  // TODO: Chunked transfer encoding is NOT properly supported on Arduino.
+  // The implementation in #7884 was incomplete - it only works correctly on ESP-IDF where
+  // esp_http_client_read() decodes chunks internally. On Arduino, using getStreamPtr()
+  // returns raw TCP data with chunk framing (e.g., "12a\r\n{json}\r\n0\r\n\r\n") instead
+  // of decoded content. This wasn't noticed because requests would complete and payloads
+  // were only examined on IDF. The long transfer times were also masked by the misleading
+  // "HTTP on Arduino version >= 3.1 is **very** slow" warning above. This causes two issues:
+  // 1. Response body is corrupted - contains chunk size headers mixed with data
+  // 2. Cannot detect end of transfer - connection stays open (keep-alive), causing timeout
+  // The proper fix would be to use getString() for chunked responses, which decodes chunks
+  // internally, but this buffers the entire response in memory.
   int content_length = container->client_.getSize();
   ESP_LOGD(TAG, "Content-Length: %d", content_length);
   container->content_length = (size_t) content_length;
+  // -1 (SIZE_MAX when cast to size_t) means chunked transfer encoding
+  container->set_chunked(content_length == -1);
   container->duration_ms = millis() - start;
 
   return container;
 }
 
+// Arduino HTTP read implementation
+//
+// WARNING: Return values differ from BSD sockets! See http_request.h for full documentation.
+//
+// Arduino's WiFiClient is inherently non-blocking - available() returns 0 when
+// no data is ready. We use connected() to distinguish "no data yet" from
+// "connection closed".
+//
+// WiFiClient behavior:
+//   available() > 0: data ready to read
+//   available() == 0 && connected(): no data yet, still connected
+//   available() == 0 && !connected(): connection closed
+//
+// We normalize to HttpContainer::read() contract (NOT BSD socket semantics!):
+//   > 0: bytes read
+//   0: no data yet, retry            <-- NOTE: 0 means retry, NOT EOF!
+//   < 0: error/connection closed     <-- connection closed returns -1, not 0
 int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
@@ -136,15 +181,29 @@ int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   WiFiClient *stream_ptr = this->client_.getStreamPtr();
   if (stream_ptr == nullptr) {
     ESP_LOGE(TAG, "Stream pointer vanished!");
-    return -1;
+    return HTTP_ERROR_CONNECTION_CLOSED;
   }
 
   int available_data = stream_ptr->available();
-  int bufsize = std::min(max_len, std::min(this->content_length - this->bytes_read_, (size_t) available_data));
+  // For chunked transfer encoding, HTTPClient::getSize() returns -1, which becomes SIZE_MAX when
+  // cast to size_t. SIZE_MAX - bytes_read_ is still huge, so it won't limit the read.
+  size_t remaining = (this->content_length > 0) ? (this->content_length - this->bytes_read_) : max_len;
+  int bufsize = std::min(max_len, std::min(remaining, (size_t) available_data));
 
   if (bufsize == 0) {
     this->duration_ms += (millis() - start);
-    return 0;
+    // Check if we've read all expected content (non-chunked only)
+    // For chunked encoding (content_length == SIZE_MAX), is_read_complete() returns false
+    if (this->is_read_complete()) {
+      return 0;  // All content read successfully
+    }
+    // No data available - check if connection is still open
+    // For chunked encoding, !connected() after reading means EOF (all chunks received)
+    // For known content_length with bytes_read_ < content_length, it means connection dropped
+    if (!stream_ptr->connected()) {
+      return HTTP_ERROR_CONNECTION_CLOSED;  // Connection closed or EOF for chunked
+    }
+    return 0;  // No data yet, caller should retry
   }
 
   App.feed_wdt();
@@ -161,7 +220,6 @@ void HttpContainerArduino::end() {
   this->client_.end();
 }
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO && !USE_ESP32

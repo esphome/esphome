@@ -1,6 +1,7 @@
 #include "homeassistant_switch.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome {
 namespace homeassistant {
@@ -10,7 +11,7 @@ static const char *const TAG = "homeassistant.switch";
 using namespace esphome::switch_;
 
 void HomeassistantSwitch::setup() {
-  api::global_api_server->subscribe_home_assistant_state(this->entity_id_, nullopt, [this](const std::string &state) {
+  api::global_api_server->subscribe_home_assistant_state(this->entity_id_, nullptr, [this](StringRef state) {
     auto val = parse_on_off(state.c_str());
     switch (val) {
       case PARSE_NONE:
@@ -20,7 +21,7 @@ void HomeassistantSwitch::setup() {
       case PARSE_ON:
       case PARSE_OFF:
         bool new_state = val == PARSE_ON;
-        ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_.c_str(), ONOFF(new_state));
+        ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_, ONOFF(new_state));
         this->publish_state(new_state);
         break;
     }
@@ -29,7 +30,7 @@ void HomeassistantSwitch::setup() {
 
 void HomeassistantSwitch::dump_config() {
   LOG_SWITCH("", "Homeassistant Switch", this);
-  ESP_LOGCONFIG(TAG, "  Entity ID: '%s'", this->entity_id_.c_str());
+  ESP_LOGCONFIG(TAG, "  Entity ID: '%s'", this->entity_id_);
 }
 
 float HomeassistantSwitch::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
@@ -40,19 +41,23 @@ void HomeassistantSwitch::write_state(bool state) {
     return;
   }
 
-  api::HomeassistantServiceResponse resp;
+  static constexpr auto SERVICE_ON = StringRef::from_lit("homeassistant.turn_on");
+  static constexpr auto SERVICE_OFF = StringRef::from_lit("homeassistant.turn_off");
+  static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
+
+  api::HomeassistantActionRequest resp;
   if (state) {
-    resp.service = "homeassistant.turn_on";
+    resp.service = SERVICE_ON;
   } else {
-    resp.service = "homeassistant.turn_off";
+    resp.service = SERVICE_OFF;
   }
 
-  api::HomeassistantServiceMap entity_id_kv;
-  entity_id_kv.key = "entity_id";
-  entity_id_kv.value = this->entity_id_;
-  resp.data.push_back(entity_id_kv);
+  resp.data.init(1);
+  auto &entity_id_kv = resp.data.emplace_back();
+  entity_id_kv.key = ENTITY_ID_KEY;
+  entity_id_kv.value = StringRef(this->entity_id_);
 
-  api::global_api_server->send_homeassistant_service_call(resp);
+  api::global_api_server->send_homeassistant_action(resp);
 }
 
 }  // namespace homeassistant

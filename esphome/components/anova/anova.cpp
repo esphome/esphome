@@ -17,7 +17,11 @@ void Anova::setup() {
   this->current_request_ = 0;
 }
 
-void Anova::loop() {}
+void Anova::loop() {
+  // Parent BLEClientNode has a loop() method, but this component uses
+  // polling via update() and BLE callbacks so loop isn't needed
+  this->disable_loop();
+}
 
 void Anova::control(const ClimateCall &call) {
   if (call.get_mode().has_value()) {
@@ -38,7 +42,7 @@ void Anova::control(const ClimateCall &call) {
         esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
                                  pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
     if (status) {
-      ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
+      ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
     }
   }
   if (call.get_target_temperature().has_value()) {
@@ -47,7 +51,7 @@ void Anova::control(const ClimateCall &call) {
         esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
                                  pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
     if (status) {
-      ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
+      ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
     }
   }
 }
@@ -63,8 +67,10 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       auto *chr = this->parent_->get_characteristic(ANOVA_SERVICE_UUID, ANOVA_CHARACTERISTIC_UUID);
       if (chr == nullptr) {
-        ESP_LOGW(TAG, "[%s] No control service found at device, not an Anova..?", this->get_name().c_str());
-        ESP_LOGW(TAG, "[%s] Note, this component does not currently support Anova Nano.", this->get_name().c_str());
+        ESP_LOGW(TAG,
+                 "[%s] No control service found at device, not an Anova..?\n"
+                 "[%s] Note, this component does not currently support Anova Nano.",
+                 this->get_name().c_str(), this->get_name().c_str());
         break;
       }
       this->char_handle_ = chr->handle;
@@ -120,8 +126,7 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
               esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
                                        pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
           if (status) {
-            ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(),
-                     status);
+            ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
           }
         }
       }
@@ -146,7 +151,7 @@ void Anova::update() {
         esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
                                  pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
     if (status) {
-      ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
+      ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
     }
     this->current_request_++;
   }

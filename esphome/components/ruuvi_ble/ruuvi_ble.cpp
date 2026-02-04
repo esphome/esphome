@@ -99,7 +99,8 @@ bool RuuviListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (!res.has_value())
     return false;
 
-  ESP_LOGD(TAG, "Got RuuviTag (%s):", device.address_str().c_str());
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  ESP_LOGD(TAG, "Got RuuviTag (%s):", device.address_str_to(addr_buf));
 
   if (res->humidity.has_value()) {
     ESP_LOGD(TAG, "  Humidity: %.2f%%", *res->humidity);

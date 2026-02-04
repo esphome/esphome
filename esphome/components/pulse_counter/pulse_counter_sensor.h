@@ -6,6 +6,10 @@
 
 #include <cinttypes>
 
+// TODO: Migrate from legacy PCNT API (driver/pcnt.h) to new PCNT API (driver/pulse_cnt.h)
+// The legacy PCNT API is deprecated in ESP-IDF 5.x. Migration would allow removing the
+// "driver" IDF component dependency. See:
+// https://docs.espressif.com/projects/esp-idf/en/latest/esp32/migration-guides/release-5.x/5.0/peripherals.html#id6
 #if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
 #include <driver/pcnt.h>
 #define HAS_PCNT
@@ -76,7 +80,6 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   /// Unit of measurement is "pulses/min".
   void setup() override;
   void update() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void dump_config() override;
 
  protected:

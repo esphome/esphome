@@ -1,6 +1,6 @@
 #include "bme680_bsec.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include <string>
 
 namespace esphome {
@@ -15,8 +15,6 @@ std::vector<BME680BSECComponent *>
 uint8_t BME680BSECComponent::work_buffer_[BSEC_MAX_WORKBUFFER_SIZE] = {0};
 
 void BME680BSECComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up BME680(%s) via BSEC...", this->device_id_.c_str());
-
   uint8_t new_idx = BME680BSECComponent::instances.size();
   BME680BSECComponent::instances.push_back(this);
 
@@ -159,11 +157,15 @@ void BME680BSECComponent::dump_config() {
              this->bme680_status_);
   }
 
-  ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f", this->temperature_offset_);
-  ESP_LOGCONFIG(TAG, "  IAQ Mode: %s", this->iaq_mode_ == IAQ_MODE_STATIC ? "Static" : "Mobile");
-  ESP_LOGCONFIG(TAG, "  Supply Voltage: %sV", this->supply_voltage_ == SUPPLY_VOLTAGE_3V3 ? "3.3" : "1.8");
-  ESP_LOGCONFIG(TAG, "  Sample Rate: %s", BME680_BSEC_SAMPLE_RATE_LOG(this->sample_rate_));
-  ESP_LOGCONFIG(TAG, "  State Save Interval: %ims", this->state_save_interval_ms_);
+  ESP_LOGCONFIG(TAG,
+                "  Temperature Offset: %.2f\n"
+                "  IAQ Mode: %s\n"
+                "  Supply Voltage: %sV\n"
+                "  Sample Rate: %s\n"
+                "  State Save Interval: %ims",
+                this->temperature_offset_, this->iaq_mode_ == IAQ_MODE_STATIC ? "Static" : "Mobile",
+                this->supply_voltage_ == SUPPLY_VOLTAGE_3V3 ? "3.3" : "1.8",
+                BME680_BSEC_SAMPLE_RATE_LOG(this->sample_rate_), this->state_save_interval_ms_);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   ESP_LOGCONFIG(TAG, "    Sample Rate: %s", BME680_BSEC_SAMPLE_RATE_LOG(this->temperature_sample_rate_));
@@ -178,8 +180,6 @@ void BME680BSECComponent::dump_config() {
   LOG_SENSOR("  ", "CO2 Equivalent", this->co2_equivalent_sensor_);
   LOG_SENSOR("  ", "Breath VOC Equivalent", this->breath_voc_equivalent_sensor_);
 }
-
-float BME680BSECComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void BME680BSECComponent::loop() {
   this->run_();

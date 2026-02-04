@@ -4,20 +4,45 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/string_ref.h"
 #include "light_call.h"
 #include "light_color_values.h"
 #include "light_effect.h"
 #include "light_traits.h"
 #include "light_transformer.h"
 
+#include "esphome/core/helpers.h"
+#include <strings.h>
 #include <vector>
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 class LightOutput;
+class LightState;
 
-enum LightRestoreMode {
+/** Listener interface for light remote value changes.
+ *
+ * Components can implement this interface to receive notifications
+ * when the light's remote values change (state, brightness, color, etc.)
+ * without the overhead of std::function callbacks.
+ */
+class LightRemoteValuesListener {
+ public:
+  virtual void on_light_remote_values_update() = 0;
+};
+
+/** Listener interface for light target state reached.
+ *
+ * Components can implement this interface to receive notifications
+ * when the light finishes a transition and reaches its target state
+ * without the overhead of std::function callbacks.
+ */
+class LightTargetStateReachedListener {
+ public:
+  virtual void on_light_target_state_reached() = 0;
+};
+
+enum LightRestoreMode : uint8_t {
   LIGHT_RESTORE_DEFAULT_OFF,
   LIGHT_RESTORE_DEFAULT_ON,
   LIGHT_ALWAYS_OFF,
@@ -31,9 +56,7 @@ enum LightRestoreMode {
 struct LightStateRTCState {
   LightStateRTCState(ColorMode color_mode, bool state, float brightness, float color_brightness, float red, float green,
                      float blue, float white, float color_temp, float cold_white, float warm_white)
-      : color_mode(color_mode),
-        state(state),
-        brightness(brightness),
+      : brightness(brightness),
         color_brightness(color_brightness),
         red(red),
         green(green),
@@ -41,10 +64,12 @@ struct LightStateRTCState {
         white(white),
         color_temp(color_temp),
         cold_white(cold_white),
-        warm_white(warm_white) {}
+        warm_white(warm_white),
+        effect(0),
+        color_mode(color_mode),
+        state(state) {}
   LightStateRTCState() = default;
-  ColorMode color_mode{ColorMode::UNKNOWN};
-  bool state{false};
+  // Group 4-byte aligned members first
   float brightness{1.0f};
   float color_brightness{1.0f};
   float red{1.0f};
@@ -55,6 +80,9 @@ struct LightStateRTCState {
   float cold_white{1.0f};
   float warm_white{1.0f};
   uint32_t effect{0};
+  // Group smaller members at the end
+  ColorMode color_mode{ColorMode::UNKNOWN};
+  bool state{false};
 };
 
 /** This class represents the communication layer between the front-end MQTT layer and the
@@ -112,23 +140,19 @@ class LightState : public EntityBase, public Component {
   LightOutput *get_output() const;
 
   /// Return the name of the current effect, or if no effect is active "None".
-  std::string get_effect_name();
+  StringRef get_effect_name();
 
-  /**
-   * This lets front-end components subscribe to light change events. This callback is called once
-   * when the remote color values are changed.
-   *
-   * @param send_callback The callback.
+  /** Add a listener for remote values changes.
+   * Listener is notified when the light's remote values change (state, brightness, color, etc.)
+   * Lazily allocates the listener vector on first registration.
    */
-  void add_new_remote_values_callback(std::function<void()> &&send_callback);
+  void add_remote_values_listener(LightRemoteValuesListener *listener);
 
-  /**
-   * The callback is called once the state of current_values and remote_values are equal (when the
-   * transition is finished).
-   *
-   * @param send_callback
+  /** Add a listener for target state reached.
+   * Listener is notified when the light finishes a transition and reaches its target state.
+   * Lazily allocates the listener vector on first registration.
    */
-  void add_new_target_state_reached_callback(std::function<void()> &&send_callback);
+  void add_target_state_reached_listener(LightTargetStateReachedListener *listener);
 
   /// Set the default transition length, i.e. the transition length when no transition is provided.
   void set_default_transition_length(uint32_t default_transition_length);
@@ -152,10 +176,48 @@ class LightState : public EntityBase, public Component {
   bool supports_effects();
 
   /// Get all effects for this light state.
-  const std::vector<LightEffect *> &get_effects() const;
+  const FixedVector<LightEffect *> &get_effects() const;
 
   /// Add effects for this light state.
-  void add_effects(const std::vector<LightEffect *> &effects);
+  void add_effects(const std::initializer_list<LightEffect *> &effects);
+
+  /// Get the total number of effects available for this light.
+  size_t get_effect_count() const { return this->effects_.size(); }
+
+  /// Get the currently active effect index (0 = no effect, 1+ = effect index).
+  uint32_t get_current_effect_index() const { return this->active_effect_index_; }
+
+  /// Get effect index by name. Returns 0 if effect not found.
+  uint32_t get_effect_index(const std::string &effect_name) const {
+    if (str_equals_case_insensitive(effect_name, "none")) {
+      return 0;
+    }
+    for (size_t i = 0; i < this->effects_.size(); i++) {
+      if (str_equals_case_insensitive(effect_name, this->effects_[i]->get_name())) {
+        return i + 1;  // Effects are 1-indexed in active_effect_index_
+      }
+    }
+    return 0;  // Effect not found
+  }
+
+  /// Get effect by index. Returns nullptr if index is invalid.
+  LightEffect *get_effect_by_index(uint32_t index) const {
+    if (index == 0 || index > this->effects_.size()) {
+      return nullptr;
+    }
+    return this->effects_[index - 1];  // Effects are 1-indexed in active_effect_index_
+  }
+
+  /// Get effect name by index. Returns "None" for index 0, empty string for invalid index.
+  std::string get_effect_name_by_index(uint32_t index) const {
+    if (index == 0) {
+      return "None";
+    }
+    if (index > this->effects_.size()) {
+      return "";  // Invalid index
+    }
+    return std::string(this->effects_[index - 1]->get_name());
+  }
 
   /// The result of all the current_values_as_* methods have gamma correction applied.
   void current_values_as_binary(bool *binary);
@@ -210,48 +272,60 @@ class LightState : public EntityBase, public Component {
   /// Internal method to save the current remote_values to the preferences
   void save_remote_values_();
 
+  /// Disable loop if neither transformer nor effect is active
+  void disable_loop_if_idle_();
+
+  /// Schedule a write to the light output and enable the loop to process it
+  void schedule_write_() {
+    this->next_write_ = true;
+    this->enable_loop();
+  }
+
   /// Store the output to allow effects to have more access.
   LightOutput *output_;
-  /// Value for storing the index of the currently active effect. 0 if no effect is active
-  uint32_t active_effect_index_{};
   /// The currently active transformer for this light (transition/flash).
   std::unique_ptr<LightTransformer> transformer_{nullptr};
-  /// Whether the light value should be written in the next cycle.
-  bool next_write_{true};
-
+  /// List of effects for this light.
+  FixedVector<LightEffect *> effects_;
   /// Object used to store the persisted values of the light.
   ESPPreferenceObject rtc_;
-
-  /** Callback to call when new values for the frontend are available.
-   *
-   * "Remote values" are light color values that are reported to the frontend and have a lower
-   * publish frequency than the "real" color values. For example, during transitions the current
-   * color value may change continuously, but the remote values will be reported as the target values
-   * starting with the beginning of the transition.
-   */
-  CallbackManager<void()> remote_values_callback_{};
-
-  /** Callback to call when the state of current_values and remote_values are equal
-   * This should be called once the state of current_values changed and equals the state of remote_values
-   */
-  CallbackManager<void()> target_state_reached_callback_{};
-
+  /// Value for storing the index of the currently active effect. 0 if no effect is active
+  uint32_t active_effect_index_{};
   /// Default transition length for all transitions in ms.
   uint32_t default_transition_length_{};
   /// Transition length to use for flash transitions.
   uint32_t flash_transition_length_{};
   /// Gamma correction factor for the light.
   float gamma_correct_{};
-  /// Restore mode of the light.
-  LightRestoreMode restore_mode_;
-  /// Initial state of the light.
-  optional<LightStateRTCState> initial_state_{};
-  /// List of effects for this light.
-  std::vector<LightEffect *> effects_;
-
+  /// Whether the light value should be written in the next cycle.
+  bool next_write_{true};
   // for effects, true if a transformer (transition) is active.
   bool is_transformer_active_ = false;
+
+  /** Listeners for remote values changes.
+   *
+   * "Remote values" are light color values that are reported to the frontend and have a lower
+   * publish frequency than the "real" color values. For example, during transitions the current
+   * color value may change continuously, but the remote values will be reported as the target values
+   * starting with the beginning of the transition.
+   *
+   * Lazily allocated - only created when a listener is actually registered.
+   */
+  std::unique_ptr<std::vector<LightRemoteValuesListener *>> remote_values_listeners_;
+
+  /** Listeners for target state reached.
+   * Notified when the state of current_values and remote_values are equal
+   * (when the transition is finished).
+   *
+   * Lazily allocated - only created when a listener is actually registered.
+   */
+  std::unique_ptr<std::vector<LightTargetStateReachedListener *>> target_state_reached_listeners_;
+
+  /// Initial state of the light.
+  optional<LightStateRTCState> initial_state_{};
+
+  /// Restore mode of the light.
+  LightRestoreMode restore_mode_;
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

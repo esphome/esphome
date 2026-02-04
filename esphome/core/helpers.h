@@ -1,18 +1,28 @@
 #pragma once
 
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdarg>
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <functional>
+#include <iterator>
 #include <limits>
 #include <memory>
+#include <span>
 #include <string>
 #include <type_traits>
 #include <vector>
+#include <concepts>
+#include <strings.h>
 
 #include "esphome/core/optional.h"
 
 #ifdef USE_ESP8266
 #include <Esp.h>
+#include <pgmspace.h>
 #endif
 
 #ifdef USE_RP2040
@@ -31,94 +41,30 @@
 #include <semphr.h>
 #endif
 
+#ifdef USE_HOST
+#include <mutex>
+#endif
+
 #define HOT __attribute__((hot))
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
 #define ESPHOME_ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
-// Various functions can be constexpr in C++14, but not in C++11 (because their body isn't just a return statement).
-// Define a substitute constexpr keyword for those functions, until we can drop C++11 support.
-#if __cplusplus >= 201402L
-#define constexpr14 constexpr
-#else
-#define constexpr14 inline  // constexpr implies inline
-#endif
-
 namespace esphome {
+
+// Forward declaration to avoid circular dependency with string_ref.h
+class StringRef;
 
 /// @name STL backports
 ///@{
 
-// Backports for various STL features we like to use. Pull in the STL implementation wherever available, to avoid
-// ambiguity and to provide a uniform API.
-
-// std::to_string() from C++11, available from libstdc++/g++ 8
-// See https://github.com/espressif/esp-idf/issues/1445
-#if _GLIBCXX_RELEASE >= 8
+// Keep "using" even after the removal of our backports, to avoid breaking existing code.
 using std::to_string;
-#else
-std::string to_string(int value);                 // NOLINT
-std::string to_string(long value);                // NOLINT
-std::string to_string(long long value);           // NOLINT
-std::string to_string(unsigned value);            // NOLINT
-std::string to_string(unsigned long value);       // NOLINT
-std::string to_string(unsigned long long value);  // NOLINT
-std::string to_string(float value);
-std::string to_string(double value);
-std::string to_string(long double value);
-#endif
-
-// std::is_trivially_copyable from C++11, implemented in libstdc++/g++ 5.1 (but minor releases can't be detected)
-#if _GLIBCXX_RELEASE >= 6
 using std::is_trivially_copyable;
-#else
-// Implementing this is impossible without compiler intrinsics, so don't bother. Invalid usage will be detected on
-// other variants that use a newer compiler anyway.
-// NOLINTNEXTLINE(readability-identifier-naming)
-template<typename T> struct is_trivially_copyable : public std::integral_constant<bool, true> {};
-#endif
-
-// std::make_unique() from C++14
-#if __cpp_lib_make_unique >= 201304
 using std::make_unique;
-#else
-template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...args) {
-  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
-}
-#endif
-
-// std::enable_if_t from C++14
-#if __cplusplus >= 201402L
 using std::enable_if_t;
-#else
-template<bool B, class T = void> using enable_if_t = typename std::enable_if<B, T>::type;
-#endif
-
-// std::clamp from C++17
-#if __cpp_lib_clamp >= 201603
 using std::clamp;
-#else
-template<typename T, typename Compare> constexpr const T &clamp(const T &v, const T &lo, const T &hi, Compare comp) {
-  return comp(v, lo) ? lo : comp(hi, v) ? hi : v;
-}
-template<typename T> constexpr const T &clamp(const T &v, const T &lo, const T &hi) {
-  return clamp(v, lo, hi, std::less<T>{});
-}
-#endif
-
-// std::is_invocable from C++17
-#if __cpp_lib_is_invocable >= 201703
 using std::is_invocable;
-#else
-// https://stackoverflow.com/a/37161919/8924614
-template<class T, class... Args> struct is_invocable {  // NOLINT(readability-identifier-naming)
-  template<class U> static auto test(U *p) -> decltype((*p)(std::declval<Args>()...), void(), std::true_type());
-  template<class U> static auto test(...) -> decltype(std::false_type());
-  static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
-};
-#endif
-
-// std::bit_cast from C++20
 #if __cpp_lib_bit_cast >= 201806
 using std::bit_cast;
 #else
@@ -134,37 +80,372 @@ To bit_cast(const From &src) {
 }
 #endif
 
+// clang-format off
+inline float lerp(float completion, float start, float end) = delete;  // Please use std::lerp. Notice that it has different order on arguments!
+// clang-format on
+
 // std::byteswap from C++23
-template<typename T> constexpr14 T byteswap(T n) {
+template<typename T> constexpr T byteswap(T n) {
   T m;
   for (size_t i = 0; i < sizeof(T); i++)
     reinterpret_cast<uint8_t *>(&m)[i] = reinterpret_cast<uint8_t *>(&n)[sizeof(T) - 1 - i];
   return m;
 }
-template<> constexpr14 uint8_t byteswap(uint8_t n) { return n; }
-template<> constexpr14 uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
-template<> constexpr14 uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
-template<> constexpr14 uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
-template<> constexpr14 int8_t byteswap(int8_t n) { return n; }
-template<> constexpr14 int16_t byteswap(int16_t n) { return __builtin_bswap16(n); }
-template<> constexpr14 int32_t byteswap(int32_t n) { return __builtin_bswap32(n); }
-template<> constexpr14 int64_t byteswap(int64_t n) { return __builtin_bswap64(n); }
+template<> constexpr uint8_t byteswap(uint8_t n) { return n; }
+#ifdef USE_LIBRETINY
+// LibreTiny's Beken framework redefines __builtin_bswap functions as non-constexpr
+template<> inline uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
+template<> inline uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
+template<> inline uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+template<> inline int8_t byteswap(int8_t n) { return n; }
+template<> inline int16_t byteswap(int16_t n) { return __builtin_bswap16(n); }
+template<> inline int32_t byteswap(int32_t n) { return __builtin_bswap32(n); }
+template<> inline int64_t byteswap(int64_t n) { return __builtin_bswap64(n); }
+#else
+template<> constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
+template<> constexpr uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
+template<> constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+template<> constexpr int8_t byteswap(int8_t n) { return n; }
+template<> constexpr int16_t byteswap(int16_t n) { return __builtin_bswap16(n); }
+template<> constexpr int32_t byteswap(int32_t n) { return __builtin_bswap32(n); }
+template<> constexpr int64_t byteswap(int64_t n) { return __builtin_bswap64(n); }
+#endif
+
+///@}
+
+/// @name Container utilities
+///@{
+
+/// Lightweight read-only view over a const array stored in RODATA (will typically be in flash memory)
+/// Avoids copying data from flash to RAM by keeping a pointer to the flash data.
+/// Similar to std::span but with minimal overhead for embedded systems.
+
+template<typename T> class ConstVector {
+ public:
+  constexpr ConstVector(const T *data, size_t size) : data_(data), size_(size) {}
+
+  const constexpr T &operator[](size_t i) const { return data_[i]; }
+  constexpr size_t size() const { return size_; }
+  constexpr bool empty() const { return size_ == 0; }
+
+ protected:
+  const T *data_;
+  size_t size_;
+};
+
+/// Minimal static vector - saves memory by avoiding std::vector overhead
+template<typename T, size_t N> class StaticVector {
+ public:
+  using value_type = T;
+  using iterator = typename std::array<T, N>::iterator;
+  using const_iterator = typename std::array<T, N>::const_iterator;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
+ private:
+  std::array<T, N> data_{};
+  size_t count_{0};
+
+ public:
+  // Default constructor
+  StaticVector() = default;
+
+  // Iterator range constructor
+  template<typename InputIt> StaticVector(InputIt first, InputIt last) {
+    while (first != last && count_ < N) {
+      data_[count_++] = *first++;
+    }
+  }
+
+  // Initializer list constructor
+  StaticVector(std::initializer_list<T> init) {
+    for (const auto &val : init) {
+      if (count_ >= N)
+        break;
+      data_[count_++] = val;
+    }
+  }
+
+  // Minimal vector-compatible interface - only what we actually use
+  void push_back(const T &value) {
+    if (count_ < N) {
+      data_[count_++] = value;
+    }
+  }
+
+  // Clear all elements
+  void clear() { count_ = 0; }
+
+  // Assign from iterator range
+  template<typename InputIt> void assign(InputIt first, InputIt last) {
+    count_ = 0;
+    while (first != last && count_ < N) {
+      data_[count_++] = *first++;
+    }
+  }
+
+  // Return reference to next element and increment count (with bounds checking)
+  T &emplace_next() {
+    if (count_ >= N) {
+      // Should never happen with proper size calculation
+      // Return reference to last element to avoid crash
+      return data_[N - 1];
+    }
+    return data_[count_++];
+  }
+
+  size_t size() const { return count_; }
+  bool empty() const { return count_ == 0; }
+
+  // Direct access to underlying data
+  T *data() { return data_.data(); }
+  const T *data() const { return data_.data(); }
+
+  T &operator[](size_t i) { return data_[i]; }
+  const T &operator[](size_t i) const { return data_[i]; }
+
+  // For range-based for loops
+  iterator begin() { return data_.begin(); }
+  iterator end() { return data_.begin() + count_; }
+  const_iterator begin() const { return data_.begin(); }
+  const_iterator end() const { return data_.begin() + count_; }
+
+  // Reverse iterators
+  reverse_iterator rbegin() { return reverse_iterator(end()); }
+  reverse_iterator rend() { return reverse_iterator(begin()); }
+  const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
+  const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
+
+  // Conversion to std::span for compatibility with span-based APIs
+  operator std::span<T>() { return std::span<T>(data_.data(), count_); }
+  operator std::span<const T>() const { return std::span<const T>(data_.data(), count_); }
+};
+
+/// Fixed-capacity vector - allocates once at runtime, never reallocates
+/// This avoids std::vector template overhead (_M_realloc_insert, _M_default_append)
+/// when size is known at initialization but not at compile time
+template<typename T> class FixedVector {
+ private:
+  T *data_{nullptr};
+  size_t size_{0};
+  size_t capacity_{0};
+
+  // Helper to destroy all elements without freeing memory
+  void destroy_elements_() {
+    // Only call destructors for non-trivially destructible types
+    if constexpr (!std::is_trivially_destructible<T>::value) {
+      for (size_t i = 0; i < size_; i++) {
+        data_[i].~T();
+      }
+    }
+  }
+
+  // Helper to destroy elements and free memory
+  void cleanup_() {
+    if (data_ != nullptr) {
+      destroy_elements_();
+      // Free raw memory
+      ::operator delete(data_);
+    }
+  }
+
+  // Helper to reset pointers after cleanup
+  void reset_() {
+    data_ = nullptr;
+    capacity_ = 0;
+    size_ = 0;
+  }
+
+  // Helper to assign from initializer list (shared by constructor and assignment operator)
+  void assign_from_initializer_list_(std::initializer_list<T> init_list) {
+    init(init_list.size());
+    size_t idx = 0;
+    for (const auto &item : init_list) {
+      new (data_ + idx) T(item);
+      ++idx;
+    }
+    size_ = init_list.size();
+  }
+
+ public:
+  FixedVector() = default;
+
+  /// Constructor from initializer list - allocates exact size needed
+  /// This enables brace initialization: FixedVector<int> v = {1, 2, 3};
+  FixedVector(std::initializer_list<T> init_list) { assign_from_initializer_list_(init_list); }
+
+  ~FixedVector() { cleanup_(); }
+
+  // Disable copy operations (avoid accidental expensive copies)
+  FixedVector(const FixedVector &) = delete;
+  FixedVector &operator=(const FixedVector &) = delete;
+
+  // Enable move semantics (allows use in move-only containers like std::vector)
+  FixedVector(FixedVector &&other) noexcept : data_(other.data_), size_(other.size_), capacity_(other.capacity_) {
+    other.reset_();
+  }
+
+  // Allow conversion to std::vector
+  operator std::vector<T>() const { return {data_, data_ + size_}; }
+
+  FixedVector &operator=(FixedVector &&other) noexcept {
+    if (this != &other) {
+      // Delete our current data
+      cleanup_();
+      // Take ownership of other's data
+      data_ = other.data_;
+      size_ = other.size_;
+      capacity_ = other.capacity_;
+      // Leave other in valid empty state
+      other.reset_();
+    }
+    return *this;
+  }
+
+  /// Assignment from initializer list - avoids temporary and move overhead
+  /// This enables: FixedVector<int> v; v = {1, 2, 3};
+  FixedVector &operator=(std::initializer_list<T> init_list) {
+    cleanup_();
+    reset_();
+    assign_from_initializer_list_(init_list);
+    return *this;
+  }
+
+  // Allocate capacity - can be called multiple times to reinit
+  // IMPORTANT: After calling init(), you MUST use push_back() to add elements.
+  // Direct assignment via operator[] does NOT update the size counter.
+  void init(size_t n) {
+    cleanup_();
+    reset_();
+    if (n > 0) {
+      // Allocate raw memory without calling constructors
+      // sizeof(T) is correct here for any type T (value types, pointers, etc.)
+      // NOLINTNEXTLINE(bugprone-sizeof-expression)
+      data_ = static_cast<T *>(::operator new(n * sizeof(T)));
+      capacity_ = n;
+    }
+  }
+
+  // Clear the vector (destroy all elements, reset size to 0, keep capacity)
+  void clear() {
+    destroy_elements_();
+    size_ = 0;
+  }
+
+  // Release all memory (destroys elements and frees memory)
+  void release() {
+    cleanup_();
+    reset_();
+  }
+
+  /// Add element without bounds checking
+  /// Caller must ensure sufficient capacity was allocated via init()
+  /// Silently ignores pushes beyond capacity (no exception or assertion)
+  void push_back(const T &value) {
+    if (size_ < capacity_) {
+      // Use placement new to construct the object in pre-allocated memory
+      new (&data_[size_]) T(value);
+      size_++;
+    }
+  }
+
+  /// Add element by move without bounds checking
+  /// Caller must ensure sufficient capacity was allocated via init()
+  /// Silently ignores pushes beyond capacity (no exception or assertion)
+  void push_back(T &&value) {
+    if (size_ < capacity_) {
+      // Use placement new to move-construct the object in pre-allocated memory
+      new (&data_[size_]) T(std::move(value));
+      size_++;
+    }
+  }
+
+  /// Emplace element without bounds checking - constructs in-place with arguments
+  /// Caller must ensure sufficient capacity was allocated via init()
+  /// Returns reference to the newly constructed element
+  /// NOTE: Caller MUST ensure size_ < capacity_ before calling
+  template<typename... Args> T &emplace_back(Args &&...args) {
+    // Use placement new to construct the object in pre-allocated memory
+    new (&data_[size_]) T(std::forward<Args>(args)...);
+    size_++;
+    return data_[size_ - 1];
+  }
+
+  /// Access first element (no bounds checking - matches std::vector behavior)
+  /// Caller must ensure vector is not empty (size() > 0)
+  T &front() { return data_[0]; }
+  const T &front() const { return data_[0]; }
+
+  /// Access last element (no bounds checking - matches std::vector behavior)
+  /// Caller must ensure vector is not empty (size() > 0)
+  T &back() { return data_[size_ - 1]; }
+  const T &back() const { return data_[size_ - 1]; }
+
+  size_t size() const { return size_; }
+  bool empty() const { return size_ == 0; }
+  size_t capacity() const { return capacity_; }
+  bool full() const { return size_ == capacity_; }
+
+  /// Access element without bounds checking (matches std::vector behavior)
+  /// Caller must ensure index is valid (i < size())
+  T &operator[](size_t i) { return data_[i]; }
+  const T &operator[](size_t i) const { return data_[i]; }
+
+  /// Access element with bounds checking (matches std::vector behavior)
+  /// Note: No exception thrown on out of bounds - caller must ensure index is valid
+  T &at(size_t i) { return data_[i]; }
+  const T &at(size_t i) const { return data_[i]; }
+
+  // Iterator support for range-based for loops
+  T *begin() { return data_; }
+  T *end() { return data_ + size_; }
+  const T *begin() const { return data_; }
+  const T *end() const { return data_ + size_; }
+};
+
+/// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
+/// This is useful when most operations need a small buffer but occasionally need larger ones.
+/// The stack buffer avoids heap allocation in the common case, while heap fallback handles edge cases.
+/// @tparam STACK_SIZE Number of elements in the stack buffer
+/// @tparam T Element type (default: uint8_t)
+template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallback {
+ public:
+  explicit SmallBufferWithHeapFallback(size_t size) {
+    if (size <= STACK_SIZE) {
+      this->buffer_ = this->stack_buffer_;
+    } else {
+      this->heap_buffer_ = new T[size];
+      this->buffer_ = this->heap_buffer_;
+    }
+  }
+  ~SmallBufferWithHeapFallback() { delete[] this->heap_buffer_; }
+
+  // Delete copy and move operations to prevent double-delete
+  SmallBufferWithHeapFallback(const SmallBufferWithHeapFallback &) = delete;
+  SmallBufferWithHeapFallback &operator=(const SmallBufferWithHeapFallback &) = delete;
+  SmallBufferWithHeapFallback(SmallBufferWithHeapFallback &&) = delete;
+  SmallBufferWithHeapFallback &operator=(SmallBufferWithHeapFallback &&) = delete;
+
+  T *get() { return this->buffer_; }
+
+ private:
+  T stack_buffer_[STACK_SIZE];
+  T *heap_buffer_{nullptr};
+  T *buffer_;
+};
 
 ///@}
 
 /// @name Mathematics
 ///@{
 
-/// Linearly interpolate between \p start and \p end by \p completion (between 0 and 1).
-float lerp(float completion, float start, float end);
-
 /// Remap \p value from the range (\p min, \p max) to (\p min_out, \p max_out).
 template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
   return (value - min) * (max_out - min_out) / (max - min) + min_out;
 }
 
-/// Calculate a CRC-8 checksum of \p data with size \p len using the CRC-8-Dallas/Maxim polynomial.
-uint8_t crc8(const uint8_t *data, uint8_t len);
+/// Calculate a CRC-8 checksum of \p data with size \p len.
+uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t crc = 0x00, uint8_t poly = 0x8C, bool msb_first = false);
 
 /// Calculate a CRC-16 checksum of \p data with size \p len.
 uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc = 0xffff, uint16_t reverse_poly = 0xa001,
@@ -173,7 +454,63 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc = 0, uint16_t p
                  bool refout = false);
 
 /// Calculate a FNV-1 hash of \p str.
-uint32_t fnv1_hash(const std::string &str);
+/// Note: FNV-1a (fnv1a_hash) is preferred for new code due to better avalanche characteristics.
+uint32_t fnv1_hash(const char *str);
+inline uint32_t fnv1_hash(const std::string &str) { return fnv1_hash(str.c_str()); }
+
+/// FNV-1 32-bit offset basis
+constexpr uint32_t FNV1_OFFSET_BASIS = 2166136261UL;
+/// FNV-1 32-bit prime
+constexpr uint32_t FNV1_PRIME = 16777619UL;
+
+/// Extend a FNV-1 hash with an integer (hashes each byte).
+template<std::integral T> constexpr uint32_t fnv1_hash_extend(uint32_t hash, T value) {
+  using UnsignedT = std::make_unsigned_t<T>;
+  UnsignedT uvalue = static_cast<UnsignedT>(value);
+  for (size_t i = 0; i < sizeof(T); i++) {
+    hash *= FNV1_PRIME;
+    hash ^= (uvalue >> (i * 8)) & 0xFF;
+  }
+  return hash;
+}
+/// Extend a FNV-1 hash with additional string data.
+constexpr uint32_t fnv1_hash_extend(uint32_t hash, const char *str) {
+  if (str) {
+    while (*str) {
+      hash *= FNV1_PRIME;
+      hash ^= *str++;
+    }
+  }
+  return hash;
+}
+inline uint32_t fnv1_hash_extend(uint32_t hash, const std::string &str) { return fnv1_hash_extend(hash, str.c_str()); }
+
+/// Extend a FNV-1a hash with additional string data.
+constexpr uint32_t fnv1a_hash_extend(uint32_t hash, const char *str) {
+  if (str) {
+    while (*str) {
+      hash ^= *str++;
+      hash *= FNV1_PRIME;
+    }
+  }
+  return hash;
+}
+inline uint32_t fnv1a_hash_extend(uint32_t hash, const std::string &str) {
+  return fnv1a_hash_extend(hash, str.c_str());
+}
+/// Extend a FNV-1a hash with an integer (hashes each byte).
+template<std::integral T> constexpr uint32_t fnv1a_hash_extend(uint32_t hash, T value) {
+  using UnsignedT = std::make_unsigned_t<T>;
+  UnsignedT uvalue = static_cast<UnsignedT>(value);
+  for (size_t i = 0; i < sizeof(T); i++) {
+    hash ^= (uvalue >> (i * 8)) & 0xFF;
+    hash *= FNV1_PRIME;
+  }
+  return hash;
+}
+/// Calculate a FNV-1a hash of \p str.
+constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
+inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }
 
 /// Return a random 32-bit unsigned integer.
 uint32_t random_uint32();
@@ -191,19 +528,18 @@ bool random_bytes(uint8_t *data, size_t len);
 constexpr uint16_t encode_uint16(uint8_t msb, uint8_t lsb) {
   return (static_cast<uint16_t>(msb) << 8) | (static_cast<uint16_t>(lsb));
 }
+/// Encode a 24-bit value given three bytes in most to least significant byte order.
+constexpr uint32_t encode_uint24(uint8_t byte1, uint8_t byte2, uint8_t byte3) {
+  return (static_cast<uint32_t>(byte1) << 16) | (static_cast<uint32_t>(byte2) << 8) | (static_cast<uint32_t>(byte3));
+}
 /// Encode a 32-bit value given four bytes in most to least significant byte order.
 constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, uint8_t byte4) {
   return (static_cast<uint32_t>(byte1) << 24) | (static_cast<uint32_t>(byte2) << 16) |
          (static_cast<uint32_t>(byte3) << 8) | (static_cast<uint32_t>(byte4));
 }
-/// Encode a 24-bit value given three bytes in most to least significant byte order.
-constexpr uint32_t encode_uint24(uint8_t byte1, uint8_t byte2, uint8_t byte3) {
-  return ((static_cast<uint32_t>(byte1) << 16) | (static_cast<uint32_t>(byte2) << 8) | (static_cast<uint32_t>(byte3)));
-}
 
 /// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-constexpr14 T encode_value(const uint8_t *bytes) {
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr T encode_value(const uint8_t *bytes) {
   T val = 0;
   for (size_t i = 0; i < sizeof(T); i++) {
     val <<= 8;
@@ -213,12 +549,12 @@ constexpr14 T encode_value(const uint8_t *bytes) {
 }
 /// Encode a value from its constituent bytes (from most to least significant) in an std::array with length sizeof(T).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-constexpr14 T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
+constexpr T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
   return encode_value<T>(bytes.data());
 }
 /// Decode a value into its constituent bytes (from most to least significant).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-constexpr14 std::array<uint8_t, sizeof(T)> decode_value(T val) {
+constexpr std::array<uint8_t, sizeof(T)> decode_value(T val) {
   std::array<uint8_t, sizeof(T)> ret{};
   for (size_t i = sizeof(T); i > 0; i--) {
     ret[i - 1] = val & 0xFF;
@@ -245,7 +581,7 @@ inline uint32_t reverse_bits(uint32_t x) {
 }
 
 /// Convert a value between host byte order and big endian (most significant byte first) order.
-template<typename T> constexpr14 T convert_big_endian(T val) {
+template<typename T> constexpr T convert_big_endian(T val) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   return byteswap(val);
 #else
@@ -254,7 +590,7 @@ template<typename T> constexpr14 T convert_big_endian(T val) {
 }
 
 /// Convert a value between host byte order and little endian (least significant byte first) order.
-template<typename T> constexpr14 T convert_little_endian(T val) {
+template<typename T> constexpr T convert_little_endian(T val) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   return val;
 #else
@@ -269,16 +605,29 @@ template<typename T> constexpr14 T convert_little_endian(T val) {
 
 /// Compare strings for equality in case-insensitive manner.
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
+/// Compare StringRefs for equality in case-insensitive manner.
+bool str_equals_case_insensitive(StringRef a, StringRef b);
+/// Compare C strings for equality in case-insensitive manner (no heap allocation).
+inline bool str_equals_case_insensitive(const char *a, const char *b) { return strcasecmp(a, b) == 0; }
+inline bool str_equals_case_insensitive(const std::string &a, const char *b) { return strcasecmp(a.c_str(), b) == 0; }
+inline bool str_equals_case_insensitive(const char *a, const std::string &b) { return strcasecmp(a, b.c_str()) == 0; }
 
 /// Check whether a string starts with a value.
 bool str_startswith(const std::string &str, const std::string &start);
 /// Check whether a string ends with a value.
 bool str_endswith(const std::string &str, const std::string &end);
 
-/// Convert the value to a string (added as extra overload so that to_string() can be used on all stringifiable types).
-inline std::string to_string(const std::string &val) { return val; }
+/// Case-insensitive check if string ends with suffix (no heap allocation).
+bool str_endswith_ignore_case(const char *str, size_t str_len, const char *suffix, size_t suffix_len);
+inline bool str_endswith_ignore_case(const char *str, const char *suffix) {
+  return str_endswith_ignore_case(str, strlen(str), suffix, strlen(suffix));
+}
+inline bool str_endswith_ignore_case(const std::string &str, const char *suffix) {
+  return str_endswith_ignore_case(str.c_str(), str.size(), suffix, strlen(suffix));
+}
 
 /// Truncate a string to a specific length.
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
 std::string str_truncate(const std::string &str, size_t length);
 
 /// Extract the part of the string until either the first occurrence of the specified character, or the end
@@ -290,18 +639,141 @@ std::string str_until(const std::string &str, char ch);
 /// Convert the string to lower case.
 std::string str_lower_case(const std::string &str);
 /// Convert the string to upper case.
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
 std::string str_upper_case(const std::string &str);
+
+/// Convert a single char to snake_case: lowercase and space to underscore.
+constexpr char to_snake_case_char(char c) { return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c; }
 /// Convert the string to snake case (lowercase with underscores).
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
 std::string str_snake_case(const std::string &str);
 
+/// Sanitize a single char: keep alphanumerics, dashes, underscores; replace others with underscore.
+constexpr char to_sanitized_char(char c) {
+  return (c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) ? c : '_';
+}
+
+/** Sanitize a string to buffer, keeping only alphanumerics, dashes, and underscores.
+ *
+ * @param buffer Output buffer to write to.
+ * @param buffer_size Size of the output buffer.
+ * @param str Input string to sanitize.
+ * @return Pointer to buffer.
+ *
+ * Buffer size needed: strlen(str) + 1.
+ */
+char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str);
+
+/// Sanitize a string to buffer. Automatically deduces buffer size.
+template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *str) {
+  return str_sanitize_to(buffer, N, str);
+}
+
 /// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
+/// @warning Allocates heap memory. Use str_sanitize_to() with a stack buffer instead.
 std::string str_sanitize(const std::string &str);
 
+/// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
+/// This computes object_id hashes directly from names without creating an intermediate buffer.
+/// IMPORTANT: Must match Python fnv1_hash_object_id() in esphome/helpers.py.
+/// If you modify this function, update the Python version and tests in both places.
+inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
+  uint32_t hash = FNV1_OFFSET_BASIS;
+  for (size_t i = 0; i < len; i++) {
+    hash *= FNV1_PRIME;
+    // Apply snake_case (space->underscore, uppercase->lowercase) then sanitize
+    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(str[i])));
+  }
+  return hash;
+}
+
 /// snprintf-like function returning std::string of maximum length \p len (excluding null terminator).
+/// @warning Allocates heap memory. Use snprintf() with a stack buffer instead.
 std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t len, ...);
 
 /// sprintf-like function returning std::string.
+/// @warning Allocates heap memory. Use snprintf() with a stack buffer instead.
 std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
+
+#ifdef USE_ESP8266
+// ESP8266: Use vsnprintf_P to keep format strings in flash (PROGMEM)
+// Format strings must be wrapped with PSTR() macro
+/// Safely append formatted string to buffer, returning new position (capped at size).
+/// @param buf Output buffer
+/// @param size Total buffer size
+/// @param pos Current position in buffer
+/// @param fmt Format string (must be in PROGMEM on ESP8266)
+/// @return New position after appending (capped at size on overflow)
+inline size_t buf_append_printf_p(char *buf, size_t size, size_t pos, PGM_P fmt, ...) {
+  if (pos >= size) {
+    return size;
+  }
+  va_list args;
+  va_start(args, fmt);
+  int written = vsnprintf_P(buf + pos, size - pos, fmt, args);
+  va_end(args);
+  if (written < 0) {
+    return pos;  // encoding error
+  }
+  return std::min(pos + static_cast<size_t>(written), size);
+}
+#define buf_append_printf(buf, size, pos, fmt, ...) buf_append_printf_p(buf, size, pos, PSTR(fmt), ##__VA_ARGS__)
+#else
+/// Safely append formatted string to buffer, returning new position (capped at size).
+/// Handles snprintf edge cases: negative returns (encoding errors) and truncation.
+/// @param buf Output buffer
+/// @param size Total buffer size
+/// @param pos Current position in buffer
+/// @param fmt printf-style format string
+/// @return New position after appending (capped at size on overflow)
+__attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf, size_t size, size_t pos,
+                                                                      const char *fmt, ...) {
+  if (pos >= size) {
+    return size;
+  }
+  va_list args;
+  va_start(args, fmt);
+  int written = vsnprintf(buf + pos, size - pos, fmt, args);
+  va_end(args);
+  if (written < 0) {
+    return pos;  // encoding error
+  }
+  return std::min(pos + static_cast<size_t>(written), size);
+}
+#endif
+
+/// Concatenate a name with a separator and suffix using an efficient stack-based approach.
+/// This avoids multiple heap allocations during string construction.
+/// Maximum name length supported is 120 characters for friendly names.
+/// @param name The base name string
+/// @param sep The separator character (e.g., '-', ' ', or '.')
+/// @param suffix_ptr Pointer to the suffix characters
+/// @param suffix_len Length of the suffix
+/// @return The concatenated string: name + sep + suffix
+std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len);
+
+/// Optimized string concatenation: name + separator + suffix (const char* overload)
+/// Uses a fixed stack buffer to avoid heap allocations.
+/// @param name The base name string
+/// @param name_len Length of the name
+/// @param sep Single character separator
+/// @param suffix_ptr Pointer to the suffix characters
+/// @param suffix_len Length of the suffix
+/// @return The concatenated string: name + sep + suffix
+std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
+                                  size_t suffix_len);
+
+/// Zero-allocation version: format name + separator + suffix directly into buffer.
+/// @param buffer Output buffer (must have space for result + null terminator)
+/// @param buffer_size Size of the output buffer
+/// @param name The base name string
+/// @param name_len Length of the name
+/// @param sep Single character separator
+/// @param suffix_ptr Pointer to the suffix characters
+/// @param suffix_len Length of the suffix
+/// @return Length written (excluding null terminator)
+size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
+                                const char *suffix_ptr, size_t suffix_len);
 
 ///@}
 
@@ -401,43 +873,419 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
   return parse_hex<T>(str.c_str(), str.length());
 }
 
+/// Parse a hex character to its nibble value (0-15), returns 255 on invalid input
+constexpr uint8_t parse_hex_char(char c) {
+  if (c >= '0' && c <= '9')
+    return c - '0';
+  if (c >= 'A' && c <= 'F')
+    return c - 'A' + 10;
+  if (c >= 'a' && c <= 'f')
+    return c - 'a' + 10;
+  return 255;
+}
+
+/// Convert a nibble (0-15) to hex char with specified base ('a' for lowercase, 'A' for uppercase)
+inline char format_hex_char(uint8_t v, char base) { return v >= 10 ? base + (v - 10) : '0' + v; }
+
+/// Convert a nibble (0-15) to lowercase hex char
+inline char format_hex_char(uint8_t v) { return format_hex_char(v, 'a'); }
+
+/// Convert a nibble (0-15) to uppercase hex char (used for pretty printing)
+inline char format_hex_pretty_char(uint8_t v) { return format_hex_char(v, 'A'); }
+
+/// Write int8 value to buffer without modulo operations.
+/// Buffer must have at least 4 bytes free. Returns pointer past last char written.
+inline char *int8_to_str(char *buf, int8_t val) {
+  int32_t v = val;
+  if (v < 0) {
+    *buf++ = '-';
+    v = -v;
+  }
+  if (v >= 100) {
+    *buf++ = '1';  // int8 max is 128, so hundreds digit is always 1
+    v -= 100;
+    // Must write tens digit (even if 0) after hundreds
+    int32_t tens = v / 10;
+    *buf++ = '0' + tens;
+    v -= tens * 10;
+  } else if (v >= 10) {
+    int32_t tens = v / 10;
+    *buf++ = '0' + tens;
+    v -= tens * 10;
+  }
+  *buf++ = '0' + v;
+  return buf;
+}
+
+/// Format byte array as lowercase hex to buffer (base implementation).
+char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length);
+
+/// Format byte array as lowercase hex to buffer. Automatically deduces buffer size.
+/// Truncates output if data exceeds buffer capacity. Returns pointer to buffer.
+template<size_t N> inline char *format_hex_to(char (&buffer)[N], const uint8_t *data, size_t length) {
+  static_assert(N >= 3, "Buffer must hold at least one hex byte (3 chars)");
+  return format_hex_to(buffer, N, data, length);
+}
+
+/// Format an unsigned integer in lowercased hex to buffer, starting with the most significant byte.
+template<size_t N, typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline char *format_hex_to(char (&buffer)[N], T val) {
+  static_assert(N >= sizeof(T) * 2 + 1, "Buffer too small for type");
+  val = convert_big_endian(val);
+  return format_hex_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
+}
+
+/// Format std::vector<uint8_t> as lowercase hex to buffer.
+template<size_t N> inline char *format_hex_to(char (&buffer)[N], const std::vector<uint8_t> &data) {
+  return format_hex_to(buffer, data.data(), data.size());
+}
+
+/// Format std::array<uint8_t, M> as lowercase hex to buffer.
+template<size_t N, size_t M> inline char *format_hex_to(char (&buffer)[N], const std::array<uint8_t, M> &data) {
+  return format_hex_to(buffer, data.data(), data.size());
+}
+
+/// Calculate buffer size needed for format_hex_to: "XXXXXXXX...\0" = bytes * 2 + 1
+constexpr size_t format_hex_size(size_t byte_count) { return byte_count * 2 + 1; }
+
+/// Calculate buffer size needed for format_hex_prefixed_to: "0xXXXXXXXX...\0" = bytes * 2 + 3
+constexpr size_t format_hex_prefixed_size(size_t byte_count) { return byte_count * 2 + 3; }
+
+/// Format an unsigned integer as "0x" prefixed lowercase hex to buffer.
+template<size_t N, typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline char *format_hex_prefixed_to(char (&buffer)[N], T val) {
+  static_assert(N >= sizeof(T) * 2 + 3, "Buffer too small for prefixed hex");
+  buffer[0] = '0';
+  buffer[1] = 'x';
+  val = convert_big_endian(val);
+  format_hex_to(buffer + 2, N - 2, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
+  return buffer;
+}
+
+/// Format byte array as "0x" prefixed lowercase hex to buffer.
+template<size_t N> inline char *format_hex_prefixed_to(char (&buffer)[N], const uint8_t *data, size_t length) {
+  static_assert(N >= 5, "Buffer must hold at least '0x' + one hex byte + null");
+  buffer[0] = '0';
+  buffer[1] = 'x';
+  format_hex_to(buffer + 2, N - 2, data, length);
+  return buffer;
+}
+
+/// Calculate buffer size needed for format_hex_pretty_to with separator: "XX:XX:...:XX\0"
+constexpr size_t format_hex_pretty_size(size_t byte_count) { return byte_count * 3; }
+
+/** Format byte array as uppercase hex to buffer (base implementation).
+ *
+ * @param buffer Output buffer to write to.
+ * @param buffer_size Size of the output buffer.
+ * @param data Pointer to the byte array to format.
+ * @param length Number of bytes in the array.
+ * @param separator Character to use between hex bytes, or '\0' for no separator.
+ * @return Pointer to buffer.
+ *
+ * Buffer size needed: length * 3 with separator (for "XX:XX:XX\0"), length * 2 + 1 without.
+ */
+char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator = ':');
+
+/// Format byte array as uppercase hex with separator to buffer. Automatically deduces buffer size.
+template<size_t N>
+inline char *format_hex_pretty_to(char (&buffer)[N], const uint8_t *data, size_t length, char separator = ':') {
+  static_assert(N >= 3, "Buffer must hold at least one hex byte");
+  return format_hex_pretty_to(buffer, N, data, length, separator);
+}
+
+/// Format std::vector<uint8_t> as uppercase hex with separator to buffer.
+template<size_t N>
+inline char *format_hex_pretty_to(char (&buffer)[N], const std::vector<uint8_t> &data, char separator = ':') {
+  return format_hex_pretty_to(buffer, data.data(), data.size(), separator);
+}
+
+/// Format std::array<uint8_t, M> as uppercase hex with separator to buffer.
+template<size_t N, size_t M>
+inline char *format_hex_pretty_to(char (&buffer)[N], const std::array<uint8_t, M> &data, char separator = ':') {
+  return format_hex_pretty_to(buffer, data.data(), data.size(), separator);
+}
+
+/// Calculate buffer size needed for format_hex_pretty_to with uint16_t data: "XXXX:XXXX:...:XXXX\0"
+constexpr size_t format_hex_pretty_uint16_size(size_t count) { return count * 5; }
+
+/**
+ * Format uint16_t array as uppercase hex with separator to pre-allocated buffer.
+ * Each uint16_t is formatted as 4 hex chars in big-endian order.
+ *
+ * @param buffer Output buffer to write to.
+ * @param buffer_size Size of the output buffer.
+ * @param data Pointer to uint16_t array.
+ * @param length Number of uint16_t values.
+ * @param separator Character to use between values, or '\0' for no separator.
+ * @return Pointer to buffer.
+ *
+ * Buffer size needed: length * 5 with separator (for "XXXX:XXXX\0"), length * 4 + 1 without.
+ */
+char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint16_t *data, size_t length, char separator = ':');
+
+/// Format uint16_t array as uppercase hex with separator to buffer. Automatically deduces buffer size.
+template<size_t N>
+inline char *format_hex_pretty_to(char (&buffer)[N], const uint16_t *data, size_t length, char separator = ':') {
+  static_assert(N >= 5, "Buffer must hold at least one hex uint16_t");
+  return format_hex_pretty_to(buffer, N, data, length, separator);
+}
+
+/// MAC address size in bytes
+static constexpr size_t MAC_ADDRESS_SIZE = 6;
+/// Buffer size for MAC address with separators: "XX:XX:XX:XX:XX:XX\0"
+static constexpr size_t MAC_ADDRESS_PRETTY_BUFFER_SIZE = format_hex_pretty_size(MAC_ADDRESS_SIZE);
+/// Buffer size for MAC address without separators: "XXXXXXXXXXXX\0"
+static constexpr size_t MAC_ADDRESS_BUFFER_SIZE = MAC_ADDRESS_SIZE * 2 + 1;
+
+/// Format MAC address as XX:XX:XX:XX:XX:XX (uppercase, colon separators)
+inline char *format_mac_addr_upper(const uint8_t *mac, char *output) {
+  return format_hex_pretty_to(output, MAC_ADDRESS_PRETTY_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE, ':');
+}
+
+/// Format MAC address as xxxxxxxxxxxxxx (lowercase, no separators)
+inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
+  format_hex_to(output, MAC_ADDRESS_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE);
+}
+
+/// Format the six-byte array \p mac into a MAC address.
+/// @warning Allocates heap memory. Use format_mac_addr_upper() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
+std::string format_mac_address_pretty(const uint8_t mac[6]);
 /// Format the byte array \p data of length \p len in lowercased hex.
+/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 std::string format_hex(const uint8_t *data, size_t length);
 /// Format the vector \p data in lowercased hex.
+/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 std::string format_hex(const std::vector<uint8_t> &data);
 /// Format an unsigned integer in lowercased hex, starting with the most significant byte.
+/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
   val = convert_big_endian(val);
   return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
 }
+/// Format the std::array \p data in lowercased hex.
+/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &data) {
   return format_hex(data.data(), data.size());
 }
 
-/// Format the byte array \p data of length \p len in pretty-printed, human-readable hex.
-std::string format_hex_pretty(const uint8_t *data, size_t length);
-/// Format the word array \p data of length \p len in pretty-printed, human-readable hex.
-std::string format_hex_pretty(const uint16_t *data, size_t length);
-/// Format the vector \p data in pretty-printed, human-readable hex.
-std::string format_hex_pretty(const std::vector<uint8_t> &data);
-/// Format the vector \p data in pretty-printed, human-readable hex.
-std::string format_hex_pretty(const std::vector<uint16_t> &data);
-/// Format an unsigned integer in pretty-printed, human-readable hex, starting with the most significant byte.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex_pretty(T val) {
+/** Format a byte array in pretty-printed, human-readable hex format.
+ *
+ * Converts binary data to a hexadecimal string representation with customizable formatting.
+ * Each byte is displayed as a two-digit uppercase hex value, separated by the specified separator.
+ * Optionally includes the total byte count in parentheses at the end.
+ *
+ * @param data Pointer to the byte array to format.
+ * @param length Number of bytes in the array.
+ * @param separator Character to use between hex bytes (default: '.').
+ * @param show_length Whether to append the byte count in parentheses (default: true).
+ * @return Formatted hex string, e.g., "A1.B2.C3.D4.E5 (5)" or "A1:B2:C3" depending on parameters.
+ *
+ * @note Returns empty string if data is nullptr or length is 0.
+ * @note The length will only be appended if show_length is true AND the length is greater than 4.
+ *
+ * Example:
+ * @code
+ * uint8_t data[] = {0xA1, 0xB2, 0xC3};
+ * format_hex_pretty(data, 3);           // Returns "A1.B2.C3" (no length shown for <= 4 parts)
+ * uint8_t data2[] = {0xA1, 0xB2, 0xC3, 0xD4, 0xE5};
+ * format_hex_pretty(data2, 5);          // Returns "A1.B2.C3.D4.E5 (5)"
+ * format_hex_pretty(data2, 5, ':');     // Returns "A1:B2:C3:D4:E5 (5)"
+ * format_hex_pretty(data2, 5, '.', false); // Returns "A1.B2.C3.D4.E5"
+ * @endcode
+ */
+std::string format_hex_pretty(const uint8_t *data, size_t length, char separator = '.', bool show_length = true);
+
+/** Format a 16-bit word array in pretty-printed, human-readable hex format.
+ *
+ * Similar to the byte array version, but formats 16-bit words as 4-digit hex values.
+ *
+ * @param data Pointer to the 16-bit word array to format.
+ * @param length Number of 16-bit words in the array.
+ * @param separator Character to use between hex words (default: '.').
+ * @param show_length Whether to append the word count in parentheses (default: true).
+ * @return Formatted hex string with 4-digit hex values per word.
+ *
+ * @note The length will only be appended if show_length is true AND the length is greater than 4.
+ *
+ * Example:
+ * @code
+ * uint16_t data[] = {0xA1B2, 0xC3D4};
+ * format_hex_pretty(data, 2); // Returns "A1B2.C3D4" (no length shown for <= 4 parts)
+ * uint16_t data2[] = {0xA1B2, 0xC3D4, 0xE5F6};
+ * format_hex_pretty(data2, 3); // Returns "A1B2.C3D4.E5F6 (3)"
+ * @endcode
+ */
+std::string format_hex_pretty(const uint16_t *data, size_t length, char separator = '.', bool show_length = true);
+
+/** Format a byte vector in pretty-printed, human-readable hex format.
+ *
+ * Convenience overload for std::vector<uint8_t>. Formats each byte as a two-digit
+ * uppercase hex value with customizable separator.
+ *
+ * @param data Vector of bytes to format.
+ * @param separator Character to use between hex bytes (default: '.').
+ * @param show_length Whether to append the byte count in parentheses (default: true).
+ * @return Formatted hex string representation of the vector contents.
+ *
+ * @note The length will only be appended if show_length is true AND the vector size is greater than 4.
+ *
+ * Example:
+ * @code
+ * std::vector<uint8_t> data = {0xDE, 0xAD, 0xBE, 0xEF};
+ * format_hex_pretty(data);        // Returns "DE.AD.BE.EF" (no length shown for <= 4 parts)
+ * std::vector<uint8_t> data2 = {0xDE, 0xAD, 0xBE, 0xEF, 0xCA};
+ * format_hex_pretty(data2);       // Returns "DE.AD.BE.EF.CA (5)"
+ * format_hex_pretty(data2, '-');  // Returns "DE-AD-BE-EF-CA (5)"
+ * @endcode
+ */
+std::string format_hex_pretty(const std::vector<uint8_t> &data, char separator = '.', bool show_length = true);
+
+/** Format a 16-bit word vector in pretty-printed, human-readable hex format.
+ *
+ * Convenience overload for std::vector<uint16_t>. Each 16-bit word is formatted
+ * as a 4-digit uppercase hex value in big-endian order.
+ *
+ * @param data Vector of 16-bit words to format.
+ * @param separator Character to use between hex words (default: '.').
+ * @param show_length Whether to append the word count in parentheses (default: true).
+ * @return Formatted hex string representation of the vector contents.
+ *
+ * @note The length will only be appended if show_length is true AND the vector size is greater than 4.
+ *
+ * Example:
+ * @code
+ * std::vector<uint16_t> data = {0x1234, 0x5678};
+ * format_hex_pretty(data); // Returns "1234.5678" (no length shown for <= 4 parts)
+ * std::vector<uint16_t> data2 = {0x1234, 0x5678, 0x9ABC};
+ * format_hex_pretty(data2); // Returns "1234.5678.9ABC (3)"
+ * @endcode
+ */
+std::string format_hex_pretty(const std::vector<uint16_t> &data, char separator = '.', bool show_length = true);
+
+/** Format a string's bytes in pretty-printed, human-readable hex format.
+ *
+ * Treats each character in the string as a byte and formats it in hex.
+ * Useful for debugging binary data stored in std::string containers.
+ *
+ * @param data String whose bytes should be formatted as hex.
+ * @param separator Character to use between hex bytes (default: '.').
+ * @param show_length Whether to append the byte count in parentheses (default: true).
+ * @return Formatted hex string representation of the string's byte contents.
+ *
+ * @note The length will only be appended if show_length is true AND the string length is greater than 4.
+ *
+ * Example:
+ * @code
+ * std::string data = "ABC";  // ASCII: 0x41, 0x42, 0x43
+ * format_hex_pretty(data);   // Returns "41.42.43" (no length shown for <= 4 parts)
+ * std::string data2 = "ABCDE";
+ * format_hex_pretty(data2);  // Returns "41.42.43.44.45 (5)"
+ * @endcode
+ */
+std::string format_hex_pretty(const std::string &data, char separator = '.', bool show_length = true);
+
+/** Format an unsigned integer in pretty-printed, human-readable hex format.
+ *
+ * Converts the integer to big-endian byte order and formats each byte as hex.
+ * The most significant byte appears first in the output string.
+ *
+ * @tparam T Unsigned integer type (uint8_t, uint16_t, uint32_t, uint64_t, etc.).
+ * @param val The unsigned integer value to format.
+ * @param separator Character to use between hex bytes (default: '.').
+ * @param show_length Whether to append the byte count in parentheses (default: true).
+ * @return Formatted hex string with most significant byte first.
+ *
+ * @note The length will only be appended if show_length is true AND sizeof(T) is greater than 4.
+ *
+ * Example:
+ * @code
+ * uint32_t value = 0x12345678;
+ * format_hex_pretty(value);        // Returns "12.34.56.78" (no length shown for <= 4 parts)
+ * uint64_t value2 = 0x123456789ABCDEF0;
+ * format_hex_pretty(value2);       // Returns "12.34.56.78.9A.BC.DE.F0 (8)"
+ * format_hex_pretty(value2, ':');  // Returns "12:34:56:78:9A:BC:DE:F0 (8)"
+ * format_hex_pretty<uint16_t>(0x1234); // Returns "12.34"
+ * @endcode
+ */
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+std::string format_hex_pretty(T val, char separator = '.', bool show_length = true) {
   val = convert_big_endian(val);
-  return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T));
+  return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T), separator, show_length);
+}
+
+/// Calculate buffer size needed for format_bin_to: "01234567...\0" = bytes * 8 + 1
+constexpr size_t format_bin_size(size_t byte_count) { return byte_count * 8 + 1; }
+
+/** Format byte array as binary string to buffer.
+ *
+ * Each byte is formatted as 8 binary digits (MSB first).
+ * Truncates output if data exceeds buffer capacity.
+ *
+ * @param buffer Output buffer to write to.
+ * @param buffer_size Size of the output buffer.
+ * @param data Pointer to the byte array to format.
+ * @param length Number of bytes in the array.
+ * @return Pointer to buffer.
+ *
+ * Buffer size needed: length * 8 + 1 (use format_bin_size()).
+ *
+ * Example:
+ * @code
+ * char buf[9];  // format_bin_size(1)
+ * format_bin_to(buf, sizeof(buf), data, 1);  // "10101011"
+ * @endcode
+ */
+char *format_bin_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length);
+
+/// Format byte array as binary to buffer. Automatically deduces buffer size.
+template<size_t N> inline char *format_bin_to(char (&buffer)[N], const uint8_t *data, size_t length) {
+  static_assert(N >= 9, "Buffer must hold at least one binary byte (9 chars)");
+  return format_bin_to(buffer, N, data, length);
+}
+
+/** Format an unsigned integer in binary to buffer, MSB first.
+ *
+ * @tparam N Buffer size (must be >= sizeof(T) * 8 + 1).
+ * @tparam T Unsigned integer type.
+ * @param buffer Output buffer to write to.
+ * @param val The unsigned integer value to format.
+ * @return Pointer to buffer.
+ *
+ * Example:
+ * @code
+ * char buf[9];  // format_bin_size(sizeof(uint8_t))
+ * format_bin_to(buf, uint8_t{0xAA});  // "10101010"
+ * char buf16[17];  // format_bin_size(sizeof(uint16_t))
+ * format_bin_to(buf16, uint16_t{0x1234});  // "0001001000110100"
+ * @endcode
+ */
+template<size_t N, typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline char *format_bin_to(char (&buffer)[N], T val) {
+  static_assert(N >= sizeof(T) * 8 + 1, "Buffer too small for type");
+  val = convert_big_endian(val);
+  return format_bin_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
 }
 
 /// Format the byte array \p data of length \p len in binary.
+/// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 std::string format_bin(const uint8_t *data, size_t length);
 /// Format an unsigned integer in binary, starting with the most significant byte.
+/// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
+/// Causes heap fragmentation on long-running devices.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_bin(T val) {
   val = convert_big_endian(val);
   return format_bin(reinterpret_cast<uint8_t *>(&val), sizeof(T));
 }
 
 /// Return values for parse_on_off().
-enum ParseOnOffState {
+enum ParseOnOffState : uint8_t {
   PARSE_NONE = 0,
   PARSE_ON,
   PARSE_OFF,
@@ -446,8 +1294,18 @@ enum ParseOnOffState {
 /// Parse a string that contains either on, off or toggle.
 ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const char *off = nullptr);
 
-/// Create a string from a value and an accuracy in decimals.
+/// @deprecated Allocates heap memory. Use value_accuracy_to_buf() instead. Removed in 2026.7.0.
+ESPDEPRECATED("Allocates heap memory. Use value_accuracy_to_buf() instead. Removed in 2026.7.0.", "2026.1.0")
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
+
+/// Maximum buffer size for value_accuracy formatting (float ~15 chars + space + UOM ~40 chars + null)
+static constexpr size_t VALUE_ACCURACY_MAX_LEN = 64;
+
+/// Format value with accuracy to buffer, returns chars written (excluding null)
+size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value, int8_t accuracy_decimals);
+/// Format value with accuracy and UOM to buffer, returns chars written (excluding null)
+size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value,
+                                      int8_t accuracy_decimals, StringRef unit_of_measurement);
 
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
@@ -457,6 +1315,13 @@ std::string base64_encode(const std::vector<uint8_t> &buf);
 
 std::vector<uint8_t> base64_decode(const std::string &encoded_string);
 size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
+size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len);
+
+/// Decode base64/base64url string directly into vector of little-endian int32 values
+/// @param base64 Base64 or base64url encoded string (both +/ and -_ accepted)
+/// @param out Output vector (cleared and filled with decoded int32 values)
+/// @return true if successful, false if decode failed or invalid size
+bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> &out);
 
 ///@}
 
@@ -513,24 +1378,89 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   std::vector<std::function<void(Ts...)>> callbacks_;
 };
 
+template<typename... X> class LazyCallbackManager;
+
+/** Lazy-allocating callback manager that only allocates memory when callbacks are registered.
+ *
+ * This is a drop-in replacement for CallbackManager that saves memory when no callbacks
+ * are registered (common case after the Controller Registry eliminated per-entity callbacks
+ * from API and web_server components).
+ *
+ * Memory overhead comparison (32-bit systems):
+ * - CallbackManager: 12 bytes (empty std::vector)
+ * - LazyCallbackManager: 4 bytes (nullptr pointer)
+ *
+ * Uses plain pointer instead of unique_ptr to avoid template instantiation overhead.
+ * The class is explicitly non-copyable/non-movable for Rule of Five compliance.
+ *
+ * @tparam Ts The arguments for the callbacks, wrapped in void().
+ */
+template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
+ public:
+  LazyCallbackManager() = default;
+  /// Destructor - clean up allocated CallbackManager if any.
+  /// In practice this never runs (entities live for device lifetime) but included for correctness.
+  ~LazyCallbackManager() { delete this->callbacks_; }
+
+  // Non-copyable and non-movable (entities are never copied or moved)
+  LazyCallbackManager(const LazyCallbackManager &) = delete;
+  LazyCallbackManager &operator=(const LazyCallbackManager &) = delete;
+  LazyCallbackManager(LazyCallbackManager &&) = delete;
+  LazyCallbackManager &operator=(LazyCallbackManager &&) = delete;
+
+  /// Add a callback to the list. Allocates the underlying CallbackManager on first use.
+  void add(std::function<void(Ts...)> &&callback) {
+    if (!this->callbacks_) {
+      this->callbacks_ = new CallbackManager<void(Ts...)>();
+    }
+    this->callbacks_->add(std::move(callback));
+  }
+
+  /// Call all callbacks in this manager. No-op if no callbacks registered.
+  void call(Ts... args) {
+    if (this->callbacks_) {
+      this->callbacks_->call(args...);
+    }
+  }
+
+  /// Return the number of registered callbacks.
+  size_t size() const { return this->callbacks_ ? this->callbacks_->size() : 0; }
+
+  /// Check if any callbacks are registered.
+  bool empty() const { return !this->callbacks_ || this->callbacks_->size() == 0; }
+
+  /// Call all callbacks in this manager.
+  void operator()(Ts... args) { this->call(args...); }
+
+ protected:
+  CallbackManager<void(Ts...)> *callbacks_{nullptr};
+};
+
 /// Helper class to deduplicate items in a series of values.
 template<typename T> class Deduplicator {
  public:
-  /// Feeds the next item in the series to the deduplicator and returns whether this is a duplicate.
+  /// Feeds the next item in the series to the deduplicator and returns false if this is a duplicate.
   bool next(T value) {
-    if (this->has_value_) {
-      if (this->last_value_ == value)
-        return false;
+    if (this->has_value_ && !this->value_unknown_ && this->last_value_ == value) {
+      return false;
     }
     this->has_value_ = true;
+    this->value_unknown_ = false;
     this->last_value_ = value;
     return true;
   }
-  /// Returns whether this deduplicator has processed any items so far.
+  /// Returns true if the deduplicator's value was previously known.
+  bool next_unknown() {
+    bool ret = !this->value_unknown_;
+    this->value_unknown_ = true;
+    return ret;
+  }
+  /// Returns true if this deduplicator has processed any items.
   bool has_value() const { return this->has_value_; }
 
  protected:
   bool has_value_{false};
+  bool value_unknown_{false};
   T last_value_{};
 };
 
@@ -617,9 +1547,26 @@ class InterruptLock {
   ~InterruptLock();
 
  protected:
-#if defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)
   uint32_t state_;
 #endif
+};
+
+/** Helper class to lock the lwIP TCPIP core when making lwIP API calls from non-TCPIP threads.
+ *
+ * This is needed on multi-threaded platforms (ESP32) when CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled.
+ * It ensures thread-safe access to lwIP APIs.
+ *
+ * @note This follows the same pattern as InterruptLock - platform-specific implementations in helpers.cpp
+ */
+class LwIPLock {
+ public:
+  LwIPLock();
+  ~LwIPLock();
+
+  // Delete copy constructor and copy assignment operator to prevent accidental copying
+  LwIPLock(const LwIPLock &) = delete;
+  LwIPLock &operator=(const LwIPLock &) = delete;
 };
 
 /** Helper class to request `loop()` to be called as fast as possible.
@@ -646,10 +1593,24 @@ class HighFrequencyLoopRequester {
 void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
 
 /// Get the device MAC address as a string, in lowercase hex notation.
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
+/// Use get_mac_address_into_buffer() instead.
 std::string get_mac_address();
 
 /// Get the device MAC address as a string, in colon-separated uppercase hex notation.
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
+/// Use get_mac_address_pretty_into_buffer() instead.
 std::string get_mac_address_pretty();
+
+/// Get the device MAC address into the given buffer, in lowercase hex notation.
+/// Assumes buffer length is MAC_ADDRESS_BUFFER_SIZE (12 digits for hexadecimal representation followed by null
+/// terminator).
+void get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_BUFFER_SIZE> buf);
+
+/// Get the device MAC address into the given buffer, in colon-separated uppercase hex notation.
+/// Buffer must be exactly MAC_ADDRESS_PRETTY_BUFFER_SIZE bytes (17 for "XX:XX:XX:XX:XX:XX" + null terminator).
+/// Returns pointer to the buffer for convenience.
+const char *get_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
 
 #ifdef USE_ESP32
 /// Set the MAC address to use from the provided byte array (6 bytes).
@@ -722,7 +1683,7 @@ template<class T> class RAMAllocator {
   T *reallocate(T *p, size_t n) { return this->reallocate(p, n, sizeof(T)); }
 
   T *reallocate(T *p, size_t n, size_t manual_size) {
-    size_t size = n * sizeof(T);
+    size_t size = n * manual_size;
     T *ptr = nullptr;
 #ifdef USE_ESP32
     if (this->flags_ & Flags::ALLOC_EXTERNAL) {
@@ -786,7 +1747,26 @@ template<class T> class RAMAllocator {
 
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
 
-/// @}
+/**
+ * Functions to constrain the range of arithmetic values.
+ */
+
+template<typename T, typename U>
+concept comparable_with = requires(T a, U b) {
+  { a > b } -> std::convertible_to<bool>;
+  { a < b } -> std::convertible_to<bool>;
+};
+
+template<std::totally_ordered T, comparable_with<T> U> T clamp_at_least(T value, U min) {
+  if (value < min)
+    return min;
+  return value;
+}
+template<std::totally_ordered T, comparable_with<T> U> T clamp_at_most(T value, U max) {
+  if (value > max)
+    return max;
+  return value;
+}
 
 /// @name Internal functions
 ///@{
@@ -801,20 +1781,6 @@ template<typename T, enable_if_t<!std::is_pointer<T>::value, int> = 0> T id(T va
  * This function is not called from lambdas, the code generator replaces calls to it with the appropriate variable.
  */
 template<typename T, enable_if_t<std::is_pointer<T *>::value, int> = 0> T &id(T *value) { return *value; }
-
-///@}
-
-/// @name Deprecated functions
-///@{
-
-ESPDEPRECATED("hexencode() is deprecated, use format_hex_pretty() instead.", "2022.1")
-inline std::string hexencode(const uint8_t *data, uint32_t len) { return format_hex_pretty(data, len); }
-
-template<typename T>
-ESPDEPRECATED("hexencode() is deprecated, use format_hex_pretty() instead.", "2022.1")
-std::string hexencode(const T &data) {
-  return hexencode(data.data(), data.size());
-}
 
 ///@}
 

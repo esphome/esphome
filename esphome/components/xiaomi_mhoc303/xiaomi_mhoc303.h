@@ -17,7 +17,6 @@ class XiaomiMHOC303 : public Component, public esp32_ble_tracker::ESPBTDeviceLis
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
 
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
   void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }

@@ -31,9 +31,3 @@ fan:
     on_preset_set:
       then:
         - logger.log: Preset mode was changed!
-
-switch:
-  - platform: hbridge
-    id: switch_hbridge
-    on_pin: ${hbridge_on_pin}
-    off_pin: ${hbridge_off_pin}

@@ -16,7 +16,6 @@ namespace resampler {
 
 class ResamplerSpeaker : public Component, public speaker::Speaker {
  public:
-  float get_setup_priority() const override { return esphome::setup_priority::DATA; }
   void setup() override;
   void loop() override;
 
@@ -100,7 +99,7 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
 
   uint32_t buffer_duration_ms_;
 
-  int32_t playback_differential_ms_{0};
+  uint64_t callback_remainder_{0};
 };
 
 }  // namespace resampler

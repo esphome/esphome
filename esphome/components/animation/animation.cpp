@@ -26,12 +26,12 @@ uint32_t Animation::get_animation_frame_count() const { return this->animation_f
 int Animation::get_current_frame() const { return this->current_frame_; }
 void Animation::next_frame() {
   this->current_frame_++;
-  if (loop_count_ && this->current_frame_ == loop_end_frame_ &&
+  if (loop_count_ && static_cast<uint32_t>(this->current_frame_) == loop_end_frame_ &&
       (this->loop_current_iteration_ < loop_count_ || loop_count_ < 0)) {
     this->current_frame_ = loop_start_frame_;
     this->loop_current_iteration_++;
   }
-  if (this->current_frame_ >= animation_frame_count_) {
+  if (static_cast<uint32_t>(this->current_frame_) >= animation_frame_count_) {
     this->loop_current_iteration_ = 1;
     this->current_frame_ = 0;
   }

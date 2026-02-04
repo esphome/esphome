@@ -8,14 +8,10 @@
 #include "esphome/components/time/real_time_clock.h"
 #endif
 
-namespace esphome {
-namespace datetime {
+namespace esphome::datetime {
 
 class DateTimeBase : public EntityBase {
  public:
-  /// Return whether this Datetime has gotten a full state yet.
-  bool has_state() const { return this->has_state_; }
-
   virtual ESPTime state_as_esptime() const = 0;
 
   void add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
@@ -26,23 +22,18 @@ class DateTimeBase : public EntityBase {
 #endif
 
  protected:
-  CallbackManager<void()> state_callback_;
+  LazyCallbackManager<void()> state_callback_;
 
 #ifdef USE_TIME
   time::RealTimeClock *rtc_;
 #endif
-
-  bool has_state_{false};
 };
 
-#ifdef USE_TIME
 class DateTimeStateTrigger : public Trigger<ESPTime> {
  public:
   explicit DateTimeStateTrigger(DateTimeBase *parent) {
     parent->add_on_state_callback([this, parent]() { this->trigger(parent->state_as_esptime()); });
   }
 };
-#endif
 
-}  // namespace datetime
-}  // namespace esphome
+}  // namespace esphome::datetime

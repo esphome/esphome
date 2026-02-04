@@ -1,6 +1,6 @@
 #include "speaker_media_player.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/log.h"
 
@@ -48,8 +48,6 @@ static const uint32_t MEDIA_CONTROLS_QUEUE_LENGTH = 20;
 static const UBaseType_t MEDIA_PIPELINE_TASK_PRIORITY = 1;
 static const UBaseType_t ANNOUNCEMENT_PIPELINE_TASK_PRIORITY = 1;
 
-static const float FIRST_BOOT_DEFAULT_VOLUME = 0.5f;
-
 static const char *const TAG = "speaker_media_player";
 
 void SpeakerMediaPlayer::setup() {
@@ -57,36 +55,19 @@ void SpeakerMediaPlayer::setup() {
 
   this->media_control_command_queue_ = xQueueCreate(MEDIA_CONTROLS_QUEUE_LENGTH, sizeof(MediaCallCommand));
 
-  this->pref_ = global_preferences->make_preference<VolumeRestoreState>(this->get_object_id_hash());
+  this->pref_ = this->make_entity_preference<VolumeRestoreState>();
 
   VolumeRestoreState volume_restore_state;
   if (this->pref_.load(&volume_restore_state)) {
     this->set_volume_(volume_restore_state.volume);
     this->set_mute_state_(volume_restore_state.is_muted);
   } else {
-    this->set_volume_(FIRST_BOOT_DEFAULT_VOLUME);
+    this->set_volume_(this->volume_initial_);
     this->set_mute_state_(false);
   }
 
-#ifdef USE_OTA
-  ota::get_global_ota_callback()->add_on_state_callback(
-      [this](ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
-        if (state == ota::OTA_STARTED) {
-          if (this->media_pipeline_ != nullptr) {
-            this->media_pipeline_->suspend_tasks();
-          }
-          if (this->announcement_pipeline_ != nullptr) {
-            this->announcement_pipeline_->suspend_tasks();
-          }
-        } else if (state == ota::OTA_ERROR) {
-          if (this->media_pipeline_ != nullptr) {
-            this->media_pipeline_->resume_tasks();
-          }
-          if (this->announcement_pipeline_ != nullptr) {
-            this->announcement_pipeline_->resume_tasks();
-          }
-        }
-      });
+#ifdef USE_OTA_STATE_LISTENER
+  ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
 
   this->announcement_pipeline_ =
@@ -106,16 +87,6 @@ void SpeakerMediaPlayer::setup() {
       ESP_LOGE(TAG, "Failed to create media pipeline");
       this->mark_failed();
     }
-
-    // Setup callback to track the duration of audio played by the media pipeline
-    this->media_speaker_->add_audio_output_callback(
-        [this](uint32_t new_playback_ms, uint32_t remainder_us, uint32_t pending_ms, uint32_t write_timestamp) {
-          this->playback_ms_ += new_playback_ms;
-          this->remainder_us_ = remainder_us;
-          this->pending_ms_ = pending_ms;
-          this->last_audio_write_timestamp_ = write_timestamp;
-          this->playback_us_ = this->playback_ms_ * 1000 + this->remainder_us_;
-        });
   }
 
   ESP_LOGI(TAG, "Set up speaker media player");
@@ -312,6 +283,27 @@ void SpeakerMediaPlayer::watch_media_commands_() {
   }
 }
 
+#ifdef USE_OTA_STATE_LISTENER
+void SpeakerMediaPlayer::on_ota_global_state(ota::OTAState state, float progress, uint8_t error,
+                                             ota::OTAComponent *comp) {
+  if (state == ota::OTA_STARTED) {
+    if (this->media_pipeline_ != nullptr) {
+      this->media_pipeline_->suspend_tasks();
+    }
+    if (this->announcement_pipeline_ != nullptr) {
+      this->announcement_pipeline_->suspend_tasks();
+    }
+  } else if (state == ota::OTA_ERROR) {
+    if (this->media_pipeline_ != nullptr) {
+      this->media_pipeline_->resume_tasks();
+    }
+    if (this->announcement_pipeline_ != nullptr) {
+      this->announcement_pipeline_->resume_tasks();
+    }
+  }
+}
+#endif
+
 void SpeakerMediaPlayer::loop() {
   this->watch_media_commands_();
 
@@ -321,7 +313,6 @@ void SpeakerMediaPlayer::loop() {
   AudioPipelineState old_media_pipeline_state = this->media_pipeline_state_;
   if (this->media_pipeline_ != nullptr) {
     this->media_pipeline_state_ = this->media_pipeline_->process_state();
-    this->decoded_playback_ms_ = this->media_pipeline_->get_playback_ms();
   }
 
   if (this->media_pipeline_state_ == AudioPipelineState::ERROR_READING) {
@@ -379,13 +370,6 @@ void SpeakerMediaPlayer::loop() {
       } else if (this->media_pipeline_state_ == AudioPipelineState::PLAYING) {
         this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
       } else if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
-        // Reset playback durations
-        this->decoded_playback_ms_ = 0;
-        this->playback_us_ = 0;
-        this->playback_ms_ = 0;
-        this->remainder_us_ = 0;
-        this->pending_ms_ = 0;
-
         if (!media_playlist_.empty()) {
           uint32_t timeout_ms = 0;
           if (old_media_pipeline_state == AudioPipelineState::PLAYING) {
@@ -535,9 +519,9 @@ void SpeakerMediaPlayer::set_mute_state_(bool mute_state) {
 
   if (old_mute_state != mute_state) {
     if (mute_state) {
-      this->defer([this]() { this->mute_trigger_->trigger(); });
+      this->defer([this]() { this->mute_trigger_.trigger(); });
     } else {
-      this->defer([this]() { this->unmute_trigger_->trigger(); });
+      this->defer([this]() { this->unmute_trigger_.trigger(); });
     }
   }
 }
@@ -566,7 +550,7 @@ void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
     this->set_mute_state_(false);
   }
 
-  this->defer([this, volume]() { this->volume_trigger_->trigger(volume); });
+  this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
 }
 
 }  // namespace speaker

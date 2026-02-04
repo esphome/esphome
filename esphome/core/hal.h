@@ -3,16 +3,8 @@
 #include <cstdint>
 #include "gpio.h"
 
-#if defined(USE_ESP32_FRAMEWORK_ESP_IDF)
+#if defined(USE_ESP32)
 #include <esp_attr.h>
-#ifndef PROGMEM
-#define PROGMEM
-#endif
-
-#elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
-
-#include <esp_attr.h>
-
 #ifndef PROGMEM
 #define PROGMEM
 #endif
@@ -23,6 +15,11 @@
 #ifndef PROGMEM
 #define PROGMEM ICACHE_RODATA_ATTR
 #endif
+
+#elif defined(USE_RP2040)
+
+#define IRAM_ATTR __attribute__((noinline, long_call, section(".time_critical")))
+#define PROGMEM
 
 #else
 

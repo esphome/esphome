@@ -1,0 +1,84 @@
+esphome:
+  name: test-nan-handling
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+sensor:
+  - platform: template
+    name: "Source NaN Sensor"
+    id: source_nan_sensor
+    accuracy_decimals: 2
+
+  - platform: copy
+    source_id: source_nan_sensor
+    name: "Min NaN Sensor"
+    id: min_nan_sensor
+    filters:
+      - min:
+          window_size: 5
+          send_every: 5
+          send_first_at: 1
+
+  - platform: copy
+    source_id: source_nan_sensor
+    name: "Max NaN Sensor"
+    id: max_nan_sensor
+    filters:
+      - max:
+          window_size: 5
+          send_every: 5
+          send_first_at: 1
+
+script:
+  - id: publish_nan_values_script
+    then:
+      - sensor.template.publish:
+          id: source_nan_sensor
+          state: 10.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_nan_sensor
+          state: !lambda 'return NAN;'
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_nan_sensor
+          state: 5.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_nan_sensor
+          state: !lambda 'return NAN;'
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_nan_sensor
+          state: 15.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_nan_sensor
+          state: 8.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_nan_sensor
+          state: !lambda 'return NAN;'
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_nan_sensor
+          state: 12.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_nan_sensor
+          state: 3.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_nan_sensor
+          state: !lambda 'return NAN;'
+
+button:
+  - platform: template
+    name: "Publish NaN Values Button"
+    id: publish_nan_button
+    on_press:
+      - script.execute: publish_nan_values_script

@@ -1,7 +1,7 @@
 #include "ina2xx_base.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include <cinttypes>
 #include <cmath>
 
@@ -50,8 +50,6 @@ static bool check_model_and_device_match(INAModel model, uint16_t dev_id) {
 }
 
 void INA2XX::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up INA2xx...");
-
   if (!this->reset_config_()) {
     ESP_LOGE(TAG, "Reset failed, check connection");
     this->mark_failed();
@@ -80,8 +78,6 @@ void INA2XX::setup() {
 
   this->state_ = State::IDLE;
 }
-
-float INA2XX::get_setup_priority() const { return setup_priority::DATA; }
 
 void INA2XX::update() {
   ESP_LOGD(TAG, "Updating");
@@ -203,15 +199,19 @@ void INA2XX::dump_config() {
              this->dev_id_);
   }
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with INA2xx failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Shunt resistance = %f Ohm", this->shunt_resistance_ohm_);
-  ESP_LOGCONFIG(TAG, "  Max current = %f A", this->max_current_a_);
-  ESP_LOGCONFIG(TAG, "  Shunt temp coeff = %d ppm/°C", this->shunt_tempco_ppm_c_);
-  ESP_LOGCONFIG(TAG, "  ADCRANGE = %d (%s)", (uint8_t) this->adc_range_, this->adc_range_ ? "±40.96 mV" : "±163.84 mV");
-  ESP_LOGCONFIG(TAG, "  CURRENT_LSB = %f", this->current_lsb_);
-  ESP_LOGCONFIG(TAG, "  SHUNT_CAL = %d", this->shunt_cal_);
+  ESP_LOGCONFIG(TAG,
+                "  Shunt resistance = %f Ohm\n"
+                "  Max current = %f A\n"
+                "  Shunt temp coeff = %d ppm/°C\n"
+                "  ADCRANGE = %d (%s)\n"
+                "  CURRENT_LSB = %f\n"
+                "  SHUNT_CAL = %d",
+                this->shunt_resistance_ohm_, this->max_current_a_, this->shunt_tempco_ppm_c_,
+                (uint8_t) this->adc_range_, this->adc_range_ ? "±40.96 mV" : "±163.84 mV", this->current_lsb_,
+                this->shunt_cal_);
 
   ESP_LOGCONFIG(TAG, "  ADC Samples = %d; ADC times: Bus = %d μs, Shunt = %d μs, Temp = %d μs",
                 ADC_SAMPLES[0b111 & (uint8_t) this->adc_avg_samples_],
@@ -255,7 +255,12 @@ bool INA2XX::reset_energy_counters() {
 bool INA2XX::reset_config_() {
   ESP_LOGV(TAG, "Reset");
   ConfigurationRegister cfg{0};
-  cfg.RST = true;
+  if (!this->reset_on_boot_) {
+    ESP_LOGI(TAG, "Skipping on-boot device reset");
+    cfg.RST = false;
+  } else {
+    cfg.RST = true;
+  }
   return this->write_unsigned_16_(RegisterMap::REG_CONFIG, cfg.raw_u16);
 }
 
@@ -357,8 +362,10 @@ bool INA2XX::configure_shunt_() {
     ESP_LOGW(TAG, "Shunt value too high");
   }
   this->shunt_cal_ &= 0x7FFF;
-  ESP_LOGV(TAG, "Given Rshunt=%f Ohm and Max_current=%.3f", this->shunt_resistance_ohm_, this->max_current_a_);
-  ESP_LOGV(TAG, "New CURRENT_LSB=%f, SHUNT_CAL=%u", this->current_lsb_, this->shunt_cal_);
+  ESP_LOGV(TAG,
+           "Given Rshunt=%f Ohm and Max_current=%.3f\n"
+           "New CURRENT_LSB=%f, SHUNT_CAL=%u",
+           this->shunt_resistance_ohm_, this->max_current_a_, this->current_lsb_, this->shunt_cal_);
   return this->write_unsigned_16_(RegisterMap::REG_SHUNT_CAL, this->shunt_cal_);
 }
 

@@ -4,16 +4,22 @@
 #include "esphome/core/controller.h"
 #include "esphome/core/helpers.h"
 
-#ifdef USE_ESP32_CAMERA
-#include "esphome/components/esp32_camera/esp32_camera.h"
+#ifdef USE_CAMERA
+#include "esphome/components/camera/camera.h"
 #endif
 
 namespace esphome {
 
-#ifdef USE_API
+#ifdef USE_API_USER_DEFINED_ACTIONS
 namespace api {
 class UserServiceDescriptor;
 }  // namespace api
+#endif
+
+#ifdef USE_INFRARED
+namespace infrared {
+class Infrared;
+}  // namespace infrared
 #endif
 
 class ComponentIterator {
@@ -45,11 +51,11 @@ class ComponentIterator {
 #ifdef USE_TEXT_SENSOR
   virtual bool on_text_sensor(text_sensor::TextSensor *text_sensor) = 0;
 #endif
-#ifdef USE_API
+#ifdef USE_API_USER_DEFINED_ACTIONS
   virtual bool on_service(api::UserServiceDescriptor *service);
 #endif
-#ifdef USE_ESP32_CAMERA
-  virtual bool on_camera(esp32_camera::ESP32Camera *camera);
+#ifdef USE_CAMERA
+  virtual bool on_camera(camera::Camera *camera);
 #endif
 #ifdef USE_CLIMATE
   virtual bool on_climate(climate::Climate *climate) = 0;
@@ -84,6 +90,12 @@ class ComponentIterator {
 #ifdef USE_ALARM_CONTROL_PANEL
   virtual bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) = 0;
 #endif
+#ifdef USE_WATER_HEATER
+  virtual bool on_water_heater(water_heater::WaterHeater *water_heater) = 0;
+#endif
+#ifdef USE_INFRARED
+  virtual bool on_infrared(infrared::Infrared *infrared) = 0;
+#endif
 #ifdef USE_EVENT
   virtual bool on_event(event::Event *event) = 0;
 #endif
@@ -93,7 +105,9 @@ class ComponentIterator {
   virtual bool on_end();
 
  protected:
-  enum class IteratorState {
+  // Iterates over all ESPHome entities (sensors, switches, lights, etc.)
+  // Supports up to 256 entity types and up to 65,535 entities of each type
+  enum class IteratorState : uint8_t {
     NONE = 0,
     BEGIN,
 #ifdef USE_BINARY_SENSOR
@@ -120,10 +134,10 @@ class ComponentIterator {
 #ifdef USE_TEXT_SENSOR
     TEXT_SENSOR,
 #endif
-#ifdef USE_API
+#ifdef USE_API_USER_DEFINED_ACTIONS
     SERVICE,
 #endif
-#ifdef USE_ESP32_CAMERA
+#ifdef USE_CAMERA
     CAMERA,
 #endif
 #ifdef USE_CLIMATE
@@ -159,6 +173,12 @@ class ComponentIterator {
 #ifdef USE_ALARM_CONTROL_PANEL
     ALARM_CONTROL_PANEL,
 #endif
+#ifdef USE_WATER_HEATER
+    WATER_HEATER,
+#endif
+#ifdef USE_INFRARED
+    INFRARED,
+#endif
 #ifdef USE_EVENT
     EVENT,
 #endif
@@ -166,9 +186,25 @@ class ComponentIterator {
     UPDATE,
 #endif
     MAX,
-  } state_{IteratorState::NONE};
-  size_t at_{0};
+  };
+  uint16_t at_{0};  // Supports up to 65,535 entities per type
+  IteratorState state_{IteratorState::NONE};
   bool include_internal_{false};
+
+  template<typename Container>
+  void process_platform_item_(const Container &items,
+                              bool (ComponentIterator::*on_item)(typename Container::value_type)) {
+    if (this->at_ >= items.size()) {
+      this->advance_platform_();
+    } else {
+      typename Container::value_type item = items[this->at_];
+      if ((item->is_internal() && !this->include_internal_) || (this->*on_item)(item)) {
+        this->at_++;
+      }
+    }
+  }
+
+  void advance_platform_();
 };
 
 }  // namespace esphome

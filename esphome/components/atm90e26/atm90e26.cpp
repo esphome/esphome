@@ -41,7 +41,6 @@ void ATM90E26Component::update() {
 }
 
 void ATM90E26Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ATM90E26 Component...");
   this->spi_setup();
 
   uint16_t mmode = 0x422;  // default values for everything but L/N line current gains
@@ -135,7 +134,7 @@ void ATM90E26Component::dump_config() {
   ESP_LOGCONFIG("", "ATM90E26:");
   LOG_PIN("  CS Pin: ", this->cs_);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with ATM90E26 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage A", this->voltage_sensor_);
@@ -147,7 +146,6 @@ void ATM90E26Component::dump_config() {
   LOG_SENSOR("  ", "Active Reverse Energy A", this->reverse_active_energy_sensor_);
   LOG_SENSOR("  ", "Frequency", this->freq_sensor_);
 }
-float ATM90E26Component::get_setup_priority() const { return setup_priority::DATA; }
 
 uint16_t ATM90E26Component::read16_(uint8_t a_register) {
   uint8_t data[2];

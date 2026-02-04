@@ -6,16 +6,26 @@
 #include <vector>
 
 #include "esphome/core/component.h"
+#include "esphome/core/progmem.h"
 
-#ifdef USE_ARDUINO
-#include <ESPAsyncWebServer.h>
-#elif USE_ESP_IDF
+#if USE_ESP32
 #include "esphome/core/hal.h"
 #include "esphome/components/web_server_idf/web_server_idf.h"
+#else
+#include <ESPAsyncWebServer.h>
+#endif
+
+#if USE_ESP32
+using PlatformString = std::string;
+#elif USE_ARDUINO
+using PlatformString = String;
 #endif
 
 namespace esphome {
 namespace web_server_base {
+
+class WebServerBase;
+extern WebServerBase *global_web_server_base;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 namespace internal {
 
@@ -23,21 +33,22 @@ class MiddlewareHandler : public AsyncWebHandler {
  public:
   MiddlewareHandler(AsyncWebHandler *next) : next_(next) {}
 
-  bool canHandle(AsyncWebServerRequest *request) override { return next_->canHandle(request); }
+  bool canHandle(AsyncWebServerRequest *request) const override { return next_->canHandle(request); }
   void handleRequest(AsyncWebServerRequest *request) override { next_->handleRequest(request); }
-  void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
-                    bool final) override {
+  void handleUpload(AsyncWebServerRequest *request, const PlatformString &filename, size_t index, uint8_t *data,
+                    size_t len, bool final) override {
     next_->handleUpload(request, filename, index, data, len, final);
   }
   void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) override {
     next_->handleBody(request, data, len, index, total);
   }
-  bool isRequestHandlerTrivial() override { return next_->isRequestHandlerTrivial(); }
+  bool isRequestHandlerTrivial() const override { return next_->isRequestHandlerTrivial(); }
 
  protected:
   AsyncWebHandler *next_;
 };
 
+#ifdef USE_WEBSERVER_AUTH
 struct Credentials {
   std::string username;
   std::string password;
@@ -61,8 +72,8 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
       return;
     MiddlewareHandler::handleRequest(request);
   }
-  void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
-                    bool final) override {
+  void handleUpload(AsyncWebServerRequest *request, const PlatformString &filename, size_t index, uint8_t *data,
+                    size_t len, bool final) override {
     if (!check_auth(request))
       return;
     MiddlewareHandler::handleUpload(request, filename, index, data, len, final);
@@ -76,6 +87,7 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
  protected:
   Credentials *credentials_;
 };
+#endif
 
 }  // namespace internal
 
@@ -86,9 +98,11 @@ class WebServerBase : public Component {
       this->initialized_++;
       return;
     }
-    this->server_ = std::make_shared<AsyncWebServer>(this->port_);
+    this->server_ = std::make_unique<AsyncWebServer>(this->port_);
     // All content is controlled and created by user - so allowing all origins is fine here.
-    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
+    // NOTE: Currently 1 header. If more are added, update in __init__.py:
+    //   cg.add_define("WEB_SERVER_DEFAULT_HEADERS_COUNT", 1)
+    DefaultHeaders::Instance().addHeader(ESPHOME_F("Access-Control-Allow-Origin"), ESPHOME_F("*"));
     this->server_->begin();
 
     for (auto *handler : this->handlers_)
@@ -102,46 +116,27 @@ class WebServerBase : public Component {
       this->server_ = nullptr;
     }
   }
-  std::shared_ptr<AsyncWebServer> get_server() const { return server_; }
+  AsyncWebServer *get_server() const { return this->server_.get(); }
   float get_setup_priority() const override;
 
+#ifdef USE_WEBSERVER_AUTH
   void set_auth_username(std::string auth_username) { credentials_.username = std::move(auth_username); }
   void set_auth_password(std::string auth_password) { credentials_.password = std::move(auth_password); }
+#endif
 
   void add_handler(AsyncWebHandler *handler);
-
-  void add_ota_handler();
 
   void set_port(uint16_t port) { port_ = port; }
   uint16_t get_port() const { return port_; }
 
  protected:
-  friend class OTARequestHandler;
-
   int initialized_{0};
   uint16_t port_{80};
-  std::shared_ptr<AsyncWebServer> server_{nullptr};
+  std::unique_ptr<AsyncWebServer> server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
+#ifdef USE_WEBSERVER_AUTH
   internal::Credentials credentials_;
-};
-
-class OTARequestHandler : public AsyncWebHandler {
- public:
-  OTARequestHandler(WebServerBase *parent) : parent_(parent) {}
-  void handleRequest(AsyncWebServerRequest *request) override;
-  void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
-                    bool final) override;
-  bool canHandle(AsyncWebServerRequest *request) override {
-    return request->url() == "/update" && request->method() == HTTP_POST;
-  }
-
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  bool isRequestHandlerTrivial() override { return false; }
-
- protected:
-  uint32_t last_ota_progress_{0};
-  uint32_t ota_read_length_{0};
-  WebServerBase *parent_;
+#endif
 };
 
 }  // namespace web_server_base

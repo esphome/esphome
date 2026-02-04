@@ -1,6 +1,0 @@
-substitutions:
-  sel_pin: GPIO12
-  cf_pin: GPIO13
-  cf1_pin: GPIO14
-
-<<: !include common.yaml

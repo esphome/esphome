@@ -1,17 +1,37 @@
 #pragma once
 
-#include <vector>
 #include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/string_ref.h"
+#include <concepts>
+#include <functional>
+#include <utility>
+#include <vector>
 
 namespace esphome {
 
+// C++20 std::index_sequence is now used for tuple unpacking
+// Legacy seq<>/gens<> pattern deprecated but kept for backwards compatibility
 // https://stackoverflow.com/questions/7858817/unpacking-a-tuple-to-call-a-matching-function-pointer/7858971#7858971
-template<int...> struct seq {};                                       // NOLINT
-template<int N, int... S> struct gens : gens<N - 1, N - 1, S...> {};  // NOLINT
-template<int... S> struct gens<0, S...> { using type = seq<S...>; };  // NOLINT
+// Remove before 2026.6.0
+// NOLINTBEGIN(readability-identifier-naming)
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
+template<int...> struct ESPDEPRECATED("Use std::index_sequence instead. Removed in 2026.6.0", "2025.12.0") seq {};
+template<int N, int... S>
+struct ESPDEPRECATED("Use std::make_index_sequence instead. Removed in 2026.6.0", "2025.12.0") gens
+    : gens<N - 1, N - 1, S...> {};
+template<int... S> struct gens<0, S...> { using type = seq<S...>; };
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+// NOLINTEND(readability-identifier-naming)
 
 #define TEMPLATABLE_VALUE_(type, name) \
  protected: \
@@ -23,23 +43,132 @@ template<int... S> struct gens<0, S...> { using type = seq<S...>; };  // NOLINT
 #define TEMPLATABLE_VALUE(type, name) TEMPLATABLE_VALUE_(type, name)
 
 template<typename T, typename... X> class TemplatableValue {
+  // For std::string, store pointer to heap-allocated string to keep union pointer-sized.
+  // For other types, store value inline.
+  static constexpr bool USE_HEAP_STORAGE = std::same_as<T, std::string>;
+
  public:
   TemplatableValue() : type_(NONE) {}
 
-  template<typename F, enable_if_t<!is_invocable<F, X...>::value, int> = 0>
-  TemplatableValue(F value) : type_(VALUE), value_(value) {}
+  // For const char* when T is std::string: store pointer directly, no heap allocation
+  // String remains in flash and is only converted to std::string when value() is called
+  TemplatableValue(const char *str) requires std::same_as<T, std::string> : type_(STATIC_STRING) {
+    this->static_str_ = str;
+  }
 
-  template<typename F, enable_if_t<is_invocable<F, X...>::value, int> = 0>
-  TemplatableValue(F f) : type_(LAMBDA), f_(f) {}
-
-  bool has_value() { return this->type_ != NONE; }
-
-  T value(X... x) {
-    if (this->type_ == LAMBDA) {
-      return this->f_(x...);
+  template<typename F> TemplatableValue(F value) requires(!std::invocable<F, X...>) : type_(VALUE) {
+    if constexpr (USE_HEAP_STORAGE) {
+      this->value_ = new T(std::move(value));
+    } else {
+      new (&this->value_) T(std::move(value));
     }
-    // return value also when none
-    return this->value_;
+  }
+
+  // For stateless lambdas (convertible to function pointer): use function pointer
+  template<typename F>
+  TemplatableValue(F f) requires std::invocable<F, X...> && std::convertible_to<F, T (*)(X...)>
+      : type_(STATELESS_LAMBDA) {
+    this->stateless_f_ = f;  // Implicit conversion to function pointer
+  }
+
+  // For stateful lambdas (not convertible to function pointer): use std::function
+  template<typename F>
+  TemplatableValue(F f) requires std::invocable<F, X...> &&(!std::convertible_to<F, T (*)(X...)>) : type_(LAMBDA) {
+    this->f_ = new std::function<T(X...)>(std::move(f));
+  }
+
+  // Copy constructor
+  TemplatableValue(const TemplatableValue &other) : type_(other.type_) {
+    if (this->type_ == VALUE) {
+      if constexpr (USE_HEAP_STORAGE) {
+        this->value_ = new T(*other.value_);
+      } else {
+        new (&this->value_) T(other.value_);
+      }
+    } else if (this->type_ == LAMBDA) {
+      this->f_ = new std::function<T(X...)>(*other.f_);
+    } else if (this->type_ == STATELESS_LAMBDA) {
+      this->stateless_f_ = other.stateless_f_;
+    } else if (this->type_ == STATIC_STRING) {
+      this->static_str_ = other.static_str_;
+    }
+  }
+
+  // Move constructor
+  TemplatableValue(TemplatableValue &&other) noexcept : type_(other.type_) {
+    if (this->type_ == VALUE) {
+      if constexpr (USE_HEAP_STORAGE) {
+        this->value_ = other.value_;
+        other.value_ = nullptr;
+      } else {
+        new (&this->value_) T(std::move(other.value_));
+      }
+    } else if (this->type_ == LAMBDA) {
+      this->f_ = other.f_;
+      other.f_ = nullptr;
+    } else if (this->type_ == STATELESS_LAMBDA) {
+      this->stateless_f_ = other.stateless_f_;
+    } else if (this->type_ == STATIC_STRING) {
+      this->static_str_ = other.static_str_;
+    }
+    other.type_ = NONE;
+  }
+
+  // Assignment operators
+  TemplatableValue &operator=(const TemplatableValue &other) {
+    if (this != &other) {
+      this->~TemplatableValue();
+      new (this) TemplatableValue(other);
+    }
+    return *this;
+  }
+
+  TemplatableValue &operator=(TemplatableValue &&other) noexcept {
+    if (this != &other) {
+      this->~TemplatableValue();
+      new (this) TemplatableValue(std::move(other));
+    }
+    return *this;
+  }
+
+  ~TemplatableValue() {
+    if (this->type_ == VALUE) {
+      if constexpr (USE_HEAP_STORAGE) {
+        delete this->value_;
+      } else {
+        this->value_.~T();
+      }
+    } else if (this->type_ == LAMBDA) {
+      delete this->f_;
+    }
+    // STATELESS_LAMBDA/STATIC_STRING/NONE: no cleanup needed (pointers, not heap-allocated)
+  }
+
+  bool has_value() const { return this->type_ != NONE; }
+
+  T value(X... x) const {
+    switch (this->type_) {
+      case STATELESS_LAMBDA:
+        return this->stateless_f_(x...);  // Direct function pointer call
+      case LAMBDA:
+        return (*this->f_)(x...);  // std::function call
+      case VALUE:
+        if constexpr (USE_HEAP_STORAGE) {
+          return *this->value_;
+        } else {
+          return this->value_;
+        }
+      case STATIC_STRING:
+        // if constexpr required: code must compile for all T, but STATIC_STRING
+        // can only be set when T is std::string (enforced by constructor constraint)
+        if constexpr (std::same_as<T, std::string>) {
+          return std::string(this->static_str_);
+        }
+        __builtin_unreachable();
+      case NONE:
+      default:
+        return T{};
+    }
   }
 
   optional<T> optional_value(X... x) {
@@ -56,15 +185,70 @@ template<typename T, typename... X> class TemplatableValue {
     return this->value(x...);
   }
 
- protected:
-  enum {
-    NONE,
-    VALUE,
-    LAMBDA,
-  } type_;
+  /// Check if this holds a static string (const char* stored without allocation)
+  bool is_static_string() const { return this->type_ == STATIC_STRING; }
 
-  T value_{};
-  std::function<T(X...)> f_{};
+  /// Get the static string pointer (only valid if is_static_string() returns true)
+  const char *get_static_string() const { return this->static_str_; }
+
+  /// Check if the string value is empty without allocating (for std::string specialization).
+  /// For NONE, returns true. For STATIC_STRING/VALUE, checks without allocation.
+  /// For LAMBDA/STATELESS_LAMBDA, must call value() which may allocate.
+  bool is_empty() const requires std::same_as<T, std::string> {
+    switch (this->type_) {
+      case NONE:
+        return true;
+      case STATIC_STRING:
+        return this->static_str_ == nullptr || this->static_str_[0] == '\0';
+      case VALUE:
+        return this->value_->empty();
+      default:  // LAMBDA/STATELESS_LAMBDA - must call value()
+        return this->value().empty();
+    }
+  }
+
+  /// Get a StringRef to the string value without heap allocation when possible.
+  /// For STATIC_STRING/VALUE, returns reference to existing data (no allocation).
+  /// For LAMBDA/STATELESS_LAMBDA, calls value(), copies to provided buffer, returns ref to buffer.
+  /// @param lambda_buf Buffer used only for lambda case (must remain valid while StringRef is used).
+  /// @param lambda_buf_size Size of the buffer.
+  /// @return StringRef pointing to the string data.
+  StringRef ref_or_copy_to(char *lambda_buf, size_t lambda_buf_size) const requires std::same_as<T, std::string> {
+    switch (this->type_) {
+      case NONE:
+        return StringRef();
+      case STATIC_STRING:
+        if (this->static_str_ == nullptr)
+          return StringRef();
+        return StringRef(this->static_str_, strlen(this->static_str_));
+      case VALUE:
+        return StringRef(this->value_->data(), this->value_->size());
+      default: {  // LAMBDA/STATELESS_LAMBDA - must call value() and copy
+        std::string result = this->value();
+        size_t copy_len = std::min(result.size(), lambda_buf_size - 1);
+        memcpy(lambda_buf, result.data(), copy_len);
+        lambda_buf[copy_len] = '\0';
+        return StringRef(lambda_buf, copy_len);
+      }
+    }
+  }
+
+ protected : enum : uint8_t {
+   NONE,
+   VALUE,
+   LAMBDA,
+   STATELESS_LAMBDA,
+   STATIC_STRING,  // For const char* when T is std::string - avoids heap allocation
+ } type_;
+  // For std::string, use heap pointer to minimize union size (4 bytes vs 12+).
+  // For other types, store value inline as before.
+  using ValueStorage = std::conditional_t<USE_HEAP_STORAGE, T *, T>;
+  union {
+    ValueStorage value_;  // T for inline storage, T* for heap storage
+    std::function<T(X...)> *f_;
+    T (*stateless_f_)(X...);
+    const char *static_str_;  // For STATIC_STRING type
+  };
 };
 
 /** Base class for all automation conditions.
@@ -74,15 +258,15 @@ template<typename T, typename... X> class TemplatableValue {
 template<typename... Ts> class Condition {
  public:
   /// Check whether this condition passes. This condition check must be instant, and not cause any delays.
-  virtual bool check(Ts... x) = 0;
+  virtual bool check(const Ts &...x) = 0;
 
   /// Call check with a tuple of values as parameter.
   bool check_tuple(const std::tuple<Ts...> &tuple) {
-    return this->check_tuple_(tuple, typename gens<sizeof...(Ts)>::type());
+    return this->check_tuple_(tuple, std::make_index_sequence<sizeof...(Ts)>{});
   }
 
  protected:
-  template<int... S> bool check_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
+  template<size_t... S> bool check_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
     return this->check(std::get<S>(tuple)...);
   }
 };
@@ -92,7 +276,7 @@ template<typename... Ts> class Automation;
 template<typename... Ts> class Trigger {
  public:
   /// Inform the parent automation that the event has triggered.
-  void trigger(Ts... x) {
+  void trigger(const Ts &...x) {
     if (this->automation_parent_ == nullptr)
       return;
     this->automation_parent_->trigger(x...);
@@ -120,7 +304,7 @@ template<typename... Ts> class ActionList;
 
 template<typename... Ts> class Action {
  public:
-  virtual void play_complex(Ts... x) {
+  virtual void play_complex(const Ts &...x) {
     this->num_running_++;
     this->play(x...);
     this->play_next_(x...);
@@ -146,9 +330,10 @@ template<typename... Ts> class Action {
 
  protected:
   friend ActionList<Ts...>;
+  template<typename... Us> friend class ContinuationAction;
 
-  virtual void play(Ts... x) = 0;
-  void play_next_(Ts... x) {
+  virtual void play(const Ts &...x) = 0;
+  void play_next_(const Ts &...x) {
     if (this->num_running_ > 0) {
       this->num_running_--;
       if (this->next_ != nullptr) {
@@ -156,11 +341,11 @@ template<typename... Ts> class Action {
       }
     }
   }
-  template<int... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
+  template<size_t... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
     this->play_next_(std::get<S>(tuple)...);
   }
   void play_next_tuple_(const std::tuple<Ts...> &tuple) {
-    this->play_next_tuple_(tuple, typename gens<sizeof...(Ts)>::type());
+    this->play_next_tuple_(tuple, std::make_index_sequence<sizeof...(Ts)>{});
   }
 
   virtual void stop() {}
@@ -193,16 +378,18 @@ template<typename... Ts> class ActionList {
     }
     this->actions_end_ = action;
   }
-  void add_actions(const std::vector<Action<Ts...> *> &actions) {
+  void add_actions(const std::initializer_list<Action<Ts...> *> &actions) {
     for (auto *action : actions) {
       this->add_action(action);
     }
   }
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     if (this->actions_begin_ != nullptr)
       this->actions_begin_->play_complex(x...);
   }
-  void play_tuple(const std::tuple<Ts...> &tuple) { this->play_tuple_(tuple, typename gens<sizeof...(Ts)>::type()); }
+  void play_tuple(const std::tuple<Ts...> &tuple) {
+    this->play_tuple_(tuple, std::make_index_sequence<sizeof...(Ts)>{});
+  }
   void stop() {
     if (this->actions_begin_ != nullptr)
       this->actions_begin_->stop_complex();
@@ -223,7 +410,7 @@ template<typename... Ts> class ActionList {
   }
 
  protected:
-  template<int... S> void play_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
+  template<size_t... S> void play_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
     this->play(std::get<S>(tuple)...);
   }
 
@@ -236,11 +423,11 @@ template<typename... Ts> class Automation {
   explicit Automation(Trigger<Ts...> *trigger) : trigger_(trigger) { this->trigger_->set_automation_parent(this); }
 
   void add_action(Action<Ts...> *action) { this->actions_.add_action(action); }
-  void add_actions(const std::vector<Action<Ts...> *> &actions) { this->actions_.add_actions(actions); }
+  void add_actions(const std::initializer_list<Action<Ts...> *> &actions) { this->actions_.add_actions(actions); }
 
   void stop() { this->actions_.stop(); }
 
-  void trigger(Ts... x) { this->actions_.play(x...); }
+  void trigger(const Ts &...x) { this->actions_.play(x...); }
 
   bool is_running() { return this->actions_.is_running(); }
 

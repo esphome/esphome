@@ -1,13 +1,16 @@
 #include "cse7766.h"
+#include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace cse7766 {
 
 static const char *const TAG = "cse7766";
+static constexpr size_t CSE7766_RAW_DATA_SIZE = 24;
 
 void CSE7766Component::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_transmission_ >= 500) {
     // last transmission too long ago. Reset RX index.
     this->raw_data_index_ = 0;
@@ -34,7 +37,6 @@ void CSE7766Component::loop() {
     this->raw_data_index_ = (this->raw_data_index_ + 1) % 24;
   }
 }
-float CSE7766Component::get_setup_priority() const { return setup_priority::DATA; }
 
 bool CSE7766Component::check_byte_() {
   uint8_t index = this->raw_data_index_;
@@ -69,8 +71,8 @@ bool CSE7766Component::check_byte_() {
 void CSE7766Component::parse_data_() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   {
-    std::string s = format_hex_pretty(this->raw_data_, sizeof(this->raw_data_));
-    ESP_LOGVV(TAG, "Raw data: %s", s.c_str());
+    char hex_buf[format_hex_pretty_size(CSE7766_RAW_DATA_SIZE)];
+    ESP_LOGVV(TAG, "Raw data: %s", format_hex_pretty_to(hex_buf, this->raw_data_, sizeof(this->raw_data_)));
   }
 #endif
 
@@ -149,6 +151,10 @@ void CSE7766Component::parse_data_() {
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(power);
     }
+  } else if (this->power_sensor_ != nullptr) {
+    // No valid power measurement from chip - publish 0W to avoid stale readings
+    // This typically happens when current is below the measurable threshold (~50mA)
+    this->power_sensor_->publish_state(0.0f);
   }
 
   float current = 0.0f;
@@ -204,27 +210,26 @@ void CSE7766Component::parse_data_() {
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   {
-    std::string buf = "Parsed:";
+    // Buffer: 7 + 15 + 33 + 15 + 25 = 95 chars max + null, rounded to 128 for safety margin.
+    // Float sizes with %.4f can be up to 11 chars for large values (e.g., 999999.9999).
+    char buf[128];
+    size_t pos = buf_append_printf(buf, sizeof(buf), 0, "Parsed:");
     if (have_voltage) {
-      buf += str_sprintf(" V=%fV", voltage);
+      pos = buf_append_printf(buf, sizeof(buf), pos, " V=%.4fV", voltage);
     }
     if (have_current) {
-      buf += str_sprintf(" I=%fmA (~%fmA)", current * 1000.0f, calculated_current * 1000.0f);
+      pos = buf_append_printf(buf, sizeof(buf), pos, " I=%.4fmA (~%.4fmA)", current * 1000.0f,
+                              calculated_current * 1000.0f);
     }
     if (have_power) {
-      buf += str_sprintf(" P=%fW", power);
+      pos = buf_append_printf(buf, sizeof(buf), pos, " P=%.4fW", power);
     }
     if (energy != 0.0f) {
-      buf += str_sprintf(" E=%fkWh (%u)", energy, cf_pulses);
+      buf_append_printf(buf, sizeof(buf), pos, " E=%.4fkWh (%u)", energy, cf_pulses);
     }
-    ESP_LOGVV(TAG, "%s", buf.c_str());
+    ESP_LOGVV(TAG, "%s", buf);
   }
 #endif
-}
-
-uint32_t CSE7766Component::get_24_bit_uint_(uint8_t start_index) {
-  return (uint32_t(this->raw_data_[start_index]) << 16) | (uint32_t(this->raw_data_[start_index + 1]) << 8) |
-         uint32_t(this->raw_data_[start_index + 2]);
 }
 
 void CSE7766Component::dump_config() {

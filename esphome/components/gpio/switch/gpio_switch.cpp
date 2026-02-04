@@ -8,8 +8,6 @@ static const char *const TAG = "switch.gpio";
 
 float GPIOSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 void GPIOSwitch::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up GPIO Switch '%s'...", this->name_.c_str());
-
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
 
   // write state before setup
@@ -69,7 +67,7 @@ void GPIOSwitch::write_state(bool state) {
   this->pin_->digital_write(state);
   this->publish_state(state);
 }
-void GPIOSwitch::set_interlock(const std::vector<Switch *> &interlock) { this->interlock_ = interlock; }
+void GPIOSwitch::set_interlock(const std::initializer_list<Switch *> &interlock) { this->interlock_ = interlock; }
 
 }  // namespace gpio
 }  // namespace esphome

@@ -67,7 +67,6 @@ static uint8_t crc4(uint16_t *buffer, size_t length);
 static uint8_t hsensor_crc_check(uint16_t value);
 
 void MS8607Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MS8607...");
   this->error_code_ = ErrorCode::NONE;
   this->setup_status_ = SetupStatus::NEEDS_RESET;
 
@@ -140,7 +139,7 @@ void MS8607Component::dump_config() {
   // LOG_I2C_DEVICE doesn't work for humidity, the `address_` is protected. Log using get_address()
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->humidity_device_->get_address());
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MS8607 failed.");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     switch (this->error_code_) {
       case ErrorCode::PT_RESET_FAILED:
         ESP_LOGE(TAG, "Temperature/Pressure RESET failed");
@@ -356,7 +355,7 @@ void MS8607Component::read_humidity_(float temperature_float) {
 
   // map 16 bit humidity value into range [-6%, 118%]
   float const humidity_partial = double(humidity) / (1 << 16);
-  float const humidity_percentage = lerp(humidity_partial, -6.0, 118.0);
+  float const humidity_percentage = std::lerp(-6.0, 118.0, humidity_partial);
   float const compensated_humidity_percentage =
       humidity_percentage + (20 - temperature_float) * MS8607_H_TEMP_COEFFICIENT;
   ESP_LOGD(TAG, "Compensated for temperature, humidity=%.2f%%", compensated_humidity_percentage);

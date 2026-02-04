@@ -1,5 +1,10 @@
 #include "valve.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
+
+#include <strings.h>
 
 namespace esphome {
 namespace valve {
@@ -9,25 +14,25 @@ static const char *const TAG = "valve";
 const float VALVE_OPEN = 1.0f;
 const float VALVE_CLOSED = 0.0f;
 
-const char *valve_command_to_str(float pos) {
+const LogString *valve_command_to_str(float pos) {
   if (pos == VALVE_OPEN) {
-    return "OPEN";
+    return LOG_STR("OPEN");
   } else if (pos == VALVE_CLOSED) {
-    return "CLOSE";
+    return LOG_STR("CLOSE");
   } else {
-    return "UNKNOWN";
+    return LOG_STR("UNKNOWN");
   }
 }
-const char *valve_operation_to_str(ValveOperation op) {
+const LogString *valve_operation_to_str(ValveOperation op) {
   switch (op) {
     case VALVE_OPERATION_IDLE:
-      return "IDLE";
+      return LOG_STR("IDLE");
     case VALVE_OPERATION_OPENING:
-      return "OPENING";
+      return LOG_STR("OPENING");
     case VALVE_OPERATION_CLOSING:
-      return "CLOSING";
+      return LOG_STR("CLOSING");
     default:
-      return "UNKNOWN";
+      return LOG_STR("UNKNOWN");
   }
 }
 
@@ -35,13 +40,13 @@ Valve::Valve() : position{VALVE_OPEN} {}
 
 ValveCall::ValveCall(Valve *parent) : parent_(parent) {}
 ValveCall &ValveCall::set_command(const char *command) {
-  if (strcasecmp(command, "OPEN") == 0) {
+  if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("OPEN")) == 0) {
     this->set_command_open();
-  } else if (strcasecmp(command, "CLOSE") == 0) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("CLOSE")) == 0) {
     this->set_command_close();
-  } else if (strcasecmp(command, "STOP") == 0) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("STOP")) == 0) {
     this->set_command_stop();
-  } else if (strcasecmp(command, "TOGGLE") == 0) {
+  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("TOGGLE")) == 0) {
     this->set_command_toggle();
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
@@ -79,7 +84,7 @@ void ValveCall::perform() {
     if (traits.get_supports_position()) {
       ESP_LOGD(TAG, "  Position: %.0f%%", *this->position_ * 100.0f);
     } else {
-      ESP_LOGD(TAG, "  Command: %s", valve_command_to_str(*this->position_));
+      ESP_LOGD(TAG, "  Command: %s", LOG_STR_ARG(valve_command_to_str(*this->position_)));
     }
   }
   if (this->toggle_.has_value()) {
@@ -130,7 +135,7 @@ void Valve::add_on_state_callback(std::function<void()> &&f) { this->state_callb
 void Valve::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
 
-  ESP_LOGD(TAG, "'%s' - Publishing:", this->name_.c_str());
+  ESP_LOGD(TAG, "'%s' >>", this->name_.c_str());
   auto traits = this->get_traits();
   if (traits.get_supports_position()) {
     ESP_LOGD(TAG, "  Position: %.0f%%", this->position * 100.0f);
@@ -143,9 +148,12 @@ void Valve::publish_state(bool save) {
       ESP_LOGD(TAG, "  State: UNKNOWN");
     }
   }
-  ESP_LOGD(TAG, "  Current Operation: %s", valve_operation_to_str(this->current_operation));
+  ESP_LOGD(TAG, "  Current Operation: %s", LOG_STR_ARG(valve_operation_to_str(this->current_operation)));
 
   this->state_callback_.call();
+#if defined(USE_VALVE) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_valve_update(this);
+#endif
 
   if (save) {
     ValveRestoreState restore{};
@@ -155,7 +163,7 @@ void Valve::publish_state(bool save) {
   }
 }
 optional<ValveRestoreState> Valve::restore_state_() {
-  this->rtc_ = global_preferences->make_preference<ValveRestoreState>(this->get_object_id_hash());
+  this->rtc_ = this->make_entity_preference<ValveRestoreState>();
   ValveRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
     return {};

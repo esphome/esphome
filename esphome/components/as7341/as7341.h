@@ -7,7 +7,7 @@
 namespace esphome {
 namespace as7341 {
 
-static const uint8_t AS7341_CHIP_ID = 0X09;
+static const uint8_t AS7341_CHIP_ID = 0x09;
 
 static const uint8_t AS7341_CONFIG = 0x70;
 static const uint8_t AS7341_LED = 0x74;
@@ -78,7 +78,6 @@ class AS7341Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
   void set_f1_sensor(sensor::Sensor *f1_sensor) { this->f1_ = f1_sensor; }

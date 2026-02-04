@@ -17,14 +17,19 @@ from esphome.const import (
     CONF_VERSION,
 )
 from esphome.core import coroutine_with_priority
+from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 
 CODEOWNERS = ["@esphome/core"]
-AUTO_LOAD = ["md5", "socket"]
 DEPENDENCIES = ["network"]
+
+
+AUTO_LOAD = ["sha256", "socket"]
+
 
 esphome = cg.esphome_ns.namespace("esphome")
 ESPHomeOTAComponent = esphome.class_("ESPHomeOTAComponent", OTAComponent)
@@ -73,8 +78,7 @@ def ota_esphome_final_validate(config):
         else:
             new_ota_conf.append(ota_conf)
 
-    for port_conf in merged_ota_esphome_configs_by_port.values():
-        new_ota_conf.append(port_conf)
+    new_ota_conf.extend(merged_ota_esphome_configs_by_port.values())
 
     full_conf[CONF_OTA] = new_ota_conf
     fv.full_config.set(full_conf)
@@ -89,7 +93,16 @@ def ota_esphome_final_validate(config):
         )
 
 
-CONFIG_SCHEMA = (
+def _consume_ota_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for OTA component."""
+    from esphome.components import socket
+
+    # OTA needs 1 listening socket (client connections are temporary during updates)
+    socket.consume_sockets(1, "ota")(config)
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ESPHomeOTAComponent),
@@ -100,6 +113,7 @@ CONFIG_SCHEMA = (
                 esp32=3232,
                 rp2040=2040,
                 bk72xx=8892,
+                ln882x=8820,
                 rtl87xx=8892,
             ): cv.port,
             cv.Optional(CONF_PASSWORD): cv.string,
@@ -115,17 +129,20 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(BASE_OTA_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    _consume_ota_sockets,
 )
 
 FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
 
 
-@coroutine_with_priority(52.0)
-async def to_code(config):
+@coroutine_with_priority(CoroPriority.OTA_UPDATES)
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_port(config[CONF_PORT]))
-    if CONF_PASSWORD in config:
+
+    # Password could be set to an empty string and we can assume that means no password
+    if config.get(CONF_PASSWORD):
         cg.add(var.set_auth_password(config[CONF_PASSWORD]))
         cg.add_define("USE_OTA_PASSWORD")
     cg.add_define("USE_OTA_VERSION", config[CONF_VERSION])

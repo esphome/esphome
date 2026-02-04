@@ -73,12 +73,16 @@ WaveshareEPaper4P2InBV2 = waveshare_epaper_ns.class_(
 WaveshareEPaper4P2InBV2BWR = waveshare_epaper_ns.class_(
     "WaveshareEPaper4P2InBV2BWR", WaveshareEPaperBWR
 )
+WaveshareEPaper5P65InF = waveshare_epaper_ns.class_(
+    "WaveshareEPaper5P65InF", WaveshareEPaper7C
+)
 WaveshareEPaper5P8In = waveshare_epaper_ns.class_(
     "WaveshareEPaper5P8In", WaveshareEPaper
 )
 WaveshareEPaper5P8InV2 = waveshare_epaper_ns.class_(
     "WaveshareEPaper5P8InV2", WaveshareEPaper
 )
+GDEY0583T81 = waveshare_epaper_ns.class_("GDEY0583T81", WaveshareEPaper)
 WaveshareEPaper7P3InF = waveshare_epaper_ns.class_(
     "WaveshareEPaper7P3InF", WaveshareEPaper7C
 )
@@ -154,8 +158,10 @@ MODELS = {
     "4.20in": ("b", WaveshareEPaper4P2In),
     "4.20in-bv2": ("b", WaveshareEPaper4P2InBV2),
     "4.20in-bv2-bwr": ("b", WaveshareEPaper4P2InBV2BWR),
+    "5.65in-f": ("b", WaveshareEPaper5P65InF),
     "5.83in": ("b", WaveshareEPaper5P8In),
     "5.83inv2": ("b", WaveshareEPaper5P8InV2),
+    "gdey0583t81": ("c", GDEY0583T81),
     "7.30in-f": ("b", WaveshareEPaper7P3InF),
     "7.50in": ("b", WaveshareEPaper7P5In),
     "7.50in-bv2": ("b", WaveshareEPaper7P5InBV2),
@@ -237,7 +243,7 @@ async def to_code(config):
         raise NotImplementedError()
 
     await display.register_display(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))

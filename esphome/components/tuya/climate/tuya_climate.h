@@ -104,6 +104,7 @@ class TuyaClimate : public climate::Climate, public Component {
   optional<uint8_t> eco_id_{};
   optional<uint8_t> sleep_id_{};
   optional<float> eco_temperature_{};
+  TuyaDatapointType eco_type_{};
   uint8_t active_state_;
   uint8_t fan_state_;
   optional<uint8_t> swing_vertical_id_{};

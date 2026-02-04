@@ -19,12 +19,14 @@ static const uint8_t REG_YPOS_HIGH = 0x05;
 static const uint8_t REG_YPOS_LOW = 0x06;
 static const uint8_t REG_DIS_AUTOSLEEP = 0xFE;
 static const uint8_t REG_CHIP_ID = 0xA7;
+static const uint8_t REG_FACTORY_ID = 0xAA;
 static const uint8_t REG_FW_VERSION = 0xA9;
 static const uint8_t REG_SLEEP = 0xE5;
 static const uint8_t REG_IRQ_CTL = 0xFA;
 static const uint8_t IRQ_EN_MOTION = 0x70;
 
 static const uint8_t CST826_CHIP_ID = 0x11;
+static const uint8_t CST836_CHIP_ID = 0x13;
 static const uint8_t CST820_CHIP_ID = 0xB7;
 static const uint8_t CST816S_CHIP_ID = 0xB4;
 static const uint8_t CST816D_CHIP_ID = 0xB6;

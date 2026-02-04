@@ -1,5 +1,6 @@
 #include "mpl3115a2.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -8,10 +9,8 @@ namespace mpl3115a2 {
 static const char *const TAG = "mpl3115a2";
 
 void MPL3115A2Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MPL3115A2...");
-
   uint8_t whoami = 0xFF;
-  if (!this->read_byte(MPL3115A2_WHOAMI, &whoami, false)) {
+  if (!this->read_byte(MPL3115A2_WHOAMI, &whoami)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
@@ -37,7 +36,7 @@ void MPL3115A2Component::dump_config() {
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
-        ESP_LOGE(TAG, "Communication with MPL3115A2 failed!");
+        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
         break;
       case WRONG_ID:
         ESP_LOGE(TAG, "MPL3115A2 has invalid id");
@@ -55,24 +54,24 @@ void MPL3115A2Component::dump_config() {
 
 void MPL3115A2Component::update() {
   uint8_t mode = MPL3115A2_CTRL_REG1_OS128;
-  this->write_byte(MPL3115A2_CTRL_REG1, mode, true);
+  this->write_byte(MPL3115A2_CTRL_REG1, mode);
   // Trigger a new reading
   mode |= MPL3115A2_CTRL_REG1_OST;
   if (this->altitude_ != nullptr)
     mode |= MPL3115A2_CTRL_REG1_ALT;
-  this->write_byte(MPL3115A2_CTRL_REG1, mode, true);
+  this->write_byte(MPL3115A2_CTRL_REG1, mode);
 
   // Wait until status shows reading available
   uint8_t status = 0;
-  if (!this->read_byte(MPL3115A2_REGISTER_STATUS, &status, false) || (status & MPL3115A2_REGISTER_STATUS_PDR) == 0) {
+  if (!this->read_byte(MPL3115A2_REGISTER_STATUS, &status) || (status & MPL3115A2_REGISTER_STATUS_PDR) == 0) {
     delay(10);
-    if (!this->read_byte(MPL3115A2_REGISTER_STATUS, &status, false) || (status & MPL3115A2_REGISTER_STATUS_PDR) == 0) {
+    if (!this->read_byte(MPL3115A2_REGISTER_STATUS, &status) || (status & MPL3115A2_REGISTER_STATUS_PDR) == 0) {
       return;
     }
   }
 
   uint8_t buffer[5] = {0, 0, 0, 0, 0};
-  this->read_register(MPL3115A2_REGISTER_PRESSURE_MSB, buffer, 5, false);
+  this->read_register(MPL3115A2_REGISTER_PRESSURE_MSB, buffer, 5);
 
   float altitude = 0, pressure = 0;
   if (this->altitude_ != nullptr) {

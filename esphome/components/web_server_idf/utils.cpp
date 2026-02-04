@@ -1,7 +1,9 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include <memory>
-#include "esphome/core/log.h"
+#include <cstring>
+#include <cctype>
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "http_parser.h"
 
 #include "utils.h"
@@ -11,7 +13,8 @@ namespace web_server_idf {
 
 static const char *const TAG = "web_server_idf_utils";
 
-void url_decode(char *str) {
+size_t url_decode(char *str) {
+  char *start = str;
   char *ptr = str, buf;
   for (; *str; str++, ptr++) {
     if (*str == '%') {
@@ -29,7 +32,8 @@ void url_decode(char *str) {
       *ptr = *str;
     }
   }
-  *ptr = *str;
+  *ptr = '\0';
+  return ptr - start;
 }
 
 bool request_has_header(httpd_req_t *req, const char *name) { return httpd_req_get_hdr_value_len(req, name); }
@@ -69,18 +73,15 @@ optional<std::string> request_get_url_query(httpd_req_t *req) {
   return {str};
 }
 
-optional<std::string> query_key_value(const std::string &query_url, const std::string &key) {
-  if (query_url.empty()) {
+optional<std::string> query_key_value(const char *query_url, size_t query_len, const char *key) {
+  if (query_url == nullptr || query_len == 0) {
     return {};
   }
 
-  auto val = std::unique_ptr<char[]>(new char[query_url.size()]);
-  if (!val) {
-    ESP_LOGE(TAG, "Not enough memory to the query key value");
-    return {};
-  }
+  // Use stack buffer for typical query strings, heap fallback for large ones
+  SmallBufferWithHeapFallback<256, char> val(query_len);
 
-  if (httpd_query_key_value(query_url.c_str(), key.c_str(), val.get(), query_url.size()) != ESP_OK) {
+  if (httpd_query_key_value(query_url, key, val.get(), query_len) != ESP_OK) {
     return {};
   }
 
@@ -88,6 +89,36 @@ optional<std::string> query_key_value(const std::string &query_url, const std::s
   return {val.get()};
 }
 
+// Helper function for case-insensitive string region comparison
+bool str_ncmp_ci(const char *s1, const char *s2, size_t n) {
+  for (size_t i = 0; i < n; i++) {
+    if (!char_equals_ci(s1[i], s2[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Case-insensitive string search (like strstr but case-insensitive)
+const char *stristr(const char *haystack, const char *needle) {
+  if (!haystack) {
+    return nullptr;
+  }
+
+  size_t needle_len = strlen(needle);
+  if (needle_len == 0) {
+    return haystack;
+  }
+
+  for (const char *p = haystack; *p; p++) {
+    if (str_ncmp_ci(p, needle, needle_len)) {
+      return p;
+    }
+  }
+
+  return nullptr;
+}
+
 }  // namespace web_server_idf
 }  // namespace esphome
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

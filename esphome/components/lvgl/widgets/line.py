@@ -1,11 +1,12 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.const import CONF_X, CONF_Y
 from esphome.core import Lambda
 
-from ..defines import CONF_MAIN, CONF_X, CONF_Y, call_lambda
+from ..defines import CONF_MAIN, call_lambda
 from ..lvcode import lv_add
-from ..schemas import POINT_SCHEMA
-from ..types import LvCompound, LvType
+from ..schemas import point_schema
+from ..types import LvCompound, LvType, lv_coord_t
 from . import Widget, WidgetType
 
 CONF_LINE = "line"
@@ -16,15 +17,13 @@ lv_point_t = cg.global_ns.struct("lv_point_t")
 
 
 LINE_SCHEMA = {
-    cv.Required(CONF_POINTS): cv.ensure_list(POINT_SCHEMA),
+    cv.Required(CONF_POINTS): cv.ensure_list(point_schema),
 }
 
 
 async def process_coord(coord):
     if isinstance(coord, Lambda):
-        coord = call_lambda(
-            await cg.process_lambda(coord, (), return_type="lv_coord_t")
-        )
+        coord = call_lambda(await cg.process_lambda(coord, [], return_type=lv_coord_t))
         if not coord.endswith("()"):
             coord = f"static_cast<lv_coord_t>({coord})"
         return cg.RawExpression(coord)

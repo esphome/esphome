@@ -11,8 +11,7 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 static const char *const TAG = "uart.arduino_rp2040";
 
@@ -52,7 +51,20 @@ uint16_t RP2040UartComponent::get_config() {
 }
 
 void RP2040UartComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up UART bus...");
+  auto setup_pin_if_needed = [](InternalGPIOPin *pin) {
+    if (!pin) {
+      return;
+    }
+    const auto mask = gpio::Flags::FLAG_OPEN_DRAIN | gpio::Flags::FLAG_PULLUP | gpio::Flags::FLAG_PULLDOWN;
+    if ((pin->get_flags() & mask) != gpio::Flags::FLAG_NONE) {
+      pin->setup();
+    }
+  };
+
+  setup_pin_if_needed(this->rx_pin_);
+  if (this->rx_pin_ != this->tx_pin_) {
+    setup_pin_if_needed(this->tx_pin_);
+  }
 
   uint16_t config = get_config();
 
@@ -136,10 +148,12 @@ void RP2040UartComponent::dump_config() {
   if (this->rx_pin_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }
-  ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Data Bits: %u", this->data_bits_);
-  ESP_LOGCONFIG(TAG, "  Parity: %s", LOG_STR_ARG(parity_to_str(this->parity_)));
-  ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
+  ESP_LOGCONFIG(TAG,
+                "  Baud Rate: %u baud\n"
+                "  Data Bits: %u\n"
+                "  Parity: %s\n"
+                "  Stop bits: %u",
+                this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
   if (this->hw_serial_) {
     ESP_LOGCONFIG(TAG, "  Using hardware serial");
   } else {
@@ -174,11 +188,9 @@ bool RP2040UartComponent::read_array(uint8_t *data, size_t len) {
 }
 int RP2040UartComponent::available() { return this->serial_->available(); }
 void RP2040UartComponent::flush() {
-  ESP_LOGVV(TAG, "    Flushing...");
+  ESP_LOGVV(TAG, "    Flushing");
   this->serial_->flush();
 }
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_RP2040

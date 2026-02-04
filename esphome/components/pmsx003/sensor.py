@@ -33,33 +33,137 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
+CODEOWNERS = ["@ximex"]
 DEPENDENCIES = ["uart"]
 
 pmsx003_ns = cg.esphome_ns.namespace("pmsx003")
 PMSX003Component = pmsx003_ns.class_("PMSX003Component", uart.UARTDevice, cg.Component)
 PMSX003Sensor = pmsx003_ns.class_("PMSX003Sensor", sensor.Sensor)
 
-TYPE_PMSX003 = "PMSX003"
+TYPE_PMS1003 = "PMS1003"
+TYPE_PMS3003 = "PMS3003"
+TYPE_PMSX003 = "PMSX003"  # PMS5003, PMS6003, PMS7003, PMSA003 (NOT PMSA003I - see `pmsa003i` component)
+TYPE_PMS5003S = "PMS5003S"
 TYPE_PMS5003T = "PMS5003T"
 TYPE_PMS5003ST = "PMS5003ST"
-TYPE_PMS5003S = "PMS5003S"
+TYPE_PMS9003M = "PMS9003M"
 
-PMSX003Type = pmsx003_ns.enum("PMSX003Type")
+Type = pmsx003_ns.enum("Type", is_class=True)
 
 PMSX003_TYPES = {
-    TYPE_PMSX003: PMSX003Type.PMSX003_TYPE_X003,
-    TYPE_PMS5003T: PMSX003Type.PMSX003_TYPE_5003T,
-    TYPE_PMS5003ST: PMSX003Type.PMSX003_TYPE_5003ST,
-    TYPE_PMS5003S: PMSX003Type.PMSX003_TYPE_5003S,
+    TYPE_PMS1003: Type.PMS1003,
+    TYPE_PMS3003: Type.PMS3003,
+    TYPE_PMSX003: Type.PMSX003,
+    TYPE_PMS5003S: Type.PMS5003S,
+    TYPE_PMS5003T: Type.PMS5003T,
+    TYPE_PMS5003ST: Type.PMS5003ST,
+    TYPE_PMS9003M: Type.PMS9003M,
 }
 
 SENSORS_TO_TYPE = {
-    CONF_PM_1_0: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_2_5: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_10_0: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
+    CONF_PM_1_0_STD: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_2_5_STD: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_10_0_STD: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_1_0: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_2_5: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_10_0: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_0_3UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_0_5UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_1_0UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_2_5UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_5_0UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_10_0UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_FORMALDEHYDE: [TYPE_PMS5003S, TYPE_PMS5003ST],
     CONF_TEMPERATURE: [TYPE_PMS5003T, TYPE_PMS5003ST],
     CONF_HUMIDITY: [TYPE_PMS5003T, TYPE_PMS5003ST],
-    CONF_FORMALDEHYDE: [TYPE_PMS5003ST, TYPE_PMS5003S],
 }
 
 
@@ -164,6 +268,12 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_FORMALDEHYDE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=1,
@@ -174,12 +284,6 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_PERCENT,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_FORMALDEHYDE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_UPDATE_INTERVAL, default="0s"): validate_update_interval,
@@ -256,6 +360,10 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_PM_10_0UM])
         cg.add(var.set_pm_particles_100um_sensor(sens))
 
+    if CONF_FORMALDEHYDE in config:
+        sens = await sensor.new_sensor(config[CONF_FORMALDEHYDE])
+        cg.add(var.set_formaldehyde_sensor(sens))
+
     if CONF_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
@@ -263,9 +371,5 @@ async def to_code(config):
     if CONF_HUMIDITY in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY])
         cg.add(var.set_humidity_sensor(sens))
-
-    if CONF_FORMALDEHYDE in config:
-        sens = await sensor.new_sensor(config[CONF_FORMALDEHYDE])
-        cg.add(var.set_formaldehyde_sensor(sens))
 
     cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
