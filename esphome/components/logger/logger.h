@@ -193,11 +193,6 @@ struct LogBuffer {
     this->write_color_reset_();
     this->null_terminate_();
   }
-  void write_body(const char *text, size_t text_length) {
-    this->write_(text, text_length);
-    this->write_color_reset_();
-    this->null_terminate_();
-  }
 #ifdef USE_STORE_LOG_STR_IN_FLASH
   void HOT format_body_P(PGM_P format, va_list args) {
     if (!this->full_())
@@ -206,6 +201,11 @@ struct LogBuffer {
     this->null_terminate_();
   }
 #endif
+  void write_body(const char *text, size_t text_length) {
+    this->write_(text, text_length);
+    this->write_color_reset_();
+    this->null_terminate_();
+  }
 
  private:
   bool full_() const { return this->pos >= this->size; }
