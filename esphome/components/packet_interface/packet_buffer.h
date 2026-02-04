@@ -203,7 +203,8 @@ class PacketBuffer {
       return *this;
     }
 
-    const Iterator operator++(int) {
+    // clang-tidy wants this changed but if it's changed, it wants it changed back.
+    Iterator operator++(int) {  // NOLINT
       Iterator tmp = *this;
       ++(*this);
       return tmp;
