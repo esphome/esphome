@@ -203,15 +203,13 @@ struct LogBuffer {
     this->put_char_(' ');
   }
   void HOT format_body(const char *format, va_list args) {
-    if (this->full_())
-      return;
-    this->process_vsnprintf_result_(vsnprintf(this->current_(), this->remaining_(), format, args));
+    if (!this->full_())
+      this->process_vsnprintf_result_(vsnprintf(this->current_(), this->remaining_(), format, args));
   }
 #ifdef USE_STORE_LOG_STR_IN_FLASH
   void HOT format_body_P(PGM_P format, va_list args) {
-    if (this->full_())
-      return;
-    this->process_vsnprintf_result_(vsnprintf_P(this->current_(), this->remaining_(), format, args));
+    if (!this->full_())
+      this->process_vsnprintf_result_(vsnprintf_P(this->current_(), this->remaining_(), format, args));
   }
 #endif
 
