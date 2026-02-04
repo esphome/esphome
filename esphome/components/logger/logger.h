@@ -42,7 +42,7 @@ struct device;
 #endif
 
 // Platforms that support thread names in log output
-#ifdef USE_LOGGER_THREAD_NAME
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR) || defined(USE_HOST)
 #define USE_LOGGER_THREAD_NAME
 #endif
 
