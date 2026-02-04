@@ -1,0 +1,129 @@
+esphome:
+  name: cc1101-example
+  friendly_name: CC1101 Example
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+# Enable OTA
+ota:
+
+wifi:
+  ssid: "YourSSID"
+  password: "YourPassword"
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Cc1101-Example"
+    password: "fallback_password"
+
+captive_portal:
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+cc1101:
+  id: cc1101_hub
+  cs_pin: GPIO5
+  gdo0_pin: GPIO4
+  frequency: 433.92MHz
+  modulation_type: ASK/OOK
+  packet_mode: true
+  packet_length: 32
+
+number:
+  - platform: cc1101
+    cc1101_id: cc1101_hub
+    output_power:
+      name: "Output Power"
+    packet_length:
+      name: "Packet Length"
+    tuner:
+      frequency:
+        name: "Frequency"
+      if_frequency:
+        name: "IF Frequency"
+      bandwidth:
+        name: "Filter Bandwidth"
+      channel:
+        name: "Channel"
+      channel_spacing:
+        name: "Channel Spacing"
+      fsk_deviation:
+        name: "FSK Deviation"
+      msk_deviation:
+        name: "MSK Deviation"
+      symbol_rate:
+        name: "Symbol Rate"
+      num_preamble:
+        name: "Preamble Length"
+      sync1:
+        name: "Sync Word 1"
+      sync0:
+        name: "Sync Word 0"
+    agc:
+      carrier_sense_abs_thr:
+        name: "Carrier Sense Absolute Threshold"
+
+select:
+  - platform: cc1101
+    cc1101_id: cc1101_hub
+    frequency_preset:
+      name: "Frequency Preset"
+    rx_attenuation:
+      name: "RX Attenuation"
+    tuner:
+      sync_mode:
+        name: "Sync Mode"
+      modulation:
+        name: "Modulation"
+    agc:
+      magn_target:
+        name: "Magnitude Target"
+      max_lna_gain:
+        name: "Max LNA Gain"
+      max_dvga_gain:
+        name: "Max DVGA Gain"
+      carrier_sense_rel_thr:
+        name: "Carrier Sense Relative Threshold"
+      filter_length_fsk_msk:
+        name: "Filter Length FSK-MSK"
+      filter_length_ask_ook:
+        name: "Filter Length ASK-OOK"
+      freeze:
+        name: "Freeze"
+      wait_time:
+        name: "Wait Time"
+      hyst_level:
+        name: "Hysteresis Level"
+
+sensor:
+  - platform: cc1101
+    cc1101_id: cc1101_hub
+    rssi:
+      name: "RSSI"
+    lqi:
+      name: "LQI"
+
+text_sensor:
+  - platform: cc1101
+    cc1101_id: cc1101_hub
+    rx_attenuation:
+      name: "Text RX Attenuation"
+    chip_id:
+      name: "Chip ID"
+    tuner:
+      modulation:
+        name: "Text Modulation"
+      frequency:
+        name: "Text Frequency"

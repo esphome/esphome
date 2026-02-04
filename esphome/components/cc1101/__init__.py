@@ -53,6 +53,8 @@ CONF_PACKET_MODE = "packet_mode"
 CONF_PACKET_LENGTH = "packet_length"
 CONF_WHITENING = "whitening"
 CONF_GDO0_PIN = "gdo0_pin"
+CONF_RSSI = "rssi"
+CONF_LQI = "lqi"
 
 # Enums
 SyncMode = ns.enum("SyncMode", True)

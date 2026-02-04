@@ -1,9 +1,18 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import switch
-from esphome.const import CONF_ID
-from . import CC1101Component, CONF_DC_BLOCKING_FILTER, CONF_CARRIER_SENSE_ABOVE_THRESHOLD, \
-    CONF_MANCHESTER, CONF_LNA_PRIORITY, CONF_PACKET_MODE, CONF_CRC_ENABLE, CONF_WHITENING, ns
+import esphome.config_validation as cv
+
+from . import (
+    CONF_CARRIER_SENSE_ABOVE_THRESHOLD,
+    CONF_CRC_ENABLE,
+    CONF_DC_BLOCKING_FILTER,
+    CONF_LNA_PRIORITY,
+    CONF_MANCHESTER,
+    CONF_PACKET_MODE,
+    CONF_WHITENING,
+    CC1101Component,
+    ns,
+)
 
 CC1101Switch = ns.class_("CC1101Switch", switch.Switch, cg.PollingComponent)
 
@@ -27,63 +36,97 @@ TYPES_AGC = {
     CONF_LNA_PRIORITY: "set_lna_priority",
 }
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_CC1101_ID): cv.use_id(CC1101Component),
-}).extend(cv.polling_component_schema("60s"))
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_CC1101_ID): cv.use_id(CC1101Component),
+    }
+).extend(cv.polling_component_schema("60s"))
 
 # Root
-for type, _ in TYPES_ROOT.items():
-    CONFIG_SCHEMA = CONFIG_SCHEMA.extend({
-        cv.Optional(type): switch.switch_schema(CC1101Switch),
-    })
+
+for type in TYPES_ROOT:
+    CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
+        {
+            cv.Optional(type): switch.switch_schema(CC1101Switch),
+        }
+    )
+
 
 # Tuner
+
 TUNER_SCHEMA = cv.Schema({})
-for type, _ in TYPES_TUNER.items():
-    TUNER_SCHEMA = TUNER_SCHEMA.extend({
-        cv.Optional(type): switch.switch_schema(CC1101Switch),
-    })
+
+for type in TYPES_TUNER:
+    TUNER_SCHEMA = TUNER_SCHEMA.extend(
+        {
+            cv.Optional(type): switch.switch_schema(CC1101Switch),
+        }
+    )
+
 CONFIG_SCHEMA = CONFIG_SCHEMA.extend({cv.Optional(CONF_TUNER): TUNER_SCHEMA})
 
+
 # AGC
+
 AGC_SCHEMA = cv.Schema({})
-for type, _ in TYPES_AGC.items():
-    AGC_SCHEMA = AGC_SCHEMA.extend({
-        cv.Optional(type): switch.switch_schema(CC1101Switch),
-    })
+
+for type in TYPES_AGC:
+    AGC_SCHEMA = AGC_SCHEMA.extend(
+        {
+            cv.Optional(type): switch.switch_schema(CC1101Switch),
+        }
+    )
+
 CONFIG_SCHEMA = CONFIG_SCHEMA.extend({cv.Optional(CONF_AGC): AGC_SCHEMA})
 
+
 async def to_code(config):
-    cg.add(cg.include("esphome/components/cc1101/cc1101_switch.h"))
     parent = await cg.get_variable(config[CONF_CC1101_ID])
 
     # Root
-    for type, _ in TYPES_ROOT.items():
+
+    for type in TYPES_ROOT:
         if type in config:
             conf = config[type]
+
             var = await switch.new_switch(conf)
+
             await cg.register_component(var, conf)
+
             cg.add(var.set_parent(parent))
+
             cg.add(var.set_type(getattr(CC1101Switch, type.upper())))
 
     # Tuner
+
     if CONF_TUNER in config:
         tuner_config = config[CONF_TUNER]
-        for type, _ in TYPES_TUNER.items():
+
+        for type in TYPES_TUNER:
             if type in tuner_config:
                 conf = tuner_config[type]
+
                 var = await switch.new_switch(conf)
+
                 await cg.register_component(var, conf)
+
                 cg.add(var.set_parent(parent))
+
                 cg.add(var.set_type(getattr(CC1101Switch, type.upper())))
 
     # AGC
+
     if CONF_AGC in config:
         agc_config = config[CONF_AGC]
-        for type, _ in TYPES_AGC.items():
+
+        for type in TYPES_AGC:
             if type in agc_config:
                 conf = agc_config[type]
+
                 var = await switch.new_switch(conf)
+
                 await cg.register_component(var, conf)
+
                 cg.add(var.set_parent(parent))
+
                 cg.add(var.set_type(getattr(CC1101Switch, type.upper())))

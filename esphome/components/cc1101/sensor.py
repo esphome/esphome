@@ -1,11 +1,15 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID, CONF_RSSI, CONF_LQI, UNIT_DECIBEL_MILLIWATT, UNIT_EMPTY,
-    DEVICE_CLASS_SIGNAL_STRENGTH, STATE_CLASS_MEASUREMENT, ENTITY_CATEGORY_DIAGNOSTIC
+    DEVICE_CLASS_SIGNAL_STRENGTH,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_DECIBEL_MILLIWATT,
+    UNIT_EMPTY,
 )
-from . import CC1101Component, ns
+
+from . import CONF_LQI, CONF_RSSI, CC1101Component, ns
 
 CC1101Sensor = ns.class_("CC1101Sensor", sensor.Sensor, cg.Component)
 
@@ -20,33 +24,37 @@ TYPES = {
     },
     CONF_LQI: {
         "unit": UNIT_EMPTY,
-        "device_class": None,
+        "device_class": cv.UNDEFINED,
         "state_class": STATE_CLASS_MEASUREMENT,
         "accuracy_decimals": 0,
-    }
+    },
 }
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_CC1101_ID): cv.use_id(CC1101Component),
-})
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_CC1101_ID): cv.use_id(CC1101Component),
+    }
+)
 
 for type, data in TYPES.items():
-    CONFIG_SCHEMA = CONFIG_SCHEMA.extend({
-        cv.Optional(type): sensor.sensor_schema(
-            CC1101Sensor,
-            unit_of_measurement=data["unit"],
-            accuracy_decimals=data["accuracy_decimals"],
-            device_class=data.get("device_class"),
-            state_class=data["state_class"],
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-        ),
-    })
+    CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
+        {
+            cv.Optional(type): sensor.sensor_schema(
+                CC1101Sensor,
+                unit_of_measurement=data["unit"],
+                accuracy_decimals=data["accuracy_decimals"],
+                device_class=data.get("device_class"),
+                state_class=data["state_class"],
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+        }
+    )
+
 
 async def to_code(config):
-    cg.add(cg.include("esphome/components/cc1101/cc1101_sensor.h"))
     parent = await cg.get_variable(config[CONF_CC1101_ID])
 
-    for type, data in TYPES.items():
+    for type in TYPES:
         if type in config:
             conf = config[type]
             var = await sensor.new_sensor(conf)

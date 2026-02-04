@@ -1,39 +1,48 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
-from esphome.const import CONF_ID, CONF_FREQUENCY, ENTITY_CATEGORY_DIAGNOSTIC
-from . import CC1101Component, CONF_RX_ATTENUATION, CONF_MODULATION_TYPE, ns
+import esphome.config_validation as cv
+from esphome.const import CONF_FREQUENCY, ENTITY_CATEGORY_DIAGNOSTIC
 
-CC1101TextSensor = ns.class_("CC1101TextSensor", text_sensor.TextSensor, cg.PollingComponent)
+from . import CONF_MODULATION_TYPE, CONF_RX_ATTENUATION, CC1101Component, ns
+
+CC1101TextSensor = ns.class_(
+    "CC1101TextSensor", text_sensor.TextSensor, cg.PollingComponent
+)
 
 CONF_CC1101_ID = "cc1101_id"
 CONF_CHIP_ID = "chip_id"
 CONF_TUNER = "tuner"
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_CC1101_ID): cv.use_id(CC1101Component),
-    cv.Optional(CONF_RX_ATTENUATION): text_sensor.text_sensor_schema(
-        CC1101TextSensor,
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    cv.Optional(CONF_CHIP_ID): text_sensor.text_sensor_schema(
-        CC1101TextSensor,
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    cv.Optional(CONF_TUNER): cv.Schema({
-        cv.Optional(CONF_MODULATION_TYPE.replace("_type", "")): text_sensor.text_sensor_schema(
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_CC1101_ID): cv.use_id(CC1101Component),
+        cv.Optional(CONF_RX_ATTENUATION): text_sensor.text_sensor_schema(
             CC1101TextSensor,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
-        cv.Optional(CONF_FREQUENCY): text_sensor.text_sensor_schema(
+        cv.Optional(CONF_CHIP_ID): text_sensor.text_sensor_schema(
             CC1101TextSensor,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
-    }),
-}).extend(cv.polling_component_schema("60s"))
+        cv.Optional(CONF_TUNER): cv.Schema(
+            {
+                cv.Optional(
+                    CONF_MODULATION_TYPE.replace("_type", "")
+                ): text_sensor.text_sensor_schema(
+                    CC1101TextSensor,
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+                cv.Optional(CONF_FREQUENCY): text_sensor.text_sensor_schema(
+                    CC1101TextSensor,
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+            }
+        ),
+    }
+).extend(cv.polling_component_schema("60s"))
+
 
 async def to_code(config):
-    cg.add(cg.include("esphome/components/cc1101/cc1101_text_sensor.h"))
     parent = await cg.get_variable(config[CONF_CC1101_ID])
 
     if CONF_RX_ATTENUATION in config:

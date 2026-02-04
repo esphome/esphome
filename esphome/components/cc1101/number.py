@@ -1,14 +1,23 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import number
-from esphome.const import (
-    CONF_ID, CONF_FREQUENCY, CONF_CHANNEL, CONF_OUTPUT_POWER, CONF_NUM_PREAMBLE,
-    CONF_SYNC1, CONF_SYNC0
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_CHANNEL, CONF_FREQUENCY
+
 from . import (
-    CC1101Component, CONF_IF_FREQUENCY, CONF_FILTER_BANDWIDTH, CONF_CHANNEL_SPACING,
-    CONF_FSK_DEVIATION, CONF_MSK_DEVIATION, CONF_SYMBOL_RATE, CONF_CARRIER_SENSE_ABS_THR,
-    CONF_PACKET_LENGTH, ns
+    CONF_CARRIER_SENSE_ABS_THR,
+    CONF_CHANNEL_SPACING,
+    CONF_FILTER_BANDWIDTH,
+    CONF_FSK_DEVIATION,
+    CONF_IF_FREQUENCY,
+    CONF_MSK_DEVIATION,
+    CONF_NUM_PREAMBLE,
+    CONF_OUTPUT_POWER,
+    CONF_PACKET_LENGTH,
+    CONF_SYMBOL_RATE,
+    CONF_SYNC0,
+    CONF_SYNC1,
+    CC1101Component,
+    ns,
 )
 
 CC1101Number = ns.class_("CC1101Number", number.Number, cg.PollingComponent)
@@ -37,7 +46,7 @@ TYPES_TUNER = {
         "func": "set_frequency",
         "min": 300.0e6,
         "max": 928.0e6,
-        "step": 1000.0, # 1kHz step
+        "step": 1000.0,  # 1kHz step
     },
     CONF_IF_FREQUENCY: {
         "func": "set_if_frequency",
@@ -46,7 +55,7 @@ TYPES_TUNER = {
         "step": 1000.0,
     },
     CONF_FILTER_BANDWIDTH: {
-        "func": "set_filter_bandwidth", # Uses "bandwidth" as key in user example? No, usually specific. User example: "bandwidth"
+        "func": "set_filter_bandwidth",  # Uses "bandwidth" as key in user example? No, usually specific. User example: "bandwidth"
         "key_override": "bandwidth",
         "min": 58000,
         "max": 812000,
@@ -111,55 +120,73 @@ TYPES_AGC = {
     },
 }
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_CC1101_ID): cv.use_id(CC1101Component),
-}).extend(cv.polling_component_schema("60s"))
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_CC1101_ID): cv.use_id(CC1101Component),
+    }
+).extend(cv.polling_component_schema("60s"))
 
 # Root
 for type, data in TYPES_ROOT.items():
-    CONFIG_SCHEMA = CONFIG_SCHEMA.extend({
-        cv.Optional(type): number.number_schema(CC1101Number).extend({
-            cv.Optional("min_value", default=data["min"]): cv.float_,
-            cv.Optional("max_value", default=data["max"]): cv.float_,
-            cv.Optional("step", default=data["step"]): cv.float_,
-        }),
-    })
+    CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
+        {
+            cv.Optional(type): number.number_schema(CC1101Number).extend(
+                {
+                    cv.Optional("min_value", default=data["min"]): cv.float_,
+                    cv.Optional("max_value", default=data["max"]): cv.float_,
+                    cv.Optional("step", default=data["step"]): cv.float_,
+                }
+            ),
+        }
+    )
 
 # Tuner
 TUNER_SCHEMA = cv.Schema({})
 for type, data in TYPES_TUNER.items():
     key = data.get("key_override", type)
-    TUNER_SCHEMA = TUNER_SCHEMA.extend({
-        cv.Optional(key): number.number_schema(CC1101Number).extend({
-            cv.Optional("min_value", default=data["min"]): cv.float_,
-            cv.Optional("max_value", default=data["max"]): cv.float_,
-            cv.Optional("step", default=data["step"]): cv.float_,
-        }),
-    })
+    TUNER_SCHEMA = TUNER_SCHEMA.extend(
+        {
+            cv.Optional(key): number.number_schema(CC1101Number).extend(
+                {
+                    cv.Optional("min_value", default=data["min"]): cv.float_,
+                    cv.Optional("max_value", default=data["max"]): cv.float_,
+                    cv.Optional("step", default=data["step"]): cv.float_,
+                }
+            ),
+        }
+    )
 CONFIG_SCHEMA = CONFIG_SCHEMA.extend({cv.Optional(CONF_TUNER): TUNER_SCHEMA})
 
 # AGC
 AGC_SCHEMA = cv.Schema({})
 for type, data in TYPES_AGC.items():
-    AGC_SCHEMA = AGC_SCHEMA.extend({
-        cv.Optional(type): number.number_schema(CC1101Number).extend({
-            cv.Optional("min_value", default=data["min"]): cv.float_,
-            cv.Optional("max_value", default=data["max"]): cv.float_,
-            cv.Optional("step", default=data["step"]): cv.float_,
-        }),
-    })
+    AGC_SCHEMA = AGC_SCHEMA.extend(
+        {
+            cv.Optional(type): number.number_schema(CC1101Number).extend(
+                {
+                    cv.Optional("min_value", default=data["min"]): cv.float_,
+                    cv.Optional("max_value", default=data["max"]): cv.float_,
+                    cv.Optional("step", default=data["step"]): cv.float_,
+                }
+            ),
+        }
+    )
 CONFIG_SCHEMA = CONFIG_SCHEMA.extend({cv.Optional(CONF_AGC): AGC_SCHEMA})
 
 
 async def to_code(config):
-    cg.add(cg.include("esphome/components/cc1101/cc1101_number.h"))
     parent = await cg.get_variable(config[CONF_CC1101_ID])
 
     # Root
     for type, data in TYPES_ROOT.items():
         if type in config:
             conf = config[type]
-            var = await number.new_number(conf, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+            var = await number.new_number(
+                conf,
+                min_value=conf["min_value"],
+                max_value=conf["max_value"],
+                step=conf["step"],
+            )
             await cg.register_component(var, conf)
             cg.add(var.set_parent(parent))
             cg.add(var.set_type(getattr(CC1101Number, type.upper())))
@@ -171,7 +198,12 @@ async def to_code(config):
             key = data.get("key_override", type)
             if key in tuner_config:
                 conf = tuner_config[key]
-                var = await number.new_number(conf, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+                var = await number.new_number(
+                    conf,
+                    min_value=conf["min_value"],
+                    max_value=conf["max_value"],
+                    step=conf["step"],
+                )
                 await cg.register_component(var, conf)
                 cg.add(var.set_parent(parent))
                 cg.add(var.set_type(getattr(CC1101Number, type.upper())))
@@ -182,7 +214,12 @@ async def to_code(config):
         for type, data in TYPES_AGC.items():
             if type in agc_config:
                 conf = agc_config[type]
-                var = await number.new_number(conf, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+                var = await number.new_number(
+                    conf,
+                    min_value=conf["min_value"],
+                    max_value=conf["max_value"],
+                    step=conf["step"],
+                )
                 await cg.register_component(var, conf)
                 cg.add(var.set_parent(parent))
                 cg.add(var.set_type(getattr(CC1101Number, type.upper())))
