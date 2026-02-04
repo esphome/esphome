@@ -152,6 +152,10 @@ void CSE7766Component::parse_data_() {
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(power);
     }
+  } else if (this->power_sensor_ != nullptr) {
+    // No valid power measurement from chip - publish 0W to avoid stale readings
+    // This typically happens when current is below the measurable threshold (~50mA)
+    this->power_sensor_->publish_state(0.0f);
   }
 
   float current = 0.0f;
