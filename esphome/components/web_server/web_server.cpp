@@ -721,11 +721,7 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
     }
 
     if (action != SWITCH_ACTION_NONE) {
-#ifdef USE_ESP8266
-      execute_switch_action(obj, action);
-#else
       this->defer([obj, action]() { execute_switch_action(obj, action); });
-#endif
       request->send(200);
     } else {
       request->send(404);
@@ -1645,11 +1641,7 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
     }
 
     if (action != LOCK_ACTION_NONE) {
-#ifdef USE_ESP8266
-      execute_lock_action(obj, action);
-#else
       this->defer([obj, action]() { execute_lock_action(obj, action); });
-#endif
       request->send(200);
     } else {
       request->send(404);
@@ -2015,19 +2007,14 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
       return;
     }
 
-#ifdef USE_ESP8266
-    // ESP8266 is single-threaded, call directly
-    call.set_raw_timings_base64url(encoded);
-    call.perform();
-#else
     // Defer to main loop for thread safety. Move encoded string into lambda to ensure
     // it outlives the call - set_raw_timings_base64url stores a pointer, so the string
     // must remain valid until perform() completes.
+    // ESP8266 also needs this because ESPAsyncWebServer callbacks run in "sys" context.
     this->defer([call, encoded = std::move(encoded)]() mutable {
       call.set_raw_timings_base64url(encoded);
       call.perform();
     });
-#endif
 
     request->send(200);
     return;
