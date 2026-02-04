@@ -129,7 +129,7 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
   if (level > this->level_for(tag) || global_recursion_guard_)
     return;
 
-  this->log_message_to_buffer_and_send_P_(global_recursion_guard_, level, tag, line, format, args);
+  this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args);
 }
 #endif  // USE_STORE_LOG_STR_IN_FLASH
 

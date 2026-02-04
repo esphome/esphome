@@ -2,6 +2,7 @@
 
 #include <cstdarg>
 #include <map>
+#include <type_traits>
 #if defined(USE_ESP32) || defined(USE_HOST)
 #include <pthread.h>
 #endif
@@ -466,26 +467,20 @@ class Logger : public Component {
   }
 
   // Helper to format and send a log message to both console and listeners
+  // Template handles both const char* (RAM) and __FlashStringHelper* (flash) format strings
+  template<typename FormatType>
   inline void HOT log_message_to_buffer_and_send_(bool &recursion_guard, uint8_t level, const char *tag, int line,
-                                                  const char *format, va_list args) {
+                                                  FormatType format, va_list args) {
     RecursionGuard guard(recursion_guard);
     LogBuffer buf(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
-    this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf);
+    if constexpr (std::is_same_v<FormatType, const char *>) {
+      this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf);
+    } else {
+      this->format_log_to_buffer_with_terminator_P_(level, tag, line, format, args, buf);
+    }
     this->notify_listeners_(level, tag);
     this->write_log_buffer_to_console_(buf);
   }
-
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  // Helper to format and send a log message with flash format string (ESP8266)
-  inline void HOT log_message_to_buffer_and_send_P_(bool &recursion_guard, uint8_t level, const char *tag, int line,
-                                                    const __FlashStringHelper *format, va_list args) {
-    RecursionGuard guard(recursion_guard);
-    LogBuffer buf(this->tx_buffer_, this->tx_buffer_at_, this->tx_buffer_size_);
-    this->format_log_to_buffer_with_terminator_P_(level, tag, line, format, args, buf);
-    this->notify_listeners_(level, tag);
-    this->write_log_buffer_to_console_(buf);
-  }
-#endif
 
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // Helper to format a pre-formatted message from the task log buffer and notify listeners
