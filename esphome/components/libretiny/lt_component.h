@@ -4,6 +4,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/components/libretiny/uart_manager.h"
 
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
@@ -20,11 +21,16 @@ class LTComponent : public Component {
   float get_setup_priority() const override;
   void dump_config() override;
 
+  UartManager& get_uart_manager() { return uart_manager_; }
+
 #ifdef USE_TEXT_SENSOR
   void set_version_sensor(text_sensor::TextSensor *version) { version_ = version; }
 #endif  // USE_TEXT_SENSOR
 
  protected:
+
+  UartManager uart_manager_;
+
 #ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *version_{nullptr};
 #endif  // USE_TEXT_SENSOR

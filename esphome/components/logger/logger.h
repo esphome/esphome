@@ -22,7 +22,7 @@
 #endif
 
 #if defined(USE_LIBRETINY)
-#include "esphome/components/libretiny/uart_manager.h"
+#include "esphome/components/libretiny/lt_component.h"
 #endif
 
 #ifdef USE_ARDUINO
@@ -193,6 +193,7 @@ class Logger : public Component {
 #endif
 #if defined(USE_LIBRETINY)
   int8_t get_hw_serial_number() { return hardware_idx_; }
+  void set_lt_component(libretiny::LTComponent* lt_component) { this->lt_component_ = lt_component; }
 #endif
 #ifdef USE_HOST
   void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
@@ -403,7 +404,7 @@ class Logger : public Component {
 #endif
 #if defined(USE_LIBRETINY)
   int8_t hardware_idx_{-1};
-  libretiny::UartManager uart_manager_;  // this can be one instance, shared by uart & logger
+  libretiny::LTComponent* lt_component_{nullptr};
 #endif
 #ifdef USE_HOST
   // Thread-specific recursion guards using pthread TLS

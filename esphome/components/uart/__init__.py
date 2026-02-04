@@ -51,6 +51,7 @@ def AUTO_LOAD() -> list[str]:
         return ["socket"]
     return []
 
+CONF_LIBRETINY = "libretiny"
 
 uart_ns = cg.esphome_ns.namespace("uart")
 UARTComponent = uart_ns.class_("UARTComponent")
@@ -341,6 +342,10 @@ async def to_code(config):
     cg.add_global(uart_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    if CORE.is_libretiny:
+        lt_component = await cg.get_variable(config[CONF_LIBRETINY])
+        cg.add(var.set_lt_component(lt_component))
 
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
 

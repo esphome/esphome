@@ -34,14 +34,15 @@ constexpr UARTSelection lt_uart_number_2_esphome(uint8_t lt_uart) {
 static const char *const TAG = "logger";
 
 void Logger::pre_setup() {
-  global_logger = this;
   if (this->baud_rate_ > 0) {
+    auto & uart_manager = this->lt_component_->get_uart_manager();
     auto lt_uart = esphome_uart_number_2_lt(this->uart_);
-    if (!this->uart_manager_.init_uart_for_logger(lt_uart, this->baud_rate_)) {
+    if (!uart_manager.init_uart_for_logger(lt_uart, this->baud_rate_)) {
       lt_uart = LT_UART_DEFAULT_SERIAL;
-      if (!this->uart_manager_.init_uart_for_logger(lt_uart, this->baud_rate_)) {
-        ESP_LOGW(TAG, "  Failed to initialize logger UART port. Logging disabled.");
+      if (!uart_manager.init_uart_for_logger(lt_uart, this->baud_rate_)) {
+        ESP_LOGW(TAG, "  Failed to initialize default logger uart UART%d. Logging disabled.", LT_UART_DEFAULT_SERIAL);
         this->baud_rate_ = 0;
+        global_logger = this;
         return;
       } else {
         ESP_LOGW(TAG,
@@ -54,10 +55,11 @@ void Logger::pre_setup() {
     lt_log_set_port(lt_uart);
 
     this->hardware_idx_ = lt_uart;
-    this->hw_serial_ = this->uart_manager_.get_hw_serial_by_number(lt_uart);
+    this->hw_serial_ = uart_manager.get_hw_serial_by_number(lt_uart);
   }
 
   ESP_LOGI(TAG, "Log initialized");
+  global_logger = this;
 }
 
 void HOT Logger::write_msg_(const char *msg, size_t len) { this->hw_serial_->write(msg, len); }

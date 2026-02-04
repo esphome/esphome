@@ -98,6 +98,7 @@ USB_CDC = "USB_CDC"
 DEFAULT = "DEFAULT"
 
 CONF_INITIAL_LEVEL = "initial_level"
+CONF_LIBRETINY = "libretiny"
 CONF_LOGGER_ID = "logger_id"
 CONF_RUNTIME_TAG_LEVELS = "runtime_tag_levels"
 CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
@@ -311,6 +312,9 @@ async def to_code(config):
         baud_rate,
         config[CONF_TX_BUFFER_SIZE],
     )
+    if CORE.is_libretiny:
+        lt_component = await cg.get_variable(config[CONF_LIBRETINY])
+        cg.add(log.set_lt_component(lt_component))
     if CORE.is_esp32:
         cg.add(log.create_pthread_key())
     if CORE.is_esp32 or CORE.is_libretiny:

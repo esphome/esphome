@@ -80,17 +80,19 @@ void LibreTinyUARTComponent::setup() {
   int8_t tx_pin = tx_pin_ == nullptr ? -1 : tx_pin_->get_pin();
   int8_t rx_pin = rx_pin_ == nullptr ? -1 : rx_pin_->get_pin();
 
+  auto & uart_manager = this->lt_component_->get_uart_manager();
+
   auto fallback_to_sw_serial = shouldFallbackToSoftwareSerial(rx_pin_, tx_pin_);
   if (!fallback_to_sw_serial) {
-    if (this->uart_manager_.init_uart(0, this->baud_rate_, get_config(), rx_pin, tx_pin)) {
+    if (uart_manager.init_uart(0, this->baud_rate_, get_config(), rx_pin, tx_pin)) {
       this->hardware_idx_ = 0;
-      this->serial_ = this->uart_manager_.get_hw_serial_by_number(0);
-    } else if (this->uart_manager_.init_uart(1, this->baud_rate_, get_config(), rx_pin, tx_pin)) {
+      this->serial_ = uart_manager.get_hw_serial_by_number(0);
+    } else if (uart_manager.init_uart(1, this->baud_rate_, get_config(), rx_pin, tx_pin)) {
       this->hardware_idx_ = 1;
-      this->serial_ = this->uart_manager_.get_hw_serial_by_number(1);
-    } else if (this->uart_manager_.init_uart(2, this->baud_rate_, get_config(), rx_pin, tx_pin)) {
+      this->serial_ = uart_manager.get_hw_serial_by_number(1);
+    } else if (uart_manager.init_uart(2, this->baud_rate_, get_config(), rx_pin, tx_pin)) {
       this->hardware_idx_ = 2;
-      this->serial_ = this->uart_manager_.get_hw_serial_by_number(2);
+      this->serial_ = uart_manager.get_hw_serial_by_number(2);
     } else {
       fallback_to_sw_serial = true;
       ESP_LOGI(TAG, "Selected pins don't match any hardware UART. Falling back to Software Serial.");
@@ -112,15 +114,15 @@ void LibreTinyUARTComponent::setup() {
     this->serial_ = new SoftwareSerial(rx_pin, tx_pin, rx_inverted || tx_inverted);
     this->serial_->begin(this->baud_rate_, get_config());
 #else
-    this->serial_ = this->uart_manager_.get_hw_serial_by_number(LT_UART_DEFAULT_SERIAL);
+    this->serial_ = uart_manager.get_hw_serial_by_number(LT_UART_DEFAULT_SERIAL);
     this->hardware_idx_ = LT_UART_DEFAULT_SERIAL;
     // use the default uart without changing pins
-    (void) this->uart_manager_.init_uart(LT_UART_DEFAULT_SERIAL, this->baud_rate_, get_config());
+    (void) uart_manager.init_uart(LT_UART_DEFAULT_SERIAL, this->baud_rate_, get_config());
 
     ESP_LOGE(TAG, "  SoftwareSerial is not implemented for this chip. Only hardware pins are supported:");
-    print_pins("UART0", this->uart_manager_.get_tx_pins_for_uart(0), this->uart_manager_.get_tx_pins_for_uart(0));
-    print_pins("UART1", this->uart_manager_.get_tx_pins_for_uart(1), this->uart_manager_.get_tx_pins_for_uart(1));
-    print_pins("UART2", this->uart_manager_.get_tx_pins_for_uart(2), this->uart_manager_.get_tx_pins_for_uart(2));
+    print_pins("UART0", uart_manager.get_tx_pins_for_uart(0), uart_manager.get_tx_pins_for_uart(0));
+    print_pins("UART1", uart_manager.get_tx_pins_for_uart(1), uart_manager.get_tx_pins_for_uart(1));
+    print_pins("UART2", uart_manager.get_tx_pins_for_uart(2), uart_manager.get_tx_pins_for_uart(2));
     this->mark_failed();
     return;
 #endif
