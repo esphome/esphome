@@ -12,7 +12,7 @@ from esphome.const import (
     UNIT_MICROGRAMS_PER_CUBIC_METER,
 )
 
-CODEOWNERS = ["@habbie"]
+CODEOWNERS = ["@tuct"]
 DEPENDENCIES = ["uart"]
 
 pm1003_ns = cg.esphome_ns.namespace("pm1003")
