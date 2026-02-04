@@ -16,7 +16,14 @@
   }
 
 #define PARSE_STR(field, field_name) \
-  { get_token(field); }
+  { \
+    get_token(field); \
+    if (strlen(field) < 2) { \
+      ESP_LOGD(TAG, "too short " field_name " in line %s", buffer.substr(0, buffer.size() - 2).c_str()); \
+      return; \
+    } \
+  }
+
 namespace esphome {
 namespace pylontech {
 
@@ -112,8 +119,9 @@ void PylontechComponent::process_line_(std::string &buffer) {
       cursor++;
     }
 
-    memcpy(token_buf, start, std::min(cursor - start, TEXT_SENSOR_MAX_LEN - 1));
-    token_buf[std::min((cursor - start), TEXT_SENSOR_MAX_LEN - 1)] = 0;
+    size_t token_len = std::min(static_cast<size_t>(cursor - start), static_cast<size_t>(TEXT_SENSOR_MAX_LEN - 1));
+    memcpy(token_buf, start, token_len);
+    token_buf[token_len] = 0;
   };
 
   {
@@ -188,3 +196,6 @@ float PylontechComponent::get_setup_priority() const { return setup_priority::DA
 
 }  // namespace pylontech
 }  // namespace esphome
+
+#undef PARSE_INT
+#undef PARSE_STR
