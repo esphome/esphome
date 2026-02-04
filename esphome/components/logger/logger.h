@@ -222,7 +222,7 @@ struct LogBuffer {
     this->finalize_();
   }
 #endif
-  void write_body(const char *text, size_t text_length) {
+  void write_body(const char *text, uint16_t text_length) {
     this->write_(text, text_length);
     this->finalize_();
   }
@@ -231,9 +231,9 @@ struct LogBuffer {
   bool full_() const { return this->pos >= this->size; }
   uint16_t remaining_() const { return this->size - this->pos; }
   char *current_() { return this->data + this->pos; }
-  void write_(const char *value, size_t length) {
+  void write_(const char *value, uint16_t length) {
     const uint16_t available = this->remaining_();
-    const size_t copy_len = (length < static_cast<size_t>(available)) ? length : available;
+    const uint16_t copy_len = (length < available) ? length : available;
     if (copy_len > 0) {
       memcpy(this->current_(), value, copy_len);
       this->pos += copy_len;
@@ -491,7 +491,7 @@ class Logger : public Component {
   // Helper to format a pre-formatted message from the task log buffer and notify listeners
   // Used by process_messages_ to avoid code duplication between ESP32 and host platforms
   inline void HOT format_buffered_message_and_notify_(uint8_t level, const char *tag, uint16_t line,
-                                                      const char *thread_name, const char *text, size_t text_length,
+                                                      const char *thread_name, const char *text, uint16_t text_length,
                                                       LogBuffer &buf) {
     buf.write_header(level, tag, line, thread_name);
     buf.write_body(text, text_length);
