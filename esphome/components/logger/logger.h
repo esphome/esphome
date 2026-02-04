@@ -137,7 +137,10 @@ struct LogBuffer {
   LogBuffer(char *buf, uint16_t &buf_pos, uint16_t buf_size) : data(buf), pos(buf_pos), size(buf_size) {
     this->pos = 0;
   }
-  void add_newline() {
+  // Replaces the null terminator with a newline for console output.
+  // Must be called after notify_listeners_() since listeners need null-terminated strings.
+  // Console output uses length-based writes (buf.pos), so null terminator is not needed.
+  void terminate_with_newline() {
     if (this->pos < this->size) {
       this->data[this->pos++] = '\n';
     } else if (this->size > 0) {
@@ -450,9 +453,9 @@ class Logger : public Component {
 #endif
   }
 
-  // Helper to write log buffer to console (adds newline and writes)
+  // Helper to write log buffer to console (replaces null terminator with newline and writes)
   inline void HOT write_to_console_(LogBuffer &buf) {
-    buf.add_newline();
+    buf.terminate_with_newline();
     this->write_msg_(buf);
   }
 
