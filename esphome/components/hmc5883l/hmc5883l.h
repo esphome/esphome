@@ -39,7 +39,6 @@ class HMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
   void set_oversampling(HMC5883LOversampling oversampling) { oversampling_ = oversampling; }

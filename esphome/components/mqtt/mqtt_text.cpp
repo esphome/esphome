@@ -53,7 +53,8 @@ bool MQTTTextComponent::send_initial_state() {
   }
 }
 bool MQTTTextComponent::publish_state(const std::string &value) {
-  return this->publish(this->get_state_topic_(), value);
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish(this->get_state_topic_to_(topic_buf), value.data(), value.size());
 }
 
 }  // namespace esphome::mqtt

@@ -14,7 +14,6 @@ class NTC : public Component, public sensor::Sensor {
   void set_c(double c) { c_ = c; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
  protected:
   void process_(float value);

@@ -4,6 +4,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
     add_idf_sdkconfig_option,
+    include_builtin_idf_component,
     only_on_variant,
     require_vfs_select,
 )
@@ -172,6 +173,9 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
+    # Re-enable openthread IDF component (excluded by default)
+    include_builtin_idf_component("openthread")
+
     cg.add_define("USE_OPENTHREAD")
 
     # OpenThread SRP needs access to mDNS services after setup

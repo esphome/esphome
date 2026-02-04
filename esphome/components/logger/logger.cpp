@@ -128,22 +128,7 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
 // Note: USE_STORE_LOG_STR_IN_FLASH is only defined for ESP8266.
 //
 // This function handles format strings stored in flash memory (PROGMEM) to save RAM.
-// The buffer is used in a special way to avoid allocating extra memory:
-//
-// Memory layout during execution:
-// Step 1: Copy format string from flash to buffer
-//         tx_buffer_: [format_string][null][.....................]
-//         tx_buffer_at_: ------------------^
-//         msg_start: saved here -----------^
-//
-// Step 2: format_log_to_buffer_with_terminator_ reads format string from beginning
-//         and writes formatted output starting at msg_start position
-//         tx_buffer_: [format_string][null][formatted_message][null]
-//         tx_buffer_at_: -------------------------------------^
-//
-// Step 3: Output the formatted message (starting at msg_start)
-//         write_msg_ and callbacks receive: this->tx_buffer_ + msg_start
-//         which points to: [formatted_message][null]
+// Uses vsnprintf_P to read the format string directly from flash without copying to RAM.
 //
 void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format,
                           va_list args) {  // NOLINT
@@ -153,35 +138,25 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
   RecursionGuard guard(global_recursion_guard_);
   this->tx_buffer_at_ = 0;
 
-  // Copy format string from progmem
-  auto *format_pgm_p = reinterpret_cast<const uint8_t *>(format);
-  char ch = '.';
-  while (this->tx_buffer_at_ < this->tx_buffer_size_ && ch != '\0') {
-    this->tx_buffer_[this->tx_buffer_at_++] = ch = (char) progmem_read_byte(format_pgm_p++);
-  }
+  // Write header, format body directly from flash, and write footer
+  this->write_header_to_buffer_(level, tag, line, nullptr, this->tx_buffer_, &this->tx_buffer_at_,
+                                this->tx_buffer_size_);
+  this->format_body_to_buffer_P_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_,
+                                 reinterpret_cast<PGM_P>(format), args);
+  this->write_footer_to_buffer_(this->tx_buffer_, &this->tx_buffer_at_, this->tx_buffer_size_);
 
-  // Buffer full from copying format - RAII guard handles cleanup on return
-  if (this->tx_buffer_at_ >= this->tx_buffer_size_) {
-    return;
-  }
-
-  // Save the offset before calling format_log_to_buffer_with_terminator_
-  // since it will increment tx_buffer_at_ to the end of the formatted string
-  uint16_t msg_start = this->tx_buffer_at_;
-  this->format_log_to_buffer_with_terminator_(level, tag, line, this->tx_buffer_, args, this->tx_buffer_,
-                                              &this->tx_buffer_at_, this->tx_buffer_size_);
-
-  uint16_t msg_length =
-      this->tx_buffer_at_ - msg_start;  // Don't subtract 1 - tx_buffer_at_ is already at the null terminator position
+  // Ensure null termination
+  uint16_t null_pos = this->tx_buffer_at_ >= this->tx_buffer_size_ ? this->tx_buffer_size_ - 1 : this->tx_buffer_at_;
+  this->tx_buffer_[null_pos] = '\0';
 
   // Listeners get message first (before console write)
 #ifdef USE_LOG_LISTENERS
   for (auto *listener : this->log_listeners_)
-    listener->on_log(level, tag, this->tx_buffer_ + msg_start, msg_length);
+    listener->on_log(level, tag, this->tx_buffer_, this->tx_buffer_at_);
 #endif
 
-  // Write to console starting at the msg_start
-  this->write_tx_buffer_to_console_(msg_start, &msg_length);
+  // Write to console
+  this->write_tx_buffer_to_console_();
 }
 #endif  // USE_STORE_LOG_STR_IN_FLASH
 
