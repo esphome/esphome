@@ -79,8 +79,6 @@ class ModemHandler {
   void send_init_at();
   // void update_network_state();
   bool prepare_sim();
-  std::string flush_uart(uint32_t timeout);
-  std::string flush_uart() { return this->flush_uart(this->command_delay); }
 };
 
 }  // namespace modem

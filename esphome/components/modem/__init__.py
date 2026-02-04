@@ -58,7 +58,16 @@ CONF_NMEA = "nmea"
 CONF_GNSS_COMMAND = "gnss_command"
 CONF_GNSS_PARSER = "gnss_parser"
 
-MODEM_MODELS = ["BG96", "SIM800", "SIM7000", "SIM7070", "SIM7080", "SIM7600", "SIM7670", "GENERIC"]
+MODEM_MODELS = [
+    "BG96",
+    "SIM800",
+    "SIM7000",
+    "SIM7070",
+    "SIM7080",
+    "SIM7600",
+    "SIM7670",
+    "GENERIC",
+]
 MODEM_MODELS_POWER = {
     "BG96": {
         CONF_TON_PULSE_DELAY: 600,
@@ -362,6 +371,7 @@ async def to_code(config):
     add_idf_sdkconfig_option(
         "CONFIG_ESP_MODEM_CMUX_USE_SHORT_PAYLOADS_ONLY", True
     )  # Slower but more reliable
+    add_idf_sdkconfig_option("CONFIG_ESP_MODEM_URC_HANDLER", True)
 
     # If "Uart queue full" messages appear (e.g., with A7672), these config options might need adjustment
     # See: https://github.com/espressif/esp-protocols/issues/272#issuecomment-1558682967

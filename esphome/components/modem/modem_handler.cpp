@@ -18,6 +18,22 @@ static const char *const TAG = "modem_handler";
     ESP_LOGE(TAG, message ": %s", command_result_to_string(err).c_str()); \
   }
 
+// Define a static free function for URC handling
+esp_modem::DTE::UrcConsumeInfo static_urc_handler(const esp_modem::DTE::UrcBufferInfo &buffer_info) {
+  if (!buffer_info.is_command_active) {
+    std::string line(reinterpret_cast<const char *>(buffer_info.new_data_start), buffer_info.new_data_size);
+    ESP_LOGD(TAG, "Modem URC: %s", line.c_str());
+    // Handle URC lines here if needed
+    // Note: This static function does not have access to `this` (ModemHandler instance).
+    // If `this` is required, a different approach (e.g., passing a pointer via user_data if API allows)
+    // would be necessary, or reconsidering the use of std::bind with a member function.
+    // return esp_modem::DTE::UrcConsumeInfo{esp_modem::DTE::UrcConsumeResult::CONSUME_ALL, SIZE_MAX};
+    // return esp_modem::DTE::UrcConsumeInfo{esp_modem::DTE::UrcConsumeResult::CONSUME_PARTIAL,
+    // buffer_info.new_data_size};
+  }
+  return esp_modem::DTE::UrcConsumeInfo{esp_modem::DTE::UrcConsumeResult::CONSUME_NONE, 0};
+}
+
 void ModemHandler::modem_create_dte_dce(int baud_rate) {
   this->current_baud_rate = baud_rate;
 
@@ -60,6 +76,7 @@ void ModemHandler::modem_create_dte_dce(int baud_rate) {
     ESP_LOGE(TAG, "Invalid model %s. DCE not created.", this->model.c_str());
     return;
   }
+  this->dce->set_enhanced_urc(static_urc_handler);
   ESP_LOGV(TAG, "DTE/DCE created.");
 }
 
@@ -158,7 +175,6 @@ void ModemHandler::modem_log_status() {
 void ModemHandler::send_init_at() {
   for (const auto &cmd : this->init_at_commands) {
     App.feed_wdt();
-    this->flush_uart();
     AtCommandResult result = this->send_at(cmd);
     if (result.success) {
       ESP_LOGI(TAG, "init_at %s: %s", cmd.c_str(), result.output.c_str());
@@ -167,7 +183,6 @@ void ModemHandler::send_init_at() {
     }
     delay(200);  // NOLINT
   }
-  this->flush_uart();
 }
 
 bool ModemHandler::prepare_sim() {
@@ -223,26 +238,6 @@ void ModemHandler::ip_event_handler(void *arg, esp_event_base_t event_base, int3
       handler->network_infos.got_ip = false;
       break;
   }
-}
-
-std::string ModemHandler::flush_uart(uint32_t timeout) {
-  size_t cleaned = 0;
-  std::string output;
-  if (this->dce) {
-    this->dce->command(
-        "",
-        [&](uint8_t *data, size_t len) {
-          cleaned = len;
-          output.assign(reinterpret_cast<char *>(data), len);
-          return command_result::OK;
-        },
-        timeout);
-  }
-
-  if (cleaned != 0) {
-    ESP_LOGV(TAG, "Flushed %d bytes from modem buffer: %s", cleaned, output.c_str());
-  }
-  return output;
 }
 
 }  // namespace modem
