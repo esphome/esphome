@@ -5,7 +5,7 @@ namespace esphome::template_ {
 
 static const char *const TAG = "template.switch";
 
-TemplateSwitch::TemplateSwitch() : turn_on_trigger_(new Trigger<>()), turn_off_trigger_(new Trigger<>()) {}
+TemplateSwitch::TemplateSwitch() = default;
 
 void TemplateSwitch::loop() {
   auto s = this->f_();
@@ -19,11 +19,11 @@ void TemplateSwitch::write_state(bool state) {
   }
 
   if (state) {
-    this->prev_trigger_ = this->turn_on_trigger_;
-    this->turn_on_trigger_->trigger();
+    this->prev_trigger_ = &this->turn_on_trigger_;
+    this->turn_on_trigger_.trigger();
   } else {
-    this->prev_trigger_ = this->turn_off_trigger_;
-    this->turn_off_trigger_->trigger();
+    this->prev_trigger_ = &this->turn_off_trigger_;
+    this->turn_off_trigger_.trigger();
   }
 
   if (this->optimistic_)
@@ -32,8 +32,8 @@ void TemplateSwitch::write_state(bool state) {
 void TemplateSwitch::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 bool TemplateSwitch::assumed_state() { return this->assumed_state_; }
 float TemplateSwitch::get_setup_priority() const { return setup_priority::HARDWARE - 2.0f; }
-Trigger<> *TemplateSwitch::get_turn_on_trigger() const { return this->turn_on_trigger_; }
-Trigger<> *TemplateSwitch::get_turn_off_trigger() const { return this->turn_off_trigger_; }
+Trigger<> *TemplateSwitch::get_turn_on_trigger() { return &this->turn_on_trigger_; }
+Trigger<> *TemplateSwitch::get_turn_off_trigger() { return &this->turn_off_trigger_; }
 void TemplateSwitch::setup() {
   if (!this->f_.has_value())
     this->disable_loop();
