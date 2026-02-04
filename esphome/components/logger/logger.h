@@ -41,11 +41,6 @@
 struct device;
 #endif
 
-// Platforms that support thread names in log output
-#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR) || defined(USE_HOST)
-#define USE_LOGGER_THREAD_NAME
-#endif
-
 namespace esphome::logger {
 
 /** Interface for receiving log messages without std::function overhead.
@@ -192,7 +187,7 @@ struct LogBuffer {
     *p++ = '0' + (remainder - tens * 10);
     *p++ = ']';
 
-#ifdef USE_LOGGER_THREAD_NAME
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR) || defined(USE_HOST)
     // Write thread name with bold red color
     if (thread_name != nullptr) {
       this->write_ansi_color_(p, 1);  // Bold red for thread name
