@@ -450,12 +450,16 @@ class Logger : public Component {
 #endif
   }
 
+  // Helper to write log buffer to console (adds newline and writes)
+  inline void HOT write_to_console_(LogBuffer &buf) {
+    buf.add_newline();
+    this->write_msg_(buf);
+  }
+
   // Helper to write log buffer to console if logging is enabled
   inline void HOT write_log_buffer_to_console_(LogBuffer &buf) {
-    if (this->baud_rate_ > 0) {
-      buf.add_newline();
-      this->write_msg_(buf);
-    }
+    if (this->baud_rate_ > 0)
+      this->write_to_console_(buf);
   }
 
   // Helper to format and send a log message to both console and listeners

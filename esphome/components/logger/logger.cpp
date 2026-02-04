@@ -102,9 +102,7 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
     uint16_t console_pos;
     LogBuffer buf(console_buffer, console_pos, MAX_CONSOLE_LOG_MSG_SIZE);
     this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf);
-    // Add newline before writing to console
-    buf.add_newline();
-    this->write_msg_(buf);
+    this->write_to_console_(buf);
   }
 
   // RAII guard automatically resets on return
