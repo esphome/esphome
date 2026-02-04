@@ -195,7 +195,16 @@ struct LogBuffer {
     *p++ = ']';
 
 #ifdef USE_LOGGER_THREAD_NAME
-    this->write_thread_name_(p, thread_name, level);
+    // Write thread name with bold red color
+    if (thread_name != nullptr) {
+      this->write_ansi_color_(p, 1);  // Bold red for thread name
+      *p++ = '[';
+      const size_t name_len = strlen(thread_name);
+      memcpy(p, thread_name, name_len);
+      p += name_len;
+      *p++ = ']';
+      this->write_ansi_color_(p, level);  // Restore original color
+    }
 #endif
 
     *p++ = ':';
@@ -276,21 +285,6 @@ struct LogBuffer {
     *p++ = LOG_LEVEL_COLOR_DIGIT[level];
     *p++ = 'm';
   }
-#ifdef USE_LOGGER_THREAD_NAME
-  // Write thread name with bold red color, updates pointer in place
-  // Caller is responsible for ensuring buffer has sufficient space
-  void write_thread_name_(char *&p, const char *thread_name, uint8_t level) {
-    if (thread_name == nullptr)
-      return;
-    this->write_ansi_color_(p, 1);  // Bold red for thread name
-    *p++ = '[';
-    const size_t name_len = strlen(thread_name);
-    memcpy(p, thread_name, name_len);
-    p += name_len;
-    *p++ = ']';
-    this->write_ansi_color_(p, level);  // Restore original color
-  }
-#endif
 };
 
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
