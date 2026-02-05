@@ -14,6 +14,14 @@ sensor:
       id: pyl01_soc
     mos_temperature:
       id: pyl01_mos_temperature
+    state_of_health:
+      id: pyl01_soh
+    cycle_count:
+      id: pyl01_cycles
+    design_capacity:
+      id: pyl01_design_capacity
+    remaining_capacity:
+      id: pyl01_remaining_capacity
   - platform: pylontech
     pylontech_id: pylontech1
     battery: 1

@@ -7,7 +7,7 @@ from esphome.const import CONF_ID
 
 _LOGGER = logging.getLogger(__name__)
 
-CODEOWNERS = ["@functionpointer"]
+CODEOWNERS = ["@functionpointer", "@robert-hromej"]
 DEPENDENCIES = ["uart"]
 MULTI_CONF = True
 

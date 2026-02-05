@@ -23,6 +23,10 @@ void PylontechSensor::dump_config() {
   LOG_SENSOR("  ", "Voltage high", this->voltage_high_sensor_);
   LOG_SENSOR("  ", "Coulomb", this->coulomb_sensor_);
   LOG_SENSOR("  ", "MOS Temperature", this->mos_temperature_sensor_);
+  LOG_SENSOR("  ", "State of Health", this->state_of_health_sensor_);
+  LOG_SENSOR("  ", "Cycle count", this->cycle_count_sensor_);
+  LOG_SENSOR("  ", "Design capacity", this->design_capacity_sensor_);
+  LOG_SENSOR("  ", "Remaining capacity", this->remaining_capacity_sensor_);
 }
 
 void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
@@ -55,6 +59,24 @@ void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
   }
   if (this->mos_temperature_sensor_ != nullptr) {
     this->mos_temperature_sensor_->publish_state(((float) line->mostempr) / 1000.0f);
+  }
+}
+
+void PylontechSensor::on_soh_read(PylontechListener::SohContents *soh) {
+  if (this->bat_num_ != soh->bat_num) {
+    return;
+  }
+  if (this->state_of_health_sensor_ != nullptr) {
+    this->state_of_health_sensor_->publish_state(soh->soh_pct);
+  }
+  if (this->cycle_count_sensor_ != nullptr) {
+    this->cycle_count_sensor_->publish_state(soh->cycles);
+  }
+  if (this->design_capacity_sensor_ != nullptr) {
+    this->design_capacity_sensor_->publish_state(((float) soh->design_capacity_mah) / 1000.0f);
+  }
+  if (this->remaining_capacity_sensor_ != nullptr) {
+    this->remaining_capacity_sensor_->publish_state(((float) soh->remaining_capacity_mah) / 1000.0f);
   }
 }
 

@@ -10,6 +10,8 @@ namespace pylontech {
 static const uint8_t NUM_BUFFERS = 20;
 static const uint8_t TEXT_SENSOR_MAX_LEN = 14;
 
+enum ResponseType : uint8_t { RESPONSE_PWR, RESPONSE_SOH };
+
 class PylontechListener {
  public:
   struct LineContents {
@@ -18,7 +20,16 @@ class PylontechListener {
          temp_st[TEXT_SENSOR_MAX_LEN] = {0};
   };
 
+  struct SohContents {
+    int bat_num = 0;
+    int cycles = 0;
+    int soh_pct = 0;
+    int design_capacity_mah = 0;
+    int remaining_capacity_mah = 0;
+  };
+
   virtual void on_line_read(LineContents *line);
+  virtual void on_soh_read(SohContents *soh) {}
   virtual void dump_config();
 };
 
@@ -38,12 +49,14 @@ class PylontechComponent : public PollingComponent, public uart::UARTDevice {
 
  protected:
   void process_line_(std::string &buffer);
+  void process_soh_line_(std::string &buffer);
 
   // ring buffer
   std::string buffer_[NUM_BUFFERS];
   int buffer_index_write_ = 0;
   int buffer_index_read_ = 0;
   bool has_tlow_id_ = false;
+  ResponseType response_type_ = RESPONSE_PWR;
 
   std::vector<PylontechListener *> listeners_{};
 };

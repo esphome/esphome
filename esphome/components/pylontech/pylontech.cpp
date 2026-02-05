@@ -53,7 +53,10 @@ void PylontechComponent::setup() {
   }
 }
 
-void PylontechComponent::update() { this->write_str("pwr\n"); }
+void PylontechComponent::update() {
+  this->write_str("pwr\n");
+  this->write_str("soh\n");
+}
 
 void PylontechComponent::loop() {
   if (this->available() > 0) {
@@ -86,16 +89,19 @@ void PylontechComponent::loop() {
 void PylontechComponent::process_line_(std::string &buffer) {
   ESP_LOGV(TAG, "Read from serial: %s", buffer.substr(0, buffer.size() - 2).c_str());
   // clang-format off
-  // example lines to parse:
+  // pwr example lines to parse:
   // Power Volt   Curr   Tempr  Tlow   Thigh  Vlow   Vhigh  Base.St  Volt.St  Curr.St  Temp.St  Coulomb  Time                 B.V.St   B.T.St   MosTempr M.T.St
   // 1     50548  8910   25000  24200  25000  3368   3371   Charge   Normal   Normal   Normal   97%      2021-06-30 20:49:45  Normal  Normal  22700    Normal
   // 1     46012  1255   9100   5300   5500   3047   3091   SysError Low      Normal   Normal   4%       2025-11-28 17:56:33  Low      Normal  7800     Normal
   // newer firmware example:
   // Power Volt Curr Tempr Tlow Tlow.Id Thigh Thigh.Id Vlow Vlow.Id Vhigh Vhigh.Id Base.St Volt.St Curr.St Temp.St Coulomb Time                B.V.St B.T.St MosTempr M.T.St SysAlarm.St
   // 1     49405 0   17600 13700 8      14500 0        3293 2       3294   0       Idle    Normal  Normal  Normal  60%     2025-12-05 00:53:41 Normal Normal 16600    Normal Normal
+  //
+  // soh example lines to parse:
+  // Addr  Cycle  SOH    Design   Remain
+  // 1     127    98%    74000    72520
+  // 2     125    99%    74000    73260
   // clang-format on
-
-  PylontechListener::LineContents l{};
 
   const char *cursor = buffer.c_str();
   char token_buf[TEXT_SENSOR_MAX_LEN] = {0};
@@ -124,22 +130,39 @@ void PylontechComponent::process_line_(std::string &buffer) {
     token_buf[token_len] = 0;
   };
 
-  {
-    get_token(token_buf);
-    auto val = parse_number<int>(token_buf);
-    if (val.has_value() && val.value() > 0) {
-      l.bat_num = val.value();
-    } else if (strcmp(token_buf, "Power") == 0) {
-      // header line i.e. "Power Volt   Curr" and so on
-      this->has_tlow_id_ = buffer.find("Tlow.Id") != std::string::npos;
-      ESP_LOGD(TAG, "header line %s Tlow.Id: %s", this->has_tlow_id_ ? "with" : "without",
-               buffer.substr(0, buffer.size() - 2).c_str());
-      return;
-    } else {
-      ESP_LOGD(TAG, "unknown line %s", buffer.substr(0, buffer.size() - 2).c_str());
-      return;
-    }
+  get_token(token_buf);
+
+  // Detect header lines and set response type
+  if (strcmp(token_buf, "Power") == 0) {
+    this->response_type_ = RESPONSE_PWR;
+    this->has_tlow_id_ = buffer.find("Tlow.Id") != std::string::npos;
+    ESP_LOGD(TAG, "pwr header %s Tlow.Id", this->has_tlow_id_ ? "with" : "without");
+    return;
   }
+
+  if (strcmp(token_buf, "Addr") == 0) {
+    this->response_type_ = RESPONSE_SOH;
+    ESP_LOGD(TAG, "soh header");
+    return;
+  }
+
+  // Try parsing first token as battery number
+  auto val = parse_number<int>(token_buf);
+  if (!val.has_value() || val.value() <= 0) {
+    ESP_LOGV(TAG, "skipping line %s", buffer.substr(0, buffer.size() - 2).c_str());
+    return;
+  }
+
+  // Dispatch based on current response type
+  if (this->response_type_ == RESPONSE_SOH) {
+    this->process_soh_line_(buffer);
+    return;
+  }
+
+  // Parse pwr data line
+  PylontechListener::LineContents l{};
+  l.bat_num = val.value();
+
   PARSE_INT(l.volt, "Volt");
   PARSE_INT(l.curr, "Curr");
   PARSE_INT(l.tempr, "Tempr");
@@ -185,10 +208,66 @@ void PylontechComponent::process_line_(std::string &buffer) {
   get_token(token_buf);  // Skip B.T.St
   PARSE_INT(l.mostempr, "Mostempr");
 
-  ESP_LOGD(TAG, "successful line %s", buffer.substr(0, buffer.size() - 2).c_str());
+  ESP_LOGD(TAG, "pwr bat=%d", l.bat_num);
 
   for (PylontechListener *listener : this->listeners_) {
     listener->on_line_read(&l);
+  }
+}
+
+void PylontechComponent::process_soh_line_(std::string &buffer) {
+  // Parse soh data line: "1     127    98%    74000    72520"
+  PylontechListener::SohContents s{};
+
+  const char *cursor = buffer.c_str();
+  char token_buf[TEXT_SENSOR_MAX_LEN] = {0};
+
+  auto get_token = [&](char *token_buf) -> void {
+    while (*cursor == ' ' || *cursor == '\t') {
+      cursor++;
+    }
+    if (*cursor == '\0') {
+      token_buf[0] = 0;
+      return;
+    }
+    const char *start = cursor;
+    while (*cursor != '\0' && *cursor != ' ' && *cursor != '\t' && *cursor != '\r') {
+      cursor++;
+    }
+    size_t token_len = std::min(static_cast<size_t>(cursor - start), static_cast<size_t>(TEXT_SENSOR_MAX_LEN - 1));
+    memcpy(token_buf, start, token_len);
+    token_buf[token_len] = 0;
+  };
+
+  PARSE_INT(s.bat_num, "Addr");
+  PARSE_INT(s.cycles, "Cycle");
+
+  // SOH field has a trailing '%' sign
+  {
+    get_token(token_buf);
+    for (char &i : token_buf) {
+      if (i == '%') {
+        i = 0;
+        break;
+      }
+    }
+    auto soh_val = parse_number<int>(token_buf);
+    if (soh_val.has_value()) {
+      s.soh_pct = soh_val.value();
+    } else {
+      ESP_LOGD(TAG, "invalid SOH in line %s", buffer.substr(0, buffer.size() - 2).c_str());
+      return;
+    }
+  }
+
+  PARSE_INT(s.design_capacity_mah, "Design");
+  PARSE_INT(s.remaining_capacity_mah, "Remain");
+
+  ESP_LOGD(TAG, "soh bat=%d cycles=%d soh=%d%% design=%d remain=%d", s.bat_num, s.cycles, s.soh_pct,
+           s.design_capacity_mah, s.remaining_capacity_mah);
+
+  for (PylontechListener *listener : this->listeners_) {
+    listener->on_soh_read(&s);
   }
 }
 

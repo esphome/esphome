@@ -10,6 +10,8 @@ from esphome.const import (
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -26,6 +28,12 @@ CONF_TEMPERATURE_HIGH = "temperature_high"
 CONF_VOLTAGE_LOW = "voltage_low"
 CONF_VOLTAGE_HIGH = "voltage_high"
 CONF_MOS_TEMPERATURE = "mos_temperature"
+CONF_STATE_OF_HEALTH = "state_of_health"
+CONF_CYCLE_COUNT = "cycle_count"
+CONF_DESIGN_CAPACITY = "design_capacity"
+CONF_REMAINING_CAPACITY = "remaining_capacity"
+
+UNIT_AMPERE_HOURS = "Ah"
 
 TYPES: dict[str, cv.Schema] = {
     CONF_VOLTAGE: sensor.sensor_schema(
@@ -72,6 +80,27 @@ TYPES: dict[str, cv.Schema] = {
         unit_of_measurement=UNIT_CELSIUS,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_TEMPERATURE,
+    ),
+    CONF_STATE_OF_HEALTH: sensor.sensor_schema(
+        unit_of_measurement=UNIT_PERCENT,
+        accuracy_decimals=0,
+        state_class=STATE_CLASS_MEASUREMENT,
+        icon="mdi:battery-heart-variant",
+    ),
+    CONF_CYCLE_COUNT: sensor.sensor_schema(
+        accuracy_decimals=0,
+        state_class=STATE_CLASS_TOTAL_INCREASING,
+        icon="mdi:counter",
+    ),
+    CONF_DESIGN_CAPACITY: sensor.sensor_schema(
+        unit_of_measurement=UNIT_AMPERE_HOURS,
+        accuracy_decimals=1,
+        icon="mdi:battery-arrow-up",
+    ),
+    CONF_REMAINING_CAPACITY: sensor.sensor_schema(
+        unit_of_measurement=UNIT_AMPERE_HOURS,
+        accuracy_decimals=1,
+        icon="mdi:battery-arrow-down",
     ),
 }
 
