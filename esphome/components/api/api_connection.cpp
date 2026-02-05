@@ -1879,9 +1879,8 @@ void APIConnection::process_batch_() {
 
   // Pre-calculate exact buffer size needed based on message types
   uint32_t total_estimated_size = num_items * (header_padding + footer_size);
-  for (size_t i = 0; i < this->deferred_batch_.size(); i++) {
-    const auto &item = this->deferred_batch_[i];
-    total_estimated_size += item.estimated_size;
+  for (size_t i = 0; i < num_items; i++) {
+    total_estimated_size += this->deferred_batch_[i].estimated_size;
   }
 
   this->prepare_first_message_buffer(shared_buf, header_padding, total_estimated_size);
