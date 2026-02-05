@@ -130,9 +130,13 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
     App.feed_wdt();
     yield();
 
-    auto result = http_read_loop_result(bufsize_or_error, last_data_time, read_timeout);
+    auto result = http_read_loop_result(bufsize_or_error, last_data_time, read_timeout, container->is_read_complete());
     if (result == HttpReadLoopResult::RETRY)
       continue;
+    // Note: COMPLETE is currently unreachable since the loop condition checks bytes_read < content_length,
+    // but this is defensive code in case chunked transfer encoding support is added for OTA in the future.
+    if (result == HttpReadLoopResult::COMPLETE)
+      break;
     if (result != HttpReadLoopResult::DATA) {
       if (result == HttpReadLoopResult::TIMEOUT) {
         ESP_LOGE(TAG, "Timeout reading data");

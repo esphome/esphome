@@ -35,7 +35,6 @@ class PN532 : public PollingComponent {
   void dump_config() override;
 
   void update() override;
-  float get_setup_priority() const override;
 
   void loop() override;
   void on_powerdown() override { powerdown(); }

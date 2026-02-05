@@ -13,6 +13,33 @@ static const char *const TAG = "mqtt.alarm_control_panel";
 
 using namespace esphome::alarm_control_panel;
 
+static ProgmemStr alarm_state_to_mqtt_str(AlarmControlPanelState state) {
+  switch (state) {
+    case ACP_STATE_DISARMED:
+      return ESPHOME_F("disarmed");
+    case ACP_STATE_ARMED_HOME:
+      return ESPHOME_F("armed_home");
+    case ACP_STATE_ARMED_AWAY:
+      return ESPHOME_F("armed_away");
+    case ACP_STATE_ARMED_NIGHT:
+      return ESPHOME_F("armed_night");
+    case ACP_STATE_ARMED_VACATION:
+      return ESPHOME_F("armed_vacation");
+    case ACP_STATE_ARMED_CUSTOM_BYPASS:
+      return ESPHOME_F("armed_custom_bypass");
+    case ACP_STATE_PENDING:
+      return ESPHOME_F("pending");
+    case ACP_STATE_ARMING:
+      return ESPHOME_F("arming");
+    case ACP_STATE_DISARMING:
+      return ESPHOME_F("disarming");
+    case ACP_STATE_TRIGGERED:
+      return ESPHOME_F("triggered");
+    default:
+      return ESPHOME_F("unknown");
+  }
+}
+
 MQTTAlarmControlPanelComponent::MQTTAlarmControlPanelComponent(AlarmControlPanel *alarm_control_panel)
     : alarm_control_panel_(alarm_control_panel) {}
 void MQTTAlarmControlPanelComponent::setup() {
@@ -85,43 +112,9 @@ const EntityBase *MQTTAlarmControlPanelComponent::get_entity() const { return th
 
 bool MQTTAlarmControlPanelComponent::send_initial_state() { return this->publish_state(); }
 bool MQTTAlarmControlPanelComponent::publish_state() {
-  const char *state_s;
-  switch (this->alarm_control_panel_->get_state()) {
-    case ACP_STATE_DISARMED:
-      state_s = "disarmed";
-      break;
-    case ACP_STATE_ARMED_HOME:
-      state_s = "armed_home";
-      break;
-    case ACP_STATE_ARMED_AWAY:
-      state_s = "armed_away";
-      break;
-    case ACP_STATE_ARMED_NIGHT:
-      state_s = "armed_night";
-      break;
-    case ACP_STATE_ARMED_VACATION:
-      state_s = "armed_vacation";
-      break;
-    case ACP_STATE_ARMED_CUSTOM_BYPASS:
-      state_s = "armed_custom_bypass";
-      break;
-    case ACP_STATE_PENDING:
-      state_s = "pending";
-      break;
-    case ACP_STATE_ARMING:
-      state_s = "arming";
-      break;
-    case ACP_STATE_DISARMING:
-      state_s = "disarming";
-      break;
-    case ACP_STATE_TRIGGERED:
-      state_s = "triggered";
-      break;
-    default:
-      state_s = "unknown";
-  }
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
-  return this->publish(this->get_state_topic_to_(topic_buf), state_s);
+  return this->publish(this->get_state_topic_to_(topic_buf),
+                       alarm_state_to_mqtt_str(this->alarm_control_panel_->get_state()));
 }
 
 }  // namespace esphome::mqtt
