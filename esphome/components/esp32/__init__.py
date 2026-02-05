@@ -95,8 +95,9 @@ CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
 CONF_RELEASE = "release"
 
-ARDUINO_FRAMEWORK_PKG = "pioarduino/framework-arduinoespressif32"
-ARDUINO_LIBS_NAME = "framework-arduinoespressif32-libs"
+ARDUINO_FRAMEWORK_NAME = "framework-arduinoespressif32"
+ARDUINO_FRAMEWORK_PKG = f"pioarduino/{ARDUINO_FRAMEWORK_NAME}"
+ARDUINO_LIBS_NAME = f"{ARDUINO_FRAMEWORK_NAME}-libs"
 ARDUINO_LIBS_PKG = f"pioarduino/{ARDUINO_LIBS_NAME}"
 
 LOG_LEVELS_IDF = [
