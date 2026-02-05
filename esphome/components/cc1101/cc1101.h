@@ -146,3 +146,66 @@ class CC1101Component : public Component,
   std::vector<uint8_t> packet_;
   std::vector<CC1101Listener *> listeners_;
   std::vector<CC1101ConfigListener *> config_listeners_;
+
+  // Low-level Helpers
+  uint8_t strobe_(Command cmd);
+  void write_(Register reg);
+  void write_(Register reg, uint8_t value);
+  void write_(Register reg, const uint8_t *buffer, size_t length);
+  void read_(Register reg);
+  void read_(Register reg, uint8_t *buffer, size_t length);
+
+  // State Management
+  bool wait_for_state_(State target_state, uint32_t timeout_ms = 100);
+  bool enter_calibrated_(State target_state, Command cmd);
+  void enter_idle_();
+  bool enter_rx_();
+  bool enter_tx_();
+};
+
+// Action Wrappers
+template<typename... Ts> class BeginTxAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  void play(const Ts &...x) override { this->parent_->begin_tx(); }
+};
+
+template<typename... Ts> class BeginRxAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  void play(const Ts &...x) override { this->parent_->begin_rx(); }
+};
+
+template<typename... Ts> class ResetAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  void play(const Ts &...x) override { this->parent_->reset(); }
+};
+
+template<typename... Ts> class SetIdleAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  void play(const Ts &...x) override { this->parent_->set_idle(); }
+};
+
+template<typename... Ts> class SendPacketAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) { this->data_func_ = func; }
+  void set_data_static(const uint8_t *data, size_t len) {
+    this->data_static_ = data;
+    this->data_static_len_ = len;
+  }
+
+  void play(const Ts &...x) override {
+    if (this->data_func_) {
+      auto data = this->data_func_(x...);
+      this->parent_->transmit_packet(data);
+    } else if (this->data_static_ != nullptr) {
+      std::vector<uint8_t> data(this->data_static_, this->data_static_ + this->data_static_len_);
+      this->parent_->transmit_packet(data);
+    }
+  }
+
+ protected:
+  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
+  const uint8_t *data_static_{nullptr};
+  size_t data_static_len_{0};
+};
+
+}  // namespace esphome::cc1101
