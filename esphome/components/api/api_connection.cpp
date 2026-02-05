@@ -331,9 +331,12 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint8_t mess
   std::vector<uint8_t> &shared_buf = conn->parent_->get_shared_buffer_ref();
 
   if (conn->flags_.batch_first_message) {
-    // Single message or first batch message
-    conn->prepare_first_message_buffer(shared_buf, header_padding, total_calculated_size);
+    // First message - clear flag
     conn->flags_.batch_first_message = false;
+    // If buffer not prepped by caller (batch pre-reserves with size == header_padding), prep now
+    if (shared_buf.size() != header_padding) {
+      conn->prepare_first_message_buffer(shared_buf, header_padding, total_calculated_size);
+    }
   } else {
     // Batch message second or later
     // Add padding for previous message footer + this message header
