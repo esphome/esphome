@@ -1169,8 +1169,8 @@ def _show_framework_migration_message(name: str, variant: str) -> None:
         + "(We've been warning about this change since ESPHome 2025.8.0)\n"
         + "\n"
         + "Why we made this change:\n"
-        + color(AnsiFore.GREEN, "  ✨ Up to 40% smaller firmware binaries\n")
-        + color(AnsiFore.GREEN, "  ⚡ 2-3x faster compile times\n")
+        + color(AnsiFore.GREEN, "  ✨ Smaller firmware binaries\n")
+        + color(AnsiFore.GREEN, "  ⚡ Faster compile times\n")
         + color(AnsiFore.GREEN, "  🚀 Better performance and newer features\n")
         + color(AnsiFore.GREEN, "  🔧 More actively maintained by ESPHome\n")
         + "\n"
