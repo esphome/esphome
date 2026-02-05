@@ -195,6 +195,7 @@ template<typename T, size_t N> class StaticVector {
   }
 
   size_t size() const { return count_; }
+  static constexpr size_t capacity() { return N; }
   bool empty() const { return count_ == 0; }
 
   // Direct access to underlying data
