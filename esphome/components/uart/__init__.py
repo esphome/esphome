@@ -5,6 +5,7 @@ import re
 
 from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.components.libretiny import LTComponent
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -36,7 +37,6 @@ from esphome.const import (
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.yaml_util import make_data_base
-from esphome.components.libretiny import LTComponent
 
 _LOGGER = getLogger(__name__)
 
@@ -52,6 +52,7 @@ def AUTO_LOAD() -> list[str]:
     if CORE.is_esp32:
         return ["socket"]
     return []
+
 
 CONF_LIBRETINY = "libretiny"
 

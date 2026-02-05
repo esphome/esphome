@@ -35,7 +35,7 @@ static const char *const TAG = "logger";
 
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
-    auto & uart_manager = this->lt_component_->get_uart_manager();
+    auto &uart_manager = this->lt_component_->get_uart_manager();
     auto lt_uart = esphome_uart_number_2_lt(this->uart_);
     if (!uart_manager.init_uart_for_logger(lt_uart, this->baud_rate_)) {
       lt_uart = LT_UART_DEFAULT_SERIAL;

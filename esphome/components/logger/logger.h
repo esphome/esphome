@@ -193,7 +193,7 @@ class Logger : public Component {
 #endif
 #if defined(USE_LIBRETINY)
   int8_t get_hw_serial_number() { return hardware_idx_; }
-  void set_lt_component(libretiny::LTComponent* lt_component) { this->lt_component_ = lt_component; }
+  void set_lt_component(libretiny::LTComponent *lt_component) { this->lt_component_ = lt_component; }
 #endif
 #ifdef USE_HOST
   void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
@@ -404,7 +404,7 @@ class Logger : public Component {
 #endif
 #if defined(USE_LIBRETINY)
   int8_t hardware_idx_{-1};
-  libretiny::LTComponent* lt_component_{nullptr};
+  libretiny::LTComponent *lt_component_{nullptr};
 #endif
 #ifdef USE_HOST
   // Thread-specific recursion guards using pthread TLS

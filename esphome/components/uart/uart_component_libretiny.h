@@ -29,7 +29,7 @@ class LibreTinyUARTComponent : public UARTComponent, public Component {
 
   HardwareSerial *get_hw_serial() { return this->serial_; }
   int8_t get_hw_serial_number() { return this->hardware_idx_; }
-  void set_lt_component(libretiny::LTComponent* lt_component) { this->lt_component_ = lt_component; }
+  void set_lt_component(libretiny::LTComponent *lt_component) { this->lt_component_ = lt_component; }
 
  protected:
   void check_logger_conflict() override;
@@ -37,7 +37,7 @@ class LibreTinyUARTComponent : public UARTComponent, public Component {
   void print_pins(const char *uart_name, const FixedVector<pin_size_t> &tx_pins,
                   const FixedVector<pin_size_t> &rx_pins) const;
 
-  libretiny::LTComponent* lt_component_{nullptr};
+  libretiny::LTComponent *lt_component_{nullptr};
   HardwareSerial *serial_{nullptr};
   int8_t hardware_idx_{-1};
 };

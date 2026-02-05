@@ -21,14 +21,13 @@ class LTComponent : public Component {
   float get_setup_priority() const override;
   void dump_config() override;
 
-  UartManager& get_uart_manager() { return uart_manager_; }
+  UartManager &get_uart_manager() { return uart_manager_; }
 
 #ifdef USE_TEXT_SENSOR
   void set_version_sensor(text_sensor::TextSensor *version) { version_ = version; }
 #endif  // USE_TEXT_SENSOR
 
  protected:
-
   UartManager uart_manager_;
 
 #ifdef USE_TEXT_SENSOR

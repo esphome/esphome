@@ -19,7 +19,11 @@ from esphome.components.esp32 import (
     require_usb_serial_jtag_secondary,
     require_vfs_termios,
 )
-from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
+from esphome.components.libretiny import (
+    LTComponent,
+    get_libretiny_component,
+    get_libretiny_family,
+)
 from esphome.components.libretiny.const import (
     COMPONENT_BK72XX,
     COMPONENT_LN882X,
@@ -57,7 +61,6 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
-from esphome.components.libretiny import LTComponent
 
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")

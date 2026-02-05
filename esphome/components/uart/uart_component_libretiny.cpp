@@ -80,7 +80,7 @@ void LibreTinyUARTComponent::setup() {
   int8_t tx_pin = tx_pin_ == nullptr ? -1 : tx_pin_->get_pin();
   int8_t rx_pin = rx_pin_ == nullptr ? -1 : rx_pin_->get_pin();
 
-  auto & uart_manager = this->lt_component_->get_uart_manager();
+  auto &uart_manager = this->lt_component_->get_uart_manager();
 
   auto fallback_to_sw_serial = shouldFallbackToSoftwareSerial(rx_pin_, tx_pin_);
   if (!fallback_to_sw_serial) {

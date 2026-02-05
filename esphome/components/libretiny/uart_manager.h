@@ -38,10 +38,10 @@ struct UartManager {
       0,
 #endif
 #if LT_HW_UART1
-      1,
+          1,
 #endif
 #if LT_HW_UART2
-      2,
+          2,
 #endif
     };
   }
