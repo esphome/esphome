@@ -149,9 +149,9 @@ async def to_code(config):
     cg.add_define("USE_NETWORK")
     # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
     if CORE.using_zephyr:
-      zephyr_add_prj_conf("NETWORKING", True)
-      zephyr_add_prj_conf("NET_TCP", True)
-      zephyr_add_prj_conf("NET_UDP", True)
+        zephyr_add_prj_conf("NETWORKING", True)
+        zephyr_add_prj_conf("NET_TCP", True)
+        zephyr_add_prj_conf("NET_UDP", True)
 
     # Apply high performance networking settings
     # Config can explicitly enable/disable, or default to component-driven behavior
