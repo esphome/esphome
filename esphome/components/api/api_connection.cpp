@@ -1885,7 +1885,7 @@ void APIConnection::process_batch_() {
 
   this->prepare_first_message_buffer(shared_buf, header_padding, total_estimated_size);
 
-  // Fast path for single message - allocate exact size needed
+  // Fast path for single message - buffer already allocated above
   if (num_items == 1) {
     const auto &item = this->deferred_batch_[0];
     // Let dispatch_message_ calculate size and encode if it fits
