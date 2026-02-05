@@ -13,7 +13,11 @@ class CAQICalculator : public AbstractAQICalculator {
     float pm2_5_index = calculate_index(pm2_5_value, PM2_5_GRID);
     float pm10_0_index = calculate_index(pm10_0_value, PM10_0_GRID);
 
-    return static_cast<uint16_t>(std::round(std::max(pm2_5_index, pm10_0_index)));
+    float aqi = std::max(pm2_5_index, pm10_0_index);
+    if (aqi < 0.0f) {
+      aqi = 0.0f;
+    }
+    return static_cast<uint16_t>(std::lround(aqi));
   }
 
  protected:
@@ -23,20 +27,20 @@ class CAQICalculator : public AbstractAQICalculator {
 
   static constexpr float PM2_5_GRID[NUM_LEVELS][2] = {
       // clang-format off
-      {0.0f, 15.1f - std::numeric_limits<float>::epsilon()},
-      {15.1f, 30.1f - std::numeric_limits<float>::epsilon()},
-      {30.1f, 55.1f - std::numeric_limits<float>::epsilon()},
-      {55.1f, 110.1f - std::numeric_limits<float>::epsilon()},
+      {0.0f, 15.1f},
+      {15.1f, 30.1f},
+      {30.1f, 55.1f},
+      {55.1f, 110.1f},
       {110.1f, std::numeric_limits<float>::max()}
       // clang-format on
   };
 
   static constexpr float PM10_0_GRID[NUM_LEVELS][2] = {
       // clang-format off
-      {0.0f, 25.1f - std::numeric_limits<float>::epsilon()},
-      {25.1f, 50.1f - std::numeric_limits<float>::epsilon()},
-      {50.1f, 90.1f - std::numeric_limits<float>::epsilon()},
-      {90.1f, 180.1f - std::numeric_limits<float>::epsilon()},
+      {0.0f, 25.1f},
+      {25.1f, 50.1f},
+      {50.1f, 90.1f},
+      {90.1f, 180.1f},
       {180.1f, std::numeric_limits<float>::max()}
       // clang-format on
   };
@@ -57,7 +61,10 @@ class CAQICalculator : public AbstractAQICalculator {
 
   static int get_grid_index(float value, const float array[NUM_LEVELS][2]) {
     for (int i = 0; i < NUM_LEVELS; i++) {
-      if (value >= array[i][0] && value <= array[i][1]) {
+      const bool in_range =
+          (value >= array[i][0]) && ((i == NUM_LEVELS - 1) ? (value <= array[i][1])   // last bucket inclusive
+                                                           : (value < array[i][1]));  // others exclusive on hi
+      if (in_range) {
         return i;
       }
     }
