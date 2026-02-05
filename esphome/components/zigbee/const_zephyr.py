@@ -4,6 +4,7 @@ zigbee_ns = cg.esphome_ns.namespace("zigbee")
 ZigbeeComponent = zigbee_ns.class_("ZigbeeComponent", cg.Component)
 BinaryAttrs = zigbee_ns.struct("BinaryAttrs")
 AnalogAttrs = zigbee_ns.struct("AnalogAttrs")
+AnalogAttrsOutput = zigbee_ns.struct("AnalogAttrsOutput")
 
 CONF_MAX_EP_NUMBER = 8
 CONF_ZIGBEE_ID = "zigbee_id"
@@ -12,6 +13,7 @@ CONF_WIPE_ON_BOOT = "wipe_on_boot"
 CONF_ZIGBEE_BINARY_SENSOR = "zigbee_binary_sensor"
 CONF_ZIGBEE_SENSOR = "zigbee_sensor"
 CONF_ZIGBEE_SWITCH = "zigbee_switch"
+CONF_ZIGBEE_NUMBER = "zigbee_number"
 CONF_POWER_SOURCE = "power_source"
 POWER_SOURCE = {
     "UNKNOWN": "ZB_ZCL_BASIC_POWER_SOURCE_UNKNOWN",
@@ -38,3 +40,4 @@ ZB_ZCL_CLUSTER_ID_IDENTIFY = "ZB_ZCL_CLUSTER_ID_IDENTIFY"
 ZB_ZCL_CLUSTER_ID_BINARY_INPUT = "ZB_ZCL_CLUSTER_ID_BINARY_INPUT"
 ZB_ZCL_CLUSTER_ID_ANALOG_INPUT = "ZB_ZCL_CLUSTER_ID_ANALOG_INPUT"
 ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT = "ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT"
+ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT = "ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT"

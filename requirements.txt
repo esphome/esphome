@@ -8,7 +8,7 @@ tornado==6.5.4
 tzlocal==5.3.1    # from time
 tzdata>=2021.1  # from time
 pyserial==3.5
-platformio==6.1.18  # When updating platformio, also update /docker/Dockerfile
+platformio==6.1.19
 esptool==5.1.0
 click==8.1.7
 esphome-dashboard==20260110.0

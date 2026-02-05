@@ -86,8 +86,6 @@ void QMC5883LComponent::dump_config() {
   LOG_PIN("  DRDY Pin: ", this->drdy_pin_);
 }
 
-float QMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 void QMC5883LComponent::update() {
   i2c::ErrorCode err;
   uint8_t status = false;

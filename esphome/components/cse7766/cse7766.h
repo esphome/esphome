@@ -23,7 +23,6 @@ class CSE7766Component : public Component, public uart::UARTDevice {
   void set_power_factor_sensor(sensor::Sensor *power_factor_sensor) { power_factor_sensor_ = power_factor_sensor; }
 
   void loop() override;
-  float get_setup_priority() const override;
   void dump_config() override;
 
  protected:
