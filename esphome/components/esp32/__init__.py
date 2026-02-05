@@ -95,6 +95,10 @@ CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
 CONF_RELEASE = "release"
 
+ARDUINO_FRAMEWORK_PKG = "pioarduino/framework-arduinoespressif32"
+ARDUINO_LIBS_NAME = "framework-arduinoespressif32-libs"
+ARDUINO_LIBS_PKG = f"pioarduino/{ARDUINO_LIBS_NAME}"
+
 LOG_LEVELS_IDF = [
     "NONE",
     "ERROR",
@@ -599,14 +603,12 @@ def add_extra_build_file(filename: str, path: Path) -> bool:
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
-    # format the given arduino (https://github.com/espressif/arduino-esp32/releases) version to
-    # a PIO pioarduino/framework-arduinoespressif32 value
     # 3.3.6+ changed filename from esp32-{ver}.zip to esp32-core-{ver}.tar.xz
     if ver >= cv.Version(3, 3, 6):
         filename = f"esp32-core-{ver}.tar.xz"
     else:
         filename = f"esp32-{ver}.zip"
-    return f"pioarduino/framework-arduinoespressif32@https://github.com/espressif/arduino-esp32/releases/download/{ver}/{filename}"
+    return f"{ARDUINO_FRAMEWORK_PKG}@https://github.com/espressif/arduino-esp32/releases/download/{ver}/{filename}"
 
 
 def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
@@ -741,9 +743,7 @@ def _check_versions(config):
             CONF_SOURCE, _format_framework_arduino_version(version)
         )
         if _is_framework_url(value[CONF_SOURCE]):
-            value[CONF_SOURCE] = (
-                f"pioarduino/framework-arduinoespressif32@{value[CONF_SOURCE]}"
-            )
+            value[CONF_SOURCE] = f"{ARDUINO_FRAMEWORK_PKG}@{value[CONF_SOURCE]}"
     else:
         if version < cv.Version(5, 0, 0):
             raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
@@ -1327,7 +1327,7 @@ async def _write_arduino_libs_stub(stubs_dir: Path, idf_ver: cv.Version) -> None
     stubs_dir.mkdir(parents=True, exist_ok=True)
     write_file_if_changed(
         stubs_dir / "package.json",
-        f'{{"name":"framework-arduinoespressif32-libs","version":"{idf_ver.major}.{idf_ver.minor}.{idf_ver.patch}"}}',
+        f'{{"name":"{ARDUINO_LIBS_NAME}","version":"{idf_ver.major}.{idf_ver.minor}.{idf_ver.patch}"}}',
     )
     write_file_if_changed(
         stubs_dir / "tools.json",
@@ -1469,9 +1469,7 @@ async def to_code(config):
                 stubs_dir = CORE.relative_build_path("arduino-libs-stub")
                 cg.add_platformio_option(
                     "platform_packages",
-                    [
-                        f"pioarduino/framework-arduinoespressif32-libs@file://{stubs_dir}"
-                    ],
+                    [f"{ARDUINO_LIBS_PKG}@file://{stubs_dir}"],
                 )
                 CORE.add_job(_write_arduino_libs_stub, stubs_dir, idf_ver)
 
