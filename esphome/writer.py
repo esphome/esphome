@@ -421,6 +421,11 @@ def _rmtree_error_handler(
     func(path)
 
 
+def rmtree(path: Path | str) -> None:
+    """Remove a directory tree, handling read-only files on Windows."""
+    shutil.rmtree(path, onerror=_rmtree_error_handler)
+
+
 def clean_build(clear_pio_cache: bool = True):
     # Allow skipping cache cleaning for integration tests
     if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
@@ -430,11 +435,11 @@ def clean_build(clear_pio_cache: bool = True):
     pioenvs = CORE.relative_pioenvs_path()
     if pioenvs.is_dir():
         _LOGGER.info("Deleting %s", pioenvs)
-        shutil.rmtree(pioenvs, onerror=_rmtree_error_handler)
+        rmtree(pioenvs)
     piolibdeps = CORE.relative_piolibdeps_path()
     if piolibdeps.is_dir():
         _LOGGER.info("Deleting %s", piolibdeps)
-        shutil.rmtree(piolibdeps, onerror=_rmtree_error_handler)
+        rmtree(piolibdeps)
     dependencies_lock = CORE.relative_build_path("dependencies.lock")
     if dependencies_lock.is_file():
         _LOGGER.info("Deleting %s", dependencies_lock)
@@ -455,7 +460,7 @@ def clean_build(clear_pio_cache: bool = True):
         cache_dir = Path(config.get("platformio", "cache_dir"))
         if cache_dir.is_dir():
             _LOGGER.info("Deleting PlatformIO cache %s", cache_dir)
-            shutil.rmtree(cache_dir, onerror=_rmtree_error_handler)
+            rmtree(cache_dir)
 
 
 def clean_all(configuration: list[str]):
@@ -480,7 +485,7 @@ def clean_all(configuration: list[str]):
                 if item.is_file() and not item.name.endswith(".json"):
                     item.unlink()
                 elif item.is_dir() and item.name != "storage":
-                    shutil.rmtree(item, onerror=_rmtree_error_handler)
+                    rmtree(item)
 
     # Clean PlatformIO project files
     try:
@@ -494,7 +499,7 @@ def clean_all(configuration: list[str]):
             path = Path(config.get("platformio", pio_dir))
             if path.is_dir():
                 _LOGGER.info("Deleting PlatformIO %s %s", pio_dir, path)
-                shutil.rmtree(path, onerror=_rmtree_error_handler)
+                rmtree(path)
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
