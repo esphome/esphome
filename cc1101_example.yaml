@@ -112,11 +112,16 @@ sensor:
     cc1101_id: cc1101_hub
     rssi:
       name: "RSSI"
+      filters:
+        - throttle: 1s
     lqi:
       name: "LQI"
+      filters:
+        - throttle: 1s
 
 text_sensor:
   - platform: cc1101
+    update_interval: 60s
     cc1101_id: cc1101_hub
     rx_attenuation:
       name: "Text RX Attenuation"

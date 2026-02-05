@@ -214,6 +214,12 @@ void CC1101Component::loop() {
   this->enter_rx_();
 }
 
+void CC1101Component::notify_config_listeners_() {
+  for (auto &listener : this->config_listeners_) {
+    listener->on_config_change();
+  }
+}
+
 void CC1101Component::dump_config() {
   static const char *const MODULATION_NAMES[] = {"2-FSK", "GFSK",   "UNUSED", "ASK/OOK",
                                                  "4-FSK", "UNUSED", "UNUSED", "MSK"};
@@ -418,6 +424,7 @@ void CC1101Component::set_output_power(float value) {
   if (this->initialized_) {
     this->write_(Register::PATABLE, this->pa_table_, sizeof(this->pa_table_));
   }
+  this->notify_config_listeners_();
 }
 
 void CC1101Component::set_rx_attenuation(RxAttenuation value) {
@@ -425,6 +432,7 @@ void CC1101Component::set_rx_attenuation(RxAttenuation value) {
   if (this->initialized_) {
     this->write_(Register::FIFOTHR);
   }
+  this->notify_config_listeners_();
 }
 
 void CC1101Component::set_dc_blocking_filter(bool value) {
@@ -446,6 +454,7 @@ void CC1101Component::set_frequency(float value) {
     this->write_(Register::FREQ0);
     this->enter_rx_();
   }
+  this->notify_config_listeners_();
 }
 
 void CC1101Component::set_if_frequency(float value) {
@@ -453,6 +462,7 @@ void CC1101Component::set_if_frequency(float value) {
   if (this->initialized_) {
     this->write_(Register::FSCTRL1);
   }
+  this->notify_config_listeners_();
 }
 
 void CC1101Component::set_filter_bandwidth(float value) {
@@ -464,6 +474,7 @@ void CC1101Component::set_filter_bandwidth(float value) {
   if (this->initialized_) {
     this->write_(Register::MDMCFG4);
   }
+  this->notify_config_listeners_();
 }
 
 void CC1101Component::set_channel(uint8_t value) {
@@ -473,6 +484,7 @@ void CC1101Component::set_channel(uint8_t value) {
     this->write_(Register::CHANNR);
     this->enter_rx_();
   }
+  this->notify_config_listeners_();
 }
 
 void CC1101Component::set_channel_spacing(float value) {
@@ -485,6 +497,7 @@ void CC1101Component::set_channel_spacing(float value) {
     this->write_(Register::MDMCFG1);
     this->write_(Register::MDMCFG0);
   }
+  this->notify_config_listeners_();
 }
 
 void CC1101Component::set_fsk_deviation(float value) {
@@ -516,6 +529,7 @@ void CC1101Component::set_symbol_rate(float value) {
     this->write_(Register::MDMCFG4);
     this->write_(Register::MDMCFG3);
   }
+  this->notify_config_listeners_();
 }
 
 void CC1101Component::set_sync_mode(SyncMode value) {
@@ -542,6 +556,7 @@ void CC1101Component::set_modulation_type(Modulation value) {
     this->write_(Register::FREND0);
     this->enter_rx_();
   }
+  this->notify_config_listeners_();
 }
 
 void CC1101Component::set_manchester(bool value) {
@@ -556,6 +571,7 @@ void CC1101Component::set_num_preamble(uint8_t value) {
   if (this->initialized_) {
     this->write_(Register::MDMCFG1);
   }
+  this->notify_config_listeners_();
 }
 
 void CC1101Component::set_sync1(uint8_t value) {
@@ -563,6 +579,7 @@ void CC1101Component::set_sync1(uint8_t value) {
   if (this->initialized_) {
     this->write_(Register::SYNC1);
   }
+  this->notify_config_listeners_();
 }
 
 void CC1101Component::set_sync0(uint8_t value) {
@@ -570,6 +587,7 @@ void CC1101Component::set_sync0(uint8_t value) {
   if (this->initialized_) {
     this->write_(Register::SYNC0);
   }
+  this->notify_config_listeners_();
 }
 
 void CC1101Component::set_magn_target(MagnTarget value) {
@@ -669,6 +687,7 @@ void CC1101Component::set_packet_mode(bool value) {
     this->write_(Register::IOCFG0);
     this->write_(Register::FIFOTHR);
   }
+  this->notify_config_listeners_();
 }
 
 void CC1101Component::set_packet_length(uint8_t value) {
@@ -682,6 +701,7 @@ void CC1101Component::set_packet_length(uint8_t value) {
     this->write_(Register::PKTCTRL0);
     this->write_(Register::PKTLEN);
   }
+  this->notify_config_listeners_();
 }
 
 void CC1101Component::set_crc_enable(bool value) {

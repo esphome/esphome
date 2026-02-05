@@ -16,6 +16,11 @@ class CC1101Listener {
   virtual void on_packet(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi) = 0;
 };
 
+class CC1101ConfigListener {
+ public:
+  virtual void on_config_change() = 0;
+};
+
 class CC1101Component : public Component,
                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                               spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
@@ -104,18 +109,12 @@ class CC1101Component : public Component,
     return static_cast<CarrierSenseRelThr>(this->state_.CARRIER_SENSE_REL_THR);
   }
   bool get_lna_priority() { return this->state_.AGC_LNA_PRIORITY; }
-  FilterLengthFskMsk get_filter_length_fsk_msk() {
-    return static_cast<FilterLengthFskMsk>(this->state_.FILTER_LENGTH);
-  }
-  FilterLengthAskOok get_filter_length_ask_ook() {
-    return static_cast<FilterLengthAskOok>(this->state_.FILTER_LENGTH);
-  }
+  FilterLengthFskMsk get_filter_length_fsk_msk() { return static_cast<FilterLengthFskMsk>(this->state_.FILTER_LENGTH); }
+  FilterLengthAskOok get_filter_length_ask_ook() { return static_cast<FilterLengthAskOok>(this->state_.FILTER_LENGTH); }
   Freeze get_freeze() { return static_cast<Freeze>(this->state_.AGC_FREEZE); }
   WaitTime get_wait_time() { return static_cast<WaitTime>(this->state_.WAIT_TIME); }
   HystLevel get_hyst_level() { return static_cast<HystLevel>(this->state_.HYST_LEVEL); }
-  bool get_packet_mode() {
-    return this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO);
-  }
+  bool get_packet_mode() { return this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO); }
   uint8_t get_packet_length() { return this->state_.PKTLEN; }
   bool get_crc_enable() { return this->state_.CRC_EN; }
   bool get_whitening() { return this->state_.WHITE_DATA; }
@@ -124,6 +123,8 @@ class CC1101Component : public Component,
   CC1101Error transmit_packet(const std::vector<uint8_t> &packet);
   void register_listener(CC1101Listener *listener) { this->listeners_.push_back(listener); }
   Trigger<std::vector<uint8_t>, float, float, uint8_t> *get_packet_trigger() { return &this->packet_trigger_; }
+
+  void register_config_listener(CC1101ConfigListener *listener) { this->config_listeners_.push_back(listener); }
 
  protected:
   uint16_t chip_id_{0};
@@ -140,69 +141,8 @@ class CC1101Component : public Component,
 
   // Packet handling
   void call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi);
+  void notify_config_listeners_();
   Trigger<std::vector<uint8_t>, float, float, uint8_t> packet_trigger_;
   std::vector<uint8_t> packet_;
   std::vector<CC1101Listener *> listeners_;
-
-  // Low-level Helpers
-  uint8_t strobe_(Command cmd);
-  void write_(Register reg);
-  void write_(Register reg, uint8_t value);
-  void write_(Register reg, const uint8_t *buffer, size_t length);
-  void read_(Register reg);
-  void read_(Register reg, uint8_t *buffer, size_t length);
-
-  // State Management
-  bool wait_for_state_(State target_state, uint32_t timeout_ms = 100);
-  bool enter_calibrated_(State target_state, Command cmd);
-  void enter_idle_();
-  bool enter_rx_();
-  bool enter_tx_();
-};
-
-// Action Wrappers
-template<typename... Ts> class BeginTxAction : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->begin_tx(); }
-};
-
-template<typename... Ts> class BeginRxAction : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->begin_rx(); }
-};
-
-template<typename... Ts> class ResetAction : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->reset(); }
-};
-
-template<typename... Ts> class SetIdleAction : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->set_idle(); }
-};
-
-template<typename... Ts> class SendPacketAction : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) { this->data_func_ = func; }
-  void set_data_static(const uint8_t *data, size_t len) {
-    this->data_static_ = data;
-    this->data_static_len_ = len;
-  }
-
-  void play(const Ts &...x) override {
-    if (this->data_func_) {
-      auto data = this->data_func_(x...);
-      this->parent_->transmit_packet(data);
-    } else if (this->data_static_ != nullptr) {
-      std::vector<uint8_t> data(this->data_static_, this->data_static_ + this->data_static_len_);
-      this->parent_->transmit_packet(data);
-    }
-  }
-
- protected:
-  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
-  const uint8_t *data_static_{nullptr};
-  size_t data_static_len_{0};
-};
-
-}  // namespace esphome::cc1101
+  std::vector<CC1101ConfigListener *> config_listeners_;

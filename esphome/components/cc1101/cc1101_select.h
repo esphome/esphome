@@ -12,7 +12,10 @@
 
 namespace esphome::cc1101 {
 
-class CC1101Select : public select::Select, public PollingComponent, public Parented<CC1101Component> {
+class CC1101Select : public select::Select,
+                     public PollingComponent,
+                     public Parented<CC1101Component>,
+                     public CC1101ConfigListener {
  public:
   enum CC1101SelectType {
     RX_ATTENUATION,
@@ -31,6 +34,14 @@ class CC1101Select : public select::Select, public PollingComponent, public Pare
   };
 
   void set_type(CC1101SelectType type) { type_ = type; }
+
+  void setup() override {
+    if (this->parent_ != nullptr) {
+      this->parent_->register_config_listener(this);
+    }
+  }
+
+  void on_config_change() override { this->update(); }
 
   struct Option {
     const char *name;

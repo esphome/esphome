@@ -10,7 +10,10 @@
 
 namespace esphome::cc1101 {
 
-class CC1101Number : public number::Number, public PollingComponent, public Parented<CC1101Component> {
+class CC1101Number : public number::Number,
+                     public PollingComponent,
+                     public Parented<CC1101Component>,
+                     public CC1101ConfigListener {
  public:
   enum CC1101NumberType {
     OUTPUT_POWER,
@@ -30,6 +33,14 @@ class CC1101Number : public number::Number, public PollingComponent, public Pare
   };
 
   void set_type(CC1101NumberType type) { type_ = type; }
+
+  void setup() override {
+    if (this->parent_ != nullptr) {
+      this->parent_->register_config_listener(this);
+    }
+  }
+
+  void on_config_change() override { this->update(); }
 
   void update() override {
     if (this->parent_ == nullptr)
