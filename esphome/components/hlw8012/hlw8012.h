@@ -31,7 +31,6 @@ class HLW8012Component : public PollingComponent {
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
   void set_initial_mode(HLW8012InitialMode initial_mode) {

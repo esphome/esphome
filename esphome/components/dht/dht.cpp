@@ -63,8 +63,6 @@ void DHT::update() {
   }
 }
 
-float DHT::get_setup_priority() const { return setup_priority::DATA; }
-
 void DHT::set_dht_model(DHTModel model) {
   this->model_ = model;
   this->is_auto_detect_ = model == DHT_MODEL_AUTO_DETECT;
