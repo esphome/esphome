@@ -660,21 +660,7 @@ class APIConnection final : public APIServerConnection {
   // Tries immediate send if should_send_immediately_() returns true and buffer has space
   // Falls back to batching if immediate send fails or isn't applicable
   bool send_message_smart_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
-                           uint8_t aux_data_index = DeferredBatch::AUX_DATA_UNUSED) {
-    if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
-      auto &shared_buf = this->parent_->get_shared_buffer_ref();
-      this->prepare_first_message_buffer(shared_buf, estimated_size);
-      DeferredBatch::BatchItem item{entity, message_type, estimated_size, aux_data_index};
-      if (this->dispatch_message_(item, MAX_BATCH_PACKET_SIZE) &&
-          this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type)) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-        this->log_batch_item_(item);
-#endif
-        return true;
-      }
-    }
-    return this->schedule_message_(entity, message_type, estimated_size, aux_data_index);
-  }
+                           uint8_t aux_data_index = DeferredBatch::AUX_DATA_UNUSED);
 
   // Helper function to schedule a deferred message with known message type
   bool schedule_message_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
