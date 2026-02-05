@@ -331,12 +331,8 @@ uint16_t APIConnection::encode_message_to_buffer(ProtoMessage &msg, uint8_t mess
   std::vector<uint8_t> &shared_buf = conn->parent_->get_shared_buffer_ref();
 
   if (conn->flags_.batch_first_message) {
-    // First message - clear flag
+    // First message - buffer already prepared by caller, just clear flag
     conn->flags_.batch_first_message = false;
-    // If buffer not prepped by caller (batch pre-reserves with size == header_padding), prep now
-    if (shared_buf.size() != header_padding) {
-      conn->prepare_first_message_buffer(shared_buf, header_padding, total_calculated_size);
-    }
   } else {
     // Batch message second or later
     // Add padding for previous message footer + this message header
@@ -1863,6 +1859,7 @@ void APIConnection::process_batch_() {
   // Fast path for single message - allocate exact size needed
   if (num_items == 1) {
     const auto &item = this->deferred_batch_[0];
+    this->prepare_first_message_buffer(shared_buf, item.estimated_size);
 
     // Let dispatch_message_ calculate size and encode if it fits
     uint16_t payload_size = this->dispatch_message_(item, std::numeric_limits<uint16_t>::max(), true);
@@ -1902,9 +1899,10 @@ void APIConnection::process_batch_() {
     total_estimated_size += item.estimated_size;
   }
 
-  // Calculate total overhead for all messages
-  // Reserve based on estimated size (much more accurate than 24-byte worst-case)
+  // Prepare buffer with total estimated size for all messages (already cleared above)
   shared_buf.reserve(total_estimated_size);
+  shared_buf.resize(header_padding);
+  this->flags_.batch_first_message = true;
 
   size_t items_processed = 0;
   uint16_t remaining_size = std::numeric_limits<uint16_t>::max();
