@@ -5,7 +5,6 @@ import logging
 import os
 from pathlib import Path
 import re
-import shutil
 
 from esphome import yaml_util
 import esphome.codegen as cg
@@ -47,7 +46,7 @@ from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
-from esphome.writer import clean_cmake_cache
+from esphome.writer import clean_cmake_cache, rmtree
 
 from .boards import BOARDS, STANDARD_BOARDS
 from .const import (  # noqa
@@ -1883,7 +1882,7 @@ def _write_idf_component_yml():
         for component_name in required_idf_components:
             stub_path = stubs_dir / _idf_component_stub_name(component_name)
             if stub_path.exists():
-                shutil.rmtree(stub_path)
+                rmtree(stub_path)
 
     if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
