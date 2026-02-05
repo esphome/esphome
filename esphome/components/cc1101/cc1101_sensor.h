@@ -27,9 +27,13 @@ class CC1101Sensor : public sensor::Sensor, public Component, public Parented<CC
 
   void on_packet(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi) override {
     if (this->type_ == RSSI) {
-      this->publish_state(rssi);
+      if (std::isnan(this->state) || std::abs(rssi - this->state) > 0.01f) {
+        this->publish_state(rssi);
+      }
     } else if (this->type_ == LQI) {
-      this->publish_state(lqi);
+      if (std::isnan(this->state) || std::abs(static_cast<float>(lqi) - this->state) > 0.01f) {
+        this->publish_state(lqi);
+      }
     }
   }
 
