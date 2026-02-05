@@ -257,13 +257,8 @@ class APIConnection final : public APIServerConnection {
   void on_no_setup_connection() override;
   ProtoWriteBuffer create_buffer(uint32_t reserve_size) override {
     // FIXME: ensure no recursive writes can happen
-
-    // Get header padding size - used for both reserve and insert
-    uint8_t header_padding = this->helper_->frame_header_padding();
-    // Get shared buffer from parent server
     std::vector<uint8_t> &shared_buf = this->parent_->get_shared_buffer_ref();
-    this->prepare_first_message_buffer(shared_buf, header_padding,
-                                       reserve_size + header_padding + this->helper_->frame_footer_size());
+    this->prepare_first_message_buffer(shared_buf, reserve_size);
     return {&shared_buf};
   }
 
