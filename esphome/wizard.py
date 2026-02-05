@@ -470,7 +470,7 @@ def wizard(path: Path) -> int:
     sleep(1)
 
     # Do not create wifi if the board does not support it
-    if board not in ["rpipico"]:
+    if board != "rpipico":
         safe_print_step(3, WIFI_BIG)
         safe_print("In this step, I'm going to create the configuration for WiFi.")
         safe_print()

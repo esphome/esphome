@@ -106,8 +106,6 @@ void BME68xBSEC2Component::dump_config() {
 #endif
 }
 
-float BME68xBSEC2Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void BME68xBSEC2Component::loop() {
   this->run_();
 

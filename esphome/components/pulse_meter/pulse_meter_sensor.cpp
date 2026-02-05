@@ -125,8 +125,6 @@ void PulseMeterSensor::loop() {
   }
 }
 
-float PulseMeterSensor::get_setup_priority() const { return setup_priority::DATA; }
-
 void PulseMeterSensor::dump_config() {
   LOG_SENSOR("", "Pulse Meter", this);
   LOG_PIN("  Pin: ", this->pin_);

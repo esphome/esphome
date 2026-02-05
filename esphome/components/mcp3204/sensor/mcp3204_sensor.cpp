@@ -7,8 +7,6 @@ namespace mcp3204 {
 
 static const char *const TAG = "mcp3204.sensor";
 
-float MCP3204Sensor::get_setup_priority() const { return setup_priority::DATA; }
-
 void MCP3204Sensor::dump_config() {
   LOG_SENSOR("", "MCP3204 Sensor", this);
   ESP_LOGCONFIG(TAG,

@@ -113,7 +113,6 @@ void INA3221Component::update() {
   }
 }
 
-float INA3221Component::get_setup_priority() const { return setup_priority::DATA; }
 void INA3221Component::set_shunt_resistance(int channel, float resistance_ohm) {
   this->channels_[channel].shunt_resistance_ = resistance_ohm;
 }
