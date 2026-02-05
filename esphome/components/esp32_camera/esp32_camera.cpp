@@ -235,8 +235,6 @@ void ESP32Camera::loop() {
   this->single_requesters_ = 0;
 }
 
-float ESP32Camera::get_setup_priority() const { return setup_priority::DATA; }
-
 /* ---------------- constructors ---------------- */
 ESP32Camera::ESP32Camera() {
   this->config_.pin_pwdn = -1;

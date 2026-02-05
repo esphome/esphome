@@ -179,7 +179,6 @@ void BMP3XXComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
   }
 }
-float BMP3XXComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 inline uint8_t oversampling_to_time(Oversampling over_sampling) { return (1 << uint8_t(over_sampling)); }
 
