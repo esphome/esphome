@@ -5,16 +5,36 @@
 #include "abstract_aqi_calculator.h"
 
 // https://document.airnow.gov/technical-assistance-document-for-the-reporting-of-daily-air-quailty.pdf
+// According to this document, in order to use these breakpoints (so that they are valid), the input values must be
+// truncated as follows:
+// PM 2.5 (μg/m3) – truncate to 1 decimal place
+// PM 10 (μg/m3) – truncate to integer
 
 namespace esphome::aqi {
+
+static float trunc_1dp(float x) {
+  if (!std::isfinite(x) || x < 0.0f) {
+    return 0.0f;
+  }
+  return std::floor(x * 10.0f) / 10.0f;  // truncate to 0.1
+}
+
+static float trunc_int(float x) {
+  if (!std::isfinite(x) || x < 0.0f) {
+    return 0.0f;
+  }
+  return std::floor(x);  // truncate to integer
+}
 
 class AQICalculator : public AbstractAQICalculator {
  public:
   uint16_t get_aqi(float pm2_5_value, float pm10_0_value) override {
+    pm2_5_value = trunc_1dp(pm2_5_value);
+    pm10_0_value = trunc_int(pm10_0_value);
     float pm2_5_index = calculate_index(pm2_5_value, PM2_5_GRID);
     float pm10_0_index = calculate_index(pm10_0_value, PM10_0_GRID);
 
-    return static_cast<uint16_t>(std::round((pm2_5_index < pm10_0_index) ? pm10_0_index : pm2_5_index));
+    return static_cast<uint16_t>(std::round(std::max(pm2_5_index, pm10_0_index)));
   }
 
  protected:
