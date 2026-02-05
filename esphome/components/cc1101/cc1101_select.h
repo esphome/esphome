@@ -137,7 +137,8 @@ class CC1101Select : public select::Select,
         break;
       }
     }
-    if (!value.empty() && value != this->current_option()) {
+    if (!value.empty() && value != this->last_state_) {
+      this->last_state_ = value;
       this->publish_state(value);
     }
   }
@@ -219,6 +220,7 @@ class CC1101Select : public select::Select,
   }
 
   CC1101SelectType type_;
+  std::string last_state_;
 
   std::string get_option_name(int val, const Option *opts, size_t size) {
     for (size_t i = 0; i < size; i++) {
