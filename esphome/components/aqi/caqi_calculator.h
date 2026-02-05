@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include "abstract_aqi_calculator.h"
@@ -21,10 +22,24 @@ class CAQICalculator : public AbstractAQICalculator {
   static constexpr int INDEX_GRID[NUM_LEVELS][2] = {{0, 25}, {26, 50}, {51, 75}, {76, 100}, {101, 400}};
 
   static constexpr float PM2_5_GRID[NUM_LEVELS][2] = {
-      {0.0f, 15.0f}, {15.0f, 30.0f}, {30.0f, 55.0f}, {55.0f, 110.0f}, {110.0f, std::numeric_limits<float>::max()}};
+      // clang-format off
+      {0.0f, 15.1f - std::numeric_limits<float>::epsilon()},
+      {15.1f, 30.1f - std::numeric_limits<float>::epsilon()},
+      {30.1f, 55.1f - std::numeric_limits<float>::epsilon()},
+      {55.1f, 110.1f - std::numeric_limits<float>::epsilon()},
+      {110.1f, std::numeric_limits<float>::max()}
+      // clang-format on
+  };
 
   static constexpr float PM10_0_GRID[NUM_LEVELS][2] = {
-      {0.0f, 25.0f}, {25.0f, 50.0f}, {50.0f, 90.0f}, {90.0f, 180.0f}, {180.0f, std::numeric_limits<float>::max()}};
+      // clang-format off
+      {0.0f, 25.1f - std::numeric_limits<float>::epsilon()},
+      {25.1f, 50.1f - std::numeric_limits<float>::epsilon()},
+      {50.1f, 90.1f - std::numeric_limits<float>::epsilon()},
+      {90.1f, 180.1f - std::numeric_limits<float>::epsilon()},
+      {180.1f, std::numeric_limits<float>::max()}
+      // clang-format on
+  };
 
   static float calculate_index(float value, const float array[NUM_LEVELS][2]) {
     int grid_index = get_grid_index(value, array);
