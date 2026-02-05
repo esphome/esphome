@@ -245,6 +245,44 @@ cover:
     stop_action:
       - logger.log: stop_action
     optimistic: true
+  - platform: template
+    name: "Template Cover with Triggers"
+    id: template_cover_with_triggers
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return COVER_OPEN;
+      }
+      return COVER_CLOSED;
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    stop_action:
+      - logger.log: stop_action
+    optimistic: true
+    on_open:
+      - logger.log: "Cover on_open (deprecated)"
+    on_opened:
+      - logger.log: "Cover fully opened"
+    on_closed:
+      - logger.log: "Cover fully closed"
+    on_opening:
+      - logger.log: "Cover started opening"
+    on_closing:
+      - logger.log: "Cover started closing"
+    on_idle:
+      - logger.log: "Cover stopped moving"
+      - logger.log: "Cover stopped moving"
+      - if:
+          condition:
+            cover.is_open: template_cover_with_triggers
+          then:
+            logger.log: Cover is open
+      - if:
+          condition:
+            cover.is_closed: template_cover_with_triggers
+          then:
+            logger.log: Cover is closed
 
 number:
   - platform: template

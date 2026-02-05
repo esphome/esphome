@@ -159,7 +159,6 @@ void CurrentBasedCover::dump_config() {
                 this->start_sensing_delay_ / 1e3f, YESNO(this->malfunction_detection_));
 }
 
-float CurrentBasedCover::get_setup_priority() const { return setup_priority::DATA; }
 void CurrentBasedCover::stop_prev_trigger_() {
   if (this->prev_command_trigger_ != nullptr) {
     this->prev_command_trigger_->stop_action();

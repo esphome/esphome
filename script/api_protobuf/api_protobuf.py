@@ -280,7 +280,7 @@ class TypeInfo(ABC):
         """
         field_id_size = self.calculate_field_id_size()
         method = f"{base_method}_force" if force else base_method
-        value = value_expr if value_expr else name
+        value = value_expr or name
         return f"size.{method}({field_id_size}, {value});"
 
     @abstractmethod
