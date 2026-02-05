@@ -28,7 +28,6 @@ class CSE7761Component : public PollingComponent, public uart::UARTDevice {
   void set_current_2_sensor(sensor::Sensor *current_sensor_2) { current_sensor_2_ = current_sensor_2; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
  protected:

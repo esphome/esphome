@@ -10,9 +10,6 @@ namespace esphome::cover {
 
 static const char *const TAG = "cover";
 
-const float COVER_OPEN = 1.0f;
-const float COVER_CLOSED = 0.0f;
-
 const LogString *cover_command_to_str(float pos) {
   if (pos == COVER_OPEN) {
     return LOG_STR("OPEN");
