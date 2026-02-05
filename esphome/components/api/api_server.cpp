@@ -211,7 +211,7 @@ void APIServer::loop() {
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
     // Fire trigger after client is removed so api.connected reflects the true state
-    this->client_disconnected_trigger_->trigger(client_name, client_peername);
+    this->client_disconnected_trigger_.trigger(client_name, client_peername);
 #endif
     // Don't increment client_index since we need to process the swapped element
   }

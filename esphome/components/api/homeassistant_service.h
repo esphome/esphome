@@ -136,12 +136,10 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   void set_wants_response() { this->flags_.wants_response = true; }
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  Trigger<JsonObjectConst, Ts...> *get_success_trigger_with_response() const {
-    return this->success_trigger_with_response_;
-  }
+  Trigger<JsonObjectConst, Ts...> *get_success_trigger_with_response() { return &this->success_trigger_with_response_; }
 #endif
-  Trigger<Ts...> *get_success_trigger() const { return this->success_trigger_; }
-  Trigger<std::string, Ts...> *get_error_trigger() const { return this->error_trigger_; }
+  Trigger<Ts...> *get_success_trigger() { return &this->success_trigger_; }
+  Trigger<std::string, Ts...> *get_error_trigger() { return &this->error_trigger_; }
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 
   void play(const Ts &...x) override {
@@ -187,14 +185,14 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
               if (response.is_success()) {
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
                 if (this->flags_.wants_response) {
-                  this->success_trigger_with_response_->trigger(response.get_json(), args...);
+                  this->success_trigger_with_response_.trigger(response.get_json(), args...);
                 } else
 #endif
                 {
-                  this->success_trigger_->trigger(args...);
+                  this->success_trigger_.trigger(args...);
                 }
               } else {
-                this->error_trigger_->trigger(response.get_error_message(), args...);
+                this->error_trigger_.trigger(response.get_error_message(), args...);
               }
             },
             captured_args);
@@ -251,10 +249,10 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   TemplatableStringValue<Ts...> response_template_{""};
-  Trigger<JsonObjectConst, Ts...> *success_trigger_with_response_ = new Trigger<JsonObjectConst, Ts...>();
+  Trigger<JsonObjectConst, Ts...> success_trigger_with_response_;
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  Trigger<Ts...> *success_trigger_ = new Trigger<Ts...>();
-  Trigger<std::string, Ts...> *error_trigger_ = new Trigger<std::string, Ts...>();
+  Trigger<Ts...> success_trigger_;
+  Trigger<std::string, Ts...> error_trigger_;
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 
   struct Flags {
